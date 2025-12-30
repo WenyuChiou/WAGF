@@ -97,13 +97,18 @@ class FloodSimulation:
         
         state_changes = {}
         if agent.elevated:
+            # Elevated: 1=FI, 2=Relocate, 3=DN
             if decision == "1":
                 agent.has_insurance = True
                 state_changes["has_insurance"] = True
             elif decision == "2":
                 agent.relocated = True
                 state_changes["relocated"] = True
+            else:  # decision == "3" - INSURANCE EXPIRES
+                agent.has_insurance = False
+                state_changes["has_insurance"] = False
         else:
+            # Not elevated: 1=FI, 2=HE, 3=Relocate, 4=DN
             if decision == "1":
                 agent.has_insurance = True
                 state_changes["has_insurance"] = True
@@ -113,6 +118,9 @@ class FloodSimulation:
             elif decision == "3":
                 agent.relocated = True
                 state_changes["relocated"] = True
+            else:  # decision == "4" - INSURANCE EXPIRES
+                agent.has_insurance = False
+                state_changes["has_insurance"] = False
         
         return state_changes
     

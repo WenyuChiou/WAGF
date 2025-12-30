@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2024-12-30T12:00:00.000Z" agent="Claude" version="21.6.5" type="device">
+  <diagram name="Governed Broker Framework" id="governed-broker-architecture">
+    <mxGraphModel dx="1434" dy="780" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- Title -->
+        <mxCell id="title" value="&lt;b&gt;Governed Broker Framework - Architecture&lt;/b&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=20;" vertex="1" parent="1">
+          <mxGeometry x="350" y="20" width="400" height="40" as="geometry" />
+        </mxCell>
+        
+        <!-- Reading Order -->
+        <mxCell id="reading_order" value="Reading Order: ① LLM reasons → ② Broker validates → ③ System executes → ④ All steps audited" style="text;html=1;strokeColor=none;fillColor=#E3F2FD;align=center;verticalAlign=middle;fontSize=11;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="200" y="60" width="700" height="25" as="geometry" />
+        </mxCell>
+        
+        <!-- ==================== LLM AGENT LAYER ==================== -->
+        <mxCell id="llm_layer" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3F2FD;strokeColor=#1565C0;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="100" y="100" width="900" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="llm_layer_title" value="&lt;b&gt;LLM Agent Layer&lt;/b&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;fontSize=14;fontColor=#1565C0;" vertex="1" parent="1">
+          <mxGeometry x="110" y="105" width="200" height="25" as="geometry" />
+        </mxCell>
+        
+        <!-- LLM Agent Box -->
+        <mxCell id="llm_agent" value="&lt;b&gt;LLM Agent&lt;/b&gt;&lt;br&gt;(e.g., Llama, Gemma, GPT)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#BBDEFB;strokeColor=#1976D2;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="450" y="130" width="200" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- LLM Properties -->
+        <mxCell id="llm_prop1" value="✓ READ-ONLY access" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="680" y="130" width="120" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="llm_prop2" value="✓ Structured JSON output" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="680" y="150" width="140" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="llm_prop3" value="✗ Cannot modify state" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=10;fontColor=#D32F2F;" vertex="1" parent="1">
+          <mxGeometry x="680" y="170" width="130" height="20" as="geometry" />
+        </mxCell>
+        
+        <!-- ==================== GOVERNED BROKER LAYER ==================== -->
+        <mxCell id="broker_layer" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF3E0;strokeColor=#E65100;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="100" y="230" width="900" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="broker_layer_title" value="&lt;b&gt;Governed Broker Layer&lt;/b&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;fontSize=14;fontColor=#E65100;" vertex="1" parent="1">
+          <mxGeometry x="110" y="235" width="200" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="broker_warning" value="⚠️ NO STATE MUTATION IN THIS LAYER" style="text;html=1;strokeColor=none;fillColor=#FFCDD2;align=center;verticalAlign=middle;fontSize=11;fontColor=#C62828;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="600" y="235" width="280" height="20" as="geometry" />
+        </mxCell>
+        
+        <!-- Context Builder -->
+        <mxCell id="context_builder" value="&lt;b&gt;Context Builder&lt;/b&gt;&lt;br&gt;Build bounded context" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#FB8C00;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="130" y="280" width="150" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Validation -->
+        <mxCell id="validation" value="&lt;b&gt;Validation Engine&lt;/b&gt;&lt;br&gt;Schema, Policy, PMT" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#FB8C00;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="350" y="280" width="150" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Retry Manager -->
+        <mxCell id="retry" value="&lt;b&gt;Retry Manager&lt;/b&gt;&lt;br&gt;Max 2 retries" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#FB8C00;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="570" y="280" width="130" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Audit Writer -->
+        <mxCell id="audit" value="&lt;b&gt;Audit Writer&lt;/b&gt;&lt;br&gt;JSONL traces" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE0B2;strokeColor=#FB8C00;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="770" y="280" width="120" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Broker arrows -->
+        <mxCell id="arrow_ctx_val" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#FB8C00;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="280" y="310" as="sourcePoint" />
+            <mxPoint x="350" y="310" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow_val_retry" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#FB8C00;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="500" y="310" as="sourcePoint" />
+            <mxPoint x="570" y="310" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow_retry_audit" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#FB8C00;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="700" y="310" as="sourcePoint" />
+            <mxPoint x="770" y="310" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- Interfaces -->
+        <mxCell id="read_interface" value="Read&lt;br&gt;Interface" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFCC80;strokeColor=#EF6C00;strokeWidth=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="130" y="360" width="80" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="action_interface" value="Action Request&lt;br&gt;Interface" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFCC80;strokeColor=#EF6C00;strokeWidth=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="385" y="360" width="80" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="exec_interface" value="Execution&lt;br&gt;Interface" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFCC80;strokeColor=#EF6C00;strokeWidth=1;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="600" y="360" width="80" height="40" as="geometry" />
+        </mxCell>
+        
+        <!-- ==================== SIMULATION ENGINE LAYER ==================== -->
+        <mxCell id="sim_layer" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8F5E9;strokeColor=#2E7D32;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="100" y="440" width="900" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="sim_layer_title" value="&lt;b&gt;Simulation Engine Layer&lt;/b&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;fontSize=14;fontColor=#2E7D32;" vertex="1" parent="1">
+          <mxGeometry x="110" y="445" width="200" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="sim_ok" value="✅ ALL STATE MUTATIONS HAPPEN HERE" style="text;html=1;strokeColor=none;fillColor=#C8E6C9;align=center;verticalAlign=middle;fontSize=11;fontColor=#1B5E20;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="600" y="445" width="280" height="20" as="geometry" />
+        </mxCell>
+        
+        <!-- Environment -->
+        <mxCell id="environment" value="&lt;b&gt;Environment&lt;/b&gt;&lt;br&gt;/ Hazard" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#A5D6A7;strokeColor=#388E3C;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="130" y="490" width="120" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- System State -->
+        <mxCell id="system_state" value="&lt;b&gt;System State&lt;/b&gt;&lt;br&gt;(incl. memory variables)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#A5D6A7;strokeColor=#388E3C;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="350" y="490" width="160" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Action Execution -->
+        <mxCell id="action_exec" value="&lt;b&gt;Action Execution&lt;/b&gt;&lt;br&gt;State &amp; memory update" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#A5D6A7;strokeColor=#388E3C;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="600" y="490" width="160" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- Arrows between engine components -->
+        <mxCell id="arrow_env_state" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#388E3C;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="250" y="520" as="sourcePoint" />
+            <mxPoint x="350" y="520" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow_exec_state" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#388E3C;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="600" y="540" as="sourcePoint" />
+            <mxPoint x="510" y="540" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        
+        <!-- ==================== CROSS-LAYER ARROWS ==================== -->
+        <!-- Arrow 1: Bounded Context (up) -->
+        <mxCell id="arrow1" value="" style="endArrow=classic;html=1;strokeWidth=3;strokeColor=#1976D2;entryX=0.25;entryY=1;exitX=0.25;exitY=0;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="170" y="280" as="sourcePoint" />
+            <mxPoint x="170" y="200" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow1_label" value="①&lt;br&gt;Bounded&lt;br&gt;Context" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=9;fontColor=#1976D2;" vertex="1" parent="1">
+          <mxGeometry x="120" y="215" width="50" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- Arrow 2: Structured Output (down) -->
+        <mxCell id="arrow2" value="" style="endArrow=classic;html=1;strokeWidth=3;strokeColor=#E65100;entryX=0.5;entryY=0;exitX=0.5;exitY=1;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="550" y="180" as="sourcePoint" />
+            <mxPoint x="550" y="230" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow2_label" value="② Structured&lt;br&gt;Output (JSON)" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=9;fontColor=#E65100;" vertex="1" parent="1">
+          <mxGeometry x="555" y="195" width="80" height="30" as="geometry" />
+        </mxCell>
+        
+        <!-- Arrow 3: Read Observable State (up from engine to broker) -->
+        <mxCell id="arrow3" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#2E7D32;dashed=1;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="170" y="490" as="sourcePoint" />
+            <mxPoint x="170" y="400" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow3_label" value="Observable&lt;br&gt;signals" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=9;fontColor=#2E7D32;" vertex="1" parent="1">
+          <mxGeometry x="175" y="435" width="60" height="30" as="geometry" />
+        </mxCell>
+        
+        <!-- Arrow 4: Action Request (down) -->
+        <mxCell id="arrow4" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#E65100;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="425" y="400" as="sourcePoint" />
+            <mxPoint x="425" y="490" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow4_label" value="④ Action&lt;br&gt;Request" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=9;fontColor=#E65100;" vertex="1" parent="1">
+          <mxGeometry x="430" y="430" width="60" height="30" as="geometry" />
+        </mxCell>
+        
+        <!-- Arrow 5: System Execution (down) -->
+        <mxCell id="arrow5" value="" style="endArrow=classic;html=1;strokeWidth=3;strokeColor=#2E7D32;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="640" y="400" as="sourcePoint" />
+            <mxPoint x="640" y="490" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow5_label" value="⑤ Execute&lt;br&gt;(STATE CHANGE)" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=9;fontColor=#2E7D32;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="645" y="430" width="90" height="30" as="geometry" />
+        </mxCell>
+        
+        <!-- Arrow 6: Audit Trace -->
+        <mxCell id="arrow6" value="" style="endArrow=classic;html=1;strokeWidth=2;strokeColor=#FB8C00;dashed=1;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="830" y="340" as="sourcePoint" />
+            <mxPoint x="830" y="570" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow6_label" value="Audit&lt;br&gt;Trace&lt;br&gt;(JSONL)" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=9;fontColor=#FB8C00;" vertex="1" parent="1">
+          <mxGeometry x="840" y="420" width="50" height="45" as="geometry" />
+        </mxCell>
+        
+        <!-- Audit file icon -->
+        <mxCell id="audit_file" value="📄 audit_trace.jsonl" style="text;html=1;strokeColor=none;fillColor=#FFF3E0;align=center;verticalAlign=middle;fontSize=11;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="780" y="570" width="120" height="25" as="geometry" />
+        </mxCell>
+        
+        <!-- Legend -->
+        <mxCell id="legend_box" value="" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FAFAFA;strokeColor=#9E9E9E;" vertex="1" parent="1">
+          <mxGeometry x="100" y="620" width="400" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="legend_title" value="&lt;b&gt;Legend&lt;/b&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="110" y="625" width="60" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="legend1" value="■ LLM Layer (READ-ONLY)" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=10;fontColor=#1565C0;" vertex="1" parent="1">
+          <mxGeometry x="110" y="645" width="150" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="legend2" value="■ Broker Layer (NO MUTATION)" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=10;fontColor=#E65100;" vertex="1" parent="1">
+          <mxGeometry x="110" y="665" width="180" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="legend3" value="■ Engine Layer (STATE CHANGES)" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=10;fontColor=#2E7D32;" vertex="1" parent="1">
+          <mxGeometry x="300" y="645" width="180" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="legend4" value="→ Data flow / — Dashed = read-only" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="300" y="665" width="180" height="20" as="geometry" />
+        </mxCell>
+        
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
