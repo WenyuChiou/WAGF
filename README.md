@@ -36,22 +36,27 @@ To use this framework, you must define:
 👉 **See [`docs/integration_guide.md`](docs/integration_guide.md) for complete details.**
 
 ---
-                        │
-┌───────────────────────▼─────────────────────────────────────┐
-│                 Governed Broker Layer                       │
-│  • Validates LLM output (schema, policy, theory)            │
-│  • Handles retry on validation failure                      │
-│  • Writes audit traces (JSONL)                              │
-│  • NO STATE MUTATION                                        │
-└───────────────────────┬─────────────────────────────────────┘
-                        │
-┌───────────────────────▼─────────────────────────────────────┐
-│               Simulation Engine Layer                       │
-│  • Executes validated decisions                             │
-│  • Updates state and memory                                 │
-│  • ALL causality happens here                               │
-└─────────────────────────────────────────────────────────────┘
-```
+
+## Architecture
+
+![Architecture Diagram](docs/architecture_diagram.png)
+
+### Three-Layer Design
+
+| Layer | Responsibility | Key Rule |
+|-------|---------------|----------|
+| **LLM Agent** | Generate decisions from bounded context | READ-ONLY access |
+| **Governed Broker** | Validate, retry, audit | NO STATE MUTATION |
+| **Simulation Engine** | Execute decisions, update state | ALL CAUSALITY HERE |
+
+### Information Flow
+
+1. **①** Broker builds bounded context → LLM
+2. **②** LLM produces structured JSON output → Broker
+3. **③** Broker validates against domain rules
+4. **④** Validated request → Engine
+5. **⑤** Engine executes → State changes
+6. **⑥** All steps audited to JSONL
 
 ---
 
