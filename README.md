@@ -1,147 +1,191 @@
 # Governed Broker Framework
 
-**A governance middleware for LLM-driven Agent-Based Models (ABMs)**
-
-Designed for single-domain agent simulations where LLM agents make decisions under governance constraints.
+**[English](#english) | [中文](#中文)**
 
 ---
 
-## Quick Start
+## English
+
+**A governance middleware for LLM-driven Agent-Based Models (ABMs)**
+
+### ✨ What's New in v0.2 - Skill-Governed Architecture
+
+| v0.1 Action-Based | v0.2 Skill-Governed |
+|-------------------|---------------------|
+| LLM outputs `action_code: "1"` | LLM outputs `skill_name: "buy_insurance"` |
+| Format + PMT validation | 5-stage validation pipeline |
+| Single LLM parser | Multi-LLM adapters (Ollama, OpenAI) |
+| Implicit MCP role | MCP = execution substrate only |
+
+👉 **See [`docs/skill_architecture.md`](docs/skill_architecture.md) for detailed architecture comparison.**
+
+---
+
+### Quick Start
 
 ```bash
 # Install
 pip install -e .
 
-# Run flood adaptation example
+# Run with Skill-Governed API (v0.2)
 cd examples/flood_adaptation
 python run.py --model llama3.2:3b --num-agents 100 --num-years 10
 ```
 
 ---
 
-## 📋 Framework Requirements
+### Architecture
 
-To use this framework, you must define:
+![Skill Architecture Diagram](docs/skill_architecture_diagram.png)
 
-| # | Element | Required | Description |
-|---|---------|----------|-------------|
-| 1 | **Domain Config** | ✅ | YAML configuration file |
-| 2 | **State Schema** | ✅ | Agent state structure |
-| 3 | **Action Catalog** | ✅ | Available actions |
-| 4 | **Prompt Template** | ✅ | LLM prompt design |
-| 5 | **Validators** | ⚠️ Optional | Domain validation rules |
-| 6 | **Memory Rules** | ⚠️ Optional | Memory update logic |
-| 7 | **Simulation Engine** | ✅ | State transition logic |
-
-👉 **See [`docs/integration_guide.md`](docs/integration_guide.md) for complete details.**
-
----
-
-## Architecture
-
-![Architecture Diagram](docs/architecture_diagram.png)
-
-### Three-Layer Design
+#### Three-Layer Design (Preserved)
 
 | Layer | Responsibility | Key Rule |
 |-------|---------------|----------|
-| **LLM Agent** | Generate decisions from bounded context | READ-ONLY access |
-| **Governed Broker** | Validate, retry, audit | NO STATE MUTATION |
-| **Simulation Engine** | Execute decisions, update state | ALL CAUSALITY HERE |
+| **LLM Agent** | Propose skills from bounded context | READ-ONLY access |
+| **Governed Broker** | Validate via SkillRegistry, retry, audit | NO STATE MUTATION |
+| **Simulation Engine** | Execute approved skills, update state | SYSTEM-ONLY |
 
-### Information Flow
-
-1. **①** Broker builds bounded context → LLM
-2. **②** LLM produces structured JSON output → Broker
-3. **③** Broker validates against domain rules
-4. **④** Validated request → Engine
-5. **⑤** Engine executes → State changes
-6. **⑥** All steps audited to JSONL
-
----
-
-## Repository Structure
+#### Skill-Governed Flow
 
 ```
-governed_broker_framework/
-├── broker/                    # Core governance layer
-│   ├── engine.py              # Main broker orchestrator
-│   ├── context_builder.py     # Builds bounded LLM context
-│   ├── audit_writer.py        # JSONL audit logging
-│   ├── replay.py              # Deterministic replay
-│   └── types.py               # Core data types
-│
-├── interfaces/                # Cross-layer communication
-│   ├── read_interface.py      # Read-only state access
-│   ├── action_request_interface.py  # Action intent (④)
-│   └── execution_interface.py # System-only execution (⑥)
-│
-├── validators/                # Validation plugins
-│   └── base.py                # Base validators
-│
-├── config/                    # Domain configurations
-│   └── domains/
-│       └── flood_adaptation.yaml
-│
-├── examples/                  # Domain examples
-│   └── flood_adaptation/      # PMT-based flood ABM
-│       ├── prompts.py         # LLM prompt template
-│       ├── validators.py      # PMT validators
-│       ├── memory.py          # Memory manager
-│       └── trust_update.py    # Trust dynamics
-│
-├── docs/                      # Documentation
-│   ├── architecture.md
-│   └── customization_guide.md
-│
-└── tests/                     # Unit tests
+① LLM proposes skill → ② ModelAdapter parses → ③ SkillRegistry validates
+→ ④ 5-stage validation → ⑤ ApprovedSkill → ⑥ System executes
+→ ⑦ All steps audited
 ```
 
 ---
 
-## Flood Adaptation Example
+### Key Components
 
-Simulates residents making flood adaptation decisions using Protection Motivation Theory (PMT).
-
-### Actions
-| Code | Action | Description |
-|------|--------|-------------|
-| 1 | Buy Insurance | Financial protection |
-| 2 | Elevate House | Physical protection |
-| 3 | Relocate | Permanent risk elimination |
-| 4 | Do Nothing | No action |
-
-### Validators
-- **PMTConsistencyValidator**: High threat + High efficacy + Do Nothing = Inconsistent
-- **FloodResponseValidator**: Flood occurred + Claims safe = Inconsistent
-
-### Trust Dynamics
-- 4-scenario insurance trust update
-- Neighbor influence (social proof)
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| `SkillProposal` | `broker/skill_types.py` | LLM output schema |
+| `SkillRegistry` | `broker/skill_registry.py` | Institutional rules |
+| `ModelAdapter` | `broker/model_adapter.py` | Multi-LLM support |
+| `SkillBrokerEngine` | `broker/skill_broker_engine.py` | Main orchestrator |
+| `SkillValidators` | `validators/skill_validators.py` | 5-stage validation |
 
 ---
 
-## Key Principles
+### Validation Pipeline
 
-1. **LLM is READ-ONLY**: Cannot modify state directly
-2. **Broker validates, never mutates**: Governance only
-3. **Engine owns causality**: All state changes
-4. **Audit everything**: Reproducible traces
-5. **Deterministic replay**: Same seed = Same result
-
----
-
-## Configuration
-
-See `config/domains/flood_adaptation.yaml` for complete domain configuration including:
-- State schema
-- Observable signals
-- Action catalog
-- Validator settings
-- Audit policy
+| Validator | Checks |
+|-----------|--------|
+| **SkillAdmissibility** | Skill exists? Agent eligible? |
+| **ContextFeasibility** | Preconditions met? |
+| **InstitutionalConstraint** | Once-only? Annual limit? |
+| **EffectSafety** | Safe state changes? |
+| **PMTConsistency** | Reasoning consistent? |
 
 ---
 
-## License
+### MCP Role
+
+| MCP Does ✅ | MCP Does NOT ❌ |
+|-------------|----------------|
+| Execution | Decision making |
+| Sandbox | Expose to LLM |
+| Logging | Governance |
+
+> MCP = **Execution Substrate**, not a governance unit.
+
+---
+
+### License
+
+MIT
+
+---
+
+## 中文
+
+**LLM 驅動 Agent-Based Model (ABM) 的治理中介層**
+
+### ✨ v0.2 新功能 - 技能治理架構
+
+| v0.1 動作導向 | v0.2 技能治理 |
+|---------------|---------------|
+| LLM 輸出 `action_code: "1"` | LLM 輸出 `skill_name: "buy_insurance"` |
+| 格式 + PMT 驗證 | 5 階段驗證管線 |
+| 單一 LLM 解析器 | 多 LLM 適配器 (Ollama, OpenAI) |
+| 隱含的 MCP 角色 | MCP = 僅作為執行基底 |
+
+👉 **詳見 [`docs/skill_architecture.md`](docs/skill_architecture.md)**
+
+---
+
+### 快速開始
+
+```bash
+# 安裝
+pip install -e .
+
+# 執行技能治理 API (v0.2)
+cd examples/flood_adaptation
+python run.py --model llama3.2:3b --num-agents 100 --num-years 10
+```
+
+---
+
+### 架構
+
+![技能架構圖](docs/skill_architecture_diagram.png)
+
+#### 三層設計（保留）
+
+| 層級 | 職責 | 核心規則 |
+|------|------|----------|
+| **LLM Agent** | 從有界脈絡提出技能 | 唯讀存取 |
+| **Governed Broker** | 透過 SkillRegistry 驗證、重試、審計 | 不可變更狀態 |
+| **Simulation Engine** | 執行已核准技能、更新狀態 | 僅系統可執行 |
+
+#### 技能治理流程
+
+```
+① LLM 提出技能 → ② ModelAdapter 解析 → ③ SkillRegistry 驗證
+→ ④ 5 階段驗證 → ⑤ ApprovedSkill → ⑥ 系統執行
+→ ⑦ 所有步驟皆審計
+```
+
+---
+
+### 核心元件
+
+| 元件 | 位置 | 用途 |
+|------|------|------|
+| `SkillProposal` | `broker/skill_types.py` | LLM 輸出格式 |
+| `SkillRegistry` | `broker/skill_registry.py` | 制度規則 |
+| `ModelAdapter` | `broker/model_adapter.py` | 多 LLM 支援 |
+| `SkillBrokerEngine` | `broker/skill_broker_engine.py` | 主協調器 |
+| `SkillValidators` | `validators/skill_validators.py` | 5 階段驗證 |
+
+---
+
+### 驗證管線
+
+| 驗證器 | 檢查項目 |
+|--------|----------|
+| **SkillAdmissibility** | 技能存在？代理有權限？ |
+| **ContextFeasibility** | 前置條件滿足？ |
+| **InstitutionalConstraint** | 單次限制？年度限制？ |
+| **EffectSafety** | 狀態變更安全？ |
+| **PMTConsistency** | 推理一致？ |
+
+---
+
+### MCP 角色
+
+| MCP 負責 ✅ | MCP 不負責 ❌ |
+|-------------|---------------|
+| 執行 | 決策 |
+| 沙盒 | 暴露給 LLM |
+| 日誌 | 治理 |
+
+> MCP = **執行基底**，而非治理單位。
+
+---
+
+### 授權
 
 MIT
