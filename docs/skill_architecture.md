@@ -57,101 +57,64 @@ Version 0.2 introduces a **Skill-Governed Architecture** that elevates governanc
 
 ---
 
-## Complete Data Flow (with Context Feedback Loop)
+## Complete Data Flow
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                        SIMULATION / WORLD LAYER                              │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
-│  │ Environment │  │   Memory    │  │   Social    │  │ Agent State │        │
-│  │ (flood,     │  │ (past       │  │ (neighbors, │  │ (elevated,  │        │
-│  │  year)      │  │  events)    │  │  community) │  │  insurance) │        │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘        │
-└─────────┼────────────────┼────────────────┼────────────────┼────────────────┘
-          │                │                │                │
-          └────────────────┴────────────────┴────────────────┘
-                                    │
-                                    ▼ READ-ONLY
-                    ┌───────────────────────────────┐
-                    │      Context Builder          │
-                    │  (builds bounded prompt)      │
-                    └───────────────┬───────────────┘
-                                    │
-        ┌───────────────────────────┴───────────────────────────┐
-        │                   BOUNDED CONTEXT                      │
-        │  • "A flood occurred this year"                       │
-        │  • "You have moderate trust in neighbors"             │
-        │  • "Your memory: Year 3 flood, Year 4 relocations"    │
-        │  • "You do not have flood insurance"                  │
-        └───────────────────────────┬───────────────────────────┘
-                                    │
-                                    ▼
-                    ┌───────────────────────────────┐
-                    │          LLM AGENT            │
-                    │   (proposes skill based on    │
-                    │    context and PMT theory)    │
-                    └───────────────┬───────────────┘
-                                    │
-                                    ▼ Skill Proposal
-                    ┌───────────────────────────────┐
-                    │      GOVERNED BROKER          │
-                    │  ┌─────────────────────────┐  │
-                    │  │     Model Adapter       │  │
-                    │  │  (parse → SkillProposal)│  │
-                    │  └───────────┬─────────────┘  │
-                    │              ▼                │
-                    │  ┌─────────────────────────┐  │
-                    │  │    Skill Registry       │  │
-                    │  │  (institutional rules)  │  │
-                    │  └───────────┬─────────────┘  │
-                    │              ▼                │
-                    │  ┌─────────────────────────┐  │
-                    │  │  6-Stage Validation:    │  │
-                    │  │  • Admissibility        │  │
-                    │  │  • Feasibility          │  │
-                    │  │  • Constraints          │  │
-                    │  │  • Effect Safety        │  │
-                    │  │  • PMT Consistency      │  │
-                    │  │  • Uncertainty Check    │  │
-                    │  └───────────┬─────────────┘  │
-                    │              ▼                │
-                    │       Approved Skill          │
-                    └───────────────┬───────────────┘
-                                    │
-                                    ▼ SYSTEM-ONLY EXECUTION
-                    ┌───────────────────────────────┐
-                    │    SIMULATION ENGINE          │
-                    │  (execute skill → mutate      │
-                    │   state → update memory)      │
-                    └───────────────┬───────────────┘
-                                    │
-                                    ▼ State Changes
-          ┌─────────────────────────┴─────────────────────────┐
-          │  • has_insurance = True                           │
-          │  • memory.append("Year 5: Chose buy_insurance")   │
-          │  • trust_in_insurance += 0.05                     │
-          └───────────────────────────────────────────────────┘
-                                    │
-                                    └──────────────────────────────────┐
-                                                                       │
-                    ┌──────────────────────────────────────────────────┘
-                    │ FEEDBACK LOOP: Updated state flows back to
-                    │ Context Builder for next decision cycle
+┌─────────────────────────────────────────────────────────────────┐
+│                    SIMULATION / WORLD                           │
+│  ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐    │
+│  │Environment│  │  Memory   │  │  Social   │  │Agent State│    │
+│  └─────┬─────┘  └─────┬─────┘  └─────┬─────┘  └─────┬─────┘    │
+└────────┼──────────────┼──────────────┼──────────────┼───────────┘
+         └──────────────┴──────────────┴──────────────┘
+                               │
+                               ▼ READ-ONLY
+                    ┌─────────────────────┐
+                    │   Context Builder   │
+                    └──────────┬──────────┘
+                               │
+                               ▼ Bounded Context
+                    ┌─────────────────────┐
+                    │      LLM Agent      │
+                    └──────────┬──────────┘
+                               │
+                               ▼ Skill Proposal
+         ┌─────────────────────────────────────────────────────┐
+         │              GOVERNED BROKER                         │
+         │  ┌─────────────┐  ┌───────────┐  ┌───────────────┐  │
+         │  │Model Adapter│→ │ Registry  │→ │  Validation   │  │
+         │  └─────────────┘  └───────────┘  └───────────────┘  │
+         │                         ↓                            │
+         │               ┌─────────────────┐                    │
+         │               │  Audit Writer   │                    │
+         │               └─────────────────┘                    │
+         └────────────────────────┬────────────────────────────┘
+                                  │
+                                  ▼ Approved Skill (SYSTEM-ONLY)
+                    ┌─────────────────────┐
+                    │  Simulation Engine  │
+                    │  (execute & update) │
+                    └──────────┬──────────┘
+                               │
+                               └─────────────────────────────┐
+                                                             │
+                    ┌────────────────────────────────────────┘
+                    │ FEEDBACK: State updates flow back
                     ▼
-          [Next Year: Context Builder reads updated state]
+              [Next cycle: Context Builder reads updated state]
 ```
 
 ---
 
 ## Context vs Skill
 
-| Concept | Type | Flow Direction | Example |
-|---------|------|----------------|---------|
-| **Environment** | Context | World → LLM | "Flood occurred this year" |
-| **Memory** | Context | World → LLM | "Past floods: Y3, Y4, Y9" |
-| **Social** | Context | World → LLM | "Neighbors are elevating" |
-| **Agent State** | Context | World → LLM | "House not elevated" |
-| **Skill** | Action | LLM → World | `buy_insurance`, `elevate_house` |
+| Concept | Type | Direction |
+|---------|------|-----------|
+| Environment | Context | World → LLM |
+| Memory | Context | World → LLM |
+| Social | Context | World → LLM |
+| Agent State | Context | World → LLM |
+| **Skill** | **Action** | **LLM → World** |
 
 | Aspect | v0.1 Action-Based | v0.2 Skill-Governed |
 |--------|-------------------|---------------------|
