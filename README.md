@@ -50,7 +50,7 @@ cloud_response = registry.get("cloud").invoke(prompt)
 
 | Single LLM Mode | Multi-LLM Mode |
 |-----------------|----------------|
-| ![Single LLM](docs/single_llm_architecture.png) | ![Multi LLM](docs/multi_llm_architecture.png) |
+| ![Single LLM](docs/skill_architecture_diagram.png) | ![Multi LLM](docs/multi_llm_architecture.png) |
 
 ### Key Components
 
