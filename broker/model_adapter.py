@@ -6,9 +6,11 @@ The Model Adapter has ONLY two responsibilities:
 2. Format rejection/retry → LLM prompt
 
 NO domain logic should exist in adapters!
+
+v0.3: Unified adapter with optional preprocessor for model-specific quirks.
 """
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Callable
 import re
 
 from skill_types import SkillProposal
@@ -51,10 +53,25 @@ class ModelAdapter(ABC):
         pass
 
 
-class OllamaAdapter(ModelAdapter):
-    """Adapter for Ollama models (Llama, Gemma, DeepSeek, etc.)."""
+class UnifiedAdapter(ModelAdapter):
+    """
+    Unified adapter supporting all models with optional preprocessor.
     
-    # Skill name mappings from decision codes
+    This replaces the need for separate OllamaAdapter, OpenAIAdapter, etc.
+    Model-specific quirks (like DeepSeek's <think> tags) are handled via preprocessor.
+    
+    Usage:
+        # Standard models (Llama, Gemma, GPT-OSS)
+        adapter = UnifiedAdapter()
+        
+        # DeepSeek with <think> tag removal
+        adapter = UnifiedAdapter(preprocessor=deepseek_preprocessor)
+    """
+    
+    # Valid skill names (domain-agnostic, loaded from context or config)
+    DEFAULT_VALID_SKILLS = {"buy_insurance", "elevate_house", "relocate", "do_nothing"}
+    
+    # Skill name mappings from decision codes (legacy support)
     SKILL_MAP_NON_ELEVATED = {
         "1": "buy_insurance",
         "2": "elevate_house",
@@ -68,16 +85,34 @@ class OllamaAdapter(ModelAdapter):
         "3": "do_nothing"
     }
     
-    # Valid skill names for direct parsing
-    VALID_SKILLS = {"buy_insurance", "elevate_house", "relocate", "do_nothing"}
+    def __init__(
+        self,
+        preprocessor: Optional[Callable[[str], str]] = None,
+        valid_skills: Optional[set] = None
+    ):
+        """
+        Initialize unified adapter.
+        
+        Args:
+            preprocessor: Optional function to preprocess raw output
+                          (e.g., strip <think> tags for DeepSeek)
+            valid_skills: Optional set of valid skill names
+        """
+        self.preprocessor = preprocessor or (lambda x: x)
+        self.valid_skills = valid_skills or self.DEFAULT_VALID_SKILLS
     
     def parse_output(self, raw_output: str, context: Dict[str, Any]) -> Optional[SkillProposal]:
-        """Parse Ollama model output into SkillProposal.
+        """
+        Parse LLM output into SkillProposal.
         
-        Supports both:
-        - New format: 'Skill: buy_insurance' (first line)
+        Supports multiple output formats:
+        - New format: 'Skill: buy_insurance'
+        - Decision format: 'Decision: buy_insurance'
         - Legacy format: 'Final Decision: 1' or 'Final Decision: buy_insurance'
         """
+        # Apply preprocessor (e.g., remove <think> tags)
+        cleaned_output = self.preprocessor(raw_output)
+        
         agent_id = context.get("agent_id", "unknown")
         is_elevated = context.get("is_elevated", False)
         
@@ -86,14 +121,14 @@ class OllamaAdapter(ModelAdapter):
         coping_appraisal = ""
         skill_name = None
         
-        lines = raw_output.strip().split('\n')
+        lines = cleaned_output.strip().split('\n')
         for line in lines:
             line = line.strip()
             
-            # NEW FORMAT: Look for "Skill:" or "Decision:" first (should be first line)
+            # Format 1: "Skill:" or "Decision:" (new format)
             if line.lower().startswith("skill:") or (line.lower().startswith("decision:") and not skill_name):
                 decision_text = line.split(":", 1)[1].strip().lower() if ":" in line else ""
-                for skill in self.VALID_SKILLS:
+                for skill in self.valid_skills:
                     if skill in decision_text:
                         skill_name = skill
                         break
@@ -104,17 +139,17 @@ class OllamaAdapter(ModelAdapter):
             elif line.lower().startswith("coping appraisal:"):
                 coping_appraisal = line.split(":", 1)[1].strip() if ":" in line else ""
             
-            # LEGACY FORMAT: Also check "Final Decision:" for backward compatibility
+            # Format 2: "Final Decision:" (legacy format)
             elif line.lower().startswith("final decision:") and not skill_name:
                 decision_text = line.split(":", 1)[1].strip().lower() if ":" in line else ""
                 
                 # Try to find skill name directly
-                for skill in self.VALID_SKILLS:
+                for skill in self.valid_skills:
                     if skill in decision_text:
                         skill_name = skill
                         break
                 
-                # Fallback: try to find digit for legacy support
+                # Fallback: try to find digit for legacy code mapping
                 if not skill_name:
                     for char in decision_text:
                         if char.isdigit():
@@ -138,7 +173,7 @@ class OllamaAdapter(ModelAdapter):
         )
     
     def format_retry_prompt(self, original_prompt: str, errors: List[str]) -> str:
-        """Format retry prompt for Ollama models."""
+        """Format retry prompt with validation errors."""
         error_text = ", ".join(errors)
         return f"""Your previous response was flagged for the following issues:
 {error_text}
@@ -148,74 +183,66 @@ Please reconsider your decision and respond again.
 {original_prompt}"""
 
 
-class OpenAIAdapter(ModelAdapter):
-    """Adapter for OpenAI models (GPT-4, etc.)."""
-    
-    SKILL_MAP_NON_ELEVATED = {
-        "1": "buy_insurance",
-        "2": "elevate_house",
-        "3": "relocate",
-        "4": "do_nothing"
-    }
-    
-    SKILL_MAP_ELEVATED = {
-        "1": "buy_insurance",
-        "2": "relocate",
-        "3": "do_nothing"
-    }
-    
-    def parse_output(self, raw_output: str, context: Dict[str, Any]) -> Optional[SkillProposal]:
-        """Parse OpenAI model output into SkillProposal."""
-        # Same parsing logic as Ollama for now
-        # Can be extended for JSON mode outputs
-        agent_id = context.get("agent_id", "unknown")
-        is_elevated = context.get("is_elevated", False)
-        
-        threat_appraisal = ""
-        coping_appraisal = ""
-        decision_code = ""
-        
-        lines = raw_output.strip().split('\n')
-        for line in lines:
-            line = line.strip()
-            if line.lower().startswith("threat appraisal:"):
-                threat_appraisal = line.split(":", 1)[1].strip() if ":" in line else ""
-            elif line.lower().startswith("coping appraisal:"):
-                coping_appraisal = line.split(":", 1)[1].strip() if ":" in line else ""
-            elif line.lower().startswith("final decision:"):
-                decision_text = line.split(":", 1)[1].strip() if ":" in line else ""
-                for char in decision_text:
-                    if char.isdigit():
-                        decision_code = char
-                        break
-        
-        skill_map = self.SKILL_MAP_ELEVATED if is_elevated else self.SKILL_MAP_NON_ELEVATED
-        skill_name = skill_map.get(decision_code, "do_nothing")
-        
-        return SkillProposal(
-            skill_name=skill_name,
-            agent_id=agent_id,
-            reasoning={"threat": threat_appraisal, "coping": coping_appraisal},
-            confidence=1.0,
-            raw_output=raw_output
-        )
-    
-    def format_retry_prompt(self, original_prompt: str, errors: List[str]) -> str:
-        """Format retry prompt for OpenAI models."""
-        return f"""Your previous response was flagged:
-{', '.join(errors)}
+# =============================================================================
+# PREPROCESSORS for model-specific quirks
+# =============================================================================
 
-Please reconsider and respond again.
+def deepseek_preprocessor(text: str) -> str:
+    """
+    Preprocessor for DeepSeek models.
+    Removes <think>...</think> reasoning tags.
+    """
+    return re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
 
-{original_prompt}"""
 
+def json_preprocessor(text: str) -> str:
+    """
+    Preprocessor for models that may return JSON.
+    Extracts text content from JSON if present.
+    """
+    import json
+    try:
+        data = json.loads(text)
+        if isinstance(data, dict):
+            # Look for common fields
+            for key in ['response', 'output', 'text', 'content']:
+                if key in data:
+                    return str(data[key])
+        return text
+    except json.JSONDecodeError:
+        return text
+
+
+# =============================================================================
+# FACTORY FUNCTION
+# =============================================================================
 
 def get_adapter(model_name: str) -> ModelAdapter:
-    """Get the appropriate adapter for a model."""
+    """
+    Get the appropriate adapter for a model.
+    
+    Uses UnifiedAdapter with model-specific preprocessor if needed.
+    """
     model_lower = model_name.lower()
     
-    if any(x in model_lower for x in ['gpt', 'openai']):
-        return OpenAIAdapter()
-    else:
-        # Default to Ollama adapter for local models
-        return OllamaAdapter()
+    # DeepSeek models use <think> tags
+    if 'deepseek' in model_lower:
+        return UnifiedAdapter(preprocessor=deepseek_preprocessor)
+    
+    # All other models use standard adapter
+    # (Llama, Gemma, GPT-OSS, OpenAI, Anthropic, etc.)
+    return UnifiedAdapter()
+
+
+# =============================================================================
+# LEGACY ALIASES (for backward compatibility)
+# =============================================================================
+
+class OllamaAdapter(UnifiedAdapter):
+    """Alias for UnifiedAdapter (backward compatibility)."""
+    pass
+
+
+class OpenAIAdapter(UnifiedAdapter):
+    """Alias for UnifiedAdapter (backward compatibility)."""
+    pass
