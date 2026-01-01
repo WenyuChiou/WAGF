@@ -48,19 +48,19 @@ cloud_response = registry.get("cloud").invoke(prompt)
 
 ### Architecture
 
-| Single LLM Mode | Multi-LLM Mode |
-|-----------------|----------------|
-| ![Single LLM](docs/skill_architecture_diagram.png) | ![Multi LLM](docs/multi_llm_architecture.png) |
+| Single-Agent | Multi-Agent |
+|--------------|-------------|
+| ![Single-Agent](docs/single_agent_architecture.png) | ![Multi-Agent](docs/multi_agent_architecture.png) |
 
 ### Key Components
 
 | Component | Purpose |
 |-----------|---------|
-| `SkillBrokerEngine` | Main orchestrator |
-| `LLMProviderRegistry` | Multi-LLM management |
-| `DomainConfigLoader` | YAML-driven config |
+| `SkillBrokerEngine` | Main orchestrator with agent_type support |
+| `StateManager` | Individual/Shared/Institutional state |
+| `SkillRegistry` | Skills with agent type eligibility |
+| `LLMProviderRegistry` | Multi-LLM management (Ollama default) |
 | `ValidatorFactory` | Dynamic validator loading |
-| `RateLimiter` | API rate control |
 
 ### Validation Pipeline
 
