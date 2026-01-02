@@ -199,29 +199,34 @@ Each SkillProposal passes through a **configurable validation pipeline**:
 ```
 SkillProposal → [Validator 1] → [Validator 2] → ... → [Validator N] → Execution
                     ↓               ↓                    ↓
-               If FAIL → Reject with reason, fallback to "do_nothing"
+               If FAIL → Reject with reason, fallback to default skill
 ```
 
-| Validator | What it Checks | Example |
-|-----------|----------------|---------|
-| **Admissibility** | Is the skill registered? Is the agent eligible? | Homeowner cannot use "set_policy" (gov-only skill) |
-| **Feasibility** | Are preconditions met? | Cannot "elevate_house" if already elevated |
-| **Constraints** | Annual limits? Once-only rules? | "elevate_house" can only be used once per agent |
-| **Effect Safety** | Are state changes valid? | Cannot set negative insurance cost |
-| **PMT Consistency** | Does reasoning match decision? | If threat appraisal says "low risk", why buy insurance? |
-| **Uncertainty** | Is the response confident? | Rejects if LLM says "I'm not sure" |
+#### Built-in Validator Types
 
-> **Note**: Validators are **configurable via YAML**. You can enable/disable validators per use case.
+| Validator Type | Purpose | When to Use |
+|----------------|---------|-------------|
+| **Admissibility** | Skill registered? Agent eligible? | Always (core) |
+| **Feasibility** | Preconditions met? | When skills have prerequisites |
+| **Constraints** | Institutional rules (once-only, limits) | When enforcing regulations |
+| **Effect Safety** | State changes valid? | When protecting state integrity |
+| **Domain-Specific** | Custom business logic | Define per use case |
+
+> **Key Point**: Validators are **modular and configurable**. Add/remove validators based on your domain requirements.
 
 ```yaml
-# config/validators.yaml
+# config/validators.yaml - Example Configuration
 validators:
   - name: admissibility
-    enabled: true
+    enabled: true       # Core validator, always recommended
   - name: feasibility
+    enabled: true       # Enable if skills have preconditions
+  - name: constraints
+    enabled: true       # Enable for institutional rules
+  - name: custom_rule   # Your domain-specific validator
     enabled: true
-  - name: pmt_consistency
-    enabled: false  # Disabled for non-PMT scenarios
+    config:
+      threshold: 0.5
 ```
 
 ---

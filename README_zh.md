@@ -199,29 +199,34 @@ python run_experiment.py --model llama3.2:3b --num-agents 100 --num-years 10
 ```
 SkillProposal → [驗證器 1] → [驗證器 2] → ... → [驗證器 N] → 執行
                     ↓               ↓                    ↓
-               若失敗 → 拒絕並說明原因，退回到 "do_nothing"
+               若失敗 → 拒絕並說明原因，退回到預設技能
 ```
 
-| 驗證器 | 檢查內容 | 範例 |
-|--------|----------|------|
-| **Admissibility** | 技能是否已註冊？代理人是否有資格？ | 住戶不能使用 "set_policy"（僅限政府） |
-| **Feasibility** | 前置條件是否滿足？ | 若已加高，不能再使用 "elevate_house" |
-| **Constraints** | 年度限制？一次性規則？ | "elevate_house" 每個代理人只能使用一次 |
-| **Effect Safety** | 狀態變更是否有效？ | 不能設定負數保險費用 |
-| **PMT Consistency** | 推理是否與決策一致？ | 若威脅評估為「低風險」，為何購買保險？ |
-| **Uncertainty** | 回應是否有信心？ | 若 LLM 說「我不確定」則拒絕 |
+#### 內建驗證器類型
 
-> **注意**：驗證器可**透過 YAML 配置**。您可針對不同情境啟用/停用驗證器。
+| 驗證器類型 | 用途 | 何時使用 |
+|------------|------|----------|
+| **Admissibility** | 技能是否已註冊？代理人是否有資格？ | 始終 (核心) |
+| **Feasibility** | 前置條件是否滿足？ | 技能有先決條件時 |
+| **Constraints** | 制度規則 (一次性、限制) | 執行法規時 |
+| **Effect Safety** | 狀態變更是否有效？ | 保護狀態完整性時 |
+| **Domain-Specific** | 自訂業務邏輯 | 依使用案例定義 |
+
+> **重點**：驗證器是**模組化且可配置的**。根據您的領域需求新增/移除驗證器。
 
 ```yaml
-# config/validators.yaml
+# config/validators.yaml - 配置範例
 validators:
   - name: admissibility
-    enabled: true
+    enabled: true       # 核心驗證器，始終建議啟用
   - name: feasibility
+    enabled: true       # 技能有先決條件時啟用
+  - name: constraints
+    enabled: true       # 制度規則時啟用
+  - name: custom_rule   # 您的領域專屬驗證器
     enabled: true
-  - name: pmt_consistency
-    enabled: false  # 非 PMT 情境時停用
+    config:
+      threshold: 0.5
 ```
 
 ---
