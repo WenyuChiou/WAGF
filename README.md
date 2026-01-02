@@ -1,5 +1,7 @@
 # Governed Broker Framework
 
+**🌐 Language / 語言: [English](README.md) | [中文](README_zh.md)**
+
 <div align="center">
 
 **A governance middleware for LLM-driven Agent-Based Models**
