@@ -1,131 +1,165 @@
-# Skill-Governed Framework (Experiment 10)
+# Flood Adaptation Skill-Governed Example
+
+![Example Flow](example_flow.png)
 
 ## Overview
 
-The Skill-Governed Framework represents a significant evolution from the original MCP (Model Context Protocol) Governed Broker approach. This framework introduces **multi-layer validation** and **skill-based governance** to achieve more consistent and rational agent decision-making.
+This example demonstrates the Skill-Governed Framework applied to flood adaptation decision-making. Agents decide annually whether to buy insurance, elevate their house, relocate, or do nothing based on flood risk assessment.
 
-## Framework Comparison
+---
 
-### Architecture Differences
+## Defined Skills
 
-| Feature | Old MCP (Exp 9) | Skill-Governed (Exp 10) |
-|---------|-----------------|-------------------------|
-| **Core Concept** | Context-based action governance | Skill-based proposal validation |
-| **Validation Layers** | 1 (PMT Keyword Validator) | 5+ (Multi-layer pipeline) |
-| **Affordability Check** | ❌ None | ✅ Explicit financial consistency |
-| **State Persistence** | Manual tracking | Registry-enforced constraints |
-| **Audit Trail** | Basic logging | Skill-level audit with reasoning |
+The following skills are registered in `skill_registry.yaml`:
 
-### Validator Pipeline Comparison
+| Skill ID | Description | Constraints | State Changes |
+|----------|-------------|-------------|---------------|
+| `buy_insurance` | Purchase flood insurance | Annual (renewable) | `has_insurance = true` |
+| `elevate_house` | Elevate house structure | **Once-only** | `elevated = true` |
+| `relocate` | Permanently leave flood zone | **Once-only, Permanent** | `relocated = true` |
+| `do_nothing` | Take no action this year | None | None |
 
-#### Old MCP Validators (`pmt_validator.py`)
-```
-1. High Threat + High Coping → Cannot Do Nothing
-2. Low Threat → Cannot Relocate  
-3. High Threat → Cannot Do Nothing
-```
-**Limitations:**
-- No financial consistency checking
-- Only 3 rules, easily bypassed by inconsistent reasoning
-- No state persistence validation
-
-#### Skill-Governed Validators (`skill_validators.py`)
-```
-1. SkillAdmissibilityValidator - Skill exists in registry?
-2. ContextFeasibilityValidator - Preconditions met?
-3. InstitutionalConstraintValidator - Once-only/permanent rules
-4. EffectSafetyValidator - State change safety
-5. PMTConsistencyValidator - Enhanced PMT with 4+ rules
-   - Rule 1: High Threat + High Efficacy + Do Nothing = REJECT
-   - Rule 2: Low Threat + Relocate = REJECT
-   - Rule 3: Flood Occurred + Claims Safe = REJECT
-   - Rule 4: Cannot Afford + Expensive Option = REJECT ← KEY ADDITION
-6. UncertaintyValidator - Detects ambiguous responses (optional)
+```yaml
+# skill_registry.yaml excerpt
+skills:
+  - skill_id: elevate_house
+    preconditions: ["not elevated"]
+    institutional_constraints:
+      once_only: true
+      cost_type: "one_time"
 ```
 
-## Key Innovation: Financial Consistency Rule
+---
 
-The most impactful addition in Skill-Governed is **Rule 4** in `PMTConsistencyValidator`:
+## Active Validators
+
+This example uses the following validation pipeline:
+
+| # | Validator | Purpose | Example Rejection |
+|---|-----------|---------|-------------------|
+| 1 | **Admissibility** | Skill exists? Agent eligible? | Unknown skill "buy_boat" |
+| 2 | **Feasibility** | Preconditions met? | Already elevated → cannot elevate again |
+| 3 | **Constraints** | Once-only/annual rules? | Already relocated → cannot relocate |
+| 4 | **Effect Safety** | State changes valid? | Invalid state mutation |
+| 5 | **PMT Consistency** | Reasoning matches decision? | "Too expensive" + chose relocate |
+
+### Key PMT Consistency Rules
 
 ```python
-# Rule 4: Cannot afford + Expensive option = REJECT
-is_expensive = skill in ["elevate_house", "relocate"]
-if is_expensive and any(kw in coping for kw in CANNOT_AFFORD_KEYWORDS):
-    errors.append("Claims cannot afford but chose expensive option")
+# Rule 4: Financial Consistency (most impactful)
+if skill in ["elevate_house", "relocate"]:
+    if "cannot afford" in coping or "too expensive" in coping:
+        REJECT("Claims cannot afford but chose expensive option")
 ```
 
-**CANNOT_AFFORD_KEYWORDS:**
-- "cannot afford"
-- "too expensive"  
-- "not enough money"
-- "high cost"
-- "financial burden"
+---
 
-## Empirical Results
+## Experiment Results
 
-### Relocation Rate Comparison
-
-| Model | No MCP (Baseline) | Old MCP | Skill-Governed | Change |
-|-------|-------------------|---------|----------------|--------|
-| Llama 3.2 | 95% | 99% | **47%** | ↓52% |
-| Gemma 3 | 6% | 13% | **1%** | ↓12% |
-| GPT-OSS | 0% | 2% | **<1%** | - |
-| DeepSeek | 14% | 39% | **2%** | ↓37% |
+### Dataset
+- **Models**: Llama 3.2 (3B), Gemma 3 (4B), GPT-OSS (20B), DeepSeek R1 (8B)
+- **Duration**: 10 years simulation
+- **Agents**: 100 per model
 
 ### Decision Distribution (Skill-Governed)
 
+| Model | Total | Elevation | Insurance | Relocate | Do Nothing |
+|-------|-------|-----------|-----------|----------|------------|
+| Llama 3.2 | 814 | **587** (72%) | 192 (24%) | 47 (6%) | 153 (19%) |
+| Gemma 3 | 999 | **799** (80%) | 206 (21%) | 1 (<1%) | 177 (18%) |
+| GPT-OSS | 976 | **859** (88%) | 459 (47%) | 4 (<1%) | 51 (5%) |
+| DeepSeek | 945 | **679** (72%) | 384 (41%) | 22 (2%) | 164 (17%) |
+
+### Relocation Rate Comparison
+
+| Model | No MCP | Old MCP | Skill-Governed | Improvement |
+|-------|--------|---------|----------------|-------------|
+| Llama 3.2 | 95% | 99% | **6%** | ↓ 93pp |
+| Gemma 3 | 6% | 13% | **<1%** | ↓ 12pp |
+| GPT-OSS | 0% | 2% | **<1%** | - |
+| DeepSeek | 14% | 39% | **2%** | ↓ 37pp |
+
+---
+
+## Performance Analysis
+
+### Why Skill-Governed Works Better
+
+1. **Financial Consistency Check (Rule 4)**
+   - Old MCP: "Too expensive but I'll relocate" → ✅ PASS (no check)
+   - Skill-Governed: Same response → ❌ REJECT → Agent retries with budget-aware choice
+
+2. **State Persistence Enforcement**
+   - Once-only skills (elevate, relocate) enforced at registry level
+   - Prevents repeated expensive actions
+
+3. **Multi-Layer Validation**
+   - 5 validators catch different types of inconsistency
+   - Each layer filters out irrational decisions
+
+### Approval Rate
+
+| Model | First-Pass Approved | Retry Success | Rejected | Total Approval |
+|-------|---------------------|---------------|----------|----------------|
+| Llama | 752 (92%) | 58 (7%) | 4 (<1%) | **99.5%** |
+| Gemma | 941 (94%) | 56 (6%) | 2 (<1%) | **99.8%** |
+| GPT-OSS | 900 (92%) | 74 (8%) | 2 (<1%) | **99.8%** |
+| DeepSeek | 876 (93%) | 67 (7%) | 2 (<1%) | **99.8%** |
+
+---
+
+## How to Run
+
+```bash
+cd examples/skill_governed_flood
+python run_experiment.py --model llama3.2:3b --num-agents 100 --num-years 10
 ```
-Llama 3.2:
-├── Only House Elevation: 52% (422/814)
-├── Both FI + HE: 20% (165/814)
-├── Do Nothing: 19% (153/814)
-├── Relocate: 6% (47/814)
-└── Only Insurance: 3% (27/814)
 
-Gemma 3:
-├── Only House Elevation: 62% (615/999)
-├── Both FI + HE: 18% (184/999)
-├── Do Nothing: 18% (177/999)
-├── Only Insurance: 2% (22/999)
-└── Relocate: <1% (1/999)
+### Customize Skills
+
+Edit `skill_registry.yaml` to add new skills:
+
+```yaml
+- skill_id: apply_for_grant
+  description: "Apply for government elevation grant"
+  preconditions: ["not elevated", "income < threshold"]
+  institutional_constraints:
+    requires_approval: true
 ```
 
-## Why Does This Work?
+### Customize Validators
 
-### Old MCP Failure Mode
-1. LLM generates: "I'm very worried about floods and it's too expensive, but I'll relocate anyway"
-2. Old MCP: ✅ PASS (no affordability check)
-3. Result: 99% relocation rate (panic-driven, irrational)
+Edit validator config to enable/disable rules:
 
-### Skill-Governed Success
-1. LLM generates: "I'm very worried about floods and it's too expensive, but I'll relocate anyway"
-2. Skill-Governed: ❌ REJECT (Rule 4: Cannot Afford + Relocate)
-3. LLM retries: "Given my budget constraints, I'll elevate my house instead"
-4. Skill-Governed: ✅ PASS
-5. Result: 47% relocation, 52% elevation (rational, budget-aware)
+```yaml
+validators:
+  - name: pmt_consistency
+    enabled: true
+    rules:
+      - financial_check: true
+      - threat_coping_match: true
+```
 
-## Conclusion
-
-The Skill-Governed Framework achieves **more rational agent behavior** through:
-
-1. **Multi-layer validation** that catches inconsistencies at multiple levels
-2. **Financial consistency checking** (Rule 4) that prevents irrational expensive choices
-3. **Skill-based governance** that enforces institutional constraints (once-only, permanent)
-4. **Enhanced PMT validation** with more comprehensive rule coverage
-
-This results in a **52% reduction in panic-relocation** for Llama and similar improvements across all models.
+---
 
 ## Files
 
-- `skill_types.py` - Core type definitions (SkillProposal, ValidationResult)
-- `skill_registry.py` - Skill registration and lookup
-- `validators/skill_validators.py` - Multi-layer validation pipeline
-- `run_experiment.py` - Experiment runner with integrated validation
+| File | Purpose |
+|------|---------|
+| `run_experiment.py` | Main experiment runner |
+| `skill_registry.yaml` | Skill definitions |
+| `example_flow.png` | Architecture diagram |
+| `README.md` | This documentation |
+
+---
 
 ## Citation
 
-If using this framework, please cite:
+```bibtex
+@misc{skill_governed_flood_2024,
+  title={Skill-Governed LLM Agent Framework for Flood Adaptation ABM},
+  author={Chiou, Wen-Yu},
+  year={2024}
+}
 ```
-Skill-Governed LLM Agent Framework for Flood Adaptation ABM
-Experiment 10, 2024
-```
+
