@@ -19,11 +19,26 @@ The Governed Broker Framework provides a **skill-governed architecture** for bui
 
 ### Key Features
 
-- **Multi-Stage Validation**: 6 validators ensure admissibility, feasibility, constraints, safety, and consistency
+- **Multi-Stage Validation**: Configurable validators ensure admissibility, feasibility, constraints, safety, and consistency
 - **Multi-Agent Support**: Supports heterogeneous agent types with different skills and eligibility rules
-- **Multi-Level State**: Individual, Shared, and Institutional state layers with access control
+- **Multi-Level State**: Individual, Social, Shared, and Institutional state layers with access control
 - **Extensible LLM Providers**: Default Ollama, extensible to OpenAI, Anthropic, etc.
 - **Full Traceability**: Complete audit trail for reproducibility
+
+---
+
+## Challenges & Solutions
+
+![Challenges and Solutions](docs/challenges_solutions.png)
+
+| Challenge | Problem | Solution | Component |
+|-----------|---------|----------|-----------|
+| **Hallucination** | LLM generates invalid/non-existent actions | Skill Registry restricts to registered skills only | `SkillRegistry` |
+| **Asymmetric Information** | LLM lacks state awareness, makes infeasible decisions | Context Builder provides bounded observable state | `ContextBuilder` |
+| **Inconsistent Decisions** | Contradictory or illogical choices | Multi-stage validators check PMT consistency | `Validators` |
+| **No Traceability** | Cannot reproduce or audit decisions | Complete audit trail with timestamps | `AuditWriter` |
+| **Uncontrolled State Mutation** | Direct, unvalidated state changes | State Manager controls all state updates | `StateManager` |
+| **Social Blindness** | No awareness of neighbor behaviors | Social module observes neighbor actions | `NeighborProvider` |
 
 ---
 

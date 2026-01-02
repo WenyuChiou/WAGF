@@ -19,11 +19,26 @@ Governed Broker Framework 為建構可靠的 LLM 基礎 Agent-Based Models (ABMs
 
 ### 核心特色
 
-- **多階段驗證**: 6 個驗證器確保可接受性、可行性、約束、安全性和一致性
+- **多階段驗證**: 可配置的驗證器確保可接受性、可行性、約束、安全性和一致性
 - **多代理人支援**: 支援具有不同技能和資格規則的異質代理人類型
 - **多層狀態**: Individual、Social、Shared 和 Institutional 狀態層，具有存取控制
 - **可擴展 LLM 提供者**: 預設 Ollama，可擴展至 OpenAI、Anthropic 等
 - **完整可追溯性**: 完整的審計軌跡以確保可重現性
+
+---
+
+## 挑戰與解決方案
+
+![挑戰與解決方案](docs/challenges_solutions.png)
+
+| 挑戰 | 問題 | 解決方案 | 元件 |
+|------|------|----------|------|
+| **幻覺 (Hallucination)** | LLM 產生無效/不存在的動作 | Skill Registry 限制只能使用已註冊技能 | `SkillRegistry` |
+| **資訊不對稱** | LLM 缺乏狀態感知，做出不可行的決策 | Context Builder 提供有界可觀察狀態 | `ContextBuilder` |
+| **決策不一致** | 矛盾或不合邏輯的選擇 | 多階段驗證器檢查 PMT 一致性 | `Validators` |
+| **無可追溯性** | 無法重現或稽核決策 | 完整的時間戳記審計軌跡 | `AuditWriter` |
+| **非控制狀態變更** | 直接、未驗證的狀態更改 | State Manager 控制所有狀態更新 | `StateManager` |
+| **社會盲點** | 無法感知鄰居行為 | Social 模組觀察鄰居動作 | `NeighborProvider` |
 
 ---
 
