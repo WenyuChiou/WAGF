@@ -4,136 +4,170 @@
 
 **A governance middleware for LLM-driven Agent-Based Models**
 
-[![English](https://img.shields.io/badge/lang-English-blue)](README.md#english) [![中文](https://img.shields.io/badge/lang-中文-red)](README.md#中文)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 </div>
 
 ---
 
-## English
+## Overview
 
-### ✨ v0.3 Multi-LLM Extensibility
+The Governed Broker Framework provides a **skill-governed architecture** for building reliable LLM-based Agent-Based Models (ABMs). It ensures that LLM decisions are validated through a multi-stage pipeline before affecting simulation state.
 
-| v0.2 Skill-Governed | v0.3 Extensible |
-|---------------------|-----------------|
-| Single LLM adapter | Multi-LLM Provider Registry |
-| Hardcoded validators | Dynamic validator loading |
-| Sync only | Async + Rate limiting |
+### Key Features
 
-👉 See [`docs/skill_architecture.md`](docs/skill_architecture.md) for architecture details.
-
-### Quick Start
-
-#### Single LLM (Simple)
-```bash
-pip install -r requirements.txt
-cd examples/skill_governed_flood
-python run_experiment.py --model llama3.2:3b --num-agents 100 --num-years 10
-```
-
-#### Multi-LLM (Advanced)
-```python
-from providers import OllamaProvider, OpenAIProvider
-from interfaces import LLMProviderRegistry
-
-# Register multiple providers
-registry = LLMProviderRegistry()
-registry.register("local", OllamaProvider(model="llama3.2:3b"))
-registry.register("cloud", OpenAIProvider(api_key="..."))
-
-# Use different LLMs for different tasks
-local_response = registry.get("local").invoke(prompt)
-cloud_response = registry.get("cloud").invoke(prompt)
-```
-
-### Architecture
-
-| Single-Agent | Multi-Agent |
-|--------------|-------------|
-| ![Single-Agent](docs/single_agent_architecture.png) | ![Multi-Agent](docs/multi_agent_architecture.png) |
-
-### Key Components
-
-| Component | Purpose |
-|-----------|---------|
-| `SkillBrokerEngine` | Main orchestrator with agent_type support |
-| `StateManager` | Individual/Shared/Institutional state |
-| `SkillRegistry` | Skills with agent type eligibility |
-| `LLMProviderRegistry` | Multi-LLM management (Ollama default) |
-| `ValidatorFactory` | Dynamic validator loading |
-
-### Validation Pipeline
-
-1. **Admissibility** - Skill exists? Agent eligible?
-2. **Feasibility** - Preconditions met?
-3. **Constraints** - Once-only? Annual limit?
-4. **Effect Safety** - Safe state changes?
-5. **PMT Consistency** - Reasoning consistent?
-6. **Uncertainty** - Response confident?
-
-### License
-
-MIT
+- **Multi-Stage Validation**: 6 validators ensure admissibility, feasibility, constraints, safety, and consistency
+- **Multi-Agent Support**: Supports heterogeneous agent types with different skills and eligibility rules
+- **Multi-Level State**: Individual, Shared, and Institutional state layers with access control
+- **Extensible LLM Providers**: Default Ollama, extensible to OpenAI, Anthropic, etc.
+- **Full Traceability**: Complete audit trail for reproducibility
 
 ---
 
+## Architecture
 
-## 中文
+### Single-Agent Mode
 
-### ✨ v0.3 多 LLM 擴充性
+![Single-Agent Architecture](docs/single_agent_architecture.png)
 
-| v0.2 技能治理 | v0.3 可擴充 |
-|---------------|-------------|
-| 單一 LLM 適配器 | Multi-LLM Provider Registry |
-| 固定驗證器 | 動態驗證器載入 |
-| 同步處理 | 非同步 + 速率限制 |
+**Flow**: Environment → Context Builder → LLM → Model Adapter → Skill Broker Engine → Validators → Executor → State
 
-👉 詳見 [`docs/skill_architecture.md`](docs/skill_architecture.md)
+### Multi-Agent Mode
 
-### 快速開始
+![Multi-Agent Architecture](docs/multi_agent_architecture.png)
 
-#### 單一 LLM（簡單）
+**Flow**: Agents → LLM (Skill Proposal) → Governed Broker Layer (Context Builder + Validators) → State Manager with four layers: Individual (memory), Social (neighbor observation), Shared (environment), and Institutional (policy rules).
+
+---
+
+## Quick Start
+
 ```bash
+# Install dependencies
 pip install -r requirements.txt
+
+# Run example experiment
 cd examples/skill_governed_flood
 python run_experiment.py --model llama3.2:3b --num-agents 100 --num-years 10
 ```
 
-#### 多 LLM（進階）
-```python
-from providers import OllamaProvider, OpenAIProvider
-from interfaces import LLMProviderRegistry
+---
 
-# 註冊多個 LLM 提供者
-registry = LLMProviderRegistry()
-registry.register("local", OllamaProvider(model="llama3.2:3b"))
-registry.register("cloud", OpenAIProvider(api_key="..."))
+## Core Components
 
-# 根據需求使用不同 LLM
-local_response = registry.get("local").invoke(prompt)
-cloud_response = registry.get("cloud").invoke(prompt)
+| Component | Description |
+|-----------|-------------|
+| `SkillBrokerEngine` | Main orchestrator for skill validation and execution |
+| `StateManager` | Multi-level state: Individual / Shared / Institutional |
+| `SkillRegistry` | Skill definitions with agent type eligibility rules |
+| `ContextBuilder` | Build bounded context with neighbor observation |
+| `ModelAdapter` | Parse LLM output into SkillProposal |
+| `ValidatorFactory` | Dynamic validator loading from YAML config |
+| `LLMProvider` | LLM interface (Ollama default, extensible) |
+| `AuditWriter` | Complete traceability for reproducibility |
+
+---
+
+## State Management
+
+### State Ownership (Multi-Agent)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Agent 1          Agent 2          Agent 3                  │
+│  ┌──────────┐     ┌──────────┐     ┌──────────┐            │
+│  │ INDIVIDUAL│     │ INDIVIDUAL│     │ INDIVIDUAL│           │
+│  │ • memory  │     │ • memory  │     │ • memory  │           │
+│  │ • elevated│     │ • elevated│     │ • elevated│           │
+│  │ • insured │     │ • insured │     │ • insured │           │
+│  └─────┬────┘     └─────┬────┘     └─────┬────┘            │
+│        │                │                │                  │
+│        └────────────────┼────────────────┘                  │
+│                         ▼                                   │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │               SHARED STATE                           │   │
+│  │  • flood_occurred  • year  • community_stats         │   │
+│  └─────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### 核心元件
+| State Type | Examples | Scope | Read | Write |
+|------------|----------|-------|------|-------|
+| **Individual** | `memory`, `elevated`, `has_insurance` | Per-agent private | Self only | Self only |
+| **Social** | `neighbor_actions`, `last_decisions` | Observable neighbors | Neighbors | System |
+| **Shared** | `flood_occurred`, `year` | All agents | All | System |
+| **Institutional** | `subsidy_rate`, `policy_mode` | All agents | All | Gov only |
 
-| 元件 | 用途 |
-|------|------|
-| `SkillBrokerEngine` | 主協調器 |
-| `LLMProviderRegistry` | 多 LLM 管理 |
-| `DomainConfigLoader` | YAML 驅動配置 |
-| `ValidatorFactory` | 動態驗證器載入 |
-| `RateLimiter` | API 速率控制 |
+> **Key Point**: `memory` is **Individual** - each agent has their own memory, not shared.
 
-### 驗證管線
+```python
+from simulation import StateManager
 
-1. **Admissibility** - 技能存在？代理有權限？
-2. **Feasibility** - 前置條件滿足？
-3. **Constraints** - 單次限制？年度限制？
-4. **Effect Safety** - 狀態變更安全？
-5. **PMT Consistency** - 推理一致？
-6. **Uncertainty** - 回應確定？
+state = StateManager()
+state.register_agent("agent_1", agent_type="homeowner")
 
-### 授權
+# Individual: agent's private state (including memory)
+state.update_individual("agent_1", {
+    "memory": ["flood in year 2", "bought insurance in year 3"],
+    "elevated": True
+})
+
+# Shared: environment visible to all
+state.update_shared({"flood_occurred": True, "year": 5})
+```
+
+---
+
+## Validation Pipeline
+
+| Stage | Validator | Check |
+|-------|-----------|-------|
+| 1 | Admissibility | Skill exists? Agent eligible for this skill? |
+| 2 | Feasibility | Preconditions met? (e.g., not already elevated) |
+| 3 | Constraints | Once-only? Annual limit? |
+| 4 | Effect Safety | State changes valid? |
+| 5 | PMT Consistency | Reasoning matches decision? |
+| 6 | Uncertainty | Response confident? |
+
+---
+
+## Multi-Agent Configuration
+
+```yaml
+# config/agent_types.yaml
+agent_types:
+  homeowner:
+    skills: [buy_insurance, elevate_house, relocate, do_nothing]
+    observable: [neighbors, community]
+  
+  government:
+    skills: [set_subsidy, change_policy]
+    can_modify: [institutional]
+```
+
+---
+
+## Framework Comparison
+
+| Dimension | Single-Agent | Multi-Agent |
+|-----------|--------------|-------------|
+| State | Individual only | Individual + Social + Shared + Institutional |
+| Agent Types | 1 type | N types (Resident, Gov, Insurance) |
+| Observable | Self only | Self + Neighbors + Community Stats |
+| Context | Direct | Via Context Builder + Social Module |
+| Use Case | Basic ABM | Policy simulation with social dynamics |
+
+---
+
+## Documentation
+
+- [Architecture Details](docs/skill_architecture.md)
+- [Customization Guide](docs/customization_guide.md)
+- [Experiment Design](docs/experiment_design_guide.md)
+
+---
+
+## License
 
 MIT
-
