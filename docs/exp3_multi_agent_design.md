@@ -167,25 +167,122 @@ class GovernmentAgent:
 
 ---
 
-## 待討論問題
+## 已確認參數 ✅
 
-### Q1: MG 定義確認
-- 需要滿足幾個條件算 MG? (2/3 或 3/3?)
-- poverty threshold 是多少?
+| 項目 | 確認值 |
+|------|--------|
+| MG 定義 | 滿足 **2/3** 條件 |
+| 問卷欄位 | 全部都有 ✅ |
+| MG:NMG 比例 | **1:4** (20% MG, 80% NMG) |
+| Renter 比例 | 可調整參數 |
+| 動態機制 | 保費調整、補助調整 |
 
-### Q2: 問卷欄位確認
-- `housing_cost_ratio` 和 `has_vehicle` 欄位是否存在於問卷?
-- 如果沒有，如何推斷?
+### 分佈比例 (確認後)
 
-### Q3: Insurance 和 Government Agent 的行為
-- 是否為每輪決策的 active agent?
-- 還是只在特定條件下才行動?
+假設 Renter = 35%：
+
+| | Owner (65%) | Renter (35%) | Total |
+|---|------------|--------------|-------|
+| **MG (20%)** | 13% | 7% | 20% |
+| **NMG (80%)** | 52% | 28% | 80% |
 
 ---
 
-## 下一步
+## 動態調整機制 (新增)
 
-請確認：
-1. MG 定義的確切條件
-2. 問卷中實際的分佈比例
-3. Insurance/Government 的角色定位
+### Insurance Agent 動態行為
+
+```python
+@dataclass
+class InsuranceAgent:
+    id: str
+    premium_rate: float = 0.02      # 初始保費率
+    payout_ratio: float = 0.80      # 理賠比例
+    risk_pool_balance: float = 0.0  # 風險池餘額
+    
+    def adjust_premium(self, claim_history: List[float]) -> float:
+        """根據理賠歷史動態調整保費"""
+        avg_claims = sum(claim_history) / len(claim_history) if claim_history else 0
+        
+        if avg_claims > self.risk_pool_balance * 0.8:
+            self.premium_rate *= 1.10  # 理賠過多，漲 10%
+        elif avg_claims < self.risk_pool_balance * 0.3:
+            self.premium_rate *= 0.95  # 理賠少，降 5%
+        
+        return self.premium_rate
+```
+
+### Government Agent 動態行為
+
+```python
+@dataclass
+class GovernmentAgent:
+    id: str
+    subsidy_rate: float = 0.50      # 補助比例
+    budget: float = 1_000_000       # 年度預算
+    spent: float = 0.0              # 已使用
+    
+    policy_mode: Literal["reactive", "proactive"] = "reactive"
+    mg_priority: bool = True        # MG 優先
+    
+    def adjust_subsidy(self, flood_occurred: bool, mg_adoption_rate: float) -> float:
+        """根據災害和採用率動態調整補助"""
+        if flood_occurred and mg_adoption_rate < 0.30:
+            # 災後 MG 採用率低 → 提高補助
+            self.subsidy_rate = min(0.80, self.subsidy_rate * 1.20)
+        elif mg_adoption_rate > 0.60:
+            # 採用率高 → 可降低補助
+            self.subsidy_rate = max(0.30, self.subsidy_rate * 0.90)
+        
+        return self.subsidy_rate
+    
+    def allocate_subsidy(self, applicant: HouseholdAgent) -> float:
+        """分配補助金額"""
+        if self.spent >= self.budget:
+            return 0.0  # 預算用完
+        
+        # MG 優先且更高補助
+        if self.mg_priority and applicant.is_MG:
+            rate = self.subsidy_rate * 1.20  # MG 多 20%
+        else:
+            rate = self.subsidy_rate
+        
+        amount = min(rate * ELEVATION_COST, self.budget - self.spent)
+        self.spent += amount
+        return amount
+```
+
+### 互動流程
+
+```
+每年循環:
+┌─────────────────────────────────────────────────────────────┐
+│  1. Environment: 判斷是否有 flood event                      │
+│                                                             │
+│  2. Government: 根據上年結果調整 subsidy_rate                │
+│     └── 發布政策 (announce_policy skill)                    │
+│                                                             │
+│  3. Insurance: 根據理賠歷史調整 premium_rate                 │
+│     └── 更新保費 (set_premium skill)                        │
+│                                                             │
+│  4. Households: 根據政策和保費做決策                         │
+│     ├── MG 可申請補助                                       │
+│     └── 各類型執行各自可用的 skills                         │
+│                                                             │
+│  5. Execution: 執行已批准的 skills                          │
+│                                                             │
+│  6. Settlement: 結算保險理賠 (如有 flood)                   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 下一步: PR 2 Decision-Making
+
+現在 Agent Types 已確認，接下來討論：
+
+1. **Household 決策**: 不同類型如何使用 PMT 評估？
+2. **Insurance 決策**: 何時調整保費？調整幅度？
+3. **Government 決策**: 何時調整補助？觸發條件？
+
+是否繼續 PR 2?
