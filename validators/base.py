@@ -6,7 +6,7 @@ All validators must implement this interface.
 from abc import ABC, abstractmethod
 from typing import Dict, Any
 
-from broker.types import DecisionRequest, ValidationResult
+from broker.legacy.types import DecisionRequest, ValidationResult
 
 
 class BaseValidator(ABC):

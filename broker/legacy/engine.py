@@ -18,8 +18,9 @@ from .types import (
     DecisionRequest, ValidationResult, ActionRequest, 
     AdmissibleCommand, ExecutionResult, BrokerResult, OutcomeType
 )
-from .context_builder import ContextBuilder
-from .audit_writer import AuditWriter
+# Shared components from parent broker package
+from broker.context_builder import ContextBuilder
+from broker.audit_writer import AuditWriter
 
 
 class BrokerEngine:

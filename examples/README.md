@@ -10,12 +10,12 @@
 
 | 目錄 | 框架版本 | 實驗編號 | 狀態 |
 |------|---------|---------|------|
-| `skill_governed_flood/` | **新版 Skill-Governed** | Exp 10 | ✅ 推薦使用 |
-| `flood_adaptation/` | 舊版 MCP | Exp 9 | ⚠️ 僅供參考 |
+| `v2_skill_governed/` | **新版 Skill-Governed** | Exp 10 | ✅ 推薦使用 |
+| `v1_mcp_flood/` | 舊版 MCP | Exp 9 | ⚠️ DEPRECATED |
 
 ---
 
-## 🆕 新版 Skill-Governed (`skill_governed_flood/`)
+## 🆕 新版 Skill-Governed (`v2_skill_governed/`)
 
 **推薦用於所有新實驗**
 
@@ -27,7 +27,7 @@
 
 ### 運行方式
 ```bash
-cd skill_governed_flood
+cd v2_skill_governed
 python run_experiment.py --model llama3.2:3b --num-agents 100 --num-years 10
 ```
 
@@ -37,7 +37,7 @@ python run_experiment.py --model llama3.2:3b --num-agents 100 --num-years 10
 
 ---
 
-## ⚠️ 舊版 MCP (`flood_adaptation/`)
+## ⚠️ 舊版 MCP (`v1_mcp_flood/`) - DEPRECATED
 
 **僅供參考比較，不建議用於新實驗**
 
@@ -54,9 +54,10 @@ python run_experiment.py --model llama3.2:3b --num-agents 100 --num-years 10
 
 ## 版本識別方法
 
-| 特徵 | 舊版 MCP | 新版 Skill-Governed |
-|------|---------|-------------------|
+| 特徵 | 舊版 MCP (v1) | 新版 Skill-Governed (v2) |
+|------|-------------|-------------------------|
+| 目錄 | `v1_mcp_flood/` | `v2_skill_governed/` |
 | 主要入口 | `run.py` | `run_experiment.py` |
-| Broker | GovernedBroker | SkillBrokerEngine |
+| Broker | `broker.legacy.BrokerEngine` | `broker.SkillBrokerEngine` |
 | 驗證層數 | 1 層 | 5+ 層 |
 | 輸出格式 | 文本解析 | SkillProposal JSON |

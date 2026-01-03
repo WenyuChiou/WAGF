@@ -16,7 +16,7 @@ from typing import Dict, List, Any, Optional
 # Framework imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from broker.audit_writer import AuditWriter, AuditConfig
-from broker.types import DecisionRequest, OutcomeType
+from broker.legacy.types import DecisionRequest, OutcomeType
 
 # Domain imports
 from prompts import build_prompt, verbalize_trust

@@ -7,7 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from validators.base import BaseValidator
-from broker.types import DecisionRequest, ValidationResult
+from broker.legacy.types import DecisionRequest, ValidationResult
 
 
 class PMTConsistencyValidator(BaseValidator):

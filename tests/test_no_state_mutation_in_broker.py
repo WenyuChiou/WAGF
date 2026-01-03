@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from simulation.engine import ToySimulationEngine
-from broker.types import DecisionRequest, ValidationResult
+from broker.legacy.types import DecisionRequest, ValidationResult
 
 
 def test_broker_does_not_mutate_state():

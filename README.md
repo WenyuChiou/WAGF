@@ -158,10 +158,11 @@ python run_experiment.py --model llama3.2:3b --num-agents 100 --num-years 10
 
 | Directory | Version | Experiment | Status |
 |-----------|---------|------------|--------|
-| `examples/skill_governed_flood/` | **Skill-Governed (v2)** | Exp 10 | ✅ Recommended |
-| `examples/flood_adaptation/` | MCP (v1) | Exp 9 | ⚠️ Legacy |
+| `examples/v2_skill_governed/` | **Skill-Governed (v2)** | Exp 10 | ✅ Recommended |
+| `examples/v1_mcp_flood/` | MCP (v1) | Exp 9 | ⚠️ DEPRECATED |
+| `broker/legacy/` | Legacy broker components | - | ⚠️ DEPRECATED |
 
-> **Note**: Use `skill_governed_flood/` for all new experiments. The old MCP version is kept for reference only.
+> **Note**: Use `v2_skill_governed/` for all new experiments. Legacy code is in `broker/legacy/`.
 
 See [examples/README.md](examples/README.md) for detailed version comparison.
 
