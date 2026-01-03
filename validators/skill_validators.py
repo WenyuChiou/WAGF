@@ -14,8 +14,8 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from skill_types import SkillProposal, ValidationResult
-from skill_registry import SkillRegistry
+from broker.skill_types import SkillProposal, ValidationResult
+from broker.skill_registry import SkillRegistry
 
 
 class SkillValidator(ABC):

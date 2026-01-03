@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 import yaml
 from pathlib import Path
 
-from skill_types import SkillDefinition, ValidationResult
+from .skill_types import SkillDefinition, ValidationResult
 
 
 class SkillRegistry:
@@ -87,7 +87,7 @@ class SkillRegistry:
             loader = DomainConfigLoader.from_file("config/domains/flood_adaptation.yaml")
             registry = SkillRegistry.from_domain_config(loader)
         """
-        from skill_types import SkillDefinition
+        from .skill_types import SkillDefinition
         
         registry = cls()
         

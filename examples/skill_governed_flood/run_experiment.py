@@ -25,15 +25,15 @@ from typing import Dict, List, Any, Optional
 FRAMEWORK_PATH = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(FRAMEWORK_PATH))
 
-# Import from governed_broker_framework (v0.3)
-from governed_broker_framework.broker.skill_types import SkillProposal, ApprovedSkill, ExecutionResult, SkillOutcome
-from governed_broker_framework.broker.skill_registry import SkillRegistry, create_flood_adaptation_registry
-from governed_broker_framework.broker.model_adapter import get_adapter, OllamaAdapter, UnifiedAdapter
-from governed_broker_framework.broker.skill_broker_engine import SkillBrokerEngine
-from governed_broker_framework.validators import create_default_validators
-# NEW: LLMProvider for multi-LLM support (optional)
-from governed_broker_framework.interfaces.llm_provider import LLMProvider, LLMConfig
-from governed_broker_framework.providers import OllamaProvider
+# Import from framework (direct import, no package prefix needed since FRAMEWORK_PATH is in sys.path)
+from broker.skill_types import SkillProposal, ApprovedSkill, ExecutionResult, SkillOutcome
+from broker.skill_registry import SkillRegistry, create_flood_adaptation_registry
+from broker.model_adapter import get_adapter, OllamaAdapter, UnifiedAdapter
+from broker.skill_broker_engine import SkillBrokerEngine
+from validators import create_default_validators
+# LLMProvider for multi-LLM support
+from interfaces.llm_provider import LLMProvider, LLMConfig
+from providers import OllamaProvider
 
 
 
