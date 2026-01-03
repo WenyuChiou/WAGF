@@ -8,128 +8,184 @@
 
 ## Stacked PR 計劃
 
-| PR # | Branch | 主題 | 依賴 |
+| PR # | Branch | 主題 | 狀態 |
 |------|--------|------|------|
-| 1 | `exp3/design-agent-types` | Agent Types 定義 | - |
-| 2 | `exp3/design-decision-making` | Decision-Making 機制 | PR 1 |
-| 3 | `exp3/design-behaviors` | Adaptation Behaviors | PR 2 |
-| 4 | `exp3/implementation` | 實作 | PR 3 |
+| 1 | `exp3/design-agent-types` | Agent Types 定義 | 🟡 討論中 |
+| 2 | `exp3/design-decision-making` | Decision-Making 機制 | ⬜ 待討論 |
+| 3 | `exp3/design-behaviors` | Adaptation Behaviors | ⬜ 待討論 |
+| 4 | `exp3/implementation` | 實作 | ⬜ 待實作 |
 
 ---
 
-## PR 1: Agent Types (本 PR)
+## PR 1: Agent Types
 
-### 問卷資料欄位
+### 三大 Agent 類別
 
-| 欄位 | 類型 | 值域 | 用途 |
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                       AGENT HIERARCHY                           │
+├─────────────────────────────────────────────────────────────────┤
+│  1. HOUSEHOLD (居民)           ┌──────────────────────────────┐ │
+│     ├── MG_Owner               │ MG = Marginalized Group      │ │
+│     ├── MG_Renter              │ 定義: poverty +              │ │
+│     ├── NMG_Owner              │       housing_cost_burden +  │ │
+│     └── NMG_Renter             │       no_vehicle             │ │
+│                                └──────────────────────────────┘ │
+│  2. INSURANCE (保險公司)                                         │
+│     └── InsuranceAgent                                          │
+│                                                                 │
+│  3. GOVERNMENT (政府)                                            │
+│     └── GovernmentAgent                                         │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Household Agent 類型 (4 類)
+
+| 類型 | 定義 | 問卷指標 |
+|------|------|---------|
+| **MG_Owner** | 邊緣化屋主 | `is_MG=True` + `homeownership=owner` |
+| **MG_Renter** | 邊緣化租客 | `is_MG=True` + `homeownership=renter` |
+| **NMG_Owner** | 非邊緣化屋主 | `is_MG=False` + `homeownership=owner` |
+| **NMG_Renter** | 非邊緣化租客 | `is_MG=False` + `homeownership=renter` |
+
+### MG (Marginalized Group) 定義
+
+```python
+def is_marginalized_group(agent: dict) -> bool:
+    """MG 定義: 貧窮 + 住房成本負擔 + 無車"""
+    poverty = agent["income"] < poverty_threshold
+    housing_burden = agent["housing_cost_ratio"] > 0.30  # >30% income on housing
+    no_vehicle = agent["has_vehicle"] == False
+    
+    # 滿足多少條件算 MG? (待確認)
+    return sum([poverty, housing_burden, no_vehicle]) >= 2
+```
+
+### 問卷資料欄位 (已有)
+
+| 欄位 | 類型 | 用途 | 來源 |
 |------|------|------|------|
-| `income` | categorical | low/middle/high | 可負擔選項 |
-| `household_size` | int | 1-6+ | 遷移成本考量 |
-| `homeownership` | categorical | owner/renter | 可用選項集 |
-| `education` | categorical | hs/bachelor/master/phd | 風險認知 |
-| `age` | int | 18-80 | 適應傾向 |
-| `years_in_community` | int | 0-50 | 遷移意願 |
-| `prior_flood_experience` | bool | true/false | 威脅感知 |
+| `income` | float | 計算 poverty | 問卷 ✅ |
+| `homeownership` | owner/renter | 分類 | 問卷 ✅ |
+| `housing_cost_ratio` | float | 住房成本負擔 | 問卷? |
+| `has_vehicle` | bool | MG 定義 | 問卷? |
+| 其他 PMT 屬性 | | | 問卷 ✅ |
 
-### Agent 類型定義 (推薦方案)
+### 分佈比例 (來自問卷)
+
+```
+┌─────────────────────────────────────────┐
+│         問卷實際分佈 (待填入)             │
+├─────────────┬──────────┬────────────────┤
+│             │  Owner   │    Renter      │
+├─────────────┼──────────┼────────────────┤
+│  MG         │  ??%     │    ??%         │
+│  NMG        │  ??%     │    ??%         │
+├─────────────┼──────────┼────────────────┤
+│  Total      │  ??%     │    ??%         │
+└─────────────┴──────────┴────────────────┘
+```
+
+### Agent 類型定義 (Python)
 
 ```python
 from dataclasses import dataclass
 from typing import Literal
+from enum import Enum
+
+class AgentCategory(Enum):
+    HOUSEHOLD = "household"
+    INSURANCE = "insurance"
+    GOVERNMENT = "government"
 
 @dataclass
-class SurveyAgent:
-    """基於問卷資料的 Agent 類型"""
+class HouseholdAgent:
+    """居民 Agent (4 類型)"""
     id: str
     
-    # 問卷屬性
-    income: Literal["low", "middle", "high"]
+    # MG 分類屬性 (來自問卷)
+    income: float
+    housing_cost_ratio: float
+    has_vehicle: bool
     homeownership: Literal["owner", "renter"]
-    household_size: int
-    education: Literal["hs", "bachelor", "master", "phd"]
-    age: int
-    years_in_community: int
+    
+    # PMT 屬性 (來自問卷)
+    trust_in_insurance: float
+    trust_in_neighbors: float
     prior_flood_experience: bool
     
-    # 狀態屬性
+    # 狀態
     elevated: bool = False
     has_insurance: bool = False
     relocated: bool = False
     
-    # PMT 屬性
-    trust_in_insurance: float = 0.3
-    trust_in_neighbors: float = 0.4
+    @property
+    def is_MG(self) -> bool:
+        """是否為邊緣化群體"""
+        poverty = self.income < 30000  # 待確認閾值
+        burden = self.housing_cost_ratio > 0.30
+        no_car = not self.has_vehicle
+        return sum([poverty, burden, no_car]) >= 2
     
     @property
     def agent_type(self) -> str:
-        """派生 Agent 類型"""
-        return f"{self.income}_{self.homeownership}"
+        mg_status = "MG" if self.is_MG else "NMG"
+        return f"{mg_status}_{self.homeownership.capitalize()}"
+
+@dataclass
+class InsuranceAgent:
+    """保險公司 Agent"""
+    id: str
+    premium_rate: float = 0.02
+    payout_ratio: float = 0.80
     
-    @property
-    def can_elevate(self) -> bool:
-        """只有屋主可以升高房屋"""
-        return self.homeownership == "owner"
+    # 可調整參數
+    risk_assessment_model: str = "historical"
+
+@dataclass
+class GovernmentAgent:
+    """政府 Agent"""
+    id: str
+    subsidy_rate: float = 0.50  # 補助比例
+    budget: float = 1_000_000
     
-    @property
-    def relocation_reluctance(self) -> float:
-        """久居者較不願遷移"""
-        return min(1.0, self.years_in_community / 20)
+    # 政策參數
+    policy_mode: Literal["reactive", "proactive"] = "reactive"
+    mg_priority: bool = True  # 是否優先補助 MG
 ```
 
-### Agent 類型與可用技能
+### 各類型可用技能
 
-| Agent Type | buy_insurance | elevate_house | relocate | do_nothing |
-|------------|---------------|---------------|----------|------------|
-| low_owner | ✅ | ✅ (補助?) | ✅ | ✅ |
-| low_renter | ✅ | ❌ | ✅ | ✅ |
-| middle_owner | ✅ | ✅ | ✅ | ✅ |
-| middle_renter | ✅ | ❌ | ✅ | ✅ |
-| high_owner | ✅ | ✅ | ✅ | ✅ |
-| high_renter | ✅ | ❌ | ✅ | ✅ |
-
-### 問卷資料範例 CSV
-
-```csv
-id,income,homeownership,household_size,education,age,years_in_community,prior_flood_experience,trust_in_insurance,trust_in_neighbors
-Agent_1,low,owner,4,hs,55,25,true,0.25,0.45
-Agent_2,middle,renter,2,bachelor,32,5,false,0.50,0.35
-Agent_3,high,owner,3,master,48,15,true,0.60,0.55
-```
+| Agent Type | buy_insurance | elevate_house | relocate | do_nothing | 特殊 |
+|------------|---------------|---------------|----------|------------|------|
+| **MG_Owner** | ✅ | ✅ (補助優先) | ✅ | ✅ | 可申請補助 |
+| **MG_Renter** | ✅ | ❌ | ✅ | ✅ | 遷移成本較低? |
+| **NMG_Owner** | ✅ | ✅ | ✅ | ✅ | - |
+| **NMG_Renter** | ✅ | ❌ | ✅ | ✅ | - |
+| **Insurance** | - | - | - | - | set_premium, process_claim |
+| **Government** | - | - | - | - | set_subsidy, announce_policy |
 
 ---
 
 ## 待討論問題
 
-### Q1: Agent 數量分佈
+### Q1: MG 定義確認
+- 需要滿足幾個條件算 MG? (2/3 或 3/3?)
+- poverty threshold 是多少?
 
-| Income \ Ownership | Owner | Renter | Total |
-|--------------------|-------|--------|-------|
-| Low | 20% | 15% | 35% |
-| Middle | 25% | 15% | 40% |
-| High | 20% | 5% | 25% |
-| **Total** | 65% | 35% | 100% |
+### Q2: 問卷欄位確認
+- `housing_cost_ratio` 和 `has_vehicle` 欄位是否存在於問卷?
+- 如果沒有，如何推斷?
 
-> 這個分佈合理嗎？還是應該根據真實問卷資料？
-
-### Q2: 收入如何影響決策成本感知？
-
-| Income | elevate_house 感知 | relocate 感知 |
-|--------|-------------------|---------------|
-| Low | "極度昂貴" | "無法負擔" |
-| Middle | "昂貴但可行" | "困難但可能" |
-| High | "可負擔" | "可考慮" |
-
-### Q3: 特殊規則
-
-- **低收入屋主**: 是否有政府補助 elevate？
-- **租客**: relocate 成本較低？
-- **久居者**: 是否有額外的遷移阻力？
+### Q3: Insurance 和 Government Agent 的行為
+- 是否為每輪決策的 active agent?
+- 還是只在特定條件下才行動?
 
 ---
 
 ## 下一步
 
 請確認：
-1. 以上 Agent 類型定義是否符合需求？
-2. 問卷資料欄位是否完整？
-3. 分佈比例是否需要調整？
+1. MG 定義的確切條件
+2. 問卷中實際的分佈比例
+3. Insurance/Government 的角色定位
