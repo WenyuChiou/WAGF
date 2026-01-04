@@ -66,9 +66,9 @@ Lindell, M. K., & Perry, R. W. (2012). The Protective Action Decision Model: The
 
 Bubeck, P., Botzen, W. J. W., & Aerts, J. C. J. H. (2012). A review of risk perceptions and other factors that influence flood mitigation behavior. *Risk Analysis*, 32(9), 1481-1495. https://doi.org/10.1111/j.1539-6924.2011.01783.x
 
-- **DOI**: 10.1111/j.1539-6924.2011.01783.x
-- **Type**: Empirical (N=2,200+ residents)
-- **Key Finding**: Flood experience → increased threat perception
+- **DOI**: 10.1111/j.1539-6924.2011.01783.x ✅ VERIFIED
+- **Type**: Systematic Review (N=2,200+ residents analyzed)
+- **Key Finding**: Flood experience → increased threat perception; risk perception alone insufficient for action
 - **Used For**: R3 (Flood occurred + claims safe = Error)
 
 ### New Zealand (Hutt Valley) Study
