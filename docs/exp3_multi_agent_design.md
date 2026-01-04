@@ -720,6 +720,81 @@ Yearly audit data can be used for:
 
 ---
 
+## PR 2.5: Literature Review - PMT & PADM Theoretical Basis
+
+### Key Literature Citations
+
+| Citation | Theory | Key Finding |
+|----------|--------|-------------|
+| **Rogers (1983)** | PMT Original | Threat Appraisal + Coping Appraisal → Protection Motivation |
+| **Grothmann & Reusswig (2006)** | PMT for Flood | HIGH TP + HIGH CP → Action; HIGH TP + LOW CP → Denial/Fatalism |
+| **Bamberg et al. (2017)** | Meta-analysis | CP (r=0.30) > TP (r=0.23) as predictor (N=35,419) |
+| **Lindell & Perry (2012)** | PADM | 3 core perceptions: Threat, Protective Action, Stakeholder |
+
+### Protection Motivation Theory (PMT) - Rogers (1983)
+
+**Original Paper:** Rogers, R.W. (1983). Cognitive and physiological processes in fear appeals and attitude change: A revised theory of protection motivation. In J.T. Cacioppo & R.E. Petty (Eds.), *Social psychophysiology: A sourcebook* (pp. 153-176). Guilford Press.
+
+**PMT Components:**
+
+```
+Protection Motivation = f(Threat Appraisal, Coping Appraisal)
+
+Threat Appraisal:
+├── Perceived Severity
+└── Perceived Vulnerability
+
+Coping Appraisal:
+├── Response Efficacy (action effectiveness)
+├── Self-Efficacy (ability to perform)
+└── Response Costs
+```
+
+### Grothmann & Reusswig (2006) - Flood PMT Extension
+
+**Paper:** Grothmann, T., & Reusswig, F. (2006). People at risk of flooding: Why some residents take precautionary action while others do not. *Natural Hazards*, 38, 101-120.
+
+**Key Finding: TP × CP Interaction Matrix**
+
+| TP | CP | Outcome | Validation Rule |
+|----|----|---------|----------------|
+| HIGH | HIGH | **Protection Motivation** → Action | R1: do_nothing = Error |
+| HIGH | LOW | **Non-protective (denial/fatalism)** | VALID path |
+| LOW | HIGH | Preventive action possible | OK |
+| LOW | LOW | No action (rational) | OK |
+
+**Non-Protective Responses:**
+- Denial: Dismissing flood risk
+- Fatalism: No control over outcome
+- Wishful thinking: Hoping flood won't occur
+
+### Bamberg et al. (2017) - Meta-Analysis
+
+**Paper:** Bamberg, S., Masson, T., Brewitt, K., & Nemetschek, N. (2017). Threat, coping and flood prevention – A meta-analysis. *Journal of Environmental Psychology*, 54, 116-126.
+
+**Key Findings:**
+- 35 studies, 47 samples, N = 35,419
+- **Coping Appraisal: r = 0.30** (stronger predictor)
+- Threat Appraisal: r = 0.23
+
+**Validation Implication:** LOW CP → expensive action is highly inconsistent (R2)
+
+### PADM - Lindell & Perry (2012)
+
+**Paper:** Lindell, M.K., & Perry, R.W. (2012). The Protective Action Decision Model: Theoretical modifications and additional evidence. *Risk Analysis*, 32(4), 616-632.
+
+**Three Core Perceptions:**
+1. Threat Perceptions
+2. Protective Action Perceptions
+3. **Stakeholder Perceptions** (trust in institutions)
+
+**Stakeholder Perception Effects:**
+- Low SP + Low TP → No motivation for protective action
+- High trust may lower risk perception (reliance on institutions)
+- Low trust + high risk may not lead to action if distrust in mechanism
+
+---
+
 ## PR 2.5: Multi-Agent Validator Design
 
 ### Existing Validators (from v2_skill_governed)
