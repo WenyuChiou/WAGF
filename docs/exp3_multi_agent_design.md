@@ -286,3 +286,88 @@ class GovernmentAgent:
 3. **Government 決策**: 何時調整補助？觸發條件？
 
 是否繼續 PR 2?
+
+---
+
+## 參考: 傳統 ABM 設計 (ABM_Summary.pdf)
+
+### 核心架構
+
+```
+每年循環:
+Flood hazard → Loss computation → TP update → End-of-year decisions → Finance
+```
+
+### 關鍵元素對照
+
+| 傳統 ABM | LLM-ABM 對應 |
+|----------|-------------|
+| Tract-level TP (Threat Perception) | Agent context → PMT prompt |
+| Bayesian regression model | LLM + Skill-Governed validation |
+| MG/NMG weighted probability | Agent type 分類 |
+| Action sequences | SkillRegistry constraints |
+
+### 傳統 ABM 決策公式
+
+```
+p(a),g = σ(w0 + w1*TP + w2*CP + w3*SP)
+
+p(a) = wMG * p(a),MG + (1 - wMG) * p(a),NMG
+```
+
+- **TP**: Threat Perception (威脅感知)
+- **CP**: Coping Perception (affordability/income effects)
+- **SP**: Stakeholder Perception (利害關係人感知)
+
+### Action Sequences
+
+| Agent Type | 序列 |
+|------------|------|
+| **Owner** | FI → EH (once, +5ft) → BP (permanent) → DN |
+| **Renter** | FI → RL (same or lower depth) → DN |
+
+### TP 動態更新 (Tract-level)
+
+```python
+# Gate by damage ratio
+if r_t > θ:  # θ = 0.5
+    TP_gain = True
+
+# Half-life decay
+μ = ln(2) / τ(t) * (α*PA + β*SC)
+
+# Annual update
+TP_t = (1 - μ) * TP_{t-1} + Δψ * r_t
+```
+
+### Finance Module
+
+- **Owner**: Building + Contents coverage
+- **Renter**: Contents-only coverage
+- **Outputs**: Take-up rate, payout ratio, OOP costs, AAL
+
+### State Variables
+
+**Per-Tract:**
+- TP_MG, TP_NMG, SC, PA, wMG, CP, SP, depth, damage_ratio, RCV
+
+**Per-Household:**
+- owner/renter, has_EH, EH_height, removed_by_BP, tract_id, insured_type, action
+
+---
+
+## LLM-ABM vs 傳統 ABM 設計決策
+
+| 面向 | 傳統 ABM | LLM-ABM (Exp 3) |
+|------|----------|-----------------|
+| 決策機制 | Bayesian regression | LLM + PMT prompt + validation |
+| 概率計算 | 公式 σ(w*x) | LLM 推理 + 結構化輸出 |
+| MG/NMG 加權 | 數學加權公式 | Agent type 區分 prompt |
+| 約束執行 | 程式邏輯 | SkillRegistry + Validators |
+| TP 更新 | Half-life decay 公式 | Memory + context 自然語言 |
+
+### 關鍵待決定問題
+
+1. **TP 動態**: 傳統 ABM 用數學公式，LLM-ABM 用 memory - 如何對齊？
+2. **概率 vs 確定**: 傳統 ABM 是概率決策，LLM 是確定輸出 - 需要引入隨機性？
+3. **Tract-level vs HH-level**: 傳統 ABM 是 tract 層級 TP，LLM-ABM 是個體層級
