@@ -298,72 +298,83 @@ class GovernmentAgent:
 agent.is_MG = survey_data["is_MG"]  # True/False
 ```
 
-### 2.1 Household Decision-Making
+### 2.1 Household Decision-Making (對齊現有單 Agent)
 
-#### Prompt 結構 (依 Agent Type 調整)
+#### 現有 Prompt 結構 (v2_skill_governed)
 
 ```python
-def build_household_prompt(agent: HouseholdAgent, context: dict) -> str:
-    """根據 Agent Type 產生不同的 prompt"""
-    
-    # 基礎 PMT 結構
-    base = f"""You are a homeowner in flood-prone area.
-Your situation:
-- Income: ${agent.income:,}/year
-- Housing cost burden: {agent.housing_cost_ratio*100:.0f}% of income
-- Vehicle: {"Yes" if agent.has_vehicle else "No"}
-- Prior flood experience: {"Yes" if agent.prior_flood_experience else "No"}
+# 來自 run_experiment.py FloodContextBuilder
+"""You are a homeowner in a city, with a strong attachment to your community. {elevation_status}
+Your memory includes:
+{memory}
 
-Current state:
-- House elevated: {"Yes" if agent.elevated else "No"}
-- Has insurance: {"Yes" if agent.has_insurance else "No"}
-- Current year: {context["year"]}
-- Flood this year: {"Yes" if context["flood_event"] else "No"}
+You currently {insurance_status} flood insurance.
+You {trust_ins_text} the insurance company. You {trust_neighbors_text} your neighbors' judgment.
 
-Recent memories:
-{chr(10).join(f'- {m}' for m in agent.memory[-5:])}
-"""
-    
-    # Owner vs Renter 選項差異
-    if agent.homeownership == "owner":
-        options = """Available actions:
-1. Buy flood insurance
-2. Elevate house (one-time, if not already elevated)
-3. Buyout program (permanent, removes you from flood zone)
-4. Do nothing"""
-    else:  # renter
-        options = """Available actions:
-1. Buy contents-only insurance
-2. Relocate to safer area
-3. Do nothing"""
-    
-    # MG 特殊資訊
-    if agent.is_MG:
-        subsidy_info = f"""
-Government subsidy available: {context["subsidy_rate"]*100:.0f}% of elevation cost
-(Priority given to marginalized households)"""
-    else:
-        subsidy_info = ""
-    
-    return base + options + subsidy_info + """
+Using the Protection Motivation Theory, evaluate your current situation by considering the following factors:
+- Perceived Severity: How serious the consequences of flooding feel to you.
+- Perceived Vulnerability: How likely you think you are to be affected.
+- Response Efficacy: How effective you believe each action is.
+- Self-Efficacy: Your confidence in your ability to take that action.
+- Response Cost: The financial and emotional cost of the action.
+- Maladaptive Rewards: The benefit of doing nothing immediately.
 
-Using Protection Motivation Theory, evaluate:
-- Threat Appraisal: severity and vulnerability
-- Coping Appraisal: efficacy and cost
+Now, choose one of the following actions:
+{options}
+Note: If no flood occurred this year, since no immediate threat, most people would choose "Do Nothing."
+{flood_status}
 
-Respond in format:
-Threat Appraisal: [your assessment]
-Coping Appraisal: [your assessment]
-Final Decision: [number only]"""
+Please respond using the exact format below. Do NOT include any markdown symbols:
+Threat Appraisal: [One sentence]
+Coping Appraisal: [One sentence]
+Final Decision: [Choose {valid_choices} only]"""
 ```
 
-#### Validation Pipeline (Household)
+#### Multi-Agent 擴展 (新增 MG/Owner/Renter 差異)
 
-| Validator | 檢查 | 拒絕範例 |
-|-----------|------|---------|
+```python
+class MultiAgentContextBuilder(FloodContextBuilder):
+    """擴展現有 FloodContextBuilder 以支援 multi-agent"""
+    
+    def format_prompt(self, context: Dict[str, Any]) -> str:
+        agent = self.simulation.agents[context["agent_id"]]
+        
+        # 基礎 PMT prompt (保持與單 agent 一致)
+        base_prompt = self._build_base_pmt_prompt(context)
+        
+        # Owner vs Renter 選項差異
+        if agent.homeownership == "owner":
+            if context.get("elevated"):
+                options = """1. Buy flood insurance (Lower cost, provides partial financial protection.)
+2. Apply for buyout program (Government purchase, permanently leave flood zone.)
+3. Do nothing (No investment this year, but exposed to future damage.)"""
+            else:
+                options = """1. Buy flood insurance (Lower cost, provides partial financial protection.)
+2. Elevate your house (High upfront cost but prevents most physical damage.)
+3. Apply for buyout program (Government purchase, permanently leave flood zone.)
+4. Do nothing (No investment this year, but exposed to future damage.)"""
+        else:  # renter
+            options = """1. Buy contents-only insurance (Protects your belongings, not the structure.)
+2. Relocate to safer area (Find housing in lower flood-risk area.)
+3. Do nothing (No investment this year, but exposed to future damage.)"""
+        
+        # MG 補助資訊
+        if agent.is_MG and not context.get("elevated"):
+            subsidy_note = f"\nNote: You may qualify for government subsidy ({context['subsidy_rate']*100:.0f}% of elevation cost)."
+        else:
+            subsidy_note = ""
+        
+        return base_prompt + f"\n\n{options}{subsidy_note}\n\n" + self._build_output_format(agent)
+```
+
+#### Validation Pipeline (保持不變)
+
+| Validator | 檢查 | 範例 |
+|-----------|------|------|
 | Admissibility | Skill 存在? Agent type 允許? | Renter 選 "elevate_house" |
 | Feasibility | 前置條件滿足? | 已 elevated 再選 elevate |
-| FinancialConsistency | 成本邏輯一致? | MG + "cannot afford" + elevate (無補助) |
+| PMTConsistency | 威脅-應對邏輯一致? | High threat + high efficacy + DN |
+| FinancialConsistency | 成本邏輯一致? | "cannot afford" + expensive option |
 
 ### 2.2 Insurance Decision-Making (簡單 LLM)
 
