@@ -366,8 +366,57 @@ TP_t = (1 - μ) * TP_{t-1} + Δψ * r_t
 | 約束執行 | 程式邏輯 | SkillRegistry + Validators |
 | TP 更新 | Half-life decay 公式 | Memory + context 自然語言 |
 
-### 關鍵待決定問題
+### ✅ 已確認設計決策
 
-1. **TP 動態**: 傳統 ABM 用數學公式，LLM-ABM 用 memory - 如何對齊？
-2. **概率 vs 確定**: 傳統 ABM 是概率決策，LLM 是確定輸出 - 需要引入隨機性？
-3. **Tract-level vs HH-level**: 傳統 ABM 是 tract 層級 TP，LLM-ABM 是個體層級
+| 問題 | 決定 |
+|------|------|
+| TP 動態對齊？ | ❌ **不需要** - 那是經驗公式，LLM 用 memory + PMT 自然推理 |
+| 概率 vs 確定？ | **確定輸出** - 不需要概率機制 |
+| 順序約束？ | **不強制** - 只需完整 audit trail 即可追蹤決策路徑 |
+
+### Audit 需求
+
+```python
+# 每個決策需要記錄
+audit_record = {
+    "agent_id": "HH_001",
+    "agent_type": "MG_Owner",
+    "year": 2015,
+    "context": {
+        "income": 28000,
+        "housing_cost_ratio": 0.35,
+        "has_vehicle": False,
+        "prior_flood": True,
+        "memory": ["Year 2014: flooded, $10k damage"]
+    },
+    "llm_output": {
+        "threat_appraisal": "High - recent flood experience",
+        "coping_appraisal": "Can elevate with subsidy",
+        "decision": "elevate_house"
+    },
+    "validation": {
+        "passed": True,
+        "validators": ["admissibility", "feasibility"]
+    },
+    "execution": {
+        "skill": "elevate_house",
+        "state_changes": {"elevated": True}
+    }
+}
+```
+
+---
+
+## PR 1 完成總結
+
+| 項目 | 狀態 |
+|------|------|
+| Agent 類別 (3 大類) | ✅ Household / Insurance / Government |
+| Household 分類 (4 類) | ✅ MG/NMG × Owner/Renter |
+| MG 定義 | ✅ 2/3 條件 |
+| 比例 | ✅ MG:NMG = 1:4 |
+| 動態機制 | ✅ 保費/補助調整 |
+| TP 對齊 | ❌ 不需要 - LLM 自然推理 |
+| 順序約束 | ❌ 不強制 - 只需 audit |
+
+**準備進入 PR 2: Decision-Making**
