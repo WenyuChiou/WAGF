@@ -1,0 +1,195 @@
+# Multi-Agent Flood Adaptation Skill Registry
+# This YAML file defines all available skills for the multi-agent scenario.
+# Agent Types: Household (Owner/Renter), Insurance, Government
+
+# =============================================================================
+# HOUSEHOLD SKILLS (Owner)
+# =============================================================================
+household_owner_skills:
+  - skill_id: buy_insurance
+    description: "Purchase flood insurance covering building and contents"
+    eligible_agent_types: ["household_owner"]
+    preconditions: []
+    institutional_constraints:
+      annual: true
+      cost_type: "recurring"
+    allowed_state_changes:
+      - has_insurance
+    implementation_mapping: "sim.buy_insurance"
+
+  - skill_id: elevate_house
+    description: "Elevate house structure to prevent physical flood damage (+5ft)"
+    eligible_agent_types: ["household_owner"]
+    preconditions:
+      - "not elevated"
+    institutional_constraints:
+      once_only: true
+      cost_type: "one_time"
+      subsidy_eligible: true  # MG can get subsidy
+    allowed_state_changes:
+      - elevated
+    implementation_mapping: "sim.elevate"
+
+  - skill_id: buyout_program
+    description: "Accept government buyout - permanently leave flood zone"
+    eligible_agent_types: ["household_owner"]
+    preconditions:
+      - "not removed"
+    institutional_constraints:
+      once_only: true
+      permanent: true
+      cost_type: "government_funded"
+    allowed_state_changes:
+      - removed
+    implementation_mapping: "sim.buyout"
+
+  - skill_id: do_nothing
+    description: "Take no protective action this year"
+    eligible_agent_types: ["*"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes: []
+    implementation_mapping: "sim.noop"
+
+# =============================================================================
+# HOUSEHOLD SKILLS (Renter)
+# =============================================================================
+household_renter_skills:
+  - skill_id: buy_contents_insurance
+    description: "Purchase contents-only flood insurance (no structure coverage)"
+    eligible_agent_types: ["household_renter"]
+    preconditions: []
+    institutional_constraints:
+      annual: true
+      cost_type: "recurring"
+      coverage: "contents_only"
+    allowed_state_changes:
+      - has_insurance
+    implementation_mapping: "sim.buy_contents_insurance"
+
+  - skill_id: relocate
+    description: "Relocate to lower flood-risk area"
+    eligible_agent_types: ["household_renter"]
+    preconditions:
+      - "not relocated"
+    institutional_constraints:
+      once_only: true
+      cost_type: "one_time"
+    allowed_state_changes:
+      - relocated
+    implementation_mapping: "sim.relocate"
+
+# =============================================================================
+# INSURANCE COMPANY SKILLS
+# =============================================================================
+insurance_skills:
+  - skill_id: raise_premium
+    description: "Increase premium rate for flood insurance policies"
+    eligible_agent_types: ["insurance"]
+    preconditions: []
+    institutional_constraints:
+      adjustment_range: [0.05, 0.15]  # 5% to 15%
+    allowed_state_changes:
+      - premium_rate
+    implementation_mapping: "sim.adjust_premium"
+
+  - skill_id: lower_premium
+    description: "Decrease premium rate for flood insurance policies"
+    eligible_agent_types: ["insurance"]
+    preconditions: []
+    institutional_constraints:
+      adjustment_range: [0.05, 0.10]  # 5% to 10%
+    allowed_state_changes:
+      - premium_rate
+    implementation_mapping: "sim.adjust_premium"
+
+  - skill_id: maintain_premium
+    description: "Keep premium rate unchanged"
+    eligible_agent_types: ["insurance"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes: []
+    implementation_mapping: "sim.noop"
+
+# =============================================================================
+# GOVERNMENT SKILLS
+# =============================================================================
+government_skills:
+  - skill_id: increase_subsidy
+    description: "Increase subsidy rate for flood adaptation measures"
+    eligible_agent_types: ["government"]
+    preconditions:
+      - "budget_available"
+    institutional_constraints:
+      adjustment_range: [0.10, 0.20]  # 10% to 20%
+      max_rate: 0.80
+    allowed_state_changes:
+      - subsidy_rate
+    implementation_mapping: "sim.adjust_subsidy"
+
+  - skill_id: decrease_subsidy
+    description: "Decrease subsidy rate for flood adaptation measures"
+    eligible_agent_types: ["government"]
+    preconditions: []
+    institutional_constraints:
+      adjustment_range: [0.10, 0.20]
+      min_rate: 0.20
+    allowed_state_changes:
+      - subsidy_rate
+    implementation_mapping: "sim.adjust_subsidy"
+
+  - skill_id: maintain_subsidy
+    description: "Keep subsidy rate unchanged"
+    eligible_agent_types: ["government"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes: []
+    implementation_mapping: "sim.noop"
+
+  - skill_id: set_mg_priority
+    description: "Prioritize marginalized group households for subsidy allocation"
+    eligible_agent_types: ["government"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes:
+      - mg_priority
+    implementation_mapping: "sim.set_priority"
+
+# =============================================================================
+# DEFAULTS
+# =============================================================================
+defaults:
+  household_owner: do_nothing
+  household_renter: do_nothing
+  insurance: maintain_premium
+  government: maintain_subsidy
+
+# =============================================================================
+# SKILL MAPPING (Decision Number -> Skill ID)
+# =============================================================================
+decision_mapping:
+  household_owner:
+    not_elevated:
+      "1": buy_insurance
+      "2": elevate_house
+      "3": buyout_program
+      "4": do_nothing
+    elevated:
+      "1": buy_insurance
+      "2": buyout_program
+      "3": do_nothing
+  
+  household_renter:
+    "1": buy_contents_insurance
+    "2": relocate
+    "3": do_nothing
+  
+  insurance:
+    "raise": raise_premium
+    "lower": lower_premium
+    "maintain": maintain_premium
+  
+  government:
+    "increase": increase_subsidy
+    "decrease": decrease_subsidy
+    "maintain": maintain_subsidy
