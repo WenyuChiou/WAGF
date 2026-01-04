@@ -160,6 +160,23 @@ if skill in ["elevate_house", "relocate"]:
         REJECT("Claims cannot afford but chose expensive option")
 ```
 
+### Literature Support for Validator Rules
+
+All PMTConsistencyValidator rules are backed by peer-reviewed empirical research:
+
+| Rule | Logic | Key Study | DOI |
+|------|-------|-----------|-----|
+| R1 | HIGH TP + HIGH CP + do_nothing | Bamberg et al. (2017) Meta, N=35,419 | 10.1016/j.jenvp.2017.08.001 |
+| R2 | LOW TP + relocate | Weyrich et al. (2020), N=1,019 | 10.5194/nhess-20-287-2020 |
+| R3 | Flood + claims safe | Choi et al. (2024) US County | 10.1029/2023EF004110 |
+| R4 | Cannot afford + expensive | Botzen et al. (2019) NYC, N=1,000+ | 10.1111/risa.13318 |
+
+**Full literature documentation**: See [`docs/validator_design_readme.md`](../../docs/validator_design_readme.md)
+
+**BibTeX for Zotero**: 
+- `docs/references/pmt_flood_literature.bib` (14 entries, global)
+- `docs/references/us_flood_literature.bib` (20 entries, US-specific)
+
 ---
 
 ## Experiment Results

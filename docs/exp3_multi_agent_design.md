@@ -1062,7 +1062,39 @@ def create_validators_for_agent(agent_type: str) -> List[SkillValidator]:
 1. ✅ Skills defined (skill_registry.yaml)
 2. ✅ Prompts aligned (5 constructs: TP/CP/SP/SC/PA)
 3. ✅ **Validators designed** (5 new validators)
-4. ⬜ Implementation
+4. ✅ **Literature verified** (34 studies, all DOIs validated)
+5. ⬜ Implementation
+
+---
+
+## Literature References
+
+### BibTeX Files (Zotero Import Ready)
+
+| File | Entries | Scope |
+|------|---------|-------|
+| `docs/references/pmt_flood_literature.bib` | 14 | PMT Global (2006-2024) |
+| `docs/references/us_flood_literature.bib` | 20 | 🇺🇸 US Flood (2012-2024) |
+
+### Validator Rule → Study Mapping
+
+| Rule | Logic | Primary Study | DOI |
+|------|-------|---------------|-----|
+| R1 | HIGH TP + HIGH CP + do_nothing | Bamberg et al. (2017) Meta, N=35,419 | 10.1016/j.jenvp.2017.08.001 |
+| R2 | LOW CP + expensive action | Bamberg et al. (2017) | 10.1016/j.jenvp.2017.08.001 |
+| R3 | LOW TP + extreme action | Weyrich et al. (2020), N=1,019 | 10.5194/nhess-20-287-2020 |
+| R4 | LOW SP + LOW TP + insurance | Lindell & Perry (2012) PADM | 10.1111/j.1539-6924.2011.01647.x |
+
+### Key US Empirical Studies
+
+| Study | Location | N | Key Finding |
+|-------|----------|---|-------------|
+| Botzen et al. (2019) | NYC | 1,000+ | High efficacy → action |
+| Choi et al. (2024) | US County | - | +7% insurance post-flood |
+| Mach et al. (2019) | Nationwide | 40,000+ | FEMA buyout patterns |
+| Bukvic & Barnett (2023) | East Coast | 1,450 | Place attachment → relocation |
+
+**Full documentation**: [`docs/validator_design_readme.md`](validator_design_readme.md)
 
 ---
 
