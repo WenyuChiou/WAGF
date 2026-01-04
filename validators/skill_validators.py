@@ -163,6 +163,12 @@ class PMTConsistencyValidator(SkillValidator):
     Validates PMT (Protection Motivation Theory) consistency.
     
     Detects contradictions between reasoning and skill choice.
+    
+    Literature Support:
+    - R1: Bamberg et al. (2017) Meta-analysis, DOI: 10.1016/j.jenvp.2017.08.001
+    - R2: Weyrich et al. (2020), DOI: 10.5194/nhess-20-287-2020
+    - R3: Choi et al. (2024), DOI: 10.1029/2023EF004110
+    - R4: Botzen et al. (2019), DOI: 10.1111/risa.13318
     """
     
     name = "PMTConsistencyValidator"
@@ -175,87 +181,68 @@ class PMTConsistencyValidator(SkillValidator):
     def validate(self, proposal: SkillProposal, context: Dict[str, Any],
                  registry: SkillRegistry) -> ValidationResult:
         errors = []
+        warnings = []
         
         threat = proposal.reasoning.get("threat", "").lower()
         coping = proposal.reasoning.get("coping", "").lower()
         skill = proposal.skill_name
         flood_status = context.get("flood_status", "")
         
-        # Rule 1: High threat + High efficacy + Do Nothing = Inconsistent
         has_high_threat = any(kw in threat for kw in self.HIGH_THREAT_KEYWORDS)
         has_high_efficacy = any(kw in coping for kw in self.HIGH_EFFICACY_KEYWORDS)
-        
-        if has_high_threat and has_high_efficacy and skill == "do_nothing":
-            errors.append("PMT inconsistency: High threat + High efficacy but chose do_nothing")
-        
-        # Rule 2: Low threat + Relocate = Inconsistent
         has_low_threat = any(kw in threat for kw in self.LOW_THREAT_KEYWORDS)
-        if has_low_threat and skill == "relocate":
-            errors.append("Claims low threat but chose relocate")
         
-        # Rule 3: Flood occurred + Claims safe = Inconsistent
+        # === ERROR RULES (Trigger retry) ===
+        
+        # R1: HIGH TP + HIGH CP + do_nothing = inconsistent [Bamberg 2017]
+        if has_high_threat and has_high_efficacy and skill == "do_nothing":
+            errors.append("R1: HIGH threat + HIGH efficacy but chose do_nothing [Bamberg 2017]")
+        
+        # R2: LOW TP + relocate = overreaction [Weyrich 2020]
+        if has_low_threat and skill == "relocate":
+            errors.append("R2: LOW threat but chose relocate [Weyrich 2020]")
+        
+        # R3: Flood occurred + claims safe = denial [Choi 2024]
         if "flood occurred" in flood_status.lower():
             if any(kw in threat for kw in ["feel safe", "not worried", "no concern"]):
-                errors.append("Flood Response: Claims safe despite flood event this year")
+                errors.append("R3: Claims safe despite flood event this year [Choi 2024]")
         
-        # Rule 4: Cannot afford + Expensive option (Aligned with MCP)
+        # R4: Cannot afford + expensive = irrational [Botzen 2019]
         is_expensive = skill in ["elevate_house", "relocate"]
         if is_expensive and any(kw in coping for kw in self.CANNOT_AFFORD_KEYWORDS):
-            errors.append("Claims cannot afford but chose expensive option")
-            
-        # Rule 5: Already have + Buy again - ALLOWED for annual renewal models
-        # if "already have insurance" in coping and skill == "buy_insurance":
-        #    errors.append("Claims already has insurance but chose to buy")
+            errors.append("R4: Cannot afford but chose expensive option [Botzen 2019]")
+        
+        # === WARNING RULES (Log only, no retry) ===
+        
+        # R5: LOW TP + buy_insurance = unusual but valid
+        if has_low_threat and skill == "buy_insurance":
+            warnings.append("R5: LOW threat but chose insurance - precautionary behavior")
         
         return ValidationResult(
             valid=len(errors) == 0,
             validator_name=self.name,
-            errors=errors
+            errors=errors,
+            warnings=warnings
         )
 
 
-class UncertaintyValidator(SkillValidator):
-    """
-    Validates response certainty.
-    
-    Detects ambiguous or uncertain language in LLM responses that may indicate
-    low confidence in the decision. Such responses trigger a retry.
-    """
-    
-    name = "UncertaintyValidator"
-    
-    # Keywords indicating uncertainty in the response
-    UNCERTAIN_KEYWORDS = [
-        "maybe", "perhaps", "not sure", "i think", "might",
-        "could be", "possibly", "i believe", "uncertain",
-        "don't know", "hard to say", "difficult to decide",
-        "i'm unsure", "can't decide", "not certain"
-    ]
-    
-    def validate(self, proposal: SkillProposal, context: Dict[str, Any],
-                 registry: SkillRegistry) -> ValidationResult:
-        raw = proposal.raw_output.lower()
-        
-        # Check for uncertain keywords
-        found_keywords = [kw for kw in self.UNCERTAIN_KEYWORDS if kw in raw]
-        
-        if found_keywords:
-            return ValidationResult(
-                valid=False,
-                validator_name=self.name,
-                errors=[f"Uncertain language detected: {', '.join(found_keywords[:3])}"]
-            )
-        
-        return ValidationResult(valid=True, validator_name=self.name)
-
-
 def create_default_validators() -> List[SkillValidator]:
-    """Create the default set of skill validators."""
+    """
+    Create the default set of skill validators for single-agent experiments.
+    
+    Validators:
+    1. SkillAdmissibilityValidator - Skill exists? Agent eligible?
+    2. ContextFeasibilityValidator - Preconditions met?
+    3. InstitutionalConstraintValidator - Once-only, permanent rules
+    4. EffectSafetyValidator - Only allowed state changes
+    5. PMTConsistencyValidator - PMT theory consistency (R1-R5)
+    
+    Note: UncertaintyValidator removed - caused false positives on natural LLM hedging.
+    """
     return [
         SkillAdmissibilityValidator(),
         ContextFeasibilityValidator(),
         InstitutionalConstraintValidator(),
         EffectSafetyValidator(),
         PMTConsistencyValidator(),
-        # UncertaintyValidator()  # Temporarily disabled - triggers too often on PMT reasoning
     ]
