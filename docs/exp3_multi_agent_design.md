@@ -365,57 +365,77 @@ Final Decision: [number only]"""
 | Feasibility | 前置條件滿足? | 已 elevated 再選 elevate |
 | FinancialConsistency | 成本邏輯一致? | MG + "cannot afford" + elevate (無補助) |
 
-### 2.2 Insurance Decision-Making
+### 2.2 Insurance Decision-Making (簡單 LLM)
 
 ```python
-class InsuranceDecisionPolicy:
-    """保險公司決策邏輯 (規則式，非 LLM)"""
+def build_insurance_prompt(insurance: InsuranceAgent, context: dict) -> str:
+    """保險公司決策 prompt (簡化版)"""
     
-    def decide_premium_adjustment(self, 
-                                   year: int,
-                                   claim_history: List[float],
-                                   total_premium_collected: float) -> float:
-        """每年決定保費調整"""
-        
-        loss_ratio = sum(claim_history) / total_premium_collected if total_premium_collected > 0 else 0
-        
-        if loss_ratio > 0.80:
-            return 1.15  # 漲 15%
-        elif loss_ratio > 0.60:
-            return 1.05  # 漲 5%
-        elif loss_ratio < 0.30:
-            return 0.95  # 降 5%
-        else:
-            return 1.00  # 不變
+    return f"""You are an insurance company managing flood insurance.
+
+Current situation:
+- Year: {context["year"]}
+- Premium rate: {insurance.premium_rate*100:.1f}%
+- Total policies: {context["total_policies"]}
+- Claims last year: ${context["claims_last_year"]:,.0f}
+- Premium collected: ${context["premium_collected"]:,.0f}
+- Loss ratio: {context["loss_ratio"]:.1%}
+
+Based on the loss ratio, decide premium adjustment:
+- If losses are high (>80%), consider raising premium
+- If losses are low (<30%), consider lowering premium
+- Otherwise, maintain current rate
+
+Respond:
+Decision: [raise/lower/maintain]
+Adjustment: [percentage, e.g., 5% or 10%]
+Reason: [brief explanation]"""
 ```
 
-### 2.3 Government Decision-Making
+**可用技能:**
+| Skill | 效果 |
+|-------|------|
+| `raise_premium` | 提高保費 (5-15%) |
+| `lower_premium` | 降低保費 (5-10%) |
+| `maintain_premium` | 維持現狀 |
+
+### 2.3 Government Decision-Making (簡單 LLM)
 
 ```python
-class GovernmentDecisionPolicy:
-    """政府決策邏輯 (規則式，非 LLM)"""
+def build_government_prompt(gov: GovernmentAgent, context: dict) -> str:
+    """政府決策 prompt (簡化版)"""
     
-    def decide_subsidy_adjustment(self,
-                                   year: int,
-                                   mg_adoption_rate: float,
-                                   flood_occurred: bool,
-                                   budget_remaining: float) -> float:
-        """每年決定補助調整"""
-        
-        # 災後且 MG 採用率低 → 提高補助
-        if flood_occurred and mg_adoption_rate < 0.30:
-            return min(0.80, self.current_rate * 1.20)
-        
-        # 採用率高 → 可降低補助
-        if mg_adoption_rate > 0.60:
-            return max(0.30, self.current_rate * 0.90)
-        
-        # 預算不足 → 降低
-        if budget_remaining < 0.20 * self.initial_budget:
-            return self.current_rate * 0.80
-        
-        return self.current_rate
+    return f"""You are a government agency managing flood adaptation subsidies.
+
+Current situation:
+- Year: {context["year"]}
+- Subsidy rate: {gov.subsidy_rate*100:.0f}%
+- Budget remaining: ${gov.budget - gov.spent:,.0f} / ${gov.budget:,.0f}
+- MG household adoption rate: {context["mg_adoption_rate"]:.1%}
+- NMG household adoption rate: {context["nmg_adoption_rate"]:.1%}
+- Flood occurred this year: {"Yes" if context["flood_event"] else "No"}
+
+Policy goal: Help marginalized households (MG) adopt flood protection measures.
+
+Consider:
+- If MG adoption is low and flood occurred, increase subsidy
+- If budget is running low, decrease subsidy
+- If adoption rates are healthy, maintain current policy
+
+Respond:
+Decision: [increase/decrease/maintain]
+Adjustment: [percentage change]
+Priority: [MG/all households]
+Reason: [brief explanation]"""
 ```
+
+**可用技能:**
+| Skill | 效果 |
+|-------|------|
+| `increase_subsidy` | 提高補助 (10-20%) |
+| `decrease_subsidy` | 降低補助 (10-20%) |
+| `maintain_subsidy` | 維持現狀 |
+| `set_mg_priority` | 設定 MG 優先 |
 
 ### 2.4 Decision Sequence per Year
 
