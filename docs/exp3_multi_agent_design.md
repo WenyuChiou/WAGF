@@ -564,6 +564,9 @@ Please evaluate your situation using the following constructs:
 **4. Self-Confidence (SC):** How confident are you in making the right decision?
    Consider: trust in insurance, trust in neighbors' judgment
 
+**5. Previous Adaptation (PA):** What protective measures have you already taken?
+   Consider: current elevation status, insurance history, past decisions
+
 ---
 
 {_get_options(agent)}
@@ -576,23 +579,24 @@ TP Assessment: [LOW/MODERATE/HIGH] - [One sentence explanation]
 CP Assessment: [LOW/MODERATE/HIGH] - [One sentence explanation]
 SP Assessment: [LOW/MODERATE/HIGH] - [One sentence explanation]
 SC Assessment: [LOW/MODERATE/HIGH] - [One sentence explanation]
+PA Assessment: [NONE/PARTIAL/FULL] - [One sentence explanation]
 Final Decision: [number only]"""
 ```
 
-#### 輸出結構 (每年紀錄)
+#### Output Structure (Yearly Record)
 
 ```python
 @dataclass
 class YearlyConstructRecord:
-    """每年 Construct 評估記錄 (for audit)"""
+    """Yearly construct assessment record for audit"""
     year: int
     agent_id: str
     agent_type: str  # MG_Owner, MG_Renter, NMG_Owner, NMG_Renter
     
-    # Context (輸入)
+    # Context (input)
     context: Dict[str, Any]
     
-    # LLM Construct 評估 (輸出)
+    # LLM Construct Assessments (output)
     tp_level: Literal["LOW", "MODERATE", "HIGH"]
     tp_explanation: str
     cp_level: Literal["LOW", "MODERATE", "HIGH"]
@@ -601,8 +605,10 @@ class YearlyConstructRecord:
     sp_explanation: str
     sc_level: Literal["LOW", "MODERATE", "HIGH"]
     sc_explanation: str
+    pa_level: Literal["NONE", "PARTIAL", "FULL"]
+    pa_explanation: str
     
-    # 決策
+    # Decision
     decision: str  # skill_id
     
     # Validation
@@ -610,25 +616,26 @@ class YearlyConstructRecord:
     validation_errors: List[str]
 ```
 
-#### CSV Audit 輸出
+#### CSV Audit Output
 
 ```csv
-year,agent_id,agent_type,is_MG,homeownership,flood_event,elevated,has_insurance,tp_level,tp_explanation,cp_level,cp_explanation,sp_level,sp_explanation,sc_level,sc_explanation,decision,valid
-2015,HH_001,MG_Owner,True,owner,True,False,False,HIGH,"Flooded this year and last year",LOW,"Cannot afford expensive options",MODERATE,"Subsidy available",LOW,"Don't trust insurance",do_nothing,True
-2015,HH_002,NMG_Renter,False,renter,True,N/A,False,MODERATE,"First flood experience",HIGH,"Can afford contents insurance",HIGH,"Good premium rates",HIGH,"Neighbors recommended",buy_contents_insurance,True
+year,agent_id,agent_type,is_MG,homeownership,flood_event,elevated,has_insurance,tp_level,tp_explanation,cp_level,cp_explanation,sp_level,sp_explanation,sc_level,sc_explanation,pa_level,pa_explanation,decision,valid
+2015,HH_001,MG_Owner,True,owner,True,False,False,HIGH,"Flooded this year and last",LOW,"Cannot afford expensive options",MODERATE,"Subsidy available",LOW,"Distrust insurance",NONE,"No protection yet",do_nothing,True
+2015,HH_002,NMG_Renter,False,renter,True,N/A,False,MODERATE,"First flood experience",HIGH,"Can afford insurance",HIGH,"Good rates",HIGH,"Neighbors recommended",PARTIAL,"Had insurance last year",buy_contents_insurance,True
 ```
 
-#### Parser (解析 LLM 輸出)
+#### Parser (LLM Output)
 
 ```python
-def parse_construct_output(raw_output: str) -> YearlyConstructRecord:
-    """解析 LLM construct 輸出"""
+def parse_construct_output(raw_output: str) -> dict:
+    """Parse LLM construct output"""
     
-    # 正則匹配
+    # Regex matching
     tp_match = re.search(r'TP Assessment:\s*(LOW|MODERATE|HIGH)\s*-\s*(.+?)(?=\n|CP)', raw_output, re.I)
     cp_match = re.search(r'CP Assessment:\s*(LOW|MODERATE|HIGH)\s*-\s*(.+?)(?=\n|SP)', raw_output, re.I)
     sp_match = re.search(r'SP Assessment:\s*(LOW|MODERATE|HIGH)\s*-\s*(.+?)(?=\n|SC)', raw_output, re.I)
-    sc_match = re.search(r'SC Assessment:\s*(LOW|MODERATE|HIGH)\s*-\s*(.+?)(?=\n|Final)', raw_output, re.I)
+    sc_match = re.search(r'SC Assessment:\s*(LOW|MODERATE|HIGH)\s*-\s*(.+?)(?=\n|PA)', raw_output, re.I)
+    pa_match = re.search(r'PA Assessment:\s*(NONE|PARTIAL|FULL)\s*-\s*(.+?)(?=\n|Final)', raw_output, re.I)
     decision_match = re.search(r'Final Decision:\s*(\d+)', raw_output, re.I)
     
     return {
@@ -640,6 +647,8 @@ def parse_construct_output(raw_output: str) -> YearlyConstructRecord:
         "sp_explanation": sp_match.group(2).strip() if sp_match else "",
         "sc_level": sc_match.group(1).upper() if sc_match else "UNKNOWN",
         "sc_explanation": sc_match.group(2).strip() if sc_match else "",
+        "pa_level": pa_match.group(1).upper() if pa_match else "UNKNOWN",
+        "pa_explanation": pa_match.group(2).strip() if pa_match else "",
         "decision": int(decision_match.group(1)) if decision_match else None
     }
 ```
@@ -648,7 +657,7 @@ def parse_construct_output(raw_output: str) -> YearlyConstructRecord:
 
 ```python
 class ConstructConsistencyValidator(SkillValidator):
-    """驗證 Construct 與決策的一致性"""
+    """Validate consistency between constructs and decision"""
     
     name = "ConstructConsistencyValidator"
     
@@ -658,32 +667,37 @@ class ConstructConsistencyValidator(SkillValidator):
         
         tp = context.get("parsed_tp_level", "MODERATE")
         cp = context.get("parsed_cp_level", "MODERATE")
+        pa = context.get("parsed_pa_level", "NONE")
         skill = proposal.skill_name
         
-        # Rule 1: HIGH TP + HIGH CP + do_nothing = 矛盾
+        # Rule 1: HIGH TP + HIGH CP + do_nothing = inconsistent
         if tp == "HIGH" and cp == "HIGH" and skill == "do_nothing":
             errors.append("Construct inconsistency: HIGH threat + HIGH coping but chose do_nothing")
         
-        # Rule 2: LOW TP + relocate = 過度反應
+        # Rule 2: LOW TP + relocate = overreaction
         if tp == "LOW" and skill == "relocate":
             errors.append("Construct inconsistency: LOW threat but chose extreme action (relocate)")
         
-        # Rule 3: LOW CP + expensive action = 矛盾
+        # Rule 3: LOW CP + expensive action = inconsistent
         if cp == "LOW" and skill in ["elevate_house", "relocate"]:
             errors.append("Construct inconsistency: LOW coping capacity but chose expensive action")
+        
+        # Rule 4: FULL PA + elevate_house = already done
+        if pa == "FULL" and skill == "elevate_house":
+            errors.append("Construct inconsistency: FULL previous adaptation but chose elevate again")
         
         return ValidationResult(valid=len(errors) == 0, errors=errors)
 ```
 
-#### 分析用途
+#### Analysis Use Cases
 
-每年 Audit 資料可用於:
+Yearly audit data can be used for:
 
-1. **Construct 分佈分析**: 各 agent type 的 TP/CP/SP/SC 分佈
-2. **決策-Construct 關係**: HIGH TP 是否更傾向 buy_insurance?
-3. **MG vs NMG 比較**: MG 的 CP 是否系統性較低?
-4. **時序分析**: 災後 TP 如何變化?
-5. **與傳統 ABM 對比**: LLM 評估的 TP 分佈 vs 公式計算的 TP
+1. **Construct Distribution Analysis**: TP/CP/SP/SC/PA distribution by agent type
+2. **Decision-Construct Relationship**: Does HIGH TP lead to buy_insurance?
+3. **MG vs NMG Comparison**: Is CP systematically lower for MG?
+4. **Temporal Analysis**: How does TP change after flood events?
+5. **Traditional ABM Comparison**: LLM TP distribution vs formula-calculated TP
 
 ### 3. Prompts (對齊現有 PMT)
 
