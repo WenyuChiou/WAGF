@@ -48,7 +48,7 @@ from examples.exp3_multi_agent.environment import SettlementModule
 SIMULATION_YEARS = 10
 OUTPUT_DIR = "examples/exp3_multi_agent/results"
 SEED = 42
-USE_LLM = False  # Set to True to use Ollama, False for heuristic
+USE_LLM = True  # Set to True to use Ollama, False for heuristic
 
 
 # =============================================================================
@@ -69,14 +69,22 @@ def call_llm(prompt: str, model: str = "llama3.2:3b") -> Optional[str]:
         response = requests.post(
             "http://localhost:11434/api/generate",
             json={"model": model, "prompt": prompt, "stream": False},
-            timeout=60
+            timeout=30  # Reduced timeout
         )
         if response.status_code == 200:
             return response.json().get("response", "")
+        else:
+            print(f"[LLM] HTTP {response.status_code}")
+            return None
+    except requests.exceptions.ConnectionError:
+        print("[LLM] Ollama not running - falling back to heuristic")
+        return None
+    except requests.exceptions.Timeout:
+        print("[LLM] Request timeout - falling back to heuristic")
+        return None
     except Exception as e:
         print(f"[LLM] Error: {e}")
-    
-    return None
+        return None
 
 
 def generate_heuristic_response(agent: HouseholdAgent, year: int, context: dict) -> str:
