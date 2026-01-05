@@ -16,6 +16,12 @@ from typing import Dict, Any, List
 
 HOUSEHOLD_PROMPT = """You are a {tenure_type} living in a flood-prone city{mg_context}.
 
+=== YOUR HOUSEHOLD ===
+- **Income**: ${income:,.0f} / year
+- **Family Size**: {household_size} members
+- **Time in Area**: {generations} generation(s)
+- **Transport**: {vehicle_status}
+
 === CONSTRUCT DEFINITIONS ===
 Evaluate your situation using these 5 psychological constructs:
 
@@ -126,6 +132,12 @@ def build_household_prompt(
     cumulative_damage = agent_state.get("cumulative_damage", 0)
     property_value = agent_state.get("property_value", 300000)
     
+    # Detailed Demographics
+    income = agent_state.get("income", 50000)
+    household_size = agent_state.get("household_size", 3)
+    generations = agent_state.get("generations", 1)
+    has_vehicle = agent_state.get("has_vehicle", True)
+    
     # Context
     subsidy_rate = context.get("government_subsidy_rate", 0.5)
     premium_rate = context.get("insurance_premium_rate", 0.05)
@@ -135,6 +147,7 @@ def build_household_prompt(
     # Build components
     mg_context = MG_CONTEXT[mg]
     tenure_type = TENURE_TYPE[tenure]
+    vehicle_status = "Owns a vehicle (Evacuation possible)" if has_vehicle else "No personal vehicle (Evacuation difficult)"
     
     elevation_status = "Your house is ELEVATED (protected from most flood damage)." if elevated else "Your house is NOT elevated and vulnerable to flooding."
     insurance_status = "You currently HAVE flood insurance." if has_insurance else "You currently do NOT have flood insurance."
@@ -168,6 +181,10 @@ def build_household_prompt(
     return HOUSEHOLD_PROMPT.format(
         tenure_type=tenure_type,
         mg_context=mg_context,
+        income=income,
+        household_size=household_size,
+        generations=generations,
+        vehicle_status=vehicle_status,
         elevation_status=elevation_status,
         insurance_status=insurance_status,
         damage_history=damage_history,

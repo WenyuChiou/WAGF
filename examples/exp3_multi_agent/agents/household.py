@@ -33,6 +33,11 @@ class HouseholdAgentState:
     income: float = 50_000
     property_value: float = 300_000
     
+    # Social Demographics (New)
+    generations_in_area: int = 1     # Place attachment proxy
+    household_size: int = 3          # Dependents proxy
+    has_vehicle: bool = True         # Evacuation capability
+    
     # Adaptation Status
     elevated: bool = False           # Cumulative (permanent)
     has_insurance: bool = False      # NOT cumulative (renewed yearly)
@@ -84,7 +89,8 @@ class HouseholdAgent:
     """
     
     def __init__(self, agent_id: str, mg: bool, tenure: str, 
-                 income: float, property_value: float, region_id: str = "NJ"):
+                 income: float, property_value: float, region_id: str = "NJ",
+                 generations: int = 1, household_size: int = 3, has_vehicle: bool = True):
         self.state = HouseholdAgentState(
             id=agent_id, 
             mg=mg,
@@ -92,6 +98,9 @@ class HouseholdAgent:
             region_id=region_id,
             income=income,
             property_value=property_value,
+            generations_in_area=generations,
+            household_size=household_size,
+            has_vehicle=has_vehicle,
             # Randomize initial trust (0.3 - 0.8)
             trust_in_government=random.uniform(0.3, 0.8),
             trust_in_insurance=random.uniform(0.3, 0.8),
@@ -235,6 +244,10 @@ class HouseholdAgent:
             "region_id": self.state.region_id,
             "elevated": self.state.elevated,
             "has_insurance": self.state.has_insurance,
+            "income": self.state.income,
+            "generations": self.state.generations_in_area,
+            "household_size": self.state.household_size,
+            "has_vehicle": self.state.has_vehicle,
             "trust_gov": self.state.trust_in_government,
             "trust_ins": self.state.trust_in_insurance,
             "cumulative_damage": self.state.cumulative_damage,

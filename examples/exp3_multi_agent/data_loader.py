@@ -54,14 +54,25 @@ def load_households_from_csv(
     df = pd.read_csv(filepath)
     
     households = []
+    
+    import random # Ensure random is available in local scope if needed or rely on outer import
+    
     for _, row in df.iterrows():
+        # Generate defaults if column missing
+        default_gen = random.choices([1, 2, 3], weights=[0.5, 0.3, 0.2])[0]
+        default_size = random.randint(1, 5)
+        default_vehicle = random.random() > 0.2  # 80% have car
+        
         agent = HouseholdAgent(
             agent_id=str(row['agent_id']),
             mg=_parse_bool(row['mg']),
             tenure=str(row['tenure']),
             income=float(row['income']),
             property_value=float(row['property_value']),
-            region_id=str(row.get('region_id', 'NJ'))
+            region_id=str(row.get('region_id', 'NJ')),
+            generations=int(row.get('generations', default_gen)),
+            household_size=int(row.get('household_size', default_size)),
+            has_vehicle=_parse_bool(row.get('has_vehicle', default_vehicle))
         )
         
         # Override randomized trust if provided
@@ -156,13 +167,28 @@ def _generate_default_households(seed: int = 42) -> List[HouseholdAgent]:
             
             region = "NJ" if i % 5 < 3 else "NY"
             
+            # Demographic logic
+            generations = 1
+            if tenure == "Owner":
+                generations = random.choices([1, 2, 3, 4], weights=[0.4, 0.3, 0.2, 0.1])[0]
+            else:
+                generations = random.choices([1, 2], weights=[0.8, 0.2])[0]
+                
+            household_size = random.randint(1, 5)
+            
+            # MG households less likely to have vehicle
+            has_vehicle = random.random() < (0.6 if mg else 0.95)
+            
             agent = HouseholdAgent(
                 agent_id=f"H{count:03d}",
                 mg=mg,
                 tenure=tenure,
                 income=max(income, 20000),
                 property_value=max(prop_val, 0),
-                region_id=region
+                region_id=region,
+                generations=generations,
+                household_size=household_size,
+                has_vehicle=has_vehicle
             )
             households.append(agent)
     
