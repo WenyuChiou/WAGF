@@ -1,15 +1,15 @@
 """
 Output Parsers for Multi-Agent LLM Responses (Exp3)
 
-Parses LLM text output into structured dataclasses for:
-- Household Agent: PMT 5 Constructs + Decision
-- Insurance Agent: Analysis + Decision
-- Government Agent: Analysis + Decision
+Simplified parsers for survey-based design:
+- Household Agent: Reasoning + Decision (constructs are INPUT, not OUTPUT)
+- Insurance Agent: Analysis + Decision + Adjustment
+- Government Agent: Analysis + Decision + Priority
 """
 
 import re
 from dataclasses import dataclass, field
-from typing import List, Optional, Literal, Tuple
+from typing import List, Literal, Tuple
 
 
 @dataclass
@@ -20,19 +20,15 @@ class HouseholdOutput:
     tenure: str
     year: int
     
-    # PMT Constructs
-    tp_level: Literal["LOW", "MODERATE", "HIGH"]
-    tp_explanation: str
-    cp_level: Literal["LOW", "MODERATE", "HIGH"]
-    cp_explanation: str
-    sp_level: Literal["LOW", "MODERATE", "HIGH"]
-    sp_explanation: str
-    sc_level: Literal["LOW", "MODERATE", "HIGH"]
-    sc_explanation: str
-    pa_level: Literal["NONE", "PARTIAL", "FULL"]
-    pa_explanation: str
+    # Survey Constructs (INPUT - stored for logging)
+    tp_level: str
+    cp_level: str
+    sp_level: str
+    sc_level: str
+    pa_level: str
     
-    # Decision
+    # LLM Output
+    reasoning: str
     decision_number: int
     decision_skill: str
     
@@ -77,91 +73,56 @@ def parse_household_response(
     mg: bool,
     tenure: str,
     year: int,
+    constructs: dict,  # Survey constructs passed through for logging
     elevated: bool = False
 ) -> HouseholdOutput:
     """
     Parse LLM response into HouseholdOutput.
     
     Expected format:
-    TP Assessment: [LEVEL] - [explanation]
-    CP Assessment: [LEVEL] - [explanation]
-    SP Assessment: [LEVEL] - [explanation]
-    SC Assessment: [LEVEL] - [explanation]
-    PA Assessment: [LEVEL] - [explanation]
+    Reasoning: [explanation]
     Final Decision: [number]
     """
     errors = []
     
-    # Parse constructs
-    tp_level, tp_exp = _parse_construct(response, "TP", ["LOW", "MODERATE", "HIGH"])
-    cp_level, cp_exp = _parse_construct(response, "CP", ["LOW", "MODERATE", "HIGH"])
-    sp_level, sp_exp = _parse_construct(response, "SP", ["LOW", "MODERATE", "HIGH"])
-    sc_level, sc_exp = _parse_construct(response, "SC", ["LOW", "MODERATE", "HIGH"])
-    pa_level, pa_exp = _parse_construct(response, "PA", ["NONE", "PARTIAL", "FULL"])
-    
-    # Check for parse failures
-    for name, level in [("TP", tp_level), ("CP", cp_level), ("SP", sp_level), 
-                        ("SC", sc_level), ("PA", pa_level)]:
-        if level == "UNKNOWN":
-            errors.append(f"Failed to parse {name} Assessment")
+    # Parse reasoning
+    reasoning_match = re.search(
+        r"Reasoning:\s*(.+?)(?=Final\s*Decision:|$)", 
+        response, 
+        re.IGNORECASE | re.DOTALL
+    )
+    reasoning = reasoning_match.group(1).strip() if reasoning_match else ""
+    if not reasoning:
+        errors.append("Failed to parse Reasoning")
     
     # Parse decision
-    decision_number, decision_skill = _parse_decision(response, tenure, elevated)
+    decision_match = re.search(r"Final\s*Decision:\s*\[?(\d)\]?", response, re.IGNORECASE)
+    decision_number = int(decision_match.group(1)) if decision_match else 0
+    
     if decision_number == 0:
         errors.append("Failed to parse Final Decision")
+    
+    decision_skill = _number_to_skill(decision_number, tenure, elevated)
     
     return HouseholdOutput(
         agent_id=agent_id,
         mg=mg,
         tenure=tenure,
         year=year,
-        tp_level=tp_level if tp_level != "UNKNOWN" else "LOW",
-        tp_explanation=tp_exp,
-        cp_level=cp_level if cp_level != "UNKNOWN" else "LOW",
-        cp_explanation=cp_exp,
-        sp_level=sp_level if sp_level != "UNKNOWN" else "LOW",
-        sp_explanation=sp_exp,
-        sc_level=sc_level if sc_level != "UNKNOWN" else "LOW",
-        sc_explanation=sc_exp,
-        pa_level=pa_level if pa_level != "UNKNOWN" else "NONE",
-        pa_explanation=pa_exp,
+        # Pass through survey constructs for logging
+        tp_level=constructs.get("TP", "UNKNOWN"),
+        cp_level=constructs.get("CP", "UNKNOWN"),
+        sp_level=constructs.get("SP", "UNKNOWN"),
+        sc_level=constructs.get("SC", "UNKNOWN"),
+        pa_level=constructs.get("PA", "UNKNOWN"),
+        # LLM output
+        reasoning=reasoning,
         decision_number=decision_number,
         decision_skill=decision_skill,
         validated=len(errors) == 0,
         validation_errors=errors,
         raw_response=response
     )
-
-
-def _parse_construct(response: str, construct: str, valid_levels: List[str]) -> Tuple[str, str]:
-    """Parse a single construct from response."""
-    pattern = rf"{construct}\s*Assessment:\s*\[?(\w+)\]?\s*[-–]\s*(.+?)(?=\n[A-Z]|$)"
-    match = re.search(pattern, response, re.IGNORECASE | re.DOTALL)
-    
-    if match:
-        level = match.group(1).upper()
-        explanation = match.group(2).strip()
-        if level in valid_levels:
-            return level, explanation
-        # Try to fuzzy match
-        for valid in valid_levels:
-            if valid in level or level in valid:
-                return valid, explanation
-    
-    return "UNKNOWN", ""
-
-
-def _parse_decision(response: str, tenure: str, elevated: bool) -> Tuple[int, str]:
-    """Parse Final Decision from response."""
-    pattern = r"Final\s*Decision:\s*\[?(\d)\]?"
-    match = re.search(pattern, response, re.IGNORECASE)
-    
-    if match:
-        num = int(match.group(1))
-        skill = _number_to_skill(num, tenure, elevated)
-        return num, skill
-    
-    return 0, "parse_error"
 
 
 def _number_to_skill(num: int, tenure: str, elevated: bool) -> str:
@@ -184,7 +145,11 @@ def parse_insurance_response(response: str, year: int) -> InsuranceOutput:
     """Parse Insurance Agent LLM response."""
     
     # Parse analysis
-    analysis_match = re.search(r"Analysis:\s*(.+?)(?=\n|Decision:)", response, re.IGNORECASE | re.DOTALL)
+    analysis_match = re.search(
+        r"Analysis:\s*(.+?)(?=\n|Decision:)", 
+        response, 
+        re.IGNORECASE | re.DOTALL
+    )
     analysis = analysis_match.group(1).strip() if analysis_match else ""
     
     # Parse decision
@@ -222,7 +187,11 @@ def parse_government_response(response: str, year: int) -> GovernmentOutput:
     """Parse Government Agent LLM response."""
     
     # Parse analysis
-    analysis_match = re.search(r"Analysis:\s*(.+?)(?=\n|Decision:)", response, re.IGNORECASE | re.DOTALL)
+    analysis_match = re.search(
+        r"Analysis:\s*(.+?)(?=\n|Decision:)", 
+        response, 
+        re.IGNORECASE | re.DOTALL
+    )
     analysis = analysis_match.group(1).strip() if analysis_match else ""
     
     # Parse decision
