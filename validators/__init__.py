@@ -21,7 +21,6 @@ from .skill_validators import (
     InstitutionalConstraintValidator,
     EffectSafetyValidator,
     PMTConsistencyValidator,
-    UncertaintyValidator,
     create_default_validators
 )
 
@@ -52,7 +51,6 @@ __all__ = [
     "InstitutionalConstraintValidator",
     "EffectSafetyValidator",
     "PMTConsistencyValidator",
-    "UncertaintyValidator",
     "create_default_validators",
     # Factory
     "VALIDATOR_REGISTRY",

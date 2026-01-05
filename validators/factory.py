@@ -13,8 +13,7 @@ from .skill_validators import (
     ContextFeasibilityValidator,
     InstitutionalConstraintValidator,
     EffectSafetyValidator,
-    PMTConsistencyValidator,
-    UncertaintyValidator
+    PMTConsistencyValidator
 )
 
 
@@ -25,14 +24,12 @@ VALIDATOR_REGISTRY: Dict[str, Type[SkillValidator]] = {
     "InstitutionalConstraintValidator": InstitutionalConstraintValidator,
     "EffectSafetyValidator": EffectSafetyValidator,
     "PMTConsistencyValidator": PMTConsistencyValidator,
-    "UncertaintyValidator": UncertaintyValidator,
     # Aliases for shorter names
     "Admissibility": SkillAdmissibilityValidator,
     "Feasibility": ContextFeasibilityValidator,
     "Constraint": InstitutionalConstraintValidator,
     "EffectSafety": EffectSafetyValidator,
     "PMT": PMTConsistencyValidator,
-    "Uncertainty": UncertaintyValidator,
     # Legacy names from domain YAML
     "SchemaValidator": SkillAdmissibilityValidator,
     "PolicyValidator": InstitutionalConstraintValidator,
@@ -147,7 +144,6 @@ def get_default_validators() -> List[SkillValidator]:
         InstitutionalConstraintValidator(),
         EffectSafetyValidator(),
         PMTConsistencyValidator(),
-        UncertaintyValidator(),
     ]
 
 
