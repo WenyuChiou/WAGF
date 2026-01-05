@@ -1,241 +1,263 @@
 """
-Experiment 3: Multi-Agent Simulation (Main Script)
+Experiment 3: Multi-Agent Simulation (Full Integration)
 
-Runs the annual simulation loop for the Governed Broker Framework (Exp3).
-Coordinates:
-- 100 Household Agents (Diverse types: MG/NMG × Owner/Renter)
-- 1 Insurance Agent
-- 2 Government Agents (NJ, NY)
-- Environment Modules (Catastrophe, Subsidy, Settlement)
+Components:
+- Data Loader: Load agents from CSV/Excel
+- Prompts: Build LLM prompts with PMT constructs
+- Parsers: Parse LLM responses
+- Validators: Check PMT consistency
+- Audit Writer: Record all decisions
+- LLM Client: Call Ollama (optional, falls back to heuristic)
 
 Output:
-- Simulation log CSV (Annual summary)
-- Agent decision log JSONL (Per-agent decisions with PMT constructs)
+- household_audit.jsonl
+- institutional_audit.jsonl
+- audit_summary.json
 """
 
 import sys
 import os
-import random
 import json
-import pandas as pd
-from typing import List, Dict
+
+sys.path.insert(0, '.')
+
+from typing import List, Dict, Optional
 from dataclasses import asdict
 
-# Ensure path
-sys.path.insert(0, '.')
-sys.path.insert(0, './examples/exp3_multi_agent')
-
-from examples.exp3_multi_agent.agents import (
-    HouseholdAgent, InsuranceAgent, GovernmentAgent
+from examples.exp3_multi_agent.data_loader import (
+    load_households_from_csv, 
+    initialize_all_agents
 )
-from examples.exp3_multi_agent.environment import (
-    SettlementModule, SettlementReport
+from examples.exp3_multi_agent.prompts import (
+    build_household_prompt,
+    build_insurance_prompt,
+    build_government_prompt
 )
+from examples.exp3_multi_agent.parsers import (
+    parse_household_response,
+    parse_insurance_response,
+    parse_government_response,
+    HouseholdOutput
+)
+from examples.exp3_multi_agent.validators import HouseholdValidator
+from examples.exp3_multi_agent.audit_writer import AuditWriter, AuditConfig
+from examples.exp3_multi_agent.agents import HouseholdAgent
+from examples.exp3_multi_agent.environment import SettlementModule
 
 # Configuration
-NUM_HOUSEHOLDS = 100
 SIMULATION_YEARS = 10
 OUTPUT_DIR = "examples/exp3_multi_agent/results"
 SEED = 42
+USE_LLM = False  # Set to True to use Ollama, False for heuristic
 
-def initialize_agents(seed: int = 42) -> (List[HouseholdAgent], Dict[str, GovernmentAgent], InsuranceAgent):
-    """Initializes all agents with a specific distribution."""
-    random.seed(seed)
+
+# =============================================================================
+# LLM CLIENT (Ollama)
+# =============================================================================
+
+def call_llm(prompt: str, model: str = "llama3.2:3b") -> Optional[str]:
+    """
+    Call Ollama LLM for response.
     
-    # Multi-Government (NJ, NY)
-    govs = {
-        "NJ": GovernmentAgent("Gov_NJ"),
-        "NY": GovernmentAgent("Gov_NY")
-    }
-    # NY has higher budget
-    govs["NY"].state.annual_budget = 600_000
-    govs["NY"].state.budget_remaining = 600_000
+    Returns None if LLM unavailable (falls back to heuristic).
+    """
+    if not USE_LLM:
+        return None
     
-    # Insurance (Single)
-    ins = InsuranceAgent()
+    try:
+        import requests
+        response = requests.post(
+            "http://localhost:11434/api/generate",
+            json={"model": model, "prompt": prompt, "stream": False},
+            timeout=60
+        )
+        if response.status_code == 200:
+            return response.json().get("response", "")
+    except Exception as e:
+        print(f"[LLM] Error: {e}")
     
-    # Households
-    households = []
+    return None
+
+
+def generate_heuristic_response(agent: HouseholdAgent, year: int, context: dict) -> str:
+    """
+    Generate heuristic response when LLM unavailable.
     
-    # Distribution: 
-    # 30% MG Owner, 20% MG Renter
-    # 40% NMG Owner, 10% NMG Renter
-    # Split 60/40 between NJ/NY
-    distribution = [
-        (True, "Owner", 30),   # MG Owner
-        (True, "Renter", 20),  # MG Renter
-        (False, "Owner", 40),  # NMG Owner
-        (False, "Renter", 10)  # NMG Renter
-    ]
+    Simulates PMT-based decision making.
+    """
+    s = agent.state
     
-    count = 0
-    for mg, tenure, num in distribution:
-        for i in range(num):
-            count += 1
-            # Simple attribute randomization
-            if tenure == "Owner":
-                prop_val = random.gauss(300_000, 50_000)
-                income = random.gauss(60_000, 15_000)
-            else:
-                prop_val = 0 # Renter doesn't own structure
-                income = random.gauss(40_000, 10_000)
-                
-            if mg:
-                income *= 0.7 # Lower income for MG on average
-                prop_val *= 0.8
-            
-            # Assign region (60% NJ, 40% NY)
-            region = "NJ" if i % 5 < 3 else "NY"
-                
-            h = HouseholdAgent(
-                agent_id=f"H{count:03d}", 
-                mg=mg, 
-                tenure=tenure, 
-                income=income, 
-                property_value=prop_val,
-                region_id=region
-            )
-            households.append(h)
-            
-    return households, govs, ins
+    # Determine construct levels based on state
+    tp = "HIGH" if s.cumulative_damage > s.property_value * 0.1 else ("MODERATE" if s.cumulative_damage > 0 else "LOW")
+    cp = "HIGH" if s.income > 60000 else ("MODERATE" if s.income > 35000 else "LOW")
+    sp = "HIGH" if context.get("government_subsidy_rate", 0.5) >= 0.5 else "MODERATE"
+    sc = "MODERATE"
+    pa = "FULL" if s.elevated and s.has_insurance else ("PARTIAL" if s.elevated or s.has_insurance else "NONE")
+    
+    # Determine decision
+    if s.relocated:
+        decision, num = "do_nothing", 4 if s.tenure == "Owner" else 3
+    elif tp == "HIGH" and not s.has_insurance:
+        decision, num = "buy_insurance", 1
+    elif tp in ["MODERATE", "HIGH"] and not s.elevated and s.tenure == "Owner" and sp == "HIGH":
+        decision, num = "elevate_house", 2
+    elif s.cumulative_damage > s.property_value * 0.5 and s.income < 40000:
+        decision, num = "relocate", 3 if s.tenure == "Owner" else 2
+    else:
+        decision, num = "do_nothing", 4 if s.tenure == "Owner" and not s.elevated else 3
+    
+    justification = f"Based on {tp} threat and {cp} coping ability, {decision} is appropriate."
+    
+    return f"""
+TP Assessment: {tp} - Cumulative damage ${s.cumulative_damage:,.0f}
+CP Assessment: {cp} - Income ${s.income:,.0f}
+SP Assessment: {sp} - Subsidy {context.get('government_subsidy_rate', 0.5):.0%}
+SC Assessment: {sc} - Moderate confidence in ability to act
+PA Assessment: {pa} - Elevated: {s.elevated}, Insured: {s.has_insurance}
+Final Decision: {num}
+Justification: {justification}
+"""
+
+
+# =============================================================================
+# MAIN SIMULATION
+# =============================================================================
 
 def run_simulation():
-    """Main simulation loop."""
-    print(f"Starting Exp3 Simulation ({SIMULATION_YEARS} years, {NUM_HOUSEHOLDS} households)...")
-    
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    """Main simulation loop with full integration."""
+    print(f"=" * 60)
+    print(f"Exp3 Multi-Agent Simulation")
+    print(f"Years: {SIMULATION_YEARS}, LLM: {'Enabled' if USE_LLM else 'Heuristic'}")
+    print(f"=" * 60)
     
     # Initialize
-    households, govs, ins = initialize_agents(SEED)
+    households, govs, ins = initialize_all_agents(seed=SEED)
     settlement = SettlementModule(seed=SEED)
+    validator = HouseholdValidator()
+    audit = AuditWriter(AuditConfig(output_dir=OUTPUT_DIR))
     
-    # Data Logging
-    annual_log = []
-    decision_log = []  # Per-agent decisions
+    print(f"Loaded {len(households)} household agents")
+    print(f"Governments: {list(govs.keys())}")
     
     for year in range(1, SIMULATION_YEARS + 1):
-        print(f"\n--- Year {year} ---")
+        print(f"\n{'='*40}")
+        print(f"YEAR {year}")
+        print(f"{'='*40}")
         
-        # ==========================================
+        # =============================================
         # Phase 0: Annual Reset
-        # ==========================================
+        # =============================================
         for hh in households:
-            hh.reset_insurance()  # Insurance NOT cumulative
+            hh.reset_insurance()
         
-        # ==========================================
+        # =============================================
         # Phase 1: Institutional Decisions
-        # ==========================================
+        # =============================================
         for gov_id, gov in govs.items():
             gov.reset_annual_budget(year)
-            gov_decision = gov.decide_policy(year, flood_occurred_prev_year=False)
-            print(f"{gov_id} Policy: {gov_decision} (Subsidy: {gov.state.subsidy_rate:.0%})")
-            
         ins.reset_annual_metrics()
-        ins_decision = ins.decide_strategy(year)
-        print(f"Ins Strategy: {ins_decision} (Premium: {ins.state.premium_rate:.1%})")
         
-        # ==========================================
+        # =============================================
         # Phase 2: Household Decisions
-        # ==========================================
+        # =============================================
         actions = {"do_nothing": 0, "buy_insurance": 0, "elevate_house": 0, "relocate": 0}
+        validation_warnings = 0
+        validation_errors = 0
         
         for hh in households:
             if hh.state.relocated:
-                continue # Skip relocated agents
+                continue
             
             # Get region-specific government
             gov = govs.get(hh.state.region_id, govs["NJ"])
             
-            # Context for households
+            # Build context
             context = {
                 "government_subsidy_rate": gov.state.subsidy_rate,
                 "insurance_premium_rate": ins.state.premium_rate,
+                "flood_occurred": False,
                 "year": year
             }
             
-            output = hh.make_decision(year, context)
-            decision = output.decision_skill
-            actions[decision] += 1
+            # Get agent state dict
+            state_dict = {
+                "mg": hh.state.mg,
+                "tenure": hh.state.tenure,
+                "region_id": hh.state.region_id,
+                "elevated": hh.state.elevated,
+                "has_insurance": hh.state.has_insurance,
+                "cumulative_damage": hh.state.cumulative_damage,
+                "income": hh.state.income,
+                "property_value": hh.state.property_value
+            }
             
-            # Log decision with PMT constructs
-            decision_log.append(asdict(output))
+            # Get memory
+            memories = hh.memory.retrieve(top_k=5, current_year=year)
             
-            # Application Logic
-            if decision == "elevate_house":
-                subsidy_res = settlement.process_mitigation(hh, "elevate_house", gov)
-                if subsidy_res['approved']:
-                    hh.apply_decision(output)
-                else:
-                    # Fallback to do_nothing
-                    output.decision_skill = "do_nothing"
-                    output.decision_number = 4
-                    hh.apply_decision(output)
-                    actions["elevate_house"] -= 1
-                    actions["do_nothing"] += 1
-            else:
-                hh.apply_decision(output)
-                
-        print(f"Household Actions (This Year): {actions}")
+            # Build prompt
+            prompt = build_household_prompt(state_dict, context, memories)
+            
+            # Get LLM response or heuristic
+            llm_response = call_llm(prompt)
+            if llm_response is None:
+                llm_response = generate_heuristic_response(hh, year, context)
+            
+            # Parse response
+            output = parse_household_response(
+                llm_response,
+                hh.state.id,
+                hh.state.mg,
+                hh.state.tenure,
+                year,
+                hh.state.elevated
+            )
+            
+            # Validate
+            val_result = validator.validate(output, state_dict)
+            if not val_result.valid:
+                validation_errors += 1
+                output.validated = False
+                output.validation_errors.extend(val_result.errors)
+            if val_result.warnings:
+                validation_warnings += 1
+            
+            # Apply decision
+            actions[output.decision_skill] = actions.get(output.decision_skill, 0) + 1
+            hh.apply_decision(output)
+            
+            # Audit
+            audit.write_household_trace(output, state_dict, context)
         
-        # ==========================================
-        # Cumulative Stats
-        # ==========================================
-        total_insured = sum(1 for h in households if h.state.has_insurance)
-        total_elevated = sum(1 for h in households if h.state.elevated)
-        total_relocated = sum(1 for h in households if h.state.relocated)
-        print(f"Cumulative: Insured={total_insured}, Elevated={total_elevated}, Relocated={total_relocated}")
+        print(f"Actions: {actions}")
+        print(f"Validation: {validation_errors} errors, {validation_warnings} warnings")
         
-        # ==========================================
-        # Phase 3: Annual Settlement
-        # ==========================================
-        # Use NJ gov as primary (or could aggregate)
+        # =============================================
+        # Phase 3: Settlement
+        # =============================================
         report = settlement.process_year(year, households, ins, govs["NJ"])
         
         if report.flood_occurred:
-            print(f"🌊 FLOOD! Severity: {report.flood_severity:.2f}, Damage: ${report.total_damage:,.0f}, Claims: ${report.total_claims:,.0f}")
+            print(f"🌊 FLOOD! Damage: ${report.total_damage:,.0f}, Claims: ${report.total_claims:,.0f}")
         else:
-            print("No Flood.")
-            
-        # ==========================================
-        # Annual Logging
-        # ==========================================
-        log_entry = {
-            "Year": year,
-            "Flood": report.flood_occurred,
-            "Severity": report.flood_severity,
-            "TotalDamage": report.total_damage,
-            "TotalClaims": report.total_claims,
-            "Ins_PremiumRate": ins.state.premium_rate,
-            "Ins_LossRatio": ins.state.loss_ratio,
-            "Ins_Policies": ins.state.total_policies,
-            # Per Year Actions
-            "Actions_Insurance": actions["buy_insurance"],
-            "Actions_Elevate": actions["elevate_house"],
-            "Actions_Relocate": actions["relocate"],
-            # Cumulative Stats
-            "Cum_Insured": total_insured,
-            "Cum_Elevated": total_elevated,
-            "Cum_Relocated": total_relocated
-        }
-        annual_log.append(log_entry)
+            print("No flood.")
+        
+        # Cumulative stats
+        cum_insured = sum(1 for h in households if h.state.has_insurance)
+        cum_elevated = sum(1 for h in households if h.state.elevated)
+        cum_relocated = sum(1 for h in households if h.state.relocated)
+        print(f"Cumulative: Insured={cum_insured}, Elevated={cum_elevated}, Relocated={cum_relocated}")
+    
+    # =============================================
+    # Finalize
+    # =============================================
+    summary = audit.finalize()
+    print(f"\n{'='*60}")
+    print("SIMULATION COMPLETE")
+    print(f"{'='*60}")
+    print(f"Total household decisions: {summary['total_household_decisions']}")
+    print(f"Decision distribution: {summary.get('decision_rates', {})}")
+    print(f"Validation failure rate: {summary.get('validation_failure_rate', 'N/A')}")
 
-    # ==========================================
-    # Save Results
-    # ==========================================
-    
-    # Annual Summary
-    df = pd.DataFrame(annual_log)
-    csv_path = os.path.join(OUTPUT_DIR, "simulation_log.csv")
-    df.to_csv(csv_path, index=False)
-    print(f"\nSimulation Complete. Annual log saved to {csv_path}")
-    print(df)
-    
-    # Decision Log (JSONL with PMT constructs)
-    jsonl_path = os.path.join(OUTPUT_DIR, "decision_log.jsonl")
-    with open(jsonl_path, 'w') as f:
-        for entry in decision_log:
-            f.write(json.dumps(entry) + '\n')
-    print(f"Decision log saved to {jsonl_path} ({len(decision_log)} entries)")
 
 if __name__ == "__main__":
     run_simulation()
