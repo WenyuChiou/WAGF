@@ -195,7 +195,7 @@ class CognitiveMemory:
         
         # Supplement with Episodic Memory
         remaining = top_k - len(results)
-        if remaining > 0 and current_year > 0:
+        if remaining > 0:
             episodic_scored = []
             for item in self._episodic:
                 years_passed = max(0, current_year - item.year)
