@@ -127,11 +127,25 @@ This ensures LLM only proposes registered skills, which are then validated by th
 
 **Flow**: Environment → Context Builder → LLM → Model Adapter → Skill Broker Engine → Validators → Executor → State
 
+#### V3 with Memory Layer
+
+![Single-Agent V3](docs/single_agent_architecture_v3.png)
+
+**Added**: Memory Layer with `retrieve()` (active) and `add_memory()` (passive) operations.
+
 ### Multi-Agent Mode
 
 ![Multi-Agent Architecture](docs/multi_agent_architecture.png)
 
 **Flow**: Agents → LLM (Skill Proposal) → Governed Broker Layer (Context Builder + Validators) → State Manager with four layers: Individual (memory), Social (neighbor observation), Shared (environment), and Institutional (policy rules).
+
+#### V3 with Memory & Environment Layers
+
+![Multi-Agent V3](docs/multi_agent_architecture_v3.png)
+
+**Added**:
+- **Memory Layer**: Working (neighbor, policy) + Episodic (flood, claim, decision)
+- **Environment Layer**: Pure functions `process(flood|damage|claim|subsidy)`
 
 ---
 
