@@ -44,11 +44,14 @@ from examples.exp3_multi_agent.audit_writer import AuditWriter, AuditConfig
 from examples.exp3_multi_agent.agents import HouseholdAgent
 from examples.exp3_multi_agent.environment import SettlementModule
 
+# V3 Unified Memory Interface
+from examples.exp3_multi_agent.memory_helpers import add_memory
+
 # Configuration
 SIMULATION_YEARS = 10
 OUTPUT_DIR = "examples/exp3_multi_agent/results"
 SEED = 42
-USE_LLM = True  # Set to True to use Ollama, False for heuristic
+USE_LLM = False  # Set to True to use Ollama, False for heuristic
 
 
 # =============================================================================
@@ -153,10 +156,20 @@ def run_simulation():
         print(f"{'='*40}")
         
         # =============================================
-        # Phase 0: Annual Reset
+        # Phase 0: Annual Reset + Neighbor Observation
         # =============================================
         for hh in households:
             hh.reset_insurance()
+        
+        # V3: Social observation at year start
+        elevated_count = sum(1 for h in households if h.state.elevated)
+        insured_count = sum(1 for h in households if h.state.has_insurance)
+        for hh in households:
+            if not hh.state.relocated:
+                if elevated_count > 0:
+                    add_memory(hh.memory, "neighbor", {"type": "elevated", "count": elevated_count}, year)
+                if insured_count > 0:
+                    add_memory(hh.memory, "neighbor", {"type": "insured", "count": insured_count}, year)
         
         # =============================================
         # Phase 1: Institutional Decisions
@@ -233,6 +246,9 @@ def run_simulation():
             actions[output.decision_skill] = actions.get(output.decision_skill, 0) + 1
             hh.apply_decision(output)
             
+            # V3: Explicit decision memory
+            add_memory(hh.memory, "decision", {"skill_id": output.decision_skill}, year)
+            
             # Audit
             audit.write_household_trace(output, state_dict, context)
         
@@ -246,6 +262,19 @@ def run_simulation():
         
         if report.flood_occurred:
             print(f"🌊 FLOOD! Damage: ${report.total_damage:,.0f}, Claims: ${report.total_claims:,.0f}")
+            
+            # V3: Record flood memories for each household
+            for hh in households:
+                if not hh.state.relocated and hasattr(hh.state, 'last_year_damage'):
+                    damage = getattr(hh.state, 'last_year_damage', 0)
+                    if damage > 0:
+                        add_memory(hh.memory, "flood", {"damage": damage}, year)
+                        if hh.state.has_insurance:
+                            add_memory(hh.memory, "claim", {
+                                "filed": True, 
+                                "approved": True,
+                                "payout": damage * 0.9  # Estimate
+                            }, year)
         else:
             print("No flood.")
         
