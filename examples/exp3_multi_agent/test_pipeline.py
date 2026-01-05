@@ -208,12 +208,16 @@ def test_validators():
     assert not result3.valid, "Should be invalid"
     
     # Institutional Validator
+    from examples.exp3_multi_agent.parsers import InsuranceOutput, GovernmentOutput
     inst_validator = InstitutionalValidator()
-    ins_result = inst_validator.validate_insurance('LOWER', 1.2)
-    print(f'✓ Insurance Validator: warnings={ins_result.warnings}')
     
-    gov_result = inst_validator.validate_government('INCREASE', 0.15, 0.10)
-    print(f'✓ Government Validator: warnings={gov_result.warnings}')
+    ins_output = InsuranceOutput(year=3, analysis='...', decision='LOWER', adjustment_pct=0.05, justification='...')
+    ins_result = inst_validator.validate_insurance(ins_output, {'loss_ratio': 1.2})
+    print(f'✓ Insurance Validator: warnings={len(ins_result.warnings)}')
+    
+    gov_output = GovernmentOutput(year=3, analysis='...', decision='INCREASE', adjustment_pct=0.1, priority='ALL', justification='...')
+    gov_result = inst_validator.validate_government(gov_output, {'budget_remaining_pct': 0.15, 'mg_adoption': 0.10})
+    print(f'✓ Government Validator: warnings={len(gov_result.warnings)}')
 
 
 def test_memory_rag():
