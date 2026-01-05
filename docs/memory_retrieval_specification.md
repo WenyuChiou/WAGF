@@ -269,6 +269,111 @@ class HouseholdAgent:
         }
 ```
 
+### 6.4 Environment → Agent Information Flow (Observable Events)
+
+Agent 如何得知災害程度和財務損失：
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│              ENVIRONMENT → MEMORY INFORMATION FLOW                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│   HAZARD MODULE             VULNERABILITY MODULE        FINANCE MODULE      │
+│   ─────────────             ───────────────────        ──────────────       │
+│   FloodEvent                DamageEstimate             FinancialOutcome     │
+│   • occurred: bool          • building_damage          • claim_approved     │
+│   • depth_ft: float         • contents_damage          • insurance_payout   │
+│   • extent: str             • total_damage             • out_of_pocket      │
+│                             • depth_above_floor        • deductible_paid    │
+│       │                           │                           │             │
+│       ▼                           ▼                           ▼             │
+│   ┌─────────────────────────────────────────────────────────────────────┐   │
+│   │                    AGENT OBSERVABLE (可見)                          │   │
+│   │                                                                     │   │
+│   │  • "A flood occurred this year" (from Hazard)                       │   │
+│   │  • "My home sustained $X in damages" (from Vulnerability)           │   │
+│   │  • "Insurance paid $Y for my claim" (from Finance)                  │   │
+│   │  • "I paid $Z out-of-pocket" (from Finance)                         │   │
+│   └─────────────────────────────────────────────────────────────────────┘   │
+│       │                                                                     │
+│       ▼                                                                     │
+│   ┌─────────────────────────────────────────────────────────────────────┐   │
+│   │                    MEMORY UPDATE                                    │   │
+│   │                                                                     │   │
+│   │  update_memory_from_flood(flood, damage, year)                      │   │
+│   │  update_memory_from_claim(outcome, year)                            │   │
+│   │  → Creates MemoryItem with appropriate importance                   │   │
+│   └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Observable vs Non-Observable
+
+| Category | Observable by Agent | Not Observable |
+|----------|---------------------|----------------|
+| **Hazard** | `flood_occurred`, `flood_severity` | Probability distribution, regional impacts |
+| **Exposure** | `my_property_value`, `my_flood_zone` | Neighbor property values |
+| **Vulnerability** | `my_damage`, `damage_ratio` | Neighbor damage, total community damage |
+| **Finance** | `my_payout`, `my_out_of_pocket`, `claim_result` | Insurance reserves, loss ratio, other claims |
+
+#### Memory Templates by Event Type
+
+```python
+EVENT_MEMORY_TEMPLATES = {
+    "flood_with_damage": {
+        "template": "Year {year}: A flood caused ${damage:,.0f} in damages to my home",
+        "importance": lambda damage: 0.9 if damage > 50000 else 0.6,
+        "destination": "episodic",
+        "tags": ["flood", "damage"]
+    },
+    "flood_no_damage": {
+        "template": "Year {year}: A flood occurred but my home was not damaged",
+        "importance": 0.4,
+        "destination": "working",
+        "tags": ["flood", "no_damage"]
+    },
+    "claim_approved": {
+        "template": "Year {year}: Insurance covered ${payout:,.0f} of my ${damage:,.0f} loss",
+        "importance": 0.7,
+        "destination": "episodic",
+        "tags": ["insurance", "claim", "approved"]
+    },
+    "claim_denied": {
+        "template": "Year {year}: My insurance claim was denied",
+        "importance": 0.85,  # Denial is very memorable
+        "destination": "episodic",
+        "tags": ["insurance", "claim", "denied"]
+    },
+    "high_oop": {
+        "template": "Year {year}: I paid ${oop:,.0f} out-of-pocket for flood repairs",
+        "importance": lambda oop: 0.85 if oop > 20000 else 0.5,
+        "destination": "episodic",
+        "tags": ["expense", "out_of_pocket"]
+    }
+}
+```
+
+#### Information Timing
+
+```
+Year Loop:
+│
+├── BEGINNING: Agent makes decision (uses past memories)
+│
+├── MIDDLE: Environment events occur
+│   ├── Hazard: Flood generated
+│   ├── Exposure: Agent exposed
+│   ├── Vulnerability: Damage calculated
+│   └── Finance: Claims processed
+│
+└── END: Agent receives information (updates memory)
+    ├── Agent learns: "A flood occurred"
+    ├── Agent learns: "My damage was $X"
+    ├── Agent learns: "Insurance paid $Y"
+    └── Memory updated for NEXT year's decisions
+```
+
 ---
 
 ## 7. Test Specification
