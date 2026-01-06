@@ -1,0 +1,456 @@
+%% LLM-Based Institutional Agents Literature Review
+%% Compiled for Flood Adaptation ABM with Insurance and Government Agents
+%% Date: 2026-01-06
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% SECTION 1: LLM AGENTS IN POLICY/ECONOMIC SIMULATION (Priority Papers)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+@inproceedings{park_2023_generative,
+  author = {Park, Joon Sung and O'Brien, Joseph C. and Cai, Carrie Jun and Morris, Meredith Ringel and Liang, Percy and Bernstein, Michael S.},
+  title = {Generative Agents: Interactive Simulacra of Human Behavior},
+  booktitle = {Proceedings of the 36th Annual ACM Symposium on User Interface Software and Technology (UIST '23)},
+  year = {2023},
+  month = {October},
+  address = {San Francisco, CA, USA},
+  publisher = {ACM},
+  doi = {10.1145/3586183.3606763},
+  keywords = {LLM agents, generative agents, human behavior simulation, agent-based modeling},
+  note = {Foundational paper on generative agents; demonstrates believable human behavior simulation using LLMs with memory and reflection mechanisms},
+  abstract = {Introduces generative agents as computational software agents that simulate believable human behavior, demonstrated in a sandbox environment with 25 agents exhibiting emergent social behaviors}
+}
+
+@techreport{horton_2023_homo_silicus,
+  author = {Horton, John J.},
+  title = {Large Language Models as Simulated Economic Agents: What Can We Learn from Homo Silicus?},
+  institution = {National Bureau of Economic Research},
+  type = {NBER Working Paper},
+  number = {31122},
+  year = {2023},
+  month = {April},
+  doi = {10.3386/w31122},
+  keywords = {economic agents, LLM simulation, homo silicus, experimental economics},
+  note = {Pioneering work showing LLMs can replicate classic economic experiments; highly relevant for modeling insurance and government economic decision-making},
+  abstract = {Demonstrates that LLMs can be used as implicit computational models of humans for economic simulation, replicating results from classic behavioral economics experiments}
+}
+
+@article{argyle_2023_out_of_one,
+  author = {Argyle, Lisa P. and Busby, Ethan C. and Fulda, Nancy and Gubler, Joshua R. and Rytting, Christopher and Wingate, David},
+  title = {Out of One, Many: Using Language Models to Simulate Human Samples},
+  journal = {Political Analysis},
+  year = {2023},
+  volume = {31},
+  number = {3},
+  pages = {337--351},
+  publisher = {Cambridge University Press},
+  doi = {10.1017/pan.2023.2},
+  keywords = {algorithmic fidelity, silicon samples, survey simulation, demographic simulation},
+  note = {Demonstrates algorithmic fidelity of LLMs; shows ability to simulate diverse demographic subgroups for policy analysis},
+  abstract = {Shows that GPT-3 algorithmic bias is fine-grained and demographically correlated, enabling accurate emulation of response distributions from diverse human subgroups}
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% SECTION 2: LLM AGENTS IN ABM AND SOCIAL SIMULATION (2024 Survey Papers)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+@article{gao_2024_llm_empowered,
+  author = {Gao, Jiaqi and Lan, Yuanda and Wang, Jingbo and Gao, Jun and Liu, Zheng and Zeng, Daniel Dajun and Xiong, Hui and Wang, Fei-Yue},
+  title = {Large Language Models Empowered Agent-Based Modeling and Simulation: A Survey and Perspectives},
+  journal = {Humanities and Social Sciences Communications},
+  year = {2024},
+  volume = {11},
+  number = {1150},
+  publisher = {Nature},
+  doi = {10.1057/s41599-024-03611-3},
+  keywords = {LLM-ABM, generative ABM, social simulation, survey},
+  note = {Comprehensive survey on integrating LLMs into ABM; addresses opportunities and challenges for institutional agent modeling},
+  abstract = {Survey examining how LLMs enable realistic generative social agents and transform agent-based modeling paradigm for complex social systems}
+}
+
+@article{wang_2023_survey_autonomous,
+  author = {Wang, Lei and Ma, Chen and Feng, Xueyang and Zhang, Zeyu and Yang, Hao and Zhang, Jingsen and Chen, Zhiyuan and Tang, Jiakai and Chen, Xu and Lin, Yankai and Zhao, Wayne Xin and Wei, Zhewei and Wen, Ji-Rong},
+  title = {A Survey on Large Language Model Based Autonomous Agents},
+  journal = {Frontiers of Computer Science},
+  year = {2024},
+  volume = {18},
+  number = {6},
+  doi = {10.1007/s11704-024-40231-1},
+  keywords = {autonomous agents, LLM agents, survey, multi-agent systems},
+  note = {Major survey on LLM-based autonomous agents with applications in social science, natural science, and engineering},
+  abstract = {Comprehensive survey of LLM-based autonomous agents covering construction, application domains, and evaluation strategies}
+}
+
+@misc{aher_2024_generative_economic,
+  author = {Aher, Gati V. and Arriaga, Rosa I. and Kalai, Adam Tauman},
+  title = {Generative AI as Economic Agents},
+  year = {2024},
+  month = {June},
+  eprint = {2406.00477},
+  archivePrefix = {arXiv},
+  primaryClass = {econ.TH},
+  keywords = {generative AI, economic agents, game theory, strategic behavior},
+  note = {Examines LLMs as strategic economic agents; relevant for modeling insurer-government interactions},
+  abstract = {Explores using generative AI explicitly to simulate strategic agent behavior in game-theoretic and economic contexts}
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% SECTION 3: LLM VALIDATION AND REPRODUCIBILITY IN SOCIAL SIMULATION
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+@article{williams_2025_validation_critical,
+  author = {Williams, Ross and Howe, Patricio and Hofman, Jake},
+  title = {Validation is the Central Challenge for Generative Social Simulation: A Critical Review of LLMs in Agent-Based Modeling},
+  journal = {Artificial Intelligence Review},
+  year = {2025},
+  doi = {10.1007/s10462-025-11412-6},
+  keywords = {validation, LLM-ABM, generative simulation, reproducibility},
+  note = {Critical review arguing that LLMs may exacerbate ABM validation challenges; essential reading for methodological rigor},
+  abstract = {LLMs have revitalized ABM but may exacerbate validation challenges given black-box structure, cultural biases, and stochastic outputs}
+}
+
+@article{abdurahman_2025_primer_evaluation,
+  author = {Abdurahman, Suhaib and Ziabari, Alireza Salkhordeh and Moore, Alexander K. and Bartels, Daniel M. and Dehghani, Morteza},
+  title = {A Primer for Evaluating Large Language Models in Social-Science Research},
+  journal = {Advances in Methods and Practices in Psychological Science},
+  year = {2025},
+  publisher = {SAGE Publications},
+  doi = {10.1177/25152459251325174},
+  keywords = {LLM evaluation, social science methods, validation},
+  note = {Provides practical guidelines for evaluating LLM reliability in social science research; useful for validating institutional agent decisions},
+  abstract = {Primer offering methodological guidelines for evaluating and validating LLM use in social science research applications}
+}
+
+@misc{guo_2024_social_science_meets,
+  author = {Guo, Taicheng and Talebirad, Yashar and Sheng, Yuxuan and Shaikh, Sama and Xia, Meng},
+  title = {Social Science Meets LLMs: How Reliable Are Large Language Models in Social Simulations?},
+  year = {2024},
+  month = {October},
+  eprint = {2410.23426},
+  archivePrefix = {arXiv},
+  primaryClass = {cs.CY},
+  keywords = {reliability, consistency, persona simulation, LLM evaluation},
+  note = {Measures LLM consistency in role-playing; critical for ensuring stable institutional agent behavior},
+  abstract = {Evaluates 14 LLMs finding inconsistencies persist in simulated roles and consistency does not correlate strongly with general performance}
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% SECTION 4: INSURANCE COMPANY BEHAVIOR AND CLIMATE RISK
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+@techreport{boomhower_2024_insurance_markets,
+  author = {Boomhower, Judson and Fowlie, Meredith and Plantinga, Andrew and Rudik, Ivan},
+  title = {How Are Insurance Markets Adapting to Climate Change? Risk Classification and Pricing in the Market for Homeowners Insurance},
+  institution = {National Bureau of Economic Research},
+  type = {NBER Working Paper},
+  number = {32625},
+  year = {2024},
+  doi = {10.3386/w32625},
+  keywords = {climate adaptation, insurance pricing, risk classification, wildfire},
+  note = {Documents variation in insurer risk pricing strategies; shows some insurers use simple methods while others invest in sophisticated parcel-level modeling},
+  abstract = {Examines striking variation in insurers risk classification and pricing strategies, finding firms with simpler pricing charge high prices or exit high-risk segments}
+}
+
+@article{berry_stolzle_2024_insurers_climate,
+  author = {Berry-St{\"o}lzle, Thomas R. and Nini, Greg P. and Sommer, David W.},
+  title = {Insurers' Climate Change Risk Management Quality and Natural Disasters},
+  journal = {Journal of Risk and Insurance},
+  year = {2024},
+  doi = {10.1111/jori.12472},
+  keywords = {climate risk management, insurer disclosure, natural disasters},
+  note = {Constructs climate risk management quality index from insurer disclosures; relevant for modeling insurer communication and adaptation behavior},
+  abstract = {Textual analysis of climate risk disclosures constructing index capturing how insurers identify, manage, and adjust business models to climate risk}
+}
+
+@article{stoddard_2023_pricing_climate_risk,
+  author = {Stoddard, Olivia and Veuger, Stan},
+  title = {Pricing of Climate Risk Insurance: Regulation and Cross-Subsidization},
+  institution = {Federal Reserve Board},
+  type = {Finance and Economics Discussion Series},
+  number = {2022-064},
+  year = {2022},
+  doi = {10.17016/FEDS.2022.064},
+  keywords = {insurance regulation, climate risk, cross-subsidization, NFIP},
+  note = {Analyzes regulatory requirements for climate risk insurance pricing; important for modeling government-insurer regulatory interactions},
+  abstract = {Examines how insurers navigate regulatory requirements when pricing climate risks, involving detailed filings and regulator interactions}
+}
+
+@report{oecd_2023_insurance_climate_adaptation,
+  author = {{OECD}},
+  title = {Enhancing the Insurance Sector's Contribution to Climate Adaptation},
+  institution = {Organisation for Economic Co-operation and Development},
+  year = {2023},
+  series = {OECD Business and Finance Policy Papers},
+  publisher = {OECD Publishing},
+  address = {Paris},
+  doi = {10.1787/0951dfcd-en},
+  keywords = {climate adaptation, insurance sector, risk communication, resilience},
+  note = {Policy report showing only 5-30% of policyholders receive risk reduction information from insurers; highlights communication gaps},
+  abstract = {Examines insurance contribution to climate adaptation through risk tools, information provision, incentives, and post-event recovery support}
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% SECTION 5: BEHAVIORAL ECONOMICS AND INSURANCE DEMAND
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+@article{robinson_2021_risk_communication,
+  author = {Robinson, Peter J. and Botzen, W. J. Wouter},
+  title = {Risk Communication Nudges and Flood Insurance Demand},
+  journal = {Climate Risk Management},
+  year = {2021},
+  volume = {34},
+  pages = {100366},
+  doi = {10.1016/j.crm.2021.100366},
+  keywords = {risk communication, behavioral nudges, flood insurance, choice architecture},
+  note = {Shows reframing probabilities and visual aids can increase flood insurance demand; relevant for modeling insurer communication strategies},
+  abstract = {Tests whether reframing flood probability and risk visualizations can nudge insurance demand, finding age and climate concern moderate effectiveness}
+}
+
+@article{mol_2021_comparing_boosts_nudges,
+  author = {Mol, Jantsje M. and Botzen, W. J. Wouter and Blasch, Julia E. and Moel, Hans de},
+  title = {Comparing the Effects of Behaviorally Informed Interventions on Flood Insurance Demand: An Experimental Analysis of 'Boosts' and 'Nudges'},
+  journal = {Behavioral Public Policy},
+  year = {2021},
+  doi = {10.1017/bpp.2021.17},
+  keywords = {boosts, nudges, flood insurance, behavioral interventions},
+  note = {Compares nudges vs. boosts for increasing flood insurance; relevant for government policy design to increase coverage},
+  abstract = {Experimental analysis comparing behavioral interventions to increase flood insurance uptake through improved risk comprehension}
+}
+
+@book{kunreuther_2013_insurance_behavioral,
+  author = {Kunreuther, Howard C. and Pauly, Mark V. and McMorrow, Stacey},
+  title = {Insurance and Behavioral Economics: Improving Decisions in the Most Misunderstood Industry},
+  publisher = {Cambridge University Press},
+  year = {2013},
+  isbn = {9780521608268},
+  keywords = {behavioral economics, insurance decisions, bounded rationality},
+  note = {Classic text on behavioral biases in insurance markets; foundational for modeling household insurance decisions in ABM},
+  abstract = {Examines how behavioral economics insights can improve insurance decision-making given systematic biases and bounded rationality}
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% SECTION 6: FLOOD INSURANCE AND NFIP POLICY
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+@article{gourevitch_2023_risk_based_pricing,
+  author = {Gourevitch, Jesse D. and Dix, McKenna and Decker, Dylan and Bessette, Douglas and Elbakidze, Levan and Kousky, Carolyn and Taylor, Laura O.},
+  title = {Effects of Risk-based Pricing Reform on Flood Insurance Uptake},
+  journal = {Journal of Catastrophe Risk and Resilience},
+  year = {2023},
+  doi = {10.46234/jcrr.03.07},
+  keywords = {Risk Rating 2.0, NFIP reform, insurance uptake, behavioral response},
+  note = {Shows Risk Rating 2.0 led to 11-39% decline in new policies; critical for modeling policyholder response to pricing changes},
+  abstract = {Pricing reforms under Risk Rating 2.0 led to significant decline in new and existing policies depending on premium increases}
+}
+
+@techreport{gao_2023_flood_insurance_gao,
+  author = {{Government Accountability Office}},
+  title = {Flood Insurance: FEMA's New Rate-Setting Methodology Improves Actuarial Soundness but Highlights Need for Broader Program Reform},
+  institution = {U.S. Government Accountability Office},
+  type = {GAO Report},
+  number = {GAO-23-105977},
+  year = {2023},
+  month = {July},
+  keywords = {NFIP, Risk Rating 2.0, actuarial soundness, premium shortfall},
+  note = {GAO report estimating $27 billion premium shortfall and 2037 timeline for full-risk rates; important for government agent policy constraints},
+  abstract = {GAO estimates it would take until 2037 for 95% of policies to reach full-risk premiums, resulting in $27 billion shortfall}
+}
+
+@article{kousky_2024_insurance_climate_risks,
+  author = {Kousky, Carolyn and Treuer, Gabe and Mach, Katharine J.},
+  title = {Insurance and Climate Risks: Policy Lessons from Three Bounding Scenarios},
+  journal = {Proceedings of the National Academy of Sciences},
+  year = {2024},
+  volume = {121},
+  number = {50},
+  doi = {10.1073/pnas.2317875121},
+  keywords = {climate risk, insurance policy, scenarios, adaptation},
+  note = {Investigates how insurance policy choices influence risk levels, disaster recovery, and economic outcomes under climate change},
+  abstract = {Analyzes near-term insurance policy and regulatory choices and their influence on medium-term risk, recovery, housing markets, and local economies}
+}
+
+@report{cbo_2024_climate_insurance,
+  author = {{Congressional Budget Office}},
+  title = {Climate Change, Disaster Risk, and Homeowner's Insurance},
+  institution = {Congressional Budget Office},
+  year = {2024},
+  month = {August},
+  number = {59918},
+  keywords = {climate change, disaster risk, insurance affordability, market retreat},
+  note = {Documents how climate change is forcing insurers to retreat from high-risk areas; relevant for modeling insurer market exit decisions},
+  abstract = {Discusses how climate change heightens disaster risks, increases insurance payouts, and leaves homeowners in high-risk areas without affordable coverage}
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% SECTION 7: GOVERNMENT POLICY COMMUNICATION AND FRAMING
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+@article{demski_2023_framing_coastal_erosion,
+  author = {Demski, Christina and Capstick, Stuart and Pidgeon, Nick and Sposato, Robert Gampanella and Spence, Alexa},
+  title = {Framing Effects in Disaster Risk Communication: The Case of Coastal Erosion in the United States},
+  journal = {International Journal of Disaster Risk Reduction},
+  year = {2023},
+  doi = {10.1080/17477891.2023.2280691},
+  keywords = {framing effects, risk communication, coastal erosion, disaster policy},
+  note = {Survey experiments showing how government framing affects risk perceptions; applicable to government agent communication design},
+  abstract = {Examines framing effects in government disaster risk communication through survey experiments among U.S. residents}
+}
+
+@article{jurjonas_2021_fema_equity,
+  author = {Jurjonas, Matthew and Seekamp, Erin},
+  title = {When Disaster Management Agencies Create Disaster Risk: A Case Study of the US's Federal Emergency Management Agency},
+  journal = {Disaster Prevention and Management},
+  year = {2021},
+  volume = {30},
+  number = {3},
+  doi = {10.1108/DPM-03-2021-0067},
+  keywords = {equity, FEMA, disaster risk creation, environmental justice},
+  note = {Uses equity lens to analyze how FEMA activities shape disaster risk; important for modeling government policy equity considerations},
+  abstract = {Systematic review using equity lens arguing disaster risk creation is product of inequity in disaster management agency activities}
+}
+
+@chapter{ncbi_2024_equity_risk_communication,
+  author = {Nelson, Courtney and Lurie, Nicole and Wasserman, Jeffrey},
+  title = {Equity, Risk Communication, and Public Engagement},
+  booktitle = {Future Planning for the Public Health Emergency Preparedness Enterprise},
+  publisher = {National Academies Press},
+  year = {2024},
+  address = {Washington, DC},
+  keywords = {equity, risk communication, public engagement, vulnerable populations},
+  note = {Discusses principles for equitable disaster risk communication including consensus, transparency, equity and inclusion},
+  abstract = {Outlines disaster risk management principles including equity, inclusion, effectiveness, and efficiency in government communication}
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% SECTION 8: ENVIRONMENTAL JUSTICE AND VULNERABLE POPULATIONS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+@article{jackson_2025_levee_vulnerability,
+  author = {Jackson, Shuwan and Illangasekare, Tissa and Rosario-Ortiz, Fernando and Tong, David},
+  title = {A Multidisciplinary Approach to Understanding Vulnerability and Building Climate Resilience to Levee Failures and Flooding in Historically Marginalized Communities},
+  journal = {Journal of Environmental Studies and Sciences},
+  year = {2025},
+  doi = {10.1007/s13412-025-01063-y},
+  keywords = {environmental justice, flood vulnerability, marginalized communities, levee failure},
+  note = {Framework for analyzing disproportionate flood risks in marginalized communities; relevant for government targeted outreach modeling},
+  abstract = {Multidisciplinary framework highlighting disproportionate flood risks faced by historically marginalized communities living behind aging levees}
+}
+
+@article{tate_2021_flood_social_vulnerability,
+  author = {Tate, Eric and Rahman, Md Asif and Emrich, Christopher T. and Sampson, Christopher C.},
+  title = {Flood Exposure and Social Vulnerability in the United States},
+  journal = {Natural Hazards},
+  year = {2021},
+  volume = {106},
+  pages = {435--457},
+  doi = {10.1007/s11069-020-04470-2},
+  keywords = {flood exposure, social vulnerability, spatial analysis, environmental justice},
+  note = {Maps convergence of high flood exposure and high social vulnerability; useful for identifying priority populations in ABM},
+  abstract = {Spatial analysis mapping hotspots where high flood exposure and high social vulnerability converge across the United States}
+}
+
+@article{shao_2017_environmental_justice_flood,
+  author = {Shao, Wanyun and Xian, Shiqi and Lin, Ning and Kunreuther, Howard and Jackson, Noelwah and Goidel, Kirby},
+  title = {Environmental Injustice and Flood Risk: A Conceptual Model and Case Comparison of Metropolitan Miami and Houston, USA},
+  journal = {Regional Environmental Change},
+  year = {2017},
+  volume = {17},
+  pages = {1963--1975},
+  doi = {10.1007/s10113-017-1121-9},
+  keywords = {environmental justice, flood risk, Miami, Houston, conceptual model},
+  note = {Conceptual framework for environmental justice in flood risk; applicable to government equity-based policy design},
+  abstract = {Develops conceptual model for environmental justice in flood risk and applies it to Miami and Houston metropolitan areas}
+}
+
+@article{fox_2024_health_disparities_flood,
+  author = {Fox, Julia R. and Qin, Xiao and Raker, Ethan J. and Arcaya, Mariana C.},
+  title = {Health Disparities in the Aftermath of Flood Events: A Review of Physical and Mental Health Outcomes with Methodological Considerations in the USA},
+  journal = {Current Environmental Health Reports},
+  year = {2024},
+  doi = {10.1007/s40572-024-00446-7},
+  keywords = {health disparities, flood events, environmental justice, mental health},
+  note = {Finds 65-72% of studies identify racial/socioeconomic disparities in flood health impacts; relevant for modeling heterogeneous agent vulnerability},
+  abstract = {Reviews flood-related health disparities finding majority of studies identify racial, ethnic, or socioeconomic disparities in outcomes}
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% SECTION 9: MULTI-AGENT INSTITUTIONAL INTERACTION AND GOVERNANCE
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+@article{duit_2012_adaptive_governance,
+  author = {Duit, Andreas and Galaz, Victor and Eckerberg, Katarina and Ebbesson, Jonas},
+  title = {Adaptive Governance and Managing Resilience to Natural Hazards},
+  journal = {International Journal of Disaster Risk Science},
+  year = {2012},
+  volume = {2},
+  number = {4},
+  pages = {33--48},
+  doi = {10.1007/s13753-011-0015-6},
+  keywords = {adaptive governance, polycentric institutions, resilience, natural hazards},
+  note = {Identifies four characteristics of adaptive governance: polycentric institutions, participation, self-organization, and learning},
+  abstract = {Examines adaptive governance characteristics important for increasing resilience including polycentric and multilayered institutions}
+}
+
+@incollection{hegger_2023_flood_governance,
+  author = {Hegger, Dries L. T. and Mees, Hanneke L. P.},
+  title = {Governance of Flood Risk Management},
+  booktitle = {Oxford Research Encyclopedia of Natural Hazard Science},
+  publisher = {Oxford University Press},
+  year = {2023},
+  doi = {10.1093/acrefore/9780199389407.013.335},
+  keywords = {flood governance, multi-level governance, institutional arrangements},
+  note = {Comprehensive overview of flood risk governance requiring action at household to national scales; useful for multi-level agent modeling},
+  abstract = {Discusses natural hazards as complex governance problem requiring coordinated action across all scales from household to national}
+}
+
+@article{mosavi_2023_intergovernmental_flood,
+  author = {Mosavi, Zoha and Gregg, Ryan M. and Fischbach, Jordan R. and Groves, David G.},
+  title = {Interlinkages and Gaps: A Review of the Literature on Intergovernmental Relations for Flood Management in the Face of Climate Change},
+  journal = {Frontiers in Sustainable Cities},
+  year = {2023},
+  volume = {5},
+  doi = {10.3389/frsc.2023.1135513},
+  keywords = {intergovernmental relations, flood management, polycentric governance, climate adaptation},
+  note = {Notes complicated blending of hierarchical federal governance with polycentric regional governance; critical for government-insurance interaction modeling},
+  abstract = {Historical lack of coordinated flood-governance structure led to blending of hierarchical monocentric governance at federal level with polycentric governance regionally}
+}
+
+@article{wiering_2017_flood_risk_europe,
+  author = {Wiering, Mark and Kaufmann, Miriam and Mees, Hanneke and Schellenberger, Tim and Ganzevoort, Wiebren and Hegger, Dries L. T. and Larrue, Corinne and Matczak, Piotr},
+  title = {Flood Risk Mitigation in Europe: How Far Away Are We from the Aspired Forms of Adaptive Governance?},
+  journal = {Ecology and Society},
+  year = {2017},
+  volume = {21},
+  number = {4},
+  doi = {10.5751/ES-08991-210449},
+  keywords = {adaptive governance, polycentricity, public participation, flood mitigation},
+  note = {Discusses polycentricity and public participation in European flood governance; applicable to institutional agent coordination mechanisms},
+  abstract = {Examines distance from aspired adaptive governance in European flood mitigation including polycentricity and experimental approaches}
+}
+
+@article{zia_2022_institutional_modelling,
+  author = {Zia, Asim and Koliba, Christopher and Tian, Yushim and Dillard, Melissa K. and Bucini, Gabriela},
+  title = {Institutional Modelling: Adding Social Backbone to Agent-Based Models},
+  journal = {MethodsX},
+  year = {2022},
+  volume = {9},
+  doi = {10.1016/j.mex.2022.101801},
+  keywords = {institutional ABM, social institutions, policy analysis, agent-based modeling},
+  note = {Methodological framework for incorporating institutions into ABM; directly applicable to modeling insurance-government institutional interactions},
+  abstract = {Supports policy analysis by explaining emergence and dynamics of institutions within agent-based modeling framework}
+}
+
+@article{bonabeau_2002_abm_policy,
+  author = {Bonabeau, Eric},
+  title = {Agent-Based Modeling: Methods and Techniques for Simulating Human Systems},
+  journal = {Proceedings of the National Academy of Sciences},
+  year = {2002},
+  volume = {99},
+  number = {suppl 3},
+  pages = {7280--7287},
+  doi = {10.1073/pnas.082080899},
+  keywords = {agent-based modeling, simulation methods, policy simulation},
+  note = {Classic methodological paper on ABM techniques; foundational for institutional agent modeling approaches},
+  abstract = {Outlines methods and techniques for simulating human systems using agent-based modeling approaches}
+}
+
+%% END OF BIBLIOGRAPHY

@@ -35,6 +35,49 @@ Exp3 實現多 Agent 洪水適應模擬，包含 Household、Insurance、Governm
 
 ---
 
+## 📊 10-Year LLM Simulation Results (2026-01-06)
+
+**Model:** llama3.2:3b | **Total Decisions:** 1,058 | **Validation Errors:** 0
+
+### Decision Distribution
+
+| Decision | Count | Rate |
+|----------|-------|------|
+| buy_insurance | 48 | 27.0% |
+| elevate_house | 15 | 8.4% |
+| buyout_program | 55 | 30.9% |
+| relocate | 10 | 5.6% |
+| do_nothing | 50 | 28.1% |
+
+### PMT Construct Distribution
+
+| Construct | LOW | MODERATE | HIGH/FULL |
+|-----------|-----|----------|-----------|
+| **TP** (Threat) | 24 (13%) | 136 (76%) | 18 (10%) |
+| **CP** (Coping) | 100 (56%) | 68 (38%) | 10 (6%) |
+| **PA** (Prior Adapt) | 52 (29%) | 106 (60%) | 20 (11%) |
+
+### Validation Metrics
+
+- **Validation Errors:** 0 (全部決策符合約束)
+- **Validation Warnings:** 46 (25.8%)
+- **Warning 趨勢:** Year 3 最高 (36), Year 10 最低 (4)
+
+### Key Findings
+
+1. **CP 偏低:** 56% 的決策 CP=LOW，反映 MG 群體資源受限
+2. **buyout_program 活躍:** 後期年度選擇 buyout 比例增加
+3. **洪水事件影響:** Year 2, 7, 8, 10 發生洪水，觸發保險購買增加
+
+### 圖表 (results/ 目錄)
+
+- `decision_over_time.png` - 各年度決策分佈
+- `construct_distribution.png` - PMT Construct 分佈
+- `validation_warnings.png` - 驗證警告率趨勢
+- `tp_decision_heatmap.png` - TP 等級 vs 決策選擇
+
+---
+
 ## 2. Household Agent
 
 ### 2.1 分類
@@ -92,9 +135,11 @@ class HouseholdMemory:
 
 | Skill | 適用 | 說明 |
 |-------|------|------|
-| `buy_insurance` | Owner/Renter | 購買洪水保險 |
-| `elevate_house` | Owner only | 升高房屋 |
-| `relocate` | Owner/Renter | 搬遷 |
+| `buy_insurance` | Owner | 購買洪水保險 (建築+內容物) |
+| `buy_contents_insurance` | Renter | 購買內容物保險 |
+| `elevate_house` | Owner only | 升高房屋結構 |
+| `buyout_program` | Owner only | 政府收購計畫 |
+| `relocate` | Renter only | 搬遷到低風險區 |
 | `do_nothing` | All | 維持現狀 |
 
 ### 2.5 決策輸出 (5 Constructs)
