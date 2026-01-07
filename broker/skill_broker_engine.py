@@ -180,7 +180,7 @@ class SkillBrokerEngine:
         
         # ⑥ Audit trace
         if self.audit_writer:
-            self.audit_writer.write_trace({
+            trace_dict = {
                 "run_id": run_id,
                 "step_id": step_id,
                 "timestamp": timestamp,
@@ -189,19 +189,16 @@ class SkillBrokerEngine:
                 "context_hash": context_hash,
                 "memory_pre": memory_pre,
                 "skill_proposal": skill_proposal.to_dict() if skill_proposal else None,
-                "validator_results": [
-                    {"validator": v.validator_name, "valid": v.valid, "errors": v.errors}
-                    for v in validation_results
-                ],
                 "approved_skill": {
                     "skill_name": approved_skill.skill_name,
                     "status": approved_skill.approval_status,
                     "mapping": approved_skill.execution_mapping
                 } if approved_skill else None,
-                "execution_result": execution_result.__dict__ if execution_result else None,
+                "execution_result": execution_result.to_dict() if execution_result else None,
                 "outcome": outcome.value,
                 "retry_count": retry_count
-            })
+            }
+            self.audit_writer.write_trace(agent_type, trace_dict, validation_results)
         
         return SkillBrokerResult(
             outcome=outcome,

@@ -69,6 +69,15 @@ class ValidationResult:
     errors: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "valid": self.valid,
+            "validator": self.validator_name,
+            "errors": self.errors,
+            "warnings": self.warnings,
+            "metadata": self.metadata
+        }
 
 
 @dataclass
@@ -92,6 +101,13 @@ class ExecutionResult:
     success: bool
     state_changes: Dict[str, Any] = field(default_factory=dict)
     error: Optional[str] = None
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "success": self.success,
+            "state_changes": self.state_changes,
+            "error": self.error
+        }
 
 
 @dataclass

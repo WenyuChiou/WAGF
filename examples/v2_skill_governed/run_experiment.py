@@ -27,13 +27,11 @@ sys.path.insert(0, str(FRAMEWORK_PATH))
 
 # Import from framework (direct import, no package prefix needed since FRAMEWORK_PATH is in sys.path)
 from broker.skill_types import SkillProposal, ApprovedSkill, ExecutionResult, SkillOutcome
-from broker.skill_registry import SkillRegistry, create_flood_adaptation_registry
-from broker.model_adapter import get_adapter, OllamaAdapter, UnifiedAdapter
+from broker.skill_registry import SkillRegistry
+from broker.model_adapter import UnifiedAdapter
 from broker.skill_broker_engine import SkillBrokerEngine
-from validators import create_default_validators
-# LLMProvider for multi-LLM support
-from interfaces.llm_provider import LLMProvider, LLMConfig
-from providers import OllamaProvider
+from broker.audit_writer import GenericAuditWriter as SkillAuditWriter, AuditConfig as GenericAuditConfig
+from validators import AgentValidator
 
 
 
@@ -316,42 +314,7 @@ Final Decision: [Choose {valid_choices} only]"""
         return agent.memory.copy() if agent else []
 
 
-# =============================================================================
-# AUDIT WRITER
-# =============================================================================
-
-class SkillAuditWriter:
-    """Writes audit traces for skill-governed decisions."""
-    
-    def __init__(self, output_dir: str):
-        self.output_dir = Path(output_dir)
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        self.trace_file = self.output_dir / "skill_audit.jsonl"
-        self.traces = []
-    
-    def write_trace(self, trace: Dict[str, Any]) -> None:
-        self.traces.append(trace)
-        with open(self.trace_file, 'a', encoding='utf-8') as f:
-            f.write(json.dumps(trace, ensure_ascii=False) + '\n')
-    
-    def finalize(self) -> Dict[str, Any]:
-        total = len(self.traces)
-        approved = sum(1 for t in self.traces if t["outcome"] == "APPROVED")
-        retry = sum(1 for t in self.traces if t["outcome"] == "RETRY_SUCCESS")
-        uncertain = sum(1 for t in self.traces if t["outcome"] == "UNCERTAIN")
-        
-        summary = {
-            "total_decisions": total,
-            "approved": approved,
-            "retry_success": retry,
-            "uncertain": uncertain,
-            "approval_rate": f"{(approved + retry) / total * 100:.1f}%" if total > 0 else "N/A"
-        }
-        
-        with open(self.output_dir / "audit_summary.json", 'w') as f:
-            json.dump(summary, f, indent=2)
-        
-        return summary
+# Framework's GenericAuditWriter is used instead.
 
 
 # =============================================================================
@@ -360,18 +323,21 @@ class SkillAuditWriter:
 
 def create_llm_invoke(model: str):
     """Create LLM invoke function."""
+    if model.lower() == "mock":
+        return lambda p: "Interpret: Monitoring risk.\nPMT_Eval: TP=H CP=M SP=H SC=M PA=NONE\nDecide: do_nothing\nReason: No action needed yet."
+    
     try:
         from langchain_ollama import ChatOllama
-        llm = ChatOllama(model=model, temperature=0.3)
+        llm = ChatOllama(model=model, temperature=0.3, num_predict=256)
         
         def invoke(prompt: str) -> str:
             response = llm.invoke(prompt)
             return response.content
         
         return invoke
-    except ImportError:
-        print("Warning: langchain_ollama not installed. Using mock LLM.")
-        return lambda p: "Threat Appraisal: I feel moderately at risk.\nCoping Appraisal: I can manage.\nFinal Decision: 4 - Do Nothing"
+    except (ImportError, Exception) as e:
+        print(f"Warning: Falling back to mock LLM due to: {e}")
+        return lambda p: "Interpret: Monitoring risk.\nPMT_Eval: TP=H CP=M SP=H SC=M PA=NONE\nDecide: do_nothing\nReason: No action needed yet."
 
 
 # =============================================================================
@@ -392,21 +358,26 @@ def run_experiment(args):
     context_builder = FloodContextBuilder(sim)
     
     # Initialize skill governance
-    skill_registry = create_flood_adaptation_registry()
-    model_adapter = get_adapter(args.model)
-    validators = create_default_validators()
+    skill_registry = SkillRegistry()
+    skill_registry.register_from_yaml(Path(__file__).parent / "skill_registry.yaml")
+    
+    model_adapter = UnifiedAdapter(agent_type="household")
+    validators = AgentValidator()
     
     # Output directory
     output_dir = Path(args.output_dir) / args.model.replace(":", "_")
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    audit_writer = SkillAuditWriter(str(output_dir))
+    audit_writer = SkillAuditWriter(GenericAuditConfig(
+        output_dir=str(output_dir),
+        experiment_name=f"v2_{args.model.replace(':', '_')}"
+    ))
     
     # Create broker engine
     broker = SkillBrokerEngine(
         skill_registry=skill_registry,
         model_adapter=model_adapter,
-        validators=validators,
+        validator=validators,
         simulation_engine=sim,
         context_builder=context_builder,
         audit_writer=audit_writer,
