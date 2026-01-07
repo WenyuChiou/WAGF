@@ -232,6 +232,23 @@ Supports **extensible demographics**:
 
 > Any additional CSV columns are automatically loaded. See `get_schema_info("household")` for full schema.
 
+#### Parameter Normalization Guide
+
+Most trust and state parameters should be normalized to **0.0-1.0** range:
+
+| Parameter | Min | Max | MG Typical | NMG Typical |
+|-----------|-----|-----|------------|-------------|
+| `income` | $20,000 | $150,000 | $35,000 | $75,000 |
+| `property_value` | $0 | $500,000 | $220,000 | $350,000 |
+| `trust_*` | 0.0 | 1.0 | LOW=0.3, MED=0.5, HIGH=0.7 |
+| `generations` | 1 | 5 | Owner: 2, Renter: 1 |
+| `household_size` | 1 | 10 | 3 |
+
+```python
+from broker.data_loader import get_normalization_guide
+print(get_normalization_guide())
+```
+
 
 ### State Layer (`simulation/`)
 
@@ -253,45 +270,68 @@ Supports **extensible demographics**:
 
 | Component | File | Description |
 |-----------|------|-------------|
+| **AgentValidator** | `agent_validator.py` | 🎯 Generic validator for all agent types |
 | `BaseValidator` | `base.py` | Abstract validator interface |
-| `SkillValidators` | `skill_validators.py` | Configurable validators (see below) |
-| `ValidatorFactory` | `factory.py` | Dynamic validator loading from YAML |
+| `coherence_rules.yaml` | Config | Configurable PMT coherence rules |
 
-#### Validation Pipeline Details
+#### Generic AgentValidator
 
-Each SkillProposal passes through a **configurable validation pipeline**:
+The framework uses a **label-based** validation system. Rules are configured per `agent_type`:
 
+```python
+from validators.agent_validator import AgentValidator
+
+validator = AgentValidator()
+
+# Validate any agent type
+results = validator.validate(
+    agent_type="insurance",
+    agent_id="InsuranceCo",
+    decision=proposal,
+    state=current_state
+)
 ```
-SkillProposal → [Validator 1] → [Validator 2] → ... → [Validator N] → Execution
-                    ↓               ↓                    ↓
-               If FAIL → Reject with reason, fallback to default skill
+
+#### Validation Rules (per Agent Type)
+
+```python
+# Configured in validators/agent_validator.py
+VALIDATION_RULES = {
+    "insurance": {
+        "rate_bounds": {"param": "premium_rate", "min": 0.02, "max": 0.15},
+        "solvency_floor": {"param": "solvency", "min": 0.0}
+    },
+    "government": {
+        "subsidy_bounds": {"param": "subsidy_rate", "min": 0.20, "max": 0.95},
+        "budget_reserve": {"param": "budget_used", "max": 0.90}
+    },
+    "household": {
+        "valid_decisions": {"values": ["FI", "HE", "BP", "RL", "DN", ...]}
+    }
+}
 ```
 
-#### Built-in Validator Types
+#### PMT Coherence Validation (Household)
 
-| Validator Type | Purpose | When to Use |
-|----------------|---------|-------------|
-| **Admissibility** | Skill registered? Agent eligible? | Always (core) |
-| **Feasibility** | Preconditions met? | When skills have prerequisites |
-| **Constraints** | Institutional rules (once-only, limits) | When enforcing regulations |
-| **Effect Safety** | State changes valid? | When protecting state integrity |
-| **Domain-Specific** | Custom business logic | Define per use case |
+Validates that LLM-generated PMT labels are consistent with agent state:
 
-> **Key Point**: Validators are **modular and configurable**. Add/remove validators based on your domain requirements.
+| Construct | State Field | Rule |
+|-----------|-------------|------|
+| **TP** (Threat) | `cumulative_damage` | > 0.5 → should be M/H |
+| **CP** (Coping) | `income` | > 0.8 → should be M/H |
+| **SP** (Stakeholder) | avg(`trust_gov`, `trust_ins`) | > 0.7 → should be M/H |
+| **SC** (Social) | `trust_neighbors` | > 0.7 → should be M/H |
+| **PA** (Attachment) | `elevated` or `insured` | any true → should be PARTIAL/FULL |
 
 ```yaml
-# config/validators.yaml - Example Configuration
-validators:
-  - name: admissibility
-    enabled: true       # Core validator, always recommended
-  - name: feasibility
-    enabled: true       # Enable if skills have preconditions
-  - name: constraints
-    enabled: true       # Enable for institutional rules
-  - name: custom_rule   # Your domain-specific validator
-    enabled: true
-    config:
-      threshold: 0.5
+# validators/coherence_rules.yaml
+household:
+  TP:
+    field: cumulative_damage
+    threshold: 0.5
+    when_above_threshold:
+      invalid_labels: [L]
+      message: "High damage but Low TP"
 ```
 
 ---
