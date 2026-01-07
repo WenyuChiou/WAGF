@@ -12,7 +12,7 @@ from .skill_types import (
     SkillProposal, SkillDefinition, ApprovedSkill,
     SkillBrokerResult, SkillOutcome, ExecutionResult, ValidationResult
 )
-from .skill_registry import SkillRegistry, create_flood_adaptation_registry
+from .skill_registry import SkillRegistry
 from .skill_broker_engine import SkillBrokerEngine
 from .model_adapter import ModelAdapter, OllamaAdapter, OpenAIAdapter, UnifiedAdapter, get_adapter
 
@@ -35,7 +35,7 @@ from .memory import (
 __all__ = [
     # Core Skill-Governed
     "SkillProposal", "SkillDefinition", "ApprovedSkill", "SkillBrokerResult", "SkillOutcome",
-    "SkillRegistry", "create_flood_adaptation_registry",
+    "SkillRegistry",
     "SkillBrokerEngine",
     "ModelAdapter", "OllamaAdapter", "OpenAIAdapter", "UnifiedAdapter", "get_adapter",
     "ExecutionResult", "ValidationResult",

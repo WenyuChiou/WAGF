@@ -57,30 +57,10 @@ class SimpleMemory:
         
         return memories
     
-    def update_after_flood(self, damage: float, year: int = 0) -> None:
-        """Update memory after flood event."""
-        if year:
-            self.add(f"Year {year}: A flood occurred causing ${damage:,.0f} in damages")
-        else:
-            self.add(f"A flood occurred causing ${damage:,.0f} in damages")
-    
-    def update_after_decision(self, decision: str, year: int = 0) -> None:
-        """Update memory after decision."""
-        if year:
-            self.add(f"Year {year}: I chose to {decision}")
-        else:
-            self.add(f"I chose to {decision}")
-    
-    def format_for_prompt(self) -> str:
-        """Format memories for LLM prompt."""
-        memories = self.retrieve()
-        if not memories:
-            return "No past events recalled."
-        return "\n".join(f"- {m}" for m in memories)
-    
     def to_list(self) -> List[str]:
         """Return as list (for ContextBuilder compatibility)."""
         return self.retrieve()
+
 
 
 # =============================================================================
@@ -218,17 +198,7 @@ class CognitiveMemory:
         if importance >= self.CONSOLIDATION_THRESHOLD:
             return self.add_episodic(content, importance, year, tags)
         return self.add_working(content, importance, year, tags)
-    
-    def update_after_flood(self, damage: float, year: int) -> MemoryItem:
-        """Add flood experience (high importance -> episodic)."""
-        content = f"Year {year}: A flood occurred causing ${damage:,.0f} in damages"
-        return self.add_episodic(content, importance=0.9, year=year, tags=["flood"])
-    
-    def update_after_decision(self, decision: str, year: int) -> MemoryItem:
-        """Add decision (medium importance -> working)."""
-        content = f"Year {year}: I decided to {decision}"
-        importance = 0.7 if decision != "do_nothing" else 0.3
-        return self.add_working(content, importance, year, tags=["decision"])
+
     
     def format_for_prompt(self, current_year: int = 0) -> str:
         """Format for LLM prompt."""
@@ -285,16 +255,7 @@ class MemoryProvider:
             memory.add_experience(content, importance, year)
         else:
             memory.add(content)
-    
-    def update_after_flood(self, agent_id: str, damage: float, year: int = 0) -> None:
-        """Update memory after flood."""
-        memory = self.get_or_create(agent_id)
-        memory.update_after_flood(damage, year)
-    
-    def update_after_decision(self, agent_id: str, decision: str, year: int = 0) -> None:
-        """Update memory after decision."""
-        memory = self.get_or_create(agent_id)
-        memory.update_after_decision(decision, year)
+
     
     def consolidate_all(self) -> Dict[str, int]:
         """Consolidate all cognitive memories."""

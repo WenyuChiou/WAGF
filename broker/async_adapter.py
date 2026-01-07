@@ -12,49 +12,40 @@ import re
 
 from interfaces.llm_provider import LLMProvider, LLMResponse
 from .skill_types import SkillProposal
+from .model_adapter import UnifiedAdapter
 
 
 class AsyncModelAdapter:
     """
     Asynchronous model adapter for concurrent LLM processing.
     
-    Wraps LLMProvider and provides async parsing/formatting.
-    
-    Usage:
-        provider = OllamaProvider(config)
-        adapter = AsyncModelAdapter(provider)
-        
-        # Single agent
-        proposal = await adapter.parse_output_async(raw_output, context)
-        
-        # Batch processing
-        proposals = await adapter.batch_invoke(prompts, contexts)
+    Wraps LLMProvider and UnifiedAdapter to provide async parsing/formatting.
+    NO domain logic should exist here.
     """
-    
-    DEFAULT_VALID_SKILLS = {"buy_insurance", "elevate_house", "relocate", "do_nothing"}
-    
-    SKILL_MAP_NON_ELEVATED = {
-        "1": "buy_insurance",
-        "2": "elevate_house",
-        "3": "relocate",
-        "4": "do_nothing"
-    }
-    
-    SKILL_MAP_ELEVATED = {
-        "1": "buy_insurance",
-        "2": "relocate",
-        "3": "do_nothing"
-    }
     
     def __init__(
         self,
         provider: LLMProvider,
+        agent_type: str = "household",
         preprocessor: Optional[Callable[[str], str]] = None,
-        valid_skills: Optional[set] = None
+        config_path: str = None
     ):
+        """
+        Initialize async adapter.
+        
+        Args:
+            provider: LLM provider
+            agent_type: Type of agent for parsing config
+            preprocessor: Optional preprocessor
+            config_path: Path to agent_types.yaml
+        """
         self.provider = provider
-        self.preprocessor = preprocessor or (lambda x: x)
-        self.valid_skills = valid_skills or self.DEFAULT_VALID_SKILLS
+        # Use UnifiedAdapter internally for parsing logic
+        self.inner_adapter = UnifiedAdapter(
+            agent_type=agent_type,
+            preprocessor=preprocessor,
+            config_path=config_path
+        )
     
     async def invoke_async(self, prompt: str, **kwargs) -> str:
         """Async invoke LLM and return content."""
@@ -68,64 +59,11 @@ class AsyncModelAdapter:
     ) -> Optional[SkillProposal]:
         """
         Async parse LLM output into SkillProposal.
-        
-        Same logic as sync version but runs in async context.
+        Delegates to UnifiedAdapter.parse_output.
         """
-        # Preprocessing is sync (just string manipulation)
-        cleaned_output = self.preprocessor(raw_output)
-        
-        agent_id = context.get("agent_id", "unknown")
-        is_elevated = context.get("is_elevated", False)
-        
-        # Extract reasoning
-        threat_appraisal = ""
-        coping_appraisal = ""
-        skill_name = None
-        
-        lines = cleaned_output.strip().split('\n')
-        for line in lines:
-            line = line.strip()
-            
-            if line.lower().startswith("skill:") or (line.lower().startswith("decision:") and not skill_name):
-                decision_text = line.split(":", 1)[1].strip().lower() if ":" in line else ""
-                for skill in self.valid_skills:
-                    if skill in decision_text:
-                        skill_name = skill
-                        break
-            
-            elif line.lower().startswith("threat appraisal:"):
-                threat_appraisal = line.split(":", 1)[1].strip() if ":" in line else ""
-            elif line.lower().startswith("coping appraisal:"):
-                coping_appraisal = line.split(":", 1)[1].strip() if ":" in line else ""
-            
-            elif line.lower().startswith("final decision:") and not skill_name:
-                decision_text = line.split(":", 1)[1].strip().lower() if ":" in line else ""
-                
-                for skill in self.valid_skills:
-                    if skill in decision_text:
-                        skill_name = skill
-                        break
-                
-                if not skill_name:
-                    for char in decision_text:
-                        if char.isdigit():
-                            skill_map = self.SKILL_MAP_ELEVATED if is_elevated else self.SKILL_MAP_NON_ELEVATED
-                            skill_name = skill_map.get(char, "do_nothing")
-                            break
-        
-        if not skill_name:
-            skill_name = "do_nothing"
-        
-        return SkillProposal(
-            skill_name=skill_name,
-            agent_id=agent_id,
-            reasoning={
-                "threat": threat_appraisal,
-                "coping": coping_appraisal
-            },
-            confidence=1.0,
-            raw_output=raw_output
-        )
+        # Parsing is typically CPU bound and string manipulation, can run in thread if needed
+        # but for now we call it directly as it's efficient.
+        return self.inner_adapter.parse_output(raw_output, context)
     
     async def batch_invoke(
         self,
@@ -159,14 +97,8 @@ class AsyncModelAdapter:
         return await asyncio.gather(*tasks)
     
     def format_retry_prompt(self, original_prompt: str, errors: List[str]) -> str:
-        """Format retry prompt with validation errors."""
-        error_text = ", ".join(errors)
-        return f"""Your previous response was flagged for the following issues:
-{error_text}
-
-Please reconsider your decision and respond again.
-
-{original_prompt}"""
+        """Format retry prompt via inner adapter."""
+        return self.inner_adapter.format_retry_prompt(original_prompt, errors)
 
 
 async def run_batch_agents(
@@ -177,15 +109,6 @@ async def run_batch_agents(
 ) -> List[SkillProposal]:
     """
     Convenience function to run batch agent processing.
-    
-    Args:
-        adapter: AsyncModelAdapter instance
-        agent_data: List of agent state dictionaries
-        prompt_builder: Function to build prompt from agent data
-        max_concurrent: Max concurrent requests
-        
-    Returns:
-        List of SkillProposals
     """
     prompts = [prompt_builder(data) for data in agent_data]
     contexts = [{"agent_id": data.get("agent_id", f"agent_{i}")} for i, data in enumerate(agent_data)]

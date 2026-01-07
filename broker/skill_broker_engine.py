@@ -105,11 +105,7 @@ class SkillBrokerEngine:
         prompt = self.context_builder.format_prompt(context)
         raw_output = llm_invoke(prompt)
         
-        skill_proposal = self.model_adapter.parse_output(raw_output, {
-            "agent_id": agent_id,
-            "is_elevated": context.get("elevated", False),
-            "agent_type": agent_type
-        })
+        skill_proposal = self.model_adapter.parse_output(raw_output, context)
         
         if skill_proposal is None:
             self.stats["aborted"] += 1
@@ -118,8 +114,7 @@ class SkillBrokerEngine:
         # ③ Skill validation
         validation_context = {
             "agent_state": context,
-            "agent_type": agent_type,
-            "flood_status": "Flood occurred" if context.get("flood_event") else "No flood"
+            "agent_type": agent_type
         }
         
         validation_results = self._run_validators(skill_proposal, validation_context)
@@ -133,11 +128,7 @@ class SkillBrokerEngine:
             retry_prompt = self.model_adapter.format_retry_prompt(prompt, errors)
             raw_output = llm_invoke(retry_prompt)
             
-            skill_proposal = self.model_adapter.parse_output(raw_output, {
-                "agent_id": agent_id,
-                "is_elevated": context.get("elevated", False),
-                "agent_type": agent_type
-            })
+            skill_proposal = self.model_adapter.parse_output(raw_output, context)
             
             if skill_proposal:
                 validation_results = self._run_validators(skill_proposal, validation_context)

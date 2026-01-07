@@ -191,20 +191,19 @@ class UnifiedAdapter(ModelAdapter):
                         skill_name = skill
                         break
                 
-                # Fallback: digit mapping for household
-                if not skill_name and self.agent_type.startswith("household"):
-                    tenure = context.get("tenure", "Owner")
-                    is_renter = tenure == "Renter"
+                # Generic skill variant mapping from config
+                if not skill_name:
+                    variant = context.get("skill_variant")
                     
+                    if variant:
+                        # Variant-specific mapping (e.g., 'renter', 'elevated')
+                        skill_map = self.config.get(f"skill_map_{variant}", {})
+                    else:
+                        # Default mapping
+                        skill_map = self.config.get("skill_map_default", self.config.get("skill_map_non_elevated", {}))
+                        
                     for char in decision_text:
                         if char.isdigit():
-                            if is_renter:
-                                skill_map = self.config.get("skill_map_renter", {})
-                            elif is_elevated:
-                                skill_map = self.config.get("skill_map_elevated", {})
-                            else:
-                                skill_map = self.config.get("skill_map_non_elevated", {})
-                                
                             skill_name = skill_map.get(char, self.config.get("default_skill", "do_nothing"))
                             break
         

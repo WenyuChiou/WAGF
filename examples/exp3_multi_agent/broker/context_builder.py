@@ -44,7 +44,21 @@ class Exp3ContextBuilder(BaseAgentContextBuilder):
                 
             ctx["sp"] = sp_level
             
-            # Flood signal formatting (if needed for prompts)
+            # 3. Inject Skill Mapping Variant
+            # This allows UnifiedAdapter to pick the correct digit mapping (1, 2, 3...)
+            # without hardcoding tenure/elevation into the core framework.
+            agent_obj = self.agents.get(agent_id)
+            is_elevated = ctx.get("is_elevated", False)
+            tenure = getattr(agent_obj.state, 'tenure', None) if agent_obj else None
+            
+            if tenure == "Renter":
+                ctx["skill_variant"] = "renter"
+            elif is_elevated:
+                ctx["skill_variant"] = "elevated"
+            else:
+                ctx["skill_variant"] = "non_elevated"
+
+            # Flood signal formatting 
             if self.environment.get("flood") == "YES":
                 ctx["flood_warning"] = "ACTIVE"
             else:
