@@ -193,6 +193,10 @@ class BaseAgent:
         """Get all normalized state as dict."""
         return self._state_normalized.copy()
     
+    def get_all_state_raw(self) -> Dict[str, float]:
+        """Get all raw (denormalized) state as dict."""
+        return self._state_raw.copy()
+    
     # -------------------------------------------------------------------------
     # Perception
     # -------------------------------------------------------------------------

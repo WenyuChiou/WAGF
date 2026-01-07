@@ -68,9 +68,18 @@ class BaseAgentContextBuilder(ContextBuilder):
     def build(
         self, 
         agent_id: str,
-        observable: Optional[List[str]] = None
+        observable: Optional[List[str]] = None,
+        include_memory: bool = True,
+        include_raw: bool = False
     ) -> Dict[str, Any]:
-        """Build context from agent's normalized state and perception."""
+        """Build context from agent's normalized state and perception.
+        
+        Args:
+            agent_id: Agent to build context for
+            observable: Optional categories to include
+            include_memory: Include formatted memory
+            include_raw: Include raw (denormalized) values alongside 0-1
+        """
         agent = self.agents.get(agent_id)
         if not agent:
             return {"agent_id": agent_id, "error": "Agent not found"}
@@ -80,8 +89,12 @@ class BaseAgentContextBuilder(ContextBuilder):
             "agent_id": agent_id,
             "agent_name": agent.name,
             "agent_type": agent.agent_type,
-            "state": agent.get_all_state(),  # Already 0-1 normalized
+            "state": agent.get_all_state(),  # 0-1 normalized
         }
+        
+        # Optionally add raw values for readability
+        if include_raw:
+            context["state_raw"] = agent.get_all_state_raw()
         
         # Add perception from environment and other agents
         perception = agent.observe(self.environment, self.agents)
@@ -93,7 +106,40 @@ class BaseAgentContextBuilder(ContextBuilder):
         # Add available skills
         context["available_skills"] = agent.get_available_skills()
         
+        # Add memory if available
+        if include_memory:
+            context["memory"] = self._get_memory(agent)
+        
+        # Add neighbor summary if observable
+        observable = observable or []
+        if "neighbors" in observable:
+            context["neighbors"] = self._get_neighbor_summary(agent_id)
+        
         return context
+    
+    def _get_memory(self, agent) -> str:
+        """Get formatted memory from agent's memory module."""
+        if hasattr(agent, 'memory') and agent.memory:
+            if hasattr(agent.memory, 'format_for_prompt'):
+                return agent.memory.format_for_prompt()
+            elif hasattr(agent.memory, 'retrieve'):
+                memories = agent.memory.retrieve(top_k=5)
+                return "\n".join([m[0] if isinstance(m, tuple) else str(m) for m in memories])
+        return "No memory available"
+    
+    def _get_neighbor_summary(self, agent_id: str) -> List[Dict[str, Any]]:
+        """Get summary of neighbor agents' observable state."""
+        summaries = []
+        for name, agent in self.agents.items():
+            if name != agent_id:
+                summaries.append({
+                    "agent_name": name,
+                    "agent_type": agent.agent_type,
+                    "state_summary": {
+                        k: round(v, 2) for k, v in list(agent.get_all_state().items())[:3]
+                    }
+                })
+        return summaries[:5]  # Limit to 5 neighbors
     
     def format_prompt(self, context: Dict[str, Any]) -> str:
         """Format using agent-type-specific template."""
@@ -105,6 +151,7 @@ class BaseAgentContextBuilder(ContextBuilder):
         perception_str = self._format_perception(context.get("perception", {}))
         objectives_str = self._format_objectives(context.get("objectives", {}))
         skills_str = ", ".join(context.get("available_skills", []))
+        memory_str = context.get("memory", "No memory available")
         
         return template.format(
             agent_name=context.get("agent_name", "Agent"),
@@ -112,7 +159,8 @@ class BaseAgentContextBuilder(ContextBuilder):
             state=state_str,
             perception=perception_str,
             objectives=objectives_str,
-            skills=skills_str
+            skills=skills_str,
+            memory=memory_str
         )
     
     def _format_state(self, state: Dict[str, float]) -> str:
@@ -150,6 +198,9 @@ DEFAULT_PROMPT_TEMPLATE = """You are {agent_name}, a {agent_type} agent.
 === OBSERVATIONS ===
 {perception}
 
+=== MEMORY ===
+{memory}
+
 === OBJECTIVES ===
 {objectives}
 
@@ -157,7 +208,7 @@ DEFAULT_PROMPT_TEMPLATE = """You are {agent_name}, a {agent_type} agent.
 {skills}
 
 === YOUR TASK ===
-Based on your current state and objectives, decide your next action.
+Based on your current state, memory, and objectives, decide your next action.
 
 === OUTPUT FORMAT ===
 Decision: [one of the available actions]
