@@ -220,6 +220,9 @@ class FloodSimulation:
             if not agent.elevated:
                 agent.elevated = True
                 state_changes["elevated"] = True
+                # --- 80% RISK REDUCTION due to house elevation (Restored from Legacy) ---
+                agent.flood_threshold = round(agent.flood_threshold * 0.2, 2)
+                agent.flood_threshold = max(0.001, agent.flood_threshold)
             agent.has_insurance = False  # Insurance expires if not renewed
             state_changes["has_insurance"] = False
         elif skill == "relocate":
@@ -249,6 +252,17 @@ class FloodContextBuilder:
     def __init__(self, simulation: FloodSimulation, agent_config: Dict[str, Any] = None):
         self.simulation = simulation
         self.agent_config = agent_config or {}
+        
+        # Load template from local config
+        from broker.agent_config import AgentTypeConfig
+        config_path = Path(__file__).parent / "agent_types.yaml"
+        self.config_obj = AgentTypeConfig.load(str(config_path))
+        self.template = self.config_obj.get_prompt_template("household")
+        
+        # Fallback if config fails
+        if not self.template:
+            print("WARNING: using fallback template in FloodContextBuilder")
+            self.template = "CONTEXT:{state} ACT:{skills} DECIDE:[action]"
     
     def build(self, agent_id: str) -> Dict[str, Any]:
         """Build read-only context for agent."""
@@ -256,78 +270,86 @@ class FloodContextBuilder:
         if not agent:
             return {}
         
+        # Mock demographic data for V2-2 (Clean) experiment compatibility
+        # In a real scenario, these would come from Agent attributes
+        import random
+        r = random.Random(agent_id) # Deterministic mock based on ID
+        tenure = r.randint(2, 30)
+        income = r.randint(40000, 120000)
+        mg = r.randint(500, 3000)
+        
         return {
             "agent_id": agent_id,
+            "agent_name": agent_id, # explicit name
             "elevated": agent.elevated,
             "has_insurance": agent.has_insurance,
             "trust_in_insurance": agent.trust_in_insurance,
             "trust_in_neighbors": agent.trust_in_neighbors,
             "memory": agent.memory.copy(),
-            "flood_event": self.simulation.environment.flood_event,
-            "year": self.simulation.environment.year
+            "flood": self.simulation.environment.flood_event, # Boolean
+            "year": self.simulation.environment.year,
+            "subsidy_rate": 0.0, # V2-2 has no subsidy mechanism active?
+            "premium_rate": 0.0, # Mock
+            # Mock demographics
+            "tenure": tenure,
+            "income": income,
+            "mg": mg
         }
     
     def format_prompt(self, context: Dict[str, Any]) -> str:
-        """Format context into LLM prompt with skill-based options."""
-        elevation_status = (
-            "Your house is already elevated, which provides very good protection."
-            if context.get("elevated") else 
-            "You have not elevated your home."
-        )
+        """Format context into LLM prompt using YAML template."""
         
-        insurance_status = "have" if context.get("has_insurance") else "do not have"
+        # PREPARE VARIABLES FOR TEMPLATE
+        
+        # 1. Perception/Observations
+        obs_lines = []
+        obs_lines.append(f"Year {context.get('year')}")
+        if context.get('flood'):
+            obs_lines.append("CRITICAL: A flood event occurred this year!")
+        else:
+            obs_lines.append("No flood occurred this year.")
         
         trust_ins = context.get("trust_in_insurance", 0.3)
         trust_neighbors = context.get("trust_in_neighbors", 0.4)
+        obs_lines.append(f"Trust in Insurance: {trust_ins:.2f}")
+        obs_lines.append(f"Trust in Neighbors: {trust_neighbors:.2f}")
         
-        trust_ins_text = self._verbalize_trust(trust_ins, "insurance")
-        trust_neighbors_text = self._verbalize_trust(trust_neighbors, "neighbors")
+        perception_str = "\n".join(obs_lines)
         
-        memory = "\n".join(f"- {m}" for m in context.get("memory", [])) or "No past events recalled."
+        # 2. Memory
+        mems = context.get("memory", [])
+        memory_str = "\n".join(f"- {m}" for m in mems) if mems else "No usage memory."
         
-        # Options format aligned with MCP framework (but requesting explicit IDs to avoid numeric confusion)
+        # 3. Actions/Skills
+        # Helper to format available choices
+        skills_str = """
+- buy_insurance (FI): Purchase flood insurance
+- elevate_house (HE): Elevate house structure
+- relocate (RL): Relocate to safer area
+- do_nothing (DN): Take no action
+"""
+        # Filter based on state? e.g. if Elevated, can't Elevate
         if context.get("elevated"):
-            options = """1. "buy_insurance": Purchase flood insurance (Provides financial protection.)
-2. "relocate": Relocate (Eliminates flood risk.)
-3. "do_nothing": Do nothing."""
-            valid_choices = '"buy_insurance", "relocate", or "do_nothing"'
-        else:
-            options = f"""1. "buy_insurance": Purchase flood insurance (Provides financial protection.)
-2. "elevate_house": Elevate house (Reduces flood risk.)
-3. "relocate": Relocate (Eliminates flood risk.)
-4. "do_nothing": Do nothing."""
-            valid_choices = '"buy_insurance", "elevate_house", "relocate", or "do_nothing"'
+             skills_str = skills_str.replace("- elevate_house (HE): Elevate house structure\n", "")
         
-        flood_status = (
-            "A flood occurred this year."
-            if context.get("flood_event") else 
-            "No flood occurred this year."
-        )
+        # 4. Fill Template
+        # Ensure all keys in template are present
+        params = {
+            "agent_name": context.get("agent_name"),
+            "tenure": context.get("tenure"),
+            "income": context.get("income"),
+            "mg": context.get("mg"),
+            "elevated": str(context.get("elevated")),
+            "has_insurance": str(context.get("has_insurance")),
+            "perception": perception_str,
+            "memory": memory_str,
+            "flood": str(context.get("flood")),
+            "subsidy_rate": context.get("subsidy_rate"),
+            "premium_rate": context.get("premium_rate"),
+            "skills": skills_str
+        }
         
-        return f"""You are a homeowner in a city, with a strong attachment to your community. {elevation_status}
-Your memory includes:
-{memory}
-
-You currently {insurance_status} flood insurance.
-You {trust_ins_text} the insurance company. You {trust_neighbors_text} your neighbors' judgment.
-
-Using the Protection Motivation Theory, evaluate your current situation by considering the following factors:
-- Perceived Severity: How serious the consequences of flooding feel to you.
-- Perceived Vulnerability: How likely you think you are to be affected.
-- Response Efficacy: How effective you believe each action is.
-- Self-Efficacy: Your confidence in your ability to take that action.
-- Response Cost: The financial and emotional cost of the action.
-- Maladaptive Rewards: The benefit of doing nothing immediately.
-
-Now, choose one of the following actions:
-{options}
-Note: If no flood occurred this year, since no immediate threat, most people would choose "do_nothing".
-{flood_status}
-
-Please respond using the exact format below. Do NOT include any markdown symbols:
-Threat Appraisal: [One sentence summary of how threatened you feel by any remaining flood risks.]
-Coping Appraisal: [One sentence summary of how well you think you can cope or act.]
-Final Decision: [Choose {valid_choices} only]"""
+        return self.template.format(**params)
     
     def _verbalize_trust(self, trust_value: float, trust_type: str) -> str:
         """Converts a float (0-1) into a natural language description (aligned with MCP)."""
@@ -545,6 +567,31 @@ def run_experiment(args):
             
             # 5. Trim memory to window
             agent.memory = agent.memory[-MEMORY_WINDOW:]
+            
+            # 6. Trust Update Logic (Legacy restoration)
+            # Insurance Trust
+            if agent.has_insurance:
+                if env.flood_event and not agent.elevated: # Insured + Flooded (Hassle)
+                    agent.trust_in_insurance = max(0.0, agent.trust_in_insurance - 0.10)
+                elif not env.flood_event: # Insured + Safe (Peace of mind)
+                    agent.trust_in_insurance = min(1.0, agent.trust_in_insurance + 0.02)
+            else:
+                if env.flood_event: # Not Insured + Flooded (Regret/Hard Lesson)
+                    # Note: Legacy logic said +0.05 (maybe realizing value), or -0.05? 
+                    # YAML said: not_insured_flooded: delta: +0.05. Using legacy rule.
+                    agent.trust_in_insurance = min(1.0, agent.trust_in_insurance + 0.05)
+                else: # Not Insured + Safe (Gambler's Reward)
+                    agent.trust_in_insurance = max(0.0, agent.trust_in_insurance - 0.02)
+            
+            # Neighbor Trust (Social Proof)
+            if num_neighbors > 0:
+                elevated_pct = (total_elevated - (1 if agent.elevated else 0)) / num_neighbors
+                if elevated_pct > 0.3: # High action threshold
+                    agent.trust_in_neighbors = min(1.0, agent.trust_in_neighbors + 0.04)
+                elif env.flood_event and elevated_pct < 0.1: # Low action during flood
+                    agent.trust_in_neighbors = max(0.0, agent.trust_in_neighbors - 0.05)
+                else: # Default decay
+                    agent.trust_in_neighbors = max(0.0, agent.trust_in_neighbors - 0.01)
         
         # PHASE 2: Process decisions for all agents
         for agent in active_agents:

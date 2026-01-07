@@ -12,6 +12,38 @@ household:
     # No cost parameters in original v2 experiment
     tp_threshold_moderate: 0.05
     tp_threshold_high: 0.20
+
+  # Neutral Prompt Template (Config-Driven)
+  prompt_template: |
+    You are {agent_name}, a homeowner in a flood-prone community.
+    
+    CONTEXT: tenure={tenure} years, income={income}, mortgage={mg}
+    STATE: elevated={elevated}, insurance={has_insurance}
+    
+    OBSERVATIONS:
+    {perception}
+    
+    MEMORY:
+    {memory}
+    
+    ENV: flood={flood} subsidy_available={subsidy_rate} insurance_premium={premium_rate}
+    
+    Current Choice Set:
+    {skills}
+    
+    Using Protection Motivation Theory logic:
+    1. Threat Appraisal: How assuming the risk is (Severity * Vulnerability).
+    2. Coping Appraisal: Can I afford/do the action? (Efficacy - Cost).
+    
+    DECISION PROCESS:
+    - If flood=True, you feel higher threat.
+    - If elevated=True, your vulnerability is lower.
+    - If insurance=True, your financial risk is lower.
+    
+    OUTPUT FORMAT:
+    Threat Appraisal: [Low/Med/High] because...
+    Coping Appraisal: [Low/Med/High] because...
+    Final Decision: [exact_skill_name]
   
   # Audit Configuration
   audit:
