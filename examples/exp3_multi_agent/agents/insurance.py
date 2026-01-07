@@ -87,11 +87,80 @@ class InsuranceAgent:
         
         return decision
 
+    @property
+    def solvency(self) -> float:
+        """Solvency ratio (Risk Pool / 1M target)."""
+        return min(1.0, self.state.risk_pool / 1_000_000)
+
+    @property
+    def market_ratio(self) -> float:
+        """Market uptake rate."""
+        return self.state.uptake_rate
+
     def to_dict(self) -> Dict[str, Any]:
+        """Serialize state for ContextBuilder."""
         return {
             "id": self.state.id,
-            "premium_rate": self.state.premium_rate,
-            "loss_ratio": self.state.loss_ratio,
             "risk_pool": self.state.risk_pool,
+            "premium_rate": self.state.premium_rate,
+            "solvency": self.solvency,
+            "loss_ratio": self.state.loss_ratio,
+            "total_policies": self.state.total_policies,
+            "market_share": self.state.uptake_rate,
             "memory": self.memory.format_for_prompt()
         }
+
+    # =========================================================================
+    # BaseAgent Compatibility Interface
+    # =========================================================================
+    
+    @property
+    def agent_type(self) -> str:
+        return "insurance"
+    
+    @property
+    def name(self) -> str:
+        return self.state.id
+
+    def get_all_state(self) -> Dict[str, float]:
+        """Normalized state (0-1)."""
+        return {
+            "loss_ratio": self.state.loss_ratio,
+            "solvency": self.solvency,
+            "premium_rate": self.state.premium_rate * 10, # Normalize 0.05 -> 0.5
+            "market_share": self.state.uptake_rate,
+            "risk_pool_norm": max(0.0, min(1.0, self.state.risk_pool / 2_000_000))
+        }
+
+    def get_all_state_raw(self) -> Dict[str, float]:
+        """Raw state values."""
+        return {
+            "loss_ratio": self.state.loss_ratio,
+            "solvency": self.solvency,
+            "premium_rate": self.state.premium_rate,
+            "market_share": self.state.uptake_rate,
+            "risk_pool": self.state.risk_pool,
+            "total_policies": self.state.total_policies
+        }
+
+    def evaluate_objectives(self) -> Dict[str, Dict]:
+        """Insurance objectives: Assessment of solvency and loss ratio."""
+        return {
+            "solvency": {
+                "current": self.solvency,
+                "target": (0.5, 1.0),
+                "in_range": self.solvency >= 0.5
+            },
+            "profitability": {
+                "current": self.state.loss_ratio,
+                "target": (0.0, 0.7),
+                "in_range": self.state.loss_ratio < 0.7
+            }
+        }
+
+    def get_available_skills(self) -> List[str]:
+        return ["RAISE", "LOWER", "MAINTAIN"]
+    
+    def observe(self, environment: Dict[str, float], agents: Dict[str, Any]) -> Dict[str, float]:
+        """Observe environment."""
+        return {}

@@ -75,13 +75,17 @@ class UnifiedAdapter(ModelAdapter):
     AGENT_TYPE_CONFIG = {
         "household": {
             "skills": {"buy_insurance", "elevate_house", "relocate", "do_nothing", 
+                       "buy_contents_insurance", "buyout_program",
                        "FI", "HE", "EH", "BP", "RL", "DN"},
-            "decision_keywords": ["skill:", "decision:", "final decision:"],
+            "decision_keywords": ["decide:", "skill:", "decision:", "final decision:"],
             "skill_map_non_elevated": {
-                "1": "buy_insurance", "2": "elevate_house", "3": "relocate", "4": "do_nothing"
+                "1": "buy_insurance", "2": "elevate_house", "3": "buyout_program", "4": "do_nothing"
             },
             "skill_map_elevated": {
-                "1": "buy_insurance", "2": "relocate", "3": "do_nothing"
+                "1": "buy_insurance", "2": "buyout_program", "3": "do_nothing"
+            },
+            "skill_map_renter": {
+                "1": "buy_contents_insurance", "2": "relocate", "3": "do_nothing"
             },
             "default_skill": "do_nothing"
         },
@@ -158,29 +162,52 @@ class UnifiedAdapter(ModelAdapter):
                             break
                     break
             
-            # Parse INTERPRET: for reasoning
-            if line_lower.startswith("interpret:"):
-                reasoning["interpret"] = line.split(":", 1)[1].strip() if ":" in line else ""
-            
             # Parse ADJ: for adjustment percentage
-            elif line_lower.startswith("adj:"):
-                adj_text = line.split(":", 1)[1].strip() if ":" in line else ""
+            adj_match = re.search(r"adj:\s*([0-9.]+%?)", line_lower)
+            if adj_match:
+                adj_text = adj_match.group(1)
                 try:
-                    # Parse "5%" or "0.05" or "5"
                     adj_clean = adj_text.replace("%", "").strip()
                     adj_val = float(adj_clean)
                     adjustment = adj_val / 100 if adj_val > 1 else adj_val
                 except ValueError:
-                    adjustment = 0.0
+                    pass
             
             # Parse REASON: or JUSTIFICATION:
-            elif line_lower.startswith("reason:") or line_lower.startswith("justification:"):
-                reasoning["reason"] = line.split(":", 1)[1].strip() if ":" in line else ""
+            reason_match = re.search(r"(?:reason|justification):\s*(.+)", line_lower)
+            if reason_match:
+                reasoning["reason"] = reason_match.group(1).strip()
             
             # Parse PRIORITY: for government
-            elif line_lower.startswith("priority:"):
-                reasoning["priority"] = line.split(":", 1)[1].strip() if ":" in line else ""
+            priority_match = re.search(r"priority:\s*(\w+)", line_lower)
+            if priority_match:
+                reasoning["priority"] = priority_match.group(1).strip()
             
+            # Parse INTERPRET (usually standalone)
+            if line_lower.startswith("interpret:"):
+                reasoning["interpret"] = line.split(":", 1)[1].strip() if ":" in line else ""
+            
+            # Parse PMT_EVAL: TP=X CP=Y ...
+            elif line_lower.startswith("pmt_eval:"):
+                content = line.split(":", 1)[1].strip()
+                # Split by spaces to find assignments like TP=H
+                parts = content.split()
+                for part in parts:
+                    if "=" in part:
+                        k, v = part.split("=", 1)
+                        reasoning[k.upper()] = v
+                reasoning["pmt_eval_raw"] = content
+
+            # Parse individual PMT evaluations with reasoning (EVAL_TP: [H] reason...)
+            elif line_lower.startswith("eval_"):
+                pmt_match = re.search(r"eval_(tp|cp|sp|sc|pa):\s*\[?([a-z]+)\]?\s*(.*)", line, re.IGNORECASE)
+                if pmt_match:
+                    construct = pmt_match.group(1).upper()
+                    val = pmt_match.group(2).upper()
+                    reason = pmt_match.group(3).strip()
+                    reasoning[construct] = val
+                    reasoning[f"{construct}_REASON"] = reason
+
             # Legacy household parsing
             elif line_lower.startswith("threat appraisal:"):
                 reasoning["threat"] = line.split(":", 1)[1].strip() if ":" in line else ""
@@ -198,10 +225,19 @@ class UnifiedAdapter(ModelAdapter):
                         break
                 
                 # Fallback: digit mapping for household
-                if not skill_name and self.agent_type == "household":
+                if not skill_name and self.agent_type.startswith("household"):
+                    tenure = context.get("tenure", "Owner")
+                    is_renter = tenure == "Renter"
+                    
                     for char in decision_text:
                         if char.isdigit():
-                            skill_map = self.config.get("skill_map_elevated" if is_elevated else "skill_map_non_elevated", {})
+                            if is_renter:
+                                skill_map = self.config.get("skill_map_renter", {})
+                            elif is_elevated:
+                                skill_map = self.config.get("skill_map_elevated", {})
+                            else:
+                                skill_map = self.config.get("skill_map_non_elevated", {})
+                                
                             skill_name = skill_map.get(char, self.config.get("default_skill", "do_nothing"))
                             break
         

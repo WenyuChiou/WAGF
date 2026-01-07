@@ -89,6 +89,8 @@ class AgentValidator:
         "household": {
             "valid_decisions": {
                 "values": ["FI", "HE", "EH", "BP", "RL", "Relocate", "DN", "Do Nothing",
+                          "buy_insurance", "elevate_house", "buy_contents_insurance", "buyout_program",
+                          "do_nothing", "relocate",
                           "1", "2", "3", "4", "5"],
                 "level": ValidationLevel.ERROR
             }
@@ -105,7 +107,8 @@ class AgentValidator:
         agent_id: str,
         decision: str,
         state: Dict[str, Any],
-        prev_state: Dict[str, Any] = None
+        prev_state: Dict[str, Any] = None,
+        reasoning: Dict[str, str] = None
     ) -> List[ValidationResult]:
         """
         Validate agent decision based on agent_type rules.
@@ -116,13 +119,24 @@ class AgentValidator:
             decision: Decision string
             state: Current agent state
             prev_state: Previous state (for delta checks)
+            reasoning: Optional reasoning dictionary (contains PMT labels)
         """
         results = []
-        rules = self.VALIDATION_RULES.get(agent_type, {})
+        
+        # Normalize agent type
+        base_type = agent_type
+        if agent_type.startswith("household"):
+            base_type = "household"
+            
+        rules = self.VALIDATION_RULES.get(base_type, {})
         
         if not rules:
             # Unknown agent type - just validate response format
             return self.validate_response_format(agent_id, decision)
+        
+        # 0. Validate PMT Coherence (Household only)
+        if base_type == "household" and reasoning:
+            results.extend(self.validate_pmt_coherence(agent_id, state, reasoning))
         
         # 1. Validate decision is in allowed values
         if "valid_decisions" in rules:
@@ -138,6 +152,20 @@ class AgentValidator:
                     agent_id=agent_id,
                     field="decision",
                     constraint=str(rule["values"][:4]) + "..."
+                ))
+        
+        # 1b. Validate against agent's available skills (if in state)
+        if "available_skills" in state:
+            available = [s.lower() for s in state["available_skills"]]
+            if decision.lower() not in available:
+                 results.append(ValidationResult(
+                    valid=False,
+                    level=ValidationLevel.ERROR,
+                    rule="available_skills",
+                    message=f"Decision '{decision}' not in available skills",
+                    agent_id=agent_id,
+                    field="decision",
+                    constraint=str(available[:4]) + "..."
                 ))
         
         # 2. Validate rate/param bounds
@@ -192,6 +220,111 @@ class AgentValidator:
                     ))
         
         self._categorize_results(results)
+        return results
+
+    def validate_pmt_coherence(
+        self,
+        agent_id: str,
+        state: Dict[str, Any],
+        reasoning: Dict[str, str]
+    ) -> List[ValidationResult]:
+        """
+        Validate logical coherence between Agent State and LLM PMT Labels.
+        Covers all 5 constructs: TP, CP, SP, SC, PA.
+        """
+        results = []
+        
+        # Helper to safely get label (handles brackets like [H])
+        def get_label(key):
+            val = reasoning.get(key, "").upper()
+            return val.replace("[", "").replace("]", "").strip()
+
+        tp = get_label("TP")
+        cp = get_label("CP")
+        sp = get_label("SP")
+        sc = get_label("SC")
+        pa = get_label("PA")
+        
+        # --- TP Coherence ---
+        # If Damage > 50% (normalized 0.5), TP should likely be High
+        damage_norm = state.get("cumulative_damage", 0.0)
+        if damage_norm > 0.5 and tp == "L":
+            results.append(ValidationResult(
+                valid=False,
+                level=ValidationLevel.WARNING,
+                rule="pmt_coherence_tp",
+                message=f"High Damage ({damage_norm:.2f}) but Low TP",
+                agent_id=agent_id,
+                field="TP",
+                value=tp,
+                constraint="Should be M/H"
+            ))
+
+        # --- CP Coherence ---
+        # If Income > 0.8 (High), CP should not be Low
+        income_norm = state.get("income", 0.0)
+        if income_norm > 0.8 and cp == "L":
+            results.append(ValidationResult(
+                valid=False,
+                level=ValidationLevel.WARNING,
+                rule="pmt_coherence_cp",
+                message=f"High Income ({income_norm:.2f}) but Low CP",
+                agent_id=agent_id,
+                field="CP",
+                value=cp,
+                constraint="Should be M/H"
+            ))
+
+        # --- SP Coherence ---
+        # SP = Stakeholder Perception (Trust in Gov/Insurance)
+        # If trust_gov + trust_ins > 1.2 (average > 0.6), SP should be M/H
+        trust_gov = state.get("trust_gov", 0.5)
+        trust_ins = state.get("trust_ins", 0.5)
+        avg_trust_stakeholder = (trust_gov + trust_ins) / 2
+        if avg_trust_stakeholder > 0.7 and sp == "L":
+            results.append(ValidationResult(
+                valid=False,
+                level=ValidationLevel.WARNING,
+                rule="pmt_coherence_sp",
+                message=f"High Stakeholder Trust ({avg_trust_stakeholder:.2f}) but Low SP",
+                agent_id=agent_id,
+                field="SP",
+                value=sp,
+                constraint="Should be M/H"
+            ))
+
+        # --- SC Coherence ---
+        # SC = Social Capital (Trust in Neighbors)
+        trust_neighbors = state.get("trust_neighbors", 0.5)
+        if trust_neighbors > 0.7 and sc == "L":
+            results.append(ValidationResult(
+                valid=False,
+                level=ValidationLevel.WARNING,
+                rule="pmt_coherence_sc",
+                message=f"High Neighbor Trust ({trust_neighbors:.2f}) but Low SC",
+                agent_id=agent_id,
+                field="SC",
+                value=sc,
+                constraint="Should be M/H"
+            ))
+
+        # --- PA Coherence ---
+        # PA = Place Attachment (based on existing adaptations)
+        is_elevated = state.get("elevated", 0.0) > 0.5
+        is_insured = state.get("insured", 0.0) > 0.5
+        
+        if (is_elevated or is_insured) and pa == "NONE":
+            results.append(ValidationResult(
+                valid=False,
+                level=ValidationLevel.WARNING,
+                rule="pmt_coherence_pa",
+                message=f"Has adaptations (Elv={is_elevated}, Ins={is_insured}) but PA=NONE",
+                agent_id=agent_id,
+                field="PA",
+                value=pa,
+                constraint="Should be PARTIAL/FULL"
+            ))
+            
         return results
     
     def validate_response_format(

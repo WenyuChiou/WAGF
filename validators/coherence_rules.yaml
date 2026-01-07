@@ -1,0 +1,44 @@
+# Validator Coherence Rules
+# Configurable rules for checking PMT label consistency with agent state
+
+household:
+  TP:
+    field: cumulative_damage
+    threshold: 0.5
+    when_above_threshold:
+      invalid_labels: [L]
+      message: "High Damage but Low TP"
+      level: WARNING
+      
+  CP:
+    field: income
+    threshold: 0.8
+    when_above_threshold:
+      invalid_labels: [L]
+      message: "High Income but Low CP"
+      level: WARNING
+      
+  SP:
+    fields: [trust_gov, trust_ins]
+    aggregation: average
+    threshold: 0.7
+    when_above_threshold:
+      invalid_labels: [L]
+      message: "High Stakeholder Trust but Low SP"
+      level: WARNING
+      
+  SC:
+    field: trust_neighbors
+    threshold: 0.7
+    when_above_threshold:
+      invalid_labels: [L]
+      message: "High Neighbor Trust but Low SC"
+      level: WARNING
+      
+  PA:
+    fields: [elevated, insured]
+    aggregation: any_true
+    when_any_true:
+      invalid_labels: [NONE]
+      message: "Has adaptations but PA=NONE"
+      level: WARNING

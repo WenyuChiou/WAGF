@@ -237,6 +237,7 @@ class HouseholdAgent:
         )
 
     def to_dict(self) -> Dict[str, Any]:
+        """Serialize state for ContextBuilder."""
         return {
             "id": self.state.id,
             "mg": self.state.mg,
@@ -253,3 +254,100 @@ class HouseholdAgent:
             "cumulative_damage": self.state.cumulative_damage,
             "memory": self.memory.format_for_prompt()
         }
+
+    # =========================================================================
+    # BaseAgent Compatibility Interface
+    # =========================================================================
+    
+    @property
+    def agent_type(self) -> str:
+        return "household_mg" if self.state.mg else "household_nmg"
+    
+    @property
+    def name(self) -> str:
+        return self.state.id
+
+    def get_all_state(self) -> Dict[str, float]:
+        """Normalized state (0-1)."""
+        # Heuristic normalization ranges
+        max_income = 150_000
+        max_prop = 1_000_000
+        max_damage = 500_000
+        
+        def norm(v, mx): return max(0.0, min(1.0, v / mx))
+        
+        return {
+            "income": norm(self.state.income, max_income),
+            "property_value": norm(self.state.property_value, max_prop),
+            "cumulative_damage": norm(self.state.cumulative_damage, max_damage),
+            "trust_gov": self.state.trust_in_government,
+            "trust_ins": self.state.trust_in_insurance,
+            "trust_neighbors": self.state.trust_in_neighbors,
+            "elevated": 1.0 if self.state.elevated else 0.0,
+            "insured": 1.0 if self.state.has_insurance else 0.0,
+            "relocated": 1.0 if self.state.relocated else 0.0,
+            # Synthetics for PMT
+            "threat_perception": norm(self.state.cumulative_damage, 100_000), # Higher sensitivity
+            "coping_capacity": norm(self.state.income, 80_000),
+            "available_skills": self.get_available_skills()
+        }
+
+    def get_all_state_raw(self) -> Dict[str, Any]:
+        """Raw state values."""
+        return {
+            "income": self.state.income,
+            "property_value": self.state.property_value,
+            "cumulative_damage": self.state.cumulative_damage,
+            "trust_gov": self.state.trust_in_government,
+            "trust_ins": self.state.trust_in_insurance,
+            "tenure": self.state.tenure, # Added for template
+            "tenure_val": 1.0 if self.state.tenure == "Owner" else 0.0,
+            "mg_val": 1.0 if self.state.mg else 0.0,
+            # PMT Placeholders (Calculated heuristic for prompt context)
+            "tp": "H" if self.state.cumulative_damage > self.state.property_value * 0.1 else "L",
+            "cp": "M" if self.state.income > 50000 else "L",
+            "sp": "M", # Dynamic from env? But this is agent state. 
+            "sc": "M",
+            "pa": "FULL" if self.state.elevated else ("PARTIAL" if self.state.has_insurance else "NONE")
+        }
+
+    def evaluate_objectives(self) -> Dict[str, Dict]:
+        """Household objectives: Safety and Financial Stability."""
+        return {
+            "safety": {
+                "current": 1.0 if self.state.elevated or self.state.relocated else 0.0,
+                "target": (0.8, 1.0),
+                "in_range": self.state.elevated or self.state.relocated
+            },
+            "financial": {
+                "current": 1.0 if self.state.has_insurance else 0.0,
+                "target": (0.8, 1.0),
+                "in_range": self.state.has_insurance
+            }
+        }
+
+    def get_available_skills(self) -> List[str]:
+        if self.state.relocated:
+            return ["do_nothing"]
+        
+        skills = ["do_nothing", "buy_insurance"]
+        if self.state.tenure == "Renter":
+            skills.append("buy_contents_insurance")
+            skills.append("relocate")
+        else:
+            if not self.state.elevated:
+                skills.append("elevate_house")
+            skills.append("buyout_program")
+        return skills
+    
+    def observe(self, environment: Dict[str, float], agents: Dict[str, Any]) -> Dict[str, float]:
+        """Observe environment."""
+        # Map environment vars to 0-1
+        obs = {}
+        if "government_subsidy_rate" in environment:
+            obs["subsidy_rate"] = environment["government_subsidy_rate"]
+        if "insurance_premium_rate" in environment:
+            obs["premium_rate"] = environment["insurance_premium_rate"] * 10 # Normalize 0.05 -> 0.5
+        if "flood_occurred" in environment:
+            obs["flood"] = 1.0 if environment["flood_occurred"] else 0.0
+        return obs

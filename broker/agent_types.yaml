@@ -1,0 +1,234 @@
+# =============================================================================
+# Agent Type Configurations
+# =============================================================================
+# Single source of truth for all agent types.
+# Includes: prompt template, validation rules, constructs, and coherence rules.
+
+# =============================================================================
+# HOUSEHOLD AGENTS
+# =============================================================================
+
+household:
+  description: "Household agents making flood adaptation decisions"
+  
+  # Subtypes (MG vs NMG)
+  subtypes:
+    household_mg:
+      description: "Marginalized Group - lower income"
+      context_vars:
+        mg: true
+        income_label: "L"
+    household_nmg:
+      description: "Non-Marginalized Group - higher resources"
+      context_vars:
+        mg: false
+        income_label: "M/H"
+  
+  # Available actions
+  actions:
+    - id: buy_insurance
+      aliases: [FI, "1"]
+      description: "Purchase flood insurance"
+    - id: elevate_house
+      aliases: [HE, EH, "2"]
+      description: "Elevate house structure"
+      requires: {tenure: Owner}
+    - id: buy_contents_insurance
+      aliases: ["3"]
+      description: "Purchase contents insurance"
+      requires: {tenure: Renter}
+    - id: buyout_program
+      aliases: [BP]
+      description: "Apply for government buyout"
+      requires: {tenure: Owner}
+    - id: relocate
+      aliases: [RL, Relocate, "4", "5"]
+      description: "Relocate to safer area"
+    - id: do_nothing
+      aliases: [DN, "Do Nothing"]
+      description: "Take no action this year"
+  
+  # PMT Constructs (for prompt and validation)
+  constructs:
+    TP:
+      name: Threat Perception
+      description: "Assessment of flood risk and potential damage"
+      levels: [L, M, H]
+      prompt_format: "EVAL_TP:[L/M/H] [reasoning]"
+    CP:
+      name: Coping Perception
+      description: "Ability to cope with flood impacts"
+      levels: [L, M, H]
+      prompt_format: "EVAL_CP:[L/M/H] [reasoning]"
+    SP:
+      name: Stakeholder Perception
+      description: "Trust in Government/Insurance"
+      levels: [L, M, H]
+      prompt_format: "EVAL_SP:[L/M/H] [reasoning]"
+    SC:
+      name: Social Capital
+      description: "Strength of community support"
+      levels: [L, M, H]
+      prompt_format: "EVAL_SC:[L/M/H] [reasoning]"
+    PA:
+      name: Place Attachment
+      description: "Emotional connection to home"
+      levels: [NONE, PARTIAL, FULL]
+      prompt_format: "EVAL_PA:[NONE/PARTIAL/FULL] [reasoning]"
+  
+  # Coherence rules: state field → expected label
+  coherence_rules:
+    TP:
+      state_field: cumulative_damage
+      threshold: 0.5
+      when_above: [M, H]
+      message: "High damage should imply high threat perception"
+    CP:
+      state_field: income
+      threshold: 0.8
+      when_above: [M, H]
+      message: "High income should imply high coping ability"
+    SP:
+      state_fields: [trust_gov, trust_ins]
+      aggregation: average
+      threshold: 0.7
+      when_above: [M, H]
+    SC:
+      state_field: trust_neighbors
+      threshold: 0.7
+      when_above: [M, H]
+    PA:
+      state_fields: [elevated, insured]
+      aggregation: any_true
+      when_true: [PARTIAL, FULL]
+  
+  # Prompt template
+  prompt_template: |
+    [{agent_type}:{agent_name}]
+    
+    CONTEXT:tenure={tenure} income={income} mg={mg}
+    STATE:{state}
+    MEM:{memory}
+    ENV:flood={flood} subsidy={subsidy_rate} premium={premium_rate}
+    ACT:{skills}
+    
+    DEFINITIONS:
+    - TP: {constructs.TP.description}
+    - CP: {constructs.CP.description}
+    - SP: {constructs.SP.description}
+    - SC: {constructs.SC.description}
+    - PA: {constructs.PA.description}
+    
+    OUTPUT:
+    INTERPRET:[1-line summary]
+    EVAL_TP:[L/M/H] [reasoning]
+    EVAL_CP:[L/M/H] [reasoning]
+    EVAL_SP:[L/M/H] [reasoning]
+    EVAL_SC:[L/M/H] [reasoning]
+    EVAL_PA:[NONE/PARTIAL/FULL] [reasoning]
+    DECIDE:[action] REASON:[reasoning]
+
+# =============================================================================
+# INSURANCE AGENT
+# =============================================================================
+
+insurance:
+  description: "Insurance company managing risk pool and premiums"
+  
+  actions:
+    - id: raise_premium
+      aliases: [RAISE]
+      description: "Increase premium rate"
+    - id: lower_premium
+      aliases: [LOWER]
+      description: "Decrease premium rate"
+    - id: maintain_premium
+      aliases: [MAINTAIN]
+      description: "Keep current premium rate"
+  
+  # Validation bounds
+  validation_rules:
+    rate_bounds:
+      param: premium_rate
+      min: 0.02
+      max: 0.15
+      level: ERROR
+      message: "Premium rate must be 2-15%"
+    max_change:
+      param: premium_rate
+      max_delta: 0.15
+      level: WARNING
+      message: "Rate change exceeds 15%"
+    solvency_floor:
+      param: solvency
+      min: 0.0
+      level: ERROR
+      message: "Insolvency detected"
+  
+  prompt_template: |
+    [{agent_type}:{agent_name}]
+    
+    STATE:{state}
+    METRICS:loss_ratio={loss_ratio} solvency={solvency} market={market_share}
+    OBS:{perception}
+    MEM:{memory}
+    OBJ:{objectives}
+    ACT:{skills}
+    
+    OUTPUT:
+    INTERPRET:[1-line financial situation]
+    DECIDE:[RAISE/LOWER/MAINTAIN] ADJ:[0-15%] REASON:[1-line]
+
+# =============================================================================
+# GOVERNMENT AGENT
+# =============================================================================
+
+government:
+  description: "Government managing subsidies and equity programs"
+  
+  actions:
+    - id: increase_subsidy
+      aliases: [INCREASE]
+      description: "Increase subsidy rate"
+    - id: decrease_subsidy
+      aliases: [DECREASE]
+      description: "Decrease subsidy rate"
+    - id: maintain_subsidy
+      aliases: [MAINTAIN]
+      description: "Keep current subsidy rate"
+    - id: target_mg_outreach
+      aliases: [OUTREACH]
+      description: "Launch MG outreach program"
+  
+  validation_rules:
+    subsidy_bounds:
+      param: subsidy_rate
+      min: 0.20
+      max: 0.95
+      level: ERROR
+      message: "Subsidy rate must be 20-95%"
+    max_change:
+      param: subsidy_rate
+      max_delta: 0.15
+      level: WARNING
+      message: "Rate change exceeds 15%"
+    budget_reserve:
+      param: budget_used
+      max: 0.90
+      level: WARNING
+      message: "Budget usage exceeds 90%"
+  
+  prompt_template: |
+    [{agent_type}:{agent_name}]
+    
+    STATE:{state}
+    METRICS:budget={budget_remaining} subsidy={subsidy_rate} mg_adopt={mg_adoption} nmg_adopt={nmg_adoption}
+    EQUITY:gap={equity_gap}
+    OBS:{perception}
+    MEM:{memory}
+    OBJ:{objectives}
+    ACT:{skills}
+    
+    OUTPUT:
+    INTERPRET:[1-line policy situation]
+    DECIDE:[INCREASE/DECREASE/MAINTAIN/OUTREACH] ADJ:[0-15%] PRIORITY:[MG/NMG/ALL] REASON:[1-line]
