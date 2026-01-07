@@ -279,3 +279,72 @@ class InstitutionalValidator:
         """Clear accumulated results."""
         self.errors = []
         self.warnings = []
+    
+    def validate_response_format(
+        self,
+        agent_id: str,
+        response: str,
+        required_fields: List[str] = None
+    ) -> List[ValidationResult]:
+        """
+        Validate LLM response format.
+        
+        Checks for required fields like INTERPRET:, DECIDE:, ADJ:, REASON:
+        
+        Args:
+            agent_id: Agent identifier
+            response: Raw LLM response text
+            required_fields: Fields to check (default: INTERPRET, DECIDE)
+        """
+        results = []
+        required = required_fields or ["INTERPRET:", "DECIDE:"]
+        
+        for field in required:
+            if field not in response:
+                results.append(ValidationResult(
+                    valid=False,
+                    level=ValidationLevel.ERROR,
+                    rule="response_format",
+                    message=f"Missing required field '{field}' in response",
+                    agent_id=agent_id,
+                    field="response",
+                    value=None,
+                    constraint=f"required: {required}"
+                ))
+        
+        self._categorize_results(results)
+        return results
+    
+    def validate_adjustment(
+        self,
+        agent_id: str,
+        adjustment: float,
+        min_adj: float = 0.0,
+        max_adj: float = 0.15
+    ) -> List[ValidationResult]:
+        """
+        Validate adjustment percentage is within bounds.
+        
+        Args:
+            agent_id: Agent identifier
+            adjustment: Adjustment value (0.0-0.15)
+            min_adj: Minimum allowed adjustment
+            max_adj: Maximum allowed adjustment
+        """
+        results = []
+        
+        if not (min_adj <= adjustment <= max_adj):
+            results.append(ValidationResult(
+                valid=False,
+                level=ValidationLevel.WARNING,
+                rule="adjustment_bounds",
+                message=f"Adjustment {adjustment:.1%} outside bounds [{min_adj:.0%}, {max_adj:.0%}]",
+                agent_id=agent_id,
+                field="adjustment",
+                value=adjustment,
+                constraint=f"[{min_adj}, {max_adj}]"
+            ))
+        
+        self._categorize_results(results)
+        return results
+
