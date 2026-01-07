@@ -12,16 +12,29 @@ household_mg:
     [{agent_type}:{agent_name}]
     
     CONTEXT:tenure={tenure} income={income}(L) mg=TRUE
+    DEMOGRAPHICS:household_size={household_size} generations={generations} has_vehicle={has_vehicle}
     STATE:{state}
-    PMT:TP={tp} CP={cp} SP={sp} SC={sc} PA={pa}
+
     MEM:{memory}
     ENV:flood={flood} subsidy={subsidy_rate} premium={premium_rate}
     ACT:{skills}
+
+    DEFINITIONS:
+
+    - TP (Threat Perception): Assessment of flood risk and potential damage.
+    - CP (Coping Perception): Ability to cope with flood impacts.
+    - SP (Stakeholder Perception): Trust/Confidence in stakeholders (Government/Insurance).
+    - SC (Social Capital): Strength of community and neighbor support.
+    - PA (Place Attachment): Emotional connection to the home and community.
     
     OUTPUT:
     INTERPRET:[1-line situation summary]
-    PMT_EVAL:TP=[L/M/H] CP=[L/M/H] SP=[L/M/H] SC=[L/M/H] PA=[NONE/PARTIAL/FULL]
-    DECIDE:[action] REASON:[1-line]
+    EVAL_TP:[L/M/H] [reasoning]
+    EVAL_CP:[L/M/H] [reasoning]
+    EVAL_SP:[L/M/H] [reasoning]
+    EVAL_SC:[L/M/H] [reasoning]
+    EVAL_PA:[NONE/PARTIAL/FULL] [reasoning]
+    DECIDE:[action] REASON:[overall reasoning]
 
 household_nmg:
   description: "Non-Marginalized Group household - higher resources"
@@ -29,16 +42,28 @@ household_nmg:
     [{agent_type}:{agent_name}]
     
     CONTEXT:tenure={tenure} income={income}(M/H) mg=FALSE
+    DEMOGRAPHICS:household_size={household_size} generations={generations} has_vehicle={has_vehicle}
     STATE:{state}
-    PMT:TP={tp} CP={cp} SP={sp} SC={sc} PA={pa}
+
     MEM:{memory}
     ENV:flood={flood} subsidy={subsidy_rate} premium={premium_rate}
     ACT:{skills}
+
+    DEFINITIONS:
+    - TP (Threat Perception): Assessment of flood risk and potential damage.
+    - CP (Coping Perception): Ability to cope with flood impacts.
+    - SP (Stakeholder Perception): Trust/Confidence in stakeholders (Government/Insurance).
+    - SC (Social Capital): Strength of community and neighbor support.
+    - PA (Place Attachment): Emotional connection to the home and community.
     
     OUTPUT:
     INTERPRET:[1-line situation summary]
-    PMT_EVAL:TP=[L/M/H] CP=[L/M/H] SP=[L/M/H] SC=[L/M/H] PA=[NONE/PARTIAL/FULL]
-    DECIDE:[action] REASON:[1-line]
+    EVAL_TP:[L/M/H] [reasoning]
+    EVAL_CP:[L/M/H] [reasoning]
+    EVAL_SP:[L/M/H] [reasoning]
+    EVAL_SC:[L/M/H] [reasoning]
+    EVAL_PA:[NONE/PARTIAL/FULL] [reasoning]
+    DECIDE:[action] REASON:[overall reasoning]
 
 # =============================================================================
 # INSURANCE AGENT

@@ -13,6 +13,9 @@ from .base import (
     MemoryIntegrityValidator
 )
 
+# Generic label-based validator
+from .agent_validator import AgentValidator
+
 # Skill-governed validators
 from .skill_validators import (
     SkillValidator,
@@ -37,6 +40,8 @@ from .factory import (
 )
 
 __all__ = [
+    # Generic Label-Based
+    "AgentValidator",
     # Legacy
     "BaseValidator",
     "SchemaValidator",

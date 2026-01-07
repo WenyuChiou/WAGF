@@ -20,8 +20,8 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 from dataclasses import dataclass, asdict
 
-from examples.exp3_multi_agent.parsers import HouseholdOutput, InsuranceOutput, GovernmentOutput
-
+from broker.skill_types import SkillProposal
+from examples.exp3_multi_agent.agents import HouseholdOutput
 
 @dataclass
 class AuditConfig:
@@ -194,7 +194,7 @@ class AuditWriter:
             # Decision
             "decision_number": output.decision_number,
             "decision_skill": output.decision_skill,
-            "justification": output.justification,
+            "justification": output.decision_skill, # Re-mapped
             # Validation
             "validated": output.validated,
             "validation_errors": output.validation_errors,
@@ -228,7 +228,8 @@ class AuditWriter:
     
     def write_insurance_trace(
         self, 
-        output: InsuranceOutput, 
+        output: SkillProposal, 
+        year: int,
         agent_id: str = "InsuranceCo",
         state: Optional[Dict[str, Any]] = None,
         validation_results: Optional[list] = None
@@ -239,14 +240,14 @@ class AuditWriter:
         # Update institutional summary
         ins_summary = self.summary["institutional_summary"]["insurance"]
         ins_summary["decisions"].append({
-            "year": output.year,
-            "decision": output.decision,
+            "year": year,
+            "decision": output.skill_name,
             "rate": state.get("premium_rate") if state else None,
             "loss_ratio": state.get("loss_ratio") if state else None
         })
         
         # Count by decision type
-        dec = output.decision.upper() if output.decision else ""
+        dec = output.skill_name.upper() if output.skill_name else ""
         if "RAISE" in dec:
             ins_summary["raise_count"] += 1
         elif "LOWER" in dec:
@@ -269,14 +270,14 @@ class AuditWriter:
         
         trace = {
             "timestamp": datetime.now().isoformat(),
-            "year": output.year,
+            "year": year,
             "agent_type": "Insurance",
             "agent_id": agent_id,
-            "analysis": output.analysis,
-            "decision": output.decision,
-            "adjustment_pct": output.adjustment_pct,
-            "justification": output.justification,
-            "validated": output.validated,
+            "analysis": output.reasoning.get("interpret", ""),
+            "decision": output.skill_name,
+            "adjustment_pct": output.reasoning.get("adjustment", 0.0),
+            "justification": output.reasoning.get("reason", ""),
+            "validated": len(validation_results or []) == 0,
             "state": state or {},
             "validation_issues": [r.message for r in (validation_results or [])]
         }
@@ -286,7 +287,8 @@ class AuditWriter:
     
     def write_government_trace(
         self, 
-        output: GovernmentOutput, 
+        output: SkillProposal, 
+        year: int,
         agent_id: str = "Government",
         state: Optional[Dict[str, Any]] = None,
         validation_results: Optional[list] = None
@@ -297,15 +299,15 @@ class AuditWriter:
         # Update institutional summary
         gov_summary = self.summary["institutional_summary"]["government"]
         gov_summary["decisions"].append({
-            "year": output.year,
-            "decision": output.decision,
+            "year": year,
+            "decision": output.skill_name,
             "rate": state.get("subsidy_rate") if state else None,
             "mg_adoption": state.get("mg_adoption_rate") if state else None,
             "equity_gap": state.get("equity_gap") if state else None
         })
         
         # Count by decision type
-        dec = output.decision.upper() if output.decision else ""
+        dec = output.skill_name.upper() if output.skill_name else ""
         if "INCREASE" in dec:
             gov_summary["increase_count"] += 1
         elif "DECREASE" in dec:
@@ -331,15 +333,15 @@ class AuditWriter:
         
         trace = {
             "timestamp": datetime.now().isoformat(),
-            "year": output.year,
+            "year": year,
             "agent_type": "Government",
             "agent_id": agent_id,
-            "analysis": output.analysis,
-            "decision": output.decision,
-            "adjustment_pct": output.adjustment_pct,
-            "priority": output.priority,
-            "justification": output.justification,
-            "validated": output.validated,
+            "analysis": output.reasoning.get("interpret", ""),
+            "decision": output.skill_name,
+            "adjustment_pct": output.reasoning.get("adjustment", 0.0),
+            "priority": output.reasoning.get("priority", ""),
+            "justification": output.reasoning.get("reason", ""),
+            "validated": len(validation_results or []) == 0,
             "state": state or {},
             "validation_issues": [r.message for r in (validation_results or [])]
         }

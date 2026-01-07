@@ -55,38 +55,58 @@ class ModelAdapter(ABC):
 
 class UnifiedAdapter(ModelAdapter):
     """
-    Unified adapter supporting all models with optional preprocessor.
+    Unified adapter supporting all models AND all agent types.
     
-    This replaces the need for separate OllamaAdapter, OpenAIAdapter, etc.
+    Agent-type-specific parsing is configured via AGENT_TYPE_CONFIG.
     Model-specific quirks (like DeepSeek's <think> tags) are handled via preprocessor.
     
     Usage:
-        # Standard models (Llama, Gemma, GPT-OSS)
-        adapter = UnifiedAdapter()
+        # Standard household agent
+        adapter = UnifiedAdapter(agent_type="household")
+        
+        # Insurance agent
+        adapter = UnifiedAdapter(agent_type="insurance")
         
         # DeepSeek with <think> tag removal
-        adapter = UnifiedAdapter(preprocessor=deepseek_preprocessor)
+        adapter = UnifiedAdapter(agent_type="household", preprocessor=deepseek_preprocessor)
     """
     
-    # Valid skill names (domain-agnostic, loaded from context or config)
-    DEFAULT_VALID_SKILLS = {"buy_insurance", "elevate_house", "relocate", "do_nothing"}
-    
-    # Skill name mappings from decision codes (legacy support)
-    SKILL_MAP_NON_ELEVATED = {
-        "1": "buy_insurance",
-        "2": "elevate_house",
-        "3": "relocate",
-        "4": "do_nothing"
-    }
-    
-    SKILL_MAP_ELEVATED = {
-        "1": "buy_insurance",
-        "2": "relocate",
-        "3": "do_nothing"
+    # Agent-type configuration: skills, decision keywords, output format
+    AGENT_TYPE_CONFIG = {
+        "household": {
+            "skills": {"buy_insurance", "elevate_house", "relocate", "do_nothing", 
+                       "buy_contents_insurance", "buyout_program",
+                       "FI", "HE", "EH", "BP", "RL", "DN"},
+            "decision_keywords": ["decide:", "skill:", "decision:", "final decision:"],
+            "skill_map_non_elevated": {
+                "1": "buy_insurance", "2": "elevate_house", "3": "buyout_program", "4": "do_nothing"
+            },
+            "skill_map_elevated": {
+                "1": "buy_insurance", "2": "buyout_program", "3": "do_nothing"
+            },
+            "skill_map_renter": {
+                "1": "buy_contents_insurance", "2": "relocate", "3": "do_nothing"
+            },
+            "default_skill": "do_nothing"
+        },
+        "insurance": {
+            "skills": {"RAISE", "LOWER", "MAINTAIN", "raise_premium", "lower_premium", "maintain_premium"},
+            "decision_keywords": ["decide:", "decision:", "action:"],
+            "output_fields": ["interpret:", "decide:", "adj:", "reason:"],
+            "default_skill": "maintain_premium"
+        },
+        "government": {
+            "skills": {"INCREASE", "DECREASE", "MAINTAIN", "OUTREACH",
+                       "increase_subsidy", "decrease_subsidy", "maintain_subsidy", "target_mg_outreach"},
+            "decision_keywords": ["decide:", "decision:", "action:"],
+            "output_fields": ["interpret:", "decide:", "adj:", "priority:", "reason:"],
+            "default_skill": "maintain_subsidy"
+        }
     }
     
     def __init__(
         self,
+        agent_type: str = "household",
         preprocessor: Optional[Callable[[str], str]] = None,
         valid_skills: Optional[set] = None
     ):
@@ -94,21 +114,23 @@ class UnifiedAdapter(ModelAdapter):
         Initialize unified adapter.
         
         Args:
+            agent_type: Type of agent (household, insurance, government)
             preprocessor: Optional function to preprocess raw output
-                          (e.g., strip <think> tags for DeepSeek)
-            valid_skills: Optional set of valid skill names
+            valid_skills: Optional set of valid skill names (overrides agent_type config)
         """
+        self.agent_type = agent_type
+        self.config = self.AGENT_TYPE_CONFIG.get(agent_type, self.AGENT_TYPE_CONFIG["household"])
         self.preprocessor = preprocessor or (lambda x: x)
-        self.valid_skills = valid_skills or self.DEFAULT_VALID_SKILLS
+        self.valid_skills = valid_skills or self.config.get("skills", set())
     
     def parse_output(self, raw_output: str, context: Dict[str, Any]) -> Optional[SkillProposal]:
         """
         Parse LLM output into SkillProposal.
         
-        Supports multiple output formats:
-        - New format: 'Skill: buy_insurance'
-        - Decision format: 'Decision: buy_insurance'
-        - Legacy format: 'Final Decision: 1' or 'Final Decision: buy_insurance'
+        Supports all agent types via AGENT_TYPE_CONFIG:
+        - household: Skill/Decision/Final Decision format
+        - insurance: DECIDE: RAISE/LOWER/MAINTAIN format
+        - government: DECIDE: INCREASE/DECREASE/MAINTAIN format
         """
         # Apply preprocessor (e.g., remove <think> tags)
         cleaned_output = self.preprocessor(raw_output)
@@ -116,58 +138,121 @@ class UnifiedAdapter(ModelAdapter):
         agent_id = context.get("agent_id", "unknown")
         is_elevated = context.get("is_elevated", False)
         
-        # Extract reasoning
-        threat_appraisal = ""
-        coping_appraisal = ""
+        # Initialize results
         skill_name = None
+        reasoning = {}
+        adjustment = None
         
         lines = cleaned_output.strip().split('\n')
+        keywords = self.config.get("decision_keywords", ["decide:", "decision:"])
+        
         for line in lines:
-            line = line.strip()
+            line_lower = line.strip().lower()
             
-            # Format 1: "Skill:" or "Decision:" (new format)
-            if line.lower().startswith("skill:") or (line.lower().startswith("decision:") and not skill_name):
-                decision_text = line.split(":", 1)[1].strip().lower() if ":" in line else ""
+            # Check for decision keywords from config
+            for keyword in keywords:
+                if line_lower.startswith(keyword):
+                    decision_text = line.split(":", 1)[1].strip() if ":" in line else ""
+                    decision_lower = decision_text.lower()
+                    
+                    # Try to match a skill from config
+                    for skill in self.valid_skills:
+                        if skill.lower() in decision_lower:
+                            skill_name = skill
+                            break
+                    break
+            
+            # Parse ADJ: for adjustment percentage
+            adj_match = re.search(r"adj:\s*([0-9.]+%?)", line_lower)
+            if adj_match:
+                adj_text = adj_match.group(1)
+                try:
+                    adj_clean = adj_text.replace("%", "").strip()
+                    adj_val = float(adj_clean)
+                    adjustment = adj_val / 100 if adj_val > 1 else adj_val
+                except ValueError:
+                    pass
+            
+            # Parse REASON: or JUSTIFICATION:
+            reason_match = re.search(r"(?:reason|justification):\s*(.+)", line_lower)
+            if reason_match:
+                reasoning["reason"] = reason_match.group(1).strip()
+            
+            # Parse PRIORITY: for government
+            priority_match = re.search(r"priority:\s*(\w+)", line_lower)
+            if priority_match:
+                reasoning["priority"] = priority_match.group(1).strip()
+            
+            # Parse INTERPRET (usually standalone)
+            if line_lower.startswith("interpret:"):
+                reasoning["interpret"] = line.split(":", 1)[1].strip() if ":" in line else ""
+            
+            # Parse PMT_EVAL: TP=X CP=Y ...
+            elif line_lower.startswith("pmt_eval:"):
+                content = line.split(":", 1)[1].strip()
+                # Split by spaces to find assignments like TP=H
+                parts = content.split()
+                for part in parts:
+                    if "=" in part:
+                        k, v = part.split("=", 1)
+                        reasoning[k.upper()] = v
+                reasoning["pmt_eval_raw"] = content
+
+            # Parse individual PMT evaluations with reasoning (EVAL_TP: [H] reason...)
+            elif line_lower.startswith("eval_"):
+                pmt_match = re.search(r"eval_(tp|cp|sp|sc|pa):\s*\[?([a-z]+)\]?\s*(.*)", line, re.IGNORECASE)
+                if pmt_match:
+                    construct = pmt_match.group(1).upper()
+                    val = pmt_match.group(2).upper()
+                    reason = pmt_match.group(3).strip()
+                    reasoning[construct] = val
+                    reasoning[f"{construct}_REASON"] = reason
+
+            # Legacy household parsing
+            elif line_lower.startswith("threat appraisal:"):
+                reasoning["threat"] = line.split(":", 1)[1].strip() if ":" in line else ""
+            elif line_lower.startswith("coping appraisal:"):
+                reasoning["coping"] = line.split(":", 1)[1].strip() if ":" in line else ""
+            
+            # Legacy: "Final Decision:" for household
+            elif line_lower.startswith("final decision:") and not skill_name:
+                decision_text = line.split(":", 1)[1].strip()
+                decision_lower = decision_text.lower()
+                
                 for skill in self.valid_skills:
-                    if skill in decision_text:
+                    if skill.lower() in decision_lower:
                         skill_name = skill
                         break
-            
-            # Extract PMT reasoning
-            elif line.lower().startswith("threat appraisal:"):
-                threat_appraisal = line.split(":", 1)[1].strip() if ":" in line else ""
-            elif line.lower().startswith("coping appraisal:"):
-                coping_appraisal = line.split(":", 1)[1].strip() if ":" in line else ""
-            
-            # Format 2: "Final Decision:" (legacy format)
-            elif line.lower().startswith("final decision:") and not skill_name:
-                decision_text = line.split(":", 1)[1].strip().lower() if ":" in line else ""
                 
-                # Try to find skill name directly
-                for skill in self.valid_skills:
-                    if skill in decision_text:
-                        skill_name = skill
-                        break
-                
-                # Fallback: try to find digit for legacy code mapping
-                if not skill_name:
+                # Fallback: digit mapping for household
+                if not skill_name and self.agent_type.startswith("household"):
+                    tenure = context.get("tenure", "Owner")
+                    is_renter = tenure == "Renter"
+                    
                     for char in decision_text:
                         if char.isdigit():
-                            skill_map = self.SKILL_MAP_ELEVATED if is_elevated else self.SKILL_MAP_NON_ELEVATED
-                            skill_name = skill_map.get(char, "do_nothing")
+                            if is_renter:
+                                skill_map = self.config.get("skill_map_renter", {})
+                            elif is_elevated:
+                                skill_map = self.config.get("skill_map_elevated", {})
+                            else:
+                                skill_map = self.config.get("skill_map_non_elevated", {})
+                                
+                            skill_name = skill_map.get(char, self.config.get("default_skill", "do_nothing"))
                             break
         
-        # Default to do_nothing if nothing found
+        # Default skill from config
         if not skill_name:
-            skill_name = "do_nothing"
+            skill_name = self.config.get("default_skill", "do_nothing")
+        
+        # Add adjustment to reasoning if present
+        if adjustment is not None:
+            reasoning["adjustment"] = adjustment
         
         return SkillProposal(
             skill_name=skill_name,
             agent_id=agent_id,
-            reasoning={
-                "threat": threat_appraisal,
-                "coping": coping_appraisal
-            },
+            reasoning=reasoning,
             confidence=1.0,
             raw_output=raw_output
         )

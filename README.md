@@ -198,6 +198,40 @@ See [examples/README.md](examples/README.md) for detailed version comparison.
 | **ContextBuilder** | `context_builder.py` | 👁️ Builds bounded context for agents |
 | **Memory** | `memory.py` | 🧠 Working + Episodic memory with consolidation |
 | **AuditWriter** | `audit_writer.py` | 📊 Complete audit trail for reproducibility |
+| **GenericAuditWriter** | `generic_audit_writer.py` | 📊 Agent-agnostic audit logging (Dict-based) |
+| **AgentConfig** | `agent_config.py` | ⚙️ Unified agent type configuration loader |
+| **DataLoader** | `data_loader.py` | 📥 Extensible CSV/Excel data import |
+
+#### Agent Type Configuration (`broker/agent_types.yaml`)
+
+All agent settings in **one unified file**:
+
+```yaml
+household:
+  actions: [buy_insurance, elevate_house, relocate, do_nothing]
+  constructs: {TP, CP, SP, SC, PA}  # PMT Theory
+  coherence_rules: {...}
+  prompt_template: |
+    ...
+
+insurance:
+  actions: [RAISE, LOWER, MAINTAIN]
+  validation_rules:
+    rate_bounds: {min: 0.02, max: 0.15}
+```
+
+#### Data Schema (`broker/data_loader.py`)
+
+Supports **extensible demographics**:
+
+| Category | Fields |
+|----------|--------|
+| **Core** | `agent_id`, `mg`, `tenure`, `income` |
+| **Trust** | `trust_gov`, `trust_ins`, `trust_neighbors` |
+| **Demographics** | `household_size`, `generations`, `has_vehicle`, `age_of_head`, ... |
+
+> Any additional CSV columns are automatically loaded. See `get_schema_info("household")` for full schema.
+
 
 ### State Layer (`simulation/`)
 

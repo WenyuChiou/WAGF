@@ -115,3 +115,63 @@ class GovernmentAgent:
             "mg_priority": self.state.mg_priority,
             "memory": self.memory.format_for_prompt() # Or send raw list
         }
+
+    # =========================================================================
+    # BaseAgent Compatibility Interface
+    # =========================================================================
+    
+    @property
+    def agent_type(self) -> str:
+        return "government"
+    
+    @property
+    def name(self) -> str:
+        return self.state.id
+
+    def get_all_state(self) -> Dict[str, float]:
+        """Normalized state (0-1)."""
+        return {
+            "budget_remaining": self.state.budget_remaining / self.state.annual_budget,
+            "subsidy_rate": self.state.subsidy_rate,
+            "mg_adoption_rate": self.state.mg_adoption_rate,
+            "nmg_adoption_rate": self.state.nmg_adoption_rate,
+            "equity_gap": abs(self.state.mg_adoption_rate - self.state.nmg_adoption_rate)
+        }
+
+    def get_all_state_raw(self) -> Dict[str, float]:
+        """Raw state values."""
+        return {
+            "budget_remaining": self.state.budget_remaining,
+            "subsidy_rate": self.state.subsidy_rate,
+            "mg_adoption_rate": self.state.mg_adoption_rate,
+            "nmg_adoption_rate": self.state.nmg_adoption_rate,
+            "annual_budget": self.state.annual_budget
+        }
+
+    def evaluate_objectives(self) -> Dict[str, Dict]:
+        """Government objectives: Adoption and Equity."""
+        equity_gap = abs(self.state.mg_adoption_rate - self.state.nmg_adoption_rate)
+        return {
+            "adoption": {
+                "current": self.state.mg_adoption_rate,
+                "target": (0.3, 1.0),
+                "in_range": self.state.mg_adoption_rate > 0.3
+            },
+            "equity": {
+                "current": equity_gap,
+                "target": (0.0, 0.2),
+                "in_range": equity_gap < 0.2
+            },
+            "budget": {
+                "current": self.state.budget_remaining / self.state.annual_budget,
+                "target": (0.0, 1.0),
+                "in_range": self.state.budget_remaining > 0
+            }
+        }
+
+    def get_available_skills(self) -> List[str]:
+        return ["INCREASE", "DECREASE", "MAINTAIN", "OUTREACH"]
+    
+    def observe(self, environment: Dict[str, float], agents: Dict[str, Any]) -> Dict[str, float]:
+        """Observe environment."""
+        return {}

@@ -147,28 +147,53 @@ class BaseAgentContextBuilder(ContextBuilder):
         template = self.prompt_templates.get(agent_type, DEFAULT_PROMPT_TEMPLATE)
         
         # Build formatted sections
-        state_str = self._format_state(context.get("state", {}))
+        state = context.get("state", {})
+        state_str = self._format_state(state)
         perception_str = self._format_perception(context.get("perception", {}))
         objectives_str = self._format_objectives(context.get("objectives", {}))
         skills_str = ", ".join(context.get("available_skills", []))
         memory_str = context.get("memory", "No memory available")
         
-        return template.format(
-            agent_name=context.get("agent_name", "Agent"),
-            agent_type=agent_type,
-            state=state_str,
-            perception=perception_str,
-            objectives=objectives_str,
-            skills=skills_str,
-            memory=memory_str
-        )
+        # Prepare template variables
+        # Base variables
+        template_vars = {
+            "agent_name": context.get("agent_name", "Agent"),
+            "agent_type": agent_type,
+            "state": state_str,
+            "perception": perception_str,
+            "objectives": objectives_str,
+            "skills": skills_str,
+            "memory": memory_str
+        }
+        
+        # Add individual state variables (for custom templates)
+        # e.g. {loss_ratio}
+        template_vars.update(state)
+        
+        # Add raw state variables if present (prioritize over normalized?)
+        # Usually we want normalized in prompt, but maybe raw for specific metrics
+        if "state_raw" in context:
+            template_vars.update(context["state_raw"])
+            
+        # Add perception variables
+        if "perception" in context:
+            template_vars.update(context["perception"])
+            
+        # Add extra context keys (like 'budget_remaining' if passed in context root)
+        template_vars.update({k: v for k, v in context.items() 
+                            if k not in template_vars and isinstance(v, (str, int, float))})
+            
+        return template.format(**template_vars)
     
     def _format_state(self, state: Dict[str, float], compact: bool = True) -> str:
         """Format normalized state. Compact: inline, Verbose: multiline."""
         if compact:
             # Add semantic labels: LOW(<0.3), MED(0.3-0.7), HIGH(>0.7)
+            # Filter distinct numeric values only
             return " ".join(
-                f"{k}={v:.2f}({self._semantic(v)})" for k, v in state.items()
+                f"{k}={v:.2f}({self._semantic(v)})" 
+                for k, v in state.items() 
+                if isinstance(v, (int, float))
             )
         return "\n".join(f"- {k}: {v:.2f}" for k, v in state.items()) or "No state"
     

@@ -1,13 +1,13 @@
 """
-Experiment 3: Multi-Agent Simulation (Full Integration)
+Experiment 3: Multi-Agent Simulation (Consolidated Framework)
 
 Components:
-- Data Loader: Load agents from CSV/Excel
-- Prompts: Build LLM prompts with PMT constructs
-- Parsers: Parse LLM responses
-- Validators: Check PMT consistency
-- Audit Writer: Record all decisions
-- LLM Client: Call Ollama (optional, falls back to heuristic)
+- Data Loader: Load agents
+- Broker: Generic ContextBuilder, UnifiedAdapter
+- Validators: Generic AgentValidator
+- Agents: BaseAgent definitions (Household, Insurance, Government)
+- Audit: AuditWriter
+- LLM Client: Ollama
 
 Output:
 - household_audit.jsonl
@@ -17,63 +17,41 @@ Output:
 
 import sys
 import os
-import json
+import argparse
+from typing import Dict, List, Any, Optional
 
 sys.path.insert(0, '.')
 
-from typing import List, Dict, Optional
-from dataclasses import asdict
-
-from examples.exp3_multi_agent.data_loader import (
-    load_households_from_csv, 
-    initialize_all_agents
-)
-from examples.exp3_multi_agent.prompts import (
-    build_household_prompt,
-    build_insurance_prompt,
-    build_government_prompt
-)
-from examples.exp3_multi_agent.parsers import (
-    parse_household_response,
-    parse_insurance_response,
-    parse_government_response,
-    HouseholdOutput
-)
-from examples.exp3_multi_agent.validators import HouseholdValidator
-from validators.institutional_validator import InstitutionalValidator
+from examples.exp3_multi_agent.data_loader import initialize_all_agents
 from examples.exp3_multi_agent.audit_writer import AuditWriter, AuditConfig
-from examples.exp3_multi_agent.agents import HouseholdAgent
+from examples.exp3_multi_agent.agents import HouseholdAgent, HouseholdOutput
 from examples.exp3_multi_agent.environment import SettlementModule
-
-# V3 Unified Memory Interface
 from examples.exp3_multi_agent.memory_helpers import add_memory
 
-import argparse
+# Consolidated Framework Imports
+from broker.model_adapter import UnifiedAdapter
+from broker.generic_context_builder import create_context_builder
+from validators.agent_validator import AgentValidator
 
-# Configuration (defaults)
+# Configuration
 DEFAULT_YEARS = 10
 OUTPUT_DIR = "examples/exp3_multi_agent/results"
 SEED = 42
 DEFAULT_MODEL = "llama3.2:3b"
 
-# Global config placeholder (will be set in main)
 CONFIG = {
     "years": DEFAULT_YEARS,
-    "use_llm": False,
+    "use_llm": True,
     "model": DEFAULT_MODEL,
     "output_dir": OUTPUT_DIR
 }
 
 # =============================================================================
-# LLM CLIENT (Ollama)
+# LLM CLIENT
 # =============================================================================
 
 def call_llm(prompt: str) -> Optional[str]:
-    """
-    Call Ollama LLM for response.
-    
-    Returns None if LLM unavailable (falls back to heuristic).
-    """
+    """Call Ollama LLM."""
     if not CONFIG["use_llm"]:
         return None
     
@@ -82,390 +60,296 @@ def call_llm(prompt: str) -> Optional[str]:
         response = requests.post(
             "http://localhost:11434/api/generate",
             json={"model": CONFIG["model"], "prompt": prompt, "stream": False},
-            timeout=30  # Reduced timeout
+            timeout=30
         )
         if response.status_code == 200:
             return response.json().get("response", "")
-        else:
-            print(f"[LLM] HTTP {response.status_code}")
-            return None
-    except requests.exceptions.ConnectionError:
-        print("[LLM] Ollama not running - falling back to heuristic")
-        return None
-    except requests.exceptions.Timeout:
-        print("[LLM] Request timeout - falling back to heuristic")
+        print(f"[LLM] HTTP {response.status_code}")
         return None
     except Exception as e:
         print(f"[LLM] Error: {e}")
         return None
 
-
-def generate_heuristic_response(agent: HouseholdAgent, year: int, context: dict) -> str:
-    """
-    Generate heuristic response when LLM unavailable.
-    
-    Simulates PMT-based decision making.
-    Aligned with skill_registry.yaml mappings:
-    - Owner (non-elevated): 1=buy_insurance, 2=elevate_house, 3=buyout_program, 4=do_nothing
-    - Owner (elevated): 1=buy_insurance, 2=buyout_program, 3=do_nothing
-    - Renter: 1=buy_contents_insurance, 2=relocate, 3=do_nothing
-    """
+def generate_heuristic_response(agent: HouseholdAgent, context: dict) -> str:
+    """Generate heuristic response in Unified/PMT format."""
     s = agent.state
-    is_owner = s.tenure == "Owner"
     is_elevated = s.elevated
+    is_owner = s.tenure == "Owner"
     
-    # Determine construct levels based on state
-    tp = "HIGH" if s.cumulative_damage > s.property_value * 0.1 else ("MODERATE" if s.cumulative_damage > 0 else "LOW")
-    cp = "HIGH" if s.income > 60000 else ("MODERATE" if s.income > 35000 else "LOW")
-    sp = "HIGH" if context.get("government_subsidy_rate", 0.5) >= 0.5 else "MODERATE"
-    sc = "MODERATE"
+    # Calculate constructs
+    tp = "H" if s.cumulative_damage > s.property_value * 0.1 else ("M" if s.cumulative_damage > 0 else "L")
+    cp = "H" if s.income > 60000 else ("M" if s.income > 35000 else "L")
+    sp = "H" if context.get("government_subsidy_rate", 0.5) >= 0.5 else "M"
+    sc = "M"
     pa = "FULL" if s.elevated and s.has_insurance else ("PARTIAL" if s.elevated or s.has_insurance else "NONE")
     
-    # Determine decision based on agent type
+    # Decision Logic
+    decision = "do_nothing"
+    reason = "Status quo"
+    
     if s.relocated:
-        # Already relocated - do nothing
-        if is_owner:
-            decision, num = "do_nothing", 3 if is_elevated else 4
-        else:
-            decision, num = "do_nothing", 3
-    elif tp == "HIGH" and not s.has_insurance:
-        # High threat, no insurance -> buy insurance
-        if is_owner:
-            decision, num = "buy_insurance", 1
-        else:
-            decision, num = "buy_contents_insurance", 1
-    elif tp in ["MODERATE", "HIGH"] and not is_elevated and is_owner and sp == "HIGH":
-        # Moderate+ threat, not elevated, owner with good subsidy -> elevate
-        decision, num = "elevate_house", 2
+        pass
+    elif tp == "H" and not s.has_insurance:
+        decision = "buy_insurance" if is_owner else "buy_contents_insurance"
+        reason = "High threat, need protection"
+    elif tp in ["M", "H"] and not is_elevated and is_owner and sp == "H":
+        decision = "elevate_house"
+        reason = "Good subsidy for elevation"
     elif s.cumulative_damage > s.property_value * 0.5 and s.income < 40000:
-        # Severe cumulative damage, low income -> leave
-        if is_owner:
-            decision, num = "buyout_program", 2 if is_elevated else 3
-        else:
-            decision, num = "relocate", 2
-    else:
-        # Default to do nothing
-        if is_owner:
-            decision, num = "do_nothing", 3 if is_elevated else 4
-        else:
-            decision, num = "do_nothing", 3
-    
-    justification = f"Based on {tp} threat and {cp} coping ability, {decision} is appropriate."
-    
+        decision = "buyout_program" if is_owner else "relocate"
+        reason = "Extreme damage, moving out"
+        
     return f"""
-TP Assessment: {tp} - Cumulative damage ${s.cumulative_damage:,.0f}
-CP Assessment: {cp} - Income ${s.income:,.0f}
-SP Assessment: {sp} - Subsidy {context.get('government_subsidy_rate', 0.5):.0%}
-SC Assessment: {sc} - Moderate confidence in ability to act
-PA Assessment: {pa} - Elevated: {s.elevated}, Insured: {s.has_insurance}
-Final Decision: {num}
-Justification: {justification}
+INTERPRET: Heuristic decision based on damage ${s.cumulative_damage}
+PMT_EVAL: TP={tp} CP={cp} SP={sp} SC={sc} PA={pa}
+DECIDE: {decision}
+REASON: {reason}
 """
-
 
 # =============================================================================
 # MAIN SIMULATION
 # =============================================================================
 
-
 def run_simulation():
-    """Main simulation loop with full integration."""
     print(f"=" * 60)
-    print(f"Exp3 Multi-Agent Simulation")
-    print(f"Years: {CONFIG['years']}, LLM: {'Enabled (' + CONFIG['model'] + ')' if CONFIG['use_llm'] else 'Heuristic'}")
+    print(f"Exp3 Consolidated Multi-Agent Simulation")
+    print(f"Model: {CONFIG['model']}, LLM: {CONFIG['use_llm']}")
     print(f"=" * 60)
     
-    # Initialize
+    # Initialize Agents & Modules
     households, govs, ins = initialize_all_agents(seed=SEED)
     settlement = SettlementModule(seed=SEED)
-    validator = HouseholdValidator()
-    inst_validator = InstitutionalValidator()  # NEW: Institutional validator
     audit = AuditWriter(AuditConfig(output_dir=CONFIG["output_dir"]))
     
-    print(f"Loaded {len(households)} household agents")
-    print(f"Governments: {list(govs.keys())}")
+    # Initialize Generic Components
+    validator = AgentValidator()
     
-    # Track flood history for government decisions
+    # Context Builder (Generic)
+    # We create a map of all agents for global observability if needed
+    all_agents_map = {}
+    all_agents_map[ins.state.id] = ins
+    for gid, g in govs.items():
+        all_agents_map[gid] = g
+    for hh in households:
+        all_agents_map[hh.state.id] = hh
+        
+    # Adapters per type
+    adapters = {
+        "insurance": UnifiedAdapter(agent_type="insurance"),
+        "government": UnifiedAdapter(agent_type="government"),
+        "household": UnifiedAdapter(agent_type="household")
+    }
+    
+    # Track flood history
     prev_year_flood = False
     
     for year in range(1, CONFIG['years'] + 1):
-        print(f"\n{'='*40}")
-        print(f"YEAR {year}")
-        print(f"{'='*40}")
+        print(f"\n{'='*40}\nYEAR {year}\n{'='*40}")
         
-        # =============================================
-        # Phase 0: Annual Reset + Neighbor Observation
-        # =============================================
+        # --- Phase 0: Reset & Observation ---
         for hh in households:
             hh.reset_insurance()
-        
-        # V3: Social observation at year start
+            
         elevated_count = sum(1 for h in households if h.state.elevated)
         insured_count = sum(1 for h in households if h.state.has_insurance)
-        for hh in households:
-            if not hh.state.relocated:
-                if elevated_count > 0:
-                    add_memory(hh.memory, "neighbor", {"type": "elevated", "count": elevated_count}, year)
-                if insured_count > 0:
-                    add_memory(hh.memory, "neighbor", {"type": "insured", "count": insured_count}, year)
         
-        # =============================================
-        # Phase 1: Institutional Decisions
-        # =============================================
+        # Shared Environment State
+        env_state = {
+            "year": year,
+            "flood_occurred": prev_year_flood,
+            "elevated_count_norm": elevated_count / len(households),
+            "insured_count_norm": insured_count / len(households)
+        }
+        
+        # Create ContextBuilder for this year's environment
+        context_builder = create_context_builder(
+            agents=all_agents_map,
+            environment=env_state,
+            load_yaml=True
+        )
+        
+        # --- Phase 1: Institutional Decisions ---
+        # 1. Insurance Agent
+        ins.reset_annual_metrics()
+        prev_premium = ins.state.premium_rate
+        
+        # Build Context & Prompt
+        ctx = context_builder.build(ins.state.id, include_raw=True)
+        prompt = context_builder.format_prompt(ctx)
+        
+        # Get Response
+        response = call_llm(prompt)
+        
+        # Parse & Execute
+        prop = adapters["insurance"].parse_output(response or "", {"agent_id": ins.state.id})
+        
+        # Fallback if no LLM
+        if not response:
+            # Simple heuristic
+            action = ins.decide_strategy(year) # Legacy method
+            prop.skill_name = action
+            if action == "raise_premium": prop.reasoning["adjustment"] = 0.10
+            elif action == "lower_premium": prop.reasoning["adjustment"] = 0.05
+        
+        # Validation
+        val_res = validator.validate(
+            agent_type="insurance",
+            agent_id=ins.state.id,
+            decision=prop.skill_name,
+            state={"premium_rate": ins.state.premium_rate, "solvency": ins.solvency}, # Simplified state check
+            prev_state={"premium_rate": prev_premium}
+        )
+        
+        # Execute
+        if prop.skill_name == "RAISE" or prop.skill_name == "raise_premium":
+            adj = prop.reasoning.get("adjustment", 0.05)
+            ins.state.premium_rate *= (1 + adj)
+        elif prop.skill_name == "LOWER" or prop.skill_name == "lower_premium":
+            adj = prop.reasoning.get("adjustment", 0.05)
+            ins.state.premium_rate *= (1 - adj)
+            
+        audit.write_insurance_trace(prop, year, ins.state.id, ins.to_dict(), val_res)
+        
+        # 2. Government Agents
         for gov_id, gov in govs.items():
             gov.reset_annual_budget(year)
-        ins.reset_annual_metrics()
-        
-        # --- Insurance Agent Decision ---
-        ins_state = ins.to_dict()
-        prev_premium_rate = ins.state.premium_rate  # Track for validation
-        ins_history = ins.memory.retrieve(top_k=3, current_year=year)
-        ins_history_text = [m[0] if isinstance(m, tuple) else str(m) for m in ins_history]
-        
-        if CONFIG["use_llm"]:
-            ins_prompt = build_insurance_prompt(ins_state, ins_history_text)
-            ins_response = call_llm(ins_prompt)
-            if ins_response:
-                ins_output = parse_insurance_response(ins_response, year)
-                # Execute decision
-                if ins_output.decision == "RAISE":
-                    adj = ins_output.adjustment_pct / 100
-                    ins.state.premium_rate *= (1 + adj)
-                elif ins_output.decision == "LOWER":
-                    adj = ins_output.adjustment_pct / 100
-                    ins.state.premium_rate *= (1 - adj)
-                
-                # Validate decision
-                val_results = inst_validator.validate_insurance(
-                    agent_id=ins.state.id,
-                    decision=ins_output.decision,
-                    premium_rate=ins.state.premium_rate,
-                    prev_premium_rate=prev_premium_rate,
-                    solvency=ins_state.get("solvency", 0.5)
-                )
-                
-                # Log to memory
-                ins.memory.add_episodic(
-                    f"Year {year}: {ins_output.decision} premium by {ins_output.adjustment_pct}%",
-                    importance=0.7 if ins_output.decision != "MAINTAIN" else 0.3,
-                    year=year, tags=["llm", "decision"]
-                )
-                # Write audit trace with validation
-                audit.write_insurance_trace(ins_output, ins.state.id, ins.to_dict(), val_results)
-        else:
-            # Rule-based fallback (existing logic in agent)
-            decision = ins.decide_strategy(year)
-            # Validate rule-based decision
-            val_results = inst_validator.validate_insurance(
-                agent_id="InsuranceCo",
-                decision=decision,
-                premium_rate=ins.state.premium_rate,
-                prev_premium_rate=prev_premium_rate,
-                solvency=0.5  # Default for rule-based
-            )
-        
-        # --- Government Agent Decisions ---
-        flood_prev = year > 1 and prev_year_flood
-        for gov_id, gov in govs.items():
-            prev_subsidy_rate = gov.state.subsidy_rate  # Track for validation
-            gov_state = {
-                "annual_budget": gov.state.annual_budget,
-                "budget_remaining": gov.state.budget_remaining,
-                "subsidy_rate": gov.state.subsidy_rate,
-                "mg_adoption_rate": gov.state.mg_adoption_rate,
-                "nmg_adoption_rate": gov.state.nmg_adoption_rate
-            }
-            gov_events = gov.memory.retrieve(top_k=3, current_year=year)
-            gov_events_text = [m[0] if isinstance(m, tuple) else str(m) for m in gov_events]
             
-            if CONFIG["use_llm"]:
-                gov_prompt = build_government_prompt(gov_state, gov_events_text)
-                gov_response = call_llm(gov_prompt)
-                if gov_response:
-                    gov_output = parse_government_response(gov_response, year)
-                    # Execute decision
-                    if gov_output.decision == "INCREASE":
-                        adj = gov_output.adjustment_pct / 100
-                        gov.state.subsidy_rate = min(0.95, gov.state.subsidy_rate + adj)
-                    elif gov_output.decision == "DECREASE":
-                        adj = gov_output.adjustment_pct / 100
-                        gov.state.subsidy_rate = max(0.20, gov.state.subsidy_rate - adj)
-                    
-                    # Validate decision
-                    val_results = inst_validator.validate_government(
-                        agent_id=gov.state.id,
-                        decision=gov_output.decision,
-                        subsidy_rate=gov.state.subsidy_rate,
-                        prev_subsidy_rate=prev_subsidy_rate,
-                        budget_used=1 - (gov.state.budget_remaining / gov.state.annual_budget),
-                        mg_adoption=gov.state.mg_adoption_rate,
-                        nmg_adoption=gov.state.nmg_adoption_rate
-                    )
-                    
-                    # Log to memory
-                    gov.memory.add_episodic(
-                        f"Year {year}: {gov_output.decision} subsidy by {gov_output.adjustment_pct}%",
-                        importance=0.7 if gov_output.decision != "MAINTAIN" else 0.3,
-                        year=year, tags=["llm", "decision"]
-                    )
-                    # Write audit trace with validation
-                    audit.write_government_trace(gov_output, gov.state.id, gov_state, val_results)
-            else:
-                # Rule-based fallback
-                decision = gov.decide_policy(year, flood_prev)
-                # Validate rule-based decision
-                val_results = inst_validator.validate_government(
-                    agent_id=gov_id,
-                    decision=decision,
-                    subsidy_rate=gov.state.subsidy_rate,
-                    prev_subsidy_rate=prev_subsidy_rate,
-                    budget_used=0.0,
-                    mg_adoption=gov.state.mg_adoption_rate,
-                    nmg_adoption=gov.state.nmg_adoption_rate
-                )
+            # Update env for specific region if needed
+            env_state["government_subsidy_rate"] = gov.state.subsidy_rate
+            env_state["insurance_premium_rate"] = ins.state.premium_rate
+            
+            ctx = context_builder.build(gov.state.id, include_raw=True)
+            prompt = context_builder.format_prompt(ctx)
+            
+            response = call_llm(prompt)
+            prop = adapters["government"].parse_output(response or "", {"agent_id": gov_id})
+            
+            if not response:
+                action = gov.decide_policy(year, prev_year_flood)
+                prop.skill_name = action
+                if "increase" in action: prop.reasoning["adjustment"] = 0.10
+                elif "decrease" in action: prop.reasoning["adjustment"] = 0.10
+            
+            val_res = validator.validate(
+                agent_type="government",
+                agent_id=gov_id,
+                decision=prop.skill_name,
+                state=gov.get_all_state()
+            )
+            
+            # Execute
+            if "INCREASE" in prop.skill_name.upper():
+                adj = prop.reasoning.get("adjustment", 0.10)
+                gov.state.subsidy_rate = min(0.95, gov.state.subsidy_rate + adj)
+            elif "DECREASE" in prop.skill_name.upper():
+                adj = prop.reasoning.get("adjustment", 0.10)
+                gov.state.subsidy_rate = max(0.20, gov.state.subsidy_rate - adj)
+                
+            audit.write_government_trace(prop, year, gov_id, gov.to_dict(), val_res)
+
+        # --- Phase 2: Household Decisions ---
+        actions_count = {}
+        total_hh = len(households)
         
-        # =============================================
-        # Phase 2: Household Decisions
-        # =============================================
-        actions = {
-            "do_nothing": 0, 
-            "buy_insurance": 0, 
-            "buy_contents_insurance": 0,
-            "elevate_house": 0, 
-            "relocate": 0,
-            "buyout_program": 0
-        }
-        validation_warnings = 0
-        validation_errors = 0
-        
-        for hh in households:
+        for i, hh in enumerate(households):
+            if (i + 1) % 10 == 0:
+                print(f"   [Progress] Year {year}: Processed {i+1}/{total_hh} agents...", flush=True)
+
             if hh.state.relocated:
                 continue
             
-            # Get region-specific government
-            gov = govs.get(hh.state.region_id, govs["NJ"])
+            gov = govs.get(hh.state.region_id)
+            env_state["government_subsidy_rate"] = gov.state.subsidy_rate
+            env_state["insurance_premium_rate"] = ins.state.premium_rate
+            env_state["subsidy_rate"] = gov.state.subsidy_rate
+            env_state["premium_rate"] = ins.state.premium_rate
+            env_state["flood"] = "YES" if prev_year_flood else "NO"
+            env_state["flood_occurred"] = False # Before flood this year
             
-            # Build context
-            context = {
-                "government_subsidy_rate": gov.state.subsidy_rate,
-                "insurance_premium_rate": ins.state.premium_rate,
-                "flood_occurred": False,
-                "year": year
-            }
+            # Pass environment in context to context_builder
+            context_builder.environment = env_state 
             
-            # Get agent state dict
-            state_dict = {
-                "mg": hh.state.mg,
-                "tenure": hh.state.tenure,
-                "region_id": hh.state.region_id,
-                "elevated": hh.state.elevated,
-                "has_insurance": hh.state.has_insurance,
-                "cumulative_damage": hh.state.cumulative_damage,
-                "income": hh.state.income,
-                "property_value": hh.state.property_value,
-                # Demographics
-                "generations": hh.state.generations_in_area,
-                "household_size": hh.state.household_size,
-                "has_vehicle": hh.state.has_vehicle
-            }
+            ctx = context_builder.build(hh.state.id, include_memory=True, include_raw=True)
             
-            # Get memory
-            memories = hh.memory.retrieve(top_k=5, current_year=year)
+            # Inject dynamic SP (Subsidy Perception)
+            sub = env_state["subsidy_rate"]
+            ctx["sp"] = "H" if sub >= 0.7 else ("M" if sub >= 0.4 else "L")
             
-            # Build prompt
-            prompt = build_household_prompt(state_dict, context, memories)
+            prompt = context_builder.format_prompt(ctx)
             
-            # Get LLM response or heuristic
-            llm_response = call_llm(prompt)
-            if llm_response is None:
-                llm_response = generate_heuristic_response(hh, year, context)
-            
-            # Parse response
-            output = parse_household_response(
-                llm_response,
-                hh.state.id,
-                hh.state.mg,
-                hh.state.tenure,
-                year,
-                hh.state.elevated
-            )
+            response = call_llm(prompt)
+            if not response:
+                response = generate_heuristic_response(hh, env_state)
+                
+            prop = adapters["household"].parse_output(response, {"agent_id": hh.state.id, "is_elevated": hh.state.elevated})
             
             # Validate
-            val_result = validator.validate(output, state_dict)
-            if not val_result.valid:
-                validation_errors += 1
-                output.validated = False
-                output.validation_errors.extend(val_result.errors)
-            if val_result.warnings:
-                validation_warnings += 1
+            val_res = validator.validate(
+                agent_type=hh.agent_type,
+                agent_id=hh.state.id,
+                decision=prop.skill_name,
+                state=hh.get_all_state(),
+                reasoning=prop.reasoning  # Pass PMT labels for coherence check
+            )
+            prop.confidence = 1.0 if not val_res else 0.5 # Simple degradation
             
-            # Apply decision
-            actions[output.decision_skill] = actions.get(output.decision_skill, 0) + 1
+            # Convert to HouseholdOutput for Audit/Execution
+            # Extract all 5 PMT constructs with their reasoning
+            def get_level(key, default="N/A"):
+                val = prop.reasoning.get(key, default)
+                # Normalize level: L->LOW, M->MODERATE, H->HIGH
+                if val in ["L", "l"]: return "LOW"
+                if val in ["M", "m"]: return "MODERATE"
+                if val in ["H", "h"]: return "HIGH"
+                if val in ["NONE", "PARTIAL", "FULL"]: return val
+                return val
+            
+            output = HouseholdOutput(
+                agent_id=hh.state.id,
+                mg=hh.state.mg,
+                tenure=hh.state.tenure,
+                year=year,
+                # Extract all 5 PMT constructs with reasoning
+                tp_level=get_level("TP"), tp_explanation=prop.reasoning.get("TP_REASON", prop.reasoning.get("interpret", "")),
+                cp_level=get_level("CP"), cp_explanation=prop.reasoning.get("CP_REASON", ""),
+                sp_level=get_level("SP"), sp_explanation=prop.reasoning.get("SP_REASON", ""),
+                sc_level=get_level("SC"), sc_explanation=prop.reasoning.get("SC_REASON", ""),
+                pa_level=get_level("PA", "NONE"), pa_explanation=prop.reasoning.get("PA_REASON", ""),
+                decision_number=0,
+                decision_skill=prop.skill_name,
+                validated=len(val_res) == 0,
+                validation_errors=[v.message for v in val_res]
+            )
+            
             hh.apply_decision(output)
+            add_memory(hh.memory, "decision", {"skill_id": prop.skill_name}, year)
+            audit.write_household_trace(output, hh.to_dict(), env_state)
             
-            # V3: Explicit decision memory
-            add_memory(hh.memory, "decision", {"skill_id": output.decision_skill}, year)
+            actions_count[prop.skill_name] = actions_count.get(prop.skill_name, 0) + 1
             
-            # Audit
-            audit.write_household_trace(output, state_dict, context)
+        print(f"Actions: {actions_count}")
         
-        print(f"Actions: {actions}")
-        print(f"Validation: {validation_errors} errors, {validation_warnings} warnings")
-        
-        # =============================================
-        # Phase 3: Settlement
-        # =============================================
+        # --- Phase 3: Settlement ---
         report = settlement.process_year(year, households, ins, govs["NJ"])
-        
         if report.flood_occurred:
-            print(f"🌊 FLOOD! Damage: ${report.total_damage:,.0f}, Claims: ${report.total_claims:,.0f}")
-            
-            # V3: Record flood memories for each household
+            print(f"🌊 FLOOD! Damage: ${report.total_damage:,.0f}")
             for hh in households:
                 if not hh.state.relocated and hasattr(hh.state, 'last_year_damage'):
-                    damage = getattr(hh.state, 'last_year_damage', 0)
-                    if damage > 0:
-                        add_memory(hh.memory, "flood", {"damage": damage}, year)
-                        if hh.state.has_insurance:
-                            add_memory(hh.memory, "claim", {
-                                "filed": True, 
-                                "approved": True,
-                                "payout": damage * 0.9  # Estimate
-                            }, year)
-        else:
-            print("No flood.")
+                    dmg = getattr(hh.state, 'last_year_damage', 0)
+                    if dmg > 0:
+                        add_memory(hh.memory, "flood", {"damage": dmg}, year)
         
-        # Cumulative stats
-        cum_insured = sum(1 for h in households if h.state.has_insurance)
-        cum_elevated = sum(1 for h in households if h.state.elevated)
-        cum_relocated = sum(1 for h in households if h.state.relocated)
-        print(f"Cumulative: Insured={cum_insured}, Elevated={cum_elevated}, Relocated={cum_relocated}")
-        
-        # Update flood history for next year's government decisions
         prev_year_flood = report.flood_occurred
-    
-    # =============================================
-    # Finalize
-    # =============================================
-    summary = audit.finalize()
-    print(f"\n{'='*60}")
+        
+    audit.finalize()
     print("SIMULATION COMPLETE")
-    print(f"{'='*60}")
-    print(f"Total household decisions: {summary['total_household_decisions']}")
-    print(f"Decision distribution: {summary.get('decision_rates', {})}")
-    print(f"Validation failure rate: {summary.get('validation_failure_rate', 'N/A')}")
-
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run Exp3 Multi-Agent Simulation")
-    parser.add_argument("--years", type=int, default=DEFAULT_YEARS, help="Number of years to simulate")
-    parser.add_argument("--use-llm", action="store_true", help="Enable LLM (Ollama) execution")
-    parser.add_argument("--model", type=str, default=DEFAULT_MODEL, help="Ollama model name")
-    
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--years", type=int, default=DEFAULT_YEARS)
+    parser.add_argument("--use-llm", action="store_true")
+    parser.add_argument("--model", type=str, default=DEFAULT_MODEL)
     args = parser.parse_args()
     
-    CONFIG["years"] = args.years
-    CONFIG["use_llm"] = args.use_llm
-    CONFIG["model"] = args.model
-    
+    CONFIG.update(vars(args))
     run_simulation()
