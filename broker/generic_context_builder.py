@@ -242,7 +242,8 @@ DECIDE: action, adjustment(0.00-0.15), justification
 def create_context_builder(
     agents: Dict[str, Any],
     environment: Dict[str, float] = None,
-    custom_templates: Dict[str, str] = None
+    custom_templates: Dict[str, str] = None,
+    load_yaml: bool = True
 ) -> BaseAgentContextBuilder:
     """
     Create a context builder for a set of agents.
@@ -251,12 +252,59 @@ def create_context_builder(
         agents: Dict of agent_name -> BaseAgent instances
         environment: Shared environment state
         custom_templates: Optional custom prompt templates per agent_type
+        load_yaml: If True, load templates from broker/prompt_templates.yaml
     
     Returns:
         Configured BaseAgentContextBuilder
     """
+    templates = {}
+    
+    # Load from YAML if requested
+    if load_yaml:
+        templates = load_prompt_templates()
+    
+    # Override with custom templates
+    if custom_templates:
+        templates.update(custom_templates)
+    
     return BaseAgentContextBuilder(
         agents=agents,
         environment=environment,
-        prompt_templates=custom_templates or {}
+        prompt_templates=templates
     )
+
+
+def load_prompt_templates(
+    yaml_path: str = None
+) -> Dict[str, str]:
+    """
+    Load prompt templates from YAML file.
+    
+    Args:
+        yaml_path: Path to YAML file (default: broker/prompt_templates.yaml)
+    
+    Returns:
+        Dict mapping agent_type to template string
+    """
+    import yaml
+    from pathlib import Path
+    
+    if yaml_path is None:
+        yaml_path = Path(__file__).parent / "prompt_templates.yaml"
+    
+    try:
+        with open(yaml_path, 'r', encoding='utf-8') as f:
+            data = yaml.safe_load(f)
+        
+        # Extract template strings from YAML structure
+        templates = {}
+        for key, value in data.items():
+            if isinstance(value, dict) and 'template' in value:
+                templates[key] = value['template']
+            elif isinstance(value, str):
+                templates[key] = value
+        
+        return templates
+    except FileNotFoundError:
+        return {}
+

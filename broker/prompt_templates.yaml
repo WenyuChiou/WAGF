@@ -1,0 +1,101 @@
+# Agent Prompt Templates
+# Token-efficient templates for each agent type
+# Format: compact with semantic labels (L/M/H)
+
+# =============================================================================
+# HOUSEHOLD AGENT (PMT-based)
+# =============================================================================
+
+household_mg:
+  description: "Marginalized Group household - lower income, resource constraints"
+  template: |
+    [{agent_type}:{agent_name}]
+    
+    CONTEXT:tenure={tenure} income={income}(L) mg=TRUE
+    STATE:{state}
+    PMT:TP={tp} CP={cp} SP={sp} SC={sc} PA={pa}
+    MEM:{memory}
+    ENV:flood={flood} subsidy={subsidy_rate} premium={premium_rate}
+    ACT:{skills}
+    
+    OUTPUT:
+    INTERPRET:[1-line situation summary]
+    PMT_EVAL:TP=[L/M/H] CP=[L/M/H] SP=[L/M/H] SC=[L/M/H] PA=[NONE/PARTIAL/FULL]
+    DECIDE:[action] REASON:[1-line]
+
+household_nmg:
+  description: "Non-Marginalized Group household - higher resources"
+  template: |
+    [{agent_type}:{agent_name}]
+    
+    CONTEXT:tenure={tenure} income={income}(M/H) mg=FALSE
+    STATE:{state}
+    PMT:TP={tp} CP={cp} SP={sp} SC={sc} PA={pa}
+    MEM:{memory}
+    ENV:flood={flood} subsidy={subsidy_rate} premium={premium_rate}
+    ACT:{skills}
+    
+    OUTPUT:
+    INTERPRET:[1-line situation summary]
+    PMT_EVAL:TP=[L/M/H] CP=[L/M/H] SP=[L/M/H] SC=[L/M/H] PA=[NONE/PARTIAL/FULL]
+    DECIDE:[action] REASON:[1-line]
+
+# =============================================================================
+# INSURANCE AGENT
+# =============================================================================
+
+insurance:
+  description: "Insurance company - manages risk pool and premiums"
+  template: |
+    [{agent_type}:{agent_name}]
+    
+    STATE:{state}
+    METRICS:loss_ratio={loss_ratio} solvency={solvency} market={market_share}
+    OBS:{perception}
+    MEM:{memory}
+    OBJ:{objectives}
+    ACT:{skills}
+    
+    OUTPUT:
+    INTERPRET:[1-line financial situation]
+    DECIDE:[RAISE/LOWER/MAINTAIN] ADJ:[0-15%] REASON:[1-line]
+
+# =============================================================================
+# GOVERNMENT AGENT
+# =============================================================================
+
+government:
+  description: "Government - manages subsidies and equity"
+  template: |
+    [{agent_type}:{agent_name}]
+    
+    STATE:{state}
+    METRICS:budget={budget_remaining} subsidy={subsidy_rate} mg_adopt={mg_adoption} nmg_adopt={nmg_adoption}
+    EQUITY:gap={equity_gap}
+    OBS:{perception}
+    MEM:{memory}
+    OBJ:{objectives}
+    ACT:{skills}
+    
+    OUTPUT:
+    INTERPRET:[1-line policy situation]
+    DECIDE:[INCREASE/DECREASE/MAINTAIN/OUTREACH] ADJ:[0-15%] PRIORITY:[MG/NMG/ALL] REASON:[1-line]
+
+# =============================================================================
+# GENERIC FALLBACK
+# =============================================================================
+
+default:
+  description: "Generic agent template for any type"
+  template: |
+    [{agent_type}:{agent_name}]
+    
+    STATE:{state}
+    OBS:{perception}
+    MEM:{memory}
+    OBJ:{objectives}
+    ACT:{skills}
+    
+    OUTPUT:
+    INTERPRET:[1-line summary]
+    DECIDE:[action] ADJ:[0-0.15] REASON:[1-line]
