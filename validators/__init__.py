@@ -3,20 +3,11 @@ Validators Package
 
 Provides validation plugins for governance layer.
 """
-# Legacy action-based validators
-from .base import (
-    BaseValidator,
-    SchemaValidator,
-    PolicyValidator,
-    FeasibilityValidator,
-    LeakageValidator,
-    MemoryIntegrityValidator
-)
 
-# Generic label-based validator
-from .agent_validator import AgentValidator
+# Generic label-based validator (Recommended for consolidated framework)
+from .agent_validator import AgentValidator, ValidationLevel, ValidationResult
 
-# Skill-governed validators
+# Skill-governed validators (v2)
 from .skill_validators import (
     SkillValidator,
     SkillAdmissibilityValidator,
@@ -41,14 +32,8 @@ from .factory import (
 
 __all__ = [
     # Generic Label-Based
-    "AgentValidator",
-    # Legacy
-    "BaseValidator",
-    "SchemaValidator",
-    "PolicyValidator",
-    "FeasibilityValidator",
-    "LeakageValidator",
-    "MemoryIntegrityValidator",
+    "AgentValidator", "ValidationLevel", "ValidationResult",
+    
     # Skill-Governed
     "SkillValidator",
     "SkillAdmissibilityValidator",
@@ -57,6 +42,7 @@ __all__ = [
     "EffectSafetyValidator",
     "PMTConsistencyValidator",
     "create_default_validators",
+    
     # Factory
     "VALIDATOR_REGISTRY",
     "register_validator",

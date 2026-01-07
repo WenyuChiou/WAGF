@@ -23,14 +23,14 @@ from typing import Dict, List, Any, Optional
 sys.path.insert(0, '.')
 
 from examples.exp3_multi_agent.data_loader import initialize_all_agents
-from broker.generic_audit_writer import GenericAuditWriter, AuditConfig as GenericAuditConfig
+from broker import GenericAuditWriter, GenericAuditConfig
 from examples.exp3_multi_agent.agents import HouseholdAgent, HouseholdOutput
 from examples.exp3_multi_agent.environment import SettlementModule
 from examples.exp3_multi_agent.memory_helpers import add_memory
 
 # Consolidated Framework Imports
 from broker.model_adapter import UnifiedAdapter
-from broker.generic_context_builder import create_context_builder
+from broker import create_context_builder
 from validators.agent_validator import AgentValidator
 
 # Configuration
