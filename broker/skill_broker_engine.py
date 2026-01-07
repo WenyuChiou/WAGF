@@ -195,8 +195,10 @@ class SkillBrokerEngine:
                     "mapping": approved_skill.execution_mapping
                 } if approved_skill else None,
                 "execution_result": execution_result.to_dict() if execution_result else None,
+                "approval_status": approved_skill.approval_status if approved_skill else "UNKNOWN",
                 "outcome": outcome.value,
-                "retry_count": retry_count
+                "retry_count": retry_count,
+                "decision": approved_skill.skill_name if approved_skill else (skill_proposal.skill_name if skill_proposal else "unknown")
             }
             self.audit_writer.write_trace(agent_type, trace_dict, validation_results)
         

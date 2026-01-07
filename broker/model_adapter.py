@@ -88,7 +88,22 @@ class UnifiedAdapter(ModelAdapter):
         
         self.config = parsing_cfg
         self.preprocessor = preprocessor or (lambda x: x)
-        self.valid_skills = valid_skills or set(actions)
+        
+        # Build alias map for canonical ID resolution
+        self.alias_map = {}
+        # Get raw action config to access IDs and aliases
+        raw_actions = self.agent_config.get(agent_type).get("actions", [])
+        for action in raw_actions:
+            canonical_id = action["id"]
+            self.alias_map[canonical_id.lower()] = canonical_id
+            for alias in action.get("aliases", []):
+                self.alias_map[alias.lower()] = canonical_id
+                
+        # If valid_skills provided, just use them (no mapping assumed/possible without config)
+        if valid_skills:
+            self.valid_skills = valid_skills
+        else:
+            self.valid_skills = set(self.alias_map.keys())
     
     def parse_output(self, raw_output: str, context: Dict[str, Any]) -> Optional[SkillProposal]:
         """
@@ -210,6 +225,10 @@ class UnifiedAdapter(ModelAdapter):
         # Default skill from config
         if not skill_name:
             skill_name = self.config.get("default_skill", "do_nothing")
+            
+        # Resolve to canonical ID
+        if skill_name:
+            skill_name = self.alias_map.get(skill_name.lower(), skill_name)
         
         # Add adjustment to reasoning if present
         if adjustment is not None:
