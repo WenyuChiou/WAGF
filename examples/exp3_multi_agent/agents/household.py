@@ -34,7 +34,7 @@ class HouseholdAgentState:
     property_value: float = 300_000
     
     # Social Demographics (New)
-    generations_in_area: int = 1     # Place attachment proxy
+    generations: int = 1             # Place attachment proxy
     household_size: int = 3          # Dependents proxy
     has_vehicle: bool = True         # Evacuation capability
     
@@ -54,6 +54,36 @@ class HouseholdAgentState:
     
     # Memory
     memory: Optional[CognitiveMemory] = None
+
+    def get_all_state(self) -> Dict[str, Any]:
+        """Get flattened 0-1 normalized state for context builder."""
+        return {
+            "mg": self.mg,
+            "tenure": self.tenure,
+            "income_norm": self.income / 150000,
+            "property_value_norm": self.property_value / 500000,
+            "trust_gov": self.trust_in_government,
+            "trust_ins": self.trust_in_insurance,
+            "trust_neighbors": self.trust_in_neighbors,
+            "cumulative_damage": self.cumulative_damage / (self.property_value if self.property_value > 0 else 1.0),
+            "elevated": float(self.elevated),
+            "insured": float(self.has_insurance),
+            "household_size": self.household_size,
+            "generations": self.generations,
+            "has_vehicle": self.has_vehicle
+        }
+
+    def get_all_state_raw(self) -> Dict[str, Any]:
+        """Get original raw values."""
+        return {
+            "income": self.income,
+            "property_value": self.property_value,
+            "household_size": self.household_size,
+            "generations": self.generations,
+            "has_vehicle": self.has_vehicle,
+            "mg": self.mg,
+            "tenure": self.tenure
+        }
 
 @dataclass
 class HouseholdOutput:
@@ -98,7 +128,7 @@ class HouseholdAgent:
             region_id=region_id,
             income=income,
             property_value=property_value,
-            generations_in_area=generations,
+            generations=generations,
             household_size=household_size,
             has_vehicle=has_vehicle,
             # Randomize initial trust (0.3 - 0.8)
@@ -108,6 +138,7 @@ class HouseholdAgent:
         )
         self.memory = CognitiveMemory(agent_id)
         self.state.memory = self.memory
+
 
     def reset_insurance(self):
         """Called at start of year: Insurance NOT cumulative."""
@@ -277,8 +308,8 @@ class HouseholdAgent:
         def norm(v, mx): return max(0.0, min(1.0, v / mx))
         
         return {
-            "income": norm(self.state.income, max_income),
-            "property_value": norm(self.state.property_value, max_prop),
+            "income_norm": norm(self.state.income, max_income),
+            "property_value_norm": norm(self.state.property_value, max_prop),
             "cumulative_damage": norm(self.state.cumulative_damage, max_damage),
             "trust_gov": self.state.trust_in_government,
             "trust_ins": self.state.trust_in_insurance,
@@ -286,8 +317,11 @@ class HouseholdAgent:
             "elevated": 1.0 if self.state.elevated else 0.0,
             "insured": 1.0 if self.state.has_insurance else 0.0,
             "relocated": 1.0 if self.state.relocated else 0.0,
+            "household_size": self.state.household_size,
+            "generations": self.state.generations,
+            "has_vehicle": float(self.state.has_vehicle),
             # Synthetics for PMT
-            "threat_perception": norm(self.state.cumulative_damage, 100_000), # Higher sensitivity
+            "threat_perception": norm(self.state.cumulative_damage, 100_000), 
             "coping_capacity": norm(self.state.income, 80_000),
             "available_skills": self.get_available_skills()
         }
@@ -300,15 +334,11 @@ class HouseholdAgent:
             "cumulative_damage": self.state.cumulative_damage,
             "trust_gov": self.state.trust_in_government,
             "trust_ins": self.state.trust_in_insurance,
-            "tenure": self.state.tenure, # Added for template
-            "tenure_val": 1.0 if self.state.tenure == "Owner" else 0.0,
-            "mg_val": 1.0 if self.state.mg else 0.0,
-            # PMT Placeholders (Calculated heuristic for prompt context)
-            "tp": "H" if self.state.cumulative_damage > self.state.property_value * 0.1 else "L",
-            "cp": "M" if self.state.income > 50000 else "L",
-            "sp": "M", # Dynamic from env? But this is agent state. 
-            "sc": "M",
-            "pa": "FULL" if self.state.elevated else ("PARTIAL" if self.state.has_insurance else "NONE")
+            "tenure": self.state.tenure,
+            "mg": self.state.mg,
+            "household_size": self.state.household_size,
+            "generations": self.state.generations,
+            "has_vehicle": self.state.has_vehicle
         }
 
     def evaluate_objectives(self) -> Dict[str, Dict]:

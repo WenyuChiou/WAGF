@@ -23,7 +23,7 @@ from typing import Dict, List, Any, Optional
 sys.path.insert(0, '.')
 
 from examples.exp3_multi_agent.data_loader import initialize_all_agents
-from examples.exp3_multi_agent.audit_writer import AuditWriter, AuditConfig
+from broker.generic_audit_writer import GenericAuditWriter, AuditConfig as GenericAuditConfig
 from examples.exp3_multi_agent.agents import HouseholdAgent, HouseholdOutput
 from examples.exp3_multi_agent.environment import SettlementModule
 from examples.exp3_multi_agent.memory_helpers import add_memory
@@ -117,15 +117,20 @@ def run_simulation():
     print(f"=" * 60)
     
     # Initialize Agents & Modules
+    # Initialize Agents & Modules
     households, govs, ins = initialize_all_agents(seed=SEED)
     settlement = SettlementModule(seed=SEED)
-    audit = AuditWriter(AuditConfig(output_dir=CONFIG["output_dir"]))
+    
+    # Generic Audit Writer
+    audit = GenericAuditWriter(GenericAuditConfig(
+        output_dir=CONFIG["output_dir"],
+        experiment_name=f"exp3_{CONFIG['model']}"
+    ))
     
     # Initialize Generic Components
     validator = AgentValidator()
     
     # Context Builder (Generic)
-    # We create a map of all agents for global observability if needed
     all_agents_map = {}
     all_agents_map[ins.state.id] = ins
     for gid, g in govs.items():
@@ -200,15 +205,23 @@ def run_simulation():
             prev_state={"premium_rate": prev_premium}
         )
         
-        # Execute
-        if prop.skill_name == "RAISE" or prop.skill_name == "raise_premium":
+        # Execute (Simplified for Exp3)
+        if prop.skill_name in ["RAISE", "raise_premium"]:
             adj = prop.reasoning.get("adjustment", 0.05)
-            ins.state.premium_rate *= (1 + adj)
-        elif prop.skill_name == "LOWER" or prop.skill_name == "lower_premium":
+            ins.state.premium_rate = min(0.15, ins.state.premium_rate * (1 + adj))
+        elif prop.skill_name in ["LOWER", "lower_premium"]:
             adj = prop.reasoning.get("adjustment", 0.05)
-            ins.state.premium_rate *= (1 - adj)
-            
-        audit.write_insurance_trace(prop, year, ins.state.id, ins.to_dict(), val_res)
+            ins.state.premium_rate = max(0.02, ins.state.premium_rate * (1 - adj))
+
+        # Audit
+        trace = {
+            "agent_id": ins.state.id,
+            "year": year,
+            "decision": prop.skill_name,
+            "reasoning": prop.reasoning,
+            "state": ins.get_all_state_raw()
+        }
+        audit.write_trace("insurance", trace, val_res)
         
         # 2. Government Agents
         for gov_id, gov in govs.items():
@@ -238,14 +251,22 @@ def run_simulation():
             )
             
             # Execute
-            if "INCREASE" in prop.skill_name.upper():
+            if prop.skill_name in ["INCREASE", "increase_subsidy"]:
                 adj = prop.reasoning.get("adjustment", 0.10)
                 gov.state.subsidy_rate = min(0.95, gov.state.subsidy_rate + adj)
-            elif "DECREASE" in prop.skill_name.upper():
+            elif prop.skill_name in ["DECREASE", "decrease_subsidy"]:
                 adj = prop.reasoning.get("adjustment", 0.10)
                 gov.state.subsidy_rate = max(0.20, gov.state.subsidy_rate - adj)
-                
-            audit.write_government_trace(prop, year, gov_id, gov.to_dict(), val_res)
+            
+            # Audit
+            trace = {
+                "agent_id": gov_id,
+                "year": year,
+                "decision": prop.skill_name,
+                "reasoning": prop.reasoning,
+                "state": gov.get_all_state_raw()
+            }
+            audit.write_trace("government", trace, val_res)
 
         # --- Phase 2: Household Decisions ---
         actions_count = {}
@@ -293,37 +314,49 @@ def run_simulation():
             )
             prop.confidence = 1.0 if not val_res else 0.5 # Simple degradation
             
-            # Convert to HouseholdOutput for Audit/Execution
-            # Extract all 5 PMT constructs with their reasoning
-            def get_level(key, default="N/A"):
-                val = prop.reasoning.get(key, default)
-                # Normalize level: L->LOW, M->MODERATE, H->HIGH
-                if val in ["L", "l"]: return "LOW"
-                if val in ["M", "m"]: return "MODERATE"
-                if val in ["H", "h"]: return "HIGH"
-                if val in ["NONE", "PARTIAL", "FULL"]: return val
-                return val
-            
+            # Execute
+            # Map HouseholdOutput compatible structure for legacy apply_decision
             output = HouseholdOutput(
                 agent_id=hh.state.id,
                 mg=hh.state.mg,
                 tenure=hh.state.tenure,
                 year=year,
-                # Extract all 5 PMT constructs with reasoning
-                tp_level=get_level("TP"), tp_explanation=prop.reasoning.get("TP_REASON", prop.reasoning.get("interpret", "")),
-                cp_level=get_level("CP"), cp_explanation=prop.reasoning.get("CP_REASON", ""),
-                sp_level=get_level("SP"), sp_explanation=prop.reasoning.get("SP_REASON", ""),
-                sc_level=get_level("SC"), sc_explanation=prop.reasoning.get("SC_REASON", ""),
-                pa_level=get_level("PA", "NONE"), pa_explanation=prop.reasoning.get("PA_REASON", ""),
+                tp_level=prop.reasoning.get("TP", "MODERATE"),
+                tp_explanation=prop.reasoning.get("TP_REASON", ""),
+                cp_level=prop.reasoning.get("CP", "MODERATE"),
+                cp_explanation=prop.reasoning.get("CP_REASON", ""),
+                sp_level=prop.reasoning.get("SP", "MODERATE"),
+                sp_explanation=prop.reasoning.get("SP_REASON", ""),
+                sc_level=prop.reasoning.get("SC", "MODERATE"),
+                sc_explanation=prop.reasoning.get("SC_REASON", ""),
+                pa_level=prop.reasoning.get("PA", "NONE"),
+                pa_explanation=prop.reasoning.get("PA_REASON", ""),
                 decision_number=0,
-                decision_skill=prop.skill_name,
-                validated=len(val_res) == 0,
-                validation_errors=[v.message for v in val_res]
+                decision_skill=prop.skill_name
             )
             
             hh.apply_decision(output)
             add_memory(hh.memory, "decision", {"skill_id": prop.skill_name}, year)
-            audit.write_household_trace(output, hh.to_dict(), env_state)
+            
+            # Audit
+            constructs = {
+                "TP": {"level": prop.reasoning.get("TP", "N/A"), "explanation": prop.reasoning.get("TP_REASON", "")},
+                "CP": {"level": prop.reasoning.get("CP", "N/A"), "explanation": prop.reasoning.get("CP_REASON", "")},
+                "SP": {"level": prop.reasoning.get("SP", "N/A"), "explanation": prop.reasoning.get("SP_REASON", "")},
+                "SC": {"level": prop.reasoning.get("SC", "N/A"), "explanation": prop.reasoning.get("SC_REASON", "")},
+                "PA": {"level": prop.reasoning.get("PA", "N/A"), "explanation": prop.reasoning.get("PA_REASON", "")}
+            }
+            
+            trace = {
+                "agent_id": hh.state.id,
+                "year": year,
+                "decision": prop.skill_name,
+                "reasoning": prop.reasoning,
+                "constructs": constructs,
+                "state": hh.get_all_state_raw(),
+                "state_norm": hh.get_all_state()
+            }
+            audit.write_trace("household", trace, val_res)
             
             actions_count[prop.skill_name] = actions_count.get(prop.skill_name, 0) + 1
             

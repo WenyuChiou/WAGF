@@ -108,13 +108,21 @@ def load_households_from_excel(
     
     households = []
     for _, row in df.iterrows():
+        # Generate defaults if column missing
+        default_gen = random.choices([1, 2, 3], weights=[0.5, 0.3, 0.2])[0]
+        default_size = random.randint(1, 5)
+        default_vehicle = random.random() > 0.2  # 80% have car
+        
         agent = HouseholdAgent(
             agent_id=str(row['agent_id']),
             mg=_parse_bool(row['mg']),
             tenure=str(row['tenure']),
             income=float(row['income']),
             property_value=float(row['property_value']),
-            region_id=str(row.get('region_id', 'NJ'))
+            region_id=str(row.get('region_id', 'NJ')),
+            generations=int(row.get('generations', default_gen)),
+            household_size=int(row.get('household_size', default_size)),
+            has_vehicle=_parse_bool(row.get('has_vehicle', default_vehicle))
         )
         
         if 'trust_gov' in row:

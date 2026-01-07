@@ -27,77 +27,17 @@ class ValidationResult:
     constraint: Optional[str] = None
 
 
+from broker.agent_config import load_agent_config, ValidationRule, CoherenceRule
+
 class AgentValidator:
     """
     Generic validator for any agent type.
     
-    Uses agent_type label to lookup validation rules.
-    Rules are defined in VALIDATION_RULES dict.
-    
-    Usage:
-        v = AgentValidator()
-        results = v.validate("insurance", "InsuranceCo", decision, state)
+    Uses agent_type label to lookup validation rules from agent_types.yaml.
     """
     
-    # Validation rules per agent_type
-    VALIDATION_RULES: Dict[str, Dict] = {
-        "insurance": {
-            "rate_bounds": {
-                "param": "premium_rate",
-                "min": 0.02,
-                "max": 0.15,
-                "level": ValidationLevel.ERROR
-            },
-            "max_change": {
-                "param": "premium_rate",
-                "max_delta": 0.15,
-                "level": ValidationLevel.WARNING
-            },
-            "solvency_floor": {
-                "param": "solvency",
-                "min": 0.0,
-                "level": ValidationLevel.ERROR
-            },
-            "valid_decisions": {
-                "values": ["RAISE", "LOWER", "MAINTAIN", "raise_premium", "lower_premium", "maintain_premium"],
-                "level": ValidationLevel.ERROR
-            }
-        },
-        "government": {
-            "subsidy_bounds": {
-                "param": "subsidy_rate",
-                "min": 0.20,
-                "max": 0.95,
-                "level": ValidationLevel.ERROR
-            },
-            "max_change": {
-                "param": "subsidy_rate",
-                "max_delta": 0.15,
-                "level": ValidationLevel.WARNING
-            },
-            "budget_reserve": {
-                "param": "budget_used",
-                "max": 0.90,
-                "level": ValidationLevel.WARNING
-            },
-            "valid_decisions": {
-                "values": ["INCREASE", "DECREASE", "MAINTAIN", "OUTREACH",
-                          "increase_subsidy", "decrease_subsidy", "maintain_subsidy", "target_mg_outreach"],
-                "level": ValidationLevel.ERROR
-            }
-        },
-        "household": {
-            "valid_decisions": {
-                "values": ["FI", "HE", "EH", "BP", "RL", "Relocate", "DN", "Do Nothing",
-                          "buy_insurance", "elevate_house", "buy_contents_insurance", "buyout_program",
-                          "do_nothing", "relocate",
-                          "1", "2", "3", "4", "5"],
-                "level": ValidationLevel.ERROR
-            }
-        }
-    }
-    
     def __init__(self):
+        self.config = load_agent_config()
         self.errors: List[ValidationResult] = []
         self.warnings: List[ValidationResult] = []
     
@@ -123,101 +63,83 @@ class AgentValidator:
         """
         results = []
         
-        # Normalize agent type
-        base_type = agent_type
         if agent_type.startswith("household"):
             base_type = "household"
+        else:
+            base_type = agent_type
             
-        rules = self.VALIDATION_RULES.get(base_type, {})
-        
-        if not rules:
-            # Unknown agent type - just validate response format
-            return self.validate_response_format(agent_id, decision)
-        
-        # 0. Validate PMT Coherence (Household only)
-        if base_type == "household" and reasoning:
-            results.extend(self.validate_pmt_coherence(agent_id, state, reasoning))
-        
         # 1. Validate decision is in allowed values
-        if "valid_decisions" in rules:
-            rule = rules["valid_decisions"]
+        valid_actions = self.config.get_valid_actions(base_type)
+        if valid_actions:
             normalized = decision.lower().replace("_", "").replace(" ", "")
-            valid_normalized = [v.lower().replace("_", "").replace(" ", "") for v in rule["values"]]
+            valid_normalized = [v.lower().replace("_", "").replace(" ", "") for v in valid_actions]
             if normalized not in valid_normalized:
                 results.append(ValidationResult(
                     valid=False,
-                    level=rule["level"],
+                    level=ValidationLevel.ERROR,
                     rule="valid_decisions",
                     message=f"Invalid decision '{decision}' for {agent_type}",
                     agent_id=agent_id,
                     field="decision",
-                    constraint=str(rule["values"][:4]) + "..."
+                    constraint=str(valid_actions[:4]) + "..."
                 ))
         
-        # 1b. Validate against agent's available skills (if in state)
-        if "available_skills" in state:
-            available = [s.lower() for s in state["available_skills"]]
-            if decision.lower() not in available:
-                 results.append(ValidationResult(
-                    valid=False,
-                    level=ValidationLevel.ERROR,
-                    rule="available_skills",
-                    message=f"Decision '{decision}' not in available skills",
-                    agent_id=agent_id,
-                    field="decision",
-                    constraint=str(available[:4]) + "..."
-                ))
+        # 2. Validate PMT Coherence (Household only)
+        if base_type == "household" and reasoning:
+            results.extend(self.validate_pmt_coherence(agent_id, state, reasoning))
         
-        # 2. Validate rate/param bounds
+        # 3. Validate rate/param bounds
+        rules = self.config.get_validation_rules(base_type)
         for rule_name, rule in rules.items():
-            if rule_name in ["valid_decisions"]:
-                continue
-                
-            param = rule.get("param")
+            param = rule.param
             if not param or param not in state:
                 continue
             
             value = state[param]
+            lv = ValidationLevel.ERROR if rule.level == "ERROR" else ValidationLevel.WARNING
             
             # Min/Max bounds
-            if "min" in rule and value < rule["min"]:
+            if rule.min_val is not None and value < rule.min_val:
                 results.append(ValidationResult(
                     valid=False,
-                    level=rule["level"],
+                    level=lv,
                     rule=rule_name,
-                    message=f"{param} {value:.2f} below min {rule['min']:.2f}",
+                    message=rule.message or f"{param} {value:.2f} below min {rule.min_val:.2f}",
                     agent_id=agent_id,
                     field=param,
                     value=value,
-                    constraint=f"min={rule['min']}"
+                    constraint=f"min={rule.min_val}"
                 ))
             
-            if "max" in rule and value > rule["max"]:
+            if rule.max_val is not None and value > rule.max_val:
                 results.append(ValidationResult(
                     valid=False,
-                    level=rule["level"],
+                    level=lv,
                     rule=rule_name,
-                    message=f"{param} {value:.2f} above max {rule['max']:.2f}",
+                    message=rule.message or f"{param} {value:.2f} above max {rule.max_val:.2f}",
                     agent_id=agent_id,
                     field=param,
                     value=value,
-                    constraint=f"max={rule['max']}"
+                    constraint=f"max={rule.max_val}"
                 ))
             
             # Delta check
-            if "max_delta" in rule and prev_state and param in prev_state:
+            if rule.max_delta is not None and prev_state and param in prev_state:
                 delta = abs(value - prev_state[param])
-                if delta > rule["max_delta"]:
+                if delta > rule.max_delta:
                     results.append(ValidationResult(
                         valid=False,
-                        level=rule["level"],
+                        level=lv,
                         rule=rule_name,
-                        message=f"{param} change {delta:.2%} exceeds max {rule['max_delta']:.0%}",
+                        message=rule.message or f"{param} change {delta:.2%} exceeds max {rule.max_delta:.0%}",
                         agent_id=agent_id,
                         field=param,
                         value=delta,
-                        constraint=f"max_delta={rule['max_delta']}"
+                        constraint=f"max_delta={rule.max_delta}"
                     ))
+        
+        self._categorize_results(results)
+        return results
         
         self._categorize_results(results)
         return results
@@ -230,100 +152,50 @@ class AgentValidator:
     ) -> List[ValidationResult]:
         """
         Validate logical coherence between Agent State and LLM PMT Labels.
-        Covers all 5 constructs: TP, CP, SP, SC, PA.
+        Uses rules from agent_types.yaml.
         """
         results = []
+        rules = self.config.get_coherence_rules("household")
         
         # Helper to safely get label (handles brackets like [H])
         def get_label(key):
-            val = reasoning.get(key, "").upper()
-            return val.replace("[", "").replace("]", "").strip()
+            val = reasoning.get(key, reasoning.get(f"EVAL_{key}", "")).upper()
+            label = val.split(']')[0].replace("[", "").replace("]", "").strip() if ']' in val else val.strip()
+            return label[:1] # Just take the first char (L, M, H) unless it's NONE/PARTIAL/FULL
 
-        tp = get_label("TP")
-        cp = get_label("CP")
-        sp = get_label("SP")
-        sc = get_label("SC")
-        pa = get_label("PA")
-        
-        # --- TP Coherence ---
-        # If Damage > 50% (normalized 0.5), TP should likely be High
-        damage_norm = state.get("cumulative_damage", 0.0)
-        if damage_norm > 0.5 and tp == "L":
-            results.append(ValidationResult(
-                valid=False,
-                level=ValidationLevel.WARNING,
-                rule="pmt_coherence_tp",
-                message=f"High Damage ({damage_norm:.2f}) but Low TP",
-                agent_id=agent_id,
-                field="TP",
-                value=tp,
-                constraint="Should be M/H"
-            ))
-
-        # --- CP Coherence ---
-        # If Income > 0.8 (High), CP should not be Low
-        income_norm = state.get("income", 0.0)
-        if income_norm > 0.8 and cp == "L":
-            results.append(ValidationResult(
-                valid=False,
-                level=ValidationLevel.WARNING,
-                rule="pmt_coherence_cp",
-                message=f"High Income ({income_norm:.2f}) but Low CP",
-                agent_id=agent_id,
-                field="CP",
-                value=cp,
-                constraint="Should be M/H"
-            ))
-
-        # --- SP Coherence ---
-        # SP = Stakeholder Perception (Trust in Gov/Insurance)
-        # If trust_gov + trust_ins > 1.2 (average > 0.6), SP should be M/H
-        trust_gov = state.get("trust_gov", 0.5)
-        trust_ins = state.get("trust_ins", 0.5)
-        avg_trust_stakeholder = (trust_gov + trust_ins) / 2
-        if avg_trust_stakeholder > 0.7 and sp == "L":
-            results.append(ValidationResult(
-                valid=False,
-                level=ValidationLevel.WARNING,
-                rule="pmt_coherence_sp",
-                message=f"High Stakeholder Trust ({avg_trust_stakeholder:.2f}) but Low SP",
-                agent_id=agent_id,
-                field="SP",
-                value=sp,
-                constraint="Should be M/H"
-            ))
-
-        # --- SC Coherence ---
-        # SC = Social Capital (Trust in Neighbors)
-        trust_neighbors = state.get("trust_neighbors", 0.5)
-        if trust_neighbors > 0.7 and sc == "L":
-            results.append(ValidationResult(
-                valid=False,
-                level=ValidationLevel.WARNING,
-                rule="pmt_coherence_sc",
-                message=f"High Neighbor Trust ({trust_neighbors:.2f}) but Low SC",
-                agent_id=agent_id,
-                field="SC",
-                value=sc,
-                constraint="Should be M/H"
-            ))
-
-        # --- PA Coherence ---
-        # PA = Place Attachment (based on existing adaptations)
-        is_elevated = state.get("elevated", 0.0) > 0.5
-        is_insured = state.get("insured", 0.0) > 0.5
-        
-        if (is_elevated or is_insured) and pa == "NONE":
-            results.append(ValidationResult(
-                valid=False,
-                level=ValidationLevel.WARNING,
-                rule="pmt_coherence_pa",
-                message=f"Has adaptations (Elv={is_elevated}, Ins={is_insured}) but PA=NONE",
-                agent_id=agent_id,
-                field="PA",
-                value=pa,
-                constraint="Should be PARTIAL/FULL"
-            ))
+        for rule in rules:
+            label = get_label(rule.construct)
+            if not label: continue
+            
+            # Get current value for comparison
+            current_val = 0.0
+            if rule.state_field:
+                current_val = state.get(rule.state_field, 0.5)
+            elif rule.state_fields:
+                vals = [state.get(f, 0.5) for f in rule.state_fields]
+                if rule.aggregation == "average":
+                    current_val = sum(vals) / len(vals)
+                elif rule.aggregation == "any_true":
+                    current_val = 1.0 if any(v > 0.5 for v in vals) else 0.0
+            
+            # Check coherence
+            is_coherent = True
+            if current_val >= rule.threshold:
+                if rule.expected_levels and label not in rule.expected_levels:
+                    # Special case for L/M/H vs NONE/PARTIAL/FULL
+                    is_coherent = False
+            
+            if not is_coherent:
+                results.append(ValidationResult(
+                    valid=False,
+                    level=ValidationLevel.WARNING,
+                    rule=f"pmt_coherence_{rule.construct.lower()}",
+                    message=rule.message or f"Coherence issue with {rule.construct}",
+                    agent_id=agent_id,
+                    field=rule.construct,
+                    value=label,
+                    constraint=f"Expected {rule.expected_levels} when state >= {rule.threshold}"
+                ))
             
         return results
     

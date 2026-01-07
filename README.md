@@ -232,6 +232,24 @@ Supports **extensible demographics**:
 
 > Any additional CSV columns are automatically loaded. See `get_schema_info("household")` for full schema.
 
+#### Context Engineering Flow
+
+The framework follows a structured pipeline to ensure high-fidelity context for LLMs:
+
+```mermaid
+graph TD
+    A[Excel/CSV Data] -->|DataLoader| B[Agent Dicts]
+    B -->|Initialization| C[Agent.state]
+    C -->|ContextBuilder| D[ContextPacket]
+    D -->|0-1 Normalization| E[LLM Prompt]
+    E -->|Ollama/OpenAI| F[LLM Response]
+```
+
+1.  **DataLoader**: Reads extensible demographics (e.g., `household_size`, `generations`) from CSV.
+2.  **State Mapping**: `HouseholdAgent` maps these to normalized fields (e.g., `income` → `income_norm`).
+3.  **ContextBuilder**: Dynamically populates YAML prompt templates using the agent's state.
+4.  **Prompt Format**: Variables like `{household_size}` are automatically injected from the agent's state.
+
 #### Parameter Normalization Guide
 
 Most trust and state parameters should be normalized to **0.0-1.0** range:
@@ -313,26 +331,22 @@ VALIDATION_RULES = {
 
 #### PMT Coherence Validation (Household)
 
-Validates that LLM-generated PMT labels are consistent with agent state:
+The validator enforces **Psychological Coherence** by checking if the LLM's **Rating** is consistent with the agent's **Actual State**.
 
-| Construct | State Field | Rule |
-|-----------|-------------|------|
-| **TP** (Threat) | `cumulative_damage` | > 0.5 → should be M/H |
-| **CP** (Coping) | `income` | > 0.8 → should be M/H |
-| **SP** (Stakeholder) | avg(`trust_gov`, `trust_ins`) | > 0.7 → should be M/H |
-| **SC** (Social) | `trust_neighbors` | > 0.7 → should be M/H |
-| **PA** (Attachment) | `elevated` or `insured` | any true → should be PARTIAL/FULL |
+**Output Format**: `EVAL_[Construct]:[Rating] [Explanation]`
+*   Example: `EVAL_TP:[HIGH] Recent local flood damaged my property significantly.`
 
-```yaml
-# validators/coherence_rules.yaml
-household:
-  TP:
-    field: cumulative_damage
-    threshold: 0.5
-    when_above_threshold:
-      invalid_labels: [L]
-      message: "High damage but Low TP"
-```
+**Coherence Rules** (Configured in `coherence_rules.yaml`):
+
+| Construct | Reference Field | Condition | Invalid Rating |
+|-----------|-----------------|-----------|----------------|
+| **TP** (Threat) | `cumulative_damage` | High (>0.5) | LOW (L) |
+| **CP** (Coping) | `income` | High (>0.8) | LOW (L) |
+| **SP** (Stakeholder) | `trust_gov` + `trust_ins` | High (>0.7) | LOW (L) |
+| **SC** (Social) | `trust_neighbors` | High (>0.7) | LOW (L) |
+| **PA** (Attachment)| `elevated` OR `insured` | True | NONE |
+
+Validations are logged as `WARNING` or `ERROR` in the audit trail.
 
 ---
 
