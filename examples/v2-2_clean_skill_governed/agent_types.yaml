@@ -1,0 +1,51 @@
+# =============================================================================
+# Agent Type Configuration for v2-2 Clean Experiment
+# =============================================================================
+# Single source of truth for agent configuration.
+# This is experiment-specific, NOT the framework default.
+
+household:
+  description: "Household agents making flood adaptation decisions"
+  
+  # Domain Parameters (Simulation-specific)
+  parameters:
+    elevation_cost: 150000
+    insurance_cost: 2000
+    relocation_cost: 200000
+    flood_damage_unprotected: 50000
+    flood_damage_elevated: 5000
+  
+  # Audit Configuration
+  audit:
+    output_dir: "results"
+    experiment_name: "v2-2_clean"
+    log_prompt: true
+    log_llm_response: true
+  
+  # Parsing Configuration
+  parsing:
+    decision_keywords: ["final decision:", "decision:", "decide:"]
+    default_skill: "do_nothing"
+  
+  # Available Actions (mapped to skills)
+  actions:
+    - id: buy_insurance
+      aliases: ["FI", "insurance"]
+      description: "Purchase flood insurance"
+    - id: elevate_house
+      aliases: ["HE", "elevate", "elevation"]
+      description: "Elevate house structure"
+    - id: relocate
+      aliases: ["RL", "move"]
+      description: "Relocate to safer area"
+    - id: do_nothing
+      aliases: ["DN", "nothing", "wait"]
+      description: "Take no action this year"
+  
+  # Validation Rules (PMT Coherence)
+  coherence_rules:
+    # If claimed "cannot afford" but chose expensive option
+    financial_consistency:
+      trigger_phrases: ["cannot afford", "too expensive", "no money"]
+      blocked_skills: ["elevate_house", "relocate"]
+      rejection_reason: "Claims financial constraint but chose expensive action"
