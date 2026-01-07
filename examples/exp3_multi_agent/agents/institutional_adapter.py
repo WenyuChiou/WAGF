@@ -172,6 +172,26 @@ class InsuranceAgentAdapter(InstitutionalAgentAdapter):
         # These would be tracked externally in exp3
         pass
     
+    def build_prompt_compact(self) -> str:
+        """Build token-efficient prompt for LLM decision-making."""
+        from examples.exp3_multi_agent.prompts import build_insurance_prompt_compact
+        
+        # Build state dict compatible with prompt function
+        state = {
+            'loss_ratio': self.agent.get_state('loss_ratio'),
+            'solvency': self.agent.get_state('solvency'),
+            'premium_rate': self.agent.get_state_raw('premium_rate'),
+            'market_share': self.agent.get_state('market_share'),
+            'total_policies': self.state.total_policies,
+            'risk_pool': self.state.risk_pool,
+        }
+        
+        # Retrieve memory
+        memory = self.memory.retrieve(top_k=3)
+        memory_texts = [m[0] if isinstance(m, tuple) else str(m) for m in memory]
+        
+        return build_insurance_prompt_compact(state, memory_texts)
+    
     def decide_strategy(self, year: int) -> str:
         """
         Phase 1 decision (backward compatible).
@@ -217,6 +237,25 @@ class GovernmentAgentAdapter(InstitutionalAgentAdapter):
             year=year,
             tags=["budget"]
         )
+    
+    def build_prompt_compact(self) -> str:
+        """Build token-efficient prompt for LLM decision-making."""
+        from examples.exp3_multi_agent.prompts import build_government_prompt_compact
+        
+        # Build state dict compatible with prompt function
+        state = {
+            'annual_budget': 500000,  # Fixed
+            'budget_remaining': self.state.budget_remaining,
+            'subsidy_rate': self.agent.get_state_raw('subsidy_rate'),
+            'mg_adoption_rate': self.agent.get_state('mg_adoption'),
+            'nmg_adoption_rate': self.agent.get_state('nmg_adoption'),
+        }
+        
+        # Retrieve memory
+        memory = self.memory.retrieve(top_k=3)
+        events = [m[0] if isinstance(m, tuple) else str(m) for m in memory]
+        
+        return build_government_prompt_compact(state, events)
     
     def decide_policy(self, year: int, flood_occurred_prev_year: bool) -> str:
         """
