@@ -41,6 +41,8 @@ class CoherenceRule:
     aggregation: str = "single"
     threshold: float = 0.5
     expected_levels: Optional[List[str]] = None
+    trigger_phrases: Optional[List[str]] = None
+    blocked_skills: Optional[List[str]] = None
     message: str = ""
 
 
@@ -129,6 +131,8 @@ class AgentTypeConfig:
                 aggregation=rule.get("aggregation", "single"),
                 threshold=rule.get("threshold", 0.5),
                 expected_levels=rule.get("when_above", rule.get("when_true")),
+                trigger_phrases=rule.get("trigger_phrases"),
+                blocked_skills=rule.get("blocked_skills"),
                 message=rule.get("message", "")
             )
             for name, rule in rules.items()
