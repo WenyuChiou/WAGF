@@ -26,12 +26,13 @@ from examples.exp3_multi_agent.data_loader import initialize_all_agents
 from broker import GenericAuditWriter, GenericAuditConfig
 from examples.exp3_multi_agent.agents import HouseholdAgent, HouseholdOutput
 from examples.exp3_multi_agent.environment import SettlementModule
-from examples.exp3_multi_agent.memory_helpers import add_memory
+from examples.exp3_multi_agent.broker.memory_helpers import add_memory
 
 # Consolidated Framework Imports
 from broker.model_adapter import UnifiedAdapter
-from broker import create_context_builder
+# from broker import create_context_builder # Used locally
 from validators.agent_validator import AgentValidator
+from examples.exp3_multi_agent.broker import Exp3ContextBuilder, create_exp3_context_builder
 
 # Configuration
 DEFAULT_YEARS = 10
@@ -166,8 +167,9 @@ def run_simulation():
             "insured_count_norm": insured_count / len(households)
         }
         
-        # Create ContextBuilder for this year's environment
-        context_builder = create_context_builder(
+        # Create ContextBuilder for this year's environment (Exp3 Specific)
+        # Using local extension to handle SP calculation and environment mapping
+        context_builder = create_exp3_context_builder(
             agents=all_agents_map,
             environment=env_state,
             load_yaml=True
@@ -287,14 +289,13 @@ def run_simulation():
             env_state["flood"] = "YES" if prev_year_flood else "NO"
             env_state["flood_occurred"] = False # Before flood this year
             
-            # Pass environment in context to context_builder
+            # Pass environment in context to context_builder (handled internally)
             context_builder.environment = env_state 
             
             ctx = context_builder.build(hh.state.id, include_memory=True, include_raw=True)
             
-            # Inject dynamic SP (Subsidy Perception)
-            sub = env_state["subsidy_rate"]
-            ctx["sp"] = "H" if sub >= 0.7 else ("M" if sub >= 0.4 else "L")
+            # Note: SP (Subsidy Perception) is now automatically calculated by Exp3ContextBuilder
+            # based on env_state["subsidy_rate"]
             
             prompt = context_builder.format_prompt(ctx)
             
