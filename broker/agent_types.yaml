@@ -11,6 +11,11 @@
 household:
   description: "Household agents making flood adaptation decisions"
   
+  # Parsing Configuration
+  parsing:
+    decision_keywords: ["decide:", "skill:", "decision:", "final decision:"]
+    default_skill: "do_nothing"
+  
   # Subtypes (MG vs NMG)
   subtypes:
     household_mg:
@@ -135,6 +140,12 @@ household:
 insurance:
   description: "Insurance company managing risk pool and premiums"
   
+  # Parsing Configuration
+  parsing:
+    decision_keywords: ["decide:", "decision:", "action:"]
+    output_fields: ["interpret:", "decide:", "adj:", "reason:"]
+    default_skill: "maintain_premium"
+  
   actions:
     - id: raise_premium
       aliases: [RAISE]
@@ -185,6 +196,12 @@ insurance:
 
 government:
   description: "Government managing subsidies and equity programs"
+  
+  # Parsing Configuration
+  parsing:
+    decision_keywords: ["decide:", "decision:", "action:"]
+    output_fields: ["interpret:", "decide:", "adj:", "priority:", "reason:"]
+    default_skill: "maintain_subsidy"
   
   actions:
     - id: increase_subsidy

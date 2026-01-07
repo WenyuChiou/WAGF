@@ -20,6 +20,14 @@ from .skill_broker_engine import SkillBrokerEngine
 from .model_adapter import ModelAdapter, OllamaAdapter, OpenAIAdapter, get_adapter
 
 # =============================================================================
+# Consolidated Framework (Generic Components)
+# =============================================================================
+from .agent_config import AgentTypeConfig, load_agent_config
+from .generic_context_builder import create_context_builder
+from .generic_audit_writer import GenericAuditWriter, AuditConfig as GenericAuditConfig
+from .model_adapter import UnifiedAdapter
+
+# =============================================================================
 # Context Building
 # =============================================================================
 from .context_builder import ContextBuilder, SimpleContextBuilder
@@ -53,6 +61,9 @@ __all__ = [
     # Memory and Retrieval
     "SimpleMemory", "CognitiveMemory", "MemoryProvider", "SimpleRetrieval",
     "MemoryAwareContextBuilder",
+    # Consolidated Framework
+    "AgentTypeConfig", "load_agent_config", "create_context_builder",
+    "GenericAuditWriter", "GenericAuditConfig", "UnifiedAdapter",
     # V1 Legacy (Deprecated)
     "BrokerEngine", "BrokerResult", "DecisionRequest", "ValidationResult",
 ]

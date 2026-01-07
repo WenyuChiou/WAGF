@@ -36,8 +36,8 @@ class AgentValidator:
     Uses agent_type label to lookup validation rules from agent_types.yaml.
     """
     
-    def __init__(self):
-        self.config = load_agent_config()
+    def __init__(self, config_path: str = None):
+        self.config = load_agent_config(config_path)
         self.errors: List[ValidationResult] = []
         self.warnings: List[ValidationResult] = []
     

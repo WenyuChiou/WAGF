@@ -53,62 +53,22 @@ class ModelAdapter(ABC):
         pass
 
 
+from .agent_config import load_agent_config
+
 class UnifiedAdapter(ModelAdapter):
     """
     Unified adapter supporting all models AND all agent types.
     
-    Agent-type-specific parsing is configured via AGENT_TYPE_CONFIG.
+    Skills, decision keywords, and default settings are loaded from agent_types.yaml.
     Model-specific quirks (like DeepSeek's <think> tags) are handled via preprocessor.
-    
-    Usage:
-        # Standard household agent
-        adapter = UnifiedAdapter(agent_type="household")
-        
-        # Insurance agent
-        adapter = UnifiedAdapter(agent_type="insurance")
-        
-        # DeepSeek with <think> tag removal
-        adapter = UnifiedAdapter(agent_type="household", preprocessor=deepseek_preprocessor)
     """
-    
-    # Agent-type configuration: skills, decision keywords, output format
-    AGENT_TYPE_CONFIG = {
-        "household": {
-            "skills": {"buy_insurance", "elevate_house", "relocate", "do_nothing", 
-                       "buy_contents_insurance", "buyout_program",
-                       "FI", "HE", "EH", "BP", "RL", "DN"},
-            "decision_keywords": ["decide:", "skill:", "decision:", "final decision:"],
-            "skill_map_non_elevated": {
-                "1": "buy_insurance", "2": "elevate_house", "3": "buyout_program", "4": "do_nothing"
-            },
-            "skill_map_elevated": {
-                "1": "buy_insurance", "2": "buyout_program", "3": "do_nothing"
-            },
-            "skill_map_renter": {
-                "1": "buy_contents_insurance", "2": "relocate", "3": "do_nothing"
-            },
-            "default_skill": "do_nothing"
-        },
-        "insurance": {
-            "skills": {"RAISE", "LOWER", "MAINTAIN", "raise_premium", "lower_premium", "maintain_premium"},
-            "decision_keywords": ["decide:", "decision:", "action:"],
-            "output_fields": ["interpret:", "decide:", "adj:", "reason:"],
-            "default_skill": "maintain_premium"
-        },
-        "government": {
-            "skills": {"INCREASE", "DECREASE", "MAINTAIN", "OUTREACH",
-                       "increase_subsidy", "decrease_subsidy", "maintain_subsidy", "target_mg_outreach"},
-            "decision_keywords": ["decide:", "decision:", "action:"],
-            "output_fields": ["interpret:", "decide:", "adj:", "priority:", "reason:"],
-            "default_skill": "maintain_subsidy"
-        }
-    }
     
     def __init__(
         self,
         agent_type: str = "household",
         preprocessor: Optional[Callable[[str], str]] = None,
-        valid_skills: Optional[set] = None
+        valid_skills: Optional[set] = None,
+        config_path: str = None
     ):
         """
         Initialize unified adapter.
@@ -117,11 +77,18 @@ class UnifiedAdapter(ModelAdapter):
             agent_type: Type of agent (household, insurance, government)
             preprocessor: Optional function to preprocess raw output
             valid_skills: Optional set of valid skill names (overrides agent_type config)
+            config_path: Optional path to agent_types.yaml
         """
         self.agent_type = agent_type
-        self.config = self.AGENT_TYPE_CONFIG.get(agent_type, self.AGENT_TYPE_CONFIG["household"])
+        self.agent_config = load_agent_config(config_path)
+        
+        # Load parsing config and actual actions/aliases
+        parsing_cfg = self.agent_config.get_parsing_config(agent_type)
+        actions = self.agent_config.get_valid_actions(agent_type)
+        
+        self.config = parsing_cfg
         self.preprocessor = preprocessor or (lambda x: x)
-        self.valid_skills = valid_skills or self.config.get("skills", set())
+        self.valid_skills = valid_skills or set(actions)
     
     def parse_output(self, raw_output: str, context: Dict[str, Any]) -> Optional[SkillProposal]:
         """

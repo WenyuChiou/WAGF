@@ -268,7 +268,8 @@ def create_context_builder(
     agents: Dict[str, Any],
     environment: Dict[str, float] = None,
     custom_templates: Dict[str, str] = None,
-    load_yaml: bool = True
+    load_yaml: bool = True,
+    yaml_path: str = None
 ) -> BaseAgentContextBuilder:
     """
     Create a context builder for a set of agents.
@@ -277,7 +278,8 @@ def create_context_builder(
         agents: Dict of agent_name -> BaseAgent instances
         environment: Shared environment state
         custom_templates: Optional custom prompt templates per agent_type
-        load_yaml: If True, load templates from broker/prompt_templates.yaml
+        load_yaml: If True, load templates from YAML file
+        yaml_path: Optional path to YAML file (default: broker/prompt_templates.yaml)
     
     Returns:
         Configured BaseAgentContextBuilder
@@ -286,7 +288,7 @@ def create_context_builder(
     
     # Load from YAML if requested
     if load_yaml:
-        templates = load_prompt_templates()
+        templates = load_prompt_templates(yaml_path)
     
     # Override with custom templates
     if custom_templates:

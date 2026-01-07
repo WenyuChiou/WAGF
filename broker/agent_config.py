@@ -134,6 +134,11 @@ class AgentTypeConfig:
         cfg = self.get(agent_type)
         return cfg.get("prompt_template", "")
     
+    def get_parsing_config(self, agent_type: str) -> Dict[str, Any]:
+        """Get parsing configuration for model adapter."""
+        cfg = self.get(agent_type)
+        return cfg.get("parsing", {})
+
     @property
     def agent_types(self) -> List[str]:
         """List all available agent types."""
@@ -141,6 +146,6 @@ class AgentTypeConfig:
 
 
 # Convenience function
-def load_agent_config() -> AgentTypeConfig:
+def load_agent_config(yaml_path: Optional[str] = None) -> AgentTypeConfig:
     """Load agent type configuration."""
-    return AgentTypeConfig.load()
+    return AgentTypeConfig.load(yaml_path)
