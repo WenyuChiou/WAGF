@@ -118,7 +118,7 @@ class UnifiedAdapter(ModelAdapter):
         cleaned_output = self.preprocessor(raw_output)
         
         agent_id = context.get("agent_id", "unknown")
-        is_elevated = context.get("is_elevated", False)
+        is_elevated = context.get("is_elevated", False) # LEGACY: unused
         
         # Initialize results
         skill_name = None
@@ -190,15 +190,27 @@ class UnifiedAdapter(ModelAdapter):
                     reasoning[construct] = val
                     reasoning[f"{construct}_REASON"] = reason
 
-            # Legacy household parsing
-            elif line_lower.startswith("threat appraisal:"):
-                reasoning["threat"] = line.split(":", 1)[1].strip() if ":" in line else ""
-            elif line_lower.startswith("coping appraisal:"):
-                reasoning["coping"] = line.split(":", 1)[1].strip() if ":" in line else ""
+            # Config-driven Construct Parsing (Generic)
+            constructs = self.config.get("constructs", {})
+            for key, construct_cfg in constructs.items():
+                # Check for keywords
+                has_keyword = any(k in line_lower for k in construct_cfg.get("keywords", []))
+                if has_keyword:
+                    # Apply regex
+                    pattern = construct_cfg.get("regex", "")
+                    if pattern:
+                        match = re.search(pattern, line, re.IGNORECASE)
+                        if match:
+                            reasoning[key] = match.group(1).strip()
             
             # Legacy: "Final Decision:" for household
-            elif line_lower.startswith("final decision:") and not skill_name:
-                decision_text = line.split(":", 1)[1].strip()
+            if (line_lower.startswith("final decision:") or line_lower.startswith("decision:")) and not skill_name:
+                parts = line.split(":", 1)
+                if len(parts) > 1:
+                    decision_text = parts[1].strip()
+                else:
+                    decision_text = ""
+                    
                 decision_lower = decision_text.lower()
                 
                 for skill in self.valid_skills:
@@ -233,6 +245,10 @@ class UnifiedAdapter(ModelAdapter):
         # Add adjustment to reasoning if present
         if adjustment is not None:
             reasoning["adjustment"] = adjustment
+        
+        # FIX: If reasoning is empty, store raw output for validation
+        if not reasoning or (isinstance(reasoning, dict) and len(reasoning) == 0):
+            reasoning = cleaned_output.strip()  # Store as string instead of empty dict
         
         return SkillProposal(
             skill_name=skill_name,
