@@ -223,18 +223,20 @@ class FloodSimulation:
                 # --- 80% RISK REDUCTION due to house elevation (Restored from Legacy) ---
                 agent.flood_threshold = round(agent.flood_threshold * 0.2, 2)
                 agent.flood_threshold = max(0.001, agent.flood_threshold)
-            agent.has_insurance = False  # Insurance expires if not renewed
+            # Insurance expires if choosing elevation
+            agent.has_insurance = False
             state_changes["has_insurance"] = False
         elif skill == "relocate":
             if not agent.relocated:
                 agent.relocated = True
                 state_changes["relocated"] = True
         elif skill == "do_nothing":
-            # Insurance expires if not renewed
+            # Insurance expires if not renewed (original NSF logic)
             agent.has_insurance = False
             state_changes["has_insurance"] = False
         
         return ExecutionResult(success=True, state_changes=state_changes)
+
     
     def get_community_action_rate(self) -> float:
         total = len(self.agents)
