@@ -164,7 +164,14 @@ class AgentTypeConfig:
         return list(self._config.keys())
 
 
-# Convenience function
-def load_agent_config(yaml_path: Optional[str] = None) -> AgentTypeConfig:
-    """Load agent type configuration."""
-    return AgentTypeConfig.load(yaml_path)
+def load_agent_config(config_path: str = None) -> AgentTypeConfig:
+    """
+    Helper function to load agent config.
+    
+    Args:
+        config_path: Path to agent_types.yaml. If None, uses default.
+        
+    Returns:
+        AgentTypeConfig instance
+    """
+    return AgentTypeConfig(config_path=config_path)
