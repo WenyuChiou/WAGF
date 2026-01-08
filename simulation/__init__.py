@@ -1,12 +1,14 @@
 """
-Simulation Package
-
-Domain simulation engine and state management.
+Simulation Layer.
 """
-from .engine import ToySimulationEngine, ToyAgent, ToyEnvironment
+
+from .base_simulation_engine import BaseSimulationEngine
 from .state_manager import StateManager, IndividualState, SharedState, InstitutionalState
 
 __all__ = [
-    "ToySimulationEngine", "ToyAgent", "ToyEnvironment",
-    "StateManager", "IndividualState", "SharedState", "InstitutionalState"
+    "BaseSimulationEngine",
+    "StateManager",
+    "IndividualState", 
+    "SharedState",
+    "InstitutionalState"
 ]

@@ -143,7 +143,7 @@ class BaseAgent:
     by providing appropriate AgentConfig.
     """
     
-    def __init__(self, config: AgentConfig, memory=None):
+    def __init__(self, config: AgentConfig, memory=None, **kwargs):
         self.config = config
         self.name = config.name
         self.agent_type = config.agent_type
@@ -155,6 +155,9 @@ class BaseAgent:
         
         # Memory (compatible with CognitiveMemory)
         self.memory = memory
+        
+        # Allow dynamic attribute injection (Composition-like)
+        self.__dict__.update(kwargs)
     
     def _init_state(self):
         """Initialize state from config."""

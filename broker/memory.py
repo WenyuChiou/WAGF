@@ -20,32 +20,43 @@ class SimpleMemory:
     
     Features:
     - FIFO replacement when capacity exceeded
-    - Random recall of historical events
-    - Compatible with existing ContextBuilder.get_memory()
+    - Random recall of historical events (optional)
+    - Configurable window size and past events
     """
     
-    MEMORY_WINDOW = 5
-    RANDOM_RECALL_CHANCE = 0.2
-    
-    PAST_EVENTS = []
-    
-    def __init__(self, agent_id: str = ""):
+    def __init__(
+        self, 
+        agent_id: str = "",
+        memory_window: int = 5,
+        past_events: List[str] = None,
+        random_recall_chance: float = 0.2
+    ):
+        """
+        Args:
+            agent_id: Agent identifier
+            memory_window: Max number of recent memories to keep
+            past_events: Optional list of historical events for random recall
+            random_recall_chance: Probability of recalling a past event (0-1)
+        """
         self.agent_id = agent_id
+        self.memory_window = memory_window
+        self.past_events = past_events or []
+        self.random_recall_chance = random_recall_chance
         self._memories: List[str] = []
     
     def add(self, content: str) -> None:
         """Add memory (FIFO when exceeding window)."""
         self._memories.append(content)
-        if len(self._memories) > self.MEMORY_WINDOW:
+        if len(self._memories) > self.memory_window:
             self._memories.pop(0)
     
     def retrieve(self) -> List[str]:
         """Retrieve memories (with random historical recall)."""
         memories = self._memories.copy()
         
-        # 20% chance to recall random historical event
-        if random.random() < self.RANDOM_RECALL_CHANCE:
-            random_event = random.choice(self.PAST_EVENTS)
+        # Random chance to recall historical event (if past_events configured)
+        if self.past_events and random.random() < self.random_recall_chance:
+            random_event = random.choice(self.past_events)
             if random_event not in memories:
                 memories.append(random_event)
         
@@ -217,12 +228,24 @@ class MemoryProvider:
     Wraps memory instances and provides unified interface.
     """
     
-    def __init__(self, memory_type: str = "simple"):
+    def __init__(
+        self, 
+        memory_type: str = "simple",
+        memory_window: int = 5,
+        past_events: List[str] = None,
+        random_recall_chance: float = 0.2
+    ):
         """
         Args:
             memory_type: "simple" or "cognitive"
+            memory_window: Max memories to keep (for simple memory)
+            past_events: Historical events for random recall
+            random_recall_chance: Probability of historical recall
         """
         self.memory_type = memory_type
+        self.memory_window = memory_window
+        self.past_events = past_events or []
+        self.random_recall_chance = random_recall_chance
         self._memories: Dict[str, Any] = {}  # agent_id -> Memory instance
     
     def get_or_create(self, agent_id: str) -> Any:
@@ -231,7 +254,12 @@ class MemoryProvider:
             if self.memory_type == "cognitive":
                 self._memories[agent_id] = CognitiveMemory(agent_id)
             else:
-                self._memories[agent_id] = SimpleMemory(agent_id)
+                self._memories[agent_id] = SimpleMemory(
+                    agent_id,
+                    memory_window=self.memory_window,
+                    past_events=self.past_events,
+                    random_recall_chance=self.random_recall_chance
+                )
         return self._memories[agent_id]
     
     def get_memory(self, agent_id: str, current_year: int = 0) -> List[str]:

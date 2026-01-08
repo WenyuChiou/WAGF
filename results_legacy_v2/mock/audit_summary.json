@@ -1,0 +1,17 @@
+{
+  "experiment_name": "v2-2_clean",
+  "agent_types": {
+    "default": {
+      "total": 6,
+      "decisions": {
+        "unknown": 6
+      }
+    }
+  },
+  "total_traces": 6,
+  "validation_errors": 0,
+  "validation_warnings": 0,
+  "finalized_at": "2026-01-07T05:38:46.668116",
+  "error_rate": "0.0%",
+  "warning_rate": "0.0%"
+}

@@ -1,0 +1,197 @@
+# =============================================================================
+# Agent Type Configuration for v2-2 Clean Experiment
+# =============================================================================
+# Single source of truth for agent configuration.
+# This is experiment-specific, NOT the framework default.
+
+household:
+  description: "Household agents making flood adaptation decisions"
+  
+  # Domain Parameters (Simulation-specific)
+  parameters:
+    # No cost parameters in original v2 experiment
+    tp_threshold_moderate: 0.05
+    tp_threshold_high: 0.20
+
+  # Neutral Prompt Template (Config-Driven)
+  prompt_template: |
+    You are {agent_name}, a homeowner in a flood-prone community.
+    
+    STATE: elevated={elevated}, insurance={has_insurance}
+    
+    OBSERVATIONS:
+    {perception}
+    
+    MEMORY:
+    {memory}
+    
+    ENV: flood={flood}
+    
+    Current Choice Set:
+    {skills}
+    
+    Using the Protection Motivation Theory, evaluate your current situation by considering the following factors:
+    - Perceived Severity: How serious the consequences of flooding feel to you.
+    - Perceived Vulnerability: How likely you think you are to be affected.
+    - Response Efficacy: How effective you believe each action is.
+    - Self-Efficacy: Your confidence in your ability to take that action.
+    - Response Cost: The financial and emotional cost of the action.
+    - Maladaptive Rewards: The benefit of doing nothing immediately.
+    
+    DECISION PROCESS:
+    - If flood=True, you feel higher threat.
+    - If elevated=True, your vulnerability is lower.
+    - If insurance=True, your financial risk is lower.
+    
+    OUTPUT FORMAT:
+    Threat Appraisal: [Low/Med/High] because [One sentence summary of how threatened you feel by any remaining flood risks]
+    Coping Appraisal: [Low/Med/High] because [One sentence summary of how well you think you can cope or act]
+    Final Decision: [exact_skill_name]
+  
+  # Audit Configuration
+  audit:
+    output_dir: "results"
+    experiment_name: "v2-2_clean"
+    log_prompt: true
+    log_llm_response: true
+  
+  # Parsing Configuration
+  parsing:
+    decision_keywords: ["final decision:", "decision:", "decide:"]
+    default_skill: "do_nothing"
+    
+    # Construct mappings for validation
+    constructs:
+      TP:
+        keywords: ["threat appraisal"]
+        regex: "threat appraisal:\\s*(.+)"
+      CP:
+        keywords: ["coping appraisal"]
+        regex: "coping appraisal:\\s*(.+)"
+  
+  # Available Actions (mapped to skills)
+  actions:
+    - id: buy_insurance
+      aliases: ["FI", "insurance"]
+      description: "Purchase flood insurance"
+    - id: elevate_house
+      aliases: ["HE", "elevate", "elevation"]
+      description: "Elevate house structure"
+    - id: relocate
+      aliases: ["RL", "move"]
+      description: "Relocate to safer area"
+    - id: do_nothing
+      aliases: ["DN", "nothing", "wait"]
+      description: "Take no action this year"
+  
+  # Validation Rules (PMT Coherence)
+  coherence_rules:
+    # Rule 1: Urgency Check (Inaction Invalidity)
+    # If Threat Appraisal is High (H), "Do Nothing" should be flagged
+    urgency_check:
+      construct: TP
+      threshold: 0.0  # Always check (label-based)
+      when_above: ["H"]  # Expected level when state >= threshold
+      blocked_skills: ["do_nothing"]
+      message: "High Threat Appraisal but chose inaction (do_nothing)"
+    
+    # Rule 2: Overreaction Check
+    # If Threat Appraisal is Low (L), "Relocate" is too extreme
+    overreaction_check:
+      construct: TP
+      threshold: 0.0
+      when_above: ["L"]  # If label is L, relocate is invalid
+      blocked_skills: ["relocate"]
+      message: "Low Threat Appraisal but chose extreme action (relocate)"
+    
+    # Rule 3: Coping-Action Alignment
+    # If Coping Appraisal is Low (L), expensive actions are invalid
+    coping_alignment:
+      construct: CP
+      threshold: 0.0
+      when_above: ["L"]
+      blocked_skills: ["elevate_house", "relocate"]
+      message: "Low Coping Appraisal but chose expensive action"
+
+  # Simulation Constants
+  simulation:
+    memory_window: 5
+    random_memory_recall_chance: 0.2
+    grant_probability: 0.5
+    num_agents_default: 100
+  
+  # Initial Memory Pool (Past Events)
+  past_events:
+    - "A flood event about 15 years ago caused $500,000 in city-wide damages; my neighborhood was not impacted at all"
+    - "Some residents reported delays when processing their flood insurance claims"
+    - "A few households in the area elevated their homes before recent floods"
+    - "The city previously introduced a program offering elevation support to residents"
+    - "News outlets have reported a possible trend of increasing flood frequency and severity in recent years"
+
+# =============================================================================
+# INSTITUTIONAL AGENTS (Migrated from InstitutionalValidator)
+# =============================================================================
+
+insurance:
+  description: "Insurance Company Agent"
+  
+  actions:
+    - id: raise_premium
+      aliases: ["RAISE", "increase"]
+    - id: lower_premium
+      aliases: ["LOWER", "decrease"]
+    - id: maintain_premium
+      aliases: ["MAINTAIN", "keep"]
+      
+  validation_rules:
+    rate_bounds:
+      param: "premium_rate"
+      min: 0.02
+      max: 0.15
+      level: "ERROR"
+      message: "Premium rate outside 2-15% range"
+      
+    max_change:
+      param: "premium_rate"
+      max_delta: 0.15
+      level: "WARNING"
+      message: "Premium changed by >15%"
+      
+    solvency_floor:
+      param: "solvency"
+      min: 0.0
+      level: "ERROR"
+      message: "Solvency cannot be negative"
+
+government:
+  description: "Government Agent"
+  
+  actions:
+    - id: increase_subsidy
+      aliases: ["INCREASE", "boost"]
+    - id: decrease_subsidy
+      aliases: ["DECREASE", "cut"]
+    - id: maintain_subsidy
+      aliases: ["MAINTAIN", "keep"]
+    - id: target_mg_outreach
+      aliases: ["OUTREACH"]
+      
+  validation_rules:
+    subsidy_bounds:
+      param: "subsidy_rate"
+      min: 0.20
+      max: 0.95
+      level: "ERROR"
+      message: "Subsidy rate outside 20-95% range"
+      
+    max_change:
+      param: "subsidy_rate"
+      max_delta: 0.15
+      level: "WARNING"
+      message: "Subsidy changed by >15%"
+      
+    emergency_reserve:
+      param: "budget_used"
+      max: 0.90
+      level: "WARNING"
+      message: "Budget usage >90% (emergency reserve violated)"

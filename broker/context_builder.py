@@ -92,6 +92,12 @@ class BaseAgentContextBuilder(ContextBuilder):
             "state": agent.get_all_state(),  # 0-1 normalized
         }
         
+        # Include dynamic attributes (kwargs passed during agent creation)
+        # This enables {elevated}, {has_insurance} etc. in templates
+        for k, v in agent.__dict__.items():
+            if not k.startswith('_') and k not in context:
+                context[k] = v
+        
         # Optionally add raw values for readability
         if include_raw:
             context["state_raw"] = agent.get_all_state_raw()

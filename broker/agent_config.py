@@ -41,35 +41,31 @@ class CoherenceRule:
     aggregation: str = "single"
     threshold: float = 0.5
     expected_levels: Optional[List[str]] = None
-    trigger_phrases: Optional[List[str]] = None
     blocked_skills: Optional[List[str]] = None
     message: str = ""
 
 
-
 class AgentTypeConfig:
     """
-    Agent type configuration loader.
-    
-    NO SINGLETON - Each instance loads from specified path.
+    Loader for agent type configurations.
     
     Usage:
-        # Explicit path
-        config = AgentTypeConfig(config_path="path/to/agent_types.yaml")
-        
-        # Default path
-        config = AgentTypeConfig()
+        config = AgentTypeConfig.load()
+        household = config.get("household")
+        valid_actions = household["actions"]
+        rules = household["validation_rules"]
     """
     
-    def __init__(self, config_path: str = None):
-        """
-        Initialize with config path.
-        
-        Args:
-            config_path: Path to agent_types.yaml. If None, uses default.
-        """
-        self._config = None
-        self._load_yaml(config_path)
+    _instance = None
+    _config = None
+    
+    @classmethod
+    def load(cls, yaml_path: str = None) -> "AgentTypeConfig":
+        """Load or return cached config."""
+        if cls._instance is None:
+            cls._instance = cls()
+            cls._instance._load_yaml(yaml_path)
+        return cls._instance
     
     def _load_yaml(self, yaml_path: str = None):
         """Load from YAML file."""
@@ -79,21 +75,11 @@ class AgentTypeConfig:
         with open(yaml_path, 'r', encoding='utf-8') as f:
             self._config = yaml.safe_load(f)
     
-    def get_base_type(self, agent_type: str) -> str:
-        """Map a specific agent type/subtype to a base type defined in config."""
-        # Handle common subtypes like household_mg -> household
-        # If the exact type exists, return it, otherwise try base mapping
-        if agent_type in self._config:
-            return agent_type
-        
-        # Simple suffix-based mapping as a fallback
-        base_type = agent_type.replace("_mg", "").replace("_nmg", "")
-        return base_type
-
     def get(self, agent_type: str) -> Dict[str, Any]:
         """Get config for agent type."""
-        base_type = self.get_base_type(agent_type)
-        return self._config.get(base_type, {})
+        # Handle subtypes like household_mg -> household
+        base_type = agent_type.replace("_mg", "").replace("_nmg", "")
+        return self._config.get(base_type, self._config.get("household", {}))
     
     def get_valid_actions(self, agent_type: str) -> List[str]:
         """Get all valid action IDs and aliases for agent type."""
@@ -128,13 +114,12 @@ class AgentTypeConfig:
         rules = cfg.get("coherence_rules", {})
         return [
             CoherenceRule(
-                construct=name,
+                construct=rule.get("construct", name),
                 state_field=rule.get("state_field"),
                 state_fields=rule.get("state_fields"),
                 aggregation=rule.get("aggregation", "single"),
                 threshold=rule.get("threshold", 0.5),
                 expected_levels=rule.get("when_above", rule.get("when_true")),
-                trigger_phrases=rule.get("trigger_phrases"),
                 blocked_skills=rule.get("blocked_skills"),
                 message=rule.get("message", "")
             )
@@ -156,25 +141,13 @@ class AgentTypeConfig:
         cfg = self.get(agent_type)
         return cfg.get("parsing", {})
 
-    def get_parameters(self, agent_type: str) -> Dict[str, Any]:
-        """Get domain parameters for agent type."""
-        cfg = self.get(agent_type)
-        return cfg.get("parameters", {})
-
     @property
     def agent_types(self) -> List[str]:
         """List all available agent types."""
         return list(self._config.keys())
 
 
-def load_agent_config(config_path: str = None) -> AgentTypeConfig:
-    """
-    Helper function to load agent config.
-    
-    Args:
-        config_path: Path to agent_types.yaml. If None, uses default.
-        
-    Returns:
-        AgentTypeConfig instance
-    """
-    return AgentTypeConfig(config_path=config_path)
+# Convenience function
+def load_agent_config(yaml_path: Optional[str] = None) -> AgentTypeConfig:
+    """Load agent type configuration."""
+    return AgentTypeConfig.load(yaml_path)

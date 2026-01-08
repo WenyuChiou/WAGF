@@ -25,7 +25,7 @@ from .skill_types import (
 )
 from .skill_registry import SkillRegistry
 from .model_adapter import ModelAdapter
-from validators import AgentValidator
+from validators.agent_validator import AgentValidator, ValidationResult
 
 
 class SkillBrokerEngine:
@@ -50,7 +50,7 @@ class SkillBrokerEngine:
         self,
         skill_registry: SkillRegistry,
         model_adapter: ModelAdapter,
-        validator: AgentValidator,
+        validators: List[AgentValidator],
         simulation_engine: Any,
         context_builder: Any,
         audit_writer: Optional[Any] = None,
@@ -58,7 +58,7 @@ class SkillBrokerEngine:
     ):
         self.skill_registry = skill_registry
         self.model_adapter = model_adapter
-        self.validator = validator
+        self.validators = validators
         self.simulation_engine = simulation_engine
         self.context_builder = context_builder
         self.audit_writer = audit_writer
@@ -99,13 +99,22 @@ class SkillBrokerEngine:
         # ① Build bounded context (READ-ONLY)
         context = self.context_builder.build(agent_id)
         context_hash = self._hash_context(context)
-        memory_pre = context.get("memory", []).copy() if context.get("memory") else []
+        memory_raw = context.get("memory", [])
+        if isinstance(memory_raw, list):
+            memory_pre = memory_raw.copy()
+        else:
+            # Handle formatted string from generic builder
+            memory_pre = [memory_raw] if memory_raw else []
         
         # ② LLM output → ModelAdapter → SkillProposal
         prompt = self.context_builder.format_prompt(context)
         raw_output = llm_invoke(prompt)
         
-        skill_proposal = self.model_adapter.parse_output(raw_output, context)
+        skill_proposal = self.model_adapter.parse_output(raw_output, {
+            "agent_id": agent_id,
+            "is_elevated": context.get("elevated", False),
+            "agent_type": agent_type
+        })
         
         if skill_proposal is None:
             self.stats["aborted"] += 1
@@ -114,37 +123,30 @@ class SkillBrokerEngine:
         # ③ Skill validation
         validation_context = {
             "agent_state": context,
-            "agent_type": agent_type
+            "agent_type": agent_type,
+            "flood_status": "Flood occurred" if context.get("flood_event") else "No flood"
         }
         
-        validation_results = self.validator.validate(
-            agent_type=agent_type,
-            agent_id=agent_id,
-            decision=skill_proposal.skill_name,
-            state=context,
-            reasoning=skill_proposal.reasoning
-        )
-        all_valid = not any(v.valid is False for v in validation_results)
+        validation_results = self._run_validators(skill_proposal, validation_context)
+        all_valid = all(v.valid for v in validation_results)
         
         # Retry loop
         retry_count = 0
         while not all_valid and retry_count < self.max_retries:
             retry_count += 1
-            errors = [e for v in validation_results for e in v.errors]
+            errors = [v.message for v in validation_results if not v.valid]
             retry_prompt = self.model_adapter.format_retry_prompt(prompt, errors)
             raw_output = llm_invoke(retry_prompt)
             
-            skill_proposal = self.model_adapter.parse_output(raw_output, context)
+            skill_proposal = self.model_adapter.parse_output(raw_output, {
+                "agent_id": agent_id,
+                "is_elevated": context.get("elevated", False),
+                "agent_type": agent_type
+            })
             
             if skill_proposal:
-                validation_results = self.validator.validate(
-                    agent_type=agent_type,
-                    agent_id=agent_id,
-                    decision=skill_proposal.skill_name,
-                    state=context,
-                    reasoning=skill_proposal.reasoning
-                )
-                all_valid = not any(v.valid is False for v in validation_results)
+                validation_results = self._run_validators(skill_proposal, validation_context)
+                all_valid = all(v.valid for v in validation_results)
         
         # ④ Create ApprovedSkill or use fallback
         if all_valid:
@@ -180,41 +182,56 @@ class SkillBrokerEngine:
         
         # ⑥ Audit trace
         if self.audit_writer:
-            trace_dict = {
+            self.audit_writer.write_trace(agent_type, {
                 "run_id": run_id,
                 "step_id": step_id,
                 "timestamp": timestamp,
                 "seed": seed,
                 "agent_id": agent_id,
-                "year": context.get("year"), # Lift to top level
-                "cumulative_state": context.get("cumulative_state"), # Lift to top level
                 "context_hash": context_hash,
                 "memory_pre": memory_pre,
                 "skill_proposal": skill_proposal.to_dict() if skill_proposal else None,
+                "validator_results": [
+                    {"rule": v.rule, "valid": v.valid, "message": v.message}
+                    for v in validation_results
+                ],
                 "approved_skill": {
                     "skill_name": approved_skill.skill_name,
                     "status": approved_skill.approval_status,
                     "mapping": approved_skill.execution_mapping
                 } if approved_skill else None,
-                "execution_result": execution_result.to_dict() if execution_result else None,
-                "retry_count": retry_count,
-                "decision": approved_skill.skill_name if approved_skill else (skill_proposal.skill_name if skill_proposal else "unknown"),
-                "input": prompt  # Explicitly log the prompt
-            }
-            self.audit_writer.write_trace(agent_type, trace_dict, validation_results)
+                "execution_result": execution_result.__dict__ if execution_result else None,
+                "outcome": outcome.value,
+                "retry_count": retry_count
+            })
         
         return SkillBrokerResult(
             outcome=outcome,
             skill_proposal=skill_proposal,
             approved_skill=approved_skill,
             execution_result=execution_result,
-            validation_errors=[e for v in validation_results for e in v.errors],
+            validation_errors=[v.message for v in validation_results if not v.valid],
             retry_count=retry_count
         )
     
-    def _run_validators(self, proposal: SkillProposal, context: Dict) -> List[Any]:
-        """Placeholder for backward compatibility - not used with AgentValidator."""
-        return []
+    def _run_validators(self, proposal: SkillProposal, context: Dict) -> List[ValidationResult]:
+        """Run all validators on the skill proposal."""
+        results = []
+        for validator in self.validators:
+            # AgentValidator.validate expects unpacked arguments
+            # context structure: {'individual': dict, 'shared': dict, ...}
+            state = context.get('agent_state', {}).get('individual', {})
+            
+            result = validator.validate(
+                agent_type=proposal.agent_type,
+                agent_id=proposal.agent_id,
+                decision=proposal.skill_name,
+                state=state,
+                prev_state=None, # History tracking not yet integrated here
+                reasoning=proposal.reasoning
+            )
+            results.extend(result)
+        return results
     
     def _hash_context(self, context: Dict) -> str:
         """Create hash of context for audit."""

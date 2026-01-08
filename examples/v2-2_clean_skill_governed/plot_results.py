@@ -17,12 +17,12 @@ def plot_adaptation_results(csv_path: Path, output_dir: Path):
         print("Warning: Log file is empty, skipping plot.")
         return
 
-    # Count cumulative states per year
-    # Use 'cumulative_state' if exists, fallback to 'decision'
-    state_col = 'cumulative_state' if 'cumulative_state' in df.columns else 'decision'
+    # Count decisions/states per year
+    # Mapping raw states to simplified categories if needed
+    # Typically: 'Relocate', 'Both...', 'Only House Elevation', 'Only Flood Insurance', 'Do Nothing'
     
-    # Pivot table: Year vs Cumulative State -> Count
-    pivot = df.pivot_table(index='year', columns=state_col, aggfunc='size', fill_value=0)
+    # Pivot table: Year vs Decision -> Count
+    pivot = df.pivot_table(index='year', columns='decision', aggfunc='size', fill_value=0)
     
     # Ensure all standard columns exist for consistent coloring
     all_categories = [

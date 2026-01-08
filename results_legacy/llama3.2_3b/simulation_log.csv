@@ -1,0 +1,997 @@
+agent_id,year,decision,raw_skill,outcome,elevated,has_insurance,relocated
+Agent_1,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_2,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_3,1,Only Flood Insurance,buy_insurance,APPROVED,False,True,False
+Agent_4,1,Only Flood Insurance,buy_insurance,APPROVED,False,True,False
+Agent_5,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_6,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_7,1,Only Flood Insurance,buy_insurance,APPROVED,False,True,False
+Agent_8,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_9,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_10,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_11,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_12,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_13,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_14,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_15,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_16,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_17,1,Only Flood Insurance,buy_insurance,APPROVED,False,True,False
+Agent_18,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_19,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_20,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_21,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_22,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_23,1,Only Flood Insurance,buy_insurance,APPROVED,False,True,False
+Agent_24,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_25,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_26,1,Only Flood Insurance,buy_insurance,APPROVED,False,True,False
+Agent_27,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_28,1,Only Flood Insurance,buy_insurance,APPROVED,False,True,False
+Agent_29,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_30,1,Do Nothing,do_nothing,APPROVED,False,False,False
+Agent_31,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_32,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_33,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_34,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_35,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_36,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_37,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_38,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_39,1,Do Nothing,do_nothing,APPROVED,False,False,False
+Agent_40,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_41,1,Do Nothing,do_nothing,APPROVED,False,False,False
+Agent_42,1,Only Flood Insurance,buy_insurance,APPROVED,False,True,False
+Agent_43,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_44,1,Do Nothing,do_nothing,APPROVED,False,False,False
+Agent_45,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_46,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_47,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_48,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_49,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_50,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_51,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_52,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_53,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_54,1,Only Flood Insurance,buy_insurance,APPROVED,False,True,False
+Agent_55,1,Only Flood Insurance,buy_insurance,APPROVED,False,True,False
+Agent_56,1,Do Nothing,do_nothing,APPROVED,False,False,False
+Agent_57,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_58,1,Do Nothing,do_nothing,APPROVED,False,False,False
+Agent_59,1,Only Flood Insurance,buy_insurance,APPROVED,False,True,False
+Agent_60,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_61,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_62,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_63,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_64,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_65,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_66,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_67,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_68,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_69,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_70,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_71,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_72,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_73,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_74,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_75,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_76,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_77,1,Only Flood Insurance,buy_insurance,APPROVED,False,True,False
+Agent_78,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_79,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_80,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_81,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_82,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_83,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_84,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_85,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_86,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_87,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_88,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_89,1,Do Nothing,do_nothing,APPROVED,False,False,False
+Agent_90,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_91,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_92,1,Only Flood Insurance,buy_insurance,APPROVED,False,True,False
+Agent_93,1,Do Nothing,do_nothing,APPROVED,False,False,False
+Agent_94,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_95,1,Do Nothing,do_nothing,APPROVED,False,False,False
+Agent_96,1,Only Flood Insurance,buy_insurance,APPROVED,False,True,False
+Agent_97,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_98,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_99,1,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_100,1,Do Nothing,do_nothing,APPROVED,False,False,False
+Agent_1,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_2,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_3,2,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_4,2,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_5,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_6,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_7,2,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_8,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_9,2,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_10,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_11,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_12,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_13,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_14,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_15,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_16,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_17,2,Only Flood Insurance,buy_insurance,APPROVED,False,True,False
+Agent_18,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_19,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_20,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_21,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_22,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_23,2,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_24,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_25,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_26,2,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_27,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_28,2,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_29,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_30,2,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_31,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_32,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_33,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_34,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_35,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_36,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_37,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_38,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_39,2,Only Flood Insurance,buy_insurance,APPROVED,False,True,False
+Agent_40,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_41,2,Only Flood Insurance,buy_insurance,APPROVED,False,True,False
+Agent_42,2,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_43,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_44,2,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_45,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_46,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_47,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_48,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_49,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_50,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_51,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_52,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_53,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_54,2,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_55,2,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_56,2,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_57,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_58,2,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_59,2,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_60,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_61,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_62,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_63,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_64,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_65,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_66,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_67,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_68,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_69,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_70,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_71,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_72,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_73,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_74,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_75,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_76,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_77,2,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_78,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_79,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_80,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_81,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_82,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_83,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_84,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_85,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_86,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_87,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_88,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_89,2,Do Nothing,do_nothing,APPROVED,False,False,False
+Agent_90,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_91,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_92,2,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_93,2,Do Nothing,do_nothing,APPROVED,False,False,False
+Agent_94,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_95,2,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_96,2,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_97,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_98,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_99,2,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_100,2,Only Flood Insurance,buy_insurance,APPROVED,False,True,False
+Agent_1,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_2,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_3,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_4,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_5,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_6,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_7,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_8,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_9,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_10,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_11,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_12,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_13,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_14,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_15,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_16,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_17,3,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_18,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_19,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_20,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_21,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_22,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_23,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_24,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_25,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_26,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_27,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_28,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_29,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_30,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_31,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_32,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_33,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_34,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_35,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_36,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_37,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_38,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_39,3,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_40,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_41,3,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_42,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_43,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_44,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_45,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_46,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_47,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_48,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_49,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_50,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_51,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_52,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_53,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_54,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_55,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_56,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_57,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_58,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_59,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_60,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_61,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_62,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_63,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_64,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_65,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_66,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_67,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_68,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_69,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_70,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_71,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_72,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_73,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_74,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_75,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_76,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_77,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_78,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_79,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_80,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_81,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_82,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_83,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_84,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_85,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_86,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_87,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_88,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_89,3,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_90,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_91,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_92,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_93,3,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_94,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_95,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_96,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_97,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_98,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_99,3,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_100,3,Only House Elevation,elevate_house,APPROVED,True,False,False
+Agent_1,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_2,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_3,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_4,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_5,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_6,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_7,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_8,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_9,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_10,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_11,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_12,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_13,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_14,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_15,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_16,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_17,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_18,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_19,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_20,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_21,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_22,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_23,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_24,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_25,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_26,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_27,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_28,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_29,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_30,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_31,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_32,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_33,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_34,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_35,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_36,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_37,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_38,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_39,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_40,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_41,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_42,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_43,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_44,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_45,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_46,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_47,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_48,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_49,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_50,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_51,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_52,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_53,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_54,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_55,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_56,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_57,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_58,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_59,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_60,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_61,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_62,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_63,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_64,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_65,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_66,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_67,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_68,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_69,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_70,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_71,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_72,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_73,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_74,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_75,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_76,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_77,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_78,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_79,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_80,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_81,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_82,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_83,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_84,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_85,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_86,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_87,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_88,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_89,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_90,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_91,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_92,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_93,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_94,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_95,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_96,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_97,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_98,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_99,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_100,4,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_1,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_2,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_3,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_4,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_5,5,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_6,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_7,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_8,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_9,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_10,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_11,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_12,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_13,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_14,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_15,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_16,5,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_17,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_18,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_19,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_20,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_21,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_22,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_23,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_24,5,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_25,5,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_26,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_27,5,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_28,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_29,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_30,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_31,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_32,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_33,5,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_34,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_35,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_36,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_37,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_38,5,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_39,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_40,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_41,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_42,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_43,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_44,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_45,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_46,5,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_47,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_48,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_49,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_50,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_51,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_52,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_53,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_54,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_55,5,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_56,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_57,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_58,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_59,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_60,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_61,5,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_62,5,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_63,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_64,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_65,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_66,5,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_67,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_68,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_69,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_70,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_71,5,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_72,5,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_73,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_74,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_75,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_76,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_77,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_78,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_79,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_80,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_81,5,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_82,5,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_83,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_84,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_85,5,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_86,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_87,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_88,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_89,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_90,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_91,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_92,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_93,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_94,5,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_95,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_96,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_97,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_98,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_99,5,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_100,5,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_1,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_2,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_3,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_4,6,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_5,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_6,6,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_7,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_8,6,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_9,6,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_10,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_11,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_12,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_13,6,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_14,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_15,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_16,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_17,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_18,6,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_19,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_20,6,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_21,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_22,6,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_23,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_24,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_25,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_26,6,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_27,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_28,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_29,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_30,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_31,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_32,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_33,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_34,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_35,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_36,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_37,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_38,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_39,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_40,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_41,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_42,6,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_43,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_44,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_45,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_46,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_47,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_48,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_49,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_50,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_51,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_52,6,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_53,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_54,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_55,6,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_56,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_57,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_58,6,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_59,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_60,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_61,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_62,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_63,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_64,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_65,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_66,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_67,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_68,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_69,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_70,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_71,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_72,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_73,6,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_74,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_75,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_76,6,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_77,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_78,6,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_79,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_80,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_81,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_82,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_83,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_84,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_85,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_86,6,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_87,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_88,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_89,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_90,6,Relocate,relocate,APPROVED,True,True,True
+Agent_91,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_92,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_93,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_94,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_95,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_96,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_97,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_98,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_99,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_100,6,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_1,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_2,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_3,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_4,7,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_5,7,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_6,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_7,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_8,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_9,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_10,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_11,7,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_12,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_13,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_14,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_15,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_16,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_17,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_18,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_19,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_20,7,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_21,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_22,7,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_23,7,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_24,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_25,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_26,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_27,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_28,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_29,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_30,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_31,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_32,7,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_33,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_34,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_35,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_36,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_37,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_38,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_39,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_40,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_41,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_42,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_43,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_44,7,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_45,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_46,7,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_47,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_48,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_49,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_50,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_51,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_52,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_53,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_54,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_55,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_56,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_57,7,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_58,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_59,7,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_60,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_61,7,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_62,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_63,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_64,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_65,7,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_66,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_67,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_68,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_69,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_70,7,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_71,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_72,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_73,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_74,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_75,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_76,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_77,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_78,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_79,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_80,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_81,7,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_82,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_83,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_84,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_85,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_86,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_87,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_88,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_89,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_91,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_92,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_93,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_94,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_95,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_96,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_97,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_98,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_99,7,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_100,7,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_1,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_2,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_3,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_4,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_5,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_6,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_7,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_8,8,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_9,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_10,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_11,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_12,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_13,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_14,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_15,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_16,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_17,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_18,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_19,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_20,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_21,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_22,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_23,8,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_24,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_25,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_26,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_27,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_28,8,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_29,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_30,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_31,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_32,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_33,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_34,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_35,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_36,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_37,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_38,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_39,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_40,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_41,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_42,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_43,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_44,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_45,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_46,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_47,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_48,8,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_49,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_50,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_51,8,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_52,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_53,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_54,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_55,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_56,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_57,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_58,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_59,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_60,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_61,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_62,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_63,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_64,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_65,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_66,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_67,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_68,8,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_69,8,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_70,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_71,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_72,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_73,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_74,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_75,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_76,8,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_77,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_78,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_79,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_80,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_81,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_82,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_83,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_84,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_85,8,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_86,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_87,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_88,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_89,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_91,8,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_92,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_93,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_94,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_95,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_96,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_97,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_98,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_99,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_100,8,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_1,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_2,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_3,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_4,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_5,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_6,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_7,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_8,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_9,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_10,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_11,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_12,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_13,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_14,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_15,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_16,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_17,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_18,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_19,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_20,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_21,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_22,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_23,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_24,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_25,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_26,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_27,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_28,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_29,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_30,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_31,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_32,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_33,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_34,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_35,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_36,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_37,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_38,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_39,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_40,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_41,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_42,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_43,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_44,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_45,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_46,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_47,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_48,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_49,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_50,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_51,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_52,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_53,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_54,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_55,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_56,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_57,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_58,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_59,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_60,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_61,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_62,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_63,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_64,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_65,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_66,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_67,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_68,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_69,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_70,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_71,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_72,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_73,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_74,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_75,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_76,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_77,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_78,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_79,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_80,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_81,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_82,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_83,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_84,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_85,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_86,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_87,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_88,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_89,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_91,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_92,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_93,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_94,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_95,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_96,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_97,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_98,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_99,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_100,9,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_1,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_2,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_3,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_4,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_5,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_6,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_7,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_8,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_9,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_10,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_11,10,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_12,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_13,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_14,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_15,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_16,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_17,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_18,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_19,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_20,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_21,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_22,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_23,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_24,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_25,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_26,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_27,10,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_28,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_29,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_30,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_31,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_32,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_33,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_34,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_35,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_36,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_37,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_38,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_39,10,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_40,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_41,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_42,10,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_43,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_44,10,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_45,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_46,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_47,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_48,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_49,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_50,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_51,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_52,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_53,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_54,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_55,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_56,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_57,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_58,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_59,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_60,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_61,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_62,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_63,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_64,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_65,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_66,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_67,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_68,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_69,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_70,10,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_71,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_72,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_73,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_74,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_75,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_76,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_77,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_78,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_79,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_80,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_81,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_82,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_83,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_84,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_85,10,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_86,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_87,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_88,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_89,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_91,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_92,10,Only House Elevation,do_nothing,APPROVED,True,False,False
+Agent_93,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_94,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_95,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_96,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_97,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_98,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_99,10,Both Flood Insurance and House Elevation,buy_insurance,APPROVED,True,True,False
+Agent_100,10,Only House Elevation,do_nothing,APPROVED,True,False,False

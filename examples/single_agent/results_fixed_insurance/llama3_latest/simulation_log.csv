@@ -1,0 +1,1001 @@
+agent_id,year,current_action,cumulative_state,elevated,has_insurance,relocated,outcome
+Agent_1,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_2,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_3,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_4,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_5,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_6,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_7,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_8,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_9,1,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_10,1,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_11,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_12,1,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_13,1,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_14,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_15,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_16,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_17,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_18,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_19,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_20,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_21,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_22,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_23,1,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_24,1,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_25,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_26,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_27,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_28,1,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_29,1,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_30,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_31,1,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_32,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_33,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_34,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_35,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_36,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_37,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_38,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_39,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_40,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_41,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_42,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_43,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_44,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_45,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_46,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_47,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_48,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_49,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_50,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_51,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_52,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_53,1,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_54,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_55,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_56,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_57,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_58,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_59,1,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_60,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_61,1,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_62,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_63,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_64,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_65,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_66,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_67,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_68,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_69,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_70,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_71,1,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_72,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_73,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_74,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_75,1,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_76,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_77,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_78,1,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_79,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_80,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_81,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_82,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_83,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_84,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_85,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_86,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_87,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_88,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_89,1,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_90,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_91,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_92,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_93,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_94,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_95,1,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_96,1,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_97,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_98,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_99,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_100,1,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_1,2,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_2,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_3,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_4,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_5,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_6,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_7,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_8,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_9,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_10,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_11,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_12,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_13,2,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_14,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_15,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_16,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_17,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_18,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_19,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_20,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_21,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_22,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_23,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_24,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_25,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_26,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_27,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_28,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_29,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_30,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_31,2,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_32,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_33,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_34,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_35,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_36,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_37,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_38,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_39,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_40,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_41,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_42,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_43,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_44,2,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_45,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_46,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_47,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_48,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_49,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_50,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_51,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_52,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_53,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_54,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_55,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_56,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_57,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_58,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_59,2,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_60,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_61,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_62,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_63,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_64,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_65,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_66,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_67,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_68,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_69,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_70,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_71,2,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_72,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_73,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_74,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_75,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_76,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_77,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_78,2,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_79,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_80,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_81,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_82,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_83,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_84,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_85,2,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_86,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_87,2,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_88,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_89,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_90,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_91,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_92,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_93,2,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_94,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_95,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_96,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_97,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_98,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_99,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_100,2,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_1,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_2,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_3,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_4,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_5,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_6,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_7,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_8,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_9,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_10,3,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_11,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_12,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_13,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_14,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_15,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_16,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_17,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_18,3,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_19,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_20,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_21,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_22,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_23,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_24,3,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_25,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_26,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_27,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_28,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_29,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_30,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_31,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_32,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_33,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_34,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_35,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_36,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_37,3,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_38,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_39,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_40,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_41,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_42,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_43,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_44,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_45,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_46,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_47,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_48,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_49,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_50,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_51,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_52,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_53,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_54,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_55,3,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_56,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_57,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_58,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_59,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_60,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_61,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_62,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_63,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_64,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_65,3,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_66,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_67,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_68,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_69,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_70,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_71,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_72,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_73,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_74,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_75,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_76,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_77,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_78,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_79,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_80,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_81,3,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_82,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_83,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_84,3,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_85,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_86,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_87,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_88,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_89,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_90,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_91,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_92,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_93,3,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_94,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_95,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_96,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_97,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_98,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_99,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_100,3,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_1,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_2,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_3,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_4,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_5,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_6,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_7,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_8,4,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_9,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_10,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_11,4,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_12,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_13,4,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_14,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_15,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_16,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_17,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_18,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_19,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_20,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_21,4,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_22,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_23,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_24,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_25,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_26,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_27,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_28,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_29,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_30,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_31,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_32,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_33,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_34,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_35,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_36,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_37,4,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_38,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_39,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_40,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_41,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_42,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_43,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_44,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_45,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_46,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_47,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_48,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_49,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_50,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_51,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_52,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_53,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_54,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_55,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_56,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_57,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_58,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_59,4,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_60,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_61,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_62,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_63,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_64,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_65,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_66,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_67,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_68,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_69,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_70,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_71,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_72,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_73,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_74,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_75,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_76,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_77,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_78,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_79,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_80,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_81,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_82,4,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_83,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_84,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_85,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_86,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_87,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_88,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_89,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_90,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_91,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_92,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_93,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_94,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_95,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_96,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_97,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_98,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_99,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_100,4,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_1,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_2,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_3,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_4,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_5,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_6,5,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_7,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_8,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_9,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_10,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_11,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_12,5,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_13,5,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_14,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_15,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_16,5,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_17,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_18,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_19,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_20,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_21,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_22,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_23,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_24,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_25,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_26,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_27,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_28,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_29,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_30,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_31,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_32,5,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_33,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_34,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_35,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_36,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_37,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_38,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_39,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_40,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_41,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_42,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_43,5,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_44,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_45,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_46,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_47,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_48,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_49,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_50,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_51,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_52,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_53,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_54,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_55,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_56,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_57,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_58,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_59,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_60,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_61,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_62,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_63,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_64,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_65,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_66,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_67,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_68,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_69,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_70,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_71,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_72,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_73,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_74,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_75,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_76,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_77,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_78,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_79,5,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_80,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_81,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_82,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_83,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_84,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_85,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_86,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_87,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_88,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_89,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_90,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_91,5,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_92,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_93,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_94,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_95,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_96,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_97,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_98,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_99,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_100,5,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_1,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_2,6,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_3,6,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_4,6,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_5,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_6,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_7,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_8,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_9,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_10,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_11,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_12,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_13,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_14,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_15,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_16,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_17,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_18,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_19,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_20,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_21,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_22,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_23,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_24,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_25,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_26,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_27,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_28,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_29,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_30,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_31,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_32,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_33,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_34,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_35,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_36,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_37,6,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_38,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_39,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_40,6,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_41,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_42,6,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_43,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_44,6,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_45,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_46,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_47,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_48,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_49,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_50,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_51,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_52,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_53,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_54,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_55,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_56,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_57,6,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_58,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_59,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_60,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_61,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_62,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_63,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_64,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_65,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_66,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_67,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_68,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_69,6,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_70,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_71,6,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_72,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_73,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_74,6,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_75,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_76,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_77,6,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_78,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_79,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_80,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_81,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_82,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_83,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_84,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_85,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_86,6,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_87,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_88,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_89,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_90,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_91,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_92,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_93,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_94,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_95,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_96,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_97,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_98,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_99,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_100,6,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_1,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_2,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_3,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_4,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_5,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_6,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_7,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_8,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_9,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_10,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_11,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_12,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_13,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_14,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_15,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_16,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_17,7,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_18,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_19,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_20,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_21,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_22,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_23,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_24,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_25,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_26,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_27,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_28,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_29,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_30,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_31,7,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_32,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_33,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_34,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_35,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_36,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_37,7,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_38,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_39,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_40,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_41,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_42,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_43,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_44,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_45,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_46,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_47,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_48,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_49,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_50,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_51,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_52,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_53,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_54,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_55,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_56,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_57,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_58,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_59,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_60,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_61,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_62,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_63,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_64,7,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_65,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_66,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_67,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_68,7,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_69,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_70,7,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_71,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_72,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_73,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_74,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_75,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_76,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_77,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_78,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_79,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_80,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_81,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_82,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_83,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_84,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_85,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_86,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_87,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_88,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_89,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_90,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_91,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_92,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_93,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_94,7,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_95,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_96,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_97,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_98,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_99,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_100,7,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_1,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_2,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_3,8,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_4,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_5,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_6,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_7,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_8,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_9,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_10,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_11,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_12,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_13,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_14,8,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_15,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_16,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_17,8,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_18,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_19,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_20,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_21,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_22,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_23,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_24,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_25,8,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_26,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_27,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_28,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_29,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_30,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_31,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_32,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_33,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_34,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_35,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_36,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_37,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_38,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_39,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_40,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_41,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_42,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_43,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_44,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_45,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_46,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_47,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_48,8,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_49,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_50,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_51,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_52,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_53,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_54,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_55,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_56,8,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_57,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_58,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_59,8,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_60,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_61,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_62,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_63,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_64,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_65,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_66,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_67,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_68,8,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_69,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_70,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_71,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_72,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_73,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_74,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_75,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_76,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_77,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_78,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_79,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_80,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_81,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_82,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_83,8,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_84,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_85,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_86,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_87,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_88,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_89,8,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_90,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_91,8,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_92,8,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_93,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_94,8,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_95,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_96,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_97,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_98,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_99,8,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_100,8,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_1,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_2,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_3,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_4,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_5,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_6,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_7,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_8,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_9,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_10,9,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_11,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_12,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_13,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_14,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_15,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_16,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_17,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_18,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_19,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_20,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_21,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_22,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_23,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_24,9,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_25,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_26,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_27,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_28,9,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_29,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_30,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_31,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_32,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_33,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_34,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_35,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_36,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_37,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_38,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_39,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_40,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_41,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_42,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_43,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_44,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_45,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_46,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_47,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_48,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_49,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_50,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_51,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_52,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_53,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_54,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_55,9,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_56,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_57,9,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_58,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_59,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_60,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_61,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_62,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_63,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_64,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_65,9,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_66,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_67,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_68,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_69,9,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_70,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_71,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_72,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_73,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_74,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_75,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_76,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_77,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_78,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_79,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_80,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_81,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_82,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_83,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_84,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_85,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_86,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_87,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_88,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_89,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_90,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_91,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_92,9,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_93,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_94,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_95,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_96,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_97,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_98,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_99,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_100,9,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_1,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_2,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_3,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_4,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_5,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_6,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_7,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_8,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_9,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_10,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_11,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_12,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_13,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_14,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_15,10,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_16,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_17,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_18,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_19,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_20,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_21,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_22,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_23,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_24,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_25,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_26,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_27,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_28,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_29,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_30,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_31,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_32,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_33,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_34,10,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_35,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_36,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_37,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_38,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_39,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_40,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_41,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_42,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_43,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_44,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_45,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_46,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_47,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_48,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_49,10,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_50,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_51,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_52,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_53,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_54,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_55,10,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_56,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_57,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_58,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_59,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_60,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_61,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_62,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_63,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_64,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_65,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_66,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_67,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_68,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_69,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_70,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_71,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_72,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_73,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_74,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_75,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_76,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_77,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_78,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_79,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_80,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_81,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_82,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_83,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_84,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_85,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_86,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_87,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_88,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_89,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_90,10,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_91,10,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_92,10,buy_insurance,Only Flood Insurance,False,True,False,SAMPLED
+Agent_93,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_94,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_95,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_96,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_97,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_98,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_99,10,do_nothing,Do Nothing,False,False,False,SAMPLED
+Agent_100,10,do_nothing,Do Nothing,False,False,False,SAMPLED

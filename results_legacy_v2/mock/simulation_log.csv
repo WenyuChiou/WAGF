@@ -1,0 +1,7 @@
+agent_id,year,decision,raw_skill,outcome,elevated,has_insurance,relocated
+Agent_1,1,Only Flood Insurance,nothing,APPROVED,False,True,False
+Agent_2,1,Only Flood Insurance,nothing,APPROVED,False,True,False
+Agent_3,1,Do Nothing,nothing,APPROVED,False,False,False
+Agent_1,2,Only Flood Insurance,nothing,APPROVED,False,True,False
+Agent_2,2,Only Flood Insurance,nothing,APPROVED,False,True,False
+Agent_3,2,Do Nothing,nothing,APPROVED,False,False,False

@@ -1,14 +1,12 @@
-# =============================================================================
-# Skill Registry for v2-2 Clean Experiment
-# =============================================================================
-# Defines available skills for flood adaptation decisions.
-# This is the experiment-specific skill configuration.
+# Flood Adaptation Skill Registry
+# This YAML file defines all available skills for the flood adaptation scenario.
+# It serves as the "institutional charter" - NOT a prompt, but a governance config.
 
 skills:
   - skill_id: buy_insurance
-    description: "Purchase flood insurance for financial protection"
+    description: "Purchase flood insurance for financial protection against flood damage"
     eligible_agent_types: ["*"]
-    preconditions: []
+    preconditions: []  # Can renew annually
     institutional_constraints:
       annual: true
       cost_type: "recurring"
@@ -17,13 +15,14 @@ skills:
     implementation_mapping: "sim.buy_insurance"
 
   - skill_id: elevate_house
-    description: "Elevate house structure to reduce flood damage"
+    description: "Elevate house structure to prevent physical flood damage"
     eligible_agent_types: ["*"]
     preconditions:
       - "not elevated"
     institutional_constraints:
       once_only: true
       cost_type: "one_time"
+      requires_grant: false
     allowed_state_changes:
       - elevated
     implementation_mapping: "sim.elevate"

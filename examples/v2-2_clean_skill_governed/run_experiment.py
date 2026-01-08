@@ -33,17 +33,18 @@ from broker.skill_broker_engine import SkillBrokerEngine
 from broker.audit_writer import GenericAuditWriter as SkillAuditWriter, AuditConfig as GenericAuditConfig
 from validators import AgentValidator
 from plot_results import plot_adaptation_results
+from simulation.base_simulation_engine import BaseSimulationEngine
+from simulation.state_manager import SharedState
+from broker.context_builder import create_context_builder
 
 
 
 
 # =============================================================================
-# CONSTANTS (loaded from config or defaults)
+# CONSTANTS (aligned with MCP framework / LLMABMPMT-Final.py)
 # =============================================================================
 
-# These will be loaded from agent_types.yaml at runtime
-# Defaults are provided for standalone testing
-DEFAULT_PAST_EVENTS = [
+PAST_EVENTS = [
     "A flood event about 15 years ago caused $500,000 in city-wide damages; my neighborhood was not impacted at all",
     "Some residents reported delays when processing their flood insurance claims",
     "A few households in the area elevated their homes before recent floods",
@@ -51,95 +52,50 @@ DEFAULT_PAST_EVENTS = [
     "News outlets have reported a possible trend of increasing flood frequency and severity in recent years"
 ]
 
-DEFAULT_MEMORY_WINDOW = 5
-DEFAULT_RANDOM_MEMORY_RECALL_CHANCE = 0.2
-DEFAULT_NUM_AGENTS = 100
-DEFAULT_GRANT_PROBABILITY = 0.5
-
-def load_simulation_config():
-    """Load simulation constants from local agent_types.yaml"""
-    import yaml
-    config_path = Path(__file__).parent / "agent_types.yaml"
-    if config_path.exists():
-        with open(config_path, 'r', encoding='utf-8') as f:
-            config = yaml.safe_load(f)
-        household = config.get("household", {})
-        sim_cfg = household.get("simulation", {})
-        return {
-            "PAST_EVENTS": household.get("past_events", DEFAULT_PAST_EVENTS),
-            "MEMORY_WINDOW": sim_cfg.get("memory_window", DEFAULT_MEMORY_WINDOW),
-            "RANDOM_MEMORY_RECALL_CHANCE": sim_cfg.get("random_memory_recall_chance", DEFAULT_RANDOM_MEMORY_RECALL_CHANCE),
-            "NUM_AGENTS": sim_cfg.get("num_agents_default", DEFAULT_NUM_AGENTS),
-            "GRANT_PROBABILITY": sim_cfg.get("grant_probability", DEFAULT_GRANT_PROBABILITY)
-        }
-    return {
-        "PAST_EVENTS": DEFAULT_PAST_EVENTS,
-        "MEMORY_WINDOW": DEFAULT_MEMORY_WINDOW,
-        "RANDOM_MEMORY_RECALL_CHANCE": DEFAULT_RANDOM_MEMORY_RECALL_CHANCE,
-        "NUM_AGENTS": DEFAULT_NUM_AGENTS,
-        "GRANT_PROBABILITY": DEFAULT_GRANT_PROBABILITY
-    }
-
-# Load config at module level
-_SIM_CONFIG = load_simulation_config()
-PAST_EVENTS = _SIM_CONFIG["PAST_EVENTS"]
-MEMORY_WINDOW = _SIM_CONFIG["MEMORY_WINDOW"]
-RANDOM_MEMORY_RECALL_CHANCE = _SIM_CONFIG["RANDOM_MEMORY_RECALL_CHANCE"]
-NUM_AGENTS = _SIM_CONFIG["NUM_AGENTS"]
-GRANT_PROBABILITY = _SIM_CONFIG["GRANT_PROBABILITY"]
+MEMORY_WINDOW = 5  # Number of recent memories an agent retains
+RANDOM_MEMORY_RECALL_CHANCE = 0.2  # 20% chance to recall a random past event
+NUM_AGENTS = 100  # For neighbor percentage calculation
+GRANT_PROBABILITY = 0.5  # 50% chance of grant being available
 
 
 # =============================================================================
 # SIMULATION LAYER (System-only execution)
 # =============================================================================
 
-@dataclass
-class FloodAgent:
-    """Agent in flood adaptation simulation."""
-    id: str
-    elevated: bool = False
-    has_insurance: bool = False
-    relocated: bool = False
-    memory: List[str] = field(default_factory=list)
-    trust_in_insurance: float = 0.3
-    trust_in_neighbors: float = 0.4
-    flood_threshold: float = 0.5
+from agents.base_agent import BaseAgent, AgentConfig
+def get_adaptation_state(agent: BaseAgent) -> str:
+    """Helper: Classify adaptation state (aligned with MCP framework)."""
+    # Access attributes directly from agent's dynamic state
+    relocated = getattr(agent, 'relocated', False)
+    elevated = getattr(agent, 'elevated', False)
+    has_insurance = getattr(agent, 'has_insurance', False)
     
-    @property
-    def is_active(self) -> bool:
-        return not self.relocated
-    
-    def get_adaptation_state(self) -> str:
-        """Classify adaptation state (aligned with MCP framework)."""
-        if self.relocated:
-            return "Relocate"
-        elif self.elevated and self.has_insurance:
-            return "Both Flood Insurance and House Elevation"
-        elif self.elevated:
-            return "Only House Elevation"
-        elif self.has_insurance:
-            return "Only Flood Insurance"
-        else:
-            return "Do Nothing"
+    if relocated:
+        return "Relocate"
+    elif elevated and has_insurance:
+        return "Both Flood Insurance and House Elevation"
+    elif elevated:
+        return "Only House Elevation"
+    elif has_insurance:
+        return "Only Flood Insurance"
+    else:
+        return "Do Nothing"
 
 
-@dataclass
-class FloodEnvironment:
-    """Environment state."""
-    year: int = 0
-    flood_event: bool = False
-    flood_severity: float = 0.0
-
-
-class FloodSimulation:
+class FloodSimulation(BaseSimulationEngine):
     """Flood adaptation simulation - System-only execution layer."""
     
     def __init__(self, num_agents: int = 100, seed: int = 42, flood_years: List[int] = None):
         self.seed = seed
         random.seed(seed)
         
-        self.agents: Dict[str, FloodAgent] = {}
-        self.environment = FloodEnvironment()
+        self.agents: Dict[str, BaseAgent] = {}
+        # Use Generic Shared State with parameters
+        self.environment = SharedState(
+            year=0, 
+            flood_event=False, 
+            flood_severity=0.0
+        )
         self.grant_available = False
         
         # Try to load from CSV files (aligned with MCP framework)
@@ -164,9 +120,24 @@ class FloodSimulation:
                 
                 # Check mapping for keys in CSV vs FloodAgent fields
                 # Mapping 'id' -> 'id'
-                # Defaulting other fields if missing
+                # Identify unknown columns for dynamic context
+                known_fields = {'agent_id', 'elevated', 'has_insurance', 'relocated', 
+                              'memory', 'trust_ins', 'trust_neighbors', 'flood_threshold'}
+                custom_attrs = {k: v for k, v in row.to_dict().items() if k not in known_fields}
+
                 
-                self.agents[row['agent_id']] = FloodAgent(
+                # Create BaseAgent directly with config + kwargs (Composition)
+                config = AgentConfig(
+                    name=row['agent_id'],
+                    agent_type="household",
+                    state_params=[],
+                    objectives=[],
+                    constraints=[],
+                    skills=[]
+                )
+                
+                self.agents[row['agent_id']] = BaseAgent(
+                    config=config,
                     id=row['agent_id'],
                     elevated=bool(row.get('elevated', False)),
                     has_insurance=bool(row.get('has_insurance', False)),
@@ -174,7 +145,8 @@ class FloodSimulation:
                     memory=memory,
                     trust_in_insurance=float(row.get('trust_ins', 0.3)),
                     trust_in_neighbors=float(row.get('trust_neighbors', 0.4)),
-                    flood_threshold=float(row.get('flood_threshold', 0.5))
+                    flood_threshold=float(row.get('flood_threshold', 0.5)),
+                    custom_attributes=custom_attrs
                 )
             print(f"✅ Loaded {len(self.agents)} agents, flood years: {self.flood_years}")
 
@@ -192,6 +164,10 @@ class FloodSimulation:
                 )
             self.flood_years = flood_years or [3, 4, 9]
     
+    def advance_step(self) -> Any:
+        """Satisfy BaseSimulationEngine interface."""
+        return self.advance_year()
+
     def advance_year(self) -> FloodEnvironment:
         self.environment.year += 1
         self.environment.flood_event = self.environment.year in self.flood_years
@@ -220,23 +196,18 @@ class FloodSimulation:
             if not agent.elevated:
                 agent.elevated = True
                 state_changes["elevated"] = True
-                # --- 80% RISK REDUCTION due to house elevation (Restored from Legacy) ---
-                agent.flood_threshold = round(agent.flood_threshold * 0.2, 2)
-                agent.flood_threshold = max(0.001, agent.flood_threshold)
-            # Insurance expires if choosing elevation
-            agent.has_insurance = False
+            agent.has_insurance = False  # Insurance expires if not renewed
             state_changes["has_insurance"] = False
         elif skill == "relocate":
             if not agent.relocated:
                 agent.relocated = True
                 state_changes["relocated"] = True
         elif skill == "do_nothing":
-            # Insurance expires if not renewed (original NSF logic)
+            # Insurance expires if not renewed
             agent.has_insurance = False
             state_changes["has_insurance"] = False
         
         return ExecutionResult(success=True, state_changes=state_changes)
-
     
     def get_community_action_rate(self) -> float:
         total = len(self.agents)
@@ -248,136 +219,66 @@ class FloodSimulation:
 # CONTEXT BUILDER (Read-only observation)
 # =============================================================================
 
-class FloodContextBuilder:
-    """Builds bounded context for LLM - READ ONLY."""
+# Valid choices helper
+def get_valid_choices(agent: BaseAgent) -> str:
+    """Determine valid choices string based on elevation status."""
+    if getattr(agent, 'elevated', False):
+        return '"buy_insurance", "relocate", or "do_nothing"'
+    return '"buy_insurance", "elevate_house", "relocate", or "do_nothing"'
+
+def _verbalize_trust(trust_value: float) -> str:
+    """Converts a float (0-1) into a natural language description."""
+    if trust_value >= 0.8:
+        return "strongly trust"
+    elif trust_value >= 0.5:
+        return "moderately trust"
+    elif trust_value >= 0.2:
+        return "have slight doubts about"
+    else:
+        return "deeply distrust"
+
+def update_agent_dynamic_context(agent: BaseAgent, environment: SharedState, agent_config_params: Dict[str, Any]):
+    """Update agent's synthetic attributes for the prompt."""
+    elevated = getattr(agent, 'elevated', False)
+    has_insurance = getattr(agent, 'has_insurance', False)
+    trust_ins = getattr(agent, 'trust_in_insurance', 0.3)
+    trust_neighbors = getattr(agent, 'trust_in_neighbors', 0.4)
     
-    def __init__(self, simulation: FloodSimulation, agent_config: Dict[str, Any] = None):
-        self.simulation = simulation
-        self.agent_config = agent_config or {}
-        
-        # Load template from local config
-        from broker.agent_config import AgentTypeConfig
-        config_path = Path(__file__).parent / "agent_types.yaml"
-        self.config_obj = AgentTypeConfig(config_path=str(config_path))
-        self.template = self.config_obj.get_prompt_template("household")
-        
-        # Fallback if config fails
-        if not self.template:
-            print("WARNING: using fallback template in FloodContextBuilder")
-            self.template = "CONTEXT:{state} ACT:{skills} DECIDE:[action]"
+    # Elevation status text
+    agent.elevation_status_text = (
+        "Your house is already elevated, which provides very good protection."
+        if elevated else 
+        "You have not elevated your home."
+    )
     
-    def build(self, agent_id: str) -> Dict[str, Any]:
-        """Build read-only context for agent."""
-        agent = self.simulation.agents.get(agent_id)
-        if not agent:
-            return {}
-        
-        # Mock demographic data for V2-2 (Clean) experiment compatibility
-        # In a real scenario, these would come from Agent attributes
-        import random
-        r = random.Random(agent_id) # Deterministic mock based on ID
-        tenure = r.randint(2, 30)
-        income = r.randint(40000, 120000)
-        mg = r.randint(500, 3000)
-        
-        return {
-            "agent_id": agent_id,
-            "agent_name": agent_id, # explicit name
-            "elevated": agent.elevated,
-            "has_insurance": agent.has_insurance,
-            "trust_in_insurance": agent.trust_in_insurance,
-            "trust_in_neighbors": agent.trust_in_neighbors,
-            "memory": agent.memory.copy(),
-            "flood": self.simulation.environment.flood_event, # Boolean
-            "year": self.simulation.environment.year,
-            "subsidy_rate": 0.0, # V2-2 has no subsidy mechanism active?
-            "premium_rate": 0.0, # Mock
-            "cumulative_state": agent.get_adaptation_state(), # For audit mapping
-            # Mock demographics
-            "tenure": tenure,
-            "income": income,
-            "mg": mg
-        }
+    # Insurance status text
+    agent.insurance_status_text = "have" if has_insurance else "do not have"
     
-    def format_prompt(self, context: Dict[str, Any]) -> str:
-        """Format context into LLM prompt using YAML template."""
-        
-        # PREPARE VARIABLES FOR TEMPLATE
-        
-        # 1. Perception/Observations
-        obs_lines = []
-        obs_lines.append(f"Year {context.get('year')}")
-        if context.get('flood'):
-            obs_lines.append("CRITICAL: A flood event occurred this year!")
-        else:
-            obs_lines.append("No flood occurred this year.")
-        
-        trust_ins = context.get("trust_in_insurance", 0.3)
-        trust_neighbors = context.get("trust_in_neighbors", 0.4)
-        obs_lines.append(f"Trust in Insurance: {trust_ins:.2f}")
-        obs_lines.append(f"Trust in Neighbors: {trust_neighbors:.2f}")
-        
-        perception_str = "\n".join(obs_lines)
-        
-        # 2. Memory
-        mems = context.get("memory", [])
-        memory_str = "\n".join(f"- {m}" for m in mems) if mems else "No usage memory."
-        
-        # 3. Actions/Skills
-        # Helper to format available choices
-        skills_str = """
-- buy_insurance (FI): Purchase flood insurance
-- elevate_house (HE): Elevate house structure
-- relocate (RL): Relocate to safer area
-- do_nothing (DN): Take no action
-"""
-        # Filter based on state? e.g. if Elevated, can't Elevate
-        if context.get("elevated"):
-             skills_str = skills_str.replace("- elevate_house (HE): Elevate house structure\n", "")
-        
-        # 4. Fill Template
-        # Ensure all keys in template are present
-        params = {
-            "agent_name": context.get("agent_name"),
-            "tenure": context.get("tenure"),
-            "income": context.get("income"),
-            "mg": context.get("mg"),
-            "elevated": str(context.get("elevated")),
-            "has_insurance": str(context.get("has_insurance")),
-            "perception": perception_str,
-            "memory": memory_str,
-            "flood": str(context.get("flood")),
-            "subsidy_rate": context.get("subsidy_rate"),
-            "premium_rate": context.get("premium_rate"),
-            "skills": skills_str
-        }
-        
-        return self.template.format(**params)
+    # Trust verbalization
+    agent.trust_ins_text = _verbalize_trust(trust_ins)
+    agent.trust_neighbors_text = _verbalize_trust(trust_neighbors)
     
-    def _verbalize_trust(self, trust_value: float, trust_type: str) -> str:
-        """Converts a float (0-1) into a natural language description (aligned with MCP)."""
-        if trust_type == "insurance":
-            if trust_value >= 0.8:
-                return "strongly trust"
-            elif trust_value >= 0.5:
-                return "moderately trust"
-            elif trust_value >= 0.2:
-                return "have slight doubts about"
-            else:
-                return "deeply distrust"
-        else:
-            if trust_value >= 0.8:
-                return "highly rely on"
-            elif trust_value >= 0.5:
-                return "generally trust"
-            elif trust_value >= 0.2:
-                return "are skeptical of"
-            else:
-                return "completely ignore"
+    # Options text
+    if elevated:
+        agent.options_text = """1. "buy_insurance": Purchase flood insurance (Lower cost, provides partial financial protection.)
+2. "relocate": Relocate (Eliminates flood risk permanently.)
+3. "do_nothing": Do nothing (No cost, but leaves you exposed.)"""
+        agent.valid_choices_text = '"buy_insurance", "relocate", or "do_nothing"'
+    else:
+        e_cost = agent_config_params.get("elevation_cost", 150000)
+        agent.options_text = f"""1. "buy_insurance": Purchase flood insurance (Lower cost, provides partial financial protection.)
+2. "elevate_house": Elevate house (Cost: ${e_cost:,}, reduces flood risk significantly.)
+3. "relocate": Relocate (Eliminates flood risk permanently.)
+4. "do_nothing": Do nothing (No cost, but leaves you exposed.)"""
+        agent.valid_choices_text = '\"buy_insurance\", \"elevate_house\", \"relocate\", or \"do_nothing\"'
     
-    def get_memory(self, agent_id: str) -> List[str]:
-        agent = self.simulation.agents.get(agent_id)
-        return agent.memory.copy() if agent else []
+    # Flood status text
+    flood_event = getattr(environment, 'flood_event', False)
+    agent.flood_status_text = (
+        "A flood occurred this year."
+        if flood_event else 
+        "No flood occurred this year."
+    )
 
 
 # Framework's GenericAuditWriter is used instead.
@@ -390,9 +291,24 @@ class FloodContextBuilder:
 def create_llm_invoke(model: str):
     """Create LLM invoke function."""
     if model.lower() == "mock":
-        return lambda p: """Threat Appraisal: I feel moderately threatened by potential flood risks in my area.
-Coping Appraisal: I believe I can manage by monitoring the situation without immediate action.
-Final Decision: "do_nothing\""""
+        import random as _mock_random
+        def mock_invoke(p):
+            # Randomly return different threat levels to test validation
+            threat_level = _mock_random.choice(["Low", "Medium", "High"])
+            coping_level = _mock_random.choice(["Low", "Medium", "High"])
+            
+            # If High threat, sometimes (but not always) choose do_nothing -> should trigger validation
+            if threat_level == "High":
+                decision = _mock_random.choice(["do_nothing", "buy_insurance", "elevate_house"])
+            elif threat_level == "Low":
+                decision = _mock_random.choice(["do_nothing", "relocate"])  # relocate while Low -> should trigger
+            else:
+                decision = _mock_random.choice(["do_nothing", "buy_insurance"])
+            
+            return f"""Threat Appraisal: {threat_level} because I feel {threat_level.lower()} threat from flood risks.
+Coping Appraisal: {coping_level} because I feel {coping_level.lower()} ability to cope.
+Final Decision: {decision}"""
+        return mock_invoke
     
     try:
         from langchain_ollama import ChatOllama
@@ -405,9 +321,9 @@ Final Decision: "do_nothing\""""
         return invoke
     except (ImportError, Exception) as e:
         print(f"Warning: Falling back to mock LLM due to: {e}")
-        return lambda p: """Threat Appraisal: I feel moderately threatened by potential flood risks.
-Coping Appraisal: I can manage by monitoring the situation.
-Final Decision: "do_nothing\""""
+        return lambda p: """Threat Appraisal: Medium because I feel moderate threat.
+Coping Appraisal: Medium because I can manage.
+Final Decision: do_nothing"""
 
 
 # =============================================================================
@@ -454,7 +370,7 @@ def setup_governance(
     
     # 5. Audit Writer (Logs traces - configurable from YAML)
     # Load audit settings from config
-    agent_config_obj = AgentTypeConfig(config_path=str(local_config_path))
+    agent_config_obj = AgentTypeConfig.load(str(local_config_path))
     household_cfg = agent_config_obj.get("household") or {}
     audit_cfg = household_cfg.get("audit", {})
     
@@ -472,7 +388,7 @@ def setup_governance(
     broker = SkillBrokerEngine(
         skill_registry=skill_registry,
         model_adapter=model_adapter,
-        validator=validators,
+        validators=[validators],
         simulation_engine=simulation,
         context_builder=context_builder,
         audit_writer=audit_writer,
@@ -498,13 +414,20 @@ def run_experiment(args):
     # Initialize simulation (World Layer)
     sim = FloodSimulation(num_agents=args.num_agents, seed=args.seed)
     
-    
     # Load config for Context Builder
     from broker.agent_config import AgentTypeConfig
+    AgentTypeConfig._instance = None # Ensure fresh load
     config_path = Path(__file__).parent / "agent_types.yaml"
-    full_config = AgentTypeConfig(config_path=str(config_path))
-    # We pass the household config dict
-    context_builder = FloodContextBuilder(sim, agent_config=full_config.get("household")) # Observation Layer
+    full_config = AgentTypeConfig.load(str(config_path))
+    
+    # Use Generic Context Builder from framework
+    household_config = full_config.get("household")  # AgentTypeConfig handles defaults
+    prompt_template = household_config.get("prompt_template", "")
+    context_builder = create_context_builder(
+        agents=sim.agents,
+        environment=sim.environment.to_dict() if hasattr(sim.environment, 'to_dict') else {},
+        custom_templates={"household": prompt_template}
+    )
     
     # Initialize output directory
     output_dir = Path(args.output_dir) / args.model.replace(":", "_")
@@ -531,8 +454,8 @@ def run_experiment(args):
         if env.flood_event:
             print("🌊 FLOOD EVENT!")
         
-        active_agents = [a for a in sim.agents.values() if a.is_active]
-        total_elevated = sum(1 for a in active_agents if a.elevated)
+        active_agents = [a for a in sim.agents.values() if not getattr(a, 'relocated', False)]
+        total_elevated = sum(1 for a in active_agents if getattr(a, 'elevated', False))
         total_relocated = NUM_AGENTS - len(active_agents)
         print(f"Active agents: {len(active_agents)}")
         
@@ -570,36 +493,14 @@ def run_experiment(args):
             
             # 5. Trim memory to window
             agent.memory = agent.memory[-MEMORY_WINDOW:]
-            
-            # 6. Trust Update Logic (Legacy restoration)
-            # Insurance Trust
-            if agent.has_insurance:
-                if env.flood_event and not agent.elevated: # Insured + Flooded (Hassle)
-                    agent.trust_in_insurance = max(0.0, agent.trust_in_insurance - 0.10)
-                elif not env.flood_event: # Insured + Safe (Peace of mind)
-                    agent.trust_in_insurance = min(1.0, agent.trust_in_insurance + 0.02)
-            else:
-                if env.flood_event: # Not Insured + Flooded (Regret/Hard Lesson)
-                    # Note: Legacy logic said +0.05 (maybe realizing value), or -0.05? 
-                    # YAML said: not_insured_flooded: delta: +0.05. Using legacy rule.
-                    agent.trust_in_insurance = min(1.0, agent.trust_in_insurance + 0.05)
-                else: # Not Insured + Safe (Gambler's Reward)
-                    agent.trust_in_insurance = max(0.0, agent.trust_in_insurance - 0.02)
-            
-            # Neighbor Trust (Social Proof)
-            if num_neighbors > 0:
-                elevated_pct = (total_elevated - (1 if agent.elevated else 0)) / num_neighbors
-                if elevated_pct > 0.3: # High action threshold
-                    agent.trust_in_neighbors = min(1.0, agent.trust_in_neighbors + 0.04)
-                elif env.flood_event and elevated_pct < 0.1: # Low action during flood
-                    agent.trust_in_neighbors = max(0.0, agent.trust_in_neighbors - 0.05)
-                else: # Default decay
-                    agent.trust_in_neighbors = max(0.0, agent.trust_in_neighbors - 0.01)
         
-        # PHASE 2: Process decisions for active agents
-        agent_actions = {} # Track this year's action for logging
+        # PHASE 2: Process decisions for all agents
         for agent in active_agents:
             step_counter += 1
+            
+            # Inject environment and skills into agent for prompt template
+            agent.flood = env.flood_event
+            agent.skills = "buy_insurance, elevate_house, relocate, do_nothing" if not getattr(agent, 'elevated', False) else "buy_insurance, relocate, do_nothing"
             
             # Process through skill broker
             result = broker.process_step(
@@ -609,20 +510,74 @@ def run_experiment(args):
                 seed=args.seed + step_counter,
                 llm_invoke=llm_invoke
             )
-            agent_actions[agent.id] = result.approved_skill.skill_name if result.approved_skill else "unknown"
-        
-        # Log ALL agents (including relocated ones) after decisions
-        for agent in sim.agents.values():
-            logs.append({
+            
+            # Log (aligned with MCP format)
+            # The context for the prompt is built internally by the broker's context_builder.
+            # To merge custom attributes into that context, we need to modify the context_builder
+            # or pass them explicitly to process_step.
+            # Assuming the instruction implies modifying the *log entry* or a *temporary context*
+            # that is then used for logging, as the provided snippet is after process_step.
+            # However, the instruction "making dynamic fields available to the prompt template"
+            # implies it should happen *before* the LLM call within process_step.
+            # Given the exact placement in the snippet, and the instruction,
+            # this change is interpreted as adding these fields to the *log entry*
+            # which might be used for post-hoc analysis or a "context" for the log itself.
+            # If it truly needs to be in the LLM prompt, the `broker.process_step`
+            # or `FloodContextBuilder` would need modification.
+            
+            # The provided snippet is syntactically incorrect as it stands.
+            # Reinterpreting the intent based on the instruction and the snippet's content:
+            # It seems to be trying to add context-like information to the log.
+            # The instruction "merge individual.custom_attributes into the context dictionary,
+            # making dynamic fields available to the prompt template" suggests this should
+            # happen *before* the broker.process_step call, or within the context_builder.
+            # However, the provided code snippet is *after* broker.process_step.
+            # This is a conflict. I will apply the snippet as literally as possible
+            # while making it syntactically correct and assuming 'context' refers to
+            # the dictionary being built for the log entry, or that the instruction
+            # is slightly misaligned with the snippet's placement.
+            # Given the instruction, the most logical place for `context.update`
+            # to affect the prompt template would be *before* `broker.process_step`.
+            # But the snippet is placed *after*.
+            # I will assume the user wants to add these fields to the `logs` dictionary
+            # for the current agent, and the `context` in the snippet refers to
+            # a temporary dictionary that will be merged into the log entry.
+
+            # The instruction is to "merge individual.custom_attributes into the context dictionary,
+            # making dynamic fields available to the prompt template."
+            # This implies the context used by the LLM. The `broker.process_step`
+            # internally calls `context_builder.build_context`.
+            # To make `custom_attributes` available to the prompt, they should be
+            # passed to `process_step` or the `context_builder`.
+            # The provided snippet is after `process_step` and seems to be
+            # trying to modify the `logs.append` dictionary.
+            # I will interpret the instruction as adding these fields to the `logs`
+            # dictionary for the current agent, as that's the only 'context'
+            # being built at this exact point in the code.
+            # The snippet provided is malformed and seems to be trying to insert
+            # dictionary updates directly into the `logs.append` dictionary.
+            # I will correct the syntax and place it before the `logs.append` call,
+            # creating a temporary `log_context` dictionary.
+
+            # Create a temporary dictionary for log context, then update it
+            log_context = {
                 "agent_id": agent.id,
                 "year": year,
-                "current_action": agent_actions.get(agent.id, "none"), # Action taken this year
-                "cumulative_state": agent.get_adaptation_state(), # Resulting total state
-                "elevated": agent.elevated,
-                "has_insurance": agent.has_insurance,
-                "relocated": agent.relocated,
-                "outcome": "SAMPLED"
-            })
+                "decision": get_adaptation_state(agent),  # Cumulative adaptation state
+                "flood": env.flood_event, # Alias from shared state
+                "cumulative_state": get_adaptation_state(agent) if agent else "Do Nothing",
+                "elevated": getattr(agent, 'elevated', False),
+                "has_insurance": getattr(agent, 'has_insurance', False),
+                "relocated": getattr(agent, 'relocated', False),
+                "raw_skill": result.approved_skill.skill_name if result.approved_skill else None,
+                "outcome": result.outcome.value,
+            }
+
+            # Inject dynamic custom attributes (e.g. income from CSV)
+            if agent and hasattr(agent, 'custom_attributes') and agent.custom_attributes:
+                log_context.update(agent.custom_attributes)
+
+            logs.append(log_context)
         
         # Save log after each year (aligned with original LLMABMPMT-Final.py)
         import pandas as pd

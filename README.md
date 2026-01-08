@@ -33,31 +33,11 @@ The Governed Broker Framework provides a **skill-governed architecture** for bui
 
 | Challenge | Problem | Solution | Component |
 |-----------|---------|----------|-----------|
-| **Hallucination** | LLM generates invalid actions | Skill Registry restricts to registered skills | `SkillRegistry` |
-| **Inconsistent Decisions** | Illogical or contradictory choices | Multi-stage validators check config-driven rules | `Validators` |
-| **Domain Leakage** | Hardcoded logic in core layers | Config-driven orchestration & generic base classes | `Core Engine` |
-| **No Traceability** | Cannot reproduce decisions | Complete audit trail with timestamps | `AuditWriter` |
-| **Uncontrolled State** | Direct state mutation | State Manager controls all updates | `StateManager` |
-
----
-
-## Framework vs. User Extension
-
-To maintain a clean separation of concerns, the project is divided into **Framework Core** (generic logic) and **User Extension** (domain-specific logic).
-
-### 🛠️ Framework Core (Do Not Modify)
-These modules provide the generic orchestration and should remain domain-agnostic:
-- **`broker/`**: Core registration, parsing, context building, and audit logic.
-- **`simulation/`**: Generic multi-level state management and simulation loops.
-- **`providers/`**: LLM connectivity (Ollama, OpenAI, etc.).
-- **`validators/`**: The base `AgentValidator` engine.
-
-### 🎨 User Extension (Customizable)
-These areas are where users implement their specific simulation domain:
-- **`broker/agent_types.yaml`**: Define your agent profiles, skills, and behavior parameters.
-- **`validators/coherence_rules.yaml`**: Define domain-specific consistency and safety rules.
-- **`examples/`**: Your experiment-specific agent implementations, environment models, and data.
-- **`data/*.csv`**: Your agent population data and demographics.
+| **Hallucination** | LLM generates invalid/non-existent actions | Skill Registry restricts to registered skills only | `SkillRegistry` |
+| **Asymmetric Information** | LLM lacks state awareness, makes infeasible decisions | Context Builder provides bounded observable state | `ContextBuilder` |
+| **Inconsistent Decisions** | Contradictory or illogical choices | Multi-stage validators check PMT consistency | `Validators` |
+| **No Traceability** | Cannot reproduce or audit decisions | Complete audit trail with timestamps | `AuditWriter` |
+| **Uncontrolled State Mutation** | Direct, unvalidated state changes | State Manager controls all state updates | `StateManager` |
 
 ---
 
@@ -193,11 +173,12 @@ python run_experiment.py --model llama3.2:3b --num-agents 100 --num-years 10
 | Directory | Version | Experiment | Status |
 |-----------|---------|------------|--------|
 | `examples/v2_skill_governed/` | **Skill-Governed (v2)** | Exp 10 | ✅ Recommended |
+| `examples/v1_mcp_flood/` | MCP (v1) | Exp 9 | ⚠️ DEPRECATED |
 | `broker/legacy/` | Legacy broker components | - | ⚠️ DEPRECATED |
 
-> **Note**: `examples/v1_mcp_flood/` has been removed. Use `v2` for all new experiments.
+> **Note**: Use `v2_skill_governed/` for all new experiments. Legacy code is in `broker/legacy/`.
 
-See [examples/README.md](examples/README.md) for detailed examples.
+See [examples/README.md](examples/README.md) for detailed version comparison.
 
 ---
 
@@ -217,75 +198,6 @@ See [examples/README.md](examples/README.md) for detailed examples.
 | **ContextBuilder** | `context_builder.py` | 👁️ Builds bounded context for agents |
 | **Memory** | `memory.py` | 🧠 Working + Episodic memory with consolidation |
 | **AuditWriter** | `audit_writer.py` | 📊 Complete audit trail for reproducibility |
-| **GenericAuditWriter** | `generic_audit_writer.py` | 📊 Agent-agnostic audit logging (Dict-based) |
-#### Agent Type Configuration (`broker/agent_types.yaml`)
-
-All agent settings are externalized to a **unified YAML configuration**. This allows changing agent behavior without modifying Python code.
-
-```yaml
-household:
-  # Valid skills for this agent type
-  actions: 
-    - id: buy_insurance
-      aliases: ["Purchase Insurance"]
-    - id: do_nothing
-  
-  # Domain-specific parameters accessed via get_parameters()
-  parameters:
-    income_threshold: 40000
-    damage_threshold: 0.1
-    
-  # PMT Theory constructs for validation
-  constructs: [TP, CP, SP, SC, PA]
-```
-
-#### Generic AgentValidator (`validators/agent_validator.py`)
-
-The framework uses a **metadata-driven** validation system. Rules are configured in `agent_types.yaml` and `coherence_rules.yaml`.
-
-| Category | Fields |
-|----------|--------|
-| **Core** | `agent_id`, `mg`, `tenure`, `income` |
-| **Trust** | `trust_gov`, `trust_ins`, `trust_neighbors` |
-| **Demographics** | `household_size`, `generations`, `has_vehicle`, `age_of_head`, ... |
-
-> Any additional CSV columns are automatically loaded. See `get_schema_info("household")` for full schema.
-
-#### Context Engineering Flow
-
-The framework follows a structured pipeline to ensure high-fidelity context for LLMs:
-
-```mermaid
-graph TD
-    A[Excel/CSV Data] -->|DataLoader| B[Agent Dicts]
-    B -->|Initialization| C[Agent.state]
-    C -->|ContextBuilder| D[ContextPacket]
-    D -->|0-1 Normalization| E[LLM Prompt]
-    E -->|Ollama/OpenAI| F[LLM Response]
-```
-
-1.  **DataLoader**: Reads extensible demographics (e.g., `household_size`, `generations`) from CSV.
-2.  **State Mapping**: `HouseholdAgent` maps these to normalized fields (e.g., `income` → `income_norm`).
-3.  **ContextBuilder**: Dynamically populates YAML prompt templates using the agent's state.
-4.  **Prompt Format**: Variables like `{household_size}` are automatically injected from the agent's state.
-
-#### Parameter Normalization Guide
-
-Most trust and state parameters should be normalized to **0.0-1.0** range:
-
-| Parameter | Min | Max | MG Typical | NMG Typical |
-|-----------|-----|-----|------------|-------------|
-| `income` | $20,000 | $150,000 | $35,000 | $75,000 |
-| `property_value` | $0 | $500,000 | $220,000 | $350,000 |
-| `trust_*` | 0.0 | 1.0 | LOW=0.3, MED=0.5, HIGH=0.7 |
-| `generations` | 1 | 5 | Owner: 2, Renter: 1 |
-| `household_size` | 1 | 10 | 3 |
-
-```python
-from broker.data_loader import get_normalization_guide
-print(get_normalization_guide())
-```
-
 
 ### State Layer (`simulation/`)
 
@@ -307,88 +219,45 @@ print(get_normalization_guide())
 
 | Component | File | Description |
 |-----------|------|-------------|
-| **AgentValidator** | `agent_validator.py` | 🎯 Generic validator for all agent types |
 | `BaseValidator` | `base.py` | Abstract validator interface |
-| `coherence_rules.yaml` | Config | Configurable PMT coherence rules |
+| `SkillValidators` | `skill_validators.py` | Configurable validators (see below) |
+| `ValidatorFactory` | `factory.py` | Dynamic validator loading from YAML |
 
-#### Generic AgentValidator
+#### Validation Pipeline Details
 
-The framework uses a **label-based** validation system. Rules are configured per `agent_type`:
+Each SkillProposal passes through a **configurable validation pipeline**:
 
-```python
-from validators.agent_validator import AgentValidator
-
-validator = AgentValidator()
-
-# Validate any agent type
-results = validator.validate(
-    agent_type="insurance",
-    agent_id="InsuranceCo",
-    decision=proposal,
-    state=current_state
-)
+```
+SkillProposal → [Validator 1] → [Validator 2] → ... → [Validator N] → Execution
+                    ↓               ↓                    ↓
+               If FAIL → Reject with reason, fallback to default skill
 ```
 
-#### Validation Rules (per Agent Type)
+#### Built-in Validator Types
 
-```python
-# Configured in validators/agent_validator.py
-VALIDATION_RULES = {
-    "insurance": {
-        "rate_bounds": {"param": "premium_rate", "min": 0.02, "max": 0.15},
-        "solvency_floor": {"param": "solvency", "min": 0.0}
-    },
-    "government": {
-        "subsidy_bounds": {"param": "subsidy_rate", "min": 0.20, "max": 0.95},
-        "budget_reserve": {"param": "budget_used", "max": 0.90}
-    },
-    "household": {
-        "valid_decisions": {"values": ["FI", "HE", "BP", "RL", "DN", ...]}
-    }
-}
-```
+| Validator Type | Purpose | When to Use |
+|----------------|---------|-------------|
+| **Admissibility** | Skill registered? Agent eligible? | Always (core) |
+| **Feasibility** | Preconditions met? | When skills have prerequisites |
+| **Constraints** | Institutional rules (once-only, limits) | When enforcing regulations |
+| **Effect Safety** | State changes valid? | When protecting state integrity |
+| **Domain-Specific** | Custom business logic | Define per use case |
 
-#### PMT Coherence Validation (Household)
+> **Key Point**: Validators are **modular and configurable**. Add/remove validators based on your domain requirements.
 
-The validator enforces **Psychological Coherence** by checking if the LLM's **Rating** is consistent with the agent's **Actual State**.
-
-**Output Format**: `EVAL_[Construct]:[Rating] [Explanation]`
-*   Example: `EVAL_TP:[HIGH] Recent local flood damaged my property significantly.`
-
-**Coherence Rules** (Configured in `coherence_rules.yaml`):
-
-| Construct | Reference Field | Condition | Invalid Rating |
-|-----------|-----------------|-----------|----------------|
-| **TP** (Threat) | `cumulative_damage` | High (>0.5) | LOW (L) |
-| **CP** (Coping) | `income` | High (>0.8) | LOW (L) |
-| **SP** (Stakeholder) | `trust_gov` + `trust_ins` | High (>0.7) | LOW (L) |
-| **SC** (Social) | `trust_neighbors` | High (>0.7) | LOW (L) |
-| **PA** (Attachment)| `elevated` OR `insured` | True | NONE |
-
-Validations are logged as `WARNING` or `ERROR` in the audit trail.
-
----
-
-## Customizable Prompts & Audits 🎨
-
-The framework allows you to fully customize how agents perceive and log the world.
-
-### Custom Prompts
-You can override the default `ContextBuilder` or simply edit the `prompt_template` in `agent_types.yaml`:
 ```yaml
-parsing:
-  decision_keywords: ["MY_ACTION:"]
-prompt_template: |
-  My custom prompt for {agent_name}...
-  OUTPUT: MY_ACTION:[action]
-```
-
-### Custom Audit Structure
-You can inherit from `GenericAuditWriter` to implement custom valid logging schemas (e.g., for ELK stack or SQL):
-```python
-class MyCustomAudit(GenericAuditWriter):
-    def format_trace(self, trace: Dict) -> Dict:
-        return {"my_custom_field": "value", **trace}
+# config/validators.yaml - Example Configuration
+validators:
+  - name: admissibility
+    enabled: true       # Core validator, always recommended
+  - name: feasibility
+    enabled: true       # Enable if skills have preconditions
+  - name: constraints
+    enabled: true       # Enable for institutional rules
+  - name: custom_rule   # Your domain-specific validator
+    enabled: true
+    config:
+      threshold: 0.5
 ```
 
 ---

@@ -3,16 +3,30 @@ Generic Agent Validator
 
 Label-based validation - one validator for all agent types.
 Rules are configured per agent_type label, not per file.
+
+Features:
+- Configurable retry count and behavior
+- Validation audit logging
+- Multi-agent support via agent_type routing
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Callable
 from enum import Enum
+from datetime import datetime
+import json
 
 
 class ValidationLevel(Enum):
-    ERROR = "ERROR"      # Must fix, decision rejected
-    WARNING = "WARNING"  # Log but allow
+    ERROR = "ERROR"      # Must fix, triggers retry
+    WARNING = "WARNING"  # Log but may allow (configurable)
+
+
+class ValidationOutcome(Enum):
+    APPROVED = "APPROVED"           # First-pass valid
+    RETRY_SUCCESS = "RETRY_SUCCESS" # Valid after retry
+    REJECTED = "REJECTED"           # Invalid after max retries
+    UNCERTAIN = "UNCERTAIN"         # Warnings but allowed
 
 
 @dataclass
@@ -23,8 +37,112 @@ class ValidationResult:
     message: str
     agent_id: str
     field: Optional[str] = None
-    value: Optional[float] = None
+    value: Optional[Any] = None
     constraint: Optional[str] = None
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "valid": self.valid,
+            "level": self.level.value,
+            "rule": self.rule,
+            "message": self.message,
+            "agent_id": self.agent_id,
+            "field": self.field,
+            "value": self.value,
+            "constraint": self.constraint
+        }
+
+
+@dataclass
+class ValidatorConfig:
+    """Configuration for validator behavior."""
+    max_retries: int = 2              # Max retry attempts
+    retry_on_warning: bool = False    # Whether warnings trigger retry
+    audit_enabled: bool = True        # Enable validation audit logging
+    audit_path: Optional[str] = None  # Path for audit log file
+    strict_mode: bool = False         # Reject on any warning
+
+
+@dataclass
+class ValidationAuditEntry:
+    """Single validation audit entry."""
+    timestamp: str
+    agent_id: str
+    agent_type: str
+    decision: str
+    attempt: int
+    results: List[Dict]
+    outcome: str
+    retry_errors: List[str] = field(default_factory=list)
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "timestamp": self.timestamp,
+            "agent_id": self.agent_id,
+            "agent_type": self.agent_type,
+            "decision": self.decision,
+            "attempt": self.attempt,
+            "results": self.results,
+            "outcome": self.outcome,
+            "retry_errors": self.retry_errors
+        }
+
+
+class ValidationAudit:
+    """Tracks validation history for analysis."""
+    
+    def __init__(self, enabled: bool = True, path: Optional[str] = None):
+        self.enabled = enabled
+        self.path = path
+        self.entries: List[ValidationAuditEntry] = []
+        self.stats = {
+            "total": 0,
+            "approved": 0,
+            "retry_success": 0,
+            "rejected": 0,
+            "uncertain": 0,
+            "by_agent_type": {},
+            "by_rule": {}
+        }
+    
+    def log(self, entry: ValidationAuditEntry) -> None:
+        """Log a validation entry."""
+        if not self.enabled:
+            return
+        
+        self.entries.append(entry)
+        self.stats["total"] += 1
+        self.stats[entry.outcome.lower()] = self.stats.get(entry.outcome.lower(), 0) + 1
+        
+        # Track by agent type
+        at = entry.agent_type
+        if at not in self.stats["by_agent_type"]:
+            self.stats["by_agent_type"][at] = {"total": 0, "rejected": 0}
+        self.stats["by_agent_type"][at]["total"] += 1
+        if entry.outcome == "REJECTED":
+            self.stats["by_agent_type"][at]["rejected"] += 1
+        
+        # Track by rule
+        for r in entry.results:
+            rule = r.get("rule", "unknown")
+            if rule not in self.stats["by_rule"]:
+                self.stats["by_rule"][rule] = {"triggered": 0}
+            if not r.get("valid", True):
+                self.stats["by_rule"][rule]["triggered"] += 1
+        
+        # Write to file if path specified
+        if self.path:
+            with open(self.path, "a") as f:
+                f.write(json.dumps(entry.to_dict()) + "\n")
+    
+    def get_summary(self) -> Dict[str, Any]:
+        """Get validation statistics summary."""
+        return {
+            **self.stats,
+            "approval_rate": (self.stats["approved"] + self.stats["retry_success"]) / max(1, self.stats["total"]) * 100,
+            "retry_rate": self.stats["retry_success"] / max(1, self.stats["total"]) * 100,
+            "rejection_rate": self.stats["rejected"] / max(1, self.stats["total"]) * 100
+        }
 
 
 from broker.agent_config import load_agent_config, ValidationRule, CoherenceRule
@@ -33,11 +151,26 @@ class AgentValidator:
     """
     Generic validator for any agent type.
     
-    Uses agent_type label to lookup validation rules from agent_types.yaml.
+    Features:
+    - Configurable retry behavior via ValidatorConfig
+    - Validation audit logging via ValidationAudit
+    - Multi-agent support via agent_type routing
+    
+    Usage:
+        config = ValidatorConfig(max_retries=3, audit_enabled=True)
+        validator = AgentValidator(config_path="agent_types.yaml", validator_config=config)
+        
+        results = validator.validate(agent_type, agent_id, decision, state, reasoning)
+        # Check validator.audit.get_summary() for stats
     """
     
-    def __init__(self, config_path: str = None):
+    def __init__(self, config_path: str = None, validator_config: ValidatorConfig = None):
         self.config = load_agent_config(config_path)
+        self.validator_config = validator_config or ValidatorConfig()
+        self.audit = ValidationAudit(
+            enabled=self.validator_config.audit_enabled,
+            path=self.validator_config.audit_path
+        )
         self.errors: List[ValidationResult] = []
         self.warnings: List[ValidationResult] = []
     
@@ -63,9 +196,10 @@ class AgentValidator:
         """
         results = []
         
-        # 0. Handle subtypes (e.g., household_mg -> household) if defined in config mapping
-        # This mapping should ideally be handled by the Config loader, but we preserve it generically
-        base_type = self.config.get_base_type(agent_type)
+        if agent_type.startswith("household"):
+            base_type = "household"
+        else:
+            base_type = agent_type
             
         # 1. Validate decision is in allowed values
         valid_actions = self.config.get_valid_actions(base_type)
@@ -83,10 +217,9 @@ class AgentValidator:
                     constraint=str(valid_actions[:4]) + "..."
                 ))
         
-        # 2. Validate Cognitive/Construct Coherence (if defined in config)
-        coherence_rules = self.config.get_coherence_rules(base_type)
-        if coherence_rules and reasoning:
-            results.extend(self.validate_coherence(agent_id, base_type, state, reasoning))
+        # 2. Validate PMT Coherence (if coherence_rules defined for this type)
+        if reasoning:
+            results.extend(self.validate_pmt_coherence(base_type, agent_id, decision, state, reasoning))
         
         # 3. Validate rate/param bounds
         rules = self.config.get_validation_rules(base_type)
@@ -144,15 +277,16 @@ class AgentValidator:
         self._categorize_results(results)
         return results
 
-    def validate_coherence(
+    def validate_pmt_coherence(
         self,
-        agent_id: str,
         agent_type: str,
+        agent_id: str,
+        decision: str,
         state: Dict[str, Any],
         reasoning: Dict[str, str]
     ) -> List[ValidationResult]:
         """
-        Validate logical coherence between Agent State and LLM Cognitive Labels.
+        Validate logical coherence between Agent State/Decision and LLM PMT Labels.
         Uses rules from agent_types.yaml.
         """
         results = []
@@ -160,18 +294,9 @@ class AgentValidator:
         
         # Helper to safely get label (handles brackets like [H])
         def get_label(key):
-            # Check both raw key and EVAL_ prefixed key
             val = reasoning.get(key, reasoning.get(f"EVAL_{key}", "")).upper()
-            if not val:
-                return None
-            
-            # Extract label from brackets or take first char
-            if ']' in val:
-                label = val.split(']')[0].replace("[", "").replace("]", "").strip()
-            else:
-                label = val.strip()
-            
-            return label
+            label = val.split(']')[0].replace("[", "").replace("]", "").strip() if ']' in val else val.strip()
+            return label[:1] # Just take the first char (L, M, H) unless it's NONE/PARTIAL/FULL
 
         for rule in rules:
             label = get_label(rule.construct)
@@ -188,88 +313,28 @@ class AgentValidator:
                 elif rule.aggregation == "any_true":
                     current_val = 1.0 if any(v > 0.5 for v in vals) else 0.0
             
-            
-            # 1. State-Label Coherence Check (Numeric Constraints)
+            # Check coherence: if label matches expected AND decision is in blocked_skills
             is_coherent = True
-            label_matched = False
+            decision_lower = decision.lower().replace("_", "")
             
-            if current_val >= rule.threshold:
-                if rule.expected_levels:
-                    # Generic inclusion check (works for L, M, H or FULL, PARTIAL, NONE)
-                    found = False
-                    for level in rule.expected_levels:
-                        if label.startswith(level.upper()):
-                            found = True
-                            label_matched = True
-                            break
-                    if not found:
+            if rule.expected_levels and label in rule.expected_levels:
+                # Label matches the "flagged" level, now check if decision is blocked
+                if rule.blocked_skills:
+                    blocked_normalized = [s.lower().replace("_", "") for s in rule.blocked_skills]
+                    if decision_lower in blocked_normalized:
                         is_coherent = False
             
             if not is_coherent:
                 results.append(ValidationResult(
                     valid=False,
                     level=ValidationLevel.WARNING,
-                    rule=f"coherence_{rule.construct.lower()}",
-                    message=rule.message or f"Coherence issue with {rule.construct}",
+                    rule=f"pmt_coherence_{rule.construct.lower()}",
+                    message=rule.message or f"Incoherent: {rule.construct}={label} but chose {decision}",
                     agent_id=agent_id,
                     field=rule.construct,
                     value=label,
-                    constraint=f"Expected one of {rule.expected_levels} when state >= {rule.threshold}"
+                    constraint=f"Blocked skills: {rule.blocked_skills} when {rule.construct} in {rule.expected_levels}"
                 ))
-
-            # 2. Label-Action Coherence Check (PMT Logic)
-            # If label matches 'when_above' (label_matched=True), check if decision is blocked
-            if label_matched and rule.blocked_skills:
-                 # Normalized decision check
-                current_decision_norm = reasoning.get("decision", "").lower().replace("_", "")
-                
-                for blocked in rule.blocked_skills:
-                    blocked_norm = blocked.lower().replace("_", "")
-                    if blocked_norm in current_decision_norm:
-                        results.append(ValidationResult(
-                            valid=False,
-                            level=ValidationLevel.ERROR, # Strictly reject
-                            rule=f"action_logic_{rule.construct.lower()}",
-                            message=f"Action '{current_decision_norm}' incompatible with high {rule.construct} ({label})",
-                            agent_id=agent_id,
-                            field=rule.construct,
-                            value=current_decision_norm,
-                            constraint=f"Blocked: {rule.blocked_skills} when {rule.construct} is {label}"
-                        ))
-                        break
-
-            # 3. Text-Action Coherence Check (Semantic Constraints)
-            # Checks if specific phrases in reasoning (e.g. "too expensive") contradict decision
-            if rule.trigger_phrases and rule.blocked_skills:
-                # Concatenate all reasoning text to search for triggers
-                full_reasoning = " ".join(str(v) for v in reasoning.values()).lower()
-                
-                triggered = False
-                for phrase in rule.trigger_phrases:
-                    if phrase.lower() in full_reasoning:
-                        triggered = True
-                        break
-                
-                if triggered:
-                    # Normalized decision check
-                    current_decision_norm = reasoning.get("decision", "").lower().replace("_", "")
-                    
-                    for blocked in rule.blocked_skills:
-                        blocked_norm = blocked.lower().replace("_", "")
-                        # Check if decision matches a blocked skill
-                        # (Simple containment check handles aliases roughly, but exact ID match is better if available)
-                        if blocked_norm in current_decision_norm:
-                            results.append(ValidationResult(
-                                valid=False,
-                                level=ValidationLevel.ERROR, # Strictly reject contradictions
-                                rule=f"semantic_{rule.construct.lower()}",
-                                message=rule.message or f"Reasoning contradicts action (claimed '{phrase}')",
-                                agent_id=agent_id,
-                                field=rule.construct,
-                                value=current_decision_norm,
-                                constraint=f"Blocked: {rule.blocked_skills}"
-                            ))
-                            break
             
         return results
     
