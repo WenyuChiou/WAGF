@@ -336,6 +336,8 @@ class UnifiedAdapter(ModelAdapter):
         if adjustment is not None:
             reasoning["adjustment"] = adjustment
         
+        return skill_name, reasoning
+        
         # FIX: If reasoning is empty, store raw output for validation
         if not reasoning or (isinstance(reasoning, dict) and len(reasoning) == 0):
             reasoning = cleaned_output.strip()  # Store as string instead of empty dict
