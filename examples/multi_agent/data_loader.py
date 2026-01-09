@@ -8,7 +8,7 @@ Provides default data if file not found.
 import os
 import pandas as pd
 from typing import List, Optional
-from examples.exp3_multi_agent.agents import HouseholdAgent, GovernmentAgent, InsuranceAgent
+from examples.multi_agent.agents import HouseholdAgent, GovernmentAgent, InsuranceAgent
 
 
 DEFAULT_DATA_PATH = os.path.join(

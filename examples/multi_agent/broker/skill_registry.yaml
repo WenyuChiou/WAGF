@@ -29,6 +29,10 @@ household_owner_skills:
     allowed_state_changes:
       - has_insurance
     implementation_mapping: "sim.buy_insurance"
+    metadata:
+      cost: low
+      risk_level: low
+      category: financial
 
   - skill_id: elevate_house
     description: "Elevate house structure to prevent physical flood damage (+5ft)"
@@ -42,6 +46,10 @@ household_owner_skills:
     allowed_state_changes:
       - elevated
     implementation_mapping: "sim.elevate"
+    metadata:
+      cost: high
+      risk_level: low
+      category: structural
 
   - skill_id: buyout_program
     description: "Accept government buyout - permanently leave flood zone"
@@ -55,6 +63,10 @@ household_owner_skills:
     allowed_state_changes:
       - removed
     implementation_mapping: "sim.buyout"
+    metadata:
+      cost: none
+      risk_level: high
+      category: behavioral
 
   - skill_id: do_nothing
     description: "Take no protective action this year"
@@ -63,6 +75,10 @@ household_owner_skills:
     institutional_constraints: {}
     allowed_state_changes: []
     implementation_mapping: "sim.noop"
+    metadata:
+      cost: none
+      risk_level: varies
+      category: behavioral
 
 # =============================================================================
 # HOUSEHOLD SKILLS (Renter)
@@ -79,6 +95,10 @@ household_renter_skills:
     allowed_state_changes:
       - has_insurance
     implementation_mapping: "sim.buy_contents_insurance"
+    metadata:
+      cost: low
+      risk_level: low
+      category: financial
 
   - skill_id: relocate
     description: "Relocate to lower flood-risk area"
@@ -91,6 +111,10 @@ household_renter_skills:
     allowed_state_changes:
       - relocated
     implementation_mapping: "sim.relocate"
+    metadata:
+      cost: medium
+      risk_level: low
+      category: behavioral
 
 # =============================================================================
 # INSURANCE COMPANY SKILLS
@@ -105,6 +129,10 @@ insurance_skills:
     allowed_state_changes:
       - premium_rate
     implementation_mapping: "sim.adjust_premium"
+    metadata:
+      cost: none
+      risk_level: low
+      category: policy
 
   - skill_id: lower_premium
     description: "Decrease premium rate for flood insurance policies"
@@ -115,6 +143,10 @@ insurance_skills:
     allowed_state_changes:
       - premium_rate
     implementation_mapping: "sim.adjust_premium"
+    metadata:
+      cost: none
+      risk_level: medium
+      category: policy
 
   - skill_id: maintain_premium
     description: "Keep premium rate unchanged"
@@ -123,6 +155,10 @@ insurance_skills:
     institutional_constraints: {}
     allowed_state_changes: []
     implementation_mapping: "sim.noop"
+    metadata:
+      cost: none
+      risk_level: low
+      category: policy
 
 # =============================================================================
 # GOVERNMENT SKILLS
@@ -139,6 +175,10 @@ government_skills:
     allowed_state_changes:
       - subsidy_rate
     implementation_mapping: "sim.adjust_subsidy"
+    metadata:
+      cost: high
+      risk_level: low
+      category: policy
 
   - skill_id: decrease_subsidy
     description: "Decrease subsidy rate for flood adaptation measures"
@@ -150,6 +190,10 @@ government_skills:
     allowed_state_changes:
       - subsidy_rate
     implementation_mapping: "sim.adjust_subsidy"
+    metadata:
+      cost: none
+      risk_level: medium
+      category: policy
 
   - skill_id: maintain_subsidy
     description: "Keep subsidy rate unchanged"
@@ -158,6 +202,10 @@ government_skills:
     institutional_constraints: {}
     allowed_state_changes: []
     implementation_mapping: "sim.noop"
+    metadata:
+      cost: none
+      risk_level: low
+      category: policy
 
   - skill_id: set_mg_priority
     description: "Prioritize marginalized group households for subsidy allocation"
@@ -167,6 +215,19 @@ government_skills:
     allowed_state_changes:
       - mg_priority
     implementation_mapping: "sim.set_priority"
+    metadata:
+      cost: none
+      risk_level: low
+      category: policy
+
+# =============================================================================
+# EXTENSIBILITY NOTE
+# =============================================================================
+# skill_id can be any string (text, numbers, codes)
+# Future extensions:
+# - Social media: "post_image", "share_video", "1" (numeric choice)
+# - Content types: add content_type field (text, image, video, audio)
+# - Platform-specific: add platform field (instagram, twitter, etc.)
 
 # =============================================================================
 # DEFAULTS

@@ -124,13 +124,24 @@ class BaseAgentContextBuilder(ContextBuilder):
         return context
     
     def _get_memory(self, agent) -> str:
-        """Get formatted memory from agent's memory module."""
+        """Get formatted memory from agent's memory module.
+        
+        Supports:
+        - CognitiveMemory with format_for_prompt() method
+        - CognitiveMemory with retrieve() method  
+        - Simple list of memory strings (experiment-style)
+        """
         if hasattr(agent, 'memory') and agent.memory:
+            # Priority 1: CognitiveMemory with format_for_prompt
             if hasattr(agent.memory, 'format_for_prompt'):
                 return agent.memory.format_for_prompt()
+            # Priority 2: CognitiveMemory with retrieve
             elif hasattr(agent.memory, 'retrieve'):
                 memories = agent.memory.retrieve(top_k=5)
                 return "\n".join([m[0] if isinstance(m, tuple) else str(m) for m in memories])
+            # Priority 3: Simple list of strings (experiment-style)
+            elif isinstance(agent.memory, list):
+                return "\n".join(str(m) for m in agent.memory[-5:])  # Last 5 items
         return "No memory available"
     
     def _get_neighbor_summary(self, agent_id: str) -> List[Dict[str, Any]]:

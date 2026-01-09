@@ -120,6 +120,37 @@ class UnifiedAdapter(ModelAdapter):
         reasoning = {}
         adjustment = None
         
+        # =========================================================================
+        # PRIORITY 1: Try JSON extraction first (most reliable)
+        # =========================================================================
+        import json
+        json_match = re.search(r'\{[^}]+\}', cleaned_output)
+        if json_match:
+            try:
+                json_obj = json.loads(json_match.group())
+                # Extract TP/CP directly
+                if 'TP' in json_obj:
+                    reasoning['TP'] = str(json_obj['TP']).upper()[:1]  # H/M/L
+                if 'CP' in json_obj:
+                    reasoning['CP'] = str(json_obj['CP']).upper()[:1]  # H/M/L
+                # Map decision number to skill
+                if 'decision' in json_obj:
+                    dec = str(json_obj['decision'])
+                    tenure = context.get("tenure", "Owner")
+                    is_renter = tenure == "Renter"
+                    if is_renter:
+                        skill_map = self.config.get("skill_map_renter", {})
+                    elif is_elevated:
+                        skill_map = self.config.get("skill_map_elevated", {})
+                    else:
+                        skill_map = self.config.get("skill_map_non_elevated", {})
+                    skill_name = skill_map.get(dec, self.config.get("default_skill", "do_nothing"))
+            except json.JSONDecodeError:
+                pass  # Fall through to text parsing
+        
+        # =========================================================================
+        # PRIORITY 2: Line-by-line text parsing (fallback)
+        # =========================================================================
         lines = cleaned_output.strip().split('\n')
         keywords = self.config.get("decision_keywords", ["decide:", "decision:"])
         

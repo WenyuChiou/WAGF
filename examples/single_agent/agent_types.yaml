@@ -48,10 +48,12 @@ household:
     Note: If no flood occurred recently and you feel safe, choosing "do_nothing" is reasonable.
     If you feel threatened, consider protective actions like insurance or elevation.
     
-    OUTPUT FORMAT (respond exactly as shown):
-    Threat Appraisal: [High/Med/Low] because [one sentence explanation]
-    Coping Appraisal: [High/Med/Low] because [one sentence explanation]
-    Final Decision: [exact skill name: {valid_choices_text}]
+    OUTPUT FORMAT - Respond with ONLY this JSON (no other text):
+    {{"TP": "H", "CP": "M", "decision": 4}}
+    
+    TP = Threat Perception (H=High, M=Medium, L=Low)
+    CP = Coping Perception (H=High, M=Medium, L=Low)
+    decision = Your choice (1=Insurance, 2=Elevate, 3=Relocate, 4=Do Nothing)
   
   # Audit Configuration
   audit:

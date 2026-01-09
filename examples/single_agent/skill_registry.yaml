@@ -13,6 +13,11 @@ skills:
     allowed_state_changes:
       - has_insurance
     implementation_mapping: "sim.buy_insurance"
+    # Skill Metadata (for validation)
+    metadata:
+      cost: low           # low, medium, high
+      risk_level: low     # risk of choosing this action
+      category: financial # financial, structural, behavioral
 
   - skill_id: elevate_house
     description: "Elevate house structure to prevent physical flood damage"
@@ -26,6 +31,10 @@ skills:
     allowed_state_changes:
       - elevated
     implementation_mapping: "sim.elevate"
+    metadata:
+      cost: high
+      risk_level: low
+      category: structural
 
   - skill_id: relocate
     description: "Permanently relocate away from flood-prone area"
@@ -39,6 +48,10 @@ skills:
     allowed_state_changes:
       - relocated
     implementation_mapping: "sim.relocate"
+    metadata:
+      cost: high
+      risk_level: high    # irreversible decision
+      category: behavioral
 
   - skill_id: do_nothing
     description: "Take no protective action this year"
@@ -47,5 +60,9 @@ skills:
     institutional_constraints: {}
     allowed_state_changes: []
     implementation_mapping: "sim.noop"
+    metadata:
+      cost: none
+      risk_level: varies  # depends on threat level
+      category: behavioral
 
 default_skill: do_nothing
