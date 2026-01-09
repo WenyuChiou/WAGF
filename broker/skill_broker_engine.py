@@ -54,7 +54,8 @@ class SkillBrokerEngine:
         simulation_engine: Any,
         context_builder: Any,
         audit_writer: Optional[Any] = None,
-        max_retries: int = 2
+        max_retries: int = 2,
+        log_prompt: bool = False
     ):
         self.skill_registry = skill_registry
         self.model_adapter = model_adapter
@@ -63,6 +64,7 @@ class SkillBrokerEngine:
         self.context_builder = context_builder
         self.audit_writer = audit_writer
         self.max_retries = max_retries
+        self.log_prompt = log_prompt
         
         # Statistics
         self.stats = {
@@ -99,12 +101,7 @@ class SkillBrokerEngine:
         # ① Build bounded context (READ-ONLY)
         context = self.context_builder.build(agent_id)
         context_hash = self._hash_context(context)
-        memory_raw = context.get("memory", [])
-        if isinstance(memory_raw, list):
-            memory_pre = memory_raw.copy()
-        else:
-            # Handle formatted string from generic builder
-            memory_pre = [memory_raw] if memory_raw else []
+        memory_pre = context.get("memory", []).copy() if context.get("memory") else []
         
         # ② LLM output → ModelAdapter → SkillProposal
         prompt = self.context_builder.format_prompt(context)
@@ -134,7 +131,7 @@ class SkillBrokerEngine:
         retry_count = 0
         while not all_valid and retry_count < self.max_retries:
             retry_count += 1
-            errors = [v.message for v in validation_results if not v.valid]
+            errors = [e for v in validation_results for e in v.errors]
             retry_prompt = self.model_adapter.format_retry_prompt(prompt, errors)
             raw_output = llm_invoke(retry_prompt)
             
@@ -182,17 +179,19 @@ class SkillBrokerEngine:
         
         # ⑥ Audit trace
         if self.audit_writer:
+            agent_type = context.get("agent_type", "default")
             self.audit_writer.write_trace(agent_type, {
                 "run_id": run_id,
                 "step_id": step_id,
                 "timestamp": timestamp,
                 "seed": seed,
                 "agent_id": agent_id,
+                "input": prompt if self.log_prompt else None,
                 "context_hash": context_hash,
                 "memory_pre": memory_pre,
                 "skill_proposal": skill_proposal.to_dict() if skill_proposal else None,
                 "validator_results": [
-                    {"rule": v.rule, "valid": v.valid, "message": v.message}
+                    {"validator": v.validator_name, "valid": v.valid, "errors": v.errors}
                     for v in validation_results
                 ],
                 "approved_skill": {
@@ -210,7 +209,7 @@ class SkillBrokerEngine:
             skill_proposal=skill_proposal,
             approved_skill=approved_skill,
             execution_result=execution_result,
-            validation_errors=[v.message for v in validation_results if not v.valid],
+            validation_errors=[e for v in validation_results for e in v.errors],
             retry_count=retry_count
         )
     
@@ -218,19 +217,11 @@ class SkillBrokerEngine:
         """Run all validators on the skill proposal."""
         results = []
         for validator in self.validators:
-            # AgentValidator.validate expects unpacked arguments
-            # context structure: {'individual': dict, 'shared': dict, ...}
-            state = context.get('agent_state', {}).get('individual', {})
-            
-            result = validator.validate(
-                agent_type=proposal.agent_type,
-                agent_id=proposal.agent_id,
-                decision=proposal.skill_name,
-                state=state,
-                prev_state=None, # History tracking not yet integrated here
-                reasoning=proposal.reasoning
-            )
-            results.extend(result)
+            result = validator.validate(proposal, context, self.skill_registry)
+            if isinstance(result, list):
+                results.extend(result)
+            else:
+                results.append(result)
         return results
     
     def _hash_context(self, context: Dict) -> str:

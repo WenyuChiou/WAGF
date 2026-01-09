@@ -35,7 +35,73 @@ from validators import AgentValidator
 from plot_results import plot_adaptation_results
 from simulation.base_simulation_engine import BaseSimulationEngine
 from simulation.state_manager import SharedState
-from broker.context_builder import create_context_builder
+from broker.context_builder import create_context_builder, BaseAgentContextBuilder
+
+class FloodContextBuilder(BaseAgentContextBuilder):
+    """Custom Context Builder to ensure exact prompt parity with Baseline."""
+    
+    def __init__(self, skill_registry, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.skill_registry = skill_registry
+
+    def _verbalize_trust(self, trust_value: float) -> str:
+        """Converts a float (0-1) into a natural language description."""
+        if trust_value >= 0.8:
+            return "strongly trust"
+        elif trust_value >= 0.5:
+            return "moderately trust"
+        elif trust_value >= 0.2:
+            return "have slight doubts about"
+        else:
+            return "deeply distrust"
+
+    def build(self, agent_id: str, **kwargs) -> Dict[str, Any]:
+        # Get standard context
+        context = super().build(agent_id, **kwargs)
+        
+        # --- 1. Synthesize Baseline-Parity Attributes ---
+        # (Previously done in update_agent_dynamic_context, now properly encapsulated)
+        
+        elevated = context.get('elevated', False)
+        has_insurance = context.get('has_insurance', False)
+        trust_ins = context.get('trust_in_insurance', 0.5)
+        trust_neighbors = context.get('trust_in_neighbors', 0.5)
+        
+        # Elevation status text
+        context['elevation_status_text'] = (
+            "Your house is already elevated, which provides very good protection."
+            if elevated else 
+            "You have not elevated your home."
+        )
+        
+        # Insurance status text
+        context['insurance_status_text'] = "have" if has_insurance else "do not have"
+        
+        # Trust verbalization
+        context['trust_ins_text'] = self._verbalize_trust(trust_ins)
+        context['trust_neighbors_text'] = self._verbalize_trust(trust_neighbors)
+        
+        # --- 2. Format Skills List ---
+        # Override 'available_skills' formatting to match LLMABMPMT-Final.py
+        # Baseline uses: "1. Skill (Desc)\n2. Skill (Desc)..."
+        if "available_skills" in context:
+            skill_ids = context["available_skills"]
+            formatted_list = []
+            for i, skill_id in enumerate(skill_ids, 1):
+                # Look up full description
+                skill_def = self.skill_registry.get_skill(skill_id)
+                desc = skill_def.description if skill_def else skill_id
+                
+                # Baseline parity adjustment:
+                # If agent is elevated, remove duplicate "elevate" option if filtered list didn't catch it
+                # (Though standard logic handles filtering, the text formatting here is final)
+                formatted_list.append(f"{i}. {desc}")
+            
+            # Hack: BaseAgentContextBuilder does ", ".join(skills).
+            # We want newlines. So we join them with \n and pass as single item list.
+            context["available_skills"] = ["\n".join(formatted_list)]
+            
+        return context
 
 
 
@@ -90,12 +156,12 @@ class FloodSimulation(BaseSimulationEngine):
         random.seed(seed)
         
         self.agents: Dict[str, BaseAgent] = {}
-        # Use Generic Shared State with parameters
-        self.environment = SharedState(
-            year=0, 
-            flood_event=False, 
-            flood_severity=0.0
-        )
+        # Use simple dict for environment state
+        self.environment = {
+            'year': 0, 
+            'flood_event': False, 
+            'flood_severity': 0.0
+        }
         self.grant_available = False
         
         # Try to load from CSV files (aligned with MCP framework)
@@ -110,11 +176,6 @@ class FloodSimulation(BaseSimulationEngine):
             df = pd.read_csv(agent_file)
             flood_df = pd.read_csv(flood_file)
             self.flood_years = sorted(flood_df['Flood_Years'].tolist())
-            
-            # Limit number of agents
-            if len(df) > num_agents:
-                df = df.iloc[:num_agents]
-            
             
             for _, row in df.iterrows():
                 # Parse memory from CSV
@@ -132,8 +193,11 @@ class FloodSimulation(BaseSimulationEngine):
 
                 
                 # Create BaseAgent directly with config + kwargs (Composition)
+                # Support both 'id' and 'agent_id' column names
+                agent_id = row.get('agent_id', row.get('id', f'Agent_{_+1}'))
+                
                 config = AgentConfig(
-                    name=row['agent_id'],
+                    name=agent_id,
                     agent_type="household",
                     state_params=[],
                     objectives=[],
@@ -141,18 +205,17 @@ class FloodSimulation(BaseSimulationEngine):
                     skills=[]
                 )
                 
-                self.agents[row['agent_id']] = BaseAgent(
-                    config=config,
-                    id=row['agent_id'],
-                    elevated=bool(row.get('elevated', False)),
-                    has_insurance=bool(row.get('has_insurance', False)),
-                    relocated=bool(row.get('relocated', False)),
-                    memory=memory,
-                    trust_in_insurance=float(row.get('trust_ins', 0.3)),
-                    trust_in_neighbors=float(row.get('trust_neighbors', 0.4)),
-                    flood_threshold=float(row.get('flood_threshold', 0.5)),
-                    custom_attributes=custom_attrs
-                )
+                agent = BaseAgent(config=config, memory=memory)
+                agent.id = agent_id  # Explicitly set ID
+                # Add flood-specific attributes via setattr
+                agent.elevated = bool(row.get('elevated', False))
+                agent.has_insurance = bool(row.get('has_insurance', False))
+                agent.relocated = bool(row.get('relocated', False))
+                agent.trust_in_insurance = float(row.get('trust_in_insurance', row.get('trust_ins', 0.3)))
+                agent.trust_in_neighbors = float(row.get('trust_in_neighbors', row.get('trust_neighbors', 0.4)))
+                agent.flood_threshold = float(row.get('flood_threshold', 0.5))
+                agent.custom_attributes = custom_attrs
+                self.agents[agent_id] = agent
             print(f"✅ Loaded {len(self.agents)} agents, flood years: {self.flood_years}")
 
         else:
@@ -174,10 +237,10 @@ class FloodSimulation(BaseSimulationEngine):
         return self.advance_year()
 
     def advance_year(self) -> FloodEnvironment:
-        self.environment.year += 1
-        self.environment.flood_event = self.environment.year in self.flood_years
-        if self.environment.flood_event:
-            self.environment.flood_severity = random.uniform(0.5, 1.0)
+        self.environment['year'] += 1
+        self.environment['flood_event'] = self.environment['year'] in self.flood_years
+        if self.environment['flood_event']:
+            self.environment['flood_severity'] = random.uniform(0.5, 1.0)
         return self.environment
     
     def execute_skill(self, approved_skill: ApprovedSkill) -> ExecutionResult:
@@ -193,40 +256,6 @@ class FloodSimulation(BaseSimulationEngine):
         
         state_changes = {}
         skill = approved_skill.skill_name
-        
-        # Normalize skill names (handles aliases from parser/registry)
-        # This handles variations in LLM output and parser extraction
-        SKILL_NORMALIZE = {
-            # Insurance variations
-            "buy_insurance": "buy_insurance",
-            "insurance": "buy_insurance",
-            "flood_insurance": "buy_insurance",
-            "FI": "buy_insurance",
-            "1": "buy_insurance",
-            
-            # Elevation variations
-            "elevate_house": "elevate_house",
-            "elevate": "elevate_house",
-            "elevation": "elevate_house",
-            "HE": "elevate_house",
-            "2": "elevate_house",
-            
-            # Relocate variations
-            "relocate": "relocate",
-            "relocation": "relocate",
-            "move": "relocate",
-            "leave": "relocate",
-            "RL": "relocate",
-            "3": "relocate",
-            
-            # Do nothing variations
-            "do_nothing": "do_nothing",
-            "nothing": "do_nothing",
-            "wait": "do_nothing",
-            "DN": "do_nothing",
-            "4": "do_nothing",
-        }
-        skill = SKILL_NORMALIZE.get(skill, skill)
         
         if skill == "buy_insurance":
             agent.has_insurance = True
@@ -258,65 +287,8 @@ class FloodSimulation(BaseSimulationEngine):
 # CONTEXT BUILDER (Read-only observation)
 # =============================================================================
 
-# Valid choices helper
-def get_valid_choices(agent: BaseAgent) -> str:
-    """Determine valid choices string based on elevation status."""
-    if getattr(agent, 'elevated', False):
-        return '"buy_insurance", "relocate", or "do_nothing"'
-    return '"buy_insurance", "elevate_house", "relocate", or "do_nothing"'
+# Helper functions moved to FloodContextBuilder
 
-def _verbalize_trust(trust_value: float) -> str:
-    """Converts a float (0-1) into a natural language description."""
-    if trust_value >= 0.8:
-        return "strongly trust"
-    elif trust_value >= 0.5:
-        return "moderately trust"
-    elif trust_value >= 0.2:
-        return "have slight doubts about"
-    else:
-        return "deeply distrust"
-
-def update_agent_dynamic_context(agent: BaseAgent, environment: SharedState, agent_config_params: Dict[str, Any]):
-    """Update agent's synthetic attributes for the prompt."""
-    elevated = getattr(agent, 'elevated', False)
-    has_insurance = getattr(agent, 'has_insurance', False)
-    trust_ins = getattr(agent, 'trust_in_insurance', 0.3)
-    trust_neighbors = getattr(agent, 'trust_in_neighbors', 0.4)
-    
-    # Elevation status text
-    agent.elevation_status_text = (
-        "Your house is already elevated, which provides very good protection."
-        if elevated else 
-        "You have not elevated your home."
-    )
-    
-    # Insurance status text
-    agent.insurance_status_text = "have" if has_insurance else "do not have"
-    
-    # Trust verbalization
-    agent.trust_ins_text = _verbalize_trust(trust_ins)
-    agent.trust_neighbors_text = _verbalize_trust(trust_neighbors)
-    
-    # Options text - aligned with LLMABMPMT-Final.py for consistency
-    if elevated:
-        agent.options_text = """1. Buy flood insurance (Lower cost, provides partial financial protection but does not reduce physical damage.)
-2. Relocate (Requires leaving your neighborhood but eliminates flood risk permanently.)
-3. Do nothing (Require no financial investment or effort this year, but it might leave you exposed to future flood damage.)"""
-        agent.valid_choices_text = '1, 2, or 3'
-    else:
-        agent.options_text = """1. Buy flood insurance (Lower cost, provides partial financial protection but does not reduce physical damage.)
-2. Elevate your house (High upfront cost but can prevent most physical damage.)
-3. Relocate (Requires leaving your neighborhood but eliminates flood risk permanently.)
-4. Do nothing (Require no financial investment or effort this year, but it might leave you exposed to future flood damage.)"""
-        agent.valid_choices_text = '1, 2, 3, or 4'
-    
-    # Flood status text
-    flood_event = getattr(environment, 'flood_event', False)
-    agent.flood_status_text = (
-        "A flood occurred this year."
-        if flood_event else 
-        "No flood occurred this year."
-    )
 
 
 # Framework's GenericAuditWriter is used instead.
@@ -326,7 +298,7 @@ def update_agent_dynamic_context(agent: BaseAgent, environment: SharedState, age
 # LLM INTERFACE
 # =============================================================================
 
-def create_llm_invoke(model: str, temperature: float = 0.7):
+def create_llm_invoke(model: str):
     """Create LLM invoke function."""
     if model.lower() == "mock":
         import random as _mock_random
@@ -335,13 +307,13 @@ def create_llm_invoke(model: str, temperature: float = 0.7):
             threat_level = _mock_random.choice(["Low", "Medium", "High"])
             coping_level = _mock_random.choice(["Low", "Medium", "High"])
             
-            # More diverse decisions based on threat level
+            # If High threat, sometimes (but not always) choose do_nothing -> should trigger validation
             if threat_level == "High":
-                decision = _mock_random.choice(["do_nothing", "buy_insurance", "elevate_house", "relocate"])
-            elif threat_level == "Low":
-                decision = _mock_random.choice(["do_nothing", "relocate"])
-            else:
                 decision = _mock_random.choice(["do_nothing", "buy_insurance", "elevate_house"])
+            elif threat_level == "Low":
+                decision = _mock_random.choice(["do_nothing", "relocate"])  # relocate while Low -> should trigger
+            else:
+                decision = _mock_random.choice(["do_nothing", "buy_insurance"])
             
             return f"""Threat Appraisal: {threat_level} because I feel {threat_level.lower()} threat from flood risks.
 Coping Appraisal: {coping_level} because I feel {coping_level.lower()} ability to cope.
@@ -350,7 +322,8 @@ Final Decision: {decision}"""
     
     try:
         from langchain_ollama import ChatOllama
-        llm = ChatOllama(model=model, temperature=temperature, num_predict=256)
+        # Remove temperature=0.3 to match Baseline (which uses model default)
+        llm = ChatOllama(model=model, num_predict=256)
         
         def invoke(prompt: str) -> str:
             response = llm.invoke(prompt)
@@ -373,20 +346,24 @@ def setup_governance(
     context_builder: FloodContextBuilder,
     model_name: str,
     output_dir: Path,
-    skip_validation: bool = False
+    skill_registry: Optional[SkillRegistry] = None
 ) -> SkillBrokerEngine:
     """
-    Initialize the Governance Layer (Registry, Adapter, Validators, Audit).
+    Setup the Governance Layer (Skill Broker).
     
-    This function encapsulates all "Governed Broker" settings, separating them from:
+    Layers:
     1. The Simulation (World)
     2. The Experiment Loop (Control)
+    3. The Governance Layer (Broker) - Added here
     """
     # 1. Skill Registry (Loads domains-specific skills)
-    skill_registry = SkillRegistry()
-    registry_path = Path(__file__).parent / "skill_registry.yaml"
-    skill_registry.register_from_yaml(registry_path)
-    print(f"✅ Loaded Skill Registry from {registry_path.name}")
+    if skill_registry is None:
+        skill_registry = SkillRegistry()
+        registry_path = Path(__file__).parent / "skill_registry.yaml"
+        skill_registry.register_from_yaml(registry_path)
+        print(f"✅ Loaded Skill Registry from {registry_path.name}")
+    else:
+        print(f"✅ Using provided Skill Registry")
     
     # 2. Local Configuration (Experiment-Specific Settings)
     # This separates the experiment's domain rules from the global default.
@@ -405,17 +382,14 @@ def setup_governance(
     )
     
     # 4. Validator (Enforces coherence & constraints from local config)
-    if skip_validation:
-        print("⚠️ Validation DISABLED for this run!")
-        validators_list = []
-    else:
-        validators_list = [AgentValidator(config_path=str(local_config_path))]
+    validators = AgentValidator(config_path=str(local_config_path))
     
     # 5. Audit Writer (Logs traces - configurable from YAML)
     # Load audit settings from config
     agent_config_obj = AgentTypeConfig.load(str(local_config_path))
     household_cfg = agent_config_obj.get("household") or {}
     audit_cfg = household_cfg.get("audit", {})
+    log_prompt = household_cfg.get("config", {}).get("log_prompt", False)
     
     # Build output path: base_output_dir / model_name
     base_output = audit_cfg.get("output_dir", "results")
@@ -431,11 +405,12 @@ def setup_governance(
     broker = SkillBrokerEngine(
         skill_registry=skill_registry,
         model_adapter=model_adapter,
-        validators=validators_list,
+        validators=[validators],
         simulation_engine=simulation,
         context_builder=context_builder,
         audit_writer=audit_writer,
-        max_retries=2
+        max_retries=2,
+        log_prompt=log_prompt
     )
     
     return broker
@@ -457,35 +432,44 @@ def run_experiment(args):
     # Initialize simulation (World Layer)
     sim = FloodSimulation(num_agents=args.num_agents, seed=args.seed)
     
+    # Initialize Skill Registry first (needed for Context Builder)
+    skill_registry = SkillRegistry()
+    registry_path = Path(__file__).parent / "skill_registry.yaml"
+    skill_registry.register_from_yaml(registry_path)
+    print(f"✅ Loaded Skill Registry from {registry_path.name}")
+
     # Load config for Context Builder
     from broker.agent_config import AgentTypeConfig
     AgentTypeConfig._instance = None # Ensure fresh load
     config_path = Path(__file__).parent / "agent_types.yaml"
     full_config = AgentTypeConfig.load(str(config_path))
     
-    # Use Generic Context Builder from framework
+    # Use Custom FloodContextBuilder for Baseline Parity
     household_config = full_config.get("household")  # AgentTypeConfig handles defaults
     prompt_template = household_config.get("prompt_template", "")
-    context_builder = create_context_builder(
+    if not prompt_template:
+        print("⚠️ WARNING: prompt_template is EMPTY!")
+    else:
+        print(f"✅ Loaded prompt_template ({len(prompt_template)} chars)")
+    
+    # Instantiate custom builder manually (bypassing factory to inject skill_registry)
+    # Note: FloodContextBuilder inherits from BaseAgentContextBuilder so API matches
+    context_builder = FloodContextBuilder(
+        skill_registry=skill_registry,
         agents=sim.agents,
         environment=sim.environment.to_dict() if hasattr(sim.environment, 'to_dict') else {},
-        custom_templates={"household": prompt_template}
+        prompt_templates={"household": prompt_template, "default": prompt_template}  # Support both agent_type values
     )
     
-    # Initialize output directory (avoid nesting if model already in path)
-    model_suffix = args.model.replace(":", "_")
-    if model_suffix not in str(args.output_dir):
-        output_dir = Path(args.output_dir) / model_suffix
-    else:
-        output_dir = Path(args.output_dir)
+    # Initialize output directory
+    output_dir = Path(args.output_dir) / args.model.replace(":", "_")
     output_dir.mkdir(parents=True, exist_ok=True)
     
     # Initialize Governance Layer (Broker)
-    broker = setup_governance(sim, context_builder, args.model, output_dir, 
-                              skip_validation=getattr(args, 'no_validation', False))
+    broker = setup_governance(sim, context_builder, args.model, output_dir, skill_registry=skill_registry)
     
-    # LLM with configurable temperature
-    llm_invoke = create_llm_invoke(args.model, args.temperature)
+    # LLM
+    llm_invoke = create_llm_invoke(args.model)
     
     run_id = f"skill_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     step_counter = 0
@@ -499,7 +483,7 @@ def run_experiment(args):
         sim.grant_available = random.random() < GRANT_PROBABILITY
         
         print(f"\n--- Year {year} ---")
-        if env.flood_event:
+        if env['flood_event']:
             print("🌊 FLOOD EVENT!")
         
         active_agents = [a for a in sim.agents.values() if not getattr(a, 'relocated', False)]
@@ -510,17 +494,17 @@ def run_experiment(args):
         # PHASE 1: Update memory for all agents BEFORE decision making (aligned with MCP)
         for agent in active_agents:
             # 1. Flood exposure memory (detailed like MCP)
-            if env.flood_event and not agent.elevated:
+            if env['flood_event'] and not agent.elevated:
                 if random.random() < agent.flood_threshold:
                     agent.memory.append(f"Year {year}: Got flooded with $10,000 damage on my house.")
                 else:
                     agent.memory.append(f"Year {year}: A flood occurred, but my house was spared damage.")
-            elif env.flood_event and agent.elevated:
+            elif env['flood_event'] and agent.elevated:
                 if random.random() < agent.flood_threshold:
                     agent.memory.append(f"Year {year}: Despite elevation, the flood was severe enough to cause damage.")
                 else:
                     agent.memory.append(f"Year {year}: A flood occurred, but my house was protected by its elevation.")
-            elif not env.flood_event:
+            elif not env['flood_event']:
                 agent.memory.append(f"Year {year}: No flood occurred this year.")
             
             # 2. Grant availability memory
@@ -546,29 +530,7 @@ def run_experiment(args):
         for agent in active_agents:
             step_counter += 1
             
-            # Update verbalized context for this year (CRITICAL for prompt accuracy)
-            update_agent_dynamic_context(agent, env, household_config.get("simulation", {}))
-            
-            # Inject environment and skills into agent for prompt template
-            agent.flood = env.flood_event
-            agent.year = year
-            agent.skills = "buy_insurance, elevate_house, relocate, do_nothing" if not getattr(agent, 'elevated', False) else "buy_insurance, relocate, do_nothing"
-            
-            # DEBUG: Print first agent's context for Year 1
-            if year == 1 and step_counter == 1:
-                print("\n=== DEBUG: Agent Context ===")
-                print(f"agent_name: {agent.name}")
-                print(f"elevation_status_text: {getattr(agent, 'elevation_status_text', 'NOT SET')}")
-                print(f"insurance_status_text: {getattr(agent, 'insurance_status_text', 'NOT SET')}")
-                print(f"trust_ins_text: {getattr(agent, 'trust_ins_text', 'NOT SET')}")
-                print(f"trust_neighbors_text: {getattr(agent, 'trust_neighbors_text', 'NOT SET')}")
-                print(f"flood_status_text: {getattr(agent, 'flood_status_text', 'NOT SET')}")
-                print(f"options_text: {getattr(agent, 'options_text', 'NOT SET')[:100]}...")
-                print(f"valid_choices_text: {getattr(agent, 'valid_choices_text', 'NOT SET')}")
-                print(f"memory: {getattr(agent, 'memory', [])}")
-                print("=== END DEBUG ===\n")
-            
-            # Process through skill broker
+            # Process through skill broker (Context Builder handles prompt injection)
             result = broker.process_step(
                 agent_id=agent.id,
                 step_id=step_counter,
@@ -630,7 +592,7 @@ def run_experiment(args):
                 "agent_id": agent.id,
                 "year": year,
                 "decision": get_adaptation_state(agent),  # Cumulative adaptation state
-                "flood": env.flood_event, # Alias from shared state
+                "flood": env['flood_event'], # Alias from shared state
                 "cumulative_state": get_adaptation_state(agent) if agent else "Do Nothing",
                 "elevated": getattr(agent, 'elevated', False),
                 "has_insurance": getattr(agent, 'has_insurance', False),
@@ -647,7 +609,14 @@ def run_experiment(args):
         
         # Save log after each year (aligned with original LLMABMPMT-Final.py)
         import pandas as pd
-        pd.DataFrame(logs).to_csv(output_dir / "simulation_log.csv", index=False)
+        df_log = pd.DataFrame(logs)
+        df_log.to_csv(output_dir / "simulation_log.csv", index=False)
+        
+        # Calculate and print yearly stats
+        current_year_df = df_log[df_log['year'] == year]
+        stats = current_year_df['cumulative_state'].value_counts()
+        stats_str = " | ".join([f"{k}: {v}" for k, v in stats.items()])
+        print(f"[Year {year}] Stats: {stats_str}")
         print(f"[Year {year}] Log saved with {len(logs)} entries")
     
     # Finalize
@@ -685,10 +654,7 @@ if __name__ == "__main__":
     parser.add_argument("--num-agents", type=int, default=100)
     parser.add_argument("--num-years", type=int, default=10)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--temperature", type=float, default=0.7, help="LLM temperature (0.0-1.0)")
     parser.add_argument("--output-dir", default="results")
-    parser.add_argument("--no-validation", action="store_true", 
-                        help="Skip coherence validation (for comparison testing)")
     
     args = parser.parse_args()
     run_experiment(args)
