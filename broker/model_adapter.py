@@ -124,27 +124,62 @@ class UnifiedAdapter(ModelAdapter):
         # PRIORITY 1: Try JSON extraction first (most reliable)
         # =========================================================================
         import json
-        json_match = re.search(r'\{[^}]+\}', cleaned_output)
-        if json_match:
+        
+        # Robust JSON extraction: Find first '{' and last '}'
+        start_idx = cleaned_output.find('{')
+        end_idx = cleaned_output.rfind('}')
+        
+        if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+            json_str = cleaned_output[start_idx : end_idx + 1]
             try:
-                json_obj = json.loads(json_match.group())
-                # Extract TP/CP directly
-                if 'TP' in json_obj:
-                    reasoning['TP'] = str(json_obj['TP']).upper()[:1]  # H/M/L
-                if 'CP' in json_obj:
-                    reasoning['CP'] = str(json_obj['CP']).upper()[:1]  # H/M/L
-                # Map decision number to skill
-                if 'decision' in json_obj:
-                    dec = str(json_obj['decision'])
-                    tenure = context.get("tenure", "Owner")
-                    is_renter = tenure == "Renter"
-                    if is_renter:
-                        skill_map = self.config.get("skill_map_renter", {})
-                    elif is_elevated:
-                        skill_map = self.config.get("skill_map_elevated", {})
-                    else:
-                        skill_map = self.config.get("skill_map_non_elevated", {})
-                    skill_name = skill_map.get(dec, self.config.get("default_skill", "do_nothing"))
+                json_obj = json.loads(json_str)
+                
+                # --- Structured Schema Parsing ---
+                if 'pmt_eval' in json_obj:
+                    # Flatten PMT struct for validation
+                    pmt = json_obj['pmt_eval']
+                    
+                    # Threat Appraisal
+                    if 'threat_appraisal' in pmt:
+                        ta = pmt['threat_appraisal']
+                        reasoning['threat_appraisal'] = str(ta.get('level', 'ERROR'))[:1].upper()
+                        reasoning['threat_appraisal_reason'] = ta.get('reason', '')
+                    
+                    # Coping Appraisal 
+                    if 'coping_appraisal' in pmt:
+                        ca = pmt['coping_appraisal']
+                        reasoning['coping_appraisal'] = str(ca.get('level', 'ERROR'))[:1].upper()
+                        reasoning['coping_appraisal_reason'] = ca.get('reason', '')
+                        
+                # Context Check (for audit logging)
+                if 'context_check' in json_obj:
+                    reasoning['context_check'] = json_obj['context_check']
+                    
+                # Decision Parsing
+                dec_obj = json_obj.get('decision')
+                if isinstance(dec_obj, dict):
+                    dec_id = str(dec_obj.get('id', '4'))
+                    reasoning['decision_reason'] = dec_obj.get('reason', '')
+                else:
+                    dec_id = str(dec_obj) if dec_obj else '4'
+                
+                # Map decision ID to skill name
+                tenure = context.get("tenure", "Owner")
+                is_renter = tenure == "Renter"
+                if is_renter:
+                    skill_map = self.config.get("skill_map_renter", {})
+                elif is_elevated:
+                    skill_map = self.config.get("skill_map_elevated", {})
+                else:
+                    skill_map = self.config.get("skill_map_non_elevated", {})
+                skill_name = skill_map.get(dec_id, self.config.get("default_skill", "do_nothing"))
+
+                # Fallback for old schema (TP/CP top-level) - Backward Compatibility
+                if 'TP' in json_obj and 'threat_appraisal' not in reasoning:
+                    reasoning['threat_appraisal'] = str(json_obj['TP']).upper()[:1]
+                if 'CP' in json_obj and 'coping_appraisal' not in reasoning:
+                    reasoning['coping_appraisal'] = str(json_obj['CP']).upper()[:1]
+
             except json.JSONDecodeError:
                 pass  # Fall through to text parsing
         

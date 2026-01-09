@@ -34,9 +34,13 @@ household:
     CURRENT CONDITIONS:
     {flood_status_text}
     
-    Using Protection Motivation Theory, evaluate your situation by considering:
+    Using Protection Motivation Theory, evaluate your situation:
+    
+    1. THREAT APPRAISAL (Evaluate Severity + Vulnerability):
     - Perceived Severity: How serious are the consequences of flooding?
     - Perceived Vulnerability: How likely are you to be affected?
+    
+    2. COPING APPRAISAL (Evaluate Efficacy - Cost):
     - Response Efficacy: How effective is each action?
     - Self-Efficacy: Can you afford and execute the action?
     - Response Cost: What are the financial and emotional costs?
@@ -45,14 +49,23 @@ household:
     YOUR OPTIONS:
     {options_text}
     
-    Note: If no flood occurred this year, since no immediate threat, most people would choose "Do Nothing."
+    Note: If no flood occurred recently, "Do Nothing" may be reasonable. If flood occurred, consider protective actions.
     
-    Please respond using the exact format below. Do NOT include any markdown symbols:
-    Threat Appraisal: [H/M/L] - [One sentence summary of how threatened you feel]
-    Coping Appraisal: [H/M/L] - [One sentence summary of how well you can cope]
-    Final Decision: [Choose {valid_choices_text} only]
+    OUTPUT: Respond with ONLY valid JSON (no other text):
+    {{
+      "context_check": {{
+        "flood_status": "Copy the current flood status here",
+        "memory_summary": "One sentence summary of your key memories"
+      }},
+      "pmt_eval": {{
+        "threat_appraisal": {{ "level": "H/M/L", "reason": "one sentence explanation" }},
+        "coping_appraisal": {{ "level": "H/M/L", "reason": "one sentence explanation" }}
+      }},
+      "decision": {{ "id": 4, "reason": "one sentence explanation" }}
+    }}
     
-    Where H=High, M=Medium, L=Low
+    Levels: H=High, M=Medium, L=Low
+    Decision IDs: 1=Insurance, 2=Elevate, 3=Relocate, 4=Do Nothing
   
   # Audit Configuration
   audit:
@@ -95,18 +108,18 @@ household:
     # Rule 1: Urgency Check (Inaction Invalidity)
     # If Threat Appraisal is High (H), "Do Nothing" should be flagged
     urgency_check:
-      construct: TP
+      construct: threat_appraisal
       threshold: 0.0  # Always check (label-based)
-      when_above: ["H"]  # Expected level when state >= threshold
+      expected_levels: ["H"]  # Expected level when state >= threshold
       blocked_skills: ["do_nothing"]
       message: "High Threat Appraisal but chose inaction (do_nothing)"
     
     # Rule 2: Coping-Action Alignment
     # If Coping Appraisal is Low (L), expensive actions are invalid
     coping_alignment:
-      construct: CP
+      construct: coping_appraisal
       threshold: 0.0
-      when_above: ["L"]
+      expected_levels: ["L"]
       blocked_skills: ["elevate_house"]
       message: "Low Coping Appraisal but chose expensive action (elevate_house)"
     
