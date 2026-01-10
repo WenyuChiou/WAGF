@@ -323,12 +323,16 @@ state.update_shared({"flood_occurred": True, "year": 5})
 | 5 | PMT Consistency | Reasoning matches decision? (Warning or Error) |
 | 6 | Uncertainty | Response confident? |
 
-### Validation Levels: WARNING vs ERROR
+### Governance Taxonomy: Major Pillars vs. Minor Nuances
 
-The framework supports two levels of governance response:
+To maintain a balance between logical consistency and agent autonomy, we categorize governance rules into two tiers:
 
-- **WARNING (Soft Guardrails)**: The system detects a potential issue (e.g., high threat but choosing inaction) and logs it in the audit trail. However, the decision is **permitted to proceed**. This is used for "suspicious" but plausible behavior.
-- **ERROR (Hard Blocks)**: The system identifies a logical or physical impossibility (e.g., trying to elevate an already elevated home, or relocating with zero perceived threat). The decision is **blocked**, and the LLM is prompted to **RETRY** with a hint about the violation. If it fails after multiple retries, a safe fallback (e.g., "Do Nothing") is executed.
+| Category | Mapping | Logic | Example |
+| :--- | :--- | :--- | :--- |
+| **Major Pillars** | **ERROR** | **Foundational PMT principles.** Violation creates systematic bias or non-physical behavior. | High Threat + Inaction; Low Threat + Drastic Adaptation (Relocation/HE). |
+| **Minor Nuances** | **WARNING** | **Behavioral diversity.** Suspicious or sub-optimal choices that are still within the realm of "human" variance. | Medium Threat + Inaction; High Coping + Delayed response. |
+
+Currently, all core PMT gates (Threat & Coping alignment) are set to **ERROR** to establish a baseline of "Rational Adaptation."
 
 ---
 
