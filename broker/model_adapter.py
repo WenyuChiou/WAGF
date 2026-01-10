@@ -91,14 +91,19 @@ class UnifiedAdapter(ModelAdapter):
         
         # Build alias map for canonical ID resolution
         self.alias_map = {}
-        all_actions = self.agent_config.get(agent_type).get("actions", [])
-        for action in all_actions:
-            action_id = action["id"]
-            self.alias_map[action_id.lower()] = action_id
+        # Get raw action config to access IDs and aliases
+        raw_actions = self.agent_config.get(agent_type).get("actions", [])
+        for action in raw_actions:
+            canonical_id = action["id"]
+            self.alias_map[canonical_id.lower()] = canonical_id
             for alias in action.get("aliases", []):
-                self.alias_map[alias.lower()] = action_id
+                self.alias_map[alias.lower()] = canonical_id
                 
-        self.valid_skills = valid_skills or set(self.alias_map.keys())
+        # If valid_skills provided, just use them (no mapping assumed/possible without config)
+        if valid_skills:
+            self.valid_skills = valid_skills
+        else:
+            self.valid_skills = set(self.alias_map.keys())
     
     def parse_output(self, raw_output: str, context: Dict[str, Any]) -> Optional[SkillProposal]:
         """
@@ -113,79 +118,13 @@ class UnifiedAdapter(ModelAdapter):
         cleaned_output = self.preprocessor(raw_output)
         
         agent_id = context.get("agent_id", "unknown")
-        is_elevated = context.get("is_elevated", False)
+        is_elevated = context.get("is_elevated", False) # LEGACY: unused
         
         # Initialize results
         skill_name = None
         reasoning = {}
         adjustment = None
         
-        # =========================================================================
-        # PRIORITY 1: Try JSON extraction first (most reliable)
-        # =========================================================================
-        import json
-        
-        # Robust JSON extraction: Find first '{' and last '}'
-        start_idx = cleaned_output.find('{')
-        end_idx = cleaned_output.rfind('}')
-        
-        if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-            json_str = cleaned_output[start_idx : end_idx + 1]
-            try:
-                json_obj = json.loads(json_str)
-                
-                # --- Structured Schema Parsing ---
-                if 'pmt_eval' in json_obj:
-                    # Flatten PMT struct for validation
-                    pmt = json_obj['pmt_eval']
-                    
-                    # Threat Appraisal
-                    if 'threat_appraisal' in pmt:
-                        ta = pmt['threat_appraisal']
-                        reasoning['threat_appraisal'] = str(ta.get('level', 'ERROR'))[:1].upper()
-                        reasoning['threat_appraisal_reason'] = ta.get('reason', '')
-                    
-                    # Coping Appraisal 
-                    if 'coping_appraisal' in pmt:
-                        ca = pmt['coping_appraisal']
-                        reasoning['coping_appraisal'] = str(ca.get('level', 'ERROR'))[:1].upper()
-                        reasoning['coping_appraisal_reason'] = ca.get('reason', '')
-                        
-                # Context Check (for audit logging)
-                if 'context_check' in json_obj:
-                    reasoning['context_check'] = json_obj['context_check']
-                    
-                # Decision Parsing
-                dec_obj = json_obj.get('decision')
-                if isinstance(dec_obj, dict):
-                    dec_id = str(dec_obj.get('id', '4'))
-                    reasoning['decision_reason'] = dec_obj.get('reason', '')
-                else:
-                    dec_id = str(dec_obj) if dec_obj else '4'
-                
-                # Map decision ID to skill name
-                tenure = context.get("tenure", "Owner")
-                is_renter = tenure == "Renter"
-                if is_renter:
-                    skill_map = self.config.get("skill_map_renter", {})
-                elif is_elevated:
-                    skill_map = self.config.get("skill_map_elevated", {})
-                else:
-                    skill_map = self.config.get("skill_map_non_elevated", {})
-                skill_name = skill_map.get(dec_id, self.config.get("default_skill", "do_nothing"))
-
-                # Fallback for old schema (TP/CP top-level) - Backward Compatibility
-                if 'TP' in json_obj and 'threat_appraisal' not in reasoning:
-                    reasoning['threat_appraisal'] = str(json_obj['TP']).upper()[:1]
-                if 'CP' in json_obj and 'coping_appraisal' not in reasoning:
-                    reasoning['coping_appraisal'] = str(json_obj['CP']).upper()[:1]
-
-            except json.JSONDecodeError:
-                pass  # Fall through to text parsing
-        
-        # =========================================================================
-        # PRIORITY 2: Line-by-line text parsing (fallback)
-        # =========================================================================
         lines = cleaned_output.strip().split('\n')
         keywords = self.config.get("decision_keywords", ["decide:", "decision:"])
         
@@ -198,13 +137,10 @@ class UnifiedAdapter(ModelAdapter):
                     decision_text = line.split(":", 1)[1].strip() if ":" in line else ""
                     decision_lower = decision_text.lower()
                     
-                    # Try to match a skill from alias map (Canonical Resolution)
-                    # Sort candidates by length (descending) to match longest phrases first
-                    # e.g., "elevate house" before "elevate"
-                    candidates = sorted(self.alias_map.keys(), key=len, reverse=True)
-                    for candidate in candidates:
-                        if candidate in decision_lower:
-                            skill_name = self.alias_map[candidate]
+                    # Try to match a skill from config
+                    for skill in self.valid_skills:
+                        if skill.lower() in decision_lower:
+                            skill_name = skill
                             break
                     break
             
@@ -254,22 +190,31 @@ class UnifiedAdapter(ModelAdapter):
                     reasoning[construct] = val
                     reasoning[f"{construct}_REASON"] = reason
 
-            # Legacy household parsing
-            elif line_lower.startswith("threat appraisal:"):
-                content = line.split(":", 1)[1].strip() if ":" in line else ""
-                reasoning["threat"] = content
-                # Extract first word for validator (e.g., "High" -> "H")
-                first_word = content.split()[0] if content.split() else ""
-                reasoning["TP"] = first_word[:1].upper() if first_word else ""
-            elif line_lower.startswith("coping appraisal:"):
-                content = line.split(":", 1)[1].strip() if ":" in line else ""
-                reasoning["coping"] = content
-                first_word = content.split()[0] if content.split() else ""
-                reasoning["CP"] = first_word[:1].upper() if first_word else ""
+            # Config-driven Construct Parsing (Generic)
+            constructs = self.config.get("constructs", {})
+            
+            # HARDENING: Add default constructs for household agents
+            if self.agent_type.startswith("household") and not constructs:
+                constructs = {
+                    "TP_LABEL": {"keywords": ["threat appraisal"], "regex": r"threat appraisal:\s*\[?(Low|Med|High)\]?"},
+                    "CP_LABEL": {"keywords": ["coping appraisal"], "regex": r"coping appraisal:\s*\[?(Low|Med|High)\]?"}
+                }
+
+            for key, construct_cfg in constructs.items():
+                # Check for keywords
+                has_keyword = any(k in line_lower for k in construct_cfg.get("keywords", []))
+                if has_keyword:
+                    # Apply regex
+                    pattern = construct_cfg.get("regex", "")
+                    if pattern:
+                        match = re.search(pattern, line, re.IGNORECASE)
+                        if match:
+                            reasoning[key] = match.group(1).strip()
             
             # Legacy: "Final Decision:" for household
-            elif line_lower.startswith("final decision:") and not skill_name:
-                decision_text = line.split(":", 1)[1].strip()
+            if (line_lower.startswith("final decision:") or line_lower.startswith("decision:")) and not skill_name:
+                parts = line.split(":", 1)
+                decision_text = parts[1].strip() if len(parts) > 1 else ""
                 decision_lower = decision_text.lower()
                 
                 for skill in self.valid_skills:
@@ -277,26 +222,33 @@ class UnifiedAdapter(ModelAdapter):
                         skill_name = skill
                         break
                 
-                # Fallback: digit mapping for household
-                if not skill_name and self.agent_type.startswith("household"):
-                    tenure = context.get("tenure", "Owner")
-                    is_renter = tenure == "Renter"
+                # HARDENING: numeric skill variant mapping
+                if not skill_name:
+                    variant = context.get("skill_variant")
+                    skill_map = {}
                     
+                    if variant:
+                        skill_map = self.config.get(f"skill_map_{variant}", {})
+                    
+                    # Fallback to defaults if empty
+                    if not skill_map and self.agent_type.startswith("household"):
+                        if variant == "elevated":
+                            skill_map = {"1": "buy_insurance", "2": "relocate", "3": "do_nothing"}
+                        else:
+                            skill_map = {"1": "buy_insurance", "2": "elevate_house", "3": "relocate", "4": "do_nothing"}
+
                     for char in decision_text:
                         if char.isdigit():
-                            if is_renter:
-                                skill_map = self.config.get("skill_map_renter", {})
-                            elif is_elevated:
-                                skill_map = self.config.get("skill_map_elevated", {})
-                            else:
-                                skill_map = self.config.get("skill_map_non_elevated", {})
-                                
                             skill_name = skill_map.get(char, self.config.get("default_skill", "do_nothing"))
                             break
         
         # Default skill from config
         if not skill_name:
             skill_name = self.config.get("default_skill", "do_nothing")
+            
+        # Resolve to canonical ID
+        if skill_name:
+            skill_name = self.alias_map.get(skill_name.lower(), skill_name)
         
         # Add adjustment to reasoning if present
         if adjustment is not None:
