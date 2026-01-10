@@ -15,16 +15,7 @@ class ValidationLevel(Enum):
     WARNING = "WARNING"  # Log but allow
 
 
-@dataclass
-class ValidationResult:
-    valid: bool
-    level: ValidationLevel
-    rule: str
-    message: str
-    agent_id: str
-    field: Optional[str] = None
-    value: Optional[float] = None
-    constraint: Optional[str] = None
+from broker.skill_types import ValidationResult
 
 
 from broker.agent_config import load_agent_config, ValidationRule, CoherenceRule
@@ -91,21 +82,28 @@ class AgentValidator:
             if normalized not in valid_normalized:
                 results.append(ValidationResult(
                     valid=False,
-                    level=ValidationLevel.ERROR,
-                    rule="valid_decisions",
-                    message=f"Invalid decision '{decision}' for {agent_type}",
-                    agent_id=agent_id,
-                    field="decision",
-                    constraint=str(valid_actions[:4]) + "..."
+                    validator_name="AgentValidator:valid_decisions",
+                    errors=[f"Invalid decision '{decision}' for {agent_type}"],
+                    metadata={
+                        "level": ValidationLevel.ERROR,
+                        "rule": "valid_decisions",
+                        "field": "decision",
+                        "constraint": str(valid_actions[:4]) + "..."
+                    }
                 ))
         
-        # 2. Validate PMT Coherence (Household only)
-        if base_type == "household" and reasoning:
-            # YAML-based rules (Single source of truth)
-            results.extend(self.validate_pmt_coherence(agent_id, state, reasoning))
-            results.extend(self.validate_action_blocking(agent_id, decision, state, reasoning))
+        # 2. Dual-Tier Validation (Identity & Thinking)
+        # Tier 1: Identity/Condition Validation (Status/Right-to-act)
+        # Driven by 'identity_rules' in YAML
+        results.extend(self.validate_identity(base_type, agent_id, decision, state))
         
-        # 3. Validate rate/param bounds
+        # Tier 2: Thinking/Cognitive Validation (Reasoning/Coherence)
+        # Driven by 'thinking_rules' in YAML
+        if reasoning:
+            results.extend(self.validate_thinking(base_type, agent_id, decision, state, reasoning))
+        
+        # 3. Numeric Attribute Bounds (Legacy/Structural)
+        # Driven by 'validation_rules' in YAML
         rules = self.config.get_validation_rules(base_type)
         for rule_name, rule in rules.items():
             param = rule.param
@@ -118,26 +116,32 @@ class AgentValidator:
             # Min/Max bounds
             if rule.min_val is not None and value < rule.min_val:
                 results.append(ValidationResult(
-                    valid=False,
-                    level=lv,
-                    rule=rule_name,
-                    message=rule.message or f"{param} {value:.2f} below min {rule.min_val:.2f}",
-                    agent_id=agent_id,
-                    field=param,
-                    value=value,
-                    constraint=f"min={rule.min_val}"
+                    valid=(lv == ValidationLevel.WARNING),
+                    validator_name=f"AgentValidator:{rule_name}",
+                    errors=[rule.message or f"{param} {value:.2f} below min {rule.min_val:.2f}"] if lv == ValidationLevel.ERROR else [],
+                    warnings=[rule.message or f"{param} {value:.2f} below min {rule.min_val:.2f}"] if lv == ValidationLevel.WARNING else [],
+                    metadata={
+                        "level": lv,
+                        "rule": rule_name,
+                        "field": param,
+                        "value": value,
+                        "constraint": f"min={rule.min_val}"
+                    }
                 ))
             
             if rule.max_val is not None and value > rule.max_val:
                 results.append(ValidationResult(
-                    valid=False,
-                    level=lv,
-                    rule=rule_name,
-                    message=rule.message or f"{param} {value:.2f} above max {rule.max_val:.2f}",
-                    agent_id=agent_id,
-                    field=param,
-                    value=value,
-                    constraint=f"max={rule.max_val}"
+                    valid=(lv == ValidationLevel.WARNING),
+                    validator_name=f"AgentValidator:{rule_name}",
+                    errors=[rule.message or f"{param} {value:.2f} above max {rule.max_val:.2f}"] if lv == ValidationLevel.ERROR else [],
+                    warnings=[rule.message or f"{param} {value:.2f} above max {rule.max_val:.2f}"] if lv == ValidationLevel.WARNING else [],
+                    metadata={
+                        "level": lv,
+                        "rule": rule_name,
+                        "field": param,
+                        "value": value,
+                        "constraint": f"max={rule.max_val}"
+                    }
                 ))
             
             # Delta check
@@ -145,18 +149,18 @@ class AgentValidator:
                 delta = abs(value - prev_state[param])
                 if delta > rule.max_delta:
                     results.append(ValidationResult(
-                        valid=False,
-                        level=lv,
-                        rule=rule_name,
-                        message=rule.message or f"{param} change {delta:.2%} exceeds max {rule.max_delta:.0%}",
-                        agent_id=agent_id,
-                        field=param,
-                        value=delta,
-                        constraint=f"max_delta={rule.max_delta}"
+                        valid=(lv == ValidationLevel.WARNING),
+                        validator_name=f"AgentValidator:{rule_name}",
+                        errors=[rule.message or f"{param} change {delta:.2%} exceeds max {rule.max_delta:.0%}"] if lv == ValidationLevel.ERROR else [],
+                        warnings=[rule.message or f"{param} change {delta:.2%} exceeds max {rule.max_delta:.0%}"] if lv == ValidationLevel.WARNING else [],
+                        metadata={
+                            "level": lv,
+                            "rule": rule_name,
+                            "field": param,
+                            "value": delta,
+                            "constraint": f"max_delta={rule.max_delta}"
+                        }
                     ))
-        
-        self._categorize_results(results)
-        return results
         
         self._categorize_results(results)
         return results
@@ -206,86 +210,138 @@ class AgentValidator:
             
             if not is_coherent:
                 results.append(ValidationResult(
-                    valid=False,
-                    level=ValidationLevel.WARNING,
-                    rule=f"pmt_coherence_{rule.construct.lower()}",
-                    message=rule.message or f"Coherence issue with {rule.construct}",
-                    agent_id=agent_id,
-                    field=rule.construct,
-                    value=label,
-                    constraint=f"Expected {rule.expected_levels} when state >= {rule.threshold}"
+                    valid=True, # WARNING only
+                    validator_name=f"AgentValidator:pmt_coherence_{rule.construct.lower()}",
+                    errors=[],
+                    warnings=[rule.message or f"Coherence issue with {rule.construct}"],
+                    metadata={
+                        "level": ValidationLevel.WARNING,
+                        "rule": f"pmt_coherence_{rule.construct.lower()}",
+                        "field": rule.construct,
+                        "value": label,
+                        "constraint": f"Expected {rule.expected_levels} when state >= {rule.threshold}"
+                    }
                 ))
             
         return results
 
-    def validate_action_blocking(
+    def validate_identity(
         self,
+        agent_type: str,
+        agent_id: str,
+        decision: str,
+        state: Dict[str, Any]
+    ) -> List[ValidationResult]:
+        """Tier 1: Identity/Condition validation (Status-based)."""
+        results = []
+        rules = self.config.get_identity_rules(agent_type)
+        
+        # DEBUG
+        print(f"DEBUG_VALIDATOR: Tier=identity Decision={decision} Rules={len(rules)}", flush=True)
+
+        for rule in rules:
+            if not rule.blocked_skills: continue
+            
+            # Check precondition in state
+            pre = rule.metadata.get("precondition")
+            is_triggered = False
+            if pre:
+                if state.get(pre) is True:
+                    is_triggered = True
+            
+            if is_triggered:
+                normalized_decision = decision.lower().strip().replace("_", "")
+                blocked_normalized = [b.lower().strip().replace("_", "") for b in rule.blocked_skills]
+                
+                if normalized_decision in blocked_normalized:
+                    lv = ValidationLevel.ERROR if rule.level == "ERROR" else ValidationLevel.WARNING
+                    results.append(ValidationResult(
+                        valid=(lv == ValidationLevel.WARNING),
+                        validator_name=f"AgentValidator:identity_{rule.level.lower()}",
+                        errors=[rule.message or f"Identity Block: '{decision}' restricted by {pre}"] if lv == ValidationLevel.ERROR else [],
+                        warnings=[rule.message or f"Identity Block: '{decision}' restricted by {pre}"] if lv == ValidationLevel.WARNING else [],
+                        metadata={
+                            "level": lv,
+                            "rule": f"identity_{rule.level.lower()}",
+                            "message": rule.message,
+                            "field": "decision",
+                            "value": decision,
+                            "constraint": f"Identity: {rule.level}"
+                        }
+                    ))
+        return results
+
+    def validate_thinking(
+        self,
+        agent_type: str,
         agent_id: str,
         decision: str,
         state: Dict[str, Any],
         reasoning: Dict[str, str]
     ) -> List[ValidationResult]:
-        """
-        Validate decision based on Model's Qualitative Labels (H/M/L).
-        Ignores numerical state thresholds. STRICTLY checks:
-        If Label IN [TriggerValues] AND Decision IN [BlockedSkills] -> ERROR.
-        """
+        """Tier 2: Thinking/Cognitive validation (Reasoning-based)."""
+        rules = self.config.get_thinking_rules(agent_type)
+        return self._run_rule_set(agent_id, decision, reasoning, rules, "thinking")
+
+    def _run_rule_set(
+        self,
+        agent_id: str,
+        decision: str,
+        reasoning: Dict[str, str],
+        rules: List[Any],
+        tier_name: str
+    ) -> List[ValidationResult]:
+        """Generic engine for label-based rules."""
         results = []
-        rules = self.config.get_coherence_rules("household")
         
-        # Helper to safely get label (H/M/L)
+        # DEBUG
+        print(f"DEBUG_VALIDATOR: Tier={tier_name} Decision={decision} Rules={len(rules)}", flush=True)
+
         def get_label(key):
-            # Try keys like 'TP', 'EVAL_TP', 'Threat Appraisal'
-            val = reasoning.get(key, reasoning.get(f"EVAL_{key}", "")).upper()
-            # Handle "[High]" or "High"
-            # Split by ']' to handle "[High]..."
+            val = reasoning.get(key, "").upper()
             label_text = val.split(']')[0].replace("[", "").replace("]", "").strip() if ']' in val else val.strip()
-            # Return first char 'H', 'M', 'L' if exists
             return label_text[:1] if label_text else ""
 
+        if tier_name == "thinking":
+            # print(f"DEBUG_VALIDATOR_REASONING: {reasoning}", flush=True)
+            pass
+
         for rule in rules:
-            if not rule.blocked_skills:
-                continue
+            if not rule.blocked_skills: continue
             
             is_triggered = False
-            
-            # Case 1: Multi-Condition Rule (v4+)
             if rule.conditions:
                 matches = []
+                # print(f"DEBUG_RULE: Checking {rule.blocked_skills} against conditions", flush=True)
                 for cond in rule.conditions:
-                    c_name = cond.get("construct")
-                    c_vals = cond.get("values", [])
-                    actual = get_label(c_name)
-                    matches.append(any(actual.startswith(v[:1]) for v in c_vals))
+                    actual = get_label(cond.get("construct"))
+                    # print(f"  DEBUG_COND: {cond.get('construct')} Actual='{actual}' vs Target={cond.get('values')}", flush=True)
+                    matches.append(any(actual.startswith(v[:1]) for v in cond.get("values", [])))
                 is_triggered = all(matches) if matches else False
-            
-            # Case 2: Standard Single-Construct Rule
             elif rule.construct:
                 label = get_label(rule.construct)
                 if label and rule.expected_levels:
-                    if any(label.startswith(t[:1]) for t in rule.expected_levels):
-                        is_triggered = True
+                    is_triggered = any(label.startswith(t[:1]) for t in rule.expected_levels)
                 
             if is_triggered:
-                # 3. Check Blocked Actions
                 normalized_decision = decision.lower().strip().replace("_", "")
                 blocked_normalized = [b.lower().strip().replace("_", "") for b in rule.blocked_skills]
                 
                 if normalized_decision in blocked_normalized:
-                    # Use configurable level (ERROR/WARNING)
                     lv = ValidationLevel.ERROR if rule.level == "ERROR" else ValidationLevel.WARNING
-                    
                     results.append(ValidationResult(
                         valid=(lv == ValidationLevel.WARNING),
-                        level=lv,
-                        rule=f"coherence_{rule.level.lower()}",
-                        message=rule.message or f"Action '{decision}' blocked/flagged by {rule.construct or 'conditions'}",
-                        agent_id=agent_id,
-                        field="decision",
-                        value=decision,
-                        constraint=f"Rule: {rule.level}"
+                        validator_name=f"AgentValidator:{tier_name}_{rule.level.lower()}",
+                        errors=[rule.message or f"Logic Block: '{decision}' flagged by {tier_name} rules"] if lv == ValidationLevel.ERROR else [],
+                        warnings=[rule.message or f"Logic Block: '{decision}' flagged by {tier_name} rules"] if lv == ValidationLevel.WARNING else [],
+                        metadata={
+                            "level": lv,
+                            "rule": f"{tier_name}_{rule.level.lower()}",
+                            "field": "decision",
+                            "value": decision,
+                            "constraint": f"Tier: {tier_name}"
+                        }
                     ))
-                    
         return results
     
     def validate_response_format(
@@ -302,12 +358,14 @@ class AgentValidator:
             if field not in response:
                 results.append(ValidationResult(
                     valid=False,
-                    level=ValidationLevel.ERROR,
-                    rule="response_format",
-                    message=f"Missing '{field}' in response",
-                    agent_id=agent_id,
-                    field="response",
-                    constraint=f"required: {required}"
+                    validator_name="AgentValidator:response_format",
+                    errors=[f"Missing '{field}' in response"],
+                    metadata={
+                        "level": ValidationLevel.ERROR,
+                        "rule": "response_format",
+                        "field": "response",
+                        "constraint": f"required: {required}"
+                    }
                 ))
         
         self._categorize_results(results)
@@ -324,14 +382,17 @@ class AgentValidator:
         results = []
         if not (min_adj <= adjustment <= max_adj):
             results.append(ValidationResult(
-                valid=False,
-                level=ValidationLevel.WARNING,
-                rule="adjustment_bounds",
-                message=f"Adjustment {adjustment:.1%} outside [{min_adj:.0%}, {max_adj:.0%}]",
-                agent_id=agent_id,
-                field="adjustment",
-                value=adjustment,
-                constraint=f"[{min_adj}, {max_adj}]"
+                valid=True, # WARNING
+                validator_name="AgentValidator:adjustment_bounds",
+                errors=[],
+                warnings=[f"Adjustment {adjustment:.1%} outside [{min_adj:.0%}, {max_adj:.0%}]"],
+                metadata={
+                    "level": ValidationLevel.WARNING,
+                    "rule": "adjustment_bounds",
+                    "field": "adjustment",
+                    "value": adjustment,
+                    "constraint": f"[{min_adj}, {max_adj}]"
+                }
             ))
         self._categorize_results(results)
         return results
@@ -339,7 +400,7 @@ class AgentValidator:
     def _categorize_results(self, results: List[ValidationResult]):
         """Sort results into errors and warnings."""
         for r in results:
-            if r.level == ValidationLevel.ERROR:
+            if not r.valid and r.errors:
                 self.errors.append(r)
             else:
                 self.warnings.append(r)
@@ -352,8 +413,8 @@ class AgentValidator:
         return {
             "total_errors": len(self.errors),
             "total_warnings": len(self.warnings),
-            "errors": [{"rule": e.rule, "message": e.message} for e in self.errors],
-            "warnings": [{"rule": w.rule, "message": w.message} for w in self.warnings]
+            "errors": [{"rule": e.metadata.get("rule"), "message": str(e.errors)} for e in self.errors],
+            "warnings": [{"rule": w.metadata.get("rule", "warning"), "message": str(w.warnings)} for w in self.warnings]
         }
     
     def reset(self):

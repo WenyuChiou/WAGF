@@ -121,26 +121,61 @@ class AgentTypeConfig:
             for name, rule in rules.items()
         }
     
-    def get_coherence_rules(self, agent_type: str) -> List[CoherenceRule]:
-        """Get coherence rules for construct validation."""
+    def get_identity_rules(self, agent_type: str) -> List[CoherenceRule]:
+        """Get identity/status rules."""
         cfg = self.get(agent_type)
-        rules = cfg.get("coherence_rules", {})
+        gov = cfg.get("governance", {})
+        rules = gov.get("identity_rules", cfg.get("identity_rules", []))
+        
+        # DEBUG
+        print(f"DEBUG_CONFIG: Loading identity_rules for {agent_type}. Found {len(rules)} entries. Keys in gov: {list(gov.keys())}")
+            
+        if isinstance(rules, dict):
+            rules_list = [{"id": k, **v} for k, v in rules.items()]
+        else:
+            rules_list = rules
+            
         return [
             CoherenceRule(
-                construct=rule.get("construct", name),
+                construct=rule.get("construct", rule.get("id")),
                 conditions=rule.get("conditions"),
-                state_field=rule.get("state_field"),
-                state_fields=rule.get("state_fields"),
-                aggregation=rule.get("aggregation", "single"),
-                threshold=rule.get("threshold", 0.5),
+                blocked_skills=rule.get("blocked_skills"),
+                level=rule.get("level", "ERROR"),
+                message=rule.get("message", ""),
+                metadata={"precondition": rule.get("precondition")}
+            )
+            for rule in rules_list
+        ]
+
+    def get_thinking_rules(self, agent_type: str) -> List[CoherenceRule]:
+        """Get cognitive/thinking rules."""
+        cfg = self.get(agent_type)
+        gov = cfg.get("governance", {})
+        rules = gov.get("thinking_rules", cfg.get("thinking_rules", cfg.get("coherence_rules", {})))
+        
+        # DEBUG
+        print(f"DEBUG_CONFIG: Loading thinking_rules for {agent_type}. Found {len(rules)} entries.")
+            
+        if isinstance(rules, list):
+            rules_list = rules
+        else:
+            rules_list = [{"id": k, **v} for k, v in rules.items()]
+            
+        return [
+            CoherenceRule(
+                construct=rule.get("construct", rule.get("id")),
+                conditions=rule.get("conditions"),
                 expected_levels=rule.get("when_above", rule.get("when_true")),
-                trigger_phrases=rule.get("trigger_phrases"),
                 blocked_skills=rule.get("blocked_skills"),
                 level=rule.get("level", "ERROR"),
                 message=rule.get("message", "")
             )
-            for name, rule in rules.items()
+            for rule in rules_list
         ]
+
+    def get_coherence_rules(self, agent_type: str) -> List[CoherenceRule]:
+        """Legacy compatibility accessor."""
+        return self.get_thinking_rules(agent_type)
     
     def get_constructs(self, agent_type: str) -> Dict[str, Dict]:
         """Get construct definitions."""

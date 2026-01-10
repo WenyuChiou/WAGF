@@ -187,7 +187,7 @@ class FloodSimulation(BaseSimulationEngine):
         flood_file = base_dir / "flood_years.csv"
         
         if agent_file.exists() and flood_file.exists():
-            print(f"📂 Loading from CSV files...")
+            print(f" Loading from CSV files...")
             df = pd.read_csv(agent_file)
             flood_df = pd.read_csv(flood_file)
             self.flood_years = sorted(flood_df['Flood_Years'].tolist())
@@ -237,10 +237,10 @@ class FloodSimulation(BaseSimulationEngine):
                 agent.flood_threshold = float(row.get('flood_threshold', 0.5))
                 agent.custom_attributes = custom_attrs
                 self.agents[agent_id] = agent
-            print(f"✅ Loaded {len(self.agents)} agents, flood years: {self.flood_years}")
+            print(f" Loaded {len(self.agents)} agents, flood years: {self.flood_years}")
 
         else:
-            print(f"📂 No CSV files found, using random initialization")
+            print(f" No CSV files found, using random initialization")
             for i in range(1, num_agents + 1):
                 initial_memory = random.sample(PAST_EVENTS, k=random.randint(2, 3))
                 self.agents[f"Agent_{i}"] = FloodAgent(
@@ -384,14 +384,14 @@ def setup_governance(
         skill_registry = SkillRegistry()
         registry_path = Path(__file__).parent / "skill_registry.yaml"
         skill_registry.register_from_yaml(registry_path)
-        print(f"✅ Loaded Skill Registry from {registry_path.name}")
+        print(f" Loaded Skill Registry from {registry_path.name}")
     else:
-        print(f"✅ Using provided Skill Registry")
+        print(f" Using provided Skill Registry")
     
     # 2. Local Configuration (Experiment-Specific Settings)
     # This separates the experiment's domain rules from the global default.
     local_config_path = Path(__file__).parent / "agent_types.yaml"
-    print(f"✅ Loaded Agent Config from {local_config_path.name}")
+    print(f" Loaded Agent Config from {local_config_path.name}")
     
     # Resetting config singleton to ensure local config is loaded (crucial if running in shared process)
     # In a fresh script run, this is safe.
@@ -403,7 +403,7 @@ def setup_governance(
     if "deepseek" in model_name.lower():
         from broker.model_adapter import deepseek_preprocessor
         preprocessor = deepseek_preprocessor
-        print(f"✅ Using DeepSeek Preprocessor for {model_name}")
+        print(f" Using DeepSeek Preprocessor for {model_name}")
 
     # 3. Model Adapter (Interprets LLM output using local config)
     model_adapter = UnifiedAdapter(
@@ -467,7 +467,7 @@ def run_experiment(args):
     skill_registry = SkillRegistry()
     registry_path = Path(__file__).parent / "skill_registry.yaml"
     skill_registry.register_from_yaml(registry_path)
-    print(f"✅ Loaded Skill Registry from {registry_path.name}")
+    print(f" Loaded Skill Registry from {registry_path.name}")
 
     # Load config for Context Builder
     from broker.agent_config import AgentTypeConfig
@@ -479,9 +479,9 @@ def run_experiment(args):
     household_config = full_config.get("household")  # AgentTypeConfig handles defaults
     prompt_template = household_config.get("prompt_template", "")
     if not prompt_template:
-        print("⚠️ WARNING: prompt_template is EMPTY!")
+        print(" WARNING: prompt_template is EMPTY!")
     else:
-        print(f"✅ Loaded prompt_template ({len(prompt_template)} chars)")
+        print(f" Loaded prompt_template ({len(prompt_template)} chars)")
     
     # Instantiate custom builder manually (bypassing factory to inject skill_registry)
     # Note: FloodContextBuilder inherits from BaseAgentContextBuilder so API matches
@@ -515,7 +515,7 @@ def run_experiment(args):
         
         print(f"\n--- Year {year} ---")
         if env['flood_event']:
-            print("🌊 FLOOD EVENT!")
+            print(" FLOOD EVENT!")
         
         active_agents = [a for a in sim.agents.values() if not getattr(a, 'relocated', False)]
         total_elevated = sum(1 for a in active_agents if getattr(a, 'elevated', False))
@@ -567,7 +567,8 @@ def run_experiment(args):
                 step_id=step_counter,
                 run_id=run_id,
                 seed=args.seed + step_counter,
-                llm_invoke=llm_invoke
+                llm_invoke=llm_invoke,
+                agent_type="household"
             )
             
             # Store skill for persistent logging in PHASE 3
@@ -630,7 +631,7 @@ def run_experiment(args):
     print(f"\nResults saved to: {output_dir}")
     
     # Generate Comparison Plot (Reproducibility)
-    print("📊 Generating comparison results plot...")
+    print(" Generating comparison results plot...")
     plot_adaptation_results(csv_path, output_dir)
     
     return broker_stats

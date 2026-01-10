@@ -118,7 +118,6 @@ household:
     relocation_anomaly:
       conditions:
         - { construct: TP_LABEL, values: ["L"] }
-        - { construct: CP_LABEL, values: ["L"] }
       blocked_skills: ["relocate"]
       level: ERROR
       message: "Logical Error: Relocation chosen despite Low Threat and Low Coping appraisal. Please reconsider."
