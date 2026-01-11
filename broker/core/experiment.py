@@ -169,6 +169,10 @@ class ExperimentBuilder:
         self.sim_engine = sim_engine
         return self
     
+    def with_skill_registry(self, registry: Any):
+        self.skill_registry = registry
+        return self
+    
     def with_output(self, path: str):
         self.output_base = Path(path)
         return self

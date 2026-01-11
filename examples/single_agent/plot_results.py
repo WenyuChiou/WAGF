@@ -17,8 +17,11 @@ def plot_adaptation_results(csv_path: Path, output_dir: Path):
         print("Warning: Log file is empty, skipping plot.")
         return
 
+    # Support both 'decision' and 'cumulative_state' columns for flexibility
+    dec_col = 'decision' if 'decision' in df.columns else 'cumulative_state'
+    
     # Identify the FIRST year each agent relocated
-    relocated_first_year = df[df['decision'] == 'Relocate'].groupby('agent_id')['year'].min().reset_index()
+    relocated_first_year = df[df[dec_col] == 'Relocate'].groupby('agent_id')['year'].min().reset_index()
     relocated_first_year.columns = ['agent_id', 'first_reloc_year']
     
     # Merge back to the main dataframe
@@ -31,7 +34,7 @@ def plot_adaptation_results(csv_path: Path, output_dir: Path):
     df = df[df['first_reloc_year'].isna() | (df['year'] <= df['first_reloc_year'])]
     
     # Pivot table: Year vs Decision -> Count
-    pivot = df.pivot_table(index='year', columns='decision', aggfunc='size', fill_value=0)
+    pivot = df.pivot_table(index='year', columns=dec_col, aggfunc='size', fill_value=0)
     
     # Ensure all standard columns exist for consistent coloring
     # Order matches original ref/LLMABMPMT-Final.py

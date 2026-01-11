@@ -43,9 +43,11 @@ class GenericAuditWriter:
         self._trace_buffer: Dict[str, List[Dict[str, Any]]] = {}
     
     def _get_file_path(self, agent_type: str) -> Path:
-        """Get or create file path for agent type."""
+        """Get or create file path for agent type (JSONL traces in raw/ subdir)."""
         if agent_type not in self._files:
-            self._files[agent_type] = self.output_dir / f"{agent_type}_audit.jsonl"
+            raw_dir = self.output_dir / "raw"
+            raw_dir.mkdir(parents=True, exist_ok=True)
+            self._files[agent_type] = raw_dir / f"{agent_type}_traces.jsonl"
         return self._files[agent_type]
     
     def write_trace(
@@ -115,29 +117,57 @@ class GenericAuditWriter:
         return self.summary
 
     def _export_csv(self, agent_type: str, traces: List[Dict[str, Any]]):
-        """Export buffered traces to flat CSV."""
-        csv_path = self.output_dir / f"{agent_type}_audit.csv"
+        """Export buffered traces to flat CSV with deep governance fields."""
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        csv_path = self.output_dir / f"{agent_type}_governance_audit.csv"
         if not traces: return
 
-        # Flatten rows (simplified)
         flat_rows = []
         for t in traces:
+            # 1. Base identity and timing
             row = {
+                "step_id": t.get("step_id"),
                 "timestamp": t.get("timestamp"),
                 "agent_id": t.get("agent_id"),
-                "decision": t.get("decision", t.get("approved_skill", {}).get("skill_name")),
-                "validated": t.get("validated")
+                "status": t.get("approved_skill", {}).get("status", "UNKNOWN"),
+                "retry_count": t.get("retry_count", 0),
+                "validated": t.get("validated", True),
             }
-            # Flatten reasoning if present
-            if "skill_proposal" in t and "reasoning" in t["skill_proposal"]:
-                row.update(t["skill_proposal"]["reasoning"])
+            
+            # 2. Skill Logic (Proposed vs Approved)
+            skill_prop = t.get("skill_proposal", {})
+            row["proposed_skill"] = skill_prop.get("skill_name")
+            row["final_skill"] = t.get("approved_skill", {}).get("skill_name")
+            
+            # 3. Reasoning (TP/CP Appraisal)
+            reasoning = skill_prop.get("reasoning", {})
+            if isinstance(reasoning, dict):
+                for k, v in reasoning.items():
+                    row[f"reason_{k.lower()}"] = v
+            else:
+                row["reason_text"] = str(reasoning)
+            
+            # 4. Validation Details (Which rule triggered)
+            issues = t.get("validation_issues", [])
+            if issues:
+                row["failed_rules"] = "|".join([str(i.get('validator', 'Unknown')) for i in issues])
+                row["error_messages"] = "|".join(["; ".join(i.get('errors', [])) for i in issues])
+            else:
+                row["failed_rules"] = ""
+                row["error_messages"] = ""
+
             flat_rows.append(row)
 
         if not flat_rows: return
 
-        keys = flat_rows[0].keys()
+        # Ensure consistent column ordering for user
+        priority_keys = ["step_id", "agent_id", "proposed_skill", "final_skill", "status", "retry_count", "validated", "failed_rules"]
+        all_keys = list(flat_rows[0].keys())
+        # Sort keys to keep priority ones first
+        fieldnames = priority_keys + [k for k in all_keys if k not in priority_keys]
+        
         with open(csv_path, 'w', newline='', encoding='utf-8-sig') as f:
-            writer = csv.DictWriter(f, fieldnames=keys)
+            writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction='ignore')
             writer.writeheader()
             writer.writerows(flat_rows)
 
