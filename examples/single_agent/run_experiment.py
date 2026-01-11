@@ -180,6 +180,25 @@ def get_adaptation_state(agent: BaseAgent) -> str:
         return "Do Nothing"
 
 
+class HouseholdAgent(BaseAgent):
+    """Custom Agent for Flood Adaptation with skill filtering."""
+    def get_available_skills(self) -> List[str]:
+        # Filter elevation if already elevated
+        is_elevated = getattr(self, "elevated", False)
+        # Filter relocation if already relocated
+        is_relocated = getattr(self, "relocated", False)
+        
+        all_skills = super().get_available_skills()
+        filtered = []
+        for s in all_skills:
+            if is_elevated and "elevate_house" in s:
+                continue
+            if is_relocated and "relocate" in s:
+                continue
+            filtered.append(s)
+        return filtered
+
+
 class FloodSimulation(BaseSimulationEngine):
     """Flood adaptation simulation - System-only execution layer."""
     
@@ -227,7 +246,7 @@ class FloodSimulation(BaseSimulationEngine):
                 custom_attrs = {k: v for k, v in row.to_dict().items() if k not in known_fields}
 
                 
-                # Create BaseAgent directly with config + kwargs (Composition)
+                # Create HouseholdAgent directly with config + kwargs (Composition)
                 # Support both 'id' and 'agent_id' column names
                 agent_id = row.get('agent_id', row.get('id', f'Agent_{_+1}'))
                 
@@ -248,7 +267,7 @@ class FloodSimulation(BaseSimulationEngine):
                     ]
                 )
                 
-                agent = BaseAgent(config=config, memory=memory)
+                agent = HouseholdAgent(config=config, memory=memory)
                 agent.id = agent_id  # Explicitly set ID
                 # Add flood-specific attributes via setattr
                 agent.elevated = bool(row.get('elevated', False))
