@@ -16,7 +16,21 @@ This experiment utilizes a **Three-Layer Architecture**:
 The core modules have been "hardened" to ensure simulation integrity regardless of the specific agent configuration:
 -   **Structured PMT Labels**: The system enforces $[Low/Med/High]$ parsing for Threat and Coping Appraisals by default.
 -   **Numeric Mapping**: Skill decisions can be provided as numbers (1-4), which the broker automatically maps to canonical skill IDs based on the agent's current state (e.g., standard vs. elevated).
--   **Logical Consistency**: Core validators block "maladaptive" decisions (like doing nothing when threat is high) to ensure agents behave rationally according to the Protection Motivation Theory.
+-   **Logical Consistency**: Core validators block "maladaptive" decisions to ensure agents behave rationally according to the Protection Motivation Theory.
+
+### Validator Logic (Dual-Tier)
+The `AgentValidator` operates in two tiers to ensure robust governance:
+
+1.  **Tier 1: Identity & Status** (`identity_rules`)
+    -   **Precondition Checks**: Prevents invalid actions based on agent status.
+    -   *Example*: An agent cannot "elevate house" if it often "rents" or has already relocated.
+    -   *Example*: An agent cannot "buy insurance" if it already has it.
+
+2.  **Tier 2: Thinking & Cognition** (`thinking_rules`)
+    -   **PMT Consistency**: Checks if the decision aligns with the agent's internal reasoning (Threat/Coping Appraisal).
+    -   **Relocation Anomaly (Low Threat)**: Explicitly blocks `relocate` if **Threat Appraisal is Low**, regardless of Coping Appraisal.
+        -   *Theory*: "No Threat = No Action". Panic relocation without threat is deemed irrational.
+    -   **Inaction Anomaly (High Threat)**: Blocks `do_nothing` if **Threat High** and **Coping High**.
 
 ## Getting Started
 

@@ -134,7 +134,7 @@ PAST_EVENTS = [
     "News outlets have reported a possible trend of increasing flood frequency and severity in recent years"
 ]
 
-MEMORY_WINDOW = 3  # Number of recent memories an agent retains
+MEMORY_WINDOW = 3  # Match original experiment window size
 RANDOM_MEMORY_RECALL_CHANCE = 0.2  # 20% chance to recall a random past event
 NUM_AGENTS = 100  # For neighbor percentage calculation
 GRANT_PROBABILITY = 0.5  # 50% chance of grant being available
@@ -644,6 +644,13 @@ if __name__ == "__main__":
     parser.add_argument("--num-years", type=int, default=10)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--output-dir", default="results")
+    parser.add_argument("--governance-profile", default="default", help="Governance strictness: default, strict, relaxed")
     
     args = parser.parse_args()
+    
+    # Inject Profile Selection into Environment (Config Loader will pick this up)
+    import os
+    os.environ["GOVERNANCE_PROFILE"] = args.governance_profile
+    print(f" Setting Governance Profile: {args.governance_profile.upper()}")
+    
     run_experiment(args)

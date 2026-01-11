@@ -8,7 +8,7 @@ Provides easy access to prompts, validation rules, and coherence rules.
 import yaml
 from pathlib import Path
 from typing import Dict, Any, List, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -46,6 +46,7 @@ class CoherenceRule:
     blocked_skills: Optional[List[str]] = None
     level: str = "ERROR" # ERROR (retry) or WARNING (log only)
     message: str = ""
+    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 class AgentTypeConfig:

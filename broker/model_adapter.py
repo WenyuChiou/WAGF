@@ -12,6 +12,7 @@ v0.3: Unified adapter with optional preprocessor for model-specific quirks.
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, List, Callable
 import re
+import json
 
 from .skill_types import SkillProposal
 
@@ -109,22 +110,61 @@ class UnifiedAdapter(ModelAdapter):
         """
         Parse LLM output into SkillProposal.
         
-        Supports all agent types via AGENT_TYPE_CONFIG:
-        - household: Skill/Decision/Final Decision format
-        - insurance: DECIDE: RAISE/LOWER/MAINTAIN format
-        - government: DECIDE: INCREASE/DECREASE/MAINTAIN format
+        Supports:
+        - JSON-formatted output (Preferred)
+        - Structured text (Fallback)
         """
         # Apply preprocessor (e.g., remove <think> tags)
         cleaned_output = self.preprocessor(raw_output)
         
         agent_id = context.get("agent_id", "unknown")
-        is_elevated = context.get("is_elevated", False) # LEGACY: unused
+        agent_type = context.get("agent_type", "default")
         
         # Initialize results
         skill_name = None
         reasoning = {}
         adjustment = None
         
+        # 1. ATTEMPT PURE JSON PARSING
+        try:
+            # Look for JSON block in case model added text around it
+            json_text = cleaned_output.strip()
+            if "```json" in json_text:
+                json_text = json_text.split("```json")[1].split("```")[0].strip()
+            elif "{" in json_text:
+                json_text = json_text[json_text.find("{"):json_text.rfind("}")+1]
+                
+            data = json.loads(json_text)
+            if isinstance(data, dict):
+                # Extract skills/decisions
+                raw_decision = str(data.get("decision", data.get("Final Decision", ""))).lower()
+                for skill in self.valid_skills:
+                    if skill.lower() in raw_decision:
+                        skill_name = skill
+                        break
+                
+                # Extract PMT labels
+                if "threat_appraisal" in data: reasoning["TP_LABEL"] = data["threat_appraisal"]
+                if "coping_appraisal" in data: reasoning["CP_LABEL"] = data["coping_appraisal"]
+                if "threat_reason" in data: reasoning["TP_REASON"] = data["threat_reason"]
+                if "coping_reason" in data: reasoning["CP_REASON"] = data["coping_reason"]
+                
+                # Check for reason field
+                if "reason" in data: reasoning["reason"] = data["reason"]
+                
+                if skill_name:
+                    if "adj" in data:
+                        reasoning["adjustment"] = data["adj"]
+                    return SkillProposal(
+                        skill_name=skill_name,
+                        agent_id=agent_id,
+                        reasoning=reasoning,
+                        raw_output=raw_output
+                    )
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+        # 2. FALLBACK TO REGEX PARSING (Existing logic)
         lines = cleaned_output.strip().split('\n')
         keywords = self.config.get("decision_keywords", ["decide:", "decision:"])
         
@@ -276,13 +316,23 @@ Please reconsider your decision and respond again.
 # =============================================================================
 # PREPROCESSORS for model-specific quirks
 # =============================================================================
-
 def deepseek_preprocessor(text: str) -> str:
     """
     Preprocessor for DeepSeek models.
-    Removes <think>...</think> reasoning tags.
+    Removes <think>...</think> reasoning tags, but PRESERVES content
+    if the model put the entire decision inside the think tag.
     """
-    return re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
+    # 1. Try to get content outside tags
+    cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
+    
+    # 2. If cleaned is too short, look inside tags
+    if len(cleaned) < 20:
+        match = re.search(r'<think>(.*?)</think>', text, flags=re.DOTALL)
+        if match:
+            inner = match.group(1).strip()
+            if "decision" in inner.lower():
+                return inner
+    return cleaned
 
 
 def json_preprocessor(text: str) -> str:
