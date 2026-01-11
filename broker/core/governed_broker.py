@@ -19,12 +19,12 @@ from datetime import datetime
 import hashlib
 import json
 
-from .skill_types import (
+from ..interfaces.skill_types import (
     SkillProposal, SkillDefinition, ApprovedSkill, 
     ExecutionResult, SkillBrokerResult, SkillOutcome, ValidationResult
 )
-from .skill_registry import SkillRegistry
-from .model_adapter import ModelAdapter
+from ..components.skill_registry import SkillRegistry
+from ..utils.model_adapter import ModelAdapter
 from validators.agent_validator import AgentValidator, ValidationResult
 
 

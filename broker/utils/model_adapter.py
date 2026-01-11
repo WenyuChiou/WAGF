@@ -14,7 +14,7 @@ from typing import Dict, Any, Optional, List, Callable
 import re
 import json
 
-from .skill_types import SkillProposal
+from ..interfaces.skill_types import SkillProposal
 
 
 class ModelAdapter(ABC):

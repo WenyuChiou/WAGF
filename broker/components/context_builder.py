@@ -276,50 +276,129 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         self,
         agents: Dict[str, Any],
         hub: InteractionHub,
+        skill_registry: Optional[Any] = None,
         global_news: List[str] = None,
         prompt_templates: Dict[str, str] = None,
         memory_engine: Optional[MemoryEngine] = None
     ):
         super().__init__(agents=agents, prompt_templates=prompt_templates, memory_engine=memory_engine)
         self.hub = hub
+        self.skill_registry = skill_registry
         self.global_news = global_news or []
+
+    def _verbalize_trust(self, trust_value: float, category: str) -> str:
+        """Converts a float (0-1) into a natural language description (Legacy Parity)."""
+        if category == "insurance":
+            if trust_value >= 0.8: return "strongly trust"
+            elif trust_value >= 0.5: return "moderately trust"
+            elif trust_value >= 0.2: return "have slight doubts about"
+            else: return "deeply distrust"
+        elif category == "neighbors":
+            if trust_value >= 0.8: return "highly rely on"
+            elif trust_value >= 0.5: return "generally trust"
+            elif trust_value >= 0.2: return "are skeptical of"
+            else: return "completely ignore"
+        return "trust"
 
     def build(self, agent_id: str, **kwargs) -> Dict[str, Any]:
         """Build context using the InteractionHub's tiered logic."""
         return self.hub.build_tiered_context(agent_id, self.agents, self.global_news)
 
     def format_prompt(self, context: Dict[str, Any]) -> str:
-        """Format the tiered context into a grounded prompt."""
-        agent_type = context['personal'].get('agent_type', 'household')
-        # Use a tiered template if available, otherwise use a generic structured one
-        template = self.prompt_templates.get(agent_type, "{personal_section}\n\n{local_section}\n\n{global_section}\n\n{options_text}")
+        """Format the tiered context into a grounded prompt (Baseline Parity)."""
+        p = context.get('personal', {})
+        agent_id = p.get('id')
+        agent = self.agents.get(agent_id)
         
-        # 1. Personal Section (T0)
-        p = context['personal']
-        mem_items = p.get('memory', [])
-        mem_str = "\n".join([f"- {m}" for m in mem_items]) if mem_items else "No private memories."
-        personal_section = f"### [MY STATUS & HISTORY]\n{mem_str}"
+        # 0. Agent State Verbalization (Baseline Parity)
+        elevated = p.get('elevated', False)
+        has_insurance = p.get('has_insurance', False)
+        trust_ins = p.get('trust_in_insurance', 0.5)
+        trust_neighbors = p.get('trust_in_neighbors', 0.5)
         
-        # 2. Local Section (T1)
-        l = context['local']
-        spatial = l['spatial']
-        spatial_str = f"- Neighborhood Observation: {spatial['elevated_pct']}% of my direct neighbors have elevated homes."
+        elevation_status_text = (
+            "Your house is already elevated, which provides very good protection."
+            if elevated else "You have not elevated your home."
+        )
+        insurance_status = "have" if has_insurance else "do not have"
+        trust_ins_text = self._verbalize_trust(trust_ins, "insurance")
+        trust_neighbors_text = self._verbalize_trust(trust_neighbors, "neighbors")
+
+        # 1. Tiered Sections (Modular Structure)
+        l = context.get('local', {})
+        spatial = l.get('spatial', {'elevated_pct': 0, 'relocated_pct': 0})
+        social = l.get('social', [])
+        g = context.get('global', [])
         
-        social = l['social']
-        social_str = "\n".join([f"- {g}" for g in social]) if social else "- No recent gossip from neighbors."
+        # 2. Merged Memory (Legacy Baseline Style)
+        # Combine personal memories with local/global observations for legacy {memory} placeholder
+        mem_items = list(p.get('memory', []))
+        
+        # Add spatial observation to memory (Original Parity)
+        mem_items.append(f"Observation: {spatial.get('elevated_pct', 0)}% of my neighbors have elevated homes.")
+        if spatial.get('relocated_pct', 0) > 0:
+            mem_items.append(f"Observation: {spatial.get('relocated_pct', 0)}% of my neighbors have relocated.")
+        
+        # Add social gossip
+        mem_items.extend(social)
+        # Add global news
+        mem_items.extend(g)
+        
+        merged_memory_str = "\n".join([f"- {m}" for m in mem_items]) if mem_items else "- No history recorded."
+
+        # 3. Personal Section (Modular UI)
+        personal_section = (
+            f"### [MY STATUS & HISTORY]\n"
+            f"{elevation_status_text}\n"
+            f"You currently {insurance_status} flood insurance. "
+            f"You {trust_ins_text} flood insurance providers and {trust_neighbors_text} your neighbors.\n"
+            f"Recent history:\n{merged_memory_str}"
+        )
+        
+        # 4. Local Section (Modular UI)
+        spatial_str = f"- Neighborhood Observation: {spatial.get('elevated_pct', 0)}% elevated, {spatial.get('relocated_pct', 0)}% relocated."
+        social_str = "\n".join([f"- {s}" for s in social]) if social else "- No recent gossip."
         local_section = f"### [LOCAL NEIGHBORHOOD]\n{spatial_str}\n{social_str}"
         
-        # 3. Global Section (T2)
-        g = context['global']
-        global_str = "\n".join([f"- {news}" for news in g]) if g else "- No major public news today."
+        # 5. Global Section (Modular UI)
+        global_str = "\n".join([f"- {news}" for news in g]) if g else "- No major public news."
         global_section = f"### [CITY-WIDE NEWS]\n{global_str}"
         
-        # Combine
+        # 6. Options Section (Legacy Parity)
+        options_text = ""
+        valid_choices_text = ""
+        if agent:
+            available_skills = agent.get_available_skills()
+            formatted_options = []
+            for i, skill_item in enumerate(available_skills, 1):
+                skill_id = skill_item.split(": ", 1)[0] if ": " in skill_item else skill_item
+                skill_def = self.skill_registry.get(skill_id) if self.skill_registry else None
+                desc = skill_def.description if skill_def else skill_item
+                formatted_options.append(f"{i}. {desc}")
+            options_text = "\n".join(formatted_options)
+            valid_choices_text = ", ".join([str(i+1) for i in range(len(available_skills))])
+            if len(available_skills) > 1:
+                last_comma_idx = valid_choices_text.rfind(", ")
+                valid_choices_text = valid_choices_text[:last_comma_idx] + ", or " + valid_choices_text[last_comma_idx+2:]
+        
+        # 7. Use template
+        agent_type = p.get('agent_type', 'household')
+        # Default fallback
+        default_template = "{personal_section}\n\n{local_section}\n\n{global_section}\n\n### [AVAILABLE OPTIONS]\n{options_text}"
+        template = self.prompt_templates.get(agent_type, default_template)
+        
         return template.format(
             personal_section=personal_section,
             local_section=local_section,
             global_section=global_section,
-            options_text="[Now, consider your available options and make a decision.]"
+            # Legacy variables
+            elevation_status_text=elevation_status_text,
+            memory=merged_memory_str,
+            insurance_status=insurance_status,
+            trust_insurance_text=trust_ins_text,
+            trust_neighbors_text=trust_neighbors_text,
+            options_text=options_text,
+            valid_choices_text=valid_choices_text
         )
 
 

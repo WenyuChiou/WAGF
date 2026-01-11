@@ -11,7 +11,7 @@ from typing import Dict, Any, Optional, List, Callable
 import re
 
 from interfaces.llm_provider import LLMProvider, LLMResponse
-from .skill_types import SkillProposal
+from ..interfaces.skill_types import SkillProposal
 from .model_adapter import UnifiedAdapter
 
 

@@ -26,17 +26,18 @@ FRAMEWORK_PATH = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(FRAMEWORK_PATH))
 
 # Import from framework (direct import, no package prefix needed since FRAMEWORK_PATH is in sys.path)
-from broker.skill_types import SkillProposal, ApprovedSkill, ExecutionResult, SkillOutcome
-from broker.skill_registry import SkillRegistry
-from broker.model_adapter import UnifiedAdapter
-from broker.skill_broker_engine import SkillBrokerEngine
-from broker.audit_writer import GenericAuditWriter as SkillAuditWriter, AuditConfig as GenericAuditConfig
+# Import from framework (consolidated entry)
+from broker import (
+    SkillProposal, ApprovedSkill, ExecutionResult, SkillOutcome,
+    SkillRegistry, GovernedBroker, AuditWriter, SkillBrokerEngine,
+    GenericAuditWriter, AuditConfig, UnifiedAdapter, GenericAuditConfig
+)
 from agents.base_agent import BaseAgent, AgentConfig, PerceptionSource
 from validators import AgentValidator
 from plot_results import plot_adaptation_results
 from simulation.base_simulation_engine import BaseSimulationEngine
 from simulation.state_manager import SharedState
-from broker.context_builder import create_context_builder, BaseAgentContextBuilder
+from broker import create_context_builder, BaseAgentContextBuilder
 
 class FloodContextBuilder(BaseAgentContextBuilder):
     """Custom Context Builder to ensure exact prompt parity with Baseline."""
@@ -436,13 +437,13 @@ def setup_governance(
     
     # Resetting config singleton to ensure local config is loaded (crucial if running in shared process)
     # In a fresh script run, this is safe.
-    from broker.agent_config import AgentTypeConfig
+    from broker import AgentTypeConfig
     AgentTypeConfig._instance = None
     
     # Detect DeepSeek preprocessor
     preprocessor = None
     if "deepseek" in model_name.lower():
-        from broker.model_adapter import deepseek_preprocessor
+        from broker import deepseek_preprocessor
         preprocessor = deepseek_preprocessor
         print(f" Using DeepSeek Preprocessor for {model_name}")
 
@@ -467,11 +468,11 @@ def setup_governance(
     base_output = audit_cfg.get("output_dir", "results")
     final_output = Path(output_dir) if output_dir else Path(base_output) / model_name.replace(":", "_")
     
-    audit_config = GenericAuditConfig(
+    audit_config = AuditConfig(
         output_dir=str(final_output),
         experiment_name=audit_cfg.get("experiment_name", f"v2_{model_name.replace(':', '_')}")
     )
-    audit_writer = SkillAuditWriter(audit_config)
+    audit_writer = GenericAuditWriter(audit_config)
     
     # 5. Broker Engine (Orchestrates the layers)
     broker = SkillBrokerEngine(
@@ -511,7 +512,7 @@ def run_experiment(args):
     print(f" Loaded Skill Registry from {registry_path.name}")
 
     # Load config for Context Builder
-    from broker.agent_config import AgentTypeConfig
+    from broker import AgentTypeConfig
     AgentTypeConfig._instance = None # Ensure fresh load
     config_path = Path(__file__).parent / "agent_types.yaml"
     full_config = AgentTypeConfig.load(str(config_path))
@@ -527,7 +528,7 @@ def run_experiment(args):
     # Initialize memory engine with weights from YAML
     mem_cfg = household_config.get("memory_engine", {})
     if mem_cfg.get("type") == "importance":
-        from broker.memory_engine import ImportanceMemoryEngine
+        from broker import ImportanceMemoryEngine
         memory_engine = ImportanceMemoryEngine(
             window_size=MEMORY_WINDOW,
             top_k_significant=2,
@@ -536,7 +537,7 @@ def run_experiment(args):
         )
         print(" Using Importance-Based Memory Engine with custom weights")
     else:
-        from broker.memory_engine import WindowMemoryEngine
+        from broker import WindowMemoryEngine
         memory_engine = WindowMemoryEngine(window_size=MEMORY_WINDOW)
     
     # Use Custom FloodContextBuilder for Baseline Parity

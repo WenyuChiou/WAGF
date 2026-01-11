@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 import yaml
 from pathlib import Path
 
-from .skill_types import SkillDefinition, ValidationResult
+from ..interfaces.skill_types import SkillDefinition, ValidationResult
 
 
 class SkillRegistry:

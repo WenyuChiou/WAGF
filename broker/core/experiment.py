@@ -7,12 +7,11 @@ from pathlib import Path
 from dataclasses import dataclass, field
 import random
 
-from broker.skill_types import ApprovedSkill
-from broker.skill_broker_engine import SkillBrokerEngine
-from broker.context_builder import BaseAgentContextBuilder
 from agents.base_agent import BaseAgent
-
-from broker.memory_engine import MemoryEngine, WindowMemoryEngine
+from ..interfaces.skill_types import ApprovedSkill
+from .skill_broker_engine import SkillBrokerEngine
+from ..components.context_builder import BaseAgentContextBuilder
+from ..components.memory_engine import MemoryEngine, WindowMemoryEngine
 
 @dataclass
 class ExperimentConfig:
@@ -52,7 +51,8 @@ class ExperimentRunner:
             
             # --- Lifecycle Hook: Pre-Year ---
             if "pre_year" in self.hooks:
-                self.hooks["pre_year"](year, env, self.agents)
+                hook_ctx = type('HookContext', (), {'event': 'pre_year', 'year': year, 'env': env, 'agents': self.agents})
+                self.hooks["pre_year"](hook_ctx)
             
             active_agents = [a for a in self.agents.values() if not getattr(a, 'relocated', False)]
             
@@ -64,6 +64,7 @@ class ExperimentRunner:
                     run_id=run_id,
                     seed=self.config.seed + self.step_counter,
                     llm_invoke=llm_invoke,
+                    agent_type=getattr(agent, 'agent_type', 'default')
                 )
                 # Apply state changes
                 if result.execution_result and result.execution_result.success:
@@ -137,6 +138,18 @@ class ExperimentBuilder:
         self.hooks.update(hooks)
         return self
 
+    def with_hooks(self, hooks: List[Callable]):
+        """Register a list of pre_year hooks for simplicity."""
+        for hook in hooks:
+            # For now, default to pre_year if just a list
+            self.hooks["pre_year"] = hook 
+        return self
+
+    def with_hook(self, hook: Callable):
+        """Register a single pre_year hook."""
+        self.hooks["pre_year"] = hook
+        return self
+
     def with_governance(self, profile: str, config_path: str):
         self.profile = profile
         self.agent_types_path = config_path
@@ -148,7 +161,7 @@ class ExperimentBuilder:
 
     def with_csv_agents(self, path: str, mapping: Dict[str, str], agent_type: str = "household"):
         """Load agents from a CSV file using column mapping."""
-        from broker.data_loader import load_agents_from_csv
+        from broker import load_agents_from_csv
         self.agents = load_agents_from_csv(path, mapping, agent_type)
         return self
 
@@ -162,10 +175,10 @@ class ExperimentBuilder:
 
     def build(self) -> ExperimentRunner:
         # Complex assembly logic here
-        from broker.skill_registry import SkillRegistry
-        from broker.audit_writer import GenericAuditWriter, AuditConfig
+        from broker import SkillRegistry
+        from broker import GenericAuditWriter, AuditConfig
         from validators import AgentValidator
-        from broker.context_builder import create_context_builder
+        from broker.components.context_builder import create_context_builder
         
         # 1. Setup Skill Registry
         reg = self.skill_registry or SkillRegistry()
@@ -179,6 +192,15 @@ class ExperimentBuilder:
         if hasattr(ctx_builder, 'memory_engine'):
             ctx_builder.memory_engine = mem_engine
         
+        # PR 2 Fix: Inject memory_engine into InteractionHub if present in ctx_builder
+        if hasattr(ctx_builder, 'hub') and ctx_builder.hub:
+            ctx_builder.hub.memory_engine = mem_engine
+        
+        # Re-alignment: Inject skill_registry into TieredContextBuilder
+        from broker.components.context_builder import TieredContextBuilder
+        if isinstance(ctx_builder, TieredContextBuilder):
+            ctx_builder.skill_registry = reg
+        
         # 4. Setup Audit
         audit_cfg = AuditConfig(
             output_dir=str(self.output_base / f"{self.model.replace(':','_')}_{self.profile}"),
@@ -188,11 +210,26 @@ class ExperimentBuilder:
         
         # 5. Setup Validator & Adapter
         validator = AgentValidator(config_path=self.agent_types_path)
-        from broker.model_adapter import UnifiedAdapter
+        from broker import UnifiedAdapter
         adapter = UnifiedAdapter(
             agent_type="household", 
             config_path=self.agent_types_path
         )
+        
+        # Inject templates into ctx_builder if it supports it
+        if hasattr(ctx_builder, 'prompt_templates') and self.agent_types_path:
+            # Load template from config
+            from broker.utils.agent_config import AgentTypeConfig
+            try:
+                config = AgentTypeConfig.load(self.agent_types_path)
+                templates = {}
+                for atype, cfg in config.items():
+                    if "prompt_template" in cfg:
+                        templates[atype] = cfg["prompt_template"]
+                if templates:
+                    ctx_builder.prompt_templates.update(templates)
+            except Exception as e:
+                print(f" Warning: Could not load prompt templates from {self.agent_types_path}: {e}")
         
         # 6. Setup Broker
         broker = SkillBrokerEngine(

@@ -97,6 +97,14 @@ class AgentTypeConfig:
         base_type = self.get_base_type(agent_type)
         return self._config.get(base_type, {})
     
+    def items(self):
+        """Allow iteration over agent types."""
+        return self._config.items()
+    
+    def keys(self):
+        """Allow checking agent types."""
+        return self._config.keys()
+    
     def get_valid_actions(self, agent_type: str) -> List[str]:
         """Get all valid action IDs and aliases for agent type."""
         cfg = self.get(agent_type)

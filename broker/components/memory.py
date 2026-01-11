@@ -355,7 +355,7 @@ class SimpleRetrieval:
 # MEMORY AWARE CONTEXT BUILDER
 # =============================================================================
 
-from broker.context_builder import ContextBuilder
+from .context_builder import ContextBuilder
 
 
 class MemoryAwareContextBuilder(ContextBuilder):

@@ -15,10 +15,10 @@ class ValidationLevel(Enum):
     WARNING = "WARNING"  # Log but allow
 
 
-from broker.skill_types import ValidationResult
+from broker.interfaces.skill_types import ValidationResult
 
 
-from broker.agent_config import load_agent_config, ValidationRule, CoherenceRule
+from broker.utils.agent_config import load_agent_config, ValidationRule, CoherenceRule
 
 class AgentValidator:
     """

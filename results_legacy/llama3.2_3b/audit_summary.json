@@ -1,0 +1,17 @@
+{
+  "experiment_name": "v2-2_clean",
+  "agent_types": {
+    "household": {
+      "total": 50,
+      "decisions": {
+        "do_nothing": 36,
+        "buy_insurance": 10,
+        "elevate_house": 4
+      }
+    }
+  },
+  "total_traces": 50,
+  "validation_errors": 2,
+  "validation_warnings": 0,
+  "finalized_at": "2026-01-11T14:05:14.522245"
+}

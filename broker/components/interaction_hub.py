@@ -3,7 +3,9 @@ Interaction Hub Component - PR 2
 Handles information diffusion across Institutional, Social, and Spatial tiers.
 """
 from typing import List, Dict, Any, Optional
+import random
 from .social_graph import SocialGraph
+from .memory_engine import MemoryEngine
 
 class InteractionHub:
     """
@@ -57,12 +59,37 @@ class InteractionHub:
         agent = agents[agent_id]
         personal_memory = self.memory_engine.retrieve(agent, top_k=3) if self.memory_engine else []
         
+        # [GENERALIZATION] Gather all non-private attributes for the personal block
+        # This removes domain-specific hardcoding (like 'elevated') from the core hub.
+        personal = {
+            "id": agent_id,
+            "memory": personal_memory,
+        }
+        
+        # Safely gather other state attributes
+        # We look into getattr(agent, ...) for common attributes if they exist
+        # and include anything from agent.dynamic_state or agent.custom_attributes
+        
+        # 1. Standard attributes (if they exist)
+        for attr in ["agent_type", "elevated", "has_insurance", "trust_in_insurance", "trust_in_neighbors", "income", "savings"]:
+            val = getattr(agent, attr, None)
+            if val is not None:
+                personal[attr] = val
+        
+        # 2. Dynamic state (PR 9 partitioning)
+        if hasattr(agent, 'dynamic_state'):
+            personal.update(agent.dynamic_state)
+            
+        # 3. Custom attributes (Legacy/CSV support)
+        if hasattr(agent, 'custom_attributes'):
+            personal.update(agent.custom_attributes)
+
+        # 4. Adaptation status (Custom summary)
+        if hasattr(agent, 'get_adaptation_status'):
+            personal["status"] = agent.get_adaptation_status()
+
         return {
-            "personal": {
-                "id": agent_id,
-                "memory": personal_memory,
-                "status": agent.get_adaptation_status() if hasattr(agent, 'get_adaptation_status') else {}
-            },
+            "personal": personal,
             "local": {
                 "spatial": self.get_spatial_context(agent_id, agents),
                 "social": self.get_social_context(agent_id, agents)
@@ -70,4 +97,4 @@ class InteractionHub:
             "global": global_news or []
         }
 
-import random # Required for sampling
+
