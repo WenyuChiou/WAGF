@@ -11,25 +11,27 @@ class InteractionHub:
     """
     Manages the 'Worldview' of agents by aggregating tiered information.
     """
-    def __init__(self, graph: SocialGraph, memory_engine: Optional[MemoryEngine] = None):
+    def __init__(self, graph: SocialGraph, memory_engine: Optional[MemoryEngine] = None, spatial_observables: List[str] = None):
         self.graph = graph
         self.memory_engine = memory_engine
+        self.spatial_observables = spatial_observables or ["elevated", "relocated"]
 
     def get_spatial_context(self, agent_id: str, agents: Dict[str, Any]) -> Dict[str, Any]:
         """Tier 1 (Spatial): Aggregated observation of neighbors."""
         neighbor_ids = self.graph.get_neighbors(agent_id)
         if not neighbor_ids:
-            return {"elevated_pct": 0, "relocated_pct": 0}
+            return {}
         
         total = len(neighbor_ids)
-        elevated = sum(1 for nid in neighbor_ids if getattr(agents[nid], 'elevated', False))
-        relocated = sum(1 for nid in neighbor_ids if getattr(agents[nid], 'relocated', False))
+        spatial_context = {"neighbor_count": total}
         
-        return {
-            "neighbor_count": total,
-            "elevated_pct": round((elevated / total) * 100),
-            "relocated_pct": round((relocated / total) * 100)
-        }
+        # Aggregate any attributes defined as observable
+        for attr in self.spatial_observables:
+            # Count neighbors who have this attribute set to True/Positive
+            count = sum(1 for nid in neighbor_ids if getattr(agents[nid], attr, False))
+            spatial_context[f"{attr}_pct"] = round((count / total) * 100)
+            
+        return spatial_context
 
     def get_social_context(self, agent_id: str, agents: Dict[str, Any], max_gossip: int = 2) -> List[str]:
         """Tier 1 (Social): Gossip/Shared snippets from neighbor memories."""
@@ -70,11 +72,11 @@ class InteractionHub:
         # We look into getattr(agent, ...) for common attributes if they exist
         # and include anything from agent.dynamic_state or agent.custom_attributes
         
-        # 1. Standard attributes (if they exist)
-        for attr in ["agent_type", "elevated", "has_insurance", "trust_in_insurance", "trust_in_neighbors", "income", "savings"]:
-            val = getattr(agent, attr, None)
-            if val is not None:
-                personal[attr] = val
+        # 1. Collect all non-private simple attributes from the agent object
+        for k, v in agent.__dict__.items():
+            if k == "agent_type": continue # Handled centrally or avoid duplicate if needed
+            if not k.startswith('_') and isinstance(v, (str, int, float, bool)) and k not in ["memory", "id"]:
+                personal[k] = v
         
         # 2. Dynamic state (PR 9 partitioning)
         if hasattr(agent, 'dynamic_state'):

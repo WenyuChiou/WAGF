@@ -305,101 +305,101 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         return self.hub.build_tiered_context(agent_id, self.agents, self.global_news)
 
     def format_prompt(self, context: Dict[str, Any]) -> str:
-        """Format the tiered context into a grounded prompt (Baseline Parity)."""
+        """
+        Format the tiered context into a grounded prompt (Generic).
+        Flattens Personal, Local, and Global tiers into template variables.
+        """
+        # 1. Prepare template variables
+        template_vars = {}
+        
+        # Flatten Personal (Tier 0)
         p = context.get('personal', {})
+        for k, v in p.items():
+            if isinstance(v, (str, int, float, bool)):
+                template_vars[k] = v
+                template_vars[f"p_{k}"] = v # Explicit prefix
+        
+        # Add status from nested dict if present
+        if isinstance(p.get('status'), dict):
+            for k, v in p['status'].items():
+                if k not in template_vars:
+                    template_vars[k] = v
+        
+        # Flatten Local (Tier 1)
+        l = context.get('local', {})
+        spatial = l.get('spatial', {})
+        for k, v in spatial.items():
+            template_vars[k] = v
+            template_vars[f"spatial_{k}"] = v
+            
+        social = l.get('social', [])
+        template_vars["social_gossip"] = "\n".join([f"- {s}" for s in social]) if social else ""
+        
+        # Flatten Global (Tier 2)
+        g = context.get('global', [])
+        template_vars["global_news"] = "\n".join([f"- {news}" for news in g]) if g else ""
+        
+        # Add special sections for modular UI templates
+        template_vars["personal_section"] = self._format_generic_section("MY STATUS & HISTORY", p)
+        template_vars["local_section"] = self._format_generic_section("LOCAL NEIGHBORHOOD", l)
+        template_vars["global_section"] = self._format_generic_section("WORLD EVENTS", {"news": g})
+
+        # 2. Options Section (Universal)
         agent_id = p.get('id')
         agent = self.agents.get(agent_id)
         
-        # 0. Agent State Verbalization (Baseline Parity)
-        elevated = p.get('elevated', False)
-        has_insurance = p.get('has_insurance', False)
-        trust_ins = p.get('trust_in_insurance', 0.5)
-        trust_neighbors = p.get('trust_in_neighbors', 0.5)
-        
-        elevation_status_text = (
-            "Your house is already elevated, which provides very good protection."
-            if elevated else "You have not elevated your home."
-        )
-        insurance_status = "have" if has_insurance else "do not have"
-        trust_ins_text = self._verbalize_trust(trust_ins, "insurance")
-        trust_neighbors_text = self._verbalize_trust(trust_neighbors, "neighbors")
-
-        # 1. Tiered Sections (Modular Structure)
-        l = context.get('local', {})
-        spatial = l.get('spatial', {'elevated_pct': 0, 'relocated_pct': 0})
-        social = l.get('social', [])
-        g = context.get('global', [])
-        
-        # 2. Merged Memory (Legacy Baseline Style)
-        # Combine personal memories with local/global observations for legacy {memory} placeholder
-        mem_items = list(p.get('memory', []))
-        
-        # Add spatial observation to memory (Original Parity)
-        mem_items.append(f"Observation: {spatial.get('elevated_pct', 0)}% of my neighbors have elevated homes.")
-        if spatial.get('relocated_pct', 0) > 0:
-            mem_items.append(f"Observation: {spatial.get('relocated_pct', 0)}% of my neighbors have relocated.")
-        
-        # Add social gossip
-        mem_items.extend(social)
-        # Add global news
-        mem_items.extend(g)
-        
-        merged_memory_str = "\n".join([f"- {m}" for m in mem_items]) if mem_items else "- No history recorded."
-
-        # 3. Personal Section (Modular UI)
-        personal_section = (
-            f"### [MY STATUS & HISTORY]\n"
-            f"{elevation_status_text}\n"
-            f"You currently {insurance_status} flood insurance. "
-            f"You {trust_ins_text} flood insurance providers and {trust_neighbors_text} your neighbors.\n"
-            f"Recent history:\n{merged_memory_str}"
-        )
-        
-        # 4. Local Section (Modular UI)
-        spatial_str = f"- Neighborhood Observation: {spatial.get('elevated_pct', 0)}% elevated, {spatial.get('relocated_pct', 0)}% relocated."
-        social_str = "\n".join([f"- {s}" for s in social]) if social else "- No recent gossip."
-        local_section = f"### [LOCAL NEIGHBORHOOD]\n{spatial_str}\n{social_str}"
-        
-        # 5. Global Section (Modular UI)
-        global_str = "\n".join([f"- {news}" for news in g]) if g else "- No major public news."
-        global_section = f"### [CITY-WIDE NEWS]\n{global_str}"
-        
-        # 6. Options Section (Legacy Parity)
         options_text = ""
         valid_choices_text = ""
+        
         if agent:
             available_skills = agent.get_available_skills()
             formatted_options = []
             for i, skill_item in enumerate(available_skills, 1):
+                # Format: "1. Skill Description"
                 skill_id = skill_item.split(": ", 1)[0] if ": " in skill_item else skill_item
                 skill_def = self.skill_registry.get(skill_id) if self.skill_registry else None
                 desc = skill_def.description if skill_def else skill_item
                 formatted_options.append(f"{i}. {desc}")
+            
             options_text = "\n".join(formatted_options)
-            valid_choices_text = ", ".join([str(i+1) for i in range(len(available_skills))])
-            if len(available_skills) > 1:
-                last_comma_idx = valid_choices_text.rfind(", ")
-                valid_choices_text = valid_choices_text[:last_comma_idx] + ", or " + valid_choices_text[last_comma_idx+2:]
+            
+            # Helper for "1, 2, or 3"
+            indices = [str(i+1) for i in range(len(available_skills))]
+            if len(indices) > 1:
+                valid_choices_text = ", ".join(indices[:-1]) + ", or " + indices[-1]
+            elif indices:
+                valid_choices_text = indices[0]
+
+        template_vars["options_text"] = options_text
+        template_vars["valid_choices_text"] = valid_choices_text
+        template_vars["skills_text"] = options_text # Alias
         
-        # 7. Use template
-        agent_type = p.get('agent_type', 'household')
-        # Default fallback
+        # 3. Use template (Generic lookup)
+        agent_type = p.get('agent_type', 'default')
         default_template = "{personal_section}\n\n{local_section}\n\n{global_section}\n\n### [AVAILABLE OPTIONS]\n{options_text}"
         template = self.prompt_templates.get(agent_type, default_template)
         
-        return template.format(
-            personal_section=personal_section,
-            local_section=local_section,
-            global_section=global_section,
-            # Legacy variables
-            elevation_status_text=elevation_status_text,
-            memory=merged_memory_str,
-            insurance_status=insurance_status,
-            trust_insurance_text=trust_ins_text,
-            trust_neighbors_text=trust_neighbors_text,
-            options_text=options_text,
-            valid_choices_text=valid_choices_text
-        )
+        return SafeFormatter().format(template, **template_vars)
+
+    def _format_generic_section(self, title: str, data: Dict[str, Any]) -> str:
+        """Formats a piece of context data into a readable markdown section."""
+        lines = [f"### [{title}]"]
+        for k, v in data.items():
+            if k in ["memory", "news", "social"]:
+                 continue # Handled as blocks
+            if isinstance(v, (str, int, float, bool)):
+                 lines.append(f"- {k.replace('_', ' ').capitalize()}: {v}")
+        
+        # Add list-based content at the end
+        if "news" in data:
+            lines.extend([f"- {item}" for item in data["news"]])
+        if "social" in data:
+             lines.extend([f"- {item}" for item in data["social"]])
+        if "memory" in data and isinstance(data["memory"], list):
+            lines.append("Recent History:")
+            lines.extend([f"  - {m}" for m in data["memory"]])
+            
+        return "\n".join(lines)
 
 
 # Compact token-efficient prompt template with LLM interpretation
