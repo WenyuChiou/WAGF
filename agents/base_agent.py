@@ -156,6 +156,9 @@ class BaseAgent:
         
         # Memory (compatible with CognitiveMemory)
         self.memory = memory or []
+        
+        # Custom Attributes (for demographics, survey data, etc.)
+        self.custom_attributes: Dict[str, Any] = {}
     
     def _init_state(self):
         """Initialize state from config."""

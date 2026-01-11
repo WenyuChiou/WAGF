@@ -1,139 +1,67 @@
-"""
-Generic Data Loader
-
-Load agent data from CSV/Excel files without type-specific dependencies.
-Returns raw Dict data that can be used to create any agent type.
-"""
-
-import os
 import pandas as pd
-from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import Dict, Any, List, Optional
+from agents.base_agent import BaseAgent, AgentConfig, StateParam
 
-
-def load_agents_csv(
-    filepath: str,
-    required_columns: Optional[List[str]] = None
-) -> List[Dict[str, Any]]:
+def load_agents_from_csv(
+    csv_path: str, 
+    mapping: Dict[str, str], 
+    agent_type: str = "household",
+    base_config: Optional[AgentConfig] = None
+) -> Dict[str, BaseAgent]:
     """
-    Load agents from CSV file as list of dicts.
+    Loads agents from a CSV file using a column mapping.
     
     Args:
-        filepath: Path to CSV file
-        required_columns: Optional list of required column names
-    
+        csv_path: Path to the CSV file.
+        mapping: Dictionary mapping CSV column names to agent attributes.
+                 e.g. {"HH_ID": "id", "Income_Level": "income"}
+        agent_type: Type label for the agents.
+        base_config: Optional Base config to use for all agents.
+        
     Returns:
-        List of agent data dicts
+        Dict of agent_id -> BaseAgent
     """
-    if not os.path.exists(filepath):
-        raise FileNotFoundError(f"Agent data file not found: {filepath}")
+    df = pd.read_csv(csv_path)
+    agents = {}
     
-    df = pd.read_csv(filepath)
+    # Default config if none provided
+    if not base_config:
+        base_config = AgentConfig(
+            name="Generic",
+            agent_type=agent_type,
+            state_params=[],
+            objectives=[],
+            constraints=[],
+            skills=[]
+        )
     
-    # Validate required columns
-    if required_columns:
-        missing = set(required_columns) - set(df.columns)
-        if missing:
-            raise ValueError(f"Missing required columns: {missing}")
-    
-    # Convert to list of dicts, handling NaN
-    agents = df.to_dict('records')
-    
-    # Clean up values
-    for agent in agents:
-        for key, val in agent.items():
-            # Convert NaN to None
-            if pd.isna(val):
-                agent[key] = None
-            # Parse boolean strings
-            elif isinstance(val, str) and val.upper() in ['TRUE', 'FALSE']:
-                agent[key] = val.upper() == 'TRUE'
-    
-    print(f"[DataLoader] Loaded {len(agents)} agents from {filepath}")
+    for _, row in df.iterrows():
+        # 1. Determine ID
+        id_col = next((csv_col for csv_col, attr in mapping.items() if attr == "id"), None)
+        agent_id = str(row[id_col]) if id_col else f"{agent_type}_{_}"
+        
+        # 2. Create Config for this specific agent (to keep name/id consistent)
+        config = AgentConfig(
+            name=agent_id,
+            agent_type=agent_type,
+            state_params=base_config.state_params,
+            objectives=base_config.objectives,
+            constraints=base_config.constraints,
+            skills=base_config.skills,
+            persona=base_config.persona,
+            role_description=base_config.role_description
+        )
+        
+        agent = BaseAgent(config)
+        agent.id = agent_id
+        
+        # 3. Populate Custom Attributes from Mapping
+        for csv_col, attr_name in mapping.items():
+            if attr_name == "id":
+                continue
+            if csv_col in row:
+                agent.custom_attributes[attr_name] = row[csv_col]
+        
+        agents[agent_id] = agent
+        
     return agents
-
-
-def load_agents_excel(
-    filepath: str,
-    sheet_name: str = "Agents"
-) -> List[Dict[str, Any]]:
-    """
-    Load agents from Excel file.
-    """
-    if not os.path.exists(filepath):
-        raise FileNotFoundError(f"Agent data file not found: {filepath}")
-    
-    df = pd.read_excel(filepath, sheet_name=sheet_name)
-    agents = df.to_dict('records')
-    
-    print(f"[DataLoader] Loaded {len(agents)} agents from {filepath} (sheet: {sheet_name})")
-    return agents
-
-
-def export_agents_csv(
-    agents: List[Dict[str, Any]],
-    filepath: str,
-    columns: Optional[List[str]] = None
-) -> None:
-    """
-    Export agent data to CSV.
-    
-    Args:
-        agents: List of agent dicts
-        filepath: Output path
-        columns: Optional columns to include (default: all)
-    """
-    df = pd.DataFrame(agents)
-    
-    if columns:
-        df = df[columns]
-    
-    df.to_csv(filepath, index=False)
-    print(f"[DataLoader] Exported {len(agents)} agents to {filepath}")
-
-
-def create_sample_config(output_path: str = "agent_data_template.csv") -> None:
-    """
-    Create a sample CSV template for agent data.
-    """
-    sample = pd.DataFrame([
-        {
-            "agent_id": "H001",
-            "agent_type": "household",
-            "mg": True,
-            "tenure": "Owner",
-            "region_id": "NJ",
-            "income": 45000,
-            "property_value": 280000,
-            "trust_gov": 0.5,
-            "trust_ins": 0.5,
-            "trust_neighbors": 0.5
-        },
-        {
-            "agent_id": "H002",
-            "agent_type": "household",
-            "mg": False,
-            "tenure": "Renter",
-            "region_id": "NY",
-            "income": 65000,
-            "property_value": 0,
-            "trust_gov": 0.6,
-            "trust_ins": 0.7,
-            "trust_neighbors": 0.4
-        }
-    ])
-    sample.to_csv(output_path, index=False)
-    print(f"[DataLoader] Created template at {output_path}")
-
-
-# Helper for dynamic loading
-def get_column_type_mapping(data: List[Dict[str, Any]]) -> Dict[str, str]:
-    """Dynamically infer basic types from data."""
-    if not data:
-        return {}
-    mapping = {}
-    first = data[0]
-    for k, v in first.items():
-        mapping[k] = type(v).__name__
-    return mapping
-

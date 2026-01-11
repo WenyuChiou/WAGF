@@ -146,6 +146,12 @@ class ExperimentBuilder:
         self.agents = agents
         return self
 
+    def with_csv_agents(self, path: str, mapping: Dict[str, str], agent_type: str = "household"):
+        """Load agents from a CSV file using column mapping."""
+        from broker.data_loader import load_agents_from_csv
+        self.agents = load_agents_from_csv(path, mapping, agent_type)
+        return self
+
     def with_simulation(self, sim_engine: Any):
         self.sim_engine = sim_engine
         return self
