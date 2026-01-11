@@ -14,8 +14,8 @@ class MockAgent:
         self.dynamic_state = {"budget": 1000.0, "house_elevation": 0.0}
         self.last_decision = decision # For pricing model
 
-from world_models.pricing_model import PricingModel
-from world_models.disaster_model import DisasterModel
+from examples.single_agent.world_models.pricing_model import PricingModel
+from examples.single_agent.world_models.disaster_model import DisasterModel
 
 class TestWorldModels(unittest.TestCase):
     
