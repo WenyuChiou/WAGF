@@ -48,9 +48,9 @@ The framework requires LLM to output decisions in a **structured Skill Proposal 
 
 ```json
 {
-  "skill": "buy_insurance",
-  "parameters": {"duration": 1},
-  "reasoning": "High flood risk this year..."
+  "skill": "approve_transaction",
+  "parameters": {"amount": 5000},
+  "reasoning": "Transaction is within authorized limit and risk score is low."
 }
 ```
 
@@ -66,14 +66,14 @@ The framework requires LLM to output decisions in a **structured Skill Proposal 
 
 ### How does LLM know available skills?
 
-The **Context Builder** injects available skills into the prompt:
+The **Context Builder** injects available skills into the prompt (defined in `agent_types.yaml`):
 
 ```
-You are an agent. Available skills:
-- buy_insurance: Purchase flood insurance (duration: int)
-- elevate_house: Elevate your house (once only)
-- relocate: Move to a safer area (permanent)
-- do_nothing: Take no action this year
+You are a Supervisor Agent. Available skills:
+- approve_transaction: Approve a pending request (parameters: id)
+- reject_transaction: Reject with reason
+- escalate_review: Send to human review
+- do_nothing: Wait for more info
 
 Respond with JSON: {"skill": "...", "parameters": {...}, "reasoning": "..."}
 ```
@@ -81,72 +81,72 @@ Respond with JSON: {"skill": "...", "parameters": {...}, "reasoning": "..."}
 This ensures LLM only proposes registered skills, which are then validated by the Skill Broker.
 
 ### Core Execution Flow
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  1. CONTEXT BUILDING                                                │
-│     StateManager → ContextBuilder                                   │
-│     • Read agent's individual state (memory, has_insurance, etc.)   │
-│     • Read shared state (flood_occurred, year)                      │
-│     • Inject available skills into prompt                           │
-└───────────────────────────┬─────────────────────────────────────────┘
-                            ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  2. LLM DECISION                                                    │
-│     ContextBuilder → LLM                                            │
-│     • LLM receives bounded context + skill list                     │
-│     • LLM outputs SkillProposal JSON                                │
-│     • {"skill": "buy_insurance", "parameters": {...}, ...}          │
-└───────────────────────────┬─────────────────────────────────────────┘
-                            ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  3. VALIDATION                                                      │
-│     ModelAdapter → SkillBrokerEngine → Validators                   │
-│     • Parse LLM output into structured SkillProposal                │
-│     • Admissibility: Is skill registered? Agent eligible?           │
-│     • Feasibility: Preconditions met? (not already elevated)        │
-│     • Constraints: Annual limits? Once-only rules?                  │
-│     • If INVALID → Fallback to "do_nothing"                         │
-└───────────────────────────┬─────────────────────────────────────────┘
-                            ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  4. EXECUTION & STATE UPDATE                                        │
-│     SkillBrokerEngine → Executor → StateManager                     │
-│     • Execute validated skill effects                               │
-│     • Update agent's individual state                               │
-│     • Log to AuditWriter for traceability                           │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Architecture
-
-### Single-Agent Mode
-
-![Single-Agent Architecture](docs/single_agent_architecture.png)
-
-**Flow**: Environment → Context Builder → LLM → Model Adapter → Skill Broker Engine → Validators → Executor → State
-
-#### V3 with Memory Layer
-
-![Single-Agent V3](docs/single_agent_architecture_v3.png)
-
-**Added**: Memory Layer with `retrieve()` (active) and `add_memory()` (passive) operations.
-
-### Multi-Agent Mode
-
-![Multi-Agent Architecture](docs/multi_agent_architecture.png)
-
-**Flow**: Agents → LLM (Skill Proposal) → Governed Broker Layer (Context Builder + Validators) → State Manager with four layers: Individual (memory), Social (neighbor observation), Shared (environment), and Institutional (policy rules).
-
-#### V3 with Memory & Environment Layers
-
-![Multi-Agent V3](docs/multi_agent_architecture_v3.png)
-
-**Added**:
-- **Memory Layer**: Working (neighbor, policy) + Episodic (flood, claim, decision)
-- **Environment Layer**: Pure functions `process(flood|damage|claim|subsidy)`
+    
+    ```
+    ┌─────────────────────────────────────────────────────────────────────┐
+    │  1. CONTEXT BUILDING                                                │
+    │     StateManager → ContextBuilder                                   │
+    │     • Read agent's individual state (memory, role, resources)       │
+    │     • Read shared state (market_conditions, global_events)          │
+    │     • Inject available skills based on agent_types.yaml             │
+    └───────────────────────────┬─────────────────────────────────────────┘
+                                ▼
+    ┌─────────────────────────────────────────────────────────────────────┐
+    │  2. LLM DECISION                                                    │
+    │     ContextBuilder → LLM                                            │
+    │     • LLM receives bounded context + skill list                     │
+    │     • LLM outputs SkillProposal JSON                                │
+    │     • {"skill": "approve", "parameters": {...}, ...}                │
+    └───────────────────────────┬─────────────────────────────────────────┘
+                                ▼
+    ┌─────────────────────────────────────────────────────────────────────┐
+    │  3. VALIDATION                                                      │
+    │     ModelAdapter → SkillBrokerEngine → Validators                   │
+    │     • Parse LLM output into structured SkillProposal                │
+    │     • Admissibility: Is skill registered? Agent eligible?           │
+    │     • Feasibility: Preconditions met? (e.g. sufficient funds)       │
+    │     • Constraints: Institutional rules? (e.g. daily limits)         │
+    │     • If INVALID → Fallback to "do_nothing"                         │
+    └───────────────────────────┬─────────────────────────────────────────┘
+                                ▼
+    ┌─────────────────────────────────────────────────────────────────────┐
+    │  4. EXECUTION & STATE UPDATE                                        │
+    │     SkillBrokerEngine → Executor → StateManager                     │
+    │     • Execute validated skill effects                               │
+    │     • Update agent's individual state                               │
+    │     • Log to AuditWriter for traceability                           │
+    └─────────────────────────────────────────────────────────────────────┘
+    ```
+    
+    ---
+    
+    ## Architecture
+    
+    ### Single-Agent Mode
+    
+    ![Single-Agent Architecture](docs/single_agent_architecture.png)
+    
+    **Flow**: Environment → Context Builder → LLM → Model Adapter → Skill Broker Engine → Validators → Executor → State
+    
+    #### V3 with Memory Layer
+    
+    ![Single-Agent V3](docs/single_agent_architecture_v3.png)
+    
+    **Added**: Memory Layer with `retrieve()` (active) and `add_memory()` (passive) operations.
+    
+    ### Multi-Agent Mode
+    
+    ![Multi-Agent Architecture](docs/multi_agent_architecture.png)
+    
+    **Flow**: Agents → LLM (Skill Proposal) → Governed Broker Layer (Context Builder + Validators) → State Manager with four layers: Individual (memory), Social (neighbor observation), Shared (environment), and Institutional (policy rules).
+    
+    #### V3 with Memory & Environment Layers
+    
+    ![Multi-Agent V3](docs/multi_agent_architecture_v3.png)
+    
+    **Added**:
+    - **Memory Layer**: Working (short-term) + Episodic (long-term)
+    - **Environment Layer**: Pure functions `process(event_A, event_B)`
 
 ---
 
