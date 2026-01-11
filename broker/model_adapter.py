@@ -143,14 +143,24 @@ class UnifiedAdapter(ModelAdapter):
                         skill_name = skill
                         break
                 
-                # Extract PMT labels
-                if "threat_appraisal" in data: reasoning["TP_LABEL"] = data["threat_appraisal"]
-                if "coping_appraisal" in data: reasoning["CP_LABEL"] = data["coping_appraisal"]
-                if "threat_reason" in data: reasoning["TP_REASON"] = data["threat_reason"]
-                if "coping_reason" in data: reasoning["CP_REASON"] = data["coping_reason"]
+                # Skill mapping logic moved to config-driven fallback
+                if not skill_name:
+                    variant = context.get("skill_variant")
+                    skill_map = self.agent_config.get_skill_map(self.agent_type, variant)
+                    
+                    for char in raw_decision:
+                        if char.isdigit():
+                            skill_name = skill_map.get(char)
+                            break
                 
-                # Check for reason field
-                if "reason" in data: reasoning["reason"] = data["reason"]
+                # Extract dynamic constructs (Config-driven)
+                constructs = self.config.get("constructs", {})
+                for key, construct_cfg in constructs.items():
+                    # keywords are keys in JSON
+                    for kw in construct_cfg.get("keywords", []):
+                        if kw in data:
+                            reasoning[key] = data[kw]
+                            break
                 
                 if skill_name:
                     if "adj" in data:
@@ -200,10 +210,6 @@ class UnifiedAdapter(ModelAdapter):
             if reason_match:
                 reasoning["reason"] = reason_match.group(1).strip()
             
-            # Parse PRIORITY: for government
-            priority_match = re.search(r"priority:\s*(\w+)", line_lower)
-            if priority_match:
-                reasoning["priority"] = priority_match.group(1).strip()
             
             # Parse INTERPRET (usually standalone)
             if line_lower.startswith("interpret:"):
@@ -220,25 +226,9 @@ class UnifiedAdapter(ModelAdapter):
                         reasoning[k.upper()] = v
                 reasoning["pmt_eval_raw"] = content
 
-            # Parse individual PMT evaluations with reasoning (EVAL_TP: [H] reason...)
-            elif line_lower.startswith("eval_"):
-                pmt_match = re.search(r"eval_(tp|cp|sp|sc|pa):\s*\[?([a-z]+)\]?\s*(.*)", line, re.IGNORECASE)
-                if pmt_match:
-                    construct = pmt_match.group(1).upper()
-                    val = pmt_match.group(2).upper()
-                    reason = pmt_match.group(3).strip()
-                    reasoning[construct] = val
-                    reasoning[f"{construct}_REASON"] = reason
 
             # Config-driven Construct Parsing (Generic)
             constructs = self.config.get("constructs", {})
-            
-            # HARDENING: Add default constructs for household agents
-            if self.agent_type.startswith("household") and not constructs:
-                constructs = {
-                    "TP_LABEL": {"keywords": ["threat appraisal"], "regex": r"threat appraisal:\s*\[?(Low|Med|High)\]?"},
-                    "CP_LABEL": {"keywords": ["coping appraisal"], "regex": r"coping appraisal:\s*\[?(Low|Med|High)\]?"}
-                }
 
             for key, construct_cfg in constructs.items():
                 # Check for keywords
@@ -262,20 +252,10 @@ class UnifiedAdapter(ModelAdapter):
                         skill_name = skill
                         break
                 
-                # HARDENING: numeric skill variant mapping
+                # Skill mapping logic moved to config-driven fallback
                 if not skill_name:
                     variant = context.get("skill_variant")
-                    skill_map = {}
-                    
-                    if variant:
-                        skill_map = self.config.get(f"skill_map_{variant}", {})
-                    
-                    # Fallback to defaults if empty
-                    if not skill_map and self.agent_type.startswith("household"):
-                        if variant == "elevated":
-                            skill_map = {"1": "buy_insurance", "2": "relocate", "3": "do_nothing"}
-                        else:
-                            skill_map = {"1": "buy_insurance", "2": "elevate_house", "3": "relocate", "4": "do_nothing"}
+                    skill_map = self.agent_config.get_skill_map(self.agent_type, variant)
 
                     for char in decision_text:
                         if char.isdigit():

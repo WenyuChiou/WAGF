@@ -37,9 +37,9 @@ household:
     Please respond ONLY in JSON format using the schema below:
     {{
       "threat_appraisal": "Low/Med/High",
-      "threat_reason": "One sentence summary...",
+      "threat_reason": "because [One sentence summary of how threatened you feel...]",
       "coping_appraisal": "Low/Med/High",
-      "coping_reason": "One sentence summary...",
+      "coping_reason": "because [One sentence summary of how well you think you can cope...]",
       "decision": "[1, 2, 3, or 4]"
     }}
   
@@ -70,17 +70,17 @@ household:
     # Construct mappings for validation
     constructs:
       TP_LABEL:
-        keywords: ["threat_appraisal"]
-        regex: "\"threat_appraisal\"\\s*:\\s*\"(Low|Med|High)\""
+        keywords: ["threat_appraisal", "threat appraisal"]
+        regex: "(?:\"threat_appraisal\"\\s*:\\s*\"|threat appraisal:\\s*\\[?)(Low|Med|High)"
       TP_REASON:
-        keywords: ["threat_reason"]
-        regex: "\"threat_reason\"\\s*:\\s*\"(.+?)\""
+        keywords: ["threat_reason", "threat appraisal"]
+        regex: "(?:\"threat_reason\"\\s*:\\s*\"|threat appraisal:.*because\\s+)(.+?)(?:\")?$"
       CP_LABEL:
-        keywords: ["coping_appraisal"]
-        regex: "\"coping_appraisal\"\\s*:\\s*\"(Low|Med|High)\""
+        keywords: ["coping_appraisal", "coping appraisal"]
+        regex: "(?:\"coping_appraisal\"\\s*:\\s*\"|coping appraisal:\\s*\\[?)(Low|Med|High)"
       CP_REASON:
-        keywords: ["coping_reason"]
-        regex: "\"coping_reason\"\\s*:\\s*\"(.+?)\""
+        keywords: ["coping_reason", "coping appraisal"]
+        regex: "(?:\"coping_reason\"\\s*:\\s*\"|coping appraisal:.*because\\s+)(.+?)(?:\")?$"
   
   # Available Actions (mapped to skills)
   actions:
@@ -138,12 +138,33 @@ household:
 
 
   # Tier 1: Identity/Status Rules (Status-based blocks)
+
   identity_rules:
     elevation_block:
       precondition: elevated
       blocked_skills: ["elevate_house"]
       level: ERROR
       message: "Status Error: Your house is already elevated. You cannot elevate it again."
+
+  # Governance Profiles (Selectable via CLI --governance-profile)
+  governance:
+    strict:
+      thinking_rules:
+        urgency_check: { construct: TP_LABEL, when_above: ["H"], blocked_skills: ["do_nothing"], level: ERROR, message: "Logic Error: High Threat Appraisal but attempted inaction. Please prioritize protection." }
+        coping_alignment: { construct: CP_LABEL, when_above: ["L"], blocked_skills: ["elevate_house", "relocate"], level: ERROR, message: "Logic Error: Low Coping Appraisal but attempted expensive action." }
+        relocation_anomaly: { conditions: [{ construct: TP_LABEL, values: ["L"] }], blocked_skills: ["relocate"], level: ERROR, message: "Logical Error: Relocation is illogical when Threat is Low." }
+        elevation_anomaly: { conditions: [{ construct: TP_LABEL, values: ["L"] }], blocked_skills: ["elevate_house"], level: ERROR, message: "Logical Error: Elevation is irrational when Threat is Low." }
+      identity_rules:
+        elevation_block: { precondition: elevated, blocked_skills: ["elevate_house"], level: ERROR, message: "Status Error: Already elevated." }
+    
+    relaxed:
+      thinking_rules:
+        urgency_check: { construct: TP_LABEL, when_above: ["H"], blocked_skills: ["do_nothing"], level: WARNING, message: "Suggestion: High Threat detected. Protection is recommended." }
+        coping_alignment: { construct: CP_LABEL, when_above: ["L"], blocked_skills: ["elevate_house", "relocate"], level: WARNING, message: "Observation: You are taking a high-cost action despite low coping appraisal." }
+        relocation_anomaly: { conditions: [{ construct: TP_LABEL, values: ["L"] }], blocked_skills: ["relocate"], level: WARNING, message: "Observation: Relocation feels excessive for Low Threat." }
+        elevation_anomaly: { conditions: [{ construct: TP_LABEL, values: ["L"] }], blocked_skills: ["elevate_house"], level: WARNING, message: "Observation: Elevation feels excessive for Low Threat." }
+      identity_rules:
+        elevation_block: { precondition: elevated, blocked_skills: ["elevate_house"], level: WARNING, message: "Note: Already elevated." }
 
   # Simulation Constants (Aligned with LLMABMPMT-Final.py)
   simulation:
@@ -160,70 +181,3 @@ household:
     - "The city previously introduced a program offering elevation support to residents"
     - "News outlets have reported a possible trend of increasing flood frequency and severity in recent years"
 
-# =============================================================================
-# INSTITUTIONAL AGENTS (Migrated from InstitutionalValidator)
-# =============================================================================
-
-insurance:
-  description: "Insurance Company Agent"
-  
-  actions:
-    - id: raise_premium
-      aliases: ["RAISE", "increase"]
-    - id: lower_premium
-      aliases: ["LOWER", "decrease"]
-    - id: maintain_premium
-      aliases: ["MAINTAIN", "keep"]
-      
-  validation_rules:
-    rate_bounds:
-      param: "premium_rate"
-      min: 0.02
-      max: 0.15
-      level: "ERROR"
-      message: "Premium rate outside 2-15% range"
-      
-    max_change:
-      param: "premium_rate"
-      max_delta: 0.15
-      level: "WARNING"
-      message: "Premium changed by >15%"
-      
-    solvency_floor:
-      param: "solvency"
-      min: 0.0
-      level: "ERROR"
-      message: "Solvency cannot be negative"
-
-government:
-  description: "Government Agent"
-  
-  actions:
-    - id: increase_subsidy
-      aliases: ["INCREASE", "boost"]
-    - id: decrease_subsidy
-      aliases: ["DECREASE", "cut"]
-    - id: maintain_subsidy
-      aliases: ["MAINTAIN", "keep"]
-    - id: target_mg_outreach
-      aliases: ["OUTREACH"]
-      
-  validation_rules:
-    subsidy_bounds:
-      param: "subsidy_rate"
-      min: 0.20
-      max: 0.95
-      level: "ERROR"
-      message: "Subsidy rate outside 20-95% range"
-      
-    max_change:
-      param: "subsidy_rate"
-      max_delta: 0.15
-      level: "WARNING"
-      message: "Subsidy changed by >15%"
-      
-    emergency_reserve:
-      param: "budget_used"
-      max: 0.90
-      level: "WARNING"
-      message: "Budget usage >90% (emergency reserve violated)"

@@ -15,15 +15,16 @@
 
 ## Overview
 
-The Governed Broker Framework provides a **skill-governed architecture** for building reliable LLM-based Agent-Based Models (ABMs). It ensures that LLM decisions are validated through a multi-stage pipeline before affecting simulation state.
+The Governed Broker Framework is a **generic governance middleware** for building reliable LLM-driven Agent-Based Models (ABMs). It acts as a "Supervisor Layer" that strictly enforces logic, consistency, and safety rules on LLM outputs before they affect the simulation.
+
+Designed for modularity, it can be applied to any domain—from **Flood Adaptation** (as shown in examples) to **Financial Markets**, **Supply Chains**, or **Social Dynamics**—simply by changing the YAML configuration.
 
 ### Key Features
 
-- **Multi-Stage Validation**: Configurable validators ensure admissibility, feasibility, constraints, safety, and consistency
-- **Multi-Agent Support**: Supports heterogeneous agent types with different skills and eligibility rules
-- **Multi-Level State**: Individual, Social, Shared, and Institutional state layers with access control
-- **Extensible LLM Providers**: Default Ollama, extensible to OpenAI, Anthropic, etc.
-- **Full Traceability**: Complete audit trail for reproducibility
+- **Configuration-Driven**: Define agent personas, logic rules, and decision formats entirely in YAML. No code changes required for new domains.
+- **Dynamic Governance**: Switch between "Strict" and "Relaxed" enforcement profiles at runtime.
+- **Protocol-Agnostic**: Supports any decision format (JSON, Structured Text, etc.) via regex-based adapter configuration.
+- **Traceable Audit**: Automatically logs every decision, reason, and validation error into structured CSVs for analysis.
 
 ---
 

@@ -493,7 +493,8 @@ def run_experiment(args):
     )
     
     # Initialize output directory
-    output_dir = Path(args.output_dir) / args.model.replace(":", "_")
+    profile_suffix = f"_{args.governance_profile}" if args.governance_profile != "default" else ""
+    output_dir = Path(args.output_dir) / f"{args.model.replace(':', '_')}{profile_suffix}"
     output_dir.mkdir(parents=True, exist_ok=True)
     
     # Initialize Governance Layer (Broker)
@@ -524,7 +525,23 @@ def run_experiment(args):
         
         # PHASE 1: Update memory for all agents BEFORE decision making (aligned with MCP)
         for agent in active_agents:
-            # 1. Flood exposure memory (detailed like MCP)
+            # 1. Grant availability memory
+            if sim.grant_available:
+                agent.memory.append(f"Year {year}: Elevation grants are available.")
+            
+            # 2. Neighborhood stats memory
+            num_neighbors = NUM_AGENTS - 1
+            if num_neighbors > 0:
+                elevated_pct = round(((total_elevated - (1 if agent.elevated else 0)) / num_neighbors) * 100)
+                agent.memory.append(f"Year {year}: I observe {elevated_pct}% of my neighbors have elevated homes.")
+                relocated_pct = round((total_relocated / num_neighbors) * 100)
+                agent.memory.append(f"Year {year}: I observe {relocated_pct}% of my neighbors have relocated.")
+            
+            # 3. Stochastic memory recall
+            if random.random() < RANDOM_MEMORY_RECALL_CHANCE:
+                agent.memory.append(f"Suddenly recalled: '{random.choice(PAST_EVENTS)}'.")
+
+            # 4. CURRENT FLOOD EVENT (Detailed like MCP) - Append LAST to stay in window
             if env['flood_event'] and not agent.elevated:
                 if random.random() < agent.flood_threshold:
                     agent.memory.append(f"Year {year}: Got flooded with $10,000 damage on my house.")
@@ -537,22 +554,6 @@ def run_experiment(args):
                     agent.memory.append(f"Year {year}: A flood occurred, but my house was protected by its elevation.")
             elif not env['flood_event']:
                 agent.memory.append(f"Year {year}: No flood occurred this year.")
-            
-            # 2. Grant availability memory
-            if sim.grant_available:
-                agent.memory.append(f"Year {year}: Elevation grants are available.")
-            
-            # 3. Neighborhood stats memory
-            num_neighbors = NUM_AGENTS - 1
-            if num_neighbors > 0:
-                elevated_pct = round(((total_elevated - (1 if agent.elevated else 0)) / num_neighbors) * 100)
-                agent.memory.append(f"Year {year}: I observe {elevated_pct}% of my neighbors have elevated homes.")
-                relocated_pct = round((total_relocated / num_neighbors) * 100)
-                agent.memory.append(f"Year {year}: I observe {relocated_pct}% of my neighbors have relocated.")
-            
-            # 4. Stochastic memory recall
-            if random.random() < RANDOM_MEMORY_RECALL_CHANCE:
-                agent.memory.append(f"Suddenly recalled: '{random.choice(PAST_EVENTS)}'.")
             
             # 5. Trim memory to window
             agent.memory = agent.memory[-MEMORY_WINDOW:]

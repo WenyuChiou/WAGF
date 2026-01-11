@@ -69,10 +69,7 @@ class AgentValidator:
         """
         results = []
         
-        if agent_type.startswith("household"):
-            base_type = "household"
-        else:
-            base_type = agent_type
+        base_type = self.config.get_base_type(agent_type)
             
         # 1. Validate decision is in allowed values
         valid_actions = self.config.get_valid_actions(base_type)
@@ -167,64 +164,6 @@ class AgentValidator:
 
     # validate_default_household_rules was removed in favor of YAML coherence_rules
 
-    def validate_pmt_coherence(
-        self,
-        agent_id: str,
-        state: Dict[str, Any],
-        reasoning: Dict[str, str]
-    ) -> List[ValidationResult]:
-        """
-        Validate logical coherence between Agent State and LLM PMT Labels.
-        Uses rules from agent_types.yaml.
-        """
-        results = []
-        rules = self.config.get_coherence_rules("household")
-        
-        # Helper to safely get label (handles brackets like [H])
-        def get_label(key):
-            val = reasoning.get(key, reasoning.get(f"EVAL_{key}", "")).upper()
-            label = val.split(']')[0].replace("[", "").replace("]", "").strip() if ']' in val else val.strip()
-            return label[:1] # Just take the first char (L, M, H) unless it's NONE/PARTIAL/FULL
-
-        for rule in rules:
-            label = get_label(rule.construct)
-            if not label: continue
-            
-            # Get current value for comparison
-            current_val = 0.0
-            if rule.state_field:
-                current_val = state.get(rule.state_field, 0.5)
-            elif rule.state_fields:
-                vals = [state.get(f, 0.5) for f in rule.state_fields]
-                if rule.aggregation == "average":
-                    current_val = sum(vals) / len(vals)
-                elif rule.aggregation == "any_true":
-                    current_val = 1.0 if any(v > 0.5 for v in vals) else 0.0
-            
-            # Check coherence
-            is_coherent = True
-            if current_val >= rule.threshold:
-                if rule.expected_levels and label not in rule.expected_levels:
-                    # Special case for L/M/H vs NONE/PARTIAL/FULL
-                    is_coherent = False
-            
-            if not is_coherent:
-                results.append(ValidationResult(
-                    valid=True, # WARNING only
-                    validator_name=f"AgentValidator:pmt_coherence_{rule.construct.lower()}",
-                    errors=[],
-                    warnings=[rule.message or f"Coherence issue with {rule.construct}"],
-                    metadata={
-                        "level": ValidationLevel.WARNING,
-                        "rule": f"pmt_coherence_{rule.construct.lower()}",
-                        "field": rule.construct,
-                        "value": label,
-                        "constraint": f"Expected {rule.expected_levels} when state >= {rule.threshold}"
-                    }
-                ))
-            
-        return results
-
     def validate_identity(
         self,
         agent_type: str,
@@ -262,6 +201,7 @@ class AgentValidator:
                         warnings=[rule.message or f"Identity Block: '{decision}' restricted by {pre}"] if lv == ValidationLevel.WARNING else [],
                         metadata={
                             "level": lv,
+                            "tier": "Tier 1: Identity/Status",
                             "rule": f"identity_{rule.level.lower()}",
                             "message": rule.message,
                             "field": "decision",
@@ -336,6 +276,7 @@ class AgentValidator:
                         warnings=[rule.message or f"Logic Block: '{decision}' flagged by {tier_name} rules"] if lv == ValidationLevel.WARNING else [],
                         metadata={
                             "level": lv,
+                            "tier": f"Tier 2: {tier_name.capitalize()}",
                             "rule": f"{tier_name}_{rule.level.lower()}",
                             "field": "decision",
                             "value": decision,

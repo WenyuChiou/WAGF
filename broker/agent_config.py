@@ -6,6 +6,7 @@ Provides easy access to prompts, validation rules, and coherence rules.
 """
 
 import yaml
+import os
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
@@ -81,14 +82,15 @@ class AgentTypeConfig:
     
     def get_base_type(self, agent_type: str) -> str:
         """Map a specific agent type/subtype to a base type defined in config."""
-        # Handle common subtypes like household_mg -> household
-        # If the exact type exists, return it, otherwise try base mapping
         if agent_type in self._config:
             return agent_type
         
-        # Simple suffix-based mapping as a fallback
-        base_type = agent_type.replace("_mg", "").replace("_nmg", "")
-        return base_type
+        # Suffix-based mapping (mg/nmg)
+        base_type = agent_type.split('_')[0]
+        if base_type in self._config:
+            return base_type
+            
+        return agent_type
 
     def get(self, agent_type: str) -> Dict[str, Any]:
         """Get config for agent type."""
@@ -125,11 +127,14 @@ class AgentTypeConfig:
     def get_identity_rules(self, agent_type: str) -> List[CoherenceRule]:
         """Get identity/status rules."""
         cfg = self.get(agent_type)
+        profile = os.environ.get("GOVERNANCE_PROFILE", "default").lower()
         gov = cfg.get("governance", {})
-        rules = gov.get("identity_rules", cfg.get("identity_rules", []))
+        
+        # Load profile-specific rules if they exist, otherwise fallback
+        rules = gov.get(profile, {}).get("identity_rules", cfg.get("identity_rules", {}))
         
         # DEBUG
-        print(f"DEBUG_CONFIG: Loading identity_rules for {agent_type}. Found {len(rules)} entries. Keys in gov: {list(gov.keys())}")
+        print(f"DEBUG_CONFIG: Loading identity_rules for {agent_type} (Profile: {profile}). Found {len(rules)} entries.")
             
         if isinstance(rules, dict):
             rules_list = [{"id": k, **v} for k, v in rules.items()]
@@ -151,11 +156,14 @@ class AgentTypeConfig:
     def get_thinking_rules(self, agent_type: str) -> List[CoherenceRule]:
         """Get cognitive/thinking rules."""
         cfg = self.get(agent_type)
+        profile = os.environ.get("GOVERNANCE_PROFILE", "default").lower()
         gov = cfg.get("governance", {})
-        rules = gov.get("thinking_rules", cfg.get("thinking_rules", cfg.get("coherence_rules", {})))
+        
+        # Load profile-specific rules if they exist, otherwise fallback
+        rules = gov.get(profile, {}).get("thinking_rules", cfg.get("thinking_rules", cfg.get("coherence_rules", {})))
         
         # DEBUG
-        print(f"DEBUG_CONFIG: Loading thinking_rules for {agent_type}. Found {len(rules)} entries.")
+        print(f"DEBUG_CONFIG: Loading thinking_rules for {agent_type} (Profile: {profile}). Found {len(rules)} entries.")
             
         if isinstance(rules, list):
             rules_list = rules
@@ -192,6 +200,15 @@ class AgentTypeConfig:
         """Get parsing configuration for model adapter."""
         cfg = self.get(agent_type)
         return cfg.get("parsing", {})
+
+    def get_skill_map(self, agent_type: str, variant: str = None) -> Dict[str, str]:
+        """Get numeric skill map for an agent variant."""
+        parsing = self.get_parsing_config(agent_type)
+        if not variant:
+            return parsing.get("skill_map", {})
+            
+        # Try specific variant map, e.g., skill_map_elevated
+        return parsing.get(f"skill_map_{variant}", parsing.get("skill_map", {}))
 
     def get_parameters(self, agent_type: str) -> Dict[str, Any]:
         """Get domain parameters for agent type."""

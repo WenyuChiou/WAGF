@@ -190,10 +190,6 @@ class SkillBrokerEngine:
                 "context_hash": context_hash,
                 "memory_pre": memory_pre,
                 "skill_proposal": skill_proposal.to_dict() if skill_proposal else None,
-                "validator_results": [
-                    {"validator": v.validator_name, "valid": v.valid, "errors": v.errors}
-                    for v in validation_results
-                ],
                 "approved_skill": {
                     "skill_name": approved_skill.skill_name,
                     "status": approved_skill.approval_status,
@@ -202,7 +198,7 @@ class SkillBrokerEngine:
                 "execution_result": execution_result.__dict__ if execution_result else None,
                 "outcome": outcome.value,
                 "retry_count": retry_count
-            })
+            }, validation_results)
         
         return SkillBrokerResult(
             outcome=outcome,
