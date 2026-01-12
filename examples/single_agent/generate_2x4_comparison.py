@@ -126,12 +126,26 @@ def generate_2x4_chart(results_dir: Path, output_path: Path):
 
 
 if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="Generate 2x4 comparison chart.")
+    parser.add_argument("--results", type=str, help="Directory containing model results folders.")
+    parser.add_argument("--output", type=str, help="Output PNG file path.")
+    args = parser.parse_args()
+
     script_dir = Path(__file__).parent
-    results_dir = script_dir / "results"
-    output_path = script_dir / "multi_model_comparison_2x4.png"
+    results_dir = Path(args.results).resolve() if args.results else script_dir / "results"
+    
+    # Generate unique output name based on results folder if not provided
+    if args.output:
+        output_path = Path(args.output).resolve()
+    else:
+        suffix = results_dir.name if results_dir.name != "results" else "window"
+        output_path = script_dir / f"multi_model_comparison_2x4_{suffix}.png"
     
     print("=" * 60)
-    print("Generating 2x4 Multi-Model Comparison Chart")
+    print(f"Generating 2x4 Comparison Chart")
+    print(f"Results Source: {results_dir}")
+    print(f"Output Path: {output_path}")
     print("=" * 60)
     
     # Check which models have data
