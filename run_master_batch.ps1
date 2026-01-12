@@ -6,7 +6,7 @@ $engines = @("window", "humancentric")
 
 foreach ($engine in $engines) {
     # Define output directory based on engine
-    $outputDir = "examples/single_agent/results"
+    $outputDir = "examples/single_agent/old results"
     if ($engine -eq "humancentric") {
         $outputDir = "examples/single_agent/results_humancentric"
     }
@@ -41,4 +41,4 @@ foreach ($engine in $engines) {
 }
 
 Write-Host "MASTER BATCH COMPLETED!"
-Write-Host "Experimental results available in 'results' (Baseline) and 'results_humancentric' (Enhanced)."
+Write-Host "Experimental results available in 'old results' (Baseline) and 'results_humancentric' (Enhanced)."
