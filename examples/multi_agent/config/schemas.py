@@ -68,38 +68,38 @@ NORMALIZATION_GUIDE = {
 }
 
 # =============================================================================
-# 5 PMT CONSTRUCTS (for LLM evaluation)
+# 5 PMT/PADM CONSTRUCTS (for LLM evaluation)
 # =============================================================================
 FIVE_CONSTRUCTS = {
     "TP": {
         "name": "Threat Perception",
-        "description": "Perceived risk of flooding based on experience and information",
+        "description": "Captures both emotional and cognitive responses to risk. Corresponds to threat appraisal from PMT and threat perception from PADM.",
         "levels": ["LOW", "MODERATE", "HIGH"],
-        "weight_factors": ["flood_experience", "neighbor_damage", "depth_info"]
+        "weight_factors": ["flood_experience", "neighbor_damage", "depth_info", "perceived_vulnerability"]
     },
     "CP": {
         "name": "Coping Perception",
-        "description": "Perceived ability to cope with or prevent flood damage",
+        "description": "Merges coping appraisal (PMT) and protective action perception (PADM). Represents assessment of ability to reduce risk and perceived effectiveness of potential actions.",
         "levels": ["LOW", "MODERATE", "HIGH"],
-        "weight_factors": ["income", "insurance_access", "elevation_feasibility"]
+        "weight_factors": ["income", "insurance_access", "elevation_feasibility", "self_efficacy", "response_efficacy"]
     },
     "SP": {
         "name": "Stakeholder Perception",
-        "description": "Trust in government, insurance, and institutions",
+        "description": "How individuals view trustworthiness, expertise, involvement, and influence of stakeholders (governments, insurance companies, community organizations) in adaptation process.",
         "levels": ["LOW", "MODERATE", "HIGH"],
-        "weight_factors": ["trust_gov", "trust_ins", "past_claim_experience"]
+        "weight_factors": ["trust_gov", "trust_ins", "past_claim_experience", "policy_awareness"]
     },
     "SC": {
         "name": "Social Capital",
-        "description": "Trust in neighbors and community support networks",
+        "description": "A form of capital embedded in social networks, trust, and norms that can enhance disaster resilience.",
         "levels": ["LOW", "MODERATE", "HIGH"],
-        "weight_factors": ["trust_neighbors", "generations", "community_participation"]
+        "weight_factors": ["trust_neighbors", "generations", "community_participation", "information_sharing"]
     },
     "PA": {
         "name": "Place Attachment",
-        "description": "Emotional attachment to current home and community",
+        "description": "The emotional and psychological bond between individuals, communities, and their living environment.",
         "levels": ["LOW", "MODERATE", "HIGH"],
-        "weight_factors": ["generations", "years_in_residence", "family_ties"]
+        "weight_factors": ["generations", "years_in_residence", "family_ties", "community_identity"]
     }
 }
 
