@@ -312,6 +312,7 @@ class UnifiedAdapter(ModelAdapter):
         # Default skill from config
         if not skill_name:
             skill_name = config_parsing.get("default_skill", "do_nothing")
+            print(f"[ModelAdapter:Diagnostic] Warning: Could not parse decision for {agent_id}. Falling back to default: '{skill_name}'")
             
         # Resolve to canonical ID
         if skill_name:
