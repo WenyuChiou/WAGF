@@ -1,7 +1,7 @@
 # Master Batch RUN: Full Comparison (Window vs HumanCentric Memory)
 # This script runs all 4 models across both memory engines to provide a complete comparison dataset.
 
-$models = @("gemma3:4b", "llama3.2:3b", "deepseek-r1:8b", "gpt-oss:latest")
+$models = @("gpt-oss:latest", "deepseek-r1:8b", "llama3.2:3b", "gemma3:4b")
 $engines = @("window", "humancentric")
 
 foreach ($engine in $engines) {
