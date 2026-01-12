@@ -14,7 +14,7 @@ from broker.components.social_graph import NeighborhoodGraph
 from broker.components.interaction_hub import InteractionHub
 from broker.components.context_builder import TieredContextBuilder
 from broker.components.skill_registry import SkillRegistry
-from broker.components.memory_engine import WindowMemoryEngine
+from broker.components.memory_engine import WindowMemoryEngine, ImportanceMemoryEngine
 from broker.interfaces.skill_types import ExecutionResult
 from plot_results import plot_adaptation_results
 from broker.utils.llm_utils import create_llm_invoke
@@ -233,7 +233,7 @@ class FinalParityHook:
         print(f"[Year {year}] Stats: {stats_str}")
 
 # --- 5. Main Runner ---
-def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False):
+def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window"):
     print(f"--- Llama {agents_count}-Agent 10-Year Benchmark (Final Parity Edition) ---")
     
     # 1. Load Registry & Prompt Template
@@ -277,6 +277,22 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         skill_registry=registry,
         prompt_templates={"household": household_template, "default": household_template}
     )
+    # Select memory engine based on CLI argument
+    if memory_engine_type == "importance":
+        memory_engine = ImportanceMemoryEngine(
+            window_size=3,
+            top_k_significant=2,
+            weights={"critical": 1.0, "high": 0.8, "medium": 0.5, "routine": 0.1},
+            categories={
+                "critical": ["flood", "damage", "$", "loss"],
+                "high": ["insurance", "elevat", "relocat", "grant"],
+                "medium": ["observe", "neighbor", "community"]
+            }
+        )
+        print(f" Using ImportanceMemoryEngine (active retrieval)")
+    else:
+        memory_engine = WindowMemoryEngine(window_size=3)
+        print(f" Using WindowMemoryEngine (sliding window)")
     
     runner = (
         ExperimentBuilder()
@@ -286,7 +302,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         .with_simulation(sim)
         .with_context_builder(ctx_builder)
         .with_skill_registry(registry)
-        .with_memory_engine(WindowMemoryEngine(window_size=3))
+        .with_memory_engine(memory_engine)
         .with_governance("strict", agent_config_path)
         .with_output(custom_output if custom_output else "results_modular")
         .build()
@@ -344,11 +360,15 @@ if __name__ == "__main__":
     parser.add_argument("--agents", type=int, default=100)
     parser.add_argument("--output", type=str, default=None)
     parser.add_argument("--verbose", action="store_true", help="Enable verbose LLM logging")
+    parser.add_argument("--memory-engine", type=str, default="window", 
+                        choices=["window", "importance"], 
+                        help="Memory retrieval strategy: window (sliding) or importance (active retrieval)")
     args = parser.parse_args()
     run_parity_benchmark(
         model=args.model, 
         years=args.years, 
         agents_count=args.agents, 
         custom_output=args.output,
-        verbose=args.verbose
+        verbose=args.verbose,
+        memory_engine_type=args.memory_engine
     )
