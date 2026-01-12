@@ -48,13 +48,15 @@ The framework is designed as a **governance middleware** that sits between the A
 
 This diagram illustrates the flow for a single agent step, highlighting the transformation from Raw Data to Validated Action.
 
-![Single-Agent Architecture](docs/single_agent_architecture_v3.png)
+![Single-Agent Architecture](docs/single_agent_architecture.png)
+
+> **Alternative (V4)**: For a more detailed view, see [single_agent_architecture_v4.png](docs/single_agent_architecture_v4.png)
 
 ### 2. Multi-Agent Interaction
 
 In multi-agent mode, social signals become a critical input.
 
-![Multi-Agent Architecture](docs/multi_agent_architecture_v3.png)
+![Multi-Agent Architecture](docs/multi_agent_architecture.png)
 
 ### Framework Evolution
 

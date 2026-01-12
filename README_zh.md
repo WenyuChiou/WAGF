@@ -48,13 +48,15 @@
 
 此圖說明單個代理人步驟的流程，強調從原始數據到已驗證技能的轉換。
 
-![以單代理人架構](docs/single_agent_architecture_v3.png)
+![單代理人架構](docs/single_agent_architecture.png)
+
+> **進階版 (V4)**: 更詳細的版本請參見 [single_agent_architecture_v4.png](docs/single_agent_architecture_v4.png)
 
 ### 2. 多代理人互動 (Multi-Agent Interaction)
 
 在多代理人模式下，社交信號成為關鍵輸入。
 
-![多代理人架構](docs/multi_agent_architecture_v3.png)
+![多代理人架構](docs/multi_agent_architecture.png)
 
 ### 框架演進
 
