@@ -7,9 +7,11 @@ Provides easy access to prompts, validation rules, and coherence rules.
 
 import yaml
 import os
+import json
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
+from collections import defaultdict
 
 
 @dataclass
@@ -250,29 +252,23 @@ class AgentTypeConfig:
         cfg = self.get(agent_type)
         return cfg.get("parsing", {})
 
+
     def get_skill_map(self, agent_type: str, context: Dict[str, Any] = None) -> Dict[str, str]:
         """
         Get numeric skill map for an agent, optionally resolving variants based on context.
-        
-        Args:
-            agent_type: Type of agent
-            context: Dictionary containing agent state (e.g., {'elevated': True})
-            
-        Returns:
-            Dictionary mapping strings (numbers) to skill IDs.
         """
         parsing = self.get_parsing_config(agent_type)
         if not parsing:
             return {}
             
-        # 1. Check for explicit skill_variant (Legacy/Manual)
+        # 1. Check for explicit skill_variant
         variant = context.get("skill_variant") if context else None
         if variant:
             v_key = f"skill_map_{variant}"
             if v_key in parsing:
                 return parsing[v_key]
         
-        # 2. Smart Resolution: Find keys matching boolean flags in context
+        # 2. Smart Resolution
         if context:
             for key, val in context.items():
                 if isinstance(val, bool):
@@ -280,7 +276,7 @@ class AgentTypeConfig:
                     if v_key in parsing:
                         return parsing[v_key]
         
-        # 3. Fallback to default skill_map
+        # 3. Fallback
         return parsing.get("skill_map", {})
 
     def get_parameters(self, agent_type: str) -> Dict[str, Any]:
@@ -292,6 +288,47 @@ class AgentTypeConfig:
     def agent_types(self) -> List[str]:
         """List all available agent types."""
         return list(self._config.keys())
+
+
+class GovernanceAuditor:
+    """
+    Singleton for tracking and summarizing governance interventions.
+    """
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(GovernanceAuditor, cls).__new__(cls)
+            cls._instance.rule_hits = defaultdict(int)
+            cls._instance.retry_success_count = 0
+            cls._instance.retry_failure_count = 0
+            cls._instance.total_interventions = 0
+        return cls._instance
+
+    def log_intervention(self, rule_id: str, success: bool, is_final: bool = False):
+        """Record a validator intervention."""
+        self.rule_hits[rule_id] += 1
+        self.total_interventions += 1
+        
+        if is_final:
+            if success:
+                self.retry_success_count += 1
+            else:
+                self.retry_failure_count += 1
+
+    def save_summary(self, output_path: Path):
+        """Save aggregated statistics to JSON."""
+        summary = {
+            "total_interventions": self.total_interventions,
+            "rule_frequency": dict(self.rule_hits),
+            "outcome_stats": {
+                "retry_success": self.retry_success_count,
+                "retry_exhausted": self.retry_failure_count
+            }
+        }
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(summary, f, indent=4)
+        print(f"[Governance:Auditor] Summary saved to {output_path}")
 
 
 # Convenience function

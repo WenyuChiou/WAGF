@@ -1,8 +1,0 @@
-﻿Now, choose one of the following actions:
-1. Buy flood insurance (Lower cost, provides partial financial protection but does not reduce physical damage)
-2. Elevate your house (High upfront cost but can prevent most physical damage)
-3. Relocate (Requires leaving your neighborhood but eliminates flood risk permanently)
-4. Do nothing (Require no financial investment or effort this year, but it might leave you exposed to future flood damage)
-Note: If no flood occurred this year, since no immediate threat, most people would choose “Do Nothing.”
-                                                                                              
-

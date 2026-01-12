@@ -65,6 +65,7 @@ class SkillBrokerEngine:
         self.audit_writer = audit_writer
         self.max_retries = max_retries
         self.log_prompt = log_prompt
+        print("!!! HELLO FROM BROKER !!!")
         
         # Statistics
         self.stats = {
@@ -99,9 +100,20 @@ class SkillBrokerEngine:
         timestamp = datetime.now().isoformat()
         
         # ① Build bounded context (READ-ONLY)
+        print(f"DEBUG_BROKER: Processing {agent_id} with builder {type(self.context_builder)} instance {id(self.context_builder)}")
         context = self.context_builder.build(agent_id)
         context_hash = self._hash_context(context)
-        memory_pre = context.get("memory", []).copy() if context.get("memory") else []
+        
+        # Robust memory extraction for audit (handles nesting and stringification)
+        raw_mem = context.get("memory")
+        if raw_mem is None and "personal" in context:
+            raw_mem = context["personal"].get("memory")
+            
+        if isinstance(raw_mem, str):
+            # Convert bulleted string back to list for cleaner JSON logs
+            memory_pre = [m.lstrip("- ").strip() for m in raw_mem.split("\n") if m.strip()]
+        else:
+            memory_pre = list(raw_mem).copy() if raw_mem else []
         
         # ② LLM output → ModelAdapter → SkillProposal
         prompt = self.context_builder.format_prompt(context)
@@ -121,9 +133,12 @@ class SkillBrokerEngine:
         # ③ Skill validation
         validation_context = {
             "agent_state": context,
-            "agent_type": agent_type,
-            "flood_status": "Flood occurred" if context.get("flood_event") else "No flood"
+            "agent_type": agent_type
         }
+        # Add any domain-specific event flags dynamically
+        for k, v in context.items():
+            if k.endswith("_event") or k.endswith("_occurred"):
+                validation_context[k] = v
         
         validation_results = self._run_validators(skill_proposal, validation_context)
         all_valid = all(v.valid for v in validation_results)

@@ -30,10 +30,10 @@ The framework is built like a set of **Lego blocks**. Each component is independ
 
 To support complex social simulations, we define 5 core psychological constructs that drive agent decision-making. These are implemented as modular "Governance Detectors":
 
-1.  **Threat Appraisal (TP)**: Perceived risk and severity of events.
-2.  **Coping Appraisal (CP)**: Perceived ability to take action (finance, effort).
-3.  **Stakeholder Trust (SP)**: Confidence in institutions (e.g., Government, Insurance).
-4.  **Social Capital (SC)**: Neighbor observation and community influence.
+1.  **Threat Perception (TP)**: Composed of preparedness, worry, and awareness.
+2.  **Coping Perception (CP)**: Composed of self-efficiency, mitigation-cost, and mitigation-efficiency.
+3.  **Stakeholder Perception (SP)**: Views on trustworthiness, expertise, and influence of governments, insurance, etc.
+4.  **Social Capital (SC)**: Capital embedded in social networks, trust, and norms.
 5.  **Place Attachment (PA)**: Emotional and physical bond to current location.
 
 ---

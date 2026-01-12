@@ -1,7 +1,7 @@
 # Multi-Model Benchmark Suite
 # Runs 100-agent, 10-year simulations for 4 major models sequentially.
 
-$models = @("llama3.2:3b", "gemma2:9b", "deepseek-r1:8b", "phi4:latest")
+$models = @("llama3.2:3b", "gemma3:4b", "deepseek-r1:8b", "phi4:latest")
 $years = 10
 $agents = 100
 

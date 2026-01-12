@@ -16,9 +16,12 @@ class ValidationLevel(Enum):
 
 
 from broker.interfaces.skill_types import ValidationResult
-
-
-from broker.utils.agent_config import load_agent_config, ValidationRule, CoherenceRule
+from broker.utils.agent_config import (
+    load_agent_config, 
+    ValidationRule, 
+    CoherenceRule,
+    GovernanceAuditor
+)
 
 class AgentValidator:
     """
@@ -31,6 +34,7 @@ class AgentValidator:
         self.config = load_agent_config(config_path)
         self.errors: List[ValidationResult] = []
         self.warnings: List[ValidationResult] = []
+        self.auditor = GovernanceAuditor()
     
     def validate(self, *args, **kwargs) -> List[ValidationResult]:
         """
@@ -194,19 +198,25 @@ class AgentValidator:
                 
                 if normalized_decision in blocked_normalized:
                     lv = ValidationLevel.ERROR if rule.level == "ERROR" else ValidationLevel.WARNING
+                    if lv == ValidationLevel.ERROR:
+                        self.auditor.log_intervention(rule.id, success=False, is_final=False)
+
+                    rule_msg = f"[Rule: {rule.id}] {rule.message or f'Identity Block: {decision} restricted by {pre}'}"
                     results.append(ValidationResult(
                         valid=(lv == ValidationLevel.WARNING),
                         validator_name=f"AgentValidator:identity_{rule.level.lower()}",
-                        errors=[rule.message or f"Identity Block: '{decision}' restricted by {pre}"] if lv == ValidationLevel.ERROR else [],
-                        warnings=[rule.message or f"Identity Block: '{decision}' restricted by {pre}"] if lv == ValidationLevel.WARNING else [],
+                        errors=[rule_msg] if lv == ValidationLevel.ERROR else [],
+                        warnings=[rule_msg] if lv == ValidationLevel.WARNING else [],
                         metadata={
                             "level": lv,
                             "tier": "Tier 1: Identity/Status",
                             "rule": f"identity_{rule.level.lower()}",
+                            "rule_id": rule.id,
                             "message": rule.message,
                             "field": "decision",
                             "value": decision,
-                            "constraint": f"Identity: {rule.level}"
+                            "constraint": f"Identity: {rule.level}",
+                            "rules_hit": [rule.id]
                         }
                     ))
         return results
@@ -269,18 +279,24 @@ class AgentValidator:
                 
                 if normalized_decision in blocked_normalized:
                     lv = ValidationLevel.ERROR if rule.level == "ERROR" else ValidationLevel.WARNING
+                    if lv == ValidationLevel.ERROR:
+                        self.auditor.log_intervention(rule.id, success=False, is_final=False)
+                    
+                    rule_msg = f"[Rule: {rule.id}] {rule.message or f'Logic Block: {decision} flagged by {tier_name} rules'}"
                     results.append(ValidationResult(
                         valid=(lv == ValidationLevel.WARNING),
                         validator_name=f"AgentValidator:{tier_name}_{rule.level.lower()}",
-                        errors=[rule.message or f"Logic Block: '{decision}' flagged by {tier_name} rules"] if lv == ValidationLevel.ERROR else [],
-                        warnings=[rule.message or f"Logic Block: '{decision}' flagged by {tier_name} rules"] if lv == ValidationLevel.WARNING else [],
+                        errors=[rule_msg] if lv == ValidationLevel.ERROR else [],
+                        warnings=[rule_msg] if lv == ValidationLevel.WARNING else [],
                         metadata={
                             "level": lv,
                             "tier": f"Tier 2: {tier_name.capitalize()}",
                             "rule": f"{tier_name}_{rule.level.lower()}",
+                            "rule_id": rule.id,
                             "field": "decision",
                             "value": decision,
-                            "constraint": f"Tier: {tier_name}"
+                            "constraint": f"Tier: {tier_name}",
+                            "rules_hit": [rule.id]
                         }
                     ))
         return results

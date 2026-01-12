@@ -48,6 +48,14 @@ class WindowMemoryEngine(MemoryEngine):
         self.storage[agent_id] = self.storage[agent_id][-100:] 
 
     def retrieve(self, agent: BaseAgent, query: Optional[str] = None, top_k: int = 3) -> List[str]:
+        if agent.id not in self.storage:
+            # First time access: check if agent has initial memory from profile
+            initial_mem = getattr(agent, 'memory', [])
+            if isinstance(initial_mem, list):
+                self.storage[agent.id] = list(initial_mem)
+            else:
+                self.storage[agent.id] = []
+                
         mems = self.storage.get(agent.id, [])
         return mems[-top_k:]
 
@@ -76,14 +84,14 @@ class ImportanceMemoryEngine(MemoryEngine):
         self.top_k_significant = top_k_significant
         self.storage: Dict[str, List[Dict[str, Any]]] = {}
         
-        # Merge weights and categories
+        # Merge weights and categories (Generic defaults)
         self.weights = weights or {
-            "flood": 1.0, "adaptation": 0.8, "social": 0.5, "routine": 0.1
+            "critical": 1.0, "high": 0.8, "medium": 0.5, "routine": 0.1
         }
         self.categories = categories or {
-            "flood": ["flood", "damage", "severity"],
-            "adaptation": ["insurance", "payout", "buyout", "grant", "elevat", "relocat"],
-            "social": ["neighbor", "friend", "community"]
+            "critical": ["alert", "danger", "failure", "emergency"],
+            "high": ["change", "success", "important", "new"],
+            "medium": ["observed", "heard", "social", "network"]
         }
 
     def _score_content(self, content: str) -> float:
@@ -118,6 +126,16 @@ class ImportanceMemoryEngine(MemoryEngine):
         })
 
     def retrieve(self, agent: BaseAgent, query: Optional[str] = None, top_k: int = 5) -> List[str]:
+        if agent.id not in self.storage:
+            # First time access: check if agent has initial memory from profile
+            initial_mem = getattr(agent, 'memory', [])
+            if isinstance(initial_mem, list):
+                self.storage[agent.id] = []
+                for m in initial_mem:
+                    self.add_memory(agent.id, m)
+            else:
+                self.storage[agent.id] = []
+
         mems = self.storage.get(agent.id, [])
         if not mems:
             return []

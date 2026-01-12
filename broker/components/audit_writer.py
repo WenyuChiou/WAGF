@@ -65,13 +65,18 @@ class GenericAuditWriter:
         if validation_results:
             trace["validated"] = all(r.valid for r in validation_results)
             trace["validation_issues"] = []
+            seen_issues = set()
             for r in validation_results:
                 if not r.valid:
                     self.summary["validation_errors"] += 1
-                    trace["validation_issues"].append({
-                        "validator": getattr(r, 'validator_name', 'Unknown'),
-                        "errors": r.errors
-                    })
+                    issue_key = (r.metadata.get("rule_id", "Unknown"), tuple(r.errors))
+                    if issue_key not in seen_issues:
+                        trace["validation_issues"].append({
+                            "validator": getattr(r, 'validator_name', 'Unknown'),
+                            "rule_id": r.metadata.get("rule_id", "Unknown"),
+                            "errors": r.errors
+                        })
+                        seen_issues.add(issue_key)
         else:
             trace["validated"] = True
             trace["validation_issues"] = []
@@ -150,7 +155,7 @@ class GenericAuditWriter:
             # 4. Validation Details (Which rule triggered)
             issues = t.get("validation_issues", [])
             if issues:
-                row["failed_rules"] = "|".join([str(i.get('validator', 'Unknown')) for i in issues])
+                row["failed_rules"] = "|".join([str(i.get('rule_id', 'Unknown')) for i in issues])
                 row["error_messages"] = "|".join(["; ".join(i.get('errors', [])) for i in issues])
             else:
                 row["failed_rules"] = ""

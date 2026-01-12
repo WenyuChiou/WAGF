@@ -2,14 +2,14 @@
   "experiment_name": "llama3.2:3b",
   "agent_types": {
     "household": {
-      "total": 10,
+      "total": 1,
       "decisions": {
-        "do_nothing": 10
+        "do_nothing": 1
       }
     }
   },
-  "total_traces": 10,
+  "total_traces": 1,
   "validation_errors": 0,
   "validation_warnings": 0,
-  "finalized_at": "2026-01-11T16:39:46.198778"
+  "finalized_at": "2026-01-11T20:16:10.349232"
 }

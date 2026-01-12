@@ -1,0 +1,17 @@
+{
+  "experiment_name": "deepseek-r1:8b",
+  "agent_types": {
+    "household": {
+      "total": 1000,
+      "decisions": {
+        "buy_insurance": 110,
+        "do_nothing": 746,
+        "elevate_house": 144
+      }
+    }
+  },
+  "total_traces": 1000,
+  "validation_errors": 5,
+  "validation_warnings": 0,
+  "finalized_at": "2026-01-11T19:33:37.787097"
+}

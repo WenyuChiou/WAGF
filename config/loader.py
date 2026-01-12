@@ -89,40 +89,54 @@ class DomainConfigLoader:
     # SKILLS / ACTION CATALOG
     # =========================================================================
     
-    def get_skills(self, agent_state: str = "non_elevated") -> List[SkillDefinition]:
+    def get_skills(self, agent_state: str = "default") -> List[SkillDefinition]:
         """
-        Get skill definitions from action_catalog.
+        Get skill definitions from action_catalog for a specific state.
         
         Args:
-            agent_state: "non_elevated" or "elevated" (domain-specific)
+            agent_state: The current state category of the agent (domain-specific).
+                         If state not found, falls back to "default" or the first available state.
         
         Returns:
             List of SkillDefinition objects
         """
         action_catalog = self.config.get("action_catalog", {})
-        catalog = action_catalog.get(agent_state, action_catalog.get("non_elevated", {}))
+        
+        # 1. Try exact match
+        catalog = action_catalog.get(agent_state)
+        
+        # 2. Try "default" fallback
+        if catalog is None:
+            catalog = action_catalog.get("default")
+            
+        # 3. Last resort: first available key if catalog has states
+        if catalog is None and action_catalog:
+            first_key = next(iter(action_catalog.keys()))
+            if isinstance(action_catalog[first_key], dict):
+                catalog = action_catalog[first_key]
+            else:
+                # Flat catalog (no state nesting)
+                catalog = action_catalog
         
         skills = []
-        for skill_id, skill_config in catalog.items():
-            skills.append(SkillDefinition(
-                skill_id=skill_id,
-                code=skill_config.get("code", ""),
-                description=skill_config.get("description", ""),
-                constraints=skill_config.get("constraints", []),
-                effects=skill_config.get("effects", {})
-            ))
+        if isinstance(catalog, dict):
+            for skill_id, skill_config in catalog.items():
+                skills.append(SkillDefinition(
+                    skill_id=skill_id,
+                    code=skill_config.get("code", ""),
+                    description=skill_config.get("description", ""),
+                    constraints=skill_config.get("constraints", []),
+                    effects=skill_config.get("effects", {})
+                ))
         
         return skills
     
-    def get_skill_map(self, agent_state: str = "non_elevated") -> Dict[str, str]:
+    def get_skill_map(self, agent_state: str = "default") -> Dict[str, str]:
         """
-        Get code → skill_id mapping.
-        
-        Returns:
-            Dict like {"1": "buy_flood_insurance", "2": "elevate_house", ...}
+        Get code → skill_id mapping for a specific state.
         """
         skills = self.get_skills(agent_state)
-        return {s.code: s.skill_id for s in skills}
+        return {str(s.code): s.skill_id for s in skills}
     
     def get_all_skill_ids(self) -> List[str]:
         """Get all unique skill IDs across all agent states."""

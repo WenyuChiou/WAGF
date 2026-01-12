@@ -17,6 +17,7 @@ from broker.components.skill_registry import SkillRegistry
 from broker.components.memory_engine import WindowMemoryEngine
 from broker.interfaces.skill_types import ExecutionResult
 from plot_results import plot_adaptation_results
+from examples.single_agent.run_experiment import create_llm_invoke
 
 # --- 1. Research Constants (Parity with LLMABMPMT-Final.py) ---
 FLOOD_PROBABILITY = 0.2
@@ -199,7 +200,7 @@ class FinalParityHook:
             ctx = self.runner.broker.context_builder.build(agent.id)
             prompt = self.runner.broker.context_builder.format_prompt(ctx)
             print("\n" + "="*80)
-            print("🔍 INSPECTING YEAR 1 PROMPT (PARITY CHECK)")
+            print("--- INSPECTING YEAR 1 PROMPT (PARITY CHECK) ---")
             print(prompt)
             print("="*80 + "\n")
             self.prompt_inspected = True
@@ -241,7 +242,7 @@ class FinalParityHook:
         print(f"[Year {year}] Stats: {stats_str}")
 
 # --- 5. Main Runner ---
-def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100):
+def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None):
     print(f"--- Llama {agents_count}-Agent 10-Year Benchmark (Final Parity Edition) ---")
     
     # 1. Load Registry & Prompt Template
@@ -259,7 +260,8 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     agents = load_agents_from_csv("examples/single_agent/agent_initial_profiles.csv", {
         "id": "id", "elevated": "elevated", "has_insurance": "has_insurance", 
         "relocated": "relocated", "trust_in_insurance": "trust_in_insurance", 
-        "trust_in_neighbors": "trust_in_neighbors", "flood_threshold": "flood_threshold"
+        "trust_in_neighbors": "trust_in_neighbors", "flood_threshold": "flood_threshold",
+        "memory": "memory"
     })
     agents = {aid: agents[aid] for aid in sorted(agents.keys())[:agents_count]}
     for a in agents.values(): 
@@ -295,7 +297,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         .with_skill_registry(registry)
         .with_memory_engine(WindowMemoryEngine(window_size=3))
         .with_governance("strict", agent_config_path)
-        .with_output("results_modular")
+        .with_output(custom_output if custom_output else "results_modular")
         .build()
     )
 
@@ -303,6 +305,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     runner.hooks = {"pre_year": parity.pre_year, "post_step": parity.post_step, "post_year": parity.post_year}
 
     from examples.single_agent.run_experiment import create_llm_invoke
+    
     runner.run(llm_invoke=create_llm_invoke(model))
     
     # Finalize Audit (Generates CSVs and Summary)
@@ -331,7 +334,10 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
                         "relocated": True
                     })
 
-    output_dir = Path("results_modular") / f"{model.replace(':','_')}_strict"
+    if custom_output:
+        output_dir = Path(custom_output) / f"{model.replace(':','_')}_strict"
+    else:
+        output_dir = Path("results_modular") / f"{model.replace(':','_')}_strict"
     csv_path = output_dir / "simulation_log.csv"
     pd.DataFrame(final_logs).to_csv(csv_path, index=False)
     print(f"--- Benchmark Complete! Results in {output_dir} ---")
@@ -345,5 +351,6 @@ if __name__ == "__main__":
     parser.add_argument("--model", type=str, default="llama3.2:3b")
     parser.add_argument("--years", type=int, default=10)
     parser.add_argument("--agents", type=int, default=100)
+    parser.add_argument("--output", type=str, default=None)
     args = parser.parse_args()
-    run_parity_benchmark(model=args.model, years=args.years, agents_count=args.agents)
+    run_parity_benchmark(model=args.model, years=args.years, agents_count=args.agents, custom_output=args.output)

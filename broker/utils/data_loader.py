@@ -60,7 +60,15 @@ def load_agents_from_csv(
             if attr_name == "id":
                 continue
             if csv_col in row:
-                agent.custom_attributes[attr_name] = row[csv_col]
+                # Handle memory specifically to allow list-based initialization
+                if attr_name == "memory":
+                    val = row[csv_col]
+                    if pd.notna(val) and isinstance(val, str):
+                        agent.memory = [m.strip() for m in val.split('|')]
+                    else:
+                        agent.memory = []
+                else:
+                    agent.custom_attributes[attr_name] = row[csv_col]
         
         agents[agent_id] = agent
         

@@ -12,6 +12,7 @@ from ..interfaces.skill_types import ApprovedSkill
 from .skill_broker_engine import SkillBrokerEngine
 from ..components.context_builder import BaseAgentContextBuilder
 from ..components.memory_engine import MemoryEngine, WindowMemoryEngine
+from ..utils.agent_config import GovernanceAuditor
 
 @dataclass
 class ExperimentConfig:
@@ -97,6 +98,11 @@ class ExperimentRunner:
                 self.hooks["post_year"](year, self.agents)
             
             self._finalize_year(year)
+        
+        # 4. Finalize Experiment - Save Governance Summary
+        auditor = GovernanceAuditor()
+        summary_path = self.config.output_dir / "governance_summary.json"
+        auditor.save_summary(summary_path)
 
     def _apply_state_changes(self, agent: BaseAgent, result: Any):
         """Update agent attributes and memory from execution results."""

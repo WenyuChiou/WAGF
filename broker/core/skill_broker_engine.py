@@ -28,6 +28,7 @@ from ..utils.model_adapter import ModelAdapter
 from validators.agent_validator import AgentValidator
 from ..components.memory_engine import MemoryEngine
 from ..components.context_builder import ContextBuilder, BaseAgentContextBuilder
+from ..utils.agent_config import GovernanceAuditor
 from ..components.interaction_hub import InteractionHub
 from ..components.audit_writer import AuditWriter
 
@@ -78,6 +79,7 @@ class SkillBrokerEngine:
             "rejected": 0,
             "aborted": 0
         }
+        self.auditor = GovernanceAuditor()
     
     def process_step(
         self,
@@ -140,6 +142,7 @@ class SkillBrokerEngine:
         }
         
         validation_results = self._run_validators(skill_proposal, validation_context)
+        all_validation_history = list(validation_results)
         all_valid = all(v.valid for v in validation_results)
         
         # Retry loop
@@ -155,17 +158,18 @@ class SkillBrokerEngine:
             raw_output = llm_invoke(retry_prompt)
             
             skill_proposal = self.model_adapter.parse_output(raw_output, {
+                **context,
                 "agent_id": agent_id,
-                "is_elevated": context.get("elevated", False),
                 "agent_type": agent_type
             })
             
             if skill_proposal:
                 validation_results = self._run_validators(skill_proposal, validation_context)
+                all_validation_history.extend(validation_results)
                 all_valid = all(v.valid for v in validation_results)
         
         if not all_valid and retry_count >= self.max_retries:
-             print(f"[Governance] Max retries reached for {agent_id}. Falling back to default skill.")
+             print(f"[Governance:Fallout] Max retries ({self.max_retries}) reached for {agent_id}. Reverting to fallback: '{self.skill_registry.get_default_skill()}'")
         
         # ④ Create ApprovedSkill or use fallback
         if all_valid:
@@ -180,6 +184,10 @@ class SkillBrokerEngine:
             outcome = SkillOutcome.RETRY_SUCCESS if retry_count > 0 else SkillOutcome.APPROVED
             if retry_count > 0:
                 self.stats["retry_success"] += 1
+                # Log outcome for summary
+                for v in validation_results:
+                    for rule_id in v.metadata.get("rules_hit", []):
+                        self.auditor.log_intervention(rule_id, success=True, is_final=True)
             else:
                 self.stats["approved"] += 1
         else:
@@ -195,6 +203,14 @@ class SkillBrokerEngine:
             )
             outcome = SkillOutcome.UNCERTAIN
             self.stats["rejected"] += 1
+            # Log failure for summary
+            for v in validation_results:
+                for rule_id in v.metadata.get("rules_hit", []):
+                    self.auditor.log_intervention(rule_id, success=False, is_final=True)
+        
+        # FINAL STEP SUMMARY (Console)
+        if retry_count > 0:
+            print(f"[Governance:Summary] {agent_id} | Result: {outcome.value} | Retries: {retry_count} | Final Skill: {approved_skill.skill_name}")
         
         # ⑤ Execution (simulation engine ONLY)
         execution_result = self.simulation_engine.execute_skill(approved_skill)
@@ -226,7 +242,7 @@ class SkillBrokerEngine:
                 "execution_result": execution_result.__dict__ if execution_result else None,
                 "outcome": outcome.value,
                 "retry_count": retry_count
-            }, validation_results)
+            }, all_validation_history)
         
         return SkillBrokerResult(
             outcome=outcome,

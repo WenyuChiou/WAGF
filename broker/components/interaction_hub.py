@@ -110,7 +110,7 @@ class InteractionHub:
             if inst_id:
                 env_context["institutional"] = self.environment.institutions.get(inst_id, {})
 
-        return {
+        result = {
             "personal": personal,
             "local": {
                 "spatial": self.get_spatial_context(agent_id, agents),
@@ -120,5 +120,9 @@ class InteractionHub:
             "global": global_news or env_context["global"],
             "institutional": env_context["institutional"]
         }
+        # Add 'state' alias for validator compatibility
+        result["state"] = result["personal"]
+        
+        return result
 
 

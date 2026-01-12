@@ -9,6 +9,7 @@ from abc import ABC, abstractmethod
 import string
 
 from .memory_engine import MemoryEngine
+from .interaction_hub import InteractionHub
 
 class SafeFormatter(string.Formatter):
     """
@@ -56,106 +57,101 @@ class ContextBuilder(ABC):
         pass
 
 
+class ContextProvider(ABC):
+    """Interface for modular context data sources."""
+    @abstractmethod
+    def provide(self, agent_id: str, agents: Dict[str, Any], context: Dict[str, Any], **kwargs) -> None:
+        """Inject data into the context dictionary."""
+        pass
+
+class AttributeProvider(ContextProvider):
+    """Provides internal state from agent attributes."""
+    def provide(self, agent_id, agents, context, **kwargs):
+        agent = agents.get(agent_id)
+        if not agent: return
+        
+        state = context.setdefault("state", {})
+        # Reflective discovery of public attributes
+        for k, v in agent.__dict__.items():
+            if not k.startswith('_') and isinstance(v, (str, int, float, bool)) and k not in state:
+                state[k] = v
+        
+        if hasattr(agent, 'get_observable_state'):
+            state.update(agent.get_observable_state())
+        if hasattr(agent, 'custom_attributes'):
+            state.update(agent.custom_attributes)
+
+class EnvironmentProvider(ContextProvider):
+    """Provides perception signals from the environment."""
+    def __init__(self, environment: Dict[str, float]):
+        self.environment = environment
+        
+    def provide(self, agent_id, agents, context, **kwargs):
+        agent = agents.get(agent_id)
+        if not agent or not hasattr(agent, 'observe'): return
+        
+        # Perception bucket
+        context["perception"] = agent.observe(self.environment, agents)
+
+class MemoryProvider(ContextProvider):
+    """Provides historical traces via MemoryEngine."""
+    def __init__(self, engine: Optional[MemoryEngine]):
+        self.engine = engine
+        
+    def provide(self, agent_id, agents, context, **kwargs):
+        agent = agents.get(agent_id)
+        if not agent or not self.engine: return
+        
+        # Memory bucket
+        context["memory"] = self.engine.retrieve(agent, top_k=3)
+
 class BaseAgentContextBuilder(ContextBuilder):
     """
-    Context builder that works with BaseAgent instances.
-    
-    Features:
-    - Automatically uses 0-1 normalized state
-    - Supports multi-agent observation
-    - Works with any user-defined agent type
+    Context builder that uses a pipeline of providers for true generality.
     """
     
     def __init__(
         self,
-        agents: Dict[str, Any],  # Dict[str, BaseAgent]
+        agents: Dict[str, Any],
         environment: Dict[str, float] = None,
         prompt_templates: Dict[str, str] = None,
-        memory_engine: Optional[MemoryEngine] = None
+        memory_engine: Optional[MemoryEngine] = None,
+        providers: List[ContextProvider] = None
     ):
-        """
-        Args:
-            agents: Dict mapping agent names to BaseAgent instances
-            environment: Shared environment state (0-1 normalized)
-            prompt_templates: Dict mapping agent_type to prompt template
-            memory_engine: Engine for retrieving agent memory
-        """
         self.agents = agents
-        self.environment = environment or {}
         self.prompt_templates = prompt_templates or {}
-        self.memory_engine = memory_engine
+        
+        # Initialize default provider pipeline if none provided
+        if providers is not None:
+            self.providers = providers
+        else:
+            self.providers = [
+                AttributeProvider(),
+                EnvironmentProvider(environment or {}),
+                MemoryProvider(memory_engine)
+            ]
     
     def build(
         self, 
         agent_id: str,
-        observable: Optional[List[str]] = None,
-        include_memory: bool = True,
-        include_raw: bool = False
+        **kwargs
     ) -> Dict[str, Any]:
-        """Build context from agent's normalized state and perception.
-        
-        Args:
-            agent_id: Agent to build context for
-            observable: Optional categories to include
-            include_memory: Include formatted memory
-            include_raw: Include raw (denormalized) values alongside 0-1
-        """
+        """Run the provider pipeline to build context."""
         agent = self.agents.get(agent_id)
         if not agent:
             return {"agent_id": agent_id, "error": "Agent not found"}
         
-        # Get agent's normalized state
         context = {
             "agent_id": agent_id,
-            "agent_name": agent.name,
-            "agent_type": agent.agent_type,
-            "state": agent.get_all_state(),  # 0-1 normalized
+            "agent_name": getattr(agent, 'name', agent_id),
+            "agent_type": getattr(agent, 'agent_type', 'default'),
         }
         
-        # Optionally add raw values for readability
-        if include_raw:
-            context["state_raw"] = agent.get_all_state_raw()
-        
-        # Add perception from environment and other agents
-        perception = agent.observe(self.environment, self.agents)
-        context["perception"] = perception
-        
-        # Add objectives evaluation
-        context["objectives"] = agent.evaluate_objectives()
-        
-        # Add available skills
-        context["available_skills"] = agent.get_available_skills()
-        
-        # Add memory if available
-        if include_memory:
-            context["memory"] = self._get_memory(agent)
-        
-        # Add neighbor summary if observable
-        observable = observable or []
-        if "neighbors" in observable:
-            context["neighbors"] = self._get_neighbor_summary(agent_id)
+        # Trigger all providers in sequence
+        for provider in self.providers:
+            provider.provide(agent_id, self.agents, context, **kwargs)
             
-        # Add flood-specific attributes to context if present on agent
-        for attr in ['elevated', 'has_insurance', 'relocated', 'flood_threshold', 'trust_in_insurance', 'trust_in_neighbors', 'flood']:
-            if hasattr(agent, attr):
-                context[attr] = getattr(agent, attr)
-                
-        # Add custom attributes if present
-        if hasattr(agent, 'custom_attributes') and agent.custom_attributes:
-            context.update(agent.custom_attributes)
-        
         return context
-    
-    def _get_memory(self, agent) -> List[str]:
-        """Get formatted memory via MemoryEngine."""
-        if self.memory_engine:
-            return self.memory_engine.retrieve(agent, top_k=3)
-        
-        # Fallback to direct attribute if engine not set (for standalone tests)
-        if hasattr(agent, 'memory') and isinstance(agent.memory, list):
-            return agent.memory[-3:]
-            
-        return []
     
     def _get_neighbor_summary(self, agent_id: str) -> List[Dict[str, Any]]:
         """Get summary of neighbor agents' observable state."""
@@ -166,7 +162,8 @@ class BaseAgentContextBuilder(ContextBuilder):
                     "agent_name": name,
                     "agent_type": agent.agent_type,
                     "state_summary": {
-                        k: round(v, 2) for k, v in list(agent.get_all_state().items())[:3]
+                        k: (round(v, 2) if isinstance(v, (int, float)) else v) 
+                        for k, v in list(agent.get_all_state().items())[:3]
                     }
                 })
         return summaries[:5]  # Limit to 5 neighbors
@@ -202,21 +199,20 @@ class BaseAgentContextBuilder(ContextBuilder):
         }
         
         # Add individual state variables (for custom templates)
-        # e.g. {loss_ratio}
-        template_vars.update(state)
+        # e.g. {loss_ratio} or {elevated}
+        for k, v in state.items():
+            if isinstance(v, (str, int, float, bool)):
+                template_vars[k] = v
         
-        # Add raw state variables if present (prioritize over normalized?)
-        # Usually we want normalized in prompt, but maybe raw for specific metrics
-        if "state_raw" in context:
-            template_vars.update(context["state_raw"])
-            
         # Add perception variables
-        if "perception" in context:
-            template_vars.update(context["perception"])
+        perception = context.get("perception", {})
+        for k, v in perception.items():
+             if isinstance(v, (str, int, float, bool)):
+                template_vars[k] = v
             
-        # Add extra context keys (like 'budget_remaining' if passed in context root)
+        # Add extra context keys (top-level attributes like 'budget_remaining')
         template_vars.update({k: v for k, v in context.items() 
-                            if k not in template_vars and isinstance(v, (str, int, float))})
+                            if k not in template_vars and isinstance(v, (str, int, float, bool))})
             
         return SafeFormatter().format(template, **template_vars)
     
@@ -241,8 +237,8 @@ class BaseAgentContextBuilder(ContextBuilder):
     def _format_perception(self, perception: Dict[str, float], compact: bool = True) -> str:
         """Format perception signals."""
         if compact:
-            return " ".join(f"{k}={v:.2f}" for k, v in perception.items()) or "-"
-        return "\n".join(f"- {k}: {v:.2f}" for k, v in perception.items()) or "No signals"
+            return " ".join(f"{k}={v:.2f}" for k, v in perception.items() if isinstance(v, (int, float))) or "-"
+        return "\n".join(f"- {k}: {v:.2f}" for k, v in perception.items() if isinstance(v, (int, float))) or "No signals"
     
     def _format_objectives(self, objectives: Dict[str, Dict], compact: bool = True) -> str:
         """Format objectives with status."""
@@ -261,16 +257,45 @@ class BaseAgentContextBuilder(ContextBuilder):
             lines.append(f"- {name}: {current:.2f} ({target[0]:.2f}-{target[1]:.2f}) {status}")
         return "\n".join(lines) if lines else "No objectives"
 
-from .interaction_hub import InteractionHub
+class SocialProvider(ContextProvider):
+    """Provides T1 Social/Spatial context from InteractionHub."""
+    def __init__(self, hub: 'InteractionHub'):
+        self.hub = hub
+        
+    def provide(self, agent_id, agents, context, **kwargs):
+        # Adds 'local' bucket with spatial/social sub-keys
+        spatial = self.hub.get_spatial_context(agent_id, agents)
+        social = self.hub.get_social_context(agent_id, agents)
+        
+        local = context.setdefault("local", {})
+        local["spatial"] = spatial
+        local["social"] = social
+
+class InstitutionalProvider(ContextProvider):
+    """Provides T2/T3 Regional/Institutional context from environment."""
+    def __init__(self, environment: 'TieredEnvironment'):
+        self.environment = environment
+        
+    def provide(self, agent_id, agents, context, **kwargs):
+        agent = agents.get(agent_id)
+        if not agent: return
+        
+        # Pull global, local-env, and institutional-env based on agent location/type
+        global_news = list(self.environment.global_state.values())
+        context["global"] = global_news
+        
+        local = context.setdefault("local", {})
+        tract_id = getattr(agent, 'tract_id', None) or getattr(agent, 'location', None)
+        if tract_id:
+            local["environment"] = self.environment.local_states.get(tract_id, {})
+            
+        inst_id = getattr(agent, 'institution_id', None) or getattr(agent, 'agent_type', None)
+        if inst_id:
+            context["institutional"] = self.environment.institutions.get(inst_id, {})
 
 class TieredContextBuilder(BaseAgentContextBuilder):
     """
-    PR 2: Hierarchical Context Builder (T0, T1, T2).
-    
-    Tiers:
-    - Tier 0: Personal (Internal state/memory)
-    - Tier 1: Local (Social Gossip & Spatial Observation)
-    - Tier 2: Global (Institutional/Public News)
+    Modular Tiered Context Builder using the Provider pipeline.
     """
     def __init__(
         self,
@@ -279,26 +304,44 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         skill_registry: Optional[Any] = None,
         global_news: List[str] = None,
         prompt_templates: Dict[str, str] = None,
-        memory_engine: Optional[MemoryEngine] = None
+        memory_engine: Optional[MemoryEngine] = None,
+        trust_verbalizer: Optional[Callable[[float, str], str]] = None
     ):
-        super().__init__(agents=agents, prompt_templates=prompt_templates, memory_engine=memory_engine)
+        providers = [
+            AttributeProvider(),
+            MemoryProvider(memory_engine),
+            SocialProvider(hub),
+        ]
+        
+        if hasattr(hub, 'environment') and hub.environment:
+            providers.append(InstitutionalProvider(hub.environment))
+            
+        super().__init__(
+            agents=agents, 
+            prompt_templates=prompt_templates, 
+            providers=providers
+        )
         self.hub = hub
         self.skill_registry = skill_registry
         self.global_news = global_news or []
+        self.trust_verbalizer = trust_verbalizer
+
+    def build(self, agent_id: str, **kwargs) -> Dict[str, Any]:
+        """Run the provider pipeline."""
+        # We override to ensure we pass hub-specific kwargs if needed,
+        # but the base build() logic with providers handles it.
+        return super().build(agent_id, **kwargs)
 
     def _verbalize_trust(self, trust_value: float, category: str) -> str:
-        """Converts a float (0-1) into a natural language description (Legacy Parity)."""
-        if category == "insurance":
-            if trust_value >= 0.8: return "strongly trust"
-            elif trust_value >= 0.5: return "moderately trust"
-            elif trust_value >= 0.2: return "have slight doubts about"
-            else: return "deeply distrust"
-        elif category == "neighbors":
-            if trust_value >= 0.8: return "highly rely on"
-            elif trust_value >= 0.5: return "generally trust"
-            elif trust_value >= 0.2: return "are skeptical of"
-            else: return "completely ignore"
-        return "trust"
+        """Converts a float (0-1) into a natural language description (Generic)."""
+        if self.trust_verbalizer:
+            return self.trust_verbalizer(trust_value, category)
+        
+        # Generic fallback
+        if trust_value >= 0.8: return "high"
+        if trust_value >= 0.5: return "moderate"
+        if trust_value >= 0.2: return "low"
+        return "minimal"
 
     def build(self, agent_id: str, **kwargs) -> Dict[str, Any]:
         """Build context using the InteractionHub's tiered logic."""

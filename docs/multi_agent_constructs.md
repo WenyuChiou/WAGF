@@ -2,23 +2,23 @@
 
 To simulate realistic social dynamics and policy impacts, the framework adopts 5 core psychological constructs. These act as "Lego bricks" that provide standardized reasoning inputs for the LLM agents.
 
-## 1. Threat Appraisal (TP) - *Perceived Risk*
-*   **Definition**: How severe the threat feels and how vulnerable the agent perceives themselves to be.
-*   **Data Sources**: Flood depth, past flood frequency, "increasing trend" rumors.
+## 1. Threat Perception (TP)
+*   **Definition**: Composed of **preparedness**, **worry**, and **awareness**. Similar to threat appraisal but focused on the subjective feeling of vulnerability.
+*   **Data Sources**: Past flood frequency, news reports, neighbor gossip.
 *   **Impact**: High TP accelerates adaptation (Insurance/Elevation); Extreme TP triggers Relocation.
 
-## 2. Coping Appraisal (CP) - *Ability to Act*
-*   **Definition**: Response efficacy (does it work?) and Self-efficacy (can I afford/do it?).
+## 2. Coping Perception (CP)
+*   **Definition**: Composed of **self-efficiency** (self-efficacy), **mitigation-cost**, and **mitigation-efficiency** (response efficacy).
 *   **Data Sources**: Household income, government subsidy rates, skill costs.
 *   **Impact**: Low CP blocks expensive actions like Elevation, even if TP is High.
 
-## 3. Stakeholder Trust (SP) - *Institutional Confidence*
-*   **Definition**: Confidence in the reliability of insurance companies and government agencies.
-*   **Data Sources**: Payout speed/success (from Memory), subsidy availability.
-*   **Impact**: High SP increases insurance uptake; Low SP leads to "Do Nothing" or non-institutional adaptation (Elevation).
+## 3. Stakeholder Perception (SP)
+*   **Definition**: Considers how individuals view the **trustworthiness**, **expertise**, **involvement**, and **influence** of other stakeholders, such as governments, insurance companies, or community organizations, in the adaptation process.
+*   **Data Sources**: Payout speed/success (from Memory), subsidy availability, policy transparency.
+*   **Impact**: High SP increases insurance uptake and government program participation; Low SP leads to "Do Nothing" or non-institutional adaptation (Elevation).
 
-## 4. Social Capital (SC) - *Community Influence*
-*   **Definition**: Influence of neighbors' actions and community norms.
+## 4. Social Capital (SC)
+*   **Definition**: A form of capital embedded in **social networks**, **trust**, and **norms**.
 *   **Data Sources**: Social Observation (e.g., "30% of neighbors have elevated").
 *   **Impact**: Peer pressure logic—agents are more likely to adapt if they observe successful neighbors doing the same.
 

@@ -211,19 +211,22 @@ class UnifiedAdapter(ModelAdapter):
             # Check for decision keywords from config
             for keyword in keywords:
                 if line_lower.startswith(keyword):
-                    decision_text = line.split(":", 1)[1].strip() if ":" in line else ""
+                    parts = line.split(":", 1)
+                    decision_text = parts[1].strip() if len(parts) > 1 else ""
                     decision_lower = decision_text.lower()
                     
                     # 1. Try to match a skill name from config aliases
+                    decision_norm = decision_lower.replace("_", "").replace(" ", "")
                     for skill in valid_skills:
-                        if skill.lower() in decision_lower:
+                        skill_norm = skill.lower().replace("_", "").replace(" ", "")
+                        if skill_norm in decision_norm:
                             skill_name = skill
                             break
                     
                     # 2. Try to match a numeric decision from skill map
                     if not skill_name:
                         skill_map = self.agent_config.get_skill_map(agent_type, context)
-                        for char in decision_lower:
+                        for char in decision_text:
                             if char.isdigit() and char in skill_map:
                                 skill_name = skill_map.get(char)
                                 break
@@ -278,36 +281,6 @@ class UnifiedAdapter(ModelAdapter):
                         if match:
                             reasoning[key] = match.group(1).strip()
             
-            # Legacy: "Final Decision:" for household
-            if (line_lower.startswith("final decision:") or line_lower.startswith("decision:")) and not skill_name:
-                parts = line.split(":", 1)
-                decision_text = parts[1].strip() if len(parts) > 1 else ""
-                decision_lower = decision_text.lower()
-                
-                for skill in self.valid_skills:
-                    if skill.lower() in decision_lower:
-                        skill_name = skill
-                        break
-                
-                # Skill mapping logic: Smart Resolution
-                if not skill_name:
-                    skill_map = self.agent_config.get_skill_map(self.agent_type, context)
-                    
-                    # Try map
-                    for char in decision_text:
-                        if char.isdigit() and char in skill_map:
-                            skill_name = skill_map.get(char)
-                            break
-                            
-                    # Universal Fallback
-                    if not skill_name:
-                        raw_actions = self.agent_config.get(self.agent_type).get("actions", [])
-                        for char in decision_text:
-                            if char.isdigit():
-                                idx = int(char) - 1
-                                if 0 <= idx < len(raw_actions):
-                                    skill_name = raw_actions[idx]["id"]
-                                    break
         
         # Default skill from config
         if not skill_name:
