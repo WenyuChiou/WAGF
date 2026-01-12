@@ -1,12 +1,8 @@
 {
-    "total_interventions": 430,
-    "rule_frequency": {
-        "urgency_check": 181,
-        "coping_alignment": 231,
-        "elevation_anomaly": 18
-    },
+    "total_interventions": 0,
+    "rule_frequency": {},
     "outcome_stats": {
         "retry_success": 0,
-        "retry_exhausted": 48
+        "retry_exhausted": 0
     }
 }

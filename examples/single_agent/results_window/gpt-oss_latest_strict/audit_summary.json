@@ -1,0 +1,17 @@
+{
+  "experiment_name": "gpt-oss:latest",
+  "agent_types": {
+    "household": {
+      "total": 1000,
+      "decisions": {
+        "elevate_house": 487,
+        "buy_insurance": 422,
+        "do_nothing": 91
+      }
+    }
+  },
+  "total_traces": 1000,
+  "validation_errors": 103,
+  "validation_warnings": 0,
+  "finalized_at": "2026-01-12T12:08:08.143659"
+}

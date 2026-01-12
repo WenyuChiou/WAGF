@@ -252,6 +252,11 @@ class AgentTypeConfig:
         cfg = self.get(agent_type)
         return cfg.get("parsing", {})
 
+    def get_log_fields(self, agent_type: str) -> List[str]:
+        """Get list of reasoning fields to highlight in logs."""
+        cfg = self.get(agent_type)
+        return cfg.get("log_fields", [])
+
 
     def get_skill_map(self, agent_type: str, context: Dict[str, Any] = None) -> Dict[str, str]:
         """

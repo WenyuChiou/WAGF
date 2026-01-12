@@ -159,8 +159,8 @@ class FinalParityHook:
         self.logs = []
         self.prompt_inspected = False
 
-    def pre_year(self, context):
-        year = context.year
+    def pre_year(self, year, env, agents):
+        year = year
         flood_event = self.sim.flood_event
         
         # 0. Global stats for social observation (Matching Baseline PHASES 1 & 3)

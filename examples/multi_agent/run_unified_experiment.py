@@ -85,9 +85,12 @@ def create_insurance_agent() -> BaseAgent:
 
 def wrap_household(profile) -> BaseAgent:
     # We map the profile to a BaseAgent compatible with the framework
+    # Subdivide household into owner/renter for specialized prompts/skills
+    ma_type = "household_owner" if profile.tenure == "Owner" else "household_renter"
+    
     config = AgentConfig(
         name=profile.agent_id,
-        agent_type="household",
+        agent_type=ma_type,
         state_params=[], 
         objectives=[],
         constraints=[],
@@ -105,10 +108,7 @@ def wrap_household(profile) -> BaseAgent:
         "income": profile.income,
         "rcv_building": profile.rcv_building,
         "rcv_contents": profile.rcv_contents,
-        "property_value": profile.rcv_building + profile.rcv_contents,
-        "trust_gov": profile.trust_gov,
-        "trust_ins": profile.trust_ins,
-        "trust_neighbors": profile.trust_neighbors
+        "property_value": profile.rcv_building + profile.rcv_contents
     }
     agent.dynamic_state = {
         "elevated": profile.elevated,
@@ -117,9 +117,7 @@ def wrap_household(profile) -> BaseAgent:
         "cumulative_damage": 0.0,
         # Derived attributes for prompt
         "elevation_status_text": "Your house is elevated." if profile.elevated else "Your house is NOT elevated.",
-        "insurance_status": "have" if profile.has_insurance else "do NOT have",
-        "trust_insurance_text": "trust" if profile.trust_ins > 0.6 else "distrust",
-        "trust_neighbors_text": "value" if profile.trust_neighbors > 0.6 else "are skeptical of"
+        "insurance_status": "have" if profile.has_insurance else "do NOT have"
     }
     
     # Ensure agent.id matches profile.agent_id
@@ -172,7 +170,7 @@ class MultiAgentHooks:
             # print(f" [INS] Premium rate updated to: {self.env['premium_rate']:.1%}")
 
         # Sync household state after their decisions (buy_insurance, etc)
-        elif agent.agent_type == "household":
+        elif agent.agent_type in ["household_owner", "household_renter"]:
             if decision in ["buy_insurance", "buy_contents_insurance"]:
                 agent.dynamic_state["has_insurance"] = True
             elif decision == "elevate_house":
@@ -189,7 +187,7 @@ class MultiAgentHooks:
         total_damage = 0
         
         for agent in agents.values():
-            if agent.agent_type != "household" or agent.dynamic_state.get("relocated"):
+            if agent.agent_type not in ["household_owner", "household_renter"] or agent.dynamic_state.get("relocated"):
                 continue
                 
             # Calculation

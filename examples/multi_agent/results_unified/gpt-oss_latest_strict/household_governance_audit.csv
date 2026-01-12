@@ -1,0 +1,87 @@
+﻿step_id,agent_id,proposed_skill,final_skill,status,retry_count,validated,failed_rules,timestamp,parsing_warnings,raw_output,reason_tp_label,reason_sc_label,reason_pa_label,reason_cp_label,reason_sp_label,error_messages
+3,H0001,relocate,relocate,APPROVED,0,True,,2026-01-12T10:50:07.631939,Decision extracted via keyword presence: relocate,"TP Assessment: HIGH because past floods in the area have been severe and the house is not elevated, making both the severity of potential damage and the vulnerability of the property very high.  
+CP Assessment: MODERATE because with an annual income of $103,683 and a property value of $550,808 you have some disposable income to invest in mitigation, but the lack of a government subsidy and the cost of elevation or other technical adaptations make the financial and technical capacity moderate.  
+SP Assessment: HIGH because you trust the insurance company’s payout and have no current objections to their policies, and you do not expect any government subsidy.  
+SC Assessment: LOW because you are skeptical of your neighbors’ judgment and therefore feel limited in community support for mitigation efforts.  
+PA Assessment: HIGH because you have a strong emotional bond to the community and a strong motivation to stay rather than relocate.  
+
+Final Decision: 0  
+Reasoning: Given the high threat perception and strong place attachment, combined with only moderate coping resources and weak social capital, the safest short‑term strategy is to stay put while exploring affordable mitigation options such as improving drainage or moving critical assets to higher ground, rather than relocating or taking immediate large‑scale elevation actions that are not financially supported.",l,h,m,MODERATE,l,
+4,H0002,do_nothing,do_nothing,APPROVED,1,False,coping_alignment,2026-01-12T10:50:20.604683,Could not parse decision for H0002. Falling back to default: 'do_nothing',"TP Assessment: HIGH because past floods have demonstrated significant severity and vulnerability in a non‑elevated house located in a flood‑prone area.  
+CP Assessment: LOW because financial resources are limited (annual income $44,065, no subsidies, skepticism about insurance), and there is no technical or economic capacity to elevate the property.  
+SP Assessment: LOW because there is distrust in government subsidies (none available) and insurance payouts, leading to poor stakeholder confidence.  
+SC Assessment: LOW because skepticism toward neighbors’ judgments weakens community support and shared adaptive resources.  
+PA Assessment: HIGH because there is a strong emotional bond to the community and a strong desire to remain in the current location.  
+
+Final Decision: N/A  
+Reasoning: With high threat perception but low coping ability, stakeholder trust, and social support, no viable action can be confidently recommended at this time.",low,LOW,l,LOW,LOW,[Rule: coping_alignment] [Rule: coping_alignment] Logic Error: Low Coping but expensive action attempted.
+5,H0003,do_nothing,do_nothing,REJECTED_FALLBACK,2,False,coping_alignment|urgency_check,2026-01-12T10:50:43.368740,Could not parse decision for H0003. Falling back to default: 'do_nothing',"TP Assessment: HIGH because past floods have caused severe damage in the area and your house is not elevated, making you highly vulnerable to future flood events.  
+CP Assessment: LOW because you lack flood insurance, the government offers no subsidy for elevation, and your current income may not cover the cost of substantial mitigation measures.  
+SP Assessment: LOW because there is no government subsidy and you are not covered by insurance, limiting trust in governmental and insurance support.  
+SC Assessment: LOW because you are skeptical of neighbors’ judgment and do not rely on community assistance for flood preparedness.  
+PA Assessment: HIGH because you have a strong emotional bond to the community and a desire to remain in your home despite the risks.  
+
+Final Decision: 0  
+
+Reasoning: With no specific action options provided, the appropriate response is to acknowledge that no formal action is selected in this scenario.",HIGH,LOW,l,LOW,LOW,[Rule: coping_alignment] [Rule: coping_alignment] Logic Error: Low Coping but expensive action attempted.|[Rule: urgency_check] [Rule: urgency_check] Logic Error: High Threat but inaction chosen.
+6,H0004,relocate,do_nothing,REJECTED_FALLBACK,2,False,coping_alignment|urgency_check,2026-01-12T10:51:20.896363,Decision extracted via keyword presence: relocate,"TP Assessment: HIGH because the area has a documented history of severe floods that have repeatedly damaged properties, indicating a high severity of threat and a strong sense of vulnerability for a non-elevated home.  
+CP Assessment: LOW because the annual income ($53,746) does not comfortably support the costs of elevation or professional mitigation, and there is no existing flood insurance or subsidy, limiting both financial and technical resources.  
+SP Assessment: LOW because government subsidies for elevation are 0 % and the user distrusts insurance payouts, resulting in minimal confidence in external support.  
+SC Assessment: HIGH because the resident strongly values the judgment of neighbors and the sense of community support, which is a powerful source of motivation and potential collective action.  
+PA Assessment: HIGH because the emotional bond to the neighborhood and personal attachment to the home outweigh the desire to relocate, fostering a strong commitment to staying.  
+
+Final Decision: N/A  
+Reasoning: No actionable options are provided in the list, so the only appropriate response is to acknowledge that no specific action can be selected at this time.",HIGH,HIGH,l,LOW,LOW,[Rule: coping_alignment] [Rule: coping_alignment] Logic Error: Low Coping but expensive action attempted.|[Rule: urgency_check] [Rule: urgency_check] Logic Error: High Threat but inaction chosen.
+7,H0005,do_nothing,do_nothing,REJECTED_FALLBACK,2,False,urgency_check,2026-01-12T10:51:55.609338,Could not parse decision for H0005. Falling back to default: 'do_nothing',"TP Assessment: HIGH because you live in a flood‑prone area with a house that is not elevated, and previous flooding events have demonstrated both severity and a high likelihood of recurrence.  
+CP Assessment: LOW because you lack flood insurance, there is no government subsidy for elevation, and your financial resources are constrained; you have limited technical expertise and cannot easily afford major protective measures.  
+SP Assessment: LOW because you distrust both the insurance company and the reliability of any government payout, and you doubt the effectiveness of subsidies (which are currently nonexistent).  
+SC Assessment: MODERATE because although you distrust some neighbors, you still feel a sense of community and may have some informal support, but it is not robust.  
+PA Assessment: HIGH because you have a strong emotional bond to your community and a clear motivation to remain in the same place despite the risks.  
+
+Final Decision: N/A  
+Reasoning: The user did not provide any actionable options to choose from, so the appropriate response is “N/A.”",HIGH,MODERATE,h,LOW,LOW,[Rule: urgency_check] [Rule: urgency_check] Logic Error: High Threat but inaction chosen.
+10,H0001,do_nothing,do_nothing,APPROVED,0,True,,2026-01-12T10:53:02.734606,Could not parse decision for H0001. Falling back to default: 'do_nothing',"TP Assessment: HIGH because past floods have demonstrated that the area is prone to severe flooding, and the fact that your house is not elevated increases your vulnerability.  
+CP Assessment: LOW because you currently have no flood insurance, there is no government subsidy for elevation, and the financial and technical resources required to elevate the home are beyond what you can comfortably afford.  
+SP Assessment: LOW because there is no subsidy to rely on, and although you trust the insurance company, you have yet to secure any policy.  
+SC Assessment: LOW because you are skeptical of your neighbors’ judgment and have not built strong community support mechanisms for flood risk.  
+PA Assessment: HIGH because you have a strong emotional bond to your community and a strong attachment to staying in the area.  
+
+Final Decision: N/A  
+Reasoning: With high threat perception and low coping resources, the most prudent course is to pursue flood insurance immediately. However, since no specific action options were provided, the decision remains pending further guidance.",low,LOW,l,LOW,LOW,
+11,H0002,do_nothing,do_nothing,APPROVED,0,True,,2026-01-12T10:53:14.563560,Could not parse decision for H0002. Falling back to default: 'do_nothing',"TP Assessment: HIGH because past floods have shown severe damage and the house is not elevated, increasing both the severity of potential loss and the homeowner’s vulnerability.  
+CP Assessment: LOW because with an annual income of $44,065, no flood insurance, and no government subsidies for elevation, the financial and technical resources needed to adapt are very limited.  
+SP Assessment: LOW because there is strong distrust of the insurance company’s payouts and the government offers no subsidies for elevation, leading to minimal confidence in these stakeholders.  
+SC Assessment: MODERATE because while neighbors and the broader community can provide support during a flood, skepticism about their judgment and the overall safety of staying in the area reduces the influence of social capital.  
+PA Assessment: MODERATE because the homeowner feels a strong emotional bond to the community and a desire to stay, yet the repeated flood experience creates a counterbalancing concern that could motivate relocation.  
+
+Final Decision: 1  
+Reasoning: Given the high threat perception and low coping capacity, but also moderate place attachment, the safest pragmatic choice is to remain but prepare for mitigation (e.g., personal flood insurance, flood-proofing where possible) rather than immediately relocating or attempting costly elevation.",low,MODERATE,l,LOW,LOW,
+12,H0003,relocate,relocate,APPROVED,1,False,urgency_check,2026-01-12T10:53:30.597600,Decision extracted via keyword presence: relocate,"TP Assessment: HIGH because the area has experienced significant floods in the past and your house is not elevated, making it highly vulnerable to flood damage.  
+CP Assessment: MODERATE because while your annual income could support insurance, the lack of government subsidies and the cost of technical adaptations (e.g., elevation) reduce your ability to effectively cope.  
+SP Assessment: HIGH because you trust the insurance company’s payout reliability, even though there are no subsidies to support you.  
+SC Assessment: LOW because you are skeptical of your neighbors’ judgment and community influence is limited.  
+PA Assessment: HIGH because you have a strong emotional bond to your community and are highly motivated to remain in place rather than relocate.  
+
+Final Decision: 1  
+Reasoning: Given the high threat and high trust in insurance payouts, the most actionable and cost-effective mitigation step is to obtain flood insurance.",HIGH,LOW,h,MODERATE,HIGH,[Rule: urgency_check] [Rule: urgency_check] Logic Error: High Threat but inaction chosen.
+13,H0004,do_nothing,do_nothing,APPROVED,1,False,coping_alignment,2026-01-12T10:54:00.450058,Could not parse decision for H0004. Falling back to default: 'do_nothing',"TP Assessment: HIGH because the area has experienced past floods, the house is not elevated, and the likelihood of severe flooding remains high.  
+CP Assessment: LOW because the income ($53,746) and lack of government subsidy (0%) limit financial resources for elevation or other protective measures, and you distrust insurance companies.  
+SP Assessment: LOW because you have no trust in insurance payouts and there are no subsidies available to help mitigate flood risks.  
+SC Assessment: HIGH because you value your neighbors’ judgment and have strong community ties that could provide informal support and shared resources.  
+PA Assessment: HIGH because you have a strong emotional bond to the community and place, making relocation less attractive.  
+
+Final Decision: N/A  
+
+Reasoning: With high threat perception but low coping ability and low institutional support, the best immediate course is to rely on community support and stay put while monitoring evolving flood risk conditions.",low,HIGH,l,LOW,LOW,[Rule: coping_alignment] [Rule: coping_alignment] Logic Error: Low Coping but expensive action attempted.
+14,H0005,relocate,relocate,APPROVED,0,True,,2026-01-12T10:54:18.947687,Decision extracted via keyword presence: relocate,"TP Assessment: HIGH because the house is in a flood‑prone area, not elevated, and previous floods have directly impacted the community, indicating both severe potential damage and high personal vulnerability.  
+
+CP Assessment: MODERATE because while the annual income (~$64k) is sufficient to cover basic living expenses, the lack of government subsidies (0%) and zero flood‑insurance premium (yet no coverage) limit the financial and technical resources available for elevation or other major protective measures.  
+
+SP Assessment: LOW because there is a clear distrust of insurance payouts and an absence of meaningful government support, leading to skepticism about any stakeholder assistance.  
+
+SC Assessment: MODERATE because community ties are strong and there is some willingness among neighbors to share information and resources, but overall skepticism and uncertainty about collective action reduce the effectiveness of this social capital.  
+
+PA Assessment: HIGH because the resident has a strong emotional bond to the neighborhood and a desire to maintain life there, outweighing the motivation to relocate.  
+
+Final Decision: 0  
+Reasoning: With high threat perception and low stakeholder confidence, the most prudent immediate step is to stay put while exploring low‑cost, personal mitigation strategies (e.g., flood barriers, water‑proofing key items) rather than embarking on costly elevation or relocation.",low,MODERATE,h,MODERATE,LOW,

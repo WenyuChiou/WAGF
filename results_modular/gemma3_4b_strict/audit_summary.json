@@ -1,0 +1,16 @@
+{
+  "experiment_name": "gemma3:4b",
+  "agent_types": {
+    "household": {
+      "total": 10,
+      "decisions": {
+        "buy_insurance": 9,
+        "do_nothing": 1
+      }
+    }
+  },
+  "total_traces": 10,
+  "validation_errors": 0,
+  "validation_warnings": 0,
+  "finalized_at": "2026-01-12T12:43:42.705483"
+}

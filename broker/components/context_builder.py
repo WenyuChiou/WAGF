@@ -248,8 +248,13 @@ class BaseAgentContextBuilder(ContextBuilder):
     
     def _semantic(self, v: float) -> str:
         """Convert 0-1 value to semantic label."""
-        if v < 0.3: return "L"
-        if v > 0.7: return "H"
+        # TODO: Inject config for thresholds
+        # For now, default to 0.3/0.7 but allow future injection
+        low = 0.3
+        high = 0.7
+        
+        if v < low: return "L"
+        if v > high: return "H"
         return "M"
     
     def _format_perception(self, perception: Dict[str, float], compact: bool = True) -> str:

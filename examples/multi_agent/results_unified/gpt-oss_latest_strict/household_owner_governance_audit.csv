@@ -1,0 +1,38 @@
+﻿step_id,agent_id,proposed_skill,final_skill,status,retry_count,validated,failed_rules,timestamp,parsing_warnings,raw_output,reason_tp_label,reason_cp_label,reason_sc_label,reason_pa_label,error_messages
+3,H0001,do_nothing,do_nothing,APPROVED,0,True,,2026-01-12T11:17:43.530253,Could not parse decision for H0001. Falling back to default: 'do_nothing',"TP Assessment: HIGH because the home is in a flood‑prone area, is not elevated, and no flood insurance is in place. The property value is substantial ($550,808) and the potential loss from a flood is therefore significant.
+
+CP Assessment: MODERATE because the homeowner’s annual income ($103,683) provides some financial capacity to purchase mitigation measures, yet the lack of a government subsidy (0 %) and current absence of flood insurance suggest limited financial leverage and technical know‑how.
+
+SC Assessment: MODERATE because, while the surrounding community is likely to provide informal assistance in the event of a flood, the available evidence (doi:10.1016/j.crm.2023.100498) indicates that such social capital is present but not overwhelmingly strong.
+
+PA Assessment: HIGH because the homeowner has a strong emotional bond to this particular residence (doi:10.1016/j.ijdrr.2020.101937), which will motivate protective action once the threat is acknowledged.
+
+Final Decision: 1  
+Reasoning: The combination of a high threat perception and strong place attachment outweighs the moderate coping capacity, compelling a proactive step—acquiring flood insurance (and, where feasible, pursuing elevation) to reduce future vulnerability.",HIGH,MODERATE,MODERATE,h,
+4,H0002,do_nothing,do_nothing,APPROVED,0,True,,2026-01-12T11:17:53.206814,Could not parse decision for H0002. Falling back to default: 'do_nothing',"**TP Assessment:** HIGH because the property is located in a flood‑prone area, the home is not elevated, and no flood insurance has been obtained – all indicators of a severe threat with high vulnerability.  
+
+**CP Assessment:** LOW because the annual income ($44,065) relative to the property value ($211,305) limits financial capacity, and there is no government subsidy for elevation. The lack of insurance further reduces technical and economic coping resources.  
+
+**SC Assessment:** MODERATE because, although specific neighbor ties are not documented, the community context in a flood‑prone zone typically involves some mutual support, but the extent of active collaboration is uncertain.  
+
+**PA Assessment:** HIGH because the homeowner has a long‑term emotional bond to the specific dwelling (the home is the center of life), which is reinforced by the psychological literature linking strong place attachment to protective action.  
+
+**Final Decision:** 3  
+**Reasoning:** The high threat perception coupled with strong place attachment creates a compelling motive to act, yet the low coping resources and only moderate social support suggest that the homeowner should pursue cost‑effective protection measures (e.g., obtain flood insurance, if available, and explore low‑cost elevation or waterproofing) rather than expensive structural upgrades. Thus a moderate‑level protective strategy (score 3) is recommended.",HIGH,LOW,MODERATE,h,
+5,H0003,do_nothing,do_nothing,APPROVED,0,True,,2026-01-12T11:18:10.334372,Could not parse decision for H0003. Falling back to default: 'do_nothing',"TP Assessment: HIGH because the home is located in a flood‑prone area, lacks elevation, and the homeowner has no flood insurance—indicating a severe threat and high vulnerability.  
+
+CP Assessment: LOW because the annual income ($66,846) is modest relative to the property value ($535,494), there is no government subsidy for elevation, and the homeowner currently pays no insurance premium but has no coverage, limiting both financial and technical capacity to implement protective measures.  
+
+SC Assessment: MODERATE because while the homeowner likely has some neighborly ties that could provide mutual aid, there is no specific evidence of a robust community support network; thus social capital is neither strong nor weak.  
+
+PA Assessment: HIGH because the homeowner has a strong emotional bond to the specific property, as suggested by the referenced literature on place attachment, indicating that preserving or protecting the home is personally significant.  
+
+Final Decision: 1  
+Reasoning: Given the high threat perception, low coping resources, and strong place attachment, the homeowner should prioritize taking protective action (e.g., seeking flood insurance, exploring elevation options, or other mitigation measures) as a high‑urgency decision.",HIGH,LOW,MODERATE,m,
+6,H0004,do_nothing,do_nothing,APPROVED,0,True,,2026-01-12T11:18:21.186364,Could not parse decision for H0004. Falling back to default: 'do_nothing',"TP Assessment: HIGH because the property is located in a known flood‑prone zone, and the potential damage from a flood—both financial loss and safety risk—is substantial.  
+CP Assessment: MODERATE because while the annual income (~$53k) allows for some discretionary spending, the lack of a subsidy for elevation and the high property value (~$433k) limit the financial flexibility to undertake major protective measures.  
+SC Assessment: MODERATE because neighbors are relatively close and there is some history of mutual aid during past weather events, but organized community action (e.g., shared elevation projects) is not strong.  
+PA Assessment: HIGH because the home is the primary residence, long‑term owner, and holds significant personal and emotional value.  
+
+Final Decision: 1  
+Reasoning: The high threat perception combined with moderate coping resources suggests that the most cost‑effective and immediately available protective strategy is to secure flood insurance (assuming a provider can offer it), rather than undertaking costly elevation without subsidies.",HIGH,MODERATE,h,h,

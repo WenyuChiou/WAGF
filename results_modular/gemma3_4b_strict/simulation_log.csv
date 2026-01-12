@@ -1,0 +1,11 @@
+agent_id,year,cumulative_state,elevated,has_insurance,relocated,trust_insurance,trust_neighbors
+Agent_1,1,Only Flood Insurance,False,True,False,0.26,0.37
+Agent_2,1,Only Flood Insurance,False,True,False,0.22,0.45999999999999996
+Agent_3,1,Only Flood Insurance,False,True,False,0.48000000000000004,0.37
+Agent_4,1,Only Flood Insurance,False,True,False,0.29000000000000004,0.37
+Agent_5,1,Do Nothing,False,False,False,0.21000000000000002,0.33999999999999997
+Agent_1,2,Only Flood Insurance,False,True,False,0.28,0.36
+Agent_2,2,Only Flood Insurance,False,True,False,0.24,0.44999999999999996
+Agent_3,2,Only Flood Insurance,False,True,False,0.5,0.36
+Agent_4,2,Only Flood Insurance,False,True,False,0.31000000000000005,0.36
+Agent_5,2,Only Flood Insurance,False,True,False,0.23,0.32999999999999996

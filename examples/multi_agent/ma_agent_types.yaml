@@ -1,14 +1,13 @@
-household:
-  description: "Household agents making adaptation decisions based on PMT in a multi-agent setting"
+household_owner:
+  description: "Homeowners making adaptation decisions (Buyout/Elevation/Insurance) based on PMT. Reference: Rogers (1983), Bukvic (2022) doi:10.1016/j.apgeog.2022.102758"
 
-  # Multi-Agent specific prompt template (including 5 constructs)
   prompt_template: |
-    You are a resident in a flood-prone area, with a {tenure} status and a strong attachment to your community. {elevation_status_text}
+    You are a Homeowner in a flood-prone area. You have a central role in your property's resilience.
     Your memory includes:
     {memory}
 
     You currently {insurance_status} flood insurance.
-    You {trust_insurance_text} the insurance company. You {trust_neighbors_text} your neighbors' judgment.
+    {elevation_status_text}
 
     Current economic context:
     - Your annual income: ${income:,.0f}
@@ -16,122 +15,126 @@ household:
     - Government subsidy rate for elevation: {subsidy_rate:.0%}
     - Flood insurance premium rate: {premium_rate:.2%}
 
-    Using the Protection Motivation Theory and PADM, evaluate your situation:
-    - TP (Threat Perception): Assessment of severity and vulnerability based on past floods.
-    - CP (Coping Perception): Assessment of your financial and technical ability to adapt.
-    - SP (Stakeholder Perception): Trust in government subsidies and insurance payouts.
-    - SC (Social Capital): Influence from neighbors and community support.
-    - PA (Place Attachment): Emotional bond and motivation to stay vs. relocate.
+    Using the Protection Motivation Theory (PMT) and PADM, evaluate:
+    - TP (Threat Perception): Assessment of severity/vulnerability.
+    - CP (Coping Perception): Assessment of financial/technical ability.
+    - SC (Social Capital): Ties to neighbors and mutual support (doi:10.1016/j.crm.2023.100498).
+    - PA (Place Attachment): Emotional bond to this specific home (doi:10.1016/j.ijdrr.2020.101937).
 
-    Now, choose one of the following actions:
+    Choose one:
     {options_text}
-                                                                                                   
-    Please respond using the exact format below:
+
+    Format:
     TP Assessment: [LOW/MODERATE/HIGH] because [explanation]
     CP Assessment: [LOW/MODERATE/HIGH] because [explanation]
-    SP Assessment: [LOW/MODERATE/HIGH] because [explanation]
     SC Assessment: [LOW/MODERATE/HIGH] because [explanation]
     PA Assessment: [LOW/MODERATE/HIGH] because [explanation]
-    Final Decision: [number from options]
+    Final Decision: [number]
     Reasoning: [Brief justification]
 
-  # Parsing & Skill Mapping
   parsing:
     decision_keywords: ["final decision:", "decision:"]
     default_skill: "do_nothing"
-
-    # Multi-Agent Skill Mapping
-    skill_map_owner_non_elevated:
+    skill_map_non_elevated:
       "1": "do_nothing"
       "2": "buy_insurance"
       "3": "elevate_house"
       "4": "buyout_program"
-
-    skill_map_owner_elevated:
+    skill_map_elevated:
       "1": "do_nothing"
       "2": "buy_insurance"
       "3": "buyout_program"
+    constructs:
+      TP_LABEL:
+        regex: "(?:tp\\s*(?:assessment|perception)?|threat\\s*perception)[^.]*?\\[?(LOW|MODERATE|MEDIUM|MED|HIGH|L|M|H)\\]?"
+      CP_LABEL:
+        regex: "(?:cp\\s*(?:assessment|perception)?|coping\\s*perception)[^.]*?\\[?(LOW|MODERATE|MEDIUM|MED|HIGH|L|M|H)\\]?"
+      SC_LABEL:
+        regex: "(?:sc\\s*(?:assessment|perception)?|social\\s*capital)[^.]*?\\[?(LOW|MODERATE|MEDIUM|MED|HIGH|L|M|H)\\]?"
+      PA_LABEL:
+        regex: "(?:pa\\s*(?:assessment|perception)?|place\\s*attachment)[^.]*?\\[?(LOW|MODERATE|MEDIUM|MED|HIGH|L|M|H)\\]?"
 
-    skill_map_renter:
+  governance_rules:
+    identity_rules:
+      already_elevated_block:
+        precondition: elevated
+        blocked_skills: ["elevate_house"]
+        message: "[Rule: status_constraint] House is already elevated."
+    thinking_rules:
+      urgency_check:
+        construct: TP_LABEL
+        when_above: ["H"]
+        blocked_skills: ["do_nothing"]
+        message: "[Rule: PMT] High Threat but inaction chosen (Grothmann 2006)."
+      coping_check:
+        construct: CP_LABEL
+        when_above: ["L"]
+        blocked_skills: ["elevate_house", "buyout_program"]
+        message: "[Rule: PMT] Low Coping but expensive action attempted."
+      pa_relocation_block:
+        construct: PA_LABEL
+        when_above: ["H"]
+        blocked_skills: ["buyout_program"]
+        message: "[Rule: PA] High Place Attachment hinders buyout/relocation (Bukvic 2022 doi:10.1016/j.apgeog.2022.102758)."
+
+household_renter:
+  description: "Renter agents making mobility decisions based on PMT and community ties. Reference: Swapan (2021) doi:10.1016/j.ijdrr.2020.101937"
+
+  prompt_template: |
+    You are a Renter in a flood-prone area. You have higher mobility but lower control over the structure.
+    Your memory includes:
+    {memory}
+
+    You currently {insurance_status} contents insurance.
+
+    Current economic context:
+    - Your annual income: ${income:,.0f}
+    - Flood insurance premium rate: {premium_rate:.2%}
+
+    Using PMT and PADM, evaluate:
+    - TP (Threat Perception): Assessment of severity/vulnerability.
+    - CP (Coping Perception): Assessment of your ability to move or insure contents.
+    - SC (Social Capital): Local support networks (doi:10.1016/j.crm.2023.100498).
+    - PA (Place Attachment): Sense of belonging to this neighborhood.
+
+    Choose one:
+    {options_text}
+
+    Format:
+    TP Assessment: [LOW/MODERATE/HIGH] because [explanation]
+    CP Assessment: [LOW/MODERATE/HIGH] because [explanation]
+    SC Assessment: [LOW/MODERATE/HIGH] because [explanation]
+    PA Assessment: [LOW/MODERATE/HIGH] because [explanation]
+    Final Decision: [number]
+    Reasoning: [Brief justification]
+
+  parsing:
+    decision_keywords: ["final decision:", "decision:"]
+    default_skill: "do_nothing"
+    skill_map:
       "1": "do_nothing"
       "2": "buy_contents_insurance"
       "3": "relocate"
-
-    # Construct mappings (for 5-construct multi-agent system)
     constructs:
       TP_LABEL:
-        keywords: ["tp assessment", "threat perception", "tp:"]
         regex: "(?:tp\\s*(?:assessment|perception)?|threat\\s*perception)[^.]*?\\[?(LOW|MODERATE|MEDIUM|MED|HIGH|L|M|H)\\]?"
       CP_LABEL:
-        keywords: ["cp assessment", "coping perception", "cp:"]
         regex: "(?:cp\\s*(?:assessment|perception)?|coping\\s*perception)[^.]*?\\[?(LOW|MODERATE|MEDIUM|MED|HIGH|L|M|H)\\]?"
-      SP_LABEL:
-        keywords: ["sp assessment", "stakeholder perception", "sp:"]
-        regex: "(?:sp\\s*(?:assessment|perception)?|stakeholder\\s*perception)[^.]*?\\[?(LOW|MODERATE|MEDIUM|MED|HIGH|L|M|H)\\]?"
       SC_LABEL:
-        keywords: ["sc assessment", "social capital", "sc:"]
         regex: "(?:sc\\s*(?:assessment|perception)?|social\\s*capital)[^.]*?\\[?(LOW|MODERATE|MEDIUM|MED|HIGH|L|M|H)\\]?"
       PA_LABEL:
-        keywords: ["pa assessment", "place attachment", "pa:"]
         regex: "(?:pa\\s*(?:assessment|perception)?|place\\s*attachment)[^.]*?\\[?(LOW|MODERATE|MEDIUM|MED|HIGH|L|M|H)\\]?"
 
-  # Governance Rules
-  identity_rules:
-    tenure_elevation_block:
-      precondition: "tenure == 'Renter'"
-      blocked_skills: ["elevate_house"]
-      message: "[Rule: tenure_constraint] Renters cannot elevate house (they don't own the structure)"
-    tenure_buyout_block:
-      precondition: "tenure == 'Renter'"
-      blocked_skills: ["buyout_program"]
-      message: "[Rule: tenure_constraint] Renters cannot participate in buyout program (Owner-only action)"
-    owner_relocate_block:
-      precondition: "tenure == 'Owner'"
-      blocked_skills: ["relocate"]
-      message: "[Rule: tenure_constraint] Owners cannot relocate directly (use buyout_program instead)"
-    already_elevated_block:
-      precondition: elevated
-      blocked_skills: ["elevate_house"]
-      message: "[Rule: status_constraint] House is already elevated (cannot elevate twice)"
-
-  thinking_rules:
-    urgency_check:
-      construct: TP_LABEL
-      when_above: ["H"]
-      blocked_skills: ["do_nothing"]
-      level: ERROR
-      message: "[Rule: urgency_check] Logic Error: High Threat but inaction chosen."
-    coping_alignment:
-      construct: CP_LABEL
-      when_above: ["L"]
-      blocked_skills: ["elevate_house", "relocate", "buyout_program"]
-      level: ERROR
-      message: "[Rule: coping_alignment] Logic Error: Low Coping but expensive action attempted."
-
-  # Available Actions (mapped to MultiAgentValidator skills)
-  actions:
-    - id: buy_insurance
-      description: "Buy/Renew full flood insurance for building and contents"
-    - id: buy_contents_insurance
-      description: "Buy/Renew contents-only insurance (Renter option)"
-    - id: elevate_house
-      description: "Elevate your house by 5 feet above base flood elevation"
-    - id: buyout_program
-      description: "Participate in government buyout and relocate safely"
-    - id: relocate
-      description: "Independently relocate to a safer rental property"
-    - id: do_nothing
-      description: "Do nothing this year and maintain current status"
-    - id: already_relocated
-      description: "Maintain status in new location"
+  governance_rules:
+    thinking_rules:
+      sc_stability_bond:
+        construct: SC_LABEL
+        when_above: ["H"]
+        blocked_skills: ["relocate"]
+        message: "[Rule: SC] High Social Capital provides community stability, hindering independent relocation (Azad 2023 doi:10.1016/j.crm.2023.100498)."
 
 government:
   description: "State government managing adaptation subsidies"
-  identity_rules:
-    budget_depleted:
-      precondition: "budget_remaining < 10000"
-      blocked_skills: ["increase_subsidy"]
-      message: "[Rule: budget_constraint] Cannot increase subsidy with depleted budget"
   actions:
     - id: increase_subsidy
       description: "Increase the subsidy rate for elevation grants"
@@ -142,11 +145,6 @@ government:
 
 insurance:
   description: "Insurance company managing premiums"
-  identity_rules:
-    loss_limit:
-      precondition: "loss_ratio > 1.0"
-      blocked_skills: ["lower_premium"]
-      message: "[Rule: solvency_constraint] Cannot lower premium when loss ratio exceeds 100%"
   actions:
     - id: raise_premium
       description: "Raise annual flood insurance premiums"

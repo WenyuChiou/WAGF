@@ -1,0 +1,1001 @@
+agent_id,year,cumulative_state,elevated,has_insurance,relocated,trust_insurance,trust_neighbors
+Agent_1,1,Only House Elevation,True,False,False,0.22,0.42
+Agent_2,1,Only Flood Insurance,False,True,False,0.22,0.51
+Agent_3,1,Only Flood Insurance,False,True,False,0.48000000000000004,0.42
+Agent_4,1,Only Flood Insurance,False,True,False,0.29000000000000004,0.42
+Agent_5,1,Only House Elevation,True,False,False,0.21000000000000002,0.38999999999999996
+Agent_6,1,Do Nothing,False,False,False,0.27999999999999997,0.42
+Agent_7,1,Only Flood Insurance,False,True,False,0.47000000000000003,0.41
+Agent_8,1,Only House Elevation,True,False,False,0.2,0.42
+Agent_9,1,Only House Elevation,True,False,False,0.26999999999999996,0.42
+Agent_10,1,Only Flood Insurance,False,True,False,0.22,0.51
+Agent_11,1,Only House Elevation,True,False,False,0.22,0.5700000000000001
+Agent_12,1,Only House Elevation,True,False,False,0.26999999999999996,0.39999999999999997
+Agent_13,1,Only House Elevation,True,False,False,0.21000000000000002,0.48
+Agent_14,1,Only House Elevation,True,False,False,0.26999999999999996,0.54
+Agent_15,1,Only House Elevation,True,False,False,0.43,0.53
+Agent_16,1,Only House Elevation,True,False,False,0.31,0.5
+Agent_17,1,Only House Elevation,True,False,False,0.26999999999999996,0.56
+Agent_18,1,Only Flood Insurance,False,True,False,0.25,0.45999999999999996
+Agent_19,1,Only House Elevation,True,False,False,0.44999999999999996,0.39999999999999997
+Agent_20,1,Only Flood Insurance,False,True,False,0.39,0.43
+Agent_21,1,Only House Elevation,True,False,False,0.42,0.42
+Agent_22,1,Only House Elevation,True,False,False,0.47,0.52
+Agent_23,1,Only Flood Insurance,False,True,False,0.28,0.5800000000000001
+Agent_24,1,Only Flood Insurance,False,True,False,0.5,0.54
+Agent_25,1,Only House Elevation,True,False,False,0.21000000000000002,0.51
+Agent_26,1,Only House Elevation,True,False,False,0.26,0.38999999999999996
+Agent_27,1,Only Flood Insurance,False,True,False,0.36000000000000004,0.42
+Agent_28,1,Only Flood Insurance,False,True,False,0.35000000000000003,0.5700000000000001
+Agent_29,1,Only Flood Insurance,False,True,False,0.29000000000000004,0.45999999999999996
+Agent_30,1,Only House Elevation,True,False,False,0.22,0.49
+Agent_31,1,Only House Elevation,True,False,False,0.27999999999999997,0.42
+Agent_32,1,Only House Elevation,True,False,False,0.31,0.44
+Agent_33,1,Only House Elevation,True,False,False,0.44,0.5900000000000001
+Agent_34,1,Only House Elevation,True,False,False,0.37,0.5700000000000001
+Agent_35,1,Only House Elevation,True,False,False,0.25,0.5
+Agent_36,1,Only Flood Insurance,False,True,False,0.52,0.39999999999999997
+Agent_37,1,Only Flood Insurance,False,True,False,0.48000000000000004,0.55
+Agent_38,1,Only Flood Insurance,False,True,False,0.43,0.44999999999999996
+Agent_39,1,Only House Elevation,True,False,False,0.42,0.48
+Agent_40,1,Only House Elevation,True,False,False,0.25,0.56
+Agent_41,1,Only Flood Insurance,False,True,False,0.51,0.38999999999999996
+Agent_42,1,Only Flood Insurance,False,True,False,0.37,0.45999999999999996
+Agent_43,1,Only House Elevation,True,False,False,0.32,0.48
+Agent_44,1,Only Flood Insurance,False,True,False,0.46,0.44
+Agent_45,1,Only House Elevation,True,False,False,0.41,0.48
+Agent_46,1,Only Flood Insurance,False,True,False,0.47000000000000003,0.48
+Agent_47,1,Only House Elevation,True,False,False,0.33999999999999997,0.39999999999999997
+Agent_48,1,Only House Elevation,True,False,False,0.45999999999999996,0.44
+Agent_49,1,Do Nothing,False,False,False,0.44999999999999996,0.5900000000000001
+Agent_50,1,Only House Elevation,True,False,False,0.42,0.48
+Agent_51,1,Only House Elevation,True,False,False,0.44,0.51
+Agent_52,1,Only Flood Insurance,False,True,False,0.47000000000000003,0.41
+Agent_53,1,Only Flood Insurance,False,True,False,0.31,0.47
+Agent_54,1,Only Flood Insurance,False,True,False,0.5,0.45999999999999996
+Agent_55,1,Do Nothing,False,False,False,0.38999999999999996,0.51
+Agent_56,1,Only House Elevation,True,False,False,0.44999999999999996,0.42
+Agent_57,1,Only Flood Insurance,False,True,False,0.51,0.44999999999999996
+Agent_58,1,Do Nothing,False,False,False,0.41,0.53
+Agent_59,1,Only House Elevation,True,False,False,0.26,0.42
+Agent_60,1,Only Flood Insurance,False,True,False,0.28,0.44999999999999996
+Agent_61,1,Only House Elevation,True,False,False,0.26,0.38999999999999996
+Agent_62,1,Only Flood Insurance,False,True,False,0.41000000000000003,0.44999999999999996
+Agent_63,1,Only Flood Insurance,False,True,False,0.27,0.41
+Agent_64,1,Only House Elevation,True,False,False,0.32999999999999996,0.45999999999999996
+Agent_65,1,Only House Elevation,True,False,False,0.19,0.44999999999999996
+Agent_66,1,Only Flood Insurance,False,True,False,0.27,0.5
+Agent_67,1,Only Flood Insurance,False,True,False,0.27,0.44
+Agent_68,1,Only Flood Insurance,False,True,False,0.35000000000000003,0.47
+Agent_69,1,Only Flood Insurance,False,True,False,0.32,0.45999999999999996
+Agent_70,1,Only Flood Insurance,False,True,False,0.36000000000000004,0.55
+Agent_71,1,Only House Elevation,True,False,False,0.38,0.53
+Agent_72,1,Only House Elevation,True,False,False,0.23,0.45999999999999996
+Agent_73,1,Only House Elevation,True,False,False,0.45999999999999996,0.42
+Agent_74,1,Only House Elevation,True,False,False,0.18000000000000002,0.48
+Agent_75,1,Only House Elevation,True,False,False,0.21000000000000002,0.48
+Agent_76,1,Only Flood Insurance,False,True,False,0.27,0.52
+Agent_77,1,Only House Elevation,True,False,False,0.41,0.45999999999999996
+Agent_78,1,Only House Elevation,True,False,False,0.41,0.38999999999999996
+Agent_79,1,Only House Elevation,True,False,False,0.43,0.51
+Agent_80,1,Only Flood Insurance,False,True,False,0.41000000000000003,0.48
+Agent_81,1,Only House Elevation,True,False,False,0.37,0.39999999999999997
+Agent_82,1,Only House Elevation,True,False,False,0.2,0.41
+Agent_83,1,Only Flood Insurance,False,True,False,0.34,0.43
+Agent_84,1,Only House Elevation,True,False,False,0.44999999999999996,0.45999999999999996
+Agent_85,1,Only Flood Insurance,False,True,False,0.45,0.47
+Agent_86,1,Do Nothing,False,False,False,0.29,0.53
+Agent_87,1,Only Flood Insurance,False,True,False,0.5,0.56
+Agent_88,1,Only House Elevation,True,False,False,0.47,0.45999999999999996
+Agent_89,1,Only House Elevation,True,False,False,0.21000000000000002,0.53
+Agent_90,1,Only Flood Insurance,False,True,False,0.37,0.38999999999999996
+Agent_91,1,Only Flood Insurance,False,True,False,0.28,0.45999999999999996
+Agent_92,1,Only Flood Insurance,False,True,False,0.27,0.45999999999999996
+Agent_93,1,Only House Elevation,True,False,False,0.21000000000000002,0.51
+Agent_94,1,Only House Elevation,True,False,False,0.27999999999999997,0.55
+Agent_95,1,Only Flood Insurance,False,True,False,0.28,0.52
+Agent_96,1,Only Flood Insurance,False,True,False,0.42000000000000004,0.54
+Agent_97,1,Only House Elevation,True,False,False,0.42,0.52
+Agent_98,1,Only Flood Insurance,False,True,False,0.5,0.5
+Agent_99,1,Only House Elevation,True,False,False,0.35,0.5
+Agent_100,1,Only House Elevation,True,False,False,0.2,0.52
+Agent_1,2,Both Flood Insurance and House Elevation,True,True,False,0.24,0.45999999999999996
+Agent_2,2,Do Nothing,False,False,False,0.2,0.55
+Agent_3,2,Only Flood Insurance,False,True,False,0.5,0.45999999999999996
+Agent_4,2,Only Flood Insurance,False,True,False,0.31000000000000005,0.45999999999999996
+Agent_5,2,Only House Elevation,True,False,False,0.19000000000000003,0.42999999999999994
+Agent_6,2,Only Flood Insurance,False,True,False,0.3,0.45999999999999996
+Agent_7,2,Only Flood Insurance,False,True,False,0.49000000000000005,0.44999999999999996
+Agent_8,2,Only House Elevation,True,False,False,0.18000000000000002,0.45999999999999996
+Agent_9,2,Only House Elevation,True,False,False,0.24999999999999997,0.45999999999999996
+Agent_10,2,Only House Elevation,True,False,False,0.2,0.55
+Agent_11,2,Only House Elevation,True,False,False,0.2,0.6100000000000001
+Agent_12,2,Only House Elevation,True,False,False,0.24999999999999997,0.43999999999999995
+Agent_13,2,Both Flood Insurance and House Elevation,True,True,False,0.23,0.52
+Agent_14,2,Only House Elevation,True,False,False,0.24999999999999997,0.5800000000000001
+Agent_15,2,Both Flood Insurance and House Elevation,True,True,False,0.45,0.5700000000000001
+Agent_16,2,Both Flood Insurance and House Elevation,True,True,False,0.33,0.54
+Agent_17,2,Both Flood Insurance and House Elevation,True,True,False,0.29,0.6000000000000001
+Agent_18,2,Only House Elevation,True,False,False,0.23,0.49999999999999994
+Agent_19,2,Only House Elevation,True,False,False,0.42999999999999994,0.43999999999999995
+Agent_20,2,Only Flood Insurance,False,True,False,0.41000000000000003,0.47
+Agent_21,2,Only House Elevation,True,False,False,0.39999999999999997,0.45999999999999996
+Agent_22,2,Both Flood Insurance and House Elevation,True,True,False,0.49,0.56
+Agent_23,2,Only Flood Insurance,False,True,False,0.30000000000000004,0.6200000000000001
+Agent_24,2,Only Flood Insurance,False,True,False,0.52,0.5800000000000001
+Agent_25,2,Only House Elevation,True,False,False,0.19000000000000003,0.55
+Agent_26,2,Only House Elevation,True,False,False,0.24000000000000002,0.42999999999999994
+Agent_27,2,Only Flood Insurance,False,True,False,0.38000000000000006,0.45999999999999996
+Agent_28,2,Do Nothing,False,False,False,0.33,0.6100000000000001
+Agent_29,2,Only Flood Insurance,False,True,False,0.31000000000000005,0.49999999999999994
+Agent_30,2,Both Flood Insurance and House Elevation,True,True,False,0.24,0.53
+Agent_31,2,Both Flood Insurance and House Elevation,True,True,False,0.3,0.45999999999999996
+Agent_32,2,Both Flood Insurance and House Elevation,True,True,False,0.33,0.48
+Agent_33,2,Both Flood Insurance and House Elevation,True,True,False,0.46,0.6300000000000001
+Agent_34,2,Both Flood Insurance and House Elevation,True,True,False,0.39,0.6100000000000001
+Agent_35,2,Both Flood Insurance and House Elevation,True,True,False,0.27,0.54
+Agent_36,2,Only Flood Insurance,False,True,False,0.54,0.43999999999999995
+Agent_37,2,Only Flood Insurance,False,True,False,0.5,0.5900000000000001
+Agent_38,2,Only Flood Insurance,False,True,False,0.45,0.48999999999999994
+Agent_39,2,Both Flood Insurance and House Elevation,True,True,False,0.44,0.52
+Agent_40,2,Only House Elevation,True,False,False,0.23,0.6000000000000001
+Agent_41,2,Only Flood Insurance,False,True,False,0.53,0.42999999999999994
+Agent_42,2,Only Flood Insurance,False,True,False,0.39,0.49999999999999994
+Agent_43,2,Both Flood Insurance and House Elevation,True,True,False,0.34,0.52
+Agent_44,2,Do Nothing,False,False,False,0.44,0.48
+Agent_45,2,Both Flood Insurance and House Elevation,True,True,False,0.43,0.52
+Agent_46,2,Do Nothing,False,False,False,0.45,0.52
+Agent_47,2,Both Flood Insurance and House Elevation,True,True,False,0.36,0.43999999999999995
+Agent_48,2,Only House Elevation,True,False,False,0.43999999999999995,0.48
+Agent_49,2,Only House Elevation,True,False,False,0.42999999999999994,0.6300000000000001
+Agent_50,2,Only House Elevation,True,False,False,0.39999999999999997,0.52
+Agent_51,2,Both Flood Insurance and House Elevation,True,True,False,0.46,0.55
+Agent_52,2,Only Flood Insurance,False,True,False,0.49000000000000005,0.44999999999999996
+Agent_53,2,Only Flood Insurance,False,True,False,0.33,0.51
+Agent_54,2,Do Nothing,False,False,False,0.48,0.49999999999999994
+Agent_55,2,Do Nothing,False,False,False,0.36999999999999994,0.55
+Agent_56,2,Both Flood Insurance and House Elevation,True,True,False,0.47,0.45999999999999996
+Agent_57,2,Only Flood Insurance,False,True,False,0.53,0.48999999999999994
+Agent_58,2,Only House Elevation,True,False,False,0.38999999999999996,0.5700000000000001
+Agent_59,2,Only House Elevation,True,False,False,0.24000000000000002,0.45999999999999996
+Agent_60,2,Do Nothing,False,False,False,0.26,0.48999999999999994
+Agent_61,2,Only House Elevation,True,False,False,0.24000000000000002,0.42999999999999994
+Agent_62,2,Do Nothing,False,False,False,0.39,0.48999999999999994
+Agent_63,2,Only Flood Insurance,False,True,False,0.29000000000000004,0.44999999999999996
+Agent_64,2,Both Flood Insurance and House Elevation,True,True,False,0.35,0.49999999999999994
+Agent_65,2,Only House Elevation,True,False,False,0.17,0.48999999999999994
+Agent_66,2,Only Flood Insurance,False,True,False,0.29000000000000004,0.54
+Agent_67,2,Only Flood Insurance,False,True,False,0.29000000000000004,0.48
+Agent_68,2,Do Nothing,False,False,False,0.33,0.51
+Agent_69,2,Only Flood Insurance,False,True,False,0.34,0.49999999999999994
+Agent_70,2,Do Nothing,False,False,False,0.34,0.5900000000000001
+Agent_71,2,Both Flood Insurance and House Elevation,True,True,False,0.4,0.5700000000000001
+Agent_72,2,Only House Elevation,True,False,False,0.21000000000000002,0.49999999999999994
+Agent_73,2,Both Flood Insurance and House Elevation,True,True,False,0.48,0.45999999999999996
+Agent_74,2,Only House Elevation,True,False,False,0.16000000000000003,0.52
+Agent_75,2,Both Flood Insurance and House Elevation,True,True,False,0.23,0.52
+Agent_76,2,Only Flood Insurance,False,True,False,0.29000000000000004,0.56
+Agent_77,2,Only House Elevation,True,False,False,0.38999999999999996,0.49999999999999994
+Agent_78,2,Both Flood Insurance and House Elevation,True,True,False,0.43,0.42999999999999994
+Agent_79,2,Both Flood Insurance and House Elevation,True,True,False,0.45,0.55
+Agent_80,2,Do Nothing,False,False,False,0.39,0.52
+Agent_81,2,Both Flood Insurance and House Elevation,True,True,False,0.39,0.43999999999999995
+Agent_82,2,Only House Elevation,True,False,False,0.18000000000000002,0.44999999999999996
+Agent_83,2,Only Flood Insurance,False,True,False,0.36000000000000004,0.47
+Agent_84,2,Only House Elevation,True,False,False,0.42999999999999994,0.49999999999999994
+Agent_85,2,Do Nothing,False,False,False,0.43,0.51
+Agent_86,2,Only House Elevation,True,False,False,0.26999999999999996,0.5700000000000001
+Agent_87,2,Only Flood Insurance,False,True,False,0.52,0.6000000000000001
+Agent_88,2,Both Flood Insurance and House Elevation,True,True,False,0.49,0.49999999999999994
+Agent_89,2,Both Flood Insurance and House Elevation,True,True,False,0.23,0.5700000000000001
+Agent_90,2,Only Flood Insurance,False,True,False,0.39,0.42999999999999994
+Agent_91,2,Only Flood Insurance,False,True,False,0.30000000000000004,0.49999999999999994
+Agent_92,2,Only Flood Insurance,False,True,False,0.29000000000000004,0.49999999999999994
+Agent_93,2,Both Flood Insurance and House Elevation,True,True,False,0.23,0.55
+Agent_94,2,Only House Elevation,True,False,False,0.25999999999999995,0.5900000000000001
+Agent_95,2,Only Flood Insurance,False,True,False,0.30000000000000004,0.56
+Agent_96,2,Only Flood Insurance,False,True,False,0.44000000000000006,0.5800000000000001
+Agent_97,2,Only House Elevation,True,False,False,0.39999999999999997,0.56
+Agent_98,2,Do Nothing,False,False,False,0.48,0.54
+Agent_99,2,Only House Elevation,True,False,False,0.32999999999999996,0.54
+Agent_100,2,Only House Elevation,True,False,False,0.18000000000000002,0.56
+Agent_1,3,Only House Elevation,True,False,False,0.22,0.49999999999999994
+Agent_2,3,Only Flood Insurance,False,True,False,0.22,0.5900000000000001
+Agent_3,3,Only House Elevation,True,False,False,0.55,0.49999999999999994
+Agent_4,3,Only House Elevation,True,False,False,0.29000000000000004,0.49999999999999994
+Agent_5,3,Both Flood Insurance and House Elevation,True,True,False,0.21000000000000002,0.4699999999999999
+Agent_6,3,Only Flood Insurance,False,True,False,0.32,0.49999999999999994
+Agent_7,3,Only Flood Insurance,False,True,False,0.51,0.48999999999999994
+Agent_8,3,Both Flood Insurance and House Elevation,True,True,False,0.2,0.49999999999999994
+Agent_9,3,Both Flood Insurance and House Elevation,True,True,False,0.14999999999999997,0.49999999999999994
+Agent_10,3,Only House Elevation,True,False,False,0.18000000000000002,0.5900000000000001
+Agent_11,3,Only House Elevation,True,False,False,0.18000000000000002,0.6500000000000001
+Agent_12,3,Only House Elevation,True,False,False,0.22999999999999998,0.4799999999999999
+Agent_13,3,Both Flood Insurance and House Elevation,True,True,False,0.25,0.56
+Agent_14,3,Both Flood Insurance and House Elevation,True,True,False,0.26999999999999996,0.6200000000000001
+Agent_15,3,Both Flood Insurance and House Elevation,True,True,False,0.35,0.6100000000000001
+Agent_16,3,Only House Elevation,True,False,False,0.31,0.5800000000000001
+Agent_17,3,Both Flood Insurance and House Elevation,True,True,False,0.31,0.6400000000000001
+Agent_18,3,Only House Elevation,True,False,False,0.21000000000000002,0.5399999999999999
+Agent_19,3,Both Flood Insurance and House Elevation,True,True,False,0.44999999999999996,0.4799999999999999
+Agent_20,3,Only Flood Insurance,False,True,False,0.31000000000000005,0.51
+Agent_21,3,Both Flood Insurance and House Elevation,True,True,False,0.42,0.49999999999999994
+Agent_22,3,Both Flood Insurance and House Elevation,True,True,False,0.51,0.6000000000000001
+Agent_23,3,Only Flood Insurance,False,True,False,0.20000000000000004,0.6600000000000001
+Agent_24,3,Only House Elevation,True,False,False,0.5700000000000001,0.6200000000000001
+Agent_25,3,Only House Elevation,True,False,False,0.17000000000000004,0.5900000000000001
+Agent_26,3,Both Flood Insurance and House Elevation,True,True,False,0.26,0.4699999999999999
+Agent_27,3,Only Flood Insurance,False,True,False,0.28,0.49999999999999994
+Agent_28,3,Only Flood Insurance,False,True,False,0.23,0.6500000000000001
+Agent_29,3,Only House Elevation,True,False,False,0.36000000000000004,0.5399999999999999
+Agent_30,3,Only House Elevation,True,False,False,0.22,0.5700000000000001
+Agent_31,3,Only House Elevation,True,False,False,0.27999999999999997,0.49999999999999994
+Agent_32,3,Both Flood Insurance and House Elevation,True,True,False,0.35000000000000003,0.52
+Agent_33,3,Only House Elevation,True,False,False,0.44,0.6700000000000002
+Agent_34,3,Only House Elevation,True,False,False,0.37,0.6500000000000001
+Agent_35,3,Only House Elevation,True,False,False,0.25,0.5800000000000001
+Agent_36,3,Only House Elevation,True,False,False,0.5900000000000001,0.4799999999999999
+Agent_37,3,Only Flood Insurance,False,True,False,0.52,0.6300000000000001
+Agent_38,3,Only House Elevation,True,False,False,0.5,0.5299999999999999
+Agent_39,3,Both Flood Insurance and House Elevation,True,True,False,0.46,0.56
+Agent_40,3,Only House Elevation,True,False,False,0.21000000000000002,0.6400000000000001
+Agent_41,3,Only Flood Insurance,False,True,False,0.55,0.4699999999999999
+Agent_42,3,Only House Elevation,True,False,False,0.44,0.5399999999999999
+Agent_43,3,Only House Elevation,True,False,False,0.32,0.56
+Agent_44,3,Do Nothing,False,False,False,0.42,0.52
+Agent_45,3,Both Flood Insurance and House Elevation,True,True,False,0.45,0.56
+Agent_46,3,Only Flood Insurance,False,True,False,0.35,0.56
+Agent_47,3,Both Flood Insurance and House Elevation,True,True,False,0.26,0.4799999999999999
+Agent_48,3,Only House Elevation,True,False,False,0.41999999999999993,0.52
+Agent_49,3,Both Flood Insurance and House Elevation,True,True,False,0.44999999999999996,0.6700000000000002
+Agent_50,3,Only House Elevation,True,False,False,0.37999999999999995,0.56
+Agent_51,3,Only House Elevation,True,False,False,0.44,0.5900000000000001
+Agent_52,3,Only Flood Insurance,False,True,False,0.39,0.48999999999999994
+Agent_53,3,Only Flood Insurance,False,True,False,0.23,0.55
+Agent_54,3,Only Flood Insurance,False,True,False,0.38,0.5399999999999999
+Agent_55,3,Only Flood Insurance,False,True,False,0.2699999999999999,0.5900000000000001
+Agent_56,3,Only House Elevation,True,False,False,0.44999999999999996,0.49999999999999994
+Agent_57,3,Do Nothing,False,False,False,0.51,0.5299999999999999
+Agent_58,3,Only House Elevation,True,False,False,0.36999999999999994,0.6100000000000001
+Agent_59,3,Only House Elevation,True,False,False,0.22000000000000003,0.49999999999999994
+Agent_60,3,Only Flood Insurance,False,True,False,0.16,0.5299999999999999
+Agent_61,3,Only House Elevation,True,False,False,0.29000000000000004,0.4699999999999999
+Agent_62,3,Do Nothing,False,False,False,0.37,0.5299999999999999
+Agent_63,3,Only Flood Insurance,False,True,False,0.31000000000000005,0.48999999999999994
+Agent_64,3,Only House Elevation,True,False,False,0.32999999999999996,0.5399999999999999
+Agent_65,3,Only House Elevation,True,False,False,0.15000000000000002,0.5299999999999999
+Agent_66,3,Only Flood Insurance,False,True,False,0.19000000000000003,0.5800000000000001
+Agent_67,3,Only Flood Insurance,False,True,False,0.31000000000000005,0.52
+Agent_68,3,Only Flood Insurance,False,True,False,0.23,0.55
+Agent_69,3,Only House Elevation,True,False,False,0.39,0.5399999999999999
+Agent_70,3,Only House Elevation,True,False,False,0.39,0.6300000000000001
+Agent_71,3,Both Flood Insurance and House Elevation,True,True,False,0.42000000000000004,0.6100000000000001
+Agent_72,3,Only House Elevation,True,False,False,0.19000000000000003,0.5399999999999999
+Agent_73,3,Only House Elevation,True,False,False,0.45999999999999996,0.49999999999999994
+Agent_74,3,Only House Elevation,True,False,False,0.14000000000000004,0.56
+Agent_75,3,Only House Elevation,True,False,False,0.21000000000000002,0.56
+Agent_76,3,Only Flood Insurance,False,True,False,0.19000000000000003,0.6000000000000001
+Agent_77,3,Both Flood Insurance and House Elevation,True,True,False,0.41,0.5399999999999999
+Agent_78,3,Both Flood Insurance and House Elevation,True,True,False,0.45,0.4699999999999999
+Agent_79,3,Both Flood Insurance and House Elevation,True,True,False,0.47000000000000003,0.5900000000000001
+Agent_80,3,Only Flood Insurance,False,True,False,0.29000000000000004,0.56
+Agent_81,3,Only House Elevation,True,False,False,0.37,0.4799999999999999
+Agent_82,3,Only House Elevation,True,False,False,0.16000000000000003,0.48999999999999994
+Agent_83,3,Only House Elevation,True,False,False,0.34,0.51
+Agent_84,3,Both Flood Insurance and House Elevation,True,True,False,0.44999999999999996,0.5399999999999999
+Agent_85,3,Only Flood Insurance,False,True,False,0.32999999999999996,0.55
+Agent_86,3,Only House Elevation,True,False,False,0.24999999999999997,0.6100000000000001
+Agent_87,3,Only House Elevation,True,False,False,0.5,0.6400000000000001
+Agent_88,3,Only House Elevation,True,False,False,0.47,0.5399999999999999
+Agent_89,3,Both Flood Insurance and House Elevation,True,True,False,0.25,0.6100000000000001
+Agent_90,3,Only Flood Insurance,False,True,False,0.29000000000000004,0.4699999999999999
+Agent_91,3,Only House Elevation,True,False,False,0.35000000000000003,0.5399999999999999
+Agent_92,3,Only House Elevation,True,False,False,0.34,0.5399999999999999
+Agent_93,3,Both Flood Insurance and House Elevation,True,True,False,0.25,0.5900000000000001
+Agent_94,3,Both Flood Insurance and House Elevation,True,True,False,0.27999999999999997,0.6300000000000001
+Agent_95,3,Only Flood Insurance,False,True,False,0.20000000000000004,0.6000000000000001
+Agent_96,3,Only Flood Insurance,False,True,False,0.3400000000000001,0.6200000000000001
+Agent_97,3,Only House Elevation,True,False,False,0.37999999999999995,0.6000000000000001
+Agent_98,3,Only Flood Insurance,False,True,False,0.5,0.5800000000000001
+Agent_99,3,Only House Elevation,True,False,False,0.30999999999999994,0.5800000000000001
+Agent_100,3,Only House Elevation,True,False,False,0.23000000000000004,0.6000000000000001
+Agent_1,4,Only House Elevation,True,False,False,0.2,0.5399999999999999
+Agent_2,4,Only House Elevation,True,False,False,0.2,0.6300000000000001
+Agent_3,4,Only House Elevation,True,False,False,0.53,0.5399999999999999
+Agent_4,4,Only House Elevation,True,False,False,0.27,0.5399999999999999
+Agent_5,4,Only House Elevation,True,False,False,0.19000000000000003,0.5099999999999999
+Agent_6,4,Only House Elevation,True,False,False,0.37,0.5399999999999999
+Agent_7,4,Only Flood Insurance,False,True,False,0.41000000000000003,0.5299999999999999
+Agent_8,4,Both Flood Insurance and House Elevation,True,True,False,0.22,0.5399999999999999
+Agent_9,4,Both Flood Insurance and House Elevation,True,True,False,0.16999999999999996,0.5399999999999999
+Agent_10,4,Only House Elevation,True,False,False,0.16000000000000003,0.6300000000000001
+Agent_11,4,Both Flood Insurance and House Elevation,True,True,False,0.2,0.6900000000000002
+Agent_12,4,Both Flood Insurance and House Elevation,True,True,False,0.24999999999999997,0.5199999999999999
+Agent_13,4,Both Flood Insurance and House Elevation,True,True,False,0.27,0.6000000000000001
+Agent_14,4,Both Flood Insurance and House Elevation,True,True,False,0.29,0.6600000000000001
+Agent_15,4,Both Flood Insurance and House Elevation,True,True,False,0.37,0.6500000000000001
+Agent_16,4,Both Flood Insurance and House Elevation,True,True,False,0.33,0.6200000000000001
+Agent_17,4,Only House Elevation,True,False,False,0.36,0.6800000000000002
+Agent_18,4,Both Flood Insurance and House Elevation,True,True,False,0.23,0.58
+Agent_19,4,Both Flood Insurance and House Elevation,True,True,False,0.47,0.5199999999999999
+Agent_20,4,Only Flood Insurance,False,True,False,0.21000000000000005,0.55
+Agent_21,4,Both Flood Insurance and House Elevation,True,True,False,0.44,0.5399999999999999
+Agent_22,4,Only House Elevation,True,False,False,0.56,0.6400000000000001
+Agent_23,4,Only Flood Insurance,False,True,False,0.10000000000000003,0.7000000000000002
+Agent_24,4,Both Flood Insurance and House Elevation,True,True,False,0.5900000000000001,0.6600000000000001
+Agent_25,4,Only House Elevation,True,False,False,0.15000000000000005,0.6300000000000001
+Agent_26,4,Both Flood Insurance and House Elevation,True,True,False,0.28,0.5099999999999999
+Agent_27,4,Only Flood Insurance,False,True,False,0.18000000000000002,0.5399999999999999
+Agent_28,4,Only Flood Insurance,False,True,False,0.13,0.6900000000000002
+Agent_29,4,Only House Elevation,True,False,False,0.41000000000000003,0.58
+Agent_30,4,Only House Elevation,True,False,False,0.2,0.6100000000000001
+Agent_31,4,Both Flood Insurance and House Elevation,True,True,False,0.3,0.5399999999999999
+Agent_32,4,Both Flood Insurance and House Elevation,True,True,False,0.37000000000000005,0.56
+Agent_33,4,Only House Elevation,True,False,False,0.42,0.7100000000000002
+Agent_34,4,Only House Elevation,True,False,False,0.35,0.6900000000000002
+Agent_35,4,Both Flood Insurance and House Elevation,True,True,False,0.27,0.6200000000000001
+Agent_36,4,Both Flood Insurance and House Elevation,True,True,False,0.6100000000000001,0.5199999999999999
+Agent_37,4,Only Flood Insurance,False,True,False,0.42000000000000004,0.6700000000000002
+Agent_38,4,Only House Elevation,True,False,False,0.48,0.57
+Agent_39,4,Both Flood Insurance and House Elevation,True,True,False,0.48000000000000004,0.6000000000000001
+Agent_40,4,Both Flood Insurance and House Elevation,True,True,False,0.23,0.6800000000000002
+Agent_41,4,Only Flood Insurance,False,True,False,0.5700000000000001,0.5099999999999999
+Agent_42,4,Both Flood Insurance and House Elevation,True,True,False,0.46,0.58
+Agent_43,4,Only House Elevation,True,False,False,0.3,0.6000000000000001
+Agent_44,4,Only Flood Insurance,False,True,False,0.44,0.56
+Agent_45,4,Only House Elevation,True,False,False,0.43,0.6000000000000001
+Agent_46,4,Only Flood Insurance,False,True,False,0.37,0.6000000000000001
+Agent_47,4,Both Flood Insurance and House Elevation,True,True,False,0.28,0.5199999999999999
+Agent_48,4,Both Flood Insurance and House Elevation,True,True,False,0.43999999999999995,0.56
+Agent_49,4,Only House Elevation,True,False,False,0.49999999999999994,0.7100000000000002
+Agent_50,4,Both Flood Insurance and House Elevation,True,True,False,0.39999999999999997,0.6000000000000001
+Agent_51,4,Only House Elevation,True,False,False,0.42,0.6300000000000001
+Agent_52,4,Only Flood Insurance,False,True,False,0.41000000000000003,0.5299999999999999
+Agent_53,4,Only Flood Insurance,False,True,False,0.25,0.5900000000000001
+Agent_54,4,Only Flood Insurance,False,True,False,0.28,0.58
+Agent_55,4,Only Flood Insurance,False,True,False,0.1699999999999999,0.6300000000000001
+Agent_56,4,Only House Elevation,True,False,False,0.42999999999999994,0.5399999999999999
+Agent_57,4,Only Flood Insurance,False,True,False,0.41000000000000003,0.57
+Agent_58,4,Both Flood Insurance and House Elevation,True,True,False,0.38999999999999996,0.6500000000000001
+Agent_59,4,Both Flood Insurance and House Elevation,True,True,False,0.24000000000000002,0.5399999999999999
+Agent_60,4,Only Flood Insurance,False,True,False,0.06,0.57
+Agent_61,4,Both Flood Insurance and House Elevation,True,True,False,0.31000000000000005,0.5099999999999999
+Agent_62,4,Only Flood Insurance,False,True,False,0.39,0.57
+Agent_63,4,Only House Elevation,True,False,False,0.29000000000000004,0.5299999999999999
+Agent_64,4,Only House Elevation,True,False,False,0.30999999999999994,0.58
+Agent_65,4,Only House Elevation,True,False,False,0.13000000000000003,0.57
+Agent_66,4,Only Flood Insurance,False,True,False,0.09000000000000002,0.6200000000000001
+Agent_67,4,Only House Elevation,True,False,False,0.29000000000000004,0.56
+Agent_68,4,Only Flood Insurance,False,True,False,0.13,0.5900000000000001
+Agent_69,4,Both Flood Insurance and House Elevation,True,True,False,0.41000000000000003,0.58
+Agent_70,4,Only House Elevation,True,False,False,0.37,0.6700000000000002
+Agent_71,4,Only House Elevation,True,False,False,0.4,0.6500000000000001
+Agent_72,4,Only House Elevation,True,False,False,0.17000000000000004,0.58
+Agent_73,4,Only House Elevation,True,False,False,0.43999999999999995,0.5399999999999999
+Agent_74,4,Both Flood Insurance and House Elevation,True,True,False,0.16000000000000003,0.6000000000000001
+Agent_75,4,Only House Elevation,True,False,False,0.19000000000000003,0.6000000000000001
+Agent_76,4,Only Flood Insurance,False,True,False,0.09000000000000002,0.6400000000000001
+Agent_77,4,Only House Elevation,True,False,False,0.38999999999999996,0.58
+Agent_78,4,Both Flood Insurance and House Elevation,True,True,False,0.47000000000000003,0.5099999999999999
+Agent_79,4,Only House Elevation,True,False,False,0.52,0.6300000000000001
+Agent_80,4,Only Flood Insurance,False,True,False,0.19000000000000003,0.6000000000000001
+Agent_81,4,Only House Elevation,True,False,False,0.35,0.5199999999999999
+Agent_82,4,Both Flood Insurance and House Elevation,True,True,False,0.18000000000000002,0.5299999999999999
+Agent_83,4,Only House Elevation,True,False,False,0.39,0.55
+Agent_84,4,Both Flood Insurance and House Elevation,True,True,False,0.35,0.58
+Agent_85,4,Only Flood Insurance,False,True,False,0.22999999999999995,0.5900000000000001
+Agent_86,4,Only House Elevation,True,False,False,0.22999999999999998,0.6500000000000001
+Agent_87,4,Both Flood Insurance and House Elevation,True,True,False,0.52,0.6800000000000002
+Agent_88,4,Only House Elevation,True,False,False,0.44999999999999996,0.58
+Agent_89,4,Only House Elevation,True,False,False,0.23,0.6500000000000001
+Agent_90,4,Only Flood Insurance,False,True,False,0.19000000000000003,0.5099999999999999
+Agent_91,4,Both Flood Insurance and House Elevation,True,True,False,0.37000000000000005,0.58
+Agent_92,4,Only House Elevation,True,False,False,0.39,0.58
+Agent_93,4,Only House Elevation,True,False,False,0.23,0.6300000000000001
+Agent_94,4,Only House Elevation,True,False,False,0.25999999999999995,0.6700000000000002
+Agent_95,4,Only Flood Insurance,False,True,False,0.22000000000000003,0.6400000000000001
+Agent_96,4,Only Flood Insurance,False,True,False,0.24000000000000007,0.6600000000000001
+Agent_97,4,Both Flood Insurance and House Elevation,True,True,False,0.39999999999999997,0.6400000000000001
+Agent_98,4,Only House Elevation,True,False,False,0.55,0.6200000000000001
+Agent_99,4,Both Flood Insurance and House Elevation,True,True,False,0.32999999999999996,0.6200000000000001
+Agent_100,4,Only House Elevation,True,False,False,0.21000000000000005,0.6400000000000001
+Agent_1,5,Both Flood Insurance and House Elevation,True,True,False,0.22,0.58
+Agent_2,5,Only House Elevation,True,False,False,0.18000000000000002,0.6700000000000002
+Agent_3,5,Only House Elevation,True,False,False,0.51,0.58
+Agent_4,5,Only House Elevation,True,False,False,0.25,0.58
+Agent_5,5,Both Flood Insurance and House Elevation,True,True,False,0.21000000000000002,0.5499999999999999
+Agent_6,5,Only House Elevation,True,False,False,0.35,0.58
+Agent_7,5,Only House Elevation,True,False,False,0.39,0.57
+Agent_8,5,Both Flood Insurance and House Elevation,True,True,False,0.24,0.58
+Agent_9,5,Both Flood Insurance and House Elevation,True,True,False,0.18999999999999995,0.58
+Agent_10,5,Only House Elevation,True,False,False,0.14000000000000004,0.6700000000000002
+Agent_11,5,Only House Elevation,True,False,False,0.18000000000000002,0.7300000000000002
+Agent_12,5,Only House Elevation,True,False,False,0.22999999999999998,0.5599999999999999
+Agent_13,5,Both Flood Insurance and House Elevation,True,True,False,0.29000000000000004,0.6400000000000001
+Agent_14,5,Only House Elevation,True,False,False,0.26999999999999996,0.7000000000000002
+Agent_15,5,Only House Elevation,True,False,False,0.35,0.6900000000000002
+Agent_16,5,Only House Elevation,True,False,False,0.31,0.6600000000000001
+Agent_17,5,Only House Elevation,True,False,False,0.33999999999999997,0.7200000000000002
+Agent_18,5,Both Flood Insurance and House Elevation,True,True,False,0.25,0.62
+Agent_19,5,Only House Elevation,True,False,False,0.44999999999999996,0.5599999999999999
+Agent_20,5,Only Flood Insurance,False,True,False,0.23000000000000004,0.5900000000000001
+Agent_21,5,Only House Elevation,True,False,False,0.42,0.58
+Agent_22,5,Both Flood Insurance and House Elevation,True,True,False,0.5800000000000001,0.6800000000000002
+Agent_23,5,Do Nothing,False,False,False,0.08000000000000003,0.7400000000000002
+Agent_24,5,Only House Elevation,True,False,False,0.5700000000000001,0.7000000000000002
+Agent_25,5,Only House Elevation,True,False,False,0.13000000000000006,0.6700000000000002
+Agent_26,5,Only House Elevation,True,False,False,0.26,0.5499999999999999
+Agent_27,5,Only Flood Insurance,False,True,False,0.2,0.58
+Agent_28,5,Only Flood Insurance,False,True,False,0.15,0.7300000000000002
+Agent_29,5,Only House Elevation,True,False,False,0.39,0.62
+Agent_30,5,Only House Elevation,True,False,False,0.18000000000000002,0.6500000000000001
+Agent_31,5,Both Flood Insurance and House Elevation,True,True,False,0.32,0.58
+Agent_32,5,Only House Elevation,True,False,False,0.35000000000000003,0.6000000000000001
+Agent_33,5,Both Flood Insurance and House Elevation,True,True,False,0.44,0.7500000000000002
+Agent_34,5,Only House Elevation,True,False,False,0.32999999999999996,0.7300000000000002
+Agent_35,5,Only House Elevation,True,False,False,0.25,0.6600000000000001
+Agent_36,5,Both Flood Insurance and House Elevation,True,True,False,0.6300000000000001,0.5599999999999999
+Agent_37,5,Do Nothing,False,False,False,0.4,0.7100000000000002
+Agent_38,5,Both Flood Insurance and House Elevation,True,True,False,0.5,0.61
+Agent_39,5,Only House Elevation,True,False,False,0.46,0.6400000000000001
+Agent_40,5,Only House Elevation,True,False,False,0.21000000000000002,0.7200000000000002
+Agent_41,5,Only Flood Insurance,False,True,False,0.5900000000000001,0.5499999999999999
+Agent_42,5,Both Flood Insurance and House Elevation,True,True,False,0.48000000000000004,0.62
+Agent_43,5,Only House Elevation,True,False,False,0.27999999999999997,0.6400000000000001
+Agent_44,5,Only House Elevation,True,False,False,0.42,0.6000000000000001
+Agent_45,5,Only House Elevation,True,False,False,0.41,0.6400000000000001
+Agent_46,5,Only Flood Insurance,False,True,False,0.39,0.6400000000000001
+Agent_47,5,Only House Elevation,True,False,False,0.26,0.5599999999999999
+Agent_48,5,Both Flood Insurance and House Elevation,True,True,False,0.45999999999999996,0.6000000000000001
+Agent_49,5,Only House Elevation,True,False,False,0.4799999999999999,0.7500000000000002
+Agent_50,5,Both Flood Insurance and House Elevation,True,True,False,0.42,0.6400000000000001
+Agent_51,5,Only House Elevation,True,False,False,0.39999999999999997,0.6700000000000002
+Agent_52,5,Do Nothing,False,False,False,0.39,0.57
+Agent_53,5,Only Flood Insurance,False,True,False,0.27,0.6300000000000001
+Agent_54,5,Do Nothing,False,False,False,0.26,0.62
+Agent_55,5,Only Flood Insurance,False,True,False,0.1899999999999999,0.6700000000000002
+Agent_56,5,Both Flood Insurance and House Elevation,True,True,False,0.44999999999999996,0.58
+Agent_57,5,Do Nothing,False,False,False,0.39,0.61
+Agent_58,5,Only House Elevation,True,False,False,0.36999999999999994,0.6900000000000002
+Agent_59,5,Both Flood Insurance and House Elevation,True,True,False,0.26,0.58
+Agent_60,5,Do Nothing,False,False,False,0.039999999999999994,0.61
+Agent_61,5,Only House Elevation,True,False,False,0.29000000000000004,0.5499999999999999
+Agent_62,5,Do Nothing,False,False,False,0.37,0.61
+Agent_63,5,Both Flood Insurance and House Elevation,True,True,False,0.31000000000000005,0.57
+Agent_64,5,Both Flood Insurance and House Elevation,True,True,False,0.32999999999999996,0.62
+Agent_65,5,Both Flood Insurance and House Elevation,True,True,False,0.15000000000000002,0.61
+Agent_66,5,Do Nothing,False,False,False,0.07000000000000002,0.6600000000000001
+Agent_67,5,Both Flood Insurance and House Elevation,True,True,False,0.31000000000000005,0.6000000000000001
+Agent_68,5,Do Nothing,False,False,False,0.11,0.6300000000000001
+Agent_69,5,Both Flood Insurance and House Elevation,True,True,False,0.43000000000000005,0.62
+Agent_70,5,Both Flood Insurance and House Elevation,True,True,False,0.39,0.7100000000000002
+Agent_71,5,Only House Elevation,True,False,False,0.38,0.6900000000000002
+Agent_72,5,Only House Elevation,True,False,False,0.15000000000000005,0.62
+Agent_73,5,Only House Elevation,True,False,False,0.41999999999999993,0.58
+Agent_74,5,Both Flood Insurance and House Elevation,True,True,False,0.18000000000000002,0.6400000000000001
+Agent_75,5,Both Flood Insurance and House Elevation,True,True,False,0.21000000000000002,0.6400000000000001
+Agent_76,5,Only House Elevation,True,False,False,0.07000000000000002,0.6800000000000002
+Agent_77,5,Both Flood Insurance and House Elevation,True,True,False,0.41,0.62
+Agent_78,5,Both Flood Insurance and House Elevation,True,True,False,0.49000000000000005,0.5499999999999999
+Agent_79,5,Only House Elevation,True,False,False,0.5,0.6700000000000002
+Agent_80,5,Only Flood Insurance,False,True,False,0.21000000000000002,0.6400000000000001
+Agent_81,5,Both Flood Insurance and House Elevation,True,True,False,0.37,0.5599999999999999
+Agent_82,5,Only House Elevation,True,False,False,0.16000000000000003,0.57
+Agent_83,5,Both Flood Insurance and House Elevation,True,True,False,0.41000000000000003,0.5900000000000001
+Agent_84,5,Only House Elevation,True,False,False,0.32999999999999996,0.62
+Agent_85,5,Only Flood Insurance,False,True,False,0.24999999999999994,0.6300000000000001
+Agent_86,5,Only House Elevation,True,False,False,0.21,0.6900000000000002
+Agent_87,5,Only House Elevation,True,False,False,0.5,0.7200000000000002
+Agent_88,5,Both Flood Insurance and House Elevation,True,True,False,0.47,0.62
+Agent_89,5,Only House Elevation,True,False,False,0.21000000000000002,0.6900000000000002
+Agent_90,5,Only Flood Insurance,False,True,False,0.21000000000000002,0.5499999999999999
+Agent_91,5,Both Flood Insurance and House Elevation,True,True,False,0.39000000000000007,0.62
+Agent_92,5,Only House Elevation,True,False,False,0.37,0.62
+Agent_93,5,Both Flood Insurance and House Elevation,True,True,False,0.25,0.6700000000000002
+Agent_94,5,Only House Elevation,True,False,False,0.23999999999999996,0.7100000000000002
+Agent_95,5,Only Flood Insurance,False,True,False,0.24000000000000002,0.6800000000000002
+Agent_96,5,Only Flood Insurance,False,True,False,0.26000000000000006,0.7000000000000002
+Agent_97,5,Only House Elevation,True,False,False,0.37999999999999995,0.6800000000000002
+Agent_98,5,Both Flood Insurance and House Elevation,True,True,False,0.5700000000000001,0.6600000000000001
+Agent_99,5,Both Flood Insurance and House Elevation,True,True,False,0.35,0.6600000000000001
+Agent_100,5,Both Flood Insurance and House Elevation,True,True,False,0.23000000000000004,0.6800000000000002
+Agent_1,6,Only House Elevation,True,False,False,0.2,0.62
+Agent_2,6,Only House Elevation,True,False,False,0.16000000000000003,0.7100000000000002
+Agent_3,6,Only House Elevation,True,False,False,0.49,0.62
+Agent_4,6,Only House Elevation,True,False,False,0.23,0.62
+Agent_5,6,Only House Elevation,True,False,False,0.19000000000000003,0.59
+Agent_6,6,Only House Elevation,True,False,False,0.32999999999999996,0.62
+Agent_7,6,Only House Elevation,True,False,False,0.37,0.61
+Agent_8,6,Both Flood Insurance and House Elevation,True,True,False,0.26,0.62
+Agent_9,6,Both Flood Insurance and House Elevation,True,True,False,0.20999999999999994,0.62
+Agent_10,6,Only House Elevation,True,False,False,0.12000000000000004,0.7100000000000002
+Agent_11,6,Only House Elevation,True,False,False,0.16000000000000003,0.7700000000000002
+Agent_12,6,Only House Elevation,True,False,False,0.21,0.6
+Agent_13,6,Only House Elevation,True,False,False,0.27,0.6800000000000002
+Agent_14,6,Only House Elevation,True,False,False,0.24999999999999997,0.7400000000000002
+Agent_15,6,Only House Elevation,True,False,False,0.32999999999999996,0.7300000000000002
+Agent_16,6,Only House Elevation,True,False,False,0.29,0.7000000000000002
+Agent_17,6,Only House Elevation,True,False,False,0.31999999999999995,0.7600000000000002
+Agent_18,6,Only House Elevation,True,False,False,0.23,0.66
+Agent_19,6,Only House Elevation,True,False,False,0.42999999999999994,0.6
+Agent_20,6,Only House Elevation,True,False,False,0.21000000000000005,0.6300000000000001
+Agent_21,6,Only House Elevation,True,False,False,0.39999999999999997,0.62
+Agent_22,6,Only House Elevation,True,False,False,0.56,0.7200000000000002
+Agent_23,6,Only House Elevation,True,False,False,0.060000000000000026,0.7800000000000002
+Agent_24,6,Only House Elevation,True,False,False,0.55,0.7400000000000002
+Agent_25,6,Both Flood Insurance and House Elevation,True,True,False,0.15000000000000005,0.7100000000000002
+Agent_26,6,Only House Elevation,True,False,False,0.24000000000000002,0.59
+Agent_27,6,Only Flood Insurance,False,True,False,0.22,0.62
+Agent_28,6,Only Flood Insurance,False,True,False,0.16999999999999998,0.7700000000000002
+Agent_29,6,Only House Elevation,True,False,False,0.37,0.66
+Agent_30,6,Only House Elevation,True,False,False,0.16000000000000003,0.6900000000000002
+Agent_31,6,Only House Elevation,True,False,False,0.3,0.62
+Agent_32,6,Both Flood Insurance and House Elevation,True,True,False,0.37000000000000005,0.6400000000000001
+Agent_33,6,Only House Elevation,True,False,False,0.42,0.7900000000000003
+Agent_34,6,Only House Elevation,True,False,False,0.30999999999999994,0.7700000000000002
+Agent_35,6,Both Flood Insurance and House Elevation,True,True,False,0.27,0.7000000000000002
+Agent_36,6,Only House Elevation,True,False,False,0.6100000000000001,0.6
+Agent_37,6,Only House Elevation,True,False,False,0.38,0.7500000000000002
+Agent_38,6,Only House Elevation,True,False,False,0.48,0.65
+Agent_39,6,Both Flood Insurance and House Elevation,True,True,False,0.48000000000000004,0.6800000000000002
+Agent_40,6,Only House Elevation,True,False,False,0.19000000000000003,0.7600000000000002
+Agent_41,6,Only Flood Insurance,False,True,False,0.6100000000000001,0.59
+Agent_42,6,Both Flood Insurance and House Elevation,True,True,False,0.5,0.66
+Agent_43,6,Both Flood Insurance and House Elevation,True,True,False,0.3,0.6800000000000002
+Agent_44,6,Both Flood Insurance and House Elevation,True,True,False,0.44,0.6400000000000001
+Agent_45,6,Only House Elevation,True,False,False,0.38999999999999996,0.6800000000000002
+Agent_46,6,Only Flood Insurance,False,True,False,0.41000000000000003,0.6800000000000002
+Agent_47,6,Both Flood Insurance and House Elevation,True,True,False,0.28,0.6
+Agent_48,6,Only House Elevation,True,False,False,0.43999999999999995,0.6400000000000001
+Agent_49,6,Only House Elevation,True,False,False,0.4599999999999999,0.7900000000000003
+Agent_50,6,Only House Elevation,True,False,False,0.39999999999999997,0.6800000000000002
+Agent_51,6,Only House Elevation,True,False,False,0.37999999999999995,0.7100000000000002
+Agent_52,6,Only Flood Insurance,False,True,False,0.41000000000000003,0.61
+Agent_53,6,Only Flood Insurance,False,True,False,0.29000000000000004,0.6700000000000002
+Agent_54,6,Only House Elevation,True,False,False,0.24000000000000002,0.66
+Agent_55,6,Only Flood Insurance,False,True,False,0.20999999999999988,0.7100000000000002
+Agent_56,6,Only House Elevation,True,False,False,0.42999999999999994,0.62
+Agent_57,6,Only Flood Insurance,False,True,False,0.41000000000000003,0.65
+Agent_58,6,Only House Elevation,True,False,False,0.3499999999999999,0.7300000000000002
+Agent_59,6,Only House Elevation,True,False,False,0.24000000000000002,0.62
+Agent_60,6,Only House Elevation,True,False,False,0.019999999999999993,0.65
+Agent_61,6,Only House Elevation,True,False,False,0.27,0.59
+Agent_62,6,Only Flood Insurance,False,True,False,0.39,0.65
+Agent_63,6,Both Flood Insurance and House Elevation,True,True,False,0.33000000000000007,0.61
+Agent_64,6,Both Flood Insurance and House Elevation,True,True,False,0.35,0.66
+Agent_65,6,Only House Elevation,True,False,False,0.13000000000000003,0.65
+Agent_66,6,Only Flood Insurance,False,True,False,0.09000000000000002,0.7000000000000002
+Agent_67,6,Only House Elevation,True,False,False,0.29000000000000004,0.6400000000000001
+Agent_68,6,Only Flood Insurance,False,True,False,0.13,0.6700000000000002
+Agent_69,6,Only House Elevation,True,False,False,0.41000000000000003,0.66
+Agent_70,6,Only House Elevation,True,False,False,0.37,0.7500000000000002
+Agent_71,6,Only House Elevation,True,False,False,0.36,0.7300000000000002
+Agent_72,6,Only House Elevation,True,False,False,0.13000000000000006,0.66
+Agent_73,6,Only House Elevation,True,False,False,0.3999999999999999,0.62
+Agent_74,6,Both Flood Insurance and House Elevation,True,True,False,0.2,0.6800000000000002
+Agent_75,6,Only House Elevation,True,False,False,0.19000000000000003,0.6800000000000002
+Agent_76,6,Only House Elevation,True,False,False,0.05000000000000002,0.7200000000000002
+Agent_77,6,Only House Elevation,True,False,False,0.38999999999999996,0.66
+Agent_78,6,Both Flood Insurance and House Elevation,True,True,False,0.51,0.59
+Agent_79,6,Only House Elevation,True,False,False,0.48,0.7100000000000002
+Agent_80,6,Only House Elevation,True,False,False,0.19000000000000003,0.6800000000000002
+Agent_81,6,Only House Elevation,True,False,False,0.35,0.6
+Agent_82,6,Only House Elevation,True,False,False,0.14000000000000004,0.61
+Agent_83,6,Only House Elevation,True,False,False,0.39,0.6300000000000001
+Agent_84,6,Only House Elevation,True,False,False,0.30999999999999994,0.66
+Agent_85,6,Only Flood Insurance,False,True,False,0.26999999999999996,0.6700000000000002
+Agent_86,6,Only House Elevation,True,False,False,0.19,0.7300000000000002
+Agent_87,6,Both Flood Insurance and House Elevation,True,True,False,0.52,0.7600000000000002
+Agent_88,6,Only House Elevation,True,False,False,0.44999999999999996,0.66
+Agent_89,6,Only House Elevation,True,False,False,0.19000000000000003,0.7300000000000002
+Agent_90,6,Only Flood Insurance,False,True,False,0.23,0.59
+Agent_91,6,Only House Elevation,True,False,False,0.37000000000000005,0.66
+Agent_92,6,Only House Elevation,True,False,False,0.35,0.66
+Agent_93,6,Only House Elevation,True,False,False,0.23,0.7100000000000002
+Agent_94,6,Both Flood Insurance and House Elevation,True,True,False,0.25999999999999995,0.7500000000000002
+Agent_95,6,Only Flood Insurance,False,True,False,0.26,0.7200000000000002
+Agent_96,6,Only House Elevation,True,False,False,0.24000000000000007,0.7400000000000002
+Agent_97,6,Only House Elevation,True,False,False,0.35999999999999993,0.7200000000000002
+Agent_98,6,Only House Elevation,True,False,False,0.55,0.7000000000000002
+Agent_99,6,Only House Elevation,True,False,False,0.32999999999999996,0.7000000000000002
+Agent_100,6,Only House Elevation,True,False,False,0.21000000000000005,0.7200000000000002
+Agent_1,7,Only House Elevation,True,False,False,0.18000000000000002,0.66
+Agent_2,7,Only House Elevation,True,False,False,0.14000000000000004,0.7500000000000002
+Agent_3,7,Only House Elevation,True,False,False,0.47,0.66
+Agent_4,7,Both Flood Insurance and House Elevation,True,True,False,0.25,0.66
+Agent_5,7,Only House Elevation,True,False,False,0.17000000000000004,0.63
+Agent_6,7,Only House Elevation,True,False,False,0.30999999999999994,0.66
+Agent_7,7,Both Flood Insurance and House Elevation,True,True,False,0.39,0.65
+Agent_8,7,Both Flood Insurance and House Elevation,True,True,False,0.28,0.66
+Agent_9,7,Only House Elevation,True,False,False,0.18999999999999995,0.66
+Agent_10,7,Only House Elevation,True,False,False,0.10000000000000003,0.7500000000000002
+Agent_11,7,Both Flood Insurance and House Elevation,True,True,False,0.18000000000000002,0.8100000000000003
+Agent_12,7,Only House Elevation,True,False,False,0.19,0.64
+Agent_13,7,Both Flood Insurance and House Elevation,True,True,False,0.29000000000000004,0.7200000000000002
+Agent_14,7,Only House Elevation,True,False,False,0.22999999999999998,0.7800000000000002
+Agent_15,7,Only House Elevation,True,False,False,0.30999999999999994,0.7700000000000002
+Agent_16,7,Only House Elevation,True,False,False,0.26999999999999996,0.7400000000000002
+Agent_17,7,Only House Elevation,True,False,False,0.29999999999999993,0.8000000000000003
+Agent_18,7,Both Flood Insurance and House Elevation,True,True,False,0.25,0.7000000000000001
+Agent_19,7,Only House Elevation,True,False,False,0.4099999999999999,0.64
+Agent_20,7,Only House Elevation,True,False,False,0.19000000000000006,0.6700000000000002
+Agent_21,7,Only House Elevation,True,False,False,0.37999999999999995,0.66
+Agent_22,7,Only House Elevation,True,False,False,0.54,0.7600000000000002
+Agent_23,7,Only House Elevation,True,False,False,0.04000000000000002,0.8200000000000003
+Agent_24,7,Only House Elevation,True,False,False,0.53,0.7800000000000002
+Agent_25,7,Only House Elevation,True,False,False,0.13000000000000006,0.7500000000000002
+Agent_26,7,Only House Elevation,True,False,False,0.22000000000000003,0.63
+Agent_27,7,Only House Elevation,True,False,False,0.2,0.66
+Agent_28,7,Do Nothing,False,False,False,0.15,0.8100000000000003
+Agent_29,7,Only House Elevation,True,False,False,0.35,0.7000000000000001
+Agent_30,7,Both Flood Insurance and House Elevation,True,True,False,0.18000000000000002,0.7300000000000002
+Agent_31,7,Both Flood Insurance and House Elevation,True,True,False,0.32,0.66
+Agent_32,7,Both Flood Insurance and House Elevation,True,True,False,0.39000000000000007,0.6800000000000002
+Agent_33,7,Only House Elevation,True,False,False,0.39999999999999997,0.8300000000000003
+Agent_34,7,Only House Elevation,True,False,False,0.2899999999999999,0.8100000000000003
+Agent_35,7,Only House Elevation,True,False,False,0.25,0.7400000000000002
+Agent_36,7,Only House Elevation,True,False,False,0.5900000000000001,0.64
+Agent_37,7,Both Flood Insurance and House Elevation,True,True,False,0.4,0.7900000000000003
+Agent_38,7,Only House Elevation,True,False,False,0.45999999999999996,0.6900000000000001
+Agent_39,7,Both Flood Insurance and House Elevation,True,True,False,0.5,0.7200000000000002
+Agent_40,7,Only House Elevation,True,False,False,0.17000000000000004,0.8000000000000003
+Agent_41,7,Only Flood Insurance,False,True,False,0.6300000000000001,0.63
+Agent_42,7,Only House Elevation,True,False,False,0.48,0.7000000000000001
+Agent_43,7,Only House Elevation,True,False,False,0.27999999999999997,0.7200000000000002
+Agent_44,7,Only House Elevation,True,False,False,0.42,0.6800000000000002
+Agent_45,7,Only House Elevation,True,False,False,0.36999999999999994,0.7200000000000002
+Agent_46,7,Only Flood Insurance,False,True,False,0.43000000000000005,0.7200000000000002
+Agent_47,7,Both Flood Insurance and House Elevation,True,True,False,0.30000000000000004,0.64
+Agent_48,7,Only House Elevation,True,False,False,0.41999999999999993,0.6800000000000002
+Agent_49,7,Only House Elevation,True,False,False,0.4399999999999999,0.8300000000000003
+Agent_50,7,Only House Elevation,True,False,False,0.37999999999999995,0.7200000000000002
+Agent_51,7,Only House Elevation,True,False,False,0.35999999999999993,0.7500000000000002
+Agent_52,7,Only House Elevation,True,False,False,0.39,0.65
+Agent_53,7,Only House Elevation,True,False,False,0.27,0.7100000000000002
+Agent_54,7,Both Flood Insurance and House Elevation,True,True,False,0.26,0.7000000000000001
+Agent_55,7,Only House Elevation,True,False,False,0.1899999999999999,0.7500000000000002
+Agent_56,7,Only House Elevation,True,False,False,0.4099999999999999,0.66
+Agent_57,7,Only House Elevation,True,False,False,0.39,0.6900000000000001
+Agent_58,7,Only House Elevation,True,False,False,0.3299999999999999,0.7700000000000002
+Agent_59,7,Only House Elevation,True,False,False,0.22000000000000003,0.66
+Agent_60,7,Both Flood Insurance and House Elevation,True,True,False,0.039999999999999994,0.6900000000000001
+Agent_61,7,Only House Elevation,True,False,False,0.25,0.63
+Agent_62,7,Only House Elevation,True,False,False,0.37,0.6900000000000001
+Agent_63,7,Both Flood Insurance and House Elevation,True,True,False,0.3500000000000001,0.65
+Agent_64,7,Both Flood Insurance and House Elevation,True,True,False,0.37,0.7000000000000001
+Agent_65,7,Only House Elevation,True,False,False,0.11000000000000003,0.6900000000000001
+Agent_66,7,Only Flood Insurance,False,True,False,0.11000000000000003,0.7400000000000002
+Agent_67,7,Both Flood Insurance and House Elevation,True,True,False,0.31000000000000005,0.6800000000000002
+Agent_68,7,Only Flood Insurance,False,True,False,0.15,0.7100000000000002
+Agent_69,7,Only House Elevation,True,False,False,0.39,0.7000000000000001
+Agent_70,7,Only House Elevation,True,False,False,0.35,0.7900000000000003
+Agent_71,7,Only House Elevation,True,False,False,0.33999999999999997,0.7700000000000002
+Agent_72,7,Both Flood Insurance and House Elevation,True,True,False,0.15000000000000005,0.7000000000000001
+Agent_73,7,Only House Elevation,True,False,False,0.3799999999999999,0.66
+Agent_74,7,Both Flood Insurance and House Elevation,True,True,False,0.22,0.7200000000000002
+Agent_75,7,Both Flood Insurance and House Elevation,True,True,False,0.21000000000000002,0.7200000000000002
+Agent_76,7,Both Flood Insurance and House Elevation,True,True,False,0.07000000000000002,0.7600000000000002
+Agent_77,7,Only House Elevation,True,False,False,0.36999999999999994,0.7000000000000001
+Agent_78,7,Only House Elevation,True,False,False,0.49,0.63
+Agent_79,7,Both Flood Insurance and House Elevation,True,True,False,0.5,0.7500000000000002
+Agent_80,7,Only House Elevation,True,False,False,0.17000000000000004,0.7200000000000002
+Agent_81,7,Only House Elevation,True,False,False,0.32999999999999996,0.64
+Agent_82,7,Only House Elevation,True,False,False,0.12000000000000004,0.65
+Agent_83,7,Only House Elevation,True,False,False,0.37,0.6700000000000002
+Agent_84,7,Both Flood Insurance and House Elevation,True,True,False,0.32999999999999996,0.7000000000000001
+Agent_85,7,Only Flood Insurance,False,True,False,0.29,0.7100000000000002
+Agent_86,7,Only House Elevation,True,False,False,0.17,0.7700000000000002
+Agent_87,7,Both Flood Insurance and House Elevation,True,True,False,0.54,0.8000000000000003
+Agent_88,7,Only House Elevation,True,False,False,0.42999999999999994,0.7000000000000001
+Agent_89,7,Only House Elevation,True,False,False,0.17000000000000004,0.7700000000000002
+Agent_90,7,Only House Elevation,True,False,False,0.21000000000000002,0.63
+Agent_91,7,Both Flood Insurance and House Elevation,True,True,False,0.39000000000000007,0.7000000000000001
+Agent_92,7,Only House Elevation,True,False,False,0.32999999999999996,0.7000000000000001
+Agent_93,7,Only House Elevation,True,False,False,0.21000000000000002,0.7500000000000002
+Agent_94,7,Only House Elevation,True,False,False,0.23999999999999996,0.7900000000000003
+Agent_95,7,Only House Elevation,True,False,False,0.24000000000000002,0.7600000000000002
+Agent_96,7,Only House Elevation,True,False,False,0.22000000000000008,0.7800000000000002
+Agent_97,7,Only House Elevation,True,False,False,0.3399999999999999,0.7600000000000002
+Agent_98,7,Only House Elevation,True,False,False,0.53,0.7400000000000002
+Agent_99,7,Only House Elevation,True,False,False,0.30999999999999994,0.7400000000000002
+Agent_100,7,Only House Elevation,True,False,False,0.19000000000000006,0.7600000000000002
+Agent_1,8,Only House Elevation,True,False,False,0.16000000000000003,0.7000000000000001
+Agent_2,8,Only House Elevation,True,False,False,0.12000000000000004,0.7900000000000003
+Agent_3,8,Only House Elevation,True,False,False,0.44999999999999996,0.7000000000000001
+Agent_4,8,Only House Elevation,True,False,False,0.23,0.7000000000000001
+Agent_5,8,Only House Elevation,True,False,False,0.15000000000000005,0.67
+Agent_6,8,Only House Elevation,True,False,False,0.2899999999999999,0.7000000000000001
+Agent_7,8,Both Flood Insurance and House Elevation,True,True,False,0.41000000000000003,0.6900000000000001
+Agent_8,8,Only House Elevation,True,False,False,0.26,0.7000000000000001
+Agent_9,8,Only House Elevation,True,False,False,0.16999999999999996,0.7000000000000001
+Agent_10,8,Only House Elevation,True,False,False,0.08000000000000003,0.7900000000000003
+Agent_11,8,Only House Elevation,True,False,False,0.16000000000000003,0.8500000000000003
+Agent_12,8,Only House Elevation,True,False,False,0.17,0.68
+Agent_13,8,Only House Elevation,True,False,False,0.27,0.7600000000000002
+Agent_14,8,Only House Elevation,True,False,False,0.21,0.8200000000000003
+Agent_15,8,Both Flood Insurance and House Elevation,True,True,False,0.32999999999999996,0.8100000000000003
+Agent_16,8,Only House Elevation,True,False,False,0.24999999999999997,0.7800000000000002
+Agent_17,8,Only House Elevation,True,False,False,0.2799999999999999,0.8400000000000003
+Agent_18,8,Only House Elevation,True,False,False,0.23,0.7400000000000001
+Agent_19,8,Only House Elevation,True,False,False,0.3899999999999999,0.68
+Agent_20,8,Only House Elevation,True,False,False,0.17000000000000007,0.7100000000000002
+Agent_21,8,Only House Elevation,True,False,False,0.35999999999999993,0.7000000000000001
+Agent_22,8,Only House Elevation,True,False,False,0.52,0.8000000000000003
+Agent_23,8,Both Flood Insurance and House Elevation,True,True,False,0.060000000000000026,0.8600000000000003
+Agent_24,8,Only House Elevation,True,False,False,0.51,0.8200000000000003
+Agent_25,8,Only House Elevation,True,False,False,0.11000000000000006,0.7900000000000003
+Agent_26,8,Only House Elevation,True,False,False,0.20000000000000004,0.67
+Agent_27,8,Only House Elevation,True,False,False,0.18000000000000002,0.7000000000000001
+Agent_28,8,Only House Elevation,True,False,False,0.13,0.8500000000000003
+Agent_29,8,Only House Elevation,True,False,False,0.32999999999999996,0.7400000000000001
+Agent_30,8,Only House Elevation,True,False,False,0.16000000000000003,0.7700000000000002
+Agent_31,8,Only House Elevation,True,False,False,0.3,0.7000000000000001
+Agent_32,8,Both Flood Insurance and House Elevation,True,True,False,0.4100000000000001,0.7200000000000002
+Agent_33,8,Only House Elevation,True,False,False,0.37999999999999995,0.8700000000000003
+Agent_34,8,Both Flood Insurance and House Elevation,True,True,False,0.30999999999999994,0.8500000000000003
+Agent_35,8,Only House Elevation,True,False,False,0.23,0.7800000000000002
+Agent_36,8,Only House Elevation,True,False,False,0.5700000000000001,0.68
+Agent_37,8,Only House Elevation,True,False,False,0.38,0.8300000000000003
+Agent_38,8,Only House Elevation,True,False,False,0.43999999999999995,0.7300000000000001
+Agent_39,8,Both Flood Insurance and House Elevation,True,True,False,0.52,0.7600000000000002
+Agent_40,8,Only House Elevation,True,False,False,0.15000000000000005,0.8400000000000003
+Agent_41,8,Only House Elevation,True,False,False,0.6100000000000001,0.67
+Agent_42,8,Both Flood Insurance and House Elevation,True,True,False,0.5,0.7400000000000001
+Agent_43,8,Only House Elevation,True,False,False,0.25999999999999995,0.7600000000000002
+Agent_44,8,Only House Elevation,True,False,False,0.39999999999999997,0.7200000000000002
+Agent_45,8,Only House Elevation,True,False,False,0.3499999999999999,0.7600000000000002
+Agent_46,8,Only Flood Insurance,False,True,False,0.45000000000000007,0.7600000000000002
+Agent_47,8,Only House Elevation,True,False,False,0.28,0.68
+Agent_48,8,Only House Elevation,True,False,False,0.3999999999999999,0.7200000000000002
+Agent_49,8,Only House Elevation,True,False,False,0.4199999999999999,0.8700000000000003
+Agent_50,8,Only House Elevation,True,False,False,0.35999999999999993,0.7600000000000002
+Agent_51,8,Only House Elevation,True,False,False,0.3399999999999999,0.7900000000000003
+Agent_52,8,Both Flood Insurance and House Elevation,True,True,False,0.41000000000000003,0.6900000000000001
+Agent_53,8,Both Flood Insurance and House Elevation,True,True,False,0.29000000000000004,0.7500000000000002
+Agent_54,8,Only House Elevation,True,False,False,0.24000000000000002,0.7400000000000001
+Agent_55,8,Both Flood Insurance and House Elevation,True,True,False,0.20999999999999988,0.7900000000000003
+Agent_56,8,Only House Elevation,True,False,False,0.3899999999999999,0.7000000000000001
+Agent_57,8,Only House Elevation,True,False,False,0.37,0.7300000000000001
+Agent_58,8,Only House Elevation,True,False,False,0.3099999999999999,0.8100000000000003
+Agent_59,8,Both Flood Insurance and House Elevation,True,True,False,0.24000000000000002,0.7000000000000001
+Agent_60,8,Only House Elevation,True,False,False,0.019999999999999993,0.7300000000000001
+Agent_61,8,Only House Elevation,True,False,False,0.23,0.67
+Agent_62,8,Both Flood Insurance and House Elevation,True,True,False,0.39,0.7300000000000001
+Agent_63,8,Only House Elevation,True,False,False,0.33000000000000007,0.6900000000000001
+Agent_64,8,Only House Elevation,True,False,False,0.35,0.7400000000000001
+Agent_65,8,Both Flood Insurance and House Elevation,True,True,False,0.13000000000000003,0.7300000000000001
+Agent_66,8,Only House Elevation,True,False,False,0.09000000000000002,0.7800000000000002
+Agent_67,8,Both Flood Insurance and House Elevation,True,True,False,0.33000000000000007,0.7200000000000002
+Agent_68,8,Only House Elevation,True,False,False,0.13,0.7500000000000002
+Agent_69,8,Both Flood Insurance and House Elevation,True,True,False,0.41000000000000003,0.7400000000000001
+Agent_70,8,Only House Elevation,True,False,False,0.32999999999999996,0.8300000000000003
+Agent_71,8,Both Flood Insurance and House Elevation,True,True,False,0.36,0.8100000000000003
+Agent_72,8,Only House Elevation,True,False,False,0.13000000000000006,0.7400000000000001
+Agent_73,8,Only House Elevation,True,False,False,0.3599999999999999,0.7000000000000001
+Agent_74,8,Only House Elevation,True,False,False,0.2,0.7600000000000002
+Agent_75,8,Only House Elevation,True,False,False,0.19000000000000003,0.7600000000000002
+Agent_76,8,Both Flood Insurance and House Elevation,True,True,False,0.09000000000000002,0.8000000000000003
+Agent_77,8,Only House Elevation,True,False,False,0.3499999999999999,0.7400000000000001
+Agent_78,8,Only House Elevation,True,False,False,0.47,0.67
+Agent_79,8,Only House Elevation,True,False,False,0.48,0.7900000000000003
+Agent_80,8,Only House Elevation,True,False,False,0.15000000000000005,0.7600000000000002
+Agent_81,8,Only House Elevation,True,False,False,0.30999999999999994,0.68
+Agent_82,8,Both Flood Insurance and House Elevation,True,True,False,0.14000000000000004,0.6900000000000001
+Agent_83,8,Both Flood Insurance and House Elevation,True,True,False,0.39,0.7100000000000002
+Agent_84,8,Only House Elevation,True,False,False,0.30999999999999994,0.7400000000000001
+Agent_85,8,Only House Elevation,True,False,False,0.26999999999999996,0.7500000000000002
+Agent_86,8,Only House Elevation,True,False,False,0.15000000000000002,0.8100000000000003
+Agent_87,8,Both Flood Insurance and House Elevation,True,True,False,0.56,0.8400000000000003
+Agent_88,8,Only House Elevation,True,False,False,0.4099999999999999,0.7400000000000001
+Agent_89,8,Only House Elevation,True,False,False,0.15000000000000005,0.8100000000000003
+Agent_90,8,Both Flood Insurance and House Elevation,True,True,False,0.23,0.67
+Agent_91,8,Both Flood Insurance and House Elevation,True,True,False,0.4100000000000001,0.7400000000000001
+Agent_92,8,Only House Elevation,True,False,False,0.30999999999999994,0.7400000000000001
+Agent_93,8,Only House Elevation,True,False,False,0.19000000000000003,0.7900000000000003
+Agent_94,8,Only House Elevation,True,False,False,0.21999999999999997,0.8300000000000003
+Agent_95,8,Both Flood Insurance and House Elevation,True,True,False,0.26,0.8000000000000003
+Agent_96,8,Only House Elevation,True,False,False,0.2000000000000001,0.8200000000000003
+Agent_97,8,Only House Elevation,True,False,False,0.3199999999999999,0.8000000000000003
+Agent_98,8,Both Flood Insurance and House Elevation,True,True,False,0.55,0.7800000000000002
+Agent_99,8,Both Flood Insurance and House Elevation,True,True,False,0.32999999999999996,0.7800000000000002
+Agent_100,8,Both Flood Insurance and House Elevation,True,True,False,0.21000000000000005,0.8000000000000003
+Agent_1,9,Both Flood Insurance and House Elevation,True,True,False,0.18000000000000002,0.7400000000000001
+Agent_2,9,Only House Elevation,True,False,False,0.10000000000000003,0.8300000000000003
+Agent_3,9,Only House Elevation,True,False,False,0.42999999999999994,0.7400000000000001
+Agent_4,9,Only House Elevation,True,False,False,0.21000000000000002,0.7400000000000001
+Agent_5,9,Both Flood Insurance and House Elevation,True,True,False,0.17000000000000004,0.7100000000000001
+Agent_6,9,Only House Elevation,True,False,False,0.2699999999999999,0.7400000000000001
+Agent_7,9,Only House Elevation,True,False,False,0.39,0.7300000000000001
+Agent_8,9,Only House Elevation,True,False,False,0.24000000000000002,0.7400000000000001
+Agent_9,9,Only House Elevation,True,False,False,0.14999999999999997,0.7400000000000001
+Agent_10,9,Only House Elevation,True,False,False,0.060000000000000026,0.8300000000000003
+Agent_11,9,Only House Elevation,True,False,False,0.14000000000000004,0.8900000000000003
+Agent_12,9,Only House Elevation,True,False,False,0.15000000000000002,0.7200000000000001
+Agent_13,9,Only House Elevation,True,False,False,0.25,0.8000000000000003
+Agent_14,9,Only House Elevation,True,False,False,0.19,0.8600000000000003
+Agent_15,9,Both Flood Insurance and House Elevation,True,True,False,0.35,0.8500000000000003
+Agent_16,9,Only House Elevation,True,False,False,0.22999999999999998,0.8200000000000003
+Agent_17,9,Only House Elevation,True,False,False,0.2599999999999999,0.8800000000000003
+Agent_18,9,Both Flood Insurance and House Elevation,True,True,False,0.25,0.7800000000000001
+Agent_19,9,Only House Elevation,True,False,False,0.3699999999999999,0.7200000000000001
+Agent_20,9,Both Flood Insurance and House Elevation,True,True,False,0.19000000000000006,0.7500000000000002
+Agent_21,9,Only House Elevation,True,False,False,0.3399999999999999,0.7400000000000001
+Agent_22,9,Only House Elevation,True,False,False,0.5,0.8400000000000003
+Agent_23,9,Only House Elevation,True,False,False,0.04000000000000002,0.9000000000000004
+Agent_24,9,Only House Elevation,True,False,False,0.49,0.8600000000000003
+Agent_25,9,Only House Elevation,True,False,False,0.09000000000000005,0.8300000000000003
+Agent_26,9,Both Flood Insurance and House Elevation,True,True,False,0.22000000000000003,0.7100000000000001
+Agent_27,9,Only House Elevation,True,False,False,0.16000000000000003,0.7400000000000001
+Agent_28,9,Only House Elevation,True,False,False,0.18,0.8900000000000003
+Agent_29,9,Only House Elevation,True,False,False,0.30999999999999994,0.7800000000000001
+Agent_30,9,Only House Elevation,True,False,False,0.14000000000000004,0.8100000000000003
+Agent_31,9,Only House Elevation,True,False,False,0.27999999999999997,0.7400000000000001
+Agent_32,9,Only House Elevation,True,False,False,0.39000000000000007,0.7600000000000002
+Agent_33,9,Only House Elevation,True,False,False,0.35999999999999993,0.9100000000000004
+Agent_34,9,Only House Elevation,True,False,False,0.2899999999999999,0.8900000000000003
+Agent_35,9,Only House Elevation,True,False,False,0.21000000000000002,0.8200000000000003
+Agent_36,9,Both Flood Insurance and House Elevation,True,True,False,0.5900000000000001,0.7200000000000001
+Agent_37,9,Only House Elevation,True,False,False,0.36,0.8700000000000003
+Agent_38,9,Only House Elevation,True,False,False,0.41999999999999993,0.7700000000000001
+Agent_39,9,Only House Elevation,True,False,False,0.5,0.8000000000000003
+Agent_40,9,Both Flood Insurance and House Elevation,True,True,False,0.17000000000000004,0.8800000000000003
+Agent_41,9,Both Flood Insurance and House Elevation,True,True,False,0.6300000000000001,0.7100000000000001
+Agent_42,9,Only House Elevation,True,False,False,0.48,0.7800000000000001
+Agent_43,9,Only House Elevation,True,False,False,0.23999999999999996,0.8000000000000003
+Agent_44,9,Only House Elevation,True,False,False,0.37999999999999995,0.7600000000000002
+Agent_45,9,Only House Elevation,True,False,False,0.3299999999999999,0.8000000000000003
+Agent_46,9,Only Flood Insurance,False,True,False,0.3500000000000001,0.8000000000000003
+Agent_47,9,Only House Elevation,True,False,False,0.26,0.7200000000000001
+Agent_48,9,Only House Elevation,True,False,False,0.3799999999999999,0.7600000000000002
+Agent_49,9,Only House Elevation,True,False,False,0.39999999999999986,0.9100000000000004
+Agent_50,9,Only House Elevation,True,False,False,0.3399999999999999,0.8000000000000003
+Agent_51,9,Both Flood Insurance and House Elevation,True,True,False,0.35999999999999993,0.8300000000000003
+Agent_52,9,Only House Elevation,True,False,False,0.39,0.7300000000000001
+Agent_53,9,Both Flood Insurance and House Elevation,True,True,False,0.31000000000000005,0.7900000000000003
+Agent_54,9,Only House Elevation,True,False,False,0.22000000000000003,0.7800000000000001
+Agent_55,9,Both Flood Insurance and House Elevation,True,True,False,0.22999999999999987,0.8300000000000003
+Agent_56,9,Only House Elevation,True,False,False,0.3699999999999999,0.7400000000000001
+Agent_57,9,Only House Elevation,True,False,False,0.35,0.7700000000000001
+Agent_58,9,Only House Elevation,True,False,False,0.28999999999999987,0.8500000000000003
+Agent_59,9,Both Flood Insurance and House Elevation,True,True,False,0.26,0.7400000000000001
+Agent_60,9,Both Flood Insurance and House Elevation,True,True,False,0.039999999999999994,0.7700000000000001
+Agent_61,9,Only House Elevation,True,False,False,0.21000000000000002,0.7100000000000001
+Agent_62,9,Both Flood Insurance and House Elevation,True,True,False,0.41000000000000003,0.7700000000000001
+Agent_63,9,Both Flood Insurance and House Elevation,True,True,False,0.3500000000000001,0.7300000000000001
+Agent_64,9,Only House Elevation,True,False,False,0.32999999999999996,0.7800000000000001
+Agent_65,9,Only House Elevation,True,False,False,0.11000000000000003,0.7700000000000001
+Agent_66,9,Only House Elevation,True,False,False,0.07000000000000002,0.8200000000000003
+Agent_67,9,Only House Elevation,True,False,False,0.31000000000000005,0.7600000000000002
+Agent_68,9,Only House Elevation,True,False,False,0.11,0.7900000000000003
+Agent_69,9,Only House Elevation,True,False,False,0.39,0.7800000000000001
+Agent_70,9,Only House Elevation,True,False,False,0.30999999999999994,0.8700000000000003
+Agent_71,9,Only House Elevation,True,False,False,0.33999999999999997,0.8500000000000003
+Agent_72,9,Both Flood Insurance and House Elevation,True,True,False,0.15000000000000005,0.7800000000000001
+Agent_73,9,Only House Elevation,True,False,False,0.33999999999999986,0.7400000000000001
+Agent_74,9,Both Flood Insurance and House Elevation,True,True,False,0.22,0.8000000000000003
+Agent_75,9,Only House Elevation,True,False,False,0.17000000000000004,0.8000000000000003
+Agent_76,9,Only House Elevation,True,False,False,0.07000000000000002,0.8400000000000003
+Agent_77,9,Only House Elevation,True,False,False,0.3299999999999999,0.7800000000000001
+Agent_78,9,Only House Elevation,True,False,False,0.44999999999999996,0.7100000000000001
+Agent_79,9,Both Flood Insurance and House Elevation,True,True,False,0.5,0.8300000000000003
+Agent_80,9,Only House Elevation,True,False,False,0.13000000000000006,0.8000000000000003
+Agent_81,9,Only House Elevation,True,False,False,0.2899999999999999,0.7200000000000001
+Agent_82,9,Only House Elevation,True,False,False,0.12000000000000004,0.7300000000000001
+Agent_83,9,Only House Elevation,True,False,False,0.37,0.7500000000000002
+Agent_84,9,Only House Elevation,True,False,False,0.2899999999999999,0.7800000000000001
+Agent_85,9,Only House Elevation,True,False,False,0.24999999999999997,0.7900000000000003
+Agent_86,9,Only House Elevation,True,False,False,0.13000000000000003,0.8500000000000003
+Agent_87,9,Both Flood Insurance and House Elevation,True,True,False,0.5800000000000001,0.8800000000000003
+Agent_88,9,Only House Elevation,True,False,False,0.3899999999999999,0.7800000000000001
+Agent_89,9,Only House Elevation,True,False,False,0.13000000000000006,0.8500000000000003
+Agent_90,9,Only House Elevation,True,False,False,0.21000000000000002,0.7100000000000001
+Agent_91,9,Only House Elevation,True,False,False,0.39000000000000007,0.7800000000000001
+Agent_92,9,Only House Elevation,True,False,False,0.2899999999999999,0.7800000000000001
+Agent_93,9,Only House Elevation,True,False,False,0.17000000000000004,0.8300000000000003
+Agent_94,9,Only House Elevation,True,False,False,0.19999999999999998,0.8700000000000003
+Agent_95,9,Both Flood Insurance and House Elevation,True,True,False,0.28,0.8400000000000003
+Agent_96,9,Both Flood Insurance and House Elevation,True,True,False,0.22000000000000008,0.8600000000000003
+Agent_97,9,Only House Elevation,True,False,False,0.2999999999999999,0.8400000000000003
+Agent_98,9,Only House Elevation,True,False,False,0.53,0.8200000000000003
+Agent_99,9,Both Flood Insurance and House Elevation,True,True,False,0.35,0.8200000000000003
+Agent_100,9,Only House Elevation,True,False,False,0.19000000000000006,0.8400000000000003
+Agent_1,10,Only House Elevation,True,False,False,0.16000000000000003,0.7800000000000001
+Agent_2,10,Both Flood Insurance and House Elevation,True,True,False,0.12000000000000004,0.8700000000000003
+Agent_3,10,Only House Elevation,True,False,False,0.4099999999999999,0.7800000000000001
+Agent_4,10,Only House Elevation,True,False,False,0.19000000000000003,0.7800000000000001
+Agent_5,10,Only House Elevation,True,False,False,0.15000000000000005,0.7500000000000001
+Agent_6,10,Only House Elevation,True,False,False,0.24999999999999992,0.7800000000000001
+Agent_7,10,Both Flood Insurance and House Elevation,True,True,False,0.41000000000000003,0.7700000000000001
+Agent_8,10,Both Flood Insurance and House Elevation,True,True,False,0.26,0.7800000000000001
+Agent_9,10,Both Flood Insurance and House Elevation,True,True,False,0.16999999999999996,0.7800000000000001
+Agent_10,10,Both Flood Insurance and House Elevation,True,True,False,0.08000000000000003,0.8700000000000003
+Agent_11,10,Both Flood Insurance and House Elevation,True,True,False,0.16000000000000003,0.9300000000000004
+Agent_12,10,Both Flood Insurance and House Elevation,True,True,False,0.17,0.7600000000000001
+Agent_13,10,Only House Elevation,True,False,False,0.23,0.8400000000000003
+Agent_14,10,Only House Elevation,True,False,False,0.17,0.9000000000000004
+Agent_15,10,Both Flood Insurance and House Elevation,True,True,False,0.37,0.8900000000000003
+Agent_16,10,Only House Elevation,True,False,False,0.21,0.8600000000000003
+Agent_17,10,Both Flood Insurance and House Elevation,True,True,False,0.2799999999999999,0.9200000000000004
+Agent_18,10,Both Flood Insurance and House Elevation,True,True,False,0.27,0.8200000000000002
+Agent_19,10,Only House Elevation,True,False,False,0.34999999999999987,0.7600000000000001
+Agent_20,10,Both Flood Insurance and House Elevation,True,True,False,0.21000000000000005,0.7900000000000003
+Agent_21,10,Only House Elevation,True,False,False,0.3199999999999999,0.7800000000000001
+Agent_22,10,Only House Elevation,True,False,False,0.48,0.8800000000000003
+Agent_23,10,Only House Elevation,True,False,False,0.02000000000000002,0.9400000000000004
+Agent_24,10,Both Flood Insurance and House Elevation,True,True,False,0.51,0.9000000000000004
+Agent_25,10,Both Flood Insurance and House Elevation,True,True,False,0.11000000000000006,0.8700000000000003
+Agent_26,10,Only House Elevation,True,False,False,0.20000000000000004,0.7500000000000001
+Agent_27,10,Both Flood Insurance and House Elevation,True,True,False,0.18000000000000002,0.7800000000000001
+Agent_28,10,Only House Elevation,True,False,False,0.16,0.9300000000000004
+Agent_29,10,Both Flood Insurance and House Elevation,True,True,False,0.32999999999999996,0.8200000000000002
+Agent_30,10,Only House Elevation,True,False,False,0.12000000000000004,0.8500000000000003
+Agent_31,10,Both Flood Insurance and House Elevation,True,True,False,0.3,0.7800000000000001
+Agent_32,10,Both Flood Insurance and House Elevation,True,True,False,0.4100000000000001,0.8000000000000003
+Agent_33,10,Both Flood Insurance and House Elevation,True,True,False,0.37999999999999995,0.9500000000000004
+Agent_34,10,Both Flood Insurance and House Elevation,True,True,False,0.30999999999999994,0.9300000000000004
+Agent_35,10,Both Flood Insurance and House Elevation,True,True,False,0.23,0.8600000000000003
+Agent_36,10,Both Flood Insurance and House Elevation,True,True,False,0.6100000000000001,0.7600000000000001
+Agent_37,10,Only House Elevation,True,False,False,0.33999999999999997,0.9100000000000004
+Agent_38,10,Both Flood Insurance and House Elevation,True,True,False,0.43999999999999995,0.8100000000000002
+Agent_39,10,Both Flood Insurance and House Elevation,True,True,False,0.52,0.8400000000000003
+Agent_40,10,Only House Elevation,True,False,False,0.15000000000000005,0.9200000000000004
+Agent_41,10,Both Flood Insurance and House Elevation,True,True,False,0.6500000000000001,0.7500000000000001
+Agent_42,10,Both Flood Insurance and House Elevation,True,True,False,0.5,0.8200000000000002
+Agent_43,10,Only House Elevation,True,False,False,0.21999999999999997,0.8400000000000003
+Agent_44,10,Both Flood Insurance and House Elevation,True,True,False,0.39999999999999997,0.8000000000000003
+Agent_45,10,Only House Elevation,True,False,False,0.3099999999999999,0.8400000000000003
+Agent_46,10,Only Flood Insurance,False,True,False,0.3700000000000001,0.8400000000000003
+Agent_47,10,Only House Elevation,True,False,False,0.24000000000000002,0.7600000000000001
+Agent_48,10,Only House Elevation,True,False,False,0.3599999999999999,0.8000000000000003
+Agent_49,10,Only House Elevation,True,False,False,0.37999999999999984,0.9500000000000004
+Agent_50,10,Both Flood Insurance and House Elevation,True,True,False,0.35999999999999993,0.8400000000000003
+Agent_51,10,Both Flood Insurance and House Elevation,True,True,False,0.37999999999999995,0.8700000000000003
+Agent_52,10,Both Flood Insurance and House Elevation,True,True,False,0.41000000000000003,0.7700000000000001
+Agent_53,10,Only House Elevation,True,False,False,0.29000000000000004,0.8300000000000003
+Agent_54,10,Both Flood Insurance and House Elevation,True,True,False,0.24000000000000002,0.8200000000000002
+Agent_55,10,Both Flood Insurance and House Elevation,True,True,False,0.24999999999999986,0.8700000000000003
+Agent_56,10,Only House Elevation,True,False,False,0.34999999999999987,0.7800000000000001
+Agent_57,10,Both Flood Insurance and House Elevation,True,True,False,0.37,0.8100000000000002
+Agent_58,10,Both Flood Insurance and House Elevation,True,True,False,0.3099999999999999,0.8900000000000003
+Agent_59,10,Both Flood Insurance and House Elevation,True,True,False,0.28,0.7800000000000001
+Agent_60,10,Both Flood Insurance and House Elevation,True,True,False,0.06,0.8100000000000002
+Agent_61,10,Both Flood Insurance and House Elevation,True,True,False,0.23,0.7500000000000001
+Agent_62,10,Both Flood Insurance and House Elevation,True,True,False,0.43000000000000005,0.8100000000000002
+Agent_63,10,Only House Elevation,True,False,False,0.33000000000000007,0.7700000000000001
+Agent_64,10,Both Flood Insurance and House Elevation,True,True,False,0.35,0.8200000000000002
+Agent_65,10,Both Flood Insurance and House Elevation,True,True,False,0.13000000000000003,0.8100000000000002
+Agent_66,10,Only House Elevation,True,False,False,0.05000000000000002,0.8600000000000003
+Agent_67,10,Only House Elevation,True,False,False,0.29000000000000004,0.8000000000000003
+Agent_68,10,Only House Elevation,True,False,False,0.09,0.8300000000000003
+Agent_69,10,Only House Elevation,True,False,False,0.37,0.8200000000000002
+Agent_70,10,Both Flood Insurance and House Elevation,True,True,False,0.32999999999999996,0.9100000000000004
+Agent_71,10,Only House Elevation,True,False,False,0.31999999999999995,0.8900000000000003
+Agent_72,10,Only House Elevation,True,False,False,0.13000000000000006,0.8200000000000002
+Agent_73,10,Both Flood Insurance and House Elevation,True,True,False,0.3599999999999999,0.7800000000000001
+Agent_74,10,Both Flood Insurance and House Elevation,True,True,False,0.24,0.8400000000000003
+Agent_75,10,Only House Elevation,True,False,False,0.15000000000000005,0.8400000000000003
+Agent_76,10,Both Flood Insurance and House Elevation,True,True,False,0.09000000000000002,0.8800000000000003
+Agent_77,10,Both Flood Insurance and House Elevation,True,True,False,0.3499999999999999,0.8200000000000002
+Agent_78,10,Both Flood Insurance and House Elevation,True,True,False,0.47,0.7500000000000001
+Agent_79,10,Both Flood Insurance and House Elevation,True,True,False,0.52,0.8700000000000003
+Agent_80,10,Only House Elevation,True,False,False,0.11000000000000006,0.8400000000000003
+Agent_81,10,Both Flood Insurance and House Elevation,True,True,False,0.30999999999999994,0.7600000000000001
+Agent_82,10,Both Flood Insurance and House Elevation,True,True,False,0.14000000000000004,0.7700000000000001
+Agent_83,10,Both Flood Insurance and House Elevation,True,True,False,0.39,0.7900000000000003
+Agent_84,10,Both Flood Insurance and House Elevation,True,True,False,0.30999999999999994,0.8200000000000002
+Agent_85,10,Both Flood Insurance and House Elevation,True,True,False,0.26999999999999996,0.8300000000000003
+Agent_86,10,Both Flood Insurance and House Elevation,True,True,False,0.15000000000000002,0.8900000000000003
+Agent_87,10,Both Flood Insurance and House Elevation,True,True,False,0.6000000000000001,0.9200000000000004
+Agent_88,10,Only House Elevation,True,False,False,0.3699999999999999,0.8200000000000002
+Agent_89,10,Only House Elevation,True,False,False,0.11000000000000006,0.8900000000000003
+Agent_90,10,Only House Elevation,True,False,False,0.19000000000000003,0.7500000000000001
+Agent_91,10,Both Flood Insurance and House Elevation,True,True,False,0.4100000000000001,0.8200000000000002
+Agent_92,10,Only House Elevation,True,False,False,0.2699999999999999,0.8200000000000002
+Agent_93,10,Both Flood Insurance and House Elevation,True,True,False,0.19000000000000003,0.8700000000000003
+Agent_94,10,Only House Elevation,True,False,False,0.18,0.9100000000000004
+Agent_95,10,Only House Elevation,True,False,False,0.26,0.8800000000000003
+Agent_96,10,Only House Elevation,True,False,False,0.2000000000000001,0.9000000000000004
+Agent_97,10,Only House Elevation,True,False,False,0.27999999999999986,0.8800000000000003
+Agent_98,10,Only House Elevation,True,False,False,0.51,0.8600000000000003
+Agent_99,10,Both Flood Insurance and House Elevation,True,True,False,0.37,0.8600000000000003
+Agent_100,10,Only House Elevation,True,False,False,0.17000000000000007,0.8800000000000003

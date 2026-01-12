@@ -1,0 +1,33 @@
+{
+  "experiment_name": "gpt-oss:latest",
+  "agent_types": {
+    "government": {
+      "total": 1,
+      "decisions": {
+        "maintain_subsidy": 1
+      }
+    },
+    "insurance": {
+      "total": 1,
+      "decisions": {
+        "maintain_premium": 1
+      }
+    },
+    "household_owner": {
+      "total": 4,
+      "decisions": {
+        "do_nothing": 4
+      }
+    },
+    "household_renter": {
+      "total": 1,
+      "decisions": {
+        "buy_contents_insurance": 1
+      }
+    }
+  },
+  "total_traces": 7,
+  "validation_errors": 0,
+  "validation_warnings": 0,
+  "finalized_at": "2026-01-12T11:18:42.223302"
+}
