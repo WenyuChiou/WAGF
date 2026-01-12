@@ -157,9 +157,10 @@ class SkillBrokerEngine:
         
         # Diagnostic summary for User
         if self.log_prompt: # Using existing flag as trigger for verbose logs
-            assessment = skill_proposal.assessment_data or {}
-            tp = assessment.get('TP_LABEL', 'N/A')
-            cp = assessment.get('CP_LABEL', 'N/A')
+            reasoning = skill_proposal.reasoning or {}
+            # Try to get labels with various possible keys
+            tp = reasoning.get('TP_LABEL') or reasoning.get('threat_appraisal') or reasoning.get('threat', 'N/A')
+            cp = reasoning.get('CP_LABEL') or reasoning.get('coping_appraisal') or reasoning.get('coping', 'N/A')
             print(f" [Adapter:Parsed] {agent_id} Choice: '{skill_proposal.skill_name}' | TP: {tp} | CP: {cp}")
             
             if not all_valid:
