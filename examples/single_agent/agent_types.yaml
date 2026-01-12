@@ -49,16 +49,16 @@ household:
     constructs:
       TP_LABEL:
         keywords: ["threat appraisal", "threat perception", "threat:", "tp:"]
-        regex: "(?:threat\\s*(?:appraisal|perception)?|tp)[:\\s]*\\[?(Medium|Moderate|Low|Med|High|L|M|H)\\]?"
+        regex: "(?:threat\\s*(?:appraisal|perception)?|tp)[:\\s]*\\[?(Medium|Moderate|Low|Med|High|L|M|H|L-H|MOD|M-H)\\]?"
       TP_REASON:
         keywords: ["threat appraisal", "threat perception"]
-        regex: "(?:threat\\s*(?:appraisal|perception)?)[:\\s]*\\[?(?:Medium|Moderate|Low|Med|High|L|M|H)\\]?[.,;:\\s]*(?:because|reason)?[:\\s]*(.+?)(?=\\n|coping|$)"
+        regex: "(?:threat\\s*(?:appraisal|perception)?)[:\\s]*\\[?(?:Medium|Moderate|Low|Med|High|L|M|H|L-H|MOD|M-H)\\]?[.,;:\\s]*(?:because|reason)?[:\\s]*(.+?)(?=\\n|coping|cp:|$)"
       CP_LABEL:
         keywords: ["coping appraisal", "coping perception", "coping:", "cp:"]
-        regex: "(?:coping\\s*(?:appraisal|perception)?|cp)[:\\s]*\\[?(Medium|Moderate|Low|Med|High|L|M|H)\\]?"
+        regex: "(?:coping\\s*(?:appraisal|perception)?|cp)[:\\s]*\\[?(Medium|Moderate|Low|Med|High|L|M|H|L-H|MOD|M-H)\\]?"
       CP_REASON:
         keywords: ["coping appraisal", "coping perception"]
-        regex: "(?:coping\\s*(?:appraisal|perception)?)[:\\s]*\\[?(?:Medium|Moderate|Low|Med|High|L|M|H)\\]?[.,;:\\s]*(?:because|reason)?[:\\s]*(.+?)(?=\\n|final|decision|$)"
+        regex: "(?:coping\\s*(?:appraisal|perception)?)[:\\s]*\\[?(?:Medium|Moderate|Low|Med|High|L|M|H|L-H|MOD|M-H)\\]?[.,;:\\s]*(?:because|reason)?[:\\s]*(.+?)(?=\\n|final|decision|final decision|$)"
 
   # Available Actions (mapped to Skill Registry IDs)
   actions:

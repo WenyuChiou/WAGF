@@ -46,21 +46,32 @@ Final Decision: {decision}"""
                 # Log a small snippet of the prompt
                 print(f"\n [LLM:Input] (len={len(prompt)}) Prompt begins: {repr(prompt[:100])}...")
             
-            try:
-                response = llm.invoke(prompt)
-                content = response.content
-                
-                if verbose:
-                    print(f" [LLM:Output] Raw Content: {repr(content[:200])}...")
-                
-                if not content or not content.strip():
-                    print(f" [LLM:Error] Model '{model}' returned empty content.")
-                    _LOGGER.error(f"Empty raw output from {model}")
-                return content
-            except Exception as e:
-                print(f" [LLM:Error] Exception during call to '{model}': {e}")
-                _LOGGER.exception(f"Exception during LLM invoke for {model}")
-                return ""
+            # Retry loop for empty responses (common with DeepSeek reasoning models)
+            max_llm_retries = 3
+            for attempt in range(max_llm_retries):
+                try:
+                    response = llm.invoke(prompt)
+                    content = response.content
+                    
+                    if verbose:
+                        print(f" [LLM:Output] Raw Content: {repr(content[:200] if content else '')}...")
+                    
+                    if content and content.strip():
+                        return content
+                    else:
+                        if attempt < max_llm_retries - 1:
+                            print(f" [LLM:Retry] Model '{model}' returned empty content. Retrying ({attempt+1}/{max_llm_retries})...")
+                        else:
+                            print(f" [LLM:Error] Model '{model}' returned empty content after {max_llm_retries} attempts.")
+                            _LOGGER.error(f"Empty raw output from {model} after {max_llm_retries} attempts")
+                            return ""
+                except Exception as e:
+                    print(f" [LLM:Error] Exception during call to '{model}': {e}")
+                    _LOGGER.exception(f"Exception during LLM invoke for {model}")
+                    if attempt < max_llm_retries - 1:
+                        continue
+                    return ""
+            return ""
         
         return invoke
     except ImportError:

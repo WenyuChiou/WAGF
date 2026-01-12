@@ -119,20 +119,30 @@ class SkillBrokerEngine:
         else:
             memory_pre = list(raw_mem).copy() if raw_mem else []
         
-        # ② LLM output → ModelAdapter → SkillProposal
+        # ② LLM output → ModelAdapter → SkillProposal (with retry for empty/failed parse)
         prompt = self.context_builder.format_prompt(context)
-        raw_output = llm_invoke(prompt)
         
-        # Pass the full context to model adapter for smart variant resolution
-        skill_proposal = self.model_adapter.parse_output(raw_output, {
-            "agent_id": agent_id,
-            "agent_type": agent_type,
-            **context  # Pass all context flags (elevated, etc.)
-        })
+        skill_proposal = None
+        raw_output = ""
+        initial_attempts = 0
+        max_initial_attempts = 2  # Retry up to 2 times for purely parsing/empty issues
+        
+        while initial_attempts <= max_initial_attempts and not skill_proposal:
+            raw_output = llm_invoke(prompt)
+            skill_proposal = self.model_adapter.parse_output(raw_output, {
+                "agent_id": agent_id,
+                "agent_type": agent_type,
+                **context
+            })
+            if not skill_proposal:
+                initial_attempts += 1
+                if initial_attempts <= max_initial_attempts:
+                    print(f" [LLM:Retry] No parsable output from {agent_id}. Retrying ({initial_attempts}/{max_initial_attempts})...")
         
         if skill_proposal is None:
             self.stats["aborted"] += 1
-            return self._create_result(SkillOutcome.ABORTED, None, None, None, ["Parse error"])
+            print(f" [LLM:Error] Model returned unparsable output after {max_initial_attempts+1} attempts for {agent_id}.")
+            return self._create_result(SkillOutcome.ABORTED, None, None, None, ["Parse error after retries"])
         
         # ③ Skill validation
         validation_context = {

@@ -415,16 +415,16 @@ def deepseek_preprocessor(text: str) -> str:
     cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
     
     # 3. If cleaned is empty or very short, extract from inside think tags
-    if not cleaned or len(cleaned) < 30:
+    if not cleaned or len(cleaned) < 20:
         # Find think content
         think_match = re.search(r'<think>(.*?)(?:</think>|$)', text, flags=re.DOTALL)
         if think_match:
             inner = think_match.group(1).strip()
             
             # Look for the final answer section within think
-            # DeepSeek often puts "Final Decision" or answer at the end of think block
             decision_patterns = [
-                r'(threat appraisal.*?final decision.*)',  # Full answer block
+                r'(threat appraisal.*?final decision:?\s*\d+.*)',  # Numerical decision
+                r'(threat appraisal.*?final decision:?\s*\w+.*)',  # Named decision
                 r'(final decision:?\s*.+)',  # Just decision
                 r'(決策|decision)[:：]\s*(.+)',  # With Chinese
             ]
@@ -433,17 +433,16 @@ def deepseek_preprocessor(text: str) -> str:
                 if match:
                     return match.group(0).strip()
             
-            # If inner has any decision-like content, use it
+            # If inner has any decision-like content, take the end of it
             keywords = ['decide', 'decision', 'appraisal', 'threat', 'coping', '1', '2', '3', '4']
             if any(kw in inner.lower() for kw in keywords):
-                # Take last 500 chars where answer usually is
-                return inner[-500:] if len(inner) > 500 else inner
+                return inner[-800:] if len(inner) > 800 else inner
             
             # Return inner if cleaned is empty
-            if not cleaned:
+            if not cleaned and inner:
                 return inner
     
-    return cleaned
+    return cleaned if cleaned else text # Fallback to original text if everything failed
 
 
 def json_preprocessor(text: str) -> str:
