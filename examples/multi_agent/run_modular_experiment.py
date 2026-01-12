@@ -140,12 +140,21 @@ class InstitutionalAgent:
         return self.agent_id
 
 
-class GovernmentAgent(InstitutionalAgent):
-    """Government (FEMA) agent."""
-    def __init__(self, agent_id: str = "FEMA"):
+class StateGovernmentAgent(InstitutionalAgent):
+    """
+    State Government agent (FEMA partner).
+    
+    Manages adaptation subsidies for households, particularly MG households.
+    
+    References:
+    - FEMA Individual Assistance grants: ~75% federal / 25% state cost share
+    - Hazard Mitigation Grant Program (HMGP): up to 75% federal funding
+    - Increased Cost of Compliance (ICC): up to $30,000 for elevation
+    """
+    def __init__(self, agent_id: str = "NJ_STATE"):
         super().__init__(agent_id, "government")
-        self.subsidy_rate = 0.50  # Initial 50% subsidy
-        self.annual_budget = 500_000
+        self.subsidy_rate = 0.50  # Initial 50% subsidy (literature: 20-75%)
+        self.annual_budget = 500_000  # State allocation
         self.budget_remaining = self.annual_budget
     
     def get_available_skills(self) -> List[str]:
@@ -163,19 +172,31 @@ class GovernmentAgent(InstitutionalAgent):
         }
 
 
-class InsuranceAgent(InstitutionalAgent):
-    """Insurance (NFIP) agent."""
-    def __init__(self, agent_id: str = "NFIP"):
+class FEMAInsuranceAgent(InstitutionalAgent):
+    """
+    FEMA/NFIP Insurance agent.
+    
+    National Flood Insurance Program - manages flood insurance policies.
+    
+    References:
+    - NFIP premium rates: typically 1-3% of coverage value
+    - Maximum coverage: $250K building, $100K contents
+    - Average claim payout: ~$52,000 (FEMA data 2019)
+    - Risk Rating 2.0: actuarially sound pricing (2021+)
+    """
+    def __init__(self, agent_id: str = "FEMA_NFIP"):
         super().__init__(agent_id, "insurance")
-        self.premium_rate = 0.05  # 5% of coverage
+        self.premium_rate = 0.02  # 2% of coverage (literature range: 1-3%)
         self.loss_ratio = 0.0
         self.claims_paid = 0.0
         self.policies_count = 0
+        self.max_building_coverage = 250_000  # NFIP limit
+        self.max_contents_coverage = 100_000  # NFIP limit
     
     def get_available_skills(self) -> List[str]:
         return [
-            "raise_premium: Increase premium rate",
-            "lower_premium: Decrease premium rate",
+            "raise_premium: Increase premium rate (Risk Rating 2.0)",
+            "lower_premium: Decrease premium rate for affordability",
             "maintain_premium: Keep current premium rate"
         ]
     
@@ -186,6 +207,11 @@ class InsuranceAgent(InstitutionalAgent):
             "loss_ratio": self.loss_ratio,
             "policies_count": self.policies_count
         }
+
+
+# Legacy aliases for backward compatibility
+GovernmentAgent = StateGovernmentAgent
+InsuranceAgent = FEMAInsuranceAgent
 
 
 # =============================================================================
@@ -317,8 +343,8 @@ def run_multi_agent_experiment(
         hh.elevated = hh.profile.elevated
     
     # 2. Create institutional agents
-    government = GovernmentAgent("FEMA")
-    insurance = InsuranceAgent("NFIP")
+    government = StateGovernmentAgent("NJ_STATE")
+    insurance = FEMAInsuranceAgent("FEMA_NFIP")
     
     # 3. Build agent map
     all_agents = {hh.id: hh for hh in households}
