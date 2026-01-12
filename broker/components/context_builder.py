@@ -25,6 +25,13 @@ class SafeFormatter(string.Formatter):
             return kwargs.get(key, self.placeholder)
         return super().get_value(key, args, kwargs)
 
+    def format_field(self, value, format_spec):
+        try:
+            return super().format_field(value, format_spec)
+        except (ValueError, TypeError):
+            # Fallback to string representation if formatting fails (e.g. string vs numeric code)
+            return str(value)
+
 
 class ContextBuilder(ABC):
     """
@@ -78,6 +85,12 @@ class AttributeProvider(ContextProvider):
         
         if hasattr(agent, 'get_observable_state'):
             state.update(agent.get_observable_state())
+        if hasattr(agent, 'fixed_attributes'):
+             state.update({k: v for k, v in agent.fixed_attributes.items() 
+                           if isinstance(v, (str, int, float, bool))})
+        if hasattr(agent, 'dynamic_state'):
+             state.update({k: v for k, v in agent.dynamic_state.items() 
+                           if isinstance(v, (str, int, float, bool))})
         if hasattr(agent, 'custom_attributes'):
             state.update(agent.custom_attributes)
         

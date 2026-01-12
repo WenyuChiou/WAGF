@@ -158,10 +158,17 @@ class SkillBrokerEngine:
         # Diagnostic summary for User
         if self.log_prompt: # Using existing flag as trigger for verbose logs
             reasoning = skill_proposal.reasoning or {}
-            # Try to get labels with various possible keys
+            # Try to get labels (checking both internal labels and common key aliases)
             tp = reasoning.get('TP_LABEL') or reasoning.get('threat_appraisal') or reasoning.get('threat', 'N/A')
             cp = reasoning.get('CP_LABEL') or reasoning.get('coping_appraisal') or reasoning.get('coping', 'N/A')
-            print(f" [Adapter:Parsed] {agent_id} Choice: '{skill_proposal.skill_name}' | TP: {tp} | CP: {cp}")
+            
+            # Formulate label strings, including optional multi-agent constructs
+            label_parts = [f"TP: {tp}", f"CP: {cp}"]
+            for c in ['SP_LABEL', 'SC_LABEL', 'PA_LABEL']:
+                if val := reasoning.get(c):
+                    label_parts.append(f"{c[:2]}: {val}")
+            
+            print(f" [Adapter:Parsed] {agent_id} Choice: '{skill_proposal.skill_name}' | {' | '.join(label_parts)}")
             
             if not all_valid:
                 errors = [e for v in validation_results for e in v.errors]
@@ -241,7 +248,14 @@ class SkillBrokerEngine:
             print(f"[Governance:Summary] {agent_id} | Result: {outcome.value} | Retries: {retry_count} | Final Skill: {approved_skill.skill_name}")
         
         # ⑤ Execution (simulation engine ONLY)
-        execution_result = self.simulation_engine.execute_skill(approved_skill)
+        if self.simulation_engine:
+            execution_result = self.simulation_engine.execute_skill(approved_skill)
+        else:
+            # Standalone mode: Default to pseudo-execution
+            execution_result = ExecutionResult(
+                success=True,
+                state_changes={}
+            )
         
         # ⑥ Audit trace
         if self.audit_writer:

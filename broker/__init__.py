@@ -10,7 +10,7 @@ from .utils.agent_config import load_agent_config, ValidationRule, CoherenceRule
 from .utils.data_loader import load_agents_from_csv
 
 # 3. Components (Dependent on interfaces/utils)
-from .components.memory_engine import MemoryEngine, WindowMemoryEngine, ImportanceMemoryEngine
+from .components.memory_engine import MemoryEngine, WindowMemoryEngine, ImportanceMemoryEngine, HumanCentricMemoryEngine
 from .components.skill_registry import SkillRegistry
 from .components.context_builder import (
     ContextBuilder, BaseAgentContextBuilder, TieredContextBuilder, 

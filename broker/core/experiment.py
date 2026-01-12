@@ -17,12 +17,13 @@ from ..utils.agent_config import GovernanceAuditor
 @dataclass
 class ExperimentConfig:
     """Configuration container for an experiment."""
-    model: str
-    num_years: int
+    model: str = "gpt-4"
+    num_years: int = 1
     governance_profile: str = "default"
     output_dir: Path = Path("results")
     experiment_name: str = "modular_exp"
     seed: int = 42
+    verbose: bool = False
 
 class ExperimentRunner:
     """Engine that runs the simulation loop."""
@@ -41,10 +42,18 @@ class ExperimentRunner:
         self.memory_engine = memory_engine or WindowMemoryEngine(window_size=3)
         self.hooks = hooks or {}
         
-        self.hooks = hooks or {}
+        # Sync verbosity
+        self.broker.log_prompt = self.config.verbose
 
-    def run(self, llm_invoke: Callable):
+    @property
+    def llm_invoke(self) -> Callable:
+        """Create a default llm_invoke based on config."""
+        from broker.utils.llm_utils import create_llm_invoke
+        return create_llm_invoke(self.config.model, verbose=self.config.verbose)
+
+    def run(self, llm_invoke: Optional[Callable] = None):
         """Standardized simulation loop."""
+        llm_invoke = llm_invoke or self.llm_invoke
         run_id = f"exp_{random.randint(1000, 9999)}"
         print(f"Starting Experiment: {self.config.experiment_name} | Model: {self.config.model}")
         
@@ -59,13 +68,12 @@ class ExperimentRunner:
                     print(f"[Governance:Diagnostic] {issue}")
         
         for year in range(1, self.config.num_years + 1):
-            env = self.sim_engine.advance_year()
+            env = self.sim_engine.advance_year() if self.sim_engine else {}
             print(f"--- Year {year} ---")
             
             # --- Lifecycle Hook: Pre-Year ---
             if "pre_year" in self.hooks:
-                hook_ctx = type('HookContext', (), {'event': 'pre_year', 'year': year, 'env': env, 'agents': self.agents})
-                self.hooks["pre_year"](hook_ctx)
+                self.hooks["pre_year"](year, env, self.agents)
             
             # Filter only active agents (Generic approach)
             active_agents = [
@@ -99,10 +107,12 @@ class ExperimentRunner:
             
             self._finalize_year(year)
         
-        # 4. Finalize Experiment - Save Governance Summary
-        auditor = GovernanceAuditor()
+        # 4. Finalize Experiment
+        if hasattr(self.broker.audit_writer, 'finalize'):
+            self.broker.audit_writer.finalize()
+            
         summary_path = self.config.output_dir / "governance_summary.json"
-        auditor.save_summary(summary_path)
+        self.broker.auditor.save_summary(summary_path)
 
     def _apply_state_changes(self, agent: BaseAgent, result: Any):
         """Update agent attributes and memory from execution results."""
@@ -134,10 +144,15 @@ class ExperimentBuilder:
         self.output_base = Path("results")
         self.ctx_builder = None
         self.memory_engine = None
+        self.verbose = False
         self.hooks = {}
 
     def with_model(self, model: str):
         self.model = model
+        return self
+    
+    def with_verbose(self, verbose: bool = True):
+        self.verbose = verbose
         return self
     
     def with_context_builder(self, builder: Any):
@@ -268,14 +283,20 @@ class ExperimentBuilder:
             validators=[validator],
             simulation_engine=self.sim_engine,
             context_builder=ctx_builder,
-            audit_writer=audit_writer
+            audit_writer=audit_writer,
+            log_prompt=self.verbose
         )
         
+        # PR 11: Pass active project dir to adapter
+        if hasattr(adapter, 'project_dir') and self.agent_types_path:
+            adapter.project_dir = Path(self.agent_types_path).parent
+
         exp_config = ExperimentConfig(
             model=self.model,
             num_years=self.num_years,
             governance_profile=self.profile,
-            output_dir=self.output_base
+            output_dir=self.output_base,
+            verbose=self.verbose
         )
         
         runner = ExperimentRunner(

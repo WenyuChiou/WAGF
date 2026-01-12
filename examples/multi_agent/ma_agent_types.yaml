@@ -75,6 +75,39 @@ household:
         keywords: ["pa assessment", "place attachment", "pa:"]
         regex: "(?:pa\\s*(?:assessment|perception)?|place\\s*attachment)[^.]*?\\[?(LOW|MODERATE|MEDIUM|MED|HIGH|L|M|H)\\]?"
 
+  # Governance Rules
+  identity_rules:
+    tenure_elevation_block:
+      precondition: "tenure == 'Renter'"
+      blocked_skills: ["elevate_house"]
+      message: "[Rule: tenure_constraint] Renters cannot elevate house (they don't own the structure)"
+    tenure_buyout_block:
+      precondition: "tenure == 'Renter'"
+      blocked_skills: ["buyout_program"]
+      message: "[Rule: tenure_constraint] Renters cannot participate in buyout program (Owner-only action)"
+    owner_relocate_block:
+      precondition: "tenure == 'Owner'"
+      blocked_skills: ["relocate"]
+      message: "[Rule: tenure_constraint] Owners cannot relocate directly (use buyout_program instead)"
+    already_elevated_block:
+      precondition: elevated
+      blocked_skills: ["elevate_house"]
+      message: "[Rule: status_constraint] House is already elevated (cannot elevate twice)"
+
+  thinking_rules:
+    urgency_check:
+      construct: TP_LABEL
+      when_above: ["H"]
+      blocked_skills: ["do_nothing"]
+      level: ERROR
+      message: "[Rule: urgency_check] Logic Error: High Threat but inaction chosen."
+    coping_alignment:
+      construct: CP_LABEL
+      when_above: ["L"]
+      blocked_skills: ["elevate_house", "relocate", "buyout_program"]
+      level: ERROR
+      message: "[Rule: coping_alignment] Logic Error: Low Coping but expensive action attempted."
+
   # Available Actions (mapped to MultiAgentValidator skills)
   actions:
     - id: buy_insurance
@@ -89,9 +122,16 @@ household:
       description: "Independently relocate to a safer rental property"
     - id: do_nothing
       description: "Do nothing this year and maintain current status"
+    - id: already_relocated
+      description: "Maintain status in new location"
 
 government:
   description: "State government managing adaptation subsidies"
+  identity_rules:
+    budget_depleted:
+      precondition: "budget_remaining < 10000"
+      blocked_skills: ["increase_subsidy"]
+      message: "[Rule: budget_constraint] Cannot increase subsidy with depleted budget"
   actions:
     - id: increase_subsidy
       description: "Increase the subsidy rate for elevation grants"
@@ -102,6 +142,11 @@ government:
 
 insurance:
   description: "Insurance company managing premiums"
+  identity_rules:
+    loss_limit:
+      precondition: "loss_ratio > 1.0"
+      blocked_skills: ["lower_premium"]
+      message: "[Rule: solvency_constraint] Cannot lower premium when loss ratio exceeds 100%"
   actions:
     - id: raise_premium
       description: "Raise annual flood insurance premiums"
