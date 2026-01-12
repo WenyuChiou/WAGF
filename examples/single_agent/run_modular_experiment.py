@@ -254,7 +254,12 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         "trust_in_neighbors": "trust_in_neighbors", "flood_threshold": "flood_threshold",
         "memory": "memory"
     })
-    agents = {aid: agents[aid] for aid in sorted(agents.keys())[:agents_count]}
+    import re
+    def natural_key(string_):
+        """Helper for natural sorting (Agent_1, Agent_2, Agent_10...)"""
+        return [int(s) if s.isdigit() else s for s in re.split(r'(\d+)', string_)]
+
+    agents = {aid: agents[aid] for aid in sorted(agents.keys(), key=natural_key)[:agents_count]}
     for a in agents.values(): 
         a.flood_history = []
         a.agent_type = "household"
