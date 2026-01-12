@@ -1,0 +1,111 @@
+household:
+  description: "Household agents making adaptation decisions based on PMT in a multi-agent setting"
+
+  # Multi-Agent specific prompt template (including 5 constructs)
+  prompt_template: |
+    You are a resident in a flood-prone area, with a {tenure} status and a strong attachment to your community. {elevation_status_text}
+    Your memory includes:
+    {memory}
+
+    You currently {insurance_status} flood insurance.
+    You {trust_insurance_text} the insurance company. You {trust_neighbors_text} your neighbors' judgment.
+
+    Current economic context:
+    - Your annual income: ${income:,.0f}
+    - Your property value: ${property_value:,.0f}
+    - Government subsidy rate for elevation: {subsidy_rate:.0%}
+    - Flood insurance premium rate: {premium_rate:.2%}
+
+    Using the Protection Motivation Theory and PADM, evaluate your situation:
+    - TP (Threat Perception): Assessment of severity and vulnerability based on past floods.
+    - CP (Coping Perception): Assessment of your financial and technical ability to adapt.
+    - SP (Stakeholder Perception): Trust in government subsidies and insurance payouts.
+    - SC (Social Capital): Influence from neighbors and community support.
+    - PA (Place Attachment): Emotional bond and motivation to stay vs. relocate.
+
+    Now, choose one of the following actions:
+    {options_text}
+                                                                                                   
+    Please respond using the exact format below:
+    TP Assessment: [LOW/MODERATE/HIGH] because [explanation]
+    CP Assessment: [LOW/MODERATE/HIGH] because [explanation]
+    SP Assessment: [LOW/MODERATE/HIGH] because [explanation]
+    SC Assessment: [LOW/MODERATE/HIGH] because [explanation]
+    PA Assessment: [LOW/MODERATE/HIGH] because [explanation]
+    Final Decision: [number from options]
+    Reasoning: [Brief justification]
+
+  # Parsing & Skill Mapping
+  parsing:
+    decision_keywords: ["final decision:", "decision:"]
+    default_skill: "do_nothing"
+
+    # Multi-Agent Skill Mapping
+    skill_map_owner_non_elevated:
+      "1": "do_nothing"
+      "2": "buy_insurance"
+      "3": "elevate_house"
+      "4": "buyout_program"
+
+    skill_map_owner_elevated:
+      "1": "do_nothing"
+      "2": "buy_insurance"
+      "3": "buyout_program"
+
+    skill_map_renter:
+      "1": "do_nothing"
+      "2": "buy_contents_insurance"
+      "3": "relocate"
+
+    # Construct mappings (for 5-construct multi-agent system)
+    constructs:
+      TP_LABEL:
+        keywords: ["tp assessment", "threat perception", "tp:"]
+        regex: "(?:tp\\s*(?:assessment|perception)?|threat\\s*perception)[^.]*?\\[?(LOW|MODERATE|MEDIUM|MED|HIGH|L|M|H)\\]?"
+      CP_LABEL:
+        keywords: ["cp assessment", "coping perception", "cp:"]
+        regex: "(?:cp\\s*(?:assessment|perception)?|coping\\s*perception)[^.]*?\\[?(LOW|MODERATE|MEDIUM|MED|HIGH|L|M|H)\\]?"
+      SP_LABEL:
+        keywords: ["sp assessment", "stakeholder perception", "sp:"]
+        regex: "(?:sp\\s*(?:assessment|perception)?|stakeholder\\s*perception)[^.]*?\\[?(LOW|MODERATE|MEDIUM|MED|HIGH|L|M|H)\\]?"
+      SC_LABEL:
+        keywords: ["sc assessment", "social capital", "sc:"]
+        regex: "(?:sc\\s*(?:assessment|perception)?|social\\s*capital)[^.]*?\\[?(LOW|MODERATE|MEDIUM|MED|HIGH|L|M|H)\\]?"
+      PA_LABEL:
+        keywords: ["pa assessment", "place attachment", "pa:"]
+        regex: "(?:pa\\s*(?:assessment|perception)?|place\\s*attachment)[^.]*?\\[?(LOW|MODERATE|MEDIUM|MED|HIGH|L|M|H)\\]?"
+
+  # Available Actions (mapped to MultiAgentValidator skills)
+  actions:
+    - id: buy_insurance
+      description: "Buy/Renew full flood insurance for building and contents"
+    - id: buy_contents_insurance
+      description: "Buy/Renew contents-only insurance (Renter option)"
+    - id: elevate_house
+      description: "Elevate your house by 5 feet above base flood elevation"
+    - id: buyout_program
+      description: "Participate in government buyout and relocate safely"
+    - id: relocate
+      description: "Independently relocate to a safer rental property"
+    - id: do_nothing
+      description: "Do nothing this year and maintain current status"
+
+government:
+  description: "State government managing adaptation subsidies"
+  actions:
+    - id: increase_subsidy
+      description: "Increase the subsidy rate for elevation grants"
+    - id: decrease_subsidy
+      description: "Decrease the subsidy rate due to budget constraints"
+    - id: maintain_subsidy
+      description: "Maintain the current subsidy rate"
+
+insurance:
+  description: "Insurance company managing premiums"
+  actions:
+    - id: raise_premium
+      description: "Raise annual flood insurance premiums"
+    - id: lower_premium
+      description: "Lower annual flood insurance premiums"
+    - id: maintain_premium
+      description: "Maintain current premium levels"

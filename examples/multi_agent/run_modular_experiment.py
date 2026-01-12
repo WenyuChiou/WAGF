@@ -38,11 +38,13 @@ from broker.components.context_builder import TieredContextBuilder
 from broker.components.skill_registry import SkillRegistry
 from broker.components.audit_writer import AuditWriter, AuditConfig
 from broker.utils.llm_utils import create_llm_invoke
+from broker.utils.model_adapter import UnifiedAdapter
 
-# Local imports (use sys.path for examples/multi_agent)
+# Local imports
 MULTI_AGENT_DIR = Path(__file__).parent
 sys.path.insert(0, str(MULTI_AGENT_DIR))
 from generate_agents import generate_agents, HouseholdProfile
+from ma_validators.multi_agent_validators import MultiAgentValidator, ValidationResult
 
 # Import from config submodule
 from examples.multi_agent.config.schemas import FIVE_CONSTRUCTS, CONSTRUCT_DECISION_MAP
@@ -126,6 +128,10 @@ class HouseholdAgentState:
             "cumulative_damage": self.cumulative_damage,
             "memory": self.memory
         }
+
+    def get_all_state_raw(self) -> Dict[str, Any]:
+        """Validator-compatible raw state."""
+        return self.to_dict()
 
 
 class InstitutionalAgent:
@@ -379,8 +385,13 @@ def run_multi_agent_experiment(
     # 6. Create context builder
     context_builder = MultiAgentContextBuilder(all_agents, memory_engine, environment)
     
-    # 7. Initialize LLM
+    # 7. Initialize LLM and Adapter
     llm_invoke = create_llm_invoke(model)
+    
+    # Load multi-agent specific configuration
+    ma_config_path = MULTI_AGENT_DIR / "ma_agent_types.yaml"
+    adapter = UnifiedAdapter(agent_type="household", config_path=str(ma_config_path))
+    validator = MultiAgentValidator()
     
     # 8. Initialize audit
     output_path = Path(output_dir)
@@ -414,40 +425,58 @@ def run_multi_agent_experiment(
             context = context_builder.build(hh.id)
             prompt = context_builder.format_prompt(context)
             
-            # Get LLM response
-            try:
-                response = llm_invoke(prompt)
-            except Exception as e:
-                response = f"TP Assessment: MODERATE\nCP Assessment: MODERATE\nSP Assessment: MODERATE\nSC Assessment: MODERATE\nPA Assessment: MODERATE\nFinal Decision: {len(hh.get_available_skills())}\nReasoning: Default fallback"
+            # Validation & Retry Loop
+            max_retries = 2
+            attempts = 0
+            final_decision = "do_nothing"
+            final_constructs = {}
+            validated = False
+            error_msg = ""
             
-            # Parse decision (simple extraction)
-            decision = "do_nothing"
-            tp_level = "MODERATE"
-            cp_level = "MODERATE"
+            while attempts <= max_retries and not validated:
+                # Add error feedback to prompt if retry
+                current_prompt = prompt
+                if attempts > 0:
+                    current_prompt = adapter.format_retry_prompt(prompt, [error_msg])
+                
+                # Get LLM response
+                try:
+                    raw_response = llm_invoke(current_prompt)
+                except Exception as e:
+                    raw_response = ""
+                
+                # Parse using central adapter
+                proposal = adapter.parse_output(raw_response, {"agent_type": "household", "elevation_status": "elevated" if hh.elevated else "non_elevated"})
+                
+                if proposal:
+                    decision = proposal.skill_name
+                    constructs = proposal.reasoning  # TP_LABEL, CP_LABEL, etc.
+                    
+                    # Map constructs for validator (TP_LABEL -> TP)
+                    val_constructs = {
+                        "TP": constructs.get("TP_LABEL", "MODERATE"),
+                        "CP": constructs.get("CP_LABEL", "MODERATE"),
+                        "SP": constructs.get("SP_LABEL", "MODERATE"),
+                        "SC": constructs.get("SC_LABEL", "MODERATE"),
+                        "PA": constructs.get("PA_LABEL", "MODERATE")
+                    }
+                    
+                    # Validate
+                    res = validator.validate(decision, hh.get_all_state_raw(), val_constructs)
+                    
+                    if res.valid:
+                        final_decision = decision
+                        final_constructs = val_constructs
+                        validated = True
+                    else:
+                        error_msg = "; ".join(res.errors)
+                        attempts += 1
+                else:
+                    error_msg = "Could not parse decision format"
+                    attempts += 1
             
-            if response:
-                lines = response.split('\n')
-                for line in lines:
-                    if "Final Decision:" in line:
-                        try:
-                            dec_num = int(line.split(":")[-1].strip().split()[0]) - 1
-                            skills = hh.get_available_skills()
-                            if 0 <= dec_num < len(skills):
-                                decision = skills[dec_num].split(":")[0]
-                        except:
-                            pass
-                    if "TP Assessment:" in line:
-                        for level in ["LOW", "MODERATE", "HIGH"]:
-                            if level in line.upper():
-                                tp_level = level
-                                break
-                    if "CP Assessment:" in line:
-                        for level in ["LOW", "MODERATE", "HIGH"]:
-                            if level in line.upper():
-                                cp_level = level
-                                break
-            
-            # Apply decision
+            # Application
+            decision = final_decision
             if decision == "buy_insurance" or decision == "buy_contents_insurance":
                 hh.has_insurance = True
                 memory_engine.add_memory(hh.id, f"Year {year}: I purchased flood insurance")
@@ -468,8 +497,10 @@ def run_multi_agent_experiment(
                 "agent_id": hh.id,
                 "agent_type": hh.agent_type,
                 "decision": decision,
-                "tp_level": tp_level,
-                "cp_level": cp_level,
+                "tp_level": final_constructs.get("TP", "MODERATE"),
+                "cp_level": final_constructs.get("CP", "MODERATE"),
+                "validated": validated,
+                "retries": attempts,
                 "elevated": hh.elevated,
                 "has_insurance": hh.has_insurance,
                 "relocated": hh.relocated
