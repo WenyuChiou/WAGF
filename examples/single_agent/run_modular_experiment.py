@@ -282,12 +282,6 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         memory_engine = ImportanceMemoryEngine(
             window_size=3,
             top_k_significant=2,
-            weights={"critical": 1.0, "high": 0.8, "medium": 0.5, "routine": 0.1},
-            categories={
-                "critical": ["flood", "damage", "$", "loss"],
-                "high": ["insurance", "elevat", "relocat", "grant"],
-                "medium": ["observe", "neighbor", "community"]
-            }
         )
         print(f" Using ImportanceMemoryEngine (active retrieval)")
     elif memory_engine_type == "humancentric":
@@ -303,7 +297,11 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         memory_engine = WindowMemoryEngine(window_size=3)
         print(f" Using WindowMemoryEngine (sliding window)")
     
-    runner = (
+    # 5. Setup ExperimentBuilder and Runner
+    from broker import ExperimentBuilder
+    from broker.utils.llm_utils import create_llm_invoke
+    
+    builder = (
         ExperimentBuilder()
         .with_model(model)
         .with_years(years)
@@ -314,18 +312,30 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         .with_memory_engine(memory_engine)
         .with_governance("strict", agent_config_path)
         .with_output(custom_output if custom_output else "results_modular")
-        .build()
     )
-
-    parity = FinalParityHook(sim, runner)
-    runner.hooks = {"pre_year": parity.pre_year, "post_step": parity.post_step, "post_year": parity.post_year}
-
-
     
-    runner.run(llm_invoke=create_llm_invoke(model, verbose=verbose))
+    runner = builder.build()
+    
+    # Inject Parity Hooks manually after build
+    parity = FinalParityHook(sim, runner)
+    runner.hooks = {
+        "pre_year": parity.pre_year, 
+        "post_step": parity.post_step, 
+        "post_year": parity.post_year
+    }
+    
+    # Enable detailed broker logging if verbose is on
+    runner.broker.log_prompt = verbose
+
+    # 5. Execute Run
+    # This uses the enhanced llm_invoke in llm_utils.py with 3-attempt LLM-level retry
+    # Passing verbose=False here to hide raw prompt/output dumps as requested,
+    # but runner.broker.log_prompt=verbose above ensures Adapter/Validator results are still shown.
+    runner.run(llm_invoke=create_llm_invoke(model, verbose=False))
     
     # Finalize Audit (Generates CSVs and Summary)
-    runner.broker.audit_writer.finalize()
+    if runner.broker.audit_writer:
+        runner.broker.audit_writer.finalize()
     
     # 6. Save Simulation Log (Parity with baseline simulation_log.csv)
     # We must ensure every agent is represented in every year for the stacked plot

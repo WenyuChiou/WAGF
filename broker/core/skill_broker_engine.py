@@ -155,6 +155,19 @@ class SkillBrokerEngine:
         all_validation_history = list(validation_results)
         all_valid = all(v.valid for v in validation_results)
         
+        # Diagnostic summary for User
+        if self.log_prompt: # Using existing flag as trigger for verbose logs
+            assessment = skill_proposal.assessment_data or {}
+            tp = assessment.get('TP_LABEL', 'N/A')
+            cp = assessment.get('CP_LABEL', 'N/A')
+            print(f" [Adapter:Parsed] {agent_id} Choice: '{skill_proposal.skill_name}' | TP: {tp} | CP: {cp}")
+            
+            if not all_valid:
+                errors = [e for v in validation_results for e in v.errors]
+                print(f" [Validator:Blocked] {agent_id} | Reasons: {errors}")
+            else:
+                print(f" [Validator:Passed] {agent_id}")
+        
         # Retry loop
         retry_count = 0
         while not all_valid and retry_count < self.max_retries:
@@ -177,9 +190,13 @@ class SkillBrokerEngine:
                 validation_results = self._run_validators(skill_proposal, validation_context)
                 all_validation_history.extend(validation_results)
                 all_valid = all(v.valid for v in validation_results)
+                if not all_valid:
+                    print(f"[Governance:Retry] Attempt {retry_count} failed validation for {agent_id}. Errors: {[e for v in validation_results for e in v.errors]}")
+            else:
+                print(f"[Governance:Retry] Attempt {retry_count} produced unparsable output for {agent_id}.")
         
         if not all_valid and retry_count >= self.max_retries:
-             print(f"[Governance:Fallout] Max retries ({self.max_retries}) reached for {agent_id}. Reverting to fallback: '{self.skill_registry.get_default_skill()}'")
+             print(f"[Governance:Fallout] CRITICAL: Max retries ({self.max_retries}) reached for {agent_id}. FALLING BACK to '{self.skill_registry.get_default_skill()}'. This will be marked as REJECTED in logs.")
         
         # ④ Create ApprovedSkill or use fallback
         if all_valid:
