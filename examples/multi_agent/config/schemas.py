@@ -66,3 +66,51 @@ NORMALIZATION_GUIDE = {
     "age_of_head": {"min": 18, "max": 90, "typical": 45},
     "years_in_residence": {"min": 0, "max": 50, "typical_owner": 15, "typical_renter": 3}
 }
+
+# =============================================================================
+# 5 PMT CONSTRUCTS (for LLM evaluation)
+# =============================================================================
+FIVE_CONSTRUCTS = {
+    "TP": {
+        "name": "Threat Perception",
+        "description": "Perceived risk of flooding based on experience and information",
+        "levels": ["LOW", "MODERATE", "HIGH"],
+        "weight_factors": ["flood_experience", "neighbor_damage", "depth_info"]
+    },
+    "CP": {
+        "name": "Coping Perception",
+        "description": "Perceived ability to cope with or prevent flood damage",
+        "levels": ["LOW", "MODERATE", "HIGH"],
+        "weight_factors": ["income", "insurance_access", "elevation_feasibility"]
+    },
+    "SP": {
+        "name": "Stakeholder Perception",
+        "description": "Trust in government, insurance, and institutions",
+        "levels": ["LOW", "MODERATE", "HIGH"],
+        "weight_factors": ["trust_gov", "trust_ins", "past_claim_experience"]
+    },
+    "SC": {
+        "name": "Social Capital",
+        "description": "Trust in neighbors and community support networks",
+        "levels": ["LOW", "MODERATE", "HIGH"],
+        "weight_factors": ["trust_neighbors", "generations", "community_participation"]
+    },
+    "PA": {
+        "name": "Place Attachment",
+        "description": "Emotional attachment to current home and community",
+        "levels": ["LOW", "MODERATE", "HIGH"],
+        "weight_factors": ["generations", "years_in_residence", "family_ties"]
+    }
+}
+
+# Construct → Decision influence mapping
+CONSTRUCT_DECISION_MAP = {
+    # HIGH TP + HIGH CP → likely to take protective action
+    # HIGH PA → less likely to relocate
+    # LOW SC → less influenced by neighbors
+    "buy_insurance": {"TP": "+", "CP": "+", "SP": "+", "SC": "0", "PA": "0"},
+    "elevate_house": {"TP": "+", "CP": "+", "SP": "+", "SC": "+", "PA": "+"},
+    "buyout_program": {"TP": "+", "CP": "0", "SP": "+", "SC": "-", "PA": "-"},
+    "relocate": {"TP": "+", "CP": "0", "SP": "0", "SC": "-", "PA": "-"},
+    "do_nothing": {"TP": "-", "CP": "-", "SP": "-", "SC": "0", "PA": "+"}
+}
