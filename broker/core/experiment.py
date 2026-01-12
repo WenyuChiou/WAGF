@@ -19,6 +19,8 @@ class ExperimentConfig:
     """Configuration container for an experiment."""
     model: str = "gpt-4"
     num_years: int = 1
+    num_steps: Optional[int] = None  # Generic alias for num_years
+    semantic_thresholds: tuple = (0.3, 0.7) # PR 3: Configurable heuristics
     governance_profile: str = "default"
     output_dir: Path = Path("results")
     experiment_name: str = "modular_exp"
@@ -51,6 +53,12 @@ class ExperimentRunner:
         from broker.utils.llm_utils import create_llm_invoke
         return create_llm_invoke(self.config.model, verbose=self.config.verbose)
 
+    @property
+    def current_step(self) -> int:
+        """Alias for the simulation loop cycle."""
+        # This returns the current year/cycle index
+        return getattr(self, '_current_year', 0)
+
     def run(self, llm_invoke: Optional[Callable] = None):
         """Standardized simulation loop."""
         llm_invoke = llm_invoke or self.llm_invoke
@@ -58,6 +66,7 @@ class ExperimentRunner:
         print(f"Starting Experiment: {self.config.experiment_name} | Model: {self.config.model}")
         
         # 0. Fool-proof Schema Validation
+        # ... (keep existing validation code)
         if hasattr(self.broker, 'model_adapter') and getattr(self.broker.model_adapter, 'agent_config', None):
             config = self.broker.model_adapter.agent_config
             types = set(a.agent_type for a in self.agents.values() if hasattr(a, 'agent_type'))
@@ -67,13 +76,27 @@ class ExperimentRunner:
                 for issue in issues:
                     print(f"[Governance:Diagnostic] {issue}")
         
-        for year in range(1, self.config.num_years + 1):
-            env = self.sim_engine.advance_year() if self.sim_engine else {}
-            print(f"--- Year {year} ---")
+        # Determine total iterations (backward compatible)
+        iterations = self.config.num_steps or self.config.num_years
+        
+        for step in range(1, iterations + 1):
+            self._current_year = step # internal tracker
+            # Environment update (Attempt advance_step first, fallback to advance_year)
+            if hasattr(self.sim_engine, 'advance_step'):
+                env = self.sim_engine.advance_step()
+            else:
+                env = self.sim_engine.advance_year() if self.sim_engine else {}
             
-            # --- Lifecycle Hook: Pre-Year ---
+            # Print status using generic term if steps used, otherwise year
+            term = "Step" if self.config.num_steps else "Year"
+            print(f"--- {term} {step} ---")
+            
+            # --- Lifecycle Hook: Pre-Step / Pre-Year ---
+            # Dual trigger for generic compatibility
+            if "pre_step" in self.hooks:
+                self.hooks["pre_step"](step, env, self.agents)
             if "pre_year" in self.hooks:
-                self.hooks["pre_year"](year, env, self.agents)
+                self.hooks["pre_year"](step, env, self.agents)
             
             # Filter only active agents (Generic approach)
             active_agents = [
@@ -89,7 +112,8 @@ class ExperimentRunner:
                     run_id=run_id,
                     seed=self.config.seed + self.step_counter,
                     llm_invoke=llm_invoke,
-                    agent_type=getattr(agent, 'agent_type', 'default')
+                    agent_type=getattr(agent, 'agent_type', 'default'),
+                    env_context=env
                 )
                 # Apply state changes
                 if result.execution_result and result.execution_result.success:
@@ -101,11 +125,14 @@ class ExperimentRunner:
                 
                 # Note: Memory truncation is now handled inside MemoryEngine
             
-            # --- Lifecycle Hook: Post-Year ---
+            # --- Lifecycle Hook: Post-Step-End / Post-Year ---
+            # Dual trigger for generic compatibility
+            if "post_step_end" in self.hooks:
+                self.hooks["post_step_end"](step, self.agents)
             if "post_year" in self.hooks:
-                self.hooks["post_year"](year, self.agents)
+                self.hooks["post_year"](step, self.agents)
             
-            self._finalize_year(year)
+            self._finalize_step(step)
         
         # 4. Finalize Experiment
         if hasattr(self.broker.audit_writer, 'finalize'):
@@ -123,19 +150,29 @@ class ExperimentRunner:
         
         # 2. Update Memory via Engine
         action_desc = result.approved_skill.skill_name.replace("_", " ").capitalize()
-        self.memory_engine.add_memory(agent.id, f"Decided to: {action_desc}")
+        if hasattr(self.memory_engine, 'add_memory_for_agent'):
+            self.memory_engine.add_memory_for_agent(agent, f"Decided to: {action_desc}")
+        else:
+            self.memory_engine.add_memory(agent.id, f"Decided to: {action_desc}")
 
-    def _finalize_year(self, year: int):
+    def _finalize_step(self, step: int):
+        """Unified finalization logic per cycle."""
         # Notify audit writer to flush if needed
         if hasattr(self.broker.audit_writer, 'finalize'):
-             # We don't finalize everything yet, maybe just per-year markers
+             # Future: per-step flushing could be added here
              pass
+
+    def _finalize_year(self, year: int):
+        """Legacy alias for _finalize_step."""
+        self._finalize_step(year)
 
 class ExperimentBuilder:
     """Fluent API for assembling the experiment puzzle."""
     def __init__(self):
         self.model = "llama3.2:3b"
         self.num_years = 1
+        self.num_steps = None # PR 2: Track if steps explicitly used
+        self.semantic_thresholds = (0.3, 0.7) # PR 3: Default thresholds
         self.profile = "default"
         self.agents = {}
         self.sim_engine = None
@@ -161,10 +198,22 @@ class ExperimentBuilder:
 
     def with_years(self, years: int):
         self.num_years = years
+        self.num_steps = None
+        return self
+
+    def with_steps(self, steps: int):
+        """Generic alias for with_years."""
+        self.num_years = steps
+        self.num_steps = steps
         return self
 
     def with_memory_engine(self, engine: MemoryEngine):
         self.memory_engine = engine
+        return self
+
+    def with_semantic_thresholds(self, low: float, high: float):
+        """PR 3: Configure L/M/H thresholds for prompt context."""
+        self.semantic_thresholds = (low, high)
         return self
 
     def with_lifecycle_hooks(self, **hooks):
@@ -232,10 +281,16 @@ class ExperimentBuilder:
         mem_engine = self.memory_engine or WindowMemoryEngine(window_size=3)
         
         # 3. Setup Context Builder
-        # Inject memory_engine into ctx_builder if it supports it
-        ctx_builder = self.ctx_builder or create_context_builder(self.agents)
+        # Inject memory_engine and semantic_thresholds into ctx_builder if it supports it
+        ctx_builder = self.ctx_builder or create_context_builder(
+            self.agents, 
+            semantic_thresholds=getattr(self, 'semantic_thresholds', (0.3, 0.7))
+        )
         if hasattr(ctx_builder, 'memory_engine'):
             ctx_builder.memory_engine = mem_engine
+        
+        if hasattr(ctx_builder, 'semantic_thresholds'):
+            ctx_builder.semantic_thresholds = getattr(self, 'semantic_thresholds', (0.3, 0.7))
         
         # PR 2 Fix: Inject memory_engine into InteractionHub if present in ctx_builder
         if hasattr(ctx_builder, 'hub') and ctx_builder.hub:
@@ -273,16 +328,26 @@ class ExperimentBuilder:
                         templates[atype] = cfg["prompt_template"]
                 if templates:
                     ctx_builder.prompt_templates.update(templates)
+                
+                # Phase 12: Inject memory_config and other domain-specific parameters into agents
+                for agent in self.agents.values():
+                    atype = getattr(agent, 'agent_type', 'default')
+                    agent.memory_config = config.get_memory_config(atype)
             except Exception as e:
-                print(f" Warning: Could not load prompt templates from {self.agent_types_path}: {e}")
+                print(f" Warning: Could not load configurations from {self.agent_types_path}: {e}")
         
         # 6. Setup Broker
+        # 6. Setup Broker
+        from broker.utils.agent_config import AgentTypeConfig
+        config = AgentTypeConfig.load(self.agent_types_path)
+        
         broker = SkillBrokerEngine(
             skill_registry=reg,
             model_adapter=adapter,
             validators=[validator],
             simulation_engine=self.sim_engine,
             context_builder=ctx_builder,
+            config=config,           # Added for generic logging
             audit_writer=audit_writer,
             log_prompt=self.verbose
         )
@@ -294,6 +359,7 @@ class ExperimentBuilder:
         exp_config = ExperimentConfig(
             model=self.model,
             num_years=self.num_years,
+            num_steps=self.num_steps,
             governance_profile=self.profile,
             output_dir=self.output_base,
             verbose=self.verbose

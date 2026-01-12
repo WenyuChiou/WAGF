@@ -133,10 +133,12 @@ class BaseAgentContextBuilder(ContextBuilder):
         environment: Dict[str, float] = None,
         prompt_templates: Dict[str, str] = None,
         memory_engine: Optional[MemoryEngine] = None,
-        providers: List[ContextProvider] = None
+        providers: List[ContextProvider] = None,
+        semantic_thresholds: tuple = (0.3, 0.7)
     ):
         self.agents = agents
         self.prompt_templates = prompt_templates or {}
+        self.semantic_thresholds = semantic_thresholds
         
         # Initialize default provider pipeline if none provided
         if providers is not None:
@@ -248,10 +250,7 @@ class BaseAgentContextBuilder(ContextBuilder):
     
     def _semantic(self, v: float) -> str:
         """Convert 0-1 value to semantic label."""
-        # TODO: Inject config for thresholds
-        # For now, default to 0.3/0.7 but allow future injection
-        low = 0.3
-        high = 0.7
+        low, high = self.semantic_thresholds
         
         if v < low: return "L"
         if v > high: return "H"
@@ -348,23 +347,6 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         self.skill_registry = skill_registry
         self.global_news = global_news or []
         self.trust_verbalizer = trust_verbalizer
-
-    def build(self, agent_id: str, **kwargs) -> Dict[str, Any]:
-        """Run the provider pipeline."""
-        # We override to ensure we pass hub-specific kwargs if needed,
-        # but the base build() logic with providers handles it.
-        return super().build(agent_id, **kwargs)
-
-    def _verbalize_trust(self, trust_value: float, category: str) -> str:
-        """Converts a float (0-1) into a natural language description (Generic)."""
-        if self.trust_verbalizer:
-            return self.trust_verbalizer(trust_value, category)
-        
-        # Generic fallback
-        if trust_value >= 0.8: return "high"
-        if trust_value >= 0.5: return "moderate"
-        if trust_value >= 0.2: return "low"
-        return "minimal"
 
     def build(self, agent_id: str, **kwargs) -> Dict[str, Any]:
         """Build context using the InteractionHub's tiered logic."""
@@ -526,7 +508,8 @@ def create_context_builder(
     custom_templates: Dict[str, str] = None,
     load_yaml: bool = True,
     yaml_path: str = None,
-    memory_engine: Optional[MemoryEngine] = None
+    memory_engine: Optional[MemoryEngine] = None,
+    semantic_thresholds: tuple = (0.3, 0.7)
 ) -> BaseAgentContextBuilder:
     """
     Create a context builder for a set of agents.
@@ -556,7 +539,8 @@ def create_context_builder(
         agents=agents,
         environment=environment,
         prompt_templates=templates,
-        memory_engine=memory_engine
+        memory_engine=memory_engine,
+        semantic_thresholds=semantic_thresholds
     )
 
 

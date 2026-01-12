@@ -65,20 +65,17 @@ class TieredEnvironment:
         """Attach a social graph for neighbor lookups."""
         self._social_graph = graph
     
-    def get_neighbor_observations(self, agent_id: str) -> Dict[str, Any]:
+    def get_neighbor_observations(self, agent_id: str, observable_keys: List[str] = None) -> Dict[str, Any]:
         """
-        Get aggregated observations of an agent's neighbors.
+        Get aggregated observations of an agent's neighbors for specific keys.
         
-        Returns:
-            Dict with counts and rates, e.g.:
-            {
-                "neighbor_count": 5,
-                "elevated_count": 2,
-                "insured_count": 3,
-                "elevated_rate": 0.4,
-                "insured_rate": 0.6
-            }
+        Args:
+            agent_id: Center agent
+            observable_keys: List of boolean/numeric keys to aggregate (default: elevated, insured, relocated)
         """
+        if observable_keys is None:
+            observable_keys = ["elevated", "has_insurance", "relocated"]
+            
         if not self._social_graph:
             return {"neighbor_count": 0}
         
@@ -87,29 +84,21 @@ class TieredEnvironment:
             return {"neighbor_count": 0}
         
         # Aggregate observable states
-        elevated_count = 0
-        insured_count = 0
-        relocated_count = 0
+        counts = {k: 0 for k in observable_keys}
         
         for nid in neighbors:
             nstate = self.social_states.get(nid, {})
-            if nstate.get("elevated", False):
-                elevated_count += 1
-            if nstate.get("has_insurance", False):
-                insured_count += 1
-            if nstate.get("relocated", False):
-                relocated_count += 1
+            for k in observable_keys:
+                if nstate.get(k, False):
+                    counts[k] += 1
         
         n = len(neighbors)
-        return {
-            "neighbor_count": n,
-            "elevated_count": elevated_count,
-            "insured_count": insured_count,
-            "relocated_count": relocated_count,
-            "elevated_rate": elevated_count / n if n > 0 else 0.0,
-            "insured_rate": insured_count / n if n > 0 else 0.0,
-            "relocated_rate": relocated_count / n if n > 0 else 0.0,
-        }
+        result = {"neighbor_count": n}
+        for k, count in counts.items():
+            result[f"{k}_count"] = count
+            result[f"{k}_rate"] = count / n if n > 0 else 0.0
+            
+        return result
 
     # ===== Getters =====
 

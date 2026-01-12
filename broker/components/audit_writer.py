@@ -95,10 +95,20 @@ class GenericAuditWriter:
         decisions = self.summary["agent_types"][agent_type]["decisions"]
         decisions[decision] = decisions.get(decision, 0) + 1
         
-        # Write JSONL
+        # Write JSONL with retry for cloud drive flakiness (Errno 22 / Locks)
         file_path = self._get_file_path(agent_type)
-        with open(file_path, 'a', encoding='utf-8') as f:
-            f.write(json.dumps(trace, ensure_ascii=False, default=str) + '\n')
+        import time
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                with open(file_path, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps(trace, ensure_ascii=False, default=str) + '\n')
+                break # Success
+            except (OSError, IOError) as e:
+                if attempt == max_retries - 1:
+                    print(f" [AuditWriter:Error] Final failure writing trace to {file_path}: {e}")
+                else:
+                    time.sleep(1.0) # Wait for sync/lock to clear
         
         # Buffer for CSV
         if agent_type not in self._trace_buffer:
@@ -169,6 +179,14 @@ class GenericAuditWriter:
 
         # Ensure consistent column ordering for user
         priority_keys = ["step_id", "agent_id", "proposed_skill", "final_skill", "status", "retry_count", "validated", "failed_rules"]
+        
+        # Phase 12: Support custom priority keys from first trace if present
+        if traces and "_audit_priority" in traces[0]:
+            custom_priority = traces[0]["_audit_priority"]
+            if isinstance(custom_priority, list):
+                # Put custom ones after the absolute core (step, agent) but before others
+                priority_keys = ["step_id", "agent_id"] + custom_priority + [k for k in priority_keys if k not in ["step_id", "agent_id"] + custom_priority]
+
         all_keys = list(flat_rows[0].keys())
         # Sort keys to keep priority ones first
         fieldnames = priority_keys + [k for k in all_keys if k not in priority_keys]

@@ -56,6 +56,30 @@ class ModelAdapter(ABC):
 
 from .agent_config import load_agent_config
 
+class GenericRegexPreprocessor:
+    """Configurable regex-based preprocessor."""
+    def __init__(self, patterns: List[Dict[str, Any]]):
+        self.patterns = patterns
+    def __call__(self, text: str) -> str:
+        if not text: return ""
+        for p in self.patterns:
+            pattern = p.get("pattern", "")
+            repl = p.get("repl", "")
+            if pattern:
+                text = re.sub(pattern, repl, text, flags=re.DOTALL)
+        return text.strip()
+
+def get_preprocessor(p_cfg: Dict[str, Any]) -> Callable[[str], str]:
+    """Factory for preprocessors based on config."""
+    p_type = p_cfg.get("type", "identity").lower()
+    if p_type == "deepseek":
+        return deepseek_preprocessor
+    elif p_type == "json":
+        return json_preprocessor
+    elif p_type == "regex":
+        return GenericRegexPreprocessor(p_cfg.get("patterns", []))
+    return lambda x: x
+
 class UnifiedAdapter(ModelAdapter):
     """
     Unified adapter supporting all models AND all agent types.
@@ -96,7 +120,13 @@ class UnifiedAdapter(ModelAdapter):
         actions = self.agent_config.get_valid_actions(agent_type)
         
         self.config = parsing_cfg
-        self.preprocessor = preprocessor or (lambda x: x)
+        
+        # Determine preprocessor (Order: Explicit argument > YAML Config > Identity)
+        if preprocessor:
+            self._preprocessor = preprocessor
+        else:
+            p_cfg = parsing_cfg.get("preprocessor", {})
+            self._preprocessor = get_preprocessor(p_cfg)
         
         # Build alias map for canonical ID resolution
         self.alias_map = {}
@@ -114,6 +144,35 @@ class UnifiedAdapter(ModelAdapter):
         else:
             self.valid_skills = set(self.alias_map.keys())
     
+    @property
+    def preprocessor(self) -> Callable[[str], str]:
+        """Backward compatibility for direct attribute access (defaults to init-time type)."""
+        return self._preprocessor
+
+    def _get_preprocessor_for_type(self, agent_type: str) -> Callable[[str], str]:
+        """Get preprocessor for a specific agent type."""
+        # 1. If explicit preprocessor was provided at init, ALWAYS use it
+        # (Compare against identity lambda or custom objects)
+        try:
+            # Identity lambda check
+            is_identity = (
+                self._preprocessor.__name__ == "<lambda>" and 
+                self._preprocessor("") == ""
+            )
+        except:
+            is_identity = False
+            
+        if not is_identity:
+            return self._preprocessor
+                
+        # 2. Get from config for this specific type
+        p_cfg = self.agent_config.get_parsing_config(agent_type).get("preprocessor", {})
+        if p_cfg:
+            return get_preprocessor(p_cfg)
+            
+        # 3. Fallback to init-time default
+        return self._preprocessor
+
     def parse_output(self, raw_output: str, context: Dict[str, Any]) -> Optional[SkillProposal]:
         """
         Parse LLM output into SkillProposal.
@@ -122,15 +181,18 @@ class UnifiedAdapter(ModelAdapter):
         - JSON-formatted output (Preferred)
         - Structured text (Fallback)
         """
-        # Apply preprocessor (e.g., remove <think> tags)
-        cleaned_output = self.preprocessor(raw_output)
-        
         agent_id = context.get("agent_id", "unknown")
         agent_type = context.get("agent_type", self.agent_type)
         
-        # Determine valid skills for THIS specific agent type
+        # Determine valid skills and config for THIS specific agent type
         valid_skills = self.agent_config.get_valid_actions(agent_type)
         config_parsing = self.agent_config.get_parsing_config(agent_type) or self.config
+        
+        # Determine preprocessor dynamically
+        preprocessor = self._get_preprocessor_for_type(agent_type)
+        
+        # Apply preprocessor
+        cleaned_output = preprocessor(raw_output)
         
         # Initialize results
         skill_name = None

@@ -1,0 +1,15 @@
+{
+  "experiment_name": "mock",
+  "agent_types": {
+    "household": {
+      "total": 2,
+      "decisions": {
+        "do_nothing": 2
+      }
+    }
+  },
+  "total_traces": 2,
+  "validation_errors": 0,
+  "validation_warnings": 0,
+  "finalized_at": "2026-01-12T15:08:33.681321"
+}

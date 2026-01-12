@@ -94,17 +94,26 @@ class ImportanceMemoryEngine(MemoryEngine):
             "medium": ["observed", "heard", "social", "network"]
         }
 
-    def _score_content(self, content: str) -> float:
+    def _score_content(self, content: str, agent: Optional[BaseAgent] = None) -> float:
         """Heuristic scoring based on keyword importance."""
         content_lower = content.lower()
         
-        # Use simple max-score strategy (highest category weight found)
-        highest_weight = self.weights.get("routine", 0.1)
+        # Determine weights and categories (Support per-agent override)
+        weights = self.weights
+        categories = self.categories
         
-        for category, keywords in self.categories.items():
+        if agent and hasattr(agent, 'memory_config'):
+            cfg = agent.memory_config
+            weights = cfg.get("weights", self.weights)
+            categories = cfg.get("categories", self.categories)
+
+        # Use simple max-score strategy (highest category weight found)
+        highest_weight = weights.get("routine", 0.1)
+        
+        for category, keywords in categories.items():
             for kw in keywords:
                 if kw in content_lower:
-                    weight = self.weights.get(category, 0.1)
+                    weight = weights.get(category, 0.1)
                     if weight > highest_weight:
                         highest_weight = weight
                     break # Found a match for this category
@@ -112,6 +121,7 @@ class ImportanceMemoryEngine(MemoryEngine):
         return highest_weight
 
     def add_memory(self, agent_id: str, content: str, metadata: Optional[Dict[str, Any]] = None):
+        """Standard add_memory (Compatibility)"""
         if agent_id not in self.storage:
             self.storage[agent_id] = []
         
@@ -119,11 +129,25 @@ class ImportanceMemoryEngine(MemoryEngine):
         if score is None:
             score = self._score_content(content)
             
+        self._add_memory_internal(agent_id, content, score)
+
+    def _add_memory_internal(self, agent_id: str, content: str, score: float):
         self.storage[agent_id].append({
             "content": content,
             "score": score,
             "timestamp": len(self.storage[agent_id])
         })
+
+    def add_memory_for_agent(self, agent: BaseAgent, content: str, metadata: Optional[Dict[str, Any]] = None):
+        """Added for Phase 12: Context-aware memory scoring."""
+        if agent.id not in self.storage:
+            self.storage[agent.id] = []
+        
+        score = metadata.get("significance") if metadata else None
+        if score is None:
+            score = self._score_content(content, agent)
+            
+        self._add_memory_internal(agent.id, content, score)
 
     def retrieve(self, agent: BaseAgent, query: Optional[str] = None, top_k: int = 5) -> List[str]:
         if agent.id not in self.storage:
@@ -238,52 +262,85 @@ class HumanCentricMemoryEngine(MemoryEngine):
             "trust_shift": ["trust", "reliable", "doubt", "skeptic", "faith"]
         }
     
-    def _classify_emotion(self, content: str) -> str:
+    def _classify_emotion(self, content: str, agent: Optional[BaseAgent] = None) -> str:
         """Classify content emotion using keyword matching."""
         content_lower = content.lower()
-        for emotion, keywords in self.emotion_keywords.items():
+        
+        emotion_keywords = self.emotion_keywords
+        if agent and hasattr(agent, 'memory_config'):
+            emotion_keywords = agent.memory_config.get("emotion_keywords", self.emotion_keywords)
+            
+        for emotion, keywords in emotion_keywords.items():
             for kw in keywords:
                 if kw in content_lower:
                     return emotion
         return "routine"
     
-    def _classify_source(self, content: str) -> str:
+    def _classify_source(self, content: str, agent: Optional[BaseAgent] = None) -> str:
         """Classify content source type."""
         content_lower = content.lower()
-        if any(w in content_lower for w in ["i ", "my ", "me ", "i've"]):
+        
+        # Default patterns
+        personal_patterns = ["i ", "my ", "me ", "i've"]
+        neighbor_patterns = ["neighbor", "friend"]
+        community_patterns = ["%", "community", "region", "area"]
+        
+        if agent and hasattr(agent, 'memory_config'):
+            source_cfg = agent.memory_config.get("source_patterns", {})
+            personal_patterns = source_cfg.get("personal", personal_patterns)
+            neighbor_patterns = source_cfg.get("neighbor", neighbor_patterns)
+            community_patterns = source_cfg.get("community", community_patterns)
+
+        if any(w in content_lower for w in personal_patterns):
             return "personal"
-        elif any(w in content_lower for w in ["neighbor", "friend"]):
+        elif any(w in content_lower for w in neighbor_patterns):
             return "neighbor"
-        elif any(w in content_lower for w in ["%", "community", "region", "area"]):
+        elif any(w in content_lower for w in community_patterns):
             return "community"
         return "abstract"
     
-    def _compute_importance(self, content: str, metadata: Optional[Dict] = None) -> float:
+    def _compute_importance(self, content: str, metadata: Optional[Dict] = None, agent: Optional[BaseAgent] = None) -> float:
         """Compute memory importance score [0-1] based on emotion and source."""
         emotion = metadata.get("emotion") if metadata else None
         source = metadata.get("source") if metadata else None
         
         if emotion is None:
-            emotion = self._classify_emotion(content)
+            emotion = self._classify_emotion(content, agent)
         if source is None:
-            source = self._classify_source(content)
+            source = self._classify_source(content, agent)
         
-        emotion_w = self.emotional_weights.get(emotion, 0.1)
-        source_w = self.source_weights.get(source, 0.3)
+        emotional_weights = self.emotional_weights
+        source_weights = self.source_weights
+        
+        if agent and hasattr(agent, 'memory_config'):
+            emotional_weights = agent.memory_config.get("emotional_weights", self.emotional_weights)
+            source_weights = agent.memory_config.get("source_weights", self.source_weights)
+
+        emotion_w = emotional_weights.get(emotion, 0.1)
+        source_w = source_weights.get(source, 0.3)
         
         # Combined importance = emotion × source (both 0-1)
         return emotion_w * source_w
     
     def add_memory(self, agent_id: str, content: str, metadata: Optional[Dict[str, Any]] = None):
-        """Add memory to working memory with automatic scoring."""
+        """Standard add_memory (Compatibility)."""
+        # We don't have agent object here, so we use default classification
+        self._add_memory_internal(agent_id, content, metadata=metadata)
+
+    def add_memory_for_agent(self, agent: BaseAgent, content: str, metadata: Optional[Dict[str, Any]] = None):
+        """Added for Phase 12: Context-aware memory scoring."""
+        self._add_memory_internal(agent.id, content, metadata=metadata, agent=agent)
+
+    def _add_memory_internal(self, agent_id: str, content: str, metadata: Optional[Dict[str, Any]] = None, agent: Optional[BaseAgent] = None):
+        """Internal worker for adding memory with scoring."""
         if agent_id not in self.working:
             self.working[agent_id] = []
         if agent_id not in self.longterm:
             self.longterm[agent_id] = []
         
-        emotion = self._classify_emotion(content)
-        source = self._classify_source(content)
-        importance = self._compute_importance(content, metadata)
+        emotion = self._classify_emotion(content, agent)
+        source = self._classify_source(content, agent)
+        importance = self._compute_importance(content, metadata, agent)
         
         memory_item = {
             "content": content,

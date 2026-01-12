@@ -1,7 +1,7 @@
 # Run 4-model experiment with WindowMemoryEngine (window_size=3)
 # Output: examples/single_agent/results/
 
-$models = @("gemma3:4b", "llama3.2:3b", "deepseek-r1:8b", "gpt-oss:latest")
+$models = @("gemma3:4b", "llama3.2:3b", "deepseek-r1:8b")
 
 foreach ($model in $models) {
     Write-Host "========================================="

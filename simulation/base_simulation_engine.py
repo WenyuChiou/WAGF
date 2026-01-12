@@ -14,7 +14,7 @@ class BaseSimulationEngine:
         """Return list of agents in the simulation."""
         return []
     
-    def step(self, year: int) -> None:
+    def step(self, step_idx: int) -> None:
         """Execute one simulation step."""
         pass
     

@@ -164,6 +164,9 @@ class BaseAgent:
         
         # Custom Attributes (Legacy support, eventually migrate to fixed_attributes)
         self.custom_attributes: Dict[str, Any] = {}
+        
+        # Phase 12: Generic Memory Config (keywords, weights)
+        self.memory_config: Dict[str, Any] = {}
     
     def _init_state(self):
         """Initialize state from config."""

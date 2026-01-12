@@ -252,6 +252,11 @@ class AgentTypeConfig:
         cfg = self.get(agent_type)
         return cfg.get("parsing", {})
 
+    def get_memory_config(self, agent_type: str) -> Dict[str, Any]:
+        """Get memory engine configuration (Phase 12)."""
+        cfg = self.get(agent_type)
+        return cfg.get("memory", {})
+
     def get_log_fields(self, agent_type: str) -> List[str]:
         """Get list of reasoning fields to highlight in logs."""
         cfg = self.get(agent_type)

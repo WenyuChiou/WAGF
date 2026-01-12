@@ -58,6 +58,7 @@ class SkillBrokerEngine:
         validators: List[AgentValidator],
         simulation_engine: Any,
         context_builder: Any,
+        config: Optional[AgentTypeConfig] = None, # Phase 12: Accept config for generic logging
         audit_writer: Optional[Any] = None,
         max_retries: int = 2,
         log_prompt: bool = False
@@ -67,6 +68,7 @@ class SkillBrokerEngine:
         self.validators = validators
         self.simulation_engine = simulation_engine
         self.context_builder = context_builder
+        self.config = config or load_agent_config() # Default if not provided
         self.audit_writer = audit_writer
         self.max_retries = max_retries
         self.log_prompt = log_prompt
@@ -88,7 +90,8 @@ class SkillBrokerEngine:
         run_id: str,
         seed: int,
         llm_invoke: Callable[[str], str],
-        agent_type: str = "default"
+        agent_type: str = "default",
+        env_context: Dict[str, Any] = None
     ) -> SkillBrokerResult:
         """
         Process one complete decision step through skill governance.
@@ -145,10 +148,25 @@ class SkillBrokerEngine:
             return self._create_result(SkillOutcome.ABORTED, None, None, None, ["Parse error after retries"])
         
         # ③ Skill validation
+        # Standardization (Phase 9/12): Decouple domain-specific keys
+        if env_context is None:
+            env_context = {}
+        
+        # Legacy Compatibility Layer: Ensure typical flood-ABM keys are available
+        # if not explicitly present in the environment context.
+        if "flood_status" not in env_context:
+            if "flood_event" in env_context:
+                env_context["flood_status"] = "Flood occurred" if env_context["flood_event"] else "No flood"
+            elif "flood_event" in context:
+                env_context["flood_status"] = "Flood occurred" if context.get("flood_event") else "No flood"
+            elif "flood_occured" in env_context: # Handle common typo if exists
+                env_context["flood_status"] = "Flood occurred" if env_context["flood_occured"] else "No flood"
+
         validation_context = {
             "agent_state": context,
             "agent_type": agent_type,
-            "flood_status": "Flood occurred" if context.get("flood_event") else "No flood"
+            "env_state": env_context, # The "New Standard" source of truth
+            **env_context             # Flat injection for legacy validator lookups
         }
         
         validation_results = self._run_validators(skill_proposal, validation_context)
@@ -295,12 +313,17 @@ class SkillBrokerEngine:
             elif "agent_type" in context:
                 agent_type_final = context.get("agent_type", agent_type_final)
             
+            # Extract audit priority fields from config
+            log_fields = self.config.get_log_fields(agent_type_final)
+            audit_priority = [f"reason_{f.lower()}" for f in log_fields]
+
             self.audit_writer.write_trace(agent_type_final, {
                 "run_id": run_id,
                 "step_id": step_id,
                 "timestamp": timestamp,
                 "seed": seed,
                 "agent_id": agent_id,
+                "_audit_priority": audit_priority, # Pass priority fields
                 "input": prompt if self.log_prompt else None,
                 "context_hash": context_hash,
                 "memory_pre": memory_pre,
