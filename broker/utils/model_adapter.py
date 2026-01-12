@@ -392,27 +392,57 @@ def deepseek_preprocessor(text: str) -> str:
     Preprocessor for DeepSeek models.
     Removes <think>...</think> reasoning tags, but PRESERVES content
     if the model put the entire decision inside the think tag.
+    
+    Enhanced to handle:
+    - Unclosed think tags
+    - Content split between inside/outside tags
+    - Very long think sections
     """
     if not text:
         return ""
-        
-    # 1. Try to get content outside tags
+    
+    # Handle both <think> and <thinking> variations
+    text = text.replace('<thinking>', '<think>').replace('</thinking>', '</think>')
+    
+    # 1. Try to get content AFTER </think> tag first (preferred)
+    after_think_match = re.search(r'</think>\s*(.+)', text, flags=re.DOTALL)
+    if after_think_match:
+        after_content = after_think_match.group(1).strip()
+        if len(after_content) > 30:  # Substantial content after tag
+            return after_content
+    
+    # 2. Remove think tags and get what's left
     cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
     
-    # 2. If cleaned is empty, or very short, check inside think tags
-    if not cleaned or len(cleaned) < 20:
-        # Some models might fail to close the tag, so try to match what's there
-        match = re.search(r'<think>(.*)', text, flags=re.DOTALL)
-        if match:
-            inner = match.group(1).replace('</think>', '').strip()
-            # If the only content is in the think tag, we should use it
-            # But try to focus on the latter part where the answer usually is
-            if any(kw in inner.lower() for kw in ["decide", "decision", "output", "interpret"]):
-                return inner
-            # Desperately return inner if cleaned is empty
+    # 3. If cleaned is empty or very short, extract from inside think tags
+    if not cleaned or len(cleaned) < 30:
+        # Find think content
+        think_match = re.search(r'<think>(.*?)(?:</think>|$)', text, flags=re.DOTALL)
+        if think_match:
+            inner = think_match.group(1).strip()
+            
+            # Look for the final answer section within think
+            # DeepSeek often puts "Final Decision" or answer at the end of think block
+            decision_patterns = [
+                r'(threat appraisal.*?final decision.*)',  # Full answer block
+                r'(final decision:?\s*.+)',  # Just decision
+                r'(決策|decision)[:：]\s*(.+)',  # With Chinese
+            ]
+            for pattern in decision_patterns:
+                match = re.search(pattern, inner, re.IGNORECASE | re.DOTALL)
+                if match:
+                    return match.group(0).strip()
+            
+            # If inner has any decision-like content, use it
+            keywords = ['decide', 'decision', 'appraisal', 'threat', 'coping', '1', '2', '3', '4']
+            if any(kw in inner.lower() for kw in keywords):
+                # Take last 500 chars where answer usually is
+                return inner[-500:] if len(inner) > 500 else inner
+            
+            # Return inner if cleaned is empty
             if not cleaned:
                 return inner
-                
+    
     return cleaned
 
 

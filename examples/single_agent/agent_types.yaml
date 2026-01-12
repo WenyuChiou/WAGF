@@ -1,15 +1,15 @@
 household:
   description: "Household agents making adaptation decisions based on PMT"
-  
+
   # Neutralzed Prompt Template (No behavioral anchors)
   prompt_template: |
     You are a homeowner in a city, with a strong attachment to your community. {elevation_status_text}
     Your memory includes:
     {memory}
-    
+
     You currently {insurance_status} flood insurance.
     You {trust_insurance_text} the insurance company. You {trust_neighbors_text} your neighbors' judgment.
-    
+
     Using the Protection Motivation Theory, evaluate your current situation by considering the following factors:
     - Perceived Severity: How serious the consequences of flooding feel to you.
     - Perceived Vulnerability: How likely you think you are to be affected.
@@ -17,7 +17,7 @@ household:
     - Self-Efficacy: Your confidence in your ability to take that action.
     - Response Cost: The financial and emotional cost of the action.
     - Maladaptive Rewards: The benefit of doing nothing immediately.
-    
+
     Now, choose one of the following actions:
     {options_text}
     Note: If no flood occurred this year, since no immediate threat, most people would choose "Do Nothing."
@@ -31,33 +31,34 @@ household:
   parsing:
     decision_keywords: ["final decision:", "decision:", "decide:"]
     default_skill: "do_nothing"
-    
+
     # Baseline Skill Mapping (numeric 1-4)
     skill_map_non_elevated:
       "1": "buy_insurance"
       "2": "elevate_house"
       "3": "relocate"
       "4": "do_nothing"
-    
+
     skill_map_elevated:
       "1": "buy_insurance"
       "2": "relocate"
       "3": "do_nothing"
-    
+
     # Construct mappings for validation and logging
+    # Enhanced regex patterns to handle various LLM output formats
     constructs:
       TP_LABEL:
-        keywords: ["threat appraisal"]
-        regex: "threat appraisal:\\s*\\[?(Medium|Moderate|Low|Med|High)\\]?"
+        keywords: ["threat appraisal", "threat perception", "threat:", "tp:"]
+        regex: "(?:threat\\s*(?:appraisal|perception)?|tp)[:\\s]*\\[?(Medium|Moderate|Low|Med|High|L|M|H)\\]?"
       TP_REASON:
-        keywords: ["threat appraisal"]
-        regex: "threat appraisal:\\s*\\[?(?:Medium|Moderate|Low|Med|High)\\]?[.,;]?\\s*(?:because)?\\s*(.+)"
+        keywords: ["threat appraisal", "threat perception"]
+        regex: "(?:threat\\s*(?:appraisal|perception)?)[:\\s]*\\[?(?:Medium|Moderate|Low|Med|High|L|M|H)\\]?[.,;:\\s]*(?:because|reason)?[:\\s]*(.+?)(?=\\n|coping|$)"
       CP_LABEL:
-        keywords: ["coping appraisal"]
-        regex: "coping appraisal:\\s*\\[?(Medium|Moderate|Low|Med|High)\\]?"
+        keywords: ["coping appraisal", "coping perception", "coping:", "cp:"]
+        regex: "(?:coping\\s*(?:appraisal|perception)?|cp)[:\\s]*\\[?(Medium|Moderate|Low|Med|High|L|M|H)\\]?"
       CP_REASON:
-        keywords: ["coping appraisal"]
-        regex: "coping appraisal:\\s*\\[?(?:Medium|Moderate|Low|Med|High)\\]?[.,;]?\\s*(?:because)?\\s*(.+)"
+        keywords: ["coping appraisal", "coping perception"]
+        regex: "(?:coping\\s*(?:appraisal|perception)?)[:\\s]*\\[?(?:Medium|Moderate|Low|Med|High|L|M|H)\\]?[.,;:\\s]*(?:because|reason)?[:\\s]*(.+?)(?=\\n|final|decision|$)"
 
   # Available Actions (mapped to Skill Registry IDs)
   actions:
@@ -78,16 +79,68 @@ household:
   governance:
     strict:
       thinking_rules:
-        urgency_check: { construct: TP_LABEL, when_above: ["H"], blocked_skills: ["do_nothing"], level: ERROR, message: "Logic Error: High Threat but inaction chosen." }
-        coping_alignment: { construct: CP_LABEL, when_above: ["L"], blocked_skills: ["elevate_house", "relocate"], level: ERROR, message: "Logic Error: Low Coping but expensive action attempted." }
-        relocation_anomaly: { conditions: [{ construct: TP_LABEL, values: ["L"] }], blocked_skills: ["relocate"], level: ERROR, message: "Logical Error: Relocation is illogical when Threat is Low." }
-        elevation_anomaly: { conditions: [{ construct: TP_LABEL, values: ["L"] }], blocked_skills: ["elevate_house"], level: ERROR, message: "Logical Error: Elevation is irrational when Threat is Low." }
+        urgency_check:
+          {
+            construct: TP_LABEL,
+            when_above: ["H"],
+            blocked_skills: ["do_nothing"],
+            level: ERROR,
+            message: "Logic Error: High Threat but inaction chosen.",
+          }
+        coping_alignment:
+          {
+            construct: CP_LABEL,
+            when_above: ["L"],
+            blocked_skills: ["elevate_house", "relocate"],
+            level: ERROR,
+            message: "Logic Error: Low Coping but expensive action attempted.",
+          }
+        relocation_anomaly:
+          {
+            conditions: [{ construct: TP_LABEL, values: ["L"] }],
+            blocked_skills: ["relocate"],
+            level: ERROR,
+            message: "Logical Error: Relocation is illogical when Threat is Low.",
+          }
+        elevation_anomaly:
+          {
+            conditions: [{ construct: TP_LABEL, values: ["L"] }],
+            blocked_skills: ["elevate_house"],
+            level: ERROR,
+            message: "Logical Error: Elevation is irrational when Threat is Low.",
+          }
       identity_rules:
-        elevation_block: { precondition: elevated, blocked_skills: ["elevate_house"], level: ERROR, message: "Status Error: Already elevated." }
-    
+        elevation_block:
+          {
+            precondition: elevated,
+            blocked_skills: ["elevate_house"],
+            level: ERROR,
+            message: "Status Error: Already elevated.",
+          }
+
     relaxed:
       thinking_rules:
-        urgency_check: { construct: TP_LABEL, when_above: ["H"], blocked_skills: ["do_nothing"], level: WARNING, message: "Suggestion: High Threat detected. Protection is recommended." }
-        coping_alignment: { construct: CP_LABEL, when_above: ["L"], blocked_skills: ["elevate_house", "relocate"], level: WARNING, message: "Observation: High-cost action despite low coping." }
+        urgency_check:
+          {
+            construct: TP_LABEL,
+            when_above: ["H"],
+            blocked_skills: ["do_nothing"],
+            level: WARNING,
+            message: "Suggestion: High Threat detected. Protection is recommended.",
+          }
+        coping_alignment:
+          {
+            construct: CP_LABEL,
+            when_above: ["L"],
+            blocked_skills: ["elevate_house", "relocate"],
+            level: WARNING,
+            message: "Observation: High-cost action despite low coping.",
+          }
       identity_rules:
-        elevation_block: { precondition: elevated, blocked_skills: ["elevate_house"], level: WARNING, message: "Note: Already elevated." }
+        elevation_block:
+          {
+            precondition: elevated,
+            blocked_skills: ["elevate_house"],
+            level: WARNING,
+            message: "Note: Already elevated.",
+          }
