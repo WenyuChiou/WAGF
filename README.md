@@ -42,36 +42,30 @@ The framework is designed as a **governance middleware** that sits between the A
 
 ---
 
-## Architecture
+## Unified Architecture (v3.0)
 
-### 1. Single-Agent Loop (Detailed)
+The framework utilizes a layered middleware approach that unifies single-agent isolated reasoning with complex multi-agent simulations.
 
-This diagram illustrates the flow for a single agent step, highlighting the transformation from Raw Data to Validated Action.
+![Unified Architecture v3.0](docs/governed_broker_architecture_v3.png)
 
-![Single-Agent Architecture](docs/single_agent_architecture.png)
+### Key Architectural Pillars:
 
-> **Alternative (V4)**: For a more detailed view, see [single_agent_architecture_v4.png](docs/single_agent_architecture_v4.png)
-
-### 2. Multi-Agent Interaction
-
-In multi-agent mode, social signals become a critical input.
-
-![Multi-Agent Architecture](docs/multi_agent_architecture.png)
-
-### Framework Evolution
-
-![Framework Evolution](docs/framework_evolution.png)
+1. **Context-Aware Perception**: Explicitly separates Environmental **State** from Historical **Memories**.
+2. **One-Way Governance**: LLM proposals flow unidirectionally into a validation pipeline before system execution.
+3. **Closed Feedback Loop**: Simulation outcomes are simultaneously committed to memory and environment state.
+4. **Lifecycle Auditing**: The `AuditWriter` captures traces from proposal to execution for full reproducibility.
 
 **Migration Note**:
 
 - **v1 (Legacy)**: Monolithic scripts.
-- **v2 (Current)**: Modular `SkillBrokerEngine` + `providers`. Use `examples/single_agent/run_modular_experiment.py`.
+- **v2 (Stable)**: Modular `SkillBrokerEngine` + `providers`.
+- **v3 (Latest)**: Unified Single/Multi-Agent Architecture + Professional Audit Trail. Use `run_unified_experiment.py`.
 
 ---
 
-## Core Components (V2 Skill-Governed Architecture) ✅
+## Core Components (V3 Skill-Governed Architecture) ✅
 
-> **Note**: The following components are for the **latest v2 Skill-Governed framework**.
+> **Note**: The following components are part of the **v3.0 Framework**.
 > For legacy v1 MCP components, see `broker/legacy/`.
 
 ### Broker Layer (`broker/`)
@@ -378,6 +372,15 @@ class SurveyContextBuilder(ContextBuilder):
 - [Experiment Design](docs/experiment_design_guide.md)
 
 ---
+
+## 🔮 Future Roadmap (v3.1+)
+
+Building upon the v3.0 foundation, we are moving towards:
+
+- **Context-Aware Skill Retrieval**: Implementing RAG-based skill selection for large toolsets.
+- **Hierarchical Memory**: Integrating MemGPT-style tiered memory (Working/Episodic/Semantic).
+- **Agent Councils**: Expanding governance to multi-agent validator committees.
+- **Multi-Modal Sensing**: Support for vision-based environment perception.
 
 ## License
 
