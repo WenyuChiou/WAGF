@@ -1,0 +1,242 @@
+Summary: Coupled Agent-based Model and Catastrophic Model
+Scope.
+We couple an annual, tract-resolved behavioral module with a flood loss and finance
+module to evaluate household (HH) adaptation and financial outcomes. The model is explicitly
+designed to capture dual-scale dynamics: (1) heterogeneity at the individual level—
+household tenure (owners vs. renters)—and (2) heterogeneity at the macro-social con-
+text—the tract-level share of marginalized (MG) vs. non-marginalized (NMG) groups.
+The social heterogeneity (MG/NMG) is represented only at the tract-level. Individual HHs do not
+carry MG/NMG attributes; instead they act via random draws against tract-level, MG/NMG-
+weighted action probabilities.
+Scientific Questions (Focus)
+Modeling household decision-making in flood adaptation is challenging due to behav-
+ioral diversity and uncertainty. This heterogeneity spans the two key levels defined in
+our scope. Our overarching research question is:
+How can a coupled agent-based model (ABM) capture these dual-scale dy-
+namics and their influence on long-term adaptation and financial outcomes?
+This leads to the following specific inquiries:
+1. Q1 – Adaptation Impact & Asymmetry. How does the impact of continued adaptation
+(vs. a no-action scenario) on long-run flood outcomes differ between owners and renters,
+and how do these asymmetric impacts (e.g., payout advantage, damage penalty) evolve over
+time?
+2. Q2 – Tenure Asymmetry. Do renters and homeowners exhibit systematically different
+adaptation patterns after floods (annual composition, and changes around severe-flood years
+at k = 0, 1, 2), and how does flood-prone vs. non-prone context moderate these patterns?
+3. Q3 – Financial Consequences & Attribution. How do coverage differences—contents-
+only for renters vs. structure+contents for owners—translate into asymmetric out-of-pocket
+(OOP) costs, payout rates, and loss attribution (structure vs. contents) over time?
+A. Annual timeline
+For each year t ∈{2011, . . . , 2023}:
+Flood hazard →Loss computation →TP update →End-of-year decisions (actions at t) →Finance
+B. Initialization (baseline at t = 2011)
+B1. Insurance status. Tracts are labeled flood-prone or non-flood-prone. Flood-prone tracts
+receive higher initial take-up rates for both owners and renters; non-flood-prone tracts receive lower
+rates (anchored to state-level NFIP policies-in-force per household; scenario-tuned).
+B2. Tract-level perceptions (SC/PA). For each tract, we draw (SCMG, PAMG) and (SCNMG, PANMG)
+from survey-fitted Beta distributions. These inform tract-level threat-perception dynamics; HHs
+do not hold SC/PA or MG/NMG labels.
+B3. RCV initialization. Household replacement costs for buildings (and contents where appli-
+cable) are sampled from log-normal distributions and scaled so that HH-level totals statistically
+align with the tract’s total RCV.
+1
+C. Hazard and vulnerability
+C1. Tract flood depth. Let Ngrid be the number of grids in a tract and max(depthg,t) the peak
+depth at grid g in year t. The tract-level depth is
+dt =
+1
+Ngrid
+X
+g
+max(depthg,t).
+(1)
+C2. Effective depth and depth–damage. If an owner has elevated once (see E4), the effective
+depth for HH i is
+deff
+i,t = max{dt −EH heighti, 0}.
+(2)
+Building and contents losses use standard depth–damage curves fbld(·) and fcnt(·):
+Lossbld
+i,t = fbld(deff
+i,t) · RCV bld
+i
+,
+Losscnt
+i,t = fcnt(deff
+i,t) · RCV cnt
+i
+.
+D. Threat perception (TP): gated growth + decay at tract-level
+Let Gt be total tract losses in year t and RCVt the tract’s total replacement cost value. Define the
+damage ratio rt = Gt/RCVt. TP is updated separately for MG and NMG:
+D1. Gate by damage ratio.
+TP gains occur only if rt > θ (baseline θ = 0.5):
+1{rt > θ}.
+D2. Half-life dynamics.
+We adopt an evolving half-life τ(t) = τ∞−(τ∞−τ0)e−kt with τ∞>
+τ0 > 0, k > 0. The tract-level decay coefficient for group g ∈{MG, NMG} is
+µg
+t = ln 2
+τ(t) (α PAg
+t + β SCg
+t ) .
+(3)
+Empirically, SC tends to lengthen half-life more strongly among MG; for NMG the contributions
+of SC and PA are comparable.
+D3. Discrete annual update.
+The previous year’s flood damage is used to update the current
+year’s threat perception:
+TP g
+t
+= (1 −µg
+t ) TP g
+t−1 + ∆ψt ·
+Gt
+RCVt
+,
+where ∆ψt = 1 if
+Gt
+RCVt
+> θ else 0.
+(4)
+E. Decision-making (tract-level probabilities, HH-level randomization)
+The decision process involves three main steps to move from tract-level perceptions to individual
+household actions.
+E1.
+Group-specific action probabilities.
+First, for each group g ∈{MG, NMG} within a
+tract, we calculate the adoption probability for each action a ∈{FI, EH, BP, RL, DN}. This is done
+using a Bayesian regression model where perceptions (TP, CP, SP) are the inputs:
+p(a),g
+t
+= σ
+
+w(a)
+0
++ w(a)
+1 TP g
+t + w(a)
+2 CPt + w(a)
+3 SPt
+
+,
+(5)
+where CPt embeds affordability/income effects, SPt is stakeholder perception, and σ(·) is the logistic
+link function.
+2
+E2. MG/NMG-weighted common threshold.
+Next, these group-specific probabilities are
+combined into a single, tract-level adoption probability for each action. This is achieved by weight-
+ing the group probabilities by the tract’s MG share (wMG):
+p(a)
+t
+= wMG p(a),MG
+t
++ (1 −wMG) p(a),NMG
+t
+.
+(6)
+E3.
+Household decision rule (random draw).
+Finally, each individual household in the
+tract makes its decision. For each potential action, a random number u ∼U(0, 1) is drawn and
+compared against the tract-level probability p(a)
+t . The household adopts the action if its random
+draw is greater than the threshold and the action is permitted by the sequence constraints below.
+E4. Sequences and constraints.
+Households can take at most one action per year, following
+a specific sequence:
+• Owner: FI →EH (at most once, +5 ft; all subsequent years skip EH) →BP (buyout
+removes the HH permanently; no backfill) →DN.
+• Renter: FI →RL (relocate to a tract with same or lower dt) →DN.
+F. Feedback from Adaptation Actions
+The actions taken by households at the end of each year directly influence the state of the catas-
+trophic model for the following year.
+F1. Vulnerability Module Feedback.
+Elevating a house (EH) directly reduces its physical
+vulnerability. By raising the structure by 5 feet, the depth-damage curve is shifted to the right,
+meaning a greater flood depth is required to cause the same percentage of damage. This lowers the
+potential for damage in future flood events.
+F2. Exposure Module Feedback.
+The buyout program (BP) and relocation (RL) alter the
+model’s exposure database. A buyout removes a household and its structure from the simulation
+permanently, which reduces the total number of owners and the total RCV in the tract, thus
+lowering exposure. Relocation moves a renter household to a different tract (one with equal or
+lower flood depth), thereby reallocating exposure across the study area.
+F3.
+Indirect Financial Impacts.
+These changes in vulnerability and exposure have direct
+consequences for the finance module. Reduced vulnerability (from EH) leads to lower calculated
+damages, which in turn results in smaller insurance payouts and lower out-of-pocket costs for insured
+households. Reduced or reallocated exposure (from BP and RL) changes the total potential losses
+and, therefore, the aggregate financial risk within tracts.
+G. Finance
+Renters can purchase contents-only coverage; owners can purchase structures + contents.
+The
+module calculates premiums, deductibles, limits, payouts, and out-of-pocket (OOP) costs.
+Premium →Deductible →Limit →Payout →Out-of-Pocket (OOP).
+Key outputs: FI take-up/retention, payout ratio, OOP median/IQR/P95, average annual loss
+(AAL), and premium distributions among insured only.
+3
+H. State variables (minimal set)
+• Per-tract: TP MG
+t
+, TP NMG
+t
+, SCg, PAg, wMG, CPt, SPt, dt, rt, RCVt.
+• Per-HH: owner/renter flag; has EH (bool), EH height ft ∈{0, 5}; removed by BP (bool);
+tract id; insured type (owner: bld+cnt; renter: cnt-only); action t ∈{FI, EH, BP, RL, DN}.
+I. Pseudocode (per tract, per year)
+# Draw tract-level perceptions
+(SC_MG, PA_MG), (SC_NM, PA_NM) ~ survey-fitted distributions
+# Update TP for MG and NMG based on last year’s damage
+mu_MG = ln(2)/tau(t) * (alpha*PA_MG + beta*SC_MG)
+mu_NM = ln(2)/tau(t) * (alpha*PA_NM + beta*SC_NM)
+TP_MG = (1 - mu_MG)*TP_MG_prev + kappa*(r_t > theta)*r_t
+TP_NM = (1 - mu_NM)*TP_NM_prev + kappa*(r_t > theta)*r_t
+# Group-specific probabilities and MG-weighted common threshold
+for action a in {FI, EH, BP, RL, DN}:
+p_MG = sigmoid(w0[a] + w1[a]*TP_MG + w2[a]*CP_t + w3[a]*SP_t)
+p_NM = sigmoid(w0[a] + w1[a]*TP_NM + w2[a]*CP_t + w3[a]*SP_t)
+p_bar[a] = w_MG*p_MG + (1 - w_MG)*p_NM
+# Household decisions (random draw vs p_bar)
+for hh in tract:
+if hh.is_owner:
+if rand() > p_bar[’FI’]: hh.buy_insurance()
+elif not hh.has_EH and rand() > p_bar[’EH’]: hh.elevate(+5 ft)
+elif rand() > p_bar[’BP’]: hh.remove() # permanent; no backfill
+else: hh.do(’DN’)
+else: # renter
+if rand() > p_bar[’FI’]: hh.buy_contents_only()
+elif rand() > p_bar[’RL’]: hh.relocate_to_same_or_lower_depth_tract()
+else: hh.do(’DN’)
+J. Notation
+Symbol
+Meaning
+dt
+Tract mean of grid-level peak flood depths in year t
+Gt, RCVt
+Tract total losses and total replacement cost in year t
+rt
+Damage ratio Gt/RCVt
+θ
+TP gain trigger threshold on rt (baseline 0.5)
+τ(t)
+Time-varying half-life; µg
+t = ln 2 (αPAg + βSCg)/τ(t)
+TP g
+t
+Threat perception for group g ∈{MG, NMG}
+p(a),g
+t
+Action probability for action a and group g
+p(a)
+t
+MG/NMG-weighted tract-level action probability
+wMG
+MG share
+4
+CRS/subsidies.
+Community Rating System discounts and targeted subsidies are not yet imple-
+mented but can be incorporated as multiplicative factors on premiums and/or as additive offsets
+to elevation or relocation costs in the finance/decision layers.
+5
