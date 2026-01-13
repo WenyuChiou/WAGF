@@ -16,9 +16,11 @@ from broker.core.experiment import ExperimentBuilder
 from broker.components.context_builder import TieredContextBuilder, InteractionHub
 from broker.components.memory_engine import HumanCentricMemoryEngine
 from examples.multi_agent.flood_agents import NJStateAgent, FemaNfipAgent
+from examples.multi_agent.world_models.grid_flood_model import GridFloodModel
 
-def run_flood_interactive(model: str, steps: int = 5, agents_count: int = 50, verbose: bool = False):
-    print(f"\n🌊 Starting Flood Multi-Agent Simulation (Agents={agents_count}, Steps={steps})")
+def run_flood_interactive(model: str, steps: int = 5, agents_count: int = 50, verbose: bool = False, workers: int = 1):
+    print(f"\n🌊 Starting Flood Multi-Agent Simulation (Agents={agents_count}, Steps={steps}, Workers={workers})")
+
     
     # 1. Initialize Institutional Agents
     govt_agent = NJStateAgent()
@@ -110,6 +112,11 @@ def run_flood_interactive(model: str, steps: int = 5, agents_count: int = 50, ve
     agents = load_agents_from_excel("examples/multi_agent/input/initial_household data.xlsx", limit=agents_count)
     print(f" [Init] Loaded {len(agents)} households from raw Excel survey.")
     
+    # Initialize Disaster Model & Project Agents
+    flood_model = GridFloodModel()
+    flood_model.project_agents(agents)
+    print(f" [Init] Disaster Model: PRB Grid (Projected {len(agents)} agents to virtual locations)")
+
     # Create final graph with populated IDs
     social_graph = NetworkXAdapter(list(agents.keys()), nx_G)
     print(f" [Init] Social Network: Small World (Edges={nx_G.number_of_edges()})")
@@ -117,9 +124,43 @@ def run_flood_interactive(model: str, steps: int = 5, agents_count: int = 50, ve
     # 4. Define Lifecycle Hooks
     
     def pre_step(step_year, env_context, agent_dict):
-        """Update Global Policies based on previous year stats."""
-        print(f"\n--- Year {step_year} Institutional Update ---")
+        """Update Global Policies and Trigger Flood Event."""
+        print(f"\n--- Year {step_year} Institutional & World Evolution ---")
         
+        # 1. Trigger Flood for the year
+        # Note: step_year starts from 1, mapping to 2011 + (step-1)
+        sim_year = 2011 + (step_year - 1)
+        if sim_year > 2023:
+             # Loop or stick to 2023 for long runs
+             sim_year = 2023
+             
+        # Calculate local hazards for each agent
+        flood_impacts = {}
+        total_damage = 0
+        for a_id, agent in agent_dict.items():
+            zone = agent.dynamic_state.get("virtual_zone", "Safe")
+            depth_m = flood_model.get_local_depth(zone, sim_year)
+            depth_ft = flood_model.m_to_ft(depth_m)
+            
+            # Calculate FEMA damage if flood occurred
+            damage_info = {"total_damage": 0}
+            if depth_m > 0:
+                # Assuming property value from survey or default 300k
+                prop_val = 300000 
+                damage_info = flood_model.calculate_damage(depth_m, prop_val, agent.dynamic_state.get("elevated", False))
+                total_damage += damage_info["total_damage"]
+            
+            flood_impacts[a_id] = {
+                "local_depth_ft": depth_ft,
+                "damage": damage_info,
+                "payout": damage_info.get("payout", 0) # Track for SP later
+            }
+        
+        # Inject into env_context for agent perception
+        env_context["flood_impacts"] = flood_impacts
+        env_context["sim_year"] = sim_year
+        
+        # 2. Institutional Updates
         # Calculate stats from agent states 
         relocated_count = sum(1 for a in agent_dict.values() if a.dynamic_state.get('relocated', False))
         elevated_count = sum(1 for a in agent_dict.values() if a.dynamic_state.get('elevated', False))
@@ -133,15 +174,17 @@ def run_flood_interactive(model: str, steps: int = 5, agents_count: int = 50, ve
             "total_premiums": 20000 
         }
         
-        # Government Act
+        # Government Act (NJ State Blue Acres)
         govt_dec = govt_agent.step(global_stats)
         print(f" [Govt] {govt_dec}")
-        env_context["subsidy_level"] = govt_dec["subsidy_level"]
+        env_context["subsidy_rate"] = govt_dec["subsidy_level"]
+        env_context["govt_message"] = govt_dec["message"]
         
-        # Insurance Act
+        # Insurance Act (FEMA NFIP Risk Rating 2.0)
         ins_dec = insurance_agent.step(global_stats)
         print(f" [NIFP] {ins_dec}")
         env_context["premium_rate"] = ins_dec["premium_rate"]
+        env_context["solvency_status"] = ins_dec["solvency_status"]
 
     def post_year_social(step_year, agent_dict):
         """Propagate Social Influence (Gossip)."""
@@ -201,7 +244,9 @@ def run_flood_interactive(model: str, steps: int = 5, agents_count: int = 50, ve
         .with_steps(steps)
         .with_verbose(verbose)
         .with_lifecycle_hooks(pre_step=pre_step, post_year=post_year_social)
+        .with_workers(workers)  # PR 2: Multiprocessing Integration
         .build())
+
         
     print(" [Ready] Runner built. Starting simulation...")
     runner.run()
@@ -211,6 +256,8 @@ if __name__ == "__main__":
     parser.add_argument("--steps", type=int, default=20) # 20 Years for full scale
     parser.add_argument("--agents", type=int, default=50)
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
+    parser.add_argument("--workers", type=int, default=1, help="Number of parallel workers for LLM calls (1=sequential)")
     args = parser.parse_args()
     
-    run_flood_interactive(model="mock", steps=args.steps, agents_count=args.agents, verbose=args.verbose)
+    run_flood_interactive(model="mock", steps=args.steps, agents_count=args.agents, verbose=args.verbose, workers=args.workers)
+
