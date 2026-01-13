@@ -62,9 +62,9 @@ def run_flood_interactive(model: str, steps: int = 5, agents_count: int = 50, ve
         loaded_agents = {}
         for idx, row in data_df.iterrows():
             a_id = f"Agent_{idx}"
-            # Tenure check (Col 26 in Survey): 1=Own, 2=Rent
-            tenure_val = row[26]
-            a_type = "household_owner" if tenure_val == 1 else "household_renter"
+            # Tenure check (Col 22: Housing Status) - "Own" variants vs "Rent"
+            tenure_val = str(row[22]).lower() if pd.notna(row[22]) else ""
+            a_type = "household_owner" if "own" in tenure_val else "household_renter"
             
             config = AgentConfig(
                 name=a_id,
