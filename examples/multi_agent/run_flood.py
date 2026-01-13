@@ -60,41 +60,34 @@ def run_flood_interactive(model: str, steps: int = 5, agents_count: int = 50, ve
             data_df = data_df.sample(n=limit, random_state=42)
             
         loaded_agents = {}
+        all_categorized = {
+            "household_owner_mg": [],
+            "household_owner_nmg": [],
+            "household_renter_mg": [],
+            "household_renter_nmg": []
+        }
+        
         for idx, row in data_df.iterrows():
-            a_id = f"Agent_{idx}"
-            
-            # --- Strict Data Validation (Phase 3) ---
-            # Skip if critical data is missing
+            # ... cleanup and basic info extraction ...
             tenure_val = str(row[22]).lower() if pd.notna(row[22]) else ""
             income_label = str(row[104]).strip() if pd.notna(row[104]) else ""
+            if not tenure_val or not income_label: continue
             
-            if not tenure_val or not income_label:
-                # print(f" [Skip] Agent_{idx} due to missing Tenure or Income.")
-                continue
-
             base_type = "household_owner" if "own" in tenure_val else "household_renter"
             
-            # --- MG Classification Logic (2 out of 3) ---
-            # ... (mapping hh_size and inc_opt)
+            # --- MG Classification ---
             size_val = str(row[28]).strip().lower()
             if "more than" in size_val: hh_size = 9
             else: hh_size = int(size_val) if size_val.isdigit() else 1
             
             income_map = {
-                "Less than $25,000": 1,
-                "$25,000 to $29,999": 2,
-                "$30,000 to $34,999": 3,
-                "$35,000 to $39,999": 4,
-                "$40,000 to $44,999": 5,
-                "$45,000 to $49,999": 6,
-                "$50,000 to $54,999": 7,
-                "$55,000 to $59,999": 8,
-                "$60,000 to $74,999": 9,
+                "Less than $25,000": 1, "$25,000 to $29,999": 2, "$30,000 to $34,999": 3,
+                "$35,000 to $39,999": 4, "$40,000 to $44,999": 5, "$45,000 to $49,999": 6,
+                "$50,000 to $54,999": 7, "$55,000 to $59,999": 8, "$60,000 to $74,999": 9,
                 "More than $74,999": 10
             }
             inc_opt = income_map.get(income_label, 10)
             
-            # ... (rest of MG logic)
             is_poverty = False
             if hh_size == 1 and inc_opt <= 1: is_poverty = True
             elif hh_size == 2 and inc_opt <= 2: is_poverty = True
@@ -106,24 +99,39 @@ def run_flood_interactive(model: str, steps: int = 5, agents_count: int = 50, ve
             
             is_burdened = (str(row[101]).strip().lower() == "yes")
             no_vehicle = (str(row[26]).strip().lower() == "no")
-            mg_score = (1 if is_poverty else 0) + (1 if is_burdened else 0) + (1 if no_vehicle else 0)
-            is_mg = (mg_score >= 2)
+            is_mg = (int(is_poverty) + int(is_burdened) + int(no_vehicle)) >= 2
             
-            # Differentiate Agent Type for auditing
+            cat = f"{base_type}_{'mg' if is_mg else 'nmg'}"
+            all_categorized[cat].append((idx, row, is_mg, base_type, income_label))
+            
+        # --- Stratified Sampling Logic (Phase 4) ---
+        # Targets for 100 agents based on survey distribution
+        targets = {
+            "household_owner_mg": 4,
+            "household_owner_nmg": 55,
+            "household_renter_mg": 12,
+            "household_renter_nmg": 29
+        }
+        
+        sampled_rows = []
+        for cat, target in targets.items():
+            pool = all_categorized[cat]
+            # Simple take first N (could use random.sample for variety)
+            sampled_rows.extend(pool[:target])
+            
+        loaded_agents = {}
+        for idx, row, is_mg, base_type, income_label in sampled_rows:
+            a_id = f"Agent_{idx}"
             a_type = f"{base_type}_{'mg' if is_mg else 'nmg'}"
             
             config = AgentConfig(
                 name=a_id,
                 agent_type=a_type,
-                state_params=[], 
-                objectives=[],
-                constraints=[],
-                skills=[],
+                state_params=[], objectives=[], constraints=[], skills=[],
                 persona=f"A local {base_type.replace('household_', '')} participating in the flood survey. Group: {'Marginalized' if is_mg else 'Non-Marginalized'}."
             )
             agent = BaseAgent(config)
             
-            # Persona Guard: Fill NaNs with Unknown
             def safe_val(val, default="Unknown"):
                 return val if pd.notna(val) else default
 
@@ -136,7 +144,6 @@ def run_flood_interactive(model: str, steps: int = 5, agents_count: int = 50, ve
                 "education": safe_val(row[96]),
                 "zip_code": safe_val(row[105]),
                 "is_mg": is_mg,
-                # Flood Experience markers
                 "flood_history": {
                     "has_experienced": str(row[34]).lower() == "yes",
                     "most_recent_year": safe_val(row[35], "N/A"),
@@ -145,20 +152,14 @@ def run_flood_interactive(model: str, steps: int = 5, agents_count: int = 50, ve
                     "received_assistance": str(row[39]).lower() == "yes"
                 }
             }
-            # Initial State (Minimalist)
+            # Initial State
             agent.dynamic_state = {
-                "elevated": False,
-                "has_insurance": False,
-                "has_contents_insurance": False,
-                "relocated": False,
-                "flood_threshold": 0.5,
-                "current_premium": 1500, # Base premium estimate
-                "last_premium": 1500,
-                "historical_damage": 0,
-                "historical_payout": 0
+                "elevated": False, "has_insurance": False, "has_contents_insurance": False,
+                "relocated": False, "flood_threshold": 0.5, "current_premium": 1500,
+                "last_premium": 1500, "historical_damage": 0, "historical_payout": 0
             }
-            
             loaded_agents[a_id] = agent
+        
         return loaded_agents
 
     # Initialize from raw Excel survey data
