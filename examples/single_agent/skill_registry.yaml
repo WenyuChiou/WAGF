@@ -4,8 +4,8 @@
 
 skills:
   - skill_id: buy_insurance
-    description: "Buy flood insurance (Lower cost, provides partial financial protection but does not reduce physical damage)"
-    eligible_agent_types: ["household_owner", "household_renter"] # Both can buy insurance
+    description: "Purchase or renew standard flood insurance (covers both building property and household contents)"
+    eligible_agent_types: ["household_owner"] # Owners buy full property + contents insurance
     preconditions: [] # Can renew annually
     institutional_constraints:
       annual: true
@@ -15,7 +15,7 @@ skills:
     implementation_mapping: "sim.buy_insurance"
 
   - skill_id: buy_contents_insurance
-    description: "Buy contents insurance (Protects renter belongings from flood damage)"
+    description: "Purchase or renew contents-only flood insurance (protects personal belongings/machinery from damage)"
     eligible_agent_types: ["household_renter"] # Renters buy contents insurance
     preconditions: []
     institutional_constraints:

@@ -1,47 +1,49 @@
 household_owner:
-  description: "Homeowners making adaptation decisions (Buyout/Elevation/Insurance) based on PMT. Reference: Rogers (1983), Bukvic (2022) doi:10.1016/j.apgeog.2022.102758"
+  description: "Homeowners making adaptation decisions (Buyout/Elevation/Insurance) based on PMT. Reference: Rogers (1983), Bukvic (2022)"
 
   prompt_template: |
     ### [IDENTITY & BACKGROUND]
     {narrative_persona}
+    You have lived in this home for {residency_generations} generations. 
+    Household Size: {household_size} members.
+    Vehicle Ownership: {income_range} (Note: Vehicle availability impacts emergency mobility).
 
     ### [HISTORY & EXPERIENCE]
     {flood_experience_summary}
+    Recent Flood Impact: Your property sustained ${historical_damage:,.0f} in damages.
+    Insurance Response: You received ${historical_payout:,.0f} in payouts.
 
     ### [MEMORY & RECENT EVENTS]
     {memory}
 
     ### [CURRENT STATUS]
-    You currently {insurance_status} flood insurance.
-    {elevation_status_text}
+    - Property Status: {elevation_status_text}
+    - Insurance Coverage: You currently {insurance_status} property and contents insurance.
+    - Financial Context: 
+      * Current Annual Premium: ${current_premium:,.0f}
+      * Premium Change: {premium_change_pct:+.1%} from last year.
+      * Elevation Grant Subsidy: {subsidy_rate:.0%} of costs covered by NJ Blue Acres.
 
-    ### [ENVIRONMENTAL CONTEXT]
-    - Government subsidy rate for elevation: {subsidy_rate:.0%}
-    - Flood insurance premium rate: {premium_rate:.2%}
+    ### [ADAPTATION OPTIONS]
+    Based on Protection Motivation Theory (Rogers, 1983), evaluate your options objectively:
+    1. Do Nothing: Maintain current status without additional investment.
+    2. Buy/Renew Insurance: Pay annual premium for financial protection against future losses.
+    3. Elevate House: Structural modification to reduce physical damage (requires upfront cost).
+    4. Buyout Program: Voluntary sale of property to the state at pre-flood market value.
 
-    Using the Protection Motivation Theory (PMT) and PADM, evaluate:
-    - TP (Threat Perception): Assessment of severity/vulnerability.
-    - CP (Coping Perception): Assessment of financial/technical ability.
-    - SC (Social Capital): Ties to neighbors and mutual support (doi:10.1016/j.crm.2023.100498).
-    - PA (Place Attachment): Emotional bond to this specific home (doi:10.1016/j.ijdrr.2020.101937).
-    - SP (Stakeholder Perception): Trust in Government/Insurance programs (doi:10.1016/j.envsci.2017.03.012).
-
-    Choose one:
-    {options_text}
-
-    Format:
-    TP Assessment: [LOW/MODERATE/HIGH] because [explanation]
-    CP Assessment: [LOW/MODERATE/HIGH] because [explanation]
-    SC Assessment: [LOW/MODERATE/HIGH] because [explanation]
-    PA Assessment: [LOW/MODERATE/HIGH] because [explanation]
-    SP Assessment: [LOW/MODERATE/HIGH] because [explanation]
+    Format your response:
+    TP Assessment: [LOW/MODERATE/HIGH]
+    CP Assessment: [LOW/MODERATE/HIGH]
+    SC Assessment: [LOW/MODERATE/HIGH]
+    PA Assessment: [LOW/MODERATE/HIGH]
+    SP Assessment: [LOW/MODERATE/HIGH]
     Final Decision: [number]
-    Reasoning: [Brief justification]
+    Reasoning: [Brief technical justification]
 
   parsing:
     decision_keywords: ["final decision:", "decision:"]
     default_skill: "do_nothing"
-    skill_map_non_elevated:
+    skill_map:
       "1": "do_nothing"
       "2": "buy_insurance"
       "3": "elevate_house"
@@ -52,74 +54,62 @@ household_owner:
       "3": "buyout_program"
     constructs:
       TP_LABEL:
-        regex: "(?:tp\\s*(?:assessment|perception)?|threat\\s*perception)[^.]*?\\[?(LOW|MODERATE|MEDIUM|MED|HIGH|L|M|H)\\]?"
+        regex: "TP Assessment:.*?(LOW|MODERATE|HIGH)"
       CP_LABEL:
-        regex: "(?:cp\\s*(?:assessment|perception)?|coping\\s*perception)[^.]*?\\[?(LOW|MODERATE|MEDIUM|MED|HIGH|L|M|H)\\]?"
+        regex: "CP Assessment:.*?(LOW|MODERATE|HIGH)"
       SC_LABEL:
-        regex: "(?:sc\\s*(?:assessment|perception)?|social\\s*capital)[^.]*?\\[?(LOW|MODERATE|MEDIUM|MED|HIGH|L|M|H)\\]?"
+        regex: "SC Assessment:.*?(LOW|MODERATE|HIGH)"
       PA_LABEL:
-        regex: "(?:pa\\s*(?:assessment|perception)?|place\\s*attachment)[^.]*?\\[?(LOW|MODERATE|MEDIUM|MED|HIGH|L|M|H)\\]?"
+        regex: "PA Assessment:.*?(LOW|MODERATE|HIGH)"
+      SP_LABEL:
+        regex: "SP Assessment:.*?(LOW|MODERATE|HIGH)"
 
   governance_rules:
-    identity_rules:
-      already_elevated_block:
-        precondition: elevated
-        blocked_skills: ["elevate_house"]
-        message: "[Rule: status_constraint] House is already elevated."
     thinking_rules:
-      urgency_check:
-        construct: TP_LABEL
-        when_above: ["H"]
-        blocked_skills: ["do_nothing"]
-        message: "[Rule: PMT] High Threat but inaction chosen (Grothmann 2006)."
-      coping_check:
-        construct: CP_LABEL
-        when_above: ["L"]
-        blocked_skills: ["elevate_house", "buyout_program"]
-        message: "[Rule: PMT] Low Coping but expensive action attempted."
       pa_relocation_block:
         construct: PA_LABEL
         when_above: ["H"]
         blocked_skills: ["buyout_program"]
-        message: "[Rule: PA] High Place Attachment hinders buyout/relocation (Bukvic 2022 doi:10.1016/j.apgeog.2022.102758)."
+        message: "[Rule: PA] High Place Attachment hinders buyout/relocation (Bukvic, 2022)."
 
 household_renter:
-  description: "Renter agents making mobility decisions based on PMT and community ties. Reference: Swapan (2021) doi:10.1016/j.ijdrr.2020.101937"
+  description: "Renter agents making mobility decisions based on PMT. Reference: Swapan (2021)"
 
   prompt_template: |
     ### [IDENTITY & BACKGROUND]
     {narrative_persona}
+    Residence Length: You have lived in this neighborhood for {residency_generations} years/generations.
+    Household Size: {household_size} members.
+    Vehicle Ownership: {income_range}.
 
     ### [HISTORY & EXPERIENCE]
     {flood_experience_summary}
+    Recent Impact: Your belongings sustained ${historical_damage:,.0f} in damages.
+    Insurance Response: You received ${historical_payout:,.0f} in payouts.
 
     ### [MEMORY & RECENT EVENTS]
     {memory}
 
     ### [CURRENT STATUS]
-    You currently {insurance_status} contents insurance.
+    - Insurance Coverage: You currently {insurance_status} contents insurance.
+    - Financial Context:
+      * Current Annual Premium: ${current_premium:,.0f}
+      * Premium Change: {premium_change_pct:+.1%} from last year.
 
-    ### [ENVIRONMENTAL CONTEXT]
-    - Flood insurance premium rate: {premium_rate:.2%}
+    ### [ADAPTATION OPTIONS]
+    Evaluate your response based on PMT (Rogers, 1983) and neighborhood ties (Swapan, 2021):
+    1. Do Nothing: Continue residency without additional protection.
+    2. Buy/Renew Contents Insurance: Protect personal belongings from future flood losses.
+    3. Relocate: Move to a new rental property in a lower-risk area.
 
-    Using PMT and PADM, evaluate:
-    - TP (Threat Perception): Assessment of severity/vulnerability.
-    - CP (Coping Perception): Assessment of your ability to move or insure contents.
-    - SC (Social Capital): Local support networks (doi:10.1016/j.crm.2023.100498).
-    - PA (Place Attachment): Sense of belonging to this neighborhood.
-    - SP (Stakeholder Perception): Trust in institutional assistance.
-
-    Choose one:
-    {options_text}
-
-    Format:
-    TP Assessment: [LOW/MODERATE/HIGH] because [explanation]
-    CP Assessment: [LOW/MODERATE/HIGH] because [explanation]
-    SC Assessment: [LOW/MODERATE/HIGH] because [explanation]
-    PA Assessment: [LOW/MODERATE/HIGH] because [explanation]
-    SP Assessment: [LOW/MODERATE/HIGH] because [explanation]
+    Format your response:
+    TP Assessment: [LOW/MODERATE/HIGH]
+    CP Assessment: [LOW/MODERATE/HIGH]
+    SC Assessment: [LOW/MODERATE/HIGH]
+    PA Assessment: [LOW/MODERATE/HIGH]
+    SP Assessment: [LOW/MODERATE/HIGH]
     Final Decision: [number]
-    Reasoning: [Brief justification]
+    Reasoning: [Brief technical justification]
 
   parsing:
     decision_keywords: ["final decision:", "decision:"]
@@ -130,13 +120,15 @@ household_renter:
       "3": "relocate"
     constructs:
       TP_LABEL:
-        regex: "(?:tp\\s*(?:assessment|perception)?|threat\\s*perception)[^.]*?\\[?(LOW|MODERATE|MEDIUM|MED|HIGH|L|M|H)\\]?"
+        regex: "TP Assessment:.*?(LOW|MODERATE|HIGH)"
       CP_LABEL:
-        regex: "(?:cp\\s*(?:assessment|perception)?|coping\\s*perception)[^.]*?\\[?(LOW|MODERATE|MEDIUM|MED|HIGH|L|M|H)\\]?"
+        regex: "CP Assessment:.*?(LOW|MODERATE|HIGH)"
       SC_LABEL:
-        regex: "(?:sc\\s*(?:assessment|perception)?|social\\s*capital)[^.]*?\\[?(LOW|MODERATE|MEDIUM|MED|HIGH|L|M|H)\\]?"
+        regex: "SC Assessment:.*?(LOW|MODERATE|HIGH)"
       PA_LABEL:
-        regex: "(?:pa\\s*(?:assessment|perception)?|place\\s*attachment)[^.]*?\\[?(LOW|MODERATE|MEDIUM|MED|HIGH|L|M|H)\\]?"
+        regex: "PA Assessment:.*?(LOW|MODERATE|HIGH)"
+      SP_LABEL:
+        regex: "SP Assessment:.*?(LOW|MODERATE|HIGH)"
 
   governance_rules:
     thinking_rules:
@@ -144,7 +136,7 @@ household_renter:
         construct: SC_LABEL
         when_above: ["H"]
         blocked_skills: ["relocate"]
-        message: "[Rule: SC] High Social Capital provides community stability, hindering independent relocation (Azad 2023 doi:10.1016/j.crm.2023.100498)."
+        message: "[Rule: SC] High Social Capital provides community stability (Azad, 2023)."
 
 government:
   description: "State government managing adaptation subsidies"
@@ -165,3 +157,10 @@ insurance:
       description: "Lower annual flood insurance premiums"
     - id: maintain_premium
       description: "Maintain current premium levels"
+
+metadata:
+  bibliography: |
+    Azad, A. K., et al. (2023). Social capital and flood adaptation: Evidence from community-led initiatives. Climate Risk Management, 41, 100498. https://doi.org/10.1016/j.crm.2023.100498
+    Bukvic, A., et al. (2022). The role of place attachment in flood-related relocation decisions. Applied Geography, 144, 102758. https://doi.org/10.1016/j.apgeog.2022.102758
+    Rogers, R. W. (1983). Cognitive and physiological processes in fear appeals and attitude change: A revised theory of protection motivation. Social Psychophysiology: A Sourcebook.
+    Swapan, M. S. H., et al. (2021). Neighborhood ties and the intention to relocate in response to flood risk. International Journal of Disaster Risk Reduction, 52, 101937. https://doi.org/10.1016/j.ijdrr.2020.101937
