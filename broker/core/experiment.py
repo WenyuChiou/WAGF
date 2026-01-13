@@ -6,12 +6,13 @@ from typing import Dict, List, Any, Optional, Callable
 from pathlib import Path
 from dataclasses import dataclass, field
 import random
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from agents.base_agent import BaseAgent
 from ..interfaces.skill_types import ApprovedSkill
 from .skill_broker_engine import SkillBrokerEngine
 from ..components.context_builder import BaseAgentContextBuilder
-from ..components.memory_engine import MemoryEngine, WindowMemoryEngine
+from ..components.memory_engine import MemoryEngine, WindowMemoryEngine, HierarchicalMemoryEngine
 from ..utils.agent_config import GovernanceAuditor
 
 @dataclass
@@ -26,6 +27,7 @@ class ExperimentConfig:
     experiment_name: str = "modular_exp"
     seed: int = 42
     verbose: bool = False
+    workers: int = 1  # Number of parallel workers for LLM calls (1=sequential)
 
 class ExperimentRunner:
     """Engine that runs the simulation loop."""
@@ -104,26 +106,18 @@ class ExperimentRunner:
                 if getattr(a, 'is_active', True)
             ]
             
-            for agent in active_agents:
-                self.step_counter += 1
-                result = self.broker.process_step(
-                    agent_id=agent.id,
-                    step_id=self.step_counter,
-                    run_id=run_id,
-                    seed=self.config.seed + self.step_counter,
-                    llm_invoke=llm_invoke,
-                    agent_type=getattr(agent, 'agent_type', 'default'),
-                    env_context=env
-                )
-                # Apply state changes
+            # Parallel vs Sequential Execution (PR: Multiprocessing Core)
+            if self.config.workers > 1:
+                results = self._run_agents_parallel(active_agents, run_id, llm_invoke, env)
+            else:
+                results = self._run_agents_sequential(active_agents, run_id, llm_invoke, env)
+            
+            # Apply results and trigger post-step hooks
+            for agent, result in results:
                 if result.execution_result and result.execution_result.success:
                     self._apply_state_changes(agent, result)
-                
-                # --- Lifecycle Hook: Post-Step ---
                 if "post_step" in self.hooks:
                     self.hooks["post_step"](agent, result)
-                
-                # Note: Memory truncation is now handled inside MemoryEngine
             
             # --- Lifecycle Hook: Post-Step-End / Post-Year ---
             # Dual trigger for generic compatibility
@@ -166,6 +160,53 @@ class ExperimentRunner:
         """Legacy alias for _finalize_step."""
         self._finalize_step(year)
 
+    def _run_agents_sequential(self, agents: List, run_id: str, llm_invoke: Callable, env: Dict) -> List:
+        """Execute agent steps sequentially. Default mode."""
+        results = []
+        for agent in agents:
+            self.step_counter += 1
+            result = self.broker.process_step(
+                agent_id=agent.id,
+                step_id=self.step_counter,
+                run_id=run_id,
+                seed=self.config.seed + self.step_counter,
+                llm_invoke=llm_invoke,
+                agent_type=getattr(agent, 'agent_type', 'default'),
+                env_context=env
+            )
+            results.append((agent, result))
+        return results
+
+    def _run_agents_parallel(self, agents: List, run_id: str, llm_invoke: Callable, env: Dict) -> List:
+        """Execute agent steps in parallel using ThreadPoolExecutor."""
+        results = []
+        
+        def process_agent(agent, step_id):
+            return agent, self.broker.process_step(
+                agent_id=agent.id,
+                step_id=step_id,
+                run_id=run_id,
+                seed=self.config.seed + step_id,
+                llm_invoke=llm_invoke,
+                agent_type=getattr(agent, 'agent_type', 'default'),
+                env_context=env
+            )
+        
+        with ThreadPoolExecutor(max_workers=self.config.workers) as executor:
+            futures = {}
+            for agent in agents:
+                self.step_counter += 1
+                futures[executor.submit(process_agent, agent, self.step_counter)] = agent
+            
+            for future in as_completed(futures):
+                try:
+                    agent, result = future.result()
+                    results.append((agent, result))
+                except Exception as e:
+                    print(f"[Parallel] Agent {futures[future].id} failed: {e}")
+        
+        return results
+
 class ExperimentBuilder:
     """Fluent API for assembling the experiment puzzle."""
     def __init__(self):
@@ -183,6 +224,12 @@ class ExperimentBuilder:
         self.memory_engine = None
         self.verbose = False
         self.hooks = {}
+        self.workers = 1  # PR: Multiprocessing Core - default to sequential
+
+    def with_workers(self, workers: int = 4):
+        """Set number of parallel workers for LLM calls. 1=sequential (default)."""
+        self.workers = workers
+        return self
 
     def with_model(self, model: str):
         self.model = model
@@ -286,6 +333,9 @@ class ExperimentBuilder:
         # 2. Setup Memory Engine (Default to Window if not provided)
         mem_engine = self.memory_engine or WindowMemoryEngine(window_size=3)
         
+        # Phase 28: If using HierarchicalMemoryEngine, ensure ContextBuilder supports it
+        from ..components.context_builder import TieredContextBuilder
+        
         # 3. Setup Context Builder
         # Inject memory_engine and semantic_thresholds into ctx_builder if it supports it
         ctx_builder = self.ctx_builder or create_context_builder(
@@ -374,7 +424,8 @@ class ExperimentBuilder:
             num_steps=self.num_steps,
             governance_profile=self.profile,
             output_dir=self.output_base,
-            verbose=self.verbose
+            verbose=self.verbose,
+            workers=self.workers  # PR: Multiprocessing Core
         )
         
         runner = ExperimentRunner(
