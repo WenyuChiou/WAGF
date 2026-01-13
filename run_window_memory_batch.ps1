@@ -8,12 +8,12 @@ foreach ($model in $models) {
     Write-Host "Running: $model with Window Memory (Size=3)"
     Write-Host "========================================="
     
-    python examples/single_agent/run_modular_experiment.py `
+    python examples/single_agent/run_flood.py `
         --model $model `
         --agents 100 `
         --years 10 `
         --memory-engine window `
-        --output examples/single_agent/results `
+        --output examples/single_agent/results_window `
         --verbose
     
     Write-Host "Completed: $model"

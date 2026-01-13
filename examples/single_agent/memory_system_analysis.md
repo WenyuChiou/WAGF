@@ -129,8 +129,8 @@ Year 3: Agent decision
 
 ```powershell
 # With memory
-python examples/single_agent/run_modular_experiment.py --model llama3.2:3b --memory-engine humancentric --years 10 --agents 50
+python examples/single_agent/run_flood.py --model llama3.2:3b --memory-engine humancentric --years 10 --agents 50
 
 # Without memory (window only)
-python examples/single_agent/run_modular_experiment.py --model llama3.2:3b --memory-engine window --years 10 --agents 50
+python examples/single_agent/run_flood.py --model llama3.2:3b --memory-engine window --years 10 --agents 50
 ```

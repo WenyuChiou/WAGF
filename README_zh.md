@@ -91,7 +91,37 @@
 
 ---
 
-## 快速開始
+# 🏗️ 通用性與標準化指南 (v3.0)
+
+為了確保框架保持 domain-agnostic (領域無關) 並在不同模擬之間維持高度可比性，我們遵循嚴格的 **0-1 參數標準化規範**。
+
+### 1. 0-1 參數規範
+
+所有核心模組中的心理、制度與物理狀態參數，應盡可能標準化至 `[0.0, 1.0]` 範圍。
+
+| 類別     | 建議參數名稱          | 預設 / 範圍    | 描述                             |
+| :------- | :-------------------- | :------------- | :------------------------------- |
+| **認知** | `semantic_thresholds` | `(0.3, 0.7)`   | Prompt 中 L/M/H 標籤的上下界。   |
+| **記憶** | `importance_weights`  | `0.1` to `1.0` | 不同記憶類別的顯著性評分權重。   |
+| **驗證** | `risk_tolerance`      | `0.5`          | 心理連貫性檢查的基準值。         |
+| **環境** | `hazard_intensity`    | `0.0` to `1.0` | 外部衝擊（如災害）的強度或機率。 |
+
+### 2. 通用性檢查清單 (Universality Checklist)
+
+當將框架擴展到新領域（如：金融、醫療）時，請確保：
+
+- [ ] **解耦提示詞 (Decoupled Prompting)**: 使用 `agent_types.yaml` 中的 `prompt_template`，而非硬編碼文字。
+- [ ] **泛用技能 (Generic Skills)**: 在 `skill_registry.yaml` 中註冊領域動作，並賦予唯一的 `skill_id`。
+- [ ] **反射式發現 (Reflective Discovery)**: 確保 Prompt 中使用的代理人屬性是可公開訪問的 (publicly accessible)。
+- [ ] **審計相容性 (Audit Compatibility)**: 目錄與模型名稱使用 `snake_case`，以確保日誌一致性。
+
+### 3. 預設配置建議
+
+- **Window Memory**: `window_size=3` (在上下文長度與簡潔度之間取得平衡)。
+- **治理配置文件**: `strict` 用於科學研究，`permissive` 用於創意探索。
+- **重試邏輯**: `max_retries=2` (共 3 次嘗試) 是在不增加過多成本下的最佳復原策略。
+
+---
 
 ```bash
 # 安裝依賴

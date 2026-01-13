@@ -31,6 +31,7 @@ try:
                 print(f"DEBUG: All Keys: {list(item.keys())}")
                 print(f"DEBUG: parsed_output type: {type(p_out)}")
                 print(f"DEBUG: parsed_output value: {p_out}")
+                print(f"DEBUG: execution_result: {item.get('execution_result')}")
 
             dec = "Unknown"
             if isinstance(p_out, dict):

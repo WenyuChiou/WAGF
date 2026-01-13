@@ -65,11 +65,11 @@ simulation:
 
 ```powershell
 # Use preset
-python run_modular_experiment.py --preset nj_hurricane
+python examples/single_agent/run_flood.py --preset nj_hurricane
 
 # Override specific values
-python run_modular_experiment.py --preset nj_hurricane --agents 200 --years 5
+python examples/single_agent/run_flood.py --preset nj_hurricane --agents 200 --years 5
 
 # Custom configuration file
-python run_modular_experiment.py --config custom_config.yaml
+python examples/single_agent/run_flood.py --config custom_config.yaml
 ```

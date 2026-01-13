@@ -21,7 +21,7 @@ foreach ($engine in $engines) {
         Write-Host "Running: $model | Engine: $engine"
         Write-Host "-----------------------------------------"
         
-        python examples/single_agent/run_modular_experiment.py `
+        python examples/single_agent/run_flood.py `
             --model $model `
             --agents 100 `
             --years 10 `

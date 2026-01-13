@@ -347,6 +347,43 @@ class DynamicStateProvider(ContextProvider):
             if key in env_context:
                 context[key] = env_context[key]
 
+class HouseholdGroundingProvider(ContextProvider):
+    """
+    Consolidates raw demographic and flood experience data into qualitative narrative strings.
+    Prevents prompt bloat by summarizing multiple fields into coherent sentences.
+    """
+    def provide(self, agent_id, agents, context, **kwargs):
+        agent = agents.get(agent_id)
+        if not agent: return
+        
+        # 1. Narrative Persona
+        fixed = getattr(agent, 'fixed_attributes', {})
+        residency = fixed.get("residency_generations", "Unknown")
+        hh_size = fixed.get("household_size", "Unknown")
+        occ = fixed.get("occupation", "resident")
+        income = fixed.get("income_range", "Unknown")
+        burden = "high" if fixed.get("housing_cost_burden") in [1, "Yes", True] else "manageable"
+        
+        persona = (f"You are a {residency}-generation resident managing a household of {hh_size}. "
+                   f"You work as a {occ}. Your household income is {income}, and your housing cost burden is {burden}.")
+        
+        context["narrative_persona"] = persona
+        
+        # 2. Flood Experience Summary
+        hist = fixed.get("flood_history", {})
+        if hist.get("has_experienced"):
+            recent = hist.get("most_recent_year", "the past")
+            sig = hist.get("significant_loss_year", "N/A")
+            actions = hist.get("past_actions", "no specific actions")
+            assistance = "received" if hist.get("received_assistance") else "did not receive"
+            
+            summary = (f"You experienced a flood in {recent}. Your most significant financial loss was in {sig}. "
+                       f"After the flood, you took {actions} and {assistance} government assistance.")
+        else:
+            summary = "You have no personal experience with flooding at this address."
+            
+        context["flood_experience_summary"] = summary
+
 class TieredContextBuilder(BaseAgentContextBuilder):
     """
     Modular Tiered Context Builder using the Provider pipeline.
@@ -367,6 +404,7 @@ class TieredContextBuilder(BaseAgentContextBuilder):
             AttributeProvider(),
             MemoryProvider(memory_engine),
             SocialProvider(hub),
+            HouseholdGroundingProvider()
         ]
         
         if hasattr(hub, 'environment') and hub.environment:

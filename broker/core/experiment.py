@@ -275,7 +275,13 @@ class ExperimentBuilder:
         os.environ["GOVERNANCE_PROFILE"] = self.profile
         
         # 1. Setup Skill Registry
-        reg = self.skill_registry or SkillRegistry()
+        reg = self.skill_registry
+        if isinstance(reg, str):
+            path = reg
+            reg = SkillRegistry()
+            reg.register_from_yaml(path)
+        if not reg:
+            reg = SkillRegistry()
         
         # 2. Setup Memory Engine (Default to Window if not provided)
         mem_engine = self.memory_engine or WindowMemoryEngine(window_size=3)
@@ -284,6 +290,7 @@ class ExperimentBuilder:
         # Inject memory_engine and semantic_thresholds into ctx_builder if it supports it
         ctx_builder = self.ctx_builder or create_context_builder(
             self.agents, 
+            yaml_path=self.agent_types_path,
             semantic_thresholds=getattr(self, 'semantic_thresholds', (0.3, 0.7))
         )
         if hasattr(ctx_builder, 'memory_engine'):
@@ -303,7 +310,7 @@ class ExperimentBuilder:
         
         # 4. Setup Audit
         audit_cfg = AuditConfig(
-            output_dir=str(self.output_base / f"{self.model.replace(':','_')}_{self.profile}"),
+            output_dir=str(self.output_base / f"{self.model.replace(':','_').replace('-','_').replace('.','_')}_{self.profile}"),
             experiment_name=self.model
         )
         audit_writer = GenericAuditWriter(audit_cfg)
@@ -311,9 +318,14 @@ class ExperimentBuilder:
         # 5. Setup Validator & Adapter
         validator = AgentValidator(config_path=self.agent_types_path)
         from broker import UnifiedAdapter
+        
+        # PR 13.1: Inject registry skills into adapter for robust parsing
+        reg_skills = set(reg.skills.keys()) if hasattr(reg, 'skills') else None
+        
         adapter = UnifiedAdapter(
             agent_type="default", 
-            config_path=self.agent_types_path
+            config_path=self.agent_types_path,
+            valid_skills=reg_skills
         )
         
         # Inject templates into ctx_builder if it supports it

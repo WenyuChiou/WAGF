@@ -4,7 +4,7 @@
 
 ```powershell
 # Run multi-agent experiment
-python examples/multi_agent/run_modular_experiment.py --agents 100 --years 10 --model llama3.2:3b
+python examples/single_agent/run_flood.py --agents 100 --years 10 --model llama3.2:3b
 ```
 
 ## Configuration Parameters
@@ -123,10 +123,10 @@ overrides:
 
 ```powershell
 # Simple usage with preset
-python run_modular_experiment.py --preset nj_hurricane
+python examples/single_agent/run_flood.py --preset nj_hurricane
 
 # Override specific values
-python run_modular_experiment.py --preset nj_hurricane --agents 200
+python examples/single_agent/run_flood.py --preset nj_hurricane --agents 200
 ```
 
 ## Full Citation List

@@ -10,7 +10,7 @@ foreach ($model in $models) {
     Write-Host "🚀 Starting Benchmark for Model: $model" -ForegroundColor Green
     Write-Host "=========================================================" -ForegroundColor Cyan
     
-    python examples/single_agent/run_modular_experiment.py --model $model --years $years --agents $agents
+    python examples/single_agent/run_flood.py --model $model --years $years --agents $agents
     
     Write-Host "✅ Completed $model" -ForegroundColor Yellow
 }

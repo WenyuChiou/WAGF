@@ -151,11 +151,15 @@ class SkillBrokerEngine:
             retry_prompt = self.model_adapter.format_retry_prompt(prompt, errors)
             raw_output = llm_invoke(retry_prompt)
             
-            skill_proposal = self.model_adapter.parse_output(raw_output, {
+            # Pass full context for audit access, but keep required keys at top level for backward compat
+            parse_ctx = context.copy()
+            parse_ctx.update({
                 "agent_id": agent_id,
                 "is_elevated": context.get("elevated", False),
                 "agent_type": agent_type
             })
+            
+            skill_proposal = self.model_adapter.parse_output(raw_output, parse_ctx)
             
             if skill_proposal:
                 validation_results = self._run_validators(skill_proposal, validation_context)

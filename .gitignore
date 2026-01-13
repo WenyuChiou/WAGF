@@ -41,6 +41,7 @@ Thumbs.db
 # Project specific
 output/
 results/
+examples/single_agent/results_*/
 *.log
 audit_output/
 toy_output/

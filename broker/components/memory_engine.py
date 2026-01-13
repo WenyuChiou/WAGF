@@ -93,6 +93,10 @@ class ImportanceMemoryEngine(MemoryEngine):
             "high": ["change", "success", "important", "new"],
             "medium": ["observed", "heard", "social", "network"]
         }
+        
+        # Standard: Enforce 0-1 normalization for scoring weights
+        if any(w < 0.0 or w > 1.0 for w in self.weights.values()):
+            print(f"[Universality:Warning] Memory weights {self.weights.values()} are outside 0-1 range. Standardizing to [0,1] is recommended.")
 
     def _score_content(self, content: str, agent: Optional[BaseAgent] = None) -> float:
         """Heuristic scoring based on keyword importance."""

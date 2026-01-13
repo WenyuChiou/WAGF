@@ -17,12 +17,13 @@ from .components.context_builder import (
     create_context_builder, load_prompt_templates
 )
 from .components.interaction_hub import InteractionHub
-from .components.social_graph import NeighborhoodGraph
+from .components.social_graph import NeighborhoodGraph, SocialGraph, create_social_graph
 from .components.audit_writer import GenericAuditWriter, AuditConfig, GenericAuditWriter as AuditWriter, AuditConfig as GenericAuditConfig
 
 # 4. Core (Dependent on everything above)
 from .core.skill_broker_engine import SkillBrokerEngine
 from .core.experiment import ExperimentBuilder, ExperimentRunner
+from agents.base_agent import BaseAgent, AgentConfig
 
 # Aliases
 GovernedBroker = SkillBrokerEngine
