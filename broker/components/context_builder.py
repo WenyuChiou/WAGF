@@ -328,6 +328,25 @@ class InstitutionalProvider(ContextProvider):
         if inst_id:
             context["institutional"] = self.environment.institutions.get(inst_id, {})
 
+class DynamicStateProvider(ContextProvider):
+    """
+    Universally injects dynamic environment state into context.
+    Uses a whitelist to prevent context pollution.
+    """
+    def __init__(self, whitelist: List[str] = None):
+        self.whitelist = whitelist or []
+
+    def provide(self, agent_id, agents, context, **kwargs):
+        """Inject whitelisted env_context variables into top-level context."""
+        env_context = kwargs.get("env_context", {})
+        if not env_context: return
+
+        # Inject only whitelisted keys directly into context 
+        # (so they are picked up by flattened template_vars)
+        for key in self.whitelist:
+            if key in env_context:
+                context[key] = env_context[key]
+
 class TieredContextBuilder(BaseAgentContextBuilder):
     """
     Modular Tiered Context Builder using the Provider pipeline.
@@ -340,9 +359,11 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         global_news: List[str] = None,
         prompt_templates: Dict[str, str] = None,
         memory_engine: Optional[MemoryEngine] = None,
-        trust_verbalizer: Optional[Callable[[float, str], str]] = None
+        trust_verbalizer: Optional[Callable[[float, str], str]] = None,
+        dynamic_whitelist: List[str] = None
     ):
         providers = [
+            DynamicStateProvider(dynamic_whitelist),
             AttributeProvider(),
             MemoryProvider(memory_engine),
             SocialProvider(hub),
@@ -414,6 +435,10 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         for k, v in inst.items():
             template_vars[k] = v
             template_vars[f"inst_{k}"] = v
+            
+        # Add extra context keys (top-level attributes like dynamic variables)
+        template_vars.update({k: v for k, v in context.items() 
+                            if k not in template_vars and isinstance(v, (str, int, float, bool))})
         
         # Add special sections for modular UI templates
         template_vars["personal_section"] = self._format_generic_section("MY STATUS & HISTORY", p)
