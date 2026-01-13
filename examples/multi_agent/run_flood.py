@@ -62,16 +62,39 @@ def run_flood_interactive(model: str, steps: int = 5, agents_count: int = 50, ve
         loaded_agents = {}
         for idx, row in data_df.iterrows():
             a_id = f"Agent_{idx}"
-            # Tenure check (Col 22: Housing Status)
+            
+            # --- Strict Data Validation (Phase 3) ---
+            # Skip if critical data is missing
             tenure_val = str(row[22]).lower() if pd.notna(row[22]) else ""
+            income_label = str(row[104]).strip() if pd.notna(row[104]) else ""
+            
+            if not tenure_val or not income_label:
+                # print(f" [Skip] Agent_{idx} due to missing Tenure or Income.")
+                continue
+
             base_type = "household_owner" if "own" in tenure_val else "household_renter"
             
             # --- MG Classification Logic (2 out of 3) ---
-            # 1. Below Poverty Line (via 2D lookup)
-            # row[28]: Size, row[104]: Income Range (1=<25k, 2=25-30k, 3=30-35k, 4=35-40k, 5=40-45k, 6=45-50k, 7=50-55k, 8=55-60k, 9=60-75k, 10=>75k)
-            hh_size = int(row[28]) if pd.notna(row[28]) else 1
-            inc_opt = int(row[104]) if pd.notna(row[104]) else 10 # Default to high income if missing
+            # ... (mapping hh_size and inc_opt)
+            size_val = str(row[28]).strip().lower()
+            if "more than" in size_val: hh_size = 9
+            else: hh_size = int(size_val) if size_val.isdigit() else 1
             
+            income_map = {
+                "Less than $25,000": 1,
+                "$25,000 to $29,999": 2,
+                "$30,000 to $34,999": 3,
+                "$35,000 to $39,999": 4,
+                "$40,000 to $44,999": 5,
+                "$45,000 to $49,999": 6,
+                "$50,000 to $54,999": 7,
+                "$55,000 to $59,999": 8,
+                "$60,000 to $74,999": 9,
+                "More than $74,999": 10
+            }
+            inc_opt = income_map.get(income_label, 10)
+            
+            # ... (rest of MG logic)
             is_poverty = False
             if hh_size == 1 and inc_opt <= 1: is_poverty = True
             elif hh_size == 2 and inc_opt <= 2: is_poverty = True
@@ -81,15 +104,8 @@ def run_flood_interactive(model: str, steps: int = 5, agents_count: int = 50, ve
             elif (hh_size == 6 or hh_size == 7) and inc_opt <= 8: is_poverty = True
             elif hh_size >= 8 and inc_opt <= 9: is_poverty = True
             
-            # 2. Housing Cost Burden (Col 101)
-            # 1=Yes, 2=No
-            is_burdened = (int(row[101]) == 1) if pd.notna(row[101]) else False
-            
-            # 3. Without Vehicle (Col 26)
-            # 1=Yes (Owns), 2=No (Doesn't) -> MG if NO vehicle
-            no_vehicle = (int(row[26]) == 2) if pd.notna(row[26]) else False
-            
-            # MG = 2 out of 3
+            is_burdened = (str(row[101]).strip().lower() == "yes")
+            no_vehicle = (str(row[26]).strip().lower() == "no")
             mg_score = (1 if is_poverty else 0) + (1 if is_burdened else 0) + (1 if no_vehicle else 0)
             is_mg = (mg_score >= 2)
             
@@ -107,26 +123,28 @@ def run_flood_interactive(model: str, steps: int = 5, agents_count: int = 50, ve
             )
             agent = BaseAgent(config)
             
-            # Map extended columns for Qualitative Grounding (Phase 21)
+            # Persona Guard: Fill NaNs with Unknown
+            def safe_val(val, default="Unknown"):
+                return val if pd.notna(val) else default
+
             agent.fixed_attributes = {
-                "income_range": row[104],
-                "housing_cost_burden": row[101],
-                "occupation": row[102] if pd.notna(row[102]) else row[103],
-                "residency_generations": row[30],
-                "household_size": row[28],
-                "education": row[96],
-                "zip_code": row[105],
-                "is_mg": is_mg, # Explicitly store for tracking
+                "income_range": income_label,
+                "housing_cost_burden": safe_val(row[101]),
+                "occupation": safe_val(row[102] if pd.notna(row[102]) else row[103]),
+                "residency_generations": safe_val(row[30]),
+                "household_size": safe_val(row[28]),
+                "education": safe_val(row[96]),
+                "zip_code": safe_val(row[105]),
+                "is_mg": is_mg,
                 # Flood Experience markers
                 "flood_history": {
                     "has_experienced": str(row[34]).lower() == "yes",
-                    "most_recent_year": row[35],
-                    "significant_loss_year": row[37] if pd.notna(row[37]) else row[36],
-                    "past_actions": row[40],
+                    "most_recent_year": safe_val(row[35], "N/A"),
+                    "significant_loss_year": safe_val(row[37] if pd.notna(row[37]) else row[36], "None"),
+                    "past_actions": safe_val(row[40], "None"),
                     "received_assistance": str(row[39]).lower() == "yes"
                 }
             }
-            
             # Initial State (Minimalist)
             agent.dynamic_state = {
                 "elevated": False,
@@ -275,7 +293,7 @@ def run_flood_interactive(model: str, steps: int = 5, agents_count: int = 50, ve
     ctx_builder = TieredContextBuilder(
         agents=agents,
         hub=InteractionHub(graph=social_graph, memory_engine=memory_engine),
-        dynamic_whitelist=["subsidy_rate", "premium_rate"] # Whitelist standardized vars
+        dynamic_whitelist=["subsidy_rate", "premium_rate", "flood_impacts", "sim_year"] 
     )
     
     # 6. Execute Experiment using ExperimentBuilder
