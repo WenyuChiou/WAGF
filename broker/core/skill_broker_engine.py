@@ -108,7 +108,7 @@ class SkillBrokerEngine:
         timestamp = datetime.now().isoformat()
         
         # ① Build bounded context (READ-ONLY)
-        context = self.context_builder.build(agent_id)
+        context = self.context_builder.build(agent_id, env_context=env_context)
         context_hash = self._hash_context(context)
         
         # Robust memory extraction for audit (handles nesting and stringification)
@@ -174,47 +174,30 @@ class SkillBrokerEngine:
         all_valid = all(v.valid for v in validation_results)
         
         # Diagnostic summary for User
-        if self.log_prompt: # Using existing flag as trigger for verbose logs
-            reasoning = skill_proposal.reasoning or {}
-            # Try to get labels (checking both internal labels and common key aliases)
-            # Try to get labels (config-driven)
+        if self.log_prompt:
             reasoning = skill_proposal.reasoning or {}
             label_parts = []
             
-            # Dynamic Label Extraction
-            if hasattr(self.model_adapter, 'agent_config'):
-                log_fields = self.model_adapter.agent_config.get_log_fields(agent_type)
-                
-                # If no fields configured, fallback to smart defaults for legacy compatibility
-                if not log_fields:
-                    # PMT defaults
-                    if any(k in reasoning for k in ['TP_LABEL', 'threat_appraisal', 'threat']):
-                        log_fields = ['TP', 'CP', 'SC', 'PA'] # Default PMT set
-                    else:
-                        # Generic defaults: try to match common reasoning keys
-                        log_fields = [k for k in reasoning.keys() if k not in ['decision', 'strategy', 'adjustment', 'reason']]
-                        
+            # Dynamic Label Extraction from reasoning
+            # Try to get labels (config-driven)
+            if self.config:
+                log_fields = self.config.get_log_fields(agent_type)
                 for field_name in log_fields:
-                    # Support mapping ShortName -> LongKey (e.g., TP -> threat_appraisal)
-                    # For now, we assume simple key lookup or simple variations
                     val = None
-                    # 1. Try exact match
-                    if field_name in reasoning: val = reasoning[field_name]
-                    # 2. Try _LABEL suffix
-                    elif f"{field_name}_LABEL" in reasoning: val = reasoning[f"{field_name}_LABEL"]
-                    # 3. Try lowercase
-                    elif field_name.lower() in reasoning: val = reasoning[field_name.lower()]
-                    
+                    # Try various casing and suffix variants
+                    for variants in [field_name, field_name.upper(), f"{field_name}_LABEL", field_name.capitalize(), field_name.lower()]:
+                        if variants in reasoning:
+                            val = reasoning[variants]
+                            break
                     if val:
                         label_parts.append(f"{field_name}: {val}")
-                        
-            # If still empty (no config or no matches), try legacy hardcoded fallback for safety
-            if not label_parts:
-                 tp = reasoning.get('TP_LABEL') or reasoning.get('threat_appraisal') or reasoning.get('threat', 'N/A')
-                 cp = reasoning.get('CP_LABEL') or reasoning.get('coping_appraisal') or reasoning.get('coping', 'N/A')
-                 if tp != 'N/A' or cp != 'N/A':
-                    label_parts = [f"TP: {tp}", f"CP: {cp}"]
             
+            # Legacy Fallback for Strategy/Confidence if not in log_fields
+            if not any("Strategy" in p for p in label_parts) and "Strategy" in reasoning:
+                label_parts.append(f"Strategy: {reasoning['Strategy']}")
+            if not any("Confidence" in p for p in label_parts) and "Confidence" in reasoning:
+                label_parts.append(f"Confidence: {reasoning['Confidence']}")
+
             print(f" [Adapter:Parsed] {agent_id} Choice: '{skill_proposal.skill_name}' | {' | '.join(label_parts)}")
             
             if not all_valid:

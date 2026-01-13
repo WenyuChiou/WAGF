@@ -128,292 +128,155 @@ class UnifiedAdapter(ModelAdapter):
             p_cfg = parsing_cfg.get("preprocessor", {})
             self._preprocessor = get_preprocessor(p_cfg)
         
-        # Build alias map for canonical ID resolution
+        self._preprocessor = preprocessor or (lambda x: x)
+        
+        # Load valid skills for the agent type to build alias map
+        self.valid_skills = self.agent_config.get_valid_actions(agent_type)
         self.alias_map = {}
-        # Get raw action config to access IDs and aliases
-        raw_actions = self.agent_config.get(agent_type).get("actions", [])
-        for action in raw_actions:
-            canonical_id = action["id"]
-            self.alias_map[canonical_id.lower()] = canonical_id
-            for alias in action.get("aliases", []):
-                self.alias_map[alias.lower()] = canonical_id
-                
-        # If valid_skills provided, just use them (no mapping assumed/possible without config)
-        if valid_skills:
-            self.valid_skills = valid_skills
-        else:
-            self.valid_skills = set(self.alias_map.keys())
-    
-    @property
-    def preprocessor(self) -> Callable[[str], str]:
-        """Backward compatibility for direct attribute access (defaults to init-time type)."""
-        return self._preprocessor
-
+        for skill in self.valid_skills:
+            # Add self
+            self.alias_map[skill.lower()] = skill
+            # Add aliases from config if they exist
+            # Note: Aliases are handled within SkillRegistry usually, 
+            # but ModelAdapter needs them for direct string matching
+            
     def _get_preprocessor_for_type(self, agent_type: str) -> Callable[[str], str]:
         """Get preprocessor for a specific agent type."""
-        # 1. If explicit preprocessor was provided at init, ALWAYS use it
-        # (Compare against identity lambda or custom objects)
         try:
-            # Identity lambda check
-            is_identity = (
-                self._preprocessor.__name__ == "<lambda>" and 
-                self._preprocessor("") == ""
-            )
+            is_identity = (self._preprocessor.__name__ == "<lambda>" and self._preprocessor("") == "")
         except:
             is_identity = False
             
         if not is_identity:
             return self._preprocessor
                 
-        # 2. Get from config for this specific type
         p_cfg = self.agent_config.get_parsing_config(agent_type).get("preprocessor", {})
         if p_cfg:
             return get_preprocessor(p_cfg)
-            
-        # 3. Fallback to init-time default
         return self._preprocessor
 
     def parse_output(self, raw_output: str, context: Dict[str, Any]) -> Optional[SkillProposal]:
         """
         Parse LLM output into SkillProposal.
-        
-        Supports:
-        - JSON-formatted output (Preferred)
-        - Structured text (Fallback)
+        Supports: Enclosure blocks (Phase 15), JSON, and Structured Text.
         """
         agent_id = context.get("agent_id", "unknown")
         agent_type = context.get("agent_type", self.agent_type)
-        
-        # Determine valid skills and config for THIS specific agent type
         valid_skills = self.agent_config.get_valid_actions(agent_type)
-        config_parsing = self.agent_config.get_parsing_config(agent_type) or self.config
-        
-        # Determine preprocessor dynamically
         preprocessor = self._get_preprocessor_for_type(agent_type)
+        parsing_cfg = self.agent_config.get_parsing_config(agent_type) or {}
+        skill_map = self.agent_config.get_skill_map(agent_type, context)
         
-        # Apply preprocessor
-        cleaned_output = preprocessor(raw_output)
-        
-        # Initialize results
+        # 0. Initialize results
         skill_name = None
         reasoning = {}
-        adjustment = None
         parsing_warnings = []
+        adjustment = None
+
+        # 1. Phase 15: Enclosure Extraction (Priority)
+        # Support both triple-bracket and XML-style tags for maximum model compatibility
+        patterns = [
+            r"<<<DECISION_START>>>+?\s*(.*?)\s*<<<DECISION_END>>>+?",
+            r"<decision>\s*(.*?)\s*</decision>"
+        ]
         
-        if not raw_output or not raw_output.strip():
-            parsing_warnings.append("Empty raw output from model")
+        target_content = raw_output
+        for pattern in patterns:
+            match = re.search(pattern, raw_output, re.DOTALL | re.IGNORECASE)
+            if match:
+                target_content = match.group(1)
+                break
+
+        # 2. Preprocess target
+        cleaned_target = preprocessor(target_content)
         
-        # 1. ATTEMPT PURE JSON PARSING
+        # 3. ATTEMPT JSON PARSING
         try:
-            # Look for JSON block in case model added text around it
-            json_text = cleaned_output.strip()
-            if "```json" in json_text:
-                json_text = json_text.split("```json")[1].split("```")[0].strip()
-            elif "{" in json_text:
+            json_text = cleaned_target.strip()
+            if "{" in json_text:
                 json_text = json_text[json_text.find("{"):json_text.rfind("}")+1]
                 
             data = json.loads(json_text)
             if isinstance(data, dict):
-                # Extract skills/decisions
-                raw_decision = str(data.get("decision", data.get("Final Decision", ""))).lower()
-                for skill in valid_skills:
-                    if skill.lower() in raw_decision:
-                        skill_name = skill
-                        break
+                # Extract decision
+                decision_val = data.get("decision") or data.get("choice") or data.get("action")
                 
-                # Skill mapping logic: Smart Resolution
-                if not skill_name:
-                    skill_map = self.agent_config.get_skill_map(agent_type, context)
-                    
-                    # Try to find a numeric match in the map
-                    for char in raw_decision:
-                        if char.isdigit() and char in skill_map:
-                            skill_name = skill_map.get(char)
-                            break
-                    
-                    # Universal Numeric Mapper (Fallback if no map or match found)
-                    if not skill_name:
-                        # Fallback: Use index of actions list in YAML (1-indexed)
-                        raw_actions = self.agent_config.get(agent_type).get("actions", [])
-                        for char in raw_decision:
-                            if char.isdigit():
-                                idx = int(char) - 1
-                                if 0 <= idx < len(raw_actions):
-                                    skill_name = raw_actions[idx]["id"]
-                                    break
-                
-                # Extract dynamic constructs (Config-driven)
-                constructs = self.agent_config.get(agent_type).get("parsing", {}).get("constructs", {})
-                for key, construct_cfg in constructs.items():
-                    # keywords are keys in JSON
-                    for kw in construct_cfg.get("keywords", []):
-                        if kw in data:
-                            reasoning[key] = data[kw]
+                # Resolve decision
+                if isinstance(decision_val, (int, str)) and str(decision_val) in skill_map:
+                    skill_name = skill_map[str(decision_val)]
+                elif isinstance(decision_val, str):
+                    for skill in valid_skills:
+                        if skill.lower() == decision_val.lower():
+                            skill_name = skill
                             break
                 
-                if skill_name:
-                    if "adj" in data:
-                        reasoning["adjustment"] = data["adj"]
-                    return SkillProposal(
-                        skill_name=skill_name,
-                        agent_id=agent_id,
-                        agent_type=agent_type,
-                        reasoning=reasoning,
-                        raw_output=raw_output,
-                        parsing_warnings=parsing_warnings
-                    )
-        except (json.JSONDecodeError, ValueError):
+                # Extract Reasoning & Constructs
+                reasoning = {
+                    "strategy": data.get("strategy", ""),
+                    "confidence": data.get("confidence", 1.0)
+                }
+                for k, v in data.items():
+                    if k not in ["decision", "choice", "action", "strategy", "confidence"]:
+                        reasoning[k] = v
+        except (json.JSONDecodeError, AttributeError):
             pass
 
-        # 2. FALLBACK TO REGEX PARSING (Existing logic)
-        lines = cleaned_output.strip().split('\n')
-        parsing_cfg = self.agent_config.get(agent_type).get("parsing", {})
-        keywords = parsing_cfg.get("decision_keywords", ["decide:", "decision:"])
-        
-        # Update valid_skills for this specific type if not explicitly provided
-        valid_skills = self.agent_config.get_valid_actions(agent_type)
-        
-        # Use a more flexible detection for decision lines (handles truncation like "Final Decisi:")
-        for line in lines:
-            line_lower = line.strip().lower()
+        # 4. FALLBACK TO REGEX/KEYWORD (if skill_name still None)
+        if not skill_name:
+            lines = cleaned_target.split('\n')
+            keywords = parsing_cfg.get("decision_keywords", ["decide:", "decision:", "choice:", "selected_action:"])
             
-            # Use regex for keywords to handle truncation (e.g., "final decisi:")
-            found_decision = False
-            for keyword in keywords:
-                # Create a regex that allows optional trailing chars or truncation
-                # e.g., "final decision:" matches "final decisi:" or "decision:"
-                kw_base = keyword.replace(":", "").strip()
-                # If the line starts with a significant prefix of the keyword
-                kw_pattern = rf"^(?:.*)?{re.escape(kw_base[:7])}.*?[:：]\s*(.*)"
-                match = re.search(kw_pattern, line_lower)
-                
-                if match:
-                    decision_text = match.group(1).strip()
-                    decision_lower = decision_text.lower()
-                    
-                    # 1. Try to match a skill name from config aliases
-                    decision_norm = decision_lower.replace("_", "").replace(" ", "")
-                    for skill in valid_skills:
-                        skill_norm = skill.lower().replace("_", "").replace(" ", "")
-                        if skill_norm in decision_norm:
-                            skill_name = skill
-                            found_decision = True
+            for line in lines:
+                line_lower = line.strip().lower()
+                for kw in keywords:
+                    if kw.lower() in line_lower:
+                        raw_val = line_lower.split(kw.lower())[1].strip()
+                        digit_match = re.search(r'(\d)', raw_val)
+                        if digit_match and digit_match.group(1) in skill_map:
+                            skill_name = skill_map[digit_match.group(1)]
                             break
-                    
-                    # 2. Try to match a numeric decision from skill map
-                    if not skill_name:
-                        skill_map = self.agent_config.get_skill_map(agent_type, context)
-                        for char in decision_text:
-                            if char.isdigit() and char in skill_map:
-                                skill_name = skill_map.get(char)
-                                found_decision = True
+                        for s in valid_skills:
+                            if s.lower() in raw_val:
+                                skill_name = s
                                 break
-                    
-                    if found_decision:
-                        break
-            if found_decision:
-                break
-        
-        # 3. LAST RESORT: Search for any standalone number 1-4 or action name at the end of the text
+                if skill_name: break
+
+        # 5. CONSTRUCT EXTRACTION (Regex based, applied to cleaned_target)
+        constructs_cfg = parsing_cfg.get("constructs", {})
+        for key, cfg in constructs_cfg.items():
+            if key not in reasoning or not reasoning[key]:
+                regex = cfg.get("regex")
+                if regex:
+                    match = re.search(regex, cleaned_target, re.IGNORECASE | re.DOTALL)
+                    if match:
+                        reasoning[key] = match.group(1).strip() if match.groups() else match.group(0).strip()
+
+        # 6. LAST RESORT: Search for bracketed numbers [1-7] in cleaned_target
         if not skill_name:
-            skill_map = self.agent_config.get_skill_map(agent_type, context)
-            # Find the LAST instance of a number 1-4 in the entire text
-            # Often DeepSeek ends with "Final Decision: 4" but it's truncated
-            digit_matches = re.findall(r'(\d)', cleaned_output)
-            if digit_matches:
-                last_digit = digit_matches[-1]
+            bracket_matches = re.findall(r'\[(\d)\]', cleaned_target)
+            digit_matches = re.findall(r'(\d)', cleaned_target)
+            candidates = bracket_matches if bracket_matches else digit_matches
+            if candidates:
+                last_digit = candidates[-1]
                 if last_digit in skill_map:
-                    skill_name = skill_map[last_digit]
-                    parsing_warnings.append(f"Decision extracted via last-resort numeric search: {last_digit}")
-            
-            if not skill_name:
-                # Try finding valid skill names in the entire text
-                for skill in valid_skills:
-                    if skill.lower() in cleaned_output.lower():
-                        skill_name = skill
-                        parsing_warnings.append(f"Decision extracted via keyword presence: {skill}")
-                        break
-            
-            # Parse ADJ: for adjustment percentage
-            adj_match = re.search(r"adj:\s*([0-9.]+%?)", line_lower)
-            if adj_match:
-                adj_text = adj_match.group(1)
-                try:
-                    adj_clean = adj_text.replace("%", "").strip()
-                    adj_val = float(adj_clean)
-                    adjustment = adj_val / 100 if adj_val > 1 else adj_val
-                except ValueError:
-                    pass
-            
-            # Parse REASON: or JUSTIFICATION:
-            reason_match = re.search(r"(?:reason|justification):\s*(.+)", line_lower)
-            if reason_match:
-                reasoning["reason"] = reason_match.group(1).strip()
-            
-            
-            # Parse INTERPRET (usually standalone)
-            if line_lower.startswith("interpret:"):
-                reasoning["interpret"] = line.split(":", 1)[1].strip() if ":" in line else ""
-            
-            # Generic KV-style construct parsing (e.g., PSY_EVAL: A=1 B=2)
-            eval_match = re.search(r"([a-z0-9_]+)_eval:\s*(.+)", line_lower)
-            if eval_match:
-                prefix = eval_match.group(1).upper()
-                content = eval_match.group(2).strip()
-                parts = content.split()
-                for part in parts:
-                    if "=" in part:
-                        k, v = part.split("=", 1)
-                        # We use prefix to avoid collisions across different schemas
-                        reasoning[f"{prefix}_{k.upper()}"] = v
-                reasoning[f"{prefix}_raw"] = content
+                    skill_name = skill_name or skill_map[last_digit]
+                    parsing_warnings.append(f"Last-resort extraction from digit: {last_digit}")
 
-
-            # Config-driven Construct Parsing (Generic)
-            constructs = config_parsing.get("constructs", {})
-
-            for key, construct_cfg in constructs.items():
-                # Check for keywords
-                has_keyword = any(k in line_lower for k in construct_cfg.get("keywords", []))
-                if has_keyword:
-                    # Apply regex
-                    pattern = construct_cfg.get("regex", "")
-                    if pattern:
-                        match = re.search(pattern, line, re.IGNORECASE)
-                        if match:
-                            reasoning[key] = match.group(1).strip()
-            
-        
-        # Default skill from config
+        # 7. Final Cleanup & Defaulting
         if not skill_name:
-            skill_name = config_parsing.get("default_skill", "do_nothing")
-            msg = f"Could not parse decision for {agent_id}. Falling back to default: '{skill_name}'"
-            parsing_warnings.append(msg)
-            print(f"[ModelAdapter:Diagnostic] Warning: {msg}")
-            # Log first 100 chars of output to help debug why it failed
-            print(f"[ModelAdapter:Diagnostic] Raw Output Snippet: {repr(cleaned_output[:100])}...")
-            
-        # Resolve to canonical ID
-        if skill_name:
-            skill_name = self.alias_map.get(skill_name.lower(), skill_name)
-        
-        # Add adjustment to reasoning if present
-        if adjustment is not None:
-            reasoning["adjustment"] = adjustment
-        
-        # 3. Config-driven Construct Parsing (Generic Fallback for Text)
-        config_parsing = self.agent_config.get(agent_type).get("parsing", {})
-        constructs_cfg = config_parsing.get("constructs", {})
-        for key, construct_cfg in constructs_cfg.items():
-            if key in reasoning and reasoning[key]:
-                continue
-            
-            pattern = construct_cfg.get("regex")
-            if pattern:
-                match = re.search(pattern, cleaned_output, re.IGNORECASE | re.MULTILINE)
-                if match:
-                    # If regex has a group, use it. Otherwise use the whole match.
-                    reasoning[key] = match.group(1).strip() if match.groups() else match.group(0).strip()
+            skill_name = parsing_cfg.get("default_skill", "do_nothing")
+            parsing_warnings.append(f"Default skill '{skill_name}' used.")
+
+        # Resolve to canonical ID via alias map
+        skill_name = self.alias_map.get(skill_name.lower(), skill_name)
+
+        return SkillProposal(
+            agent_id=agent_id,
+            skill_name=skill_name,
+            reasoning=reasoning,
+            raw_output=raw_output,
+            parsing_warnings=parsing_warnings
+        )
 
         # 6. Post-Parsing Robustness: Completeness Check
         if config_parsing and "constructs" in config_parsing:

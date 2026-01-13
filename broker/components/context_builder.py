@@ -64,12 +64,20 @@ class ContextBuilder(ABC):
         pass
 
 
-class ContextProvider(ABC):
-    """Interface for modular context data sources."""
-    @abstractmethod
-    def provide(self, agent_id: str, agents: Dict[str, Any], context: Dict[str, Any], **kwargs) -> None:
-        """Inject data into the context dictionary."""
+class ContextProvider:
+    """Interface for context providers."""
+    def provide(self, agent_id: str, agents: Dict[str, Any], context: Dict[str, Any], **kwargs):
         pass
+
+class SystemPromptProvider(ContextProvider):
+    """Provides mandatory system-level formatting instructions."""
+    def provide(self, agent_id, agents, context, **kwargs):
+        context["system_prompt"] = (
+            "### [STRICT FORMATTING RULE]\n"
+            "You MUST wrap your final decision JSON in <decision> and </decision> tags.\n"
+            "Example: <decision>{{\"strategy\": \"...\", \"confidence\": 0.8, \"decision\": 1}}</decision>\n"
+            "DO NOT include any commentary outside these tags."
+        )
 
 class AttributeProvider(ContextProvider):
     """Provides internal state from agent attributes."""
@@ -140,11 +148,16 @@ class BaseAgentContextBuilder(ContextBuilder):
         self.prompt_templates = prompt_templates or {}
         self.semantic_thresholds = semantic_thresholds
         
+        # Standard: Enforce 0-1 normalization for universal parameters
+        if any(t < 0.0 or t > 1.0 for t in semantic_thresholds):
+            print(f"[Universality:Warning] semantic_thresholds {semantic_thresholds} are outside 0-1 range. Standardizing to [0,1] is recommended.")
+        
         # Initialize default provider pipeline if none provided
         if providers is not None:
             self.providers = providers
         else:
             self.providers = [
+                SystemPromptProvider(),
                 AttributeProvider(),
                 EnvironmentProvider(environment or {}),
                 MemoryProvider(memory_engine)
@@ -349,8 +362,14 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         self.trust_verbalizer = trust_verbalizer
 
     def build(self, agent_id: str, **kwargs) -> Dict[str, Any]:
-        """Build context using the InteractionHub's tiered logic."""
-        return self.hub.build_tiered_context(agent_id, self.agents, self.global_news)
+        """Build context using the InteractionHub's tiered logic and any additional providers."""
+        context = self.hub.build_tiered_context(agent_id, self.agents, self.global_news)
+        
+        # Trigger all providers in sequence (e.g. SystemPromptProvider)
+        for provider in self.providers:
+            provider.provide(agent_id, self.agents, context, **kwargs)
+            
+        return context
 
     def format_prompt(self, context: Dict[str, Any]) -> str:
         """
@@ -360,6 +379,9 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         # 1. Prepare template variables
         template_vars = {}
         
+        # Flatten System (Strategic)
+        template_vars["system_prompt"] = context.get('system_prompt', "")
+
         # Flatten Personal (Tier 0)
         p = context.get('personal', {})
         for k, v in p.items():
@@ -431,9 +453,13 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         
         # 3. Use template (Generic lookup)
         agent_type = p.get('agent_type', 'default')
-        default_template = "{personal_section}\n\n{local_section}\n\n{institutional_section}\n\n{global_section}\n\n### [AVAILABLE OPTIONS]\n{options_text}"
+        default_template = "{system_prompt}\n\n{personal_section}\n\n{local_section}\n\n{institutional_section}\n\n{global_section}\n\n### [AVAILABLE OPTIONS]\n{options_text}"
         template = self.prompt_templates.get(agent_type, default_template)
         
+        # If the template doesn't include {system_prompt}, prepend it
+        if "{system_prompt}" not in template:
+            template = "{system_prompt}\n\n" + template
+            
         return SafeFormatter().format(template, **template_vars)
 
     def _format_generic_section(self, title: str, data: Dict[str, Any]) -> str:
@@ -509,8 +535,9 @@ def create_context_builder(
     load_yaml: bool = True,
     yaml_path: str = None,
     memory_engine: Optional[MemoryEngine] = None,
-    semantic_thresholds: tuple = (0.3, 0.7)
-) -> BaseAgentContextBuilder:
+    semantic_thresholds: tuple = (0.3, 0.7),
+    hub: Optional['InteractionHub'] = None
+) -> 'BaseAgentContextBuilder':
     """
     Create a context builder for a set of agents.
     
@@ -534,6 +561,14 @@ def create_context_builder(
     # Override with custom templates
     if custom_templates:
         templates.update(custom_templates)
+    
+    if hub:
+        return TieredContextBuilder(
+            agents=agents,
+            hub=hub,
+            prompt_templates=templates,
+            memory_engine=memory_engine
+        )
     
     return BaseAgentContextBuilder(
         agents=agents,
@@ -569,8 +604,11 @@ def load_prompt_templates(
         # Extract template strings from YAML structure
         templates = {}
         for key, value in data.items():
-            if isinstance(value, dict) and 'template' in value:
-                templates[key] = value['template']
+            if isinstance(value, dict):
+                if 'prompt_template' in value:
+                    templates[key] = value['prompt_template']
+                elif 'template' in value:
+                    templates[key] = value['template']
             elif isinstance(value, str):
                 templates[key] = value
         

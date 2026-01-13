@@ -42,7 +42,10 @@ Final Decision: {decision}"""
         llm = ChatOllama(model=model, num_predict=num_predict)
         
         def invoke(prompt: str) -> str:
-            if verbose:
+            import os
+            debug_llm = os.getenv("LLM_DEBUG") == "1"
+
+            if debug_llm:
                 # Log a small snippet of the prompt
                 print(f"\n [LLM:Input] (len={len(prompt)}) Prompt begins: {repr(prompt[:100])}...")
             
@@ -53,7 +56,7 @@ Final Decision: {decision}"""
                     response = llm.invoke(prompt)
                     content = response.content
                     
-                    if verbose:
+                    if debug_llm:
                         print(f" [LLM:Output] Raw Content: {repr(content[:200] if content else '')}...")
                     
                     if content and content.strip():

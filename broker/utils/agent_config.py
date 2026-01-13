@@ -181,7 +181,7 @@ class AgentTypeConfig:
             issues.append(f"WARNING: Governance profile '{profile}' not found for '{agent_type}'. Falling back to default.")
 
         # 2. Check Thinking Rules vs Constructs
-        config_parsing = cfg.get("parsing", {})
+        config_parsing = self.get_parsing_config(agent_type)
         constructs = config_parsing.get("constructs", {})
         rules = self.get_thinking_rules(agent_type)
         for rule in rules:
@@ -248,19 +248,36 @@ class AgentTypeConfig:
         return cfg.get("prompt_template", "")
     
     def get_parsing_config(self, agent_type: str) -> Dict[str, Any]:
-        """Get parsing configuration for model adapter."""
+        """Get parsing configuration for model adapter, falling back to default."""
         cfg = self.get(agent_type)
-        return cfg.get("parsing", {})
+        parsing = cfg.get("parsing", {})
+        
+        # Merge with default if not presence
+        default_parsing = self._config.get("default", {}).get("parsing", {})
+        if not parsing:
+            return default_parsing
+            
+        # Ensure constructs are inherited if missing
+        if "constructs" not in parsing and "constructs" in default_parsing:
+            parsing["constructs"] = default_parsing["constructs"]
+            
+        return parsing
 
     def get_memory_config(self, agent_type: str) -> Dict[str, Any]:
-        """Get memory engine configuration (Phase 12)."""
+        """Get memory engine configuration (Phase 12), falling back to default."""
         cfg = self.get(agent_type)
-        return cfg.get("memory", {})
+        memory = cfg.get("memory", {})
+        if not memory:
+            return self._config.get("default", {}).get("memory", {})
+        return memory
 
     def get_log_fields(self, agent_type: str) -> List[str]:
-        """Get list of reasoning fields to highlight in logs."""
+        """Get list of reasoning fields to highlight in logs, falling back to default."""
         cfg = self.get(agent_type)
-        return cfg.get("log_fields", [])
+        fields = cfg.get("log_fields", [])
+        if not fields:
+            return self._config.get("default", {}).get("log_fields", [])
+        return fields
 
 
     def get_skill_map(self, agent_type: str, context: Dict[str, Any] = None) -> Dict[str, str]:
