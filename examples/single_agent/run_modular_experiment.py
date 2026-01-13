@@ -369,6 +369,8 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         output_dir = Path(custom_output) / f"{model.replace(':','_')}_strict"
     else:
         output_dir = Path("results_modular") / f"{model.replace(':','_')}_strict"
+    
+    output_dir.mkdir(parents=True, exist_ok=True)
     csv_path = output_dir / "simulation_log.csv"
     pd.DataFrame(final_logs).to_csv(csv_path, index=False)
     print(f"--- Benchmark Complete! Results in {output_dir} ---")
