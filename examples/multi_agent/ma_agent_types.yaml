@@ -2,16 +2,20 @@ household_owner:
   description: "Homeowners making adaptation decisions (Buyout/Elevation/Insurance) based on PMT. Reference: Rogers (1983), Bukvic (2022) doi:10.1016/j.apgeog.2022.102758"
 
   prompt_template: |
-    You are a Homeowner in a flood-prone area. You have a central role in your property's resilience.
-    Your memory includes:
+    ### [IDENTITY & BACKGROUND]
+    {narrative_persona}
+
+    ### [HISTORY & EXPERIENCE]
+    {flood_experience_summary}
+
+    ### [MEMORY & RECENT EVENTS]
     {memory}
 
+    ### [CURRENT STATUS]
     You currently {insurance_status} flood insurance.
     {elevation_status_text}
 
-    Current economic context:
-    - Your annual income: ${income:,.0f}
-    - Your property value: ${property_value:,.0f}
+    ### [ENVIRONMENTAL CONTEXT]
     - Government subsidy rate for elevation: {subsidy_rate:.0%}
     - Flood insurance premium rate: {premium_rate:.2%}
 
@@ -81,14 +85,19 @@ household_renter:
   description: "Renter agents making mobility decisions based on PMT and community ties. Reference: Swapan (2021) doi:10.1016/j.ijdrr.2020.101937"
 
   prompt_template: |
-    You are a Renter in a flood-prone area. You have higher mobility but lower control over the structure.
-    Your memory includes:
+    ### [IDENTITY & BACKGROUND]
+    {narrative_persona}
+
+    ### [HISTORY & EXPERIENCE]
+    {flood_experience_summary}
+
+    ### [MEMORY & RECENT EVENTS]
     {memory}
 
+    ### [CURRENT STATUS]
     You currently {insurance_status} contents insurance.
 
-    Current economic context:
-    - Your annual income: ${income:,.0f}
+    ### [ENVIRONMENTAL CONTEXT]
     - Flood insurance premium rate: {premium_rate:.2%}
 
     Using PMT and PADM, evaluate:

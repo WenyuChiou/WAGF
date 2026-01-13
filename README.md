@@ -60,6 +60,33 @@ The framework utilizes a layered middleware approach that unifies single-agent i
 - **v1 (Legacy)**: Monolithic scripts.
 - **v2 (Stable)**: Modular `SkillBrokerEngine` + `providers`.
 - **v3 (Latest)**: Unified Single/Multi-Agent Architecture + Professional Audit Trail. Use `run_unified_experiment.py`.
+- **v3.1 (Current)**: **Demographic Grounding & Reasoning Audit**. Agents are grounded in real-world survey data (Identity, Experience) and audited for reasoning consistency.
+
+---
+
+## Human-Centric Grounding & Audit (v3.1) ✅
+
+We have extended the framework to bridge the gap between **Quantitative Data** (Survey) and **Qualitative Reasoning** (LLM).
+
+### 1. Narrative Grounding
+
+Directly injects rich, survey-derived context into the agent's persona:
+
+> "You are a **2nd-generation resident** managing a household of 4. You experienced a **major flood in 2012**."
+
+### 2. Demographic Audit
+
+A new `DemographicAudit` module automatically scores whether the LLM **actually uses** this context in its reasoning.
+
+- **Score 1.0**: Strong Integration (Cites multiple specific anchors like '2012', 'income').
+- **Score 0.5**: Acknowledgement.
+- **Score 0.0**: Hallucination / Generic reasoning.
+
+Run the new verified multi-agent example:
+
+```bash
+python examples/multi_agent/run_flood.py --verbose
+```
 
 ---
 
@@ -98,6 +125,40 @@ The framework utilizes a layered middleware approach that unifies single-agent i
 ### Validator Layer (`validators/`)
 
 We categorize governance rules into a 2x2 matrix:
+
+---
+
+## 🏗️ Universality & Standardization Guide (v3.0)
+
+To ensure the framework remains domain-agnostic and maintains high comparability across different simulations, we follow a strict **0-1 Normalization Standard**.
+
+### 1. The 0-1 Parameter Rule
+
+All psychological, institutional, and physical state parameters within core modules should be normalized to a `[0.0, 1.0]` range.
+
+| Category        | Recommended Parameters | Default / Range | Description                                           |
+| :-------------- | :--------------------- | :-------------- | :---------------------------------------------------- |
+| **Cognitive**   | `semantic_thresholds`  | `(0.3, 0.7)`    | Lower/Upper bounds for L/M/H labels in prompts.       |
+| **Memory**      | `importance_weights`   | `0.1` to `1.0`  | Significance scoring for different memory categories. |
+| **Validation**  | `risk_tolerance`       | `0.5`           | Baseline for psychological coherence checks.          |
+| **Environment** | `hazard_intensity`     | `0.0` to `1.0`  | Probability or depth of external shocks.              |
+
+### 2. Universality Checklist
+
+When extending the framework to a new domain (e.g., Finance, Healthcare):
+
+- [ ] **Decoupled Prompting**: Use `prompt_template` in `agent_types.yaml` instead of hardcoding text.
+- [ ] **Generic Skills**: Register domain actions in `skill_registry.yaml` with unique `skill_id`s.
+- [ ] **Reflective Discovery**: Ensure agent attributes used in prompts are publicly accessible.
+- [ ] **Audit Compatibility**: Use `snake_case` for directory and model names to ensure log consistency.
+
+### 3. Default Configuration Suggestions
+
+- **Window Memory**: `window_size=3` (Balanced context vs simplicity).
+- **Governance Profile**: `strict` for scientific research, `permissive` for creative exploration.
+- **Retry Logic**: `max_retries=2` (3 total attempts) is optimal for recovery without excessive cost.
+
+---
 
 | Axis                         | **Strict (Block & Retry)**                                                         | **Heuristic (Warn & Log)**                                             |
 | :--------------------------- | :--------------------------------------------------------------------------------- | :--------------------------------------------------------------------- |

@@ -8,12 +8,12 @@ foreach ($model in $models) {
     Write-Host "Running: $model with HumanCentric Memory"
     Write-Host "========================================="
     
-    python examples/single_agent/run_modular_experiment.py `
+    python examples/single_agent/run_flood.py `
         --model $model `
         --agents 100 `
         --years 10 `
         --memory-engine humancentric `
-        --output results_new_memory
+        --output examples/single_agent/results_humancentric
     
     Write-Host "Completed: $model"
     Write-Host ""

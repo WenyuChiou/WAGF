@@ -3,6 +3,7 @@
 ## Current State (v0.2)
 
 ### ✅ Strengths
+
 - **Multi-LLM Adapters**: `OllamaAdapter`, `OpenAIAdapter` support different providers
 - **Skill-Based Abstraction**: Decouples decisions from implementations
 - **Plugin Validators**: Easy to add new validation rules
@@ -10,12 +11,12 @@
 
 ### ⚠️ Gaps for Multi-LLM Scenarios
 
-| Gap | Impact | Priority |
-|-----|--------|----------|
-| No LLM Provider Interface | Hard to add Anthropic, Gemini | HIGH |
-| Hardcoded decision codes | Limits extensibility | MEDIUM |
-| No async support | Performance bottleneck | MEDIUM |
-| Single simulation type | Need domain abstraction | LOW |
+| Gap                       | Impact                        | Priority |
+| ------------------------- | ----------------------------- | -------- |
+| No LLM Provider Interface | Hard to add Anthropic, Gemini | HIGH     |
+| Hardcoded decision codes  | Limits extensibility          | MEDIUM   |
+| No async support          | Performance bottleneck        | MEDIUM   |
+| Single simulation type    | Need domain abstraction       | LOW      |
 
 ---
 
@@ -31,17 +32,17 @@ from typing import AsyncIterator
 
 class LLMProvider(ABC):
     """Abstract interface for LLM providers."""
-    
+
     @abstractmethod
     async def generate(self, prompt: str, **kwargs) -> str:
         """Generate completion."""
         pass
-    
+
     @abstractmethod
     async def stream(self, prompt: str, **kwargs) -> AsyncIterator[str]:
         """Stream completion."""
         pass
-    
+
     @property
     @abstractmethod
     def model_name(self) -> str:
@@ -52,7 +53,7 @@ class OllamaProvider(LLMProvider):
     def __init__(self, model: str, base_url: str = "http://localhost:11434"):
         self._model = model
         self._base_url = base_url
-    
+
     async def generate(self, prompt: str, **kwargs) -> str:
         # Implementation
         pass
@@ -84,7 +85,7 @@ class GeminiProvider(LLMProvider):
 def create_provider(config: dict) -> LLMProvider:
     """Factory for LLM providers."""
     provider_type = config.get("type", "ollama")
-    
+
     if provider_type == "ollama":
         return OllamaProvider(
             model=config["model"],
@@ -119,17 +120,17 @@ providers:
     type: ollama
     model: llama3.2:3b
     base_url: http://localhost:11434
-    
+
   openai-gpt4:
     type: openai
     model: gpt-4-turbo
     api_key: ${OPENAI_API_KEY}
-    
+
   anthropic-claude:
     type: anthropic
     model: claude-3-sonnet
     api_key: ${ANTHROPIC_API_KEY}
-    
+
   gemini-pro:
     type: gemini
     model: gemini-1.5-pro
@@ -138,7 +139,7 @@ providers:
 # Agent assignment
 agent_providers:
   default: ollama-local
-  high_stakes: openai-gpt4  # For critical decisions
+  high_stakes: openai-gpt4 # For critical decisions
   complex_reasoning: anthropic-claude
 ```
 
@@ -152,17 +153,17 @@ from typing import List, Dict, Any
 
 class SimulationDomain(ABC):
     """Abstract simulation domain."""
-    
+
     @abstractmethod
     def get_skills(self) -> List[str]:
         """Return available skills in this domain."""
         pass
-    
+
     @abstractmethod
     def get_prompt_template(self) -> str:
         """Return the decision prompt template."""
         pass
-    
+
     @abstractmethod
     def get_validators(self) -> List["SkillValidator"]:
         """Return domain-specific validators."""
@@ -172,10 +173,10 @@ class SimulationDomain(ABC):
 class FloodAdaptationDomain(SimulationDomain):
     def get_skills(self):
         return ["buy_insurance", "elevate_house", "relocate", "do_nothing"]
-    
+
     def get_prompt_template(self):
         return FLOOD_PMT_PROMPT
-    
+
     def get_validators(self):
         return [PMTConsistencyValidator(), AffordabilityValidator()]
 
@@ -183,10 +184,10 @@ class FloodAdaptationDomain(SimulationDomain):
 class ClimateMigrationDomain(SimulationDomain):
     def get_skills(self):
         return ["migrate", "adapt_in_place", "seek_assistance", "wait"]
-    
+
     def get_prompt_template(self):
         return CLIMATE_PROMPT
-    
+
     def get_validators(self):
         return [MigrationValidator(), ResourceValidator()]
 ```
@@ -196,22 +197,26 @@ class ClimateMigrationDomain(SimulationDomain):
 ## Implementation Phases
 
 ### Phase 1: Provider Interface (Immediate)
+
 - [ ] Create `interfaces/llm_provider.py`
 - [ ] Create `broker/provider_factory.py`
 - [ ] Add `config/providers.yaml` schema
 - [ ] Update `SkillBrokerEngine` to use factory
 
 ### Phase 2: Async Support (1 week)
+
 - [ ] Convert adapters to async
 - [ ] Add batch processing
 - [ ] Implement rate limiting
 
 ### Phase 3: Domain Abstraction (2 weeks)
+
 - [ ] Create `SimulationDomain` interface
 - [ ] Refactor `FloodAdaptation` as domain plugin
 - [ ] Add example domain: `ClimateMigration`
 
 ### Phase 4: Advanced Features (Future)
+
 - [ ] Multi-agent negotiation
 - [ ] Inter-agent communication via Graphiti
 - [ ] Hybrid LLM routing (local + cloud)
@@ -261,4 +266,11 @@ governed_broker_framework/
 └── config/
     ├── providers.yaml       # NEW: Multi-LLM config
     └── ...
+    └── ...
 ```
+
+## Phase 21: Demographic & Audit Expansion (Completed)
+
+- [x] **Demographic Grounding**: Injected real-world survey anchors (Income, Tenure, Flood Experience) into prompts.
+- [x] **Universal Audit**: Implemented `DemographicAudit` to score LLM reasoning against grounded context.
+- [x] **Finance Compatibility**: Verified that the new audit system works gracefully with non-flood domains (e.g., Finance).

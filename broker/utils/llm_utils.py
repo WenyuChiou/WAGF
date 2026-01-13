@@ -27,9 +27,19 @@ def create_llm_invoke(model: str, verbose: bool = False) -> Callable[[str], str]
             threat_level = "High" if "damage" in prompt.lower() else "Low"
             coping_level = "High" if "manage" in prompt.lower() else "Low"
             
-            return f"""Threat Appraisal: {threat_level} because I feel {threat_level.lower()} threat from flood risks.
-Coping Appraisal: {coping_level} because I feel {coping_level.lower()} ability to cope.
-Final Decision: {decision}"""
+            return f"""<<<DECISION_START>>>
+{{
+  "threat_appraisal": {{
+    "label": "{threat_level}",
+    "reason": "I feel {threat_level.lower()} threat from flood risks."
+  }},
+  "coping_appraisal": {{
+    "label": "{coping_level}",
+    "reason": "I feel {coping_level.lower()} ability to cope."
+  }},
+  "decision": {1 if decision == "buy_insurance" else 3 if decision == "relocate" else 4}
+}}
+<<<DECISION_END>>>"""
         return mock_invoke
     
     try:
@@ -43,7 +53,8 @@ Final Decision: {decision}"""
         
         def invoke(prompt: str) -> str:
             import os
-            debug_llm = os.getenv("LLM_DEBUG") == "1"
+            # Strict control via verbose arg
+            debug_llm = verbose
 
             if debug_llm:
                 # Log a small snippet of the prompt

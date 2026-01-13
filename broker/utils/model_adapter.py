@@ -270,6 +270,40 @@ class UnifiedAdapter(ModelAdapter):
         # Resolve to canonical ID via alias map
         skill_name = self.alias_map.get(skill_name.lower(), skill_name)
 
+        # 7. Semantic Correlation Audit (Phase 20)
+        # Check both T1 and T2/T3 memory storage patterns
+        retrieved_memories = context.get("retrieved_memories") or context.get("memory")
+        if not retrieved_memories and "personal" in context:
+            retrieved_memories = context["personal"].get("memory")
+            
+        combined_reasoning = str(reasoning) + cleaned_target
+        
+        # 6. Correlation Audit (Standard)
+        # ... (Existing logic) ...
+        
+        # 7. Demographic Grounding Audit (Phase 21)
+        # Checks if qualitative anchors (Persona/History) are cited in reasoning
+        demo_audit = self._audit_demographic_grounding(reasoning, context)
+        reasoning["demographic_audit"] = demo_audit
+        
+        correlation_score = 0.0
+        details = []
+        if retrieved_memories and isinstance(retrieved_memories, list):
+            for i, mem in enumerate(retrieved_memories):
+                mem_text = str(mem).lower()
+                # Focus on flood/adaptation keywords
+                kws = re.findall(r'\b(flood|water|damage|cost|neighbor|money|safe|protect|elevation|insurance|loss)\b', mem_text)
+                if kws:
+                    hits = [kw for kw in set(kws) if kw in combined_reasoning.lower()]
+                    if hits:
+                        correlation_score += (len(hits) / len(set(kws))) * (1.0 / len(retrieved_memories))
+                        details.append(f"Mem[{i}] hits: {hits}")
+        
+        reasoning["semantic_correlation_audit"] = {
+            "score": round(correlation_score, 2),
+            "details": details[:3]
+        }
+
         return SkillProposal(
             agent_id=agent_id,
             skill_name=skill_name,
@@ -277,6 +311,76 @@ class UnifiedAdapter(ModelAdapter):
             raw_output=raw_output,
             parsing_warnings=parsing_warnings
         )
+        
+    def _audit_demographic_grounding(self, reasoning: Dict, context: Dict) -> Dict:
+        """
+        Audit if the LLM cites the qualitative demographic anchors provided in context.
+        Generic implementation: Looks for overlap between 'narrative_persona'/'flood_experience'
+        and the 'reasoning' fields.
+        """
+        score = 0.0
+        cited_anchors = []
+        
+        # 1. Extract Target Anchors from Context
+        # We look for specific keys populated by HouseholdGroundingProvider
+        sources = {
+            "persona": context.get("narrative_persona", ""),
+            "experience": context.get("flood_experience_summary", "")
+        }
+        
+        # 2. Extract Keywords (Simple stopword filtering)
+        # Keywords to look for: "generation", "income", "years", "2012", "loss"
+        blacklist = {"you", "are", "a", "the", "in", "of", "to", "and", "manageable", "resident", "household", "with", "this", "that", "have", "from"}
+        # Topic words that are too generic to count as grounding unless specific (like "flood")
+        topic_stopwords = {"flood", "floods", "flooding", "risk", "water"} 
+        
+        anchors = set()
+        
+        for src_type, text in sources.items():
+            if not text or text == "[N/A]": continue
+            # Normalize: split by non-alphanumeric (handles hyphens "2nd-generation" -> "2nd", "generation")
+            clean_text = re.sub(r'[^\w\s]', ' ', text.lower()) 
+            words = clean_text.split()
+            
+            for w in words:
+                if w in blacklist or w in topic_stopwords: continue
+                
+                # Heuristic: 
+                # 1. Numeric (years like 2012, generations like 2nd)
+                # 2. Specific keywords (generation, income, occupation, assistance)
+                if w.isdigit() or w in ["generation", "income", "occupation", "burden", "loss", "assistance", "teacher", "rent", "owner"]:
+                     anchors.add(w)
+                elif len(w) > 4: # Catch other significant words
+                     anchors.add(w)
+        
+        if not anchors:
+            return {"score": 0.0, "details": "No anchors found in context"}
+            
+        # 3. Check Reasoning for Citations
+        # Flatten reasoning to string
+        reasoning_text = " ".join([str(v) for v in reasoning.values()]).lower()
+        
+        # Exact match or contained match? 
+        # For years (2012), exact word boundary is needed: \b2012\b
+        # For words, simple substring is risky ("income" in "outcome"). Use word boundaries.
+        
+        hit_anchors = []
+        for a in anchors:
+            if re.search(r'\b' + re.escape(a) + r'\b', reasoning_text):
+                hit_anchors.append(a)
+        
+        # 4. Scoring
+        # 1 hit = 0.5 (Weak), 2+ hits = 1.0 (Strong)
+        if len(hit_anchors) >= 2:
+            score = 1.0
+        elif len(hit_anchors) == 1:
+            score = 0.5
+            
+        return {
+            "score": score,
+            "cited_anchors": hit_anchors,
+            "total_anchors": list(anchors)
+        }
 
         # 6. Post-Parsing Robustness: Completeness Check
         if config_parsing and "constructs" in config_parsing:

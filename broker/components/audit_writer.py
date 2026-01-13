@@ -156,11 +156,16 @@ class GenericAuditWriter:
             row["parsing_warnings"] = "|".join(skill_prop.get("parsing_warnings", []))
             row["raw_output"] = skill_prop.get("raw_output", "")
             
-            # 3. Reasoning (TP/CP Appraisal)
+            # 3. Reasoning (TP/CP Appraisal + Audits)
             reasoning = skill_prop.get("reasoning", {})
             if isinstance(reasoning, dict):
                 for k, v in reasoning.items():
-                    row[f"reason_{k.lower()}"] = v
+                    if k == "demographic_audit" and isinstance(v, dict):
+                        # Flatten Demographic Audit (Phase 21)
+                        row["demo_score"] = v.get("score", 0.0)
+                        row["demo_anchors"] = "|".join(v.get("cited_anchors", []))
+                    else:
+                        row[f"reason_{k.lower()}"] = v
             else:
                 row["reason_text"] = str(reasoning)
             

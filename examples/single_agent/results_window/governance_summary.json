@@ -1,11 +1,8 @@
 {
-    "total_interventions": 104,
-    "rule_frequency": {
-        "coping_alignment": 20,
-        "urgency_check": 84
-    },
+    "total_interventions": 0,
+    "rule_frequency": {},
     "outcome_stats": {
         "retry_success": 0,
-        "retry_exhausted": 1
+        "retry_exhausted": 0
     }
 }

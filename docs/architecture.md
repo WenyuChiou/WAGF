@@ -1,5 +1,7 @@
 # Governed Broker Framework - Architecture
 
+![Governed Broker Architecture](governed_broker_architecture_v3_1.png)
+
 ## Overview
 
 A governance middleware for LLM-driven Agent-Based Models (ABMs).

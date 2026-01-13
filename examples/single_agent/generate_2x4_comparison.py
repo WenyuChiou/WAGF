@@ -16,9 +16,9 @@ from pathlib import Path
 # Model configurations with display names and folder names
 MODELS = [
     {"name": "Gemma 3 (4B)", "folder": "gemma3_4b_strict"},
-    {"name": "Llama 3.2 (3B)", "folder": "llama3.2_3b_strict"},
-    {"name": "DeepSeek-R1 (8B)", "folder": "deepseek-r1_8b_strict"},
-    {"name": "GPT-OSS (Latest)", "folder": "gpt-oss_latest_strict"},
+    {"name": "Llama 3.2 (3B)", "folder": "llama3_2_3b_strict"},
+    {"name": "DeepSeek-R1 (8B)", "folder": "deepseek_r1_8b_strict"},
+    {"name": "GPT-OSS (Latest)", "folder": "gpt_oss_latest_strict"},
 ]
 
 # Standard adaptation state colors (matching baseline)

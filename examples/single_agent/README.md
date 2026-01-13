@@ -18,7 +18,7 @@ This experiment simulates household flood adaptation decisions using LLM-based a
 
 # Human-centric (emotional encoding + stochastic consolidation)
 
-python run_modular_experiment.py --model gemma3:4b --memory-engine humancentric
+python run_flood.py --model gemma3:4b --memory-engine humancentric
 
 ````
 
@@ -122,10 +122,10 @@ results/
 
 ```powershell
 # Quick test (5 agents, 3 years)
-python run_modular_experiment.py --model llama3.2:3b --agents 5 --years 3
+python run_flood.py --model llama3.2:3b --agents 5 --years 3
 
 # Full experiment
-python run_modular_experiment.py --model gemma3:4b --agents 100 --years 10
+python run_flood.py --model gemma3:4b --agents 100 --years 10
 
 # Generate comparison chart
 python generate_old_vs_new_2x4.py
