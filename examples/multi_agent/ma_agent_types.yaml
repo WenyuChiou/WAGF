@@ -24,6 +24,10 @@ household_owner:
       * Premium Change: {premium_change_pct:+.1%} from last year.
       * Elevation Grant Subsidy: {subsidy_rate:.0%} of costs covered by NJ Blue Acres.
 
+    ### [TASK & GUIDELINES]
+    You are making your annual decision for flood adaptation.
+    In your reasoning, you must explicitly refer to your current numerical status (Threat Appraisal and Coping Appraisal) to justify your thought process and action.
+
     ### [ADAPTATION OPTIONS]
     Based on Protection Motivation Theory (Rogers, 1983), evaluate your options objectively:
     1. Do Nothing: Maintain current status without additional investment.
@@ -95,6 +99,10 @@ household_renter:
     - Financial Context:
       * Current Annual Premium: ${current_premium:,.0f}
       * Premium Change: {premium_change_pct:+.1%} from last year.
+
+    ### [TASK & GUIDELINES]
+    You are making your annual decision for flood adaptation.
+    In your reasoning, you must explicitly refer to your current numerical status (Threat Appraisal and Coping Appraisal) to justify your thought process and action.
 
     ### [ADAPTATION OPTIONS]
     Evaluate your response based on PMT (Rogers, 1983) and neighborhood ties (Swapan, 2021):

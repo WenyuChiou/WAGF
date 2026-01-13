@@ -22,6 +22,8 @@ household:
     {options_text}
     Note: If no flood occurred this year, since no immediate threat, most people would choose "Do Nothing."
                                                                                                   
+    In your reasoning, you must explicitly refer to your current numerical status (Threat Appraisal and Coping Appraisal) to justify your thought process and action.
+
     Please respond using the exact format below. Do NOT include any markdown symbols or conversational text outside the decision block.
 
     <<<DECISION_START>>>

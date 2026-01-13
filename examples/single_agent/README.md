@@ -70,38 +70,29 @@ ImportanceMemoryEngine(
 
 ## Behavioral Analysis: OLD Baseline vs NEW Governed Framework
 
-### Summary
+### Refined Adaptation Summary (Excluding Relocated Agents)
 
-| Model          | OLD Baseline    | NEW Governed     | Key Change          |
-| -------------- | --------------- | ---------------- | ------------------- |
-| Gemma 3 4B     | Elevation 44.9% | Insurance 43%    | Strategy shift      |
-| Llama 3.2 3B   | Elevation 83.3% | Do Nothing 67.4% | More conservative   |
-| DeepSeek-R1 8B | Elevation 67.8% | Elevation 82%    | Stronger preference |
-| GPT-OSS 20B    | Elevation 64%   | Elevation 77%    | +13% elevation      |
+| Model          | Adaptation Rate (%) | Do Nothing Count | Key Skill Preference |
+| -------------- | ------------------- | ---------------- | -------------------- |
+| Gemma 3 4B     | 95.8%               | 38               | Elevation (770)      |
+| Llama 3.2 3B   | 28.9%               | 258              | Elevation (80)       |
+| DeepSeek-R1 8B | 83.2%               | 122              | Elevation (522)      |
+| GPT-OSS Latest | 81.5%               | 154              | Elevation (610)      |
 
-### Validation Statistics
+> [!NOTE] > **Relocation Exclusion**: In this refined analysis, agents who have already relocated are removed from the denominator for subsequent years. This prevents "ghost agents" from skewing the Do Nothing counts.
 
-| Model          | Approval Rate      | Blocked | Errors |
-| -------------- | ------------------ | ------- | ------ |
-| Gemma 3 4B     | 100.0% (1000/1000) | 0       | 0      |
-| Llama 3.2 3B   | 81.1% (811/1000)   | 189     | 295    |
-| DeepSeek-R1 8B | 78.9% (789/1000)   | 211     | 322    |
-| GPT-OSS 20B    | 88.5% (885/1000)   | 115     | 125    |
+### Statistical Significance (Chi-square)
 
-### What the Framework Blocks
+We use **Chi-square tests of independence** to compare the decision distributions (Adaptation vs. Do Nothing) between models. All pairwise comparisons were performed on step-aggregated data.
 
-The governance framework blocks decisions that violate PMT (Protection Motivation Theory) rules:
+| Comparison               | p-value | Result             |
+| ------------------------ | ------- | ------------------ |
+| Llama 3.2 vs Gemma 3     | 0.0000  | **SIGNIFICANT** ✅ |
+| Llama 3.2 vs DeepSeek R1 | 0.0000  | **SIGNIFICANT** ✅ |
+| Gemma 3 vs DeepSeek R1   | 0.0000  | **SIGNIFICANT** ✅ |
+| DeepSeek R1 vs GPT-OSS   | 0.0000  | **SIGNIFICANT** ✅ |
 
-1. **High Threat + Do Nothing**: Blocked when agent perceives high flood threat but chooses inaction
-2. **Invalid Decision Format**: Blocked when LLM output doesn't match expected options
-3. **Inconsistent Reasoning**: Blocked when TP/CP assessment contradicts final decision
-
-### Why Behavioral Differences Occur
-
-1. **Prompt Standardization**: OLD uses freeform prompts; NEW uses structured templates
-2. **Decision Validation**: NEW enforces PMT-consistent decisions
-3. **Memory Injection**: NEW explicitly formats memory as bulleted list
-4. **Trust Verbalization**: NEW includes quantified trust values (0-1 scale)
+**Observation**: Every major model displays a fundamentally unique risk-appetite signature. Gemma 3 is highly proactive (95%+ adaptation), while Llama 3.2 remains the most conservative.
 
 ---
 
