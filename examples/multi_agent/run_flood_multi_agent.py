@@ -45,27 +45,50 @@ def run_flood_interactive(model: str, steps: int = 5, agents_count: int = 50, ve
     temp_ids = [f"Agent_{i}" for i in range(agents_count)]
     
     # 3. Setup Experiment
-    # Note: We use a simplified setup where households are standard agents
-    # Real setup would load from data, here we generate dummy agents for the prototype logic check
+    from agents.base_agent import BaseAgent, AgentConfig
+    import pandas as pd
     
-    class SimulationAgent:
-        def __init__(self, id, type="household"):
-            self.id = id
-            self.agent_type = type
-            self.memory = []
-            self.custom_attributes = {}
-        
-        def get_all_state(self): return {}
-        def get_available_skills(self): return []
+    def load_agents_from_csv(file_path, limit=50):
+        df = pd.read_csv(file_path)
+        if limit and limit < len(df):
+            df = df.sample(n=limit, random_state=42)
+            
+        loaded_agents = {}
+        for _, row in df.iterrows():
+            a_id = row['id']
+            # Map CSV to standard AgentConfig
+            config = AgentConfig(
+                name=a_id,
+                agent_type="household",
+                state_params=[], # Standard params defined in ma_agent_types.yaml
+                objectives=[],
+                constraints=[],
+                skills=[],
+                persona="A local resident concerned about flood risk."
+            )
+            agent = BaseAgent(config)
+            
+            # Populate internal state from CSV
+            agent.dynamic_state = {
+                "elevated": bool(row.get('elevated', False)),
+                "has_insurance": bool(row.get('has_insurance', False)),
+                "relocated": bool(row.get('relocated', False)),
+                "trust_insurance": float(row.get('trust_in_insurance', 0.5)),
+                "trust_neighbors": float(row.get('trust_in_neighbors', 0.5)),
+                "flood_threshold": float(row.get('flood_threshold', 0.5))
+            }
+            # Initial Memory
+            raw_mem = row.get('memory', "")
+            if isinstance(raw_mem, str) and raw_mem.strip():
+                agent.memory = [raw_mem]
+            
+            loaded_agents[a_id] = agent
+        return loaded_agents
+
+    # Initialize from real data
+    agents = load_agents_from_csv("agent_initial_profiles.csv", limit=agents_count)
+    print(f" [Init] Loaded {len(agents)} households from pre-processed profiles.")
     
-    # Generate Helper Agents
-    agents = {}
-    for i in range(agents_count):
-        a_id = f"Agent_{i}"
-        agent = SimulationAgent(a_id, "household")
-        agent.custom_attributes = {"flood_risk": random.choice(["high", "medium", "low"])}
-        agents[a_id] = agent
-        
     # Create final graph with populated IDs
     social_graph = NetworkXAdapter(list(agents.keys()), nx_G)
     print(f" [Init] Social Network: Small World (Edges={nx_G.number_of_edges()})")
@@ -76,15 +99,17 @@ def run_flood_interactive(model: str, steps: int = 5, agents_count: int = 50, ve
         """Update Global Policies based on previous year stats."""
         print(f"\n--- Year {step_year} Institutional Update ---")
         
-        # Calculate stats from agent states (Simplified)
-        # In real sim, retrieve from agent.get_all_state()
-        relocated_count = sum(1 for a in agent_dict.values() if getattr(a, 'relocated', False))
+        # Calculate stats from agent states 
+        relocated_count = sum(1 for a in agent_dict.values() if a.dynamic_state.get('relocated', False))
+        elevated_count = sum(1 for a in agent_dict.values() if a.dynamic_state.get('elevated', False))
+        
         claims_total = random.uniform(1000, 50000) # Mock claims for prototype
         
         global_stats = {
             "relocation_rate": relocated_count / len(agent_dict),
+            "elevation_rate": elevated_count / len(agent_dict),
             "total_claims": claims_total,
-            "total_premiums": 20000 # Mock
+            "total_premiums": 20000 
         }
         
         # Government Act
@@ -161,7 +186,8 @@ def run_flood_interactive(model: str, steps: int = 5, agents_count: int = 50, ve
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--steps", type=int, default=3)
+    parser.add_argument("--steps", type=int, default=20) # 20 Years for full scale
+    parser.add_argument("--agents", type=int, default=50)
     args = parser.parse_args()
     
-    run_flood_interactive(model="mock", steps=args.steps)
+    run_flood_interactive(model="mock", steps=args.steps, agents_count=args.agents)
