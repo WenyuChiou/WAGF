@@ -171,7 +171,11 @@ class UnifiedAdapter(ModelAdapter):
         skill_name = None
         reasoning = {}
         parsing_warnings = []
-        adjustment = None
+        parse_layer = ""  # Track which parsing method succeeded (enclosure/json/keyword/digit/default)
+
+        # Phase 15: Early return for empty output
+        if not raw_output:
+            return None
 
         # 1. Phase 15: Enclosure Extraction (Priority)
         # Support both triple-bracket and XML-style tags for maximum model compatibility
@@ -204,10 +208,12 @@ class UnifiedAdapter(ModelAdapter):
                 # Resolve decision
                 if isinstance(decision_val, (int, str)) and str(decision_val) in skill_map:
                     skill_name = skill_map[str(decision_val)]
+                    parse_layer = "json"
                 elif isinstance(decision_val, str):
                     for skill in valid_skills:
                         if skill.lower() == decision_val.lower():
                             skill_name = skill
+                            parse_layer = "json"
                             break
                 
                 # Extract Reasoning & Constructs
@@ -234,22 +240,25 @@ class UnifiedAdapter(ModelAdapter):
                         digit_match = re.search(r'(\d)', raw_val)
                         if digit_match and digit_match.group(1) in skill_map:
                             skill_name = skill_map[digit_match.group(1)]
+                            parse_layer = "keyword"
                             break
                         for s in valid_skills:
                             if s.lower() in raw_val:
                                 skill_name = s
+                                parse_layer = "keyword"
                                 break
                 if skill_name: break
 
         # 5. CONSTRUCT EXTRACTION (Regex based, applied to cleaned_target)
         constructs_cfg = parsing_cfg.get("constructs", {})
-        for key, cfg in constructs_cfg.items():
-            if key not in reasoning or not reasoning[key]:
-                regex = cfg.get("regex")
-                if regex:
-                    match = re.search(regex, cleaned_target, re.IGNORECASE | re.DOTALL)
-                    if match:
-                        reasoning[key] = match.group(1).strip() if match.groups() else match.group(0).strip()
+        if constructs_cfg and cleaned_target:
+            for key, cfg in constructs_cfg.items():
+                if key not in reasoning or not reasoning[key]:
+                    regex = cfg.get("regex")
+                    if regex:
+                        match = re.search(regex, cleaned_target, re.IGNORECASE | re.DOTALL)
+                        if match:
+                            reasoning[key] = match.group(1).strip() if match.groups() else match.group(0).strip()
 
         # 6. LAST RESORT: Search for bracketed numbers [1-7] in cleaned_target
         if not skill_name:
@@ -260,11 +269,13 @@ class UnifiedAdapter(ModelAdapter):
                 last_digit = candidates[-1]
                 if last_digit in skill_map:
                     skill_name = skill_name or skill_map[last_digit]
+                    parse_layer = parse_layer or "digit"
                     parsing_warnings.append(f"Last-resort extraction from digit: {last_digit}")
 
         # 7. Final Cleanup & Defaulting
         if not skill_name:
             skill_name = parsing_cfg.get("default_skill", "do_nothing")
+            parse_layer = "default"
             parsing_warnings.append(f"Default skill '{skill_name}' used.")
 
         # Resolve to canonical ID via alias map
@@ -309,7 +320,8 @@ class UnifiedAdapter(ModelAdapter):
             skill_name=skill_name,
             reasoning=reasoning,
             raw_output=raw_output,
-            parsing_warnings=parsing_warnings
+            parsing_warnings=parsing_warnings,
+            parse_layer=parse_layer
         )
         
     def _audit_demographic_grounding(self, reasoning: Dict, context: Dict) -> Dict:
@@ -366,7 +378,7 @@ class UnifiedAdapter(ModelAdapter):
         
         hit_anchors = []
         for a in anchors:
-            if re.search(r'\b' + re.escape(a) + r'\b', reasoning_text):
+            if a and re.search(r'\b' + re.escape(str(a)) + r'\b', reasoning_text):
                 hit_anchors.append(a)
         
         # 4. Scoring

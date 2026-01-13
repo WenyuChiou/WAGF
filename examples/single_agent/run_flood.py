@@ -17,7 +17,7 @@ from broker.components.skill_registry import SkillRegistry
 from broker.components.memory_engine import WindowMemoryEngine, ImportanceMemoryEngine, HumanCentricMemoryEngine
 from broker.interfaces.skill_types import ExecutionResult
 from plot_results import plot_adaptation_results
-from broker.utils.llm_utils import create_llm_invoke
+from broker.utils.llm_utils import create_legacy_invoke as create_llm_invoke
 
 # --- 1. Research Constants (Parity with LLMABMPMT-Final.py) ---
 FLOOD_PROBABILITY = 0.2
@@ -54,7 +54,7 @@ class FinalContextBuilder(TieredContextBuilder):
         # We manually retrieve more memories (top_k=3) for parity
         agent = self.agents[agent_id]
         if hasattr(self.hub, 'memory_engine') and self.hub.memory_engine:
-            personal_memory = self.hub.memory_engine.retrieve(agent, top_k=3)
+            personal_memory = self.hub.memory_engine.retrieve(agent, top_k=5)
         else:
             personal_memory = []
             
@@ -284,11 +284,18 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     )
     # Select memory engine based on CLI argument
     if memory_engine_type == "importance":
+        # Domain-specific categories for Flood scenario
+        flood_categories = {
+            "critical": ["flood", "flooded", "damage", "severe", "destroyed"],
+            "high": ["grant", "elevation", "insurance", "protected"],
+            "medium": ["neighbor", "relocated", "observed", "pct%"]
+        }
         memory_engine = ImportanceMemoryEngine(
             window_size=3,
             top_k_significant=2,
+            categories=flood_categories # Injecting domain keywords without touching base module
         )
-        print(f" Using ImportanceMemoryEngine (active retrieval)")
+        print(f" Using ImportanceMemoryEngine (active retrieval with flood-specific keywords)")
     elif memory_engine_type == "humancentric":
         memory_engine = HumanCentricMemoryEngine(
             window_size=3,
@@ -304,7 +311,6 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     
     # 5. Setup ExperimentBuilder and Runner
     from broker import ExperimentBuilder
-    from broker.utils.llm_utils import create_llm_invoke
     
     builder = (
         ExperimentBuilder()
@@ -370,7 +376,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         output_path = Path(custom_output)
         if not output_path.is_absolute():
             output_path = Path.cwd() / output_path
-        output_dir = output_path / f"{model.replace(':','_')}_strict"
+        output_dir = output_path / f"{model.replace(':','_').replace('.','_')}_strict"
     else:
         # Default to examples/single_agent/results
         base_dir = Path(__file__).parent / "results"

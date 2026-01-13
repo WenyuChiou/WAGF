@@ -71,10 +71,14 @@ class TieredEnvironment:
         
         Args:
             agent_id: Center agent
-            observable_keys: List of boolean/numeric keys to aggregate (default: elevated, insured, relocated)
+            observable_keys: List of boolean/numeric keys to aggregate. 
+                            REQUIRED - no default to ensure domain-agnostic usage.
+                            Example for flood domain: ["elevated", "has_insurance", "relocated"]
         """
         if observable_keys is None:
-            observable_keys = ["elevated", "has_insurance", "relocated"]
+            # Phase 25 PR6: Removed hard-coded defaults for universality
+            # Callers must explicitly specify keys for their domain
+            return {"neighbor_count": 0, "warning": "observable_keys not specified"}
             
         if not self._social_graph:
             return {"neighbor_count": 0}

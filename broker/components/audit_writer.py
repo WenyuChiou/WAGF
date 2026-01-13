@@ -149,6 +149,10 @@ class GenericAuditWriter:
                 "validated": t.get("validated", True),
             }
             
+            # 1.5. LLM-level retry info (for empty response tracking)
+            row["llm_retries"] = t.get("llm_retries", 0)
+            row["llm_success"] = t.get("llm_success", True)
+            
             # 2. Skill Logic (Proposed vs Approved)
             skill_prop = t.get("skill_proposal", {})
             row["proposed_skill"] = skill_prop.get("skill_name")

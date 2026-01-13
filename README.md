@@ -97,15 +97,17 @@ python examples/multi_agent/run_flood.py --verbose
 
 ### Broker Layer (`broker/`)
 
-| Component             | File                     | Purpose                                                          |
-| --------------------- | ------------------------ | ---------------------------------------------------------------- |
-| **SkillBrokerEngine** | `skill_broker_engine.py` | 🎯 Main orchestrator: validates skills → executes via simulation |
-| **SkillRegistry**     | `skill_registry.py`      | 📋 Skill definitions with eligibility rules & parameters         |
-| **SkillProposal**     | `skill_types.py`         | 📦 Structured LLM output format (JSON)                           |
-| **ModelAdapter**      | `model_adapter.py`       | 🔄 Parses raw LLM text → SkillProposal                           |
-| **ContextBuilder**    | `context_builder.py`     | 👁️ Builds bounded context for agents                             |
-| **Memory**            | `memory.py`              | 🧠 Working + Episodic memory with consolidation                  |
-| **AuditWriter**       | `audit_writer.py`        | 📊 Complete audit trail for reproducibility                      |
+| Component             | File                     | Purpose                                                           |
+| --------------------- | ------------------------ | ----------------------------------------------------------------- |
+| **SkillBrokerEngine** | `skill_broker_engine.py` | 🎯 Main orchestrator: validates skills → executes via simulation  |
+| **SkillRegistry**     | `skill_registry.py`      | 📋 Skill definitions with eligibility rules & parameters          |
+| **SkillProposal**     | `skill_types.py`         | 📦 Structured LLM output format (JSON)                            |
+| **Schemas**           | `interfaces/schemas.py`  | ✅ Pydantic validation schemas for strict oversight               |
+| **Plugin Registry**   | `plugins.py`             | 🔌 Central registry for custom extensions (Validators, Providers) |
+| **ModelAdapter**      | `model_adapter.py`       | 🔄 Parses raw LLM text → SkillProposal                            |
+| **ContextBuilder**    | `context_builder.py`     | 👁️ Builds bounded context for agents                              |
+| **Memory**            | `memory.py`              | 🧠 Working + Episodic memory with consolidation                   |
+| **AuditWriter**       | `audit_writer.py`        | 📊 Complete audit trail for reproducibility                       |
 
 ### State Layer (`simulation/`)
 
@@ -141,7 +143,7 @@ All psychological, institutional, and physical state parameters within core modu
 | **Cognitive**   | `semantic_thresholds`  | `(0.3, 0.7)`    | Lower/Upper bounds for L/M/H labels in prompts.       |
 | **Memory**      | `importance_weights`   | `0.1` to `1.0`  | Significance scoring for different memory categories. |
 | **Validation**  | `risk_tolerance`       | `0.5`           | Baseline for psychological coherence checks.          |
-| **Environment** | `hazard_intensity`     | `0.0` to `1.0`  | Probability or depth of external shocks.              |
+| **Environment** | `shock_intensity`      | `0.0` to `1.0`  | Magnitude of external shocks / state changes.         |
 
 ### 2. Universality Checklist
 

@@ -142,6 +142,7 @@ class BaseAgentContextBuilder(ContextBuilder):
         prompt_templates: Dict[str, str] = None,
         memory_engine: Optional[MemoryEngine] = None,
         providers: List[ContextProvider] = None,
+        extend_providers: List[ContextProvider] = None,  # New: additive providers
         semantic_thresholds: tuple = (0.3, 0.7)
     ):
         self.agents = agents
@@ -152,7 +153,9 @@ class BaseAgentContextBuilder(ContextBuilder):
         if any(t < 0.0 or t > 1.0 for t in semantic_thresholds):
             print(f"[Universality:Warning] semantic_thresholds {semantic_thresholds} are outside 0-1 range. Standardizing to [0,1] is recommended.")
         
-        # Initialize default provider pipeline if none provided
+        # Initialize provider pipeline
+        # Option 1: providers=None → use defaults + extend_providers
+        # Option 2: providers=List → replace defaults entirely (legacy behavior)
         if providers is not None:
             self.providers = providers
         else:
@@ -162,6 +165,10 @@ class BaseAgentContextBuilder(ContextBuilder):
                 EnvironmentProvider(environment or {}),
                 MemoryProvider(memory_engine)
             ]
+        
+        # Add any extension providers (Phase 25 PR5)
+        if extend_providers:
+            self.providers.extend(extend_providers)
     
     def build(
         self, 
@@ -246,8 +253,17 @@ class BaseAgentContextBuilder(ContextBuilder):
         # Add extra context keys (top-level attributes like 'budget_remaining')
         template_vars.update({k: v for k, v in context.items() 
                             if k not in template_vars and isinstance(v, (str, int, float, bool))})
-            
-        return SafeFormatter().format(template, **template_vars)
+        
+        # Format the prompt
+        formatted = SafeFormatter().format(template, **template_vars)
+        
+        # Context size monitoring (Phase 25 PR4)
+        # Rough token estimate: ~4 chars per token for English text
+        token_estimate = len(formatted) // 4
+        if token_estimate > 2000:
+            print(f"[Context:Warning] Large prompt for {context.get('agent_id', 'unknown')}: ~{token_estimate} tokens")
+        
+        return formatted
     
     def _format_state(self, state: Dict[str, float], compact: bool = True) -> str:
         """Format normalized state. Compact: inline, Verbose: multiline."""

@@ -25,10 +25,11 @@ from ..interfaces.skill_types import (
 )
 from ..components.skill_registry import SkillRegistry
 from ..utils.model_adapter import ModelAdapter
-from validators.agent_validator import AgentValidator
+from .governed_broker import SkillBrokerEngine as _LegacyBroker # For structural reference if needed
+from ..validators import AgentValidator
 from ..components.memory_engine import MemoryEngine
 from ..components.context_builder import ContextBuilder, BaseAgentContextBuilder
-from ..utils.agent_config import GovernanceAuditor
+from ..utils.agent_config import GovernanceAuditor, load_agent_config
 from ..components.interaction_hub import InteractionHub
 from ..components.audit_writer import AuditWriter
 
@@ -129,9 +130,23 @@ class SkillBrokerEngine:
         raw_output = ""
         initial_attempts = 0
         max_initial_attempts = 2  # Retry up to 2 times for purely parsing/empty issues
+        total_llm_stats = {"llm_retries": 0, "llm_success": False}
         
         while initial_attempts <= max_initial_attempts and not skill_proposal:
-            raw_output = llm_invoke(prompt)
+            res = llm_invoke(prompt)
+            # Handle both legacy (str) and new (content, stats) returns
+            if isinstance(res, tuple):
+                raw_output, llm_stats_obj = res
+                total_llm_stats["llm_retries"] += llm_stats_obj.retries
+                total_llm_stats["llm_success"] = llm_stats_obj.success
+            else:
+                raw_output = res
+                # Fallback to global stats if legacy
+                from ..utils.llm_utils import get_llm_stats
+                stats = get_llm_stats()
+                total_llm_stats["llm_retries"] += stats.get("current_retries", 0)
+                total_llm_stats["llm_success"] = stats.get("current_success", True)
+            
             skill_proposal = self.model_adapter.parse_output(raw_output, {
                 "agent_id": agent_id,
                 "agent_type": agent_type,
@@ -216,7 +231,20 @@ class SkillBrokerEngine:
             print(f"[Governance] Blocked '{skill_proposal.skill_name}' for {agent_id} (Attempt {retry_count}). Reasons: {errors}")
             
             retry_prompt = self.model_adapter.format_retry_prompt(prompt, errors)
-            raw_output = llm_invoke(retry_prompt)
+            res = llm_invoke(retry_prompt)
+            
+            # Use same logic to handle tuple vs str for retry call
+            if isinstance(res, tuple):
+                raw_output, llm_stats_obj = res
+                # Accumulate stats
+                total_llm_stats["llm_retries"] += llm_stats_obj.retries
+                total_llm_stats["llm_success"] = llm_stats_obj.success
+            else:
+                raw_output = res
+                from ..utils.llm_utils import get_llm_stats
+                stats = get_llm_stats()
+                total_llm_stats["llm_retries"] += stats.get("current_retries", 0)
+                total_llm_stats["llm_success"] = stats.get("current_success", True)
             
             skill_proposal = self.model_adapter.parse_output(raw_output, {
                 **context,
@@ -318,7 +346,8 @@ class SkillBrokerEngine:
                 } if approved_skill else None,
                 "execution_result": execution_result.__dict__ if execution_result else None,
                 "outcome": outcome.value,
-                "retry_count": retry_count
+                "retry_count": retry_count,
+                "llm_stats": total_llm_stats  # New: Pass LLM-level stats to trace
             }, all_validation_history)
         
         return SkillBrokerResult(

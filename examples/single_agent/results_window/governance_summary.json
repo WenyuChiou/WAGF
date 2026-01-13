@@ -1,6 +1,8 @@
 {
-    "total_interventions": 0,
-    "rule_frequency": {},
+    "total_interventions": 1,
+    "rule_frequency": {
+        "relocation_anomaly": 1
+    },
     "outcome_stats": {
         "retry_success": 0,
         "retry_exhausted": 0
