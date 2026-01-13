@@ -30,7 +30,7 @@ The framework is designed as a **governance middleware** that sits between the A
 
 ## 🛡️ Core Problems Statement
 
-![Core Challenges & Framework Solutions](docs/challenges_solutions_v2.png)
+![Core Challenges & Framework Solutions](docs/challenges_solutions_v3.png)
 
 | Challenge            | Problem Description                                | Framework Solution                                                                | Component           |
 | :------------------- | :------------------------------------------------- | :-------------------------------------------------------------------------------- | :------------------ |
@@ -60,27 +60,51 @@ The framework utilizes a layered middleware approach that unifies single-agent i
 - **v1 (Legacy)**: Monolithic scripts.
 - **v2 (Stable)**: Modular `SkillBrokerEngine` + `providers`.
 - **v3 (Latest)**: Unified Single/Multi-Agent Architecture + Professional Audit Trail. Use `run_unified_experiment.py`.
-- **v3.1 (Current)**: **Demographic Grounding & Reasoning Audit**. Agents are grounded in real-world survey data (Identity, Experience) and audited for reasoning consistency.
+- **v3.1**: **Demographic Grounding & Statistical Validation**. Agents are grounded in real-world surveys.
+- **v3.2 (Production)**: **Advanced Memory & Skill Retrieval**. Implements MemGPT-style Tiered Memory (Core/Episodic/Semantic) and RAG-based Skill Selection for large action spaces.
 
 ---
 
-## Human-Centric Grounding & Audit (v3.1) ✅
+## 🧠 Advanced Memory & Skill Retrieval (v3.2) ✅
 
-We have extended the framework to bridge the gap between **Quantitative Data** (Survey) and **Qualitative Reasoning** (LLM).
+To handle long-term simulations (10+ years), v3.2 introduces a **Tiered Memory System** and **Dynamic Skill Retrieval (RAG)** to ensure agents remain consistent without exceeding LLM context limits.
 
-### 1. Narrative Grounding
+### 1. Hierarchical (Tiered) Memory
 
-Directly injects rich, survey-derived context into the agent's persona:
+Instead of a simple sliding window, memory is now categorized into three functional tiers:
 
-> "You are a **2nd-generation resident** managing a household of 4. You experienced a **major flood in 2012**."
+- **CORE**: Fixed agent attributes (Income, Persona, Governance Profile).
+- **HISTORIC (Semantic)**: Long-term condensed history of major events (e.g., past flood impacts).
+- **RECENT (Episodic)**: High-resolution logs of the most recent interactions.
 
-### 2. Demographic Audit
+### 2. Context-Aware Skill Retrieval (RAG)
 
-A new `DemographicAudit` module automatically scores whether the LLM **actually uses** this context in its reasoning.
+For complex simulations with many possible actions, the framework uses a **SkillRetriever** to inject only the most relevant actions into the prompt.
 
-- **Score 1.0**: Strong Integration (Cites multiple specific anchors like '2012', 'income').
-- **Score 0.5**: Acknowledgement.
+- **Adaptive Precision**: Reduces cognitive load on the LLM by filtering irrelevant skills based on the current situation (e.g., only retrieval relocation skills when threat is high).
+- **Parity Mode**: Automatically disables for `WindowMemoryEngine` to allow for clean comparative research against legacy baselines.
+
+---
+
+## 📊 Scientific & Statistical Validation (v3.1) ✅
+
+To bridge the gap between "Simulation" and "Science", the framework now includes built-in statistical validation tools to quantify behavioral shifts.
+
+### 1. Chi-square Decision Analysis
+
+We use **Chi-square tests of independence** to compare agent decision distributions across different models (Llama, Gemma, DeepSeek) and memory engines (Window vs Importance).
+
+- **Objective**: Prove that governance and memory mechanisms create statistically significant behavioral changes ($p < 0.05$).
+- **Success Metric**: Reduction in "Panic Relocations" (irrational adaptation) compared to un-governed legacy baselines.
+
+### 2. Demographic Grounding Audit
+
+Scores whether the LLM **actually uses** survey context (Identity, Experience) in its reasoning.
+
+- **Score 1.0**: Strong Integration (Cites specific anchors like '2012', 'income').
 - **Score 0.0**: Hallucination / Generic reasoning.
+
+---
 
 Run the new verified multi-agent example:
 
@@ -436,14 +460,14 @@ class SurveyContextBuilder(ContextBuilder):
 
 ---
 
-## 🔮 Future Roadmap (v3.1+)
+## 🔮 Future Roadmap (v3.3+)
 
-Building upon the v3.0 foundation, we are moving towards:
+Building upon the v3.2 foundation, we are moving towards:
 
-- **Context-Aware Skill Retrieval**: Implementing RAG-based skill selection for large toolsets.
-- **Hierarchical Memory**: Integrating MemGPT-style tiered memory (Working/Episodic/Semantic).
-- **Agent Councils**: Expanding governance to multi-agent validator committees.
-- **Multi-Modal Sensing**: Support for vision-based environment perception.
+- **Parallel Execution Mode**: Implementing `MultiprocessingBroker` for large-scale simulation efficiency.
+- **Multi-Modal Sensing**: Support for vision-based environmental perception (e.g., agents "seeing" flood maps).
+- **Advanced Agent Councils**: Expanding governance to multi-agent peer-review committees.
+- **Dynamic Semantic Embedding**: Using Vector DBs (ChromaDB) for high-precision skill retrieval.
 
 ## License
 
