@@ -235,7 +235,8 @@ def run_flood_interactive(model: str, steps: int = 5, agents_count: int = 50, ve
     # Actually ExperimentBuilder.build() returns a runner that calls lifecycle hooks.
     
     runner = (ExperimentBuilder()
-        .with_model("mock-llm") # Use Mock for logic test
+        .with_model(model)  # Use provided model parameter
+
         .with_agents(agents)
         .with_context_builder(ctx_builder)
         .with_memory_engine(memory_engine) # Pass object, not string
@@ -257,7 +258,9 @@ if __name__ == "__main__":
     parser.add_argument("--agents", type=int, default=50)
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
     parser.add_argument("--workers", type=int, default=1, help="Number of parallel workers for LLM calls (1=sequential)")
+    parser.add_argument("--model", type=str, default="llama3.2:3b", help="LLM model to use (e.g., llama3.2:3b, mock-llm)")
     args = parser.parse_args()
     
-    run_flood_interactive(model="mock", steps=args.steps, agents_count=args.agents, verbose=args.verbose, workers=args.workers)
+    run_flood_interactive(model=args.model, steps=args.steps, agents_count=args.agents, verbose=args.verbose, workers=args.workers)
+
 
