@@ -62,9 +62,39 @@ def run_flood_interactive(model: str, steps: int = 5, agents_count: int = 50, ve
         loaded_agents = {}
         for idx, row in data_df.iterrows():
             a_id = f"Agent_{idx}"
-            # Tenure check (Col 22: Housing Status) - "Own" variants vs "Rent"
+            # Tenure check (Col 22: Housing Status)
             tenure_val = str(row[22]).lower() if pd.notna(row[22]) else ""
-            a_type = "household_owner" if "own" in tenure_val else "household_renter"
+            base_type = "household_owner" if "own" in tenure_val else "household_renter"
+            
+            # --- MG Classification Logic (2 out of 3) ---
+            # 1. Below Poverty Line (via 2D lookup)
+            # row[28]: Size, row[104]: Income Range (1=<25k, 2=25-30k, 3=30-35k, 4=35-40k, 5=40-45k, 6=45-50k, 7=50-55k, 8=55-60k, 9=60-75k, 10=>75k)
+            hh_size = int(row[28]) if pd.notna(row[28]) else 1
+            inc_opt = int(row[104]) if pd.notna(row[104]) else 10 # Default to high income if missing
+            
+            is_poverty = False
+            if hh_size == 1 and inc_opt <= 1: is_poverty = True
+            elif hh_size == 2 and inc_opt <= 2: is_poverty = True
+            elif hh_size == 3 and inc_opt <= 4: is_poverty = True
+            elif hh_size == 4 and inc_opt <= 5: is_poverty = True
+            elif hh_size == 5 and inc_opt <= 7: is_poverty = True
+            elif (hh_size == 6 or hh_size == 7) and inc_opt <= 8: is_poverty = True
+            elif hh_size >= 8 and inc_opt <= 9: is_poverty = True
+            
+            # 2. Housing Cost Burden (Col 101)
+            # 1=Yes, 2=No
+            is_burdened = (int(row[101]) == 1) if pd.notna(row[101]) else False
+            
+            # 3. Without Vehicle (Col 26)
+            # 1=Yes (Owns), 2=No (Doesn't) -> MG if NO vehicle
+            no_vehicle = (int(row[26]) == 2) if pd.notna(row[26]) else False
+            
+            # MG = 2 out of 3
+            mg_score = (1 if is_poverty else 0) + (1 if is_burdened else 0) + (1 if no_vehicle else 0)
+            is_mg = (mg_score >= 2)
+            
+            # Differentiate Agent Type for auditing
+            a_type = f"{base_type}_{'mg' if is_mg else 'nmg'}"
             
             config = AgentConfig(
                 name=a_id,
@@ -73,7 +103,7 @@ def run_flood_interactive(model: str, steps: int = 5, agents_count: int = 50, ve
                 objectives=[],
                 constraints=[],
                 skills=[],
-                persona=f"A local {a_type.replace('household_', '')} participating in the flood survey."
+                persona=f"A local {base_type.replace('household_', '')} participating in the flood survey. Group: {'Marginalized' if is_mg else 'Non-Marginalized'}."
             )
             agent = BaseAgent(config)
             
@@ -86,6 +116,7 @@ def run_flood_interactive(model: str, steps: int = 5, agents_count: int = 50, ve
                 "household_size": row[28],
                 "education": row[96],
                 "zip_code": row[105],
+                "is_mg": is_mg, # Explicitly store for tracking
                 # Flood Experience markers
                 "flood_history": {
                     "has_experienced": str(row[34]).lower() == "yes",
@@ -100,9 +131,13 @@ def run_flood_interactive(model: str, steps: int = 5, agents_count: int = 50, ve
             agent.dynamic_state = {
                 "elevated": False,
                 "has_insurance": False,
+                "has_contents_insurance": False,
                 "relocated": False,
-                # Note: Trust/Budget normalized parameters are deprecated for prompts in Phase 21
-                "flood_threshold": 0.5 
+                "flood_threshold": 0.5,
+                "current_premium": 1500, # Base premium estimate
+                "last_premium": 1500,
+                "historical_damage": 0,
+                "historical_payout": 0
             }
             
             loaded_agents[a_id] = agent
@@ -150,10 +185,22 @@ def run_flood_interactive(model: str, steps: int = 5, agents_count: int = 50, ve
                 damage_info = flood_model.calculate_damage(depth_m, prop_val, agent.dynamic_state.get("elevated", False))
                 total_damage += damage_info["total_damage"]
             
+            # Track history for context
+            agent.dynamic_state["historical_damage"] = damage_info.get("total_damage", 0)
+            agent.dynamic_state["historical_payout"] = damage_info.get("payout", 0)
+            
+            # Premium tracking
+            last_premium = agent.dynamic_state.get("current_premium", 1500)
+            current_premium = last_premium * (1 + env_context.get("premium_rate_change", 0))
+            agent.dynamic_state["current_premium"] = current_premium
+            agent.dynamic_state["last_premium"] = last_premium
+            
             flood_impacts[a_id] = {
                 "local_depth_ft": depth_ft,
-                "damage": damage_info,
-                "payout": damage_info.get("payout", 0) # Track for SP later
+                "damage_dollars": damage_info.get("total_damage", 0),
+                "payout_dollars": damage_info.get("payout", 0),
+                "current_premium": current_premium,
+                "premium_change_pct": ((current_premium - last_premium) / last_premium) if last_premium > 0 else 0
             }
         
         # Inject into env_context for agent perception
@@ -211,13 +258,13 @@ def run_flood_interactive(model: str, steps: int = 5, agents_count: int = 50, ve
                 # Simulating a decision event (In real code, check agent_u.last_decision)
                 # Here we just inject a test gossip
                 if random.random() < 0.1: # 10% chance to talk
-                     msg = f"My neighbor {agent_u.id} is worried about floods."
-                     # Inject into V's memory
-                     # Note: In real integration, we should use the broker's memory_engine.
-                     # But strictly, BaseAgent doesn't own the engine. 
-                     # For this prototype script, we assume a globally accessible engine or mock it.
-                     pass 
-                     count += 1
+                    msg = f"My neighbor {agent_u.id} is worried about floods."
+                    # Inject into V's memory
+                    # Note: In real integration, we should use the broker's memory_engine.
+                    # But strictly, BaseAgent doesn't own the engine. 
+                    # For this prototype script, we assume a globally accessible engine or mock it.
+                    pass 
+                    count += 1
         print(f" [Social] Propagated {count} gossip messages.")
 
     # Init Memory Engine
@@ -228,39 +275,29 @@ def run_flood_interactive(model: str, steps: int = 5, agents_count: int = 50, ve
     ctx_builder = TieredContextBuilder(
         agents=agents,
         hub=InteractionHub(graph=social_graph, memory_engine=memory_engine),
-        dynamic_whitelist=["subsidy_level", "premium_rate"] # Whitelist our dynamic vars
+        dynamic_whitelist=["subsidy_rate", "premium_rate"] # Whitelist standardized vars
     )
     
-    # We use NullSimulationEngine for valid structure but manual stepping logic above?
-    # Actually ExperimentBuilder.build() returns a runner that calls lifecycle hooks.
+    # 6. Execute Experiment using ExperimentBuilder
+    builder = ExperimentBuilder("modular_exp")
+    builder.with_agents(list(agents.values()))
+    builder.with_context_builder(ctx_builder)
+    builder.with_model(model)
+    builder.with_pre_step_hook(pre_step)
+    builder.with_post_step_hook(post_year_social)
     
-    runner = (ExperimentBuilder()
-        .with_model(model)  # Use provided model parameter
-
-        .with_agents(agents)
-        .with_context_builder(ctx_builder)
-        .with_memory_engine(memory_engine) # Pass object, not string
-        .with_governance("strict", "examples/multi_agent/ma_agent_types.yaml")
-        .with_skill_registry("examples/single_agent/skill_registry.yaml")
-        .with_steps(steps)
-        .with_verbose(verbose)
-        .with_lifecycle_hooks(pre_step=pre_step, post_year=post_year_social)
-        .with_workers(workers)  # PR 2: Multiprocessing Integration
-        .build())
-
-        
-    print(" [Ready] Runner built. Starting simulation...")
-    runner.run()
+    experiment = builder.build()
+    results = experiment.run(steps=steps)
+    
+    print("\n✅ Simulation Complete.")
+    return results
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--steps", type=int, default=20) # 20 Years for full scale
-    parser.add_argument("--agents", type=int, default=50)
-    parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
-    parser.add_argument("--workers", type=int, default=1, help="Number of parallel workers for LLM calls (1=sequential)")
-    parser.add_argument("--model", type=str, default="llama3.2:3b", help="LLM model to use (e.g., llama3.2:3b, mock-llm)")
+    parser = argparse.ArgumentParser(description="Flood Adaptation Multi-Agent Simulation")
+    parser.add_argument("--steps", type=int, default=3, help="Number of years to simulate")
+    parser.add_argument("--agents", type=int, default=20, help="Number of household agents")
+    parser.add_argument("--model", type=str, default="llama3.2:3b", help="LLM model to use")
+    parser.add_argument("--workers", type=int, default=2, help="Parallel workers")
     args = parser.parse_args()
     
-    run_flood_interactive(model=args.model, steps=args.steps, agents_count=args.agents, verbose=args.verbose, workers=args.workers)
-
-
+    run_flood_interactive(model=args.model, steps=args.steps, agents_count=args.agents, workers=args.workers)
