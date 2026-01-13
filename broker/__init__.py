@@ -20,6 +20,9 @@ from .components.interaction_hub import InteractionHub
 from .components.social_graph import NeighborhoodGraph, SocialGraph, create_social_graph
 from .components.audit_writer import GenericAuditWriter, AuditConfig, GenericAuditWriter as AuditWriter, AuditConfig as GenericAuditConfig
 
+# 3b. Validators (part of broker namespace now)
+from .validators import AgentValidator
+
 # 4. Core (Dependent on everything above)
 from .core.skill_broker_engine import SkillBrokerEngine
 from .core.experiment import ExperimentBuilder, ExperimentRunner

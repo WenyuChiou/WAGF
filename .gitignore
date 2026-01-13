@@ -42,6 +42,7 @@ Thumbs.db
 output/
 results/
 examples/single_agent/results_*/
+examples/multi_agent/input/
 *.log
 audit_output/
 toy_output/

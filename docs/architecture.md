@@ -98,13 +98,15 @@ The framework separates concerns into three distinct layers with strict data flo
 
 ### Broker Layer (`broker/`)
 
-| File                 | Purpose                                    |
-| -------------------- | ------------------------------------------ |
-| `engine.py`          | Main orchestrator, coordinates 6-step flow |
-| `context_builder.py` | Builds bounded context for LLM             |
-| `audit_writer.py`    | Writes JSONL audit traces                  |
-| `replay.py`          | Deterministic replay from traces           |
-| `types.py`           | Core data types (DecisionRequest, etc.)    |
+| File                    | Purpose                                    |
+| ----------------------- | ------------------------------------------ |
+| `engine.py`             | Main orchestrator, coordinates 6-step flow |
+| `context_builder.py`    | Builds bounded context for LLM             |
+| `types.py`              | Core data types (SkillProposal, etc.)      |
+| `interfaces/schemas.py` | Pydantic schemas for strict validation     |
+| `plugins.py`            | Plugin registry for third-party additions  |
+| `audit_writer.py`       | Writes JSONL audit traces                  |
+| `replay.py`             | Deterministic replay from traces           |
 
 ### Interfaces (`interfaces/`)
 
@@ -214,7 +216,7 @@ graph TD
     %% --- Layer: Environment ---
     subgraph World_Layer ["Environment (Simulation)"]
         style World_Layer fill:none,stroke:#2ecc71,stroke-width:2px
-        Env["Tiered Environment \n (T0:Local / T1:Social / T2:Global)"]:::whiteNode
+        Env["State Environment \n (T0:Local / T1:Social / T2:Global)"]:::whiteNode
         Engine["Simulation Engine"]:::whiteNode
     end
 
@@ -222,7 +224,7 @@ graph TD
 
     %% 1. Perception Step
     Env -->|Observe State| CB
-    ME -->|Retrieve Context| CB
+    ME -->|Retrieve Experience| CB
 
     %% 2. Reasoning Step
     CB -->|Semantic & Security Context| LLM
@@ -236,7 +238,7 @@ graph TD
 
     %% 4. Execution Step
     Validator -->|3. Approved Command| Engine
-    Engine -->|Mutate World| Env
+    Engine -->|Mutate State| Env
     Engine -->|Commit Experience| ME
 
     %% Apply Styles

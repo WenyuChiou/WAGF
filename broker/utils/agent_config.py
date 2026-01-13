@@ -65,7 +65,7 @@ class AgentTypeConfig:
     """
     
     _instance = None
-    _config = None
+    _config = {}
     
     @classmethod
     def load(cls, yaml_path: str = None) -> "AgentTypeConfig":
@@ -80,8 +80,15 @@ class AgentTypeConfig:
         if yaml_path is None:
             yaml_path = Path(__file__).parent / "agent_types.yaml"
         
-        with open(yaml_path, 'r', encoding='utf-8') as f:
-            self._config = yaml.safe_load(f)
+        try:
+            with open(yaml_path, 'r', encoding='utf-8') as f:
+                self._config = yaml.safe_load(f) or {}
+        except FileNotFoundError:
+            # Fallback to empty config if file missing (useful for testing)
+            self._config = {}
+        except Exception as e:
+            print(f"Warning: Failed to load config from {yaml_path}: {e}")
+            self._config = {}
     
     def get_base_type(self, agent_type: str) -> str:
         """Map a specific agent type/subtype to a base type defined in config."""

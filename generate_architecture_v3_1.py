@@ -41,14 +41,14 @@ def generate_architecture_v3_1():
     # Memory Engine (Right)
     with dot.subgraph(name='cluster_memory') as m:
         m.attr(label='MEMORY ENGINE', fontname='Arial-Bold', fontsize='14', style='rounded', penwidth='2.0')
-        m.node('mem_retrieve', 'RETRIEVE\nCONTEXT', shape='Mrecord')
-        m.node('mem_store', 'STORE\nEVENTS', shape='Mrecord')
+        m.node('mem_retrieve', 'RETRIEVE\nEXPERIENCE', shape='Mrecord')
+        m.node('mem_store', 'STORE\nEXPERIENCE', shape='Mrecord')
 
     # Model Adapter (Center)
     dot.node('adapter', 'MODEL ADAPTER\n(Unified)', shape='box', height='1.0', width='2.0', fontsize='13', fontname='Arial-Bold')
 
     # Validator (Bottom)
-    dot.node('validator', 'MULTI-AGENT\nVALIDATOR', shape='doubleoctagon', height='1.0', fontsize='13', fontname='Arial-Bold')
+    dot.node('validator', 'GOVERNANCE\nVALIDATOR', shape='doubleoctagon', height='1.0', fontsize='13', fontname='Arial-Bold')
 
     # Audit (Bottom Right)
     dot.node('audit', 'AUDIT WRITER\n(Log & Trace)', shape='folder', height='0.8')

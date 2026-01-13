@@ -25,7 +25,9 @@ from ..interfaces.skill_types import (
 )
 from ..components.skill_registry import SkillRegistry
 from ..utils.model_adapter import ModelAdapter
-from validators.agent_validator import AgentValidator, ValidationResult
+from ..utils.llm_utils import get_llm_stats
+from ..validators import AgentValidator
+from ..interfaces.skill_types import ValidationResult
 
 
 class SkillBrokerEngine:
@@ -83,7 +85,8 @@ class SkillBrokerEngine:
         run_id: str,
         seed: int,
         llm_invoke: Callable[[str], str],
-        agent_type: str = "default"
+        agent_type: str = "default",
+        env_context: Dict[str, Any] = None
     ) -> SkillBrokerResult:
         """
         Process one complete decision step through skill governance.
@@ -117,7 +120,13 @@ class SkillBrokerEngine:
         
         # ② LLM output → ModelAdapter → SkillProposal
         prompt = self.context_builder.format_prompt(context)
-        raw_output = llm_invoke(prompt)
+        res = llm_invoke(prompt)
+        
+        # Handle both legacy (str) and new (content, stats) returns
+        if isinstance(res, tuple):
+            raw_output, _ = res  # Stats not used in this legacy version yet
+        else:
+            raw_output = res
         
         # Pass the full context to model adapter for smart variant resolution
         skill_proposal = self.model_adapter.parse_output(raw_output, {
@@ -217,7 +226,9 @@ class SkillBrokerEngine:
                 } if approved_skill else None,
                 "execution_result": execution_result.__dict__ if execution_result else None,
                 "outcome": outcome.value,
-                "retry_count": retry_count
+                "retry_count": retry_count,
+                "llm_retries": get_llm_stats().get("current_retries", 0),
+                "llm_success": get_llm_stats().get("current_success", True)
             }, validation_results)
         
         return SkillBrokerResult(
