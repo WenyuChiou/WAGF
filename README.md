@@ -133,12 +133,50 @@ python examples/multi_agent/run_flood.py --verbose
 | **Memory**            | `memory.py`              | 🧠 Working + Episodic memory with consolidation                   |
 | **AuditWriter**       | `audit_writer.py`        | 📊 Complete audit trail for reproducibility                       |
 
-### State Layer (`simulation/`)
+### Audit & Transparency (`broker/components/audit_writer.py`)
 
-| Component          | File               | Description                                                     |
-| ------------------ | ------------------ | --------------------------------------------------------------- |
-| `StateManager`     | `state_manager.py` | Multi-level state: Individual / Social / Shared / Institutional |
-| `SimulationEngine` | `engine.py`        | ABM simulation loop with skill execution                        |
+The `AuditWriter` provides a "Glass Box" view into the simulation, exporting high-resolution CSVs for every decision.
+
+| Column             | Description                                                            |
+| :----------------- | :--------------------------------------------------------------------- |
+| **step_id**        | Unique identifier for the simulation step/year.                        |
+| **agent_id**       | The specific agent identifier (e.g., `Agent_1`).                       |
+| **proposed_skill** | The raw action proposed by the LLM before validation.                  |
+| **final_skill**    | The actual action executed (may differ if proposal was rejected).      |
+| **status**         | Result of the action (SUCCESS, FAILED, or BLOCKED).                    |
+| **validated**      | Boolean flag indicating if the decision passed all governance checks.  |
+| **failed_rules**   | Pipe-separated IDs of rules that were violated (e.g., `TP_COHERENCE`). |
+| **reason_tp / cp** | Extracted psychological appraisal (Threat/Coping Perception).          |
+| **demo_score**     | Demographic Grounding Score (0.0 to 1.0) measuring survey usage.       |
+| **llm_retries**    | Number of LLM-level retries due to parsing or empty output.            |
+
+---
+
+## 🏗️ Technical Architecture Details
+
+### 1. State Layer: Multi-Level Ownership
+
+Managed by `simulation/state_manager.py`, the state is partitioned to ensure strict permissions:
+
+- **Individual**: Private variables unique to an agent (e.g., `elevated=True`, `has_insurance=False`).
+- **Social**: Observable behavioral signals from neighbors (e.g., `neighbor_decisions`).
+- **Shared**: Global environmental variables visible to all (e.g., `flood_occurrence`).
+- **Institutional**: Policy-level variables controlled by specific entities (e.g., `tax_rate`, `subsidy`).
+
+### 2. Context Builder: Bounded Perception
+
+Managed by `broker/components/context_builder.py`, this module generates the "World View" for the agent:
+
+- **Salience Filtering**: Instead of a full history, it uses weighted importance to retrieve relevant memories.
+- **Demographic Anchoring**: Automatically injects fixed survey traits (Income, Generation) into the persona.
+- **Adaptive Precision**: Converts raw state numbers (e.g., `0.85 wealth`) into semantic labels (e.g., `High Wealth`) for better LLM reasoning.
+
+### 3. Simulation Engine: Sequential World Evolution
+
+Managed by `simulation/engine.py`, the engine orchestrates the time loop:
+
+- **Step Process**: Year-end state update → Environment shock transition → Agent decision loop → Skill execution.
+- **Sandboxed Execution**: Agents never modify state directly. They propose a `skill_id`, and the engine applies the physical consequences.
 
 ### Provider Layer & Adapters (`providers/` & `broker/utils/`)
 

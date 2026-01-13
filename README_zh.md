@@ -170,6 +170,51 @@ python run_experiment.py --model llama3.2:3b --num-agents 100 --num-years 10
 - **進階代理人委員會**: 擴展治理機制，建立隨機的代理人委員會進行決策同行評審（Peer Review）。
 - **動態語義嵌入**: 採用向量資料庫（如 ChromaDB）提升技能檢索的精確度。
 
+### 審計與透明度 (`broker/components/audit_writer.py`)
+
+`AuditWriter` 提供了一個「玻璃盒」視角，為每個決策導出高解析度的 CSV 紀錄。
+
+| 欄位名稱           | 說明                                                      |
+| :----------------- | :-------------------------------------------------------- |
+| **step_id**        | 模擬步驟/年份的唯一標識符。                               |
+| **agent_id**       | 特定代理人的標識符 (例如 `Agent_1`)。                     |
+| **proposed_skill** | LLM 在驗證前最初提案的動作名稱。                          |
+| **final_skill**    | 最終執行的動作 (如果提案被拒絕，則可能不同)。             |
+| **status**         | 動作結果 (SUCCESS, FAILED, 或 BLOCKED)。                  |
+| **validated**      | 布林值，指示決策是否通過所有治理檢查。                    |
+| **failed_rules**   | 被違反的規則 ID (例如 `TP_COHERENCE`)，以管線符號分隔。   |
+| **reason_tp / cp** | 提取出的心理評估 (威脅/應對感知)。                        |
+| **demo_score**     | 人口統計錨定分數 (0.0 到 1.0)，衡量對調研數據的使用程度。 |
+| **llm_retries**    | 由於解析錯誤或空輸出導致的 LLM 層級重試次數。             |
+
+---
+
+## 🏗️ 技術架構細節
+
+### 1. 狀態層 (State Layer): 多級所有權
+
+由 `simulation/state_manager.py` 管理，狀態被劃分以確保嚴格的權限控制：
+
+- **Individual (個人)**: 代理人獨有的私有變數 (例如 `elevated=True`, `has_insurance=False`)。
+- **Social (社交)**: 來自鄰居的可觀察行為信號 (例如 `neighbor_decisions`)。
+- **Shared (共享)**: 所有代理人可見的全局環境變數 (例如 `flood_occurrence`)。
+- **Institutional (制度)**: 由特定實體控制的政策級變數 (例如 `tax_rate`, `subsidy`)。
+
+### 2. 上下文構建器 (Context Builder): 有界感知
+
+由 `broker/components/context_builder.py` 管理，此模組為代理人生成「世界觀」：
+
+- **顯著性過濾 (Salience Filtering)**: 不使用完整歷史，而是使用加權重要性來檢索相關記憶。
+- **人口統計錨定 (Demographic Anchoring)**: 自動將固定的調研特徵 (收入、世代) 注入角色設定中。
+- **自適應精度 (Adaptive Precision)**: 將原始狀態數值 (如 `0.85 wealth`) 轉換為語義標籤 (如 `High Wealth`)，提升 LLM 推理效果。
+
+### 3. 模擬引擎 (Simulation Engine): 順序世界演變
+
+由 `simulation/engine.py` 管理，負責協調時間循環：
+
+- **步驟流程**: 年末狀態更新 → 環境衝擊過渡 → 代理人決策循環 → 技能執行。
+- **沙盒執行 (Sandboxed Execution)**: 代理人從不直接修改狀態。他們提案 `skill_id`，由引擎應用物理後果。
+
 **No MCP → MCP v1 → Skill-Governed (v2) → Unified Simulation (v3)**：漸進式增加治理層級，實現可靠且可擴展的 LLM-ABM 整合。
 
 ---
