@@ -16,71 +16,74 @@ class BaseInstitutionAgent:
 
 class NJStateAgent(BaseInstitutionAgent):
     """
-    Government Agent: Manages Subsidy Levels.
-    Goal: Encourage relocation from high-risk zones if rate is too low.
+    Government Agent: Manages Blue Acres Buyout Subsidies.
+    Reference: NJDEP (2023) Blue Acres Guidelines.
+    Goal: Target relocation for repetitive loss properties (Severe Zones).
     """
     def __init__(self):
         super().__init__("NJ_STATE")
-        self.subsidy_level = 0.0
-        self.target_relocation_rate = 0.15 # Target: 15% population move
+        self.buyout_subsidy_rate = 0.50 # Base 50% for Blue Acres
+        self.target_relocation_rate = 0.10
         self.agent_type = "government"
 
     def step(self, global_stats: Dict[str, float]) -> Dict[str, Any]:
         relocation_rate = global_stats.get("relocation_rate", 0.0)
+        avg_depth_ft = global_stats.get("avg_depth_ft", 0.0)
         
-        prev_level = self.subsidy_level
-        
-        # Simple Feedback Loop
-        if relocation_rate < self.target_relocation_rate:
-            # Increase subsidy to encourage movement
-            self.subsidy_level = min(1.0, self.subsidy_level + 0.05)
-        elif relocation_rate > self.target_relocation_rate * 1.5:
-             # Reduce subsidy if overshoot
-            self.subsidy_level = max(0.0, self.subsidy_level - 0.02)
+        # Blue Acres Logic: If floods are severe, increase buyout availability
+        prev_rate = self.buyout_subsidy_rate
+        if avg_depth_ft > 2.0:
+            self.buyout_subsidy_rate = min(0.95, self.buyout_subsidy_rate + 0.10)
+        elif relocation_rate > self.target_relocation_rate:
+            self.buyout_subsidy_rate = max(0.20, self.buyout_subsidy_rate - 0.05)
             
         return {
-            "decision": "adjust_subsidy", 
-            "subsidy_level": round(self.subsidy_level, 2),
-            "change": round(self.subsidy_level - prev_level, 2)
+            "decision": "blue_acres_update", 
+            "subsidy_level": round(self.buyout_subsidy_rate, 2),
+            "priority_zone": "Severe",
+            "message": "NJ Blue Acres is prioritizing high-risk buyouts after recent flooding."
         }
 
 class FemaNfipAgent(BaseInstitutionAgent):
     """
-    Insurance Agent: Manages Premium Rates.
-    Goal: Maintain solvency (Premiums > Claims).
+    Insurance Agent: Manages Premiums inspired by Risk Rating 2.0.
+    Reference: FEMA (2021) Risk Rating 2.0 System.
+    Goal: Solvency + encouraging community-level mitigation.
     """
     def __init__(self):
         super().__init__("FEMA_NFIP")
-        self.premium_rate = 0.02 # Base 2% of property value
-        self.revenue = 0.0
-        self.payouts = 0.0
+        self.base_premium_rate = 0.005 # Base 0.5% of house value
+        self.revenue = 1000000.0 # Virtual reserve
         self.agent_type = "insurance"
         
     def step(self, global_stats: Dict[str, float]) -> Dict[str, Any]:
-        # Logic: If running deficit, increase premiums
         claims = global_stats.get("total_claims", 0.0)
-        premiums = global_stats.get("total_premiums", 0.0)
+        premiums = global_stats.get("total_premiums", 10000.0)
+        elevation_rate = global_stats.get("elevation_rate", 0.0)
         
-        self.payouts += claims
-        self.revenue += premiums
+        self.revenue += (premiums - claims)
         
-        # Calculate solvency ratio (avoid div/0)
-        balance_ratio = (self.revenue / self.payouts) if self.payouts > 1000 else 1.2
+        # Risk Rating 2.0 logic: 
+        # 1. Solvency check (base trend)
+        solvency_ratio = self.revenue / 1000000.0
         
-        prev_rate = self.premium_rate
+        # 2. Mitigation discount: If community elevation is high, lower rates for all
+        mitigation_discount = 1.0 - (elevation_rate * 0.2) # Max 20% CRS-style discount
         
-        if balance_ratio < 1.0:
-            # Deficit: Hike premiums aggressive
-            self.premium_rate = min(0.15, self.premium_rate * 1.2)
-        elif balance_ratio > 1.5:
-            # Surplus: Stable or slight cut
-            self.premium_rate = max(0.01, self.premium_rate * 0.95)
+        prev_rate = self.base_premium_rate
         
-        # Ensure minimum floor
-        self.premium_rate = max(0.01, self.premium_rate)
+        # Direct rate targeting based on balance
+        if solvency_ratio < 0.8:
+            self.base_premium_rate *= 1.10 # 10% hike
+        elif solvency_ratio > 1.2:
+            self.base_premium_rate *= 0.95 # 5% decrease
+            
+        # Apply community-wide mitigation discount to the final rate
+        final_rate = max(0.001, min(0.05, self.base_premium_rate * mitigation_discount))
             
         return {
-            "decision": "adjust_premium",
-            "premium_rate": round(self.premium_rate, 4),
-            "change": round(self.premium_rate - prev_rate, 4)
+            "decision": "premium_adjustment",
+            "premium_rate": round(final_rate, 5),
+            "solvency_status": "CRITICAL" if solvency_ratio < 0.5 else "STABLE",
+            "mitigation_benefit": round(1 - mitigation_discount, 2)
         }

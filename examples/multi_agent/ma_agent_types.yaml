@@ -24,6 +24,7 @@ household_owner:
     - CP (Coping Perception): Assessment of financial/technical ability.
     - SC (Social Capital): Ties to neighbors and mutual support (doi:10.1016/j.crm.2023.100498).
     - PA (Place Attachment): Emotional bond to this specific home (doi:10.1016/j.ijdrr.2020.101937).
+    - SP (Stakeholder Perception): Trust in Government/Insurance programs (doi:10.1016/j.envsci.2017.03.012).
 
     Choose one:
     {options_text}
@@ -33,6 +34,7 @@ household_owner:
     CP Assessment: [LOW/MODERATE/HIGH] because [explanation]
     SC Assessment: [LOW/MODERATE/HIGH] because [explanation]
     PA Assessment: [LOW/MODERATE/HIGH] because [explanation]
+    SP Assessment: [LOW/MODERATE/HIGH] because [explanation]
     Final Decision: [number]
     Reasoning: [Brief justification]
 
@@ -105,6 +107,7 @@ household_renter:
     - CP (Coping Perception): Assessment of your ability to move or insure contents.
     - SC (Social Capital): Local support networks (doi:10.1016/j.crm.2023.100498).
     - PA (Place Attachment): Sense of belonging to this neighborhood.
+    - SP (Stakeholder Perception): Trust in institutional assistance.
 
     Choose one:
     {options_text}
@@ -114,6 +117,7 @@ household_renter:
     CP Assessment: [LOW/MODERATE/HIGH] because [explanation]
     SC Assessment: [LOW/MODERATE/HIGH] because [explanation]
     PA Assessment: [LOW/MODERATE/HIGH] because [explanation]
+    SP Assessment: [LOW/MODERATE/HIGH] because [explanation]
     Final Decision: [number]
     Reasoning: [Brief justification]
 
