@@ -42,6 +42,17 @@ STATE_ORDER = [
 def load_and_process(results_dir: Path, model_folder: str):
     """Load and process simulation log."""
     csv_path = results_dir / model_folder / "simulation_log.csv"
+    
+    # Try underscore variation if hyphenated folder not found
+    if not csv_path.exists():
+        alt_folder = model_folder.replace('-', '_')
+        csv_path = results_dir / alt_folder / "simulation_log.csv"
+    
+    # Try hyphen variation if underscore folder not found
+    if not csv_path.exists():
+        alt_folder = model_folder.replace('_', '-')
+        csv_path = results_dir / alt_folder / "simulation_log.csv"
+
     if not csv_path.exists():
         return pd.DataFrame()
     

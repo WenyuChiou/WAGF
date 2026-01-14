@@ -68,6 +68,40 @@ The framework utilizes a layered middleware approach that unifies single-agent i
 
 ---
 
+## ⚠️ Practical Challenges & Lessons Learned
+
+Developing LLM-based agents within a governed framework revealed several recurring challenges that influenced our architectural decisions.
+
+### 1. The Parsing Breakdown (Syntax vs. Semantics)
+
+**Challenge**: Small language models (e.g., Llama-3.2 3B, Gemma-3 4B) frequently suffer from "Syntax Collapse" when prompts become dense. They may output invalid JSON, nested objects instead of flat keys (e.g., `{"decision": {"id": 1}}`), or unquoted strings like `threat: Very High`.
+**Insight**: We moved from strict JSON parsing to a **Multi-Layer Defensive Parsing** strategy.
+
+- **Example**: In our latest `UnifiedAdapter`, we sequence: **Enclosure Extraction** -> **JSON Repair** (for missing quotes/commas) -> **Keyword Regex** -> **Last-Resort Digit Extraction**. This ensures we capture intent even when the model's structural logic fails.
+
+### 2. Context Placeholder Hallucination (The `[N/A]` Trap)
+
+**Challenge**: Subtle bugs in context building—such as incorrect configuration paths—can lead to empty placeholders like `[N/A]` appearing in prompts for critical values (e.g., `rating_scale` or `response_format`).
+**Insight**: LLMs are "dangerously forgiving." Instead of crashing, they will often hallucinate a plausible-sounding value for an `[N/A]` field, corrupting the scientific integrity of the experiment without triggering an error.
+
+- **Solution**: We implemented **Strict Injection Verification** in the `TieredContextBuilder`, explicitly logging warnings if template variables are not resolved before the final prompt reaches the LLM.
+
+### 3. The Decision-Reasoning Gap (Logical Drifting)
+
+**Challenge**: Agents often exhibit "Logical Drifting"—where the Reasoning field claims "I feel completely safe," but the Decision field selects "Relocate."
+**Insight**: This isn't just a hallucination; it's a failure of **Internal Consistency**.
+
+- **Solution**: Our framework uses **Thinking Validators** in the `SkillBrokerEngine`. When a gap is detected (e.g., `TP_LABEL=Very Low` + `Relocation`), the broker triggers an immediate **Retry Prompt** with explicit logical feedback (e.g., _"You said threat is low, why are you relocating?"_), forcing the model to re-align its decision with its reasoning.
+
+### 4. Identity Drifting over Long Horizons
+
+**Challenge**: In later years (Year 7+), a "Renter" agent might forget their role and attempt to "Elevate their foundation"—an action restricted to Homeowners.
+**Insight**: Over time, recency bias in memory can cause agents to lose track of their "Core Persona" if it isn't repeatedly reinforced.
+
+- **Solution**: We enforce **Identity Guardrails** at the Governance Layer. Even if the LLM proposes an invalid skill, the `SimulationEngine` blocks it based on the immutable Agent Profile, ensuring the simulation's "World Physics" remain intact.
+
+---
+
 ### 🔧 Domain-Neutral Parsing Architecture (v3.3 NEW)
 
 The `ModelAdapter` and `SmartRepairPreprocessor` are now **completely decoupled from domain-specific terminology**. All configurations are driven by YAML:
