@@ -1,7 +1,18 @@
+# =============================================================================
+# SHARED DEFINITIONS (Reusable across agent types)
+# =============================================================================
+shared:
+  rating_scale: |
+    ### RATING SCALE (You MUST use EXACTLY one of these codes):
+    VL = Very Low | L = Low | M = Medium | H = High | VH = Very High
+
+# =============================================================================
+# HOUSEHOLD AGENT TYPE
+# =============================================================================
 household:
   description: "Household agents making adaptation decisions based on PMT"
 
-  # Neutralzed Prompt Template (No behavioral anchors)
+  # Prompt Template (FINAL version aligned)
   prompt_template: |
     You are a homeowner in a city, with a strong attachment to your community. {elevation_status_text}
     Your memory includes:
@@ -20,22 +31,18 @@ household:
 
     Now, choose one of the following actions:
     {options_text}
-    {options_text}
     Note: If no flood occurred this year, since no immediate threat, most people would choose "Do Nothing."
-    Note: If your Coping Appraisal is Low (meaning you lack funds or ability), you CANNOT choose expensive actions like "Elevate House" or "Relocate". You must choose "Do Nothing" or cheap actions.
-                                                                                                  
-    Please respond using the exact format below. Do NOT include any markdown symbols or conversational text outside the decision block.
+    Note: If your Coping Appraisal is Low (VL or L), you CANNOT choose expensive actions like "Elevate House" or "Relocate".
+
+    {rating_scale}
+
+    Please respond using the exact JSON format below. Do NOT include any markdown symbols or conversational text.
+    Use EXACTLY one of: VL, L, M, H, VH for each label.
 
     <<<DECISION_START>>>
     {{
-      "threat_appraisal": {{
-        "label": "[Low/Med/High]",
-        "reason": "One sentence summary of how threatened you feel."
-      }},
-      "coping_appraisal": {{
-        "label": "[Low/Med/High]",
-        "reason": "One sentence summary of your ability to cope."
-      }},
+      "threat_appraisal": {{"label": "M", "reason": "One sentence summary of how threatened you feel by any remaining flood risks."}},
+      "coping_appraisal": {{"label": "M", "reason": "One sentence summary of how well you think you can cope or act."}},
       "decision": {valid_choices_text}
     }}
     <<<DECISION_END>>>
@@ -60,20 +67,20 @@ household:
       "3": "do_nothing"
 
     # Construct mappings for validation and logging
-    # Enhanced regex patterns to handle various LLM output formats
+    # Enhanced regex patterns to handle various LLM output formats (5-level: VL/L/M/H/VH)
     constructs:
       TP_LABEL:
         keywords: ["threat appraisal", "threat perception", "threat:", "tp:"]
-        regex: "(?:threat\\s*(?:appraisal|perception)?|tp)[:\\s]*\\[?(Medium|Moderate|Low|Med|High|L|M|H|L-H|MOD|M-H)\\]?"
+        regex: "(?:threat\\s*(?:appraisal|perception)?|tp)[:\\s]*\\[?(VL|L|M|H|VH|Very Low|Low|Medium|Moderate|Med|High|Very High)\\]?"
       TP_REASON:
         keywords: ["threat appraisal", "threat perception"]
-        regex: "(?:threat\\s*(?:appraisal|perception)?)[:\\s]*\\[?(?:Medium|Moderate|Low|Med|High|L|M|H|L-H|MOD|M-H)\\]?[.,;:\\s]*(?:because|reason)?[:\\s]*(.+?)(?=\\n|coping|cp:|$)"
+        regex: "(?:threat\\s*(?:appraisal|perception)?)[:\\s]*\\[?(?:VL|L|M|H|VH|Very Low|Low|Medium|Moderate|Med|High|Very High)\\]?[.,;:\\s]*(?:because|reason)?[:\\s]*(.+?)(?=\\n|coping|cp:|$)"
       CP_LABEL:
         keywords: ["coping appraisal", "coping perception", "coping:", "cp:"]
-        regex: "(?:coping\\s*(?:appraisal|perception)?|cp)[:\\s]*\\[?(Medium|Moderate|Low|Med|High|L|M|H|L-H|MOD|M-H)\\]?"
+        regex: "(?:coping\\s*(?:appraisal|perception)?|cp)[:\\s]*\\[?(VL|L|M|H|VH|Very Low|Low|Medium|Moderate|Med|High|Very High)\\]?"
       CP_REASON:
         keywords: ["coping appraisal", "coping perception"]
-        regex: "(?:coping\\s*(?:appraisal|perception)?)[:\\s]*\\[?(?:Medium|Moderate|Low|Med|High|L|M|H|L-H|MOD|M-H)\\]?[.,;:\\s]*(?:because|reason)?[:\\s]*(.+?)(?=\\n|final|decision|final decision|$)"
+        regex: "(?:coping\\s*(?:appraisal|perception)?)[:\\s]*\\[?(?:VL|L|M|H|VH|Very Low|Low|Medium|Moderate|Med|High|Very High)\\]?[.,;:\\s]*(?:because|reason)?[:\\s]*(.+?)(?=\\n|final|decision|final decision|$)"
 
   # Available Actions (mapped to Skill Registry IDs)
   actions:
@@ -94,32 +101,44 @@ household:
   governance:
     strict:
       thinking_rules:
-        urgency_check:
+        # VH Threat + Inaction = CRITICAL ERROR (must retry)
+        urgency_critical:
           {
             construct: TP_LABEL,
-            when_above: ["H"],
+            when_above: ["VH", "Very High"],
             blocked_skills: ["do_nothing"],
             level: ERROR,
-            message: "Logic Error: High Threat but inaction chosen.",
+            message: "Critical: Very High Threat but inaction chosen. Must take protective action.",
+          }
+        # H Threat + Inaction = Warning (log but allow)
+        urgency_warning:
+          {
+            construct: TP_LABEL,
+            when_above: ["H", "High"],
+            blocked_skills: ["do_nothing"],
+            level: WARNING,
+            message: "Warning: High Threat but inaction chosen. Consider protective action.",
           }
         coping_alignment:
           {
             construct: CP_LABEL,
-            when_above: ["L"],
+            when_above: ["VL", "L", "Very Low", "Low"],
             blocked_skills: ["elevate_house", "relocate"],
             level: ERROR,
             message: "Logic Error: Low Coping but expensive action attempted.",
           }
         relocation_anomaly:
           {
-            conditions: [{ construct: TP_LABEL, values: ["L"] }],
+            conditions:
+              [{ construct: TP_LABEL, values: ["VL", "L", "Very Low", "Low"] }],
             blocked_skills: ["relocate"],
             level: ERROR,
             message: "Logical Error: Relocation is illogical when Threat is Low.",
           }
         elevation_anomaly:
           {
-            conditions: [{ construct: TP_LABEL, values: ["L"] }],
+            conditions:
+              [{ construct: TP_LABEL, values: ["VL", "L", "Very Low", "Low"] }],
             blocked_skills: ["elevate_house"],
             level: ERROR,
             message: "Logical Error: Elevation is irrational when Threat is Low.",

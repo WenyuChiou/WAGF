@@ -441,12 +441,14 @@ def run_multi_agent_experiment(
                 
                 # Get LLM response
                 try:
-                    raw_response = llm_invoke(current_prompt)
+                    result = llm_invoke(current_prompt)
+                    # llm_invoke returns (content, LLMStats) tuple
+                    raw_response = result[0] if isinstance(result, tuple) else result
                 except Exception as e:
                     raw_response = ""
                 
                 # Parse using central adapter
-                proposal = adapter.parse_output(raw_response, {"agent_type": "household", "elevation_status": "elevated" if hh.elevated else "non_elevated"})
+                proposal = adapter.parse_output(raw_response, {"agent_type": "household", "agent_id": hh.id, "elevation_status": "elevated" if hh.elevated else "non_elevated"})
                 
                 if proposal:
                     decision = proposal.skill_name

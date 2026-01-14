@@ -282,6 +282,16 @@ class BaseAgentContextBuilder(ContextBuilder):
         template_vars.update({k: v for k, v in context.items() 
                             if k not in template_vars and isinstance(v, (str, int, float, bool))})
         
+        # Inject shared rating_scale from config (if available)
+        from broker.utils.agent_config import load_agent_config
+        try:
+            agent_cfg = load_agent_config()
+            rating_scale = agent_cfg.get_shared("rating_scale", "")
+            if rating_scale:
+                template_vars["rating_scale"] = rating_scale
+        except:
+            pass  # Fallback silently if config loading fails
+        
         # Format the prompt
         formatted = SafeFormatter().format(template, **template_vars)
         

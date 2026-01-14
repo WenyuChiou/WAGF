@@ -8,6 +8,7 @@ Provides easy access to prompts, validation rules, and coherence rules.
 import yaml
 import os
 import json
+import threading
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
@@ -117,6 +118,11 @@ class AgentTypeConfig:
     def keys(self):
         """Allow checking agent types."""
         return self._config.keys()
+    
+    def get_shared(self, key: str, default: str = "") -> str:
+        """Get shared config value (e.g., rating_scale)."""
+        shared = self._config.get("shared", {})
+        return shared.get(key, default)
     
     def get_valid_actions(self, agent_type: str) -> List[str]:
         """Get all valid action IDs and aliases for agent type."""
@@ -350,31 +356,43 @@ class GovernanceAuditor:
     Singleton for tracking and summarizing governance interventions.
     """
     _instance = None
+    _lock = threading.Lock()
 
     def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(GovernanceAuditor, cls).__new__(cls)
-            cls._instance.rule_hits = defaultdict(int)
-            cls._instance.retry_success_count = 0
-            cls._instance.retry_failure_count = 0
-            cls._instance.total_interventions = 0
-            cls._instance.parse_errors = 0
-        return cls._instance
+        with cls._lock:
+            if cls._instance is None:
+                cls._instance = super(GovernanceAuditor, cls).__new__(cls)
+                cls._instance._initialized = False
+            return cls._instance
+
+    def __init__(self):
+        if hasattr(self, '_initialized') and self._initialized:
+            return
+        
+        self.stats_lock = threading.Lock()
+        self.rule_hits = defaultdict(int)
+        self.retry_success_count = 0
+        self.retry_failure_count = 0
+        self.total_interventions = 0
+        self.parse_errors = 0
+        self._initialized = True
 
     def log_intervention(self, rule_id: str, success: bool, is_final: bool = False):
         """Record a validator intervention."""
-        self.rule_hits[rule_id] += 1
-        self.total_interventions += 1
-        
-        if is_final:
-            if success:
-                self.retry_success_count += 1
-            else:
-                self.retry_failure_count += 1
+        with self.stats_lock:
+            self.rule_hits[rule_id] += 1
+            self.total_interventions += 1
+            
+            if is_final:
+                if success:
+                    self.retry_success_count += 1
+                else:
+                    self.retry_failure_count += 1
 
     def log_parse_error(self):
         """Record a parsing failure where LLM output could not be converted to SkillProposal."""
-        self.parse_errors += 1
+        with self.stats_lock:
+            self.parse_errors += 1
 
     def save_summary(self, output_path: Path):
         """Save aggregated statistics to JSON."""

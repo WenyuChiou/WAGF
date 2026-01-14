@@ -249,11 +249,35 @@ class AgentValidator:
         results = []
         
         def get_label(key):
+            """Extract normalized 5-level label (VL/L/M/H/VH) from state or reasoning."""
             if not key: return ""
             # Priority: 1. State, 2. Reasoning
-            val = str(state.get(key, reasoning.get(key, ""))).upper()
+            val = str(state.get(key, reasoning.get(key, ""))).upper().strip()
+            # Remove brackets and extract clean label
             label_text = val.split(']')[0].replace("[", "").replace("]", "").strip() if ']' in val else val.strip()
-            return label_text[:1] if label_text else ""
+            # Normalize common variations to standard 5-level codes
+            normalization_map = {
+                "VERY LOW": "VL", "VERYLOW": "VL", "VERY_LOW": "VL",
+                "LOW": "L",
+                "MEDIUM": "M", "MED": "M", "MODERATE": "M", "MOD": "M",
+                "HIGH": "H",
+                "VERY HIGH": "VH", "VERYHIGH": "VH", "VERY_HIGH": "VH"
+            }
+            return normalization_map.get(label_text, label_text[:2] if len(label_text) >= 2 else label_text)
+
+        def label_matches(actual_label: str, expected_values: list) -> bool:
+            """Check if actual_label matches any of the expected values (5-level aware)."""
+            if not actual_label: return False
+            normalized_expected = []
+            for v in expected_values:
+                v_upper = v.upper().strip()
+                if v_upper in ["VL", "VERY LOW", "VERYLOW", "VERY_LOW"]: normalized_expected.append("VL")
+                elif v_upper in ["L", "LOW"]: normalized_expected.append("L")
+                elif v_upper in ["M", "MED", "MEDIUM", "MODERATE", "MOD"]: normalized_expected.append("M")
+                elif v_upper in ["H", "HIGH"]: normalized_expected.append("H")
+                elif v_upper in ["VH", "VERY HIGH", "VERYHIGH", "VERY_HIGH"]: normalized_expected.append("VH")
+                else: normalized_expected.append(v_upper)
+            return actual_label in normalized_expected
 
         for rule in rules:
             if not rule.blocked_skills: continue
@@ -281,9 +305,9 @@ class AgentValidator:
                                 except:
                                     matches.append(False)
                             else:
-                                # Categorical/Label Comparison (for Flood/PMT)
+                                # Categorical/Label Comparison (for Flood/PMT) - 5-level aware
                                 actual = get_label(construct_name)
-                                matches.append(any(actual.startswith(v[:1]) for v in cond.get("values", [])))
+                                matches.append(label_matches(actual, cond.get("values", [])))
                         else:
                             matches.append(False)
                     is_triggered = all(matches) if matches else False
@@ -298,7 +322,7 @@ class AgentValidator:
             elif rule.construct:
                 label = get_label(rule.construct)
                 if label and rule.expected_levels:
-                    is_triggered = any(label.startswith(t[:1]) for t in rule.expected_levels)
+                    is_triggered = label_matches(label, rule.expected_levels)
                 
             if is_triggered:
                 normalized_decision = decision.lower().strip().replace("_", "")

@@ -427,6 +427,7 @@ class UnifiedAdapter(ModelAdapter):
         }
 
         # 6. Post-Parsing Robustness: Completeness Check
+        missing_labels = []
         if parsing_cfg and "constructs" in parsing_cfg:
             expected = set(parsing_cfg["constructs"].keys())
             found = set(reasoning.keys())
@@ -435,6 +436,10 @@ class UnifiedAdapter(ModelAdapter):
                 msg = f"Missing constructs for '{agent_type}': {list(missing)}"
                 parsing_warnings.append(msg)
                 logger.warning(f" [Adapter:Diagnostic] Warning: {msg}")
+                # Check if any critical LABEL fields are missing - these should trigger retry
+                missing_labels = [m for m in missing if "_LABEL" in m]
+                if missing_labels:
+                    parsing_warnings.append(f"CRITICAL: Missing LABEL constructs {missing_labels}. Triggering retry.")
         if parse_layer:
             logger.info(f" [Adapter:Audit] Agent {agent_id} | Layer: {parse_layer} | Warnings: {len(parsing_warnings)}")
             # Show reasoning summary
