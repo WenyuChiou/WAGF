@@ -30,17 +30,20 @@ household_owner:
 
     ### [ADAPTATION OPTIONS]
     Based on Protection Motivation Theory (Rogers, 1983), evaluate your options objectively:
-    1. Do Nothing: Maintain current status without additional investment.
-    2. Buy/Renew Insurance: Pay annual premium for financial protection against future losses.
-    3. Elevate House: Structural modification to reduce physical damage (requires upfront cost).
-    4. Buyout Program: Voluntary sale of property to the state at pre-flood market value.
+    {options_text}
+
+    ### [GLOBAL SKILLS (Always Available)]
+    The following core options are always available for your consideration:
+    - do_nothing: Maintain current status.
+    - buy_insurance: Renew or purchase flood insurance.
+
 
     Format your response:
-    TP Assessment: [LOW/MODERATE/HIGH]
-    CP Assessment: [LOW/MODERATE/HIGH]
-    SC Assessment: [LOW/MODERATE/HIGH]
-    PA Assessment: [LOW/MODERATE/HIGH]
-    SP Assessment: [LOW/MODERATE/HIGH]
+    TP Assessment: [VL/L/M/H/VH]
+    CP Assessment: [VL/L/M/H/VH]
+    SC Assessment: [VL/L/M/H/VH]
+    PA Assessment: [VL/L/M/H/VH]
+    SP Assessment: [VL/L/M/H/VH]
     Final Decision: [number]
     Reasoning: [Brief technical justification]
 
@@ -58,23 +61,23 @@ household_owner:
       "3": "buyout_program"
     constructs:
       TP_LABEL:
-        regex: "TP Assessment:.*?(LOW|MODERATE|HIGH)"
+        regex: "TP Assessment:.*?(VL|L|M|H|VH|VERY LOW|LOW|MODERATE|MEDIUM|HIGH|VERY HIGH)"
       CP_LABEL:
-        regex: "CP Assessment:.*?(LOW|MODERATE|HIGH)"
+        regex: "CP Assessment:.*?(VL|L|M|H|VH|VERY LOW|LOW|MODERATE|MEDIUM|HIGH|VERY HIGH)"
       SC_LABEL:
-        regex: "SC Assessment:.*?(LOW|MODERATE|HIGH)"
+        regex: "SC Assessment:.*?(VL|L|M|H|VH|VERY LOW|LOW|MODERATE|MEDIUM|HIGH|VERY HIGH)"
       PA_LABEL:
-        regex: "PA Assessment:.*?(LOW|MODERATE|HIGH)"
+        regex: "PA Assessment:.*?(VL|L|M|H|VH|VERY LOW|LOW|MODERATE|MEDIUM|HIGH|VERY HIGH)"
       SP_LABEL:
-        regex: "SP Assessment:.*?(LOW|MODERATE|HIGH)"
+        regex: "SP Assessment:.*?(VL|L|M|H|VH|VERY LOW|LOW|MODERATE|MEDIUM|HIGH|VERY HIGH)"
 
   governance_rules:
     thinking_rules:
       pa_relocation_block:
         construct: PA_LABEL
-        when_above: ["H"]
+        when_above: ["H", "VH", "HIGH", "VERY HIGH"]
         blocked_skills: ["buyout_program"]
-        message: "[Rule: PA] High Place Attachment hinders buyout/relocation (Bukvic, 2022)."
+        message: "[Rule: PA] High/Very High Place Attachment hinders buyout/relocation (Bukvic, 2022)."
 
 household_renter:
   description: "Renter agents making mobility decisions based on PMT. Reference: Swapan (2021)"
@@ -106,16 +109,19 @@ household_renter:
 
     ### [ADAPTATION OPTIONS]
     Evaluate your response based on PMT (Rogers, 1983) and neighborhood ties (Swapan, 2021):
-    1. Do Nothing: Continue residency without additional protection.
-    2. Buy/Renew Contents Insurance: Protect personal belongings from future flood losses.
-    3. Relocate: Move to a new rental property in a lower-risk area.
+    {options_text}
+
+    ### [GLOBAL SKILLS (Always Available)]
+    - do_nothing: Continue residency.
+    - buy_contents_insurance: Protect your belongings.
+
 
     Format your response:
-    TP Assessment: [LOW/MODERATE/HIGH]
-    CP Assessment: [LOW/MODERATE/HIGH]
-    SC Assessment: [LOW/MODERATE/HIGH]
-    PA Assessment: [LOW/MODERATE/HIGH]
-    SP Assessment: [LOW/MODERATE/HIGH]
+    TP Assessment: [VL/L/M/H/VH]
+    CP Assessment: [VL/L/M/H/VH]
+    SC Assessment: [VL/L/M/H/VH]
+    PA Assessment: [VL/L/M/H/VH]
+    SP Assessment: [VL/L/M/H/VH]
     Final Decision: [number]
     Reasoning: [Brief technical justification]
 
@@ -128,23 +134,23 @@ household_renter:
       "3": "relocate"
     constructs:
       TP_LABEL:
-        regex: "TP Assessment:.*?(LOW|MODERATE|HIGH)"
+        regex: "TP Assessment:.*?(VL|L|M|H|VH|VERY LOW|LOW|MODERATE|MEDIUM|HIGH|VERY HIGH)"
       CP_LABEL:
-        regex: "CP Assessment:.*?(LOW|MODERATE|HIGH)"
+        regex: "CP Assessment:.*?(VL|L|M|H|VH|VERY LOW|LOW|MODERATE|MEDIUM|HIGH|VERY HIGH)"
       SC_LABEL:
-        regex: "SC Assessment:.*?(LOW|MODERATE|HIGH)"
+        regex: "SC Assessment:.*?(VL|L|M|H|VH|VERY LOW|LOW|MODERATE|MEDIUM|HIGH|VERY HIGH)"
       PA_LABEL:
-        regex: "PA Assessment:.*?(LOW|MODERATE|HIGH)"
+        regex: "PA Assessment:.*?(VL|L|M|H|VH|VERY LOW|LOW|MODERATE|MEDIUM|HIGH|VERY HIGH)"
       SP_LABEL:
-        regex: "SP Assessment:.*?(LOW|MODERATE|HIGH)"
+        regex: "SP Assessment:.*?(VL|L|M|H|VH|VERY LOW|LOW|MODERATE|MEDIUM|HIGH|VERY HIGH)"
 
   governance_rules:
     thinking_rules:
       sc_stability_bond:
         construct: SC_LABEL
-        when_above: ["H"]
+        when_above: ["H", "VH", "HIGH", "VERY HIGH"]
         blocked_skills: ["relocate"]
-        message: "[Rule: SC] High Social Capital provides community stability (Azad, 2023)."
+        message: "[Rule: SC] High/Very High Social Capital provides community stability (Azad, 2023)."
 
 government:
   description: "State government managing adaptation subsidies"
@@ -155,6 +161,13 @@ government:
       description: "Decrease the subsidy rate due to budget constraints"
     - id: maintain_subsidy
       description: "Maintain the current subsidy rate"
+  parsing:
+    decision_keywords: ["decision:", "action:"]
+    default_skill: "maintain_subsidy"
+    skill_map:
+      "1": "increase_subsidy"
+      "2": "decrease_subsidy"
+      "3": "maintain_subsidy"
 
 insurance:
   description: "Insurance company managing premiums"
@@ -165,6 +178,13 @@ insurance:
       description: "Lower annual flood insurance premiums"
     - id: maintain_premium
       description: "Maintain current premium levels"
+  parsing:
+    decision_keywords: ["decision:", "action:"]
+    default_skill: "maintain_premium"
+    skill_map:
+      "1": "raise_premium"
+      "2": "lower_premium"
+      "3": "maintain_premium"
 
 metadata:
   bibliography: |
