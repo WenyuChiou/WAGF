@@ -13,18 +13,17 @@ import json
 import numpy as np
 
 # Directory configuration
-RESULTS_DIR = Path("examples/single_agent/results")
-OLD_RESULTS_DIR = Path("examples/single_agent/results_old")
-WINDOW_DIR = Path("examples/single_agent/results_window")
-IMPORTANCE_DIR = Path("examples/single_agent/results_importance")
+# Directory configuration
+OLD_BASELINE_FILE = Path("ref/flood_adaptation_simulation_log.csv")
+WINDOW_DIR = Path("results_window")
+HUMANCENTRIC_DIR = Path("results_humancentric")
 OUTPUT_DIR = Path("examples/single_agent/benchmark_analysis")
 
-# Model configurations (including GPT-OSS)
+# Model configurations
 MODELS = [
-    {"old_folder": "Gemma_3_4B", "new_folder": "gemma3_4b_strict", "name": "Gemma 3 (4B)"},
-    {"old_folder": "Llama_3.2_3B", "new_folder": "llama3.2_3b_strict", "name": "Llama 3.2 (3B)"},
-    {"old_folder": "DeepSeek_R1_8B", "new_folder": "deepseek-r1_8b_strict", "name": "DeepSeek-R1 (8B)"},
-    {"old_folder": "GPT-OSS_20B", "new_folder": "gpt-oss_latest_strict", "name": "GPT-OSS (20B)"},
+    {"folder": "gemma3_4b_strict", "name": "Gemma 3 (4B)"},
+    {"folder": "llama3_2_3b_strict", "name": "Llama 3.2 (3B)"},
+    {"folder": "deepseek_r1_8b_strict", "name": "DeepSeek-R1 (8B)"},
 ]
 
 # Standard adaptation state colors
@@ -48,23 +47,27 @@ STATE_ORDER = [
 FLOOD_YEARS = [3, 4, 9]
 
 
-def load_old_data(model_folder: str) -> pd.DataFrame:
+def load_old_data() -> pd.DataFrame:
     """Load OLD baseline simulation log."""
-    for base_dir in [OLD_RESULTS_DIR, RESULTS_DIR]:
-        csv_path = base_dir / model_folder / "flood_adaptation_simulation_log.csv"
-        if csv_path.exists():
-            return pd.read_csv(csv_path)
+    if OLD_BASELINE_FILE.exists():
+        return pd.read_csv(OLD_BASELINE_FILE)
     return pd.DataFrame()
 
 
 def load_memory_data(model_folder: str, memory_type: str) -> pd.DataFrame:
-    """Load Window or Importance memory simulation log."""
+    """Load Window or Human-Centric memory simulation log."""
     if memory_type == "window":
         base_dir = WINDOW_DIR
     else:
-        base_dir = IMPORTANCE_DIR
+        base_dir = HUMANCENTRIC_DIR
     
     csv_path = base_dir / model_folder / "simulation_log.csv"
+    
+    # Try underscore variation if not found
+    if not csv_path.exists():
+        alt_folder = model_folder.replace('-', '_')
+        csv_path = base_dir / alt_folder / "simulation_log.csv"
+        
     if csv_path.exists():
         return pd.read_csv(csv_path)
     return pd.DataFrame()
@@ -75,9 +78,15 @@ def load_audit_data(model_folder: str, memory_type: str) -> pd.DataFrame:
     if memory_type == "window":
         base_dir = WINDOW_DIR
     else:
-        base_dir = IMPORTANCE_DIR
+        base_dir = HUMANCENTRIC_DIR
     
     csv_path = base_dir / model_folder / "household_governance_audit.csv"
+    
+    # Try underscore variation if not found
+    if not csv_path.exists():
+        alt_folder = model_folder.replace('-', '_')
+        csv_path = base_dir / alt_folder / "household_governance_audit.csv"
+        
     if csv_path.exists():
         return pd.read_csv(csv_path)
     return pd.DataFrame()
@@ -272,72 +281,83 @@ def plot_stacked_bar(ax, df: pd.DataFrame, title: str):
     ax.tick_params(axis='y', labelsize=6)
 
 
-def generate_3x4_comparison():
-    """Generate 3x4 OLD vs Window vs Importance comparison (4 models)."""
+def generate_3x3_comparison():
+    """Generate 3x3 Baseline vs Window vs Human-Centric comparison (3 models)."""
     
-    fig, axes = plt.subplots(3, 4, figsize=(18, 12))
+    fig, axes = plt.subplots(3, 3, figsize=(15, 12))
     
     all_analysis = []
     
     for i, model_config in enumerate(MODELS):
         # Load data
-        old_df = load_old_data(model_config["old_folder"])
-        window_df = load_memory_data(model_config["new_folder"], "window")
-        importance_df = load_memory_data(model_config["new_folder"], "importance")
+        old_df = load_old_data() # Baseline is single file
+        window_df = load_memory_data(model_config["folder"], "window")
+        importance_df = load_memory_data(model_config["folder"], "humancentric")
         
         # Load audits
-        window_audit = load_audit_data(model_config["new_folder"], "window")
-        importance_audit = load_audit_data(model_config["new_folder"], "importance")
+        window_audit = load_audit_data(model_config["folder"], "window")
+        importance_audit = load_audit_data(model_config["folder"], "humancentric")
         
-        # Row 1: OLD baseline
-        plot_stacked_bar(axes[0, i], old_df, f"OLD: {model_config['name']}")
+        # -- Plotting --
+        
+        # Row 1: OLD Baseline (Same for all, or repeated)
+        # Note: The baseline CSV doesn't differentiate models, so we plot the same baseline 
+        # but titled with the model name to maintain grid structure. 
+        # OR if we want to be strict, we label it "Global Baseline"
+        plot_stacked_bar(axes[0, i], old_df, f"Baseline\n(Ref)")
         
         # Row 2: Window Memory
         plot_stacked_bar(axes[1, i], window_df, f"Window: {model_config['name']}")
         
-        # Row 3: Importance Memory
-        plot_stacked_bar(axes[2, i], importance_df, f"Importance: {model_config['name']}")
+        # Row 3: Human-Centric Memory
+        plot_stacked_bar(axes[2, i], importance_df, f"Human-Centric: {model_config['name']}")
         
-        # Collect analysis data
-        analysis = {
+        # -- Analysis --
+        old_an = analyze_yearly_decisions(old_df, "Baseline")
+        window_an = analyze_yearly_decisions(window_df, "Window")
+        importance_an = analyze_yearly_decisions(importance_df, "Human-Centric")
+        
+        window_val = analyze_validation(window_audit)
+        importance_val = analyze_validation(importance_audit)
+        
+        all_analysis.append({
             "model": model_config["name"],
-            "old": analyze_yearly_decisions(old_df, "OLD"),
-            "window": analyze_yearly_decisions(window_df, "Window"),
-            "importance": analyze_yearly_decisions(importance_df, "Importance"),
-            "old_flood": analyze_flood_response(old_df, "OLD"),
+            "old": old_an,
+            "window": window_an,
+            "importance": importance_an, # keeping key for compatibility
+            "old_flood": analyze_flood_response(old_df, "Baseline"),
             "window_flood": analyze_flood_response(window_df, "Window"),
-            "importance_flood": analyze_flood_response(importance_df, "Importance"),
-            "window_validation": analyze_validation(window_audit),
-            "importance_validation": analyze_validation(importance_audit),
-        }
-        all_analysis.append(analysis)
-    
+            "importance_flood": analyze_flood_response(importance_df, "Human-Centric"),
+            "window_validation": window_val,
+            "importance_validation": importance_val
+        })
+
     # Create unified legend
     handles = [plt.Rectangle((0,0),1,1, facecolor=STATE_COLORS[s]) for s in STATE_ORDER]
-    fig.legend(handles, STATE_ORDER, loc='lower center', ncol=5, fontsize=8, 
-               title="Adaptation State", title_fontsize=9, bbox_to_anchor=(0.5, 0.02))
+    fig.legend(handles, STATE_ORDER, loc='lower center', ncol=5, fontsize=10, 
+               title="Adaptation State", title_fontsize=11, bbox_to_anchor=(0.5, 0.02))
     
     # Row labels
-    fig.text(0.01, 0.82, "OLD\n(Baseline)", fontsize=10, fontweight='bold', 
-             rotation=90, va='center', ha='center')
-    fig.text(0.01, 0.50, "Window\nMemory", fontsize=10, fontweight='bold', 
-             rotation=90, va='center', ha='center')
-    fig.text(0.01, 0.20, "Importance\nMemory", fontsize=10, fontweight='bold', 
-             rotation=90, va='center', ha='center')
-    
-    fig.text(0.99, 0.5, "Red lines = Flood Years (3, 4, 9)", fontsize=7, 
-             rotation=90, va='center', ha='center', color='red')
-    
-    plt.suptitle("OLD vs Window vs Importance Memory Comparison\n(Active Agents Only - Relocated Agents Excluded)", 
-                 fontsize=13, fontweight='bold', y=0.98)
-    plt.tight_layout(rect=[0.03, 0.08, 0.97, 0.94])
+    pad = 5
+    axes[0,0].annotate("Baseline", xy=(0, 0.5), xytext=(-axes[0,0].yaxis.labelpad - pad, 0),
+                    xycoords=axes[0,0].yaxis.label, textcoords='offset points',
+                    size='large', ha='right', va='center', rotation=90, fontweight='bold')
+    axes[1,0].annotate("Window", xy=(0, 0.5), xytext=(-axes[1,0].yaxis.labelpad - pad, 0),
+                    xycoords=axes[1,0].yaxis.label, textcoords='offset points',
+                    size='large', ha='right', va='center', rotation=90, fontweight='bold')
+    axes[2,0].annotate("Human-Centric", xy=(0, 0.5), xytext=(-axes[2,0].yaxis.labelpad - pad, 0),
+                    xycoords=axes[2,0].yaxis.label, textcoords='offset points',
+                    size='large', ha='right', va='center', rotation=90, fontweight='bold')
+                    
+    plt.suptitle("Memory Engine Impact: Baseline vs Window vs Human-Centric", 
+                 fontsize=16, fontweight='bold', y=0.98)
+    plt.tight_layout(rect=[0.03, 0.08, 1, 0.94])
     
     # Save chart
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    output_path = OUTPUT_DIR / "old_vs_window_vs_importance_3x4.png"
+    output_path = OUTPUT_DIR / "old_vs_window_vs_humancentric_3x3.png"
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
-    print(f"[OK] Saved 3x4 comparison chart to: {output_path}")
-    plt.close()
+    print(f"✅ Saved chart to: {output_path}")
     
     return all_analysis
 
@@ -368,7 +388,7 @@ def generate_readme_en(all_analysis: list):
         
         f.write("---\n\n")
         f.write("## Comparison Chart\n\n")
-        f.write("![Comparison](old_vs_window_vs_importance_3x4.png)\n\n")
+        f.write("![Comparison](old_vs_window_vs_humancentric_3x3.png)\n\n")
         f.write("*Note: Each year shows only ACTIVE agents (already-relocated agents excluded)*\n\n")
         
         f.write("---\n\n")
@@ -467,13 +487,13 @@ def generate_readme_ch(all_analysis: list):
             window_reloc = a["window"].get("final_reloc", 0)
             importance_reloc = a["importance"].get("final_reloc", 0)
             
-            f.write(f"| 指標 | 傳統版 | Window | Importance |\n")
-            f.write(f"|------|--------|--------|------------|\n")
+            f.write(f"| 指標 | 傳統版 | Window | Human-Centric |\n")
+            f.write(f"|------|--------|--------|---------------|\n")
             f.write(f"| 最終搬遷數 | {old_reloc} | {window_reloc} | {importance_reloc} |\n\n")
             
             # Flood year response
             f.write("**洪水年響應：**\n\n")
-            f.write("| 年份 | 傳統版搬遷 | Window 搬遷 | Importance 搬遷 |\n")
+            f.write("| 年份 | 傳統版搬遷 | Window 搬遷 | Human-Centric 搬遷 |\n")
             f.write("|------|------------|-------------|------------------|\n")
             for fy in FLOOD_YEARS:
                 old_r = a["old_flood"].get(fy, {}).get("relocate", "N/A")
@@ -502,10 +522,10 @@ def generate_readme_ch(all_analysis: list):
         f.write("| 模型 | 記憶類型 | 總數 | 重試 | 失敗 | 解析警告 |\n")
         f.write("|------|----------|------|------|------|----------|\n")
         for a in all_analysis:
-            for mem in ["window", "importance"]:
-                v = a[f"{mem}_validation"]
+            for mem_key, mem_display in [("window", "Window"), ("importance", "Human-Centric")]:
+                v = a[f"{mem_key}_validation"]
                 if v.get("total", 0) > 0:
-                    f.write(f"| {a['model']} | {mem.capitalize()} | {v['total']} | {v['retries']} | {v['validation_failed']} | {v['parse_warnings']} |\n")
+                    f.write(f"| {a['model']} | {mem_display} | {v['total']} | {v['retries']} | {v['validation_failed']} | {v['parse_warnings']} |\n")
         
         f.write("\n")
     
@@ -537,20 +557,20 @@ def print_analysis(all_analysis: list):
 
 if __name__ == "__main__":
     print("=" * 70)
-    print("Generating OLD vs Window vs Importance Memory Comparison (FIXED)")
+    print("Generating Baseline vs Window vs Human-Centric Memory Comparison")
     print("=" * 70)
     
     # Check data availability
     print("\nData availability check:")
     for model in MODELS:
-        old_exists = any((d / model["old_folder"]).exists() for d in [OLD_RESULTS_DIR, RESULTS_DIR])
-        window_exists = (WINDOW_DIR / model["new_folder"]).exists()
-        importance_exists = (IMPORTANCE_DIR / model["new_folder"]).exists()
+        old_exists = OLD_BASELINE_FILE.exists()
+        window_exists = (WINDOW_DIR / model["folder"]).exists()
+        importance_exists = (HUMANCENTRIC_DIR / model["folder"]).exists()
         
-        print(f"  {model['name']}: OLD={'✓' if old_exists else '✗'}, Window={'✓' if window_exists else '✗'}, Importance={'✓' if importance_exists else '✗'}")
+        print(f"  {model['name']}: Baseline={'✓' if old_exists else '✗'}, Window={'✓' if window_exists else '✗'}, Human-Centric={'✓' if importance_exists else '✗'}")
     
     # Generate chart and analysis
-    all_analysis = generate_3x4_comparison()
+    all_analysis = generate_3x3_comparison()
     
     # Print analysis
     print_analysis(all_analysis)
