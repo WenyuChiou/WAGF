@@ -119,8 +119,7 @@ The following matrix compares performance across four language models and two me
 
 - **Llama 3.2 (3B)**: Highly sensitive to social observations. Shows the highest rate of "Decision-Reasoning Gaps," frequently corrected by the Governance Layer.
 - **Gemma 3 (4B)**: Most "Optimistic." Tends to prefer "Do Nothing" unless multiple floods are explicitly consolidated in memory. Requires specialized synonym mapping due to unique category naming (e.g., "Concern" vs "Threat").
-- **DeepSeek-R1 (8B)**: Exceptional reasoning consistency. Rarely requires Governance retries, as its `<think>` chain aligns well with the PMT constructs.
-- **GPT-OSS (Aya 8B)**: Highly defensive with Human-Centric memory; tends to "Panick" and over-insure when emotional consolidation is active.
+- **DeepSeek-R1 (8B)**: Exceptional reasoning consistency. Rarely requires Governance retries, as its `<think>` chain aligns well with the PMT constructs. Shows distinct behavioral shifts when emotional memories (Human-Centric) are retrieved.
 
 ---
 

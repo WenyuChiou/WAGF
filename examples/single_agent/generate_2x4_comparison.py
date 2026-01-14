@@ -18,8 +18,7 @@ import os
 MODELS = [
     {"name": "Gemma 3 (4B)", "folder": "gemma3_4b_strict"},
     {"name": "Llama 3.2 (3B)", "folder": "llama3_2_3b_strict"},
-    {"name": "DeepSeek-R1 (8B)", "folder": "deepseek-r1_8b_strict"},
-    {"name": "GPT-OSS (Aya 8B)", "folder": "aya-expanse_8b_strict"},
+    {"name": "DeepSeek-R1 (8B)", "folder": "deepseek_r1_8b_strict"},
 ]
 
 # Standard adaptation state colors
@@ -92,9 +91,9 @@ def plot_stacked_bar(ax, df, title, show_ylabel=False):
     ax.grid(axis='y', linestyle='--', alpha=0.5)
     ax.tick_params(axis='both', which='major', labelsize=8)
 
-def generate_2x4_memory_comparison(dir1: Path, dir2: Path, output_path: Path):
-    """Generate the 2x4 comparison chart for two memory engines."""
-    fig, axes = plt.subplots(2, 4, figsize=(20, 10))
+def generate_2x3_memory_comparison(dir1: Path, dir2: Path, output_path: Path):
+    """Generate the 2x3 comparison chart for two memory engines."""
+    fig, axes = plt.subplots(2, 3, figsize=(16, 10))
     
     # Row 1: Window Memory
     for i, model in enumerate(MODELS):
@@ -116,7 +115,7 @@ def generate_2x4_memory_comparison(dir1: Path, dir2: Path, output_path: Path):
     plt.tight_layout(rect=[0, 0.08, 1, 0.94])
     
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
-    print(f"✅ Saved 2x4 memory comparison chart to: {output_path}")
+    print(f"✅ Saved 2x3 memory comparison chart to: {output_path}")
     plt.close()
 
 if __name__ == "__main__":
@@ -124,7 +123,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--dir1", type=str, default="results_window")
     parser.add_argument("--dir2", type=str, default="results_humancentric")
-    parser.add_argument("--output", type=str, default="memory_system_comparison_2x4.png")
+    parser.add_argument("--output", type=str, default="memory_system_comparison_2x3.png")
     args = parser.parse_args()
     
-    generate_2x4_memory_comparison(Path(args.dir1), Path(args.dir2), Path(args.output))
+    generate_2x3_memory_comparison(Path(args.dir1), Path(args.dir2), Path(args.output))
