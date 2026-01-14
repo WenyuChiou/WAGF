@@ -31,8 +31,7 @@ household:
 
     Now, choose one of the following actions:
     {options_text}
-    Note: If no flood occurred this year, since no immediate threat, most people would choose "Do Nothing."
-    Note: If your Coping Appraisal is Low (VL or L), you CANNOT choose expensive actions like "Elevate House" or "Relocate".
+    Note: If no flood occurred this year, since no immediate threat, most people would choose ?Do Nothing.??
 
     {rating_scale}
 
@@ -41,10 +40,10 @@ household:
 
     <<<DECISION_START>>>
     {{
-      "threat_appraisal": {{"label": "VL/L/M/H/VH", "reason": "Reason for threat level."}},
-      "coping_appraisal": {{"label": "VL/L/M/H/VH", "reason": "Reason for coping level."}},
+      "threat_appraisal": {{"label": "VL/L/M/H/VH", "reason": "One sentence summary of how threatened you feel by any remaining flood risks."}},
+      "coping_appraisal": {{"label": "VL/L/M/H/VH", "reason": "One sentence summary of how well you think you can cope or act."}},
       "decision": {valid_choices_text},
-      "reasoning": "Overall justification."
+      "reasoning": "Overall justification for your action."
     }}
     <<<DECISION_END>>>
 

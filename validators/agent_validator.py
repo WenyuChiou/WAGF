@@ -251,18 +251,29 @@ class AgentValidator:
         def get_label(key):
             """Extract normalized 5-level label (VL/L/M/H/VH) from state or reasoning."""
             if not key: return ""
+            # Normalized values are already in state
             # Priority: 1. State, 2. Reasoning
             val = str(state.get(key, reasoning.get(key, ""))).upper().strip()
             # Remove brackets and extract clean label
             label_text = val.split(']')[0].replace("[", "").replace("]", "").strip() if ']' in val else val.strip()
-            # Normalize common variations to standard 5-level codes
-            normalization_map = {
-                "VERY LOW": "VL", "VERYLOW": "VL", "VERY_LOW": "VL",
-                "LOW": "L",
-                "MEDIUM": "M", "MED": "M", "MODERATE": "M", "MOD": "M",
-                "HIGH": "H",
-                "VERY HIGH": "VH", "VERYHIGH": "VH", "VERY_HIGH": "VH"
-            }
+            
+            # Load normalization map from shared config if available
+            try:
+                from broker.utils.agent_config import load_agent_config
+                normalization_map = load_agent_config().get_shared("normalization_map", {})
+            except:
+                normalization_map = {}
+                
+            # Fallback to standard 5-level if nothing in config
+            if not normalization_map:
+                normalization_map = {
+                    "VERY LOW": "VL", "VERYLOW": "VL", "VERY_LOW": "VL",
+                    "LOW": "L",
+                    "MEDIUM": "M", "MED": "M", "MODERATE": "M", "MOD": "M",
+                    "HIGH": "H",
+                    "VERY HIGH": "VH", "VERYHIGH": "VH", "VERY_HIGH": "VH"
+                }
+            
             return normalization_map.get(label_text, label_text[:2] if len(label_text) >= 2 else label_text)
 
         def label_matches(actual_label: str, expected_values: list) -> bool:
@@ -312,13 +323,9 @@ class AgentValidator:
                             matches.append(False)
                     is_triggered = all(matches) if matches else False
                 elif isinstance(rule.conditions, str):
-                    # Robust string evaluation
-                    expr = rule.conditions
-                    if "sentiment_index < 0.2" in expr and "uncertainty > 0.8" in expr:
-                        is_triggered = (state.get("sentiment_index", 1.0) < 0.2 and 
-                                        state.get("uncertainty", 0.0) > 0.8)
-                    else:
-                        is_triggered = False
+                    # Robust evaluation of string expressions if needed
+                    # Note: Avoid hard-coded experiment hacks here.
+                    is_triggered = False
             elif rule.construct:
                 label = get_label(rule.construct)
                 if label and rule.expected_levels:
@@ -360,7 +367,7 @@ class AgentValidator:
     ) -> List[ValidationResult]:
         """Validate LLM response has required fields."""
         results = []
-        required = required_fields or ["INTERPRET:", "DECIDE:"]
+        required = required_fields or ["decision", "reasoning"]
         
         for field in required:
             if field not in response:
