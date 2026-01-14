@@ -78,49 +78,36 @@ household_owner:
     Respond only using the exact JSON format below. Do NOT include conversational text.
     {response_format}
 
-  parsing:
-    decision_keywords: ["decision", "choice", "action"]
-    default_skill: "do_nothing"
-    full_disclosure: true
-    strict_mode: true
-    preprocessor:
-      { type: "smart_repair", quote_values: ["VL", "L", "M", "H", "VH"] }
-    synonyms:
-      tp: ["threat", "threat_perception", "severity", "vulnerability", "risk"]
-      cp:
-        ["coping", "coping_perception", "efficacy", "self_efficacy", "ability"]
-      sp: ["stakeholder", "trust", "government", "institutional"]
-      sc: ["social", "neighbor", "community", "network"]
-      pa: ["place", "attachment", "belonging", "home"]
+    actions:
+      - id: do_nothing
+        aliases: ["DN", "nothing", "wait", "Do nothing", "Do Nothing", "Take no action", "[DN]"]
+        description: "Take no action this year"
+      - id: buy_insurance
+        aliases: ["FI", "insurance", "buy_insurance", "Buy insurance", "Purchase flood insurance", "[FI]"]
+        description: "Purchase flood insurance"
+      - id: elevate_house
+        aliases: ["HE", "elevate", "elevation", "elevate_house", "Elevate house", "[HE]"]
+        description: "Elevate house structure"
+      - id: buyout_program
+        aliases: ["BT", "buyout", "government buyout", "Accept buyout", "[BT]"]
+        description: "Accept government buyout"
 
-    skill_map_non_elevated:
-      "1": "do_nothing"
-      "2": "buy_insurance"
-      "3": "elevate_house"
-      "4": "buyout_program"
-    skill_map_elevated:
-      "1": "do_nothing"
-      "2": "buy_insurance"
-      "3": "buyout_program"
     constructs:
       TP_LABEL:
-        { keywords: ["threat_perception"], regex: "(?i)\\b(VL|L|M|H|VH)\\b" }
-      TP_REASON: { keywords: ["threat_perception"], regex: ".*" }
+        { keywords: ["threat", "severity", "vulnerability"], regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b" }
+      TP_REASON: { keywords: ["threat", "severity", "vulnerability"], regex: "(?i)(?:reason|why|because|explanation)[:\\s\\*]*(.*)" }
       CP_LABEL:
-        { keywords: ["coping_perception"], regex: "(?i)\\b(VL|L|M|H|VH)\\b" }
-      CP_REASON: { keywords: ["coping_perception"], regex: ".*" }
+        { keywords: ["coping", "efficacy", "ability"], regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b" }
+      CP_REASON: { keywords: ["coping", "efficacy", "ability"], regex: "(?i)(?:reason|why|because|explanation)[:\\s\\*]*(.*)" }
       SP_LABEL:
-        {
-          keywords: ["stakeholder_perception"],
-          regex: "(?i)\\b(VL|L|M|H|VH)\\b",
-        }
-      SP_REASON: { keywords: ["stakeholder_perception"], regex: ".*" }
+        { keywords: ["stakeholder", "trust", "government", "insurance"], regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b" }
+      SP_REASON: { keywords: ["stakeholder", "trust", "government", "insurance"], regex: "(?i)(?:reason|why|because|explanation)[:\\s\\*]*(.*)" }
       SC_LABEL:
-        { keywords: ["social_capital"], regex: "(?i)\\b(VL|L|M|H|VH)\\b" }
-      SC_REASON: { keywords: ["social_capital"], regex: ".*" }
+        { keywords: ["social", "neighbor", "community"], regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b" }
+      SC_REASON: { keywords: ["social", "neighbor", "community"], regex: "(?i)(?:reason|why|because|explanation)[:\\s\\*]*(.*)" }
       PA_LABEL:
-        { keywords: ["place_attachment"], regex: "(?i)\\b(VL|L|M|H|VH)\\b" }
-      PA_REASON: { keywords: ["place_attachment"], regex: ".*" }
+        { keywords: ["place", "attachment", "belonging"], regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b" }
+      PA_REASON: { keywords: ["place", "attachment", "belonging"], regex: "(?i)(?:reason|why|because|explanation)[:\\s\\*]*(.*)" }
   log_fields:
     [
       "threat_perception",
@@ -193,37 +180,28 @@ household_renter:
     Respond only using the exact JSON format below:
     {response_format}
 
-  parsing:
-    decision_keywords: ["decision", "choice", "action"]
-    default_skill: "do_nothing"
-    full_disclosure: true
-    strict_mode: true
-    preprocessor:
-      { type: "smart_repair", quote_values: ["VL", "L", "M", "H", "VH"] }
-    synonyms:
-      tp: ["threat", "threat_perception", "severity", "vulnerability", "risk"]
-      cp:
-        ["coping", "coping_perception", "efficacy", "self_efficacy", "ability"]
-      sp: ["stakeholder", "trust", "government", "institutional"]
-      sc: ["social", "neighbor", "community", "network"]
-      pa: ["place", "attachment", "belonging", "home"]
-    skill_map:
-      { "1": "do_nothing", "2": "buy_contents_insurance", "3": "relocate" }
+    actions:
+      - id: do_nothing
+        aliases: ["DN", "nothing", "wait", "Do nothing", "Do Nothing", "Take no action", "[DN]"]
+        description: "Take no action this year"
+      - id: buy_contents_insurance
+        aliases: ["CI", "contents_insurance", "Buy contents insurance", "insurance", "[CI]"]
+        description: "Purchase contents-only flood insurance"
+      - id: relocate
+        aliases: ["RL", "move", "relocate", "Relocation", "Move", "[RL]"]
+        description: "Relocate to lower flood-risk area"
 
     constructs:
       TP_LABEL:
-        { keywords: ["threat_perception"], regex: "(?i)\\b(VL|L|M|H|VH)\\b" }
+        { keywords: ["threat", "severity", "vulnerability"], regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b" }
       CP_LABEL:
-        { keywords: ["coping_perception"], regex: "(?i)\\b(VL|L|M|H|VH)\\b" }
+        { keywords: ["coping", "efficacy", "ability"], regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b" }
       SP_LABEL:
-        {
-          keywords: ["stakeholder_perception"],
-          regex: "(?i)\\b(VL|L|M|H|VH)\\b",
-        }
+        { keywords: ["stakeholder", "trust", "government", "insurance"], regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b" }
       SC_LABEL:
-        { keywords: ["social_capital"], regex: "(?i)\\b(VL|L|M|H|VH)\\b" }
+        { keywords: ["social", "neighbor", "community"], regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b" }
       PA_LABEL:
-        { keywords: ["place_attachment"], regex: "(?i)\\b(VL|L|M|H|VH)\\b" }
+        { keywords: ["place", "attachment", "belonging"], regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b" }
 
 government:
   description: "State Government Agency."
@@ -236,13 +214,14 @@ government:
   parsing:
     decision_keywords: ["decision", "choice"]
     default_skill: "maintain_subsidy"
-    strict_mode: false
-    skill_map:
-      {
-        "1": "increase_subsidy",
-        "2": "decrease_subsidy",
-        "3": "maintain_subsidy",
-      }
+    strict_mode: true
+    actions:
+      - id: increase_subsidy
+        aliases: ["INCREASE", "increase", "More subsidy", "[1]"]
+      - id: decrease_subsidy
+        aliases: ["DECREASE", "decrease", "Less subsidy", "[2]"]
+      - id: maintain_subsidy
+        aliases: ["MAINTAIN", "maintain", "Keep rate", "[3]"]
 
 insurance:
   description: "Regional Insurance Marketer."
@@ -255,9 +234,14 @@ insurance:
   parsing:
     decision_keywords: ["decision", "choice"]
     default_skill: "maintain_premium"
-    strict_mode: false
-    skill_map:
-      { "1": "raise_premium", "2": "lower_premium", "3": "maintain_premium" }
+    strict_mode: true
+    actions:
+      - id: raise_premium
+        aliases: ["RAISE", "raise", "Increase rates", "[1]"]
+      - id: lower_premium
+        aliases: ["LOWER", "lower", "Decrease rates", "[2]"]
+      - id: maintain_premium
+        aliases: ["MAINTAIN", "maintain", "Keep premium", "[3]"]
 
 # =============================================================================
 # GOVERNANCE RULES
