@@ -66,9 +66,13 @@ class GenericAuditWriter:
         
         # Add basic validation info if provided
         if validation_results:
-            trace["validated"] = all(r.valid for r in validation_results)
+            # Respect existing 'validated' flag if already set by broker (e.g. final attempt status)
+            if "validated" not in trace:
+                trace["validated"] = all(r.valid for r in validation_results)
+            
             trace["validation_issues"] = []
             seen_issues = set()
+
             for r in validation_results:
                 if not r.valid:
                     self.summary["validation_errors"] += 1
@@ -83,6 +87,7 @@ class GenericAuditWriter:
         else:
             trace["validated"] = True
             trace["validation_issues"] = []
+
         
         # Update summary
         self.summary["total_traces"] += 1

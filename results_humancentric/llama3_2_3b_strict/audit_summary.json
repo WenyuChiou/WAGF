@@ -1,0 +1,21 @@
+{
+  "experiment_name": "llama3.2:3b",
+  "agent_types": {
+    "household": {
+      "total": 1000,
+      "decisions": {
+        "do_nothing": 238,
+        "elevate_house": 418,
+        "buy_insurance": 259,
+        "relocate": 77,
+        "insurance": 3,
+        "FI": 4,
+        "HE": 1
+      }
+    }
+  },
+  "total_traces": 1000,
+  "validation_errors": 386,
+  "validation_warnings": 0,
+  "finalized_at": "2026-01-14T13:22:34.979911"
+}
