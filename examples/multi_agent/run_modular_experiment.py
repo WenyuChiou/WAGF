@@ -39,15 +39,14 @@ from broker.components.skill_registry import SkillRegistry
 from broker.components.audit_writer import AuditWriter, AuditConfig
 from broker.utils.llm_utils import create_llm_invoke
 from broker.utils.model_adapter import UnifiedAdapter
+from broker.utils.agent_config import AgentTypeConfig
+from validators.agent_validator import AgentValidator, ValidationLevel
 
 # Local imports
 MULTI_AGENT_DIR = Path(__file__).parent
 sys.path.insert(0, str(MULTI_AGENT_DIR))
 from generate_agents import generate_agents, HouseholdProfile
-from ma_validators.multi_agent_validators import MultiAgentValidator, ValidationResult
 
-# Import from config submodule
-from examples.multi_agent.config.schemas import FIVE_CONSTRUCTS, CONSTRUCT_DECISION_MAP
 
 # =============================================================================
 # CONFIGURATION
@@ -258,66 +257,50 @@ class MultiAgentContextBuilder(TieredContextBuilder):
         
         return context
     
-    def format_prompt(self, context: Dict[str, Any]) -> str:
-        """Format context into LLM prompt."""
-        agent = context.get("agent", {})
+    def format_prompt(self, context: Dict[str, Any], template: str) -> str:
+        """Format context into the provided YAML template."""
+        # Standard placeholder cleaning
+        agent_data = context.get("agent", {})
         memory = context.get("memory", [])
         env = context.get("environment", {})
-        skills = context.get("skills", [])
+        
+        # Prepare template variables
+        residency = agent_data.get("generations", 1)
+        income = agent_data.get("income", 50000)
         
         # Format memory
         memory_text = "\n".join([f"- {m}" for m in memory]) if memory else "No significant memories."
         
-        # Format skills
-        skills_text = "\n".join([f"{i+1}. {s}" for i, s in enumerate(skills)])
+        # Format insurance status
+        ins_status = "HAVE" if agent_data.get("has_insurance") else "DO NOT have"
         
-        prompt = f"""You are a household in a flood-prone area making an adaptation decision.
-
-=== YOUR SITUATION ===
-- Agent ID: {agent.get('agent_id', 'Unknown')}
-- Type: {agent.get('agent_type', 'Unknown')}
-- Income: ${agent.get('income', 0):,.0f}/year
-- Property Value (Building): ${agent.get('rcv_building', 0):,.0f}
-- Property Value (Contents): ${agent.get('rcv_contents', 0):,.0f}
-- Elevated: {'Yes' if agent.get('elevated') else 'No'}
-- Has Insurance: {'Yes' if agent.get('has_insurance') else 'No'}
-- Cumulative Damage: ${agent.get('cumulative_damage', 0):,.0f}
-
-=== TRUST LEVELS (0-1) ===
-- Trust in Government: {agent.get('trust_gov', 0.5):.2f}
-- Trust in Insurance: {agent.get('trust_ins', 0.5):.2f}
-- Trust in Neighbors: {agent.get('trust_neighbors', 0.5):.2f}
-
-=== YOUR MEMORIES ===
-{memory_text}
-
-=== ENVIRONMENT ===
-- Year: {env.get('year', 1)}
-- Flood this year: {'YES' if env.get('flood_occurred') else 'NO'}
-- Government Subsidy Rate: {env.get('subsidy_rate', 0.5):.0%}
-- Insurance Premium Rate: {env.get('premium_rate', 0.05):.1%}
-
-=== YOUR OPTIONS ===
-{skills_text}
-
-=== EVALUATION INSTRUCTIONS ===
-Evaluate each of the 5 constructs (LOW/MODERATE/HIGH):
-1. TP (Threat Perception): How threatened do you feel by floods?
-2. CP (Coping Perception): Can you afford/manage protective actions?
-3. SP (Stakeholder Perception): Do you trust government/insurers?
-4. SC (Social Capital): Do neighbors support your decisions?
-5. PA (Place Attachment): How attached are you to this home?
-
-=== OUTPUT FORMAT ===
-TP Assessment: [LOW/MODERATE/HIGH] - [reason]
-CP Assessment: [LOW/MODERATE/HIGH] - [reason]
-SP Assessment: [LOW/MODERATE/HIGH] - [reason]
-SC Assessment: [LOW/MODERATE/HIGH] - [reason]
-PA Assessment: [LOW/MODERATE/HIGH] - [reason]
-Final Decision: [number from options above]
-Reasoning: [brief explanation]
-"""
-        return prompt
+        # Format elevation status
+        elev_text = "is elevated (+5 ft)" if agent_data.get("elevated") else "is NOT elevated"
+        
+        # Build mapping for template
+        fmt_map = {
+            "agent_id": agent_data.get("agent_id", "Unknown"),
+            "narrative_persona": f"You are a {agent_data.get('tenure')} in a flood-prone area.",
+            "residency_generations": residency,
+            "household_size": agent_data.get("household_size", 2),
+            "income_range": f"${income:,.0f}/year",
+            "historical_damage": agent_data.get("cumulative_damage", 0),
+            "historical_payout": agent_data.get("cumulative_damage", 0) * 0.8 if agent_data.get("has_insurance") else 0,
+            "memory": memory_text,
+            "elevation_status_text": elev_text,
+            "insurance_status": ins_status,
+            "current_premium": income * 0.02,
+            "premium_change_pct": 0.05,
+            "subsidy_rate": env.get("subsidy_rate", 0.5),
+            "options_text": context.get("options_text", ""), # Pre-shuffled options
+            "rating_scale": "VL = Very Low | L = Low | M = Medium | H = High | VH = Very High",
+        }
+        
+        try:
+            return template.format(**fmt_map)
+        except KeyError as e:
+            # Fallback for missing keys
+            return template
 
 
 # =============================================================================
@@ -390,8 +373,15 @@ def run_multi_agent_experiment(
     
     # Load multi-agent specific configuration
     ma_config_path = MULTI_AGENT_DIR / "ma_agent_types.yaml"
-    adapter = UnifiedAdapter(agent_type="household", config_path=str(ma_config_path))
-    validator = MultiAgentValidator()
+    
+    # Prepare Adapters for different types
+    adapters = {
+        "household_owner": UnifiedAdapter("household_owner", config_path=str(ma_config_path)),
+        "household_renter": UnifiedAdapter("household_renter", config_path=str(ma_config_path))
+    }
+    
+    # Unified Validator (Generic)
+    validator = AgentValidator(str(ma_config_path))
     
     # 8. Initialize audit
     output_path = Path(output_dir)
@@ -421,60 +411,97 @@ def run_multi_agent_experiment(
         active_households = [hh for hh in households if not hh.relocated]
         
         for i, hh in enumerate(active_households):
-            # Build context
-            context = context_builder.build(hh.id)
-            prompt = context_builder.format_prompt(context)
+            # Target Agent Type
+            atype = f"household_{hh.profile.tenure.lower()}"
+            adapter = adapters.get(atype)
+            if not adapter: continue
             
-            # Validation & Retry Loop
+            # 1. OPTION SHUFFLING (Mitigate Gemma Position Bias)
+            # Use seed based on agent_id and year for reproducibility
+            rng = random.Random(hash(f"{hh.id}_{year}_{SEED}"))
+            available_skills = hh.get_available_skills()
+            
+            # Map skills to short IDs or keep names
+            skill_ids = [s.split(":")[0].strip() for s in available_skills]
+            skill_desc = [s.strip() for s in available_skills]
+            
+            indices = list(range(len(skill_ids)))
+            rng.shuffle(indices)
+            
+            shuffled_ids = [skill_ids[i] for i in indices]
+            shuffled_desc = [skill_desc[i] for i in indices]
+            
+            # Create numbered option text
+            options_text = "\n".join([f"{i+1}. {desc}" for i, desc in enumerate(shuffled_desc)])
+            
+            # Create mapping for the adapter
+            dynamic_skill_map = {str(i+1): s_id for i, s_id in enumerate(shuffled_ids)}
+            
+            # 2. Build context
+            context = context_builder.build(hh.id)
+            context["options_text"] = options_text
+            
+            # Get template from the agent-specific config root
+            agent_conf = adapter.agent_config.get(atype)
+            template = agent_conf.get("prompt_template", "")
+            prompt = context_builder.format_prompt(context, template)
+            
+            # 3. Validation & Retry Loop
             max_retries = 2
             attempts = 0
             final_decision = "do_nothing"
             final_constructs = {}
             validated = False
-            error_msg = ""
+            error_msgs = []
             
             while attempts <= max_retries and not validated:
                 # Add error feedback to prompt if retry
                 current_prompt = prompt
-                if attempts > 0:
-                    current_prompt = adapter.format_retry_prompt(prompt, [error_msg])
+                if error_msgs:
+                    current_prompt = adapter.format_retry_prompt(prompt, error_msgs)
                 
                 # Get LLM response
                 try:
                     result = llm_invoke(current_prompt)
-                    # llm_invoke returns (content, LLMStats) tuple
                     raw_response = result[0] if isinstance(result, tuple) else result
                 except Exception as e:
                     raw_response = ""
                 
-                # Parse using central adapter
-                proposal = adapter.parse_output(raw_response, {"agent_type": "household", "agent_id": hh.id, "elevation_status": "elevated" if hh.elevated else "non_elevated"})
+                # Parse using adapter with dynamic skill map
+                proposal = adapter.parse_output(
+                    raw_response, 
+                    context={
+                        "agent_id": hh.id,
+                        "dynamic_skill_map": dynamic_skill_map
+                    }
+                )
+                print(f" DEBUG: Raw LLM Output for {hh.id}:\n{raw_response[:150]}...")
+                if proposal:
+                    print(f" DEBUG: Parsed constructs for {hh.id}: {list(proposal.reasoning.keys())}")
                 
                 if proposal:
                     decision = proposal.skill_name
-                    constructs = proposal.reasoning  # TP_LABEL, CP_LABEL, etc.
+                    final_constructs = proposal.reasoning
                     
-                    # Map constructs for validator (TP_LABEL -> TP)
-                    val_constructs = {
-                        "TP": constructs.get("TP_LABEL", "MODERATE"),
-                        "CP": constructs.get("CP_LABEL", "MODERATE"),
-                        "SP": constructs.get("SP_LABEL", "MODERATE"),
-                        "SC": constructs.get("SC_LABEL", "MODERATE"),
-                        "PA": constructs.get("PA_LABEL", "MODERATE")
-                    }
+                    # Validate using Global AgentValidator (Generic)
+                    # We pass the full agent state + the parsed constructs (TP_LABEL, etc.)
+                    v_results = validator.validate(
+                        agent_type=atype,
+                        agent_id=hh.id,
+                        decision=decision,
+                        state=hh.get_all_state_raw(),
+                        reasoning=final_constructs
+                    )
                     
-                    # Validate
-                    res = validator.validate(decision, hh.get_all_state_raw(), val_constructs)
-                    
-                    if res.valid:
+                    errors = [m for r in v_results for m in r.errors]
+                    if not errors:
                         final_decision = decision
-                        final_constructs = val_constructs
                         validated = True
                     else:
-                        error_msg = "; ".join(res.errors)
+                        error_msgs = errors
                         attempts += 1
                 else:
-                    error_msg = "Could not parse decision format"
+                    error_msgs = ["Format Error: Could not parse decision. Ensure 'Final Decision: [number]' is present."]
                     attempts += 1
             
             # Application

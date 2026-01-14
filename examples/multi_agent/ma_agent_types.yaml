@@ -1,58 +1,62 @@
-household_owner:
-  description: "Homeowners making adaptation decisions (Buyout/Elevation/Insurance) based on PMT. Reference: Rogers (1983), Bukvic (2022)"
+shared:
+  # Universal 5-level scale (Baseline Aligned)
+  rating_scale: "VL=Very Low, L=Low, M=Medium, H=High, VH=Very High"
 
-  prompt_template: |
-    ### [IDENTITY & BACKGROUND]
-    {narrative_persona}
-    You have lived in this home for {residency_generations} generations. 
-    Household Size: {household_size} members.
-    Vehicle Ownership: {income_range} (Note: Vehicle availability impacts emergency mobility).
+  # Semantic Definitions (Optimized for context size vs depth)
+  criteria_definitions: |
+    - TP (Threat): Perception of flood risk and future damage severity.
+    - CP (Coping): Financial and structural ability to take adaptive action.
+    - SP (Stakeholder): Trust in government grants and insurance reliability.
+    - SC (Social): Reliance on community support and neighbor relations.
+    - PA (Place): Emotional bond to home and resistance to leaving.
 
-    ### [HISTORY & EXPERIENCE]
-    {flood_experience_summary}
-    Recent Flood Impact: Your property sustained ${historical_damage:,.0f} in damages.
-    Insurance Response: You received ${historical_payout:,.0f} in payouts.
-
-    ### [MEMORY & RECENT EVENTS]
-    {memory}
-
-    ### [CURRENT STATUS]
-    - Property Status: {elevation_status_text}
-    - Insurance Coverage: You currently {insurance_status} property and contents insurance.
-    - Financial Context: 
-      * Current Annual Premium: ${current_premium:,.0f}
-      * Premium Change: {premium_change_pct:+.1%} from last year.
-      * Elevation Grant Subsidy: {subsidy_rate:.0%} of costs covered by NJ Blue Acres.
-
-    ### [TASK & GUIDELINES]
-    You are making your annual decision for flood adaptation.
-    In your reasoning, you must explicitly refer to your current numerical status (Threat Appraisal and Coping Appraisal) to justify your thought process and action.
-
-    ### [ADAPTATION OPTIONS]
-    Based on Protection Motivation Theory (Rogers, 1983), evaluate your options objectively:
-    {options_text}
-    Note: If Coping Appraisal is Low, avoid expensive actions like Buyout or Elevation.
-
-    ### [GLOBAL SKILLS (Always Available)]
-    The following core options are always available for your consideration:
-    - do_nothing: Maintain current status.
-    - buy_insurance: Renew or purchase flood insurance.
-
-
-    Format your response:
-    TP Assessment: [VL/L/M/H/VH]
-    CP Assessment: [VL/L/M/H/VH]
-    SC Assessment: [VL/L/M/H/VH]
-    PA Assessment: [VL/L/M/H/VH]
-    SP Assessment: [VL/L/M/H/VH]
+  # Unified Response Structure (The "Universal Format")
+  universal_format: |
+    You MUST respond EXACTLY within these delimiters:
+    <<<DECISION>>>
+    TP Level: [code]
+    TP Reason: [reason]
+    CP Level: [code]
+    CP Reason: [reason]
+    SP Level: [code]
+    SP Reason: [reason]
+    SC Level: [code]
+    SC Reason: [reason]
+    PA Level: [code]
+    PA Reason: [reason]
     Final Decision: [number]
-    Reasoning: [Brief technical justification]
+    Decision Reasoning: [justification]
+    <<<END>>>
+
+household_owner:
+  description: "Household Homeowners."
+  prompt_template: |
+    # ROLE: Homeowner (ID: {agent_id})
+    # CONTEXT: {narrative_persona}
+    - Residency: {residency_generations} gen | Inc: {income_range}
+    - Recent Hist: {flood_experience_summary} | Dmg: ${historical_damage:,.0f} | Pay: ${historical_payout:,.0f}
+    - Memory: {memory}
+    - Status: {elevation_status_text} | {insurance_status}
+    - Annual Prem: ${current_premium:,.0f} ({premium_change_pct:+.1%}) | Subsidy: {subsidy_rate:.0%}
+
+    # TASK: Choose an adaptation action.
+    {rating_scale}
+
+    # OPTIONS
+    {options_text}
+
+    # CRITERIA
+    {criteria_definitions}
+
+    # RESPONSE
+    {universal_format}
 
   parsing:
-    decision_keywords: ["final decision:", "decision:"]
+    decision_keywords: ["final decision:", "decide:"]
     default_skill: "do_nothing"
     full_disclosure: true
-    skill_map:
+    strict_mode: true
+    skill_map_non_elevated:
       "1": "do_nothing"
       "2": "buy_insurance"
       "3": "elevate_house"
@@ -63,135 +67,167 @@ household_owner:
       "3": "buyout_program"
     constructs:
       TP_LABEL:
-        regex: "TP Assessment:.*?(VL|L|M|H|VH|VERY LOW|LOW|MODERATE|MEDIUM|HIGH|VERY HIGH)"
+        keywords: ["threat", "tp level", "perceived severity", "tp:"]
+        regex: "(?i)(?:threat|tp(?:\\s*level)?)[:\\s]*\\[?(VL|L|M|H|VH|Very\\s*Low|Low|Medium|Moderate|Med|High|Very\\s*High)\\]?"
+      TP_REASON:
+        keywords: ["threat reason", "tp reason"]
+        regex: "(?i)(?:threat|tp)\\s*reason[:\\s]*(.*?)(?=\\n|CP|coping|$)"
       CP_LABEL:
-        regex: "CP Assessment:.*?(VL|L|M|H|VH|VERY LOW|LOW|MODERATE|MEDIUM|HIGH|VERY HIGH)"
-      SC_LABEL:
-        regex: "SC Assessment:.*?(VL|L|M|H|VH|VERY LOW|LOW|MODERATE|MEDIUM|HIGH|VERY HIGH)"
-      PA_LABEL:
-        regex: "PA Assessment:.*?(VL|L|M|H|VH|VERY LOW|LOW|MODERATE|MEDIUM|HIGH|VERY HIGH)"
+        keywords: ["coping", "cp level", "self-efficacy", "cp:"]
+        regex: "(?i)(?:coping|cp(?:\\s*level)?)[:\\s]*\\[?(VL|L|M|H|VH|Very\\s*Low|Low|Medium|Moderate|Med|High|Very\\s*High)\\]?"
+      CP_REASON:
+        keywords: ["coping reason", "cp reason"]
+        regex: "(?i)(?:coping|cp)\\s*reason[:\\s]*(.*?)(?=\\n|SP|stakeholder|$)"
       SP_LABEL:
-        regex: "SP Assessment:.*?(VL|L|M|H|VH|VERY LOW|LOW|MODERATE|MEDIUM|HIGH|VERY HIGH)"
-
-  governance_rules:
-    thinking_rules:
-      pa_relocation_block:
-        construct: PA_LABEL
-        when_above: ["H", "VH", "HIGH", "VERY HIGH"]
-        blocked_skills: ["buyout_program"]
-        message: "[Rule: PA] High/Very High Place Attachment hinders buyout/relocation (Bukvic, 2022)."
+        keywords: ["stakeholder", "sp level", "trust", "sp:"]
+        regex: "(?i)(?:stakeholder|sp(?:\\s*level)?)[:\\s]*\\[?(VL|L|M|H|VH|Very\\s*Low|Low|Medium|Moderate|Med|High|Very\\s*High)\\]?"
+      SP_REASON:
+        keywords: ["stakeholder reason", "sp reason"]
+        regex: "(?i)(?:stakeholder|sp)\\s*reason[:\\s]*(.*?)(?=\\n|SC|social|$)"
+      SC_LABEL:
+        keywords: ["social", "sc level", "sc:"]
+        regex: "(?i)(?:social|sc(?:\\s*level)?)[:\\s]*\\[?(VL|L|M|H|VH|Very\\s*Low|Low|Medium|Moderate|Med|High|Very\\s*High)\\]?"
+      SC_REASON:
+        keywords: ["social reason", "sc reason"]
+        regex: "(?i)(?:social|sc)\\s*reason[:\\s]*(.*?)(?=\\n|PA|place|$)"
+      PA_LABEL:
+        keywords: ["place", "pa level", "pa:"]
+        regex: "(?i)(?:place|pa(?:\\s*level)?)[:\\s]*\\[?(VL|L|M|H|VH|Very\\s*Low|Low|Medium|Moderate|Med|High|Very\\s*High)\\]?"
+      PA_REASON:
+        keywords: ["place reason", "pa reason"]
+        regex: "(?i)(?:place|pa)\\s*reason[:\\s]*(.*?)(?=\\n|Final|$)"
 
 household_renter:
-  description: "Renter agents making mobility decisions based on PMT. Reference: Swapan (2021)"
-
+  description: "Household Renters."
   prompt_template: |
-    ### [IDENTITY & BACKGROUND]
-    {narrative_persona}
-    Residence Length: You have lived in this neighborhood for {residency_generations} years/generations.
-    Household Size: {household_size} members.
-    Vehicle Ownership: {income_range}.
+    # ROLE: Renter (ID: {agent_id})
+    # CONTEXT: {residency_generations} years in residence | Inc: {income_range}
+    - Recent Hist: {flood_experience_summary} | Dmg: ${historical_damage:,.0f} | Memory: {memory}
+    - Status: {insurance_status} | Prem: ${current_premium:,.0f}
 
-    ### [HISTORY & EXPERIENCE]
-    {flood_experience_summary}
-    Recent Impact: Your belongings sustained ${historical_damage:,.0f} in damages.
-    Insurance Response: You received ${historical_payout:,.0f} in payouts.
+    # TASK: Choose an action.
+    {rating_scale}
 
-    ### [MEMORY & RECENT EVENTS]
-    {memory}
-
-    ### [CURRENT STATUS]
-    - Insurance Coverage: You currently {insurance_status} contents insurance.
-    - Financial Context:
-      * Current Annual Premium: ${current_premium:,.0f}
-      * Premium Change: {premium_change_pct:+.1%} from last year.
-
-    ### [TASK & GUIDELINES]
-    You are making your annual decision for flood adaptation.
-    In your reasoning, you must explicitly refer to your current numerical status (Threat Appraisal and Coping Appraisal) to justify your thought process and action.
-
-    ### [ADAPTATION OPTIONS]
-    Evaluate your response based on PMT (Rogers, 1983) and neighborhood ties (Swapan, 2021):
+    # OPTIONS
     {options_text}
 
-    ### [GLOBAL SKILLS (Always Available)]
-    - do_nothing: Continue residency.
-    - buy_contents_insurance: Protect your belongings.
+    # CRITERIA
+    {criteria_definitions}
 
-
-    Format your response:
-    TP Assessment: [VL/L/M/H/VH]
-    CP Assessment: [VL/L/M/H/VH]
-    SC Assessment: [VL/L/M/H/VH]
-    PA Assessment: [VL/L/M/H/VH]
-    SP Assessment: [VL/L/M/H/VH]
-    Final Decision: [number]
-    Reasoning: [Brief technical justification]
+    # RESPONSE
+    {universal_format}
 
   parsing:
-    decision_keywords: ["final decision:", "decision:"]
+    decision_keywords: ["final decision:"]
     default_skill: "do_nothing"
     full_disclosure: true
+    strict_mode: true
     skill_map:
       "1": "do_nothing"
       "2": "buy_contents_insurance"
       "3": "relocate"
     constructs:
       TP_LABEL:
-        regex: "TP Assessment:.*?(VL|L|M|H|VH|VERY LOW|LOW|MODERATE|MEDIUM|HIGH|VERY HIGH)"
+        {
+          keywords: ["threat", "tp level"],
+          regex: "(?i)(?:threat|tp(?:\\s*level)?)[:\\s]*\\[?(VL|L|M|H|VH|Very\\s*Low|Low|Medium|Moderate|Med|High|Very\\s*High)\\]?",
+        }
       CP_LABEL:
-        regex: "CP Assessment:.*?(VL|L|M|H|VH|VERY LOW|LOW|MODERATE|MEDIUM|HIGH|VERY HIGH)"
-      SC_LABEL:
-        regex: "SC Assessment:.*?(VL|L|M|H|VH|VERY LOW|LOW|MODERATE|MEDIUM|HIGH|VERY HIGH)"
-      PA_LABEL:
-        regex: "PA Assessment:.*?(VL|L|M|H|VH|VERY LOW|LOW|MODERATE|MEDIUM|HIGH|VERY HIGH)"
+        {
+          keywords: ["coping", "cp level"],
+          regex: "(?i)(?:coping|cp(?:\\s*level)?)[:\\s]*\\[?(VL|L|M|H|VH|Very\\s*Low|Low|Medium|Moderate|Med|High|Very\\s*High)\\]?",
+        }
       SP_LABEL:
-        regex: "SP Assessment:.*?(VL|L|M|H|VH|VERY LOW|LOW|MODERATE|MEDIUM|HIGH|VERY HIGH)"
-
-  governance_rules:
-    thinking_rules:
-      sc_stability_bond:
-        construct: SC_LABEL
-        when_above: ["H", "VH", "HIGH", "VERY HIGH"]
-        blocked_skills: ["relocate"]
-        message: "[Rule: SC] High/Very High Social Capital provides community stability (Azad, 2023)."
+        {
+          keywords: ["stakeholder", "sp level"],
+          regex: "(?i)(?:stakeholder|sp(?:\\s*level)?)[:\\s]*\\[?(VL|L|M|H|VH|Very\\s*Low|Low|Medium|Moderate|Med|High|Very\\s*High)\\]?",
+        }
+      SC_LABEL:
+        {
+          keywords: ["social", "sc level"],
+          regex: "(?i)(?:social|sc(?:\\s*level)?)[:\\s]*\\[?(VL|L|M|H|VH|Very\\s*Low|Low|Medium|Moderate|Med|High|Very\\s*High)\\]?",
+        }
+      PA_LABEL:
+        {
+          keywords: ["place", "pa level"],
+          regex: "(?i)(?:place|pa(?:\\s*level)?)[:\\s]*\\[?(VL|L|M|H|VH|Very\\s*Low|Low|Medium|Moderate|Med|High|Very\\s*High)\\]?",
+        }
 
 government:
-  description: "State government managing adaptation subsidies"
-  actions:
-    - id: increase_subsidy
-      description: "Increase the subsidy rate for elevation grants"
-    - id: decrease_subsidy
-      description: "Decrease the subsidy rate due to budget constraints"
-    - id: maintain_subsidy
-      description: "Maintain the current subsidy rate"
+  description: "Policy Maker."
+  prompt_template: |
+    # ROLE: State Agency
+    # STATS: Sub Rate: {subsidy_rate:.0%} | Elev: {elevated_count}/{total_households} | Flood Count: {flood_count}
+    # TASK: 1:INCREASE | 2:DECREASE | 3:MAINTAIN
+
+    <<<DECISION>>>
+    Final Decision: [number]
+    Decision Reasoning: [reason]
+    <<<END>>>
   parsing:
-    decision_keywords: ["decision:", "action:"]
+    decision_keywords: ["final decision:"]
     default_skill: "maintain_subsidy"
     skill_map:
-      "1": "increase_subsidy"
-      "2": "decrease_subsidy"
-      "3": "maintain_subsidy"
+      {
+        "1": "increase_subsidy",
+        "2": "decrease_subsidy",
+        "3": "maintain_subsidy",
+      }
 
 insurance:
-  description: "Insurance company managing premiums"
-  actions:
-    - id: raise_premium
-      description: "Raise annual flood insurance premiums"
-    - id: lower_premium
-      description: "Lower annual flood insurance premiums"
-    - id: maintain_premium
-      description: "Maintain current premium levels"
+  description: "Market Insurer."
+  prompt_template: |
+    # ROLE: Regional Insurer
+    # STATS: Loss Ratio: {loss_ratio:.2f} | Base: {insured_count} households
+    # TASK: 1:RAISE | 2:LOWER | 3:MAINTAIN
+
+    <<<DECISION>>>
+    Final Decision: [number]
+    Decision Reasoning: [reason]
+    <<<END>>>
   parsing:
-    decision_keywords: ["decision:", "action:"]
+    decision_keywords: ["final decision:"]
     default_skill: "maintain_premium"
     skill_map:
-      "1": "raise_premium"
-      "2": "lower_premium"
-      "3": "maintain_premium"
+      { "1": "raise_premium", "2": "lower_premium", "3": "maintain_premium" }
 
-metadata:
-  bibliography: |
-    Azad, A. K., et al. (2023). Social capital and flood adaptation: Evidence from community-led initiatives. Climate Risk Management, 41, 100498. https://doi.org/10.1016/j.crm.2023.100498
-    Bukvic, A., et al. (2022). The role of place attachment in flood-related relocation decisions. Applied Geography, 144, 102758. https://doi.org/10.1016/j.apgeog.2022.102758
-    Rogers, R. W. (1983). Cognitive and physiological processes in fear appeals and attitude change: A revised theory of protection motivation. Social Psychophysiology: A Sourcebook.
-    Swapan, M. S. H., et al. (2021). Neighborhood ties and the intention to relocate in response to flood risk. International Journal of Disaster Risk Reduction, 52, 101937. https://doi.org/10.1016/j.ijdrr.2020.101937
+governance:
+  strict:
+    household_owner:
+      identity_rules:
+        - {
+            id: elevated_already,
+            precondition: elevated,
+            blocked_skills: ["elevate_house"],
+            level: ERROR,
+          }
+        - {
+            id: relocated_already,
+            precondition: relocated,
+            blocked_skills:
+              ["buy_insurance", "elevate_house", "buyout_program"],
+            level: ERROR,
+          }
+      thinking_rules:
+        - {
+            construct: TP_LABEL,
+            when_above: ["VH"],
+            blocked_skills: ["do_nothing"],
+            level: ERROR,
+          }
+        - {
+            construct: CP_LABEL,
+            when_above: ["VL"],
+            blocked_skills: ["elevate_house", "buyout_program"],
+            level: ERROR,
+          }
+    household_renter:
+      identity_rules:
+        - {
+            id: relocated_already,
+            precondition: relocated,
+            blocked_skills: ["buy_contents_insurance", "relocate"],
+            level: ERROR,
+          }
+
+metadata: { version: "v16-universal-no-anchors" }
