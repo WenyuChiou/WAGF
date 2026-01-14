@@ -69,8 +69,6 @@ household:
     global_skills: ["do_nothing", "buy_insurance", "buy_contents_insurance"]
     full_disclosure: true
     strict_mode: true
-  log_fields: ["threat_appraisal", "coping_appraisal"]
-
 
     # Baseline Skill Mapping (numeric 1-4)
     skill_map_non_elevated:
@@ -92,6 +90,8 @@ household:
       CP_LABEL:
         { keywords: ["coping_appraisal"], regex: "(?i)\\b(VL|L|M|H|VH)\\b" }
       CP_REASON: { keywords: ["coping_appraisal"], regex: ".*" }
+
+  log_fields: ["threat_appraisal", "coping_appraisal"]
 
   # Available Actions (mapped to Skill Registry IDs)
   actions:

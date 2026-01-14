@@ -115,6 +115,9 @@ class AgentValidator:
             # logger.error(f"Error in Tier 0 validation: {e}")
             pass
 
+
+
+
         # 1. Validate decision is in allowed values
         valid_actions = self.config.get_valid_actions(base_type)
 
