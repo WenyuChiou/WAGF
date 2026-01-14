@@ -597,9 +597,26 @@ class TieredContextBuilder(BaseAgentContextBuilder):
             lines.extend([f"- {item}" for item in data["news"]])
         if "social" in data:
              lines.extend([f"- {item}" for item in data["social"]])
-        if "memory" in data and isinstance(data["memory"], list):
-            lines.append("Recent History:")
-            lines.extend([f"  - {m}" for m in data["memory"]])
+        if "memory" in data:
+            memory_val = data["memory"]
+            if isinstance(memory_val, dict) and "episodic" in memory_val:
+                # Hierarchical Memory Formatting
+                core = memory_val.get("core", {})
+                episodic = memory_val.get("episodic", [])
+                semantic = memory_val.get("semantic", [])
+                
+                if core:
+                    core_val = " ".join([f"{k}={v}" for k, v in core.items()])
+                    lines.append(f"  - CORE: {core_val}")
+                if semantic:
+                    lines.append("  - HISTORIC:")
+                    lines.extend([f"    - {m}" for m in semantic])
+                if episodic:
+                    lines.append("  - RECENT:")
+                    lines.extend([f"    - {m}" for m in episodic])
+            elif isinstance(memory_val, list):
+                lines.append("Recent History:")
+                lines.extend([f"  - {m}" for m in memory_val])
             
         return "\n".join(lines)
 

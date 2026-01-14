@@ -16,10 +16,13 @@ class SkillRetriever:
     Future versions can integrate embeddings for semantic retrieval.
     """
     
-    def __init__(self, top_n: int = 5, min_score: float = 0.05, global_skills: Optional[List[str]] = None):
+    def __init__(self, top_n: int = 5, min_score: float = 0.05, global_skills: Optional[List[str]] = None,
+                 full_disclosure_agent_types: Optional[List[str]] = None):
         self.top_n = top_n
         self.min_score = min_score
         self.global_skills = global_skills or ["do_nothing"]
+        # Agent types that always receive full skill list (no filtering)
+        self.full_disclosure_agent_types = full_disclosure_agent_types or ["household"]
         # Weights for different context sources
         self.source_weights = {
             "state": 1.0,      # Direct internal state (e.g. 'elevated')
@@ -44,6 +47,11 @@ class SkillRetriever:
         """
         if not available_skills:
             return []
+        
+        # FULL DISCLOSURE MODE: For specified agent types, return all skills without filtering
+        agent_type = query_context.get("agent_type") or query_context.get("personal", {}).get("agent_type")
+        if agent_type in self.full_disclosure_agent_types:
+            return available_skills
             
         # 1. Extract searchable terms from context
         keywords = self._extract_keywords(query_context)

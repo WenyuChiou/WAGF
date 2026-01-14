@@ -122,13 +122,15 @@ class UnifiedAdapter(ModelAdapter):
         self.config = parsing_cfg
         
         # Determine preprocessor (Order: Explicit argument > YAML Config > Identity)
+        # Phase 12/28: Ensure explicit or config preprocessors are not overwritten
         if preprocessor:
             self._preprocessor = preprocessor
         else:
             p_cfg = parsing_cfg.get("preprocessor", {})
-            self._preprocessor = get_preprocessor(p_cfg)
-        
-        self._preprocessor = preprocessor or (lambda x: x)
+            if p_cfg:
+                self._preprocessor = get_preprocessor(p_cfg)
+            else:
+                self._preprocessor = lambda x: x
         
         # Load valid skills for the agent type to build alias map
         self.valid_skills = self.agent_config.get_valid_actions(agent_type)
@@ -179,9 +181,11 @@ class UnifiedAdapter(ModelAdapter):
 
         # 1. Phase 15: Enclosure Extraction (Priority)
         # Support both triple-bracket and XML-style tags for maximum model compatibility
+        # Enhanced regex to handle models adding "Decision: " or similar prefixes.
         patterns = [
             r"<<<DECISION_START>>>+?\s*(.*?)\s*<<<DECISION_END>>>+?",
-            r"<decision>\s*(.*?)\s*</decision>"
+            r"<decision>\s*(.*?)\s*</decision>",
+            r"(?:decision|choice|selected_action)[:\s]*({.*?})", # Find JSON-like block after keyword
         ]
         
         target_content = raw_output
@@ -261,16 +265,24 @@ class UnifiedAdapter(ModelAdapter):
                             reasoning[key] = match.group(1).strip() if match.groups() else match.group(0).strip()
 
         # 6. LAST RESORT: Search for bracketed numbers [1-7] in cleaned_target
+        # STRICT MODE: If enabled, do NOT use digit extraction (prevents bias from reasoning text)
+        # This forces the system to retry with clearer instructions instead of guessing.
+        strict_mode = parsing_cfg.get("strict_mode", True)
+        
         if not skill_name:
             bracket_matches = re.findall(r'\[(\d)\]', cleaned_target)
             digit_matches = re.findall(r'(\d)', cleaned_target)
             candidates = bracket_matches if bracket_matches else digit_matches
-            if candidates:
+            
+            if candidates and not strict_mode:
                 last_digit = candidates[-1]
                 if last_digit in skill_map:
                     skill_name = skill_name or skill_map[last_digit]
                     parse_layer = parse_layer or "digit"
                     parsing_warnings.append(f"Last-resort extraction from digit: {last_digit}")
+            elif candidates and strict_mode:
+                # Log the failed parse attempt for audit but do NOT use the digit
+                parsing_warnings.append(f"STRICT_MODE: Rejected digit extraction ({candidates[-1]}). Will trigger retry.")
 
         # 7. Final Cleanup & Defaulting
         if not skill_name:

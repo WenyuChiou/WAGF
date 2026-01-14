@@ -62,10 +62,15 @@ class LLMProvider(ABC):
 LLMInvokeFunc = Callable[[str], Tuple[str, LLMStats]]
 
 
-def create_llm_invoke(model: str, verbose: bool = False) -> LLMInvokeFunc:
+def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dict[str, Any]] = None) -> LLMInvokeFunc:
     """
     Creates an invocation function for a given model using LangChain-Ollama.
     Includes robust error collection and diagnostic logging.
+    
+    Args:
+        model: Model identifier
+        verbose: Enable diagnostic logging
+        overrides: Optional parameter overrides (num_predict, num_ctx, etc.)
     
     Returns:
         A callable that takes prompt str and returns (content, LLMStats) tuple.
@@ -101,11 +106,25 @@ def create_llm_invoke(model: str, verbose: bool = False) -> LLMInvokeFunc:
     try:
         from langchain_ollama import ChatOllama
         
-        # Increase num_predict for DeepSeek models to accommodate <think> tags
-        # Also include gpt-oss which models after reasoning models
-        num_predict = 2048 if any(m in model.lower() for m in ["deepseek", "gpt-oss", "r1"]) else 512
+        # Ollama Specific Tuning (Avoid Truncation)
+        # Assuming 'ollama' as the provider since ChatOllama is imported
+        is_reasoning = any(m in model.lower() for m in ["deepseek", "r1", "gpt-oss", "gemma3"])
         
-        llm = ChatOllama(model=model, num_predict=num_predict)
+        ollama_params = {}
+        if is_reasoning:
+            # Maximize for reasoning/complex models to prevent truncation of thought/json
+            ollama_params["num_predict"] = 8192 
+            ollama_params["num_ctx"] = 16384 # Large context for long traces
+        else:
+            # Standard models
+            ollama_params["num_predict"] = 4096
+            ollama_params["num_ctx"] = 8192 # Increased standard context
+        
+        # Apply overrides from configuration
+        if overrides:
+            ollama_params.update(overrides)
+            
+        llm = ChatOllama(model=model, **ollama_params)
         
         def invoke(prompt: str) -> Tuple[str, LLMStats]:
             # Strict control via verbose arg

@@ -318,6 +318,11 @@ class AgentTypeConfig:
         cfg = self.get(agent_type)
         return cfg.get("parameters", {})
 
+    def get_llm_params(self, agent_type: str) -> Dict[str, Any]:
+        """Get LLM parameters (num_predict, num_ctx, etc.) for agent type."""
+        cfg = self.get(agent_type)
+        return cfg.get("llm_params", {})
+
     @property
     def agent_types(self) -> List[str]:
         """List all available agent types."""

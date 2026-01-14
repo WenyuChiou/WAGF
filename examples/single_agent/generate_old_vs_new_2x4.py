@@ -14,15 +14,15 @@ from pathlib import Path
 import json
 
 # Directory configuration
-RESULTS_DIR = Path("examples/single_agent/results")
-OLD_RESULTS_DIR = Path("examples/single_agent/old results")
+RESULTS_DIR = Path("examples/single_agent/results_window_v2")
+OLD_RESULTS_DIR = Path("examples/single_agent/results_old")
 
 # Model configurations
 MODELS = [
     {"old_folder": "Gemma_3_4B", "new_folder": "gemma3_4b_strict", "name": "Gemma 3 (4B)"},
-    {"old_folder": "Llama_3.2_3B", "new_folder": "llama3.2_3b_strict", "name": "Llama 3.2 (3B)"},
-    {"old_folder": "DeepSeek_R1_8B", "new_folder": "deepseek-r1_8b_strict", "name": "DeepSeek-R1 (8B)"},
-    {"old_folder": "GPT-OSS_20B", "new_folder": "gpt-oss_latest_strict", "name": "GPT-OSS (20B)"},
+    {"old_folder": "Llama_3.2_3B", "new_folder": "llama3_2_3b_strict", "name": "Llama 3.2 (3B)"},
+    {"old_folder": "DeepSeek_R1_8B", "new_folder": "deepseek_r1_8b_strict", "name": "DeepSeek-R1 (8B)"},
+    {"old_folder": "GPT-OSS_20B", "new_folder": "gpt_oss_latest_strict", "name": "GPT-OSS (20B)"},
 ]
 
 # Standard adaptation state colors (matching baseline)

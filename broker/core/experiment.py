@@ -48,12 +48,30 @@ class ExperimentRunner:
         
         # Sync verbosity
         self.broker.log_prompt = self.config.verbose
+        
+        # Cache for llm_invoke functions per agent type
+        self._llm_cache = {}
 
     @property
     def llm_invoke(self) -> Callable:
-        """Create a default llm_invoke based on config."""
-        from broker.utils.llm_utils import create_llm_invoke
-        return create_llm_invoke(self.config.model, verbose=self.config.verbose)
+        """Legacy default llm_invoke."""
+        return self.get_llm_invoke("default")
+
+    def get_llm_invoke(self, agent_type: str) -> Callable:
+        """Create or return cached llm_invoke for a specific agent type."""
+        if agent_type not in self._llm_cache:
+            from broker.utils.llm_utils import create_llm_invoke
+            # Get parameters from config if available
+            overrides = {}
+            if hasattr(self.broker, 'config') and self.broker.config:
+                overrides = self.broker.config.get_llm_params(agent_type)
+            
+            self._llm_cache[agent_type] = create_llm_invoke(
+                self.config.model, 
+                verbose=self.config.verbose,
+                overrides=overrides
+            )
+        return self._llm_cache[agent_type]
 
     @property
     def current_step(self) -> int:
@@ -144,10 +162,23 @@ class ExperimentRunner:
         
         # 2. Update Memory via Engine
         action_desc = result.approved_skill.skill_name.replace("_", " ").capitalize()
+        
+        # Enhance memory description with outcome/context if available
+        # Example: "Year 5: Decided to Buy Flood Insurance (Success)"
+        timestamp_prefix = f"Year {self._current_year}: " if hasattr(self, '_current_year') else ""
+        memory_content = f"{timestamp_prefix}Decided to: {action_desc}"
+        
+        if result.execution_result and result.execution_result.metadata:
+            meta = result.execution_result.metadata
+            if "payout" in meta:
+                memory_content += f" (Received payout: {meta['payout']:.2f})"
+            elif "damage" in meta and meta["damage"] > 0:
+                memory_content += f" (Suffered damage: {meta['damage']:.2f})"
+        
         if hasattr(self.memory_engine, 'add_memory_for_agent'):
-            self.memory_engine.add_memory_for_agent(agent, f"Decided to: {action_desc}")
+            self.memory_engine.add_memory_for_agent(agent, memory_content)
         else:
-            self.memory_engine.add_memory(agent.id, f"Decided to: {action_desc}")
+            self.memory_engine.add_memory(agent.id, memory_content)
 
     def _finalize_step(self, step: int):
         """Unified finalization logic per cycle."""
@@ -170,7 +201,7 @@ class ExperimentRunner:
                 step_id=self.step_counter,
                 run_id=run_id,
                 seed=self.config.seed + self.step_counter,
-                llm_invoke=llm_invoke,
+                llm_invoke=self.get_llm_invoke(getattr(agent, 'agent_type', 'default')),
                 agent_type=getattr(agent, 'agent_type', 'default'),
                 env_context=env
             )
@@ -187,7 +218,7 @@ class ExperimentRunner:
                 step_id=step_id,
                 run_id=run_id,
                 seed=self.config.seed + step_id,
-                llm_invoke=llm_invoke,
+                llm_invoke=self.get_llm_invoke(getattr(agent, 'agent_type', 'default')),
                 agent_type=getattr(agent, 'agent_type', 'default'),
                 env_context=env
             )
@@ -367,16 +398,19 @@ class ExperimentBuilder:
         
         # 5. Setup Validator & Adapter
         validator = AgentValidator(config_path=self.agent_types_path)
-        from broker import UnifiedAdapter
+        from broker.utils.model_adapter import get_adapter
         
-        # PR 13.1: Inject registry skills into adapter for robust parsing
+        # PR 13.1: Inject registry skills into adapter for robust parsing via factory
+        adapter = get_adapter(self.model)
+        adapter.agent_type = "default"
+        adapter.config_path = self.agent_types_path
+        
+        # Resolve skills from registry for the adapter
         reg_skills = set(reg.skills.keys()) if hasattr(reg, 'skills') else None
-        
-        adapter = UnifiedAdapter(
-            agent_type="default", 
-            config_path=self.agent_types_path,
-            valid_skills=reg_skills
-        )
+        if reg_skills:
+            adapter.valid_skills = reg_skills
+            # Re-initialize alias map with new valid skills
+            adapter.alias_map = {s.lower(): s for s in reg_skills}
         
         # Inject templates into ctx_builder if it supports it
         if hasattr(ctx_builder, 'prompt_templates') and self.agent_types_path:
