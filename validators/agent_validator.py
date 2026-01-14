@@ -58,7 +58,10 @@ class AgentValidator:
             # Reasoning might be in proposal
             reasoning = getattr(proposal, 'reasoning', {})
             
-            return self._validate_internal(agent_type, agent_id, decision, state, None, reasoning)
+            parse_layer = getattr(proposal, 'parse_layer', "")
+            
+            return self._validate_internal(agent_type, agent_id, decision, state, None, reasoning, parse_layer)
+
             
         return self._validate_internal(*args, **kwargs)
 
@@ -69,8 +72,10 @@ class AgentValidator:
         decision: str,
         state: Dict[str, Any],
         prev_state: Dict[str, Any] = None,
-        reasoning: Dict[str, str] = None
+        reasoning: Dict[str, str] = None,
+        parse_layer: str = ""
     ) -> List[ValidationResult]:
+
         """
         Validate agent decision based on agent_type rules.
         """
@@ -87,9 +92,20 @@ class AgentValidator:
             rfb = ResponseFormatBuilder(agent_config, shared_config)
             required_fields = rfb.get_required_fields()
             
-            # Map required fields to reasoning keys (casing/variants handled in reasoning already)
+            # Map required fields to reasoning keys
             missing = []
             for field in required_fields:
+                if field == "decision":
+                    # Decision is valid if parse_layer is not 'default' AND we have a skill_name
+                    if parse_layer == "default" or not decision:
+                        missing.append(field)
+                    continue
+
+
+
+
+
+                
                 if field not in reasoning:
                     # Also check for construct mapping (e.g. TP_LABEL)
                     mapping = rfb.get_construct_mapping()
@@ -98,6 +114,7 @@ class AgentValidator:
                         missing.append(field)
                     elif not construct:
                         missing.append(field)
+
             
             if missing:
                 results.append(ValidationResult(

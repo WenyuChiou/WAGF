@@ -79,10 +79,20 @@ household_owner:
     {response_format}
 
   parsing:
-    decision_keywords: ["decision"]
+    decision_keywords: ["decision", "choice", "action"]
     default_skill: "do_nothing"
     full_disclosure: true
     strict_mode: true
+    preprocessor:
+      { type: "smart_repair", quote_values: ["VL", "L", "M", "H", "VH"] }
+    synonyms:
+      tp: ["threat", "threat_perception", "severity", "vulnerability", "risk"]
+      cp:
+        ["coping", "coping_perception", "efficacy", "self_efficacy", "ability"]
+      sp: ["stakeholder", "trust", "government", "institutional"]
+      sc: ["social", "neighbor", "community", "network"]
+      pa: ["place", "attachment", "belonging", "home"]
+
     skill_map_non_elevated:
       "1": "do_nothing"
       "2": "buy_insurance"
@@ -184,12 +194,22 @@ household_renter:
     {response_format}
 
   parsing:
-    decision_keywords: ["decision"]
+    decision_keywords: ["decision", "choice", "action"]
     default_skill: "do_nothing"
     full_disclosure: true
     strict_mode: true
+    preprocessor:
+      { type: "smart_repair", quote_values: ["VL", "L", "M", "H", "VH"] }
+    synonyms:
+      tp: ["threat", "threat_perception", "severity", "vulnerability", "risk"]
+      cp:
+        ["coping", "coping_perception", "efficacy", "self_efficacy", "ability"]
+      sp: ["stakeholder", "trust", "government", "institutional"]
+      sc: ["social", "neighbor", "community", "network"]
+      pa: ["place", "attachment", "belonging", "home"]
     skill_map:
       { "1": "do_nothing", "2": "buy_contents_insurance", "3": "relocate" }
+
     constructs:
       TP_LABEL:
         { keywords: ["threat_perception"], regex: "(?i)\\b(VL|L|M|H|VH)\\b" }
@@ -214,8 +234,9 @@ government:
 
     {response_format}
   parsing:
-    decision_keywords: ["decision"]
+    decision_keywords: ["decision", "choice"]
     default_skill: "maintain_subsidy"
+    strict_mode: false
     skill_map:
       {
         "1": "increase_subsidy",
@@ -232,8 +253,9 @@ insurance:
 
     {response_format}
   parsing:
-    decision_keywords: ["decision"]
+    decision_keywords: ["decision", "choice"]
     default_skill: "maintain_premium"
+    strict_mode: false
     skill_map:
       { "1": "raise_premium", "2": "lower_premium", "3": "maintain_premium" }
 
