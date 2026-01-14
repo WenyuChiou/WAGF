@@ -2,31 +2,29 @@
 
 ## Key Question: Why Do Models Behave Differently After Applying Governance?
 
-### Answer: Three Root Causes
+### Root Causes of Behavioral Differences
 
-| Cause                          | Explanation                                                           | Impact                                                                                    |
-| ------------------------------ | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| **1. Validation ≠ Reasoning**  | 100% pass means FORMAT is correct, not that reasoning is identical    | Models interpret same prompt differently                                                  |
-| **2. Memory Window (top_k=3)** | Only 3 memories kept; flood history pushed out by social observations | Sensitive models (Llama) over-react to social proof in legacy, but governance blocks this |
-| **3. Governance Enforcement**  | `strict` profile BLOCKS illogical combinations                        | Forces consistency that was absent in legacy                                              |
+1. **Validation Ensures Format, Not Reasoning**
+   - 100% validation pass means output FORMAT is correct
+   - Models still differ in HOW they interpret threats and coping ability
 
-### Key Insight: Governance Can DECREASE Relocations
+2. **Memory Window Effect (top_k=3)**
+   - Only 3 latest memories are kept
+   - Flood history gets pushed out by social observations
+   - Models sensitive to social proof (Llama) show more adaptation
 
-Surprising finding: **Llama 3.2 shows FEWER relocations** with governance (95 → 79).
-
-**Why?** The legacy system allowed illogical behavior:
-
-- Agents could say "Low Threat" but still relocate (panic-driven)
-- Governance BLOCKS this: "Low/Medium Threat + Relocate" is rejected
-- This forces previously panicky agents to be more rational
+3. **Governance Enforcement**
+   - `strict` profile BLOCKS 'Do Nothing' when Threat is High
+   - Legacy allowed 47% of 'High Threat + Do Nothing' combinations
+   - This forces previously passive agents to act
 
 ---
 
 ## Comparison Chart
 
-![Comparison](old_vs_window_vs_importance_3x4.png)
+![Comparison](old_vs_window_vs_humancentric_3x3.png)
 
-_Note: Each year shows only ACTIVE agents (already-relocated agents excluded from subsequent years)_
+*Note: Each year shows only ACTIVE agents (already-relocated agents excluded)*
 
 ---
 
@@ -34,120 +32,70 @@ _Note: Each year shows only ACTIVE agents (already-relocated agents excluded fro
 
 ### Gemma 3 (4B)
 
-| Metric            | OLD | Window | Importance | Change          |
-| ----------------- | --- | ------ | ---------- | --------------- |
-| Final Relocations | 6   | 18     | 25         | **+12 (+200%)** |
-
-**Behavioral Change:**
-
-- Gemma was VERY conservative in legacy (only 6 relocations)
-- Governance INCREASED relocations because Gemma now assesses threat more honestly
-- When Gemma says "High Threat", governance forces action
+| Metric | OLD | Window | Importance |
+|--------|-----|--------|------------|
+| Final Relocations | 64 | 0 | 0 |
 
 **Flood Year Response:**
 
-| Year      | OLD | Window | Importance |
-| --------- | --- | ------ | ---------- |
-| 3 (Flood) | 0   | 2      | 2          |
-| 4 (Flood) | 0   | 0      | 2          |
-| 9 (Flood) | 2   | 3      | 2          |
+| Year | OLD Relocate | Window Relocate | Importance Relocate |
+|------|--------------|-----------------|---------------------|
+| 3 | 5 | 0 | 0 |
+| 4 | 7 | 0 | 0 |
+| 9 | 14 | 0 | 0 |
+
+**Why This Model Differs:**
+- Window Memory DECREASED relocations by 64
+- Model rarely assesses threat as 'High'
 
 ---
 
 ### Llama 3.2 (3B)
 
-| Metric            | OLD | Window | Importance | Change         |
-| ----------------- | --- | ------ | ---------- | -------------- |
-| Final Relocations | 95  | 79     | 68         | **-16 (-17%)** |
-
-**Behavioral Change:**
-
-- Llama was VERY reactive in legacy (95 relocations, highest of all models)
-- Governance DECREASED relocations because legacy Llama had many illogical decisions
-- "Low Threat + Relocate" combinations were common in legacy but now BLOCKED
-
-**Root Cause Analysis:**
-
-1. Legacy Llama was sensitive to social observations ("X% neighbors relocated")
-2. This triggered panic-driven relocations even without flood memory
-3. Governance now requires threat assessment to match action
-4. Result: More rational, fewer panic relocations
+| Metric | OLD | Window | Importance |
+|--------|-----|--------|------------|
+| Final Relocations | 64 | 27 | 39 |
 
 **Flood Year Response:**
 
-| Year      | OLD | Window | Importance |
-| --------- | --- | ------ | ---------- |
-| 3 (Flood) | 21  | 7      | 9          |
-| 4 (Flood) | 18  | 11     | 8          |
-| 9 (Flood) | 11  | 1      | 1          |
+| Year | OLD Relocate | Window Relocate | Importance Relocate |
+|------|--------------|-----------------|---------------------|
+| 3 | 5 | 5 | 1 |
+| 4 | 7 | 4 | 5 |
+| 9 | 14 | 3 | 4 |
 
-**Key Finding:** Legacy Llama had highest flood response, but governed Llama is more measured.
+**Why This Model Differs:**
+- Window Memory DECREASED relocations by 37
+- Model rarely assesses threat as 'High'
 
 ---
 
 ### DeepSeek-R1 (8B)
 
-| Metric            | OLD | Window | Importance | Change          |
-| ----------------- | --- | ------ | ---------- | --------------- |
-| Final Relocations | 14  | 0      | N/A        | **-14 (-100%)** |
+| Metric | OLD | Window | Importance |
+|--------|-----|--------|------------|
+| Final Relocations | 64 | 0 | 0 |
 
-**Behavioral Change:**
+**Flood Year Response:**
 
-- DeepSeek was moderately conservative in legacy (14 relocations)
-- Governance ELIMINATED all relocations
-- DeepSeek rarely assesses threat as "High", so no forced actions occur
+| Year | OLD Relocate | Window Relocate | Importance Relocate |
+|------|--------------|-----------------|---------------------|
+| 3 | 5 | N/A | N/A |
+| 4 | 7 | N/A | N/A |
+| 9 | 14 | N/A | N/A |
 
-**Root Cause Analysis:**
-
-1. DeepSeek outputs "Low" or "Medium" threat even when flood occurs
-2. Without "High Threat", governance cannot force relocation
-3. Result: Ultra-conservative behavior preserved
-
----
-
-### GPT-OSS (20B)
-
-| Metric            | OLD | Window | Importance | Change        |
-| ----------------- | --- | ------ | ---------- | ------------- |
-| Final Relocations | 0   | N/A    | N/A        | **No change** |
-
-**Note:** GPT-OSS Window and Importance runs not yet completed.
+**Why This Model Differs:**
+- Window Memory DECREASED relocations by 64
+- Model rarely assesses threat as 'High'
 
 ---
 
 ## Validation Summary
 
-| Model        | Memory     | Total | Retries | Failed | Parse Warnings |
-| ------------ | ---------- | ----- | ------- | ------ | -------------- |
-| Gemma 3 (4B) | Window     | 1000  | 0       | 0      | 977            |
-| Gemma 3 (4B) | Importance | 1000  | 0       | 0      | 978            |
+| Model | Memory | Total | Retries | Failed | Parse Warnings |
+|-------|--------|-------|---------|--------|----------------|
+| Gemma 3 (4B) | Window | 1000 | 0 | 0 | 0 |
+| Gemma 3 (4B) | Importance | 1000 | 0 | 0 | 0 |
+| Llama 3.2 (3B) | Window | 1000 | 271 | 40 | 0 |
+| Llama 3.2 (3B) | Importance | 1000 | 203 | 25 | 0 |
 
-**Conclusion:** 100% validation pass rate across all models. Parse warnings are informational only.
-
----
-
-## Why Validation Pass ≠ Same Behavior
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  VALIDATION CHECKS:                                          │
-│  ✓ Is output JSON valid?                                     │
-│  ✓ Does it contain required fields (skill_name, TP, CP)?     │
-│  ✓ Is TP/CP one of H/M/L?                                    │
-│  ✓ Is skill_name a valid option?                             │
-│                                                              │
-│  VALIDATION DOES NOT CHECK:                                  │
-│  ✗ Is the threat assessment CORRECT?                         │
-│  ✗ Is the reasoning LOGICAL?                                 │
-│  ✗ Does the agent REMEMBER the flood?                        │
-└─────────────────────────────────────────────────────────────┘
-```
-
-Each LLM has different:
-
-- Sensitivity to social observations
-- Memory of flood events
-- Interpretation of "high" vs "medium" threat
-- Risk tolerance
-
-**Governance enforces consistency, not correctness.**
