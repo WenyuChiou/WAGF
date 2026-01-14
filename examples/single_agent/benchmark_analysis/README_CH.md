@@ -23,7 +23,7 @@
 ## 比較圖表
 
 ### 綜合比較
-![比較圖](old_vs_window_vs_humancentric_3x3.png)
+![比較圖](old_vs_window_vs_humancentric_3x4.png)
 
 ### Window Memory 比較
 ![Window比較](old_vs_window_comparison.png)
@@ -80,6 +80,27 @@
 ---
 
 ### DeepSeek-R1 (8B)
+
+| 指標 | 傳統版 | Window | Human-Centric |
+|------|--------|--------|---------------|
+| 最終搬遷數 | 64 | 0 | 0 |
+| 顯著差異 (Window) | N/A | 否 (p=N/A) | - |
+
+**洪水年響應：**
+
+| 年份 | 傳統版搬遷 | Window 搬遷 | Human-Centric 搬遷 |
+|------|------------|-------------|------------------|
+| 3 | 5 | N/A | N/A |
+| 4 | 7 | N/A | N/A |
+| 9 | 14 | N/A | N/A |
+
+**為何此模型有差異：**
+- Window 記憶減少了 64 次搬遷
+- 模型很少將威脅評估為「高」，從而避免了治理觸發
+
+---
+
+### GPT-OSS
 
 | 指標 | 傳統版 | Window | Human-Centric |
 |------|--------|--------|---------------|

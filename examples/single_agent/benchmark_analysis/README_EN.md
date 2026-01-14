@@ -22,7 +22,7 @@
 
 ## Comparison Chart
 
-![Comparison](old_vs_window_vs_humancentric_3x3.png)
+![Comparison](old_vs_window_vs_humancentric_3x4.png)
 
 *Note: Each year shows only ACTIVE agents (already-relocated agents excluded)*
 
@@ -74,6 +74,27 @@
 ---
 
 ### DeepSeek-R1 (8B)
+
+| Metric | Baseline | Window | Human-Centric |
+|--------|----------|--------|---------------|
+| Final Relocations | 64 | 0 | 0 |
+| Significant Diff (Window) | N/A | p=N/A (No) | - |
+
+**Flood Year Response:**
+
+| Year | Baseline Reloc | Window Reloc | Human-Centric Reloc |
+|------|----------------|--------------|---------------------|
+| 3 | 5 | N/A | N/A |
+| 4 | 7 | N/A | N/A |
+| 9 | 14 | N/A | N/A |
+
+**Behavioral Root Cause:**
+- Window memory decreased relocations by 64.
+- Model rarely appraised threat as `High`, avoiding governance triggers.
+
+---
+
+### GPT-OSS
 
 | Metric | Baseline | Window | Human-Centric |
 |--------|----------|--------|---------------|
