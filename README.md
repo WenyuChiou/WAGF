@@ -65,6 +65,46 @@ The framework utilizes a layered middleware approach that unifies single-agent i
 
 ---
 
+## 🔧 Configurable Module Parameters (v3.2)
+
+All core modules expose configurable parameters following a **0-1 normalization standard** for psychological, behavioral, and importance weights.
+
+### Memory Engine Parameters
+
+| Parameter            | Type  | Range   | Default | Description                                         |
+| -------------------- | ----- | ------- | ------- | --------------------------------------------------- |
+| `window_size`        | int   | 1-10    | **3**   | Number of recent memories always included           |
+| `top_k_significant`  | int   | 1-5     | **2**   | Number of high-importance historical events         |
+| `consolidation_prob` | float | 0.0-1.0 | **0.7** | Probability of consolidating high-importance memory |
+| `decay_rate`         | float | 0.0-1.0 | **0.1** | Exponential decay rate for time-based forgetting    |
+
+**Emotional Weights (0-1)**:
+| Category | Default | Description |
+|----------|---------|-------------|
+| `fear` | 1.0 | Flood damage, high threat perception |
+| `regret` | 0.9 | Missed opportunities, should-have decisions |
+| `relief` | 0.8 | Successful insurance claims, assistance received |
+| `trust_shift` | 0.7 | Changes in trust towards institutions/neighbors |
+| `observation` | 0.4 | Neutral social observation |
+| `routine` | 0.1 | No notable event |
+
+### Skill Retriever Parameters
+
+| Parameter       | Type      | Range   | Default                           | Description                                         |
+| --------------- | --------- | ------- | --------------------------------- | --------------------------------------------------- |
+| `top_n`         | int       | 1-10    | **3**                             | Number of relevant skills to retrieve via RAG       |
+| `min_score`     | float     | 0.0-1.0 | **0.05**                          | Minimum relevance score threshold                   |
+| `global_skills` | List[str] | -       | `["do_nothing", "buy_insurance"]` | Skills always available regardless of RAG filtering |
+
+**Context Source Weights (0-1)**:
+| Source | Default | Description |
+|--------|---------|-------------|
+| `state` | 1.0 | Direct internal state keywords |
+| `perception` | 1.2 | Immediate external signals (NOTE: can exceed 1.0 for emphasis) |
+| `memory` | 0.8 | Historical context from episodic/semantic memory |
+
+---
+
 ## 🧠 Advanced Memory & Skill Retrieval (v3.2) ✅
 
 To handle long-term simulations (10+ years), v3.2 introduces a **Tiered Memory System** and **Dynamic Skill Retrieval (RAG)** to ensure agents remain consistent without exceeding LLM context limits.
