@@ -372,8 +372,10 @@ class SkillBrokerEngine:
             else:
                 self.stats["approved"] += 1
         else:
-            # Use fallback skill
-            fallback = self.skill_registry.get_default_skill()
+            # Use per-agent default skill from parsing config
+            parsing_cfg = self.config.get_parsing_config(agent_type)
+            fallback = parsing_cfg.get("default_skill", self.skill_registry.get_default_skill())
+
             approved_skill = ApprovedSkill(
                 skill_name=fallback,
                 agent_id=agent_id,

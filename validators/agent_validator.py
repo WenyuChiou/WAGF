@@ -78,8 +78,46 @@ class AgentValidator:
         
         base_type = self.config.get_base_type(agent_type)
             
+        # 0. Validate Response Format (Tier 0)
+        # Check if required fields from YAML are present in reasoning
+        try:
+            from broker.components.response_format import ResponseFormatBuilder
+            shared_config = {"response_format": self.config._config.get("shared", {}).get("response_format", {})}
+            agent_config = self.config.get(base_type)
+            rfb = ResponseFormatBuilder(agent_config, shared_config)
+            required_fields = rfb.get_required_fields()
+            
+            # Map required fields to reasoning keys (casing/variants handled in reasoning already)
+            missing = []
+            for field in required_fields:
+                if field not in reasoning:
+                    # Also check for construct mapping (e.g. TP_LABEL)
+                    mapping = rfb.get_construct_mapping()
+                    construct = mapping.get(field)
+                    if construct and construct not in reasoning:
+                        missing.append(field)
+                    elif not construct:
+                        missing.append(field)
+            
+            if missing:
+                results.append(ValidationResult(
+                    valid=False,
+                    validator_name="AgentValidator:format",
+                    errors=[f"Response missing required fields: {', '.join(missing)}"],
+                    metadata={
+                        "level": ValidationLevel.ERROR,
+                        "rule": "format",
+                        "field": "json_structure",
+                        "constraint": f"required={required_fields}"
+                    }
+                ))
+        except Exception as e:
+            # logger.error(f"Error in Tier 0 validation: {e}")
+            pass
+
         # 1. Validate decision is in allowed values
         valid_actions = self.config.get_valid_actions(base_type)
+
         if valid_actions:
             normalized = decision.lower().replace("_", "").replace(" ", "")
             valid_normalized = [v.lower().replace("_", "").replace(" ", "") for v in valid_actions]

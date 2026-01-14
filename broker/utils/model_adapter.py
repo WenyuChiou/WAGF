@@ -176,20 +176,34 @@ class UnifiedAdapter(ModelAdapter):
             return None
 
         # 1. Phase 15: Enclosure Extraction (Priority)
-        # Support both triple-bracket and XML-style tags for maximum model compatibility
-        # Enhanced regex to handle models adding "Decision: " or similar prefixes.
+        # Dynamic Delimiters (from YAML config) - Phase 23
+        try:
+            from broker.components.response_format import ResponseFormatBuilder
+            cfg = self.agent_config
+            agent_cfg = cfg.get(agent_type)
+            shared_cfg = {"response_format": cfg._config.get("shared", {}).get("response_format", {})}
+            rfb = ResponseFormatBuilder(agent_cfg, shared_cfg)
+            d_start, d_end = rfb.get_delimiters()
+            # Use non-greedy match to handle multiple blocks if present
+            dynamic_pattern = rf"{re.escape(d_start)}\s*(.*?)\s*{re.escape(d_end)}"
+        except:
+            dynamic_pattern = None
+
         patterns = [
-            r"<<<DECISION_START>>>+?\s*(.*?)\s*<<<DECISION_END>>>+?",
+            dynamic_pattern,
+            r"<<<DECISION_START>>>\s*(.*?)\s*<<<DECISION_END>>>",
             r"<decision>\s*(.*?)\s*</decision>",
             r"(?:decision|choice|selected_action)[:\s]*({.*?})", # Find JSON-like block after keyword
         ]
         
         target_content = raw_output
-        for pattern in patterns:
+        for pattern in [p for p in patterns if p]:
             match = re.search(pattern, raw_output, re.DOTALL | re.IGNORECASE)
             if match:
                 target_content = match.group(1)
+                parse_layer = "enclosure"
                 break
+
 
         # 2. Preprocess target
         cleaned_target = preprocessor(target_content)

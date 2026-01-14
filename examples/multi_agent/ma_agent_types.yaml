@@ -10,11 +10,53 @@ shared:
     - SC (Social Capital): Influence of neighbor actions and community support.
     - PA (Place Attachment): Emotional bond and belonging to the current home.
 
+  # Default format for simple institutional decisions
+  response_format:
+    delimiter_start: "<<<DECISION_START>>>"
+    delimiter_end: "<<<DECISION_END>>>"
+    fields:
+      - { key: "decision", type: "choice", required: true }
+      - { key: "reasoning", type: "text", required: false }
+
 # =============================================================================
 # HOUSEHOLD AGENT TYPES
 # =============================================================================
 household_owner:
   description: "Homeowners making adaptation decisions."
+  response_format:
+    fields:
+      - {
+          key: "threat_perception",
+          type: "appraisal",
+          required: true,
+          construct: "TP_LABEL",
+        }
+      - {
+          key: "coping_perception",
+          type: "appraisal",
+          required: true,
+          construct: "CP_LABEL",
+        }
+      - {
+          key: "stakeholder_perception",
+          type: "appraisal",
+          required: true,
+          construct: "SP_LABEL",
+        }
+      - {
+          key: "social_capital",
+          type: "appraisal",
+          required: true,
+          construct: "SC_LABEL",
+        }
+      - {
+          key: "place_attachment",
+          type: "appraisal",
+          required: true,
+          construct: "PA_LABEL",
+        }
+      - { key: "decision", type: "choice", required: true }
+      - { key: "reasoning", type: "text", required: false }
   prompt_template: |
     You are a homeowner (Agent ID: {agent_id}). {narrative_persona}
     You have lived here for {residency_generations} generations. Your income is {income_range}.
@@ -34,17 +76,7 @@ household_owner:
     Rating Scale: {rating_scale}
 
     Respond only using the exact JSON format below. Do NOT include conversational text.
-    <<<DECISION_START>>>
-    {{
-      "threat_perception": {{"label": "VL/L/M/H/VH", "reason": "..."}},
-      "coping_perception": {{"label": "VL/L/M/H/VH", "reason": "..."}},
-      "stakeholder_perception": {{"label": "VL/L/M/H/VH", "reason": "..."}},
-      "social_capital": {{"label": "VL/L/M/H/VH", "reason": "..."}},
-      "place_attachment": {{"label": "VL/L/M/H/VH", "reason": "..."}},
-      "decision": [Number],
-      "reasoning": "..."
-    }}
-    <<<DECISION_END>>>
+    {response_format}
 
   parsing:
     decision_keywords: ["decision"]
@@ -79,9 +111,60 @@ household_owner:
       PA_LABEL:
         { keywords: ["place_attachment"], regex: "(?i)\\b(VL|L|M|H|VH)\\b" }
       PA_REASON: { keywords: ["place_attachment"], regex: ".*" }
+  log_fields:
+    [
+      "threat_perception",
+      "coping_perception",
+      "stakeholder_perception",
+      "social_capital",
+      "place_attachment",
+    ]
 
 household_renter:
   description: "Renters making adaptation decisions."
+  response_format:
+    fields:
+      - {
+          key: "threat_perception",
+          type: "appraisal",
+          required: true,
+          construct: "TP_LABEL",
+        }
+      - {
+          key: "coping_perception",
+          type: "appraisal",
+          required: true,
+          construct: "CP_LABEL",
+        }
+      - {
+          key: "stakeholder_perception",
+          type: "appraisal",
+          required: true,
+          construct: "SP_LABEL",
+        }
+      - {
+          key: "social_capital",
+          type: "appraisal",
+          required: true,
+          construct: "SC_LABEL",
+        }
+      - {
+          key: "place_attachment",
+          type: "appraisal",
+          required: true,
+          construct: "PA_LABEL",
+        }
+      - { key: "decision", type: "choice", required: true }
+      - { key: "reasoning", type: "text", required: false }
+  log_fields:
+    [
+      "threat_perception",
+      "coping_perception",
+      "stakeholder_perception",
+      "social_capital",
+      "place_attachment",
+    ]
+
   prompt_template: |
     You are a renter (Agent ID: {agent_id}).
     You have lived here for {residency_generations} years. Your income is {income_range}.
@@ -98,17 +181,7 @@ household_renter:
     Rating Scale: {rating_scale}
 
     Respond only using the exact JSON format below:
-    <<<DECISION_START>>>
-    {{
-      "threat_perception": {{"label": "VL/L/M/H/VH", "reason": "..."}},
-      "coping_perception": {{"label": "VL/L/M/H/VH", "reason": "..."}},
-      "stakeholder_perception": {{"label": "VL/L/M/H/VH", "reason": "..."}},
-      "social_capital": {{"label": "VL/L/M/H/VH", "reason": "..."}},
-      "place_attachment": {{"label": "VL/L/M/H/VH", "reason": "..."}},
-      "decision": [Number],
-      "reasoning": "..."
-    }}
-    <<<DECISION_END>>>
+    {response_format}
 
   parsing:
     decision_keywords: ["decision"]
@@ -139,13 +212,7 @@ government:
     Institutional Context: Subsidy Rate: {subsidy_rate:.0%} | Elevated: {elevated_count}/{total_households}
     Task: Choose 1:INCREASE | 2:DECREASE | 3:MAINTAIN subsidy.
 
-    Respond only with this JSON:
-    <<<DECISION_START>>>
-    {{
-      "decision": 3,
-      "reasoning": "..."
-    }}
-    <<<DECISION_END>>>
+    {response_format}
   parsing:
     decision_keywords: ["decision"]
     default_skill: "maintain_subsidy"
@@ -163,13 +230,7 @@ insurance:
     Market Stats: Loss Ratio: {loss_ratio:.2f} | Insured Base: {insured_count}
     Task: Choose 1:RAISE | 2:LOWER | 3:MAINTAIN premium rates.
 
-    Respond only with this JSON:
-    <<<DECISION_START>>>
-    {{
-      "decision": 3,
-      "reasoning": "..."
-    }}
-    <<<DECISION_END>>>
+    {response_format}
   parsing:
     decision_keywords: ["decision"]
     default_skill: "maintain_premium"
