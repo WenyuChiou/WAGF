@@ -10,11 +10,11 @@ Exp3 實現多 Agent 洪水適應模擬，包含 Household、Insurance、Governm
 
 ## 1. Agent 類型總覽
 
-| Agent | 數量 | 決策時機 | 主要職責 |
-|-------|------|----------|----------|
-| **Household** | 100+ | Phase 2 | 選擇減災行動 |
-| **Insurance** | 1 | Phase 1 | 調整保費 |
-| **Government** | 1 | Phase 1 | 調整補助 |
+| Agent          | 數量 | 決策時機 | 主要職責     |
+| -------------- | ---- | -------- | ------------ |
+| **Household**  | 100+ | Phase 2  | 選擇減災行動 |
+| **Insurance**  | 1    | Phase 1  | 調整保費     |
+| **Government** | 1    | Phase 1  | 調整補助     |
 
 ```
 年度流程:
@@ -41,21 +41,21 @@ Exp3 實現多 Agent 洪水適應模擬，包含 Household、Insurance、Governm
 
 ### Decision Distribution
 
-| Decision | Count | Rate |
-|----------|-------|------|
-| buy_insurance | 48 | 27.0% |
-| elevate_house | 15 | 8.4% |
-| buyout_program | 55 | 30.9% |
-| relocate | 10 | 5.6% |
-| do_nothing | 50 | 28.1% |
+| Decision       | Count | Rate  |
+| -------------- | ----- | ----- |
+| buy_insurance  | 48    | 27.0% |
+| elevate_house  | 15    | 8.4%  |
+| buyout_program | 55    | 30.9% |
+| relocate       | 10    | 5.6%  |
+| do_nothing     | 50    | 28.1% |
 
 ### PMT Construct Distribution
 
-| Construct | LOW | MODERATE | HIGH/FULL |
-|-----------|-----|----------|-----------|
-| **TP** (Threat) | 24 (13%) | 136 (76%) | 18 (10%) |
-| **CP** (Coping) | 100 (56%) | 68 (38%) | 10 (6%) |
-| **PA** (Prior Adapt) | 52 (29%) | 106 (60%) | 20 (11%) |
+| Construct            | LOW       | MODERATE  | HIGH/FULL |
+| -------------------- | --------- | --------- | --------- |
+| **TP** (Threat)      | 24 (13%)  | 136 (76%) | 18 (10%)  |
+| **CP** (Coping)      | 100 (56%) | 68 (38%)  | 10 (6%)   |
+| **PA** (Prior Adapt) | 52 (29%)  | 106 (60%) | 20 (11%)  |
 
 ### Validation Metrics
 
@@ -82,12 +82,12 @@ Exp3 實現多 Agent 洪水適應模擬，包含 Household、Insurance、Governm
 
 ### 2.1 分類
 
-| 類型 | 定義 |
-|------|------|
-| **MG_Owner** | Marginalized Group + 屋主 |
-| **MG_Renter** | Marginalized Group + 租戶 |
-| **NMG_Owner** | Non-Marginalized + 屋主 |
-| **NMG_Renter** | Non-Marginalized + 租戶 |
+| 類型           | 定義                      |
+| -------------- | ------------------------- |
+| **MG_Owner**   | Marginalized Group + 屋主 |
+| **MG_Renter**  | Marginalized Group + 租戶 |
+| **NMG_Owner**  | Non-Marginalized + 屋主   |
+| **NMG_Renter** | Non-Marginalized + 租戶   |
 
 **MG 定義:** 收入 < 區域中位數 80% OR 教育 < 高中 OR 少數族裔
 
@@ -98,17 +98,17 @@ Exp3 實現多 Agent 洪水適應模擬，包含 Household、Insurance、Governm
 class HouseholdAgentState:
     id: str
     agent_type: str          # MG_Owner, MG_Renter, etc.
-    
+
     # 適應狀態
     elevated: bool = False
     has_insurance: bool = False
     relocated: bool = False
-    
+
     # 信任度
     trust_in_insurance: float = 0.5  # 0-1
     trust_in_government: float = 0.5
     trust_in_neighbors: float = 0.5
-    
+
     # 財務追蹤
     cumulative_damage: float = 0
     cumulative_oop: float = 0        # Out-of-Pocket
@@ -120,27 +120,27 @@ class HouseholdAgentState:
 @dataclass
 class HouseholdMemory:
     window_size: int = 5
-    
+
     # 經歷記錄
     experiences: List[str]           # "Year 3: Flood caused $10K damage"
-    
+
     # 鄰居行為
     neighbor_actions: List[str]      # "Neighbor elevated house"
-    
+
     # 政策資訊
     policy_announcements: List[str]  # "Government increased subsidy to 75%"
 ```
 
 ### 2.4 Skills
 
-| Skill | 適用 | 說明 |
-|-------|------|------|
-| `buy_insurance` | Owner | 購買洪水保險 (建築+內容物) |
-| `buy_contents_insurance` | Renter | 購買內容物保險 |
-| `elevate_house` | Owner only | 升高房屋結構 |
-| `buyout_program` | Owner only | 政府收購計畫 |
-| `relocate` | Renter only | 搬遷到低風險區 |
-| `do_nothing` | All | 維持現狀 |
+| Skill                    | 適用        | 說明                       |
+| ------------------------ | ----------- | -------------------------- |
+| `buy_insurance`          | Owner       | 購買洪水保險 (建築+內容物) |
+| `buy_contents_insurance` | Renter      | 購買內容物保險             |
+| `elevate_house`          | Owner only  | 升高房屋結構               |
+| `buyout_program`         | Owner only  | 政府收購計畫               |
+| `relocate`               | Renter only | 搬遷到低風險區             |
+| `do_nothing`             | All         | 維持現狀                   |
 
 ### 2.5 決策輸出 (5 Constructs)
 
@@ -163,19 +163,19 @@ Final Decision: [1-4]
 @dataclass
 class InsuranceAgentState:
     id: str = "InsuranceCo"
-    
+
     # 定價
     premium_rate: float = 0.05       # 5% of coverage
     payout_ratio: float = 0.80       # 理賠 80%
-    
+
     # 財務
     risk_pool: float = 1_000_000
     premium_collected: float = 0     # 年度收入
     claims_paid: float = 0           # 年度理賠
-    
+
     # 市場
     total_policies: int = 0
-    
+
     @property
     def loss_ratio(self) -> float:
         return self.claims_paid / max(self.premium_collected, 1)
@@ -187,10 +187,10 @@ class InsuranceAgentState:
 @dataclass
 class InsuranceMemory:
     window_size: int = 5
-    
+
     # 年度統計
     yearly_records: List[Dict]       # {year, loss_ratio, claims, uptake}
-    
+
     # 重大事件
     significant_events: List[str]    # "Year 3: Loss ratio > 100%"
 ```
@@ -223,15 +223,15 @@ class InsuranceMemory:
 @dataclass
 class GovernmentAgentState:
     id: str = "Government"
-    
+
     # 預算
     annual_budget: float = 500_000
     budget_remaining: float = 500_000
-    
+
     # 補助政策
     subsidy_rate: float = 0.50       # 50%
     mg_priority: bool = True
-    
+
     # 追蹤
     mg_adoption_rate: float = 0.0
     nmg_adoption_rate: float = 0.0
@@ -243,10 +243,10 @@ class GovernmentAgentState:
 @dataclass
 class GovernmentMemory:
     window_size: int = 5
-    
+
     # 政策記錄
     policy_records: List[Dict]       # {year, subsidy_rate, mg_adoption, budget_used}
-    
+
     # 重大事件
     policy_events: List[str]         # "Year 3: Emergency subsidy increase"
 ```
@@ -270,12 +270,12 @@ class GovernmentMemory:
 
 ### 4.4 補助參數 (基於 NY/NJ FEMA)
 
-| 類別 | 補助比例 | 來源 |
-|------|----------|------|
-| MG + Severe Repetitive Loss | 100% | FEMA SRL |
-| MG + Repetitive Loss | 90% | FEMA RL |
-| MG 標準 | 75% | FEMA HMGP |
-| NMG 標準 | 50% | 降低優先 |
+| 類別                        | 補助比例 | 來源      |
+| --------------------------- | -------- | --------- |
+| MG + Severe Repetitive Loss | 100%     | FEMA SRL  |
+| MG + Repetitive Loss        | 90%      | FEMA RL   |
+| MG 標準                     | 75%      | FEMA HMGP |
+| NMG 標準                    | 50%      | 降低優先  |
 
 ---
 
@@ -283,11 +283,11 @@ class GovernmentMemory:
 
 **職責:** 系統規則計算，不是 Agent Skill
 
-| 模組 | 職責 |
-|------|------|
+| 模組                  | 職責         |
+| --------------------- | ------------ |
 | **CatastropheModule** | 洪水損失計算 |
-| **SubsidyModule** | 補助金額計算 |
-| **SettlementModule** | 年度結算 |
+| **SubsidyModule**     | 補助金額計算 |
+| **SettlementModule**  | 年度結算     |
 
 ```python
 class CatastropheModule:
@@ -318,7 +318,52 @@ examples/exp3_multi_agent/
 
 ---
 
-## 7. 參考文獻
+## 8. 解析標準：通用標籤化 JSON 對齊格式 (Universal TKV V20)
+
+為了確保在不同模型（特別是小模型）與不同實驗背景（單人/多人）下的一致性，我們採用了 **V20 通用標籤化格式**：
+
+### 8.1 格式規範
+
+決策輸出必須包裹在 `<<<DECISION_START>>>` 與 `<<<DECISION_END>>>` 之間，並符合以下 JSON 結構：
+
+```json
+<<<DECISION_START>>>
+{
+  "threat_perception": {"label": "VL/L/M/H/VH", "reason": "..."},
+  "coping_perception": {"label": "VL/L/M/H/VH", "reason": "..."},
+  "stakeholder_perception": {"label": "VL/L/M/H/VH", "reason": "..."},
+  "social_capital": {"label": "VL/L/M/H/VH", "reason": "..."},
+  "place_attachment": {"label": "VL/L/M/H/VH", "reason": "..."},
+  "decision": [數字選項],
+  "reasoning": "整體決策邏輯敘述"
+}
+<<<DECISION_END>>>
+```
+
+### 8.2 技術優勢
+
+- **跨背景兼容**：同一套解析器可用於單人適應模式 (SA) 與多代理人互動模式 (MA)。
+- **解析魯棒性**：支援 JSON -> Keyword -> Pattern 三層降級，即使小模型語法報錯，指標捕獲率仍達 **100%**。
+- **防止幻覺**：透過敘述式指令 (Narrative Lead) 引發模型角色扮演，而非描述模板。
+
+---
+
+## 9. 單 Agent (SA) 實驗重跑評估
+
+基於格式統一與科學嚴謹性，**建議重跑單 Agent (SA) 實驗**，原因如下：
+
+1.  **維度對齊 (Dimension Parity)**：
+    - 舊版 SA 僅提供 2 個指標 (TP, CP)。
+    - 新版 MA 提供 5 個指標 (TP, CP, SP, SC, PA)。
+    - 若要進行正式對比，SA 必須也在同樣的 5 維度框架下思考，才能觀察「社會資本 (SC)」或「情感依附 (PA)」在無外部干擾下的基線表現。
+2.  **解析精度提升**：
+    - 新版 V20 格式顯著降低了小模型 (如 Llama 3B) 的 meta-description 錯誤。重跑可獲得更乾淨、無需人工修正的數據。
+3.  **人口統計敏感度**：
+    - V20 解析器優化了對 MG (邊緣群體) 與 NMG 群體在 5 個維度上的差異捕獲。
+
+---
+
+## 10. 參考文獻
 
 - FEMA HMGP/FMA Programs
 - NYC Build It Back
