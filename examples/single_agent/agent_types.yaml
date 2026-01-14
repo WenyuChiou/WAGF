@@ -97,23 +97,29 @@ household:
     synonyms:
       tp:
         [
-          \"severity\",
-          \"vulnerability\",
-          \"threat\",
-          \"risk\",
-          \"danger\",
-          \"perceived_severity\",
-          \"perceived_vulnerability\",
+          "severity",
+          "vulnerability",
+          "threat",
+          "risk",
+          "danger",
+          "perceived_severity",
+          "perceived_vulnerability",
+          "consequence",
+          "impact",
+          "seriousness",
         ]
       cp:
         [
-          \"efficacy\",
-          \"self_efficacy\",
-          \"response_efficacy\",
-          \"coping\",
-          \"ability\",
-          \"effectiveness\",
-          \"response_cost\",
+          "efficacy",
+          "self_efficacy",
+          "response_efficacy",
+          "coping",
+          "ability",
+          "effectiveness",
+          "response_cost",
+          "preparedness",
+          "capacity",
+          "suitability",
         ]
 
     # Baseline Skill Mapping (numeric 1-4)

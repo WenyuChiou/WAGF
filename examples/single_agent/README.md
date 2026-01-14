@@ -91,13 +91,36 @@ ImportanceMemoryEngine(
 
 ---
 
+## LLM Behavioral Phenomena & Governance Solutions
+
+Through multiple simulation cycles, we have identified several systemic failure modes in LLMs (especially models < 8B) and implemented specific framework-level solutions.
+
+### 1. Observed LLM Failure Modes
+
+- **Structural Flakiness (JSON Breakdown)**: Small models (Llama 3B, Gemma 4B) often fail to maintain strict JSON syntax when reasoning becomes complex.
+- **Positional & Digit Bias**: Models occasionally favor specific option numbers (e.g., always choosing 1) or hallucinate non-existent IDs.
+- **Appraisal-Decision Gap (Logical Disconnect)**: An agent might reason "risk is very low" but then choose "Relocate," showing a disconnect between internal logic and final action selection.
+- **Identity Drifting**: In long-horizon simulations (10+ turns), models may "forget" their base constraints (e.g., a renter attempting to elevate a house they don't own).
+
+### 2. Framework Solutions
+
+- **Multi-Layer Robust Parsing**: The `UnifiedAdapter` uses a fall-through strategy (**Enclosure -> JSON Repair -> Regex -> Digit Fallback**) to capture intent even when formatting fails.
+- **Dynamic Option Shuffling**: Prevents positional bias by randomizing the index of choices (FI, HE, RL, DN) for every agent while using the `skill_map` to normalize back to canonical IDs.
+- **Real-Time Governance Feedback**: The `SkillBrokerEngine` detects the "Logical Disconnect" (via `thinking_rules`) and triggers an immediate **Retry Loop** with explicit error feedback, forcing the model to re-align its decision with its reasoning.
+- **Identity-Based Guardrails**: Pre-conditions in the governance layer (e.g., `elevation_block`) act as "World Physics," preventing agents from performing impossible or redundant tasks.
+
+---
+
 ## Memory Retrieval Benchmarks (2x4 Matrix)
 
 The following matrix compares performance across four language models and two memory retrieval strategies.
 
 ### Cross-Model Behavioral Summary (v3.2)
 
-_Results pending final benchmark completion for Llama, Gemma, DeepSeek, and Aya (GPT-OSS)._
+- **Llama 3.2 (3B)**: Highly sensitive to social observations. Shows the highest rate of "Decision-Reasoning Gaps," frequently corrected by the Governance Layer.
+- **Gemma 3 (4B)**: Most "Optimistic." Tends to prefer "Do Nothing" unless multiple floods are explicitly consolidated in memory. Requires specialized synonym mapping due to unique category naming (e.g., "Concern" vs "Threat").
+- **DeepSeek-R1 (8B)**: Exceptional reasoning consistency. Rarely requires Governance retries, as its `<think>` chain aligns well with the PMT constructs.
+- **GPT-OSS (Aya 8B)**: Highly defensive with Human-Centric memory; tends to "Panick" and over-insure when emotional consolidation is active.
 
 ---
 
