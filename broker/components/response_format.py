@@ -68,7 +68,10 @@ class ResponseFormatBuilder:
                 reason_hint = field.get("reason_hint", "...")
                 lines.append(f'  "{key}": {{"label": "VL/L/M/H/VH", "reason": "{reason_hint}"}}{comma}')
             elif ftype == "choice":
-                lines.append(f'  "{key}": {valid_choices_text}{comma}')
+                # Emphasize numeric ID to guide model away from string labels
+                lines.append(f'  "{key}": [Numeric ID: {valid_choices_text}]{comma}')
+
+
             else:  # text
                 lines.append(f'  "{key}": "..."{comma}')
         
