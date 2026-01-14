@@ -209,18 +209,22 @@ class SkillBrokerEngine:
                 # Check for missing critical LABEL constructs - trigger retry if missing
                 if skill_proposal and skill_proposal.reasoning:
                     reasoning = skill_proposal.reasoning
-                    missing_labels = []
-                    if "TP_LABEL" not in reasoning:
-                        missing_labels.append("TP_LABEL")
-                    if "CP_LABEL" not in reasoning:
-                        missing_labels.append("CP_LABEL")
+                    
+                    # Generalized: Get required constructs from parsing config
+                    # Filter for those that have '_LABEL' in them as they are usually critical
+                    # but check if they are actually defined for this agent type
+                    parsing_cfg = self.config.get(agent_type).get("parsing", {})
+                    required_constructs = [k for k in parsing_cfg.get("constructs", {}).keys() if "_LABEL" in k]
+                    
+                    missing_labels = [m for m in required_constructs if m not in reasoning]
                     
                     if missing_labels and initial_attempts <= max_initial_attempts:
-                        logger.warning(f" [Broker:Retry] Missing LABEL constructs {missing_labels} for {agent_id}, attempt {initial_attempts}/{max_initial_attempts}")
+                        logger.warning(f" [Broker:Retry] Missing required constructs {missing_labels} for {agent_id} ({agent_type}), attempt {initial_attempts}/{max_initial_attempts}")
                         # Reset proposal to None to trigger retry
                         skill_proposal = None
-                        prompt = self.model_adapter.format_retry_prompt(prompt, [f"Missing required constructs: {missing_labels}. Please include threat_appraisal and coping_appraisal labels."])
+                        prompt = self.model_adapter.format_retry_prompt(prompt, [f"Missing required constructs: {missing_labels}. Please ensure your response follows the requested JSON format."])
                         continue
+
                         
             except Exception as e:
                 if initial_attempts > max_initial_attempts:
@@ -344,7 +348,11 @@ class SkillBrokerEngine:
              if reason_text:
                  logger.error(f"  - Agent Motivation: {reason_text}")
              
-             logger.error(f"  - Action: Falling back to '{self.skill_registry.get_default_skill()}'.")
+             # Determine fallout action: prefer original choice if parsed, otherwise default
+             fallout_skill = skill_proposal.skill_name if (skill_proposal and skill_proposal.parse_layer != "default") else self.skill_registry.get_default_skill()
+             
+             logger.error(f"  - Action: Proceeding with '{fallout_skill}' (Result: REJECTED)")
+
         
         # ④ Create ApprovedSkill or use fallback
         if all_valid:
@@ -374,34 +382,27 @@ class SkillBrokerEngine:
         else:
             # RETRY EXHAUSTION: Return the model's desired behavior but with REJECTED status
             # As requested: "返回原本的行為才對 但是驗證的狀態要是Fail之類的"
-            # We use the last proposal's skill if it exists and was parsed successfully (even if invalid)
-            # If even parsing failed (parse_layer == default), we still use the default fallback to avoid crash
-            if skill_proposal and skill_proposal.parse_layer != "default":
-                approved_skill = ApprovedSkill(
-                    skill_name=skill_proposal.skill_name,
-                    agent_id=agent_id,
-                    approval_status="REJECTED",
-                    validation_results=validation_results,
-                    execution_mapping=self.skill_registry.get_execution_mapping(skill_proposal.skill_name) or "",
-                    parameters={}
-                )
-                outcome = SkillOutcome.REJECTED
-                logger.error(f" [Governance:Exhausted] {agent_id} | Retries failed. Proceeding with REJECTED choice: '{skill_proposal.skill_name}'")
+            # We use the fallout skill determined above
+            is_generic_fallback = (skill_proposal is None or skill_proposal.parse_layer == "default")
+            
+            # Re-fetch fallout skill if needed or use local var if I can restructure
+            fallout_skill = skill_proposal.skill_name if not is_generic_fallback else self.config.get_parsing_config(agent_type).get("default_skill", self.skill_registry.get_default_skill())
+            
+            approved_skill = ApprovedSkill(
+                skill_name=fallout_skill,
+                agent_id=agent_id,
+                approval_status="REJECTED" if not is_generic_fallback else "REJECTED_FALLBACK",
+                validation_results=validation_results,
+                execution_mapping=self.skill_registry.get_execution_mapping(fallout_skill) or "",
+                parameters={}
+            )
+            outcome = SkillOutcome.REJECTED if not is_generic_fallback else SkillOutcome.UNCERTAIN
+            
+            if is_generic_fallback:
+                logger.error(f" [Governance:Exhausted] {agent_id} | Parsing failed. Forcing fallback: '{fallout_skill}'")
             else:
-                # Use per-agent default skill from parsing config
-                parsing_cfg = self.config.get_parsing_config(agent_type)
-                fallback = parsing_cfg.get("default_skill", self.skill_registry.get_default_skill())
+                logger.error(f" [Governance:Exhausted] {agent_id} | Retries failed. Proceeding with REJECTED choice: '{fallout_skill}'")
 
-                approved_skill = ApprovedSkill(
-                    skill_name=fallback,
-                    agent_id=agent_id,
-                    approval_status="REJECTED_FALLBACK",
-                    validation_results=validation_results,
-                    execution_mapping=self.skill_registry.get_execution_mapping(fallback) or "",
-                    parameters={}
-                )
-                outcome = SkillOutcome.UNCERTAIN
-                logger.error(f" [Governance:Exhausted] {agent_id} | Parsing failed. Forcing fallback: '{fallback}'")
 
             self.stats["rejected"] += 1
             # Log final failure for the rules that caused fallout
@@ -446,7 +447,9 @@ class SkillBrokerEngine:
                 "_audit_priority": audit_priority, # Pass priority fields
 
                 "input": prompt if self.log_prompt else None,
+                "raw_output": raw_output,
                 "context_hash": context_hash,
+
                 "memory_pre": memory_pre,
                 "skill_proposal": skill_proposal.to_dict() if skill_proposal else None,
                 "approved_skill": {

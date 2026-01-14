@@ -146,11 +146,14 @@ class BaseAgentContextBuilder(ContextBuilder):
         memory_engine: Optional[MemoryEngine] = None,
         providers: List[ContextProvider] = None,
         extend_providers: List[ContextProvider] = None,  # New: additive providers
-        semantic_thresholds: tuple = (0.3, 0.7)
+        semantic_thresholds: tuple = (0.3, 0.7),
+        yaml_path: Optional[str] = None
     ):
         self.agents = agents
         self.prompt_templates = prompt_templates or {}
         self.semantic_thresholds = semantic_thresholds
+        self.yaml_path = yaml_path
+
         
         # Standard: Enforce 0-1 normalization for universal parameters
         if any(t < 0.0 or t > 1.0 for t in semantic_thresholds):
@@ -285,12 +288,15 @@ class BaseAgentContextBuilder(ContextBuilder):
         # Inject shared rating_scale from config (if available)
         from broker.utils.agent_config import load_agent_config
         try:
-            agent_cfg = load_agent_config()
+            # Use yaml_path if available (stored in subclasses usually, but check self)
+            yaml_path = getattr(self, 'yaml_path', None)
+            agent_cfg = load_agent_config(yaml_path)
             rating_scale = agent_cfg.get_shared("rating_scale", "")
             if rating_scale:
                 template_vars["rating_scale"] = rating_scale
         except:
             pass  # Fallback silently if config loading fails
+
         
         # Format the prompt
         formatted = SafeFormatter().format(template, **template_vars)
@@ -460,7 +466,8 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         prompt_templates: Dict[str, str] = None,
         memory_engine: Optional[MemoryEngine] = None,
         trust_verbalizer: Optional[Callable[[float, str], str]] = None,
-        dynamic_whitelist: List[str] = None
+        dynamic_whitelist: List[str] = None,
+        yaml_path: Optional[str] = None
     ):
         providers = [
             DynamicStateProvider(dynamic_whitelist),
@@ -476,22 +483,32 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         super().__init__(
             agents=agents, 
             prompt_templates=prompt_templates, 
-            providers=providers
+            providers=providers,
+            yaml_path=yaml_path
         )
+
         self.hub = hub
         self.skill_registry = skill_registry
         self.global_news = global_news or []
         self.trust_verbalizer = trust_verbalizer
+        self.yaml_path = yaml_path
+
 
     def build(self, agent_id: str, **kwargs) -> Dict[str, Any]:
         """Build context using the InteractionHub's tiered logic and any additional providers."""
+        agent = self.agents.get(agent_id)
         context = self.hub.build_tiered_context(agent_id, self.agents, self.global_news)
+        
+        # Ensure critical metadata is at top level for providers/formatter
+        context["agent_id"] = agent_id
+        context["agent_type"] = getattr(agent, 'agent_type', 'default') if agent else 'default'
         
         # Trigger all providers in sequence (e.g. SystemPromptProvider)
         for provider in self.providers:
             provider.provide(agent_id, self.agents, context, **kwargs)
             
         return context
+
 
     def format_prompt(self, context: Dict[str, Any]) -> str:
         """
@@ -501,8 +518,12 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         # 1. Prepare template variables
         template_vars = {}
         
+        # Robust Agent Type Extraction (Priority: Context top-level -> Personal)
+        agent_type = context.get('agent_type') or context.get('personal', {}).get('agent_type', 'default')
+        
         # Flatten System (Strategic)
         template_vars["system_prompt"] = context.get('system_prompt', "")
+
 
         # Flatten Personal (Tier 0)
         p = context.get('personal', {})
@@ -551,12 +572,14 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         agent_id = p.get('id')
         agent = self.agents.get(agent_id)
         
-        options_text = ""
-        valid_choices_text = ""
+        # Prefer pre-formatted options if provided (e.g. from custom build() override)
+        options_text = p.get('options_text', "")
+        valid_choices_text = p.get('valid_choices_text', "")
         
-        if agent:
+        if not options_text and agent:
             available_skills = agent.get_available_skills()
             formatted_options = []
+
             for i, skill_item in enumerate(available_skills, 1):
                 # Format: "1. Skill Description"
                 skill_id = skill_item.split(": ", 1)[0] if ": " in skill_item else skill_item
@@ -577,20 +600,35 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         template_vars["valid_choices_text"] = valid_choices_text
         template_vars["skills_text"] = options_text # Alias
         
-        # 3. Response Format (from YAML config via ResponseFormatBuilder)
+        # 3. Response Format & Rating Scale (from YAML config)
         try:
             from broker.components.response_format import ResponseFormatBuilder
             from broker.utils.agent_config import load_agent_config
-            cfg = load_agent_config()
+            yaml_path = getattr(self, 'yaml_path', None)
+            cfg = load_agent_config(yaml_path)
+            
+            # Inject rating_scale (Shared)
+            rating_scale = cfg.get_shared("rating_scale", "")
+            if rating_scale:
+                template_vars["rating_scale"] = rating_scale
+                
+            # Build Response Format
+            # Use canonical agent_type for config lookup
             agent_config = cfg.get(agent_type)
-            shared_config = {"response_format": cfg.get_shared("response_format", {})}
-            rfb = ResponseFormatBuilder(agent_config, shared_config)
-            response_format_block = rfb.build(valid_choices_text=valid_choices_text)
-            if response_format_block:
-                template_vars["response_format"] = response_format_block
+            if agent_config:
+                shared_config = {"response_format": cfg.get_shared("response_format", {})}
+                rfb = ResponseFormatBuilder(agent_config, shared_config)
+                response_format_block = rfb.build(valid_choices_text=valid_choices_text)
+                if response_format_block:
+                    template_vars["response_format"] = response_format_block
+            else:
+                logger.warning(f"[Context:Warning] No config found for agent_type '{agent_type}' in {yaml_path}")
         except Exception as e:
-            # Fallback silently if ResponseFormatBuilder not configured
+            logger.error(f"[Context:Error] Failed to inject response_format/rating_scale: {e}")
             pass
+
+
+
         
         # 4. Use template (Generic lookup)
         agent_type = p.get('agent_type', 'default')
@@ -726,8 +764,10 @@ def create_context_builder(
             agents=agents,
             hub=hub,
             prompt_templates=templates,
-            memory_engine=memory_engine
+            memory_engine=memory_engine,
+            yaml_path=yaml_path
         )
+
     
     return BaseAgentContextBuilder(
         agents=agents,
