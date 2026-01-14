@@ -1,16 +1,18 @@
 # =============================================================================
-# SHARED DEFINITIONS
+# SHARED DEFINITIONS (Reusable across agent types)
 # =============================================================================
 shared:
-  rating_scale: "VL=Very Low, L=Low, M=Medium, H=High, VH=Very High"
+  rating_scale: |
+    ### RATING SCALE (You MUST use EXACTLY one of these codes):
+    VL = Very Low | L = Low | M = Medium | H = High | VH = Very High
 
 # =============================================================================
 # HOUSEHOLD AGENT TYPE
 # =============================================================================
 household:
-  description: "Household agents making adaptation decisions (Appraisal Only Edition)"
+  description: "Household agents making adaptation decisions based on PMT"
 
-  # Prompt Template (FINAL Parity Narrative + Universal V20 Format - 2 Indicators)
+  # Prompt Template (FINAL version aligned)
   prompt_template: |
     You are a homeowner in a city, with a strong attachment to your community. {elevation_status_text}
     Your memory includes:
@@ -19,18 +21,24 @@ household:
     You currently {insurance_status} flood insurance.
     You {trust_insurance_text} the insurance company. You {trust_neighbors_text} your neighbors' judgment.
 
-    Evaluate your situation by considering these factors:
-    - Threat Appraisal: Perceived Severity (how serious damage feels) & Vulnerability (likelihood of flood).
-    - Coping Appraisal: Response Efficacy (effectiveness of actions) & Self-Efficacy (financial and physical ability).
+    Using the Protection Motivation Theory, evaluate your current situation by considering the following factors:
+    - Perceived Severity: How serious the consequences of flooding feel to you.
+    - Perceived Vulnerability: How likely you think you are to be affected.
+    - Response Efficacy: How effective you believe each action is.
+    - Self-Efficacy: Your confidence in your ability to take that action.
+    - Response Cost: The financial and emotional cost of the action.
+    - Maladaptive Rewards: The benefit of doing nothing immediately.
 
     Now, choose one of the following actions:
     {options_text}
-    Note: If no flood occurred this year, since no immediate threat, most people would choose "Do Nothing" (Option 4/3).
+    Note: If no flood occurred this year, since no immediate threat, most people would choose "Do Nothing."
     Note: If your Coping Appraisal is Low (VL or L), you CANNOT choose expensive actions like "Elevate House" or "Relocate".
 
-    Rating Scale: {rating_scale}
+    {rating_scale}
 
-    Respond only using the exact JSON format below. Do NOT include conversational text.
+    Please respond using the exact JSON format below. Do NOT include any markdown symbols or conversational text.
+    Use EXACTLY one of: VL, L, M, H, VH for each label.
+
     <<<DECISION_START>>>
     {{
       "threat_appraisal": {{"label": "VL/L/M/H/VH", "reason": "Reason for threat level."}},
@@ -40,7 +48,7 @@ household:
     }}
     <<<DECISION_END>>>
 
-  # Parsing & Skill Mapping (Preserving EXACT FINAL parity mapping)
+  # Parsing & Skill Mapping
   parsing:
     decision_keywords: ["decision"]
     default_skill: "do_nothing"
@@ -48,17 +56,19 @@ household:
     full_disclosure: true
     strict_mode: true
 
-    # Baseline Skill Mapping (Non-Elevated: 1=FI, 2=HE, 3=RL, 4=DN; Elevated: 1=FI, 2=RL, 3=DN)
+    # Baseline Skill Mapping (numeric 1-4)
     skill_map_non_elevated:
       "1": "buy_insurance"
       "2": "elevate_house"
       "3": "relocate"
       "4": "do_nothing"
+
     skill_map_elevated:
       "1": "buy_insurance"
       "2": "relocate"
       "3": "do_nothing"
 
+    # Construct mappings (Robust Regex for the "M" issue)
     constructs:
       TP_LABEL:
         { keywords: ["threat_appraisal"], regex: "(?i)\\b(VL|L|M|H|VH)\\b" }
@@ -67,15 +77,19 @@ household:
         { keywords: ["coping_appraisal"], regex: "(?i)\\b(VL|L|M|H|VH)\\b" }
       CP_REASON: { keywords: ["coping_appraisal"], regex: ".*" }
 
-  # Available Actions
+  # Available Actions (mapped to Skill Registry IDs)
   actions:
     - id: buy_insurance
+      aliases: ["FI", "insurance"]
       description: "Purchase flood insurance"
     - id: elevate_house
+      aliases: ["HE", "elevate", "elevation"]
       description: "Elevate house structure"
     - id: relocate
+      aliases: ["RL", "move"]
       description: "Relocate to safer area"
     - id: do_nothing
+      aliases: ["DN", "nothing", "wait"]
       description: "Take no action this year"
 
   # Governance Profiles
@@ -95,13 +109,13 @@ household:
             level: ERROR,
           }
         - {
-            id: relocation_anomaly,
+            id: relocation_threat_low,
             conditions: [{ construct: TP_LABEL, values: ["VL", "L"] }],
             blocked_skills: ["relocate"],
             level: ERROR,
           }
         - {
-            id: elevation_anomaly,
+            id: elevation_threat_low,
             conditions: [{ construct: TP_LABEL, values: ["VL", "L"] }],
             blocked_skills: ["elevate_house"],
             level: ERROR,
@@ -114,4 +128,20 @@ household:
             level: ERROR,
           }
 
-metadata: { version: "v23-sa-finalized-robust-universal" }
+    relaxed:
+      thinking_rules:
+        - {
+            construct: TP_LABEL,
+            when_above: ["H"],
+            blocked_skills: ["do_nothing"],
+            level: WARNING,
+          }
+      identity_rules:
+        - {
+            id: elevation_block,
+            precondition: elevated,
+            blocked_skills: ["elevate_house"],
+            level: WARNING,
+          }
+
+metadata: { version: "v22-sa-final-parity-robust" }
