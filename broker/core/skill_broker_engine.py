@@ -205,6 +205,23 @@ class SkillBrokerEngine:
                     "agent_type": agent_type,
                     **context
                 })
+                
+                # Check for missing critical LABEL constructs - trigger retry if missing
+                if skill_proposal and skill_proposal.reasoning:
+                    reasoning = skill_proposal.reasoning
+                    missing_labels = []
+                    if "TP_LABEL" not in reasoning:
+                        missing_labels.append("TP_LABEL")
+                    if "CP_LABEL" not in reasoning:
+                        missing_labels.append("CP_LABEL")
+                    
+                    if missing_labels and initial_attempts <= max_initial_attempts:
+                        logger.warning(f" [Broker:Retry] Missing LABEL constructs {missing_labels} for {agent_id}, attempt {initial_attempts}/{max_initial_attempts}")
+                        # Reset proposal to None to trigger retry
+                        skill_proposal = None
+                        prompt = self.model_adapter.format_retry_prompt(prompt, [f"Missing required constructs: {missing_labels}. Please include threat_appraisal and coping_appraisal labels."])
+                        continue
+                        
             except Exception as e:
                 if initial_attempts > max_initial_attempts:
                     logger.error(f" [Broker:Error] Failed to parse LLM output after {max_initial_attempts} attempts: {e}")
