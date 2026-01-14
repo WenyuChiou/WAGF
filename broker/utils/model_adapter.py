@@ -461,11 +461,16 @@ class UnifiedAdapter(ModelAdapter):
                 # Log the failed parse attempt for audit but do NOT use the digit
                 parsing_warnings.append(f"STRICT_MODE: Rejected digit extraction ({candidates[-1]}). Will trigger retry.")
 
-        # 7. Final Cleanup & Defaulting
         if not skill_name:
-            skill_name = parsing_cfg.get("default_skill", "do_nothing")
-            parse_layer = "default"
-            parsing_warnings.append(f"Default skill '{skill_name}' used.")
+            if strict_mode:
+                msg = f"STRICT_MODE: Failed to parse any valid decision for agent '{agent_id}'. Default fallback disabled."
+                parsing_warnings.append(msg)
+                logger.error(f" [Adapter:Error] {msg}")
+                return None # Return None to trigger retry/abort in Broker
+            else:
+                skill_name = parsing_cfg.get("default_skill", "do_nothing")
+                parse_layer = "default"
+                parsing_warnings.append(f"Default skill '{skill_name}' used.")
 
         # Resolve to canonical ID via alias map
         skill_name = self.alias_map.get(skill_name.lower(), skill_name)
@@ -671,7 +676,7 @@ def deepseek_preprocessor(text: str) -> str:
     cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
     
     # 3. If cleaned is empty or very short, extract from inside think tags
-    if not cleaned or len(cleaned) < 20:
+    if not cleaned or len(cleaned) < 20 or re.match(r'^\[?N/A\]?$', cleaned, re.I):
         # Find think content
         think_match = re.search(r'<think>(.*?)(?:</think>|$)', text, flags=re.DOTALL)
         if think_match:
@@ -679,10 +684,10 @@ def deepseek_preprocessor(text: str) -> str:
             
             # Look for the final answer section within think
             decision_patterns = [
-                r'(threat appraisal.*?final decision:?\s*\d+.*)',  # Numerical decision
-                r'(threat appraisal.*?final decision:?\s*\w+.*)',  # Named decision
-                r'(final decision:?\s*.+)',  # Just decision
-                r'(決策|decision)[:：]\s*(.+)',  # With Chinese
+                r'(final decision:?\s*\d+.*)',  # Numerical decision
+                r'(final decision:?\s*\w+.*)',  # Named decision
+                r'(selected action:?\s*.+)',     # Selected action
+                r'(決策|decision)[:：]\s*(.+)',  # With Chinese/Global markers
             ]
             for pattern in decision_patterns:
                 match = re.search(pattern, inner, re.IGNORECASE | re.DOTALL)
@@ -690,14 +695,16 @@ def deepseek_preprocessor(text: str) -> str:
                     return match.group(0).strip()
             
             # If inner has any decision-like content, take the end of it
-            keywords = ['decide', 'decision', 'appraisal', 'threat', 'coping', '1', '2', '3', '4']
-            if any(kw in inner.lower() for kw in keywords):
-                return inner[-800:] if len(inner) > 800 else inner
+            # This is a generic heuristic: look for trailing content that mentions decision keywords
+            decision_kws = ['decide', 'decision', 'action', 'choice', 'id']
+            if any(kw in inner.lower() for kw in decision_kws):
+                return inner[-500:] if len(inner) > 500 else inner
             
             # Return inner if cleaned is empty
             if not cleaned and inner:
                 return inner
     
+    # Final check: if it's literally [N/A], try to keep it for the alias map to find
     return cleaned if cleaned else text # Fallback to original text if everything failed
 
 

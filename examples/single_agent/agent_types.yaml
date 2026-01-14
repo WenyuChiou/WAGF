@@ -154,16 +154,68 @@ household:
   # Available Actions (mapped to Skill Registry IDs)
   actions:
     - id: buy_insurance
-      aliases: ["FI", "insurance"]
+      aliases:
+        [
+          "FI",
+          "insurance",
+          "buy_insurance",
+          "buy flood insurance",
+          "Buy flood insurance",
+          "[FI]",
+          "[insurance]",
+          "[buy_insurance]",
+          "[buy flood insurance]",
+          "[Buy flood insurance]",
+        ]
       description: "Purchase flood insurance"
     - id: elevate_house
-      aliases: ["HE", "elevate", "elevation"]
+      aliases:
+        [
+          "HE",
+          "elevate",
+          "elevation",
+          "elevate_house",
+          "elevate house",
+          "Elevate your house",
+          "Elevate house",
+          "[HE]",
+          "[elevate]",
+          "[elevation]",
+          "[elevate_house]",
+          "[elevate house]",
+          "[Elevate your house]",
+          "[Elevate house]",
+        ]
       description: "Elevate house structure"
     - id: relocate
-      aliases: ["RL", "move"]
+      aliases:
+        [
+          "RL",
+          "move",
+          "relocate",
+          "Relocate",
+          "[RL]",
+          "[move]",
+          "[relocate]",
+          "[Relocate]",
+        ]
       description: "Relocate to safer area"
     - id: do_nothing
-      aliases: ["DN", "nothing", "wait"]
+      aliases:
+        [
+          "DN",
+          "nothing",
+          "wait",
+          "do_nothing",
+          "Do nothing",
+          "Do Nothing",
+          "[DN]",
+          "[nothing]",
+          "[wait]",
+          "[do_nothing]",
+          "[Do nothing]",
+          "[Do Nothing]",
+        ]
       description: "Take no action this year"
 
   # Governance Profiles

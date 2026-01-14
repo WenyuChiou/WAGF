@@ -119,63 +119,64 @@ class SkillBrokerEngine:
         else:
             memory_pre = list(raw_mem).copy() if raw_mem else []
         
-        # ② LLM output → ModelAdapter → SkillProposal
+        # ② LLM output → Parsing (with retry support)
         prompt = self.context_builder.format_prompt(context)
-        res = llm_invoke(prompt)
+        raw_output = llm_invoke(prompt)
         
-        # Handle both legacy (str) and new (content, stats) returns
-        if isinstance(res, tuple):
-            raw_output, _ = res  # Stats not used in this legacy version yet
-        else:
-            raw_output = res
-        
-        # Pass the full context to model adapter for smart variant resolution
-        skill_proposal = self.model_adapter.parse_output(raw_output, {
+        # Handle legacy returns (stats)
+        if isinstance(raw_output, tuple):
+            raw_output, _ = raw_output
+            
+        parse_ctx = {
             "agent_id": agent_id,
             "agent_type": agent_type,
-            **context  # Pass all context flags (elevated, etc.)
-        })
-        
-        if skill_proposal is None:
-            self.stats["aborted"] += 1
-            logger.error(f" [Adapter:Error] Failed to parse proposal for {agent_id}")
-            return self._create_result(SkillOutcome.ABORTED, None, None, None, ["Parse error"])
-        
-        # ③ Skill validation
+            **context
+        }
+        skill_proposal = self.model_adapter.parse_output(raw_output, parse_ctx)
+
+        # ③ Retry Loop (Handles BOTH Parsing Errors and Validation Violations)
+        retry_count = 0
         validation_context = {
             "agent_state": context,
             "agent_type": agent_type
         }
-        # Add any domain-specific event flags dynamically
         for k, v in context.items():
             if k.endswith("_event") or k.endswith("_occurred"):
                 validation_context[k] = v
-        
-        validation_results = self._run_validators(skill_proposal, validation_context)
-        all_valid = all(v.valid for v in validation_results)
-        
-        # Retry loop
-        retry_count = 0
-        while not all_valid and retry_count < self.max_retries:
+
+        while retry_count < self.max_retries:
+            # Case A: Parsing Failed
+            if skill_proposal is None:
+                retry_count += 1
+                logger.warning(f" [Broker:Retry] Parse failure for {agent_id}. Retrying {retry_count}/{self.max_retries}...")
+                retry_prompt = self.model_adapter.format_retry_prompt(prompt, ["Failed to parse decision. Please ensure you use the exact required JSON or Marker format."])
+                raw_output = llm_invoke(retry_prompt)
+                if isinstance(raw_output, tuple): raw_output = raw_output[0]
+                skill_proposal = self.model_adapter.parse_output(raw_output, parse_ctx)
+                continue # Re-evaluate the new proposal
+            
+            # Case B: Proposal exists, run validators
+            validation_results = self._run_validators(skill_proposal, validation_context)
+            if all(v.valid for v in validation_results):
+                break # Success!
+                
+            # Case C: Validation Failed
             retry_count += 1
+            logger.warning(f" [Broker:Retry] Validation failure for {agent_id}. Retrying {retry_count}/{self.max_retries}...")
             errors = [e for v in validation_results for e in v.errors]
             retry_prompt = self.model_adapter.format_retry_prompt(prompt, errors)
             raw_output = llm_invoke(retry_prompt)
-            
-            # Pass full context for audit access, but keep required keys at top level for backward compat
-            parse_ctx = context.copy()
-            parse_ctx.update({
-                "agent_id": agent_id,
-                "is_elevated": context.get("elevated", False),
-                "agent_type": agent_type
-            })
-            
+            if isinstance(raw_output, tuple): raw_output = raw_output[0]
             skill_proposal = self.model_adapter.parse_output(raw_output, parse_ctx)
-            
-            if skill_proposal:
-                logger.info(f" [Adapter:Retry] Attempting retry {retry_count} for {agent_id}...")
-                validation_results = self._run_validators(skill_proposal, validation_context)
-                all_valid = all(v.valid for v in validation_results)
+
+        # ④ Final Check after Loop
+        if skill_proposal is None:
+            self.stats["aborted"] += 1
+            logger.error(f" [Adapter:Error] Failed to parse proposal for {agent_id} after {retry_count} retries.")
+            return self._create_result(SkillOutcome.ABORTED, None, None, None, ["Persistent parse error"])
+
+        validation_results = self._run_validators(skill_proposal, validation_context)
+        all_valid = all(v.valid for v in validation_results)
         
         # ④ Create ApprovedSkill or use fallback
         if all_valid:
