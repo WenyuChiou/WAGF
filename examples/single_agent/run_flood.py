@@ -96,19 +96,36 @@ class FinalContextBuilder(TieredContextBuilder):
         elif isinstance(mem_val, list):
             personal['memory'] = "\n".join([f"- {m}" for m in mem_val])
         
-        # 5. Options Text Formatting
+        # 5. Options Text Formatting (with Shuffling to reduce positional bias)
         agent = self.agents[agent_id]
         available = agent.get_available_skills()
-        options = []
-        for i, skill_item in enumerate(available, 1):
+        
+        # Build option list with skill_id -> description mapping
+        option_items = []  # List of (skill_id, description)
+        for skill_item in available:
             skill_id = skill_item.split(": ", 1)[0] if ": " in skill_item else skill_item
             skill_def = self.skill_registry.get(skill_id) if self.skill_registry else None
             desc = skill_def.description if skill_def else (skill_item.split(": ", 1)[1] if ": " in skill_item else skill_item)
+            option_items.append((skill_id, desc))
+        
+        # SHUFFLE options to reduce positional bias (controlled by agent_id hash for reproducibility)
+        agent_seed = hash(agent_id) % 10000  # Reproducible per-agent seed
+        rng = random.Random(agent_seed)
+        rng.shuffle(option_items)
+        
+        # Build numbered options text and dynamic skill_map
+        options = []
+        dynamic_skill_map = {}  # Maps "1", "2", "3", "4" to shuffled skill IDs
+        for i, (skill_id, desc) in enumerate(option_items, 1):
             options.append(f"{i}. {desc}")
+            dynamic_skill_map[str(i)] = skill_id
         
         # INJECT INTO PERSONAL to ensure template_vars flattening picks it up early
         personal['options_text'] = "\n".join(options)
         personal['skills'] = personal['options_text'] # Alias
+        
+        # Pass dynamic skill_map to context for parser to use
+        personal['dynamic_skill_map'] = dynamic_skill_map
         
         # Valid choices text (e.g., "1, 2, or 3")
         if len(options) > 1:

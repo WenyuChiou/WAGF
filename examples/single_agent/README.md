@@ -81,6 +81,32 @@ ImportanceMemoryEngine(
 
 > [!NOTE] > **Relocation Exclusion**: In this refined analysis, agents who have already relocated are removed from the denominator for subsequent years. This prevents "ghost agents" from skewing the Do Nothing counts.
 
+---
+
+## Known Limitations (Per-Model)
+
+### Gemma 3 4B
+
+| Issue                    | Description                                                                                                                                                                          | Mitigation                                                                                                                                  |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Appraisal Uniformity** | Gemma consistently assigns `TP_LABEL=M` and `CP_LABEL=M` to all agents, regardless of context. This suggests the model has a "default" appraisal style that doesn't vary with input. | Option shuffling was added to improve decision diversity. Appraisal diversity may require more explicit prompt tuning or few-shot examples. |
+| **Parsing Success**      | ✅ 100% - No parsing issues observed (v3.2).                                                                                                                                         | N/A                                                                                                                                         |
+| **Reasoning Quality**    | ✅ Contextually appropriate - TP_REASON and CP_REASON correctly reference flood risk, neighbor actions, and available grants.                                                        | N/A                                                                                                                                         |
+
+### DeepSeek R1 8B
+
+| Issue             | Description                                               | Mitigation                                                            |
+| ----------------- | --------------------------------------------------------- | --------------------------------------------------------------------- |
+| **Inaction Bias** | 96.2% of decisions are `do_nothing` in early simulations. | Option shuffling may help, but appears less effective for this model. |
+
+### GPT-OSS Latest
+
+| Issue                     | Description                                                                            | Mitigation                                                                       |
+| ------------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| **Skill Name Variations** | Outputs abbreviated names like "HE", "FI", "insurance" instead of canonical skill IDs. | ✅ Fixed via `get_action_alias_map()` normalization layer in `model_adapter.py`. |
+
+---
+
 ## Benchmark Parity Analysis (v2.x vs v3.2)
 
 To verify the modular refactor (v3.2) does not introduce unintended stochastic shifts, we performed a **Chi-Square Goodness-of-Fit** test comparing the monolithic baseline ("Old") with the Window Memory modular version ("Window").
