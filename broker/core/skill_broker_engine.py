@@ -32,6 +32,7 @@ from ..components.context_builder import ContextBuilder, BaseAgentContextBuilder
 from ..utils.agent_config import GovernanceAuditor, load_agent_config
 from ..components.interaction_hub import InteractionHub
 from ..components.audit_writer import AuditWriter
+from ..components.skill_retriever import SkillRetriever
 
 
 class SkillBrokerEngine:
@@ -59,7 +60,8 @@ class SkillBrokerEngine:
         validators: List[AgentValidator],
         simulation_engine: Any,
         context_builder: Any,
-        config: Optional[AgentTypeConfig] = None, # Phase 12: Accept config for generic logging
+        config: Optional[Any] = None, # Phase 12: Accept config for generic logging
+        skill_retriever: Optional[SkillRetriever] = None, # Phase 28: Dynamic Skill Retrieval
         audit_writer: Optional[Any] = None,
         max_retries: int = 2,
         log_prompt: bool = False
@@ -69,6 +71,12 @@ class SkillBrokerEngine:
         self.validators = validators
         self.simulation_engine = simulation_engine
         self.context_builder = context_builder
+        # Phase 28: Universal RAG support. If no retriever provided, use default.
+        # Phase 32: Configure Global Skills (Always Available)
+        self.skill_retriever = skill_retriever or SkillRetriever(
+            top_n=3, 
+            global_skills=["do_nothing", "buy_insurance", "buy_contents_insurance"]
+        )
         self.config = config or load_agent_config() # Default if not provided
         self.audit_writer = audit_writer
         self.max_retries = max_retries
@@ -111,7 +119,39 @@ class SkillBrokerEngine:
         # ① Build bounded context (READ-ONLY)
         context = self.context_builder.build(agent_id, env_context=env_context)
         context_hash = self._hash_context(context)
+
+        # Phase 28: Dynamic Skill Retrieval (RAG)
+        # Re-alignment: Only apply RAG for advanced engines (Hierarchical, Importance, HumanCentric)
+        # to maintain parity for the baseline WindowMemoryEngine benchmarks.
+        should_rag = self.skill_retriever and context.get("available_skills")
+        if should_rag:
+            from broker.components.memory_engine import WindowMemoryEngine
+            # Safely check for WindowMemoryEngine to maintain legacy parity
+            mem_engine = getattr(self.context_builder, 'memory_engine', None)
+            if not mem_engine and hasattr(self.context_builder, 'hub'):
+                mem_engine = getattr(self.context_builder.hub, 'memory_engine', None)
+            
+            if isinstance(mem_engine, WindowMemoryEngine):
+                should_rag = False
         
+        if should_rag:
+            raw_skill_ids = context["available_skills"]
+            # Convert IDs to full definitions for retriever
+            eligible_skills = []
+            for sid in raw_skill_ids:
+                s_def = self.skill_registry.get(sid)
+                if s_def:
+                    eligible_skills.append(s_def)
+            
+            # Retrieve top relevant skills
+            retrieved_skills = self.skill_retriever.retrieve(context, eligible_skills)
+            print(f" [RAG] Retrieved {len(retrieved_skills)} relevant skills for {agent_id}")
+            
+            # Update context with retrieved skill IDs
+            context["available_skills"] = [s.skill_id for s in retrieved_skills]
+            # Also store full definitions for ContextBuilder to show descriptions if needed
+            context["retrieved_skill_definitions"] = retrieved_skills
+
         # Robust memory extraction for audit (handles nesting and stringification)
         raw_mem = context.get("memory")
         if raw_mem is None and "personal" in context:
@@ -133,30 +173,36 @@ class SkillBrokerEngine:
         total_llm_stats = {"llm_retries": 0, "llm_success": False}
         
         while initial_attempts <= max_initial_attempts and not skill_proposal:
-            res = llm_invoke(prompt)
-            # Handle both legacy (str) and new (content, stats) returns
-            if isinstance(res, tuple):
-                raw_output, llm_stats_obj = res
-                total_llm_stats["llm_retries"] += llm_stats_obj.retries
-                total_llm_stats["llm_success"] = llm_stats_obj.success
-            else:
-                raw_output = res
-                # Fallback to global stats if legacy
-                from ..utils.llm_utils import get_llm_stats
-                stats = get_llm_stats()
-                total_llm_stats["llm_retries"] += stats.get("current_retries", 0)
-                total_llm_stats["llm_success"] = stats.get("current_success", True)
+            initial_attempts += 1
+            try:
+                res = llm_invoke(prompt)
+                # Handle both legacy (str) and new (content, stats) returns
+                if isinstance(res, tuple):
+                    raw_output, llm_stats_obj = res
+                    total_llm_stats["llm_retries"] += llm_stats_obj.retries
+                    total_llm_stats["llm_success"] = llm_stats_obj.success
+                else:
+                    raw_output = res
+                    # Fallback to global stats if legacy
+                    from ..utils.llm_utils import get_llm_stats
+                    stats = get_llm_stats()
+                    total_llm_stats["llm_retries"] += stats.get("current_retries", 0)
+                    total_llm_stats["llm_success"] = stats.get("current_success", True)
+                
+                # Pass full context for audit access
+                skill_proposal = self.model_adapter.parse_output(raw_output, {
+                    "agent_id": agent_id,
+                    "agent_type": agent_type,
+                    **context
+                })
+            except Exception as e:
+                if initial_attempts > max_initial_attempts:
+                    print(f" [Broker:Error] Failed to parse LLM output after {max_initial_attempts} attempts: {e}")
+                    raise
+                print(f" [Broker:Retry] Parsing failed ({initial_attempts}/{max_initial_attempts}): {e}")
+                # Build retry prompt
+                prompt = self.model_adapter.format_retry_prompt(prompt, [str(e)])
             
-            skill_proposal = self.model_adapter.parse_output(raw_output, {
-                "agent_id": agent_id,
-                "agent_type": agent_type,
-                **context
-            })
-            if not skill_proposal:
-                initial_attempts += 1
-                if initial_attempts <= max_initial_attempts:
-                    print(f" [LLM:Retry] No parsable output from {agent_id}. Retrying ({initial_attempts}/{max_initial_attempts})...")
-        
         if skill_proposal is None:
             self.stats["aborted"] += 1
             print(f" [LLM:Error] Model returned unparsable output after {max_initial_attempts+1} attempts for {agent_id}.")
