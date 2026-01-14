@@ -119,13 +119,23 @@ household:
             level: WARNING,
             message: "Warning: High Threat but inaction chosen. Consider protective action.",
           }
-        coping_alignment:
+        # VL Coping + Expensive Action = CRITICAL ERROR (must retry)
+        coping_critical:
           {
             construct: CP_LABEL,
-            when_above: ["VL", "L", "Very Low", "Low"],
+            when_above: ["VL", "Very Low"],
             blocked_skills: ["elevate_house", "relocate"],
             level: ERROR,
-            message: "Logic Error: Low Coping but expensive action attempted.",
+            message: "Critical: Very Low Coping but expensive action attempted. Must choose affordable action.",
+          }
+        # L Coping + Expensive Action = Warning (log but allow)
+        coping_warning:
+          {
+            construct: CP_LABEL,
+            when_above: ["L", "Low"],
+            blocked_skills: ["elevate_house", "relocate"],
+            level: WARNING,
+            message: "Warning: Low Coping but expensive action attempted. Consider affordable options.",
           }
         relocation_anomaly:
           {
