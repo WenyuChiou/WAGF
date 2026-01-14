@@ -75,11 +75,18 @@ def get_preprocessor(p_cfg: Dict[str, Any]) -> Callable[[str], str]:
     p_type = p_cfg.get("type", "identity").lower()
     if p_type == "deepseek":
         return deepseek_preprocessor
-    elif p_type == "json":
-        return json_preprocessor
+    elif p_type == "json_extract":
+        return json_extract_preprocessor
+    elif p_type == "smart_repair":
+        return SmartRepairPreprocessor(p_cfg.get("quote_values"))
     elif p_type == "regex":
         return GenericRegexPreprocessor(p_cfg.get("patterns", []))
     return lambda x: x
+
+
+    return lambda x: x
+
+
 
 class UnifiedAdapter(ModelAdapter):
     """
@@ -227,25 +234,64 @@ class UnifiedAdapter(ModelAdapter):
                 
             data = json.loads(json_text)
             if isinstance(data, dict):
-                # Extract decision
-                decision_val = data.get("decision") or data.get("choice") or data.get("action")
+                # Robust case-insensitive key lookup
+                data_lowered = {k.lower(): v for k, v in data.items()}
+                
+                # Extract decision (Generalized: Use keywords from config)
+                decision_kws = parsing_cfg.get("decision_keywords", ["decision", "choice", "action"])
+                decision_val = None
+                for kw in decision_kws:
+                    decision_val = data_lowered.get(kw.lower())
+                    if decision_val is not None: break
+
+
                 
                 # Resolve decision
                 if decision_val is not None:
-                    # Case 1: Direct mapping (int or exact digit string)
-                    if str(decision_val) in skill_map:
-                        skill_name = skill_map[str(decision_val)]
-                    # Case 2: String like "1. Buy Insurance" or "Option 1"
-                    elif isinstance(decision_val, str):
-                        digit_match = re.search(r'(\d+)', decision_val)
-                        if digit_match and digit_match.group(1) in skill_map:
-                            skill_name = skill_map[digit_match.group(1)]
-                        else:
-                            # Search for skill names in string
-                            for skill in valid_skills:
-                                if skill.lower() in decision_val.lower():
-                                    skill_name = skill
-                                    break
+                    # Case 0: Nested dict (some models output {"action": {"choice": 1}})
+
+
+                    if isinstance(decision_val, dict):
+                        decision_val = decision_val.get("choice") or decision_val.get("id") or decision_val.get("value")
+                    
+                    if decision_val is not None:
+                        # Case 1: Direct mapping (int or exact digit string)
+                        if str(decision_val) in skill_map:
+                            skill_name = skill_map[str(decision_val)]
+                        # Case 2: String like "1. Buy Insurance" or "Option 1"
+                        elif isinstance(decision_val, str):
+                            digit_match = re.search(r'(\d+)', decision_val)
+                            if digit_match and digit_match.group(1) in skill_map:
+                                skill_name = skill_map[digit_match.group(1)]
+                            else:
+                                # Search for skill names in string (Fuzzy match)
+                                decision_norm = decision_val.lower().replace("_", " ").replace("-", " ")
+                                for skill in valid_skills:
+                                    skill_norm = skill.lower().replace("_", " ").replace("-", " ")
+                                    if skill_norm in decision_norm:
+                                        skill_name = skill
+                                        break
+                                # Also check alias map directly
+                                # This handles "Buy Insurance" -> "buy_insurance" or "DN" -> "do_nothing"
+                                for alias, canonical in skill_map.items():
+                                    alias_norm = alias.lower().replace("_", " ").replace("-", " ")
+                                    if alias_norm in decision_norm:
+                                        skill_name = canonical
+                                        break
+                
+                # RECOVERY: If JSON parsed but no decision found, look for "Naked Digit" after the JSON block
+                if not skill_name:
+                    after_json = cleaned_target[cleaned_target.rfind("}")+1:].strip()
+                    # Look for digits at start OR with some context (like "Decision: 4")
+                    digit_match = re.search(r'(?:decision|choice|id|:)?\s*(\d)\b', after_json, re.IGNORECASE)
+                    if digit_match and digit_match.group(1) in skill_map:
+                        skill_name = skill_map[digit_match.group(1)]
+                        parse_layer = "json_plus_digit"
+
+
+
+
+
                     
                     if skill_name:
                         parse_layer = "json"
@@ -260,22 +306,45 @@ class UnifiedAdapter(ModelAdapter):
                 # Get construct mapping from config for dynamic matching
                 construct_mapping = parsing_cfg.get("constructs", {}) if parsing_cfg else {}
 
-                for k, v in data.items():
-                    if k in ["decision", "choice", "action", "strategy", "confidence"]:
-                        continue
+                # Synonym Mapping (Now purely config-driven)
+                # If 'synonyms' is defined in YAML, use it. Otherwise, no synonym expansion.
+                SYNONYM_MAP = parsing_cfg.get("synonyms", {})
 
+
+
+
+                for k, v in data.items():
+                    if k.lower() in ["decision", "choice", "action", "strategy", "confidence"]:
+                        continue
+                    
                     # 1. Identify which constructs this JSON key 'k' might relate to
                     matched_names = []
-                    k_normalized = k.lower().replace("_", " ")
+                    k_normalized = k.lower().replace("_", " ").replace("-", " ")
+
                     for c_name, c_cfg in construct_mapping.items():
-                        keywords = c_cfg.get("keywords", [])
-                        if any(kw.lower() in k_normalized for kw in keywords):
+                        keywords = list(c_cfg.get("keywords", []))
+                        
+                        # Add internal synonyms for standard constructs
+                        # Check if any synonym base (e.g., 'tp', 'sp') is in the construct name
+                        for base_name, synonyms in SYNONYM_MAP.items():
+                            if base_name.lower() in c_name.lower():
+                                keywords.extend(synonyms)
+                        
+                        # Normalize keywords for matching
+                        keywords_normalized = [kw.lower().replace("_", " ") for kw in keywords]
+                        
+                        # Check if JSON key matches any keyword
+                        if any(kw in k_normalized for kw in keywords_normalized):
                             matched_names.append(c_name)
                     
-                    # Also check if the key is the construct name itself (case-insensitive)
+                    # Also check if the key directly matches a construct name (case-insensitive)
                     for c_name in construct_mapping.keys():
-                        if c_name.lower() in k.lower() and c_name not in matched_names:
-                            matched_names.append(c_name)
+                        c_name_norm = c_name.lower().replace("_", " ")
+                        if c_name_norm in k_normalized or k_normalized in c_name_norm:
+                            if c_name not in matched_names:
+                                matched_names.append(c_name)
+
+
                     
                     # 2. Extract values based on structure
                     if isinstance(v, dict):
@@ -414,21 +483,31 @@ class UnifiedAdapter(ModelAdapter):
         
         # 7. Demographic Grounding Audit (Phase 21)
         # Checks if qualitative anchors (Persona/History) are cited in reasoning
-        demo_audit = self._audit_demographic_grounding(reasoning, context)
+        demo_audit = self._audit_demographic_grounding(reasoning, context, parsing_cfg)
         reasoning["demographic_audit"] = demo_audit
+
         
         correlation_score = 0.0
         details = []
         if retrieved_memories and isinstance(retrieved_memories, list):
+            # Domain-agnostic audit keywords
+            audit_kws = list(parsing_cfg.get("audit_keywords", []))
+            # Fallback if empty
+            if not audit_kws:
+                audit_kws = ["choice", "decision", "action", "reason", "because"]
+            
+            kws_pattern = r'\b(' + '|'.join([re.escape(k) for k in audit_kws]) + r')\b'
+            
             for i, mem in enumerate(retrieved_memories):
                 mem_text = str(mem).lower()
-                # Focus on flood/adaptation keywords
-                kws = re.findall(r'\b(flood|water|damage|cost|neighbor|money|safe|protect|elevation|insurance|loss)\b', mem_text)
+                # Focus on configured keywords
+                kws = re.findall(kws_pattern, mem_text, re.IGNORECASE)
                 if kws:
-                    hits = [kw for kw in set(kws) if kw in combined_reasoning.lower()]
+                    hits = [kw for kw in set(kws) if kw.lower() in combined_reasoning.lower()]
                     if hits:
                         correlation_score += (len(hits) / len(set(kws))) * (1.0 / len(retrieved_memories))
                         details.append(f"Mem[{i}] hits: {hits}")
+
         
         reasoning["semantic_correlation_audit"] = {
             "score": round(correlation_score, 2),
@@ -482,12 +561,16 @@ class UnifiedAdapter(ModelAdapter):
             parse_layer=parse_layer
         )
         
-    def _audit_demographic_grounding(self, reasoning: Dict, context: Dict) -> Dict:
+    def _audit_demographic_grounding(self, reasoning: Dict, context: Dict, parsing_cfg: Dict = None) -> Dict:
         """
         Audit if the LLM cites the qualitative demographic anchors provided in context.
-        Generic implementation: Looks for overlap between 'narrative_persona'/'flood_experience'
+        Generic implementation: Looks for overlap between qualitative persona/history
         and the 'reasoning' fields.
         """
+
+        if parsing_cfg is None:
+            parsing_cfg = self.config
+            
         score = 0.0
         cited_anchors = []
         
@@ -501,8 +584,10 @@ class UnifiedAdapter(ModelAdapter):
         # 2. Extract Keywords (Simple stopword filtering)
         # Keywords to look for: "generation", "income", "years", "2012", "loss"
         blacklist = {"you", "are", "a", "the", "in", "of", "to", "and", "manageable", "resident", "household", "with", "this", "that", "have", "from"}
-        # Topic words that are too generic to count as grounding unless specific (like "flood")
-        topic_stopwords = {"flood", "floods", "flooding", "risk", "water"} 
+        # Topic words that are too generic to count as grounding
+        # v1.1: Load from config 'audit_stopwords'
+        topic_stopwords = set(parsing_cfg.get("audit_stopwords", ["decision", "choice", "action", "reason"]))
+ 
         
         anchors = set()
         
@@ -510,8 +595,9 @@ class UnifiedAdapter(ModelAdapter):
             if not text or text == "[N/A]": continue
             # Normalize and extract significant words
             clean_text = re.sub(r'[^\w\s]', ' ', text.lower()) 
-            words = set(w for w in clean_text.split() if len(w) > 4 and w not in blacklist)
+            words = set(w for w in clean_text.split() if len(w) > 4 and w not in blacklist and w not in topic_stopwords)
             anchors.update(words)
+
         
         if not anchors:
             return {"score": 0.0, "details": "No anchors found in context"}
@@ -615,7 +701,50 @@ def deepseek_preprocessor(text: str) -> str:
     return cleaned if cleaned else text # Fallback to original text if everything failed
 
 
-def json_preprocessor(text: str) -> str:
+class SmartRepairPreprocessor:
+    """
+    Generalized preprocessor to repair common LLM JSON errors.
+    Automatically quotes unquoted string values and repairs common syntax issues.
+    """
+    def __init__(self, specific_values: List[str] = None):
+        self.specific_values = [v.upper() for v in specific_values] if specific_values else None
+
+    def __call__(self, text: str) -> str:
+        if not text: return ""
+        
+        # 1. Quote unquoted string values (Generalized)
+        # Pattern: "key": Value -> "key": "Value"
+        # Excludes: true, false, null, and numbers
+        if self.specific_values:
+            # If specific labels are provided (like VL, L, M, H, VH)
+            labels = "|".join(re.escape(v) for v in self.specific_values)
+            text = re.sub(rf'([\'"]?\w+[\'"]?):\s*({labels})\b(?![@\w\'"])', r'\1: "\2"', text, flags=re.IGNORECASE)
+        else:
+            # Fully generic: Quote any word-like value that isn't true/false/null/number
+            # Pattern looks for : followed by an identifier that isn't a known JSON constant or number
+            def quote_match(match):
+                key_part = match.group(1)
+                val = match.group(2)
+                if val.lower() in ["true", "false", "null"] or re.match(r'^-?\d+(\.\d+)?$', val):
+                    return f'{key_part}: {val}'
+                return f'{key_part}: "{val}"'
+            
+            text = re.sub(r'([\'"]?\w+[\'"]?):\s*([a-zA-Z_][\w-]*)\b(?![@\w\'"])', quote_match, text)
+
+        # 2. Quote unquoted numeric IDs specifically for decision/choice keys
+        # Some models use: decision: 4 (unquoted)
+        text = re.sub(r'([\'"]?(?:decision|choice|action)[\'"]?):\s*(\d)\b(?![@\w\'"])', r'\1: "\2"', text, flags=re.IGNORECASE)
+        
+        # 3. Fix common missing commas
+        text = re.sub(r'("[\'"]?)\s*\n\s*(["\'\w])', r'\1,\n\2', text)
+        
+        return text
+
+
+def json_extract_preprocessor(text: str) -> str:
+
+
+
     """
     Preprocessor for models that may return JSON.
     Extracts text content from JSON if present.
@@ -652,6 +781,7 @@ def get_adapter(model_name: str) -> ModelAdapter:
     # All other models use standard adapter
     # (Llama, Gemma, GPT-OSS, OpenAI, Anthropic, etc.)
     return UnifiedAdapter()
+
 
 
 # =============================================================================

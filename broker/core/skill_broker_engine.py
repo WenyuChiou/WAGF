@@ -372,19 +372,37 @@ class SkillBrokerEngine:
             else:
                 self.stats["approved"] += 1
         else:
-            # Use per-agent default skill from parsing config
-            parsing_cfg = self.config.get_parsing_config(agent_type)
-            fallback = parsing_cfg.get("default_skill", self.skill_registry.get_default_skill())
+            # RETRY EXHAUSTION: Return the model's desired behavior but with REJECTED status
+            # As requested: "返回原本的行為才對 但是驗證的狀態要是Fail之類的"
+            # We use the last proposal's skill if it exists and was parsed successfully (even if invalid)
+            # If even parsing failed (parse_layer == default), we still use the default fallback to avoid crash
+            if skill_proposal and skill_proposal.parse_layer != "default":
+                approved_skill = ApprovedSkill(
+                    skill_name=skill_proposal.skill_name,
+                    agent_id=agent_id,
+                    approval_status="REJECTED",
+                    validation_results=validation_results,
+                    execution_mapping=self.skill_registry.get_execution_mapping(skill_proposal.skill_name) or "",
+                    parameters={}
+                )
+                outcome = SkillOutcome.REJECTED
+                logger.error(f" [Governance:Exhausted] {agent_id} | Retries failed. Proceeding with REJECTED choice: '{skill_proposal.skill_name}'")
+            else:
+                # Use per-agent default skill from parsing config
+                parsing_cfg = self.config.get_parsing_config(agent_type)
+                fallback = parsing_cfg.get("default_skill", self.skill_registry.get_default_skill())
 
-            approved_skill = ApprovedSkill(
-                skill_name=fallback,
-                agent_id=agent_id,
-                approval_status="REJECTED_FALLBACK",
-                validation_results=validation_results,
-                execution_mapping=self.skill_registry.get_execution_mapping(fallback) or "",
-                parameters={}
-            )
-            outcome = SkillOutcome.UNCERTAIN
+                approved_skill = ApprovedSkill(
+                    skill_name=fallback,
+                    agent_id=agent_id,
+                    approval_status="REJECTED_FALLBACK",
+                    validation_results=validation_results,
+                    execution_mapping=self.skill_registry.get_execution_mapping(fallback) or "",
+                    parameters={}
+                )
+                outcome = SkillOutcome.UNCERTAIN
+                logger.error(f" [Governance:Exhausted] {agent_id} | Parsing failed. Forcing fallback: '{fallback}'")
+
             self.stats["rejected"] += 1
             # Log final failure for the rules that caused fallout
             for v in validation_results:
@@ -424,7 +442,9 @@ class SkillBrokerEngine:
                 "timestamp": timestamp,
                 "seed": seed,
                 "agent_id": agent_id,
+                "validated": all_valid,
                 "_audit_priority": audit_priority, # Pass priority fields
+
                 "input": prompt if self.log_prompt else None,
                 "context_hash": context_hash,
                 "memory_pre": memory_pre,

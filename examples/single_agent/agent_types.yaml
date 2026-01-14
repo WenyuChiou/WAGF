@@ -57,25 +57,71 @@ household:
 
     {rating_scale}
 
-    Please respond using the exact JSON format below. Do NOT include any markdown symbols or conversational text.
-    Use EXACTLY one of: VL, L, M, H, VH for each label.
+    Please respond using the EXACT JSON format below.
+    - IMPORTANT: The "decision" field MUST be the NUMERIC ID (e.g. 1, 2, 3, or 4) from the available options list.
+    - Do NOT include any markdown symbols (like ```json), conversational text, or explanations outside the JSON.
+
+    - Use EXACTLY one of: VL, L, M, H, VH for each appraisal label.
+    - Ensure all keys match the format exactly.
 
     {response_format}
 
   # Parsing & Skill Mapping
   parsing:
-    decision_keywords: ["decision"]
+    decision_keywords: ["decision", "choice", "action", "selected_action"]
     default_skill: "do_nothing"
     global_skills: ["do_nothing", "buy_insurance", "buy_contents_insurance"]
     full_disclosure: true
     strict_mode: true
+    preprocessor:
+      { type: "smart_repair", quote_values: ["VL", "L", "M", "H", "VH"] }
+
+    # Audit Keywords (Domain-specific keywords moved here from code)
+    audit_keywords:
+      [
+        "flood",
+        "water",
+        "damage",
+        "cost",
+        "neighbor",
+        "money",
+        "safe",
+        "protect",
+        "elevation",
+        "insurance",
+        "loss",
+      ]
+    audit_stopwords: [\"flood\", \"floods\", \"flooding\", \"risk\", \"water\"]
+
+    # Synonym Mapping for Construct Extraction (Domain-specific, moved from code)
+    synonyms:
+      tp:
+        [
+          \"severity\",
+          \"vulnerability\",
+          \"threat\",
+          \"risk\",
+          \"danger\",
+          \"perceived_severity\",
+          \"perceived_vulnerability\",
+        ]
+      cp:
+        [
+          \"efficacy\",
+          \"self_efficacy\",
+          \"response_efficacy\",
+          \"coping\",
+          \"ability\",
+          \"effectiveness\",
+          \"response_cost\",
+        ]
 
     # Baseline Skill Mapping (numeric 1-4)
-    skill_map_non_elevated:
+    skill_map:
       "1": "buy_insurance"
       "2": "elevate_house"
-      "3": "relocate"
-      "4": "do_nothing"
+      "4": "relocate"
+      "3": "do_nothing"
 
     skill_map_elevated:
       "1": "buy_insurance"
@@ -85,11 +131,17 @@ household:
     # Construct mappings (Robust Regex for the "M" issue)
     constructs:
       TP_LABEL:
-        { keywords: ["threat_appraisal"], regex: "(?i)\\b(VL|L|M|H|VH)\\b" }
-      TP_REASON: { keywords: ["threat_appraisal"], regex: ".*" }
+        {
+          keywords: ["threat_appraisal", "threat"],
+          regex: "(?i)\\b(VL|L|M|H|VH)\\b",
+        }
+      TP_REASON: { keywords: ["threat_appraisal", "threat"], regex: ".*" }
       CP_LABEL:
-        { keywords: ["coping_appraisal"], regex: "(?i)\\b(VL|L|M|H|VH)\\b" }
-      CP_REASON: { keywords: ["coping_appraisal"], regex: ".*" }
+        {
+          keywords: ["coping_appraisal", "coping"],
+          regex: "(?i)\\b(VL|L|M|H|VH)\\b",
+        }
+      CP_REASON: { keywords: ["coping_appraisal", "coping"], regex: ".*" }
 
   log_fields: ["threat_appraisal", "coping_appraisal"]
 
