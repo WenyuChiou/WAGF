@@ -26,6 +26,7 @@ MODELS = [
     {"folder": "gemma3_4b_strict", "name": "Gemma 3 (4B)"},
     {"folder": "llama3_2_3b_strict", "name": "Llama 3.2 (3B)"},
     {"folder": "deepseek_r1_8b_strict", "name": "DeepSeek-R1 (8B)"},
+    {"folder": "gpt_oss_strict", "name": "GPT-OSS"},
 ]
 
 # Standard adaptation state colors
@@ -340,10 +341,11 @@ def analyze_gemma_failure(df: pd.DataFrame, audit_df: pd.DataFrame) -> dict:
     }
 
 
-def generate_3x3_comparison():
-    """Generate 3x3 Baseline vs Window vs Human-Centric comparison (3 models)."""
+def generate_comparison_chart():
+    """Generate 3x4 Baseline vs Window vs Human-Centric comparison (4 models)."""
     
-    fig, axes = plt.subplots(3, 3, figsize=(15, 12))
+    # 4 columns for 4 models
+    fig, axes = plt.subplots(3, 4, figsize=(20, 12))
     
     all_analysis = []
     
@@ -401,15 +403,10 @@ def generate_3x3_comparison():
     
     # Row labels
     pad = 5
-    axes[0,0].annotate("Baseline", xy=(0, 0.5), xytext=(-axes[0,0].yaxis.labelpad - pad, 0),
-                    xycoords=axes[0,0].yaxis.label, textcoords='offset points',
-                    size='large', ha='right', va='center', rotation=90, fontweight='bold')
-    axes[1,0].annotate("Window", xy=(0, 0.5), xytext=(-axes[1,0].yaxis.labelpad - pad, 0),
-                    xycoords=axes[1,0].yaxis.label, textcoords='offset points',
-                    size='large', ha='right', va='center', rotation=90, fontweight='bold')
-    axes[2,0].annotate("Human-Centric", xy=(0, 0.5), xytext=(-axes[2,0].yaxis.labelpad - pad, 0),
-                    xycoords=axes[2,0].yaxis.label, textcoords='offset points',
-                    size='large', ha='right', va='center', rotation=90, fontweight='bold')
+    for r, label in enumerate(["Baseline", "Window", "Human-Centric"]):
+        axes[r,0].annotate(label, xy=(0, 0.5), xytext=(-axes[r,0].yaxis.labelpad - pad, 0),
+                        xycoords=axes[r,0].yaxis.label, textcoords='offset points',
+                        size='large', ha='right', va='center', rotation=90, fontweight='bold')
                     
     plt.suptitle("Memory Engine Impact: Baseline vs Window vs Human-Centric", 
                  fontsize=16, fontweight='bold', y=0.98)
@@ -417,7 +414,7 @@ def generate_3x3_comparison():
     
     # Save chart
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    output_path = OUTPUT_DIR / "old_vs_window_vs_humancentric_3x3.png"
+    output_path = OUTPUT_DIR / "old_vs_window_vs_humancentric_3x4.png"
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     print(f"✅ Saved chart to: {output_path}")
     
@@ -450,7 +447,7 @@ def generate_readme_en(all_analysis: list):
         
         f.write("---\n\n")
         f.write("## Comparison Chart\n\n")
-        f.write("![Comparison](old_vs_window_vs_humancentric_3x3.png)\n\n")
+        f.write("![Comparison](old_vs_window_vs_humancentric_3x4.png)\n\n")
         f.write("*Note: Each year shows only ACTIVE agents (already-relocated agents excluded)*\n\n")
         
         f.write("---\n\n")
@@ -524,10 +521,10 @@ def generate_readme_en(all_analysis: list):
 
 
 def generate_sub_charts():
-    """Generate separate 2x3 charts for Old vs Window and Old vs Human-Centric."""
+    """Generate separate 2x4 charts for Old vs Window and Old vs Human-Centric."""
     
     # Chart 1: Old vs Window
-    fig1, axes1 = plt.subplots(2, 3, figsize=(15, 8))
+    fig1, axes1 = plt.subplots(2, 4, figsize=(20, 8))
     for i, model_config in enumerate(MODELS):
         old_df = load_old_data()
         window_df = load_memory_data(model_config["folder"], "window")
@@ -536,11 +533,9 @@ def generate_sub_charts():
     
     # Row labels
     pad = 5
-    axes1[0,0].annotate("Baseline", xy=(0, 0.5), xytext=(-axes1[0,0].yaxis.labelpad - pad, 0),
-                    xycoords=axes1[0,0].yaxis.label, textcoords='offset points',
-                    size='large', ha='right', va='center', rotation=90, fontweight='bold')
-    axes1[1,0].annotate("Window", xy=(0, 0.5), xytext=(-axes1[1,0].yaxis.labelpad - pad, 0),
-                    xycoords=axes1[1,0].yaxis.label, textcoords='offset points',
+    for r, label in enumerate(["Baseline", "Window"]):
+         axes1[r,0].annotate(label, xy=(0, 0.5), xytext=(-axes1[r,0].yaxis.labelpad - pad, 0),
+                    xycoords=axes1[r,0].yaxis.label, textcoords='offset points',
                     size='large', ha='right', va='center', rotation=90, fontweight='bold')
     
     # Legend
@@ -554,7 +549,7 @@ def generate_sub_charts():
     print(f"✅ Saved chart to: {output_path1}")
 
     # Chart 2: Old vs Human-Centric
-    fig2, axes2 = plt.subplots(2, 3, figsize=(15, 8))
+    fig2, axes2 = plt.subplots(2, 4, figsize=(20, 8))
     for i, model_config in enumerate(MODELS):
         old_df = load_old_data()
         importance_df = load_memory_data(model_config["folder"], "humancentric")
@@ -562,11 +557,9 @@ def generate_sub_charts():
         plot_stacked_bar(axes2[1, i], importance_df, f"Human-Centric: {model_config['name']}")
 
     # Row labels
-    axes2[0,0].annotate("Baseline", xy=(0, 0.5), xytext=(-axes2[0,0].yaxis.labelpad - pad, 0),
-                    xycoords=axes2[0,0].yaxis.label, textcoords='offset points',
-                    size='large', ha='right', va='center', rotation=90, fontweight='bold')
-    axes2[1,0].annotate("Human-Centric", xy=(0, 0.5), xytext=(-axes2[1,0].yaxis.labelpad - pad, 0),
-                    xycoords=axes2[1,0].yaxis.label, textcoords='offset points',
+    for r, label in enumerate(["Baseline", "Human-Centric"]):
+         axes2[r,0].annotate(label, xy=(0, 0.5), xytext=(-axes2[r,0].yaxis.labelpad - pad, 0),
+                    xycoords=axes2[r,0].yaxis.label, textcoords='offset points',
                     size='large', ha='right', va='center', rotation=90, fontweight='bold')
 
     fig2.legend(handles, STATE_ORDER, loc='lower center', ncol=5, fontsize=10, bbox_to_anchor=(0.5, 0.02))
@@ -605,7 +598,7 @@ def generate_readme_ch(all_analysis: list):
         f.write("---\n\n")
         f.write("## 比較圖表\n\n")
         f.write("### 綜合比較\n")
-        f.write("![比較圖](old_vs_window_vs_humancentric_3x3.png)\n\n")
+        f.write("![比較圖](old_vs_window_vs_humancentric_3x4.png)\n\n")
         f.write("### Window Memory 比較\n")
         f.write("![Window比較](old_vs_window_comparison.png)\n\n")
         f.write("### Human-Centric Memory 比較\n")
@@ -735,7 +728,7 @@ if __name__ == "__main__":
         print(f"  {model['name']}: Baseline={'✓' if old_exists else '✗'}, Window={'✓' if window_exists else '✗'}, Human-Centric={'✓' if importance_exists else '✗'}")
     
     # Generate chart and analysis
-    all_analysis = generate_3x3_comparison()
+    all_analysis = generate_comparison_chart()
     
     # Generate separate sub-charts
     generate_sub_charts()
