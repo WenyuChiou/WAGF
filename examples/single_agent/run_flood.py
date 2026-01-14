@@ -139,15 +139,8 @@ class FinalContextBuilder(TieredContextBuilder):
             
         return context
 
-    def format_prompt(self, context: Dict[str, Any]) -> str:
-        """Bypasses TieredContextBuilder.format_prompt to prevent generic override of options_text."""
-        p = context.get('personal', {})
-        agent_type = p.get('agent_type', 'default')
-        template = self.prompt_templates.get(agent_type, "")
-        
-        # Custom Formatter to flatten personal and options_text
-        from broker.components.context_builder import SafeFormatter
-        return SafeFormatter().format(template, **p)
+
+
 
 # --- 3. Simulation Environment ---
 class ResearchSimulation:
@@ -269,8 +262,8 @@ class FinalParityHook:
         print(f"[Year {year}] Stats: {stats_str}")
 
 # --- 5. Main Runner ---
-def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window"):
-    print(f"--- Llama {agents_count}-Agent 10-Year Benchmark (Final Parity Edition) ---")
+def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1):
+    print(f"--- Llama {agents_count}-Agent {years}-Year Benchmark (Final Parity Edition) ---")
     
     # 1. Load Registry & Prompt Template
     base_path = Path(__file__).parent
@@ -318,8 +311,10 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         agents=agents, 
         hub=hub, 
         skill_registry=registry,
-        prompt_templates={"household": household_template, "default": household_template}
+        prompt_templates={"household": household_template, "default": household_template},
+        yaml_path=str(agent_config_path)
     )
+
     # Select memory engine based on CLI argument
     if memory_engine_type == "importance":
         # Domain-specific categories for Flood scenario
@@ -365,7 +360,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         .with_memory_engine(memory_engine)
         .with_governance("strict", agent_config_path)
         .with_output(custom_output if custom_output else "results_modular")
-        .with_workers(args.workers)
+        .with_workers(workers)
     )
     
     runner = builder.build()

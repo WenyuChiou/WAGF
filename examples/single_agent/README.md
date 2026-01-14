@@ -1,8 +1,31 @@
-# Flood Adaptation Single-Agent Experiment
+This experiment simulates household flood adaptation decisions using LLM-based agents with the Governed Broker Framework. It compares agent behavior with and without the governance layer, utilizing a fully modularized configuration system that separates domain-specific logic from core framework code.
 
-## Overview
+## Modular Domain Configuration
 
-This experiment simulates household flood adaptation decisions using LLM-based agents with the Governed Broker Framework. It compares agent behavior with and without the governance layer.
+The framework uses a YAML-driven configuration (`agent_types.yaml`) to define domain-specific parameters. This allows the same core logic to be applied to different scenarios (Flood, Finance, etc.) without code changes.
+
+### Key Configuration Fields
+
+#### 1. Semantic Audit (`audit_keywords` & `audit_stopwords`)
+
+Used by the `GovernanceAuditor` to evaluate the content-reasoning alignment.
+
+- **`audit_keywords`**: Core domain terms. If the agent decision involves these (e.g., "insurance"), the auditor checks if the reasoning correctly mentions related factors retrieved from memory.
+- **`audit_stopwords`**: Common filler words to ignore during semantic extraction to reduce noise.
+
+#### 2. Robust Construct Extraction (`synonyms`)
+
+Maps various LLM outputs to standardized internal constructs used by Governance Rules.
+
+- **`tp` (Threat Perception)**: Maps variants like "severity", "danger", or "risk" to the canonical `TP_LABEL`.
+- **`cp` (Coping Perception)**: Maps variants like "efficacy", "cost", or "ability" to the canonical `CP_LABEL`.
+- This ensures that if Llama says "Risk: High" and Gemma says "Threat: High", the governance layer treats them identically.
+
+#### 3. Protection Motivation Theory (PMT) Mapping
+
+- **`skill_map`**: Maps numbered options (1, 2, 3...) to canonical skill IDs. Coupled with **Option Shuffling**, this prevents positional bias while maintaining consistent rule validation.
+
+---
 
 ## Memory & Retrieval System
 
@@ -68,67 +91,21 @@ ImportanceMemoryEngine(
 
 ---
 
-## Behavioral Analysis: OLD Baseline vs NEW Governed Framework
+## Memory Retrieval Benchmarks (2x4 Matrix)
 
-### Refined Adaptation Summary (Excluding Relocated Agents)
+The following matrix compares performance across four language models and two memory retrieval strategies.
 
-| Model          | Adaptation Rate (%) | Do Nothing Count | Key Skill Preference |
-| -------------- | ------------------- | ---------------- | -------------------- |
-| Gemma 3 4B     | 95.8%               | 38               | Elevation (770)      |
-| Llama 3.2 3B   | 28.9%               | 258              | Elevation (80)       |
-| DeepSeek-R1 8B | 83.2%               | 122              | Elevation (522)      |
-| GPT-OSS Latest | 81.5%               | 154              | Elevation (610)      |
+### Cross-Model Behavioral Summary (v3.2)
 
-> [!NOTE] > **Relocation Exclusion**: In this refined analysis, agents who have already relocated are removed from the denominator for subsequent years. This prevents "ghost agents" from skewing the Do Nothing counts.
+_Results pending final benchmark completion for Llama, Gemma, DeepSeek, and Aya (GPT-OSS)._
 
 ---
 
-## Known Limitations (Per-Model)
+## Technical Validation
 
-### Gemma 3 4B
-
-| Issue                    | Description                                                                                                                                                                          | Mitigation                                                                                                                                  |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Appraisal Uniformity** | Gemma consistently assigns `TP_LABEL=M` and `CP_LABEL=M` to all agents, regardless of context. This suggests the model has a "default" appraisal style that doesn't vary with input. | Option shuffling was added to improve decision diversity. Appraisal diversity may require more explicit prompt tuning or few-shot examples. |
-| **Parsing Success**      | ✅ 100% - No parsing issues observed (v3.2).                                                                                                                                         | N/A                                                                                                                                         |
-| **Reasoning Quality**    | ✅ Contextually appropriate - TP_REASON and CP_REASON correctly reference flood risk, neighbor actions, and available grants.                                                        | N/A                                                                                                                                         |
-
-### DeepSeek R1 8B
-
-| Issue             | Description                                               | Mitigation                                                            |
-| ----------------- | --------------------------------------------------------- | --------------------------------------------------------------------- |
-| **Inaction Bias** | 96.2% of decisions are `do_nothing` in early simulations. | Option shuffling may help, but appears less effective for this model. |
-
-### GPT-OSS Latest
-
-| Issue                     | Description                                                                            | Mitigation                                                                       |
-| ------------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| **Skill Name Variations** | Outputs abbreviated names like "HE", "FI", "insurance" instead of canonical skill IDs. | ✅ Fixed via `get_action_alias_map()` normalization layer in `model_adapter.py`. |
+Governance discipline is strictly enforced via the `strict` profile, ensuring that High Threat signals combined with "Do Nothing" actions are minimized across all models. The RAG system ensures that Global Skills remain always available for selection.
 
 ---
-
-## Benchmark Parity Analysis (v2.x vs v3.2)
-
-To verify the modular refactor (v3.2) does not introduce unintended stochastic shifts, we performed a **Chi-Square Goodness-of-Fit** test comparing the monolithic baseline ("Old") with the Window Memory modular version ("Window").
-
-### Statistical Verification (Chi-Square)
-
-| Model                | Chi2 Score | P-Value    | Parity Status                 |
-| -------------------- | ---------- | ---------- | ----------------------------- |
-| **Llama 3.2 (3B)**   | 6.58       | **0.160**  | ✅ **High Parity** (p > 0.05) |
-| **Gemma 3 (4B)**     | 68.34      | < 0.001    | 📈 **Improved Consistency**   |
-| **DeepSeek R1 (8B)** | 129.23     | < 0.001    | 📈 **Improved Consistency**   |
-| **GPT-OSS (20B)**    | 19.51      | **0.0006** | 📈 **Improved Consistency**   |
-
-> [!NOTE] > **Llama 3.2** demonstrates exceptional architectural parity ($p=0.16$), meaning the modular framework produces statistically identical decision distributions to the original implementation.
-> For other models, the "Significant" shift indicates a correction in behavior: **Validation Errors dropped from 6+ to near 0**, forcing the models to act on High Threat signals rather than defaulting to "Do Nothing".
-
-### Behavioral Validation
-
-- **Governance Discipline**: The `strict` profile successfully blocks "High Threat + Do Nothing" combinations that were prevalent in legacy versions.
-- **RAG Transparency**: Updated `SkillRetriever` ensures "Global Skills" (Insurance/Do Nothing) are always disclosed, preventing "hallucinated exhaustion" of options.
-
-![Old vs New Comparison](old_vs_new_comparison_2x4.png)
 
 ---
 
