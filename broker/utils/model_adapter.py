@@ -135,13 +135,8 @@ class UnifiedAdapter(ModelAdapter):
         
         # Load valid skills for the agent type to build alias map
         self.valid_skills = self.agent_config.get_valid_actions(agent_type)
-        self.alias_map = {}
-        for skill in self.valid_skills:
-            # Add self
-            self.alias_map[skill.lower()] = skill
-            # Add aliases from config if they exist
-            # Note: Aliases are handled within SkillRegistry usually, 
-            # but ModelAdapter needs them for direct string matching
+        # Build alias map from config (e.g., "HE" -> "elevate_house", "FI" -> "buy_insurance")
+        self.alias_map = self.agent_config.get_action_alias_map(agent_type)
             
     def _get_preprocessor_for_type(self, agent_type: str) -> Callable[[str], str]:
         """Get preprocessor for a specific agent type."""
@@ -454,6 +449,15 @@ class UnifiedAdapter(ModelAdapter):
                     construct_parts.append(f"{k.split('_')[0]}={v}")
             if construct_parts:
                 logger.info(f"  - Constructs: {' | '.join(construct_parts)}")
+
+        # 8. Skill Name Normalization (Cross-Model Fix)
+        # Convert aliases like "HE", "FI", "insurance" to canonical names
+        if skill_name:
+            normalized = self.alias_map.get(skill_name.lower())
+            if normalized:
+                if normalized != skill_name:
+                    logger.debug(f" [Adapter:Normalize] {skill_name} -> {normalized}")
+                skill_name = normalized
 
         return SkillProposal(
             agent_id=agent_id,

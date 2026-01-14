@@ -134,6 +134,26 @@ class AgentTypeConfig:
             valid.extend(action.get("aliases", []))
         return valid
     
+    def get_action_alias_map(self, agent_type: str) -> Dict[str, str]:
+        """Get a mapping from aliases (and canonical IDs) to canonical skill IDs.
+        
+        Example output:
+            {"buy_insurance": "buy_insurance", "fi": "buy_insurance", "insurance": "buy_insurance",
+             "elevate_house": "elevate_house", "he": "elevate_house", "elevate": "elevate_house", ...}
+        """
+        cfg = self.get(agent_type)
+        actions = cfg.get("actions", [])
+        alias_map = {}
+        for action in actions:
+            canonical = action["id"]
+            # Map canonical to itself
+            alias_map[canonical.lower()] = canonical
+            # Map all aliases to canonical
+            for alias in action.get("aliases", []):
+                alias_map[alias.lower()] = canonical
+        return alias_map
+
+    
     def get_validation_rules(self, agent_type: str) -> Dict[str, ValidationRule]:
         """Get validation rules as dict."""
         cfg = self.get(agent_type)
@@ -312,7 +332,20 @@ class AgentTypeConfig:
     def get_skill_map(self, agent_type: str, context: Dict[str, Any] = None) -> Dict[str, str]:
         """
         Get numeric skill map for an agent, optionally resolving variants based on context.
+        
+        Priority:
+        1. dynamic_skill_map from context (for shuffled options)
+        2. skill_variant-based map from YAML
+        3. Smart resolution based on boolean context vars
+        4. Default skill_map fallback
         """
+        # 0. Check for dynamic_skill_map from context (highest priority - used for option shuffling)
+        if context:
+            # Check both top-level and nested in 'personal'
+            dynamic_map = context.get("dynamic_skill_map") or context.get("personal", {}).get("dynamic_skill_map")
+            if dynamic_map:
+                return dynamic_map
+        
         parsing = self.get_parsing_config(agent_type)
         if not parsing:
             return {}

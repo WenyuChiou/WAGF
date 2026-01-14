@@ -41,8 +41,8 @@ household:
 
     <<<DECISION_START>>>
     {{
-      "threat_appraisal": {{"label": "M", "reason": "One sentence summary of how threatened you feel by any remaining flood risks."}},
-      "coping_appraisal": {{"label": "M", "reason": "One sentence summary of how well you think you can cope or act."}},
+      "threat_appraisal": {{"label": "[VL/L/M/H/VH]", "reason": "One sentence summary of how threatened you feel by any remaining flood risks."}},
+      "coping_appraisal": {{"label": "[VL/L/M/H/VH]", "reason": "One sentence summary of how well you think you can cope or act."}},
       "decision": {valid_choices_text}
     }}
     <<<DECISION_END>>>
