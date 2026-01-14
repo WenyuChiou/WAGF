@@ -23,7 +23,16 @@ from typing import Dict, List, Any
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from broker import ExperimentBuilder, MemoryEngine, WindowMemoryEngine, HumanCentricMemoryEngine
+from broker import (
+    ExperimentBuilder, 
+    MemoryEngine, 
+    WindowMemoryEngine, 
+    HumanCentricMemoryEngine,
+    TieredContextBuilder,
+    InteractionHub,
+    create_social_graph
+)
+from simulation.environment import TieredEnvironment
 from agents.base_agent import BaseAgent, AgentConfig, StateParam, Skill, PerceptionSource
 
 # Local imports from multi_agent directory
@@ -135,8 +144,28 @@ class MultiAgentHooks:
         self.flood_probability = 0.3
     
     def pre_year(self, year, env, agents):
-        """Randomly determine if flood occurs."""
+        """Randomly determine if flood occurs and resolve pending actions."""
         self.env["year"] = year
+        
+        # Phase 30: Resolve Pending Actions (Elevation / Buyout)
+        for agent in agents.values():
+            if agent.agent_type not in ["household_owner", "household_renter"]:
+                continue
+            pending = agent.dynamic_state.get("pending_action")
+            completion_year = agent.dynamic_state.get("action_completion_year")
+            
+            if pending and completion_year and year >= completion_year:
+                if pending == "elevation":
+                    agent.dynamic_state["elevated"] = True
+                    print(f" [LIFECYCLE] {agent.id} elevation COMPLETE.")
+                elif pending == "buyout":
+                    agent.dynamic_state["relocated"] = True
+                    print(f" [LIFECYCLE] {agent.id} buyout FINALIZED (left community).")
+                # Clear pending state
+                agent.dynamic_state["pending_action"] = None
+                agent.dynamic_state["action_completion_year"] = None
+        
+        # Determine if flood occurs
         self.env["flood_occurred"] = random.random() < self.flood_probability
         
         if self.env["flood_occurred"]:
@@ -170,13 +199,22 @@ class MultiAgentHooks:
             # print(f" [INS] Premium rate updated to: {self.env['premium_rate']:.1%}")
 
         # Sync household state after their decisions (buy_insurance, etc)
+        # Phase 30: Pending Actions for multi-year lifecycle
         elif agent.agent_type in ["household_owner", "household_renter"]:
+            current_year = self.env.get("year", 1)
+            
             if decision in ["buy_insurance", "buy_contents_insurance"]:
-                agent.dynamic_state["has_insurance"] = True
+                agent.dynamic_state["has_insurance"] = True  # Effective immediately
             elif decision == "elevate_house":
-                agent.dynamic_state["elevated"] = True
+                # Elevation takes 1 year to complete
+                agent.dynamic_state["pending_action"] = "elevation"
+                agent.dynamic_state["action_completion_year"] = current_year + 1
+                print(f" [LIFECYCLE] {agent.id} started elevation (completes Year {current_year + 1})")
             elif decision in ["relocate", "buyout_program"]:
-                agent.dynamic_state["relocated"] = True
+                # Buyout/Relocation takes 2 years to finalize
+                agent.dynamic_state["pending_action"] = "buyout"
+                agent.dynamic_state["action_completion_year"] = current_year + 2
+                print(f" [LIFECYCLE] {agent.id} applied for buyout (finalizes Year {current_year + 2})")
 
     def post_year(self, year, agents, memory_engine):
         """Apply damage and consolidation."""
@@ -220,15 +258,23 @@ def run_unified_experiment():
     parser.add_argument("--years", type=int, default=10, help="Simulation years")
     parser.add_argument("--output", type=str, default="examples/multi_agent/results_unified")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose LLM output")
+    parser.add_argument("--memory-engine", type=str, default="humancentric", 
+                        choices=["window", "humancentric", "hierarchical"], 
+                        help="Memory engine type")
+    parser.add_argument("--gossip", action="store_true", help="Enable neighbor gossip (SQ2)")
+    parser.add_argument("--initial-subsidy", type=float, default=0.50, help="Initial gov subsidy rate (SQ3)")
+    parser.add_argument("--initial-premium", type=float, default=0.02, help="Initial insurance premium rate (SQ3)")
     args = parser.parse_args()
 
     # 1. Init environment
-    env = {
-        "year": 1,
+    env_data = {
+        "subsidy_rate": args.initial_subsidy,
+        "premium_rate": args.initial_premium,
         "flood_occurred": False,
-        "subsidy_rate": 0.50,
-        "premium_rate": 0.02
+        "year": 1
     }
+    tiered_env = TieredEnvironment(global_state=env_data)
+
     
     # 2. Setup agents (Gov + Ins + Households)
     gov = create_government_agent()
@@ -241,10 +287,26 @@ def run_unified_experiment():
     all_agents = {a.id: a for a in [gov, ins] + households}
     
     # 3. Memory Engine
-    memory_engine = HumanCentricMemoryEngine(window_size=3)
+    if args.memory_engine == "humancentric":
+        memory_engine = HumanCentricMemoryEngine(window_size=3)
+    elif args.memory_engine == "hierarchical":
+        from broker.components.memory_engine import HierarchicalMemoryEngine
+        memory_engine = HierarchicalMemoryEngine(window_size=5, semantic_top_k=3)
+    else:
+        memory_engine = WindowMemoryEngine(window_size=3)
+    
+    # 3b. Social & Interaction Hub
+    agent_ids = list(all_agents.keys())
+    if args.gossip:
+        graph = create_social_graph("neighborhood", agent_ids, k=4)
+    else:
+        graph = create_social_graph("custom", agent_ids, edge_builder=lambda ids: []) # Isolated
+        
+    hub = InteractionHub(graph=graph, memory_engine=memory_engine, environment=tiered_env)
     
     # 4. Hooks
-    ma_hooks = MultiAgentHooks(env)
+    ma_hooks = MultiAgentHooks(tiered_env.global_state)
+
     
     # 5. Build Experiment
     builder = (
@@ -259,6 +321,14 @@ def run_unified_experiment():
             pre_year=ma_hooks.pre_year,
             post_step=ma_hooks.post_step,
             post_year=lambda year, agents: ma_hooks.post_year(year, agents, memory_engine)
+        )
+        .with_context_builder(
+            TieredContextBuilder(
+                agents=all_agents,
+                hub=hub,
+                memory_engine=memory_engine,
+                prompt_templates={} # Loaded from YAML via with_governance
+            )
         )
         .with_governance(
             profile="strict", 
