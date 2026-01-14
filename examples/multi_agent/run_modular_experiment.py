@@ -294,6 +294,23 @@ class MultiAgentContextBuilder(TieredContextBuilder):
             "subsidy_rate": env.get("subsidy_rate", 0.5),
             "options_text": context.get("options_text", ""), # Pre-shuffled options
             "rating_scale": "VL = Very Low | L = Low | M = Medium | H = High | VH = Very High",
+            "universal_format": """Respond only using the exact JSON format below. Do NOT include conversational text.
+<<<DECISION_START>>>
+{
+  "threat_perception": {"label": "VL/L/M/H/VH", "reason": "..."},
+  "coping_perception": {"label": "VL/L/M/H/VH", "reason": "..."},
+  "stakeholder_perception": {"label": "VL/L/M/H/VH", "reason": "..."},
+  "social_capital": {"label": "VL/L/M/H/VH", "reason": "..."},
+  "place_attachment": {"label": "VL/L/M/H/VH", "reason": "..."},
+  "decision": [Number],
+  "reasoning": "..."
+}
+<<<DECISION_END>>>""",
+            "criteria_definitions": """- TP (Threat): Perception of flood risk.
+- CP (Coping): Ability to afford and take action.
+- SP (Stakeholder): Trust in government/insurance.
+- SC (Social): Ties to neighbors and community.
+- PA (Place): Emotional bond to your current home."""
         }
         
         try:
@@ -528,6 +545,9 @@ def run_multi_agent_experiment(
                 "decision": decision,
                 "tp_level": final_constructs.get("TP", "MODERATE"),
                 "cp_level": final_constructs.get("CP", "MODERATE"),
+                "sp_level": final_constructs.get("SP", "MODERATE"),
+                "sc_level": final_constructs.get("SC", "MODERATE"),
+                "pa_level": final_constructs.get("PA", "MODERATE"),
                 "validated": validated,
                 "retries": attempts,
                 "elevated": hh.elevated,
