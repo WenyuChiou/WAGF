@@ -22,9 +22,9 @@
 
 ## 比較圖表
 
-![比較](old_vs_window_vs_importance_3x4.png)
+![比較圖](old_vs_window_vs_humancentric_3x3.png)
 
-*注：每年僅顯示活躍代理（已搬遷代理已排除）*
+*註：每年僅顯示**活躍**的代理（排除已搬遷的代理）*
 
 ---
 
