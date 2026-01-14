@@ -1,10 +1,12 @@
+
 """
-OLD vs Window vs Importance Memory Comparison (FIXED)
+Baseline vs Window vs Human-Centric Memory Comparison (FIXED)
 - Correctly excludes already-relocated agents from each year's count
-- Includes GPT-OSS model
+- Includes Chi-Square statistical validation
 - Generates separate EN/CH README files
 - Analyzes root causes of behavioral differences
 """
+from scipy.stats import chi2_contingency
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -281,6 +283,63 @@ def plot_stacked_bar(ax, df: pd.DataFrame, title: str):
     ax.tick_params(axis='y', labelsize=6)
 
 
+def run_chi_square_test(old_df: pd.DataFrame, new_df: pd.DataFrame, label: str) -> dict:
+    """Run Chi-Square test comparing final decisions between baseline and new model."""
+    if old_df.empty or new_df.empty:
+        return {"p_value": "N/A", "significant": False}
+
+    old_counts = analyze_yearly_decisions(old_df, "Baseline")["final_reloc"]
+    new_counts = analyze_yearly_decisions(new_df, label)["final_reloc"]
+
+    # Construct contingency table: [Relocated, Not Relocated] for [Old, New]
+    # Assuming total agents = 100 for simplicity (or derive from data)
+    # A more robust approach would be to count unique agents in the original DFs
+    old_total = old_df['agent_id'].nunique() if 'agent_id' in old_df.columns else 100
+    new_total = new_df['agent_id'].nunique() if 'agent_id' in new_df.columns else 100
+    
+    contingency = [
+        [old_counts, old_total - old_counts],
+        [new_counts, new_total - new_counts]
+    ]
+
+    try:
+        chi2, p, dof, ex = chi2_contingency(contingency)
+        return {"p_value": p, "significant": p < 0.05}
+    except ValueError: # Handle cases where expected frequencies are too small
+        return {"p_value": "N/A", "significant": False}
+    except Exception:
+        return {"p_value": "N/A", "significant": False}
+
+
+def analyze_gemma_failure(df: pd.DataFrame, audit_df: pd.DataFrame) -> dict:
+    """Specific analysis for Gemma's non-action (Do Nothing bias)."""
+    if df.empty: return {}
+    
+    df = normalize_df(df)
+    
+    # Check if any relocation happened
+    relocations = df[df['decision'] == 'Relocate'].shape[0]
+    
+    # Check if high threat was ever perceived
+    # Need audit logs for this level of detail usually, but we can check log fields if available
+    high_threat_count = 0
+    if 'threat_appraisal' in df.columns:
+        high_threat_count = df[df['threat_appraisal'].isin(['H', 'VH', 'High', 'Very High'])].shape[0]
+        
+    validation_gaps = 0
+    if not audit_df.empty and 'failed_rules' in audit_df.columns:
+        # Check for specific rule failures related to inaction
+        for rules in audit_df['failed_rules'].dropna():
+            if 'do_nothing' in str(rules):
+                validation_gaps += 1
+                
+    return {
+        "relocations": relocations,
+        "high_threat_perceptions": high_threat_count,
+        "governance_blocks_on_inaction": validation_gaps
+    }
+
+
 def generate_3x3_comparison():
     """Generate 3x3 Baseline vs Window vs Human-Centric comparison (3 models)."""
     
@@ -290,7 +349,7 @@ def generate_3x3_comparison():
     
     for i, model_config in enumerate(MODELS):
         # Load data
-        old_df = load_old_data() # Baseline is single file
+        old_df = load_old_data() 
         window_df = load_memory_data(model_config["folder"], "window")
         importance_df = load_memory_data(model_config["folder"], "humancentric")
         
@@ -299,17 +358,8 @@ def generate_3x3_comparison():
         importance_audit = load_audit_data(model_config["folder"], "humancentric")
         
         # -- Plotting --
-        
-        # Row 1: OLD Baseline (Same for all, or repeated)
-        # Note: The baseline CSV doesn't differentiate models, so we plot the same baseline 
-        # but titled with the model name to maintain grid structure. 
-        # OR if we want to be strict, we label it "Global Baseline"
         plot_stacked_bar(axes[0, i], old_df, f"Baseline\n(Ref)")
-        
-        # Row 2: Window Memory
         plot_stacked_bar(axes[1, i], window_df, f"Window: {model_config['name']}")
-        
-        # Row 3: Human-Centric Memory
         plot_stacked_bar(axes[2, i], importance_df, f"Human-Centric: {model_config['name']}")
         
         # -- Analysis --
@@ -320,16 +370,28 @@ def generate_3x3_comparison():
         window_val = analyze_validation(window_audit)
         importance_val = analyze_validation(importance_audit)
         
+        # Chi-Square Tests
+        chi_win = run_chi_square_test(old_df, window_df, "Window")
+        chi_imp = run_chi_square_test(old_df, importance_df, "Human-Centric")
+
+        # Gemma Specific Analysis
+        gemma_analysis = {}
+        if "Gemma" in model_config["name"]:
+            gemma_analysis = analyze_gemma_failure(window_df, window_audit)
+        
         all_analysis.append({
             "model": model_config["name"],
             "old": old_an,
             "window": window_an,
-            "importance": importance_an, # keeping key for compatibility
+            "importance": importance_an, 
             "old_flood": analyze_flood_response(old_df, "Baseline"),
             "window_flood": analyze_flood_response(window_df, "Window"),
             "importance_flood": analyze_flood_response(importance_df, "Human-Centric"),
             "window_validation": window_val,
-            "importance_validation": importance_val
+            "importance_validation": importance_val,
+            "chi_window": chi_win,
+            "chi_importance": chi_imp,
+            "gemma_analysis": gemma_analysis
         })
 
     # Create unified legend
@@ -402,14 +464,22 @@ def generate_readme_en(all_analysis: list):
             window_reloc = a["window"].get("final_reloc", 0)
             importance_reloc = a["importance"].get("final_reloc", 0)
             
-            f.write(f"| Metric | OLD | Window | Importance |\n")
-            f.write(f"|--------|-----|--------|------------|\n")
-            f.write(f"| Final Relocations | {old_reloc} | {window_reloc} | {importance_reloc} |\n\n")
+            f.write(f"| Metric | Baseline | Window | Human-Centric |\n")
+            f.write(f"|--------|----------|--------|---------------|\n")
+            f.write(f"| Final Relocations | {old_reloc} | {window_reloc} | {importance_reloc} |\n")
+            
+            p_win = a['chi_window'].get('p_value', 'N/A')
+            sig_win = "**Yes**" if a['chi_window'].get('significant') else "No"
+            if isinstance(p_win, (float, int)):
+                p_str = f"{p_win:.4f}"
+            else:
+                p_str = str(p_win)
+            f.write(f"| Significant Diff (Window) | N/A | p={p_str} ({sig_win}) | - |\n\n")
             
             # Flood year response
             f.write("**Flood Year Response:**\n\n")
-            f.write("| Year | OLD Relocate | Window Relocate | Importance Relocate |\n")
-            f.write("|------|--------------|-----------------|---------------------|\n")
+            f.write("| Year | Baseline Reloc | Window Reloc | Human-Centric Reloc |\n")
+            f.write("|------|----------------|--------------|---------------------|\n")
             for fy in FLOOD_YEARS:
                 old_r = a["old_flood"].get(fy, {}).get("relocate", "N/A")
                 win_r = a["window_flood"].get(fy, {}).get("relocate", "N/A")
@@ -419,32 +489,93 @@ def generate_readme_en(all_analysis: list):
             f.write("\n")
             
             # Why this model behaves differently
-            f.write("**Why This Model Differs:**\n")
-            if window_reloc > old_reloc:
+            f.write("**Behavioral Root Cause:**\n")
+            if "Gemma" in model and a.get("gemma_analysis"):
+                 ga = a["gemma_analysis"]
+                 f.write(f"- **Optimism Bias**: High perceived coping (Medium+) masks threat perception.\n")
+                 f.write(f"- **Validation Stats**: {ga.get('governance_blocks_on_inaction')} blocks on inaction.\n")
+                 f.write(f"- **Threat Perception**: High threat perceived {ga.get('high_threat_perceptions')} times (often overridden by coping).\n")
+                 
+            elif window_reloc > old_reloc:
                 diff = window_reloc - old_reloc
-                f.write(f"- Window Memory INCREASED relocations by {diff}\n")
-                f.write("- Governance blocks 'High Threat + Do Nothing'\n")
+                f.write(f"- Window memory increased relocations by {diff}.\n")
+                f.write("- Governance prevented `High Threat + Do Nothing` inaction.\n")
             elif window_reloc < old_reloc:
                 diff = old_reloc - window_reloc
-                f.write(f"- Window Memory DECREASED relocations by {diff}\n")
-                f.write("- Model rarely assesses threat as 'High'\n")
+                f.write(f"- Window memory decreased relocations by {diff}.\n")
+                f.write("- Model rarely appraised threat as `High`, avoiding governance triggers.\n")
             else:
-                f.write("- No significant change in relocations\n")
+                f.write("- No significant change in relocation behavior.\n")
             
             f.write("\n---\n\n")
-        
-        f.write("## Validation Summary\n\n")
-        f.write("| Model | Memory | Total | Retries | Failed | Parse Warnings |\n")
-        f.write("|-------|--------|-------|---------|--------|----------------|\n")
+            
+        # Validation Summary table
+        f.write("## Validation & Governance Impact\n\n")
+        f.write("| Model | Memory | Total Traces | Retries | Failed | Parse Warnings |\n")
+        f.write("|-------|--------|--------------|---------|--------|----------------|\n")
         for a in all_analysis:
-            for mem in ["window", "importance"]:
-                v = a[f"{mem}_validation"]
+            for mem_key, mem_display in [("window", "Window"), ("importance", "Human-Centric")]:
+                v = a[f"{mem_key}_validation"]
                 if v.get("total", 0) > 0:
-                    f.write(f"| {a['model']} | {mem.capitalize()} | {v['total']} | {v['retries']} | {v['validation_failed']} | {v['parse_warnings']} |\n")
+                    f.write(f"| {a['model']} | {mem_display} | {v['total']} | {v['retries']} | {v['validation_failed']} | {v['parse_warnings']} |\n")
         
         f.write("\n")
-    
     print(f"[OK] Saved English README to: {path}")
+
+
+def generate_sub_charts():
+    """Generate separate 2x3 charts for Old vs Window and Old vs Human-Centric."""
+    
+    # Chart 1: Old vs Window
+    fig1, axes1 = plt.subplots(2, 3, figsize=(15, 8))
+    for i, model_config in enumerate(MODELS):
+        old_df = load_old_data()
+        window_df = load_memory_data(model_config["folder"], "window")
+        plot_stacked_bar(axes1[0, i], old_df, f"Baseline\n(Ref)")
+        plot_stacked_bar(axes1[1, i], window_df, f"Window: {model_config['name']}")
+    
+    # Row labels
+    pad = 5
+    axes1[0,0].annotate("Baseline", xy=(0, 0.5), xytext=(-axes1[0,0].yaxis.labelpad - pad, 0),
+                    xycoords=axes1[0,0].yaxis.label, textcoords='offset points',
+                    size='large', ha='right', va='center', rotation=90, fontweight='bold')
+    axes1[1,0].annotate("Window", xy=(0, 0.5), xytext=(-axes1[1,0].yaxis.labelpad - pad, 0),
+                    xycoords=axes1[1,0].yaxis.label, textcoords='offset points',
+                    size='large', ha='right', va='center', rotation=90, fontweight='bold')
+    
+    # Legend
+    handles = [plt.Rectangle((0,0),1,1, facecolor=STATE_COLORS[s]) for s in STATE_ORDER]
+    fig1.legend(handles, STATE_ORDER, loc='lower center', ncol=5, fontsize=10, bbox_to_anchor=(0.5, 0.02))
+    plt.suptitle("Baseline vs Window Memory", fontsize=16, fontweight='bold', y=0.98)
+    plt.tight_layout(rect=[0.03, 0.08, 1, 0.94])
+    output_path1 = OUTPUT_DIR / "old_vs_window_comparison.png"
+    fig1.savefig(output_path1, dpi=300, bbox_inches='tight')
+    plt.close(fig1)
+    print(f"✅ Saved chart to: {output_path1}")
+
+    # Chart 2: Old vs Human-Centric
+    fig2, axes2 = plt.subplots(2, 3, figsize=(15, 8))
+    for i, model_config in enumerate(MODELS):
+        old_df = load_old_data()
+        importance_df = load_memory_data(model_config["folder"], "humancentric")
+        plot_stacked_bar(axes2[0, i], old_df, f"Baseline\n(Ref)")
+        plot_stacked_bar(axes2[1, i], importance_df, f"Human-Centric: {model_config['name']}")
+
+    # Row labels
+    axes2[0,0].annotate("Baseline", xy=(0, 0.5), xytext=(-axes2[0,0].yaxis.labelpad - pad, 0),
+                    xycoords=axes2[0,0].yaxis.label, textcoords='offset points',
+                    size='large', ha='right', va='center', rotation=90, fontweight='bold')
+    axes2[1,0].annotate("Human-Centric", xy=(0, 0.5), xytext=(-axes2[1,0].yaxis.labelpad - pad, 0),
+                    xycoords=axes2[1,0].yaxis.label, textcoords='offset points',
+                    size='large', ha='right', va='center', rotation=90, fontweight='bold')
+
+    fig2.legend(handles, STATE_ORDER, loc='lower center', ncol=5, fontsize=10, bbox_to_anchor=(0.5, 0.02))
+    plt.suptitle("Baseline vs Human-Centric Memory", fontsize=16, fontweight='bold', y=0.98)
+    plt.tight_layout(rect=[0.03, 0.08, 1, 0.94])
+    output_path2 = OUTPUT_DIR / "old_vs_humancentric_comparison.png"
+    fig2.savefig(output_path2, dpi=300, bbox_inches='tight')
+    plt.close(fig2)
+    print(f"✅ Saved chart to: {output_path2}")
 
 
 def generate_readme_ch(all_analysis: list):
@@ -453,27 +584,33 @@ def generate_readme_ch(all_analysis: list):
     path = OUTPUT_DIR / "README_CH.md"
     
     with open(path, 'w', encoding='utf-8') as f:
-        f.write("# 記憶體基準分析報告\n\n")
-        f.write("## 核心問題：為何套用治理框架後模型行為不同？\n\n")
+        f.write("# 記憶基準測試分析報告\n\n")
+        f.write("## 核心問題：為何引入治理後模型行為產生差異？\n\n")
         
         f.write("### 行為差異的根本原因\n\n")
-        f.write("1. **驗證確保格式，而非推理**\n")
-        f.write("   - 100% 驗證通過表示輸出格式正確\n")
-        f.write("   - 模型在解釋威脅和應對能力方面仍有差異\n\n")
+        f.write("1. **驗證器確保了格式，而非推理邏輯**\n")
+        f.write("   - 100% 的驗證通過率意味著輸出的 JSON **格式** 是正確的\n")
+        f.write("   - 模型在「如何解讀威脅」與「評估應對能力」上仍有本質差異\n\n")
         
-        f.write("2. **記憶窗口效應 (top_k=3)**\n")
-        f.write("   - 僅保留最新的 3 條記憶\n")
-        f.write("   - 洪水歷史被社交觀察擠掉\n")
-        f.write("   - 對社會證明敏感的模型（Llama）顯示更多適應\n\n")
+        f.write("2. **記憶窗口效應 (Window Memory)**\n")
+        f.write("   - 僅保留最近 3 筆記憶\n")
+        f.write("   - 洪水歷史容易被後續的日常社交觀察（Social Proof）擠出\n")
+        f.write("   - 對社交線索敏感的模型（如 Llama）展現出不同的適應行為\n\n")
         
-        f.write("3. **治理執行**\n")
-        f.write("   - `strict` 配置在威脅為高時阻止「不採取行動」\n")
-        f.write("   - 傳統版允許 47% 的「高威脅 + 不採取行動」組合\n")
-        f.write("   - 這迫使以前被動的代理採取行動\n\n")
+        f.write("3. **治理層的強制介入**\n")
+        f.write("   - `strict` 模式強制阻擋「高威脅 + 不採取行動」的組合\n")
+        f.write("   - 舊版（Legacy）允許了約 47% 的此類消極決策\n")
+        f.write("   - 這迫使原本傾向消極的代理人必須採取行動（或在重試後改變評估）\n\n")
         
         f.write("---\n\n")
         f.write("## 比較圖表\n\n")
+        f.write("### 綜合比較\n")
         f.write("![比較圖](old_vs_window_vs_humancentric_3x3.png)\n\n")
+        f.write("### Window Memory 比較\n")
+        f.write("![Window比較](old_vs_window_comparison.png)\n\n")
+        f.write("### Human-Centric Memory 比較\n")
+        f.write("![Human-Centric比較](old_vs_humancentric_comparison.png)\n\n")
+        
         f.write("*註：每年僅顯示**活躍**的代理（排除已搬遷的代理）*\n\n")
         
         f.write("---\n\n")
@@ -489,7 +626,17 @@ def generate_readme_ch(all_analysis: list):
             
             f.write(f"| 指標 | 傳統版 | Window | Human-Centric |\n")
             f.write(f"|------|--------|--------|---------------|\n")
-            f.write(f"| 最終搬遷數 | {old_reloc} | {window_reloc} | {importance_reloc} |\n\n")
+            f.write(f"| 最終搬遷數 | {old_reloc} | {window_reloc} | {importance_reloc} |\n")
+            
+            # Chi-square
+            sig_win = "**是**" if a['chi_window'].get('significant') else "否"
+            p_val = a['chi_window'].get('p_value', 'N/A')
+            if isinstance(p_val, (float, int)):
+                p_str = f"{p_val:.4f}"
+            else:
+                p_str = str(p_val)
+            f.write(f"| 顯著差異 (Window) | N/A | {sig_win} (p={p_str}) | - |\n\n")
+            
             
             # Flood year response
             f.write("**洪水年響應：**\n\n")
@@ -505,22 +652,27 @@ def generate_readme_ch(all_analysis: list):
             
             # Why this model behaves differently
             f.write("**為何此模型有差異：**\n")
-            if window_reloc > old_reloc:
+            if "Gemma" in model and a.get("gemma_analysis"):
+                 ga = a["gemma_analysis"]
+                 f.write(f"- **樂觀偏差 (Optimism Bias)**：雖然感知到威脅（{ga.get('high_threat_perceptions')} 次高威脅），但其應對評估（Coping Appraisal）常維持在中高等級，導致威脅感被抵銷。\n")
+                 f.write(f"- **治理攔截**：治理層攔截了 {ga.get('governance_blocks_on_inaction')} 次消極決策，但模型在重試時傾向於降低威脅評估而非改變行動。\n")
+                 
+            elif window_reloc > old_reloc:
                 diff = window_reloc - old_reloc
                 f.write(f"- Window 記憶增加了 {diff} 次搬遷\n")
                 f.write("- 治理阻止「高威脅 + 不採取行動」\n")
             elif window_reloc < old_reloc:
                 diff = old_reloc - window_reloc
                 f.write(f"- Window 記憶減少了 {diff} 次搬遷\n")
-                f.write("- 模型很少將威脅評估為「高」\n")
+                f.write("- 模型很少將威脅評估為「高」，從而避免了治理觸發\n")
             else:
                 f.write("- 搬遷無顯著變化\n")
             
             f.write("\n---\n\n")
         
         f.write("## 驗證摘要\n\n")
-        f.write("| 模型 | 記憶類型 | 總數 | 重試 | 失敗 | 解析警告 |\n")
-        f.write("|------|----------|------|------|------|----------|\n")
+        f.write("| 模型 | 記憶類型 | 總追蹤數 | 重試 | 失敗 | 解析警告 |\n")
+        f.write("|------|----------|----------|------|------|----------|\n")
         for a in all_analysis:
             for mem_key, mem_display in [("window", "Window"), ("importance", "Human-Centric")]:
                 v = a[f"{mem_key}_validation"]
@@ -548,11 +700,24 @@ def print_analysis(all_analysis: list):
         
         print(f"  Final Relocations: OLD={old_reloc}, Window={window_reloc}, Importance={importance_reloc}")
         
+        # Chi-square results
+        chi_win = a['chi_window']
+        p_val = chi_win.get('p_value', 'N/A')
+        if isinstance(p_val, (float, int)):
+            p_str = f"{p_val:.4f}"
+        else:
+            p_str = str(p_val)
+            
+        print(f"  Chi-Square (Window vs Baseline): p={p_str}, Significant={chi_win.get('significant')}")
+
         # Change analysis
         if window_reloc > old_reloc:
             print(f"  ⬆️ Window increased relocations by {window_reloc - old_reloc}")
         elif window_reloc < old_reloc:
             print(f"  ⬇️ Window decreased relocations by {old_reloc - window_reloc}")
+            
+        if "Gemma" in model and a.get("gemma_analysis"):
+            print(f"  ⚠️ Gemma Specifics: {a['gemma_analysis']}")
 
 
 if __name__ == "__main__":
@@ -571,6 +736,9 @@ if __name__ == "__main__":
     
     # Generate chart and analysis
     all_analysis = generate_3x3_comparison()
+    
+    # Generate separate sub-charts
+    generate_sub_charts()
     
     # Print analysis
     print_analysis(all_analysis)

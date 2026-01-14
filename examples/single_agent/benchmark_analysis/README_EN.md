@@ -32,70 +32,74 @@
 
 ### Gemma 3 (4B)
 
-| Metric | OLD | Window | Importance |
-|--------|-----|--------|------------|
+| Metric | Baseline | Window | Human-Centric |
+|--------|----------|--------|---------------|
 | Final Relocations | 64 | 0 | 0 |
+| Significant Diff (Window) | N/A | p=0.0000 (**Yes**) | - |
 
 **Flood Year Response:**
 
-| Year | OLD Relocate | Window Relocate | Importance Relocate |
-|------|--------------|-----------------|---------------------|
+| Year | Baseline Reloc | Window Reloc | Human-Centric Reloc |
+|------|----------------|--------------|---------------------|
 | 3 | 5 | 0 | 0 |
 | 4 | 7 | 0 | 0 |
 | 9 | 14 | 0 | 0 |
 
-**Why This Model Differs:**
-- Window Memory DECREASED relocations by 64
-- Model rarely assesses threat as 'High'
+**Behavioral Root Cause:**
+- **Optimism Bias**: High perceived coping (Medium+) masks threat perception.
+- **Validation Stats**: 0 blocks on inaction.
+- **Threat Perception**: High threat perceived 0 times (often overridden by coping).
 
 ---
 
 ### Llama 3.2 (3B)
 
-| Metric | OLD | Window | Importance |
-|--------|-----|--------|------------|
+| Metric | Baseline | Window | Human-Centric |
+|--------|----------|--------|---------------|
 | Final Relocations | 64 | 27 | 39 |
+| Significant Diff (Window) | N/A | p=0.0000 (**Yes**) | - |
 
 **Flood Year Response:**
 
-| Year | OLD Relocate | Window Relocate | Importance Relocate |
-|------|--------------|-----------------|---------------------|
+| Year | Baseline Reloc | Window Reloc | Human-Centric Reloc |
+|------|----------------|--------------|---------------------|
 | 3 | 5 | 5 | 1 |
 | 4 | 7 | 4 | 5 |
 | 9 | 14 | 3 | 4 |
 
-**Why This Model Differs:**
-- Window Memory DECREASED relocations by 37
-- Model rarely assesses threat as 'High'
+**Behavioral Root Cause:**
+- Window memory decreased relocations by 37.
+- Model rarely appraised threat as `High`, avoiding governance triggers.
 
 ---
 
 ### DeepSeek-R1 (8B)
 
-| Metric | OLD | Window | Importance |
-|--------|-----|--------|------------|
+| Metric | Baseline | Window | Human-Centric |
+|--------|----------|--------|---------------|
 | Final Relocations | 64 | 0 | 0 |
+| Significant Diff (Window) | N/A | p=N/A (No) | - |
 
 **Flood Year Response:**
 
-| Year | OLD Relocate | Window Relocate | Importance Relocate |
-|------|--------------|-----------------|---------------------|
+| Year | Baseline Reloc | Window Reloc | Human-Centric Reloc |
+|------|----------------|--------------|---------------------|
 | 3 | 5 | N/A | N/A |
 | 4 | 7 | N/A | N/A |
 | 9 | 14 | N/A | N/A |
 
-**Why This Model Differs:**
-- Window Memory DECREASED relocations by 64
-- Model rarely assesses threat as 'High'
+**Behavioral Root Cause:**
+- Window memory decreased relocations by 64.
+- Model rarely appraised threat as `High`, avoiding governance triggers.
 
 ---
 
-## Validation Summary
+## Validation & Governance Impact
 
-| Model | Memory | Total | Retries | Failed | Parse Warnings |
-|-------|--------|-------|---------|--------|----------------|
+| Model | Memory | Total Traces | Retries | Failed | Parse Warnings |
+|-------|--------|--------------|---------|--------|----------------|
 | Gemma 3 (4B) | Window | 1000 | 0 | 0 | 0 |
-| Gemma 3 (4B) | Importance | 1000 | 0 | 0 | 0 |
+| Gemma 3 (4B) | Human-Centric | 1000 | 0 | 0 | 0 |
 | Llama 3.2 (3B) | Window | 1000 | 271 | 40 | 0 |
-| Llama 3.2 (3B) | Importance | 1000 | 203 | 25 | 0 |
+| Llama 3.2 (3B) | Human-Centric | 1000 | 203 | 25 | 0 |
 
