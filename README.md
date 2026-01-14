@@ -42,7 +42,9 @@ The framework is designed as a **governance middleware** that sits between the A
 
 ---
 
-## Unified Architecture (v3.0)
+---
+
+## Unified Architecture (v3.3)
 
 The framework utilizes a layered middleware approach that unifies single-agent isolated reasoning with complex multi-agent simulations.
 
@@ -55,15 +57,44 @@ The framework utilizes a layered middleware approach that unifies single-agent i
 3. **Closed Feedback Loop**: Simulation outcomes are simultaneously committed to memory and environment state.
 4. **Lifecycle Auditing**: The `AuditWriter` captures traces from proposal to execution for full reproducibility.
 
-**Migration Note**:
+**Version History**:
 
 - **v1 (Legacy)**: Monolithic scripts.
 - **v2 (Stable)**: Modular `SkillBrokerEngine` + `providers`.
-- **v3 (Latest)**: Unified Single/Multi-Agent Architecture + Professional Audit Trail. Use `run_unified_experiment.py`.
+- **v3 (Latest)**: Unified Single/Multi-Agent Architecture + Professional Audit Trail.
 - **v3.1**: **Demographic Grounding & Statistical Validation**. Agents are grounded in real-world surveys.
-- **v3.2 (Production)**: **Advanced Memory & Skill Retrieval**. Implements MemGPT-style Tiered Memory (Core/Episodic/Semantic) and RAG-based Skill Selection for large action spaces.
+- **v3.2**: **Advanced Memory & Skill Retrieval**. Implements MemGPT-style Tiered Memory and RAG-based Skill Selection.
+- **v3.3 (Production)**: **Domain-Agnostic Parsing & Generalized Preprocessing**. All domain-specific logic (synonyms, audit keywords, preprocessors) moved to YAML configuration. `ModelAdapter` is now fully domain-neutral.
 
 ---
+
+### 🔧 Domain-Neutral Parsing Architecture (v3.3 NEW)
+
+The `ModelAdapter` and `SmartRepairPreprocessor` are now **completely decoupled from domain-specific terminology**. All configurations are driven by YAML:
+
+```yaml
+# agent_types.yaml - Parsing Configuration
+parsing:
+  decision_keywords: ["decision", "choice", "action"]
+  preprocessor:
+    { type: "smart_repair", quote_values: ["VL", "L", "M", "H", "VH"] }
+
+  # Domain-specific synonyms (moved from code)
+  synonyms:
+    tp: ["severity", "vulnerability", "threat", "risk"]
+    cp: ["efficacy", "self_efficacy", "coping", "ability"]
+
+  # Audit keywords for semantic correlation
+  audit_keywords: ["flood", "water", "damage", "insurance"]
+  audit_stopwords: ["flood", "floods", "flooding"]
+```
+
+**Key Features**:
+
+- **SmartRepairPreprocessor**: Automatically quotes unquoted string values in LLM JSON output.
+- **Configurable Decision Keywords**: Extract decisions using custom keywords per agent type.
+- **Synonym Mapping**: Map LLM output keys to standardized construct names (e.g., `severity` → `TP_LABEL`).
+- **Cross-Model Compatibility**: Verified with Llama, DeepSeek, Gemma, and GPT-family models.
 
 ## 🔬 Scientific Research Questions (SQs)
 
