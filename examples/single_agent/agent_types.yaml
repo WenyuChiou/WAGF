@@ -6,6 +6,28 @@ shared:
     ### RATING SCALE (You MUST use EXACTLY one of these codes):
     VL = Very Low | L = Low | M = Medium | H = High | VH = Very High
 
+  # Response Format Definition (for ResponseFormatBuilder)
+  response_format:
+    delimiter_start: "<<<DECISION_START>>>"
+    delimiter_end: "<<<DECISION_END>>>"
+    fields:
+      - {
+          key: "threat_appraisal",
+          type: "appraisal",
+          required: true,
+          construct: "TP_LABEL",
+          reason_hint: "One sentence summary of how threatened you feel by any remaining flood risks.",
+        }
+      - {
+          key: "coping_appraisal",
+          type: "appraisal",
+          required: true,
+          construct: "CP_LABEL",
+          reason_hint: "One sentence summary of how well you think you can cope or act.",
+        }
+      - { key: "decision", type: "choice", required: true }
+      - { key: "reasoning", type: "text", required: false }
+
 # =============================================================================
 # HOUSEHOLD AGENT TYPE
 # =============================================================================

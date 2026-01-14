@@ -577,7 +577,22 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         template_vars["valid_choices_text"] = valid_choices_text
         template_vars["skills_text"] = options_text # Alias
         
-        # 3. Use template (Generic lookup)
+        # 3. Response Format (from YAML config via ResponseFormatBuilder)
+        try:
+            from broker.components.response_format import ResponseFormatBuilder
+            from broker.utils.agent_config import load_agent_config
+            cfg = load_agent_config()
+            agent_config = cfg.get(agent_type)
+            shared_config = {"response_format": cfg.get_shared("response_format", {})}
+            rfb = ResponseFormatBuilder(agent_config, shared_config)
+            response_format_block = rfb.build(valid_choices_text=valid_choices_text)
+            if response_format_block:
+                template_vars["response_format"] = response_format_block
+        except Exception as e:
+            # Fallback silently if ResponseFormatBuilder not configured
+            pass
+        
+        # 4. Use template (Generic lookup)
         agent_type = p.get('agent_type', 'default')
         default_template = "{system_prompt}\n\n{personal_section}\n\n{local_section}\n\n{institutional_section}\n\n{global_section}\n\n### [AVAILABLE OPTIONS]\n{options_text}"
         template = self.prompt_templates.get(agent_type, default_template)
@@ -587,6 +602,7 @@ class TieredContextBuilder(BaseAgentContextBuilder):
             template = "{system_prompt}\n\n" + template
             
         return SafeFormatter().format(template, **template_vars)
+
 
     def _format_generic_section(self, title: str, data: Dict[str, Any]) -> str:
         """Formats a piece of context data into a readable markdown section."""

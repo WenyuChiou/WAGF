@@ -378,10 +378,22 @@ class AgentTypeConfig:
         cfg = self.get(agent_type)
         return cfg.get("llm_params", {})
 
+    def get_response_format(self, agent_type: str) -> Dict[str, Any]:
+        """Get response format configuration (delimiters, fields) with shared fallback."""
+        cfg = self.get(agent_type)
+        agent_fmt = cfg.get("response_format", {})
+        shared_fmt = self._config.get("shared", {}).get("response_format", {})
+        
+        # Merge: agent-specific overrides shared
+        if agent_fmt:
+            return {**shared_fmt, **agent_fmt}
+        return shared_fmt
+
     @property
     def agent_types(self) -> List[str]:
         """List all available agent types."""
         return list(self._config.keys())
+
 
 
 class GovernanceAuditor:
