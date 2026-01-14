@@ -4,6 +4,9 @@ import json
 import csv
 from pathlib import Path
 from typing import Dict, Any, List, Optional
+from broker.utils.logging import setup_logger
+
+logger = setup_logger(__name__)
 
 
 @dataclass
@@ -106,7 +109,7 @@ class GenericAuditWriter:
                 break # Success
             except (OSError, IOError) as e:
                 if attempt == max_retries - 1:
-                    print(f" [AuditWriter:Error] Final failure writing trace to {file_path}: {e}")
+                    logger.error(f" [AuditWriter:Error] Final failure writing trace to {file_path}: {e}")
                 else:
                     time.sleep(1.0) # Wait for sync/lock to clear
         
@@ -128,7 +131,7 @@ class GenericAuditWriter:
         for agent_type, traces in self._trace_buffer.items():
             self._export_csv(agent_type, traces)
             
-        print(f"[Audit] Finalized. Summary: {summary_path}")
+        logger.info(f"[Audit] Finalized. Summary: {summary_path}")
         return self.summary
 
     def _export_csv(self, agent_type: str, traces: List[Dict[str, Any]]):

@@ -22,11 +22,11 @@ class SkillRetriever:
         self.min_score = min_score
         self.global_skills = global_skills or ["do_nothing"]
         # Agent types that always receive full skill list (no filtering)
-        self.full_disclosure_agent_types = full_disclosure_agent_types or ["household"]
+        self.full_disclosure_agent_types = full_disclosure_agent_types or []
         # Weights for different context sources
         self.source_weights = {
-            "state": 1.0,      # Direct internal state (e.g. 'elevated')
-            "perception": 1.2, # Immediate external signals (e.g. 'flood_intensity')
+            "state": 1.0,      # Direct internal state
+            "perception": 1.2, # Immediate external signals
             "memory": 0.8      # Historical context
         }
 

@@ -7,6 +7,9 @@ Supports multi-agent scenarios where agents observe each other.
 from typing import Dict, List, Any, Optional, Callable
 from abc import ABC, abstractmethod
 import string
+from broker.utils.logging import setup_logger
+
+logger = setup_logger(__name__)
 
 from .memory_engine import MemoryEngine
 from .interaction_hub import InteractionHub
@@ -151,7 +154,7 @@ class BaseAgentContextBuilder(ContextBuilder):
         
         # Standard: Enforce 0-1 normalization for universal parameters
         if any(t < 0.0 or t > 1.0 for t in semantic_thresholds):
-            print(f"[Universality:Warning] semantic_thresholds {semantic_thresholds} are outside 0-1 range. Standardizing to [0,1] is recommended.")
+            logger.warning(f"[Universality:Warning] semantic_thresholds {semantic_thresholds} are outside 0-1 range. Standardizing to [0,1] is recommended.")
         
         # Initialize provider pipeline
         # Option 1: providers=None → use defaults + extend_providers
@@ -286,7 +289,7 @@ class BaseAgentContextBuilder(ContextBuilder):
         # Rough token estimate: ~4 chars per token for English text
         token_estimate = len(formatted) // 4
         if token_estimate > 2000:
-            print(f"[Context:Warning] Large prompt for {context.get('agent_id', 'unknown')}: ~{token_estimate} tokens")
+            logger.warning(f"[Context:Warning] Large prompt for {context.get('agent_id', 'unknown')}: ~{token_estimate} tokens")
         
         return formatted
     
@@ -397,42 +400,42 @@ class DynamicStateProvider(ContextProvider):
             if key in env_context:
                 context[key] = env_context[key]
 
-class HouseholdGroundingProvider(ContextProvider):
+class NarrativeProvider(ContextProvider):
     """
-    Consolidates raw demographic and flood experience data into qualitative narrative strings.
-    Prevents prompt bloat by summarizing multiple fields into coherent sentences.
+    Consolidates raw attributes into qualitative narrative strings based on config mapping.
+    Prevents prompt bloat by summarizing multiple fields.
     """
     def provide(self, agent_id, agents, context, **kwargs):
         agent = agents.get(agent_id)
         if not agent: return
         
-        # 1. Narrative Persona
         fixed = getattr(agent, 'fixed_attributes', {})
-        residency = fixed.get("residency_generations", "Unknown")
-        hh_size = fixed.get("household_size", "Unknown")
-        occ = fixed.get("occupation", "resident")
-        income = fixed.get("income_range", "Unknown")
-        burden = "high" if fixed.get("housing_cost_burden") in [1, "Yes", True] else "manageable"
+        if not fixed: return
+
+        # Generic approach: If a mapping is provided in agent_types.yaml, use it.
+        # Otherwise, look for common 'persona' or 'history' patterns.
         
-        persona = (f"You are a {residency}-generation resident managing a household of {hh_size}. "
-                   f"You work as a {occ}. Your household income is {income}, and your housing cost burden is {burden}.")
+        # 1. Narrative Persona (Generic)
+        persona_parts = []
+        for k, v in fixed.items():
+            if k in ["residency_generations", "household_size", "occupation", "income_range"]:
+                # Legacy compatibility for Flood scenario
+                label = k.replace('_', ' ').capitalize()
+                persona_parts.append(f"{label}: {v}")
         
-        context["narrative_persona"] = persona
+        if persona_parts:
+            context["narrative_persona"] = " | ".join(persona_parts)
         
-        # 2. Flood Experience Summary
-        hist = fixed.get("flood_history", {})
-        if hist.get("has_experienced"):
-            recent = hist.get("most_recent_year", "the past")
-            sig = hist.get("significant_loss_year", "N/A")
-            actions = hist.get("past_actions", "no specific actions")
-            assistance = "received" if hist.get("received_assistance") else "did not receive"
-            
-            summary = (f"You experienced a flood in {recent}. Your most significant financial loss was in {sig}. "
-                       f"After the flood, you took {actions} and {assistance} government assistance.")
-        else:
-            summary = "You have no personal experience with flooding at this address."
-            
-        context["flood_experience_summary"] = summary
+        # 2. History Summary (Generic)
+        # Look for any dictionary named '*_history'
+        history_key = next((k for k in fixed.keys() if "history" in k.lower()), None)
+        if history_key:
+            hist = fixed.get(history_key, {})
+            if isinstance(hist, dict):
+                hist_parts = [f"{k.replace('_', ' ').capitalize()}: {v}" for k, v in hist.items()]
+                context["history_summary"] = "; ".join(hist_parts)
+            else:
+                context["history_summary"] = str(hist)
 
 class TieredContextBuilder(BaseAgentContextBuilder):
     """
@@ -454,7 +457,7 @@ class TieredContextBuilder(BaseAgentContextBuilder):
             AttributeProvider(),
             MemoryProvider(memory_engine),
             SocialProvider(hub),
-            HouseholdGroundingProvider()
+            NarrativeProvider()
         ]
         
         if hasattr(hub, 'environment') and hub.environment:

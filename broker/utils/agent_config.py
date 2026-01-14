@@ -12,6 +12,9 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
 from collections import defaultdict
+from broker.utils.logging import setup_logger
+
+logger = setup_logger(__name__)
 
 
 @dataclass
@@ -87,7 +90,7 @@ class AgentTypeConfig:
             # Fallback to empty config if file missing (useful for testing)
             self._config = {}
         except Exception as e:
-            print(f"Warning: Failed to load config from {yaml_path}: {e}")
+            logger.warning(f"Failed to load config from {yaml_path}: {e}")
             self._config = {}
     
     def get_base_type(self, agent_type: str) -> str:
@@ -286,6 +289,19 @@ class AgentTypeConfig:
             return self._config.get("default", {}).get("log_fields", [])
         return fields
 
+    def get_global_skills(self, agent_type: str) -> List[str]:
+        """Get list of world-available skills (Phase 32) that are always presented."""
+        parsing = self.get_parsing_config(agent_type)
+        return parsing.get("global_skills", [])
+
+    def get_full_disclosure_agent_types(self) -> List[str]:
+        """Get list of agent types that bypass skill retrieval (Phase 33)."""
+        types = []
+        for atype, cfg in self._config.items():
+            if cfg.get("parsing", {}).get("full_disclosure"):
+                types.append(atype)
+        return types
+
 
     def get_skill_map(self, agent_type: str, context: Dict[str, Any] = None) -> Dict[str, str]:
         """
@@ -342,6 +358,7 @@ class GovernanceAuditor:
             cls._instance.retry_success_count = 0
             cls._instance.retry_failure_count = 0
             cls._instance.total_interventions = 0
+            cls._instance.parse_errors = 0
         return cls._instance
 
     def log_intervention(self, rule_id: str, success: bool, is_final: bool = False):
@@ -355,6 +372,10 @@ class GovernanceAuditor:
             else:
                 self.retry_failure_count += 1
 
+    def log_parse_error(self):
+        """Record a parsing failure where LLM output could not be converted to SkillProposal."""
+        self.parse_errors += 1
+
     def save_summary(self, output_path: Path):
         """Save aggregated statistics to JSON."""
         summary = {
@@ -362,12 +383,30 @@ class GovernanceAuditor:
             "rule_frequency": dict(self.rule_hits),
             "outcome_stats": {
                 "retry_success": self.retry_success_count,
-                "retry_exhausted": self.retry_failure_count
+                "retry_exhausted": self.retry_failure_count,
+                "parse_errors": self.parse_errors
             }
         }
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(summary, f, indent=4)
-        print(f"[Governance:Auditor] Summary saved to {output_path}")
+        logger.info(f"[Governance:Auditor] Summary saved to {output_path}")
+
+    def print_summary(self):
+        """Print a human-readable summary to console."""
+        print("\n" + "="*50)
+        print("  GOVERNANCE AUDIT SUMMARY")
+        print("="*50)
+        print(f"  Total Interventions: {self.total_interventions}")
+        print(f"  Parsing Failures:    {self.parse_errors}")
+        print(f"  Successful Retries:  {self.retry_success_count}")
+        print(f"  Final Fallouts:      {self.retry_failure_count}")
+        print("-"*50)
+        print("  Top Rule Violations:")
+        # Sort by frequency
+        sorted_rules = sorted(self.rule_hits.items(), key=lambda x: x[1], reverse=True)
+        for rule_id, count in sorted_rules[:5]:
+            print(f"  - {rule_id}: {count} hits")
+        print("="*50 + "\n")
 
 
 # Convenience function

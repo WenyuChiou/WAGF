@@ -18,6 +18,7 @@ from broker.components.memory_engine import WindowMemoryEngine, ImportanceMemory
 from broker.interfaces.skill_types import ExecutionResult
 from plot_results import plot_adaptation_results
 from broker.utils.llm_utils import create_legacy_invoke as create_llm_invoke
+from broker.utils.agent_config import GovernanceAuditor
 
 # --- 1. Research Constants (Parity with LLMABMPMT-Final.py) ---
 FLOOD_PROBABILITY = 0.2
@@ -108,6 +109,13 @@ class FinalContextBuilder(TieredContextBuilder):
         # INJECT INTO PERSONAL to ensure template_vars flattening picks it up early
         personal['options_text'] = "\n".join(options)
         personal['skills'] = personal['options_text'] # Alias
+        
+        # Valid choices text (e.g., "1, 2, or 3")
+        if len(options) > 1:
+            choices = [str(x) for x in range(1, len(options) + 1)]
+            personal['valid_choices_text'] = f"{', '.join(choices[:-1])}, or {choices[-1]}"
+        else:
+            personal['valid_choices_text'] = "1"
         
         # 6. Set variant for adapter
         context["skill_variant"] = "elevated" if elevated else "non_elevated"
@@ -248,18 +256,20 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     print(f"--- Llama {agents_count}-Agent 10-Year Benchmark (Final Parity Edition) ---")
     
     # 1. Load Registry & Prompt Template
-    registry_path = "examples/single_agent/skill_registry.yaml"
+    base_path = Path(__file__).parent
+    registry_path = base_path / "skill_registry.yaml"
     registry = SkillRegistry()
-    registry.register_from_yaml(registry_path)
+    registry.register_from_yaml(str(registry_path))
     
-    agent_config_path = "examples/single_agent/agent_types.yaml"
+    agent_config_path = base_path / "agent_types.yaml"
     with open(agent_config_path, 'r', encoding='utf-8') as f:
         agent_cfg_data = yaml.safe_load(f)
         household_template = agent_cfg_data.get('household', {}).get('prompt_template', '')
 
     # 2. Load Profiles
     from broker import load_agents_from_csv
-    agents = load_agents_from_csv("examples/single_agent/agent_initial_profiles.csv", {
+    profiles_path = base_path / "agent_initial_profiles.csv"
+    agents = load_agents_from_csv(str(profiles_path), {
         "id": "id", "elevated": "elevated", "has_insurance": "has_insurance", 
         "relocated": "relocated", "trust_in_insurance": "trust_in_insurance", 
         "trust_in_neighbors": "trust_in_neighbors", "flood_threshold": "flood_threshold",
@@ -275,11 +285,11 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         a.flood_history = []
         a.agent_type = "household"
         # Synchronize Registry IDs - Include full global suite for disclosure parity
-        a.config.skills = ["buy_insurance", "buy_contents_insurance", "elevate_house", "relocate", "do_nothing"]
+        a.config.skills = ["buy_insurance", "elevate_house", "relocate", "do_nothing"]
         for k, v in a.custom_attributes.items(): setattr(a, k, v)
 
     # 3. Load Flood Years
-    df_years = pd.read_csv("examples/single_agent/flood_years.csv")
+    df_years = pd.read_csv(base_path / "flood_years.csv")
     flood_years = sorted(df_years['Flood_Years'].tolist())
     print(f" Flood Years scheduled: {flood_years}")
 
@@ -338,6 +348,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         .with_memory_engine(memory_engine)
         .with_governance("strict", agent_config_path)
         .with_output(custom_output if custom_output else "results_modular")
+        .with_workers(args.workers)
     )
     
     runner = builder.build()
@@ -402,7 +413,11 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     pd.DataFrame(final_logs).to_csv(csv_path, index=False)
     print(f"--- Benchmark Complete! Results in {output_dir} ---")
     
-    # 7. Generate Plot
+    # 7. Print Governance Summary
+    auditor = GovernanceAuditor()
+    auditor.print_summary()
+    
+    # 8. Generate Plot
     plot_adaptation_results(csv_path, output_dir)
 
 if __name__ == "__main__":
@@ -416,6 +431,7 @@ if __name__ == "__main__":
     parser.add_argument("--memory-engine", type=str, default="window", 
                         choices=["window", "importance", "humancentric", "hierarchical"], 
                         help="Memory retrieval strategy: window (sliding), importance (active retrieval), humancentric (emotional), or hierarchical (tiered)")
+    parser.add_argument("--workers", type=int, default=1, help="Number of parallel workers for LLM calls")
     args = parser.parse_args()
     run_parity_benchmark(
         model=args.model, 

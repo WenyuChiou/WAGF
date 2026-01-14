@@ -18,6 +18,7 @@ from typing import Callable, Dict, List, Optional, Any
 from datetime import datetime
 import hashlib
 import json
+from ..utils.logging import logger
 
 from ..interfaces.skill_types import (
     SkillProposal, SkillDefinition, ApprovedSkill, 
@@ -67,7 +68,7 @@ class SkillBrokerEngine:
         self.audit_writer = audit_writer
         self.max_retries = max_retries
         self.log_prompt = log_prompt
-        print("!!! HELLO FROM BROKER !!!")
+        logger.debug("!!! HELLO FROM BROKER !!!")
         
         # Statistics
         self.stats = {
@@ -103,7 +104,7 @@ class SkillBrokerEngine:
         timestamp = datetime.now().isoformat()
         
         # ① Build bounded context (READ-ONLY)
-        print(f"DEBUG_BROKER: Processing {agent_id} with builder {type(self.context_builder)} instance {id(self.context_builder)}")
+        logger.debug(f"DEBUG_BROKER: Processing {agent_id} with builder {type(self.context_builder)} instance {id(self.context_builder)}")
         context = self.context_builder.build(agent_id)
         context_hash = self._hash_context(context)
         
@@ -137,6 +138,7 @@ class SkillBrokerEngine:
         
         if skill_proposal is None:
             self.stats["aborted"] += 1
+            logger.error(f" [Adapter:Error] Failed to parse proposal for {agent_id}")
             return self._create_result(SkillOutcome.ABORTED, None, None, None, ["Parse error"])
         
         # ③ Skill validation
@@ -171,6 +173,7 @@ class SkillBrokerEngine:
             skill_proposal = self.model_adapter.parse_output(raw_output, parse_ctx)
             
             if skill_proposal:
+                logger.info(f" [Adapter:Retry] Attempting retry {retry_count} for {agent_id}...")
                 validation_results = self._run_validators(skill_proposal, validation_context)
                 all_valid = all(v.valid for v in validation_results)
         
@@ -189,9 +192,20 @@ class SkillBrokerEngine:
                 self.stats["retry_success"] += 1
             else:
                 self.stats["approved"] += 1
+            
+            # Show any warnings
+            warnings = [w for v in validation_results for w in v.warnings]
+            if warnings:
+                msg = "; ".join(warnings)
+                logger.warning(f" [Governance:Warning] {agent_id}: {msg}")
         else:
             # Use fallback skill
             fallback = self.skill_registry.get_default_skill()
+            errors = [e for v in validation_results for e in v.errors]
+            msg = "; ".join(errors)
+            logger.warning(f" [Governance:Intervention] {agent_id}: Decision '{skill_proposal.skill_name}' REJECTED by logic rules. FALLBACK: {fallback}")
+            logger.warning(f"  - Reasons: {msg}")
+            
             approved_skill = ApprovedSkill(
                 skill_name=fallback,
                 agent_id=agent_id,
@@ -202,7 +216,9 @@ class SkillBrokerEngine:
             )
             outcome = SkillOutcome.UNCERTAIN
             self.stats["rejected"] += 1
-        
+            
+        logger.info(f" [Broker:Final] Agent {agent_id}: {approved_skill.skill_name} ({approved_skill.approval_status})")
+
         # ⑤ Execution (simulation engine ONLY)
         execution_result = self.simulation_engine.execute_skill(approved_skill)
         

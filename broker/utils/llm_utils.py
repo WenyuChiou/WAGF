@@ -91,7 +91,7 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
 {{
   "threat_appraisal": {{
     "label": "{threat_level}",
-    "reason": "I feel {threat_level.lower()} threat from flood risks."
+    "reason": "I feel {threat_level.lower()} threat from the current situation."
   }},
   "coping_appraisal": {{
     "label": "{coping_level}",
@@ -106,21 +106,14 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
     try:
         from langchain_ollama import ChatOllama
         
-        # Ollama Specific Tuning (Avoid Truncation)
-        # Assuming 'ollama' as the provider since ChatOllama is imported
-        is_reasoning = any(m in model.lower() for m in ["deepseek", "r1", "gpt-oss", "gemma3"])
+        # Default Ollama params - set to -1 (unlimited) by default
+        # Users can override via agent_types.yaml llm_params
+        ollama_params = {
+            "num_predict": -1,  # Unlimited by default
+            "num_ctx": 16384,   # Large context for complex prompts
+        }
         
-        ollama_params = {}
-        if is_reasoning:
-            # Maximize for reasoning/complex models to prevent truncation of thought/json
-            ollama_params["num_predict"] = 8192 
-            ollama_params["num_ctx"] = 16384 # Large context for long traces
-        else:
-            # Standard models
-            ollama_params["num_predict"] = 4096
-            ollama_params["num_ctx"] = 8192 # Increased standard context
-        
-        # Apply overrides from configuration
+        # Apply overrides from configuration (takes priority)
         if overrides:
             ollama_params.update(overrides)
             
@@ -132,7 +125,7 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
 
             if debug_llm:
                 # Log a small snippet of the prompt
-                print(f"\n [LLM:Input] (len={len(prompt)}) Prompt begins: {repr(prompt[:100])}...")
+                _LOGGER.debug(f"\n [LLM:Input] (len={len(prompt)}) Prompt begins: {repr(prompt[:100])}...")
             
             # Retry loop for empty responses (common with DeepSeek reasoning models)
             max_llm_retries = 3
@@ -143,7 +136,7 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
                     content = response.content
                     
                     if debug_llm:
-                        print(f" [LLM:Output] Raw Content: {repr(content[:200] if content else '')}...")
+                        _LOGGER.debug(f" [LLM:Output] Raw Content: {repr(content[:200] if content else '')}...")
                     
                     if content and content.strip():
                         # Success - return content and stats
@@ -151,14 +144,14 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
                     else:
                         llm_retries += 1
                         if attempt < max_llm_retries - 1:
-                            print(f" [LLM:Retry] Model '{model}' returned empty content. Retrying ({attempt+1}/{max_llm_retries})...")
+                            _LOGGER.warning(f" [LLM:Retry] Model '{model}' returned empty content. Retrying ({attempt+1}/{max_llm_retries})...")
                         else:
-                            print(f" [LLM:Error] Model '{model}' returned empty content after {max_llm_retries} attempts.")
+                            _LOGGER.error(f" [LLM:Error] Model '{model}' returned empty content after {max_llm_retries} attempts.")
                             _LOGGER.error(f"Empty raw output from {model} after {max_llm_retries} attempts")
                             return "", LLMStats(retries=llm_retries, success=False)
                 except Exception as e:
                     llm_retries += 1
-                    print(f" [LLM:Error] Exception during call to '{model}': {e}")
+                    _LOGGER.error(f" [LLM:Error] Exception during call to '{model}': {e}")
                     _LOGGER.exception(f"Exception during LLM invoke for {model}")
                     if attempt < max_llm_retries - 1:
                         continue
@@ -167,10 +160,10 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
         
         return invoke
     except ImportError:
-        print("Warning: langchain-ollama not found. Falling back to mock LLM.")
+        _LOGGER.warning("langchain-ollama not found. Falling back to mock LLM.")
         return lambda p: ("Final Decision: do_nothing", LLMStats())
     except Exception as e:
-        print(f"Warning: Falling back to mock LLM due to: {e}")
+        _LOGGER.warning(f"Falling back to mock LLM due to: {e}")
         return lambda p: ("Final Decision: do_nothing", LLMStats())
 
 

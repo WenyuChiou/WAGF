@@ -15,6 +15,7 @@ import re
 import json
 
 from ..interfaces.skill_types import SkillProposal
+from ..utils.logging import logger
 
 
 class ModelAdapter(ABC):
@@ -203,6 +204,17 @@ class UnifiedAdapter(ModelAdapter):
             json_text = cleaned_target.strip()
             if "{" in json_text:
                 json_text = json_text[json_text.find("{"):json_text.rfind("}")+1]
+            
+            # Preprocessor Failsafe: Handle double-braces mimicry from small models
+            # Specifically: {{ ... }} -> { ... } and "{{": "{" -> "{": "{"
+            if json_text.startswith("{{") and json_text.endswith("}}"):
+                json_text = json_text[1:-1]
+            
+            # Replace recurring double braces inside the object
+            json_text = json_text.replace("{{", "{").replace("}}", "}")
+            
+            # Clean trailing commas (common in LLM output)
+            json_text = re.sub(r',\s*([\]}])', r'\1', json_text)
                 
             data = json.loads(json_text)
             if isinstance(data, dict):
@@ -210,24 +222,111 @@ class UnifiedAdapter(ModelAdapter):
                 decision_val = data.get("decision") or data.get("choice") or data.get("action")
                 
                 # Resolve decision
-                if isinstance(decision_val, (int, str)) and str(decision_val) in skill_map:
-                    skill_name = skill_map[str(decision_val)]
-                    parse_layer = "json"
-                elif isinstance(decision_val, str):
-                    for skill in valid_skills:
-                        if skill.lower() == decision_val.lower():
-                            skill_name = skill
-                            parse_layer = "json"
-                            break
+                if decision_val is not None:
+                    # Case 1: Direct mapping (int or exact digit string)
+                    if str(decision_val) in skill_map:
+                        skill_name = skill_map[str(decision_val)]
+                    # Case 2: String like "1. Buy Insurance" or "Option 1"
+                    elif isinstance(decision_val, str):
+                        digit_match = re.search(r'(\d+)', decision_val)
+                        if digit_match and digit_match.group(1) in skill_map:
+                            skill_name = skill_map[digit_match.group(1)]
+                        else:
+                            # Search for skill names in string
+                            for skill in valid_skills:
+                                if skill.lower() in decision_val.lower():
+                                    skill_name = skill
+                                    break
+                    
+                    if skill_name:
+                        parse_layer = "json"
+                        # Reset warnings if JSON parsing succeeded
+                        parsing_warnings = [w for w in parsing_warnings if "STRICT_MODE" not in w]
                 
                 # Extract Reasoning & Constructs
                 reasoning = {
                     "strategy": data.get("strategy", ""),
                     "confidence": data.get("confidence", 1.0)
                 }
+                # Get construct mapping from config for dynamic matching
+                construct_mapping = parsing_cfg.get("constructs", {}) if parsing_cfg else {}
+
                 for k, v in data.items():
-                    if k not in ["decision", "choice", "action", "strategy", "confidence"]:
-                        reasoning[k] = v
+                    if k in ["decision", "choice", "action", "strategy", "confidence"]:
+                        continue
+
+                    # 1. Identify which constructs this JSON key 'k' might relate to
+                    matched_names = []
+                    k_normalized = k.lower().replace("_", " ")
+                    for c_name, c_cfg in construct_mapping.items():
+                        keywords = c_cfg.get("keywords", [])
+                        if any(kw.lower() in k_normalized for kw in keywords):
+                            matched_names.append(c_name)
+                    
+                    # Also check if the key is the construct name itself (case-insensitive)
+                    for c_name in construct_mapping.keys():
+                        if c_name.lower() in k.lower() and c_name not in matched_names:
+                            matched_names.append(c_name)
+                    
+                    # 2. Extract values based on structure
+                    if isinstance(v, dict):
+                        for sub_k, sub_v in v.items():
+                            sub_k_lower = sub_k.lower()
+                            # Nested mapping: check if sub-key is a label or reason
+                            if "label" in sub_k_lower:
+                                for name in [n for n in matched_names if "_LABEL" in n]:
+                                    reasoning[name] = sub_v
+                            elif any(rk in sub_k_lower for rk in ["reason", "why", "explanation", "because"]):
+                                for name in [n for n in matched_names if "_REASON" in n]:
+                                    reasoning[name] = sub_v
+                            else:
+                                reasoning[f"{k}_{sub_k}"] = sub_v
+                    elif isinstance(v, (str, int, float)):
+                        # Flattened string or value: assign to matched constructs
+                        if matched_names:
+                            for name in matched_names:
+                                # For labels, if it's a string, we might want to extract just the label part
+                                if "_LABEL" in name and isinstance(v, str):
+                                    # Robust extraction using regex from config if available
+                                    regex = construct_mapping[name].get("regex")
+                                    if regex:
+                                        # 1. Try full regex match (prefix + label)
+                                        match = re.search(regex, v, re.IGNORECASE)
+                                        if match and match.groups():
+                                            reasoning[name] = match.group(1)
+                                        else:
+                                            # 2. Try to find any of the labels from the capture group alternatives
+                                            # This handles cases where the key is already identified, but the value is a string containing the label
+                                            # e.g. Regex: "(?:threat)[:\s]* (High|Low)" -> look for "High" or "Low" in v
+                                            try:
+                                                # Extract the alternatives from the first capture group if possible
+                                                # Pattern usually looks like (A|B|C)
+                                                inner_pattern = re.search(r'\(([^?].+?)\)', regex)
+                                                if inner_pattern:
+                                                    alternatives = [alt.strip() for alt in inner_pattern.group(1).split('|')]
+                                                    # Sort by length descending to match "Very High" before "High"
+                                                    alternatives.sort(key=len, reverse=True)
+                                                    for alt in alternatives:
+                                                        if alt.lower() in v.lower():
+                                                            reasoning[name] = alt
+                                                            break
+                                                    else:
+                                                        reasoning[name] = v
+                                                else:
+                                                    reasoning[name] = v
+                                            except Exception:
+                                                reasoning[name] = v
+                                    else:
+                                        reasoning[name] = v
+                                else:
+                                    reasoning[name] = v
+                        else:
+                            # Fallback: direct name match
+                            k_upper = k.upper()
+                            if k_upper in construct_mapping:
+                                reasoning[k_upper] = v
+                            else:
+                                reasoning[k] = v
         except (json.JSONDecodeError, AttributeError):
             pass
 
@@ -280,7 +379,7 @@ class UnifiedAdapter(ModelAdapter):
                     skill_name = skill_name or skill_map[last_digit]
                     parse_layer = parse_layer or "digit"
                     parsing_warnings.append(f"Last-resort extraction from digit: {last_digit}")
-            elif candidates and strict_mode:
+            elif candidates and strict_mode and not skill_name:
                 # Log the failed parse attempt for audit but do NOT use the digit
                 parsing_warnings.append(f"STRICT_MODE: Rejected digit extraction ({candidates[-1]}). Will trigger retry.")
 
@@ -327,6 +426,30 @@ class UnifiedAdapter(ModelAdapter):
             "details": details[:3]
         }
 
+        # 6. Post-Parsing Robustness: Completeness Check
+        if parsing_cfg and "constructs" in parsing_cfg:
+            expected = set(parsing_cfg["constructs"].keys())
+            found = set(reasoning.keys())
+            missing = expected - found
+            if missing:
+                msg = f"Missing constructs for '{agent_type}': {list(missing)}"
+                parsing_warnings.append(msg)
+                logger.warning(f" [Adapter:Diagnostic] Warning: {msg}")
+        if parse_layer:
+            logger.info(f" [Adapter:Audit] Agent {agent_id} | Layer: {parse_layer} | Warnings: {len(parsing_warnings)}")
+            # Show reasoning summary
+            strat = reasoning.get("strategy", "") or reasoning.get("reason", "")
+            if strat:
+                logger.debug(f"  - Reasoning: {strat[:120]}...")
+            
+            # Show construct classification (Generic)
+            construct_parts = []
+            for k, v in reasoning.items():
+                if "_LABEL" in k:
+                    construct_parts.append(f"{k.split('_')[0]}={v}")
+            if construct_parts:
+                logger.info(f"  - Constructs: {' | '.join(construct_parts)}")
+
         return SkillProposal(
             agent_id=agent_id,
             skill_name=skill_name,
@@ -362,20 +485,10 @@ class UnifiedAdapter(ModelAdapter):
         
         for src_type, text in sources.items():
             if not text or text == "[N/A]": continue
-            # Normalize: split by non-alphanumeric (handles hyphens "2nd-generation" -> "2nd", "generation")
+            # Normalize and extract significant words
             clean_text = re.sub(r'[^\w\s]', ' ', text.lower()) 
-            words = clean_text.split()
-            
-            for w in words:
-                if w in blacklist or w in topic_stopwords: continue
-                
-                # Heuristic: 
-                # 1. Numeric (years like 2012, generations like 2nd)
-                # 2. Specific keywords (generation, income, occupation, assistance)
-                if w.isdigit() or w in ["generation", "income", "occupation", "burden", "loss", "assistance", "teacher", "rent", "owner"]:
-                     anchors.add(w)
-                elif len(w) > 4: # Catch other significant words
-                     anchors.add(w)
+            words = set(w for w in clean_text.split() if len(w) > 4 and w not in blacklist)
+            anchors.update(words)
         
         if not anchors:
             return {"score": 0.0, "details": "No anchors found in context"}
@@ -406,25 +519,6 @@ class UnifiedAdapter(ModelAdapter):
             "total_anchors": list(anchors)
         }
 
-        # 6. Post-Parsing Robustness: Completeness Check
-        if config_parsing and "constructs" in config_parsing:
-            expected = set(config_parsing["constructs"].keys())
-            found = set(reasoning.keys())
-            missing = expected - found
-            if missing:
-                msg = f"Missing constructs for '{agent_type}': {list(missing)}"
-                parsing_warnings.append(msg)
-                print(f"[ModelAdapter:Diagnostic] Warning: {msg}")
-
-        return SkillProposal(
-            skill_name=skill_name,
-            agent_id=agent_id,
-            agent_type=agent_type,
-            reasoning=reasoning,
-            confidence=1.0,  # Placeholder
-            raw_output=raw_output,
-            parsing_warnings=parsing_warnings
-        )
     
     def format_retry_prompt(self, original_prompt: str, errors: List[str]) -> str:
         """Format retry prompt with validation errors."""

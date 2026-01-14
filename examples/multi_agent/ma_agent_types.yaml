@@ -31,6 +31,7 @@ household_owner:
     ### [ADAPTATION OPTIONS]
     Based on Protection Motivation Theory (Rogers, 1983), evaluate your options objectively:
     {options_text}
+    Note: If Coping Appraisal is Low, avoid expensive actions like Buyout or Elevation.
 
     ### [GLOBAL SKILLS (Always Available)]
     The following core options are always available for your consideration:
@@ -50,6 +51,7 @@ household_owner:
   parsing:
     decision_keywords: ["final decision:", "decision:"]
     default_skill: "do_nothing"
+    full_disclosure: true
     skill_map:
       "1": "do_nothing"
       "2": "buy_insurance"
@@ -128,6 +130,7 @@ household_renter:
   parsing:
     decision_keywords: ["final decision:", "decision:"]
     default_skill: "do_nothing"
+    full_disclosure: true
     skill_map:
       "1": "do_nothing"
       "2": "buy_contents_insurance"

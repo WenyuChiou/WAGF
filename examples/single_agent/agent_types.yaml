@@ -20,44 +20,44 @@ household:
 
     Now, choose one of the following actions:
     {options_text}
+    {options_text}
     Note: If no flood occurred this year, since no immediate threat, most people would choose "Do Nothing."
+    Note: If your Coping Appraisal is Low (meaning you lack funds or ability), you CANNOT choose expensive actions like "Elevate House" or "Relocate". You must choose "Do Nothing" or cheap actions.
                                                                                                   
-    Please follow the Protection Motivation Theory (PMT) framework for your reasoning. You must explicitly refer to your current numerical status (Threat Appraisal and Coping Appraisal).
-
-    Finally, provide your decision in a clear JSON block within the enclosure tags below.
+    Please respond using the exact format below. Do NOT include any markdown symbols or conversational text outside the decision block.
 
     <<<DECISION_START>>>
-    {{{{
-      "threat_appraisal": {{{{
+    {{
+      "threat_appraisal": {{
         "label": "[Low/Med/High]",
-        "reason": "..."
-      }}}},
-      "coping_appraisal": {{{{
+        "reason": "One sentence summary of how threatened you feel."
+      }},
+      "coping_appraisal": {{
         "label": "[Low/Med/High]",
-        "reason": "..."
-      }}}},
-      "decision": 5
-    }}}}
+        "reason": "One sentence summary of your ability to cope."
+      }},
+      "decision": {valid_choices_text}
+    }}
     <<<DECISION_END>>>
 
   # Parsing & Skill Mapping
   parsing:
     decision_keywords: ["final decision:", "decision:", "decide:"]
     default_skill: "do_nothing"
+    global_skills: ["do_nothing", "buy_insurance", "buy_contents_insurance"]
+    full_disclosure: true
 
-    # Baseline Skill Mapping (numeric 1-5)
+    # Baseline Skill Mapping (numeric 1-4)
     skill_map_non_elevated:
       "1": "buy_insurance"
-      "2": "buy_contents_insurance"
-      "3": "elevate_house"
-      "4": "relocate"
-      "5": "do_nothing"
+      "2": "elevate_house"
+      "3": "relocate"
+      "4": "do_nothing"
 
     skill_map_elevated:
       "1": "buy_insurance"
-      "2": "buy_contents_insurance"
-      "3": "relocate"
-      "4": "do_nothing"
+      "2": "relocate"
+      "3": "do_nothing"
 
     # Construct mappings for validation and logging
     # Enhanced regex patterns to handle various LLM output formats
@@ -79,10 +79,7 @@ household:
   actions:
     - id: buy_insurance
       aliases: ["FI", "insurance"]
-      description: "Purchase standard flood insurance"
-    - id: buy_contents_insurance
-      aliases: ["CI", "contents_insurance"]
-      description: "Purchase contents-only flood insurance"
+      description: "Purchase flood insurance"
     - id: elevate_house
       aliases: ["HE", "elevate", "elevation"]
       description: "Elevate house structure"

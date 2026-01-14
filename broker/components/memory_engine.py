@@ -1,6 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 from agents.base_agent import BaseAgent
+from broker.utils.logging import setup_logger
+
+logger = setup_logger(__name__)
 
 class MemoryEngine(ABC):
     """
@@ -96,7 +99,7 @@ class ImportanceMemoryEngine(MemoryEngine):
         
         # Standard: Enforce 0-1 normalization for scoring weights
         if any(w < 0.0 or w > 1.0 for w in self.weights.values()):
-            print(f"[Universality:Warning] Memory weights {self.weights.values()} are outside 0-1 range. Standardizing to [0,1] is recommended.")
+            logger.warning(f"[Universality:Warning] Memory weights {self.weights.values()} are outside 0-1 range. Standardizing to [0,1] is recommended.")
 
     def _score_content(self, content: str, agent: Optional[BaseAgent] = None) -> float:
         """Heuristic scoring based on keyword importance."""
@@ -240,30 +243,30 @@ class HumanCentricMemoryEngine(MemoryEngine):
         # Long-term memory (consolidated)
         self.longterm: Dict[str, List[Dict[str, Any]]] = {}
         
-        # Emotional encoding weights (PMT-aligned)
+        # Emotional encoding weights (Generic)
         self.emotional_weights = emotional_weights or {
-            "fear": 1.0,         # Flood damage, high threat perception
-            "regret": 0.9,       # "I should have elevated"
-            "relief": 0.8,       # Insurance payout, successful claim
-            "trust_shift": 0.7,  # Trust changes (increase/decrease)
+            "critical": 1.0,     # Negative impact, failure, damage
+            "major": 0.9,        # Significant event or choice
+            "positive": 0.8,     # Success, reward, protection
+            "shift": 0.7,        # Trust or behavioral changes
             "observation": 0.4,  # Neutral social observation
             "routine": 0.1       # No notable event
         }
         
         # Source differentiation (personal experience weighted higher)
         self.source_weights = source_weights or {
-            "personal": 1.0,     # MY house flooded
-            "neighbor": 0.7,     # Neighbor's experience
-            "community": 0.5,    # Community statistics
+            "personal": 1.0,     # Direct experience
+            "neighbor": 0.7,     # Proximate observation
+            "community": 0.5,    # Group statistics
             "abstract": 0.3      # General information
         }
         
-        # Emotion keywords for classification
+        # Emotion keywords for classification (Generic)
         self.emotion_keywords = {
-            "fear": ["flood", "damage", "destroyed", "loss", "$", "threat", "risk", "vulnerable"],
-            "regret": ["should have", "could have", "wish", "if only", "mistake"],
-            "relief": ["paid", "claim", "covered", "insurance worked", "grant", "approved"],
-            "trust_shift": ["trust", "reliable", "doubt", "skeptic", "faith"]
+            "critical": ["failure", "damage", "destroyed", "loss", "error", "emergency"],
+            "major": ["should have", "could have", "important", "decision"],
+            "positive": ["success", "improved", "protected", "approved", "gain"],
+            "shift": ["trust", "reliable", "doubt", "skeptic", "change"]
         }
     
     def _classify_emotion(self, content: str, agent: Optional[BaseAgent] = None) -> str:

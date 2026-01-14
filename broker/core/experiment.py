@@ -14,6 +14,7 @@ from .skill_broker_engine import SkillBrokerEngine
 from ..components.context_builder import BaseAgentContextBuilder
 from ..components.memory_engine import MemoryEngine, WindowMemoryEngine, HierarchicalMemoryEngine
 from ..utils.agent_config import GovernanceAuditor
+from ..utils.logging import logger
 
 @dataclass
 class ExperimentConfig:
@@ -83,18 +84,18 @@ class ExperimentRunner:
         """Standardized simulation loop."""
         llm_invoke = llm_invoke or self.llm_invoke
         run_id = f"exp_{random.randint(1000, 9999)}"
-        print(f"Starting Experiment: {self.config.experiment_name} | Model: {self.config.model}")
+        logger.info(f"Starting Experiment: {self.config.experiment_name} | Model: {self.config.model}")
         
         # 0. Fool-proof Schema Validation
         # ... (keep existing validation code)
         if hasattr(self.broker, 'model_adapter') and getattr(self.broker.model_adapter, 'agent_config', None):
             config = self.broker.model_adapter.agent_config
             types = set(a.agent_type for a in self.agents.values() if hasattr(a, 'agent_type'))
-            print(f"[Governance:Diagnostic] Initializing with Profile: {self.config.governance_profile}")
+            logger.debug(f"[Governance:Diagnostic] Initializing with Profile: {self.config.governance_profile}")
             for atype in types:
                 issues = config.validate_schema(atype)
                 for issue in issues:
-                    print(f"[Governance:Diagnostic] {issue}")
+                    logger.warning(f"[Governance:Diagnostic] {issue}")
         
         # Determine total iterations (backward compatible)
         iterations = self.config.num_steps or self.config.num_years
@@ -109,7 +110,7 @@ class ExperimentRunner:
             
             # Print status using generic term if steps used, otherwise year
             term = "Step" if self.config.num_steps else "Year"
-            print(f"--- {term} {step} ---")
+            logger.info(f"--- {term} {step} ---")
             
             # --- Lifecycle Hook: Pre-Step / Pre-Year ---
             # Dual trigger for generic compatibility
@@ -164,11 +165,11 @@ class ExperimentRunner:
         action_desc = result.approved_skill.skill_name.replace("_", " ").capitalize()
         
         # Enhance memory description with outcome/context if available
-        # Example: "Year 5: Decided to Buy Flood Insurance (Success)"
+        # Example: "Year 5: Decided to Choose Action X (Success)"
         timestamp_prefix = f"Year {self._current_year}: " if hasattr(self, '_current_year') else ""
         memory_content = f"{timestamp_prefix}Decided to: {action_desc}"
         
-        if result.execution_result and result.execution_result.metadata:
+        if result.execution_result and getattr(result.execution_result, 'metadata', None):
             meta = result.execution_result.metadata
             if "payout" in meta:
                 memory_content += f" (Received payout: {meta['payout']:.2f})"
@@ -234,7 +235,7 @@ class ExperimentRunner:
                     agent, result = future.result()
                     results.append((agent, result))
                 except Exception as e:
-                    print(f"[Parallel] Agent {futures[future].id} failed: {e}")
+                    logger.error(f"[Parallel] Agent {futures[future].id} failed: {e}")
         
         return results
 
@@ -430,7 +431,7 @@ class ExperimentBuilder:
                     atype = getattr(agent, 'agent_type', 'default')
                     agent.memory_config = config.get_memory_config(atype)
             except Exception as e:
-                print(f" Warning: Could not load configurations from {self.agent_types_path}: {e}")
+                logger.warning(f"Could not load configurations from {self.agent_types_path}: {e}")
         
         # 6. Setup Broker
         # 6. Setup Broker

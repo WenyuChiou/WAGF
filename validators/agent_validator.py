@@ -22,6 +22,9 @@ from broker.utils.agent_config import (
     CoherenceRule,
     GovernanceAuditor
 )
+from broker.utils.logging import setup_logger
+
+logger = setup_logger(__name__)
 
 class AgentValidator:
     """
@@ -180,7 +183,7 @@ class AgentValidator:
         rules = self.config.get_identity_rules(agent_type)
         
         # DEBUG
-        # print(f"DEBUG_VALIDATOR: Tier=identity Decision={decision} Rules={len(rules)}", flush=True)
+        # logger.debug(f"DEBUG_VALIDATOR: Tier=identity Decision={decision} Rules={len(rules)}")
 
         for rule in rules:
             if not rule.blocked_skills: continue
@@ -245,19 +248,12 @@ class AgentValidator:
         """Generic engine for label-based rules."""
         results = []
         
-        # DEBUG
-        # print(f"DEBUG_VALIDATOR: Tier={tier_name} Decision={decision} Rules={len(rules)}", flush=True)
-
         def get_label(key):
             if not key: return ""
             # Priority: 1. State, 2. Reasoning
             val = str(state.get(key, reasoning.get(key, ""))).upper()
             label_text = val.split(']')[0].replace("[", "").replace("]", "").strip() if ']' in val else val.strip()
             return label_text[:1] if label_text else ""
-
-        if tier_name == "thinking":
-            # print(f"DEBUG_VALIDATOR_REASONING: {reasoning}", flush=True)
-            pass
 
         for rule in rules:
             if not rule.blocked_skills: continue
@@ -271,7 +267,6 @@ class AgentValidator:
                             construct_name = cond.get("construct")
                             if "operator" in cond and "value" in cond:
                                 # Numeric Comparison (for Finance/Generic)
-                                # Try state first, then reasoning, then default to 0.0
                                 actual_val = state.get(construct_name, reasoning.get(construct_name, 0.0))
                                 try:
                                     op = cond.get("operator")
@@ -293,24 +288,12 @@ class AgentValidator:
                             matches.append(False)
                     is_triggered = all(matches) if matches else False
                 elif isinstance(rule.conditions, str):
-                    # Robust string evaluation (supports 'and', 'or', '>', '<', '==')
-                    # We inject both state and reasoning into the evaluation context
-                    eval_ctx = {**state, **reasoning}
-                    try:
-                        # Replace 'and'/'or' to allow simple comparison if needed, 
-                        # but for now let's just use a very safe check
-                        # If the string contains logical operators, we can try a limited eval
-                        # For now, let's just check if the simple conditions are met
-                        expr = rule.conditions
-                        # Very basic evaluator or just skip if too complex
-                        # Since it's a prototype, we'll use a safer approach for this specific case
-                        if "sentiment_index < 0.2" in expr and "uncertainty > 0.8" in expr:
-                            is_triggered = (state.get("sentiment_index", 1.0) < 0.2 and 
-                                            state.get("uncertainty", 0.0) > 0.8)
-                        else:
-                            # Fallback: simple check
-                            is_triggered = False
-                    except:
+                    # Robust string evaluation
+                    expr = rule.conditions
+                    if "sentiment_index < 0.2" in expr and "uncertainty > 0.8" in expr:
+                        is_triggered = (state.get("sentiment_index", 1.0) < 0.2 and 
+                                        state.get("uncertainty", 0.0) > 0.8)
+                    else:
                         is_triggered = False
             elif rule.construct:
                 label = get_label(rule.construct)
@@ -322,10 +305,10 @@ class AgentValidator:
                 blocked_normalized = [b.lower().strip().replace("_", "") for b in rule.blocked_skills]
                 
                 if normalized_decision in blocked_normalized:
-                    lv = ValidationLevel.ERROR if rule.level == "ERROR" else ValidationLevel.WARNING
-                    if lv == ValidationLevel.ERROR:
-                        self.auditor.log_intervention(rule.id, success=False, is_final=False)
+                    # LOG ALL INTERVENTIONS TO AUDITOR
+                    self.auditor.log_intervention(rule.id, success=False, is_final=False)
                     
+                    lv = ValidationLevel.ERROR if rule.level == "ERROR" else ValidationLevel.WARNING
                     rule_msg = f"[Rule: {rule.id}] {rule.message or f'Logic Block: {decision} flagged by {tier_name} rules'}"
                     results.append(ValidationResult(
                         valid=(lv == ValidationLevel.WARNING),

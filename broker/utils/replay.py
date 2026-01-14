@@ -6,6 +6,9 @@ Enables deterministic reproduction of past simulations.
 import json
 from pathlib import Path
 from typing import Dict, Any, Optional
+from broker.utils.logging import setup_logger
+
+logger = setup_logger(__name__)
 
 
 class ReplayEngine:
@@ -36,7 +39,7 @@ class ReplayEngine:
             for line in f:
                 self.traces.append(json.loads(line))
         
-        print(f"Loaded {len(self.traces)} audit traces")
+        logger.info(f"Loaded {len(self.traces)} audit traces")
     
     def get_run_info(self) -> Dict[str, Any]:
         """Get information about the recorded run."""

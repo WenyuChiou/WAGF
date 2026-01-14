@@ -33,6 +33,7 @@ from ..utils.agent_config import GovernanceAuditor, load_agent_config
 from ..components.interaction_hub import InteractionHub
 from ..components.audit_writer import AuditWriter
 from ..components.skill_retriever import SkillRetriever
+from ..utils.logging import logger
 
 
 class SkillBrokerEngine:
@@ -63,7 +64,7 @@ class SkillBrokerEngine:
         config: Optional[Any] = None, # Phase 12: Accept config for generic logging
         skill_retriever: Optional[SkillRetriever] = None, # Phase 28: Dynamic Skill Retrieval
         audit_writer: Optional[Any] = None,
-        max_retries: int = 2,
+        max_retries: int = 3,
         log_prompt: bool = False
     ):
         self.skill_registry = skill_registry
@@ -73,11 +74,20 @@ class SkillBrokerEngine:
         self.context_builder = context_builder
         # Phase 28: Universal RAG support. If no retriever provided, use default.
         # Phase 32: Configure Global Skills (Always Available)
-        self.skill_retriever = skill_retriever or SkillRetriever(
-            top_n=3, 
-            global_skills=["do_nothing", "buy_insurance", "buy_contents_insurance"]
-        )
         self.config = config or load_agent_config() # Default if not provided
+        
+        if skill_retriever:
+            self.skill_retriever = skill_retriever
+        else:
+            # Create a retriever with global skills from config
+            global_skills = self.config.get_global_skills("default") # Base default
+            full_disclosure = self.config.get_full_disclosure_agent_types()
+            self.skill_retriever = SkillRetriever(
+                top_n=3, 
+                global_skills=global_skills,
+                full_disclosure_agent_types=full_disclosure
+            )
+            
         self.audit_writer = audit_writer
         self.max_retries = max_retries
         self.log_prompt = log_prompt
@@ -145,7 +155,7 @@ class SkillBrokerEngine:
             
             # Retrieve top relevant skills
             retrieved_skills = self.skill_retriever.retrieve(context, eligible_skills)
-            print(f" [RAG] Retrieved {len(retrieved_skills)} relevant skills for {agent_id}")
+            logger.debug(f" [RAG] Retrieved {len(retrieved_skills)} relevant skills for {agent_id}")
             
             # Update context with retrieved skill IDs
             context["available_skills"] = [s.skill_id for s in retrieved_skills]
@@ -197,31 +207,22 @@ class SkillBrokerEngine:
                 })
             except Exception as e:
                 if initial_attempts > max_initial_attempts:
-                    print(f" [Broker:Error] Failed to parse LLM output after {max_initial_attempts} attempts: {e}")
+                    logger.error(f" [Broker:Error] Failed to parse LLM output after {max_initial_attempts} attempts: {e}")
                     raise
-                print(f" [Broker:Retry] Parsing failed ({initial_attempts}/{max_initial_attempts}): {e}")
+                logger.warning(f" [Broker:Retry] Parsing failed ({initial_attempts}/{max_initial_attempts}): {e}")
                 # Build retry prompt
                 prompt = self.model_adapter.format_retry_prompt(prompt, [str(e)])
             
         if skill_proposal is None:
             self.stats["aborted"] += 1
-            print(f" [LLM:Error] Model returned unparsable output after {max_initial_attempts+1} attempts for {agent_id}.")
+            self.auditor.log_parse_error()
+            logger.error(f" [LLM:Error] Model returned unparsable output after {max_initial_attempts+1} attempts for {agent_id}.")
             return self._create_result(SkillOutcome.ABORTED, None, None, None, ["Parse error after retries"])
         
         # ③ Skill validation
         # Standardization (Phase 9/12): Decouple domain-specific keys
         if env_context is None:
             env_context = {}
-        
-        # Legacy Compatibility Layer: Ensure typical flood-ABM keys are available
-        # if not explicitly present in the environment context.
-        if "flood_status" not in env_context:
-            if "flood_event" in env_context:
-                env_context["flood_status"] = "Flood occurred" if env_context["flood_event"] else "No flood"
-            elif "flood_event" in context:
-                env_context["flood_status"] = "Flood occurred" if context.get("flood_event") else "No flood"
-            elif "flood_occured" in env_context: # Handle common typo if exists
-                env_context["flood_status"] = "Flood occurred" if env_context["flood_occured"] else "No flood"
 
         validation_context = {
             "agent_state": context,
@@ -233,6 +234,11 @@ class SkillBrokerEngine:
         validation_results = self._run_validators(skill_proposal, validation_context)
         all_validation_history = list(validation_results)
         all_valid = all(v.valid for v in validation_results)
+        
+        # Track initial errors for audit summary
+        initial_rule_ids = set()
+        for v in validation_results:
+            initial_rule_ids.update(v.metadata.get("rules_hit", []))
         
         # Diagnostic summary for User
         if self.log_prompt:
@@ -259,13 +265,8 @@ class SkillBrokerEngine:
             if not any("Confidence" in p for p in label_parts) and "Confidence" in reasoning:
                 label_parts.append(f"Confidence: {reasoning['Confidence']}")
 
-            print(f" [Adapter:Parsed] {agent_id} Choice: '{skill_proposal.skill_name}' | {' | '.join(label_parts)}")
-            
-            if not all_valid:
-                errors = [e for v in validation_results for e in v.errors]
-                print(f" [Validator:Blocked] {agent_id} | Reasons: {errors}")
-            else:
-                print(f" [Validator:Passed] {agent_id}")
+            # Determine governance summary (Moved to end for consolidated reporting)
+            pass
         
         # Retry loop
         retry_count = 0
@@ -273,8 +274,8 @@ class SkillBrokerEngine:
             retry_count += 1
             errors = [e for v in validation_results for e in v.errors]
             
-            # Real-time Console Feedback
-            print(f"[Governance] Blocked '{skill_proposal.skill_name}' for {agent_id} (Attempt {retry_count}). Reasons: {errors}")
+            # Real-time Console Feedback (Hidden for noise reduction as requested)
+            # logger.warning(f"[Governance] Blocked '{skill_proposal.skill_name}' for {agent_id} (Attempt {retry_count}). Reasons: {errors}")
             
             retry_prompt = self.model_adapter.format_retry_prompt(prompt, errors)
             res = llm_invoke(retry_prompt)
@@ -303,12 +304,30 @@ class SkillBrokerEngine:
                 all_validation_history.extend(validation_results)
                 all_valid = all(v.valid for v in validation_results)
                 if not all_valid:
-                    print(f"[Governance:Retry] Attempt {retry_count} failed validation for {agent_id}. Errors: {[e for v in validation_results for e in v.errors]}")
+                    logger.warning(f"[Governance:Retry] Attempt {retry_count} failed validation for {agent_id}. Errors: {[e for v in validation_results for e in v.errors]}")
             else:
-                print(f"[Governance:Retry] Attempt {retry_count} produced unparsable output for {agent_id}.")
+                logger.warning(f"[Governance:Retry] Attempt {retry_count} produced unparsable output for {agent_id}.")
         
         if not all_valid and retry_count >= self.max_retries:
-             print(f"[Governance:Fallout] CRITICAL: Max retries ({self.max_retries}) reached for {agent_id}. FALLING BACK to '{self.skill_registry.get_default_skill()}'. This will be marked as REJECTED in logs.")
+             # Building diagnostic info for Fallout
+             errors = [e for v in validation_results for e in v.errors]
+             logger.error(f"[Governance:Fallout] CRITICAL: Max retries ({self.max_retries}) reached for {agent_id}.")
+             logger.error(f"  - Final Choice Rejected: '{skill_proposal.skill_name}'")
+             logger.error(f"  - Blocked By: {errors}")
+             
+             # Show reasoning/ratings for diagnosis
+             ratings = []
+             for k, v in skill_proposal.reasoning.items():
+                 if "_LABEL" in k: ratings.append(f"{k}={v}")
+             if ratings: logger.error(f"  - Ratings: {' | '.join(ratings)}")
+             
+             reason_text = skill_proposal.reasoning.get("threat_appraisal", {}).get("reason", "") if isinstance(skill_proposal.reasoning.get("threat_appraisal"), dict) else ""
+             if not reason_text:
+                 reason_text = skill_proposal.reasoning.get("TP_REASON", skill_proposal.reasoning.get("Reasoning", ""))
+             if reason_text:
+                 logger.error(f"  - Agent Motivation: {reason_text}")
+             
+             logger.error(f"  - Action: Falling back to '{self.skill_registry.get_default_skill()}'.")
         
         # ④ Create ApprovedSkill or use fallback
         if all_valid:
@@ -323,10 +342,16 @@ class SkillBrokerEngine:
             outcome = SkillOutcome.RETRY_SUCCESS if retry_count > 0 else SkillOutcome.APPROVED
             if retry_count > 0:
                 self.stats["retry_success"] += 1
-                # Log outcome for summary
-                for v in validation_results:
-                    for rule_id in v.metadata.get("rules_hit", []):
-                        self.auditor.log_intervention(rule_id, success=True, is_final=True)
+                # Final Success Log with Ratings
+                ratings = []
+                for k, v in skill_proposal.reasoning.items():
+                    if "_LABEL" in k: ratings.append(f"{k}={v}")
+                rating_str = f" | {' | '.join(ratings)}" if ratings else ""
+                logger.warning(f" [Governance:Success] {agent_id} | Fixed after {retry_count} retries | Choice: '{skill_proposal.skill_name}'{rating_str}")
+                
+                # Log final success for initially hit rules
+                for rule_id in initial_rule_ids:
+                    self.auditor.log_intervention(rule_id, success=True, is_final=True)
             else:
                 self.stats["approved"] += 1
         else:
@@ -342,14 +367,14 @@ class SkillBrokerEngine:
             )
             outcome = SkillOutcome.UNCERTAIN
             self.stats["rejected"] += 1
-            # Log failure for summary
+            # Log final failure for the rules that caused fallout
             for v in validation_results:
                 for rule_id in v.metadata.get("rules_hit", []):
                     self.auditor.log_intervention(rule_id, success=False, is_final=True)
         
         # FINAL STEP SUMMARY (Console)
         if retry_count > 0:
-            print(f"[Governance:Summary] {agent_id} | Result: {outcome.value} | Retries: {retry_count} | Final Skill: {approved_skill.skill_name}")
+             pass # Already logged success above
         
         # ⑤ Execution (simulation engine ONLY)
         if self.simulation_engine:
