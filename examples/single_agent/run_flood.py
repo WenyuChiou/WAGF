@@ -77,12 +77,23 @@ class FinalContextBuilder(TieredContextBuilder):
         personal['trust_insurance_text'] = self._verbalize_trust(trust_ins, "insurance")
         personal['trust_neighbors_text'] = self._verbalize_trust(trust_nb, "neighbors")
         
-        # 4. Format memory list into a bulleted string (Window size 5)
-        # Hub might have truncated to 3, but we can access full storage if needed 
-        # Actually, we'll just ensure the memory engine window is 5 in the builder
-        mem_list = personal.get('memory', [])
-        if isinstance(mem_list, list):
-            personal['memory'] = "\n".join([f"- {m}" for m in mem_list])
+        # 4. Format memory list/dict into a bulleted string
+        mem_val = personal.get('memory', [])
+        if isinstance(mem_val, dict):
+            # Flatten tiered memory for prompt
+            lines = []
+            if mem_val.get("core"):
+                core_str = " ".join([f"{k}={v}" for k, v in mem_val["core"].items()])
+                lines.append(f"CORE: {core_str}")
+            if mem_val.get("semantic"):
+                lines.append("HISTORIC:")
+                lines.extend([f"  - {m}" for m in mem_val["semantic"]])
+            if mem_val.get("episodic"):
+                lines.append("RECENT:")
+                lines.extend([f"  - {m}" for m in mem_val["episodic"]])
+            personal['memory'] = "\n".join(lines) if lines else "No memory available"
+        elif isinstance(mem_val, list):
+            personal['memory'] = "\n".join([f"- {m}" for m in mem_val])
         
         # 5. Options Text Formatting
         agent = self.agents[agent_id]
@@ -263,8 +274,8 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     for a in agents.values(): 
         a.flood_history = []
         a.agent_type = "household"
-        # Synchronize Registry IDs
-        a.config.skills = ["buy_insurance", "elevate_house", "relocate", "do_nothing"]
+        # Synchronize Registry IDs - Include full global suite for disclosure parity
+        a.config.skills = ["buy_insurance", "buy_contents_insurance", "elevate_house", "relocate", "do_nothing"]
         for k, v in a.custom_attributes.items(): setattr(a, k, v)
 
     # 3. Load Flood Years
@@ -305,6 +316,10 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
             seed=42  # For reproducibility
         )
         print(f" Using HumanCentricMemoryEngine (emotional encoding + stochastic consolidation)")
+    elif memory_engine_type == "hierarchical":
+        from broker.components.memory_engine import HierarchicalMemoryEngine
+        memory_engine = HierarchicalMemoryEngine(window_size=5, semantic_top_k=3)
+        print(f" Using HierarchicalMemoryEngine (Tiered: Core, Episodic, Semantic)")
     else:
         memory_engine = WindowMemoryEngine(window_size=3)
         print(f" Using WindowMemoryEngine (sliding window)")
@@ -399,8 +414,8 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=str, default=None)
     parser.add_argument("--verbose", action="store_true", help="Enable verbose LLM logging")
     parser.add_argument("--memory-engine", type=str, default="window", 
-                        choices=["window", "importance", "humancentric"], 
-                        help="Memory retrieval strategy: window (sliding), importance (active retrieval), or humancentric (emotional encoding)")
+                        choices=["window", "importance", "humancentric", "hierarchical"], 
+                        help="Memory retrieval strategy: window (sliding), importance (active retrieval), humancentric (emotional), or hierarchical (tiered)")
     args = parser.parse_args()
     run_parity_benchmark(
         model=args.model, 

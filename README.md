@@ -65,6 +65,33 @@ The framework utilizes a layered middleware approach that unifies single-agent i
 
 ---
 
+## 🔬 Scientific Research Questions (SQs)
+
+The framework is designed to address three primary scientific questions regarding flood adaptation:
+
+### SQ1: Cognitive vs. Stochastic Adaptation
+
+**Question**: How does LLM-driven reasoning-based adaptation compare to probability-based adaptation in predicting long-term flood outcomes under repeated exposure?
+
+- **Experimental Design**: Control (Traditional Probability ABM) vs. Treatment (LLM + PMT Reasoning).
+- **Goal**: Evaluate if reasoning-based models better capture the "lock-in" or "threshold" effects of adaptation compared to stochastic models.
+
+### SQ2: Social Network Influence & Tenure Gap
+
+**Question**: How do social network effects (neighbor influence via gossip) accelerate or dampen the adaptation gap between renters and homeowners?
+
+- **Experimental Design**: Comparative study of "Social Gossip Enabled" vs. "Gossip Disabled" in Multi-Agent scenarios.
+- **Goal**: Understand how social capital (SC) modulates adaptation for different demographic segments.
+
+### SQ3: Institutional Feedback & Financial Resilience
+
+**Question**: How do institutional feedback loops (FEMA solvency vs. Blue Acres subsidies) interact to shape community-level adaptation and financial resilience?
+
+- **Experimental Design**: 2x2 Matrix varying FEMA Initial Solvency (Low/High) and Blue Acres Subsidy Rate (Low/High).
+- **Goal**: Map the policy sensitivity of the adaptation system to institutional health.
+
+---
+
 ## 🔧 Configurable Module Parameters (v3.2)
 
 All core modules expose configurable parameters following a **0-1 normalization standard** for psychological, behavioral, and importance weights.

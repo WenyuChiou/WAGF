@@ -45,8 +45,16 @@ class InteractionHub:
         neighbor_ids = self.graph.get_neighbors(agent_id)
         gossip = []
         
-        # Select chatty neighbors (those who have any memory in the engine)
-        chatty_neighbors = [nid for nid in neighbor_ids if self.memory_engine.retrieve(agents[nid], top_k=1)]
+        # Select chatty neighbors (those who have actual content in memory)
+        chatty_neighbors = []
+        for nid in neighbor_ids:
+            mem = self.memory_engine.retrieve(agents[nid], top_k=1)
+            if isinstance(mem, dict):
+                if mem.get("episodic") or mem.get("semantic"):
+                    chatty_neighbors.append(nid)
+            elif mem:
+                chatty_neighbors.append(nid)
+
         if not chatty_neighbors:
             return []
             
@@ -55,8 +63,16 @@ class InteractionHub:
         for nid in random.sample(chatty_neighbors, sample_size):
             # Retrieve the most recent memory from the neighbor as gossip
             neighbor_mems = self.memory_engine.retrieve(agents[nid], top_k=1)
-            if neighbor_mems:
-                gossip.append(f"Neighbor {nid} mentioned: '{neighbor_mems[0]}'")
+            
+            # Normalize: Hierarchical memory returns a dict, others return a list
+            mems_list = []
+            if isinstance(neighbor_mems, dict):
+                mems_list = neighbor_mems.get("episodic", []) or neighbor_mems.get("semantic", [])
+            else:
+                mems_list = neighbor_mems
+                
+            if mems_list:
+                gossip.append(f"Neighbor {nid} mentioned: '{mems_list[0]}'")
             
         return gossip
 

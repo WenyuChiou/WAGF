@@ -10,6 +10,7 @@ State mutations happen in orchestrator (run_experiment.py).
 from typing import Dict, Any, Optional
 from dataclasses import dataclass, asdict
 import numpy as np
+from examples.multi_agent.environment.hazard import VulnerabilityModule
 
 
 # =============================================================================
@@ -187,15 +188,14 @@ def _process_damage(data: Dict, cfg: Dict) -> Dict:
     """
     Calculate damage from flood.
     
-    Input: {"severity": float, "property_value": float, "elevated": bool}
+    Input: {"depth_ft": float, "property_value": float, "elevated": bool}
     Output: DamageResult as dict
     """
-    severity = data.get("severity", 0.0)
+    depth_ft = data.get("depth_ft", 0.0)
     property_value = data.get("property_value", 300_000)
     elevated = data.get("elevated", False)
-    damage_cfg = cfg.get("damage", ENV_CONFIG["damage"])
     
-    if severity == 0:
+    if depth_ft <= 0:
         return asdict(DamageResult(
             damage_ratio=0.0,
             damage_amount=0.0,
@@ -203,32 +203,21 @@ def _process_damage(data: Dict, cfg: Dict) -> Dict:
             contents_damage=0.0
         ))
     
-    # Base damage ratio (power curve)
-    base_ratio = severity ** 2.0
+    vuln = VulnerabilityModule()
+    rcv_contents = property_value * 0.3
     
-    # Elevation reduction
-    if elevated:
-        if severity > 0.9:  # Overtopped
-            reduction = damage_cfg["elevation_overtop_reduction"]
-        else:
-            reduction = damage_cfg["elevation_reduction"]
-        damage_ratio = base_ratio * (1.0 - reduction)
-    else:
-        damage_ratio = base_ratio
-    
-    # Cap at 100%
-    damage_ratio = min(1.0, damage_ratio)
-    
-    # Calculate amounts
-    building_damage = property_value * damage_ratio
-    contents_damage = building_damage * damage_cfg["contents_ratio"]
-    total_damage = building_damage + contents_damage
+    res = vuln.calculate_damage(
+        depth_ft=depth_ft,
+        rcv_building=property_value,
+        rcv_contents=rcv_contents,
+        is_elevated=elevated
+    )
     
     return asdict(DamageResult(
-        damage_ratio=round(damage_ratio, 4),
-        damage_amount=round(total_damage, 2),
-        building_damage=round(building_damage, 2),
-        contents_damage=round(contents_damage, 2)
+        damage_ratio=res["building_ratio"],
+        damage_amount=res["total_damage"],
+        building_damage=res["building_damage"],
+        contents_damage=res["contents_damage"]
     ))
 
 
@@ -241,7 +230,7 @@ def _process_claim(data: Dict, cfg: Dict) -> Dict:
     """
     damage = data.get("damage_amount", 0.0)
     has_insurance = data.get("has_insurance", False)
-    payout_ratio = data.get("payout_ratio", 1.0)  # Insurance agent's willingness
+    payout_ratio = data.get("payout_ratio", 1.0)
     ins_cfg = cfg.get("insurance", ENV_CONFIG["insurance"])
     
     if not has_insurance or damage == 0:
@@ -253,25 +242,22 @@ def _process_claim(data: Dict, cfg: Dict) -> Dict:
             out_of_pocket=damage
         ))
     
-    # Claim filed
-    deductible = ins_cfg["default_deductible"]
-    coverage_limit = ins_cfg["nfip_building_limit"]
+    vuln = VulnerabilityModule()
+    payout = vuln.calculate_payout(
+        damage=damage,
+        coverage_limit=ins_cfg["nfip_building_limit"],
+        deductible=ins_cfg["default_deductible"],
+        payout_ratio=payout_ratio
+    )
     
-    # Calculate payout
-    claimable = min(damage, coverage_limit)
-    payout_raw = max(0, claimable - deductible)
-    payout = payout_raw * payout_ratio
-    
-    # Determine if approved (payout > 0)
-    approved = payout > 0
-    out_of_pocket = damage - payout
+    out_of_pocket = vuln.calculate_oop(damage, payout)
     
     return asdict(ClaimResult(
         filed=True,
-        approved=approved,
-        payout=round(payout, 2),
-        deductible=deductible,
-        out_of_pocket=round(out_of_pocket, 2)
+        approved=payout > 0,
+        payout=payout,
+        deductible=ins_cfg["default_deductible"],
+        out_of_pocket=out_of_pocket
     ))
 
 

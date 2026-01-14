@@ -1,0 +1,29 @@
+{
+  "experiment_name": "llama3.2:3b",
+  "agent_types": {
+    "government": {
+      "total": 2,
+      "decisions": {
+        "maintain_subsidy": 2
+      }
+    },
+    "insurance": {
+      "total": 2,
+      "decisions": {
+        "lower_premium": 2
+      }
+    },
+    "household_owner": {
+      "total": 6,
+      "decisions": {
+        "do_nothing": 4,
+        "elevate_house": 1,
+        "buy_insurance": 1
+      }
+    }
+  },
+  "total_traces": 10,
+  "validation_errors": 0,
+  "validation_warnings": 0,
+  "finalized_at": "2026-01-13T21:56:12.096959"
+}

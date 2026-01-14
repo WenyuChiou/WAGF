@@ -58,10 +58,11 @@ class SkillRetriever:
         scored_skills.sort(key=lambda x: x[0], reverse=True)
         
         # 4. Filter and truncate
-        # Always include the global skills if they exist in the available set
         top_skills = [s for score, s in scored_skills[:self.top_n] if score >= self.min_score]
         
-        # Merge Top-N with Global Skills (avoiding duplicates)
+        # 5. Global Skills Injection (Baseline Disclosure)
+        # Always include global skills if the agent is eligible (exists in available_skills)
+        # These are added regardless of score to ensure consistent baseline options.
         for gid in self.global_skills:
             g_skill = next((s for s in available_skills if s.skill_id == gid), None)
             if g_skill and g_skill not in top_skills:

@@ -218,9 +218,34 @@ class BaseAgentContextBuilder(ContextBuilder):
         state_str = self._format_state(state)
         perception_str = self._format_perception(context.get("perception", {}))
         objectives_str = self._format_objectives(context.get("objectives", {}))
-        skills_str = ", ".join(context.get("available_skills", []))
+        
+        # Phase 28: Support RAG-based skill descriptions
+        retrieved_defs = context.get("retrieved_skill_definitions")
+        if retrieved_defs:
+            skills_str = "\n".join([f"- {s.skill_id}: {s.description}" for s in retrieved_defs])
+        else:
+            # Fallback to simple comma-separated list
+            skills_str = ", ".join(context.get("available_skills", []))
         memory_val = context.get("memory", [])
-        if isinstance(memory_val, list):
+        if isinstance(memory_val, dict) and "episodic" in memory_val:
+            # Phase 28: Hierarchical Memory Formatting
+            core = memory_val.get("core", {})
+            episodic = memory_val.get("episodic", [])
+            semantic = memory_val.get("semantic", [])
+            
+            lines = []
+            if core:
+                core_str = " ".join([f"{k}={v}" for k, v in core.items()])
+                lines.append(f"CORE: {core_str}")
+            if semantic:
+                lines.append("HISTORIC:")
+                lines.extend([f"  - {m}" for m in semantic])
+            if episodic:
+                lines.append("RECENT:")
+                lines.extend([f"  - {m}" for m in episodic])
+            
+            memory_str = "\n".join(lines) if lines else "No memory available"
+        elif isinstance(memory_val, list):
             # Baseline uses: "- {item}" prefix for each memory line
             memory_str = "\n".join(f"- {m}" for m in memory_val) if memory_val else "No memory available"
         else:
@@ -278,12 +303,21 @@ class BaseAgentContextBuilder(ContextBuilder):
         return "\n".join(f"- {k}: {v:.2f}" for k, v in state.items()) or "No state"
     
     def _semantic(self, v: float) -> str:
-        """Convert 0-1 value to semantic label."""
-        low, high = self.semantic_thresholds
+        """
+        Convert 0-1 value to semantic label (5 levels).
         
-        if v < low: return "L"
-        if v > high: return "H"
-        return "M"
+        Thresholds:
+            VL (Very Low): v < 0.2
+            L  (Low):      0.2 <= v < 0.4
+            M  (Medium):   0.4 <= v < 0.6
+            H  (High):     0.6 <= v < 0.8
+            VH (Very High): v >= 0.8
+        """
+        if v < 0.2: return "VL"
+        if v < 0.4: return "L"
+        if v < 0.6: return "M"
+        if v < 0.8: return "H"
+        return "VH"
     
     def _format_perception(self, perception: Dict[str, float], compact: bool = True) -> str:
         """Format perception signals."""

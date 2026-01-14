@@ -1,3 +1,0 @@
-﻿step_id,agent_id,proposed_skill,final_skill,status,retry_count,validated,failed_rules,timestamp,parsing_warnings,raw_output,reason_reason,error_messages
-1,Agent_1,do_nothing,do_nothing,APPROVED,0,True,,2026-01-12T15:08:33.665160,Decision extracted via keyword presence: do_nothing,"{""reasoning"": ""testing"", ""skill"": ""do_nothing""}",testing,
-2,Agent_1,do_nothing,do_nothing,APPROVED,0,True,,2026-01-12T15:08:33.672583,Decision extracted via keyword presence: do_nothing,"{""reasoning"": ""testing"", ""skill"": ""do_nothing""}",testing,
