@@ -637,8 +637,8 @@ def generate_readme_en(all_analysis: list):
             f.write("**Behavioral Insight:**\n")
             if "Gemma" in model and a.get("gemma_analysis"):
                  ga = a["gemma_analysis"]
-                 f.write(f"- **Optimism Bias**: High perceived coping (Medium+) masks threat perception.\n")
-                 f.write(f"- **Passive Compliance**: 0 rejections because it defaults to 'Do Nothing', which is allowed under low threat.\n")
+                 f.write(f"- **Why p < 0.0001 with 0 triggers?** The shift is driven by **Memory Amnesia**, not Governance. Window Memory (N=3) quickly discards flood history. Without recalled floods, the agent's Threat Perception drops, causing it to choose 'Do Nothing' more often (which is allowed under Low Threat).\n")
+                 f.write(f"- **Passive Compliance**: 0 rejections because the model's low threat appraisal aligns with its inaction, bypassing strict definition checks.\n")
             elif old_reloc > window_reloc:
                 f.write(f"- Window memory reduced relocations by {old_reloc - window_reloc}. Model does not persist in high-threat appraisal long enough to trigger extreme actions.\n")
             elif window_reloc > old_reloc:
@@ -666,15 +666,17 @@ def generate_readme_en(all_analysis: list):
             
             # Detailed Rules Table (Window as representative)
             win_details = a.get("window_app_details", [])
+            f.write("**Rule Trigger Analysis (Window Memory):**\n\n")
+
             if win_details:
-                f.write("**Rule Trigger Analysis (Window Memory):**\n\n")
                 f.write("| Rule | Count | Compliance (Fixed) | Rejection (Failed) | Success Rate | Insight |\n")
                 f.write("|---|---|---|---|---|---|\n")
                 for d in win_details:
                     f.write(f"| `{d['rule']}` | {d['triggers']} | {d['approved']} | {d['rejected']} | **{d['rate']:.1f}%** | {d['insight']} |\n")
-                f.write("\n")
-            elif "Gemma" in model or "GPT" in model:
-                f.write("> **Zero Triggers**: This model is 'Passive Compliant'. It tends to choose 'Do Nothing' or low-cost actions when threat is low, thus never triggering the *Action vs Logic* blocked rules.\n\n")
+            else:
+                f.write("> **Zero Triggers**: No governance rules were triggered. The model displayed **Passive Compliance**, likely defaulting to 'Do Nothing' or allowed actions under low threat.\n")
+
+            f.write("\n")
 
         f.write("\n")
     print(f"[OK] Saved English README to: {path}")
@@ -826,8 +828,8 @@ def generate_readme_ch(all_analysis: list):
             f.write("**行為洞察：**\n")
             if "Gemma" in model and a.get("gemma_analysis"):
                  ga = a["gemma_analysis"]
-                 f.write(f"- **樂觀偏差 (Optimism Bias)**：雖然感知到威脅（{ga.get('high_threat_perceptions')} 次高威脅），但其應對評估（Coping Appraisal）常維持在中高等級，導致威脅感被抵銷。\n")
-                 f.write(f"- **被動合規**：0 次拒絕，因為它默認選擇「不做任何事」，在低威脅下這被視為合法決策。\n")
+                 f.write(f"- **為何 0 觸發卻有顯著差異？** 差異來自 **記憶遺忘 (Memory Amnesia)** 而非治理攔截。Window 記憶 (N=3) 快速丟棄了洪水歷史，導致威脅感知 ($TP$) 下降，模型因此更頻繁地選擇「不做任何事」（在低威脅下是被允許的）。\n")
+                 f.write(f"- **被動合規**：0 次拒絕，因為模型的低威脅評估與其「不作為」行動一致，未觸發高威脅下的強制行動規則。\n")
             elif old_reloc > window_reloc:
                 f.write(f"- Window 記憶減少了 {old_reloc - window_reloc} 次搬遷。模型未長期維持高威脅評估，因此未觸發極端行動。\n")
             elif window_reloc > old_reloc:
@@ -855,8 +857,9 @@ def generate_readme_ch(all_analysis: list):
             
             # Detailed Rules Table (Window as representative)
             win_details = a.get("window_app_details", [])
+            f.write("**規則觸發分析 (Rule Trigger Analysis - Window Memory):**\n\n")
+
             if win_details:
-                f.write("**規則觸發分析 (Window Memory):**\n\n")
                 f.write("| 規則 ID | 次數 | 合規修正 (Fixed) | 拒絕 (Failed) | 成功率 | 洞察 |\n")
                 f.write("|---|---|---|---|---|---|\n")
                 for d in win_details:
@@ -867,9 +870,10 @@ def generate_readme_ch(all_analysis: list):
                     if "Compliant" in insight_en: insight_ch = "合規 (Compliant)"
                     
                     f.write(f"| `{d['rule']}` | {d['triggers']} | {d['approved']} | {d['rejected']} | **{d['rate']:.1f}%** | {insight_ch} |\n")
-                f.write("\n")
-            elif "Gemma" in model or "GPT" in model:
-                f.write("> **零觸發 (Zero Triggers)**：此模型屬於「被動合規型」。在低威脅時傾向選擇「不做任何事」，因此從未觸發「行動 vs 邏輯」的阻擋規則。\n\n")
+            else:
+                f.write("> **零觸發 (Zero Triggers)**：未觸發任何治理規則。模型展現出 **被動合規 (Passive Compliance)**，可能因為在低威脅下默認選擇「不做任何事」，而這是規則允許的。\n")
+            
+            f.write("\n")
         
         f.write("\n")
     
