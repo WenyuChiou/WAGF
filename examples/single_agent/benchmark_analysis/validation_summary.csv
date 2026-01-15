@@ -1,6 +1,0 @@
-Model/Engine,Total Decisions,Retries,Retry Rate,Validation Failed,Parse Warnings,Status Breakdown,Failed Rules
-window_llama3_2_3b,1000,0,0.0%,0,1000,{'APPROVED': 1000},{}
-window_gemma3_4b,1000,0,0.0%,0,977,{'APPROVED': 1000},{}
-window_deepseek_r1_8b,1000,0,0.0%,0,999,{'APPROVED': 1000},{}
-importance_llama3_2_3b,1000,1,0.1%,1,999,{'APPROVED': 1000},{'urgency_check': 1}
-importance_gemma3_4b,1000,0,0.0%,0,978,{'APPROVED': 1000},{}

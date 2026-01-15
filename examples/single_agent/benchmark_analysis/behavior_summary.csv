@@ -1,7 +1,0 @@
-Scenario,Total Agents,Cumulative Relocations,Final Relocation Rate,Do Nothing Count,Relocate Count,Only House Elevation,Only Flood Insurance
-window_llama3.2_3b,100,534,534.0%,121,534,313,15
-window_gemma3_4b,100,99,99.0%,20,99,759,77
-window_deepseek-r1_8b,100,0,0.0%,716,0,267,14
-importance_llama3.2_3b,100,442,442.0%,156,442,343,34
-importance_gemma3_4b,100,107,107.0%,11,107,802,35
-legacy_no_framework,100,64,64.0%,433,64,184,52

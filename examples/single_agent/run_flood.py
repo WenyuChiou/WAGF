@@ -108,8 +108,9 @@ class FinalContextBuilder(TieredContextBuilder):
             desc = skill_def.description if skill_def else (skill_item.split(": ", 1)[1] if ": " in skill_item else skill_item)
             option_items.append((skill_id, desc))
         
-        # SHUFFLE options to reduce positional bias (controlled by agent_id hash for reproducibility)
-        agent_seed = hash(agent_id) % 10000  # Reproducible per-agent seed
+        # SHUFFLE options to reduce positional bias (changes per step/year for each agent)
+        step_id = kwargs.get('step_id', 0)
+        agent_seed = hash(f"{agent_id}_{step_id}") % 10000
         rng = random.Random(agent_seed)
         rng.shuffle(option_items)
         
