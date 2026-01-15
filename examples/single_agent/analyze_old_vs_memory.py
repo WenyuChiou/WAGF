@@ -606,7 +606,13 @@ def generate_readme_en(all_analysis: list):
         
         f.write("---\n\n")
         f.write("## Comparison Chart\n\n")
+        f.write("### Combined Comparison (3x4)\n")
         f.write("![Comparison](old_vs_window_vs_humancentric_3x4.png)\n\n")
+        f.write("### Window Memory Comparison\n")
+        f.write("![Window Comparison](old_vs_window_comparison.png)\n\n")
+        f.write("### Human-Centric Memory Comparison\n")
+        f.write("![Human-Centric Comparison](old_vs_humancentric_comparison.png)\n\n")
+        
         f.write("*Note: Each year shows only ACTIVE agents (already-relocated agents excluded)*\n\n")
         
         f.write("---\n\n")
@@ -670,8 +676,9 @@ def generate_readme_en(all_analysis: list):
         # Validation Summary table
         f.write("## Validation & Governance Details\n\n")
         f.write("### Governance Performance Summary\n\n")
-        f.write("| Model | Triggers | Solved (T1/T2/T3) | Failed | Success Rate |\n")
-        f.write("|-------|----------|-------------------|--------|--------------|\n")
+        f.write("> **Note**: Correction success is tracked across a **maximum of 3 retry attempts** per blocking event.\n\n")
+        f.write("| Model | Blocking Events | Solved (T1/T2/T3) | Failed (3 tries) | Correction Success |\n")
+        f.write("|-------|-----------------|-------------------|------------------|--------------------|\n")
         for a in all_analysis:
             v = a.get("window_validation", {})
             total = v.get("total", 0)
@@ -684,8 +691,8 @@ def generate_readme_en(all_analysis: list):
             model = a["model"]
             f.write(f"### {model} Governance\n\n")
             # Table for validation summary
-            f.write("| Memory | Triggers | Solved (T1/T2/T3) | Failed | Warnings |\n")
-            f.write("|--------|----------|-------------------|--------|----------|\n")
+            f.write("| Memory | Blocking Events | Solved (T1/T2/T3) | Failed | Warnings |\n")
+            f.write("|--------|-----------------|-------------------|--------|----------|\n")
             for mem_key, mem_display in [("window", "Window"), ("importance", "Human-Centric")]:
                 v = a[f"{mem_key}_validation"]
                 total = v.get('total', 0)
@@ -885,7 +892,8 @@ def generate_readme_ch(all_analysis: list):
         # Validation Details
         f.write("## 驗證與治理細節 (Validation & Governance)\n\n")
         f.write("### 治理效能總結 (Governance Performance Summary)\n\n")
-        f.write("| 模型 | 觸發總數 | 成功修正 (T1/T2/T3) | 失敗 (Failed) | 全域成功率 |\n")
+        f.write("> **註記**：修正成功率是基於每個阻斷事件**最多 3 次重試**的結果。\n\n")
+        f.write("| 模型 | 阻斷事件 | 成功修正 (T1/T2/T3) | 失敗 (3次重試) | 修正成功率 |\n")
         f.write("|------|----------|---------------------|---------------|-----------|\n")
         for a in all_analysis:
             v = a.get("window_validation", {})
@@ -900,7 +908,7 @@ def generate_readme_ch(all_analysis: list):
             f.write(f"### {model} 治理報告\n\n")
             
             # Table for validation summary
-            f.write("| 記憶模式 | 觸發總數 | 成功修正 (T1/T2/T3) | 失敗 (Failed) | 解析警告 |\n")
+            f.write("| 記憶模式 | 阻斷事件 | 成功修正 (T1/T2/T3) | 失敗 (Failed) | 解析警告 |\n")
             f.write("|----------|----------|---------------------|---------------|----------|\n")
             for mem_key, mem_display in [("window", "Window"), ("importance", "Human-Centric")]:
                 v = a[f"{mem_key}_validation"]

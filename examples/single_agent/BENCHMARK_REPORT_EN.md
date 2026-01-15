@@ -22,7 +22,14 @@
 
 ## Comparison Chart
 
+### Combined Comparison (3x4)
 ![Comparison](old_vs_window_vs_humancentric_3x4.png)
+
+### Window Memory Comparison
+![Window Comparison](old_vs_window_comparison.png)
+
+### Human-Centric Memory Comparison
+![Human-Centric Comparison](old_vs_humancentric_comparison.png)
 
 *Note: Each year shows only ACTIVE agents (already-relocated agents excluded)*
 
@@ -117,8 +124,10 @@
 
 ### Governance Performance Summary
 
-| Model | Triggers | Solved (T1/T2/T3) | Failed | Success Rate |
-|-------|----------|-------------------|--------|--------------|
+> **Note**: Correction success is tracked across a **maximum of 3 retry attempts** per blocking event.
+
+| Model | Blocking Events | Solved (T1/T2/T3) | Failed (3 tries) | Correction Success |
+|-------|-----------------|-------------------|------------------|--------------------|
 | Gemma 3 (4B) | 0 | 0 (0/0/0) | 0 | 0.0% |
 | Llama 3.2 (3B) | 260 | 34 (29/2/3) | 226 | 13.1% |
 | GPT-OSS | 0 | 0 (0/0/0) | 0 | 0.0% |
@@ -127,8 +136,8 @@
 
 ### Gemma 3 (4B) Governance
 
-| Memory | Triggers | Solved (T1/T2/T3) | Failed | Warnings |
-|--------|----------|-------------------|--------|----------|
+| Memory | Blocking Events | Solved (T1/T2/T3) | Failed | Warnings |
+|--------|-----------------|-------------------|--------|----------|
 | Window | 0 | 0 (0/0/0) | 0 | 0 |
 | Human-Centric | 0 | 0 (0/0/0) | 0 | 0 |
 
@@ -147,8 +156,8 @@
 
 ### Llama 3.2 (3B) Governance
 
-| Memory | Triggers | Solved (T1/T2/T3) | Failed | Warnings |
-|--------|----------|-------------------|--------|----------|
+| Memory | Blocking Events | Solved (T1/T2/T3) | Failed | Warnings |
+|--------|-----------------|-------------------|--------|----------|
 | Window | 260 | 34 (29/2/3) | 226 | 0 |
 | Human-Centric | 284 | 34 (29/4/1) | 250 | 0 |
 
@@ -173,8 +182,8 @@
 
 ### GPT-OSS Governance
 
-| Memory | Triggers | Solved (T1/T2/T3) | Failed | Warnings |
-|--------|----------|-------------------|--------|----------|
+| Memory | Blocking Events | Solved (T1/T2/T3) | Failed | Warnings |
+|--------|-----------------|-------------------|--------|----------|
 | Window | 0 | 0 (0/0/0) | 0 | 0 |
 | Human-Centric | 0 | 0 (0/0/0) | 0 | 0 |
 
