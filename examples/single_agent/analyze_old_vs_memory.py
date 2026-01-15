@@ -748,7 +748,7 @@ def generate_readme_ch(all_analysis: list):
         f.write("   - 模型在「如何解讀威脅」與「評估應對能力」上仍有本質差異\n\n")
         
         f.write("2. **記憶窗口效應 (Window Memory)**\n")
-        f.write("   - 僅保留最近 3 筆記憶\n")
+        f.write("   - 僅保留最近 5 筆記憶\n")
         f.write("   - 洪水歷史容易被後續的日常社交觀察（Social Proof）擠出\n")
         f.write("   - 對社交線索敏感的模型（如 Llama）展現出不同的適應行為\n\n")
         

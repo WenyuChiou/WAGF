@@ -71,7 +71,7 @@ RETRY_DELAY_SECONDS = 5             # Seconds to wait between retries
 FLOOD_PROBABILITY = 0.2             # 20% chance of a flood event in any given year
 GRANT_PROBABILITY = 0.5             # 50% chance of an elevation grant being available
 RANDOM_MEMORY_RECALL_CHANCE = 0.2   # 20% chance to recall a random past event each year
-MEMORY_WINDOW = 3                   # Number of recent memories an agent retains 
+MEMORY_WINDOW = 5                   # Number of recent memories an agent retains 
 
 # --- Verbalize Trust Function---
 def verbalize_trust(value, category="insurance"):

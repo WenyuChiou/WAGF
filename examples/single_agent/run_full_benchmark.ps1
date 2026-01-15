@@ -21,7 +21,7 @@ foreach ($m in $models) {
         }
         
         # Execute Python (Blocks until finished)
-        Start-Process python -ArgumentList "examples/single_agent/run_flood.py", "--model", "$m", "--output", "$out_base", "--memory-engine", "$e", "--years", "10", "--agents", "100" -Wait -NoNewWindow
+        Start-Process python -ArgumentList "examples/single_agent/run_flood.py", "--model", "$m", "--output", "$out_base", "--memory-engine", "$e", "--years", "10", "--agents", "100", "--window-size", "5" -Wait -NoNewWindow
         
         Write-Host ">>> COMPLETED: Model=$m | Engine=$e <<<"
         Write-Host ""

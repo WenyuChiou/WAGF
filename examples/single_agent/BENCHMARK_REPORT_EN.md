@@ -35,27 +35,22 @@
 | Metric | Baseline | Window | Human-Centric |
 |--------|----------|--------|---------------|
 | Final Relocations | 6 | 0 | 0 |
-| Significant Diff (Window) | N/A | p=0.0000 (**Yes**) | - |
+| Significant Diff (Window) | N/A | p=N/A (No) | - |
 | *Test Type* | | *Chi-Square (5x2 Full Dist)* | |
 
 **Behavioral Shifts (Window vs Baseline):**
-- ⬆️ **Do Nothing**: 609 -> 734 (+125)
-- ⬆️ **Only Flood Insurance**: 47 -> 114 (+67)
-- ⬇️ **Only House Elevation**: 296 -> 135 (-161)
-- ⬇️ **Both Flood Insurance and House Elevation**: 40 -> 17 (-23)
-- ⬇️ **Relocate**: 6 -> 0 (-6)
+- No Data
 
 **Flood Year Response (Relocations):**
 
 | Year | Baseline | Window | Human-Centric |
 |------|----------|--------|---------------|
-| 3 | 0 | 0 | 0 |
-| 4 | 0 | 0 | 0 |
-| 9 | 2 | 0 | 0 |
+| 3 | 0 | N/A | N/A |
+| 4 | 0 | N/A | N/A |
+| 9 | 2 | N/A | N/A |
 
 **Behavioral Insight:**
-- **Why p < 0.0001 with 0 triggers?** The shift is driven by **Memory Amnesia**, not Governance. Window Memory (N=3) quickly discards flood history. Without recalled floods, the agent's Threat Perception drops, causing it to choose 'Do Nothing' more often (which is allowed under Low Threat).
-- **Passive Compliance**: 0 rejections because the model's low threat appraisal aligns with its inaction, bypassing strict definition checks.
+- Window memory reduced relocations by 6. Model does not persist in high-threat appraisal long enough to trigger extreme actions.
 
 ---
 
@@ -63,27 +58,23 @@
 
 | Metric | Baseline | Window | Human-Centric |
 |--------|----------|--------|---------------|
-| Final Relocations | 95 | 9 | 6 |
-| Significant Diff (Window) | N/A | p=0.0000 (**Yes**) | - |
+| Final Relocations | 95 | 0 | 0 |
+| Significant Diff (Window) | N/A | p=N/A (No) | - |
 | *Test Type* | | *Chi-Square (5x2 Full Dist)* | |
 
 **Behavioral Shifts (Window vs Baseline):**
-- ⬇️ **Do Nothing**: 195 -> 145 (-50)
-- ⬆️ **Only Flood Insurance**: 28 -> 68 (+40)
-- ⬆️ **Only House Elevation**: 153 -> 624 (+471)
-- ⬆️ **Both Flood Insurance and House Elevation**: 47 -> 117 (+70)
-- ⬇️ **Relocate**: 95 -> 9 (-86)
+- No Data
 
 **Flood Year Response (Relocations):**
 
 | Year | Baseline | Window | Human-Centric |
 |------|----------|--------|---------------|
-| 3 | 21 | 1 | 0 |
-| 4 | 18 | 0 | 0 |
-| 9 | 11 | 0 | 0 |
+| 3 | 21 | N/A | N/A |
+| 4 | 18 | N/A | N/A |
+| 9 | 11 | N/A | N/A |
 
 **Behavioral Insight:**
-- Window memory reduced relocations by 86. Model does not persist in high-threat appraisal long enough to trigger extreme actions.
+- Window memory reduced relocations by 95. Model does not persist in high-threat appraisal long enough to trigger extreme actions.
 
 ---
 
@@ -92,22 +83,19 @@
 | Metric | Baseline | Window | Human-Centric |
 |--------|----------|--------|---------------|
 | Final Relocations | 0 | 0 | 0 |
-| Significant Diff (Window) | N/A | p=0.0000 (**Yes**) | - |
+| Significant Diff (Window) | N/A | p=N/A (No) | - |
 | *Test Type* | | *Chi-Square (5x2 Full Dist)* | |
 
 **Behavioral Shifts (Window vs Baseline):**
-- ⬆️ **Do Nothing**: 37 -> 151 (+114)
-- ⬆️ **Only Flood Insurance**: 48 -> 95 (+47)
-- ⬆️ **Only House Elevation**: 457 -> 630 (+173)
-- ⬇️ **Both Flood Insurance and House Elevation**: 458 -> 124 (-334)
+- No Data
 
 **Flood Year Response (Relocations):**
 
 | Year | Baseline | Window | Human-Centric |
 |------|----------|--------|---------------|
-| 3 | 0 | 0 | N/A |
-| 4 | 0 | 0 | N/A |
-| 9 | 0 | 0 | N/A |
+| 3 | 0 | N/A | N/A |
+| 4 | 0 | N/A | N/A |
+| 9 | 0 | N/A | N/A |
 
 **Behavioral Insight:**
 - No significant change in relocation behavior.
@@ -120,8 +108,6 @@
 
 | Memory | Triggers | Retries | Failed | Parse Warnings |
 |--------|----------|---------|--------|----------------|
-| Window | 0 | 0 | 0 | 0 |
-| Human-Centric | 0 | 0 | 0 | 0 |
 
 **Rule Trigger Analysis (Window Memory):**
 
@@ -131,22 +117,15 @@
 
 | Memory | Triggers | Retries | Failed | Parse Warnings |
 |--------|----------|---------|--------|----------------|
-| Window | 515 | 287 | 228 | 0 |
-| Human-Centric | 299 | 155 | 144 | 0 |
 
 **Rule Trigger Analysis (Window Memory):**
 
-| Rule | Count | Compliance (Fixed) | Rejection (Failed) | Success Rate | Insight |
-|---|---|---|---|---|---|
-| `elevation_threat_low` | 273 | 52 | 221 | **19.0%** | Low correction success (Stubborn). |
-| `relocation_threat_low` | 10 | 6 | 4 | **60.0%** | Cost Sensitive (Compliant). |
-| `elevation_threat_low|relocation_threat_low` | 4 | 1 | 3 | **25.0%** | Action Bias (Stubborn Elevation). |
+> **Zero Triggers**: No governance rules were triggered. The model displayed **Passive Compliance**, likely defaulting to 'Do Nothing' or allowed actions under low threat.
 
 ### GPT-OSS Governance
 
 | Memory | Triggers | Retries | Failed | Parse Warnings |
 |--------|----------|---------|--------|----------------|
-| Window | 0 | 0 | 0 | 0 |
 
 **Rule Trigger Analysis (Window Memory):**
 
