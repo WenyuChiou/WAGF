@@ -231,37 +231,47 @@ def analyze_flood_response(df: pd.DataFrame, label: str) -> dict:
 
 
 def analyze_validation(audit_df: pd.DataFrame) -> dict:
-    """Analyze validation and adapter behavior."""
+    """Analyze validation and adapter behavior with retry distribution."""
     if audit_df.empty:
         return {"total": 0, "status": "No audit data"}
     
-    total = len(audit_df)
-    retries = audit_df[audit_df['retry_count'] > 0].shape[0] if 'retry_count' in audit_df.columns else 0
-    val_failed = audit_df[audit_df['validated'] == False].shape[0] if 'validated' in audit_df.columns else 0
+    # Cases requiring intervention are those with any retry OR rejected status
+    intervention_mask = (audit_df['retry_count'].astype(int) > 0) | (audit_df['status'] == 'REJECTED')
+    intervention_df = audit_df[intervention_mask]
+    total_triggers = len(intervention_df)
+    
+    # Success distribution
+    t1_success = audit_df[(audit_df['status'] == 'APPROVED') & (audit_df['retry_count'].astype(int) == 1)].shape[0]
+    t2_success = audit_df[(audit_df['status'] == 'APPROVED') & (audit_df['retry_count'].astype(int) == 2)].shape[0]
+    t3_success = audit_df[(audit_df['status'] == 'APPROVED') & (audit_df['retry_count'].astype(int) == 3)].shape[0]
+    
+    val_failed = audit_df[audit_df['status'] == 'REJECTED'].shape[0]
+    fixed = t1_success + t2_success + t3_success
+    
     parse_warnings = 0
     if 'parsing_warnings' in audit_df.columns:
         parse_warnings = audit_df[audit_df['parsing_warnings'].notna() & (audit_df['parsing_warnings'] != '')].shape[0]
     
-    # Count failed rules
+    # Count failed rules (only for interventions)
     failed_rules = {}
-    if 'failed_rules' in audit_df.columns:
-        for idx, row in audit_df.iterrows():
+    if 'failed_rules' in intervention_df.columns:
+        for idx, row in intervention_df.iterrows():
             if pd.notna(row['failed_rules']) and row['failed_rules'] != '':
                 for r in str(row['failed_rules']).split('|'):
                     r = r.strip()
                     if r:
                         failed_rules[r] = failed_rules.get(r, 0) + 1
     
-    status_counts = audit_df['status'].value_counts().to_dict() if 'status' in audit_df.columns else {}
-    
     return {
-        "total": total,
-        "retries": retries,
-        "retry_rate": f"{retries/total*100:.1f}%",
-        "validation_failed": val_failed,
+        "total": total_triggers,
+        "t1": t1_success,
+        "t2": t2_success,
+        "t3": t3_success,
+        "fixed": fixed,
+        "failed": val_failed,
+        "retry_rate": f"{(fixed/total_triggers*100):.1f}%" if total_triggers > 0 else "0.0%",
         "parse_warnings": parse_warnings,
-        "failed_rules": failed_rules,
-        "status": status_counts
+        "failed_rules": failed_rules
     }
 
 
@@ -614,24 +624,21 @@ def generate_readme_en(all_analysis: list):
             f.write(f"|--------|----------|--------|---------------|\n")
             f.write(f"| Final Relocations | {old_reloc} | {window_reloc} | {importance_reloc} |\n")
             
-            p_win = a['chi_window'].get('p_value', 'N/A')
+            # Chi-square
             sig_win = "**Yes**" if a['chi_window'].get('significant') else "No"
-            if isinstance(p_win, (float, int)):
-                p_str = f"{p_win:.4f}"
-            else:
-                p_str = str(p_win)
-            f.write(f"| Significant Diff (Window) | N/A | p={p_str} ({sig_win}) | - |\n")
+            p_win = a['chi_window'].get('p_value', 'N/A')
+            p_str = f"{p_win:.4f}" if isinstance(p_win, (float, int)) else str(p_win)
+            f.write(f"| Significant Diff (Window) | N/A | {sig_win} (p={p_str}) | - |\n")
             f.write(f"| *Test Type* | | *Chi-Square (5x2 Full Dist)* | |\n\n")
             
-            # Behavioral Shifts (Window vs Baseline uses as primary example)
-            f.write("**Behavioral Shifts (Window vs Baseline):**\n")
+            # Behavioral Shifts
+            f.write("**Behavioral Shifts (Window vs Baseline):**\n\n")
+            f.write("| Adaptation State | Baseline | Window | Delta |\n")
+            f.write("|------------------|----------|--------|-------|\n")
             shifts = a.get("window_shifts", [])
-            if shifts:
-                for s in shifts:
-                    arrow = "⬆️" if s['diff'] > 0 else "⬇️"
-                    f.write(f"- {arrow} **{s['state']}**: {s['old']} -> {s['new']} ({s['diff']:+d})\n")
-            else:
-                f.write("- No Data\n")
+            for s in shifts:
+                arrow = "⬆️" if s['diff'] > 0 else "⬇️"
+                f.write(f"| {s['state']} | {s['old']} | {s['new']} | {arrow} {s['diff']:+d} |\n")
             f.write("\n")
 
             # Flood year response
@@ -654,7 +661,7 @@ def generate_readme_en(all_analysis: list):
             elif old_reloc > window_reloc:
                 f.write(f"- Window memory reduced relocations by {old_reloc - window_reloc}. Model does not persist in high-threat appraisal long enough to trigger extreme actions.\n")
             elif window_reloc > old_reloc:
-                 f.write(f"- Window memory increased relocations. Social proof or recent floods drove higher action.\n")
+                 f.write(f"- Window memory increased relocations. Social proof drove higher action.\n")
             else:
                 f.write("- No significant change in relocation behavior.\n")
             
@@ -663,25 +670,27 @@ def generate_readme_en(all_analysis: list):
         # Validation Summary table
         f.write("## Validation & Governance Details\n\n")
         f.write("### Governance Performance Summary\n\n")
-        f.write("| Model | Total Triggers | Retry Success (Fixed) | Rejection (Failed) | Global Success Rate |\n")
-        f.write("|-------|----------------|-----------------------|--------------------|---------------------|\n")
+        f.write("| Model | Triggers | Solved (T1/T2/T3) | Failed | Success Rate |\n")
+        f.write("|-------|----------|-------------------|--------|--------------|\n")
         for a in all_analysis:
             v = a.get("window_validation", {})
-            total = v.get("retries", 0) + v.get("validation_failed", 0)
-            success_rate = (v.get("retries", 0) / total * 100) if total > 0 else 0
-            f.write(f"| {a['model']} | {total} | {v.get('retries', 0)} | {v.get('validation_failed', 0)} | {success_rate:.1f}% |\n")
+            total = v.get("total", 0)
+            solved_str = f"{v.get('fixed',0)} ({v.get('t1',0)}/{v.get('t2',0)}/{v.get('t3',0)})"
+            success_rate = (v.get("fixed", 0) / total * 100) if total > 0 else 0
+            f.write(f"| {a['model']} | {total} | {solved_str} | {v.get('failed', 0)} | {success_rate:.1f}% |\n")
         f.write("\n---\n\n")
         
         for a in all_analysis:
             model = a["model"]
             f.write(f"### {model} Governance\n\n")
             # Table for validation summary
-            f.write("| Memory | Triggers | Retries | Failed | Parse Warnings |\n")
-            f.write("|--------|----------|---------|--------|----------------|\n")
+            f.write("| Memory | Triggers | Solved (T1/T2/T3) | Failed | Warnings |\n")
+            f.write("|--------|----------|-------------------|--------|----------|\n")
             for mem_key, mem_display in [("window", "Window"), ("importance", "Human-Centric")]:
                 v = a[f"{mem_key}_validation"]
-                total = v.get('retries',0) + v.get('validation_failed',0)
-                f.write(f"| {mem_display} | {total} | {v.get('retries',0)} | {v.get('validation_failed',0)} | {v.get('parse_warnings',0)} |\n")
+                total = v.get('total', 0)
+                solved_str = f"{v.get('fixed',0)} ({v.get('t1',0)}/{v.get('t2',0)}/{v.get('t3',0)})"
+                f.write(f"| {mem_display} | {total} | {solved_str} | {v.get('failed', 0)} | {v.get('parse_warnings', 0)} |\n")
             f.write("\n")
 
             # Qualitative Reasoning Analysis
@@ -876,13 +885,14 @@ def generate_readme_ch(all_analysis: list):
         # Validation Details
         f.write("## 驗證與治理細節 (Validation & Governance)\n\n")
         f.write("### 治理效能總結 (Governance Performance Summary)\n\n")
-        f.write("| 模型 | 觸發總數 | 成功修正 (Fixed) | 拒絕 (Failed) | 全域成功率 |\n")
-        f.write("|------|----------|------------------|---------------|------------|\n")
+        f.write("| 模型 | 觸發總數 | 成功修正 (T1/T2/T3) | 失敗 (Failed) | 全域成功率 |\n")
+        f.write("|------|----------|---------------------|---------------|-----------|\n")
         for a in all_analysis:
             v = a.get("window_validation", {})
-            total = v.get("retries", 0) + v.get("validation_failed", 0)
-            success_rate = (v.get("retries", 0) / total * 100) if total > 0 else 0
-            f.write(f"| {a['model']} | {total} | {v.get('retries', 0)} | {v.get('validation_failed', 0)} | {success_rate:.1f}% |\n")
+            total = v.get("total", 0)
+            solved_str = f"{v.get('fixed',0)} ({v.get('t1',0)}/{v.get('t2',0)}/{v.get('t3',0)})"
+            success_rate = (v.get("fixed", 0) / total * 100) if total > 0 else 0
+            f.write(f"| {a['model']} | {total} | {solved_str} | {v.get('failed', 0)} | {success_rate:.1f}% |\n")
         f.write("\n---\n\n")
         
         for a in all_analysis:
@@ -890,12 +900,13 @@ def generate_readme_ch(all_analysis: list):
             f.write(f"### {model} 治理報告\n\n")
             
             # Table for validation summary
-            f.write("| 記憶模式 | 觸發總數 | 重試 (Retries) | 失敗 (Failed) | 解析警告 |\n")
-            f.write("|----------|----------|----------------|---------------|----------|\n")
+            f.write("| 記憶模式 | 觸發總數 | 成功修正 (T1/T2/T3) | 失敗 (Failed) | 解析警告 |\n")
+            f.write("|----------|----------|---------------------|---------------|----------|\n")
             for mem_key, mem_display in [("window", "Window"), ("importance", "Human-Centric")]:
                 v = a[f"{mem_key}_validation"]
-                total = v.get('retries',0) + v.get('validation_failed',0)
-                f.write(f"| {mem_display} | {total} | {v.get('retries',0)} | {v.get('validation_failed',0)} | {v.get('parse_warnings',0)} |\n")
+                total = v.get('total', 0)
+                solved_str = f"{v.get('fixed',0)} ({v.get('t1',0)}/{v.get('t2',0)}/{v.get('t3',0)})"
+                f.write(f"| {mem_display} | {total} | {solved_str} | {v.get('failed', 0)} | {v.get('parse_warnings', 0)} |\n")
             f.write("\n")
 
             # Qualitative Reasoning Analysis

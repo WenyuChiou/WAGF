@@ -35,11 +35,13 @@
 | Metric | Baseline | Window | Human-Centric |
 |--------|----------|--------|---------------|
 | Final Relocations | 6 | 0 | 0 |
-| Significant Diff (Window) | N/A | p=N/A (No) | - |
+| Significant Diff (Window) | N/A | No (p=N/A) | - |
 | *Test Type* | | *Chi-Square (5x2 Full Dist)* | |
 
 **Behavioral Shifts (Window vs Baseline):**
-- No Data
+
+| Adaptation State | Baseline | Window | Delta |
+|------------------|----------|--------|-------|
 
 **Flood Year Response (Relocations):**
 
@@ -59,15 +61,18 @@
 | Metric | Baseline | Window | Human-Centric |
 |--------|----------|--------|---------------|
 | Final Relocations | 95 | 2 | 9 |
-| Significant Diff (Window) | N/A | p=0.0000 (**Yes**) | - |
+| Significant Diff (Window) | N/A | **Yes** (p=0.0000) | - |
 | *Test Type* | | *Chi-Square (5x2 Full Dist)* | |
 
 **Behavioral Shifts (Window vs Baseline):**
-- ⬇️ **Do Nothing**: 195 -> 177 (-18)
-- ⬆️ **Only Flood Insurance**: 28 -> 44 (+16)
-- ⬆️ **Only House Elevation**: 153 -> 675 (+522)
-- ⬆️ **Both Flood Insurance and House Elevation**: 47 -> 90 (+43)
-- ⬇️ **Relocate**: 95 -> 2 (-93)
+
+| Adaptation State | Baseline | Window | Delta |
+|------------------|----------|--------|-------|
+| Do Nothing | 195 | 177 | ⬇️ -18 |
+| Only Flood Insurance | 28 | 44 | ⬆️ +16 |
+| Only House Elevation | 153 | 675 | ⬆️ +522 |
+| Both Flood Insurance and House Elevation | 47 | 90 | ⬆️ +43 |
+| Relocate | 95 | 2 | ⬇️ -93 |
 
 **Flood Year Response (Relocations):**
 
@@ -87,11 +92,13 @@
 | Metric | Baseline | Window | Human-Centric |
 |--------|----------|--------|---------------|
 | Final Relocations | 0 | 0 | 0 |
-| Significant Diff (Window) | N/A | p=N/A (No) | - |
+| Significant Diff (Window) | N/A | No (p=N/A) | - |
 | *Test Type* | | *Chi-Square (5x2 Full Dist)* | |
 
 **Behavioral Shifts (Window vs Baseline):**
-- No Data
+
+| Adaptation State | Baseline | Window | Delta |
+|------------------|----------|--------|-------|
 
 **Flood Year Response (Relocations):**
 
@@ -110,20 +117,20 @@
 
 ### Governance Performance Summary
 
-| Model | Total Triggers | Retry Success (Fixed) | Rejection (Failed) | Global Success Rate |
-|-------|----------------|-----------------------|--------------------|---------------------|
-| Gemma 3 (4B) | 0 | 0 | 0 | 0.0% |
-| Llama 3.2 (3B) | 486 | 260 | 226 | 53.5% |
-| GPT-OSS | 0 | 0 | 0 | 0.0% |
+| Model | Triggers | Solved (T1/T2/T3) | Failed | Success Rate |
+|-------|----------|-------------------|--------|--------------|
+| Gemma 3 (4B) | 0 | 0 (0/0/0) | 0 | 0.0% |
+| Llama 3.2 (3B) | 260 | 34 (29/2/3) | 226 | 13.1% |
+| GPT-OSS | 0 | 0 (0/0/0) | 0 | 0.0% |
 
 ---
 
 ### Gemma 3 (4B) Governance
 
-| Memory | Triggers | Retries | Failed | Parse Warnings |
-|--------|----------|---------|--------|----------------|
-| Window | 0 | 0 | 0 | 0 |
-| Human-Centric | 0 | 0 | 0 | 0 |
+| Memory | Triggers | Solved (T1/T2/T3) | Failed | Warnings |
+|--------|----------|-------------------|--------|----------|
+| Window | 0 | 0 (0/0/0) | 0 | 0 |
+| Human-Centric | 0 | 0 (0/0/0) | 0 | 0 |
 
 **Qualitative Reasoning Analysis:**
 
@@ -140,10 +147,10 @@
 
 ### Llama 3.2 (3B) Governance
 
-| Memory | Triggers | Retries | Failed | Parse Warnings |
-|--------|----------|---------|--------|----------------|
-| Window | 486 | 260 | 226 | 0 |
-| Human-Centric | 534 | 284 | 250 | 0 |
+| Memory | Triggers | Solved (T1/T2/T3) | Failed | Warnings |
+|--------|----------|-------------------|--------|----------|
+| Window | 260 | 34 (29/2/3) | 226 | 0 |
+| Human-Centric | 284 | 34 (29/4/1) | 250 | 0 |
 
 **Qualitative Reasoning Analysis:**
 
@@ -166,10 +173,10 @@
 
 ### GPT-OSS Governance
 
-| Memory | Triggers | Retries | Failed | Parse Warnings |
-|--------|----------|---------|--------|----------------|
-| Window | 0 | 0 | 0 | 0 |
-| Human-Centric | 0 | 0 | 0 | 0 |
+| Memory | Triggers | Solved (T1/T2/T3) | Failed | Warnings |
+|--------|----------|-------------------|--------|----------|
+| Window | 0 | 0 (0/0/0) | 0 | 0 |
+| Human-Centric | 0 | 0 (0/0/0) | 0 | 0 |
 
 **Qualitative Reasoning Analysis:**
 
