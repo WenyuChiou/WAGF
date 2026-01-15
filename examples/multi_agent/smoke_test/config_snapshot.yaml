@@ -23,9 +23,6 @@ shared:
 # =============================================================================
 household_owner:
   description: "Homeowners making adaptation decisions."
-  llm_params:
-    num_ctx: 16384
-    num_predict: 2048
   response_format:
     fields:
       - {
@@ -186,9 +183,6 @@ household_owner:
 
 household_renter:
   description: "Renters making adaptation decisions."
-  llm_params:
-    num_ctx: 16384
-    num_predict: 2048
   response_format:
     fields:
       - {
@@ -311,83 +305,43 @@ household_renter:
 
 government:
   description: "State Government Agency."
-  llm_params:
-    num_ctx: 16384
-    num_predict: 1024
   prompt_template: |
-    ### IDENTITY
-    You are the State Government flood resilience agency. 
-    ### CURRENT CONTEXT
-    - Year: {year}
-    - Current Subsidy Rate: {subsidy_rate:.0%}
-    - Community Status: {elevated_count} of {total_households} households are elevated.
+    You are the State Government Agency. Year: {year}.
+    Institutional Context: Subsidy Rate: {subsidy_rate:.0%} | Elevated: {elevated_count}/{total_households}
+    Task: Choose 1:INCREASE | 2:DECREASE | 3:MAINTAIN subsidy.
 
-    ### OBJECTIVES
-    1. Increase community resilience (more elevated houses).
-    2. Manage budget (do not over-subsidize if adaptation is already high).
-
-    ### TASK
-    Decide whether to adjust the subsidy rate.
-    Options:
-    - [1] INCREASE: Boost subsidy (Current + 5%) to encourage more adaptation.
-    - [2] DECREASE: Lower subsidy (Current - 5%) to save budget.
-    - [3] MAINTAIN: Keep the current rate.
-
-    ### RESPONSE FORMAT
-    Please respond in JSON with your decision and reasoning. Use the following format:
     {response_format}
   parsing:
     decision_keywords: ["decision", "choice"]
     default_skill: "maintain_subsidy"
     strict_mode: true
-    preprocessor: { type: "smart_repair" }
     actions:
       - id: increase_subsidy
-        aliases: ["INCREASE", "increase", "1", "[1]"]
+        aliases: ["INCREASE", "increase", "More subsidy", "[1]"]
       - id: decrease_subsidy
-        aliases: ["DECREASE", "decrease", "2", "[2]"]
+        aliases: ["DECREASE", "decrease", "Less subsidy", "[2]"]
       - id: maintain_subsidy
-        aliases: ["MAINTAIN", "maintain", "3", "[3]"]
+        aliases: ["MAINTAIN", "maintain", "Keep rate", "[3]"]
 
 insurance:
   description: "Regional Insurance Marketer."
-  llm_params:
-    num_ctx: 16384
-    num_predict: 1024
   prompt_template: |
-    ### IDENTITY
-    You are the Regional Flood Insurance Marketer.
-    ### MARKET STATS
-    - Current Premium Rate: {premium_rate:.3%}
-    - Insured Base: {insured_count} of {total_households} households.
-    - Historical Profitability: Loss Ratio is {loss_ratio:.2f} (Target < 0.70).
+    You are the Regional Insurance Marketer.
+    Market Stats: Loss Ratio: {loss_ratio:.2f} | Insured Base: {insured_count}
+    Task: Choose 1:RAISE | 2:LOWER | 3:MAINTAIN premium rates.
 
-    ### OBJECTIVES
-    1. Maintain program solvency (Profitability).
-    2. Maintain market share (Insured base).
-
-    ### TASK
-    Decide whether to adjust premium rates.
-    Options:
-    - [1] RAISE: Increase premiums (+0.5%) to offset losses.
-    - [2] LOWER: Decrease premiums (-0.5%) to attract more customers.
-    - [3] MAINTAIN: Keep current premiums.
-
-    ### RESPONSE FORMAT
-    Please respond in JSON. Use the following format:
     {response_format}
   parsing:
     decision_keywords: ["decision", "choice"]
     default_skill: "maintain_premium"
     strict_mode: true
-    preprocessor: { type: "smart_repair" }
     actions:
       - id: raise_premium
-        aliases: ["RAISE", "raise", "1", "[1]"]
+        aliases: ["RAISE", "raise", "Increase rates", "[1]"]
       - id: lower_premium
-        aliases: ["LOWER", "lower", "2", "[2]"]
+        aliases: ["LOWER", "lower", "Decrease rates", "[2]"]
       - id: maintain_premium
-        aliases: ["MAINTAIN", "maintain", "3", "[3]"]
+        aliases: ["MAINTAIN", "maintain", "Keep premium", "[3]"]
 
 # =============================================================================
 # GOVERNANCE RULES

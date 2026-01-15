@@ -33,6 +33,9 @@ shared:
 # =============================================================================
 household:
   description: "Household agents making adaptation decisions based on PMT"
+  llm_params:
+    num_ctx: 16384
+    num_predict: 2048
 
   # Prompt Template (FINAL version aligned)
   prompt_template: |
