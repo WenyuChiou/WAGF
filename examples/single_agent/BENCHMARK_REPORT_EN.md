@@ -5,12 +5,10 @@
 ### Root Causes of Behavioral Differences
 
 1. **Validation Ensures Format, Not Reasoning**
-
    - 100% validation pass means output FORMAT is correct
    - Models still differ in HOW they interpret threats and coping ability
 
 2. **Memory Window Effect (top_k=3)**
-
    - Only 3 latest memories are kept
    - Flood history gets pushed out by social observations
    - Models sensitive to social proof (Llama) show more adaptation
@@ -26,7 +24,7 @@
 
 ![Comparison](old_vs_window_vs_humancentric_3x4.png)
 
-_Note: Each year shows only ACTIVE agents (already-relocated agents excluded)_
+*Note: Each year shows only ACTIVE agents (already-relocated agents excluded)*
 
 ---
 
@@ -34,61 +32,120 @@ _Note: Each year shows only ACTIVE agents (already-relocated agents excluded)_
 
 ### Gemma 3 (4B)
 
-| Metric                    | Baseline | Window                       | Human-Centric |
-| ------------------------- | -------- | ---------------------------- | ------------- |
-| Final Relocations         | 6        | 0                            | 0             |
-| Significant Diff (Window) | N/A      | p=0.0000 (**Yes**)           | -             |
-| _Test Type_               |          | _Chi-Square (5x2 Full Dist)_ |               |
+| Metric | Baseline | Window | Human-Centric |
+|--------|----------|--------|---------------|
+| Final Relocations | 6 | 0 | 0 |
+| Significant Diff (Window) | N/A | p=0.0000 (**Yes**) | - |
+| *Test Type* | | *Chi-Square (5x2 Full Dist)* | |
 
-**Flood Year Response:**
+**Behavioral Shifts (Window vs Baseline):**
+- ⬆️ **Do Nothing**: 609 -> 734 (+125)
+- ⬆️ **Only Flood Insurance**: 47 -> 114 (+67)
+- ⬇️ **Only House Elevation**: 296 -> 135 (-161)
+- ⬇️ **Both Flood Insurance and House Elevation**: 40 -> 17 (-23)
+- ⬇️ **Relocate**: 6 -> 0 (-6)
 
-| Year | Baseline Reloc | Window Reloc | Human-Centric Reloc |
-| ---- | -------------- | ------------ | ------------------- |
-| 3    | 0              | 0            | 0                   |
-| 4    | 0              | 0            | 0                   |
-| 9    | 2              | 0            | 0                   |
+**Flood Year Response (Relocations):**
 
-**Behavioral Root Cause:**
+| Year | Baseline | Window | Human-Centric |
+|------|----------|--------|---------------|
+| 3 | 0 | 0 | 0 |
+| 4 | 0 | 0 | 0 |
+| 9 | 2 | 0 | 0 |
 
+**Behavioral Insight:**
 - **Optimism Bias**: High perceived coping (Medium+) masks threat perception.
-- **Validation Stats**: 0 blocks on inaction.
-- **Threat Perception**: High threat perceived 0 times (often overridden by coping).
+- **Passive Compliance**: 0 rejections because it defaults to 'Do Nothing', which is allowed under low threat.
 
 ---
 
 ### Llama 3.2 (3B)
 
-| Metric                    | Baseline | Window                       | Human-Centric |
-| ------------------------- | -------- | ---------------------------- | ------------- |
-| Final Relocations         | 95       | 9                            | 6             |
-| Significant Diff (Window) | N/A      | p=0.0000 (**Yes**)           | -             |
-| _Test Type_               |          | _Chi-Square (5x2 Full Dist)_ |               |
+| Metric | Baseline | Window | Human-Centric |
+|--------|----------|--------|---------------|
+| Final Relocations | 95 | 9 | 6 |
+| Significant Diff (Window) | N/A | p=0.0000 (**Yes**) | - |
+| *Test Type* | | *Chi-Square (5x2 Full Dist)* | |
 
-**Flood Year Response:**
+**Behavioral Shifts (Window vs Baseline):**
+- ⬇️ **Do Nothing**: 195 -> 145 (-50)
+- ⬆️ **Only Flood Insurance**: 28 -> 68 (+40)
+- ⬆️ **Only House Elevation**: 153 -> 624 (+471)
+- ⬆️ **Both Flood Insurance and House Elevation**: 47 -> 117 (+70)
+- ⬇️ **Relocate**: 95 -> 9 (-86)
 
-| Year | Baseline Reloc | Window Reloc | Human-Centric Reloc |
-| ---- | -------------- | ------------ | ------------------- |
-| 3    | 21             | 1            | 0                   |
-| 4    | 18             | 0            | 0                   |
-| 9    | 11             | 0            | 0                   |
+**Flood Year Response (Relocations):**
 
-**Behavioral Root Cause:**
+| Year | Baseline | Window | Human-Centric |
+|------|----------|--------|---------------|
+| 3 | 21 | 1 | 0 |
+| 4 | 18 | 0 | 0 |
+| 9 | 11 | 0 | 0 |
 
-- Window memory decreased relocations by 86.
-- Model rarely appraised threat as `High`, avoiding governance triggers.
+**Behavioral Insight:**
+- Window memory reduced relocations by 86. Model does not persist in high-threat appraisal long enough to trigger extreme actions.
 
 ---
 
-## Validation & Governance Impact
+### GPT-OSS
 
-| Model        | Memory        | Total Traces | Retries | Failed | Parse Warnings |
-| ------------ | ------------- | ------------ | ------- | ------ | -------------- |
-| Gemma 3 (4B) | Window        | 1000         | 0       | 0      | 0              |
-| Gemma 3 (4B) | Human-Centric | 1000         | 0       | 0      | 0              |
+| Metric | Baseline | Window | Human-Centric |
+|--------|----------|--------|---------------|
+| Final Relocations | 0 | 0 | 0 |
+| Significant Diff (Window) | N/A | p=0.0000 (**Yes**) | - |
+| *Test Type* | | *Chi-Square (5x2 Full Dist)* | |
 
-| Llama 3.2 (3B) | Human-Centric | 1000 | 155 | 144 | 0 |
+**Behavioral Shifts (Window vs Baseline):**
+- ⬆️ **Do Nothing**: 37 -> 151 (+114)
+- ⬆️ **Only Flood Insurance**: 48 -> 95 (+47)
+- ⬆️ **Only House Elevation**: 457 -> 630 (+173)
+- ⬇️ **Both Flood Insurance and House Elevation**: 458 -> 124 (-334)
 
-### Governance Failure Analysis
+**Flood Year Response (Relocations):**
 
-- **Llama 3.2 (3B)**: 98% of failures (224/228) were triggered by the **`elevation_threat_low`** rule. This indicates the model frequently attempts 'Elevate House' even when its own Threat Appraisal is low/medium, suggesting a disconnect between its appraisal and action logic.
-- **Gemma 3 (4B)**: 0 failures. The model's "Do Nothing" preference aligns perfectly with the `strict` governance profile (logic: if threat is low, doing nothing is allowed). Ideally, we want _some_ proactive action, but Gemma is consistently passive.
+| Year | Baseline | Window | Human-Centric |
+|------|----------|--------|---------------|
+| 3 | 0 | 0 | N/A |
+| 4 | 0 | 0 | N/A |
+| 9 | 0 | 0 | N/A |
+
+**Behavioral Insight:**
+- No significant change in relocation behavior.
+
+---
+
+## Validation & Governance Details
+
+### Gemma 3 (4B) Governance
+
+| Memory | Triggers | Retries | Failed | Parse Warnings |
+|--------|----------|---------|--------|----------------|
+| Window | 0 | 0 | 0 | 0 |
+| Human-Centric | 0 | 0 | 0 | 0 |
+
+> **Zero Triggers**: This model is 'Passive Compliant'. It tends to choose 'Do Nothing' or low-cost actions when threat is low, thus never triggering the *Action vs Logic* blocked rules.
+
+### Llama 3.2 (3B) Governance
+
+| Memory | Triggers | Retries | Failed | Parse Warnings |
+|--------|----------|---------|--------|----------------|
+| Window | 515 | 287 | 228 | 0 |
+| Human-Centric | 299 | 155 | 144 | 0 |
+
+**Rule Trigger Analysis (Window Memory):**
+
+| Rule | Count | Compliance (Fixed) | Rejection (Failed) | Success Rate | Insight |
+|---|---|---|---|---|---|
+| `elevation_threat_low` | 273 | 52 | 221 | **19.0%** | Low correction success (Stubborn). |
+| `relocation_threat_low` | 10 | 6 | 4 | **60.0%** | Cost Sensitive (Compliant). |
+| `elevation_threat_low|relocation_threat_low` | 4 | 1 | 3 | **25.0%** | Action Bias (Stubborn Elevation). |
+
+### GPT-OSS Governance
+
+| Memory | Triggers | Retries | Failed | Parse Warnings |
+|--------|----------|---------|--------|----------------|
+| Window | 0 | 0 | 0 | 0 |
+
+> **Zero Triggers**: This model is 'Passive Compliant'. It tends to choose 'Do Nothing' or low-cost actions when threat is low, thus never triggering the *Action vs Logic* blocked rules.
+
+

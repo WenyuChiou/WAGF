@@ -14,8 +14,8 @@ from pathlib import Path
 # Import from generic framework
 from agents import BaseAgent, load_agents, normalize, denormalize
 from agents.base_agent import AgentConfig
-from broker.context_builder import BaseAgentContextBuilder, create_context_builder
-from broker.memory import CognitiveMemory
+from broker.components.context_builder import BaseAgentContextBuilder, create_context_builder
+from broker.components.memory import CognitiveMemory
 
 
 class InstitutionalAgentAdapter:

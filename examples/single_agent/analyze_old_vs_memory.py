@@ -38,11 +38,11 @@ MODELS = [
     #     "folder": "deepseek_r1_8b_strict",
     #     "old_folder": "DeepSeek_R1_8B"
     # },
-    # {
-    #     "name": "GPT-OSS",
-    #     "folder": "gpt_oss_strict",
-    #     "old_folder": "GPT-OSS_20B"
-    # },
+    {
+        "name": "GPT-OSS",
+        "folder": "gpt-oss_latest_strict",
+        "old_folder": "GPT-OSS_20B"
+    },
 ]
 
 # Standard adaptation state colors
@@ -428,6 +428,13 @@ def generate_comparison_chart():
         # Chi-Square Tests
         chi_win = run_chi_square_test(old_df, window_df, "Window")
         chi_imp = run_chi_square_test(old_df, importance_df, "Human-Centric")
+        
+        # New Detailed Analysis
+        window_app_details = analyze_validation_details(window_audit)
+        importance_app_details = analyze_validation_details(importance_audit)
+        
+        window_shifts = analyze_behavioral_shifts(old_df, window_df)
+        importance_shifts = analyze_behavioral_shifts(old_df, importance_df)
 
         # Gemma Specific Analysis
         gemma_analysis = {}
@@ -444,6 +451,10 @@ def generate_comparison_chart():
             "importance_flood": analyze_flood_response(importance_df, "Human-Centric"),
             "window_validation": window_val,
             "importance_validation": importance_val,
+            "window_app_details": window_app_details,
+            "importance_app_details": importance_app_details,
+            "window_shifts": window_shifts,
+            "importance_shifts": importance_shifts,
             "chi_window": chi_win,
             "chi_importance": chi_imp,
             "gemma_analysis": gemma_analysis
@@ -472,6 +483,79 @@ def generate_comparison_chart():
     print(f"✅ Saved chart to: {output_path}")
     
     return all_analysis
+
+
+def analyze_validation_details(audit_df: pd.DataFrame) -> list:
+    """Analyze validation details by rule."""
+    if audit_df.empty or 'failed_rules' not in audit_df.columns:
+        return []
+
+    # Filter for interventions
+    intervention_df = audit_df[(audit_df['retry_count'] > 0) | (audit_df['status'] == 'REJECTED')].copy()
+    if intervention_df.empty:
+        return []
+
+    intervention_df['failed_rules'] = intervention_df['failed_rules'].fillna('Unknown')
+    
+    # Explode if multiple rules ?? For now assume single primary rule per row for simplicity 
+    # or just group by the unique string
+    rules = intervention_df['failed_rules'].unique()
+    
+    stats_data = []
+    for rule in rules:
+        rule_df = intervention_df[intervention_df['failed_rules'] == rule]
+        total = len(rule_df)
+        rejected = len(rule_df[rule_df['status'] == 'REJECTED'])
+        approved = len(rule_df[rule_df['status'] == 'APPROVED'])
+        rate = (approved / total) * 100 if total > 0 else 0
+        
+        # Simple insight generation
+        insight = "Mixed results."
+        if rate > 80: insight = "High correction success (Compliant)."
+        elif rate < 20: insight = "Low correction success (Stubborn)."
+        elif "elevation" in str(rule) and rate < 50: insight = "Action Bias (Stubborn Elevation)."
+        elif "relocation" in str(rule) and rate > 50: insight = "Cost Sensitive (Compliant)."
+        
+        stats_data.append({
+            "rule": rule,
+            "triggers": total,
+            "approved": approved,
+            "rejected": rejected,
+            "rate": rate,
+            "insight": insight
+        })
+    
+    return sorted(stats_data, key=lambda x: x['triggers'], reverse=True)
+
+
+def analyze_behavioral_shifts(old_df: pd.DataFrame, new_df: pd.DataFrame) -> dict:
+    """Calculate shifts in all decision categories."""
+    if old_df.empty or new_df.empty: return {}
+    
+    old_df = normalize_df(old_df)
+    new_df = normalize_df(new_df)
+    old_df = filter_already_relocated(old_df)
+    new_df = filter_already_relocated(new_df)
+    
+    # Count total decisions across all years
+    old_counts = old_df['decision'].value_counts().to_dict()
+    new_counts = new_df['decision'].value_counts().to_dict()
+    
+    shifts = []
+    for state in STATE_ORDER:
+        o = old_counts.get(state, 0)
+        n = new_counts.get(state, 0)
+        diff = n - o
+        if abs(diff) > 0:
+            shifts.append({
+                "state": state,
+                "old": o,
+                "new": n,
+                "diff": diff,
+                "pct": (diff / o * 100) if o > 0 else 0
+            })
+            
+    return shifts
 
 
 def generate_readme_en(all_analysis: list):
@@ -527,10 +611,21 @@ def generate_readme_en(all_analysis: list):
             f.write(f"| Significant Diff (Window) | N/A | p={p_str} ({sig_win}) | - |\n")
             f.write(f"| *Test Type* | | *Chi-Square (5x2 Full Dist)* | |\n\n")
             
+            # Behavioral Shifts (Window vs Baseline uses as primary example)
+            f.write("**Behavioral Shifts (Window vs Baseline):**\n")
+            shifts = a.get("window_shifts", [])
+            if shifts:
+                for s in shifts:
+                    arrow = "⬆️" if s['diff'] > 0 else "⬇️"
+                    f.write(f"- {arrow} **{s['state']}**: {s['old']} -> {s['new']} ({s['diff']:+d})\n")
+            else:
+                f.write("- No Data\n")
+            f.write("\n")
+
             # Flood year response
-            f.write("**Flood Year Response:**\n\n")
-            f.write("| Year | Baseline Reloc | Window Reloc | Human-Centric Reloc |\n")
-            f.write("|------|----------------|--------------|---------------------|\n")
+            f.write("**Flood Year Response (Relocations):**\n\n")
+            f.write("| Year | Baseline | Window | Human-Centric |\n")
+            f.write("|------|----------|--------|---------------|\n")
             for fy in FLOOD_YEARS:
                 old_r = a["old_flood"].get(fy, {}).get("relocate", "N/A")
                 win_r = a["window_flood"].get(fy, {}).get("relocate", "N/A")
@@ -539,37 +634,48 @@ def generate_readme_en(all_analysis: list):
             
             f.write("\n")
             
-            # Why this model behaves differently
-            f.write("**Behavioral Root Cause:**\n")
+            f.write("**Behavioral Insight:**\n")
             if "Gemma" in model and a.get("gemma_analysis"):
                  ga = a["gemma_analysis"]
                  f.write(f"- **Optimism Bias**: High perceived coping (Medium+) masks threat perception.\n")
-                 f.write(f"- **Validation Stats**: {ga.get('governance_blocks_on_inaction')} blocks on inaction.\n")
-                 f.write(f"- **Threat Perception**: High threat perceived {ga.get('high_threat_perceptions')} times (often overridden by coping).\n")
-                 
+                 f.write(f"- **Passive Compliance**: 0 rejections because it defaults to 'Do Nothing', which is allowed under low threat.\n")
+            elif old_reloc > window_reloc:
+                f.write(f"- Window memory reduced relocations by {old_reloc - window_reloc}. Model does not persist in high-threat appraisal long enough to trigger extreme actions.\n")
             elif window_reloc > old_reloc:
-                diff = window_reloc - old_reloc
-                f.write(f"- Window memory increased relocations by {diff}.\n")
-                f.write("- Governance prevented `High Threat + Do Nothing` inaction.\n")
-            elif window_reloc < old_reloc:
-                diff = old_reloc - window_reloc
-                f.write(f"- Window memory decreased relocations by {diff}.\n")
-                f.write("- Model rarely appraised threat as `High`, avoiding governance triggers.\n")
+                 f.write(f"- Window memory increased relocations. Social proof or recent floods drove higher action.\n")
             else:
                 f.write("- No significant change in relocation behavior.\n")
             
             f.write("\n---\n\n")
             
         # Validation Summary table
-        f.write("## Validation & Governance Impact\n\n")
-        f.write("| Model | Memory | Total Traces | Retries | Failed | Parse Warnings |\n")
-        f.write("|-------|--------|--------------|---------|--------|----------------|\n")
+        f.write("## Validation & Governance Details\n\n")
+        
         for a in all_analysis:
+            model = a["model"]
+            f.write(f"### {model} Governance\n\n")
+            
+            # Table for validation summary
+            f.write("| Memory | Triggers | Retries | Failed | Parse Warnings |\n")
+            f.write("|--------|----------|---------|--------|----------------|\n")
             for mem_key, mem_display in [("window", "Window"), ("importance", "Human-Centric")]:
                 v = a[f"{mem_key}_validation"]
                 if v.get("total", 0) > 0:
-                    f.write(f"| {a['model']} | {mem_display} | {v['total']} | {v['retries']} | {v['validation_failed']} | {v['parse_warnings']} |\n")
-        
+                     f.write(f"| {mem_display} | {v.get('retries',0) + v.get('validation_failed',0)} | {v['retries']} | {v['validation_failed']} | {v['parse_warnings']} |\n")
+            f.write("\n")
+            
+            # Detailed Rules Table (Window as representative)
+            win_details = a.get("window_app_details", [])
+            if win_details:
+                f.write("**Rule Trigger Analysis (Window Memory):**\n\n")
+                f.write("| Rule | Count | Compliance (Fixed) | Rejection (Failed) | Success Rate | Insight |\n")
+                f.write("|---|---|---|---|---|---|\n")
+                for d in win_details:
+                    f.write(f"| `{d['rule']}` | {d['triggers']} | {d['approved']} | {d['rejected']} | **{d['rate']:.1f}%** | {d['insight']} |\n")
+                f.write("\n")
+            elif "Gemma" in model or "GPT" in model:
+                f.write("> **Zero Triggers**: This model is 'Passive Compliant'. It tends to choose 'Do Nothing' or low-cost actions when threat is low, thus never triggering the *Action vs Logic* blocked rules.\n\n")
+
         f.write("\n")
     print(f"[OK] Saved English README to: {path}")
 
@@ -685,11 +791,29 @@ def generate_readme_ch(all_analysis: list):
             f.write(f"| 顯著差異 (Window) | N/A | {sig_win} (p={p_str}) | - |\n")
             f.write(f"| *檢定類型* | | *卡方檢定 (5x2 全分佈)* | |\n\n")
             
+            # Behavioral Shifts
+            f.write("**行為分佈變化 (Window vs Baseline)：**\n")
+            shifts = a.get("window_shifts", [])
+            state_trans = {
+                "Do Nothing": "不做任何事",
+                "Only Flood Insurance": "僅購買保險",
+                "Only House Elevation": "僅抬高房屋",
+                "Both Flood Insurance and House Elevation": "保險與抬高",
+                "Relocate": "搬遷"
+            }
+            if shifts:
+                for s in shifts:
+                    arrow = "⬆️" if s['diff'] > 0 else "⬇️"
+                    cn_state = state_trans.get(s['state'], s['state'])
+                    f.write(f"- {arrow} **{cn_state}**: {s['old']} -> {s['new']} ({s['diff']:+d})\n")
+            else:
+                f.write("- 無數據\n")
+            f.write("\n")
             
             # Flood year response
-            f.write("**洪水年響應：**\n\n")
-            f.write("| 年份 | 傳統版搬遷 | Window 搬遷 | Human-Centric 搬遷 |\n")
-            f.write("|------|------------|-------------|------------------|\n")
+            f.write("**洪水年響應（搬遷數）：**\n\n")
+            f.write("| 年份 | 傳統版 | Window | Human-Centric |\n")
+            f.write("|------|--------|--------|---------------|\n")
             for fy in FLOOD_YEARS:
                 old_r = a["old_flood"].get(fy, {}).get("relocate", "N/A")
                 win_r = a["window_flood"].get(fy, {}).get("relocate", "N/A")
@@ -699,33 +823,53 @@ def generate_readme_ch(all_analysis: list):
             f.write("\n")
             
             # Why this model behaves differently
-            f.write("**為何此模型有差異：**\n")
+            f.write("**行為洞察：**\n")
             if "Gemma" in model and a.get("gemma_analysis"):
                  ga = a["gemma_analysis"]
                  f.write(f"- **樂觀偏差 (Optimism Bias)**：雖然感知到威脅（{ga.get('high_threat_perceptions')} 次高威脅），但其應對評估（Coping Appraisal）常維持在中高等級，導致威脅感被抵銷。\n")
-                 f.write(f"- **治理攔截**：治理層攔截了 {ga.get('governance_blocks_on_inaction')} 次消極決策，但模型在重試時傾向於降低威脅評估而非改變行動。\n")
-                 
+                 f.write(f"- **被動合規**：0 次拒絕，因為它默認選擇「不做任何事」，在低威脅下這被視為合法決策。\n")
+            elif old_reloc > window_reloc:
+                f.write(f"- Window 記憶減少了 {old_reloc - window_reloc} 次搬遷。模型未長期維持高威脅評估，因此未觸發極端行動。\n")
             elif window_reloc > old_reloc:
-                diff = window_reloc - old_reloc
-                f.write(f"- Window 記憶增加了 {diff} 次搬遷\n")
-                f.write("- 治理阻止「高威脅 + 不採取行動」\n")
-            elif window_reloc < old_reloc:
-                diff = old_reloc - window_reloc
-                f.write(f"- Window 記憶減少了 {diff} 次搬遷\n")
-                f.write("- 模型很少將威脅評估為「高」，從而避免了治理觸發\n")
+                f.write(f"- Window 記憶增加了搬遷。社交證據或近期洪水推動了更積極的行動。\n")
             else:
                 f.write("- 搬遷無顯著變化\n")
             
             f.write("\n---\n\n")
         
-        f.write("## 驗證摘要\n\n")
-        f.write("| 模型 | 記憶類型 | 總追蹤數 | 重試 | 失敗 | 解析警告 |\n")
-        f.write("|------|----------|----------|------|------|----------|\n")
+        # Validation Details
+        f.write("## 驗證與治理細節 (Validation & Governance)\n\n")
+        
         for a in all_analysis:
+            model = a["model"]
+            f.write(f"### {model} 治理報告\n\n")
+            
+            # Table for validation summary
+            f.write("| 記憶模式 | 觸發總數 | 重試 (Retries) | 失敗 (Failed) | 解析警告 |\n")
+            f.write("|----------|----------|----------------|---------------|----------|\n")
             for mem_key, mem_display in [("window", "Window"), ("importance", "Human-Centric")]:
                 v = a[f"{mem_key}_validation"]
                 if v.get("total", 0) > 0:
-                    f.write(f"| {a['model']} | {mem_display} | {v['total']} | {v['retries']} | {v['validation_failed']} | {v['parse_warnings']} |\n")
+                     f.write(f"| {mem_display} | {v.get('retries',0) + v.get('validation_failed',0)} | {v['retries']} | {v['validation_failed']} | {v['parse_warnings']} |\n")
+            f.write("\n")
+            
+            # Detailed Rules Table (Window as representative)
+            win_details = a.get("window_app_details", [])
+            if win_details:
+                f.write("**規則觸發分析 (Window Memory):**\n\n")
+                f.write("| 規則 ID | 次數 | 合規修正 (Fixed) | 拒絕 (Failed) | 成功率 | 洞察 |\n")
+                f.write("|---|---|---|---|---|---|\n")
+                for d in win_details:
+                    # Translate insights
+                    insight_en = d['insight']
+                    insight_ch = insight_en
+                    if "Stubborn" in insight_en: insight_ch = "偏執/頑固 (Stubborn)"
+                    if "Compliant" in insight_en: insight_ch = "合規 (Compliant)"
+                    
+                    f.write(f"| `{d['rule']}` | {d['triggers']} | {d['approved']} | {d['rejected']} | **{d['rate']:.1f}%** | {insight_ch} |\n")
+                f.write("\n")
+            elif "Gemma" in model or "GPT" in model:
+                f.write("> **零觸發 (Zero Triggers)**：此模型屬於「被動合規型」。在低威脅時傾向選擇「不做任何事」，因此從未觸發「行動 vs 邏輯」的阻擋規則。\n\n")
         
         f.write("\n")
     

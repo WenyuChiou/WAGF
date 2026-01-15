@@ -11,8 +11,8 @@ Responsibility:
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
 
-from broker.memory import CognitiveMemory, MemoryProvider
-from broker.agent_config import AgentTypeConfig
+from broker.components.memory import CognitiveMemory, MemoryProvider
+from broker.utils.agent_config import AgentTypeConfig
 
 @dataclass
 class GovernmentAgentState:

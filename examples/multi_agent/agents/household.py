@@ -19,8 +19,8 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional, Literal
 import random
 
-from broker.memory import CognitiveMemory
-from broker.agent_config import AgentTypeConfig
+from broker.components.memory import CognitiveMemory
+from broker.utils.agent_config import AgentTypeConfig
 
 @dataclass
 class HouseholdAgentState:
