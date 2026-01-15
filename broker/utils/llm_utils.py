@@ -131,9 +131,11 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
             # Retry loop for empty responses (common with DeepSeek reasoning models)
             max_llm_retries = 3
             llm_retries = 0
+            current_prompt = prompt # Use local copy to allow modification
+            
             for attempt in range(max_llm_retries):
                 try:
-                    response = llm.invoke(prompt)
+                    response = llm.invoke(current_prompt)
                     content = response.content
                     
                     if debug_llm:
@@ -146,7 +148,10 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
                         llm_retries += 1
                         if attempt < max_llm_retries - 1:
                             _LOGGER.warning(f" [LLM:Retry] Model '{model}' returned empty content. Retrying ({attempt+1}/{max_llm_retries})...")
+                            # Variant: Append space to force cache bypass / fresh generation
+                            current_prompt += " " 
                         else:
+                            # Final valid empty return? No, we treat as failure
                             _LOGGER.error(f" [LLM:Error] Model '{model}' returned empty content after {max_llm_retries} attempts.")
                             _LOGGER.error(f"Empty raw output from {model} after {max_llm_retries} attempts")
                             return "", LLMStats(retries=llm_retries, success=False)
@@ -155,6 +160,8 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
                     _LOGGER.error(f" [LLM:Error] Exception during call to '{model}': {e}")
                     _LOGGER.exception(f"Exception during LLM invoke for {model}")
                     if attempt < max_llm_retries - 1:
+                        # Variant: Append space here too
+                        current_prompt += " "
                         continue
                     return "", LLMStats(retries=llm_retries, success=False)
             return "", LLMStats(retries=llm_retries, success=False)

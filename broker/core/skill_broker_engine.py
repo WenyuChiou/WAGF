@@ -206,6 +206,13 @@ class SkillBrokerEngine:
                     **context
                 })
                 
+                # Phase 33: Explicit handling for Empty/Null responses
+                if skill_proposal is None:
+                    msg = "Response was empty or unparsable. Please output a valid JSON decision."
+                    logger.warning(f" [Broker:Retry] Empty/Null response received (Attempt {initial_attempts}/{max_initial_attempts})")
+                    prompt = self.model_adapter.format_retry_prompt(prompt, [msg])
+                    continue
+
                 # Check for missing critical LABEL constructs - trigger retry if missing
                 if skill_proposal and skill_proposal.reasoning:
                     reasoning = skill_proposal.reasoning
