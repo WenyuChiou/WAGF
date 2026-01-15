@@ -67,6 +67,10 @@ household_owner:
     Insurance: You Currently {insurance_status} flood insurance.
     Current Costs: Annual premium is ${current_premium:,.0f} and subsidy rate is {subsidy_rate:.0%}.
 
+    Official Notifications:
+    - Government: {govt_message}
+    - Insurance: {insurance_message}
+
     Please evaluate your situation based on these criteria:
     {criteria_definitions}
 
@@ -78,36 +82,96 @@ household_owner:
     Respond only using the exact JSON format below. Do NOT include conversational text.
     {response_format}
 
+  parsing:
     actions:
       - id: do_nothing
-        aliases: ["DN", "nothing", "wait", "Do nothing", "Do Nothing", "Take no action", "[DN]"]
+        aliases:
+          [
+            "DN",
+            "nothing",
+            "wait",
+            "Do nothing",
+            "Do Nothing",
+            "Take no action",
+            "[DN]",
+          ]
         description: "Take no action this year"
       - id: buy_insurance
-        aliases: ["FI", "insurance", "buy_insurance", "Buy insurance", "Purchase flood insurance", "[FI]"]
+        aliases:
+          [
+            "FI",
+            "insurance",
+            "buy_insurance",
+            "Buy insurance",
+            "Purchase flood insurance",
+            "[FI]",
+          ]
         description: "Purchase flood insurance"
       - id: elevate_house
-        aliases: ["HE", "elevate", "elevation", "elevate_house", "Elevate house", "[HE]"]
+        aliases:
+          [
+            "HE",
+            "elevate",
+            "elevation",
+            "elevate_house",
+            "Elevate house",
+            "[HE]",
+          ]
         description: "Elevate house structure"
       - id: buyout_program
         aliases: ["BT", "buyout", "government buyout", "Accept buyout", "[BT]"]
         description: "Accept government buyout"
-
     constructs:
       TP_LABEL:
-        { keywords: ["threat", "severity", "vulnerability"], regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b" }
-      TP_REASON: { keywords: ["threat", "severity", "vulnerability"], regex: "(?i)(?:reason|why|because|explanation)[:\\s\\*]*(.*)" }
+        {
+          keywords: ["threat", "severity", "vulnerability"],
+          regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b",
+        }
+      TP_REASON:
+        {
+          keywords: ["threat", "severity", "vulnerability"],
+          regex: "(?i)(?:reason|why|because|explanation)[:\\s\\*]*(.*)",
+        }
       CP_LABEL:
-        { keywords: ["coping", "efficacy", "ability"], regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b" }
-      CP_REASON: { keywords: ["coping", "efficacy", "ability"], regex: "(?i)(?:reason|why|because|explanation)[:\\s\\*]*(.*)" }
+        {
+          keywords: ["coping", "efficacy", "ability"],
+          regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b",
+        }
+      CP_REASON:
+        {
+          keywords: ["coping", "efficacy", "ability"],
+          regex: "(?i)(?:reason|why|because|explanation)[:\\s\\*]*(.*)",
+        }
       SP_LABEL:
-        { keywords: ["stakeholder", "trust", "government", "insurance"], regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b" }
-      SP_REASON: { keywords: ["stakeholder", "trust", "government", "insurance"], regex: "(?i)(?:reason|why|because|explanation)[:\\s\\*]*(.*)" }
+        {
+          keywords: ["stakeholder", "trust", "government", "insurance"],
+          regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b",
+        }
+      SP_REASON:
+        {
+          keywords: ["stakeholder", "trust", "government", "insurance"],
+          regex: "(?i)(?:reason|why|because|explanation)[:\\s\\*]*(.*)",
+        }
       SC_LABEL:
-        { keywords: ["social", "neighbor", "community"], regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b" }
-      SC_REASON: { keywords: ["social", "neighbor", "community"], regex: "(?i)(?:reason|why|because|explanation)[:\\s\\*]*(.*)" }
+        {
+          keywords: ["social", "neighbor", "community"],
+          regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b",
+        }
+      SC_REASON:
+        {
+          keywords: ["social", "neighbor", "community"],
+          regex: "(?i)(?:reason|why|because|explanation)[:\\s\\*]*(.*)",
+        }
       PA_LABEL:
-        { keywords: ["place", "attachment", "belonging"], regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b" }
-      PA_REASON: { keywords: ["place", "attachment", "belonging"], regex: "(?i)(?:reason|why|because|explanation)[:\\s\\*]*(.*)" }
+        {
+          keywords: ["place", "attachment", "belonging"],
+          regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b",
+        }
+      PA_REASON:
+        {
+          keywords: ["place", "attachment", "belonging"],
+          regex: "(?i)(?:reason|why|because|explanation)[:\\s\\*]*(.*)",
+        }
   log_fields:
     [
       "threat_perception",
@@ -169,6 +233,10 @@ household_renter:
     Experience: {flood_experience_summary} | Memory: {memory}
     Insurance: You Currently {insurance_status} flood insurance.
 
+    Official Notifications:
+    - Government: {govt_message}
+    - Insurance: {insurance_message}
+
     Criteria to consider:
     {criteria_definitions}
 
@@ -180,12 +248,29 @@ household_renter:
     Respond only using the exact JSON format below:
     {response_format}
 
+  parsing:
     actions:
       - id: do_nothing
-        aliases: ["DN", "nothing", "wait", "Do nothing", "Do Nothing", "Take no action", "[DN]"]
+        aliases:
+          [
+            "DN",
+            "nothing",
+            "wait",
+            "Do nothing",
+            "Do Nothing",
+            "Take no action",
+            "[DN]",
+          ]
         description: "Take no action this year"
       - id: buy_contents_insurance
-        aliases: ["CI", "contents_insurance", "Buy contents insurance", "insurance", "[CI]"]
+        aliases:
+          [
+            "CI",
+            "contents_insurance",
+            "Buy contents insurance",
+            "insurance",
+            "[CI]",
+          ]
         description: "Purchase contents-only flood insurance"
       - id: relocate
         aliases: ["RL", "move", "relocate", "Relocation", "Move", "[RL]"]
@@ -193,15 +278,30 @@ household_renter:
 
     constructs:
       TP_LABEL:
-        { keywords: ["threat", "severity", "vulnerability"], regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b" }
+        {
+          keywords: ["threat", "severity", "vulnerability"],
+          regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b",
+        }
       CP_LABEL:
-        { keywords: ["coping", "efficacy", "ability"], regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b" }
+        {
+          keywords: ["coping", "efficacy", "ability"],
+          regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b",
+        }
       SP_LABEL:
-        { keywords: ["stakeholder", "trust", "government", "insurance"], regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b" }
+        {
+          keywords: ["stakeholder", "trust", "government", "insurance"],
+          regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b",
+        }
       SC_LABEL:
-        { keywords: ["social", "neighbor", "community"], regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b" }
+        {
+          keywords: ["social", "neighbor", "community"],
+          regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b",
+        }
       PA_LABEL:
-        { keywords: ["place", "attachment", "belonging"], regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b" }
+        {
+          keywords: ["place", "attachment", "belonging"],
+          regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b",
+        }
 
 government:
   description: "State Government Agency."

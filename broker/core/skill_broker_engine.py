@@ -342,10 +342,12 @@ class SkillBrokerEngine:
                  if "_LABEL" in k: ratings.append(f"{k}={v}")
              if ratings: logger.error(f"  - Ratings: {' | '.join(ratings)}")
              
-             reason_text = skill_proposal.reasoning.get("threat_appraisal", {}).get("reason", "") if isinstance(skill_proposal.reasoning.get("threat_appraisal"), dict) else ""
-             if not reason_text:
-                 reason_text = skill_proposal.reasoning.get("TP_REASON", skill_proposal.reasoning.get("Reasoning", ""))
-             if reason_text:
+             # Generic Reason Extraction (Look for keys ending in _REASON or naming 'Reason')
+             reason_keys = [k for k in skill_proposal.reasoning.keys() if "_REASON" in k.upper() or "REASON" in k.upper()]
+             if reason_keys:
+                 reason_text = skill_proposal.reasoning.get(reason_keys[0], "")
+                 if isinstance(reason_text, dict): 
+                     reason_text = reason_text.get("reason", str(reason_text))
                  logger.error(f"  - Agent Motivation: {reason_text}")
              
              # Determine fallout action: prefer original choice if parsed, otherwise default
@@ -444,7 +446,7 @@ class SkillBrokerEngine:
                 "seed": seed,
                 "agent_id": agent_id,
                 "validated": all_valid,
-                "_audit_priority": audit_priority, # Pass priority fields
+                "_audit_priority": audit_priority, # Dynamically determined from config
 
                 "input": prompt if self.log_prompt else None,
                 "raw_output": raw_output,

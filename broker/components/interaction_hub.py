@@ -18,7 +18,7 @@ class InteractionHub:
         self.graph = graph
         self.memory_engine = memory_engine
         self.environment = environment
-        self.spatial_observables = spatial_observables or ["elevated", "relocated"]
+        self.spatial_observables = spatial_observables or []
 
     def get_spatial_context(self, agent_id: str, agents: Dict[str, Any]) -> Dict[str, Any]:
         """Tier 1 (Spatial): Aggregated observation of neighbors."""
