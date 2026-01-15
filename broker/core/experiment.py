@@ -279,10 +279,16 @@ class ExperimentBuilder:
         self.verbose = False
         self.hooks = {}
         self.workers = 1  # PR: Multiprocessing Core - default to sequential
+        self.seed = 42    # Default seed for reproducibility
 
     def with_workers(self, workers: int = 4):
         """Set number of parallel workers for LLM calls. 1=sequential (default)."""
         self.workers = workers
+        return self
+
+    def with_seed(self, seed: Optional[int]):
+        """Set custom random seed (None = system time)."""
+        self.seed = seed
         return self
 
     def with_model(self, model: str):
@@ -481,6 +487,7 @@ class ExperimentBuilder:
             num_steps=self.num_steps,
             governance_profile=self.profile,
             output_dir=self.output_base,
+            seed=self.seed,
             verbose=self.verbose,
             workers=self.workers  # PR: Multiprocessing Core
         )

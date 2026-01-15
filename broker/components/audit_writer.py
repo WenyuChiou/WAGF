@@ -150,6 +150,7 @@ class GenericAuditWriter:
             # 1. Base identity and timing
             row = {
                 "step_id": t.get("step_id"),
+                "year": t.get("year"),
                 "timestamp": t.get("timestamp"),
                 "agent_id": t.get("agent_id"),
                 "status": t.get("approved_skill", {}).get("status", "UNKNOWN"),
@@ -195,7 +196,7 @@ class GenericAuditWriter:
         if not flat_rows: return
 
         # Ensure consistent column ordering for user
-        priority_keys = ["step_id", "agent_id", "proposed_skill", "final_skill", "status", "retry_count", "validated", "failed_rules"]
+        priority_keys = ["step_id", "year", "agent_id", "proposed_skill", "final_skill", "status", "retry_count", "validated", "failed_rules"]
         
         # Phase 12: Support custom priority keys from first trace if present
         if traces and "_audit_priority" in traces[0]:
