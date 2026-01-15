@@ -26,16 +26,17 @@ class AsyncModelAdapter:
     def __init__(
         self,
         provider: LLMProvider,
-        agent_type: str = "household",
+        agent_type: str,
         preprocessor: Optional[Callable[[str], str]] = None,
         config_path: str = None
     ):
         """
         Initialize async adapter.
-        
+
         Args:
             provider: LLM provider
-            agent_type: Type of agent for parsing config
+            agent_type: Type of agent for parsing config (e.g., "household", "trader").
+                        Required - must match a type defined in agent_types.yaml.
             preprocessor: Optional preprocessor
             config_path: Path to agent_types.yaml
         """

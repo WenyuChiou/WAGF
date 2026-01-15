@@ -11,19 +11,19 @@ from typing import Dict, Any, List, Optional
 class ResponseFormatBuilder:
     """
     Generates response format instructions from YAML config.
-    
+
     Usage:
-        config = load_agent_config().get("household")
+        config = load_agent_config().get("my_agent_type")  # e.g., "household", "trader"
         rfb = ResponseFormatBuilder(config)
         format_block = rfb.build(valid_choices_text="1, 2, or 3")
     """
-    
+
     def __init__(self, config: Dict[str, Any], shared_config: Dict[str, Any] = None):
         """
         Initialize with agent-type config.
-        
+
         Args:
-            config: Agent-type specific config (e.g., household)
+            config: Agent-type specific config from YAML
             shared_config: Shared config section for defaults
         """
         self.config = config

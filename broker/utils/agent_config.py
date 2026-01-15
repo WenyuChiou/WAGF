@@ -60,12 +60,12 @@ class CoherenceRule:
 class AgentTypeConfig:
     """
     Loader for agent type configurations.
-    
+
     Usage:
         config = AgentTypeConfig.load()
-        household = config.get("household")
-        valid_actions = household["actions"]
-        rules = household["validation_rules"]
+        agent_cfg = config.get("my_agent_type")  # e.g., "household", "trader", etc.
+        valid_actions = agent_cfg["actions"]
+        rules = agent_cfg["validation_rules"]
     """
     
     _instance = None

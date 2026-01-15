@@ -295,11 +295,11 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     from broker import load_agents_from_csv
     profiles_path = base_path / "agent_initial_profiles.csv"
     agents = load_agents_from_csv(str(profiles_path), {
-        "id": "id", "elevated": "elevated", "has_insurance": "has_insurance", 
-        "relocated": "relocated", "trust_in_insurance": "trust_in_insurance", 
+        "id": "id", "elevated": "elevated", "has_insurance": "has_insurance",
+        "relocated": "relocated", "trust_in_insurance": "trust_in_insurance",
         "trust_in_neighbors": "trust_in_neighbors", "flood_threshold": "flood_threshold",
         "memory": "memory"
-    })
+    }, agent_type="household")
     import re
     def natural_key(string_):
         """Helper for natural sorting (Agent_1, Agent_2, Agent_10...)"""

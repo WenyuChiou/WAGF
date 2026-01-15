@@ -3,21 +3,22 @@ from typing import Dict, Any, List, Optional
 from agents.base_agent import BaseAgent, AgentConfig, StateParam
 
 def load_agents_from_csv(
-    csv_path: str, 
-    mapping: Dict[str, str], 
-    agent_type: str = "household",
+    csv_path: str,
+    mapping: Dict[str, str],
+    agent_type: str,
     base_config: Optional[AgentConfig] = None
 ) -> Dict[str, BaseAgent]:
     """
     Loads agents from a CSV file using a column mapping.
-    
+
     Args:
         csv_path: Path to the CSV file.
         mapping: Dictionary mapping CSV column names to agent attributes.
                  e.g. {"HH_ID": "id", "Income_Level": "income"}
-        agent_type: Type label for the agents.
+        agent_type: Type label for the agents (e.g., "household", "trader").
+                    Required - must match a type defined in agent_types.yaml.
         base_config: Optional Base config to use for all agents.
-        
+
     Returns:
         Dict of agent_id -> BaseAgent
     """
