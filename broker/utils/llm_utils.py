@@ -106,12 +106,13 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
     try:
         from langchain_ollama import ChatOllama
         
-        # Default Ollama params - set to -1 (unlimited) by default
-        # Users can override via agent_types.yaml llm_params
+        # Default Ollama params - Aligned with original experiment (Ollama defaults)
         ollama_params = {
             "num_predict": -1,  # Unlimited by default
             "num_ctx": 16384,   # Large context for complex prompts
-            "temperature": 0,    # Default to deterministic decoding for reproducibility
+            "temperature": 0.8, # Original default
+            "top_p": 0.9,       # Original default
+            "top_k": 40,        # Original default
         }
         
         # Apply overrides from configuration (takes priority)

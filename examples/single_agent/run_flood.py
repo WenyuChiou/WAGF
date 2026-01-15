@@ -277,7 +277,7 @@ class FinalParityHook:
         print(f"[Year {year}] Stats: {stats_str}")
 
 # --- 5. Main Runner ---
-def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5):
+def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5, seed: Optional[int] = None):
     print(f"--- Llama {agents_count}-Agent {years}-Year Benchmark (Final Parity Edition) ---")
     
     # 1. Load Registry & Prompt Template
@@ -385,8 +385,9 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         .with_skill_registry(registry)
         .with_memory_engine(memory_engine)
         .with_governance("strict", agent_config_path)
-        .with_output(str(output_dir))
+        .with_output(str(custom_output) if custom_output else str(base_dir))
         .with_workers(workers)
+        .with_seed(seed)
     )
     
     runner = builder.build()
@@ -471,7 +472,12 @@ if __name__ == "__main__":
                         help="Memory retrieval strategy: window (sliding), importance (active retrieval), humancentric (emotional), or hierarchical (tiered)")
     parser.add_argument("--workers", type=int, default=1, help="Number of parallel workers for LLM calls")
     parser.add_argument("--window-size", type=int, default=5, help="Size of memory window (years/events) to retain")
+    parser.add_argument("--seed", type=int, default=None, help="Random seed for reproducibility. If None, uses system time.")
     args = parser.parse_args()
+    
+    # Generate random seed if not specified
+    actual_seed = args.seed if args.seed is not None else random.randint(0, 1000000)
+    
     run_parity_benchmark(
         model=args.model, 
         years=args.years, 
@@ -479,5 +485,6 @@ if __name__ == "__main__":
         custom_output=args.output,
         verbose=args.verbose,
         memory_engine_type=args.memory_engine,
-        window_size=args.window_size
+        window_size=args.window_size,
+        seed=actual_seed
     )
