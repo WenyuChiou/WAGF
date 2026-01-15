@@ -127,7 +127,7 @@ class SkillBrokerEngine:
         timestamp = datetime.now().isoformat()
         
         # ① Build bounded context (READ-ONLY)
-        context = self.context_builder.build(agent_id, env_context=env_context)
+        context = self.context_builder.build(agent_id, step_id=step_id, run_id=run_id, env_context=env_context)
         context_hash = self._hash_context(context)
 
         # Phase 28: Dynamic Skill Retrieval (RAG)
@@ -448,7 +448,7 @@ class SkillBrokerEngine:
                 "validated": all_valid,
                 "_audit_priority": audit_priority, # Dynamically determined from config
 
-                "input": prompt if self.log_prompt else None,
+                "input": prompt,
                 "raw_output": raw_output,
                 "context_hash": context_hash,
 
