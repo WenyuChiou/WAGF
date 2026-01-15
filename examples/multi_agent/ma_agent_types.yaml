@@ -315,6 +315,7 @@ government:
     decision_keywords: ["decision", "choice"]
     default_skill: "maintain_subsidy"
     strict_mode: true
+    preprocessor: { type: "smart_repair" }
     actions:
       - id: increase_subsidy
         aliases: ["INCREASE", "increase", "More subsidy", "[1]"]
@@ -335,6 +336,7 @@ insurance:
     decision_keywords: ["decision", "choice"]
     default_skill: "maintain_premium"
     strict_mode: true
+    preprocessor: { type: "smart_repair" }
     actions:
       - id: raise_premium
         aliases: ["RAISE", "raise", "Increase rates", "[1]"]
