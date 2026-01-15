@@ -174,6 +174,14 @@ class MultiAgentHooks:
         else:
             print(f" [ENV] Year {year}: No flood events.")
 
+        # Calculate community statistics for Institutional perception
+        households = [a for a in agents.values() if a.agent_type in ["household_owner", "household_renter"]]
+        self.env["total_households"] = len(households)
+        self.env["elevated_count"] = sum(1 for a in households if a.dynamic_state.get("elevated"))
+        self.env["insured_count"] = sum(1 for a in households if a.dynamic_state.get("has_insurance"))
+        # loss_ratio is calculated based on last year's damage if desired, or kept as a metric
+        # For now, we'll keep it as a dynamic state of the insurance agent if it's already there
+
     def post_step(self, agent, result):
         """Update global vars if institutional agent acted."""
         if result.outcome.name != "SUCCESS":
@@ -353,7 +361,7 @@ def run_unified_experiment():
                 agents=all_agents,
                 hub=hub,
                 memory_engine=memory_engine,
-                dynamic_whitelist=["govt_message", "insurance_message"], # Phase 2 PR2: Allow institutional influence
+                dynamic_whitelist=["govt_message", "insurance_message", "elevated_count", "total_households", "insured_count", "loss_ratio"], # Phase 2 PR2: Allow institutional influence
                 prompt_templates={} # Loaded from YAML via with_governance
             )
         )
