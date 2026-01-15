@@ -109,10 +109,24 @@ class FinalContextBuilder(TieredContextBuilder):
             option_items.append((skill_id, desc))
         
         # SHUFFLE options to reduce positional bias (changes per step/year for each agent)
-        step_id = kwargs.get('step_id', 0)
-        agent_seed = hash(f"{agent_id}_{step_id}") % 10000
-        rng = random.Random(agent_seed)
-        rng.shuffle(option_items)
+        # DISABLED FOR PARITY TEST with LLMABMPMT-Final.py
+        # step_id = kwargs.get('step_id', 0)
+        # agent_seed = hash(f"{agent_id}_{step_id}") % 10000
+        # rng = random.Random(agent_seed)
+        # rng.shuffle(option_items)
+
+        # ENFORCE FIXED ORDER for Parity:
+        # 1. buy_insurance
+        # 2. elevate_house
+        # 3. relocate
+        # 4. do_nothing
+        order_map = {
+            "buy_insurance": 0,
+            "elevate_house": 1,
+            "relocate": 2,
+            "do_nothing": 3
+        }
+        option_items.sort(key=lambda x: order_map.get(x[0], 99))
         
         # Build numbered options text and dynamic skill_map
         options = []

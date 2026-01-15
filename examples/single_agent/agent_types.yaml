@@ -170,7 +170,7 @@ household:
           "[buy flood insurance]",
           "[Buy flood insurance]",
         ]
-      description: "Purchase flood insurance"
+      description: "Buy flood insurance (Lower cost, provides partial financial protection but does not reduce physical damage.)"
     - id: elevate_house
       aliases:
         [
@@ -189,7 +189,7 @@ household:
           "[Elevate your house]",
           "[Elevate house]",
         ]
-      description: "Elevate house structure"
+      description: "Elevate your house (High upfront cost but can prevent most physical damage.)"
     - id: relocate
       aliases:
         [
@@ -202,7 +202,7 @@ household:
           "[relocate]",
           "[Relocate]",
         ]
-      description: "Relocate to safer area"
+      description: "Relocate (Requires leaving your neighborhood but eliminates flood risk permanently.)"
     - id: do_nothing
       aliases:
         [
@@ -219,7 +219,7 @@ household:
           "[Do nothing]",
           "[Do Nothing]",
         ]
-      description: "Take no action this year"
+      description: "Do nothing (Require no financial investment or effort this year, but it might leave you exposed to future flood damage.)"
 
   # Governance Profiles
   governance:
