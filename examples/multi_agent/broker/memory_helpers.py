@@ -10,9 +10,8 @@ Active: memory.retrieve() called by agent as tool
 from typing import Dict, Optional, Any
 from dataclasses import dataclass
 
-import sys
-sys.path.insert(0, '.')
-from broker.memory import CognitiveMemory, MemoryItem
+# sys.path.insert(0, '.') # Removed to avoid shadowing
+from broker.components.memory import CognitiveMemory, MemoryItem
 
 
 # =============================================================================
