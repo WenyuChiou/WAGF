@@ -219,7 +219,22 @@ We performed a **5x2 Chi-Square Test** on the full distribution of agent decisio
 - **Active vs Passive Compliance**:
   - **Llama 3.2** attempts proactive measures (Elevation) but often fails strict PMT rules (e.g., `elevation_threat_low`), resulting in a **22% rejection rate** under Window Memory.
   - **Gemma 3** defaults to "Do Nothing" when threat is low, resulting in **0% rejections** but lower overall adaptation.
-- **Implication**: The governance layer successfully blocks "hallucinated" or "disproportional" actions from smaller models, enforcing theoretical consistency even when the model's own reasoning is flawed.
+- **Relocation Paradigm Shift (95 -> 2)**:
+  - In the baseline (N=10 memory), Llama agents frequently "panicked" after a flood and relocated.
+  - In the **Window=5** experiment, relocations dropped dramatically. Analysis shows this is NOT due to governance blocks (only 6 relocation blocks occurred), but a **Shift in Intent**.
+  - **Reason**: The 5-year window causes agents to "forget" the early floods (Years 3 & 4) by Year 9. Because they only recall recent history, their cumulative stress never hits the "Escape" threshold. Instead, they stubbornly attempt **House Elevation** as a moderate response.
+
+#### Case Study: Agent_29 (Baseline vs Window=5)
+
+Comparing the same agent across two different memory configurations:
+
+| Phase              | **Baseline (N=10)**      | **Window=5 (New)**                     |
+| :----------------- | :----------------------- | :------------------------------------- |
+| **Early Reaction** | Does Nothing             | **Propose Elevation** (Blocked by Gov) |
+| **Flood Reaction** | **Relocate Immediately** | **Propose Elevation** (Approved)       |
+| **Post-Flood**     | (Gone)                   | **Propose Elevation** (Blocked by Gov) |
+
+**Key Insight**: Llama's baseline "flight" response is replaced by an "obsessive protection" loop in the 5-year window. The Governance Layer prevents these illogical elevation attempts (when threat is VL), but it cannot force the agent to want to relocate.
 
 Detailed statistical analysis and behavioral comparison (Baseline vs Window vs Human-Centric) can be found here:
 

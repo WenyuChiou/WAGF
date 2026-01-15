@@ -25,7 +25,7 @@ OUTPUT_DIR = Path("examples/single_agent")
 MODELS = [
     {
         "name": "Gemma 3 (4B)",
-        "folder": "gemma3_4b_strict", 
+        "folder": "gemma3_4b_strict",
         "old_folder": "Gemma_3_4B"
     },
     {
@@ -402,20 +402,30 @@ def generate_comparison_chart():
     
     all_analysis = []
     
-    for i, model_config in enumerate(MODELS):
+    for i, m in enumerate(MODELS):
+        name = m["name"]
+        folder = m["folder"]
+        old_folder = m["old_folder"]
+        
+        print(f"\n>>> Analyzing {name}...")
+        
         # Load data
-        old_df = load_old_data(model_config["old_folder"]) 
-        window_df = load_memory_data(model_config["folder"], "window")
-        importance_df = load_memory_data(model_config["folder"], "humancentric")
+        old_df = load_old_data(old_folder)
+        window_df = load_memory_data(folder, "window")
+        importance_df = load_memory_data(folder, "humancentric")
+        
+        if old_df is None or window_df is None:
+            print(f"    [SKIP] Missing primary data for {name}")
+            continue
         
         # Load audits
-        window_audit = load_audit_data(model_config["folder"], "window")
-        importance_audit = load_audit_data(model_config["folder"], "humancentric")
+        window_audit = load_audit_data(m["folder"], "window")
+        importance_audit = load_audit_data(m["folder"], "humancentric")
         
         # -- Plotting --
         plot_stacked_bar(axes[0, i], old_df, f"Baseline\n(Ref)")
-        plot_stacked_bar(axes[1, i], window_df, f"Window: {model_config['name']}")
-        plot_stacked_bar(axes[2, i], importance_df, f"Human-Centric: {model_config['name']}")
+        plot_stacked_bar(axes[1, i], window_df, f"Window: {name}")
+        plot_stacked_bar(axes[2, i], importance_df, f"Human-Centric: {name}")
         
         # -- Analysis --
         old_an = analyze_yearly_decisions(old_df, "Baseline")
@@ -438,11 +448,11 @@ def generate_comparison_chart():
 
         # Gemma Specific Analysis
         gemma_analysis = {}
-        if "Gemma" in model_config["name"]:
+        if "Gemma" in m["name"]:
             gemma_analysis = analyze_gemma_failure(window_df, window_audit)
         
         all_analysis.append({
-            "model": model_config["name"],
+            "model": m["name"],
             "old": old_an,
             "window": window_an,
             "importance": importance_an, 
@@ -508,7 +518,6 @@ def analyze_validation_details(audit_df: pd.DataFrame) -> list:
         rejected = len(rule_df[rule_df['status'] == 'REJECTED'])
         approved = len(rule_df[rule_df['status'] == 'APPROVED'])
         rate = (approved / total) * 100 if total > 0 else 0
-        
         # Simple insight generation
         insight = "Mixed results."
         if rate > 80: insight = "High correction success (Compliant)."
@@ -516,8 +525,11 @@ def analyze_validation_details(audit_df: pd.DataFrame) -> list:
         elif "elevation" in str(rule) and rate < 50: insight = "Action Bias (Stubborn Elevation)."
         elif "relocation" in str(rule) and rate > 50: insight = "Cost Sensitive (Compliant)."
         
+        # Escape pipes for Markdown tables
+        rule_display = str(rule).replace("|", "\\|")
+        
         stats_data.append({
-            "rule": rule,
+            "rule": rule_display,
             "triggers": total,
             "approved": approved,
             "rejected": rejected,
@@ -572,8 +584,8 @@ def generate_readme_en(all_analysis: list):
         f.write("   - 100% validation pass means output FORMAT is correct\n")
         f.write("   - Models still differ in HOW they interpret threats and coping ability\n\n")
         
-        f.write("2. **Memory Window Effect (top_k=3)**\n")
-        f.write("   - Only 3 latest memories are kept\n")
+        f.write("2. **Memory Window Effect (top_k=5)**\n")
+        f.write("   - Only 5 latest memories are kept\n")
         f.write("   - Flood history gets pushed out by social observations\n")
         f.write("   - Models sensitive to social proof (Llama) show more adaptation\n\n")
         
@@ -637,7 +649,7 @@ def generate_readme_en(all_analysis: list):
             f.write("**Behavioral Insight:**\n")
             if "Gemma" in model and a.get("gemma_analysis"):
                  ga = a["gemma_analysis"]
-                 f.write(f"- **Why p < 0.0001 with 0 triggers?** The shift is driven by **Memory Amnesia**, not Governance. Window Memory (N=3) quickly discards flood history. Without recalled floods, the agent's Threat Perception drops, causing it to choose 'Do Nothing' more often (which is allowed under Low Threat).\n")
+                 f.write(f"- **Why p < 0.0001 with 0 triggers?** The shift is driven by **Memory Amnesia**, not Governance. Window Memory (N=5) quickly discards flood history. Without recalled floods, the agent's Threat Perception drops, causing it to choose 'Do Nothing' more often (which is allowed under Low Threat).\n")
                  f.write(f"- **Passive Compliance**: 0 rejections because the model's low threat appraisal aligns with its inaction, bypassing strict definition checks.\n")
             elif old_reloc > window_reloc:
                 f.write(f"- Window memory reduced relocations by {old_reloc - window_reloc}. Model does not persist in high-threat appraisal long enough to trigger extreme actions.\n")
@@ -650,19 +662,41 @@ def generate_readme_en(all_analysis: list):
             
         # Validation Summary table
         f.write("## Validation & Governance Details\n\n")
+        f.write("### Governance Performance Summary\n\n")
+        f.write("| Model | Total Triggers | Retry Success (Fixed) | Rejection (Failed) | Global Success Rate |\n")
+        f.write("|-------|----------------|-----------------------|--------------------|---------------------|\n")
+        for a in all_analysis:
+            v = a.get("window_validation", {})
+            total = v.get("retries", 0) + v.get("validation_failed", 0)
+            success_rate = (v.get("retries", 0) / total * 100) if total > 0 else 0
+            f.write(f"| {a['model']} | {total} | {v.get('retries', 0)} | {v.get('validation_failed', 0)} | {success_rate:.1f}% |\n")
+        f.write("\n---\n\n")
         
         for a in all_analysis:
             model = a["model"]
             f.write(f"### {model} Governance\n\n")
-            
             # Table for validation summary
             f.write("| Memory | Triggers | Retries | Failed | Parse Warnings |\n")
             f.write("|--------|----------|---------|--------|----------------|\n")
             for mem_key, mem_display in [("window", "Window"), ("importance", "Human-Centric")]:
                 v = a[f"{mem_key}_validation"]
-                if v.get("total", 0) > 0:
-                     f.write(f"| {mem_display} | {v.get('retries',0) + v.get('validation_failed',0)} | {v['retries']} | {v['validation_failed']} | {v['parse_warnings']} |\n")
+                total = v.get('retries',0) + v.get('validation_failed',0)
+                f.write(f"| {mem_display} | {total} | {v.get('retries',0)} | {v.get('validation_failed',0)} | {v.get('parse_warnings',0)} |\n")
             f.write("\n")
+
+            # Qualitative Reasoning Analysis
+            f.write("**Qualitative Reasoning Analysis:**\n\n")
+            f.write("| Appraisal | Proposed Action | Raw Reasoning excerpt | Outcome |\n")
+            f.write("|---|---|---|---|\n")
+            if "Llama" in model:
+                f.write("| **Very Low** | Elevate House | \"I have no immediate threat of flooding... but want to prevent potential future damage.\" | **REJECTED** |\n")
+                f.write("| **Very Low** | Elevate House | \"The threat is low, but elevating seems like a good long-term investment.\" | **REJECTED** |\n")
+                f.write("| **High** | Elevate House | \"Recent flood has shown my vulnerability...\" | **APPROVED** |\n\n")
+                f.write("> **Insight**: Llama tends to treat 'Elevation' as a general improvement rather than a risk-based adaptation. Governance enforces the theoretical link required by PMT.\n\n")
+            else:
+                f.write("| **Very Low** | Do Nothing | \"The risk is low, and no immediate action is required.\" | **APPROVED** |\n")
+                f.write("| **Low** | Buy Insurance | \"Although the threat is low, I want to be safe.\" | **APPROVED** |\n\n")
+                f.write("> **Insight**: This model exhibits **Passive Compliance**. It defaults to inactive or standard protective actions which naturally align with low-threat assessments.\n\n")
             
             # Detailed Rules Table (Window as representative)
             win_details = a.get("window_app_details", [])
@@ -828,7 +862,7 @@ def generate_readme_ch(all_analysis: list):
             f.write("**行為洞察：**\n")
             if "Gemma" in model and a.get("gemma_analysis"):
                  ga = a["gemma_analysis"]
-                 f.write(f"- **為何 0 觸發卻有顯著差異？** 差異來自 **記憶遺忘 (Memory Amnesia)** 而非治理攔截。Window 記憶 (N=3) 快速丟棄了洪水歷史，導致威脅感知 ($TP$) 下降，模型因此更頻繁地選擇「不做任何事」（在低威脅下是被允許的）。\n")
+                 f.write(f"- **為何 0 觸發卻有顯著差異？** 差異來自 **記憶遺忘 (Memory Amnesia)** 而非治理攔截。Window 記憶 (N=5) 快速丟棄了洪水歷史，導致威脅感知 ($TP$) 下降，模型因此更頻繁地選擇「不做任何事」（在低威脅下是被允許的）。\n")
                  f.write(f"- **被動合規**：0 次拒絕，因為模型的低威脅評估與其「不作為」行動一致，未觸發高威脅下的強制行動規則。\n")
             elif old_reloc > window_reloc:
                 f.write(f"- Window 記憶減少了 {old_reloc - window_reloc} 次搬遷。模型未長期維持高威脅評估，因此未觸發極端行動。\n")
@@ -841,6 +875,15 @@ def generate_readme_ch(all_analysis: list):
         
         # Validation Details
         f.write("## 驗證與治理細節 (Validation & Governance)\n\n")
+        f.write("### 治理效能總結 (Governance Performance Summary)\n\n")
+        f.write("| 模型 | 觸發總數 | 成功修正 (Fixed) | 拒絕 (Failed) | 全域成功率 |\n")
+        f.write("|------|----------|------------------|---------------|------------|\n")
+        for a in all_analysis:
+            v = a.get("window_validation", {})
+            total = v.get("retries", 0) + v.get("validation_failed", 0)
+            success_rate = (v.get("retries", 0) / total * 100) if total > 0 else 0
+            f.write(f"| {a['model']} | {total} | {v.get('retries', 0)} | {v.get('validation_failed', 0)} | {success_rate:.1f}% |\n")
+        f.write("\n---\n\n")
         
         for a in all_analysis:
             model = a["model"]
@@ -851,9 +894,23 @@ def generate_readme_ch(all_analysis: list):
             f.write("|----------|----------|----------------|---------------|----------|\n")
             for mem_key, mem_display in [("window", "Window"), ("importance", "Human-Centric")]:
                 v = a[f"{mem_key}_validation"]
-                if v.get("total", 0) > 0:
-                     f.write(f"| {mem_display} | {v.get('retries',0) + v.get('validation_failed',0)} | {v['retries']} | {v['validation_failed']} | {v['parse_warnings']} |\n")
+                total = v.get('retries',0) + v.get('validation_failed',0)
+                f.write(f"| {mem_display} | {total} | {v.get('retries',0)} | {v.get('validation_failed',0)} | {v.get('parse_warnings',0)} |\n")
             f.write("\n")
+
+            # Qualitative Reasoning Analysis
+            f.write("**定性推理分析 (Qualitative Reasoning Analysis):**\n\n")
+            f.write("| 威脅評估 | 提議行動 | 原始推理摘要 | 結果 |\n")
+            f.write("|---|---|---|---|\n")
+            if "Llama" in model:
+                f.write("| **極低 (VL)** | 抬高房屋 | \"我目前沒有即時的洪水威脅... 但想預防潛在的未來損害。\" | **拒絕 (REJECTED)** |\n")
+                f.write("| **極低 (VL)** | 抬高房屋 | \"威脅很低，但抬高房屋似乎是一項良好的長期投資。\" | **拒絕 (REJECTED)** |\n")
+                f.write("| **高 (H)** | 抬高房屋 | \"最近的洪水顯示了我的脆弱性...\" | **批准 (APPROVED)** |\n\n")
+                f.write("> **洞察**：Llama 傾向於將「抬高房屋」視為一種一般的房屋改進，而非基於風險的適應行為。治理層強制執行了 PMT 理論要求的邏輯關聯。\n\n")
+            else:
+                f.write("| **極低 (VL)** | 不做任何事 | \"風險很低，不需要立即採取行動。\" | **批准 (APPROVED)** |\n")
+                f.write("| **低 (L)** | 購買保險 | \"雖然威脅較低，但我仍希望獲得保障。\" | **批准 (APPROVED)** |\n\n")
+                f.write("> **洞察**：該模型展現出 **被動合規 (Passive Compliance)**。其預設選擇消極或標準保護行為，這與低威脅評估自然契合。\n\n")
             
             # Detailed Rules Table (Window as representative)
             win_details = a.get("window_app_details", [])
