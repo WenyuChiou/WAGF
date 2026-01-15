@@ -36,6 +36,10 @@ household:
   llm_params:
     num_ctx: 16384
     num_predict: 2048
+    # Sampling parameters (uncomment to override Ollama defaults)
+    # temperature: 1.0    # Higher = more diverse, Lower = more deterministic
+    # top_p: 0.95         # Nucleus sampling threshold
+    # top_k: 50           # Top-k sampling
 
   # Prompt Template (FINAL version aligned)
   prompt_template: |
@@ -94,7 +98,11 @@ household:
         "insurance",
         "loss",
       ]
-    audit_stopwords: [\"flood\", \"floods\", \"flooding\", \"risk\", \"water\"]
+    # Context fields to extract for demographic grounding audit
+    audit_context_fields: ["narrative_persona", "flood_experience_summary"]
+    # Domain-specific stopwords (added to generic English stopwords)
+    audit_blacklist: ["flood", "floods", "flooding", "risk", "water", "manageable", "resident", "household"]
+    audit_stopwords: ["flood", "floods", "flooding", "risk", "water"]
 
     # Synonym Mapping for Construct Extraction (Domain-specific, moved from code)
     synonyms:

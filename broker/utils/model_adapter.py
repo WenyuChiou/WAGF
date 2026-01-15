@@ -581,15 +581,18 @@ class UnifiedAdapter(ModelAdapter):
         cited_anchors = []
         
         # 1. Extract Target Anchors from Context
-        # We look for specific keys populated by HouseholdGroundingProvider
-        sources = {
-            "persona": context.get("narrative_persona", ""),
-            "experience": context.get("flood_experience_summary", "")
-        }
-        
+        # Source fields are configurable via 'audit_context_fields' in parsing config
+        # Default fields are domain-agnostic
+        default_fields = ["narrative_persona", "experience_summary"]
+        context_fields = parsing_cfg.get("audit_context_fields", default_fields)
+        sources = {field: context.get(field, "") for field in context_fields}
+
         # 2. Extract Keywords (Simple stopword filtering)
-        # Keywords to look for: "generation", "income", "years", "2012", "loss"
-        blacklist = {"you", "are", "a", "the", "in", "of", "to", "and", "manageable", "resident", "household", "with", "this", "that", "have", "from"}
+        # Generic English stopwords - domain-specific stopwords should be in config
+        default_blacklist = {"you", "are", "a", "the", "in", "of", "to", "and", "with", "this", "that", "have", "from", "for", "on", "is", "it", "be", "as", "at", "by"}
+        # Load additional stopwords from config (domain-specific terms)
+        config_blacklist = set(parsing_cfg.get("audit_blacklist", []))
+        blacklist = default_blacklist | config_blacklist
         # Topic words that are too generic to count as grounding
         # v1.1: Load from config 'audit_stopwords'
         topic_stopwords = set(parsing_cfg.get("audit_stopwords", ["decision", "choice", "action", "reason"]))

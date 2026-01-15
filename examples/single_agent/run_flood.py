@@ -385,7 +385,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         .with_skill_registry(registry)
         .with_memory_engine(memory_engine)
         .with_governance("strict", agent_config_path)
-        .with_output(str(custom_output) if custom_output else str(base_dir))
+        .with_output(str(output_dir))
         .with_workers(workers)
         .with_seed(seed)
     )
@@ -440,8 +440,8 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         # If absolute, use as is; if relative, make it relative to CWD
         output_path = Path(custom_output)
         if not output_path.is_absolute():
-            output_path = Path.cwd() / output_path
-        output_dir = output_path / f"{model.replace(':','_').replace('.','_')}_strict"
+            model_folder = f"{model.replace(':','_').replace('-','_').replace('.','_')}_strict"
+        output_dir = output_path / model_folder
     else:
         # Default to examples/single_agent/results
         base_dir = Path(__file__).parent / "results"
@@ -467,13 +467,29 @@ if __name__ == "__main__":
     parser.add_argument("--agents", type=int, default=100)
     parser.add_argument("--output", type=str, default=None)
     parser.add_argument("--verbose", action="store_true", help="Enable verbose LLM logging")
-    parser.add_argument("--memory-engine", type=str, default="window", 
-                        choices=["window", "importance", "humancentric", "hierarchical"], 
+    parser.add_argument("--memory-engine", type=str, default="window",
+                        choices=["window", "importance", "humancentric", "hierarchical"],
                         help="Memory retrieval strategy: window (sliding), importance (active retrieval), humancentric (emotional), or hierarchical (tiered)")
     parser.add_argument("--workers", type=int, default=1, help="Number of parallel workers for LLM calls")
     parser.add_argument("--window-size", type=int, default=5, help="Size of memory window (years/events) to retain")
     parser.add_argument("--seed", type=int, default=None, help="Random seed for reproducibility. If None, uses system time.")
+    # LLM sampling parameters (None = use Ollama default)
+    parser.add_argument("--temperature", type=float, default=None, help="LLM temperature (e.g., 0.8, 1.0). None=Ollama default")
+    parser.add_argument("--top-p", type=float, default=None, help="Top-p sampling (e.g., 0.9, 0.95). None=Ollama default")
+    parser.add_argument("--top-k", type=int, default=None, help="Top-k sampling (e.g., 40, 50). None=Ollama default")
+    parser.add_argument("--use-chat-api", action="store_true", help="Use ChatOllama instead of OllamaLLM")
     args = parser.parse_args()
+
+    # Apply LLM config from command line
+    from broker.utils.llm_utils import LLM_CONFIG
+    if args.temperature is not None:
+        LLM_CONFIG.temperature = args.temperature
+    if args.top_p is not None:
+        LLM_CONFIG.top_p = args.top_p
+    if args.top_k is not None:
+        LLM_CONFIG.top_k = args.top_k
+    if args.use_chat_api:
+        LLM_CONFIG.use_chat_api = True
     
     # Generate random seed if not specified
     actual_seed = args.seed if args.seed is not None else random.randint(0, 1000000)

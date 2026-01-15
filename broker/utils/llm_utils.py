@@ -8,12 +8,61 @@ Provides common logic for:
 - LLM-level retry tracking for audit
 
 v2.0: invoke functions now return (content, stats) tuple for thread-safety.
+v2.1: Added global LLM_CONFIG for configurable parameters.
 """
 import logging
-from typing import Callable, Dict, Tuple, Union
-from dataclasses import dataclass
+from typing import Callable, Dict, Tuple, Union, Optional, Any
+from dataclasses import dataclass, field
 
 _LOGGER = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Global LLM Configuration (can be modified before creating invoke functions)
+# =============================================================================
+@dataclass
+class LLMConfig:
+    """
+    Global configuration for LLM parameters.
+
+    Modify these values before calling create_llm_invoke() to customize behavior.
+    Set a value to None to use Ollama's default.
+
+    Example:
+        from broker.utils.llm_utils import LLM_CONFIG
+        LLM_CONFIG.temperature = 1.0
+        LLM_CONFIG.top_p = 0.95
+    """
+    # Sampling parameters (None = use Ollama default)
+    temperature: Optional[float] = None
+    top_p: Optional[float] = None
+    top_k: Optional[int] = None
+
+    # Context/generation limits
+    num_predict: int = -1      # -1 = unlimited
+    num_ctx: int = 16384       # Context window size
+
+    # Provider selection
+    use_chat_api: bool = False  # False = OllamaLLM (completion), True = ChatOllama (chat)
+
+    def to_ollama_params(self) -> Dict[str, Any]:
+        """Convert config to Ollama parameter dict, excluding None values."""
+        params = {
+            "num_predict": self.num_predict,
+            "num_ctx": self.num_ctx,
+        }
+        # Only include sampling params if explicitly set
+        if self.temperature is not None:
+            params["temperature"] = self.temperature
+        if self.top_p is not None:
+            params["top_p"] = self.top_p
+        if self.top_k is not None:
+            params["top_k"] = self.top_k
+        return params
+
+
+# Global instance - modify this to change default behavior
+LLM_CONFIG = LLMConfig()
 
 @dataclass
 class LLMStats:
@@ -76,28 +125,40 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
         A callable that takes prompt str and returns (content, LLMStats) tuple.
     """
     # Simple Mock for testing if model starts with 'mock'
+    # This mock is domain-agnostic and returns a generic decision format
     if model.lower().startswith("mock"):
         def mock_invoke(prompt: str) -> Tuple[str, LLMStats]:
+            import re
             stats = LLMStats(retries=0, success=True)
-            # Simple heuristic for mock responses
-            if "buy_insurance" in prompt: decision = "buy_insurance"
-            elif "relocate" in prompt: decision = "relocate"
-            else: decision = "do_nothing"
-            
-            threat_level = "High" if "damage" in prompt.lower() else "Low"
-            coping_level = "High" if "manage" in prompt.lower() else "Low"
-            
+
+            # Extract available options from prompt (e.g., "1. Action A", "2. Action B")
+            # This makes the mock work with any experiment's options
+            option_pattern = r'(\d+)\.\s+\w+'
+            options = re.findall(option_pattern, prompt)
+
+            # Default to option "1" if options found, otherwise "1"
+            decision_id = options[0] if options else "1"
+
+            # Generic appraisal levels based on prompt keywords
+            # These keywords are domain-agnostic
+            threat_level = "M"  # Medium as default
+            coping_level = "M"
+            if any(word in prompt.lower() for word in ["severe", "danger", "critical", "damage", "loss"]):
+                threat_level = "H"
+            if any(word in prompt.lower() for word in ["safe", "secure", "protected", "capable"]):
+                coping_level = "H"
+
             content = f"""<<<DECISION_START>>>
 {{
   "threat_appraisal": {{
     "label": "{threat_level}",
-    "reason": "I feel {threat_level.lower()} threat from the current situation."
+    "reason": "Mock assessment of threat level."
   }},
   "coping_appraisal": {{
     "label": "{coping_level}",
-    "reason": "I feel {coping_level.lower()} ability to cope."
+    "reason": "Mock assessment of coping ability."
   }},
-  "decision": {1 if decision == "buy_insurance" else 3 if decision == "relocate" else 4}
+  "decision": {decision_id}
 }}
 <<<DECISION_END>>>"""
             return content, stats
@@ -105,63 +166,60 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
     
     try:
         from langchain_ollama import ChatOllama
-        
-        # Default Ollama params - Aligned with original experiment (Ollama defaults)
-        ollama_params = {
-            "num_predict": -1,  # Unlimited by default
-            "num_ctx": 16384,   # Large context for complex prompts
-            "temperature": 0.8, # Original default
-            "top_p": 0.9,       # Original default
-            "top_k": 40,        # Original default
-        }
-        
-        # Apply overrides from configuration (takes priority)
+        from langchain_ollama import OllamaLLM
+
+        # Build params from global config
+        ollama_params = LLM_CONFIG.to_ollama_params()
+
+        # Apply any runtime overrides
         if overrides:
             ollama_params.update(overrides)
-            
-        llm = ChatOllama(model=model, **ollama_params)
+
+        # Select provider based on config
+        if LLM_CONFIG.use_chat_api:
+            _LOGGER.info(f" [LLM:Init] Using ChatOllama for model: {model}")
+            llm = ChatOllama(model=model, **ollama_params)
+        else:
+            _LOGGER.info(f" [LLM:Init] Using OllamaLLM for model: {model}")
+            llm = OllamaLLM(model=model, **ollama_params)
         
         def invoke(prompt: str) -> Tuple[str, LLMStats]:
-            # Strict control via verbose arg
             debug_llm = verbose
 
             if debug_llm:
-                # Log a small snippet of the prompt
                 _LOGGER.debug(f"\n [LLM:Input] (len={len(prompt)}) Prompt begins: {repr(prompt[:100])}...")
             
-            # Retry loop for empty responses (common with DeepSeek reasoning models)
             max_llm_retries = 3
             llm_retries = 0
-            current_prompt = prompt # Use local copy to allow modification
+            current_prompt = prompt
             
             for attempt in range(max_llm_retries):
                 try:
                     response = llm.invoke(current_prompt)
-                    content = response.content
+                    
+                    # Handle return type difference: ChatOllama -> Message, OllamaLLM -> str
+                    if hasattr(response, 'content'):
+                        content = response.content
+                    else:
+                        content = str(response)
                     
                     if debug_llm:
                         _LOGGER.debug(f" [LLM:Output] Raw Content: {repr(content[:200] if content else '')}...")
                     
                     if content and content.strip():
-                        # Success - return content and stats
                         return content, LLMStats(retries=llm_retries, success=True)
                     else:
                         llm_retries += 1
                         if attempt < max_llm_retries - 1:
-                            _LOGGER.warning(f" [LLM:Retry] Model '{model}' returned empty content. Retrying ({attempt+1}/{max_llm_retries})...")
-                            # Variant: Append space to force cache bypass / fresh generation
+                            _LOGGER.warning(f" [LLM:Retry] Model '{model}' returned empty content. Retrying...")
                             current_prompt += " " 
                         else:
-                            # Final valid empty return? No, we treat as failure
                             _LOGGER.error(f" [LLM:Error] Model '{model}' returned empty content after {max_llm_retries} attempts.")
-                            _LOGGER.error(f"Empty raw output from {model} after {max_llm_retries} attempts")
                             return "", LLMStats(retries=llm_retries, success=False)
                 except Exception as e:
                     llm_retries += 1
                     _LOGGER.error(f" [LLM:Error] Exception during call to '{model}': {e}")
-                    _LOGGER.exception(f"Exception during LLM invoke for {model}")
                     if attempt < max_llm_retries - 1:
-                        # Variant: Append space here too
                         current_prompt += " "
                         continue
                     return "", LLMStats(retries=llm_retries, success=False)
