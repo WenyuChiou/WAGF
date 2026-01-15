@@ -214,6 +214,13 @@ We performed a **5x2 Chi-Square Test** on the full distribution of agent decisio
 | **Llama 3.2 (3B)** | Window Memory            | $p < 0.0001$ | ✅ Yes       |
 |                    | Human-Centric Memory     | $p < 0.0001$ | ✅ Yes       |
 
+### Governance Validation Findings
+
+- **Active vs Passive Compliance**:
+  - **Llama 3.2** attempts proactive measures (Elevation) but often fails strict PMT rules (e.g., `elevation_threat_low`), resulting in a **22% rejection rate** under Window Memory.
+  - **Gemma 3** defaults to "Do Nothing" when threat is low, resulting in **0% rejections** but lower overall adaptation.
+- **Implication**: The governance layer successfully blocks "hallucinated" or "disproportional" actions from smaller models, enforcing theoretical consistency even when the model's own reasoning is flawed.
+
 Detailed statistical analysis and behavioral comparison (Baseline vs Window vs Human-Centric) can be found here:
 
 - [**📄 Analysis Report (English)**](BENCHMARK_REPORT_EN.md) - Includes Full Distribution Chi-Square tests.
