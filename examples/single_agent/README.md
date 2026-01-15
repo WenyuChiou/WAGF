@@ -170,6 +170,8 @@ The following matrix compares performance across four language models and two me
 
 ### Cross-Model Behavioral Summary (v3.2)
 
+![Comparison Chart](benchmark_analysis/old_vs_window_vs_humancentric_3x4.png)
+
 - **Llama 3.2 (3B)**: Highly sensitive to social observations. Shows the highest rate of "Decision-Reasoning Gaps," frequently corrected by the Governance Layer.
 - **Gemma 3 (4B)**: Most "Optimistic." Tends to prefer "Do Nothing" unless multiple floods are explicitly consolidated in memory. Requires specialized synonym mapping due to unique category naming (e.g., "Concern" vs "Threat").
 - **DeepSeek-R1 (8B)**: Exceptional reasoning consistency. Rarely requires Governance retries, as its `<think>` chain aligns well with the PMT constructs. Shows distinct behavioral shifts when emotional memories (Human-Centric) are retrieved.
@@ -189,7 +191,33 @@ results/
 │   ├── simulation_log.csv       # Decision traces
 │   └── comparison_results.png
 └── old_vs_new_comparison_2x4.png
+results/
+├── Gemma_3_4B/                  # OLD baseline
+├── gemma3_4b_strict/            # NEW governed
+│   ├── audit_summary.json       # Validation stats
+│   ├── household_governance_audit.csv
+│   ├── simulation_log.csv       # Decision traces
+│   └── comparison_results.png
+└── old_vs_new_comparison_2x4.png
 ```
+
+## Benchmark Analysis
+
+### Statistical Summary (Chi-Square Test)
+
+We performed a **5x2 Chi-Square Test** on the full distribution of agent decisions (Do Nothing, FI, HE, Both, Relocate) to quantify behavioral shifts caused by the Governance Layer and Memory Systems.
+
+| Model              | Comparison (vs Baseline) | p-value      | Significant? |
+| :----------------- | :----------------------- | :----------- | :----------- |
+| **Gemma 3 (4B)**   | Window Memory            | $p < 0.0001$ | ✅ Yes       |
+|                    | Human-Centric Memory     | $p < 0.0001$ | ✅ Yes       |
+| **Llama 3.2 (3B)** | Window Memory            | $p < 0.0001$ | ✅ Yes       |
+|                    | Human-Centric Memory     | $p < 0.0001$ | ✅ Yes       |
+
+Detailed statistical analysis and behavioral comparison (Baseline vs Window vs Human-Centric) can be found here:
+
+- [**📄 Analysis Report (English)**](BENCHMARK_REPORT_EN.md) - Includes Full Distribution Chi-Square tests.
+- [**📄 中文分析報告 (Chinese)**](BENCHMARK_REPORT_CH.md)
 
 ## Running Experiments
 

@@ -16,17 +16,33 @@ import numpy as np
 
 # Directory configuration
 # Directory configuration
-OLD_BASELINE_FILE = Path("ref/flood_adaptation_simulation_log.csv")
+OLD_DIR = Path("examples/single_agent/old_results")
 WINDOW_DIR = Path("examples/single_agent/results_window")
 HUMANCENTRIC_DIR = Path("examples/single_agent/results_humancentric")
-OUTPUT_DIR = Path("examples/single_agent/benchmark_analysis")
+OUTPUT_DIR = Path("examples/single_agent")
 
 # Model configurations
 MODELS = [
-    {"folder": "gemma3_4b_strict", "name": "Gemma 3 (4B)"},
-    {"folder": "llama3_2_3b_strict", "name": "Llama 3.2 (3B)"},
-    {"folder": "deepseek_r1_8b_strict", "name": "DeepSeek-R1 (8B)"},
-    {"folder": "gpt_oss_strict", "name": "GPT-OSS"},
+    {
+        "name": "Gemma 3 (4B)",
+        "folder": "gemma3_4b_strict", 
+        "old_folder": "Gemma_3_4B"
+    },
+    {
+        "name": "Llama 3.2 (3B)",
+        "folder": "llama3_2_3b_strict",
+        "old_folder": "Llama_3.2_3B"
+    },
+    # {
+    #     "name": "DeepSeek-R1 (8B)",
+    #     "folder": "deepseek_r1_8b_strict",
+    #     "old_folder": "DeepSeek_R1_8B"
+    # },
+    # {
+    #     "name": "GPT-OSS",
+    #     "folder": "gpt_oss_strict",
+    #     "old_folder": "GPT-OSS_20B"
+    # },
 ]
 
 # Standard adaptation state colors
@@ -50,10 +66,11 @@ STATE_ORDER = [
 FLOOD_YEARS = [3, 4, 9]
 
 
-def load_old_data() -> pd.DataFrame:
-    """Load OLD baseline simulation log."""
-    if OLD_BASELINE_FILE.exists():
-        return pd.read_csv(OLD_BASELINE_FILE)
+def load_old_data(model_folder: str) -> pd.DataFrame:
+    """Load OLD baseline simulation log for specific model."""
+    csv_path = OLD_DIR / model_folder / "flood_adaptation_simulation_log.csv"
+    if csv_path.exists():
+        return pd.read_csv(csv_path)
     return pd.DataFrame()
 
 
@@ -285,31 +302,67 @@ def plot_stacked_bar(ax, df: pd.DataFrame, title: str):
 
 
 def run_chi_square_test(old_df: pd.DataFrame, new_df: pd.DataFrame, label: str) -> dict:
-    """Run Chi-Square test comparing final decisions between baseline and new model."""
+    """
+    Perform Chi-Square test on the FULL decision distribution between Baseline and New Model.
+    Excludes 'Already relocated' agents from the count to ensure valid decision comparison.
+    Constructs a 5x2 Contingency Table of TOTAL decision counts (agent-years):
+                Baseline | New Model
+    Do Nothing     A     |    F
+    FI Only        B     |    G
+    HE Only        C     |    H
+    Both           D     |    I
+    Relocate       E     |    J
+    """
     if old_df.empty or new_df.empty:
-        return {"p_value": "N/A", "significant": False}
-
-    old_counts = analyze_yearly_decisions(old_df, "Baseline")["final_reloc"]
-    new_counts = analyze_yearly_decisions(new_df, label)["final_reloc"]
-
-    # Construct contingency table: [Relocated, Not Relocated] for [Old, New]
-    # Assuming total agents = 100 for simplicity (or derive from data)
-    # A more robust approach would be to count unique agents in the original DFs
-    old_total = old_df['agent_id'].nunique() if 'agent_id' in old_df.columns else 100
-    new_total = new_df['agent_id'].nunique() if 'agent_id' in new_df.columns else 100
+        return {"p_value": "N/A", "significant": False, "stats": {}}
     
-    contingency = [
-        [old_counts, old_total - old_counts],
-        [new_counts, new_total - new_counts]
+    # Pre-process: Filter out "Already relocated" rows effectively
+    # (The existing filter_already_relocated function handles this)
+    df1 = filter_already_relocated(old_df)
+    df2 = filter_already_relocated(new_df)
+    
+    # Get Decision Counts for non-relocated active steps
+    # Note: We sum counts across ALL years to get the aggregate behavioral profile
+    counts1 = df1['decision'].value_counts()
+    counts2 = df2['decision'].value_counts()
+    
+    # Decision categories mapping to ensure alignment
+    categories = [
+        "Do Nothing",
+        "Only Flood Insurance",
+        "Only House Elevation",
+        "Both Flood Insurance and House Elevation",
+        "Relocate"
     ]
+    
+    # Build Contingency Table (Observation Frequencies)
+    # Rows: Decisions, Cols: [Baseline, New]
+    obs = []
+    for cat in categories:
+        # Some logs might use slightly different strings, but normalize_df should handle standard cases.
+        # We use .get(cat, 0) to handle missing categories safely.
+        c1 = counts1.get(cat, 0)
+        c2 = counts2.get(cat, 0)
+        obs.append([c1, c2])
+        
+    # Remove rows where BOTH are 0 (irrelevant category) to avoid Chi2 errors
+    obs_clean = [row for row in obs if sum(row) > 0]
+    
+    if not obs_clean:
+         return {"p_value": "N/A", "significant": False, "stats": {}}
 
     try:
-        chi2, p, dof, ex = chi2_contingency(contingency)
-        return {"p_value": p, "significant": p < 0.05}
-    except ValueError: # Handle cases where expected frequencies are too small
-        return {"p_value": "N/A", "significant": False}
-    except Exception:
-        return {"p_value": "N/A", "significant": False}
+        chi2, p, dof, expected = chi2_contingency(obs_clean)
+        return {
+            "p_value": p,
+            "significant": p < 0.05,
+            "chi2": chi2,
+            "dof": dof,
+            "notes": "Full distribution (5 categories) comparison"
+        }
+    except Exception as e:
+        print(f"Chi-Square Error: {e}")
+        return {"p_value": "Error", "significant": False, "stats": {}}
 
 
 def analyze_gemma_failure(df: pd.DataFrame, audit_df: pd.DataFrame) -> dict:
@@ -351,7 +404,7 @@ def generate_comparison_chart():
     
     for i, model_config in enumerate(MODELS):
         # Load data
-        old_df = load_old_data() 
+        old_df = load_old_data(model_config["old_folder"]) 
         window_df = load_memory_data(model_config["folder"], "window")
         importance_df = load_memory_data(model_config["folder"], "humancentric")
         
@@ -424,7 +477,7 @@ def generate_comparison_chart():
 def generate_readme_en(all_analysis: list):
     """Generate English README."""
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    path = OUTPUT_DIR / "README_EN.md"
+    path = OUTPUT_DIR / "BENCHMARK_REPORT_EN.md"
     
     with open(path, 'w', encoding='utf-8') as f:
         f.write("# Memory Benchmark Analysis Report\n\n")
@@ -471,7 +524,8 @@ def generate_readme_en(all_analysis: list):
                 p_str = f"{p_win:.4f}"
             else:
                 p_str = str(p_win)
-            f.write(f"| Significant Diff (Window) | N/A | p={p_str} ({sig_win}) | - |\n\n")
+            f.write(f"| Significant Diff (Window) | N/A | p={p_str} ({sig_win}) | - |\n")
+            f.write(f"| *Test Type* | | *Chi-Square (5x2 Full Dist)* | |\n\n")
             
             # Flood year response
             f.write("**Flood Year Response:**\n\n")
@@ -526,7 +580,7 @@ def generate_sub_charts():
     # Chart 1: Old vs Window
     fig1, axes1 = plt.subplots(2, 4, figsize=(20, 8))
     for i, model_config in enumerate(MODELS):
-        old_df = load_old_data()
+        old_df = load_old_data(model_config["old_folder"])
         window_df = load_memory_data(model_config["folder"], "window")
         plot_stacked_bar(axes1[0, i], old_df, f"Baseline\n(Ref)")
         plot_stacked_bar(axes1[1, i], window_df, f"Window: {model_config['name']}")
@@ -551,7 +605,7 @@ def generate_sub_charts():
     # Chart 2: Old vs Human-Centric
     fig2, axes2 = plt.subplots(2, 4, figsize=(20, 8))
     for i, model_config in enumerate(MODELS):
-        old_df = load_old_data()
+        old_df = load_old_data(model_config["old_folder"])
         importance_df = load_memory_data(model_config["folder"], "humancentric")
         plot_stacked_bar(axes2[0, i], old_df, f"Baseline\n(Ref)")
         plot_stacked_bar(axes2[1, i], importance_df, f"Human-Centric: {model_config['name']}")
@@ -574,7 +628,7 @@ def generate_sub_charts():
 def generate_readme_ch(all_analysis: list):
     """Generate Chinese README."""
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    path = OUTPUT_DIR / "README_CH.md"
+    path = OUTPUT_DIR / "BENCHMARK_REPORT_CH.md"
     
     with open(path, 'w', encoding='utf-8') as f:
         f.write("# 記憶基準測試分析報告\n\n")
@@ -628,7 +682,8 @@ def generate_readme_ch(all_analysis: list):
                 p_str = f"{p_val:.4f}"
             else:
                 p_str = str(p_val)
-            f.write(f"| 顯著差異 (Window) | N/A | {sig_win} (p={p_str}) | - |\n\n")
+            f.write(f"| 顯著差異 (Window) | N/A | {sig_win} (p={p_str}) | - |\n")
+            f.write(f"| *檢定類型* | | *卡方檢定 (5x2 全分佈)* | |\n\n")
             
             
             # Flood year response
@@ -702,6 +757,14 @@ def print_analysis(all_analysis: list):
             p_str = str(p_val)
             
         print(f"  Chi-Square (Window vs Baseline): p={p_str}, Significant={chi_win.get('significant')}")
+        
+        chi_imp = a['chi_importance']
+        p_val_imp = chi_imp.get('p_value', 'N/A')
+        if isinstance(p_val_imp, (float, int)):
+            p_str_imp = f"{p_val_imp:.4f}"
+        else:
+            p_str_imp = str(p_val_imp)
+        print(f"  Chi-Square (Human-Centric vs Baseline): p={p_str_imp}, Significant={chi_imp.get('significant')}")
 
         # Change analysis
         if window_reloc > old_reloc:
@@ -721,7 +784,7 @@ if __name__ == "__main__":
     # Check data availability
     print("\nData availability check:")
     for model in MODELS:
-        old_exists = OLD_BASELINE_FILE.exists()
+        old_exists = (OLD_DIR / model["old_folder"] / "flood_adaptation_simulation_log.csv").exists()
         window_exists = (WINDOW_DIR / model["folder"]).exists()
         importance_exists = (HUMANCENTRIC_DIR / model["folder"]).exists()
         
