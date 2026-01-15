@@ -71,10 +71,10 @@ class ImportanceMemoryEngine(MemoryEngine):
     """
     Active Retrieval Engine.
     Prioritizes significant events over routine ones.
-    
-    Weights and categories can be customized:
-    - categories: {"flood": ["flood", "damage"], "social": ["friend"]}
-    - weights: {"flood": 1.0, "social": 0.5, "routine": 0.1}
+
+    Weights and categories can be customized per domain:
+    - categories: {"crisis": ["damage", "loss"], "social": ["neighbor", "friend"]}
+    - weights: {"crisis": 1.0, "social": 0.5, "routine": 0.1}
     """
     def __init__(
         self, 

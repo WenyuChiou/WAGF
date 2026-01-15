@@ -26,7 +26,7 @@ class SkillProposal:
     The LLM proposes a skill (abstract behavior) rather than specifying
     concrete actions or tools. The Broker validates and maps to execution.
     """
-    skill_name: str              # Abstract behavior name (e.g., "buy_insurance")
+    skill_name: str              # Abstract behavior name (e.g., "action_a", "skill_x")
     agent_id: str
     reasoning: Dict[str, str]    # PMT appraisals: {"threat": "...", "coping": "..."}
     agent_type: str = "default"  # Agent type for multi-agent scenarios

@@ -270,7 +270,7 @@ class BaseAgentContextBuilder(ContextBuilder):
         }
         
         # Add individual state variables (for custom templates)
-        # e.g. {loss_ratio} or {elevated}
+        # e.g. {income_level}, {risk_tolerance}, etc.
         for k, v in state.items():
             if isinstance(v, (str, int, float, bool)):
                 template_vars[k] = v
@@ -432,10 +432,12 @@ class NarrativeProvider(ContextProvider):
         # Otherwise, look for common 'persona' or 'history' patterns.
         
         # 1. Narrative Persona (Generic)
+        # Build persona from all non-internal fixed attributes
         persona_parts = []
+        # Exclude internal/computed fields
+        exclude_keys = {"id", "agent_type", "config", "skills", "custom_attributes"}
         for k, v in fixed.items():
-            if k in ["residency_generations", "household_size", "occupation", "income_range"]:
-                # Legacy compatibility for Flood scenario
+            if k not in exclude_keys and isinstance(v, (str, int, float)):
                 label = k.replace('_', ' ').capitalize()
                 persona_parts.append(f"{label}: {v}")
         

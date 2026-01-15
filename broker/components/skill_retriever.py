@@ -82,19 +82,19 @@ class SkillRetriever:
         """Convert context into a weighted keyword dictionary."""
         keywords = {}
         
-        # Process state (e.g. 'elevated': 0.8 -> key 'elevated' weight 0.8)
+        # Process state (e.g. 'risk_level': 0.8 -> key 'risk_level' weight 0.8)
         state = context.get("state", {})
         for k, v in state.items():
             if isinstance(v, (int, float)):
                 keywords[k.lower()] = v * self.source_weights["state"]
             elif isinstance(v, str):
                 keywords[v.lower()] = 1.0 * self.source_weights["state"]
-                
-        # Process perception (e.g. 'flood_intensity': 0.9 -> key 'flood' weight 1.08)
+
+        # Process perception (e.g. 'threat_intensity': 0.9 -> key 'threat' weight 1.08)
         perception = context.get("perception", {})
         for k, v in perception.items():
             if isinstance(v, (int, float)):
-                # Split key name to find tokens like 'flood'
+                # Split key name to extract meaningful tokens
                 for part in k.lower().replace('_', ' ').split():
                     keywords[part] = max(keywords.get(part, 0), v * self.source_weights["perception"])
 

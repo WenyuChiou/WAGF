@@ -107,7 +107,7 @@ class SkillRegistry:
         
         errors = []
         for precondition in skill.preconditions:
-            # Preconditions are strings like "not has_insurance", "elevated", etc.
+            # Preconditions are strings like "not has_item", "is_active", etc.
             if precondition.startswith("not "):
                 field = precondition[4:].strip()
                 if agent_state.get(field, False):
