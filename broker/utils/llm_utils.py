@@ -111,6 +111,7 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
         ollama_params = {
             "num_predict": -1,  # Unlimited by default
             "num_ctx": 16384,   # Large context for complex prompts
+            "temperature": 0,    # Default to deterministic decoding for reproducibility
         }
         
         # Apply overrides from configuration (takes priority)

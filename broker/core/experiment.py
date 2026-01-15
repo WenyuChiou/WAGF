@@ -152,6 +152,27 @@ class ExperimentRunner:
             self.broker.audit_writer.finalize()
             
         summary_path = self.config.output_dir / "governance_summary.json"
+        
+        # Phase 32: Create Reproducibility Manifest
+        import shutil
+        import json
+        manifest = {
+            "model": self.config.model,
+            "seed": self.config.seed,
+            "num_years": iterations,
+            "governance_profile": self.config.governance_profile,
+            "agent_types_config": str(self.broker.model_adapter.config_path) if hasattr(self.broker.model_adapter, 'config_path') else "unknown"
+        }
+        
+        # Copy configuration for future audit
+        if hasattr(self.broker.model_adapter, 'config_path') and self.broker.model_adapter.config_path:
+            config_src = Path(self.broker.model_adapter.config_path)
+            if config_src.exists():
+                shutil.copy(config_src, self.config.output_dir / "config_snapshot.yaml")
+        
+        with open(self.config.output_dir / "reproducibility_manifest.json", 'w') as f:
+            json.dump(manifest, f, indent=2)
+            
         self.broker.auditor.save_summary(summary_path)
 
     def _apply_state_changes(self, agent: BaseAgent, result: Any):
@@ -171,10 +192,11 @@ class ExperimentRunner:
         
         if result.execution_result and getattr(result.execution_result, 'metadata', None):
             meta = result.execution_result.metadata
-            if "payout" in meta:
-                memory_content += f" (Received payout: {meta['payout']:.2f})"
-            elif "damage" in meta and meta["damage"] > 0:
-                memory_content += f" (Suffered damage: {meta['damage']:.2f})"
+            # Generic metadata summary (if available)
+            numeric_meta = {k: v for k, v in meta.items() if isinstance(v, (int, float))}
+            if numeric_meta:
+                meta_str = ", ".join([f"{k}: {v:.2f}" for k, v in numeric_meta.items()])
+                memory_content += f" ({meta_str})"
         
         if hasattr(self.memory_engine, 'add_memory_for_agent'):
             self.memory_engine.add_memory_for_agent(agent, memory_content)
