@@ -54,8 +54,8 @@
 | 9 | 2 | 0 | 0 |
 
 **Behavioral Insight:**
-- **Optimism Bias**: High perceived coping (Medium+) masks threat perception.
-- **Passive Compliance**: 0 rejections because it defaults to 'Do Nothing', which is allowed under low threat.
+- **Why p < 0.0001 with 0 triggers?** The shift is driven by **Memory Amnesia**, not Governance. Window Memory (N=3) quickly discards flood history. Without recalled floods, the agent's Threat Perception drops, causing it to choose 'Do Nothing' more often (which is allowed under Low Threat).
+- **Passive Compliance**: 0 rejections because the model's low threat appraisal aligns with its inaction, bypassing strict definition checks.
 
 ---
 
@@ -123,7 +123,9 @@
 | Window | 0 | 0 | 0 | 0 |
 | Human-Centric | 0 | 0 | 0 | 0 |
 
-> **Zero Triggers**: This model is 'Passive Compliant'. It tends to choose 'Do Nothing' or low-cost actions when threat is low, thus never triggering the *Action vs Logic* blocked rules.
+**Rule Trigger Analysis (Window Memory):**
+
+> **Zero Triggers**: No governance rules were triggered. The model displayed **Passive Compliance**, likely defaulting to 'Do Nothing' or allowed actions under low threat.
 
 ### Llama 3.2 (3B) Governance
 
@@ -146,6 +148,8 @@
 |--------|----------|---------|--------|----------------|
 | Window | 0 | 0 | 0 | 0 |
 
-> **Zero Triggers**: This model is 'Passive Compliant'. It tends to choose 'Do Nothing' or low-cost actions when threat is low, thus never triggering the *Action vs Logic* blocked rules.
+**Rule Trigger Analysis (Window Memory):**
+
+> **Zero Triggers**: No governance rules were triggered. The model displayed **Passive Compliance**, likely defaulting to 'Do Nothing' or allowed actions under low threat.
 
 
