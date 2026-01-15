@@ -86,8 +86,8 @@ Maps various LLM outputs to standardized internal constructs used by Governance 
 
 | Engine         | Description                                   | Parameters                             | Use Case                |
 | -------------- | --------------------------------------------- | -------------------------------------- | ----------------------- |
-| `window`       | Sliding window (last N items)                 | `window_size=3`                        | Simple, predictable     |
-| `importance`   | Active retrieval (recency + significance)     | `window_size=3`, `top_k_significant=2` | Retains critical events |
+| `window`       | Sliding window (last N items)                 | `window_size=5`                        | Simple, predictable     |
+| `importance`   | Active retrieval (recency + significance)     | `window_size=5`, `top_k_significant=2` | Retains critical events |
 | `humancentric` | Emotional encoding + stochastic consolidation | See below                              | Human-realistic memory  |
 
 ### Usage
@@ -104,7 +104,7 @@ All weights and probabilities use 0-1 scale:
 
 ```python
 HumanCentricMemoryEngine(
-    window_size=3,              # int: Recent items always included
+    window_size=5,              # int: Recent items always included
     top_k_significant=2,        # int: Top historical events to retrieve
     consolidation_prob=0.7,     # float [0-1]: Base P(consolidate) for important items
     decay_rate=0.1,             # float [0-1]: Exponential decay rate (λ)
@@ -131,7 +131,7 @@ All weights use 0-1 scale:
 
 ```python
 ImportanceMemoryEngine(
-    window_size=3,              # int: Recent items always included
+    window_size=5,              # int: Recent items always included
     top_k_significant=2,        # int: Top historical events
     weights={
         "critical": 1.0,        # float: Maximum importance (floods, damage)

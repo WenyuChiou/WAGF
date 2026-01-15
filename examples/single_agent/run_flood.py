@@ -332,20 +332,20 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         print(f" Using ImportanceMemoryEngine (active retrieval with flood-specific keywords)")
     elif memory_engine_type == "humancentric":
         memory_engine = HumanCentricMemoryEngine(
-            window_size=3,
+            window_size=window_size,
             top_k_significant=2,
             consolidation_prob=0.7,
             decay_rate=0.1,
             seed=42  # For reproducibility
         )
-        print(f" Using HumanCentricMemoryEngine (emotional encoding + stochastic consolidation)")
+        print(f" Using HumanCentricMemoryEngine (emotional encoding + stochastic consolidation, window={window_size})")
     elif memory_engine_type == "hierarchical":
         from broker.components.memory_engine import HierarchicalMemoryEngine
-        memory_engine = HierarchicalMemoryEngine(window_size=5, semantic_top_k=3)
+        memory_engine = HierarchicalMemoryEngine(window_size=window_size, semantic_top_k=3)
         print(f" Using HierarchicalMemoryEngine (Tiered: Core, Episodic, Semantic)")
     else:
-        memory_engine = WindowMemoryEngine(window_size=3)
-        print(f" Using WindowMemoryEngine (sliding window)")
+        memory_engine = WindowMemoryEngine(window_size=window_size)
+        print(f" Using WindowMemoryEngine (sliding window, size={window_size})")
     
     # 5. Setup ExperimentBuilder and Runner
     from broker import ExperimentBuilder
@@ -445,6 +445,7 @@ if __name__ == "__main__":
                         choices=["window", "importance", "humancentric", "hierarchical"], 
                         help="Memory retrieval strategy: window (sliding), importance (active retrieval), humancentric (emotional), or hierarchical (tiered)")
     parser.add_argument("--workers", type=int, default=1, help="Number of parallel workers for LLM calls")
+    parser.add_argument("--window-size", type=int, default=5, help="Size of memory window (years/events) to retain")
     args = parser.parse_args()
     run_parity_benchmark(
         model=args.model, 
@@ -452,5 +453,6 @@ if __name__ == "__main__":
         agents_count=args.agents, 
         custom_output=args.output,
         verbose=args.verbose,
-        memory_engine_type=args.memory_engine
+        memory_engine_type=args.memory_engine,
+        window_size=args.window_size
     )
