@@ -201,6 +201,7 @@ class UnifiedAdapter(ModelAdapter):
             r"<<<DECISION_START>>>\s*(.*?)\s*<<<DECISION_END>>>",
             r"<decision>\s*(.*?)\s*</decision>",
             r"(?:decision|choice|selected_action)[:\s]*({.*?})", # Find JSON-like block after keyword
+            r"({.*})", # Final fallback: Find any JSON-like block
         ]
         
         target_content = raw_output

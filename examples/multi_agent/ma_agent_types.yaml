@@ -334,12 +334,19 @@ government:
     - [3] MAINTAIN: Keep the current rate.
 
     ### RESPONSE FORMAT
-    Please respond in JSON with your decision and reasoning. Use the following format:
-    {response_format}
+    Respond ONLY with a valid JSON object in this format:
+    {
+      "decision": "1",
+      "reasoning": "Reason here"
+    }
+  response_format:
+    fields:
+      - { key: "decision", type: "choice", required: true }
+      - { key: "reasoning", type: "text", required: true }
   parsing:
     decision_keywords: ["decision", "choice"]
     default_skill: "maintain_subsidy"
-    strict_mode: true
+    strict_mode: false
     preprocessor: { type: "smart_repair" }
     actions:
       - id: increase_subsidy
@@ -374,12 +381,19 @@ insurance:
     - [3] MAINTAIN: Keep current premiums.
 
     ### RESPONSE FORMAT
-    Please respond in JSON. Use the following format:
-    {response_format}
+    Respond ONLY with a valid JSON object in this format:
+    {
+      "decision": "1",
+      "reasoning": "Reason here"
+    }
+  response_format:
+    fields:
+      - { key: "decision", type: "choice", required: true }
+      - { key: "reasoning", type: "text", required: true }
   parsing:
     decision_keywords: ["decision", "choice"]
     default_skill: "maintain_premium"
-    strict_mode: true
+    strict_mode: false
     preprocessor: { type: "smart_repair" }
     actions:
       - id: raise_premium
@@ -430,5 +444,11 @@ governance:
             blocked_skills: ["buy_contents_insurance", "relocate"],
             level: ERROR,
           }
+    government:
+      identity_rules: []
+      thinking_rules: []
+    insurance:
+      identity_rules: []
+      thinking_rules: []
 
 metadata: { version: "v23-finalized-robust-universal" }

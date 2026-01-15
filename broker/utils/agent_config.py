@@ -127,7 +127,8 @@ class AgentTypeConfig:
     def get_valid_actions(self, agent_type: str) -> List[str]:
         """Get all valid action IDs and aliases for agent type."""
         cfg = self.get(agent_type)
-        actions = cfg.get("actions", [])
+        # Check both top-level and nested parsing.actions
+        actions = cfg.get("actions", cfg.get("parsing", {}).get("actions", []))
         valid = []
         for action in actions:
             valid.append(action["id"])
@@ -135,14 +136,10 @@ class AgentTypeConfig:
         return valid
     
     def get_action_alias_map(self, agent_type: str) -> Dict[str, str]:
-        """Get a mapping from aliases (and canonical IDs) to canonical skill IDs.
-        
-        Example output:
-            {"buy_insurance": "buy_insurance", "fi": "buy_insurance", "insurance": "buy_insurance",
-             "elevate_house": "elevate_house", "he": "elevate_house", "elevate": "elevate_house", ...}
-        """
+        """Get a mapping from aliases (and canonical IDs) to canonical skill IDs."""
         cfg = self.get(agent_type)
-        actions = cfg.get("actions", [])
+        # Check both top-level and nested parsing.actions
+        actions = cfg.get("actions", cfg.get("parsing", {}).get("actions", []))
         alias_map = {}
         for action in actions:
             canonical = action["id"]
