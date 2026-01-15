@@ -96,8 +96,8 @@ class AgentValidator:
             missing = []
             for field in required_fields:
                 if field == "decision":
-                    # Decision is valid if parse_layer is not 'default' AND we have a skill_name
-                    if parse_layer == "default" or not decision:
+                    # Decision is valid if we have a skill_name extracted
+                    if not decision:
                         missing.append(field)
                     continue
 

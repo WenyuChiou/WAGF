@@ -17,8 +17,8 @@ import numpy as np
 # Directory configuration
 # Directory configuration
 OLD_BASELINE_FILE = Path("ref/flood_adaptation_simulation_log.csv")
-WINDOW_DIR = Path("results_window")
-HUMANCENTRIC_DIR = Path("results_humancentric")
+WINDOW_DIR = Path("examples/single_agent/results_window")
+HUMANCENTRIC_DIR = Path("examples/single_agent/results_humancentric")
 OUTPUT_DIR = Path("examples/single_agent/benchmark_analysis")
 
 # Model configurations

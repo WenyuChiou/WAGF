@@ -1,8 +1,0 @@
-{
-  "experiment_name": "gpt-oss:latest",
-  "agent_types": {},
-  "total_traces": 0,
-  "validation_errors": 0,
-  "validation_warnings": 0,
-  "finalized_at": "2026-01-14T19:58:55.132832"
-}
