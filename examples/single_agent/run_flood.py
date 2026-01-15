@@ -361,7 +361,18 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         memory_engine = WindowMemoryEngine(window_size=window_size)
         print(f" Using WindowMemoryEngine (sliding window, size={window_size})")
     
-    # 5. Setup ExperimentBuilder and Runner
+    # 5. Determine isolated output directory (Priority for parallel)
+    if custom_output:
+        output_path = Path(custom_output)
+        if not output_path.is_absolute():
+            output_path = Path.cwd() / output_path
+        model_folder = f"{model.replace(':','_').replace('-','_').replace('.','_')}_strict"
+        output_dir = output_path / model_folder
+    else:
+        output_dir = Path(__file__).parent / "results" / f"{model.replace(':','_')}_strict"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # 6. Setup ExperimentBuilder and Runner
     from broker import ExperimentBuilder
     
     builder = (
@@ -374,7 +385,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         .with_skill_registry(registry)
         .with_memory_engine(memory_engine)
         .with_governance("strict", agent_config_path)
-        .with_output(custom_output if custom_output else "results_modular")
+        .with_output(str(output_dir))
         .with_workers(workers)
     )
     

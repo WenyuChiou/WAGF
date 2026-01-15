@@ -94,22 +94,63 @@ def load_memory_data(model_folder: str, memory_type: str) -> pd.DataFrame:
 
 
 def load_audit_data(model_folder: str, memory_type: str) -> pd.DataFrame:
-    """Load governance audit CSV."""
+    """Load governance audit CSV, handling potential double nesting."""
     if memory_type == "window":
         base_dir = WINDOW_DIR
     else:
         base_dir = HUMANCENTRIC_DIR
     
+    # Check standard path
     csv_path = base_dir / model_folder / "household_governance_audit.csv"
     
+    # Check double nested path (due to recent fix side effect)
+    if not csv_path.exists():
+        nested = base_dir / model_folder / model_folder / "household_governance_audit.csv"
+        if nested.exists():
+            csv_path = nested
+
     # Try underscore variation if not found
     if not csv_path.exists():
         alt_folder = model_folder.replace('-', '_')
         csv_path = base_dir / alt_folder / "household_governance_audit.csv"
+        if not csv_path.exists():
+             nested_alt = base_dir / alt_folder / alt_folder / "household_governance_audit.csv"
+             if nested_alt.exists():
+                 csv_path = nested_alt
         
     if csv_path.exists():
         return pd.read_csv(csv_path)
     return pd.DataFrame()
+
+
+def load_traces_generator(model_folder: str, memory_type: str):
+    """Yield trace lines from jsonl to avoid massive memory usage."""
+    if memory_type == "window":
+        base_dir = WINDOW_DIR
+    else:
+        base_dir = HUMANCENTRIC_DIR
+
+    # Check potential paths
+    paths_to_check = [
+        base_dir / model_folder / "raw" / "household_traces.jsonl",
+        base_dir / model_folder / model_folder / "raw" / "household_traces.jsonl",
+        base_dir / model_folder.replace('-', '_') / "raw" / "household_traces.jsonl"
+    ]
+
+    final_path = None
+    for p in paths_to_check:
+        if p.exists():
+            final_path = p
+            break
+            
+    if final_path:
+        with open(final_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                try:
+                    yield json.loads(line)
+                except:
+                    continue
+
 
 
 def normalize_df(df: pd.DataFrame) -> pd.DataFrame:
@@ -456,6 +497,10 @@ def generate_comparison_chart():
         window_shifts = analyze_behavioral_shifts(old_df, window_df)
         importance_shifts = analyze_behavioral_shifts(old_df, importance_df)
 
+        # Reasoning
+        window_reasoning = analyze_reasoning_for_failures(folder, "window")
+        importance_reasoning = analyze_reasoning_for_failures(folder, "humancentric")
+
         # Gemma Specific Analysis
         gemma_analysis = {}
         if "Gemma" in m["name"]:
@@ -475,6 +520,8 @@ def generate_comparison_chart():
             "importance_app_details": importance_app_details,
             "window_shifts": window_shifts,
             "importance_shifts": importance_shifts,
+            "window_reasoning": window_reasoning,
+            "importance_reasoning": importance_reasoning,
             "chi_window": chi_win,
             "chi_importance": chi_imp,
             "gemma_analysis": gemma_analysis
@@ -550,9 +597,9 @@ def analyze_validation_details(audit_df: pd.DataFrame) -> list:
     return sorted(stats_data, key=lambda x: x['triggers'], reverse=True)
 
 
-def analyze_behavioral_shifts(old_df: pd.DataFrame, new_df: pd.DataFrame) -> dict:
+def analyze_behavioral_shifts(old_df: pd.DataFrame, new_df: pd.DataFrame) -> list:
     """Calculate shifts in all decision categories."""
-    if old_df.empty or new_df.empty: return {}
+    if old_df.empty or new_df.empty: return []
     
     old_df = normalize_df(old_df)
     new_df = normalize_df(new_df)
@@ -578,6 +625,87 @@ def analyze_behavioral_shifts(old_df: pd.DataFrame, new_df: pd.DataFrame) -> dic
             })
             
     return shifts
+
+
+def analyze_reasoning_for_failures(model_folder: str, memory_type: str) -> list:
+    """Refined reasoning analysis: Extract actual LLM explanations for frequent rule types."""
+    
+    # 1. Identify most frequent failed rules from Audit DF first to know what to look for
+    audit_df = load_audit_data(model_folder, memory_type)
+    if audit_df.empty or 'failed_rules' not in audit_df.columns:
+        return []
+    
+    intervention_df = audit_df[audit_df['status'] == 'REJECTED']
+    if intervention_df.empty:
+        return []
+
+    # Count rule frequencies
+    rule_counts = {}
+    for r in intervention_df['failed_rules'].dropna():
+        for sub_r in str(r).split('|'):
+            sub_r = sub_r.strip()
+            if sub_r:
+                rule_counts[sub_r] = rule_counts.get(sub_r, 0) + 1
+    
+    # Top 3 rules
+    top_rules = sorted(rule_counts.items(), key=lambda x: x[1], reverse=True)[:3]
+    top_rule_names = [r[0] for r in top_rules]
+    
+    # 2. Scan Traces for these rules
+    # We want to find examples of reasoning when these rules failed
+    trace_examples = {r: [] for r in top_rule_names}
+    
+    # Limit examples to 2 per rule
+    limits = {r: 0 for r in top_rule_names}
+    
+    for trace in load_traces_generator(model_folder, memory_type):
+        # We need to detect if this trace had a failure matching our top rules
+        # Trace usually has 'governance_result' or 'adapter_feedback' if detailed
+        # Or look at 'failed_rules' field directly if exposed in trace
+        
+        # Note: The raw trace format might vary. Assuming 'governance_result' structure from audit_writer
+        # trace keys: agent_id, year, approved_skill, raw_output, evaluation_result...
+        
+        eval_res = trace.get("evaluation_result", {})
+        if not eval_res: continue
+        
+        status = eval_res.get("status", "")
+        if status != "REJECTED": continue
+        
+        failed = eval_res.get("failed_rules", []) # List of strings
+        
+        found_rule = None
+        for f in failed:
+            for target in top_rule_names:
+                if target in f:
+                    found_rule = target
+                    break
+            if found_rule: break
+            
+        if found_rule and limits[found_rule] < 2:
+            # Extract Reasoning
+            raw = trace.get("raw_output", {})
+            # Try specific fields or generic reasoning
+            reasoning = f"TP: {raw.get('tp_explanation', 'N/A')[:100]}... | CP: {raw.get('cp_explanation', 'N/A')[:100]}..."
+            
+            trace_examples[found_rule].append(reasoning)
+            limits[found_rule] += 1
+            
+        if all(c >= 2 for c in limits.values()):
+            break
+            
+    # Format output
+    analysis_results = []
+    for rule, count in top_rules:
+        examples = trace_examples.get(rule, [])
+        analysis_results.append({
+            "rule": rule,
+            "count": count,
+            "examples": examples
+        })
+        
+    return analysis_results
+
 
 
 def generate_readme_en(all_analysis: list):
@@ -726,6 +854,17 @@ def generate_readme_en(all_analysis: list):
             else:
                 f.write("> **Zero Triggers**: No governance rules were triggered. The model displayed **Passive Compliance**, likely defaulting to 'Do Nothing' or allowed actions under low threat.\n")
 
+
+            # NEW: Reasoning Analysis
+            reasoning_data = a.get("window_reasoning", [])
+            if reasoning_data:
+                f.write("\n**Reasoning Analysis on Frequent Rejections:**\n\n")
+                for r_item in reasoning_data:
+                    f.write(f"- **Rule**: `{r_item['rule']}` (Failed {r_item['count']} times)\n")
+                    for ex in r_item['examples']:
+                        f.write(f"  - *Example Reasoning*: \"{ex}\"\n")
+                f.write("\n")
+                
             f.write("\n")
 
         f.write("\n")
