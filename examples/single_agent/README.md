@@ -170,7 +170,7 @@ The following matrix compares performance across four language models and two me
 
 ### Cross-Model Behavioral Summary (v3.2)
 
-![Comparison Chart](benchmark_analysis/old_vs_window_vs_humancentric_3x4.png)
+![Comparison Chart](old_vs_window_vs_humancentric_3x4.png)
 
 - **Llama 3.2 (3B)**: Highly sensitive to social observations. Shows the highest rate of "Decision-Reasoning Gaps," frequently corrected by the Governance Layer.
 - **Gemma 3 (4B)**: Most "Optimistic." Tends to prefer "Do Nothing" unless multiple floods are explicitly consolidated in memory. Requires specialized synonym mapping due to unique category naming (e.g., "Concern" vs "Threat").
