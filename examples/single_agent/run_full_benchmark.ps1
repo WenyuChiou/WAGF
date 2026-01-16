@@ -21,7 +21,7 @@ foreach ($run in $experiments) {
     $e = $run["engine"]
     
     # Correct output base directories for analysis script
-    $out_base = if ($e -eq "window") { "examples/single_agent/results_window" } else { "examples/single_agent/results_humancentric" }
+    $out_base = if ($e -eq "window") { "results_window" } else { "results_humancentric" }
     
     # Clean directory
     $sanitized_model = $m -replace ":", "_" -replace "\.", "_"
@@ -38,7 +38,7 @@ foreach ($run in $experiments) {
     
     # Run with 4 workers for speed, seed=None for randomness, window-size=5 for parity
     # Note: --seed is omitted to use dynamic system-time based seed
-    python examples/single_agent/run_flood.py --model "$m" --output "$out_base" --memory-engine "$e" --years 10 --agents 100 --window-size 5 --workers 4
+    python ./run_flood.py --model "$m" --output "$out_base" --memory-engine "$e" --years 10 --agents 100 --window-size 5 --workers 4
     
     Write-Host ">>> COMPLETED: Model=$m | Engine=$e <<<"
     Write-Host "-------------------------------------------"

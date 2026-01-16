@@ -28,6 +28,13 @@ shared:
       - { key: "decision", type: "choice", required: true }
       - { key: "reasoning", type: "text", required: false }
 
+  # Centralized Retry Configuration
+  governance:
+    max_retries: 3
+    max_reports_per_retry: 3
+  llm:
+    max_retries: 2
+
 # =============================================================================
 # HOUSEHOLD AGENT TYPE
 # =============================================================================

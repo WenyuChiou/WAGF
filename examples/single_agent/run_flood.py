@@ -231,9 +231,10 @@ def classify_adaptation_state(agent):
 
 # --- 4. Parity Hook ---
 class FinalParityHook:
-    def __init__(self, sim: ResearchSimulation, runner: ExperimentRunner):
+    def __init__(self, sim: ResearchSimulation, runner: ExperimentRunner, reflection_engine=None):
         self.sim = sim
         self.runner = runner
+        self.reflection_engine = reflection_engine  # Pillar 2: Year-End Reflection
         self.logs = []
         self.prompt_inspected = False
         self.yearly_decisions = {}
@@ -323,6 +324,34 @@ class FinalParityHook:
             mem_items = self.runner.memory_engine.retrieve(agent, top_k=5)
             # Memory engine returns list of strings. Join with | for CSV parity.
             mem_str = " | ".join(mem_items)
+            
+            # --- PILLAR 2: YEAR-END REFLECTION ---
+            if self.reflection_engine and self.reflection_engine.should_reflect(agent.id, year):
+                # Retrieve memories for synthesis (System 2 consolidation)
+                # Use a larger retrieval for reflection than for regular prompts if desired
+                reflection_memories = self.runner.memory_engine.retrieve(agent, top_k=10)
+                prompt = self.reflection_engine.generate_reflection_prompt(agent.id, reflection_memories, year)
+                
+                # Use sequential LLM call for reflection (System 2 is slower/deliberate)
+                llm_call = self.runner.get_llm_invoke(agent.agent_type)
+                try:
+                    # Get response (handles content, stats tuple)
+                    raw_res = llm_call(prompt)
+                    response_text = raw_res[0] if isinstance(raw_res, tuple) else raw_res
+                    
+                    insight = self.reflection_engine.parse_reflection_response(response_text, len(reflection_memories), year)
+                    if insight:
+                        self.reflection_engine.store_insight(agent.id, insight)
+                        # Feed the insight back into Memory Engine with HIGH importance
+                        # This enables Pillar 2 "Episodic Resilience"
+                        self.runner.memory_engine.add_memory(
+                            agent.id, 
+                            f"Consolidated Reflection: {insight.summary}", 
+                            {"significance": 0.9, "emotion": "major", "source": "personal"}
+                        )
+                except Exception as e:
+                    print(f" [Reflection:Error] Agent {agent.id} failed synthesis: {e}")
+
             yearly_decision = self.yearly_decisions.get((agent.id, year))
             if yearly_decision is None and getattr(agent, "relocated", False):
                 yearly_decision = "relocated"
@@ -611,8 +640,19 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     
     runner = builder.build()
     
+    # Pillar 2: Instantiate ReflectionEngine for HumanCentric memory
+    reflection_engine = None
+    if memory_engine_type == "humancentric":
+        from broker.components.reflection_engine import ReflectionEngine
+        reflection_engine = ReflectionEngine(
+            reflection_interval=1,  # Reflect at end of each year
+            max_insights_per_reflection=2,
+            insight_importance_boost=0.9
+        )
+        print(" [Pillar 2] ReflectionEngine enabled for year-end memory consolidation")
+    
     # Inject Parity Hooks manually after build
-    parity = FinalParityHook(sim, runner)
+    parity = FinalParityHook(sim, runner, reflection_engine=reflection_engine)
     runner.hooks = {
         "pre_year": parity.pre_year, 
         "post_step": parity.post_step, 

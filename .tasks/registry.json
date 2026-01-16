@@ -48,6 +48,15 @@
       "type": "experiment",
       "priority": "high",
       "handoff_file": "handoff/task-003.md"
+    },
+    {
+      "id": "task-008",
+      "title": "MA Multi-Agent System Enhancement (7 Subtasks)",
+      "description": "MA 系統增強：測試套件、PRB 分析、政策影響評估、RQ1-RQ3 研究問題",
+      "status": "completed",
+      "type": "feature",
+      "priority": "high",
+      "handoff_file": "handoff/current-session.md"
     }
   ]
 }

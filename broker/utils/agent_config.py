@@ -119,10 +119,25 @@ class AgentTypeConfig:
         """Allow checking agent types."""
         return self._config.keys()
     
-    def get_shared(self, key: str, default: str = "") -> str:
+    def get_shared(self, key: str, default: Any = "") -> Any:
         """Get shared config value (e.g., rating_scale)."""
         shared = self._config.get("shared", {})
         return shared.get(key, default)
+    
+    def get_governance_retries(self, default: int = 3) -> int:
+        """Get max retries for governance loop."""
+        gov = self._config.get("shared", {}).get("governance", {})
+        return gov.get("max_retries", default)
+    
+    def get_governance_max_reports(self, default: int = 3) -> int:
+        """Get max reports to send back in a single retry prompt."""
+        gov = self._config.get("shared", {}).get("governance", {})
+        return gov.get("max_reports_per_retry", default)
+    
+    def get_llm_retries(self, default: int = 2) -> int:
+        """Get max retries for raw LLM invocation."""
+        llm = self._config.get("shared", {}).get("llm", {})
+        return llm.get("max_retries", default)
     
     def get_valid_actions(self, agent_type: str) -> List[str]:
         """Get all valid action IDs and aliases for agent type."""

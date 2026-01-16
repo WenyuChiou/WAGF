@@ -641,7 +641,7 @@ class UnifiedAdapter(ModelAdapter):
         }
 
     
-    def format_retry_prompt(self, original_prompt: str, errors: List[Any]) -> str:
+    def format_retry_prompt(self, original_prompt: str, errors: List[Any], max_reports: Optional[int] = None) -> str:
         """
         Format retry prompt with validation errors or InterventionReports.
         
@@ -649,6 +649,13 @@ class UnifiedAdapter(ModelAdapter):
         """
         from ..interfaces.skill_types import InterventionReport
         
+        if max_reports and len(errors) > max_reports:
+            logger.warning(f" [Adapter] Truncating retry reports from {len(errors)} to {max_reports} to save context.")
+            errors = errors[:max_reports]
+            truncated = True
+        else:
+            truncated = False
+
         error_lines = []
         for e in errors:
             if isinstance(e, InterventionReport):
@@ -657,6 +664,9 @@ class UnifiedAdapter(ModelAdapter):
                 error_lines.append(f"- {e}")
             else:
                 error_lines.append(f"- {str(e)}")
+        
+        if truncated:
+            error_lines.append(f"\n[!NOTE] There were more issues detected, but only the top {max_reports} are shown for brevity. Please fix these first.")
         
         error_text = "\n".join(error_lines)
         return f"""Your previous response was flagged by the governance layer.

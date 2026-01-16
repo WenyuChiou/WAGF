@@ -60,8 +60,12 @@
 - **v1 (舊版)**：單體腳本。
 - **v2 (穩定)**：模組化 `SkillBrokerEngine` + `providers`。
 - **v3 (最新)**：統一單/多代理人架構 + 專業審計軌跡。請使用 `run_unified_experiment.py`。
+- **v3.3 (JOH Edition)**：**認知中介層實作 (Cognitive Middleware Implementation)**。
+  - **耦合介面 (Coupling Interface)**：輸入 (JSON 信號) 與 輸出 (Action JSON) 完全解耦，支援與 HEC-RAS/SWMM 等物理模型整合。
+  - **以人為本的記憶 (Human-Centric Memory)**：引入情感編碼與隨機固化機制。
+  - **可解釋的治理 (Explainable Governance)**：新增自我修正軌跡 (Self-Correction Trace)，實現透明的理性決策。
 - **v3.1**：**人口統計錨定與統計驗證**。代理人決策與真實世界調研數據掛鉤。
-- **v3.2 (正式版)**：**進階記憶與技能檢索**。實作 MemGPT 風格的分層記憶（核心/情節/語義）以及基於 RAG 的動態技能檢索。
+- **v3.2 (正式版)**：**進階記憶與技能檢索**。實作 MemGPT 風格的分層記憶（核心/情節/語義）。
 
 ---
 
@@ -160,6 +164,28 @@ python run_experiment.py --model llama3.2:3b --num-agents 100 --num-years 10
 ## 🔄 框架演進
 
 ![框架演進](docs/framework_evolution.png)
+
+## 🧠 認知架構與設計哲學 (Cognitive Architecture & Design Philosophy)
+
+我們的 **Context Builder** 不僅是一個資料管道；它是一個經過精心設計的**「認知透鏡 (Cognitive Lens)」**，用於建構現實以減輕 LLM 的幻覺與認知偏誤。
+
+### 1. 結構性偏誤緩解 (Structural Bias Mitigation)
+
+我們明確地透過 Prompt 工程來對抗已知的 LLM 限制：
+
+- **Scale Anchoring (The "Floating M" Problem)**: 3B 模型在長文本中容易失去符號與定義的連結。
+  - **設計**: 我們使用 **行內語意錨定 (Inline Semantic Anchoring)** (例如 `TP=M(Medium)` 而非僅 `TP=M`) 來強制模型即時理解。
+- **Option Primacy Bias**: LLM 在統計上傾向選擇列表中的第一個選項。
+  - **設計**: `Context Builder` 實作了 **動態選項洗牌 (Dynamic Option Shuffling)**，確保 "Do Nothing" 或 "Buy Insurance" 不會因為總是排在第一位而獲得不公平的優勢。
+- **The "Goldfish Effect" (Recency Bias)**: 當資訊過載時，模型會忘記早期的指令。
+  - **設計**: 我們使用 **分層上下文階層 (Tiered Context Hierarchy)** (`Personal State -> Local Observation -> Global Memory`)。這將生存關鍵數據 (State) 放在最接近決策區塊的位置，同時壓縮遠期記憶。
+
+### 2. 邏輯-行動 驗證器 (The Logic-Action Validator)
+
+- **挑戰**: Agent 經常產生「我覺得不安全」的推理路徑 (Reasoning)，但最終卻未能選擇相應的行動「搬遷」(Action)。
+- **設計**: **思維驗證器 (Thinking Validator)** (位於 `Skill Broker`) 在執行前會執行 `Threat Appraisal` 與 `Action Choice` 之間的邏輯一致性檢查。若發現不匹配，系統會觸發重試並給予明確的反饋。
+
+---
 
 ## 🔮 未來展望 (v3.3+)
 
@@ -329,30 +355,3 @@ graph TD
 ## 授權
 
 MIT
-
----
-
-## Single-Agent Flood Experiment (SA)
-
-### �N�z�H��l��
-- `examples/single_agent/run_flood.py` �|�q CSV ���J�N�z�H�]�w�C
-- ���n���G`id`, `elevated`, `has_insurance`, `relocated`, `trust_in_insurance`, `trust_in_neighbors`, `flood_threshold`, `memory`�C
-- `agent_type` �� `household`�A�ޯ�ӷ��� registry�C
-
-### �a�`�ҫ�
-- �x���Ҧ��G
-  - `fixed`: �� `flood_years.csv` ���w�~��
-  - `prob`: �� `FLOOD_PROBABILITY` ����~�׾��v
-- �C�~�H���Ggrant �i�ΡB�F�~�[��B�H���^�СC
-- �l�`�ҫ��G��� $10,000�F�Y�w�ﰪ�A�l�`���� 10%�C
-- �ﰪ��|���C `flood_threshold`�A��֫���Q�T���v�C
-
-### ��X�P����
-- `simulation_log.csv` �t `yearly_decision` �P `cumulative_state`�C
-- Audit traces �C������|�۰ʲM�šA�קK�V�J���P `run_id`�C
-
-## �q�ΩʻP�i���@��
-
-- SA �޿趰���b `examples/single_agent/`�A�֤� broker �O�� domain-agnostic�C
-- �a�`�ѼƦb `run_flood.py`�Aprompt/skills �b `agent_types.yaml`�C
-- �T�w��X���c�H�Q���{�]`config_snapshot.yaml`�Baudit CSV�Btraces�^�C

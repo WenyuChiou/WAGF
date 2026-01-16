@@ -45,6 +45,9 @@ class LLMConfig:
     # Provider selection
     use_chat_api: bool = False  # False = OllamaLLM (completion), True = ChatOllama (chat)
 
+    # Retry settings (Phase 40: Configurable)
+    max_retries: int = 2
+
     def to_ollama_params(self) -> Dict[str, Any]:
         """Convert config to Ollama parameter dict, excluding None values."""
         params = {
@@ -189,7 +192,8 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
             if debug_llm:
                 _LOGGER.debug(f"\n [LLM:Input] (len={len(prompt)}) Prompt begins: {repr(prompt[:100])}...")
             
-            max_llm_retries = 3
+            # Phase 40: Use global or override retry limit
+            max_llm_retries = overrides.get("max_retries", LLM_CONFIG.max_retries) if overrides else LLM_CONFIG.max_retries
             llm_retries = 0
             current_prompt = prompt
             

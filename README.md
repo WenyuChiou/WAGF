@@ -62,11 +62,37 @@ The framework utilizes a layered middleware approach that unifies single-agent i
 - **v1 (Legacy)**: Monolithic scripts.
 - **v2 (Stable)**: Modular `SkillBrokerEngine` + `providers`.
 - **v3 (Latest)**: Unified Single/Multi-Agent Architecture + Professional Audit Trail.
+- **v3.3 (JOH Edition)**: **Cognitive Middleware Implementation**.
+  - **Coupling Interface**: Decoupled Input (JSON Signals) and Output (Action JSONs) for integration with HEC-RAS/SWMM.
+  - **Human-Centric Memory**: Emotional encoding and stochastic consolidation.
+  - **Explainable Governance**: Self-correction traces for transparent rationality.
 - **v3.1**: **Demographic Grounding & Statistical Validation**. Agents are grounded in real-world surveys.
 - **v3.2**: **Advanced Memory & Skill Retrieval**. Implements MemGPT-style Tiered Memory and RAG-based Skill Selection.
 - **v3.3 (Production)**: **Domain-Agnostic Parsing & Human-Centric Memory**.
   - All domain-specific logic moved to `agent_types.yaml`.
   - **Human-Centric Memory Engine**: Implements emotional encoding and passive retrieval.
+
+---
+
+## 🧠 Cognitive Architecture & Design Philosophy
+
+The **Context Builder** is not just a data pipe; it is a designed **Cognitive Lens** that structures reality to mitigate LLM hallucinations and cognitive biases.
+
+### 1. Structural Bias Mitigation
+
+We explicitly engineer the prompt context to counteract known LLM limitations:
+
+- **Scale Anchoring (The "Floating M" Problem)**: Small models (3B) lose track of symbol definitions in long contexts.
+  - **Design**: We use **Inline Semantic Anchoring** (e.g., `TP=M(Medium)` instead of just `TP=M`) to enforce immediate understanding.
+- **Option Primacy Bias**: LLMs statistically prefer the first option in a list.
+  - **Design**: The `ContextBuilder` implements **Dynamic Option Shuffling**, ensuring that "Do Nothing" or "Buy Insurance" do not benefit from positional advantage.
+- **The "Goldfish Effect" (Recency Bias)**: Models forget early instructions when overloaded with news.
+  - **Design**: We use a **Tiered Context Hierarchy** (`Personal State -> Local Observation -> Global Memory`). This places survival-critical data (State) closest to the decision block, while compressing distant memories.
+
+### 2. The Logic-Action Validator
+
+- **Challenge**: Agents often hallucinate a reasoning path ("I feel unsafe") but fail to select the corresponding action ("Relocate").
+- **Design**: The **Thinking Validator** component (in `Skill Broker`) performs a logical consistency check between `Threat Appraisal` and `Action Choice` before execution, triggering a retry if a mismatch is found.
 
 ---
 
@@ -148,72 +174,6 @@ Not everything is remembered. The engine uses **Probabilistic Storage**:
 - $P(\text{consolidate}) \propto \text{Importance Score}$
 
 ---
-
-## Single-Agent Flood Experiment (SA)
-
-### Agent initialization
-- `examples/single_agent/run_flood.py` loads agents from a CSV profile file.
-- Required columns: `id`, `elevated`, `has_insurance`, `relocated`, `trust_in_insurance`, `trust_in_neighbors`, `flood_threshold`, `memory`.
-- Skills are set from the registry, and `agent_type` is `household`.
-
-### Disaster model
-- Flood mode:
-  - `fixed`: years from `flood_years.csv`
-  - `prob`: per-year probability via `FLOOD_PROBABILITY`
-- Per-year signals: grant availability (`GRANT_PROBABILITY`), neighbor observations, and stochastic recall.
-- Damage model: base $10,000; elevation reduces damage to 10%.
-- Elevation reduces future flood susceptibility (`flood_threshold` scaled down after elevation).
-
-### Outputs and logs
-- `simulation_log.csv` includes `yearly_decision` (actual per-year choice) and `cumulative_state`.
-- Audit traces are auto-cleared per run to avoid mixed `run_id` data.
-
-## Generality and maintainability notes
-
-- SA logic is isolated under `examples/single_agent/` to keep core broker components domain-agnostic.
-- Domain-specific parameters live in `run_flood.py`; prompts and actions live in `agent_types.yaml`.
-- Keep outputs stable for reproducibility (`config_snapshot.yaml`, audit CSVs, traces).
-
----
-
-## 🔬 Scientific Research Questions (SQs)
-
-### SQ1: Cognitive vs. Stochastic Adaptation
-
-**Question**: How does LLM-driven reasoning-based adaptation compare to probability-based adaptation?
-**Goal**: Evaluate if reasoning-based models better capture "lock-in" effects.
-
-### SQ2: Social Network Influence
-
-**Question**: How do social network effects (gossip) accelerate or dampen adaptation?
-**Goal**: Understand how social capital (SC) modulates adaptation for different demographics.
-
-### SQ3: Institutional Feedback
-
-**Question**: How do institutional feedback loops (FEMA solvency, subsidies) interact with community resilience?
-**Goal**: Map policy sensitivity.
-
----
-
-## 📊 Scientific & Statistical Validation
-
-### 1. Chi-square Decision Analysis
-
-We use **Chi-square tests** to prove that governance and memory mechanisms create statistically significant behavioral changes ($p < 0.05$).
-
-### 2. Demographic Grounding Audit
-
-Scores whether the LLM **actually uses** survey context (Identity, Experience) in its reasoning (0.0 - 1.0 scale).
-
-### 3. How to Run Memory Benchmark
-
-To reproduce the 3x4 comparison charts (Baseline vs. Window vs. Human-Centric) across all models:
-
-```bash
-python examples/single_agent/analyze_old_vs_memory.py
-```
-
-_Output: Generates `README_EN.md`, `README_CH.md`, and statistical plots in `examples/single_agent/benchmark_analysis/`._
 
 ---
 

@@ -607,3 +607,111 @@ python test_survey_init.py
 ### Next Steps
 - Validate the `Appraisal-Decision Asymmetry` fix across the full benchmark matrix.
 - Ensure the technical note reflects the transition from `Chaotic Baseline` (Group A) to `Governed Agent` (Group B).
+
+---
+
+## Update (2026-01-16) - MA Multi-Agent System Enhancement (Task 008)
+
+### Task: 7-Subtask MA Enhancement Plan
+
+**Objective**: Implement comprehensive testing, analysis tools, and research question experiments for the Multi-Agent flood adaptation framework.
+
+### Completed Subtasks
+
+| # | Subtask | Location | Files Created |
+|---|---------|----------|---------------|
+| 1 | MA Interaction Testing | `examples/multi_agent/tests/` | `test_interaction.py` (22 tests) |
+| 2 | Parsing Success Validation | `examples/multi_agent/tests/` | `test_parsing.py` (19 tests) |
+| 3 | Social Network (Simplified) | `examples/multi_agent/tests/` | `test_social_network_mini.py` (14 tests) |
+| 4 | PRB Flood Depth Analysis (13 Years) | `examples/multi_agent/hazard/` | `prb_analysis.py`, `prb_visualize.py` |
+| 5 | Government/Insurance Impact Assessment | `examples/multi_agent/analysis/` | `policy_impact.py`, `equity_metrics.py` |
+| 6 | README Documentation Update | `examples/multi_agent/` | `README.md` (updated) |
+| 7 | Research Questions (RQ1-RQ3) | `examples/multi_agent/experiments/` | `rq_analysis.py`, `run_rq1_*.py`, `run_rq2_*.py`, `run_rq3_*.py` |
+
+### Test Suite Summary (55 Total Tests)
+
+**test_parsing.py (19 tests)**:
+- Household parsing: valid JSON, malformed recovery, case-insensitive constructs
+- Government parsing: action mapping (1→increase_subsidy)
+- Insurance parsing: skill name mapping
+- Edge cases: missing fields, invalid skill names
+
+**test_social_network_mini.py (14 tests)**:
+- Mini network topologies: ring, star
+- Neighbor symmetry validation
+- Influence calculation with known values
+
+**test_interaction.py (22 tests)**:
+- Policy broadcast verification
+- Social influence multipliers (SC +30%, TP +20%)
+- Validation rules (7 core rules in MultiAgentValidator)
+
+### Research Questions (RQ1-RQ3)
+
+**RQ1: Adaptation Continuation vs Inaction**
+> How does continued adaptation, compared with no action, differentially affect long-term flood outcomes for renters and homeowners?
+
+**RQ2: Post-Flood Adaptation Trajectories**
+> How do renters and homeowners differ in their adaptation trajectories following major flood events?
+
+**RQ3: Insurance Coverage & Financial Outcomes**
+> How do tenure-based insurance coverage differences shape long-term financial outcomes under repeated flood exposure?
+
+### File Structure (MA-Only)
+
+```
+examples/multi_agent/
+├── tests/
+│   ├── test_parsing.py          # LLM output parsing validation
+│   ├── test_social_network_mini.py  # Mini network testing
+│   └── test_interaction.py      # Full interaction flow
+├── hazard/
+│   ├── __init__.py
+│   ├── prb_analysis.py          # 13-year PRB flood analysis
+│   └── prb_visualize.py         # Spatial/temporal visualization
+├── analysis/
+│   ├── policy_impact.py         # Subsidy/premium sensitivity
+│   └── equity_metrics.py        # MG/NMG, owner/renter gaps
+├── experiments/
+│   ├── __init__.py
+│   ├── rq_analysis.py           # Shared analysis utilities
+│   ├── run_rq1_adaptation_impact.py
+│   ├── run_rq2_postflood_trajectory.py
+│   └── run_rq3_insurance_outcomes.py
+└── README.md                    # Updated with RQ1-RQ3, disaster model equations
+```
+
+### SA Unchanged
+
+- No hazard folder in SA
+- No RQ experiments in SA
+- SA README focuses on Pillar 1-4 validation only
+
+### Usage Commands
+
+```powershell
+# Run tests
+cd examples/multi_agent
+python tests/test_parsing.py
+python tests/test_social_network_mini.py
+python tests/test_interaction.py
+
+# PRB Analysis
+python hazard/prb_analysis.py --data-dir "C:\path\to\PRB" --output analysis_results/
+
+# Policy Impact
+python analysis/policy_impact.py --results results/simulation_log.csv
+
+# RQ Experiments
+python experiments/run_rq1_adaptation_impact.py --model mock
+python experiments/run_rq2_postflood_trajectory.py --results results/simulation_log.csv
+python experiments/run_rq3_insurance_outcomes.py --results results/simulation_log.csv
+```
+
+### Status
+
+- **All 7 subtasks completed** ✅
+- **55 unit tests created** (19+14+22)
+- **MA/SA separation enforced** (Task 4-7 MA-only)
+
+---

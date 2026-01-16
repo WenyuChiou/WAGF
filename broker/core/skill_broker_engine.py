@@ -89,7 +89,9 @@ class SkillBrokerEngine:
             )
             
         self.audit_writer = audit_writer
-        self.max_retries = max_retries
+        # Use config-driven default if not explicitly passed
+        self.max_retries = max_retries if max_retries != 3 else self.config.get_governance_retries(max_retries)
+        self.max_reports = self.config.get_governance_max_reports()
         self.log_prompt = log_prompt
         
         # Statistics
@@ -363,9 +365,20 @@ class SkillBrokerEngine:
                         intervention_reports.append(report)
             
             # Fall back to raw error strings if no reports were built
-            errors_to_send = intervention_reports if intervention_reports else [e for v in validation_results if v and hasattr(v, 'errors') for e in v.errors]
+            # If skill_proposal is None (parse failure), add a specific format violation report
+            if not skill_proposal:
+                from ..interfaces.skill_types import InterventionReport
+                errors_to_send = [InterventionReport(
+                    rule_id="format_violation",
+                    blocked_skill="parsing",
+                    violation_summary="LLM output failed to match required delimiter or JSON structure.",
+                    suggested_correction="Ensure your response follows the specified format including all required fields within the delimiters.",
+                    severity="ERROR"
+                )]
+            else:
+                errors_to_send = intervention_reports if intervention_reports else [e for v in validation_results if v and hasattr(v, 'errors') for e in v.errors]
             
-            retry_prompt = self.model_adapter.format_retry_prompt(prompt, errors_to_send)
+            retry_prompt = self.model_adapter.format_retry_prompt(prompt, errors_to_send, max_reports=self.max_reports)
             res = llm_invoke(retry_prompt)
             
             # Use same logic to handle tuple vs str for retry call
@@ -413,13 +426,14 @@ class SkillBrokerEngine:
                      if "_LABEL" in k: ratings.append(f"{k}={v}")
              if ratings: logger.error(f"  - Ratings: {' | '.join(ratings)}")
              
-             # Generic Reason Extraction (Look for keys ending in _REASON or naming 'Reason')
-             reason_keys = [k for k in skill_proposal.reasoning.keys() if "_REASON" in k.upper() or "REASON" in k.upper()]
-             if reason_keys:
-                 reason_text = skill_proposal.reasoning.get(reason_keys[0], "")
-                 if isinstance(reason_text, dict): 
-                     reason_text = reason_text.get("reason", str(reason_text))
-                 logger.error(f"  - Agent Motivation: {reason_text}")
+             # Phase 32: Audit Reasoning for Grounding (only if proposal exists)
+             if skill_proposal:
+                 reason_keys = [k for k in skill_proposal.reasoning.keys() if "_REASON" in k.upper() or "REASON" in k.upper()]
+                 if reason_keys:
+                     reason_text = skill_proposal.reasoning.get(reason_keys[0], "")
+                     if isinstance(reason_text, dict): 
+                         reason_text = reason_text.get("reason", str(reason_text))
+                     logger.error(f"  - Agent Motivation: {reason_text}")
              
              # Determine fallout action: prefer original choice if parsed, otherwise default
              fallout_skill = skill_proposal.skill_name if (skill_proposal and skill_proposal.parse_layer != "default") else self.skill_registry.get_default_skill()

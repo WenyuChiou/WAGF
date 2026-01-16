@@ -269,6 +269,16 @@ Detailed statistical analysis and behavioral comparison (Baseline vs Window vs H
 
 ---
 
+### 📈 Extensibility: The Coupling Interface (Cognitive Middleware)
+
+To address the need for integration with physical hydrological models (e.g., HEC-RAS, SWMM), the framework is designed as a **"Cognitive Middleware"** layer.
+
+- **Input Decoupling**: The `ContextBuilder` accepts standardized JSON signals (e.g., `{"depth": 1.5, "velocity": 0.5}`) from _any_ physical simulator, normalizing them into the agent's cognitive schema.
+- **Output Decoupling**: The `Skill Broker` emits standardized Action JSONs (e.g., `{"action": "elevate", "cost": 5000}`), which can be consumed by external physical models to update the environment state.
+- **Model Agnosticism**: This "Plug-and-Play" design ensures that the rigorous cognitive governance provided by the framework can be applied to any domain-specific physical model without code modification.
+
+---
+
 ## 🚀 Future Strategic Enhancements: Optimization Roadmap
 
 To further strengthen the framework's academic positioning for the **Journal of Hydrology**, we have identified the following optimization paths inspired by latest cognitive architecture research (Sumers et al., 2024; Gao et al., 2024):
