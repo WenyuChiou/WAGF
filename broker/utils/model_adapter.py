@@ -452,12 +452,15 @@ class UnifiedAdapter(ModelAdapter):
             digit_matches = re.findall(r'(\d)', cleaned_target)
             candidates = bracket_matches if bracket_matches else digit_matches
             
-            if candidates and not strict_mode:
+            # Allow digit extraction as last resort during retries even in strict mode
+            is_retry = context.get("retry_attempt", 0) > 0
+            
+            if candidates and (not strict_mode or is_retry):
                 last_digit = candidates[-1]
                 if last_digit in skill_map:
                     skill_name = skill_name or skill_map[last_digit]
-                    parse_layer = parse_layer or "digit"
-                    parsing_warnings.append(f"Last-resort extraction from digit: {last_digit}")
+                    parse_layer = parse_layer or "digit_fallback"
+                    parsing_warnings.append(f"Retry-based extraction from digit: {last_digit}")
             elif candidates and strict_mode and not skill_name:
                 # Log the failed parse attempt for audit but do NOT use the digit
                 parsing_warnings.append(f"STRICT_MODE: Rejected digit extraction ({candidates[-1]}). Will trigger retry.")
