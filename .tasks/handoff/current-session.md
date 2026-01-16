@@ -434,3 +434,9 @@ python test_survey_init.py
 ## Update (2026-01-16)
 - Updated examples/single_agent/README.md survey section to point to shared module paths, Excel input, and schema-driven mapping; removed SA hazard analysis section.
 
+
+---
+
+## Update (2026-01-16)
+- Moved hazard analysis tools from examples/single_agent/hazard to examples/multi_agent/hazard and fixed local import in prb_visualize.py.
+
