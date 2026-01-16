@@ -241,6 +241,7 @@ class FinalParityHook:
         self.runner = runner
         self.logs = []
         self.prompt_inspected = False
+        self.yearly_decisions = {}
 
     def pre_year(self, year, env, agents):
         year = year
@@ -283,6 +284,11 @@ class FinalParityHook:
                 self.runner.memory_engine.add_memory(agent.id, f"Suddenly recalled: '{random.choice(PAST_EVENTS)}'.")
 
     def post_step(self, agent, result):
+        year = self.sim.current_year
+        skill_name = None
+        if result and result.approved_skill:
+            skill_name = result.approved_skill.skill_name
+        self.yearly_decisions[(agent.id, year)] = skill_name
         if result.approved_skill and result.approved_skill.skill_name == "elevate_house":
             agent.flood_threshold = round(agent.flood_threshold * 0.2, 2)
             agent.flood_threshold = max(0.001, agent.flood_threshold)
@@ -310,9 +316,13 @@ class FinalParityHook:
             mem_items = self.runner.memory_engine.retrieve(agent, top_k=5)
             # Memory engine returns list of strings. Join with | for CSV parity.
             mem_str = " | ".join(mem_items)
+            yearly_decision = self.yearly_decisions.get((agent.id, year))
+            if yearly_decision is None and getattr(agent, "relocated", False):
+                yearly_decision = "relocated"
 
             self.logs.append({
                 "agent_id": agent.id, "year": year, "cumulative_state": classify_adaptation_state(agent),
+                "yearly_decision": yearly_decision if yearly_decision else "N/A",
                 "elevated": getattr(agent, 'elevated', False), "has_insurance": getattr(agent, 'has_insurance', False),
                 "relocated": getattr(agent, 'relocated', False), "trust_insurance": getattr(agent, 'trust_in_insurance', 0),
                 "trust_neighbors": getattr(agent, 'trust_in_neighbors', 0),
@@ -425,6 +435,17 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         output_dir = Path(__file__).parent / "results" / f"{model.replace(':','_')}_strict"
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    # --- CLEANUP TRACES (Crucial for Analysis) ---
+    # Ensure we don't append to old traces from previous runs
+    raw_dir = output_dir / "raw"
+    traces_file = raw_dir / "household_traces.jsonl"
+    if traces_file.exists():
+        print(f"Cleaning up old traces: {traces_file}")
+        try:
+            traces_file.unlink()
+        except PermissionError:
+            print(f"Warning: Could not delete {traces_file}. It might be in use.")
+
     # 6. Setup ExperimentBuilder and Runner
     from broker import ExperimentBuilder
     
@@ -484,12 +505,11 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
                         "year": year,
                         "decision": "Relocate",
                         "cumulative_state": "Relocate",
+                        "yearly_decision": "relocated", # Consistent filler
                         "elevated": True,
                         "has_insurance": False,
                         "relocated": True
                     })
-
-    if custom_output:
         # If absolute, use as is; if relative, make it relative to CWD
         output_path = Path(custom_output)
         if not output_path.is_absolute():

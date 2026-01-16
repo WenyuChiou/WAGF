@@ -15,6 +15,7 @@ class AuditConfig:
     output_dir: str
     experiment_name: str = "simulation"
     log_level: str = "full"  # full, summary, errors_only
+    clear_existing_traces: bool = True
 
 
 class GenericAuditWriter:
@@ -29,6 +30,15 @@ class GenericAuditWriter:
         self.config = config
         self.output_dir = Path(config.output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+
+        if config.clear_existing_traces:
+            raw_dir = self.output_dir / "raw"
+            if raw_dir.exists():
+                for trace_file in raw_dir.glob("*_traces.jsonl"):
+                    try:
+                        trace_file.unlink()
+                    except OSError as e:
+                        logger.warning(f"[Audit] Could not clear trace file {trace_file}: {e}")
         
         # Track file handles per agent type
         self._files: Dict[str, Path] = {}

@@ -61,4 +61,3 @@ toy_output/
 .pytest_cache/
 .coverage
 htmlcov/
-.tasks/

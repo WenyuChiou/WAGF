@@ -1,6 +1,6 @@
 {
   "version": "1.1",
-  "last_updated": "2026-01-16T04:57:52.6941862Z",
+  "last_updated": "2026-01-16T07:03:17.1170361Z",
   "tasks": [
     {
       "id": "task-001",
@@ -40,12 +40,13 @@
       "scope": ["examples/single_agent/"],
       "created_at": "2026-01-16T04:30:00Z",
       "commits": [],
-      "summary": "Fix static 'Do Nothing' behavior in Gemma (Window) by merging observation memories to reduce window churn.",
+      "summary": "Add audit trace auto-clear to prevent mixed run_ids and add yearly_decision logging for per-year behavior.",
       "done_when": ["Gemma window behavior shows diversity", "Reference parity memory retention confirmed"],
       "tests_run": ["test_merged_memory_v2 (5 agents)"],
       "risks": ["Might affect decision distribution slightly"],
       "rollback": ["Revert run_flood.py changes"],
       "artifacts": ["examples/single_agent/results_window/gemma3_4b_strict/simulation_log.csv"],
+      "next_step": "Re-run experiments with clean traces and review yearly_decision output.",
       "handoff_file": "handoff/task-002.md"
     }
   ],

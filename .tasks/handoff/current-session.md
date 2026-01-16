@@ -198,3 +198,22 @@ python run_flood.py --model llama3.2:3b --agents 100 --years 10 --memory-engine 
 ## Update (2026-01-16)
 - Added audit trace auto-clear (prevents mixed run_ids in `*_traces.jsonl`).
 - Added `yearly_decision` to `simulation_log.csv` (approved skill per agent-year).
+
+## Update (2026-01-16) - Repo cleanup
+- Reviewed repo for removable artifacts (outputs, traces, temps, images, csv) and checked `git status` to identify tracked vs untracked files.
+- Read `.tasks` key documents (`README.md`, `GUIDE.md`, `registry.json`, `handoff/current-session.md`, `handoff/task-002.md`) to follow collaboration workflow.
+- Updated `.gitignore` to ignore common run artifacts:
+  - `results_humancentric/`
+  - `*_output.txt`, `trace_*.txt`
+  - `temp_*.txt`, `temp_*.json`
+  - `*.jpg`, `*.csv`
+- Corrected handling of `.tasks/`:
+  - User requirement: `.tasks` contents must not be deleted.
+  - Removed `.tasks/` ignore rule from `.gitignore`.
+  - Reverted staged deletions and re-added `.tasks` so files remain present.
+- No destructive cleanup executed (no `git clean` run). Pending deletion/cleanup requires explicit confirmation.
+
+---
+
+## Update (2026-01-16)
+- Removed untracked single-agent analysis scripts (cleanup before next run).
