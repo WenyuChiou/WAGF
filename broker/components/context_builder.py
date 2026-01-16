@@ -109,6 +109,39 @@ class AttributeProvider(ContextProvider):
         if hasattr(agent, 'get_available_skills'):
             context["available_skills"] = agent.get_available_skills()
 
+
+class PrioritySchemaProvider(ContextProvider):
+    """
+    Provider that applies domain-specific priority weights to context attributes.
+    
+    Loads weights from YAML config to maintain domain-agnosticism.
+    Example config:
+        priority_schema:
+          hydrology: {damage: 1.0, elevated: 0.9, flood_threshold: 0.8}
+          finance: {liquidity_ratio: 1.0, yield: 0.9}
+    """
+    def __init__(self, schema: Dict[str, float] = None):
+        self.schema = schema or {}
+    
+    def provide(self, agent_id, agents, context, **kwargs):
+        if not self.schema:
+            return
+        
+        state = context.get("state", {})
+        priority_items = []
+        
+        for attr, priority in sorted(self.schema.items(), key=lambda x: -x[1]):
+            if attr in state:
+                priority_items.append({
+                    "attribute": attr,
+                    "value": state[attr],
+                    "priority": priority
+                })
+        
+        context["priority_schema"] = priority_items
+        context["_priority_attributes"] = list(self.schema.keys())
+
+
 class EnvironmentProvider(ContextProvider):
     """Provides perception signals from the environment."""
     def __init__(self, environment: Dict[str, float]):
