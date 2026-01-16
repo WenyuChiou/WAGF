@@ -524,3 +524,33 @@ python test_survey_init.py
 ### Git Commit
 
 - `215b476` - feat: Integrated post-hoc legacy audit into comprehensive analysis pipeline
+
+---
+
+## Task Scope Clarification (2026-01-16)
+
+- Task 4 (PRB Flood Depth Analysis): implemented under examples/multi_agent/hazard/ only; SA references removed.
+- Task 5 (Government/Insurance Impact Assessment): files live under examples/multi_agent/analysis/ (currently untracked; MA-only).
+- Task 6 (README Update): MA README updated for hazard tools; SA README stripped of hazard/schema notes.
+
+---
+
+## Update (2026-01-16) - Interim Technical Note Analysis (JOH Submission)
+
+### Task: Multi-Model Rationality Convergence Analysis
+
+**Objective**: Synthesize A/B/C group results for Gemma 3 4B and Llama 3.2 3B to support a Technical Note on Cognitive Governance.
+
+### Key Accomplishments
+
+- **Gemma 3 4B (Validation Complete)**:
+  - **Group A -> B**: Adaptation rate increased from 53% to 73% (+20%). Proves governance solves **Inaction Bias**.
+  - **Group B -> C**: Relocation (Panic) dropped from 12% to 7%. Proves Human-Centric Memory provides **Cognitive Stability**.
+- **Llama 3.2 3B (Interim)**:
+  - **Group A -> B**: Relocation rate dropped from 95% to 84% (-11%). Proves governance acts as an effective **Panic Filter** for high-sensitivity models.
+- **Artifact Creation**: Drafted `interim_technical_note_analysis.md` summarizing these metrics for academic submission (Journal of Hydrology / Technical Note).
+
+### Next Steps
+
+- Finalize Llama 3.2 Group C and DeepSeek B/C comparisons once benchmarks complete.
+- Mirror results in Chinese Benchmark Report.

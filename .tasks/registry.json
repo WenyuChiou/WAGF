@@ -1,6 +1,6 @@
-{
+﻿{
   "version": "1.1",
-  "last_updated": "2026-01-16T19:57:26.000Z",
+  "last_updated": "2026-01-16T20:30:00.000Z",
   "tasks": [
     {
       "id": "task-001",
@@ -17,11 +17,20 @@
       "handoff_file": "handoff/current-session.md"
     },
     {
+      "id": "task-006",
+      "title": "技術報告快速分析 (Interim Tech Note)",
+      "status": "completed",
+      "type": "analysis",
+      "description": "分析 Gemma/Llama A/B/C 組數據以完備 JOH Technical Note。",
+      "handoff_file": "handoff/current-session.md"
+    },
+    {
       "id": "task-002",
       "title": "Gemma 3 信任持久化修復",
       "description": "解決 Trust Reset Bug 導致的行為靜態問題。",
       "status": "completed",
-      "type": "experiment"
+      "type": "bugfix",
+      "handoff_file": "handoff/task-002.md"
     },
     {
       "id": "task-003",
@@ -34,14 +43,3 @@
     }
   ]
 }
-
-
-
-
-
-
-
-
-
-
-
