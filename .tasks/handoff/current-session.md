@@ -447,3 +447,9 @@ python test_survey_init.py
 - Added example survey schema in examples/single_agent/survey_schema.example.yaml and wired --survey-schema into un_flood.py.
 - Updated examples/single_agent/README.md and examples/multi_agent/README.md to document survey schema and PRB hazard analysis tools.
 
+
+---
+
+## Update (2026-01-16)
+- Removed SA survey schema example and schema CLI option; survey mode now uses default mapping only.
+

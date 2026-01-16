@@ -346,8 +346,7 @@ class FinalParityHook:
 def load_agents_from_survey(
     survey_path: Path,
     max_agents: int = 100,
-    seed: int = 42,
-    schema_path: Optional[Path] = None,
+    seed: int = 42
 ) -> Dict[str, Any]:
     """
     Load and initialize agents from real survey data.
@@ -368,8 +367,7 @@ def load_agents_from_survey(
         max_agents=max_agents,
         seed=seed,
         include_hazard=True,
-        include_rcv=True,
-        schema_path=schema_path,
+        include_rcv=True
     )
 
     print(f"[Survey] Loaded {stats['total_agents']} agents from survey")
@@ -483,13 +481,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
                 f"Survey file not found: {survey_path}\n"
                 "Survey mode requires 'initial_household data.xlsx' in examples/multi_agent/input/"
             )
-        schema_path = Path(args.survey_schema) if args.survey_schema else None
-        agents = load_agents_from_survey(
-            survey_path,
-            max_agents=agents_count,
-            seed=seed or 42,
-            schema_path=schema_path,
-        )
+        agents = load_agents_from_survey(survey_path, max_agents=agents_count, seed=seed or 42)
         print(f"[Survey Mode] Initialized {len(agents)} agents from real survey data")
     else:
         # Legacy CSV-based initialization
@@ -685,8 +677,6 @@ if __name__ == "__main__":
     parser.add_argument("--survey-mode", action="store_true",
                         help="Initialize agents from real survey data instead of CSV profiles. "
                              "Uses MG/NMG classification, flood zone assignment, and RCV generation.")
-    parser.add_argument("--survey-schema", type=str, default=None,
-                        help="Optional path to a survey schema YAML (column mapping and narrative fields).")
     args = parser.parse_args()
 
     # Apply LLM config from command line

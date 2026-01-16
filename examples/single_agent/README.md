@@ -290,9 +290,6 @@ python run_flood.py --model gemma3:4b --survey-mode --years 10
 
 # With custom survey data path
 python run_flood.py --model deepseek-r1:8b --survey-mode --survey-path ./data/survey.xlsx
-
-# With a custom schema mapping
-python run_flood.py --model deepseek-r1:8b --survey-mode --survey-schema ./survey_schema.example.yaml
 ```
 
 #### Survey Mode Features
@@ -310,12 +307,7 @@ python run_flood.py --model deepseek-r1:8b --survey-mode --survey-schema ./surve
 
 #### Survey Data Format
 
-Survey mode is schema-driven. Provide a YAML mapping in your experiment folder and reference it with
-`--survey-schema`. At minimum, map: `family_size`, `income_bracket`, and `housing_status`. You can also
-declare `narrative_fields` to control which columns feed the persona prompt.
-
-Example schema:
-- `examples/single_agent/survey_schema.example.yaml`
+Survey mode uses the shared survey module with the current default mapping.
 
 ## References
 
