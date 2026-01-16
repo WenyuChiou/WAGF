@@ -268,3 +268,8 @@ python run_flood.py --model llama3.2:3b --agents 100 --years 10 --memory-engine 
 
 ## Update (2026-01-16)
 - MA: filter available skills at build time using ma_agent_types actions + identity rules; inject options_text and dynamic_skill_map into context.
+
+---
+
+## Update (2026-01-16)
+- Scoped build-time skill filtering to MA only (skip base_type household) to avoid SA prompt changes.

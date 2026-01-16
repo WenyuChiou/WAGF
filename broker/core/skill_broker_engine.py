@@ -504,6 +504,9 @@ class SkillBrokerEngine:
         return [s for s in skills if s not in blocked]
 
     def _inject_filtered_skills(self, context: Dict[str, Any], agent_type: str) -> None:
+        base_type = self.config.get_base_type(agent_type) if hasattr(self.config, "get_base_type") else agent_type
+        if base_type == "household":
+            return
         state = context.get("state", {})
         action_ids = self._get_action_ids(agent_type)
         if not action_ids:
