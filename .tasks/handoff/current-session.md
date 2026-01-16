@@ -405,3 +405,11 @@ python test_survey_init.py
 - Removed examples/single_agent/hazard (only __pycache__ remained).
 - Smoke-tested vulnerability calculations via inline Python.
 
+
+---
+
+## Update (2026-01-16)
+- MA: hooked PRB ASCII grid hazard into run_unified_experiment with --grid-dir/--grid-years CLI flags.
+- MA: flood occurrence/damage now driven by grid depths (meters) + fine FEMA curves; env exposes lood_depth_m/lood_depth_ft.
+- Docs: updated CONFIG_GUIDE.md and appended CLI notes to SPATIAL_README.md.
+
