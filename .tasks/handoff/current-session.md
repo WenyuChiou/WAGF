@@ -223,3 +223,8 @@ python run_flood.py --model llama3.2:3b --agents 100 --years 10 --memory-engine 
 ## Update (2026-01-16)
 - Recorded changes in `broker/components/audit_writer.py` (auto-clear traces per run).
 - Recorded changes in `examples/single_agent/run_flood.py` (yearly_decision in simulation_log).
+
+---
+
+## Update (2026-01-16)
+- Rewrote `.tasks/README.md` and `.tasks/GUIDE.md` in clear ASCII with explicit logs purpose and task flow.
