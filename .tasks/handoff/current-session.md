@@ -257,3 +257,14 @@ python run_flood.py --model llama3.2:3b --agents 100 --years 10 --memory-engine 
 
 ## Update (2026-01-16)
 - Added MCP copy steps to `.tasks/skills-mcp.md`.
+
+---
+
+## Update (2026-01-16)
+- Reviewed MA skill visibility: eligibility/identity rules are enforced at validation, options list is not state-filtered.
+- Noted MA skill registry YAML format is not loaded by core SkillRegistry.
+
+---
+
+## Update (2026-01-16)
+- MA: filter available skills at build time using ma_agent_types actions + identity rules; inject options_text and dynamic_skill_map into context.

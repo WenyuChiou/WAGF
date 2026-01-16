@@ -128,6 +128,7 @@ class SkillBrokerEngine:
         
         # ① Build bounded context (READ-ONLY)
         context = self.context_builder.build(agent_id, step_id=step_id, run_id=run_id, env_context=env_context)
+        self._inject_filtered_skills(context, agent_type)
         context_hash = self._hash_context(context)
 
         # Phase 28: Dynamic Skill Retrieval (RAG)
@@ -161,6 +162,7 @@ class SkillBrokerEngine:
             context["available_skills"] = [s.skill_id for s in retrieved_skills]
             # Also store full definitions for ContextBuilder to show descriptions if needed
             context["retrieved_skill_definitions"] = retrieved_skills
+            self._inject_options_text(context, [s.skill_id for s in retrieved_skills])
 
         # Robust memory extraction for audit (handles nesting and stringification)
         raw_mem = context.get("memory")
@@ -481,6 +483,54 @@ class SkillBrokerEngine:
             retry_count=retry_count
         )
     
+    def _get_action_ids(self, agent_type: str) -> List[str]:
+        base_type = self.config.get_base_type(agent_type) if hasattr(self.config, "get_base_type") else agent_type
+        cfg = self.config.get(base_type) if self.config else {}
+        actions = cfg.get("actions", cfg.get("parsing", {}).get("actions", [])) if cfg else []
+        ids = []
+        for action in actions:
+            if isinstance(action, dict) and action.get("id"):
+                ids.append(action["id"])
+        return ids
+
+    def _filter_identity_skills(self, agent_type: str, skills: List[str], state: Dict[str, Any]) -> List[str]:
+        base_type = self.config.get_base_type(agent_type) if hasattr(self.config, "get_base_type") else agent_type
+        blocked = set()
+        for rule in self.config.get_identity_rules(base_type):
+            pre = rule.metadata.get("precondition")
+            if pre and state.get(pre) is True:
+                for s in rule.blocked_skills or []:
+                    blocked.add(s)
+        return [s for s in skills if s not in blocked]
+
+    def _inject_filtered_skills(self, context: Dict[str, Any], agent_type: str) -> None:
+        state = context.get("state", {})
+        action_ids = self._get_action_ids(agent_type)
+        if not action_ids:
+            return
+        filtered = self._filter_identity_skills(agent_type, action_ids, state)
+        context["available_skills"] = filtered
+        self._inject_options_text(context, filtered)
+
+    def _inject_options_text(self, context: Dict[str, Any], skills: List[str]) -> None:
+        if not skills:
+            return
+        options = []
+        dynamic_skill_map = {}
+        for i, skill_id in enumerate(skills, 1):
+            skill_def = self.skill_registry.get(skill_id) if self.skill_registry else None
+            desc = skill_def.description if skill_def else skill_id
+            options.append(f"{i}. {desc}")
+            dynamic_skill_map[str(i)] = skill_id
+        personal = context.setdefault("personal", {})
+        if len(skills) > 1:
+            valid_choices = ", ".join([str(i) for i in range(1, len(skills))]) + f", or {len(skills)}"
+        else:
+            valid_choices = "1"
+        personal["options_text"] = "\n".join(options)
+        personal["valid_choices_text"] = valid_choices
+        personal["dynamic_skill_map"] = dynamic_skill_map
+
     def _run_validators(self, proposal: SkillProposal, context: Dict) -> List[ValidationResult]:
         """Run all validators on the skill proposal."""
         results = []

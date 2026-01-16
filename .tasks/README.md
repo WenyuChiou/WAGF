@@ -28,6 +28,7 @@ Keep it small, readable, and up to date.
 - `handoff/current-session.md`: living status, decisions, next steps.
 - `registry.json`: task registry (status, done_when, risks, next_step).
 - `logs/`: short run logs (what was run, where outputs went, errors).
+- `skills-mcp.md`: how to share skills and MCP setup.
 
 ## Quick rules
 
