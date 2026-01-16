@@ -1,0 +1,14 @@
+{
+    "Llama_3.2_3B": {
+        "violations": 3,
+        "total": 1000,
+        "rate": 0.003,
+        "relocations": 95
+    },
+    "DeepSeek_R1_8B": {
+        "violations": 22,
+        "total": 1000,
+        "rate": 0.022,
+        "relocations": 14
+    }
+}
