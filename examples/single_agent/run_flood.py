@@ -331,7 +331,16 @@ class FinalParityHook:
         stats = df_year['cumulative_state'].value_counts()
         categories = ["Do Nothing", "Only Flood Insurance", "Only House Elevation", "Both Flood Insurance and House Elevation", "Relocate"]
         stats_str = " | ".join([f"{cat}: {stats.get(cat, 0)}" for cat in categories])
+        
+        # Calculate Trust Stats for Observability
+        avg_trust_ins = df_year['trust_insurance'].mean()
+        avg_trust_nb = df_year['trust_neighbors'].mean()
+        
         print(f"[Year {year}] Stats: {stats_str}")
+        print(f"[Year {year}] Avg Trust: Ins={avg_trust_ins:.3f}, Nb={avg_trust_nb:.3f}")
+
+        # Intermediate Save for Validation
+        pd.DataFrame(self.logs).to_csv("simulation_log_interim.csv", index=False)
 
 # --- 5. Survey-Based Agent Initialization ---
 def load_agents_from_survey(

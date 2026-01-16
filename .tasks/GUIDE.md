@@ -20,10 +20,11 @@ Keep it simple, deterministic, and easy to read.
 ## 3) Read task shortcut
 
 When a user says "Read task":
-1) Read `handoff/current-session.md`
-2) Read `registry.json`
-3) Respond with: current task, progress, next_step, blockers.
-4) If `next_step` is empty, set it to `none` and ask for planning.
+
+1. Read `handoff/current-session.md`
+2. Read `registry.json`
+3. Respond with: current task, progress, next_step, blockers.
+4. If `next_step` is empty, set it to `none` and ask for planning.
 
 ## 4) Registry fields (minimum)
 
@@ -51,11 +52,13 @@ Do NOT store large datasets or plots in `logs/`.
 ## 6) Handoff rules
 
 Update `handoff/current-session.md` when:
+
 - a decision is made
 - a run finishes
 - a task state changes
 
 Handoff should answer:
+
 - What changed
 - Why it changed
 - What is next
@@ -79,7 +82,7 @@ One plan at a time. Update it after completing a sub-step.
 ## 10) Task commands (keywords)
 
 - `Start task <id>`
-- `Update task`
+- `Update task` / `Record task`: Updates `registry.json` and active `handoff/*.md`.
 - `Block task <reason>`
 - `Unblock task`
 - `Switch task <id>`

@@ -92,19 +92,17 @@ class InteractionHub:
         # We look into getattr(agent, ...) for common attributes if they exist
         # and include anything from agent.dynamic_state or agent.custom_attributes
         
-        # 1. Collect all non-private simple attributes from the agent object
-        for k, v in agent.__dict__.items():
-            if k == "agent_type": continue # Handled centrally or avoid duplicate if needed
-            if not k.startswith('_') and isinstance(v, (str, int, float, bool)) and k not in ["memory", "id"]:
-                personal[k] = v
         
-        # 2. Dynamic state (PR 9 partitioning)
-        if hasattr(agent, 'dynamic_state'):
-            personal.update(agent.dynamic_state)
-            
-        # 3. Custom attributes (Legacy/CSV support)
+        # 3. Custom attributes (Legacy/CSV support) - LOAD FIRST (Base Layer)
         if hasattr(agent, 'custom_attributes'):
             personal.update(agent.custom_attributes)
+
+        # 1. Collect all non-private simple attributes from the agent object - LOAD LAST (Overlay Layer)
+        # This ensures dynamic runtime updates (e.g. trust scores) override initial static values.
+        for k, v in agent.__dict__.items():
+            if k == "agent_type": continue 
+            if not k.startswith('_') and isinstance(v, (str, int, float, bool)) and k not in ["memory", "id"]:
+                personal[k] = v
 
         # 4. Adaptation status (Custom summary)
         if hasattr(agent, 'get_adaptation_status'):
