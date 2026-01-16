@@ -31,14 +31,15 @@ output:
   log_level: "DEBUG" # Verbose for trace extraction
 
 # =============================================================================
-# PROMPT TEMPLATE (Stress - Enhanced for Intervention Visibility)
+# PROMPT TEMPLATE (Stress - Enhanced with Explicit Financial Context)
+# KEY DIFFERENCE: Adds {savings}, {income_level} variables for case study
 # =============================================================================
 prompt_template: |
-  ### [CRITICAL FACTORS (Focus Here)]
-  Before making any decision, you MUST consider these physical constraints:
-  - Your flood threshold (vulnerability) is key to understanding your real risk.
-  - Your financial capacity determines which actions are feasible.
-  - Your memory of past floods should inform your long-term strategy.
+  ### [YOUR FINANCIAL SITUATION]
+  - Your current savings: ${savings}
+  - Your income level: {income_level}
+  - Estimated cost of house elevation: $50,000
+  - Estimated cost of relocation: $80,000+
 
   ---
 
