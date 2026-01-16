@@ -3,7 +3,11 @@ $experiments = @(
     @{model = "llama3.2:3b"; engine = "window" },
     @{model = "llama3.2:3b"; engine = "humancentric" },
     @{model = "gemma3:4b"; engine = "window" },
-    @{model = "gemma3:4b"; engine = "humancentric" }
+    @{model = "gemma3:4b"; engine = "humancentric" },
+    @{model = "llama3.1:latest"; engine = "window" },
+    @{model = "llama3.1:latest"; engine = "humancentric" },
+    @{model = "deepseek-r1:8b"; engine = "window" },
+    @{model = "deepseek-r1:8b"; engine = "humancentric" }
 )
 
 $ErrorActionPreference = "Stop"

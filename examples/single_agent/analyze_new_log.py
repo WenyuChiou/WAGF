@@ -7,9 +7,8 @@ import json
 from pathlib import Path
 from collections import Counter
 
-RESULTS_DIR = Path("examples/single_agent/results_window/gemma3_4b_strict")
-LOG_PATH = RESULTS_DIR / "simulation_log.csv"
-TRACE_PATH = RESULTS_DIR / "gemma3_4b_strict/raw/household_traces.jsonl"
+LOG_PATH = Path("examples/single_agent/results/gemma3_4b_strict/simulation_log.csv")
+TRACE_PATH = Path("examples/single_agent/results_window/gemma3_4b_strict/gemma3_4b_strict/raw/household_traces.jsonl")
 
 print("=" * 80)
 print("ANALYSIS OF NEW RUN (Clean Context & Yearly Decisions)")
@@ -26,11 +25,11 @@ if TRACE_PATH.exists():
     print(f"Unique run_ids: {run_ids}")
     
     if len(run_ids) == 1:
-        print("✅ SUCCESS: Only one run_id present. Context clean.")
+        print("[OK] SUCCESS: Only one run_id present. Context clean.")
     else:
-        print(f"❌ WARNING: {len(run_ids)} run_ids found! Cleanup failed?")
+        print(f"[WARNING] {len(run_ids)} run_ids found! Cleanup failed?")
 else:
-    print("❌ Traces file not found yet (maybe run incomplete?)")
+    print("[WARNING] Traces file not found yet (maybe run incomplete?)")
 
 # 2. Analyze Yearly Decisions from CSV
 print("\n[Yearly Decision Analysis from CSV]")
@@ -38,7 +37,7 @@ if LOG_PATH.exists():
     df = pd.read_csv(LOG_PATH)
     
     if 'yearly_decision' not in df.columns:
-        print("❌ 'yearly_decision' column missing in CSV!")
+        print("[ERROR] 'yearly_decision' column missing in CSV!")
     else:
         # Filter out relocated agents for clearer decision view? 
         # Actually we want to see what active agents did.
@@ -68,4 +67,4 @@ if LOG_PATH.exists():
                     print(f"      Choose {d}: {c}")
 
 else:
-    print("❌ Simulation log not found.")
+    print("[ERROR] Simulation log not found.")

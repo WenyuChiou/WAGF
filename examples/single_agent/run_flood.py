@@ -99,58 +99,41 @@ class FinalContextBuilder(TieredContextBuilder):
         elif isinstance(mem_val, list):
             personal['memory'] = "\n".join([f"- {m}" for m in mem_val])
         
-        # 5. Options Text Formatting (with Shuffling to reduce positional bias)
-        agent = self.agents[agent_id]
-        available = agent.get_available_skills()
+        # 5. Options Text Formatting (STRICT PARITY MODE)
+        # We override the dynamic registry lookup to match LLMABMPMT-Final.py exactly.
         
-        # Build option list with skill_id -> description mapping
-        option_items = []  # List of (skill_id, description)
-        for skill_item in available:
-            skill_id = skill_item.split(": ", 1)[0] if ": " in skill_item else skill_item
-            skill_def = self.skill_registry.get(skill_id) if self.skill_registry else None
-            desc = skill_def.description if skill_def else (skill_item.split(": ", 1)[1] if ": " in skill_item else skill_item)
-            option_items.append((skill_id, desc))
-        
-        # SHUFFLE options to reduce positional bias (changes per step/year for each agent)
-        # DISABLED FOR PARITY TEST with LLMABMPMT-Final.py
-        # step_id = kwargs.get('step_id', 0)
-        # agent_seed = hash(f"{agent_id}_{step_id}") % 10000
-        # rng = random.Random(agent_seed)
-        # rng.shuffle(option_items)
-
-        # ENFORCE FIXED ORDER for Parity:
-        # 1. buy_insurance
-        # 2. elevate_house
-        # 3. relocate
-        # 4. do_nothing
-        order_map = {
-            "buy_insurance": 0,
-            "elevate_house": 1,
-            "relocate": 2,
-            "do_nothing": 3
-        }
-        option_items.sort(key=lambda x: order_map.get(x[0], 99))
-        
-        # Build numbered options text and dynamic skill_map
-        options = []
-        dynamic_skill_map = {}  # Maps "1", "2", "3", "4" to shuffled skill IDs
-        for i, (skill_id, desc) in enumerate(option_items, 1):
-            options.append(f"{i}. {desc}")
-            dynamic_skill_map[str(i)] = skill_id
-        
-        # INJECT INTO PERSONAL to ensure template_vars flattening picks it up early
-        personal['options_text'] = "\n".join(options)
-        personal['skills'] = personal['options_text'] # Alias
-        
-        # Pass dynamic skill_map to context for parser to use
-        personal['dynamic_skill_map'] = dynamic_skill_map
-        
-        # Valid choices text (e.g., "1, 2, or 3")
-        if len(options) > 1:
-            choices = [str(x) for x in range(1, len(options) + 1)]
-            personal['valid_choices_text'] = f"{', '.join(choices[:-1])}, or {choices[-1]}"
+        dynamic_skill_map = {}
+        if elevated:
+             personal['options_text'] = (
+                 "1. Buy flood insurance (Lower cost, provides partial financial protection but does not reduce physical damage.)\n"
+                 "2. Relocate (Requires leaving your neighborhood but eliminates flood risk permanently.)\n"
+                 "3. Do nothing (Require no financial investment or effort this year, but it might leave you exposed to future flood damage.)"
+             )
+             personal['valid_choices_text'] = "1, 2, or 3"
+             # Map for parser: 1->buy, 2->relocate, 3->do_nothing
+             dynamic_skill_map = {
+                 "1": "buy_insurance",
+                 "2": "relocate", 
+                 "3": "do_nothing"
+             }
         else:
-            personal['valid_choices_text'] = "1"
+             personal['options_text'] = (
+                 "1. Buy flood insurance (Lower cost, provides partial financial protection but does not reduce physical damage.)\n"
+                 "2. Elevate your house (High upfront cost but can prevent most physical damage.)\n"
+                 "3. Relocate (Requires leaving your neighborhood but eliminates flood risk permanently.)\n"
+                 "4. Do nothing (Require no financial investment or effort this year, but it might leave you exposed to future flood damage.)"
+             )
+             personal['valid_choices_text'] = "1, 2, 3, or 4"
+             # Map for parser: 1->buy, 2->elevate, 3->relocate, 4->do_nothing
+             dynamic_skill_map = {
+                 "1": "buy_insurance",
+                 "2": "elevate_house",
+                 "3": "relocate",
+                 "4": "do_nothing"
+             }
+
+        personal['skills'] = personal['options_text'] # Alias for template compatibility
+        personal['dynamic_skill_map'] = dynamic_skill_map
         
         # 6. Set variant for adapter
         context["skill_variant"] = "elevated" if elevated else "non_elevated"
@@ -216,13 +199,13 @@ class ResearchSimulation:
         state_changes = {}
         if skill == "buy_insurance": 
             state_changes["has_insurance"] = True
-        elif skill == "elevate_house": 
-            state_changes["elevated"] = True
-            state_changes["has_insurance"] = False # Insurance expires
-        elif skill == "relocate": 
-            state_changes["relocated"] = True
-        else: # do_nothing
-            state_changes["has_insurance"] = False # Insurance expires
+        else:
+            # All other decisions (elevate, relocate, do_nothing) result in insurance expiration
+            state_changes["has_insurance"] = False
+            if skill == "elevate_house": 
+                state_changes["elevated"] = True
+            elif skill == "relocate": 
+                state_changes["relocated"] = True
         return ExecutionResult(success=True, state_changes=state_changes)
 
 def classify_adaptation_state(agent):
@@ -258,13 +241,20 @@ class FinalParityHook:
                 continue
             flooded = False
             if flood_event:
-                damage = 10000 * (0.1 if agent.elevated else 1.0)
-                if random.random() < agent.flood_threshold:
-                    flooded = True
-                    mem = f"Year {year}: Despite elevation, got flooded with ${damage:,.0f} damage." if agent.elevated else f"Year {year}: Got flooded with ${damage:,.0f} damage on my house."
-                else:
-                    mem = f"Year {year}: A flood occurred, but my house was protected by its elevation." if agent.elevated else f"Year {year}: A flood occurred, but my house was spared damage."
-            else: mem = f"Year {year}: No flood occurred this year."
+                if not agent.elevated:
+                    if random.random() < agent.flood_threshold:
+                        flooded = True
+                        mem = f"Year {year}: Got flooded with $10,000 damage on my house."
+                    else:
+                        mem = f"Year {year}: A flood occurred, but my house was spared damage."
+                else: # agent.elevated
+                    if random.random() < agent.flood_threshold:
+                        flooded = True
+                        mem = f"Year {year}: Despite elevation, the flood was severe enough to cause damage."
+                    else:
+                        mem = f"Year {year}: A flood occurred, but my house was protected by its elevation."
+            else:
+                mem = f"Year {year}: No flood occurred this year."
             agent.flood_history.append(flooded)
             self.runner.memory_engine.add_memory(agent.id, mem)
             
@@ -510,15 +500,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
                         "has_insurance": False,
                         "relocated": True
                     })
-        # If absolute, use as is; if relative, make it relative to CWD
-        output_path = Path(custom_output)
-        if not output_path.is_absolute():
-            model_folder = f"{model.replace(':','_').replace('-','_').replace('.','_')}_strict"
-        output_dir = output_path / model_folder
-    else:
-        # Default to examples/single_agent/results
-        base_dir = Path(__file__).parent / "results"
-        output_dir = base_dir / f"{model.replace(':','_')}_strict"
+
     
     output_dir.mkdir(parents=True, exist_ok=True)
     csv_path = output_dir / "simulation_log.csv"
