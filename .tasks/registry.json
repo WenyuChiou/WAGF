@@ -1,0 +1,31 @@
+{
+  "version": "1.1",
+  "last_updated": "2026-01-16T00:15:22.4670348Z",
+  "tasks": [
+    {
+      "id": "task-001",
+      "title": "修復框架通用性污染",
+      "status": "completed",
+      "type": "module",
+      "priority": "high",
+      "eta": "2025-01-16",
+      "blocked_reason": "",
+      "owner": "claude-code",
+      "reviewer": "codex",
+      "assigned_to": "claude-code",
+      "scope": ["broker/", "validators/", "examples/"],
+      "created_at": "2025-01-15T00:00:00Z",
+      "completed_at": "2025-01-15T00:00:00Z",
+      "commits": ["844a1c5", "1907d16", "d5f4e1b"],
+      "summary": "移除核心模組中的實驗特定硬編碼，確保框架可用於非洪水實驗",
+      "done_when": ["核心模組無實驗硬編碼", "最少一次 mock 測試通過", "README 更新完成"],
+      "tests_run": ["python run_flood.py --model mock --agents 3 --years 2"],
+      "risks": ["改動核心模組可能影響現有實驗"],
+      "rollback": ["revert commits 844a1c5, 1907d16"],
+      "artifacts": ["artifacts/claude-code/task-001-20250115-summary.md"],
+      "next_step": "無",
+      "handoff_file": "handoff/task-001.md"
+    }
+  ],
+  "pending_handoffs": []
+}
