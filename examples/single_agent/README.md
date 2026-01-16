@@ -1,6 +1,45 @@
 # Human-Centric Governed Broker Framework: Agentic Adaptation Experiment
 
-> **Academic Note**: This repository contains the code and data for validting the **Governed Broker Framework**, an enhanced Agentic AI architecture designed to solve the "Rationality Gap" in LLM simulations.
+> **Academic Note**: This repository contains the code and data for validating the **Governed Broker Framework**, an enhanced Agentic AI architecture designed to solve the "Rationality Gap" in LLM simulations.
+
+## Research Questions
+
+This experiment addresses three core research questions about flood adaptation differences between renters and homeowners:
+
+### RQ1: Adaptation Continuation vs Inaction
+
+> **How does continued adaptation, compared with no action, differentially affect long-term flood outcomes for renters and homeowners?**
+
+**Hypothesis**: Homeowners benefit more from continued adaptation due to structure ownership, while renters face mobility constraints that may limit sustained investment.
+
+**Metrics**:
+- Cumulative damage over 10 years by tenure
+- Adaptation state distribution (None/Insurance/Elevation/Both/Relocate)
+- Financial recovery trajectories
+
+### RQ2: Post-Flood Adaptation Trajectories
+
+> **How do renters and homeowners differ in their adaptation trajectories following major flood events?**
+
+**Hypothesis**: Major flood events trigger faster adaptation in homeowners (elevation, insurance) vs renters (relocation preference).
+
+**Metrics**:
+- Adaptation action within 1 year post-flood
+- Trajectory divergence (owner vs renter paths)
+- Memory salience of flood events
+
+### RQ3: Insurance Coverage & Financial Outcomes
+
+> **How do tenure-based insurance coverage differences shape long-term financial outcomes under repeated flood exposure?**
+
+**Hypothesis**: Contents-only coverage for renters provides less financial protection than full structure+contents coverage for owners.
+
+**Metrics**:
+- Insured vs uninsured losses by tenure
+- Insurance persistence (renewal rates)
+- Out-of-pocket expenses ratio
+
+---
 
 ## 🔬 Scientific Experimental Design (Ablation Study)
 
@@ -255,6 +294,8 @@ Detailed statistical analysis and behavioral comparison (Baseline vs Window vs H
 
 ## Running Experiments
 
+### Standard Mode (Synthetic Agents)
+
 ```powershell
 # Quick test (5 agents, 3 years)
 python run_flood.py --model llama3.2:3b --agents 5 --years 3
@@ -265,6 +306,37 @@ python run_flood.py --model gemma3:4b --agents 100 --years 10
 # Generate comparison chart
 python generate_old_vs_new_2x4.py
 ```
+
+### Survey Mode (Real Survey Data)
+
+Survey mode initializes agents from real survey data, enabling validation against empirical observations:
+
+```powershell
+# Run with survey-derived agents
+python run_flood.py --model gemma3:4b --survey-mode --years 10
+
+# With custom survey data path
+python run_flood.py --model deepseek-r1:8b --survey-mode --survey-path ./data/survey.xlsx
+```
+
+#### Survey Mode Features
+
+1. **Survey Loader** (`broker/modules/survey/survey_loader.py`): Loads and validates survey Excel data
+2. **MG Classifier** (`broker/modules/survey/mg_classifier.py`): Classifies agents as MG/NMG using 3-criteria scoring:
+   - Housing cost burden (>30% of income)
+   - Vehicle ownership (no vehicle)
+   - Poverty line status
+3. **Agent Initializer** (`broker/modules/survey/agent_initializer.py`): Creates `AgentProfile` objects with:
+   - Tenure (Owner/Renter)
+   - Income level and financial state
+   - Property values (RCV Building/Contents)
+   - Initial adaptation state (insurance, elevation)
+
+#### Survey Data Format
+
+Survey mode is schema-driven. Provide a YAML mapping in your experiment folder and reference it in code.
+At minimum, map: `family_size`, `income_bracket`, and `housing_status`. You can also declare
+`narrative_fields` to control which columns feed the persona prompt.
 
 ## References
 

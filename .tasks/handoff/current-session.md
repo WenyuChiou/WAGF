@@ -428,3 +428,9 @@ python test_survey_init.py
 - Agent initializer now supports configurable narrative fields/labels and carries raw survey data.
 - Smoke-tested column name mapping and numeric income parsing via inline Python.
 
+
+---
+
+## Update (2026-01-16)
+- Updated examples/single_agent/README.md survey section to point to shared module paths, Excel input, and schema-driven mapping; removed SA hazard analysis section.
+
