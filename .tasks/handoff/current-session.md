@@ -554,3 +554,32 @@ python test_survey_init.py
 
 - Finalize Llama 3.2 Group C and DeepSeek B/C comparisons once benchmarks complete.
 - Mirror results in Chinese Benchmark Report.
+
+---
+
+## Update (2026-01-16) - JOH Technical Note Roadmap & KPIs
+
+### Task: Define Academic Validation Strategy
+
+**Objective**: Establish clear "Problem-Solution-Metric" mapping for the Journal of Hydrology (JOH) technical note.
+
+### 5 Core Problems (The "Gaps")
+
+1. **Hallucination Gap**: Disconnect between agent reasoning and final action.
+2. **Inaction Bias**: Tendency of small models to default to "Do Nothing" under threat.
+3. **Maladaptive Panic**: Over-sensitivity leading to excessive relocation.
+4. **Syntax Brittleness**: JSON/Format failures in reasoning chains.
+5. **Memory Erosion**: The "Goldfish Effect" in sliding window engines.
+
+### 5 Key Performance Indicators (KPIs)
+
+- **Rationality Score (RS)**: % Decision Compliance with PMT rules.
+- **Adaptation Rate (AR)**: Cumulative % of HE/FI actions.
+- **Panic Coefficient (PC)**: Relocation frequency relative to stressors.
+- **Intervention Rate (IR)**: % of actions requiring Skill Broker retry.
+- **Cognitive Fidelity (CF)**: Semantic consistency between reasoning and memory.
+
+### Next Steps
+
+- Validate these KPIs across the finished Gemma and Llama 3.2 datasets.
+- Update analysis scripts to automate the calculation of PC and CF.

@@ -1,6 +1,6 @@
 ﻿{
   "version": "1.1",
-  "last_updated": "2026-01-16T20:30:00.000Z",
+  "last_updated": "2026-01-16T20:40:00.000Z",
   "tasks": [
     {
       "id": "task-001",
@@ -22,6 +22,14 @@
       "status": "completed",
       "type": "analysis",
       "description": "分析 Gemma/Llama A/B/C 組數據以完備 JOH Technical Note。",
+      "handoff_file": "handoff/current-session.md"
+    },
+    {
+      "id": "task-007",
+      "title": "JOH Technical Note Roadmap 與指標定義",
+      "status": "completed",
+      "type": "analysis",
+      "description": "定義 5 大科學問題與 5 大關鍵 KPI (RS, AR, PC, IR, CF)。",
       "handoff_file": "handoff/current-session.md"
     },
     {
