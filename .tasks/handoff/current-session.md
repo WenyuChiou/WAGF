@@ -583,3 +583,27 @@ python test_survey_init.py
 
 - Validate these KPIs across the finished Gemma and Llama 3.2 datasets.
 - Update analysis scripts to automate the calculation of PC and CF.
+
+---
+
+## Update (2026-01-16) - JOH Technical Note: Architectural Pillars & KPIs
+
+### Task: Academic Positioning of the Rational LLM-ABM Framework
+**Objective**: Position the framework as the solution for **Rational, Auditable, and Reproducible** LLM-ABM research, using the legacy `Final` script as a baseline.
+
+### 4 Architectural Pillars
+1. **Context Governance (`ContextBuilder`)**: Bias & Hallucination suppression via information structuring.
+2. **Cognitive Intervention (`Skill Broker`)**: Rationality enforcement via real-time PMT rule validation.
+3. **World Interaction (`Signal Interaction`)**: Hydro-social realism through standardized environmental feedbacks.
+4. **Episodic Cognition (`Memory Engine`)**: Cognitive Persistence via emotional/importance-based consolidation.
+
+### 5 Refined KPIs
+- **Rationality Score (RS)**: Framework-enforced **Logical Consistency**.
+- **Adaptation Density (AD)**: Gain in **Proactive Resilience** (AR).
+- **Panic Coefficient (PC)**: **Stabilization Effect** quantifying relocation reduction.
+- **Intervention Yield (IY)**: Quantitative measure of **Governance Necessity**.
+- **Fidelity Index (FI)**: Context-action alignment (Narrative Consistency).
+
+### Next Steps
+- Validate the `Appraisal-Decision Asymmetry` fix across the full benchmark matrix.
+- Ensure the technical note reflects the transition from `Chaotic Baseline` (Group A) to `Governed Agent` (Group B).
