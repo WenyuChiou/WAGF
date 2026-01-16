@@ -36,6 +36,9 @@ PAST_EVENTS = [
 
 class FinalContextBuilder(TieredContextBuilder):
     """Subclass of TieredContextBuilder to verbalize floats and format memory into string."""
+    def __init__(self, *args, memory_top_k: int = 5, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.memory_top_k = memory_top_k
     
     def _verbalize_trust(self, trust_value: float, category: str = "insurance") -> str:
         if category == "insurance":
@@ -52,10 +55,10 @@ class FinalContextBuilder(TieredContextBuilder):
 
     def build(self, agent_id: str, **kwargs) -> Dict[str, Any]:
         # 1. Gather base context
-        # We manually retrieve more memories (top_k=3) for parity
+        # We manually retrieve more memories for parity with baseline
         agent = self.agents[agent_id]
         if hasattr(self.hub, 'memory_engine') and self.hub.memory_engine:
-            personal_memory = self.hub.memory_engine.retrieve(agent, top_k=5)
+            personal_memory = self.hub.memory_engine.retrieve(agent, top_k=self.memory_top_k)
         else:
             personal_memory = []
             
@@ -155,20 +158,56 @@ class FinalContextBuilder(TieredContextBuilder):
         return context
 
 
+# --- 2b. Parity Memory Filter ---
+class DecisionFilteredMemoryEngine:
+    """Proxy memory engine that drops decision memories to match baseline."""
+    def __init__(self, inner):
+        self.inner = inner
+
+    def add_memory(self, agent_id: str, content: str, metadata: Optional[Dict[str, Any]] = None):
+        if "Decided to:" in content:
+            return
+        return self.inner.add_memory(agent_id, content, metadata)
+
+    def add_memory_for_agent(self, agent, content: str, metadata: Optional[Dict[str, Any]] = None):
+        if "Decided to:" in content:
+            return
+        if hasattr(self.inner, 'add_memory_for_agent'):
+            return self.inner.add_memory_for_agent(agent, content, metadata)
+        return self.inner.add_memory(agent.id, content, metadata)
+
+    def retrieve(self, agent, query: Optional[str] = None, top_k: int = 3):
+        return self.inner.retrieve(agent, query=query, top_k=top_k)
+
+    def clear(self, agent_id: str):
+        return self.inner.clear(agent_id)
+
+
 
 
 # --- 3. Simulation Environment ---
 class ResearchSimulation:
-    def __init__(self, agents: Dict[str, Any], flood_years: List[int] = None):
+    def __init__(
+        self,
+        agents: Dict[str, Any],
+        flood_years: List[int] = None,
+        flood_mode: str = "fixed",
+        flood_probability: float = FLOOD_PROBABILITY
+    ):
         self.agents = agents
         self.flood_years = flood_years or []
+        self.flood_mode = flood_mode
+        self.flood_probability = flood_probability
         self.current_year = 0
         self.flood_event = False
         self.grant_available = False
 
     def advance_year(self):
         self.current_year += 1
-        self.flood_event = self.current_year in self.flood_years
+        if self.flood_mode == "prob":
+            self.flood_event = random.random() < self.flood_probability
+        else:
+            self.flood_event = self.current_year in self.flood_years
         self.grant_available = random.random() < GRANT_PROBABILITY
         return {"flood_event": self.flood_event, "grant_available": self.grant_available}
 
@@ -228,16 +267,20 @@ class FinalParityHook:
             agent.flood_history.append(flooded)
             self.runner.memory_engine.add_memory(agent.id, mem)
             
-            # Social Observation Memory (Parity with run_experiment.py)
+            # Grant memory (baseline order)
+            if self.sim.grant_available:
+                self.runner.memory_engine.add_memory(agent.id, f"Year {year}: Elevation grants are available.")
+
+            # Social Observation Memory (baseline order)
             num_others = len(self.sim.agents) - 1
             if num_others > 0:
                 elev_pct = round(((total_elevated - (1 if agent.elevated else 0)) / num_others) * 100)
                 reloc_pct = round((total_relocated / num_others) * 100)
-                self.runner.memory_engine.add_memory(agent.id, f"Year {year}: I observe {elev_pct}% of my neighbors have elevated homes.")
-                self.runner.memory_engine.add_memory(agent.id, f"Year {year}: I observe {reloc_pct}% of my neighbors have relocated.")
+                self.runner.memory_engine.add_memory(agent.id, f"Year {year}: I observe {elev_pct}% of neighbors elevated and {reloc_pct}% relocated.")
 
-            if self.sim.grant_available: self.runner.memory_engine.add_memory(agent.id, f"Year {year}: Elevation grants are available.")
-            if random.random() < RANDOM_MEMORY_RECALL_CHANCE: self.runner.memory_engine.add_memory(agent.id, f"Suddenly recalled: '{random.choice(PAST_EVENTS)}'.")
+            # Stochastic recall (baseline order)
+            if random.random() < RANDOM_MEMORY_RECALL_CHANCE:
+                self.runner.memory_engine.add_memory(agent.id, f"Suddenly recalled: '{random.choice(PAST_EVENTS)}'.")
 
     def post_step(self, agent, result):
         if result.approved_skill and result.approved_skill.skill_name == "elevate_house":
@@ -263,11 +306,17 @@ class FinalParityHook:
                 else: trust_nb -= 0.01
                 agent.trust_in_neighbors = max(0.0, min(1.0, trust_nb))
 
+            # Retrieve memory for logging (Parity)
+            mem_items = self.runner.memory_engine.retrieve(agent, top_k=5)
+            # Memory engine returns list of strings. Join with | for CSV parity.
+            mem_str = " | ".join(mem_items)
+
             self.logs.append({
                 "agent_id": agent.id, "year": year, "cumulative_state": classify_adaptation_state(agent),
                 "elevated": getattr(agent, 'elevated', False), "has_insurance": getattr(agent, 'has_insurance', False),
                 "relocated": getattr(agent, 'relocated', False), "trust_insurance": getattr(agent, 'trust_in_insurance', 0),
-                "trust_neighbors": getattr(agent, 'trust_in_neighbors', 0)
+                "trust_neighbors": getattr(agent, 'trust_in_neighbors', 0),
+                "memory": mem_str
             })
 
         df_year = pd.DataFrame([l for l in self.logs if l['year'] == year])
@@ -277,7 +326,7 @@ class FinalParityHook:
         print(f"[Year {year}] Stats: {stats_str}")
 
 # --- 5. Main Runner ---
-def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5, seed: Optional[int] = None):
+def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5, seed: Optional[int] = None, flood_mode: str = "fixed"):
     print(f"--- Llama {agents_count}-Agent {years}-Year Benchmark (Final Parity Edition) ---")
     
     # 1. Load Registry & Prompt Template
@@ -319,7 +368,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     print(f" Flood Years scheduled: {flood_years}")
 
     # 4. Setup Components
-    sim = ResearchSimulation(agents, flood_years)
+    sim = ResearchSimulation(agents, flood_years, flood_mode=flood_mode)
     graph = NeighborhoodGraph(list(agents.keys()), k=4)
     hub = InteractionHub(graph)
     ctx_builder = FinalContextBuilder(
@@ -327,7 +376,8 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         hub=hub, 
         skill_registry=registry,
         prompt_templates={"household": household_template, "default": household_template},
-        yaml_path=str(agent_config_path)
+        yaml_path=str(agent_config_path),
+        memory_top_k=window_size
     )
 
     # Select memory engine based on CLI argument
@@ -360,6 +410,9 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     else:
         memory_engine = WindowMemoryEngine(window_size=window_size)
         print(f" Using WindowMemoryEngine (sliding window, size={window_size})")
+
+    # Filter decision memories for parity with baseline
+    memory_engine = DecisionFilteredMemoryEngine(memory_engine)
     
     # 5. Determine isolated output directory (Priority for parallel)
     if custom_output:
@@ -472,6 +525,7 @@ if __name__ == "__main__":
                         help="Memory retrieval strategy: window (sliding), importance (active retrieval), humancentric (emotional), or hierarchical (tiered)")
     parser.add_argument("--workers", type=int, default=1, help="Number of parallel workers for LLM calls")
     parser.add_argument("--window-size", type=int, default=5, help="Size of memory window (years/events) to retain")
+    parser.add_argument("--flood-mode", type=str, default="fixed", choices=["fixed", "prob"], help="Flood schedule: fixed (use flood_years.csv) or prob (use FLOOD_PROBABILITY)")
     parser.add_argument("--seed", type=int, default=None, help="Random seed for reproducibility. If None, uses system time.")
     # LLM sampling parameters (None = use Ollama default)
     parser.add_argument("--temperature", type=float, default=None, help="LLM temperature (e.g., 0.8, 1.0). None=Ollama default")
@@ -493,6 +547,7 @@ if __name__ == "__main__":
     
     # Generate random seed if not specified
     actual_seed = args.seed if args.seed is not None else random.randint(0, 1000000)
+    random.seed(actual_seed)
     
     run_parity_benchmark(
         model=args.model, 
@@ -502,5 +557,6 @@ if __name__ == "__main__":
         verbose=args.verbose,
         memory_engine_type=args.memory_engine,
         window_size=args.window_size,
-        seed=actual_seed
+        seed=actual_seed,
+        flood_mode=args.flood_mode
     )

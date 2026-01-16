@@ -61,7 +61,7 @@ import matplotlib.pyplot as plt  # For plotting
 import numpy as np # For plotting
 
 # --- 1. Set simulation parameters ---
-NUM_AGENTS = 100                    # Number of agents in the simulation
+NUM_AGENTS = 50                     # Reduced for faster comparison
 NUM_YEARS = 10                      # Number of simulation years
 NUM_SAMPLED_AGENTS = 5              # Number of agents to select for prompts and plots
 NUM_SAMPLED_YEARS = 3               # Number of years to sample for prompts
@@ -239,8 +239,8 @@ DECISION_MAP_NOT_ELEVATED = {"1": "Buy flood insurance", "2": "Elevate the house
 def run_simulation():
     start_time = time.time()
     #llm = OllamaLLM(model="llama3.1:8b")
+    #llm = OllamaLLM(model="llama3.2:3b")
     llm = OllamaLLM(model="gemma3:4b")
-    #llm = OllamaLLM(model="gpt-oss:20b")
 
     # Define past events here to have it in scope for both initialization and random recall
     past_events = [

@@ -41,9 +41,16 @@ Thumbs.db
 # Project specific
 output/
 results/
+results_humancentric/
 examples/single_agent/results_*/
 examples/multi_agent/input/
 *.log
+*_output.txt
+trace_*.txt
+temp_*.txt
+temp_*.json
+*.jpg
+*.csv
 audit_output/
 toy_output/
 
@@ -54,3 +61,4 @@ toy_output/
 .pytest_cache/
 .coverage
 htmlcov/
+.tasks/

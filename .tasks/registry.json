@@ -1,6 +1,6 @@
 {
   "version": "1.1",
-  "last_updated": "2026-01-16T00:15:22.4670348Z",
+  "last_updated": "2026-01-16T04:57:52.6941862Z",
   "tasks": [
     {
       "id": "task-001",
@@ -23,8 +23,30 @@
       "risks": ["改動核心模組可能影響現有實驗"],
       "rollback": ["revert commits 844a1c5, 1907d16"],
       "artifacts": ["artifacts/claude-code/task-001-20250115-summary.md"],
-      "next_step": "無",
+      "next_step": "分析 Llama window vs humancentric 差異與驗證器異常",
       "handoff_file": "handoff/task-001.md"
+    },
+    {
+      "id": "task-002",
+      "title": "Gemma Memory Static Behavior Fix",
+      "status": "in-progress",
+      "type": "experiment",
+      "priority": "high",
+      "eta": "2026-01-16",
+      "blocked_reason": "",
+      "owner": "gemini",
+      "reviewer": "user",
+      "assigned_to": "gemini",
+      "scope": ["examples/single_agent/"],
+      "created_at": "2026-01-16T04:30:00Z",
+      "commits": [],
+      "summary": "Fix static 'Do Nothing' behavior in Gemma (Window) by merging observation memories to reduce window churn.",
+      "done_when": ["Gemma window behavior shows diversity", "Reference parity memory retention confirmed"],
+      "tests_run": ["test_merged_memory_v2 (5 agents)"],
+      "risks": ["Might affect decision distribution slightly"],
+      "rollback": ["Revert run_flood.py changes"],
+      "artifacts": ["examples/single_agent/results_window/gemma3_4b_strict/simulation_log.csv"],
+      "handoff_file": "handoff/task-002.md"
     }
   ],
   "pending_handoffs": []
