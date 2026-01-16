@@ -337,18 +337,18 @@ def initialize_agents_from_survey(
     if include_hazard:
         # Import from sibling hazard package (handle both package and script modes)
         try:
-            from hazard.depth_sampler import DepthSampler
+            from broker.modules.hazard.depth_sampler import DepthSampler
         except ImportError:
-            from ..hazard.depth_sampler import DepthSampler
+            from ...modules.hazard.depth_sampler import DepthSampler
 
         sampler = DepthSampler(seed=seed)
         initializer.enrich_with_hazard(profiles, sampler)
 
     if include_rcv:
         try:
-            from hazard.rcv_generator import RCVGenerator
+            from broker.modules.hazard.rcv_generator import RCVGenerator
         except ImportError:
-            from ..hazard.rcv_generator import RCVGenerator
+            from ...modules.hazard.rcv_generator import RCVGenerator
 
         gen = RCVGenerator(seed=seed)
         initializer.enrich_with_rcv(profiles, gen)

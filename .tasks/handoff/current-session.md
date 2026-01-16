@@ -390,3 +390,18 @@ python test_survey_init.py
 ## Update (2026-01-16)
 - Set default max_prompt_tokens to 16384 in context builders so experiments run with the max limit by default.
 
+
+---
+
+## Update (2026-01-16)
+- Ran a minimal context builder smoke test via inline Python; no files created, nothing to delete.
+
+
+---
+
+## Update (2026-01-16)
+- Moved SA hazard core to roker/modules/hazard and updated survey initializer imports.
+- Replaced MA hazard module with wrappers using PRB ASCII grid (meters) and fine-grained FEMA curves.
+- Removed examples/single_agent/hazard (only __pycache__ remained).
+- Smoke-tested vulnerability calculations via inline Python.
+
