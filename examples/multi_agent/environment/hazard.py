@@ -117,9 +117,34 @@ class HazardModule:
         elif position is not None:
             depth_m = sample_flood_depth_for_year(position.base_depth_m, year_severity, self.rng)
         else:
-            depth_m = self._generate_synthetic_depth_m()
+            depth_m = self._sample_depth_from_grid(year) if self.loader else self._generate_synthetic_depth_m()
 
         return FloodEvent(year=year, depth_m=depth_m, row=row, col=col)
+
+    def _sample_depth_from_grid(self, year: int) -> float:
+        """
+        Sample a depth (meters) from PRB grid data.
+
+        If the requested year isn't available, uses a representative year.
+        """
+        if not self.loader:
+            return 0.0
+
+        if year in self.loader.grids:
+            grid_year = year
+        else:
+            grid_year = self.loader.sample_representative_year()
+
+        cells = self.loader.get_cells_by_depth_category(grid_year)
+        all_cells = []
+        for pool in cells.values():
+            all_cells.extend(pool)
+
+        if not all_cells:
+            return 0.0
+
+        idx = int(self.rng.integers(0, len(all_cells)))
+        return float(all_cells[idx][2])
 
     def _generate_synthetic_depth_m(
         self,

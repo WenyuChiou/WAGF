@@ -48,3 +48,8 @@ To bridge this gap, we implement a **"Identity-Preserving Projection"**:
 This approach ensures that **decision-makers with high risk perception (real history)** are exposed to **high physical hazard (real grid depth)**, creating a logically consistent environment for testing adaptation behaviors (Insurance, Elevation, Relocation).
 
 這種方法確保了**具有高風險感知（真實歷史）**的決策者，能接觸到**高強度的物理災害（真實網格水深）**，進而為測試適應行為（保險、加高、搬遷）創造了一個邏輯自洽的環境。
+
+## CLI Notes
+- Use --grid-dir to point at the PRB ASCII grid folder (meters).
+- Optionally set --grid-years (comma-separated) to constrain loaded years.
+

@@ -4,7 +4,7 @@
 
 ```powershell
 # Run multi-agent experiment
-python examples/single_agent/run_flood.py --agents 100 --years 10 --model llama3.2:3b
+python examples/multi_agent/run_unified_experiment.py --agents 100 --years 10 --model llama3.2:3b
 ```
 
 ## Configuration Parameters
@@ -50,13 +50,17 @@ python examples/single_agent/run_flood.py --agents 100 --years 10 --model llama3
 
 ### Hazard Module (`environment/hazard.py`)
 
-| Parameter         | Default | Literature Source          |
-| ----------------- | ------- | -------------------------- |
-| flood_probability | 0.3     | Historical NJ data         |
-| mean_depth        | 2.0 ft  | USGS flood data            |
-| elevation_offset  | 5.0 ft  | FEMA freeboard requirement |
+Primary source is PRB ASCII grid depth data (meters). If no grid is provided,
+the module falls back to synthetic depths in meters.
 
-**Depth-Damage Curves**: USACE Economic Guidance Memorandum 04-01
+| Parameter     | Default | Notes |
+| ------------- | ------- | ----- |
+| grid_dir      | None    | Path to PRB ASCII grid directory |
+| grid_years    | None    | Comma-separated list of years to load |
+| depth_unit    | meters  | Converted to feet only for FEMA curves |
+| elevation_ft  | 5.0 ft  | Freeboard for elevated homes |
+
+**Depth-Damage Curves**: FEMA-style fine-grained 20-point curves (meters -> feet conversion).
 
 ### Validation Rules
 

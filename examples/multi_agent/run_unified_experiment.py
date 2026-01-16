@@ -18,7 +18,7 @@ import random
 import argparse
 import pandas as pd
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -34,6 +34,7 @@ from broker import (
 )
 from simulation.environment import TieredEnvironment
 from agents.base_agent import BaseAgent, AgentConfig, StateParam, Skill, PerceptionSource
+from examples.multi_agent.environment.hazard import HazardModule, VulnerabilityModule
 
 # Local imports from multi_agent directory
 MULTI_AGENT_DIR = Path(__file__).parent
@@ -139,10 +140,16 @@ def wrap_household(profile) -> BaseAgent:
 # =============================================================================
 
 class MultiAgentHooks:
-    def __init__(self, environment: Dict, memory_engine: Optional[MemoryEngine] = None):
+    def __init__(
+        self,
+        environment: Dict,
+        memory_engine: Optional[MemoryEngine] = None,
+        hazard_module: Optional[HazardModule] = None,
+    ):
         self.env = environment
         self.memory_engine = memory_engine
-        self.flood_probability = 0.3
+        self.hazard = hazard_module or HazardModule()
+        self.vuln = VulnerabilityModule()
     
     def pre_year(self, year, env, agents):
         """Randomly determine if flood occurs and resolve pending actions."""
@@ -166,11 +173,14 @@ class MultiAgentHooks:
                 agent.dynamic_state["pending_action"] = None
                 agent.dynamic_state["action_completion_year"] = None
         
-        # Determine if flood occurs
-        self.env["flood_occurred"] = random.random() < self.flood_probability
-        
+        # Determine flood event using PRB grid (meters) as primary source
+        event = self.hazard.get_flood_event(year=year)
+        self.env["flood_occurred"] = event.depth_m > 0
+        self.env["flood_depth_m"] = round(event.depth_m, 3)
+        self.env["flood_depth_ft"] = round(event.depth_ft, 3)
+
         if self.env["flood_occurred"]:
-            print(f" [ENV] !!! FLOOD WARNING for Year {year} !!!")
+            print(f" [ENV] !!! FLOOD WARNING for Year {year} !!! depth={event.depth_m:.2f}m")
         else:
             print(f" [ENV] Year {year}: No flood events.")
 
@@ -253,19 +263,24 @@ class MultiAgentHooks:
         if not self.env["flood_occurred"]:
             return
 
-        damage_factor = random.uniform(0.05, 0.20)
+        depth_ft = self.env.get("flood_depth_ft", 0.0)
+        if depth_ft <= 0:
+            return
         total_damage = 0
         
         for agent in agents.values():
             if agent.agent_type not in ["household_owner", "household_renter"] or agent.dynamic_state.get("relocated"):
                 continue
                 
-            # Calculation
-            rcv = agent.fixed_attributes["rcv_building"] + agent.fixed_attributes["rcv_contents"]
-            damage = rcv * damage_factor
-            
-            if agent.dynamic_state["elevated"]:
-                damage *= 0.3 # 70% reduction
+            rcv_building = agent.fixed_attributes["rcv_building"]
+            rcv_contents = agent.fixed_attributes["rcv_contents"]
+            damage_res = self.vuln.calculate_damage(
+                depth_ft=depth_ft,
+                rcv_building=rcv_building,
+                rcv_contents=rcv_contents,
+                is_elevated=agent.dynamic_state["elevated"],
+            )
+            damage = damage_res["total_damage"]
             
             agent.dynamic_state["cumulative_damage"] += damage
             total_damage += damage
@@ -273,7 +288,7 @@ class MultiAgentHooks:
             # Emotional memory
             memory_engine.add_memory(
                 agent.id, 
-                f"Year {year}: Flood caused ${damage:,.0f} damage to my property.",
+                f"Year {year}: Flood depth {depth_ft:.1f}ft caused ${damage:,.0f} damage to my property.",
                 metadata={"emotion": "fear", "source": "personal", "importance": 0.8}
             )
         
@@ -296,6 +311,8 @@ def run_unified_experiment():
     parser.add_argument("--gossip", action="store_true", help="Enable neighbor gossip (SQ2)")
     parser.add_argument("--initial-subsidy", type=float, default=0.50, help="Initial gov subsidy rate (SQ3)")
     parser.add_argument("--initial-premium", type=float, default=0.02, help="Initial insurance premium rate (SQ3)")
+    parser.add_argument("--grid-dir", type=str, default=None, help="Path to PRB ASCII grid directory")
+    parser.add_argument("--grid-years", type=str, default=None, help="Comma-separated PRB years to load (e.g. 2011,2012,2023)")
     args = parser.parse_args()
 
     # 1. Init environment
@@ -303,6 +320,8 @@ def run_unified_experiment():
         "subsidy_rate": args.initial_subsidy,
         "premium_rate": args.initial_premium,
         "flood_occurred": False,
+        "flood_depth_m": 0.0,
+        "flood_depth_ft": 0.0,
         "year": 1,
         "govt_message": "The government is monitoring the situation.",
         "insurance_message": "Insurance rates are stable."
@@ -339,7 +358,18 @@ def run_unified_experiment():
     hub = InteractionHub(graph=graph, memory_engine=memory_engine, environment=tiered_env)
     
     # 4. Hooks
-    ma_hooks = MultiAgentHooks(tiered_env.global_state, memory_engine=memory_engine)
+    grid_years = None
+    if args.grid_years:
+        grid_years = [int(y.strip()) for y in args.grid_years.split(",") if y.strip()]
+    hazard_module = HazardModule(
+        grid_dir=Path(args.grid_dir) if args.grid_dir else None,
+        years=grid_years,
+    )
+    ma_hooks = MultiAgentHooks(
+        tiered_env.global_state,
+        memory_engine=memory_engine,
+        hazard_module=hazard_module,
+    )
 
     
     # 5. Build Experiment
@@ -361,7 +391,16 @@ def run_unified_experiment():
                 agents=all_agents,
                 hub=hub,
                 memory_engine=memory_engine,
-                dynamic_whitelist=["govt_message", "insurance_message", "elevated_count", "total_households", "insured_count", "loss_ratio"], # Phase 2 PR2: Allow institutional influence
+                dynamic_whitelist=[
+                    "govt_message",
+                    "insurance_message",
+                    "elevated_count",
+                    "total_households",
+                    "insured_count",
+                    "loss_ratio",
+                    "flood_depth_m",
+                    "flood_depth_ft",
+                ], # Phase 2 PR2: Allow institutional influence
                 prompt_templates={} # Loaded from YAML via with_governance
             )
         )
