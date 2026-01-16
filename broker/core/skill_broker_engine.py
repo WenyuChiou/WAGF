@@ -295,6 +295,138 @@ class SkillBrokerEngine:
             if not any("Confidence" in p for p in label_parts) and "Confidence" in reasoning:
                 label_parts.append(f"Confidence: {reasoning['Confidence']}")
 
+
+        # Robust memory extraction for audit (handles nesting and stringification)
+        raw_mem = context.get("memory")
+        if raw_mem is None and "personal" in context:
+            raw_mem = context["personal"].get("memory")
+            
+        if isinstance(raw_mem, str):
+            # Convert bulleted string back to list for cleaner JSON logs
+            memory_pre = [m.lstrip("- ").strip() for m in raw_mem.split("\n") if m.strip()]
+        else:
+            memory_pre = list(raw_mem).copy() if raw_mem else []
+        
+        # ② LLM output → ModelAdapter → SkillProposal (with retry for empty/failed parse)
+        prompt = self.context_builder.format_prompt(context)
+        
+        skill_proposal = None
+        raw_output = ""
+        initial_attempts = 0
+        max_initial_attempts = 2  # Retry up to 2 times for purely parsing/empty issues
+        total_llm_stats = {"llm_retries": 0, "llm_success": False}
+        
+        while initial_attempts <= max_initial_attempts and not skill_proposal:
+            initial_attempts += 1
+            try:
+                res = llm_invoke(prompt)
+                # Handle both legacy (str) and new (content, stats) returns
+                if isinstance(res, tuple):
+                    raw_output, llm_stats_obj = res
+                    total_llm_stats["llm_retries"] += llm_stats_obj.retries
+                    total_llm_stats["llm_success"] = llm_stats_obj.success
+                else:
+                    raw_output = res
+                    # Fallback to global stats if legacy
+                    from ..utils.llm_utils import get_llm_stats
+                    stats = get_llm_stats()
+                    total_llm_stats["llm_retries"] += stats.get("current_retries", 0)
+                    total_llm_stats["llm_success"] = stats.get("current_success", True)
+                
+                # Pass full context for audit access
+                skill_proposal = self.model_adapter.parse_output(raw_output, {
+                    "agent_id": agent_id,
+                    "agent_type": agent_type,
+                    **context
+                })
+                
+                # Phase 33: Explicit handling for Empty/Null responses
+                if skill_proposal is None:
+                    msg = "Response was empty or unparsable. Please output a valid JSON decision."
+                    logger.warning(f" [Broker:Retry] Empty/Null response received (Attempt {initial_attempts}/{max_initial_attempts})")
+                    prompt = self.model_adapter.format_retry_prompt(prompt, [msg])
+                    continue
+
+                # Check for missing critical LABEL constructs - trigger retry if missing
+                if skill_proposal and skill_proposal.reasoning:
+                    reasoning = skill_proposal.reasoning
+                    
+                    # Generalized: Get required constructs from parsing config
+                    # Filter for those that have '_LABEL' in them as they are usually critical
+                    # but check if they are actually defined for this agent type
+                    parsing_cfg = self.config.get(agent_type).get("parsing", {})
+                    required_constructs = [k for k in parsing_cfg.get("constructs", {}).keys() if "_LABEL" in k]
+                    
+                    missing_labels = [m for m in required_constructs if m not in reasoning]
+                    
+                    if missing_labels and initial_attempts <= max_initial_attempts:
+                        logger.warning(f" [Broker:Retry] Missing required constructs {missing_labels} for {agent_id} ({agent_type}), attempt {initial_attempts}/{max_initial_attempts}")
+                        # Reset proposal to None to trigger retry
+                        skill_proposal = None
+                        prompt = self.model_adapter.format_retry_prompt(prompt, [f"Missing required constructs: {missing_labels}. Please ensure your response follows the requested JSON format."])
+                        continue
+
+                        
+            except Exception as e:
+                if initial_attempts > max_initial_attempts:
+                    logger.error(f" [Broker:Error] Failed to parse LLM output after {max_initial_attempts} attempts: {e}")
+                    raise
+                logger.warning(f" [Broker:Retry] Parsing failed ({initial_attempts}/{max_initial_attempts}): {e}")
+                # Build retry prompt
+                prompt = self.model_adapter.format_retry_prompt(prompt, [str(e)])
+            
+        if skill_proposal is None:
+            self.stats["aborted"] += 1
+            self.auditor.log_parse_error()
+            logger.error(f" [LLM:Error] Model returned unparsable output after {max_initial_attempts+1} attempts for {agent_id}.")
+            return self._create_result(SkillOutcome.ABORTED, None, None, None, ["Parse error after retries"])
+        
+        # ③ Skill validation
+        # Standardization (Phase 9/12): Decouple domain-specific keys
+        if env_context is None:
+            env_context = {}
+
+        validation_context = {
+            "agent_state": context,
+            "agent_type": agent_type,
+            "env_state": env_context, # The "New Standard" source of truth
+            **env_context             # Flat injection for legacy validator lookups
+        }
+        
+        validation_results = self._run_validators(skill_proposal, validation_context)
+        all_validation_history = list(validation_results)
+        all_valid = all(v.valid for v in validation_results)
+        
+        # Track initial errors for audit summary
+        initial_rule_ids = set()
+        for v in validation_results:
+            initial_rule_ids.update(v.metadata.get("rules_hit", []))
+        
+        # Diagnostic summary for User
+        if self.log_prompt:
+            reasoning = skill_proposal.reasoning or {}
+            label_parts = []
+            
+            # Dynamic Label Extraction from reasoning
+            # Try to get labels (config-driven)
+            if self.config:
+                log_fields = self.config.get_log_fields(agent_type)
+                for field_name in log_fields:
+                    val = None
+                    # Try various casing and suffix variants
+                    for variants in [field_name, field_name.upper(), f"{field_name}_LABEL", field_name.capitalize(), field_name.lower()]:
+                        if variants in reasoning:
+                            val = reasoning[variants]
+                            break
+                    if val:
+                        label_parts.append(f"{field_name}: {val}")
+            
+            # Legacy Fallback for Strategy/Confidence if not in log_fields
+            if not any("Strategy" in p for p in label_parts) and "Strategy" in reasoning:
+                label_parts.append(f"Strategy: {reasoning['Strategy']}")
+            if not any("Confidence" in p for p in label_parts) and "Confidence" in reasoning:
+                label_parts.append(f"Confidence: {reasoning['Confidence']}")
+
             # Determine governance summary (Moved to end for consolidated reporting)
             pass
         
@@ -302,7 +434,7 @@ class SkillBrokerEngine:
         retry_count = 0
         while not all_valid and retry_count < self.max_retries:
             retry_count += 1
-            errors = [e for v in validation_results for e in v.errors]
+            errors = [e for v in validation_results if v and hasattr(v, 'errors') for e in v.errors]
             
             # Real-time Console Feedback (Hidden for noise reduction as requested)
             # logger.warning(f"[Governance] Blocked '{skill_proposal.skill_name}' for {agent_id} (Attempt {retry_count}). Reasons: {errors}")
@@ -334,15 +466,17 @@ class SkillBrokerEngine:
                 all_validation_history.extend(validation_results)
                 all_valid = all(v.valid for v in validation_results)
                 if not all_valid:
-                    logger.warning(f"[Governance:Retry] Attempt {retry_count} failed validation for {agent_id}. Errors: {[e for v in validation_results for e in v.errors]}")
+                    errors_list = [e for v in validation_results if v and hasattr(v, 'errors') for e in v.errors]
+                    logger.warning(f"[Governance:Retry] Attempt {retry_count} failed validation for {agent_id}. Errors: {errors_list}")
             else:
                 logger.warning(f"[Governance:Retry] Attempt {retry_count} produced unparsable output for {agent_id}.")
         
         if not all_valid and retry_count >= self.max_retries:
              # Building diagnostic info for Fallout
-             errors = [e for v in validation_results for e in v.errors]
+             errors = [e for v in validation_results if v and hasattr(v, 'errors') for e in v.errors]
              logger.error(f"[Governance:Fallout] CRITICAL: Max retries ({self.max_retries}) reached for {agent_id}.")
-             logger.error(f"  - Final Choice Rejected: '{skill_proposal.skill_name}'")
+             final_choice = skill_proposal.skill_name if skill_proposal else "Unknown"
+             logger.error(f"  - Final Choice Rejected: '{final_choice}'")
              logger.error(f"  - Blocked By: {errors}")
              
              # Show reasoning/ratings for diagnosis
@@ -479,7 +613,7 @@ class SkillBrokerEngine:
             skill_proposal=skill_proposal,
             approved_skill=approved_skill,
             execution_result=execution_result,
-            validation_errors=[e for v in validation_results for e in v.errors],
+            validation_errors=[e for v in validation_results if v and hasattr(v, 'errors') for e in v.errors],
             retry_count=retry_count
         )
     
