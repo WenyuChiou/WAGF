@@ -9,7 +9,7 @@ from typing import Dict, List, Any, Optional
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-# Add single_agent to path for survey/hazard imports
+# Add single_agent to path for local utilities
 sys.path.insert(0, str(Path(__file__).parent))
 
 from broker.core.experiment import ExperimentBuilder, ExperimentRunner
@@ -359,7 +359,7 @@ def load_agents_from_survey(
 
     Returns dict of Agent objects compatible with the experiment runner.
     """
-    from survey.agent_initializer import initialize_agents_from_survey
+    from broker.modules.survey.agent_initializer import initialize_agents_from_survey
     from agents.base_agent import BaseAgent, AgentConfig
 
     profiles, stats = initialize_agents_from_survey(

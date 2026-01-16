@@ -48,6 +48,11 @@ class AgentProfile:
     flood_experience: bool
     financial_loss: bool
 
+    # Raw survey data for flexible narrative use
+    raw_data: Dict[str, Any] = field(default_factory=dict)
+    narrative_fields: List[str] = field(default_factory=list)
+    narrative_labels: Dict[str, str] = field(default_factory=dict)
+
     # Position & Exposure (to be filled by hazard module)
     flood_zone: str = "unknown"
     base_depth_m: float = 0.0
@@ -74,6 +79,19 @@ class AgentProfile:
     # Narrative generation
     def generate_narrative_persona(self) -> str:
         """Generate narrative persona text for LLM prompt."""
+        if self.narrative_fields:
+            parts = []
+            for field_name in self.narrative_fields:
+                value = getattr(self, field_name, None)
+                if value is None:
+                    value = self.raw_data.get(field_name)
+                if value is None or value == "":
+                    continue
+                label = self.narrative_labels.get(field_name, field_name.replace("_", " ").capitalize())
+                parts.append(f"{label}: {value}")
+            if parts:
+                return ". ".join(parts) + "."
+
         parts = []
 
         # Housing status
@@ -178,6 +196,8 @@ class AgentInitializer:
         survey_loader: Optional[SurveyLoader] = None,
         mg_classifier: Optional[MGClassifier] = None,
         seed: int = 42,
+        narrative_fields: Optional[List[str]] = None,
+        narrative_labels: Optional[Dict[str, str]] = None,
     ):
         """
         Initialize the agent initializer.
@@ -190,6 +210,8 @@ class AgentInitializer:
         self.survey_loader = survey_loader or SurveyLoader()
         self.mg_classifier = mg_classifier or MGClassifier()
         self.seed = seed
+        self.narrative_fields = narrative_fields or self.survey_loader.narrative_fields
+        self.narrative_labels = narrative_labels or self.survey_loader.narrative_labels
 
     def load_from_survey(
         self,
@@ -240,6 +262,9 @@ class AgentInitializer:
                 has_vulnerable_members=record.has_vulnerable_members,
                 flood_experience=record.flood_experience,
                 financial_loss=record.financial_loss,
+                raw_data=record.raw_data,
+                narrative_fields=self.narrative_fields,
+                narrative_labels=self.narrative_labels,
             )
 
             profiles.append(profile)
@@ -317,6 +342,9 @@ def initialize_agents_from_survey(
     seed: int = 42,
     include_hazard: bool = True,
     include_rcv: bool = True,
+    schema_path: Optional[Path] = None,
+    narrative_fields: Optional[List[str]] = None,
+    narrative_labels: Optional[Dict[str, str]] = None,
 ) -> Tuple[List[AgentProfile], Dict[str, Any]]:
     """
     Convenience function to initialize agents from survey with full enrichment.
@@ -331,7 +359,13 @@ def initialize_agents_from_survey(
     Returns:
         Tuple of (agent_profiles, statistics)
     """
-    initializer = AgentInitializer(seed=seed)
+    survey_loader = SurveyLoader(schema_path=schema_path) if schema_path else SurveyLoader()
+    initializer = AgentInitializer(
+        survey_loader=survey_loader,
+        seed=seed,
+        narrative_fields=narrative_fields,
+        narrative_labels=narrative_labels,
+    )
     profiles, stats = initializer.load_from_survey(survey_path, max_agents)
 
     if include_hazard:

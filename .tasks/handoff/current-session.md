@@ -413,3 +413,18 @@ python test_survey_init.py
 - MA: flood occurrence/damage now driven by grid depths (meters) + fine FEMA curves; env exposes lood_depth_m/lood_depth_ft.
 - Docs: updated CONFIG_GUIDE.md and appended CLI notes to SPATIAL_README.md.
 
+
+---
+
+## Update (2026-01-16)
+- User requested next step: analyze examples/single_agent/survey for a general-purpose survey init module (plan to define column mapping and narrative fields).
+
+
+---
+
+## Update (2026-01-16)
+- Moved survey module to roker/modules/survey and updated SA imports to use the shared module.
+- Survey loader now supports column name/alias mapping, optional schema fields (required/narrative/value_map), and numeric income parsing.
+- Agent initializer now supports configurable narrative fields/labels and carries raw survey data.
+- Smoke-tested column name mapping and numeric income parsing via inline Python.
+
