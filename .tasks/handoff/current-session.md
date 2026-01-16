@@ -273,3 +273,11 @@ python run_flood.py --model llama3.2:3b --agents 100 --years 10 --memory-engine 
 
 ## Update (2026-01-16)
 - Scoped build-time skill filtering to MA only (skip base_type household) to avoid SA prompt changes.
+
+---
+
+## Handoff (2026-01-16)
+- MA skill visibility now filtered at build time; SA explicitly excluded.
+- Build-time options_text/dynamic_skill_map injected for MA after filtering.
+- Latest commits: 148fd9a (MA filter), 5458d1c (limit filter to MA only).
+- Outstanding: decide whether to ignore or delete `columns_check.txt` (untracked).
