@@ -589,15 +589,18 @@ python test_survey_init.py
 ## Update (2026-01-16) - JOH Technical Note: Architectural Pillars & KPIs
 
 ### Task: Academic Positioning of the Rational LLM-ABM Framework
+
 **Objective**: Position the framework as the solution for **Rational, Auditable, and Reproducible** LLM-ABM research, using the legacy `Final` script as a baseline.
 
 ### 4 Architectural Pillars
+
 1. **Context Governance (`ContextBuilder`)**: Bias & Hallucination suppression via information structuring.
 2. **Cognitive Intervention (`Skill Broker`)**: Rationality enforcement via real-time PMT rule validation.
 3. **World Interaction (`Signal Interaction`)**: Hydro-social realism through standardized environmental feedbacks.
 4. **Episodic Cognition (`Memory Engine`)**: Cognitive Persistence via emotional/importance-based consolidation.
 
 ### 5 Refined KPIs
+
 - **Rationality Score (RS)**: Framework-enforced **Logical Consistency**.
 - **Adaptation Density (AD)**: Gain in **Proactive Resilience** (AR).
 - **Panic Coefficient (PC)**: **Stabilization Effect** quantifying relocation reduction.
@@ -605,6 +608,7 @@ python test_survey_init.py
 - **Fidelity Index (FI)**: Context-action alignment (Narrative Consistency).
 
 ### Next Steps
+
 - Validate the `Appraisal-Decision Asymmetry` fix across the full benchmark matrix.
 - Ensure the technical note reflects the transition from `Chaotic Baseline` (Group A) to `Governed Agent` (Group B).
 
@@ -618,30 +622,33 @@ python test_survey_init.py
 
 ### Completed Subtasks
 
-| # | Subtask | Location | Files Created |
-|---|---------|----------|---------------|
-| 1 | MA Interaction Testing | `examples/multi_agent/tests/` | `test_interaction.py` (22 tests) |
-| 2 | Parsing Success Validation | `examples/multi_agent/tests/` | `test_parsing.py` (19 tests) |
-| 3 | Social Network (Simplified) | `examples/multi_agent/tests/` | `test_social_network_mini.py` (14 tests) |
-| 4 | PRB Flood Depth Analysis (13 Years) | `examples/multi_agent/hazard/` | `prb_analysis.py`, `prb_visualize.py` |
-| 5 | Government/Insurance Impact Assessment | `examples/multi_agent/analysis/` | `policy_impact.py`, `equity_metrics.py` |
-| 6 | README Documentation Update | `examples/multi_agent/` | `README.md` (updated) |
-| 7 | Research Questions (RQ1-RQ3) | `examples/multi_agent/experiments/` | `rq_analysis.py`, `run_rq1_*.py`, `run_rq2_*.py`, `run_rq3_*.py` |
+| #   | Subtask                                | Location                            | Files Created                                                    |
+| --- | -------------------------------------- | ----------------------------------- | ---------------------------------------------------------------- |
+| 1   | MA Interaction Testing                 | `examples/multi_agent/tests/`       | `test_interaction.py` (22 tests)                                 |
+| 2   | Parsing Success Validation             | `examples/multi_agent/tests/`       | `test_parsing.py` (19 tests)                                     |
+| 3   | Social Network (Simplified)            | `examples/multi_agent/tests/`       | `test_social_network_mini.py` (14 tests)                         |
+| 4   | PRB Flood Depth Analysis (13 Years)    | `examples/multi_agent/hazard/`      | `prb_analysis.py`, `prb_visualize.py`                            |
+| 5   | Government/Insurance Impact Assessment | `examples/multi_agent/analysis/`    | `policy_impact.py`, `equity_metrics.py`                          |
+| 6   | README Documentation Update            | `examples/multi_agent/`             | `README.md` (updated)                                            |
+| 7   | Research Questions (RQ1-RQ3)           | `examples/multi_agent/experiments/` | `rq_analysis.py`, `run_rq1_*.py`, `run_rq2_*.py`, `run_rq3_*.py` |
 
 ### Test Suite Summary (55 Total Tests)
 
 **test_parsing.py (19 tests)**:
+
 - Household parsing: valid JSON, malformed recovery, case-insensitive constructs
 - Government parsing: action mapping (1→increase_subsidy)
 - Insurance parsing: skill name mapping
 - Edge cases: missing fields, invalid skill names
 
 **test_social_network_mini.py (14 tests)**:
+
 - Mini network topologies: ring, star
 - Neighbor symmetry validation
 - Influence calculation with known values
 
 **test_interaction.py (22 tests)**:
+
 - Policy broadcast verification
 - Social influence multipliers (SC +30%, TP +20%)
 - Validation rules (7 core rules in MultiAgentValidator)
@@ -649,12 +656,15 @@ python test_survey_init.py
 ### Research Questions (RQ1-RQ3)
 
 **RQ1: Adaptation Continuation vs Inaction**
+
 > How does continued adaptation, compared with no action, differentially affect long-term flood outcomes for renters and homeowners?
 
 **RQ2: Post-Flood Adaptation Trajectories**
+
 > How do renters and homeowners differ in their adaptation trajectories following major flood events?
 
 **RQ3: Insurance Coverage & Financial Outcomes**
+
 > How do tenure-based insurance coverage differences shape long-term financial outcomes under repeated flood exposure?
 
 ### File Structure (MA-Only)
@@ -715,3 +725,44 @@ python experiments/run_rq3_insurance_outcomes.py --results results/simulation_lo
 - **MA/SA separation enforced** (Task 4-7 MA-only)
 
 ---
+
+---
+
+## Update (2026-01-16) - Configurable Retries & Memory Resilience
+
+### 任務：JOH 基準測試優化與治理魯棒性 (Wenyu Chiou)
+
+**目標**：解決 Llama 3.2 模擬中的 Crash 問題，增強治理層的錯誤反饋機制，並啟動並行基準測試。
+
+### 關鍵完成事項
+
+1.  **可配置重試機制 (Configurable Retries)**：
+    - 在 `agent_types.yaml` 的 `shared` 區塊集中管理 `max_retries`。
+    - 區分 **LLM 層級**（連線/空回傳）與 **Broker 層級**（格式/規則違規）的重試。
+2.  **Context 爆炸防禦 (Context Slicing)**：
+    - 新增 `max_reports_per_retry: 3` 配置。
+    - `ModelAdapter` 現在會自動切分錯誤列表，防止多條違規規則導致 Prompt 太長。
+3.  **穩定性修復**：
+    - 修復了 `SkillBrokerEngine` 在重試失敗（fallout）時因缺少 `reasoning` 導致的 `AttributeError`。
+    - 改善了格式錯誤診斷，會在重試時注入具體的 `Format Violation` 提示。
+4.  **JOH 並行測試腳本 (Master Suite)**：
+    - 建立 `run_joh_suite.ps1`，支持同時啟動 Group B (Baseline) 與 Group C (Full)。
+    - **輸出路徑規範化**：`results/JOH/<Model>/<Group>/`。
+5.  **Pillar 2 記憶架構文檔化**：
+    - 詳細區分了 **Working Memory** (Window=5) 與 **Long-term Memory** (Reflection)。
+    - 驗證了 Reflection 如何透過高權重教訓 (Importance=0.9) 對抗「金魚記憶」且不造成 Context 爆炸。
+
+### 現狀監控 (Ongoing)
+
+- **Llama 3.2 3B Macro Benchmark**：背景並行執行中 (B+C, 100 Agents, 10 Years)。
+- **分析進度**：已完成 5-agent 小型路徑驗證，確認日誌分流正確。
+
+### 下一步建議
+
+- 等待 100 代理人測試完成後，執行 `analysis/joh_evaluator.py` 提取 Rationality Score (RS)。
+- 進行 DeepSeek 與 GPT-OSS 的橫向並行。
+- 撰寫 Pillar 4 (Generalization) 的技術文檔。
+
+---
+
+**AI 交接 (Handoff)**：已更新 `.tasks/registry.json` 並完成本節工作紀錄。下一位 AI 請優先檢查 `results/JOH` 下的模擬進度。

@@ -599,17 +599,23 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     # Filter decision memories for parity with baseline
     memory_engine = DecisionFilteredMemoryEngine(memory_engine)
     
-    # 5. Determine output directory (Let ExperimentBuilder handle subfolders)
+    # 5. Determine output directory
     if custom_output:
         output_base = Path(custom_output)
         if not output_base.is_absolute():
             output_base = Path.cwd() / output_base
+        
+        # Phase 40: Allow complete override if path already contains 'results' and subfolders
+        if "JOH" in str(output_base) and (output_base / "raw").exists() or "baseline" in str(output_base).lower() or "full" in str(output_base).lower():
+             output_dir = output_base
+        else:
+             model_folder = f"{model.replace(':','_').replace('-','_').replace('.','_')}_{governance_mode}"
+             output_dir = output_base / model_folder
     else:
         output_base = Path(__file__).parent / "results"
+        model_folder = f"{model.replace(':','_').replace('-','_').replace('.','_')}_{governance_mode}"
+        output_dir = output_base / model_folder
     
-    # Pre-calculate what ExperimentBuilder will use for cleanup
-    model_folder = f"{model.replace(':','_').replace('-','_').replace('.','_')}_{governance_mode}"
-    output_dir = output_base / model_folder
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # --- CLEANUP TRACES (Crucial for Analysis) ---
