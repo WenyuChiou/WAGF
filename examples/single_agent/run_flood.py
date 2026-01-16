@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from broker.core.experiment import ExperimentBuilder, ExperimentRunner
 from broker.components.social_graph import NeighborhoodGraph
 from broker.components.interaction_hub import InteractionHub
-from broker.components.context_builder import TieredContextBuilder
+from broker.components.context_builder import TieredContextBuilder, PrioritySchemaProvider
 from broker.components.skill_registry import SkillRegistry
 from broker.components.memory_engine import WindowMemoryEngine, ImportanceMemoryEngine, HumanCentricMemoryEngine
 from broker.interfaces.skill_types import ExecutionResult
@@ -34,6 +34,15 @@ PAST_EVENTS = [
     "The city previously introduced a program offering elevation support to residents",
     "News outlets have reported a possible trend of increasing flood frequency and severity in recent years"
 ]
+
+# Schema Definition for Group C (Pillar 3)
+FLOOD_PRIORITY_SCHEMA = {
+    "flood_depth": 1.0,      # Physical reality (Highest)
+    "flood_threshold": 0.9,  # Physical vulnerability
+    "savings": 0.8,          # Financial Reality
+    "income_level": 0.7,     # Socio-economic Constaint
+    "risk_tolerance": 0.5    # Psychological preference (Lower priority)
+}
 
 # --- 2. Custom Components for Perception Parity ---
 
@@ -453,7 +462,7 @@ def load_agents_from_survey(
 
 
 # --- 6. Main Runner ---
-def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5, seed: Optional[int] = None, flood_mode: str = "fixed", survey_mode: bool = False, governance_mode: str = "strict"):
+def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5, seed: Optional[int] = None, flood_mode: str = "fixed", survey_mode: bool = False, governance_mode: str = "strict", use_priority_schema: bool = False):
     print(f"--- Llama {agents_count}-Agent {years}-Year Benchmark (Final Parity Edition) ---")
     
     # 1. Load Registry & Prompt Template
@@ -519,6 +528,13 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         yaml_path=str(agent_config_path),
         memory_top_k=window_size
     )
+
+    # Inject PrioritySchemaProvider if enabled (Separation for Group C)
+    if use_priority_schema:
+        print("[Experimental] Injecting PrioritySchemaProvider (Pillar 3)")
+        # Insert at index 1 (after Dynamic, before Attribute) to prioritize in context filtering if needed
+        schema_provider = PrioritySchemaProvider(FLOOD_PRIORITY_SCHEMA)
+        ctx_builder.providers.insert(1, schema_provider)
 
     # Select memory engine based on CLI argument
     if memory_engine_type == "importance":
@@ -677,6 +693,7 @@ if __name__ == "__main__":
     parser.add_argument("--survey-mode", action="store_true",
                         help="Initialize agents from real survey data instead of CSV profiles. "
                              "Uses MG/NMG classification, flood zone assignment, and RCV generation.")
+    parser.add_argument("--use-priority-schema", action="store_true", help="Enable Pillar 3: Priority Schema (Group C)")
     args = parser.parse_args()
 
     # Apply LLM config from command line
@@ -705,5 +722,6 @@ if __name__ == "__main__":
         seed=actual_seed,
         flood_mode=args.flood_mode,
         survey_mode=args.survey_mode,
-        governance_mode=args.governance_mode
+        governance_mode=args.governance_mode,
+        use_priority_schema=args.use_priority_schema
     )
