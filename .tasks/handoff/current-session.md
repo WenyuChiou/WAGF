@@ -281,3 +281,89 @@ python run_flood.py --model llama3.2:3b --agents 100 --years 10 --memory-engine 
 - Build-time options_text/dynamic_skill_map injected for MA after filtering.
 - Latest commits: 148fd9a (MA filter), 5458d1c (limit filter to MA only).
 - Outstanding: decide whether to ignore or delete `columns_check.txt` (untracked).
+
+---
+
+## Update (2026-01-16) - Real-World Agent Initialization from Survey Data
+
+### Task: SA Survey-Based Agent Initialization
+
+**Objective**: Initialize agents from real survey data (Excel) instead of synthetic CSV profiles.
+
+### New Modules Created
+
+**Survey Module** (`examples/single_agent/survey/`):
+| File | Purpose |
+|------|---------|
+| `survey_loader.py` | Load/validate Excel survey data with configurable column mapping |
+| `mg_classifier.py` | MG/NMG classification using 3-criteria scoring |
+| `agent_initializer.py` | Full agent profile creation with narrative personas |
+
+**Hazard Module** (`examples/single_agent/hazard/`):
+| File | Purpose |
+|------|---------|
+| `prb_loader.py` | ESRI ASCII grid parser for PRB flood depth data |
+| `depth_sampler.py` | Position assignment based on flood experience severity |
+| `vulnerability.py` | FEMA depth-damage curves (20-point interpolation) |
+| `rcv_generator.py` | RCV generation using NJ property value distributions |
+
+### Key Features
+
+**MG Classification (at least 2 of 3 criteria)**:
+1. Housing cost burden >30% of income
+2. No vehicle ownership
+3. Below poverty line (based on 2024 federal guidelines by family size)
+
+**Depth Categories**:
+- dry (76.93%), shallow 0-0.5m (2.51%), moderate 0.5-1m (2.93%)
+- deep 1-2m (8.95%), very_deep 2-4m (7.41%), extreme 4m+ (1.27%)
+
+**Position Assignment Logic**:
+- flood_experience=True + financial_loss=True → deep/very_deep/extreme zones
+- flood_experience=True + no_loss → shallow/moderate zones
+- flood_experience=False → mostly dry, some shallow
+
+### Integration
+
+`run_flood.py` now supports `--survey-mode` flag:
+```bash
+python run_flood.py --survey-mode --model llama3.2:3b --agents 50 --years 5
+```
+
+### Test Results (ALL PASSED)
+- Survey loader: Validated records from Excel (1039 rows)
+- MG classifier: 17% MG ratio in 100-agent sample
+- Depth sampler: Position assignment by flood zone
+- RCV generator: Income-correlated property values
+- Vulnerability: Depth-damage curve calculations
+- Full integration: End-to-end agent profile creation
+
+### Git Commit
+- `1e06cd4` - feat(survey): add real-world agent initialization from survey data
+
+### Files Changed
+```
+examples/single_agent/hazard/__init__.py          (new)
+examples/single_agent/hazard/depth_sampler.py     (new)
+examples/single_agent/hazard/prb_loader.py        (new)
+examples/single_agent/hazard/rcv_generator.py     (new)
+examples/single_agent/hazard/vulnerability.py     (new)
+examples/single_agent/run_flood.py                (modified)
+examples/single_agent/survey/__init__.py          (new)
+examples/single_agent/survey/agent_initializer.py (new)
+examples/single_agent/survey/mg_classifier.py     (new)
+examples/single_agent/survey/survey_loader.py     (new)
+examples/single_agent/test_survey_init.py         (new)
+```
+
+### Usage Examples
+```bash
+# Quick mock test with survey mode
+python run_flood.py --survey-mode --model mock --agents 10 --years 2
+
+# Full LLM test with survey mode
+python run_flood.py --survey-mode --model llama3.2:3b --agents 50 --years 5
+
+# Run test suite
+python test_survey_init.py
+```
