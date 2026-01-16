@@ -35,7 +35,14 @@ Keep it small, readable, and up to date.
 - On "Read task": read `handoff/current-session.md` and `registry.json` first.
 - If no next_step, set `next_step` to `none` and ask for planning.
 - Artifacts are outputs (csv, plots, summaries). Handoff is status only.
-- Update handoff + registry before final summary messages.
+
+## New Task Workflow
+
+When adding a new task:
+
+1.  **Add entry to `registry.json`**: Ensure `id` is unique (e.g., `task-003`).
+2.  **Create Handoff File**: You **MUST** create a corresponding markdown file in `handoff/` (e.g., `handoff/task-003.md`).
+3.  **Link**: Set the `handoff_file` field in `registry.json` to point to this new file.
 
 ## Common commands
 
