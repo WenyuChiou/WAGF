@@ -9,6 +9,9 @@ from typing import Dict, List, Any, Optional
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+# Add single_agent to path for survey/hazard imports
+sys.path.insert(0, str(Path(__file__).parent))
+
 from broker.core.experiment import ExperimentBuilder, ExperimentRunner
 from broker.components.social_graph import NeighborhoodGraph
 from broker.components.interaction_hub import InteractionHub
@@ -256,22 +259,27 @@ class FinalParityHook:
             else:
                 mem = f"Year {year}: No flood occurred this year."
             agent.flood_history.append(flooded)
-            self.runner.memory_engine.add_memory(agent.id, mem)
+            yearly_memories = []
+            yearly_memories.append(mem)
             
             # Grant memory (baseline order)
             if self.sim.grant_available:
-                self.runner.memory_engine.add_memory(agent.id, f"Year {year}: Elevation grants are available.")
+                yearly_memories.append(f"Year {year}: Elevation grants are available.")
 
             # Social Observation Memory (baseline order)
             num_others = len(self.sim.agents) - 1
             if num_others > 0:
                 elev_pct = round(((total_elevated - (1 if agent.elevated else 0)) / num_others) * 100)
                 reloc_pct = round((total_relocated / num_others) * 100)
-                self.runner.memory_engine.add_memory(agent.id, f"Year {year}: I observe {elev_pct}% of neighbors elevated and {reloc_pct}% relocated.")
+                yearly_memories.append(f"Year {year}: I observe {elev_pct}% of neighbors elevated and {reloc_pct}% relocated.")
 
             # Stochastic recall (baseline order)
             if random.random() < RANDOM_MEMORY_RECALL_CHANCE:
-                self.runner.memory_engine.add_memory(agent.id, f"Suddenly recalled: '{random.choice(PAST_EVENTS)}'.")
+                yearly_memories.append(f"Suddenly recalled: '{random.choice(PAST_EVENTS)}'.")
+            
+            # Consolidate and Add ONCE to preserve window history
+            consolidated_mem = " | ".join(yearly_memories)
+            self.runner.memory_engine.add_memory(agent.id, consolidated_mem)
 
     def post_step(self, agent, result):
         year = self.sim.current_year
@@ -325,8 +333,118 @@ class FinalParityHook:
         stats_str = " | ".join([f"{cat}: {stats.get(cat, 0)}" for cat in categories])
         print(f"[Year {year}] Stats: {stats_str}")
 
-# --- 5. Main Runner ---
-def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5, seed: Optional[int] = None, flood_mode: str = "fixed"):
+# --- 5. Survey-Based Agent Initialization ---
+def load_agents_from_survey(
+    survey_path: Path,
+    max_agents: int = 100,
+    seed: int = 42
+) -> Dict[str, Any]:
+    """
+    Load and initialize agents from real survey data.
+
+    Uses the survey module to:
+    1. Parse Excel survey data
+    2. Classify MG/NMG status
+    3. Assign flood zones based on experience
+    4. Generate RCV values
+
+    Returns dict of Agent objects compatible with the experiment runner.
+    """
+    from survey.agent_initializer import initialize_agents_from_survey
+    from agents.base_agent import BaseAgent, AgentConfig
+
+    profiles, stats = initialize_agents_from_survey(
+        survey_path=survey_path,
+        max_agents=max_agents,
+        seed=seed,
+        include_hazard=True,
+        include_rcv=True
+    )
+
+    print(f"[Survey] Loaded {stats['total_agents']} agents from survey")
+    print(f"[Survey] MG: {stats['mg_count']} ({stats['mg_ratio']:.1%}), NMG: {stats['nmg_count']}")
+    print(f"[Survey] Owners: {stats['owner_count']}, Renters: {stats['renter_count']}")
+    print(f"[Survey] With flood experience: {stats['flood_experience_count']}")
+
+    agents = {}
+    for profile in profiles:
+        # Map survey profile to agent attributes
+        config = AgentConfig(
+            name=profile.agent_id,
+            agent_type="household",
+            state_params=[],
+            objectives=[],
+            constraints=[],
+            skills=[],  # Skills are set via config.skills list below
+        )
+
+        # Calculate flood threshold from base depth
+        # Higher depth = higher flood probability threshold
+        base_threshold = 0.3 if profile.base_depth_m > 0 else 0.1
+        if profile.flood_zone in ("deep", "very_deep", "extreme"):
+            base_threshold = 0.5
+        elif profile.flood_zone == "moderate":
+            base_threshold = 0.4
+        elif profile.flood_zone == "shallow":
+            base_threshold = 0.3
+
+        agent = BaseAgent(config)
+        agent.id = profile.agent_id
+        agent.agent_type = "household"
+        # Set skills as string list for skill registry lookup
+        agent.config.skills = ["buy_insurance", "elevate_house", "relocate", "do_nothing"]
+
+        # Set custom attributes from survey profile
+        agent.custom_attributes = {
+            # Core state
+            "elevated": False,
+            "has_insurance": False,
+            "relocated": False,
+
+            # Trust values (can be adjusted based on survey responses)
+            "trust_in_insurance": 0.5,
+            "trust_in_neighbors": 0.5,
+
+            # Flood exposure
+            "flood_threshold": base_threshold,
+
+            # Survey-derived attributes
+            "identity": profile.identity,  # "owner" or "renter"
+            "is_mg": profile.is_mg,
+            "group": profile.group_label,  # "MG" or "NMG"
+            "family_size": profile.family_size,
+            "income_bracket": profile.income_bracket,
+            "income_midpoint": profile.income_midpoint,
+            "flood_zone": profile.flood_zone,
+            "base_depth_m": profile.base_depth_m,
+            "flood_probability": profile.flood_probability,
+            "building_rcv_usd": profile.building_rcv_usd,
+            "contents_rcv_usd": profile.contents_rcv_usd,
+            "has_children": profile.has_children,
+            "has_elderly": profile.has_elderly,
+            "prior_flood_experience": profile.flood_experience,
+            "prior_financial_loss": profile.financial_loss,
+
+            # Narrative for LLM context
+            "narrative_persona": profile.generate_narrative_persona(),
+            "flood_experience_summary": profile.generate_flood_experience_summary(),
+
+            # Empty memory to be populated during simulation
+            "memory": "",
+        }
+
+        # Copy custom attributes to agent object
+        for k, v in agent.custom_attributes.items():
+            setattr(agent, k, v)
+
+        agent.flood_history = []
+        agents[agent.id] = agent
+
+    return agents
+
+
+# --- 6. Main Runner ---
+def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5, seed: Optional[int] = None, flood_mode: str = "fixed", survey_mode: bool = False):
     print(f"--- Llama {agents_count}-Agent {years}-Year Benchmark (Final Parity Edition) ---")
     
     # 1. Load Registry & Prompt Template
@@ -340,27 +458,40 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         agent_cfg_data = yaml.safe_load(f)
         household_template = agent_cfg_data.get('household', {}).get('prompt_template', '')
 
-    # 2. Load Profiles
-    from broker import load_agents_from_csv
-    profiles_path = base_path / "agent_initial_profiles.csv"
-    agents = load_agents_from_csv(str(profiles_path), {
-        "id": "id", "elevated": "elevated", "has_insurance": "has_insurance",
-        "relocated": "relocated", "trust_in_insurance": "trust_in_insurance",
-        "trust_in_neighbors": "trust_in_neighbors", "flood_threshold": "flood_threshold",
-        "memory": "memory"
-    }, agent_type="household")
+    # 2. Load Profiles (Survey Mode or CSV Mode)
     import re
     def natural_key(string_):
         """Helper for natural sorting (Agent_1, Agent_2, Agent_10...)"""
         return [int(s) if s.isdigit() else s for s in re.split(r'(\d+)', string_)]
 
-    agents = {aid: agents[aid] for aid in sorted(agents.keys(), key=natural_key)[:agents_count]}
-    for a in agents.values(): 
-        a.flood_history = []
-        a.agent_type = "household"
-        # Synchronize Registry IDs - Include full global suite for disclosure parity
-        a.config.skills = ["buy_insurance", "elevate_house", "relocate", "do_nothing"]
-        for k, v in a.custom_attributes.items(): setattr(a, k, v)
+    if survey_mode:
+        # Survey-based initialization from real household data
+        survey_path = base_path.parent / "multi_agent" / "input" / "initial_household data.xlsx"
+        if not survey_path.exists():
+            raise FileNotFoundError(
+                f"Survey file not found: {survey_path}\n"
+                "Survey mode requires 'initial_household data.xlsx' in examples/multi_agent/input/"
+            )
+        agents = load_agents_from_survey(survey_path, max_agents=agents_count, seed=seed or 42)
+        print(f"[Survey Mode] Initialized {len(agents)} agents from real survey data")
+    else:
+        # Legacy CSV-based initialization
+        from broker import load_agents_from_csv
+        profiles_path = base_path / "agent_initial_profiles.csv"
+        agents = load_agents_from_csv(str(profiles_path), {
+            "id": "id", "elevated": "elevated", "has_insurance": "has_insurance",
+            "relocated": "relocated", "trust_in_insurance": "trust_in_insurance",
+            "trust_in_neighbors": "trust_in_neighbors", "flood_threshold": "flood_threshold",
+            "memory": "memory"
+        }, agent_type="household")
+
+        agents = {aid: agents[aid] for aid in sorted(agents.keys(), key=natural_key)[:agents_count]}
+        for a in agents.values():
+            a.flood_history = []
+            a.agent_type = "household"
+            # Synchronize Registry IDs - Include full global suite for disclosure parity
+            a.config.skills = ["buy_insurance", "elevate_house", "relocate", "do_nothing"]
+            for k, v in a.custom_attributes.items(): setattr(a, k, v)
 
     # 3. Load Flood Years
     df_years = pd.read_csv(base_path / "flood_years.csv")
@@ -534,6 +665,9 @@ if __name__ == "__main__":
     parser.add_argument("--top-p", type=float, default=None, help="Top-p sampling (e.g., 0.9, 0.95). None=Ollama default")
     parser.add_argument("--top-k", type=int, default=None, help="Top-k sampling (e.g., 40, 50). None=Ollama default")
     parser.add_argument("--use-chat-api", action="store_true", help="Use ChatOllama instead of OllamaLLM")
+    parser.add_argument("--survey-mode", action="store_true",
+                        help="Initialize agents from real survey data instead of CSV profiles. "
+                             "Uses MG/NMG classification, flood zone assignment, and RCV generation.")
     args = parser.parse_args()
 
     # Apply LLM config from command line
@@ -552,13 +686,14 @@ if __name__ == "__main__":
     random.seed(actual_seed)
     
     run_parity_benchmark(
-        model=args.model, 
-        years=args.years, 
-        agents_count=args.agents, 
+        model=args.model,
+        years=args.years,
+        agents_count=args.agents,
         custom_output=args.output,
         verbose=args.verbose,
         memory_engine_type=args.memory_engine,
         window_size=args.window_size,
         seed=actual_seed,
-        flood_mode=args.flood_mode
+        flood_mode=args.flood_mode,
+        survey_mode=args.survey_mode
     )
