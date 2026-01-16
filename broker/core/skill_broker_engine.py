@@ -345,12 +345,27 @@ class SkillBrokerEngine:
         retry_count = 0
         while not all_valid and retry_count < self.max_retries:
             retry_count += 1
-            errors = [e for v in validation_results if v and hasattr(v, 'errors') for e in v.errors]
             
-            # Real-time Console Feedback (Hidden for noise reduction as requested)
-            # logger.warning(f"[Governance] Blocked '{skill_proposal.skill_name}' for {agent_id} (Attempt {retry_count}). Reasons: {errors}")
+            # Build InterventionReports for explainable governance
+            from ..interfaces.skill_types import InterventionReport
+            intervention_reports = []
+            for v in validation_results:
+                if v and hasattr(v, 'errors') and v.errors:
+                    for error_msg in v.errors:
+                        report = InterventionReport(
+                            rule_id=v.metadata.get("rules_hit", ["unknown_rule"])[0] if v.metadata.get("rules_hit") else "unknown_rule",
+                            blocked_skill=skill_proposal.skill_name if skill_proposal else "unknown",
+                            violation_summary=error_msg,
+                            suggested_correction=v.metadata.get("suggestion"),
+                            severity="ERROR" if not v.valid else "WARNING",
+                            domain_context=v.metadata
+                        )
+                        intervention_reports.append(report)
             
-            retry_prompt = self.model_adapter.format_retry_prompt(prompt, errors)
+            # Fall back to raw error strings if no reports were built
+            errors_to_send = intervention_reports if intervention_reports else [e for v in validation_results if v and hasattr(v, 'errors') for e in v.errors]
+            
+            retry_prompt = self.model_adapter.format_retry_prompt(prompt, errors_to_send)
             res = llm_invoke(retry_prompt)
             
             # Use same logic to handle tuple vs str for retry call
@@ -393,8 +408,9 @@ class SkillBrokerEngine:
              
              # Show reasoning/ratings for diagnosis
              ratings = []
-             for k, v in skill_proposal.reasoning.items():
-                 if "_LABEL" in k: ratings.append(f"{k}={v}")
+             if skill_proposal and skill_proposal.reasoning:
+                 for k, v in skill_proposal.reasoning.items():
+                     if "_LABEL" in k: ratings.append(f"{k}={v}")
              if ratings: logger.error(f"  - Ratings: {' | '.join(ratings)}")
              
              # Generic Reason Extraction (Look for keys ending in _REASON or naming 'Reason')

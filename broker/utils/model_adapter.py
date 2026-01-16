@@ -641,13 +641,30 @@ class UnifiedAdapter(ModelAdapter):
         }
 
     
-    def format_retry_prompt(self, original_prompt: str, errors: List[str]) -> str:
-        """Format retry prompt with validation errors."""
-        error_text = ", ".join(errors)
-        return f"""Your previous response was flagged for the following issues:
+    def format_retry_prompt(self, original_prompt: str, errors: List[Any]) -> str:
+        """
+        Format retry prompt with validation errors or InterventionReports.
+        
+        Supports both legacy List[str] errors and new List[InterventionReport] for XAI.
+        """
+        from ..interfaces.skill_types import InterventionReport
+        
+        error_lines = []
+        for e in errors:
+            if isinstance(e, InterventionReport):
+                error_lines.append(e.to_prompt_string())
+            elif isinstance(e, str):
+                error_lines.append(f"- {e}")
+            else:
+                error_lines.append(f"- {str(e)}")
+        
+        error_text = "\n".join(error_lines)
+        return f"""Your previous response was flagged by the governance layer.
+
+**Issues Detected:**
 {error_text}
 
-Please reconsider your decision and respond again.
+Please reconsider your decision. Ensure your new response addresses the violations above.
 
 {original_prompt}"""
 
