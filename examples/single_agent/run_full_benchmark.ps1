@@ -1,16 +1,9 @@
-# Purely sequential benchmark with randomness enabled
 $experiments = @(
     # Primary Window/Human-Centric Comparison
     @{model = "llama3.2:3b"; engine = "window" },
     @{model = "llama3.2:3b"; engine = "humancentric" },
     @{model = "gemma3:4b"; engine = "window" },
-    @{model = "gemma3:4b"; engine = "humancentric" },
-    
-    # Secondary Models
-    @{model = "gpt-4o-mini"; engine = "window" },
-    @{model = "gpt-4o-mini"; engine = "humancentric" },
-    @{model = "deepseek-r1:1.5b"; engine = "window" },
-    @{model = "deepseek-r1:1.5b"; engine = "humancentric" }
+    @{model = "gemma3:4b"; engine = "humancentric" }
 )
 
 $ErrorActionPreference = "Stop"
