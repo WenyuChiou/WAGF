@@ -242,3 +242,8 @@ python run_flood.py --model llama3.2:3b --agents 100 --years 10 --memory-engine 
 - Notes:
   - No broad `git clean` was used; deletions were targeted to artifact patterns.
   - If any untracked analysis scripts remain (e.g. `examples/single_agent/analyze_new_log.py`), decide whether to keep as source, ignore, or delete before the next run.
+
+---
+
+## Update (2026-01-16)
+- Removed `agent_initial_profiles.csv` and `example_llm_prompts.txt` per request.
