@@ -1,10 +1,10 @@
 {
   "version": "1.1",
-  "last_updated": "2026-01-16T07:11:30.0000000Z",
+  "last_updated": "2026-01-16T07:21:25.1600554Z",
   "tasks": [
     {
       "id": "task-001",
-      "title": "修復框架通用性污染",
+      "title": "修復框架?�用?�污??,
       "status": "completed",
       "type": "module",
       "priority": "high",
@@ -17,13 +17,13 @@
       "created_at": "2025-01-15T00:00:00Z",
       "completed_at": "2025-01-15T00:00:00Z",
       "commits": ["844a1c5", "1907d16", "d5f4e1b"],
-      "summary": "移除核心模組中的實驗特定硬編碼，確保框架可用於非洪水實驗",
-      "done_when": ["核心模組無實驗硬編碼", "最少一次 mock 測試通過", "README 更新完成"],
+      "summary": "移除?��?模�?中�?實�??��?硬編碼�?確�?框架?�用?��?洪水實�?",
+      "done_when": ["?��?模�??�實驗硬編碼", "?�少�?�?mock 測試?��?", "README ?�新完�?"],
       "tests_run": ["python run_flood.py --model mock --agents 3 --years 2"],
-      "risks": ["改動核心模組可能影響現有實驗"],
+      "risks": ["?��??��?模�??�能影響?��?實�?"],
       "rollback": ["revert commits 844a1c5, 1907d16"],
       "artifacts": ["artifacts/claude-code/task-001-20250115-summary.md"],
-      "next_step": "分析 Llama window vs humancentric 差異與驗證器異常",
+      "next_step": "?��? Llama window vs humancentric 差異?��?證器?�常",
       "handoff_file": "handoff/task-001.md"
     },
     {
@@ -52,3 +52,5 @@
   ],
   "pending_handoffs": []
 }
+
+

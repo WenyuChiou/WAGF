@@ -247,3 +247,13 @@ python run_flood.py --model llama3.2:3b --agents 100 --years 10 --memory-engine 
 
 ## Update (2026-01-16)
 - Removed `agent_initial_profiles.csv` and `example_llm_prompts.txt` per request.
+
+---
+
+## Update (2026-01-16)
+- Added `.tasks/skills-mcp.md` to document sharing `.claude/skills` and MCP setup.
+
+---
+
+## Update (2026-01-16)
+- Added MCP copy steps to `.tasks/skills-mcp.md`.
