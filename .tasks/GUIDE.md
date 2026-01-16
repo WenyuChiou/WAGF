@@ -491,7 +491,14 @@ git push -u origin feature/task-001-part2
 - 更新 `.tasks/registry.json`
 - 若有產物，列到 `.tasks/artifacts/` 並在 handoff 記錄
 
-### 6.3 交接必填欄位
+### 6.3 Artifact 與 Handoff 邊界
+
+- **Handoff**：只寫「狀態、決策、待辦、背景」，不可當作產物存放
+- **Artifacts**：只放「可重用輸出物」（報告、圖表、結果 CSV、分析摘要）
+- **完成聲明**：只有在 **實際修改檔案或跑出結果** 時才可標記已完成
+- **未產出**：若只有規劃/建議，請在 handoff 寫「方案設計」而非「方案實作」
+
+### 6.4 交接必填欄位
 
 - `type`: experiment / module / ops
 - `scope`: 涵蓋模組或資料夾
@@ -502,7 +509,7 @@ git push -u origin feature/task-001-part2
 - `tests_run`: 測試命令與結果
 - `artifacts`: 產物清單與路徑
 
-### 6.4 決策記錄 (ADR 風格)
+### 6.5 決策記錄 (ADR 風格)
 
 對於重要決策，使用以下格式記錄：
 
@@ -518,7 +525,7 @@ git push -u origin feature/task-001-part2
 **後果**：[這個決定的影響]
 ```
 
-### 6.5 範例：更新 handoff 文件
+### 6.6 範例：更新 handoff 文件
 
 ```markdown
 ## 今日工作 (2025-01-15)

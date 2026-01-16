@@ -119,6 +119,12 @@
 - **縮寫**：`SA` = single agent（`examples/single_agent/`）；`MA` = multi agent（`examples/multi_agent/`）
 - **待辦為空**：若 handoff 的待辦事項為空，請填寫「無」表示需要開始新計畫；Read task 回覆需提醒「目前無待辦，是否要開始新計畫」
 
+## Artifact vs Handoff
+
+- **Handoff**：只記錄進度/決策/待辦/背景，不放產物
+- **Artifacts**：放可重用輸出（報告、圖表、結果 CSV、分析摘要）
+- **完成聲明**：只有在實際修改或產出後才可勾選完成
+
 ## 關鍵指令（通用）
 
 - `Start task <id>`：建立/切換任務並寫入 handoff/registry

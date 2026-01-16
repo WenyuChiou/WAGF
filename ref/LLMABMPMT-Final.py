@@ -239,8 +239,8 @@ DECISION_MAP_NOT_ELEVATED = {"1": "Buy flood insurance", "2": "Elevate the house
 def run_simulation():
     start_time = time.time()
     #llm = OllamaLLM(model="llama3.1:8b")
-    llm = OllamaLLM(model="llama3.2:3b")
-    #llm = OllamaLLM(model="gemma3:4b")
+    llm = OllamaLLM(model="gemma3:4b")
+    #llm = OllamaLLM(model="gpt-oss:20b")
 
     # Define past events here to have it in scope for both initialization and random recall
     past_events = [
