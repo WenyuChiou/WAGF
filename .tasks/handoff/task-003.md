@@ -14,7 +14,8 @@
 
 ## 執行進度
 
-- [x] **Gemma Window**: 正在執行中 (Run ID: `8acd3ae8...`)。
+- [x] **Gemma Window**: 正在執行中 (Run ID: `8acd3ae8...`).
+  - _Note_: Temporary verification scripts (`verify_fix.py`, etc.) cleaned up in `cbc16a9`。
 - [ ] **Llama 3.2 3B**: 待執行 (需確認 Parity)。
 - [ ] **DeepSeek R1**: 待執行。
 - [ ] **Llama 3.1 8B**: 待執行。

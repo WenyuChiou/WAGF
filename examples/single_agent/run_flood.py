@@ -560,7 +560,11 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         if not output_path.is_absolute():
             output_path = Path.cwd() / output_path
         model_folder = f"{model.replace(':','_').replace('-','_').replace('.','_')}_strict"
-        output_dir = output_path / model_folder
+        # Robustness: Prevent double nesting if user provides full path including the model folder
+        if output_path.name == model_folder:
+            output_dir = output_path
+        else:
+            output_dir = output_path / model_folder
     else:
         output_dir = Path(__file__).parent / "results" / f"{model.replace(':','_')}_strict"
     output_dir.mkdir(parents=True, exist_ok=True)

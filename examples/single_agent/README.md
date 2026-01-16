@@ -208,7 +208,7 @@ The following matrix compares performance across four language models and two me
 ![Comparison Chart](old_vs_window_vs_humancentric_3x4.png)
 
 - **Llama 3.2 (3B)**: Highly sensitive to social observations. Shows the highest rate of "Decision-Reasoning Gaps," frequently corrected by the Governance Layer.
-- **Gemma 3 (4B)**: Most "Optimistic." Tends to prefer "Do Nothing" unless multiple floods are explicitly consolidated in memory. Requires specialized synonym mapping due to unique category naming (e.g., "Concern" vs "Threat").
+- **Gemma 3 (4B)**: **Rational Convergence**. Previously exhibited static behavior (fixed 2025), now shows a clear learning curve: Damage -> Adaptation -> Safety. By Year 9, 64% of agents have efficiently adapted (Elevated/Relocated), returning to "Do Nothing" only because they are safe.
 - **DeepSeek-R1 (8B)**: Exceptional reasoning consistency. Rarely requires Governance retries, as its `<think>` chain aligns well with the PMT constructs. Shows distinct behavioral shifts when emotional memories (Human-Centric) are retrieved.
 
 ---
