@@ -175,7 +175,7 @@ household:
   # Human-Centric Memory Configuration
   memory:
     engine_type: "human_centric"
-    window_size: 3
+    window_size: 5
     top_k_significant: 2
     emotion_keywords:
       critical: ["flood", "flooded", "damage", "destroyed", "loss", "trauma"]

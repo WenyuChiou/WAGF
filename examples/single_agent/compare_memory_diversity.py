@@ -4,7 +4,7 @@ import collections
 import numpy as np
 
 OLD_LOG = r"H:\我的雲端硬碟\github\governed_broker_framework\examples\single_agent\old_results\Gemma_3_4B\flood_adaptation_simulation_log.csv"
-NEW_LOG = "simulation_log_interim.csv"
+NEW_LOG = "simulation_log.csv"
 
 def calculate_entropy(decisions):
     if not decisions: return 0.0
