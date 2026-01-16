@@ -19,7 +19,7 @@ from broker.components.context_builder import TieredContextBuilder
 from broker.components.skill_registry import SkillRegistry
 from broker.components.memory_engine import WindowMemoryEngine, ImportanceMemoryEngine, HumanCentricMemoryEngine
 from broker.interfaces.skill_types import ExecutionResult
-from plot_results import plot_adaptation_results
+from analysis.plot_results import plot_adaptation_results
 from broker.utils.llm_utils import create_legacy_invoke as create_llm_invoke
 from broker.utils.agent_config import GovernanceAuditor
 
@@ -554,31 +554,26 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     # Filter decision memories for parity with baseline
     memory_engine = DecisionFilteredMemoryEngine(memory_engine)
     
-    # 5. Determine isolated output directory (Priority for parallel)
+    # 5. Determine output directory (Let ExperimentBuilder handle subfolders)
     if custom_output:
-        output_path = Path(custom_output)
-        if not output_path.is_absolute():
-            output_path = Path.cwd() / output_path
-        model_folder = f"{model.replace(':','_').replace('-','_').replace('.','_')}_strict"
-        # Robustness: Prevent double nesting if user provides full path including the model folder
-        if output_path.name == model_folder:
-            output_dir = output_path
-        else:
-            output_dir = output_path / model_folder
+        output_base = Path(custom_output)
+        if not output_base.is_absolute():
+            output_base = Path.cwd() / output_base
     else:
-        output_dir = Path(__file__).parent / "results" / f"{model.replace(':','_')}_strict"
+        output_base = Path(__file__).parent / "results"
+    
+    # Pre-calculate what ExperimentBuilder will use for cleanup
+    model_folder = f"{model.replace(':','_').replace('-','_').replace('.','_')}_strict"
+    output_dir = output_base / model_folder
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # --- CLEANUP TRACES (Crucial for Analysis) ---
-    # Ensure we don't append to old traces from previous runs
     raw_dir = output_dir / "raw"
     traces_file = raw_dir / "household_traces.jsonl"
     if traces_file.exists():
         print(f"Cleaning up old traces: {traces_file}")
-        try:
-            traces_file.unlink()
-        except PermissionError:
-            print(f"Warning: Could not delete {traces_file}. It might be in use.")
+        try: traces_file.unlink()
+        except: pass
 
     # 6. Setup ExperimentBuilder and Runner
     from broker import ExperimentBuilder
@@ -593,7 +588,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         .with_skill_registry(registry)
         .with_memory_engine(memory_engine)
         .with_governance("strict", agent_config_path)
-        .with_output(str(output_dir))
+        .with_output(str(output_base))
         .with_workers(workers)
         .with_seed(seed)
     )

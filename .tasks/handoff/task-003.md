@@ -17,13 +17,16 @@
 - [x] Update Benchmark Reports (README, CH, EN) with verified Gemma 3 results.
 - [x] Provide detailed "Rule Trigger Analysis" and "Qualitative Reasoning Analysis" in reports.
 - [x] Re-draw the 3 comparison charts (`plot_results.py` / `analyze_old_vs_memory.py`).
-- [x] **Gemma Window**: 已驗證 (Rational Convergence verified).
-  - _Note_: Reports categorized under `reports/`. Analysis tools under `analysis/`.
-- [ ] **Llama 3.2 3B**: 待執行 (Next).
-- [ ] **Llama 3.1 8B**: 待執行.
-- [ ] **DeepSeek R1**: 待執行.
-- [ ] **DeepSeek V3**: 待執行 (If applicable).
-- [ ] **GPT-4o/o1**: 待執行.
+- [x] **Gemma 3 (4B)**: Done (Rational Convergence verified)
+- [/] **Llama 3.2 (3B)**: In Progress (Benchmark Restarted with Parsing Fix)
+- [ ] **Llama 3.1 (8B)**: Pending
+- [ ] **DeepSeek R1 (8B)**: Pending
+- [ ] **GPT-4o/o1**: Pending
+
+## Detailed Research & Analysis
+
+- [x] **Gemma Case Study (Group A vs B)**: Done. Group B shows higher relocation (+1%) and dynamic adaptation compared to static Group A behavior.
+- [ ] **Cross-Model Parity Analysis**: Compare how different models handle the same memory/governance constraints.
 
 ## 驗證標準
 
@@ -31,9 +34,9 @@
 2. **Trust Dynamics**: 信任分數隨時間變化，無死鎖。
 3. **Memory Context**: 關鍵歷史事件（如洪水）在 Year 5+ 仍保留在 Context 中。
 
-## 已知問題
-
-- 先前 Gemma 因 Trust Reset Bug 導致行為靜態，已修復。需確認其他模型不受此影響（理論上是框架級修復，應通用）。
+- 先前 Gemma 因 Trust Reset Bug 導致行為靜態，已修復。
+- Llama 3.2 `STRICT_MODE` 下的 JSON 解析錯誤已修復（增加 retry 階段的 digit-based fallback）。
+- 已清理 `reports/` 下的臨時分析文件。
 
 ## 產物
 

@@ -1,39 +1,28 @@
-{
+﻿{
   "version": "1.1",
-  "last_updated": "2026-01-16T16:39:10.000Z",
+  "last_updated": "2026-01-16T12:05:00.000Z",
   "tasks": [
     {
       "id": "task-001",
-      "title": "�״_�ج[�q�Ωʦ��V",
+      "title": "修復框架通用性汙染",
       "status": "completed",
-      "type": "module",
-      "handoff_file": "handoff/task-001.md"
+      "type": "module"
     },
     {
       "id": "task-002",
-      "title": "Gemma Memory Static Behavior Fix",
+      "title": "Gemma 3 信任持久化修復",
+      "description": "解決 Trust Reset Bug 導致的行為靜態問題。",
       "status": "completed",
-      "type": "experiment",
-      "priority": "high",
-      "owner": "gemini",
-      "description": "Resolved static behavior by fixing Trust Persistence (InteractionHub) and Consolidating Memory.",
-      "handoff_file": "handoff/task-002.md",
-      "done_when": [
-        "Trust scores persist year-over-year",
-        "Diversity entropy increases > 1.2"
-      ]
+      "type": "experiment"
     },
     {
       "id": "task-003",
-      "title": "Full 4-Model Benchmark Verification",
-      "status": "in-progress",
+      "title": "全模型基準測試 (Strict Mode)",
+      "description": "執行 4+ 模型與 2 種記憶體引擎的對比實驗。",
+      "status": "in_progress",
       "type": "experiment",
       "priority": "high",
-      "eta": "2026-01-16",
-      "description": "Running full benchmark suite to verify parity across all models.",
       "handoff_file": "handoff/task-003.md"
     }
   ]
 }
-
-
