@@ -440,3 +440,10 @@ python test_survey_init.py
 ## Update (2026-01-16)
 - Moved hazard analysis tools from examples/single_agent/hazard to examples/multi_agent/hazard and fixed local import in prb_visualize.py.
 
+
+---
+
+## Update (2026-01-16)
+- Added example survey schema in examples/single_agent/survey_schema.example.yaml and wired --survey-schema into un_flood.py.
+- Updated examples/single_agent/README.md and examples/multi_agent/README.md to document survey schema and PRB hazard analysis tools.
+

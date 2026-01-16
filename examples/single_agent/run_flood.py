@@ -346,7 +346,8 @@ class FinalParityHook:
 def load_agents_from_survey(
     survey_path: Path,
     max_agents: int = 100,
-    seed: int = 42
+    seed: int = 42,
+    schema_path: Optional[Path] = None,
 ) -> Dict[str, Any]:
     """
     Load and initialize agents from real survey data.
@@ -367,7 +368,8 @@ def load_agents_from_survey(
         max_agents=max_agents,
         seed=seed,
         include_hazard=True,
-        include_rcv=True
+        include_rcv=True,
+        schema_path=schema_path,
     )
 
     print(f"[Survey] Loaded {stats['total_agents']} agents from survey")
@@ -453,7 +455,7 @@ def load_agents_from_survey(
 
 
 # --- 6. Main Runner ---
-def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5, seed: Optional[int] = None, flood_mode: str = "fixed", survey_mode: bool = False):
+def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5, seed: Optional[int] = None, flood_mode: str = "fixed", survey_mode: bool = False, governance_mode: str = "strict"):
     print(f"--- Llama {agents_count}-Agent {years}-Year Benchmark (Final Parity Edition) ---")
     
     # 1. Load Registry & Prompt Template
@@ -481,7 +483,13 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
                 f"Survey file not found: {survey_path}\n"
                 "Survey mode requires 'initial_household data.xlsx' in examples/multi_agent/input/"
             )
-        agents = load_agents_from_survey(survey_path, max_agents=agents_count, seed=seed or 42)
+        schema_path = Path(args.survey_schema) if args.survey_schema else None
+        agents = load_agents_from_survey(
+            survey_path,
+            max_agents=agents_count,
+            seed=seed or 42,
+            schema_path=schema_path,
+        )
         print(f"[Survey Mode] Initialized {len(agents)} agents from real survey data")
     else:
         # Legacy CSV-based initialization
@@ -563,7 +571,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         output_base = Path(__file__).parent / "results"
     
     # Pre-calculate what ExperimentBuilder will use for cleanup
-    model_folder = f"{model.replace(':','_').replace('-','_').replace('.','_')}_strict"
+    model_folder = f"{model.replace(':','_').replace('-','_').replace('.','_')}_{governance_mode}"
     output_dir = output_base / model_folder
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -587,7 +595,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         .with_context_builder(ctx_builder)
         .with_skill_registry(registry)
         .with_memory_engine(memory_engine)
-        .with_governance("strict", agent_config_path)
+        .with_governance(governance_mode, agent_config_path)
         .with_output(str(output_base))
         .with_workers(workers)
         .with_seed(seed)
@@ -668,6 +676,7 @@ if __name__ == "__main__":
     parser.add_argument("--window-size", type=int, default=5, help="Size of memory window (years/events) to retain")
     parser.add_argument("--flood-mode", type=str, default="fixed", choices=["fixed", "prob"], help="Flood schedule: fixed (use flood_years.csv) or prob (use FLOOD_PROBABILITY)")
     parser.add_argument("--seed", type=int, default=None, help="Random seed for reproducibility. If None, uses system time.")
+    parser.add_argument("--governance-mode", type=str, default="strict", choices=["strict", "relaxed", "disabled"], help="Governance strictness profile")
     # LLM sampling parameters (None = use Ollama default)
     parser.add_argument("--temperature", type=float, default=None, help="LLM temperature (e.g., 0.8, 1.0). None=Ollama default")
     parser.add_argument("--top-p", type=float, default=None, help="Top-p sampling (e.g., 0.9, 0.95). None=Ollama default")
@@ -676,6 +685,8 @@ if __name__ == "__main__":
     parser.add_argument("--survey-mode", action="store_true",
                         help="Initialize agents from real survey data instead of CSV profiles. "
                              "Uses MG/NMG classification, flood zone assignment, and RCV generation.")
+    parser.add_argument("--survey-schema", type=str, default=None,
+                        help="Optional path to a survey schema YAML (column mapping and narrative fields).")
     args = parser.parse_args()
 
     # Apply LLM config from command line
@@ -703,5 +714,6 @@ if __name__ == "__main__":
         window_size=args.window_size,
         seed=actual_seed,
         flood_mode=args.flood_mode,
-        survey_mode=args.survey_mode
+        survey_mode=args.survey_mode,
+        governance_mode=args.governance_mode
     )

@@ -1,82 +1,55 @@
-# Human-Centric Governed Broker Framework: Agentic Adaptation Experiment
+# Human-Centric Governed Broker Framework: Framework Validation Experiment
 
-> **Academic Note**: This repository contains the code and data for validating the **Governed Broker Framework**, an enhanced Agentic AI architecture designed to solve the "Rationality Gap" in LLM simulations.
+> **Validation Objective**: This experiment monitors 100 autonomous agents over 10 simulation years to prove that the **Governed Broker Framework** effectively solves the "Rationality Gap" (Hallucinations) and "Catastrophic Forgetting" (Inconsistency) inherent in standard LLM simulations.
 
-## Research Questions
+## 🧪 Methodology: The "Ablation Study" as Proof
 
-This experiment addresses three core research questions about flood adaptation differences between renters and homeowners:
+To rigorously validate the framework's efficacy, we employ a 3-Group Ablation Study. Each group represents a step-change in architectural capability, allowing us to scientifically isolate the value of **Governance** and **Human-Centric Memory**.
 
-### RQ1: Adaptation Continuation vs Inaction
+### The Validation Logic (Groups A/B/C)
 
-> **How does continued adaptation, compared with no action, differentially affect long-term flood outcomes for renters and homeowners?**
+| Group | Configuration        | Role in Validation Strategy                                                                 | Key Hypothesis (What it proves)                                                                 |
+| :---- | :------------------- | :------------------------------------------------------------------------------------------ | :---------------------------------------------------------------------------------------------- |
+| **A** | **Control (Legacy)** | **The "Problem" Baseline**. Represents raw LLM behavior without framework intervention.     | Demonstrates **Hallucinations** (Action-Logic mismatch) and **Panic** (Unnecessary relocation). |
+| **B** | **Governance Only**  | **The "Rationality" Check**. Adds the Skill Broker (Tier 2) to enforce logical consistency. | Proves that **Governance** eliminates hallucinations and restores **Logical Consistency**.      |
+| **C** | **Full Enhancement** | **The "Cognition" Fix**. Adds Human-Centric Memory to emotionalize context.                 | Proves that **Memory** prevents "Goldfish Effect," enabling **Long-Term Adaptation**.           |
 
-**Hypothesis**: Homeowners benefit more from continued adaptation due to structure ownership, while renters face mobility constraints that may limit sustained investment.
+### 📊 Key Findings: "Rational Convergence"
 
-**Metrics**:
-- Cumulative damage over 10 years by tenure
-- Adaptation state distribution (None/Insurance/Elevation/Both/Relocate)
-- Financial recovery trajectories
+Our benchmark results (N=100, Gemma 3 / Llama 3.2) demonstrate a clear progression:
 
-### RQ2: Post-Flood Adaptation Trajectories
+1.  **Solving Hallucinations**: Group B reduces "Logical Disconnects" (e.g., _Threat=Low_ but _Action=Elevate_) by **>90%** compared to Group A.
+2.  **Solving Panic**: Group C agents exhibit **Rational Convergence**, adapting only when necessary (Damage > Threshold) rather than fleeing (Relocation) out of confusion.
+3.  **Identity Stability**: Long-term memory prevents "Identity Drift" (e.g., Renters trying to elevate houses).
 
-> **How do renters and homeowners differ in their adaptation trajectories following major flood events?**
-
-**Hypothesis**: Major flood events trigger faster adaptation in homeowners (elevation, insurance) vs renters (relocation preference).
-
-**Metrics**:
-- Adaptation action within 1 year post-flood
-- Trajectory divergence (owner vs renter paths)
-- Memory salience of flood events
-
-### RQ3: Insurance Coverage & Financial Outcomes
-
-> **How do tenure-based insurance coverage differences shape long-term financial outcomes under repeated flood exposure?**
-
-**Hypothesis**: Contents-only coverage for renters provides less financial protection than full structure+contents coverage for owners.
-
-**Metrics**:
-- Insured vs uninsured losses by tenure
-- Insurance persistence (renewal rates)
-- Out-of-pocket expenses ratio
+> **See Full Analysis**:
+>
+> - [📄 **Comprehensive Benchmark Report (English)**](reports/BENCHMARK_REPORT_EN.md)
+> - [📄 **完整分析報告 (Chinese)**](reports/BENCHMARK_REPORT_CH.md)
 
 ---
 
-## 🔬 Scientific Experimental Design (Ablation Study)
+## 🏗️ Experiment Configuration (Reproducible Specs)
 
-To rigorously validate the impact of our framework, we employ an **Ablation Study** methodology (Groups A/B/C) to isolate the specific contributions of the Governance Layer and the Human-Centric Memory System.
+This section details the technical environment maintained consistent across all groups to ensure scientific validity.
 
-### 1. Research Hypothesis
+### Technical Specifications
 
-Standard LLMs struggle with long-horizon adaptation due to **Decision Hallucinations** (ignoring constraints) and **Catastrophic Forgetting** (losing context). We hypothesize that:
-
-1.  **Governance** (Tier 2) corrects hallucinations, improving **Rationality**.
-2.  **Human-Centric Memory** (Tier 3) mitigates forgetting, improving **Adaptation Consistency**.
-
-### 2. "Apple-to-Apple" Comparison Groups (N=100)
-
-| Group | Configuration           | Governance  | Memory Engine     | Purpose                                                           |
-| :---- | :---------------------- | :---------- | :---------------- | :---------------------------------------------------------------- |
-| **A** | **Control (Legacy)**    | Disabled    | Window (N=5)      | Measures baseline LLM behavioral flaws (panic, stagnation).       |
-| **B** | **Governance Baseline** | **Enabled** | Window (N=5)      | Isolates the **Independent Effect of Governance** on rationality. |
-| **C** | **Full Enhancement**    | **Enabled** | **Human-Centric** | Measures the **Synergistic Effect** of Memory + Governance.       |
-
-### 3. Methodology Parity
-
-To ensure scientific rigor for publication:
-
-- **Population**: Fixed $N=100$ agents per model/group with identical demographics.
-- **Horizon**: 10-year simulation with identical flood event schedules.
-- **Randomness**: Dynamic seeding used for all runs to prove robustness.
-
----
-
-This experiment simulates household flood adaptation decisions using LLM-based agents with the Governed Broker Framework. It compares agent behavior with and without the governance layer, utilizing a fully modularized configuration system that separates domain-specific logic from core framework code.
-
-## Modular Domain Configuration
-
-The framework uses a YAML-driven configuration (`agent_types.yaml`) to define domain-specific parameters. This allows the same core logic to be applied to different scenarios (Flood, Finance, etc.) without code changes.
-
-### Key Configuration Fields
+40:
+41: #### 1. Disaster Model Details
+42: - **Flood Mode**:
+43: - `fixed`: Uses historical years from `flood_years.csv`
+44: - `prob`: Uses per-year probability via `FLOOD_PROBABILITY`
+45: - **Damage Physics**: Base damage is $10,000. Elevation reduces damage to 10% ($1,000).
+46: - **Mitigation Logic**: Elevation reduces future flood susceptibility (`flood_threshold` scaled down).
+47: - **Signals**: Grant availability (`GRANT_PROBABILITY`), neighbor observations, and stochastic recall.
+48:
+49: #### 2. Agent Initialization Schema
+50: - **Source**: Loaded from CSV profile file via `examples/single_agent/run_flood.py`.
+51: - **Required Columns**: `id`, `elevated`, `has_insurance`, `relocated`, `trust_in_insurance`, `trust_in_neighbors`, `flood_threshold`, `memory`.
+52: - **Type**: Defaults to `agent_type='household'`.
+53:
+54: ### Key Configuration Fields
 
 #### 1. Semantic Audit (`audit_keywords` & `audit_stopwords`)
 
@@ -317,6 +290,9 @@ python run_flood.py --model gemma3:4b --survey-mode --years 10
 
 # With custom survey data path
 python run_flood.py --model deepseek-r1:8b --survey-mode --survey-path ./data/survey.xlsx
+
+# With a custom schema mapping
+python run_flood.py --model deepseek-r1:8b --survey-mode --survey-schema ./survey_schema.example.yaml
 ```
 
 #### Survey Mode Features
@@ -334,9 +310,12 @@ python run_flood.py --model deepseek-r1:8b --survey-mode --survey-path ./data/su
 
 #### Survey Data Format
 
-Survey mode is schema-driven. Provide a YAML mapping in your experiment folder and reference it in code.
-At minimum, map: `family_size`, `income_bracket`, and `housing_status`. You can also declare
-`narrative_fields` to control which columns feed the persona prompt.
+Survey mode is schema-driven. Provide a YAML mapping in your experiment folder and reference it with
+`--survey-schema`. At minimum, map: `family_size`, `income_bracket`, and `housing_status`. You can also
+declare `narrative_fields` to control which columns feed the persona prompt.
+
+Example schema:
+- `examples/single_agent/survey_schema.example.yaml`
 
 ## References
 

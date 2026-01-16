@@ -1,0 +1,58 @@
+version: 1
+description: Example schema for survey-based agent initialization.
+
+# Column mapping by header name or aliases (Excel header row).
+columns:
+  family_size:
+    name: household_size
+    aliases: [family_size, hh_size]
+  income_bracket:
+    name: income
+    aliases: [salary, annual_income]
+  housing_status:
+    name: tenure
+    aliases: [housing_status, housing_tenure]
+  generations:
+    name: generations
+    aliases: [generations_in_area, residency_generations]
+  house_type:
+    name: house_type
+    aliases: [housing_type]
+  housing_cost_burden:
+    name: housing_cost_burden
+    aliases: [cost_burden]
+  vehicle_ownership:
+    name: vehicle_ownership
+    aliases: [has_vehicle]
+  flood_experience:
+    name: flood_experience
+    aliases: [flood_history]
+  financial_loss:
+    name: financial_loss
+    aliases: [flood_loss]
+  children_under_6:
+    name: children_under_6
+    aliases: [kids_under_6]
+  children_6_18:
+    name: children_6_18
+    aliases: [kids_6_18]
+  elderly_over_65:
+    name: elderly_over_65
+    aliases: [seniors_over_65]
+
+required_fields: [family_size, income_bracket, housing_status]
+
+# Narrative persona fields (ordered). Labels are optional.
+narrative_fields: [housing_status, family_size, generations, house_type]
+narrative_labels:
+  housing_status: Tenure
+  family_size: Household size
+  generations: Generations in area
+  house_type: Housing type
+
+# Optional value maps by field.
+value_maps:
+  housing_status:
+    mortgage: mortgage
+    rent: rent
+    own free: own_free
