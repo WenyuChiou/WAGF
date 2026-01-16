@@ -8,11 +8,11 @@ To rigorously validate the framework's efficacy, we employ a 3-Group Ablation St
 
 ### The Validation Logic (Groups A/B/C)
 
-| Group | Configuration        | Role in Validation Strategy                                                                 | Key Hypothesis (What it proves)                                                                 |
-| :---- | :------------------- | :------------------------------------------------------------------------------------------ | :---------------------------------------------------------------------------------------------- |
-| **A** | **Control (Legacy)** | **The "Problem" Baseline**. Represents raw LLM behavior without framework intervention.     | Demonstrates **Hallucinations** (Action-Logic mismatch) and **Panic** (Unnecessary relocation). |
-| **B** | **Governance Only**  | **The "Rationality" Check**. Adds the Skill Broker (Tier 2) to enforce logical consistency. | Proves that **Governance** eliminates hallucinations and restores **Logical Consistency**.      |
-| **C** | **Full Enhancement** | **The "Cognition" Fix**. Adds Human-Centric Memory to emotionalize context.                 | Proves that **Memory** prevents "Goldfish Effect," enabling **Long-Term Adaptation**.           |
+| Group | Configuration                                                                     | Role in Validation Strategy                                                                 | Key Hypothesis (What it proves)                                                                 |
+| :---- | :-------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------ | :---------------------------------------------------------------------------------------------- |
+| **A** | **Control (Legacy)** <br> _(Source: `old_results` from `ref/LLMABMPMT-Final.py`)_ | **The "Problem" Baseline**. Represents raw LLM behavior without framework intervention.     | Demonstrates **Hallucinations** (Action-Logic mismatch) and **Panic** (Unnecessary relocation). |
+| **B** | **Governance Only**                                                               | **The "Rationality" Check**. Adds the Skill Broker (Tier 2) to enforce logical consistency. | Proves that **Governance** eliminates hallucinations and restores **Logical Consistency**.      |
+| **C** | **Full Enhancement**                                                              | **The "Cognition" Fix**. Adds Human-Centric Memory to emotionalize context.                 | Proves that **Memory** prevents "Goldfish Effect," enabling **Long-Term Adaptation**.           |
 
 ### 📊 Key Findings: "Rational Convergence"
 
