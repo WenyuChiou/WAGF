@@ -1,355 +1,215 @@
 """
-Hazard Module
+Hazard Module (MA)
 
-Loads and processes water depth data for flood simulation.
-
-Data format (CSV):
-- tract: Tract ID
-- year: Simulation year
-- depth_ft: Peak flood depth in feet
-
-References:
-- ABM_Summary.pdf: dt = (1/N_grid) * sum(max(depth_g,t))
+Uses PRB ASCII grid depth data (meters) as the primary source of hazard history.
+Provides FEMA-style fine-grained depth-damage curves via the shared core module.
 """
 
-import pandas as pd
-import numpy as np
-from pathlib import Path
-from typing import Dict, Optional, List
+from __future__ import annotations
+
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Dict, Optional, List, Tuple
+
+import numpy as np
+
+from broker.modules.hazard.prb_loader import PRBGridLoader
+from broker.modules.hazard.depth_sampler import (
+    DepthSampler,
+    DepthCategory,
+    PositionAssignment,
+    sample_flood_depth_for_year,
+)
+from broker.modules.hazard.vulnerability import VulnerabilityCalculator, FEET_PER_METER
 
 
 @dataclass
 class FloodEvent:
-    """Represents a flood event for a tract."""
-    tract_id: str
+    """Represents a flood event for a location."""
     year: int
-    depth_ft: float
-    
+    depth_m: float
+    row: Optional[int] = None
+    col: Optional[int] = None
+
+    @property
+    def depth_ft(self) -> float:
+        return self.depth_m * FEET_PER_METER
+
     @property
     def severity(self) -> str:
-        """Classify flood severity."""
-        if self.depth_ft >= 4.0:
+        """Classify flood severity based on depth in meters."""
+        if self.depth_m >= 1.2:  # ~4 ft
             return "SEVERE"
-        elif self.depth_ft >= 2.0:
+        if self.depth_m >= 0.6:  # ~2 ft
             return "MODERATE"
-        elif self.depth_ft > 0:
+        if self.depth_m > 0:
             return "MINOR"
         return "NONE"
 
 
 class HazardModule:
     """
-    Load and query water depth data.
-    
+    Load and query PRB ASCII grid depth data (meters).
+
     Supports:
-    - CSV loading (tract, year, depth_ft)
-    - Synthetic depth generation
-    - Effective depth calculation for elevated homes
+    - ASCII grid loading via PRBGridLoader
+    - Sampling depth by agent flood experience (DepthSampler)
+    - Fallback synthetic sampling when grid data is not available
     """
-    
-    def __init__(self, depth_data_path: Optional[Path] = None, seed: int = 42):
-        """
-        Initialize hazard module.
-        
-        Args:
-            depth_data_path: Path to CSV with depth data. If None, use synthetic.
-            seed: Random seed for synthetic generation.
-        """
+
+    def __init__(
+        self,
+        grid_dir: Optional[Path] = None,
+        years: Optional[List[int]] = None,
+        seed: int = 42,
+    ):
         self.rng = np.random.default_rng(seed)
-        self.depth_data: Dict[str, Dict[int, float]] = {}  # {tract: {year: depth}}
-        
-        if depth_data_path and Path(depth_data_path).exists():
-            self._load_csv(Path(depth_data_path))
-        else:
-            print("[HazardModule] No depth data provided, using synthetic generation")
-    
-    def _load_csv(self, path: Path) -> None:
-        """Load depth data from CSV."""
-        df = pd.read_csv(path)
-        
-        # Validate columns
-        required = {"tract", "year", "depth_ft"}
-        if not required.issubset(df.columns):
-            raise ValueError(f"CSV must have columns: {required}")
-        
-        # Build lookup
-        for _, row in df.iterrows():
-            tract = str(row["tract"])
-            year = int(row["year"])
-            depth = float(row["depth_ft"])
-            
-            if tract not in self.depth_data:
-                self.depth_data[tract] = {}
-            self.depth_data[tract][year] = depth
-        
-        print(f"[HazardModule] Loaded {len(df)} depth records for {len(self.depth_data)} tracts")
-    
-    def get_tract_depth(self, tract_id: str, year: int, default: float = 0.0) -> float:
-        """
-        Get flood depth for a tract in a given year.
-        
-        Args:
-            tract_id: Tract identifier
-            year: Simulation year
-            default: Default depth if no data
-            
-        Returns:
-            Peak flood depth in feet
-        """
-        if tract_id in self.depth_data:
-            return self.depth_data[tract_id].get(year, default)
-        return default
-    
-    def generate_synthetic_depth(
-        self, 
-        tract_id: str, 
+        self.grid_dir = Path(grid_dir) if grid_dir else None
+        self.years = years
+        self.loader: Optional[PRBGridLoader] = None
+        self._cell_pools: Optional[Dict[DepthCategory, List[Tuple[int, int, float]]]] = None
+
+        if self.grid_dir and self.grid_dir.exists():
+            self.loader = PRBGridLoader(self.grid_dir, years=self.years)
+            self.loader.load_all_years()
+
+    def _ensure_cell_pools(self) -> None:
+        if not self.loader:
+            return
+        if self._cell_pools is not None:
+            return
+        year = self.loader.sample_representative_year()
+        self._cell_pools = self.loader.get_cells_by_depth_category(year)
+
+    def get_depth_at_cell(self, year: int, row: int, col: int) -> Optional[float]:
+        """Return grid depth in meters for a given cell."""
+        if not self.loader:
+            return None
+        return self.loader.get_depth_at_cell(year, row, col)
+
+    def assign_position(self, record) -> PositionAssignment:
+        """Assign a flood position based on agent flood experience."""
+        self._ensure_cell_pools()
+        sampler = DepthSampler(seed=int(self.rng.integers(0, 1_000_000)), cell_pools=self._cell_pools)
+        return sampler.assign_position(record)
+
+    def get_flood_event(
+        self,
         year: int,
+        position: Optional[PositionAssignment] = None,
+        row: Optional[int] = None,
+        col: Optional[int] = None,
+        year_severity: float = 1.0,
+    ) -> FloodEvent:
+        """
+        Get flood event for a specific location or assignment.
+
+        Priority:
+        - explicit grid cell (row/col)
+        - PositionAssignment (base_depth_m)
+        - fallback synthetic depth (meters)
+        """
+        depth_m = 0.0
+
+        if row is not None and col is not None and self.loader:
+            depth = self.get_depth_at_cell(year, row, col)
+            depth_m = depth if depth is not None else 0.0
+        elif position is not None:
+            depth_m = sample_flood_depth_for_year(position.base_depth_m, year_severity, self.rng)
+        else:
+            depth_m = self._generate_synthetic_depth_m()
+
+        return FloodEvent(year=year, depth_m=depth_m, row=row, col=col)
+
+    def _generate_synthetic_depth_m(
+        self,
         flood_prob: float = 0.3,
-        mean_depth: float = 2.0,
-        std_depth: float = 1.5
+        mean_depth_m: float = 0.6,
+        std_depth_m: float = 0.45,
     ) -> float:
-        """
-        Generate synthetic flood depth.
-        
-        Args:
-            tract_id: Tract identifier
-            year: Year (used for variation)
-            flood_prob: Probability of flood occurring
-            mean_depth: Mean depth when flood occurs
-            std_depth: Std dev of depth
-            
-        Returns:
-            Synthetic depth (0 if no flood)
-        """
-        # Use tract+year hash for reproducibility
-        key = hash((tract_id, year)) % (2**31)
-        self.rng = np.random.default_rng(key)
-        
+        """Generate synthetic flood depth in meters."""
         if self.rng.random() < flood_prob:
-            depth = max(0, self.rng.normal(mean_depth, std_depth))
-            return round(depth, 2)
+            depth = max(0, self.rng.normal(mean_depth_m, std_depth_m))
+            return round(float(depth), 3)
         return 0.0
-    
-    def get_effective_depth(self, base_depth: float, elevation_ft: float = 0.0) -> float:
-        """
-        Calculate effective depth after elevation.
-        
-        Formula: d_eff = max(d - elevation, 0)
-        
-        Args:
-            base_depth: Raw flood depth
-            elevation_ft: House elevation height
-            
-        Returns:
-            Effective depth after elevation offset
-        """
-        return max(base_depth - elevation_ft, 0.0)
-    
-    def get_flood_event(self, tract_id: str, year: int, use_synthetic: bool = True) -> FloodEvent:
-        """Get or generate a FloodEvent for tract/year."""
-        depth = self.get_tract_depth(tract_id, year)
-        
-        if depth == 0.0 and use_synthetic:
-            depth = self.generate_synthetic_depth(tract_id, year)
-        
-        return FloodEvent(tract_id=tract_id, year=year, depth_ft=depth)
-    
-    def get_all_flood_years(self, tract_id: str) -> List[int]:
-        """Get all years with flood events for a tract."""
-        if tract_id not in self.depth_data:
-            return []
-        return [y for y, d in self.depth_data[tract_id].items() if d > 0]
 
-
-# =============================================================================
-# DEPTH-DAMAGE CURVES (FEMA Standard)
-# =============================================================================
 
 def depth_damage_building(depth_ft: float) -> float:
-    """
-    Building damage ratio from depth (FEMA depth-damage curve).
-    
-    Args:
-        depth_ft: Flood depth inside building
-        
-    Returns:
-        Damage ratio (0-1)
-    """
-    if depth_ft <= 0:
-        return 0.0
-    elif depth_ft < 1:
-        return 0.10 * depth_ft
-    elif depth_ft < 2:
-        return 0.10 + 0.15 * (depth_ft - 1)
-    elif depth_ft < 4:
-        return 0.25 + 0.10 * (depth_ft - 2)
-    elif depth_ft < 8:
-        return 0.45 + 0.10 * (depth_ft - 4)
-    else:
-        return min(0.85, 0.85 + 0.02 * (depth_ft - 8))
+    """Building damage ratio from depth (fine-grained FEMA curve)."""
+    calc = VulnerabilityCalculator()
+    return calc.get_structure_damage_ratio(depth_ft)
 
 
 def depth_damage_contents(depth_ft: float) -> float:
-    """
-    Contents damage ratio from depth (FEMA depth-damage curve).
-    
-    Contents damage faster than building - furniture, appliances destroyed quickly.
-    
-    Args:
-        depth_ft: Flood depth inside building
-        
-    Returns:
-        Damage ratio (0-1)
-    """
-    if depth_ft <= 0:
-        return 0.0
-    elif depth_ft < 1:
-        return 0.20 * depth_ft
-    elif depth_ft < 2:
-        return 0.20 + 0.20 * (depth_ft - 1)
-    elif depth_ft < 4:
-        return 0.40 + 0.15 * (depth_ft - 2)
-    else:
-        return min(0.90, 0.70 + 0.05 * (depth_ft - 4))
+    """Contents damage ratio from depth (fine-grained FEMA curve)."""
+    calc = VulnerabilityCalculator()
+    return calc.get_contents_damage_ratio(depth_ft)
 
-
-# =============================================================================
-# VULNERABILITY MODULE
-# =============================================================================
 
 class VulnerabilityModule:
     """
-    Calculate damage from hazard exposure.
-    
-    Combines:
-    - Depth-damage curves
-    - RCV (Replacement Cost Value)
-    - Elevation offset
+    Calculate damage from hazard exposure using fine-grained curves.
+
+    Input depth is in feet to preserve existing MA interfaces.
     """
-    
+
     def __init__(self, elevation_height_ft: float = 5.0):
-        """
-        Args:
-            elevation_height_ft: Standard elevation height for elevated homes
-        """
         self.elevation_height = elevation_height_ft
-    
+        self.calc = VulnerabilityCalculator()
+
     def calculate_damage(
         self,
         depth_ft: float,
         rcv_building: float,
         rcv_contents: float,
-        is_elevated: bool = False
+        is_elevated: bool = False,
     ) -> Dict[str, float]:
-        """
-        Calculate building and contents damage.
-        
-        Args:
-            depth_ft: Flood depth at location
-            rcv_building: Building replacement cost
-            rcv_contents: Contents replacement cost
-            is_elevated: Whether home is elevated
-            
-        Returns:
-            Dict with building_damage, contents_damage, total_damage
-        """
-        # Apply elevation offset
-        effective_depth = depth_ft
+        effective_depth_ft = depth_ft
         if is_elevated:
-            effective_depth = max(0, depth_ft - self.elevation_height)
-        
-        # Calculate damage ratios
-        bld_ratio = depth_damage_building(effective_depth)
-        cnt_ratio = depth_damage_contents(effective_depth)
-        
-        # Calculate dollar amounts
-        bld_damage = rcv_building * bld_ratio
-        cnt_damage = rcv_contents * cnt_ratio
-        
+            effective_depth_ft = max(0.0, depth_ft - self.elevation_height)
+
+        depth_m = effective_depth_ft / FEET_PER_METER
+        result = self.calc.calculate_damage(
+            depth_m=depth_m,
+            rcv_usd=rcv_building,
+            contents_usd=rcv_contents,
+            is_owner=rcv_building > 0,
+            ffe_ft=0.0,
+        )
+
         return {
-            "effective_depth": effective_depth,
-            "building_damage": round(bld_damage, 2),
-            "contents_damage": round(cnt_damage, 2),
-            "total_damage": round(bld_damage + cnt_damage, 2),
-            "building_ratio": round(bld_ratio, 4),
-            "contents_ratio": round(cnt_ratio, 4)
+            "effective_depth": round(effective_depth_ft, 3),
+            "building_damage": round(result.structure_damage_usd, 2),
+            "contents_damage": round(result.contents_damage_usd, 2),
+            "total_damage": round(result.total_damage_usd, 2),
+            "building_ratio": round(result.structure_damage_ratio, 4),
+            "contents_ratio": round(result.contents_damage_ratio, 4),
         }
-    
+
     def calculate_payout(
         self,
         damage: float,
         coverage_limit: float,
         deductible: float,
-        payout_ratio: float = 0.80
+        payout_ratio: float = 0.80,
     ) -> float:
-        """
-        Calculate insurance payout.
-        
-        Args:
-            damage: Total damage amount
-            coverage_limit: Maximum coverage
-            deductible: Amount paid by policyholder first
-            payout_ratio: Percentage of claim paid (e.g., 80%)
-            
-        Returns:
-            Payout amount
-        """
         covered_damage = max(0, min(damage, coverage_limit) - deductible)
         return round(covered_damage * payout_ratio, 2)
-    
+
     def calculate_oop(
         self,
         total_damage: float,
         payout: float,
-        subsidy: float = 0.0
+        subsidy: float = 0.0,
     ) -> float:
-        """
-        Calculate out-of-pocket cost.
-        
-        Args:
-            total_damage: Total damage
-            payout: Insurance payout
-            subsidy: Government subsidy
-            
-        Returns:
-            Out-of-pocket cost
-        """
         return max(0, round(total_damage - payout - subsidy, 2))
 
 
-# =============================================================================
-# EXAMPLE USAGE
-# =============================================================================
-
 if __name__ == "__main__":
-    # Test hazard module
     hazard = HazardModule(seed=42)
-    
-    # Generate synthetic events
-    for year in range(1, 11):
-        event = hazard.get_flood_event("T001", year)
-        if event.depth_ft > 0:
-            print(f"Year {year}: {event.severity} flood ({event.depth_ft:.2f} ft)")
-    
-    # Test vulnerability
+    event = hazard.get_flood_event(year=1)
+    print(f"Year 1: {event.severity} flood ({event.depth_m:.2f} m)")
+
     vuln = VulnerabilityModule()
-    
-    # Non-elevated home
-    damage = vuln.calculate_damage(
-        depth_ft=3.5,
-        rcv_building=300_000,
-        rcv_contents=100_000,
-        is_elevated=False
-    )
-    print(f"\nNon-elevated damage at 3.5ft: ${damage['total_damage']:,.0f}")
-    
-    # Elevated home (same depth)
-    damage_elev = vuln.calculate_damage(
-        depth_ft=3.5,
-        rcv_building=300_000,
-        rcv_contents=100_000,
-        is_elevated=True
-    )
-    print(f"Elevated damage at 3.5ft: ${damage_elev['total_damage']:,.0f}")
-    print(f"Reduction: {(1 - damage_elev['total_damage']/damage['total_damage'])*100:.0f}%")
+    damage = vuln.calculate_damage(depth_ft=3.5, rcv_building=300_000, rcv_contents=100_000, is_elevated=False)
+    print(f"Non-elevated damage at 3.5ft: ${damage['total_damage']:,.0f}")

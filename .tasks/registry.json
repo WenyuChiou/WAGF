@@ -1,24 +1,24 @@
-ï»¿{
+{
   "version": "1.1",
-  "last_updated": "2026-01-16T12:05:00.000Z",
+  "last_updated": "2026-01-16T17:16:56.000Z",
   "tasks": [
     {
       "id": "task-001",
-      "title": "ä¿®å¾©æ¡†æ¶é€šç”¨æ€§æ±™æŸ“",
+      "title": "­×´_®Ø¬[³q¥Î©Ê¦¾¬V",
       "status": "completed",
       "type": "module"
     },
     {
       "id": "task-002",
-      "title": "Gemma 3 ä¿¡ä»»æŒä¹…åŒ–ä¿®å¾©",
-      "description": "è§£æ±º Trust Reset Bug å°è‡´çš„è¡Œç‚ºéœæ…‹å•é¡Œã€‚",
+      "title": "Gemma 3 «H¥ô«ù¤[¤Æ­×´_",
+      "description": "¸Ñ¨M Trust Reset Bug ¾É­Pªº¦æ¬°ÀRºA°İÃD¡C",
       "status": "completed",
       "type": "experiment"
     },
     {
       "id": "task-003",
-      "title": "å…¨æ¨¡å‹åŸºæº–æ¸¬è©¦ (Strict Mode)",
-      "description": "åŸ·è¡Œ 4+ æ¨¡å‹èˆ‡ 2 ç¨®è¨˜æ†¶é«”å¼•æ“çš„å°æ¯”å¯¦é©—ã€‚",
+      "title": "¥ş¼Ò«¬°ò·Ç´ú¸Õ (Strict Mode)",
+      "description": "°õ¦æ 4+ ¼Ò«¬»P 2 ºØ°O¾ĞÅé¤ŞÀºªº¹ï¤ñ¹êÅç¡C",
       "status": "in_progress",
       "type": "experiment",
       "priority": "high",
@@ -26,3 +26,4 @@
     }
   ]
 }
+
