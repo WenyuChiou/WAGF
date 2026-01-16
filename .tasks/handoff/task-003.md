@@ -17,10 +17,13 @@
 - [x] Update Benchmark Reports (README, CH, EN) with verified Gemma 3 results.
 - [x] Provide detailed "Rule Trigger Analysis" and "Qualitative Reasoning Analysis" in reports.
 - [x] Re-draw the 3 comparison charts (`plot_results.py` / `analyze_old_vs_memory.py`).
-- [x] Package analysis scripts into `examples/single_agent/analysis/`.
-- [ ] Proceed to Llama 3.2 simulation and analysis (Next Task).rity)。
-- [ ] **DeepSeek R1**: 待執行。
-- [ ] **Llama 3.1 8B**: 待執行。
+- [x] **Gemma Window**: 已驗證 (Rational Convergence verified).
+  - _Note_: Reports categorized under `reports/`. Analysis tools under `analysis/`.
+- [ ] **Llama 3.2 3B**: 待執行 (Next).
+- [ ] **Llama 3.1 8B**: 待執行.
+- [ ] **DeepSeek R1**: 待執行.
+- [ ] **DeepSeek V3**: 待執行 (If applicable).
+- [ ] **GPT-4o/o1**: 待執行.
 
 ## 驗證標準
 
