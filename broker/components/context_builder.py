@@ -147,12 +147,14 @@ class BaseAgentContextBuilder(ContextBuilder):
         providers: List[ContextProvider] = None,
         extend_providers: List[ContextProvider] = None,  # New: additive providers
         semantic_thresholds: tuple = (0.3, 0.7),
-        yaml_path: Optional[str] = None
+        yaml_path: Optional[str] = None,
+        max_prompt_tokens: int = 16384
     ):
         self.agents = agents
         self.prompt_templates = prompt_templates or {}
         self.semantic_thresholds = semantic_thresholds
         self.yaml_path = yaml_path
+        self.max_prompt_tokens = max_prompt_tokens
 
         
         # Standard: Enforce 0-1 normalization for universal parameters
@@ -304,8 +306,14 @@ class BaseAgentContextBuilder(ContextBuilder):
         # Context size monitoring (Phase 25 PR4)
         # Rough token estimate: ~4 chars per token for English text
         token_estimate = len(formatted) // 4
-        if token_estimate > 2000:
-            logger.warning(f"[Context:Warning] Large prompt for {context.get('agent_id', 'unknown')}: ~{token_estimate} tokens")
+        if token_estimate > self.max_prompt_tokens:
+            logger.warning(
+                f"[Context:Warning] Prompt exceeds limit for {context.get('agent_id', 'unknown')}: "
+                f"~{token_estimate} tokens (limit {self.max_prompt_tokens})"
+            )
+            raise RuntimeError(
+                f"Prompt token estimate {token_estimate} exceeds limit {self.max_prompt_tokens}"
+            )
         
         return formatted
     
@@ -469,7 +477,8 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         memory_engine: Optional[MemoryEngine] = None,
         trust_verbalizer: Optional[Callable[[float, str], str]] = None,
         dynamic_whitelist: List[str] = None,
-        yaml_path: Optional[str] = None
+        yaml_path: Optional[str] = None,
+        max_prompt_tokens: int = 16384
     ):
         providers = [
             DynamicStateProvider(dynamic_whitelist),
@@ -486,7 +495,8 @@ class TieredContextBuilder(BaseAgentContextBuilder):
             agents=agents, 
             prompt_templates=prompt_templates, 
             providers=providers,
-            yaml_path=yaml_path
+            yaml_path=yaml_path,
+            max_prompt_tokens=max_prompt_tokens
         )
 
         self.hub = hub
@@ -641,7 +651,17 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         if "{system_prompt}" not in template:
             template = "{system_prompt}\n\n" + template
             
-        return SafeFormatter().format(template, **template_vars)
+        formatted = SafeFormatter().format(template, **template_vars)
+        token_estimate = len(formatted) // 4
+        if token_estimate > self.max_prompt_tokens:
+            logger.warning(
+                f"[Context:Warning] Prompt exceeds limit for {context.get('agent_id', 'unknown')}: "
+                f"~{token_estimate} tokens (limit {self.max_prompt_tokens})"
+            )
+            raise RuntimeError(
+                f"Prompt token estimate {token_estimate} exceeds limit {self.max_prompt_tokens}"
+            )
+        return formatted
 
 
     def _format_generic_section(self, title: str, data: Dict[str, Any]) -> str:
@@ -735,7 +755,8 @@ def create_context_builder(
     yaml_path: str = None,
     memory_engine: Optional[MemoryEngine] = None,
     semantic_thresholds: tuple = (0.3, 0.7),
-    hub: Optional['InteractionHub'] = None
+    hub: Optional['InteractionHub'] = None,
+    max_prompt_tokens: int = 16384
 ) -> 'BaseAgentContextBuilder':
     """
     Create a context builder for a set of agents.
@@ -767,7 +788,8 @@ def create_context_builder(
             hub=hub,
             prompt_templates=templates,
             memory_engine=memory_engine,
-            yaml_path=yaml_path
+            yaml_path=yaml_path,
+            max_prompt_tokens=max_prompt_tokens
         )
 
     
@@ -776,7 +798,8 @@ def create_context_builder(
         environment=environment,
         prompt_templates=templates,
         memory_engine=memory_engine,
-        semantic_thresholds=semantic_thresholds
+        semantic_thresholds=semantic_thresholds,
+        max_prompt_tokens=max_prompt_tokens
     )
 
 

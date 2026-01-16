@@ -377,3 +377,16 @@ python test_survey_init.py
 
 ## Update (2026-01-16)
 - Updated SA docs in README.md and README_zh.md: agent initialization, disaster model, outputs, generality/maintainability notes.
+
+---
+
+## Update (2026-01-16)
+- Enforced prompt size limit in context builders: if estimated tokens exceed max_prompt_tokens, log warning and raise to stop execution.
+- Added max_prompt_tokens parameter to BaseAgentContextBuilder, TieredContextBuilder, and create_context_builder (default 2000).
+
+
+---
+
+## Update (2026-01-16)
+- Set default max_prompt_tokens to 16384 in context builders so experiments run with the max limit by default.
+

@@ -14,9 +14,11 @@
 
 ## 執行進度
 
-- [x] **Gemma Window**: 正在執行中 (Run ID: `8acd3ae8...`).
-  - _Note_: Temporary verification scripts (`verify_fix.py`, etc.) cleaned up in `cbc16a9`。
-- [ ] **Llama 3.2 3B**: 待執行 (需確認 Parity)。
+- [x] Update Benchmark Reports (README, CH, EN) with verified Gemma 3 results.
+- [x] Provide detailed "Rule Trigger Analysis" and "Qualitative Reasoning Analysis" in reports.
+- [x] Re-draw the 3 comparison charts (`plot_results.py` / `analyze_old_vs_memory.py`).
+- [x] Package analysis scripts into `examples/single_agent/analysis/`.
+- [ ] Proceed to Llama 3.2 simulation and analysis (Next Task).rity)。
 - [ ] **DeepSeek R1**: 待執行。
 - [ ] **Llama 3.1 8B**: 待執行。
 
