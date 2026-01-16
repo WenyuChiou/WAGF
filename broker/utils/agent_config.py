@@ -347,6 +347,11 @@ class AgentTypeConfig:
         if not parsing:
             return {}
             
+        # 0. Check for dynamic_skill_map (Priority for transient mappings)
+        dynamic = context.get("dynamic_skill_map") if context else None
+        if dynamic:
+            return dynamic
+
         # 1. Check for explicit skill_variant
         variant = context.get("skill_variant") if context else None
         if variant:

@@ -1,3 +1,36 @@
+# Human-Centric Governed Broker Framework: Agentic Adaptation Experiment
+
+> **Academic Note**: This repository contains the code and data for validting the **Governed Broker Framework**, an enhanced Agentic AI architecture designed to solve the "Rationality Gap" in LLM simulations.
+
+## 🔬 Scientific Experimental Design (Ablation Study)
+
+To rigorously validate the impact of our framework, we employ an **Ablation Study** methodology (Groups A/B/C) to isolate the specific contributions of the Governance Layer and the Human-Centric Memory System.
+
+### 1. Research Hypothesis
+
+Standard LLMs struggle with long-horizon adaptation due to **Decision Hallucinations** (ignoring constraints) and **Catastrophic Forgetting** (losing context). We hypothesize that:
+
+1.  **Governance** (Tier 2) corrects hallucinations, improving **Rationality**.
+2.  **Human-Centric Memory** (Tier 3) mitigates forgetting, improving **Adaptation Consistency**.
+
+### 2. "Apple-to-Apple" Comparison Groups (N=100)
+
+| Group | Configuration           | Governance  | Memory Engine     | Purpose                                                           |
+| :---- | :---------------------- | :---------- | :---------------- | :---------------------------------------------------------------- |
+| **A** | **Control (Legacy)**    | Disabled    | Window (N=5)      | Measures baseline LLM behavioral flaws (panic, stagnation).       |
+| **B** | **Governance Baseline** | **Enabled** | Window (N=5)      | Isolates the **Independent Effect of Governance** on rationality. |
+| **C** | **Full Enhancement**    | **Enabled** | **Human-Centric** | Measures the **Synergistic Effect** of Memory + Governance.       |
+
+### 3. Methodology Parity
+
+To ensure scientific rigor for publication:
+
+- **Population**: Fixed $N=100$ agents per model/group with identical demographics.
+- **Horizon**: 10-year simulation with identical flood event schedules.
+- **Randomness**: Dynamic seeding used for all runs to prove robustness.
+
+---
+
 This experiment simulates household flood adaptation decisions using LLM-based agents with the Governed Broker Framework. It compares agent behavior with and without the governance layer, utilizing a fully modularized configuration system that separates domain-specific logic from core framework code.
 
 ## Modular Domain Configuration
@@ -164,6 +197,8 @@ Through multiple simulation cycles, we have identified several systemic failure 
 
 ---
 
+---
+
 ## Memory Retrieval Benchmarks (2x4 Matrix)
 
 The following matrix compares performance across four language models and two memory retrieval strategies.
@@ -178,30 +213,7 @@ The following matrix compares performance across four language models and two me
 
 ---
 
----
-
 ## Results Structure
-
-```
-results/
-├── Gemma_3_4B/                  # OLD baseline
-├── gemma3_4b_strict/            # NEW governed
-│   ├── audit_summary.json       # Validation stats
-│   ├── household_governance_audit.csv
-│   ├── simulation_log.csv       # Decision traces
-│   └── comparison_results.png
-└── old_vs_new_comparison_2x4.png
-results/
-├── Gemma_3_4B/                  # OLD baseline
-├── gemma3_4b_strict/            # NEW governed
-│   ├── audit_summary.json       # Validation stats
-│   ├── household_governance_audit.csv
-│   ├── simulation_log.csv       # Decision traces
-│   └── comparison_results.png
-└── old_vs_new_comparison_2x4.png
-```
-
-## Benchmark Analysis
 
 ### Statistical Summary (Chi-Square Test)
 

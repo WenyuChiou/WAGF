@@ -52,12 +52,13 @@ class AgentValidator:
             
             agent_type = context.get('agent_type', 'household')
             agent_id = getattr(proposal, 'agent_id', context.get('agent_id', 'unknown'))
+            alias_map = self.config.get_action_alias_map(agent_type)
             decision = proposal.skill_name
-            state = context.get('state', {})
-            # Normalized values are already in state
-            # Reasoning might be in proposal
-            reasoning = getattr(proposal, 'reasoning', {})
+            if alias_map:
+                decision = alias_map.get(decision.lower(), decision)
             
+            state = context.get('state', {})
+            reasoning = getattr(proposal, 'reasoning', {})
             parse_layer = getattr(proposal, 'parse_layer', "")
             
             return self._validate_internal(agent_type, agent_id, decision, state, None, reasoning, parse_layer)
