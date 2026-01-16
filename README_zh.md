@@ -329,3 +329,30 @@ graph TD
 ## æŽˆæ¬Š
 
 MIT
+
+---
+
+## Single-Agent Flood Experiment (SA)
+
+### ¥N²z¤Hªì©l¤Æ
+- `examples/single_agent/run_flood.py` ·|±q CSV ¸ü¤J¥N²z¤H³]©w¡C
+- ¥²­nÄæ¦ì¡G`id`, `elevated`, `has_insurance`, `relocated`, `trust_in_insurance`, `trust_in_neighbors`, `flood_threshold`, `memory`¡C
+- `agent_type` ¬° `household`¡A§Þ¯à¨Ó·½¬° registry¡C
+
+### ¨a®`¼Ò«¬
+- ¬x¤ô¼Ò¦¡¡G
+  - `fixed`: ¥Ñ `flood_years.csv` «ü©w¦~¥÷
+  - `prob`: ¥Ñ `FLOOD_PROBABILITY` ±±¨î¦~«×¾÷²v
+- ¨C¦~«H¸¹¡Ggrant ¥i¥Î¡B¾F©~Æ[¹î¡BÀH¾÷¦^¾Ð¡C
+- ·l®`¼Ò«¬¡G°ò·Ç $10,000¡F­Y¤w©ï°ª¡A·l®`­°¨ì 10%¡C
+- ©ï°ª«á·|­°§C `flood_threshold`¡A´î¤Ö«áÄò³Q²T¾÷²v¡C
+
+### ¿é¥X»P¬ö¿ý
+- `simulation_log.csv` §t `yearly_decision` »P `cumulative_state`¡C
+- Audit traces ¨C¦¸°õ¦æ·|¦Û°Ê²MªÅ¡AÁ×§K²V¤J¤£¦P `run_id`¡C
+
+## ³q¥Î©Ê»P¥iºûÅ@©Ê
+
+- SA ÅÞ¿è¶°¤¤¦b `examples/single_agent/`¡A®Ö¤ß broker «O«ù domain-agnostic¡C
+- ¨a®`°Ñ¼Æ¦b `run_flood.py`¡Aprompt/skills ¦b `agent_types.yaml`¡C
+- ©T©w¿é¥Xµ²ºc¥H§Q­«²{¡]`config_snapshot.yaml`¡Baudit CSV¡Btraces¡^¡C

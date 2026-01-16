@@ -149,6 +149,33 @@ Not everything is remembered. The engine uses **Probabilistic Storage**:
 
 ---
 
+## Single-Agent Flood Experiment (SA)
+
+### Agent initialization
+- `examples/single_agent/run_flood.py` loads agents from a CSV profile file.
+- Required columns: `id`, `elevated`, `has_insurance`, `relocated`, `trust_in_insurance`, `trust_in_neighbors`, `flood_threshold`, `memory`.
+- Skills are set from the registry, and `agent_type` is `household`.
+
+### Disaster model
+- Flood mode:
+  - `fixed`: years from `flood_years.csv`
+  - `prob`: per-year probability via `FLOOD_PROBABILITY`
+- Per-year signals: grant availability (`GRANT_PROBABILITY`), neighbor observations, and stochastic recall.
+- Damage model: base $10,000; elevation reduces damage to 10%.
+- Elevation reduces future flood susceptibility (`flood_threshold` scaled down after elevation).
+
+### Outputs and logs
+- `simulation_log.csv` includes `yearly_decision` (actual per-year choice) and `cumulative_state`.
+- Audit traces are auto-cleared per run to avoid mixed `run_id` data.
+
+## Generality and maintainability notes
+
+- SA logic is isolated under `examples/single_agent/` to keep core broker components domain-agnostic.
+- Domain-specific parameters live in `run_flood.py`; prompts and actions live in `agent_types.yaml`.
+- Keep outputs stable for reproducibility (`config_snapshot.yaml`, audit CSVs, traces).
+
+---
+
 ## 🔬 Scientific Research Questions (SQs)
 
 ### SQ1: Cognitive vs. Stochastic Adaptation

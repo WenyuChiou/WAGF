@@ -367,3 +367,13 @@ python run_flood.py --survey-mode --model llama3.2:3b --agents 50 --years 5
 # Run test suite
 python test_survey_init.py
 ```
+
+---
+
+## Update (2026-01-16)
+- Created task-004 for SA README/README_zh updates (agent init, disaster model, generality/maintainability), due today.
+
+---
+
+## Update (2026-01-16)
+- Updated SA docs in README.md and README_zh.md: agent initialization, disaster model, outputs, generality/maintainability notes.
