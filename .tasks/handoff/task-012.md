@@ -22,7 +22,14 @@
 
 The `state_changes` returned by `execute_skill()` must be manually applied in application scripts. This caused a critical bug where agent states froze. The fix should be "baked into" the core `BaseAgent` class.
 
----
+## Execution Context (Concurrent Safety)
+
+> [!IMPORTANT]
+> This task CAN be executed while the user's `run_flood.py` simulations are active in the background.
+
+1. **Branch Isolation**: Always work in the dedicated branch `feat/core-persistence-implementation-012` (branched from `feat/core-persistence-plan-012`).
+2. **Resource Management**: When running Parity Verification, set `--workers 2` to avoid competing with background simulation resources.
+3. **No File Mutation**: Do NOT modify `survey_metadata.csv` or `flood_years.csv` as they are being read by active processes.
 
 ## Parity & Logic Consistency (Critical)
 
