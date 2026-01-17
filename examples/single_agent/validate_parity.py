@@ -44,32 +44,46 @@ def validate_parity(baseline_path: str, refactored_path: str) -> bool:
         return False
     
     # Check 2: Decision parity (most critical)
-    decision_col = 'approved_skill' if 'approved_skill' in df_baseline.columns else 'decision'
+    decision_col = 'yearly_decision'
     if decision_col not in df_baseline.columns:
-        print(f"⚠️ Warning: Decision column not found. Skipping decision check.")
+        # Fallback for older logs
+        decision_col = 'approved_skill' if 'approved_skill' in df_baseline.columns else 'decision'
+
+    if decision_col not in df_baseline.columns:
+        print(f"⚠️ Warning: Decision column not found. Available: {df_baseline.columns.tolist()}")
     else:
         if not df_baseline[decision_col].equals(df_refactored[decision_col]):
             mismatches = (df_baseline[decision_col] != df_refactored[decision_col]).sum()
             print(f"❌ Decision parity failed! {mismatches} mismatched decisions.")
             # Show first 5 mismatches
             diff_idx = df_baseline[decision_col] != df_refactored[decision_col]
-            print("First 5 mismatches:")
-            print(df_baseline[diff_idx].head())
+            print("First 5 decision mismatches:")
+            print(pd.concat([
+                df_baseline.loc[diff_idx, ['agent_id', 'year', decision_col]].rename(columns={decision_col: 'base'}),
+                df_refactored.loc[diff_idx, [decision_col]].rename(columns={decision_col: 'refactor'})
+            ], axis=1).head())
             return False
         else:
             print(f"✅ Decision parity: PASSED ({len(df_baseline)} decisions match)")
     
     # Check 3: State persistence parity
-    state_col = 'cumulative_state' if 'cumulative_state' in df_baseline.columns else None
-    if state_col and state_col in df_baseline.columns:
+    state_col = 'cumulative_state'
+    if state_col in df_baseline.columns:
         if not df_baseline[state_col].equals(df_refactored[state_col]):
             mismatches = (df_baseline[state_col] != df_refactored[state_col]).sum()
             print(f"❌ State parity failed! {mismatches} mismatched states.")
+            
+            # Show first 5 mismatches
+            diff_idx = df_baseline[state_col] != df_refactored[state_col]
+            print("First 5 state mismatches:")
+            print(pd.concat([
+                df_baseline.loc[diff_idx, ['agent_id', 'year', state_col]].rename(columns={state_col: 'base'}),
+                df_refactored.loc[diff_idx, [state_col]].rename(columns={state_col: 'refactor'})
+            ], axis=1).head())
+            
             return False
         else:
             print(f"✅ State parity: PASSED ({len(df_baseline)} states match)")
-    else:
-        print(f"⚠️ Warning: State column not found. Skipping state check.")
     
     print("\n🎉 Parity Verification PASSED: All decisions and states are identical.")
     return True
