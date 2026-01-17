@@ -16,7 +16,7 @@ def calculate_kpis(result_dir: str):
 
     # 1. Load Data
     log_path = run_path / "simulation_log.csv"
-    summary_path = run_path / "governance_summary.json"
+    summary_path = run_path / "audit_summary.json"
     
     metrics = {
         "RS_RationalityScore": 0,
@@ -60,17 +60,71 @@ def calculate_kpis(result_dir: str):
 
 if __name__ == "__main__":
     import argparse
+    import csv
+    
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dir", type=str, required=True, help="Path to result directory (e.g., results/JOH_Macro/llama3_2_3b_strict)")
+    parser.add_argument("--root", type=str, required=True, help="Root directory containing model results (e.g., results/JOH_FINAL)")
     args = parser.parse_args()
     
-    results = calculate_kpis(args.dir)
-    print("\n" + "="*40)
-    print(f" JOH PERFORMANCE REPORT: {args.dir}")
-    print("="*40)
-    for k, v in results.items():
-        if isinstance(v, float):
-            print(f"{k:25}: {v:.2%}")
-        else:
-            print(f"{k:25}: {v}")
-    print("="*40 + "\n")
+    root_path = Path(args.root)
+    all_results = []
+    
+    # Walk through the directory to find model run folders (those with simulation_log.csv or audit_summary.json)
+    print(f"\nSearching for runs in: {root_path}...")
+    
+    for model_dir in root_path.iterdir():
+        if model_dir.is_dir():
+            # Check for Group subfolders
+            for group_dir in model_dir.iterdir():
+                if group_dir.is_dir() and "Group_" in group_dir.name:
+                    # Found a Group folder (e.g., Group_B_Governance_Window)
+                    # The actual run is usually a subdirectory inside this, e.g., llama3_2_3b_strict
+                    # Or sometimes the files are directly here. Let's look for the run folder inside.
+                    
+                    found_run = False
+                    for run_subdir in group_dir.iterdir():
+                        if run_subdir.is_dir() and "strict" in run_subdir.name:
+                            # This is the target run folder
+                            print(f" -> Processing: {run_subdir.name} ({group_dir.name})")
+                            metrics = calculate_kpis(str(run_subdir))
+                            if metrics:
+                                metrics["Model"] = model_dir.name
+                                metrics["Group"] = group_dir.name
+                                metrics["RunPath"] = str(run_subdir)
+                                all_results.append(metrics)
+                            found_run = True
+                            
+                    if not found_run:
+                        # Fallback: Check if the group dir itself is the run dir (older structure)
+                        if (group_dir / "simulation_log.csv").exists():
+                             print(f" -> Processing: {group_dir.name} (Direct)")
+                             metrics = calculate_kpis(str(group_dir))
+                             if metrics:
+                                 metrics["Model"] = model_dir.name
+                                 metrics["Group"] = group_dir.name
+                                 metrics["RunPath"] = str(group_dir)
+                                 all_results.append(metrics)
+
+    # Export to CSV
+    if all_results:
+        output_csv = root_path / "joh_metrics_summary.csv"
+        keys = ["Model", "Group", "RS_RationalityScore", "AD_AdaptationDensity", "PC_PanicCoefficient", "Interventions", "FI_FidelityIndex", "RunPath"]
+        
+        with open(output_csv, 'w', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=keys)
+            writer.writeheader()
+            for row in all_results:
+                # Filter row to only match keys
+                clean_row = {k: row.get(k, "N/A") for k in keys}
+                writer.writerow(clean_row)
+                
+        print("\n" + "="*60)
+        print(f" BATCH PROCESSING COMPLETE. metrics saved to: {output_csv}")
+        print("="*60)
+        
+        # Print Summary Table to Console
+        df_summary = pd.DataFrame(all_results)
+        if not df_summary.empty:
+            print(df_summary[["Model", "Group", "RS_RationalityScore", "AD_AdaptationDensity"]].to_string(index=False))
+    else:
+        print("No valid runs found.")
