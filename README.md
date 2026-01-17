@@ -107,21 +107,63 @@ Developing LLM-based agents within a governed framework revealed several recurri
 
 - **Example**: In our latest `UnifiedAdapter`, we sequence: **Enclosure Extraction** -> **JSON Repair** (for missing quotes/commas) -> **Keyword Regex** -> **Last-Resort Digit Extraction**.
 
-### 2. The Logic-Action Gap
+### 2. The Logic-Action Validator & Explainable Feedback Loop
 
-**Challenge**: Agents often distinguish "Feeling Safe" (Reasoning) from "Relocating" (Action).
-**Solution**: **Thinking Validators** in the `SkillBrokerEngine`. When a gap is detected, the broker triggers an immediate **Retry Prompt** with explicit logical feedback.
+- **Challenge**: The "Logic-Action Gap." Small LLMs often output a reasoning string that classifies a threat as "Very High" (VH) but then select a "Do Nothing" action due to syntax confusion or reward bias.
+- **Solution**: The **SkillBrokerEngine** implements a **Recursive Feedback Loop**.
+  1. **Detection**: Validators scan the parsed response. If `TP=VH` but `Action=Buy Insurance` (which cost-effectively addresses risks) is ignored for `Do Nothing`, an `InterventionReport` is generated.
+  2. **Injection**: Instead of a generic "Parse Error," the framework extracts the specific violation (e.g., _"Mismatch: High appraisal but passive action"_) and injects it into a **Retry Prompt**.
+  3. **Instruction**: The LLM is told: _"Your previous response was rejected due to logical inconsistency. Here is why: [Violation]. Please reconsider your action based on your appraisal."_
+  4. **Trace**: This entire "Argument" between the Broker and the LLM is captured in the `AuditWriter` for full transparency.
 
-### 3. Identity Drift
+---
 
-**Challenge**: In later years (Year 7+), agents may forget their role (e.g., Renter attempting to Elevate).
-**Solution**: **Identity Guardrails** at the Governance Layer block invalid skills based on the immutable Agent Profile.
+## 🧠 Memory Evolution: From Window to Tiered (v4 Roadmap)
+
+The framework is transitioning from a simple sliding window memory to a **Tiered Cognitive Architecture**, solving the context-overload problem while maintaining historical grounding.
+
+### Tier 1: Working Memory (Sliding Window)
+
+- **Scope**: Last 5 years of detailed events.
+- **Function**: Provides immediate context for the current decision step.
+- **Cleanup**: Low-importance events are purged to maintain LLM token efficiency.
+
+### Tier 2: Episodic Summary (Human-Centric Search)
+
+- **Scope**: Historical traumatic events (e.g., "The great flood of Year 2").
+- **Function**: Uses **Stochastic Retrieval**. Memories are scored by `Importance = (Emotion x Source) x Decay`. High-emotion memories bypass the window limit and are "pushed" into the prompt even 10 years later.
+
+### Tier 3: Semantic Insights (The Reflection Engine) - [LATEST v3.3]
+
+- **Scope**: Consolidated life lessons.
+- **Function**: At Year-End, the **Reflection Engine** triggers a "System 2" thinking process. It asks the LLM to summarize the year's events into a single **Insight** (e.g., _"Insurance is my only buffer against financial ruin"_).
+- **Consolidation**: These insights are stored as high-priority semantic memories, ensuring the agent's "Personality" evolves based on past successes or failures.
+
+---
+
+---
+
+## 🧪 Experimental Configurations (Baseline vs. Full)
+
+In our validation workflows (e.g., the JOH Paper), we define two core configurations to test the universal modules:
+
+1. **Baseline**:
+
+   - **Memory**: Simple `WindowMemoryEngine` (sliding window).
+   - **Governance**: Basic Syntax Validation.
+   - **Purpose**: Establishes a control group to measure behavioral drift without cognitive assistance.
+
+2. **Full**:
+   - **Memory**: **Human-Centric Memory** (including Reflection Engine).
+   - **Governance**: **Logic-Action Validator** (recursive retry mechanism).
+   - **Perception**: **Pillar 3 (Priority Schema)** attribute weighting.
+   - **Purpose**: Full demonstration of the 3-Pillar architecture's ability to solve LLM hallucination and bias.
 
 ---
 
 ## 🔧 Domain-Neutral Configuration (v3.3)
 
-All domain-specific logic is now centralized in `agent_types.yaml`. The framework is agnostic to the simulation domain.
+All domain-specific logic is centralized in `agent_types.yaml`. The framework is agnostic to the simulation domain.
 
 ```yaml
 # agent_types.yaml - Parsing & Memory Configuration

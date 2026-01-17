@@ -180,68 +180,56 @@ python run_experiment.py --model llama3.2:3b --num-agents 100 --num-years 10
 - **The "Goldfish Effect" (Recency Bias)**: 當資訊過載時，模型會忘記早期的指令。
   - **設計**: 我們使用 **分層上下文階層 (Tiered Context Hierarchy)** (`Personal State -> Local Observation -> Global Memory`)。這將生存關鍵數據 (State) 放在最接近決策區塊的位置，同時壓縮遠期記憶。
 
-### 2. 邏輯-行動 驗證器 (The Logic-Action Validator)
+### 2. 邏輯-行動驗證器與可解釋反饋循環 (Explainable Feedback Loop)
 
-- **挑戰**: Agent 經常產生「我覺得不安全」的推理路徑 (Reasoning)，但最終卻未能選擇相應的行動「搬遷」(Action)。
-- **設計**: **思維驗證器 (Thinking Validator)** (位於 `Skill Broker`) 在執行前會執行 `Threat Appraisal` 與 `Action Choice` 之間的邏輯一致性檢查。若發現不匹配，系統會觸發重試並給予明確的反饋。
-
----
-
-## 🔮 未來展望 (v3.3+)
-
-建基於 v3.2 的穩健架構，我們未來的優化方向包括：
-
-- **並行執行模式**: 實作 `MultiprocessingBroker` 以提升大規模模擬的執行效率。
-- **多模態環境感知**: 支援基於視覺（Vision）的環境感知（例如：讓代理人「看到」洪水地圖）。
-- **進階代理人委員會**: 擴展治理機制，建立隨機的代理人委員會進行決策同行評審（Peer Review）。
-- **動態語義嵌入**: 採用向量資料庫（如 ChromaDB）提升技能檢索的精確度。
-
-### 審計與透明度 (`broker/components/audit_writer.py`)
-
-`AuditWriter` 提供了一個「玻璃盒」視角，為每個決策導出高解析度的 CSV 紀錄。
-
-| 欄位名稱           | 說明                                                      |
-| :----------------- | :-------------------------------------------------------- |
-| **step_id**        | 模擬步驟/年份的唯一標識符。                               |
-| **agent_id**       | 特定代理人的標識符 (例如 `Agent_1`)。                     |
-| **proposed_skill** | LLM 在驗證前最初提案的動作名稱。                          |
-| **final_skill**    | 最終執行的動作 (如果提案被拒絕，則可能不同)。             |
-| **status**         | 動作結果 (SUCCESS, FAILED, 或 BLOCKED)。                  |
-| **validated**      | 布林值，指示決策是否通過所有治理檢查。                    |
-| **failed_rules**   | 被違反的規則 ID (例如 `TP_COHERENCE`)，以管線符號分隔。   |
-| **reason_tp / cp** | 提取出的心理評估 (威脅/應對感知)。                        |
-| **demo_score**     | 人口統計錨定分數 (0.0 到 1.0)，衡量對調研數據的使用程度。 |
-| **llm_retries**    | 由於解析錯誤或空輸出導致的 LLM 層級重試次數。             |
+- **挑戰**:「邏輯-行動差距 (Logic-Action Gap)」。小型 LLM 經常輸出「威脅非常高 (VH)」的推理，但卻因為語法困惑或獎勵偏誤而選擇「不採取行動 (Do Nothing)」。
+- **解決方案**: **SkillBrokerEngine** 實作了 **遞歸反饋循環 (Recursive Feedback Loop)**。
+  1. **偵測 (Detection)**: 驗證器掃描解析後的結果。若 `TP=VH` 但代理人忽略了加高或保險而選擇「不採取行動」，則產生 `InterventionReport`。
+  2. **注入 (Injection)**: 框架提取具體的違規原因（例如：_"不匹配：高威脅感知但選擇被動動作"_），並將其注入 **重試提示詞 (Retry Prompt)**。
+  3. **指令 (Instruction)**: 告知 LLM：_"您之前的回應因邏輯不一致被拒絕。原因如下：[違規描述]。請根據您的威脅評估重新考慮動作。"_
+  4. **軌跡 (Trace)**: 治理引擎與 LLM 之間的這場「辯論」會完整記錄在 `AuditWriter` 中。
 
 ---
 
-## 🏗️ 技術架構細節
+## 🧠 記憶演進：從窗口到分層 (v4 路線圖)
 
-### 1. 狀態層 (State Layer): 多級所有權
+框架正從簡單的滑動窗口記憶轉向 **分層認知架構 (Tiered Cognitive Architecture)**，在保持歷史感知的同時解決上下文過載問題。
 
-由 `simulation/state_manager.py` 管理，狀態被劃分以確保嚴格的權限控制：
+### 第一層：工作記憶 (Working Memory - 滑動窗口)
 
-- **Individual (個人)**: 代理人獨有的私有變數 (例如 `elevated=True`, `has_insurance=False`)。
-- **Social (社交)**: 來自鄰居的可觀察行為信號 (例如 `neighbor_decisions`)。
-- **Shared (共享)**: 所有代理人可見的全局環境變數 (例如 `flood_occurrence`)。
-- **Institutional (制度)**: 由特定實體控制的政策級變數 (例如 `tax_rate`, `subsidy`)。
+- **範圍**: 最近 5 年的詳細事件。
+- **功能**: 為當前決策步驟提供即時上下文。
+- **清理**: 定期清除低重要性事件以維持 Token 效率。
 
-### 2. 上下文構建器 (Context Builder): 有界感知
+### 第二層：情節摘要 (Episodic Summary - 以人為本檢索)
 
-由 `broker/components/context_builder.py` 管理，此模組為代理人生成「世界觀」：
+- **範圍**: 歷史性的重大創傷事件（如：第 2 年的特大洪水）。
+- **功能**: 使用 **隨機檢索機制**。記憶透過 `重要性 = (情緒 x 來源) x 衰減` 評分。高情緒記憶會繞過窗口限制，即使在 10 年後也會被「推回」提示詞中。
 
-- **顯著性過濾 (Salience Filtering)**: 不使用完整歷史，而是使用加權重要性來檢索相關記憶。
-- **人口統計錨定 (Demographic Anchoring)**: 自動將固定的調研特徵 (收入、世代) 注入角色設定中。
-- **自適應精度 (Adaptive Precision)**: 將原始狀態數值 (如 `0.85 wealth`) 轉換為語義標籤 (如 `High Wealth`)，提升 LLM 推理效果。
+### 第三層：語法洞察 (Semantic Insights - 反思引擎) - [最新 v3.3]
 
-### 3. 模擬引擎 (Simulation Engine): 順序世界演變
+- **範圍**: 固化的生活教訓。
+- **功能**: 年末觸發「系統二」思考過程。反思引擎要求 LLM 將當年的經歷總結為一條 **洞察 (Insight)**（例：_"保險是我應對財務崩潰的唯一緩衝"_）。這些洞察作為高優先級語義記憶儲存，確保代理人的「人格」隨經驗演化。
 
-由 `simulation/engine.py` 管理，負責協調時間循環：
+---
 
-- **步驟流程**: 年末狀態更新 → 環境衝擊過渡 → 代理人決策循環 → 技能執行。
-- **沙盒執行 (Sandboxed Execution)**: 代理人從不直接修改狀態。他們提案 `skill_id`，由引擎應用物理後果。
+## 🧪 實驗配置說明 (Baseline vs. Full)
 
-**No MCP → MCP v1 → Skill-Governed (v2) → Unified Simulation (v3)**：漸進式增加治理層級，實現可靠且可擴展的 LLM-ABM 整合。
+在框架的驗證流程（如 JOH 論文）中，我們定義了兩種核心配置來測試通用模組的效能：
+
+1. **Baseline (基準組)**：
+
+   - **記憶**: 使用 `WindowMemoryEngine` (簡單滑動窗口)。
+   - **治理**: 僅開啟基礎語法驗證。
+   - **目的**: 建立一個控制組，用來衡量「認知中介層」在缺乏長效記憶時的行為表現。
+
+2. **Full (完整組)**：
+   - **記憶**: 開啟 **Human-Centric Memory** (含反思引擎)。
+   - **治理**: 開啟 **Logic-Action Validator** (遞歸重試機制)。
+   - **感知**: 開啟 **Pillar 3 (Priority Schema)** 權重感知。
+   - **目的**: 完整展現三支柱架構在解決 LLM 幻覺與偏誤上的能力。
+
+---
 
 ---
 

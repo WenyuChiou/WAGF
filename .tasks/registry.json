@@ -57,6 +57,15 @@
       "type": "feature",
       "priority": "high",
       "handoff_file": "handoff/current-session.md"
+    },
+    {
+      "id": "task-009",
+      "title": "通用模組與 Pillar 2/3 完備化 (JOH Final)",
+      "description": "實作 Batch Reflection、權重可調化與 APA 文獻說明。",
+      "status": "completed",
+      "type": "feature",
+      "priority": "critical",
+      "handoff_file": "handoff/current-session.md"
     }
   ]
 }
