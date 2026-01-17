@@ -142,3 +142,14 @@ To hand off work from Agent A to Agent B:
    - Starts session by reading `handoff/current-session.md`.
    - Confirms **"Active Task"** and **"Assigned To"** match.
    - Begins execution immediately.
+
+## 15) Branch Sync Rule for `.tasks/`
+
+To avoid information asymmetry between agents on different branches:
+
+1.  **All `.tasks/` updates** (registry.json, current-session.md, task-XXX.md) should be committed to a **shared tracking branch** (e.g., `main` or `dev`), OR merged back promptly.
+2.  **Post-Delegation Sync**:
+    - After Agent B completes a delegated task on a feature branch, it MUST merge `.tasks/` updates back to the main tracking branch OR inform the user to do so.
+    - Command: `git checkout main && git merge <feature-branch> --no-edit`
+3.  **Agent Startup Check**:
+    - Before reading `.tasks/`, pull latest from shared branch: `git pull origin main --rebase`
