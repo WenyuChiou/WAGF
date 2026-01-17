@@ -11,6 +11,8 @@ v2.0: invoke functions now return (content, stats) tuple for thread-safety.
 v2.1: Added global LLM_CONFIG for configurable parameters.
 """
 import logging
+import os
+from pathlib import Path
 from typing import Callable, Dict, Tuple, Union, Optional, Any
 from dataclasses import dataclass, field
 
@@ -236,6 +238,46 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
     except Exception as e:
         _LOGGER.warning(f"Falling back to mock LLM due to: {e}")
         return lambda p: ("Final Decision: do_nothing", LLMStats())
+
+
+def create_provider_invoke(config: Dict[str, Any], verbose: bool = False) -> LLMInvokeFunc:
+    """
+    Creates an invocation function using the new v0.3 Provider Factory.
+    This is the modern way to instantiate LLMs (Gemini, OpenAI, Ollama).
+    
+    Args:
+        config: Provider configuration (type, model, temperature, etc.)
+        verbose: Enable diagnostic logging
+        
+    Returns:
+        A callable that takes prompt str and returns (content, LLMStats) tuple.
+    """
+    from providers.factory import create_provider
+    provider = create_provider(config)
+    
+    def invoke(prompt: str) -> Tuple[str, LLMStats]:
+        if verbose:
+            _LOGGER.debug(f"\n [LLM:Input] {provider.provider_name}:{provider.config.model} Prompt begins: {repr(prompt[:100])}...")
+        
+        try:
+            # Note: Provider handles its own internal configuration (temp, tokens)
+            response = provider.invoke(prompt)
+            
+            # Map usage stats to framework standard
+            stats = LLMStats(
+                retries=0, 
+                success=True
+            )
+            
+            if verbose:
+                _LOGGER.debug(f" [LLM:Output] Raw Content: {repr(response.content[:200])}...")
+                
+            return response.content, stats
+        except Exception as e:
+            _LOGGER.error(f" [LLM:Error] {provider.provider_name} call failed: {e}")
+            return "", LLMStats(retries=0, success=False)
+            
+    return invoke
 
 
 # =============================================================================

@@ -63,6 +63,14 @@ Handoff should answer:
 - Why it changed
 - What is next
 
+Keep `handoff/current-session.md` concise. Move long details to `handoff/task-XXX.md`.
+
+## 6.1) Ownership
+
+- Only repo-assigned agents (Codex, Claude Code, Gemini CLI) update `.tasks/`.
+- Do not mix personal task systems or other agents' logs into this repo.
+- Other AI IDEs (e.g., antigravity) must report results to Claude Code instead of writing `.tasks/` directly.
+
 ## 7) Artifacts rules
 
 Put outputs in `artifacts/` or project result folders.
@@ -90,3 +98,26 @@ One plan at a time. Update it after completing a sub-step.
 - `Clear todo` (sets next_step to `none`)
 - `Run test <cmd>`
 - `Log artifact <path>`
+
+## 11) Execution Report Format
+
+Execution-only agents must report in this format to Claude Code:
+
+```
+REPORT
+agent: <name>
+task_id: <task-XXX or none>
+scope: <area/dir>
+status: <done|blocked|partial>
+changes: <files touched or "none">
+tests: <commands run or "none">
+artifacts: <paths or "none">
+issues: <bugs/risks or "none">
+next: <suggested next_step or "none">
+```
+
+## 12) Micro-plan Policy
+
+Small work (single step, <30 minutes, low risk) does not require a new task.
+Record a one-line "Micro-plan" note in `handoff/current-session.md`.
+Multi-step or shared work must be tracked in `registry.json` + `handoff/task-XXX.md`.

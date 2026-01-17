@@ -13,6 +13,7 @@ Write-Host "Model: $Model"
 Write-Host ""
 
 # Run with VERBOSE to capture the "Reject -> Hint -> Correct" loop in stdout
+$ScenarioOutput = Join-Path "results\JOH_STRESS" $Scenario
 python run_flood.py `
     --model $Model `
     --years $Years `
@@ -20,7 +21,7 @@ python run_flood.py `
     --memory-engine humancentric `
     --governance-mode strict `
     --use-priority-schema `
-    --output results/JOH_STRESS `
+    --output $ScenarioOutput `
     --stress-test $Scenario `
     --verbose
 

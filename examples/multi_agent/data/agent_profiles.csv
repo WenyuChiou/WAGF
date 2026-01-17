@@ -1,101 +1,101 @@
-agent_id,tract_id,mg,tenure,income,household_size,generations,has_vehicle,has_children,has_elderly,housing_cost_burden,rcv_building,rcv_contents,trust_gov,trust_ins,trust_neighbors,elevated,has_insurance,relocated,cumulative_damage,cumulative_oop
-H0001,T001,False,Owner,103682.87,4,2,True,True,False,False,383747.68,167060.68,0.584,0.648,0.35,False,False,False,0.0,0.0
-H0002,T001,True,Owner,44064.94,3,1,False,True,False,True,157717.51,53587.29,0.111,0.51,0.488,False,False,False,0.0,0.0
-H0003,T001,False,Owner,66846.29,4,2,True,False,True,False,366484.57,169009.44,0.739,0.829,0.3,False,False,False,0.0,0.0
-H0004,T001,True,Owner,53745.83,1,1,True,False,True,True,294771.38,138394.83,0.273,0.134,0.675,False,False,False,0.0,0.0
-H0005,T001,False,Renter,64837.39,1,2,True,False,False,False,0.0,48993.34,0.572,0.51,0.452,False,False,False,0.0,0.0
-H0006,T001,False,Renter,117643.82,5,1,True,False,False,False,0.0,73838.73,0.716,0.37,0.56,False,True,False,0.0,0.0
-H0007,T001,True,Owner,36635.24,3,3,False,True,True,True,311663.28,133122.88,0.184,0.368,0.457,False,False,False,0.0,0.0
-H0008,T001,True,Owner,30206.53,2,2,True,False,False,False,253785.89,84822.28,0.284,0.1,0.499,False,False,False,0.0,0.0
-H0009,T001,True,Owner,44340.55,6,1,True,False,False,False,273815.86,128302.0,0.1,0.125,0.509,False,False,False,0.0,0.0
-H0010,T001,True,Owner,63181.31,2,3,True,False,False,False,350853.77,166751.51,0.652,0.162,0.339,False,False,False,0.0,0.0
-H0011,T001,False,Owner,58843.51,5,1,True,False,False,False,636793.14,222448.08,0.521,0.83,0.3,False,False,False,0.0,0.0
-H0012,T001,True,Owner,44381.94,2,2,True,False,False,False,354014.0,142280.09,0.313,0.153,0.719,False,True,False,0.0,0.0
-H0013,T001,True,Owner,80000.0,4,1,True,False,False,True,322769.83,121465.99,0.1,0.366,0.666,False,False,False,0.0,0.0
-H0014,T001,False,Renter,82418.55,5,2,True,True,False,False,0.0,54673.18,0.388,0.77,0.3,False,False,False,0.0,0.0
-H0015,T001,False,Owner,77731.93,1,4,True,True,False,False,495548.24,193632.87,0.646,0.721,0.733,False,False,False,0.0,0.0
-H0016,T001,False,Owner,59686.64,3,4,True,True,False,False,418878.99,198592.09,0.759,0.563,0.5,False,False,False,0.0,0.0
-H0017,T001,False,Renter,104446.01,4,2,True,False,False,False,0.0,80000.0,0.6,0.508,0.8,False,False,False,0.0,0.0
-H0018,T001,False,Owner,70377.84,1,2,True,True,False,False,554545.98,263822.13,0.385,0.684,0.3,False,False,False,0.0,0.0
-H0019,T001,True,Owner,29132.99,1,4,True,False,True,False,270526.12,84902.6,0.262,0.249,0.281,False,False,False,0.0,0.0
-H0020,T001,False,Owner,198643.89,3,1,True,False,False,False,545228.04,258703.4,0.8,0.525,0.3,False,False,False,0.0,0.0
-H0021,T001,True,Owner,76849.12,3,1,True,True,False,False,182317.05,78391.88,0.662,0.108,0.646,False,False,False,0.0,0.0
-H0022,T001,False,Owner,160301.75,3,2,True,True,False,False,275922.46,95475.5,0.474,0.705,0.3,False,False,False,0.0,0.0
-H0023,T001,True,Renter,57324.0,4,2,False,False,False,True,0.0,44466.1,0.185,0.25,0.672,False,False,False,0.0,0.0
-H0024,T001,False,Owner,118251.98,1,4,True,False,False,False,510564.74,201435.25,0.715,0.637,0.3,False,False,False,0.0,0.0
-H0025,T001,False,Owner,135083.84,4,3,True,False,False,False,507229.39,199546.55,0.715,0.707,0.648,False,False,False,0.0,0.0
-H0026,T001,False,Renter,93750.58,1,2,True,False,False,False,0.0,54965.52,0.481,0.614,0.415,False,False,False,0.0,0.0
-H0027,T001,True,Owner,56370.35,1,2,True,False,False,True,266882.38,129345.38,0.288,0.406,0.506,False,False,False,0.0,0.0
-H0028,T001,False,Owner,92971.06,1,2,True,False,False,False,401513.95,198267.29,0.51,0.856,0.8,False,False,False,0.0,0.0
-H0029,T001,False,Owner,40000.0,3,1,True,True,False,False,341633.33,106496.36,0.382,0.383,0.3,False,False,False,0.0,0.0
-H0030,T001,False,Owner,136241.26,6,1,True,False,False,False,347481.65,170774.56,0.2,0.397,0.494,False,False,False,0.0,0.0
-H0031,T001,False,Renter,70996.11,3,1,True,True,False,False,0.0,51512.69,0.52,0.213,0.68,False,False,False,0.0,0.0
-H0032,T001,False,Renter,193823.98,5,1,True,False,False,False,0.0,80000.0,0.475,0.897,0.359,False,False,False,0.0,0.0
-H0033,T001,True,Renter,76732.52,5,3,False,True,False,False,0.0,43792.5,0.1,0.1,0.758,False,False,False,0.0,0.0
-H0034,T001,True,Renter,39009.6,4,1,False,False,False,True,0.0,40379.55,0.254,0.356,0.765,False,False,False,0.0,0.0
-H0035,T001,False,Renter,64248.67,5,3,True,False,False,False,0.0,46769.37,0.598,0.599,0.3,False,False,False,0.0,0.0
-H0036,T001,False,Owner,107047.65,3,2,True,False,True,False,439149.36,171995.97,0.711,0.716,0.58,False,False,False,0.0,0.0
-H0037,T001,False,Owner,166918.87,4,2,True,True,False,False,521107.56,248137.27,0.719,0.46,0.8,False,False,False,0.0,0.0
-H0038,T001,True,Owner,50102.31,2,1,True,False,False,False,249689.1,107564.88,0.199,0.162,0.544,False,True,False,0.0,0.0
-H0039,T001,False,Owner,114985.7,4,4,True,False,True,False,738381.55,238560.54,0.818,0.86,0.416,False,True,False,0.0,0.0
-H0040,T001,False,Owner,43730.39,3,2,True,False,False,False,382565.21,163297.04,0.386,0.424,0.608,False,False,False,0.0,0.0
-H0041,T001,False,Renter,78369.37,6,1,True,True,False,False,0.0,52196.39,0.577,0.509,0.379,False,False,False,0.0,0.0
-H0042,T001,True,Renter,33800.84,3,1,True,True,False,False,0.0,32169.32,0.681,0.125,0.65,False,False,False,0.0,0.0
-H0043,T001,True,Owner,20000.0,3,1,True,False,False,False,294225.92,122545.66,0.316,0.19,0.494,False,True,False,0.0,0.0
-H0044,T001,True,Owner,28401.61,3,3,True,False,False,False,252277.98,86282.93,0.421,0.1,0.389,False,False,False,0.0,0.0
-H0045,T001,True,Renter,80000.0,2,1,True,False,False,True,0.0,52852.97,0.325,0.116,0.579,False,False,False,0.0,0.0
-H0046,T001,False,Renter,113631.18,5,2,True,False,True,False,0.0,66703.69,0.233,0.672,0.472,False,False,False,0.0,0.0
-H0047,T001,True,Renter,61964.15,2,1,True,False,False,True,0.0,50140.64,0.267,0.115,0.429,False,False,False,0.0,0.0
-H0048,T001,True,Renter,21924.88,2,1,True,False,False,False,0.0,32792.15,0.129,0.466,0.801,False,False,False,0.0,0.0
-H0049,T001,False,Owner,92008.89,2,1,False,False,False,False,383046.51,181131.43,0.658,0.35,0.8,False,False,False,0.0,0.0
-H0050,T001,True,Renter,22779.81,3,1,True,False,False,False,0.0,25222.84,0.285,0.514,0.437,False,True,False,0.0,0.0
-H0051,T001,False,Owner,77209.39,4,3,True,True,True,False,357458.15,138305.12,0.374,0.692,0.746,False,False,False,0.0,0.0
-H0052,T001,True,Renter,32452.91,2,1,True,False,False,True,0.0,38226.21,0.1,0.1,0.446,False,False,False,0.0,0.0
-H0053,T001,True,Renter,41870.04,3,1,True,False,False,False,0.0,37499.52,0.53,0.307,0.632,False,False,False,0.0,0.0
-H0054,T001,True,Renter,43259.53,2,1,True,False,False,False,0.0,32411.95,0.37,0.221,0.517,False,False,False,0.0,0.0
-H0055,T001,True,Owner,49202.43,1,2,True,False,True,True,225217.47,109922.51,0.308,0.1,0.612,False,False,False,0.0,0.0
-H0056,T001,False,Renter,67518.13,3,1,True,False,True,False,0.0,47617.3,0.791,0.349,0.684,False,False,False,0.0,0.0
-H0057,T001,False,Owner,109002.98,2,1,True,False,False,False,249734.19,85593.97,0.48,0.54,0.551,False,False,False,0.0,0.0
-H0058,T001,False,Renter,100937.2,2,1,True,True,False,False,0.0,61413.32,0.291,0.477,0.703,False,False,False,0.0,0.0
-H0059,T001,True,Renter,33618.65,1,2,True,False,False,True,0.0,31901.6,0.564,0.458,0.489,False,True,False,0.0,0.0
-H0060,T001,True,Owner,41338.45,5,3,True,True,False,False,385458.57,130626.92,0.114,0.119,0.567,False,False,False,0.0,0.0
-H0061,T001,False,Owner,56882.91,1,1,True,True,False,False,317705.63,144241.29,0.54,0.716,0.3,False,True,False,0.0,0.0
-H0062,T001,False,Owner,90852.03,3,2,True,False,True,False,463682.44,162214.51,0.577,0.335,0.757,False,False,False,0.0,0.0
-H0063,T001,False,Renter,68153.47,2,1,True,False,False,False,0.0,50426.05,0.524,0.557,0.493,False,False,False,0.0,0.0
-H0064,T001,False,Renter,79191.77,2,1,True,False,False,False,0.0,47685.22,0.346,0.475,0.8,False,False,False,0.0,0.0
-H0065,T001,False,Renter,111654.34,2,3,True,False,False,False,0.0,73895.27,0.5,0.604,0.592,False,False,False,0.0,0.0
-H0066,T001,False,Owner,79503.74,2,3,True,False,True,False,417998.84,149286.46,0.681,0.596,0.326,False,False,False,0.0,0.0
-H0067,T001,True,Owner,44195.94,6,2,False,True,False,False,449450.44,140608.67,0.337,0.185,0.701,False,False,False,0.0,0.0
-H0068,T001,False,Owner,67971.09,4,1,True,False,False,False,447926.03,186702.68,0.747,0.775,0.3,False,False,False,0.0,0.0
-H0069,T001,False,Renter,50933.94,6,1,True,True,False,False,0.0,44735.86,0.669,0.521,0.749,False,False,False,0.0,0.0
-H0070,T001,False,Renter,151435.09,3,4,True,False,False,False,0.0,80000.0,0.466,0.605,0.701,False,False,False,0.0,0.0
-H0071,T001,True,Owner,80000.0,3,1,True,True,False,False,173706.69,66158.51,0.4,0.1,0.2,False,False,False,0.0,0.0
-H0072,T001,False,Owner,100769.35,1,2,True,True,False,False,369617.24,152606.97,0.526,0.446,0.543,False,True,False,0.0,0.0
-H0073,T001,False,Owner,64706.23,1,2,True,True,False,False,424150.2,145200.21,0.519,0.463,0.618,False,False,False,0.0,0.0
-H0074,T001,False,Owner,65619.74,5,3,True,False,False,False,336172.88,106358.8,0.531,0.38,0.633,False,True,False,0.0,0.0
-H0075,T001,False,Renter,70042.13,2,4,True,False,False,False,0.0,42858.97,0.511,0.777,0.558,False,False,False,0.0,0.0
-H0076,T001,False,Renter,43607.0,4,2,True,True,True,False,0.0,28121.14,0.419,0.556,0.402,False,True,False,0.0,0.0
-H0077,T001,False,Owner,45245.1,2,2,True,False,False,False,604562.83,201656.66,0.601,0.615,0.551,False,False,False,0.0,0.0
-H0078,T001,False,Owner,40000.0,3,1,True,False,True,False,447532.23,136558.05,0.767,0.711,0.558,False,False,False,0.0,0.0
-H0079,T001,False,Renter,50879.21,4,1,True,False,True,False,0.0,43596.31,0.427,0.583,0.62,False,False,False,0.0,0.0
-H0080,T001,False,Owner,93519.21,1,1,True,False,False,False,405848.56,131580.57,0.382,0.441,0.3,False,False,False,0.0,0.0
-H0081,T001,False,Owner,80384.02,1,2,True,False,False,False,301848.18,111154.46,0.74,0.666,0.3,False,False,False,0.0,0.0
-H0082,T001,False,Owner,83063.36,3,1,True,False,False,False,424424.59,187367.21,0.544,0.371,0.386,False,False,False,0.0,0.0
-H0083,T001,False,Renter,96946.2,4,1,True,False,False,False,0.0,61600.49,0.462,0.447,0.701,False,False,False,0.0,0.0
-H0084,T001,False,Renter,85531.34,2,1,True,False,False,False,0.0,49786.72,0.811,0.208,0.504,False,True,False,0.0,0.0
-H0085,T001,False,Owner,74643.15,3,1,True,False,False,False,282715.55,86437.45,0.235,0.738,0.512,False,False,False,0.0,0.0
-H0086,T001,True,Owner,44761.84,5,1,True,True,False,False,264573.9,93990.86,0.569,0.233,0.838,False,True,False,0.0,0.0
-H0087,T001,False,Owner,123836.2,1,1,True,False,False,False,299078.08,131032.65,0.728,0.621,0.561,False,False,False,0.0,0.0
-H0088,T001,False,Renter,71585.25,3,2,True,True,False,False,0.0,47214.39,0.822,0.88,0.433,False,False,False,0.0,0.0
-H0089,T001,False,Owner,140014.79,1,2,True,False,False,False,779204.27,285312.08,0.315,0.623,0.567,False,False,False,0.0,0.0
-H0090,T001,True,Owner,23126.02,3,4,False,True,True,False,317079.38,143458.74,0.1,0.149,0.809,False,False,False,0.0,0.0
-H0091,T001,True,Owner,26655.0,2,1,True,False,False,True,222978.97,71376.73,0.248,0.187,0.408,False,False,False,0.0,0.0
-H0092,T001,True,Owner,47298.9,1,2,False,False,False,False,208009.11,85423.48,0.371,0.1,0.799,False,False,False,0.0,0.0
-H0093,T001,True,Renter,35244.73,5,1,True,False,False,False,0.0,34473.83,0.428,0.169,0.787,False,False,False,0.0,0.0
-H0094,T001,True,Owner,23485.57,5,2,True,False,False,True,217100.42,68346.78,0.1,0.604,0.527,False,False,False,0.0,0.0
-H0095,T001,True,Owner,45493.0,2,1,True,False,False,True,196059.02,88792.91,0.209,0.264,0.671,False,False,False,0.0,0.0
-H0096,T001,False,Owner,50295.56,1,2,True,False,False,False,465816.53,219880.93,0.576,0.476,0.618,False,False,False,0.0,0.0
-H0097,T001,True,Renter,72614.88,6,1,True,False,False,True,0.0,46227.71,0.256,0.206,0.447,False,False,False,0.0,0.0
-H0098,T001,False,Owner,46931.64,3,1,True,True,True,False,384872.57,150139.08,0.834,0.393,0.3,False,False,False,0.0,0.0
-H0099,T001,True,Owner,46786.8,2,1,True,False,False,False,207796.19,100735.89,0.173,0.28,0.69,False,False,False,0.0,0.0
-H0100,T001,False,Renter,44577.39,4,3,True,False,False,False,0.0,43542.59,0.327,0.261,0.3,False,False,False,0.0,0.0
+agent_id,survey_id,tract_id,mg,tenure,income_bracket,income,household_size,generations,has_vehicle,has_children,has_elderly,housing_cost_burden,flood_experience,flood_frequency,sfha_awareness,sc_score,pa_score,tp_score,cp_score,sp_score,rcv_building,rcv_contents,grid_x,grid_y,flood_zone,flood_depth,longitude,latitude,elevated,has_insurance,relocated,cumulative_damage,cumulative_oop,recent_flood_text,insurance_type,post_flood_action
+H0001,R_72W3yGcroTjLS1z,T001,True,Owner,"Less than $25,000",20000.0,2,1,True,False,False,True,False,0,False,3.5,3.33,3.09,2.75,1.67,324993.07,139059.78,265,172,LOW,0.074,-74.28127,40.925132,False,False,False,0.0,0.0,nan,nan,nan
+H0002,R_6P2b9DNMuTsK9ON,T001,True,Owner,"Less than $25,000",20000.0,5,1,True,False,True,True,True,0,False,3.0,2.33,4.0,3.38,1.67,268623.38,81930.71,275,69,MEDIUM,0.7643,-74.278493,40.953735,False,False,False,0.0,0.0,1 to 5 years ago,Entirely based on my (or my family's) own decision,Others
+H0003,R_6pr7uubym4RjtvT,T001,True,Owner,"Less than $25,000",20000.0,1,1,True,False,False,True,False,0,True,3.0,3.11,3.64,2.38,3.67,340051.19,120720.17,340,291,LOW,0.1891,-74.260442,40.892085,False,False,False,0.0,0.0,nan,nan,nan
+H0004,R_5feG2j2ACS6xVs0,T001,True,Owner,"Less than $25,000",20000.0,1,1,True,False,False,True,False,0,False,4.0,2.78,2.09,3.5,3.67,442171.83,152391.05,253,284,LOW,0.1677,-74.284603,40.894029,False,False,False,0.0,0.0,nan,nan,nan
+H0005,R_6RLPzYJzulec2aZ,T001,True,Renter,"$30,000 to $34,999",32500.0,4,1,True,True,False,True,True,0,False,4.0,3.22,2.45,3.12,4.0,0.0,31829.23,185,234,HIGH,1.9701,-74.303486,40.907914,False,False,False,0.0,0.0,1 to 5 years ago,Entirely based on my (or my family's) own decision,Do nothing
+H0006,R_6pLv1iCAlBaFbsy,T001,True,Renter,"Less than $25,000",20000.0,2,1,True,True,False,True,False,0,False,4.0,4.0,4.0,4.62,5.0,0.0,26829.32,282,190,MEDIUM,0.8434,-74.276549,40.920133,False,False,False,0.0,0.0,nan,nan,nan
+H0007,R_1dc4kJxYBqw4FfP,T001,True,Renter,"$55,000 to $59,999",57500.0,7,1,True,True,False,True,False,0,True,2.0,1.22,1.64,2.38,2.0,0.0,50896.06,122,383,MEDIUM,0.9008,-74.320982,40.866537,False,False,False,0.0,0.0,nan,nan,nan
+H0008,R_6on9aR5nmDgDNkd,T001,True,Renter,"Less than $25,000",20000.0,1,1,False,False,True,True,False,0,False,3.33,2.33,3.55,2.88,3.0,0.0,31837.17,261,170,LOW,0.0925,-74.282381,40.925687,False,False,False,0.0,0.0,nan,nan,nan
+H0009,R_6cbwwYJdcOD51xF,T001,True,Renter,"More than $74,999",100000.0,3,1,False,False,False,True,False,0,True,3.5,2.78,3.0,4.25,3.67,0.0,57652.63,216,166,LOW,0.012,-74.294878,40.926798,False,False,False,0.0,0.0,nan,nan,nan
+H0010,R_7Rtwgu1cmZkojZv,T001,True,Renter,"$35,000 to $39,999",37500.0,3,1,False,False,False,False,False,0,False,2.83,1.67,1.45,1.88,2.33,0.0,37712.8,127,322,LOW,0.2043,-74.319593,40.883477,False,False,False,0.0,0.0,nan,nan,nan
+H0011,R_6OSGSGsOxMxoOg8,T001,True,Renter,"Less than $25,000",20000.0,2,1,False,False,False,True,False,0,False,2.67,1.22,2.18,2.5,3.0,0.0,25682.91,271,106,MEDIUM,0.4021,-74.279604,40.94346,False,False,False,0.0,0.0,nan,nan,nan
+H0012,R_6CTWJLKVvMa937r,T001,False,Owner,"More than $74,999",100000.0,3,1,True,True,False,True,False,0,True,4.0,3.78,2.64,2.75,2.67,347841.05,155587.3,275,70,LOW,0.1257,-74.278493,40.953458,False,False,False,0.0,0.0,nan,nan,nan
+H0013,R_1FFIoHAh0rPjNlW,T001,False,Owner,"More than $74,999",100000.0,4,2,True,True,False,True,True,0,False,2.67,2.22,3.09,2.62,2.0,430115.26,187246.33,243,179,MEDIUM,0.8092,-74.28738,40.923188,False,False,False,0.0,0.0,1 to 5 years ago,Entirely based on my (or my family's) own decision,Do nothing
+H0014,R_6dRXYyfOwHJXrCF,T001,False,Owner,"More than $74,999",100000.0,3,1,True,True,False,True,False,0,False,1.67,1.0,2.27,1.88,1.33,225310.73,107796.75,296,232,MEDIUM,0.4748,-74.272661,40.90847,False,False,False,0.0,0.0,nan,nan,nan
+H0015,R_3UE8ZDOUdFaG74d,T001,False,Owner,"More than $74,999",100000.0,3,1,True,True,False,False,True,0,False,4.0,2.0,2.55,2.0,1.0,238409.36,75668.21,105,236,HIGH,1.7034,-74.325702,40.907359,False,False,False,0.0,0.0,1 to 5 years ago,Entirely based on my (or my family's) own decision,Do nothing
+H0016,R_5rPxYAZ0opJ1xJC,T001,False,Owner,"$40,000 to $44,999",42500.0,6,1,True,True,False,False,True,0,False,3.33,2.44,2.55,3.25,3.67,337909.56,129887.15,111,277,HIGH,1.2836,-74.324036,40.895973,False,False,False,0.0,0.0,1 to 5 years ago,Entirely based on my (or my family's) own decision,Do nothing
+H0017,R_3dE8V6FL9XLW2rC,T001,False,Owner,"More than $74,999",100000.0,2,1,True,True,False,False,False,0,False,4.67,4.11,3.64,4.38,4.0,295188.82,90315.81,279,56,LOW,0.0513,-74.277382,40.957345,False,False,False,0.0,0.0,nan,nan,nan
+H0018,R_6QhGpo9AVXoXe2B,T001,False,Owner,"More than $74,999",100000.0,4,1,True,True,False,True,False,0,True,3.83,2.44,2.18,2.25,2.67,439544.4,151083.54,314,226,LOW,0.2814,-74.267663,40.910136,False,False,False,0.0,0.0,nan,nan,nan
+H0019,R_3QXw4S7ZocxHYfD,T001,False,Owner,"More than $74,999",100000.0,5,2,True,True,False,True,False,0,True,3.67,2.44,2.82,3.0,2.0,304617.63,122173.32,316,321,LOW,0.1182,-74.267107,40.883754,False,False,False,0.0,0.0,nan,nan,nan
+H0020,R_581eJUSQToQPaFj,T001,False,Owner,"More than $74,999",100000.0,5,1,True,True,False,False,True,0,True,4.17,4.44,3.64,4.12,4.33,261850.42,79944.82,82,234,HIGH,1.5973,-74.33209,40.907914,False,False,False,0.0,0.0,Less than 1 year,Entirely based on my (or my family's) own decision,Do nothing
+H0021,R_5ATcFjbgE8cxYg9,T001,False,Owner,"More than $74,999",100000.0,4,1,True,True,False,False,False,0,True,4.33,3.67,2.73,3.38,2.67,620893.26,210959.37,124,335,LOW,0.1766,-74.320426,40.879867,False,False,False,0.0,0.0,nan,nan,nan
+H0022,R_5clmEpgYZUy7Ovv,T001,False,Owner,"More than $74,999",100000.0,8,1,True,True,False,True,True,0,False,4.17,2.78,2.73,3.12,2.0,373804.02,160727.09,131,294,HIGH,1.3212,-74.318482,40.891252,False,False,False,0.0,0.0,1 to 5 years ago,Entirely based on my (or my family's) own decision,Do nothing
+H0023,R_5FjaXvZJuduUorD,T001,False,Owner,"More than $74,999",100000.0,3,1,True,False,False,False,False,0,False,2.67,3.11,1.91,2.62,2.33,408186.02,166943.31,299,269,MEDIUM,0.6002,-74.271828,40.898195,False,False,False,0.0,0.0,nan,nan,nan
+H0024,R_5GIeEVW2I8HE7Fn,T001,False,Owner,"$55,000 to $59,999",57500.0,2,1,True,False,True,True,False,0,False,4.0,4.0,3.36,3.38,3.67,260874.67,89763.88,264,18,LOW,0.1785,-74.281548,40.967898,False,False,False,0.0,0.0,nan,nan,nan
+H0025,R_7aiGPstiQwpiiu5,T001,False,Owner,"More than $74,999",100000.0,3,1,True,False,False,False,False,0,True,3.17,2.78,2.73,2.25,2.0,339729.51,141957.04,96,195,LOW,0.0978,-74.328202,40.918745,False,False,False,0.0,0.0,nan,nan,nan
+H0026,R_7CxUW1EovmqHI7y,T001,False,Owner,"More than $74,999",100000.0,3,1,True,False,False,False,True,0,False,3.67,3.33,2.91,2.5,2.67,413534.66,191005.91,66,370,MEDIUM,0.9959,-74.336533,40.870147,False,False,False,0.0,0.0,1 to 5 years ago,Entirely based on my (or my family's) own decision,Do nothing
+H0027,R_3Cyn4anYWBgOkQF,T001,False,Owner,"More than $74,999",100000.0,1,1,True,False,False,True,False,0,False,2.67,3.22,2.18,3.12,3.33,283203.71,85329.21,119,306,MEDIUM,0.684,-74.321815,40.88792,False,False,False,0.0,0.0,nan,nan,nan
+H0028,R_74NlKQazABE7ynU,T001,False,Owner,"$50,000 to $54,999",52500.0,3,2,True,False,True,False,True,0,True,3.17,3.0,3.09,3.0,3.0,447722.65,206473.5,91,253,HIGH,1.4353,-74.32959,40.902638,False,False,False,0.0,0.0,1 to 5 years ago,Entirely influenced by my neighbor(s) or friend(s),Buying flood insurance
+H0029,R_6oBWonQALcuAUEQ,T001,False,Owner,"More than $74,999",100000.0,3,1,True,True,False,True,False,0,False,3.0,3.11,3.64,3.38,2.67,334044.07,146855.09,342,292,LOW,0.1017,-74.259887,40.891808,False,False,False,0.0,0.0,nan,nan,nan
+H0030,R_72a6opyRw1RJeCg,T001,False,Owner,"More than $74,999",100000.0,3,1,True,True,True,True,False,0,True,4.0,3.44,3.82,3.75,3.0,366484.57,134884.68,251,198,MEDIUM,0.893,-74.285158,40.917912,False,False,False,0.0,0.0,nan,nan,nan
+H0031,R_1yDrnzGuKSLGyDT,T001,False,Owner,"More than $74,999",100000.0,2,1,True,False,False,True,False,0,False,3.33,2.78,2.55,2.88,2.0,333937.07,110565.19,268,236,LOW,0.1306,-74.280437,40.907359,False,False,False,0.0,0.0,nan,nan,nan
+H0032,R_3KdDNqAY5vOqGtP,T001,False,Owner,"More than $74,999",100000.0,3,1,True,True,False,True,False,0,True,4.5,3.67,2.45,3.0,3.33,697252.77,342659.73,148,400,MEDIUM,0.3017,-74.313761,40.861816,False,False,False,0.0,0.0,nan,nan,nan
+H0033,R_2LRSRRRId8dQjEB,T001,False,Owner,"More than $74,999",100000.0,3,1,True,False,True,False,False,0,True,4.0,2.78,2.36,3.25,2.67,398383.61,146333.83,174,288,MEDIUM,0.9812,-74.306541,40.892918,False,False,False,0.0,0.0,nan,nan,nan
+H0034,R_31hWylSPCisKG6c,T001,False,Owner,nan,75000.0,4,1,True,True,False,False,False,0,False,4.17,4.0,1.73,4.12,1.33,291241.05,92774.59,272,170,LOW,0.186,-74.279326,40.925687,False,False,False,0.0,0.0,nan,nan,nan
+H0035,R_35FEhh6gT0eRSYV,T001,False,Owner,"More than $74,999",100000.0,4,2,True,True,True,False,False,0,False,2.17,2.44,2.64,2.62,1.67,511950.54,163487.96,277,167,LOW,0.0237,-74.277938,40.92652,False,False,False,0.0,0.0,nan,nan,nan
+H0036,R_3EaW5xxnTIE5h8t,T001,False,Owner,"More than $74,999",100000.0,4,1,True,True,False,False,False,0,False,4.17,4.22,2.18,2.75,2.0,277330.92,130206.55,395,310,LOW,0.0562,-74.245169,40.886809,False,False,False,0.0,0.0,nan,nan,nan
+H0037,R_6ETgJMk5eDD4WNH,T001,False,Owner,"More than $74,999",100000.0,2,1,True,False,False,True,False,0,True,3.17,2.56,3.18,3.62,3.67,425865.52,179180.88,279,168,LOW,0.2664,-74.277382,40.926243,False,False,False,0.0,0.0,nan,nan,nan
+H0038,R_7efyIaK8frPXv6I,T001,False,Owner,"More than $74,999",100000.0,4,1,True,True,False,False,True,0,False,2.33,4.0,2.45,3.38,4.0,222196.81,102527.31,243,255,HIGH,2.1211,-74.28738,40.902083,False,False,False,0.0,0.0,Less than 1 year,Entirely based on my (or my family's) own decision,Do nothing
+H0039,R_1I0FeVPE0Huodnb,T001,False,Owner,"More than $74,999",100000.0,3,1,True,True,False,True,False,0,True,4.17,3.56,4.0,2.38,1.67,268542.38,119755.5,389,305,LOW,0.2305,-74.246835,40.888198,False,False,False,0.0,0.0,nan,nan,nan
+H0040,R_5BLiGJCAT1EULuN,T001,False,Owner,"More than $74,999",100000.0,4,1,True,True,False,True,False,0,False,3.0,2.0,2.73,2.88,1.0,424334.86,172808.51,347,289,LOW,0.14,-74.258499,40.892641,False,False,False,0.0,0.0,nan,nan,nan
+H0041,R_3HMHqZcLT8s76Wq,T001,False,Owner,"More than $74,999",100000.0,4,1,True,True,True,True,False,0,True,4.0,3.56,2.55,2.88,2.33,499198.85,246915.31,208,132,MEDIUM,0.9787,-74.297099,40.93624,False,False,False,0.0,0.0,nan,nan,nan
+H0042,R_59dd7kay6CQTn4f,T001,False,Owner,"More than $74,999",100000.0,2,1,True,False,False,True,False,0,True,3.17,2.67,2.09,2.88,2.33,421101.98,158210.91,96,342,LOW,0.227,-74.328202,40.877923,False,False,False,0.0,0.0,nan,nan,nan
+H0043,R_6O7dpGYH8YMUg61,T001,False,Owner,"$55,000 to $59,999",57500.0,2,1,True,False,False,False,False,0,False,3.33,2.56,3.0,3.38,2.0,386360.19,158565.36,70,325,MEDIUM,0.4229,-74.335422,40.882644,False,False,False,0.0,0.0,nan,nan,nan
+H0044,R_7jBYSd2Q5m7uF0w,T001,False,Owner,"More than $74,999",100000.0,6,1,True,False,True,True,True,0,False,4.17,3.33,3.64,3.75,3.0,365451.45,170256.86,280,186,MEDIUM,0.6111,-74.277105,40.921244,False,False,False,0.0,0.0,6 to 10 years ago,Entirely based on my (or my family's) own decision,Others
+H0045,R_1BPK1vkD08CHwIZ,T001,False,Owner,"More than $74,999",100000.0,4,1,True,True,False,False,False,0,False,4.67,4.44,3.73,3.12,2.67,256699.96,108764.79,60,299,MEDIUM,0.7926,-74.338199,40.889864,False,False,False,0.0,0.0,nan,nan,nan
+H0046,R_1vDAFhAbJFYyjkt,T001,False,Owner,"More than $74,999",100000.0,4,1,True,True,False,True,True,0,False,3.67,3.22,3.55,2.75,1.33,322309.18,152239.96,251,178,HIGH,1.5265,-74.285158,40.923466,False,False,False,0.0,0.0,Less than 1 year,Entirely based on my (or my family's) own decision,Do nothing
+H0047,R_7fqAStp1mIDDjOE,T001,False,Owner,"More than $74,999",100000.0,5,1,True,True,False,True,True,0,False,4.0,3.67,3.09,3.5,3.33,348372.71,144738.56,57,285,HIGH,1.639,-74.339032,40.893752,False,False,False,0.0,0.0,1 to 5 years ago,Entirely based on my (or my family's) own decision,Do nothing
+H0048,R_5WfLdqZOmNgLOIV,T001,False,Owner,"$40,000 to $44,999",42500.0,1,2,True,False,False,False,False,0,False,3.83,3.67,2.73,3.25,2.67,549276.09,242183.72,186,295,LOW,0.1042,-74.303209,40.890975,False,False,False,0.0,0.0,nan,nan,nan
+H0049,R_1QZmbNBTMljihs5,T001,False,Owner,"$55,000 to $59,999",57500.0,4,1,True,True,False,True,False,0,False,3.67,3.22,2.55,2.5,2.67,443434.47,137094.36,339,308,LOW,0.0256,-74.26072,40.887364,False,False,False,0.0,0.0,nan,nan,nan
+H0050,R_7teYBGKPROTuybL,T001,False,Owner,"More than $74,999",100000.0,5,1,True,False,False,True,False,0,False,3.33,2.56,2.73,3.0,2.67,235698.28,81452.53,96,332,MEDIUM,0.6429,-74.328202,40.8807,False,False,False,0.0,0.0,nan,nan,nan
+H0051,R_5FNiHZmxcjqdE2t,T001,False,Owner,"More than $74,999",100000.0,2,1,True,False,False,False,True,0,False,4.17,4.0,3.18,4.25,4.0,440843.41,157767.98,126,221,MEDIUM,0.5767,-74.319871,40.911525,False,False,False,0.0,0.0,1 to 5 years ago,Entirely based on my (or my family's) own decision,Do nothing
+H0052,R_6rqB2klyrrpOuW1,T001,False,Owner,"More than $74,999",100000.0,3,1,True,False,True,False,False,0,False,3.83,3.78,2.18,3.0,3.0,356359.43,112594.75,274,158,LOW,0.03,-74.278771,40.92902,False,False,False,0.0,0.0,nan,nan,nan
+H0053,R_3MLCgmGHOIviQZR,T001,False,Owner,"More than $74,999",100000.0,5,2,True,True,True,False,True,0,False,3.67,2.89,3.09,3.25,3.33,326486.29,113146.49,227,142,MEDIUM,0.8706,-74.291823,40.933463,False,False,False,0.0,0.0,1 to 5 years ago,Entirely based on my (or my family's) own decision,Do nothing
+H0054,R_1rFMvlHIlTxZgjL,T001,False,Owner,"More than $74,999",100000.0,2,1,True,False,False,True,False,0,False,3.0,2.33,2.82,3.0,3.0,480567.37,153877.81,301,268,LOW,0.2587,-74.271273,40.898473,False,False,False,0.0,0.0,nan,nan,nan
+H0055,R_7bKtiQ9BeayJDAx,T001,False,Owner,"More than $74,999",100000.0,4,1,True,True,False,False,True,0,True,4.5,4.44,4.55,4.0,4.0,544988.34,193794.98,183,245,HIGH,1.5971,-74.304042,40.90486,False,False,False,0.0,0.0,1 to 5 years ago,Entirely influenced by my neighbor(s) or friend(s),Housing elevation
+H0056,R_1G3CedtG1OJibnN,T001,False,Owner,"$50,000 to $54,999",52500.0,3,1,True,False,True,True,False,0,False,4.0,4.0,2.09,3.0,3.0,528926.03,225923.82,278,163,LOW,0.0034,-74.27766,40.927631,False,False,False,0.0,0.0,nan,nan,nan
+H0057,R_3ilcldlsrG4V0px,T001,False,Owner,"More than $74,999",100000.0,2,1,True,False,False,True,False,0,False,4.0,3.89,2.27,3.38,3.0,310970.88,115981.7,265,237,MEDIUM,0.891,-74.28127,40.907081,False,False,False,0.0,0.0,nan,nan,nan
+H0058,R_37851a99vZ8hhEM,T001,False,Owner,"More than $74,999",100000.0,4,1,True,True,False,True,False,0,True,3.17,3.56,2.82,3.25,2.67,364563.53,136359.96,242,181,MEDIUM,0.9069,-74.287657,40.922633,False,False,False,0.0,0.0,nan,nan,nan
+H0059,R_3ib6nwvxj2oLqHA,T001,False,Owner,"More than $74,999",100000.0,3,1,True,True,False,False,False,0,False,3.83,2.89,1.36,2.5,3.33,441793.94,151049.97,191,299,MEDIUM,0.3681,-74.30182,40.889864,False,False,False,0.0,0.0,nan,nan,nan
+H0060,R_5KyXRYiYs4DCjXX,T001,False,Owner,"More than $74,999",100000.0,7,1,True,True,False,False,True,0,True,4.0,4.0,3.91,4.0,4.0,535996.74,189418.87,214,243,HIGH,1.7845,-74.295433,40.905415,False,False,False,0.0,0.0,1 to 5 years ago,Entirely based on my (or my family's) own decision,Buying flood insurance
+H0061,R_1bVF525ohOH7wwk,T001,False,Owner,"More than $74,999",100000.0,2,1,True,False,False,False,False,0,False,4.0,3.89,3.45,3.25,3.0,346440.91,168831.37,109,339,LOW,0.0135,-74.324592,40.878756,False,False,False,0.0,0.0,nan,nan,nan
+H0062,R_1lfiph2xTg9RlkZ,T001,False,Owner,"More than $74,999",100000.0,3,1,True,False,False,True,False,0,False,3.33,3.0,2.45,2.62,2.33,378330.01,162533.25,74,345,MEDIUM,0.8632,-74.334311,40.877089,False,False,False,0.0,0.0,nan,nan,nan
+H0063,R_6Wh3Dsydxt3Ncvn,T001,False,Owner,"More than $74,999",100000.0,3,1,True,False,True,True,False,0,False,5.0,4.56,3.0,3.12,4.0,287023.49,121074.03,146,309,LOW,0.2476,-74.314317,40.887087,False,False,False,0.0,0.0,nan,nan,nan
+H0064,R_565dDDQNqu0zWa6,T001,False,Owner,"More than $74,999",100000.0,3,1,True,False,True,True,True,0,True,4.0,4.11,3.0,3.25,3.67,279388.3,93379.32,210,223,HIGH,1.773,-74.296544,40.910969,False,False,False,0.0,0.0,6 to 10 years ago,Entirely based on my (or my family's) own decision,Others
+H0065,R_5GjKuq2ToZ6BqgN,T001,False,Owner,"More than $74,999",100000.0,3,1,True,True,False,True,False,0,False,3.17,2.33,2.18,2.88,3.0,510414.07,227555.54,328,297,MEDIUM,0.3497,-74.263775,40.890419,False,False,False,0.0,0.0,nan,nan,nan
+H0066,R_3LMrzANmId9LTHm,T001,False,Owner,"$60,000 to $74,999",67500.0,4,1,True,True,False,True,False,0,False,3.5,2.56,1.73,2.5,3.33,600844.73,199889.33,400,307,LOW,0.2851,-74.24378,40.887642,False,False,False,0.0,0.0,nan,nan,nan
+H0067,R_7V7luqUWY11w5oh,T001,False,Owner,"More than $74,999",100000.0,2,1,True,False,False,False,False,0,True,3.5,3.44,2.18,1.62,1.67,391451.46,147143.11,120,229,MEDIUM,0.9318,-74.321537,40.909303,False,False,False,0.0,0.0,nan,nan,nan
+H0068,R_6ptEsSxRdgnoxzc,T001,False,Owner,"$55,000 to $59,999",57500.0,4,1,True,False,False,False,False,0,False,4.5,3.44,2.18,2.62,2.0,540516.1,269125.49,340,290,LOW,0.228,-74.260442,40.892363,False,False,False,0.0,0.0,nan,nan,nan
+H0069,R_1K4zenF7HeSasvf,T001,False,Owner,"$60,000 to $74,999",67500.0,2,1,True,False,True,True,False,0,False,3.33,3.44,2.45,2.75,2.67,445837.87,190818.58,85,372,MEDIUM,0.5777,-74.331256,40.869592,False,False,False,0.0,0.0,nan,nan,nan
+H0070,R_3yjRv2DdCktfGpt,T001,False,Owner,"More than $74,999",100000.0,1,1,True,False,False,False,False,0,True,3.5,3.44,3.27,2.88,2.33,329616.09,135600.75,245,159,LOW,0.0032,-74.286824,40.928742,False,False,False,0.0,0.0,nan,nan,nan
+H0071,R_39vIHznFw42Tlsd,T001,False,Owner,"$50,000 to $54,999",52500.0,2,1,True,True,False,True,False,0,False,3.67,3.0,3.55,1.75,1.33,445805.71,194782.7,84,205,LOW,0.1114,-74.331534,40.915968,False,False,False,0.0,0.0,nan,nan,nan
+H0072,R_1phYWx6dSkVn29d,T001,False,Owner,"More than $74,999",100000.0,4,1,True,True,False,True,False,0,True,2.83,2.78,2.36,2.5,3.0,634524.26,297319.27,57,325,MEDIUM,0.7271,-74.339032,40.882644,False,False,False,0.0,0.0,nan,nan,nan
+H0073,R_7qy9phMxo5RCaOt,T001,False,Renter,"More than $74,999",100000.0,4,1,True,True,False,True,False,0,False,4.33,3.56,2.55,3.0,4.0,0.0,59820.87,64,382,MEDIUM,0.9637,-74.337088,40.866815,False,False,False,0.0,0.0,nan,nan,nan
+H0074,R_1MoHhb8nOc7fyiR,T001,False,Renter,"$50,000 to $54,999",52500.0,4,1,True,True,False,True,False,0,False,3.83,4.56,3.91,4.25,4.67,0.0,48823.22,338,285,LOW,0.2839,-74.260998,40.893752,False,False,False,0.0,0.0,nan,nan,nan
+H0075,R_3Dp1dHuOpcxgHrb,T001,False,Renter,"$35,000 to $39,999",37500.0,6,1,True,True,False,False,False,0,True,3.83,3.56,3.55,2.62,2.0,0.0,21901.27,92,198,LOW,0.0993,-74.329313,40.917912,False,False,False,0.0,0.0,nan,nan,nan
+H0076,R_60YkeNO3f1QtvwF,T001,False,Renter,"$50,000 to $54,999",52500.0,4,1,True,False,False,True,False,0,False,3.0,2.56,3.18,3.12,3.0,0.0,45109.51,94,346,LOW,0.2354,-74.328757,40.876812,False,False,False,0.0,0.0,nan,nan,nan
+H0077,R_3Ro7acczfZCzlT3,T001,False,Renter,"More than $74,999",100000.0,2,3,True,False,False,False,False,0,False,3.83,3.89,1.18,2.75,2.0,0.0,60435.24,118,311,LOW,0.2279,-74.322092,40.886531,False,False,False,0.0,0.0,nan,nan,nan
+H0078,R_52FnQh3pRQ64ucu,T001,False,Renter,"More than $74,999",100000.0,2,1,True,False,False,False,False,0,False,3.5,2.44,2.82,2.5,2.67,0.0,58504.96,305,265,MEDIUM,0.441,-74.270162,40.899306,False,False,False,0.0,0.0,nan,nan,nan
+H0079,R_3jjlN9yi17IaWQp,T001,False,Renter,"More than $74,999",100000.0,5,1,True,True,True,True,True,0,False,3.67,2.89,3.18,2.5,1.67,0.0,60458.8,91,309,HIGH,1.2402,-74.32959,40.887087,False,False,False,0.0,0.0,Less than 1 year,Entirely based on my (or my family's) own decision,Do nothing
+H0080,R_1F2TQmdVKqfKFTX,T001,False,Renter,"More than $74,999",100000.0,2,1,True,False,False,False,True,0,False,3.83,3.44,2.73,2.25,1.0,0.0,50062.16,83,352,HIGH,1.4814,-74.331812,40.875146,False,False,False,0.0,0.0,1 to 5 years ago,Entirely based on my (or my family's) own decision,Do nothing
+H0081,R_50lg9Fwh79sTqEN,T001,False,Renter,"$50,000 to $54,999",52500.0,3,1,True,True,False,True,False,0,False,4.67,4.11,4.45,3.62,4.33,0.0,39901.64,275,242,LOW,0.2578,-74.278493,40.905693,False,False,False,0.0,0.0,nan,nan,nan
+H0082,R_1GrMOIjuptfq1EL,T001,False,Renter,"More than $74,999",100000.0,3,1,True,True,False,True,False,0,True,3.83,3.89,4.0,4.0,4.0,0.0,61785.56,173,302,LOW,0.0336,-74.306819,40.889031,False,False,False,0.0,0.0,nan,nan,nan
+H0083,R_60fHChYNndgZ2wh,T001,False,Renter,"More than $74,999",100000.0,2,1,True,False,False,True,False,0,False,2.0,3.22,3.0,3.5,4.0,0.0,67389.47,226,153,LOW,0.2065,-74.2921,40.930408,False,False,False,0.0,0.0,nan,nan,nan
+H0084,R_7JQunTYCRGkwYnz,T001,False,Renter,"More than $74,999",100000.0,2,1,True,False,False,False,False,0,True,4.0,3.44,3.82,2.88,2.0,0.0,57408.65,260,236,MEDIUM,0.833,-74.282659,40.907359,False,False,False,0.0,0.0,nan,nan,nan
+H0085,R_5OZfo5rXItN13yV,T001,False,Renter,"$35,000 to $39,999",37500.0,1,1,True,False,False,False,False,0,False,3.83,2.89,2.55,1.75,2.67,0.0,30957.53,274,87,LOW,0.0847,-74.278771,40.948737,False,False,False,0.0,0.0,nan,nan,nan
+H0086,R_7nRH0Ki8Ug3QxTH,T001,False,Renter,"$60,000 to $74,999",67500.0,3,1,True,False,False,True,False,0,False,3.33,3.56,2.91,3.25,3.0,0.0,44491.21,413,300,LOW,0.0798,-74.24017,40.889586,False,False,False,0.0,0.0,nan,nan,nan
+H0087,R_7VfnmbeIUwyGVon,T001,False,Renter,"More than $74,999",100000.0,3,1,True,True,False,False,False,0,False,4.0,3.67,2.0,3.0,3.0,0.0,64577.01,137,316,LOW,0.1718,-74.316816,40.885143,False,False,False,0.0,0.0,nan,nan,nan
+H0088,R_5qdrM250019cJlb,T001,False,Renter,"More than $74,999",100000.0,5,1,True,True,False,True,False,0,False,4.0,4.44,3.45,4.12,4.0,0.0,61643.76,419,290,LOW,0.1995,-74.238504,40.892363,False,False,False,0.0,0.0,nan,nan,nan
+H0089,R_3NBRvtRafJkSpai,T001,False,Renter,"$25,000 to $29,999",27500.0,1,1,False,False,False,False,False,0,False,3.5,2.67,2.45,3.0,4.0,0.0,28351.2,275,157,LOW,0.1386,-74.278493,40.929297,False,False,False,0.0,0.0,nan,nan,nan
+H0090,R_7ybWZibl5cbJ2Bb,T001,False,Renter,"More than $74,999",100000.0,2,1,True,False,False,False,False,0,True,3.83,3.44,2.18,2.0,3.0,0.0,62566.34,286,235,LOW,0.1973,-74.275438,40.907637,False,False,False,0.0,0.0,nan,nan,nan
+H0091,R_7RgPyQbHR10T5h5,T001,False,Renter,"$45,000 to $49,999",47500.0,2,1,True,True,False,False,False,0,False,3.17,3.33,1.82,2.5,3.0,0.0,39485.39,55,331,MEDIUM,0.9316,-74.339588,40.880977,False,False,False,0.0,0.0,nan,nan,nan
+H0092,R_32VEh5oGM3NQYr7,T001,False,Renter,"More than $74,999",100000.0,2,1,True,False,False,False,False,0,True,5.0,3.67,3.55,3.25,4.0,0.0,64843.22,412,300,LOW,0.0969,-74.240448,40.889586,False,False,False,0.0,0.0,nan,nan,nan
+H0093,R_6QtBsrzHAcHgHwM,T001,False,Renter,"$60,000 to $74,999",67500.0,2,1,True,False,False,False,False,0,False,4.0,4.22,4.18,4.38,3.67,0.0,43489.73,273,236,LOW,0.1557,-74.279049,40.907359,False,False,False,0.0,0.0,nan,nan,nan
+H0094,R_18CoiFNLJymduEb,T001,False,Renter,"$50,000 to $54,999",52500.0,4,1,True,True,False,True,False,0,True,2.0,2.11,3.64,3.12,1.33,0.0,39361.69,176,400,LOW,0.0543,-74.305986,40.861816,False,False,False,0.0,0.0,nan,nan,nan
+H0095,R_1eVprMFrNYRdIJ6,T001,False,Renter,"More than $74,999",100000.0,3,1,True,True,False,True,True,0,False,2.67,2.67,1.82,3.12,3.67,0.0,58039.46,146,302,MEDIUM,0.5471,-74.314317,40.889031,False,False,False,0.0,0.0,1 to 5 years ago,Entirely based on my (or my family's) own decision,Do nothing
+H0096,R_6y2YQaOiTYokH48,T001,False,Renter,"$50,000 to $54,999",52500.0,1,1,True,False,False,True,False,0,False,3.67,1.89,2.64,3.12,1.67,0.0,33682.43,110,345,LOW,0.1761,-74.324314,40.877089,False,False,False,0.0,0.0,nan,nan,nan
+H0097,R_5r1aQOnsGW2fp3W,T001,False,Renter,"More than $74,999",100000.0,2,1,True,False,False,False,False,0,False,4.0,4.0,2.09,2.25,2.67,0.0,61480.6,293,182,LOW,0.1794,-74.273494,40.922355,False,False,False,0.0,0.0,nan,nan,nan
+H0098,R_1D0kRoBTBMbk1Ji,T001,False,Renter,"$45,000 to $49,999",47500.0,1,1,True,False,False,True,False,0,False,4.0,3.67,2.73,3.5,4.33,0.0,40305.28,343,290,LOW,0.1697,-74.259609,40.892363,False,False,False,0.0,0.0,nan,nan,nan
+H0099,R_3QyTlMAGWe5u1Wo,T001,False,Renter,"$55,000 to $59,999",57500.0,5,1,True,True,False,True,True,0,False,4.67,4.0,2.45,2.75,3.0,0.0,43025.57,112,218,HIGH,1.2931,-74.323759,40.912358,False,False,False,0.0,0.0,1 to 5 years ago,Entirely based on my (or my family's) own decision,Others
+H0100,R_5PgU9wxgzKbeusP,T001,False,Renter,"$40,000 to $44,999",42500.0,3,1,True,True,False,True,True,0,True,2.67,1.33,3.18,3.62,4.0,0.0,35827.06,170,238,HIGH,1.8934,-74.307652,40.906804,False,False,False,0.0,0.0,Less than 1 year,Entirely based on my (or my family's) own decision,Do nothing

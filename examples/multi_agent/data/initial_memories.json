@@ -1,0 +1,3702 @@
+{
+  "H0001": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "Government flood programs like Blue Acres exist, but historically our community has not always benefited equally from such assistance. I'm skeptical that these programs will prioritize our neighborhood's needs.",
+      "category": "government_notice",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0002": [
+    {
+      "content": "I have experienced flooding at my home once. The most recent flood event was 1 to 5 years ago. Living in a medium risk zone, I understand the real threat floods pose to my property.",
+      "category": "flood_event",
+      "importance": 0.7,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "Government flood programs like Blue Acres exist, but historically our community has not always benefited equally from such assistance. I'm skeptical that these programs will prioritize our neighborhood's needs.",
+      "category": "government_notice",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live here mainly for practical reasons - proximity to work, schools, or affordability. If a good opportunity came up to move to a lower-risk area, I would seriously consider it.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0003": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I know my property is in a Special Flood Hazard Area (SFHA) and flood insurance may be required for my mortgage. I have considered purchasing NFIP coverage but have not yet done so.",
+      "category": "insurance_claim",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "The New Jersey state government and FEMA provide resources for flood mitigation. NJDEP administers the Blue Acres program which offers voluntary buyouts for repetitive loss properties. I believe these programs genuinely aim to help residents.",
+      "category": "government_notice",
+      "importance": 0.65,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0004": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I have good relationships with my neighbors. We often discuss community issues including flood preparedness. Some neighbors have taken adaptation measures like elevating their homes or installing sump pumps.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "The New Jersey state government and FEMA provide resources for flood mitigation. NJDEP administers the Blue Acres program which offers voluntary buyouts for repetitive loss properties. I believe these programs genuinely aim to help residents.",
+      "category": "government_notice",
+      "importance": 0.65,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live here mainly for practical reasons - proximity to work, schools, or affordability. If a good opportunity came up to move to a lower-risk area, I would seriously consider it.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0005": [
+    {
+      "content": "I have experienced flooding at my home once. The most recent flood event was 1 to 5 years ago. Living in a high risk zone, I understand the real threat floods pose to my property.",
+      "category": "flood_event",
+      "importance": 0.7,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "My community has strong social ties. After the last flood, neighbors helped each other with cleanup and shared information about recovery resources. Several families have discussed elevating their homes or other protective measures.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "The New Jersey state government and FEMA provide resources for flood mitigation. NJDEP administers the Blue Acres program which offers voluntary buyouts for repetitive loss properties. I believe these programs genuinely aim to help residents.",
+      "category": "government_notice",
+      "importance": 0.65,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0006": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as medium flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I have good relationships with my neighbors. We often discuss community issues including flood preparedness. Some neighbors have taken adaptation measures like elevating their homes or installing sump pumps.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "The New Jersey state government and FEMA provide resources for flood mitigation. NJDEP administers the Blue Acres program which offers voluntary buyouts for repetitive loss properties. I believe these programs genuinely aim to help residents.",
+      "category": "government_notice",
+      "importance": 0.65,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "Even though I haven't lived here long, I feel a strong connection to this community. The neighborhood, local amenities, and my daily routines are important to me. I want to stay and make this place work despite the flood challenges.",
+      "category": "adaptation_action",
+      "importance": 0.8,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0007": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as medium flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that this rental is in a flood-prone area. I should consider getting renters flood insurance to protect my belongings, but I haven't purchased a policy yet.",
+      "category": "insurance_claim",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I don't interact much with neighbors about flood issues. Information about assistance programs doesn't always reach our community. I mostly rely on my own research for flood preparedness information.",
+      "category": "social_interaction",
+      "importance": 0.4,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "Government flood programs like Blue Acres exist, but historically our community has not always benefited equally from such assistance. I'm skeptical that these programs will prioritize our neighborhood's needs.",
+      "category": "government_notice",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live in this area primarily for practical reasons like work or affordability. As a renter, I have more flexibility to relocate if flood risks become too high. I don't have strong roots tying me to this specific location.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0008": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live in this area primarily for practical reasons like work or affordability. As a renter, I have more flexibility to relocate if flood risks become too high. I don't have strong roots tying me to this specific location.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0009": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that this rental is in a flood-prone area. I should consider getting renters flood insurance to protect my belongings, but I haven't purchased a policy yet.",
+      "category": "insurance_claim",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "The New Jersey state government and FEMA provide resources for flood mitigation. NJDEP administers the Blue Acres program which offers voluntary buyouts for repetitive loss properties. I believe these programs genuinely aim to help residents.",
+      "category": "government_notice",
+      "importance": 0.65,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live in this area primarily for practical reasons like work or affordability. As a renter, I have more flexibility to relocate if flood risks become too high. I don't have strong roots tying me to this specific location.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0010": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I don't interact much with neighbors about flood issues. Information about assistance programs doesn't always reach our community. I mostly rely on my own research for flood preparedness information.",
+      "category": "social_interaction",
+      "importance": 0.4,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "Government flood programs like Blue Acres exist, but historically our community has not always benefited equally from such assistance. I'm skeptical that these programs will prioritize our neighborhood's needs.",
+      "category": "government_notice",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live in this area primarily for practical reasons like work or affordability. As a renter, I have more flexibility to relocate if flood risks become too high. I don't have strong roots tying me to this specific location.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0011": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as medium flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I don't interact much with neighbors about flood issues. Information about assistance programs doesn't always reach our community. I mostly rely on my own research for flood preparedness information.",
+      "category": "social_interaction",
+      "importance": 0.4,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live in this area primarily for practical reasons like work or affordability. As a renter, I have more flexibility to relocate if flood risks become too high. I don't have strong roots tying me to this specific location.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0012": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I know my property is in a Special Flood Hazard Area (SFHA) and flood insurance may be required for my mortgage. I have considered purchasing NFIP coverage but have not yet done so.",
+      "category": "insurance_claim",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I have good relationships with my neighbors. We often discuss community issues including flood preparedness. Some neighbors have taken adaptation measures like elevating their homes or installing sump pumps.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0013": [
+    {
+      "content": "I have experienced flooding at my home once. The most recent flood event was 1 to 5 years ago. Living in a medium risk zone, I understand the real threat floods pose to my property.",
+      "category": "flood_event",
+      "importance": 0.7,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I keep to myself and don't discuss flood risks with neighbors much. I occasionally see FEMA or local government flyers about flood preparedness.",
+      "category": "social_interaction",
+      "importance": 0.4,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I've heard about government buyout and elevation programs, but I'm not convinced they work in practice. Bureaucracy and delays make these programs less appealing.",
+      "category": "government_notice",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live here mainly for practical reasons - proximity to work, schools, or affordability. If a good opportunity came up to move to a lower-risk area, I would seriously consider it.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0014": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as medium flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I keep to myself and don't discuss flood risks with neighbors much. I occasionally see FEMA or local government flyers about flood preparedness.",
+      "category": "social_interaction",
+      "importance": 0.4,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I've heard about government buyout and elevation programs, but I'm not convinced they work in practice. Bureaucracy and delays make these programs less appealing.",
+      "category": "government_notice",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live here mainly for practical reasons - proximity to work, schools, or affordability. If a good opportunity came up to move to a lower-risk area, I would seriously consider it.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0015": [
+    {
+      "content": "I have experienced flooding at my home once. The most recent flood event was 1 to 5 years ago. Living in a high risk zone, I understand the real threat floods pose to my property.",
+      "category": "flood_event",
+      "importance": 0.7,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "My community has strong social ties. After the last flood, neighbors helped each other with cleanup and shared information about recovery resources. Several families have discussed elevating their homes or other protective measures.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I've heard about government buyout and elevation programs, but I'm not convinced they work in practice. Bureaucracy and delays make these programs less appealing.",
+      "category": "government_notice",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live here mainly for practical reasons - proximity to work, schools, or affordability. If a good opportunity came up to move to a lower-risk area, I would seriously consider it.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0016": [
+    {
+      "content": "I have experienced flooding at my home once. The most recent flood event was 1 to 5 years ago. Living in a high risk zone, I understand the real threat floods pose to my property.",
+      "category": "flood_event",
+      "importance": 0.7,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "The New Jersey state government and FEMA provide resources for flood mitigation. NJDEP administers the Blue Acres program which offers voluntary buyouts for repetitive loss properties. I believe these programs genuinely aim to help residents.",
+      "category": "government_notice",
+      "importance": 0.65,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live here mainly for practical reasons - proximity to work, schools, or affordability. If a good opportunity came up to move to a lower-risk area, I would seriously consider it.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0017": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I have good relationships with my neighbors. We often discuss community issues including flood preparedness. Some neighbors have taken adaptation measures like elevating their homes or installing sump pumps.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "The New Jersey state government and FEMA provide resources for flood mitigation. NJDEP administers the Blue Acres program which offers voluntary buyouts for repetitive loss properties. I believe these programs genuinely aim to help residents.",
+      "category": "government_notice",
+      "importance": 0.65,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "Even though I haven't lived here long, I feel a strong connection to this community. The neighborhood, local amenities, and my daily routines are important to me. I want to stay and make this place work despite the flood challenges.",
+      "category": "adaptation_action",
+      "importance": 0.8,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0018": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I know my property is in a Special Flood Hazard Area (SFHA) and flood insurance may be required for my mortgage. I have considered purchasing NFIP coverage but have not yet done so.",
+      "category": "insurance_claim",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live here mainly for practical reasons - proximity to work, schools, or affordability. If a good opportunity came up to move to a lower-risk area, I would seriously consider it.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0019": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I know my property is in a Special Flood Hazard Area (SFHA) and flood insurance may be required for my mortgage. I have considered purchasing NFIP coverage but have not yet done so.",
+      "category": "insurance_claim",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I've heard about government buyout and elevation programs, but I'm not convinced they work in practice. Bureaucracy and delays make these programs less appealing.",
+      "category": "government_notice",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live here mainly for practical reasons - proximity to work, schools, or affordability. If a good opportunity came up to move to a lower-risk area, I would seriously consider it.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0020": [
+    {
+      "content": "I have experienced flooding at my home once. The most recent flood event was Less than 1 year. Living in a high risk zone, I understand the real threat floods pose to my property.",
+      "category": "flood_event",
+      "importance": 0.7,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I know my property is in a Special Flood Hazard Area (SFHA) and flood insurance may be required for my mortgage. I have considered purchasing NFIP coverage but have not yet done so.",
+      "category": "insurance_claim",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "My community has strong social ties. After the last flood, neighbors helped each other with cleanup and shared information about recovery resources. Several families have discussed elevating their homes or other protective measures.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "The New Jersey state government and FEMA provide resources for flood mitigation. NJDEP administers the Blue Acres program which offers voluntary buyouts for repetitive loss properties. I believe these programs genuinely aim to help residents.",
+      "category": "government_notice",
+      "importance": 0.65,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "Even though I haven't lived here long, I feel a strong connection to this community. The neighborhood, local amenities, and my daily routines are important to me. I want to stay and make this place work despite the flood challenges.",
+      "category": "adaptation_action",
+      "importance": 0.8,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0021": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I know my property is in a Special Flood Hazard Area (SFHA) and flood insurance may be required for my mortgage. I have considered purchasing NFIP coverage but have not yet done so.",
+      "category": "insurance_claim",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I have good relationships with my neighbors. We often discuss community issues including flood preparedness. Some neighbors have taken adaptation measures like elevating their homes or installing sump pumps.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0022": [
+    {
+      "content": "I have experienced flooding at my home once. The most recent flood event was 1 to 5 years ago. Living in a high risk zone, I understand the real threat floods pose to my property.",
+      "category": "flood_event",
+      "importance": 0.7,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "My community has strong social ties. After the last flood, neighbors helped each other with cleanup and shared information about recovery resources. Several families have discussed elevating their homes or other protective measures.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I've heard about government buyout and elevation programs, but I'm not convinced they work in practice. Bureaucracy and delays make these programs less appealing.",
+      "category": "government_notice",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live here mainly for practical reasons - proximity to work, schools, or affordability. If a good opportunity came up to move to a lower-risk area, I would seriously consider it.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0023": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as medium flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I keep to myself and don't discuss flood risks with neighbors much. I occasionally see FEMA or local government flyers about flood preparedness.",
+      "category": "social_interaction",
+      "importance": 0.4,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I've heard about government buyout and elevation programs, but I'm not convinced they work in practice. Bureaucracy and delays make these programs less appealing.",
+      "category": "government_notice",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0024": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I have good relationships with my neighbors. We often discuss community issues including flood preparedness. Some neighbors have taken adaptation measures like elevating their homes or installing sump pumps.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "The New Jersey state government and FEMA provide resources for flood mitigation. NJDEP administers the Blue Acres program which offers voluntary buyouts for repetitive loss properties. I believe these programs genuinely aim to help residents.",
+      "category": "government_notice",
+      "importance": 0.65,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "Even though I haven't lived here long, I feel a strong connection to this community. The neighborhood, local amenities, and my daily routines are important to me. I want to stay and make this place work despite the flood challenges.",
+      "category": "adaptation_action",
+      "importance": 0.8,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0025": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I know my property is in a Special Flood Hazard Area (SFHA) and flood insurance may be required for my mortgage. I have considered purchasing NFIP coverage but have not yet done so.",
+      "category": "insurance_claim",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I've heard about government buyout and elevation programs, but I'm not convinced they work in practice. Bureaucracy and delays make these programs less appealing.",
+      "category": "government_notice",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live here mainly for practical reasons - proximity to work, schools, or affordability. If a good opportunity came up to move to a lower-risk area, I would seriously consider it.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0026": [
+    {
+      "content": "I have experienced flooding at my home once. The most recent flood event was 1 to 5 years ago. Living in a medium risk zone, I understand the real threat floods pose to my property.",
+      "category": "flood_event",
+      "importance": 0.7,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0027": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as medium flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I keep to myself and don't discuss flood risks with neighbors much. I occasionally see FEMA or local government flyers about flood preparedness.",
+      "category": "social_interaction",
+      "importance": 0.4,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0028": [
+    {
+      "content": "I have experienced flooding at my home once. The most recent flood event was 1 to 5 years ago. Living in a high risk zone, I understand the real threat floods pose to my property.",
+      "category": "flood_event",
+      "importance": 0.7,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I know my property is in a Special Flood Hazard Area (SFHA) and flood insurance may be required for my mortgage. I have considered purchasing NFIP coverage but have not yet done so.",
+      "category": "insurance_claim",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "My family has lived here for two generations in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0029": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0030": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as medium flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I know my property is in a Special Flood Hazard Area (SFHA) and flood insurance may be required for my mortgage. I have considered purchasing NFIP coverage but have not yet done so.",
+      "category": "insurance_claim",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I have good relationships with my neighbors. We often discuss community issues including flood preparedness. Some neighbors have taken adaptation measures like elevating their homes or installing sump pumps.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0031": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I've heard about government buyout and elevation programs, but I'm not convinced they work in practice. Bureaucracy and delays make these programs less appealing.",
+      "category": "government_notice",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live here mainly for practical reasons - proximity to work, schools, or affordability. If a good opportunity came up to move to a lower-risk area, I would seriously consider it.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0032": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as medium flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I know my property is in a Special Flood Hazard Area (SFHA) and flood insurance may be required for my mortgage. I have considered purchasing NFIP coverage but have not yet done so.",
+      "category": "insurance_claim",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I have good relationships with my neighbors. We often discuss community issues including flood preparedness. Some neighbors have taken adaptation measures like elevating their homes or installing sump pumps.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0033": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as medium flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I know my property is in a Special Flood Hazard Area (SFHA) and flood insurance may be required for my mortgage. I have considered purchasing NFIP coverage but have not yet done so.",
+      "category": "insurance_claim",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I have good relationships with my neighbors. We often discuss community issues including flood preparedness. Some neighbors have taken adaptation measures like elevating their homes or installing sump pumps.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live here mainly for practical reasons - proximity to work, schools, or affordability. If a good opportunity came up to move to a lower-risk area, I would seriously consider it.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0034": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I have good relationships with my neighbors. We often discuss community issues including flood preparedness. Some neighbors have taken adaptation measures like elevating their homes or installing sump pumps.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I've heard about government buyout and elevation programs, but I'm not convinced they work in practice. Bureaucracy and delays make these programs less appealing.",
+      "category": "government_notice",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "Even though I haven't lived here long, I feel a strong connection to this community. The neighborhood, local amenities, and my daily routines are important to me. I want to stay and make this place work despite the flood challenges.",
+      "category": "adaptation_action",
+      "importance": 0.8,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0035": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I keep to myself and don't discuss flood risks with neighbors much. I occasionally see FEMA or local government flyers about flood preparedness.",
+      "category": "social_interaction",
+      "importance": 0.4,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I've heard about government buyout and elevation programs, but I'm not convinced they work in practice. Bureaucracy and delays make these programs less appealing.",
+      "category": "government_notice",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live here mainly for practical reasons - proximity to work, schools, or affordability. If a good opportunity came up to move to a lower-risk area, I would seriously consider it.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0036": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I have good relationships with my neighbors. We often discuss community issues including flood preparedness. Some neighbors have taken adaptation measures like elevating their homes or installing sump pumps.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I've heard about government buyout and elevation programs, but I'm not convinced they work in practice. Bureaucracy and delays make these programs less appealing.",
+      "category": "government_notice",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "Even though I haven't lived here long, I feel a strong connection to this community. The neighborhood, local amenities, and my daily routines are important to me. I want to stay and make this place work despite the flood challenges.",
+      "category": "adaptation_action",
+      "importance": 0.8,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0037": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I know my property is in a Special Flood Hazard Area (SFHA) and flood insurance may be required for my mortgage. I have considered purchasing NFIP coverage but have not yet done so.",
+      "category": "insurance_claim",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "The New Jersey state government and FEMA provide resources for flood mitigation. NJDEP administers the Blue Acres program which offers voluntary buyouts for repetitive loss properties. I believe these programs genuinely aim to help residents.",
+      "category": "government_notice",
+      "importance": 0.65,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live here mainly for practical reasons - proximity to work, schools, or affordability. If a good opportunity came up to move to a lower-risk area, I would seriously consider it.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0038": [
+    {
+      "content": "I have experienced flooding at my home once. The most recent flood event was Less than 1 year. Living in a high risk zone, I understand the real threat floods pose to my property.",
+      "category": "flood_event",
+      "importance": 0.7,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I keep to myself and don't discuss flood risks with neighbors much. I occasionally see FEMA or local government flyers about flood preparedness.",
+      "category": "social_interaction",
+      "importance": 0.4,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "The New Jersey state government and FEMA provide resources for flood mitigation. NJDEP administers the Blue Acres program which offers voluntary buyouts for repetitive loss properties. I believe these programs genuinely aim to help residents.",
+      "category": "government_notice",
+      "importance": 0.65,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "Even though I haven't lived here long, I feel a strong connection to this community. The neighborhood, local amenities, and my daily routines are important to me. I want to stay and make this place work despite the flood challenges.",
+      "category": "adaptation_action",
+      "importance": 0.8,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0039": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I know my property is in a Special Flood Hazard Area (SFHA) and flood insurance may be required for my mortgage. I have considered purchasing NFIP coverage but have not yet done so.",
+      "category": "insurance_claim",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I have good relationships with my neighbors. We often discuss community issues including flood preparedness. Some neighbors have taken adaptation measures like elevating their homes or installing sump pumps.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I've heard about government buyout and elevation programs, but I'm not convinced they work in practice. Bureaucracy and delays make these programs less appealing.",
+      "category": "government_notice",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0040": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I've heard about government buyout and elevation programs, but I'm not convinced they work in practice. Bureaucracy and delays make these programs less appealing.",
+      "category": "government_notice",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live here mainly for practical reasons - proximity to work, schools, or affordability. If a good opportunity came up to move to a lower-risk area, I would seriously consider it.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0041": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as medium flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I know my property is in a Special Flood Hazard Area (SFHA) and flood insurance may be required for my mortgage. I have considered purchasing NFIP coverage but have not yet done so.",
+      "category": "insurance_claim",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I have good relationships with my neighbors. We often discuss community issues including flood preparedness. Some neighbors have taken adaptation measures like elevating their homes or installing sump pumps.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I've heard about government buyout and elevation programs, but I'm not convinced they work in practice. Bureaucracy and delays make these programs less appealing.",
+      "category": "government_notice",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0042": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I know my property is in a Special Flood Hazard Area (SFHA) and flood insurance may be required for my mortgage. I have considered purchasing NFIP coverage but have not yet done so.",
+      "category": "insurance_claim",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I've heard about government buyout and elevation programs, but I'm not convinced they work in practice. Bureaucracy and delays make these programs less appealing.",
+      "category": "government_notice",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live here mainly for practical reasons - proximity to work, schools, or affordability. If a good opportunity came up to move to a lower-risk area, I would seriously consider it.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0043": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as medium flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I've heard about government buyout and elevation programs, but I'm not convinced they work in practice. Bureaucracy and delays make these programs less appealing.",
+      "category": "government_notice",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live here mainly for practical reasons - proximity to work, schools, or affordability. If a good opportunity came up to move to a lower-risk area, I would seriously consider it.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0044": [
+    {
+      "content": "I have experienced flooding at my home once. The most recent flood event was 6 to 10 years ago. Living in a medium risk zone, I understand the real threat floods pose to my property.",
+      "category": "flood_event",
+      "importance": 0.7,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "My community has strong social ties. After the last flood, neighbors helped each other with cleanup and shared information about recovery resources. Several families have discussed elevating their homes or other protective measures.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0045": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as medium flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I have good relationships with my neighbors. We often discuss community issues including flood preparedness. Some neighbors have taken adaptation measures like elevating their homes or installing sump pumps.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "Even though I haven't lived here long, I feel a strong connection to this community. The neighborhood, local amenities, and my daily routines are important to me. I want to stay and make this place work despite the flood challenges.",
+      "category": "adaptation_action",
+      "importance": 0.8,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0046": [
+    {
+      "content": "I have experienced flooding at my home once. The most recent flood event was Less than 1 year. Living in a high risk zone, I understand the real threat floods pose to my property.",
+      "category": "flood_event",
+      "importance": 0.7,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I've heard about government buyout and elevation programs, but I'm not convinced they work in practice. Bureaucracy and delays make these programs less appealing.",
+      "category": "government_notice",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0047": [
+    {
+      "content": "I have experienced flooding at my home once. The most recent flood event was 1 to 5 years ago. Living in a high risk zone, I understand the real threat floods pose to my property.",
+      "category": "flood_event",
+      "importance": 0.7,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "My community has strong social ties. After the last flood, neighbors helped each other with cleanup and shared information about recovery resources. Several families have discussed elevating their homes or other protective measures.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0048": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "My family has lived here for two generations in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0049": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0050": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as medium flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live here mainly for practical reasons - proximity to work, schools, or affordability. If a good opportunity came up to move to a lower-risk area, I would seriously consider it.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0051": [
+    {
+      "content": "I have experienced flooding at my home once. The most recent flood event was 1 to 5 years ago. Living in a medium risk zone, I understand the real threat floods pose to my property.",
+      "category": "flood_event",
+      "importance": 0.7,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "My community has strong social ties. After the last flood, neighbors helped each other with cleanup and shared information about recovery resources. Several families have discussed elevating their homes or other protective measures.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "The New Jersey state government and FEMA provide resources for flood mitigation. NJDEP administers the Blue Acres program which offers voluntary buyouts for repetitive loss properties. I believe these programs genuinely aim to help residents.",
+      "category": "government_notice",
+      "importance": 0.65,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "Even though I haven't lived here long, I feel a strong connection to this community. The neighborhood, local amenities, and my daily routines are important to me. I want to stay and make this place work despite the flood challenges.",
+      "category": "adaptation_action",
+      "importance": 0.8,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0052": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0053": [
+    {
+      "content": "I have experienced flooding at my home once. The most recent flood event was 1 to 5 years ago. Living in a medium risk zone, I understand the real threat floods pose to my property.",
+      "category": "flood_event",
+      "importance": 0.7,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live here mainly for practical reasons - proximity to work, schools, or affordability. If a good opportunity came up to move to a lower-risk area, I would seriously consider it.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0054": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live here mainly for practical reasons - proximity to work, schools, or affordability. If a good opportunity came up to move to a lower-risk area, I would seriously consider it.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0055": [
+    {
+      "content": "I have experienced flooding at my home once. The most recent flood event was 1 to 5 years ago. Living in a high risk zone, I understand the real threat floods pose to my property.",
+      "category": "flood_event",
+      "importance": 0.7,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I know my property is in a Special Flood Hazard Area (SFHA) and flood insurance may be required for my mortgage. I have considered purchasing NFIP coverage but have not yet done so.",
+      "category": "insurance_claim",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "My community has strong social ties. After the last flood, neighbors helped each other with cleanup and shared information about recovery resources. Several families have discussed elevating their homes or other protective measures.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "The New Jersey state government and FEMA provide resources for flood mitigation. NJDEP administers the Blue Acres program which offers voluntary buyouts for repetitive loss properties. I believe these programs genuinely aim to help residents.",
+      "category": "government_notice",
+      "importance": 0.65,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "Even though I haven't lived here long, I feel a strong connection to this community. The neighborhood, local amenities, and my daily routines are important to me. I want to stay and make this place work despite the flood challenges.",
+      "category": "adaptation_action",
+      "importance": 0.8,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0056": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I have good relationships with my neighbors. We often discuss community issues including flood preparedness. Some neighbors have taken adaptation measures like elevating their homes or installing sump pumps.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "Even though I haven't lived here long, I feel a strong connection to this community. The neighborhood, local amenities, and my daily routines are important to me. I want to stay and make this place work despite the flood challenges.",
+      "category": "adaptation_action",
+      "importance": 0.8,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0057": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as medium flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I have good relationships with my neighbors. We often discuss community issues including flood preparedness. Some neighbors have taken adaptation measures like elevating their homes or installing sump pumps.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0058": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as medium flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I know my property is in a Special Flood Hazard Area (SFHA) and flood insurance may be required for my mortgage. I have considered purchasing NFIP coverage but have not yet done so.",
+      "category": "insurance_claim",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0059": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as medium flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live here mainly for practical reasons - proximity to work, schools, or affordability. If a good opportunity came up to move to a lower-risk area, I would seriously consider it.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0060": [
+    {
+      "content": "I have experienced flooding at my home once. The most recent flood event was 1 to 5 years ago. Living in a high risk zone, I understand the real threat floods pose to my property.",
+      "category": "flood_event",
+      "importance": 0.7,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I know my property is in a Special Flood Hazard Area (SFHA) and flood insurance may be required for my mortgage. I have considered purchasing NFIP coverage but have not yet done so.",
+      "category": "insurance_claim",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "My community has strong social ties. After the last flood, neighbors helped each other with cleanup and shared information about recovery resources. Several families have discussed elevating their homes or other protective measures.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "The New Jersey state government and FEMA provide resources for flood mitigation. NJDEP administers the Blue Acres program which offers voluntary buyouts for repetitive loss properties. I believe these programs genuinely aim to help residents.",
+      "category": "government_notice",
+      "importance": 0.65,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "Even though I haven't lived here long, I feel a strong connection to this community. The neighborhood, local amenities, and my daily routines are important to me. I want to stay and make this place work despite the flood challenges.",
+      "category": "adaptation_action",
+      "importance": 0.8,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0061": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I have good relationships with my neighbors. We often discuss community issues including flood preparedness. Some neighbors have taken adaptation measures like elevating their homes or installing sump pumps.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0062": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as medium flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I've heard about government buyout and elevation programs, but I'm not convinced they work in practice. Bureaucracy and delays make these programs less appealing.",
+      "category": "government_notice",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0063": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I have good relationships with my neighbors. We often discuss community issues including flood preparedness. Some neighbors have taken adaptation measures like elevating their homes or installing sump pumps.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "The New Jersey state government and FEMA provide resources for flood mitigation. NJDEP administers the Blue Acres program which offers voluntary buyouts for repetitive loss properties. I believe these programs genuinely aim to help residents.",
+      "category": "government_notice",
+      "importance": 0.65,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "Even though I haven't lived here long, I feel a strong connection to this community. The neighborhood, local amenities, and my daily routines are important to me. I want to stay and make this place work despite the flood challenges.",
+      "category": "adaptation_action",
+      "importance": 0.8,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0064": [
+    {
+      "content": "I have experienced flooding at my home once. The most recent flood event was 6 to 10 years ago. Living in a high risk zone, I understand the real threat floods pose to my property.",
+      "category": "flood_event",
+      "importance": 0.7,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I know my property is in a Special Flood Hazard Area (SFHA) and flood insurance may be required for my mortgage. I have considered purchasing NFIP coverage but have not yet done so.",
+      "category": "insurance_claim",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "My community has strong social ties. After the last flood, neighbors helped each other with cleanup and shared information about recovery resources. Several families have discussed elevating their homes or other protective measures.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "The New Jersey state government and FEMA provide resources for flood mitigation. NJDEP administers the Blue Acres program which offers voluntary buyouts for repetitive loss properties. I believe these programs genuinely aim to help residents.",
+      "category": "government_notice",
+      "importance": 0.65,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "Even though I haven't lived here long, I feel a strong connection to this community. The neighborhood, local amenities, and my daily routines are important to me. I want to stay and make this place work despite the flood challenges.",
+      "category": "adaptation_action",
+      "importance": 0.8,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0065": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as medium flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live here mainly for practical reasons - proximity to work, schools, or affordability. If a good opportunity came up to move to a lower-risk area, I would seriously consider it.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0066": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live here mainly for practical reasons - proximity to work, schools, or affordability. If a good opportunity came up to move to a lower-risk area, I would seriously consider it.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0067": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as medium flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I know my property is in a Special Flood Hazard Area (SFHA) and flood insurance may be required for my mortgage. I have considered purchasing NFIP coverage but have not yet done so.",
+      "category": "insurance_claim",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I've heard about government buyout and elevation programs, but I'm not convinced they work in practice. Bureaucracy and delays make these programs less appealing.",
+      "category": "government_notice",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0068": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I have good relationships with my neighbors. We often discuss community issues including flood preparedness. Some neighbors have taken adaptation measures like elevating their homes or installing sump pumps.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I've heard about government buyout and elevation programs, but I'm not convinced they work in practice. Bureaucracy and delays make these programs less appealing.",
+      "category": "government_notice",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0069": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as medium flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0070": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I know my property is in a Special Flood Hazard Area (SFHA) and flood insurance may be required for my mortgage. I have considered purchasing NFIP coverage but have not yet done so.",
+      "category": "insurance_claim",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I've heard about government buyout and elevation programs, but I'm not convinced they work in practice. Bureaucracy and delays make these programs less appealing.",
+      "category": "government_notice",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0071": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I've heard about government buyout and elevation programs, but I'm not convinced they work in practice. Bureaucracy and delays make these programs less appealing.",
+      "category": "government_notice",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0072": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as medium flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I know my property is in a Special Flood Hazard Area (SFHA) and flood insurance may be required for my mortgage. I have considered purchasing NFIP coverage but have not yet done so.",
+      "category": "insurance_claim",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I keep to myself and don't discuss flood risks with neighbors much. I occasionally see FEMA or local government flyers about flood preparedness.",
+      "category": "social_interaction",
+      "importance": 0.4,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live here mainly for practical reasons - proximity to work, schools, or affordability. If a good opportunity came up to move to a lower-risk area, I would seriously consider it.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0073": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as medium flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I have good relationships with my neighbors. We often discuss community issues including flood preparedness. Some neighbors have taken adaptation measures like elevating their homes or installing sump pumps.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "The New Jersey state government and FEMA provide resources for flood mitigation. NJDEP administers the Blue Acres program which offers voluntary buyouts for repetitive loss properties. I believe these programs genuinely aim to help residents.",
+      "category": "government_notice",
+      "importance": 0.65,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0074": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "The New Jersey state government and FEMA provide resources for flood mitigation. NJDEP administers the Blue Acres program which offers voluntary buyouts for repetitive loss properties. I believe these programs genuinely aim to help residents.",
+      "category": "government_notice",
+      "importance": 0.65,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "Even though I haven't lived here long, I feel a strong connection to this community. The neighborhood, local amenities, and my daily routines are important to me. I want to stay and make this place work despite the flood challenges.",
+      "category": "adaptation_action",
+      "importance": 0.8,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0075": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that this rental is in a flood-prone area. I should consider getting renters flood insurance to protect my belongings, but I haven't purchased a policy yet.",
+      "category": "insurance_claim",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I've heard about government buyout and elevation programs, but I'm not convinced they work in practice. Bureaucracy and delays make these programs less appealing.",
+      "category": "government_notice",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0076": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live in this area primarily for practical reasons like work or affordability. As a renter, I have more flexibility to relocate if flood risks become too high. I don't have strong roots tying me to this specific location.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0077": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I've heard about government buyout and elevation programs, but I'm not convinced they work in practice. Bureaucracy and delays make these programs less appealing.",
+      "category": "government_notice",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "My family has lived here for three generations in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0078": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as medium flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live in this area primarily for practical reasons like work or affordability. As a renter, I have more flexibility to relocate if flood risks become too high. I don't have strong roots tying me to this specific location.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0079": [
+    {
+      "content": "I have experienced flooding at my home once. The most recent flood event was Less than 1 year. Living in a high risk zone, I understand the real threat floods pose to my property.",
+      "category": "flood_event",
+      "importance": 0.7,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I've heard about government buyout and elevation programs, but I'm not convinced they work in practice. Bureaucracy and delays make these programs less appealing.",
+      "category": "government_notice",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live in this area primarily for practical reasons like work or affordability. As a renter, I have more flexibility to relocate if flood risks become too high. I don't have strong roots tying me to this specific location.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0080": [
+    {
+      "content": "I have experienced flooding at my home once. The most recent flood event was 1 to 5 years ago. Living in a high risk zone, I understand the real threat floods pose to my property.",
+      "category": "flood_event",
+      "importance": 0.7,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I've heard about government buyout and elevation programs, but I'm not convinced they work in practice. Bureaucracy and delays make these programs less appealing.",
+      "category": "government_notice",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0081": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I have good relationships with my neighbors. We often discuss community issues including flood preparedness. Some neighbors have taken adaptation measures like elevating their homes or installing sump pumps.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "The New Jersey state government and FEMA provide resources for flood mitigation. NJDEP administers the Blue Acres program which offers voluntary buyouts for repetitive loss properties. I believe these programs genuinely aim to help residents.",
+      "category": "government_notice",
+      "importance": 0.65,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "Even though I haven't lived here long, I feel a strong connection to this community. The neighborhood, local amenities, and my daily routines are important to me. I want to stay and make this place work despite the flood challenges.",
+      "category": "adaptation_action",
+      "importance": 0.8,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0082": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that this rental is in a flood-prone area. I should consider getting renters flood insurance to protect my belongings, but I haven't purchased a policy yet.",
+      "category": "insurance_claim",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "The New Jersey state government and FEMA provide resources for flood mitigation. NJDEP administers the Blue Acres program which offers voluntary buyouts for repetitive loss properties. I believe these programs genuinely aim to help residents.",
+      "category": "government_notice",
+      "importance": 0.65,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0083": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I keep to myself and don't discuss flood risks with neighbors much. I occasionally see FEMA or local government flyers about flood preparedness.",
+      "category": "social_interaction",
+      "importance": 0.4,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "The New Jersey state government and FEMA provide resources for flood mitigation. NJDEP administers the Blue Acres program which offers voluntary buyouts for repetitive loss properties. I believe these programs genuinely aim to help residents.",
+      "category": "government_notice",
+      "importance": 0.65,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0084": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as medium flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that this rental is in a flood-prone area. I should consider getting renters flood insurance to protect my belongings, but I haven't purchased a policy yet.",
+      "category": "insurance_claim",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I have good relationships with my neighbors. We often discuss community issues including flood preparedness. Some neighbors have taken adaptation measures like elevating their homes or installing sump pumps.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I've heard about government buyout and elevation programs, but I'm not convinced they work in practice. Bureaucracy and delays make these programs less appealing.",
+      "category": "government_notice",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0085": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live in this area primarily for practical reasons like work or affordability. As a renter, I have more flexibility to relocate if flood risks become too high. I don't have strong roots tying me to this specific location.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0086": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0087": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I have good relationships with my neighbors. We often discuss community issues including flood preparedness. Some neighbors have taken adaptation measures like elevating their homes or installing sump pumps.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0088": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I have good relationships with my neighbors. We often discuss community issues including flood preparedness. Some neighbors have taken adaptation measures like elevating their homes or installing sump pumps.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "The New Jersey state government and FEMA provide resources for flood mitigation. NJDEP administers the Blue Acres program which offers voluntary buyouts for repetitive loss properties. I believe these programs genuinely aim to help residents.",
+      "category": "government_notice",
+      "importance": 0.65,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "Even though I haven't lived here long, I feel a strong connection to this community. The neighborhood, local amenities, and my daily routines are important to me. I want to stay and make this place work despite the flood challenges.",
+      "category": "adaptation_action",
+      "importance": 0.8,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0089": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "The New Jersey state government and FEMA provide resources for flood mitigation. NJDEP administers the Blue Acres program which offers voluntary buyouts for repetitive loss properties. I believe these programs genuinely aim to help residents.",
+      "category": "government_notice",
+      "importance": 0.65,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live in this area primarily for practical reasons like work or affordability. As a renter, I have more flexibility to relocate if flood risks become too high. I don't have strong roots tying me to this specific location.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0090": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that this rental is in a flood-prone area. I should consider getting renters flood insurance to protect my belongings, but I haven't purchased a policy yet.",
+      "category": "insurance_claim",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0091": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as medium flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0092": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that this rental is in a flood-prone area. I should consider getting renters flood insurance to protect my belongings, but I haven't purchased a policy yet.",
+      "category": "insurance_claim",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I have good relationships with my neighbors. We often discuss community issues including flood preparedness. Some neighbors have taken adaptation measures like elevating their homes or installing sump pumps.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "The New Jersey state government and FEMA provide resources for flood mitigation. NJDEP administers the Blue Acres program which offers voluntary buyouts for repetitive loss properties. I believe these programs genuinely aim to help residents.",
+      "category": "government_notice",
+      "importance": 0.65,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0093": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I have good relationships with my neighbors. We often discuss community issues including flood preparedness. Some neighbors have taken adaptation measures like elevating their homes or installing sump pumps.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "The New Jersey state government and FEMA provide resources for flood mitigation. NJDEP administers the Blue Acres program which offers voluntary buyouts for repetitive loss properties. I believe these programs genuinely aim to help residents.",
+      "category": "government_notice",
+      "importance": 0.65,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "Even though I haven't lived here long, I feel a strong connection to this community. The neighborhood, local amenities, and my daily routines are important to me. I want to stay and make this place work despite the flood challenges.",
+      "category": "adaptation_action",
+      "importance": 0.8,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0094": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that this rental is in a flood-prone area. I should consider getting renters flood insurance to protect my belongings, but I haven't purchased a policy yet.",
+      "category": "insurance_claim",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I keep to myself and don't discuss flood risks with neighbors much. I occasionally see FEMA or local government flyers about flood preparedness.",
+      "category": "social_interaction",
+      "importance": 0.4,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I've heard about government buyout and elevation programs, but I'm not convinced they work in practice. Bureaucracy and delays make these programs less appealing.",
+      "category": "government_notice",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live in this area primarily for practical reasons like work or affordability. As a renter, I have more flexibility to relocate if flood risks become too high. I don't have strong roots tying me to this specific location.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0095": [
+    {
+      "content": "I have experienced flooding at my home once. The most recent flood event was 1 to 5 years ago. Living in a medium risk zone, I understand the real threat floods pose to my property.",
+      "category": "flood_event",
+      "importance": 0.7,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I keep to myself and don't discuss flood risks with neighbors much. I occasionally see FEMA or local government flyers about flood preparedness.",
+      "category": "social_interaction",
+      "importance": 0.4,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "The New Jersey state government and FEMA provide resources for flood mitigation. NJDEP administers the Blue Acres program which offers voluntary buyouts for repetitive loss properties. I believe these programs genuinely aim to help residents.",
+      "category": "government_notice",
+      "importance": 0.65,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live in this area primarily for practical reasons like work or affordability. As a renter, I have more flexibility to relocate if flood risks become too high. I don't have strong roots tying me to this specific location.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0096": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I occasionally interact with neighbors about local issues. There have been some community meetings about flood risks, but attendance varies. A few neighbors have flood insurance or have made home improvements.",
+      "category": "social_interaction",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I've heard about government buyout and elevation programs, but I'm not convinced they work in practice. Bureaucracy and delays make these programs less appealing.",
+      "category": "government_notice",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live in this area primarily for practical reasons like work or affordability. As a renter, I have more flexibility to relocate if flood risks become too high. I don't have strong roots tying me to this specific location.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0097": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I have good relationships with my neighbors. We often discuss community issues including flood preparedness. Some neighbors have taken adaptation measures like elevating their homes or installing sump pumps.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "Even though I haven't lived here long, I feel a strong connection to this community. The neighborhood, local amenities, and my daily routines are important to me. I want to stay and make this place work despite the flood challenges.",
+      "category": "adaptation_action",
+      "importance": 0.8,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0098": [
+    {
+      "content": "I have not personally experienced flooding at my current address. However, I am aware that I live in an area classified as low flood risk based on FEMA flood maps.",
+      "category": "flood_event",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I have good relationships with my neighbors. We often discuss community issues including flood preparedness. Some neighbors have taken adaptation measures like elevating their homes or installing sump pumps.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "The New Jersey state government and FEMA provide resources for flood mitigation. NJDEP administers the Blue Acres program which offers voluntary buyouts for repetitive loss properties. I believe these programs genuinely aim to help residents.",
+      "category": "government_notice",
+      "importance": 0.65,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am the first generation in this area. I consider it my home and feel comfortable here, though I recognize I could potentially adapt to living elsewhere if necessary. The decision to stay or leave would depend on many factors beyond just flood risk.",
+      "category": "adaptation_action",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0099": [
+    {
+      "content": "I have experienced flooding at my home once. The most recent flood event was 1 to 5 years ago. Living in a high risk zone, I understand the real threat floods pose to my property.",
+      "category": "flood_event",
+      "importance": 0.7,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that FEMA offers flood insurance through the NFIP program. I do not currently have flood insurance but have seen information about it.",
+      "category": "insurance_claim",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "My community has strong social ties. After the last flood, neighbors helped each other with cleanup and shared information about recovery resources. Several families have discussed elevating their homes or other protective measures.",
+      "category": "social_interaction",
+      "importance": 0.75,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware of government flood mitigation programs like NJ Blue Acres and FEMA's mitigation grants. However, I'm not sure how effective or accessible these programs really are for homeowners like me.",
+      "category": "government_notice",
+      "importance": 0.55,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "Even though I haven't lived here long, I feel a strong connection to this community. The neighborhood, local amenities, and my daily routines are important to me. I want to stay and make this place work despite the flood challenges.",
+      "category": "adaptation_action",
+      "importance": 0.8,
+      "source": "survey",
+      "year": 0
+    }
+  ],
+  "H0100": [
+    {
+      "content": "I have experienced flooding at my home once. The most recent flood event was Less than 1 year. Living in a high risk zone, I understand the real threat floods pose to my property.",
+      "category": "flood_event",
+      "importance": 0.7,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I am aware that this rental is in a flood-prone area. I should consider getting renters flood insurance to protect my belongings, but I haven't purchased a policy yet.",
+      "category": "insurance_claim",
+      "importance": 0.6,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I keep to myself and don't discuss flood risks with neighbors much. I occasionally see FEMA or local government flyers about flood preparedness.",
+      "category": "social_interaction",
+      "importance": 0.4,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "The New Jersey state government and FEMA provide resources for flood mitigation. NJDEP administers the Blue Acres program which offers voluntary buyouts for repetitive loss properties. I believe these programs genuinely aim to help residents.",
+      "category": "government_notice",
+      "importance": 0.65,
+      "source": "survey",
+      "year": 0
+    },
+    {
+      "content": "I live in this area primarily for practical reasons like work or affordability. As a renter, I have more flexibility to relocate if flood risks become too high. I don't have strong roots tying me to this specific location.",
+      "category": "adaptation_action",
+      "importance": 0.5,
+      "source": "survey",
+      "year": 0
+    }
+  ]
+}

@@ -10,8 +10,24 @@ Active: memory.retrieve() called by agent as tool
 from typing import Dict, Optional, Any
 from dataclasses import dataclass
 
-# sys.path.insert(0, '.') # Removed to avoid shadowing
-from broker.components.memory import CognitiveMemory, MemoryItem
+# Note: This module provides legacy MA-specific memory helpers
+# For current memory engine API, use broker.components.memory_engine
+
+# Try importing from the canonical location
+try:
+    from broker.components.memory_engine import HumanCentricMemoryEngine as CognitiveMemory
+    # MemoryItem is now a dict in the new API - create stub for compatibility
+    from dataclasses import dataclass as _dataclass
+    @_dataclass
+    class MemoryItem:
+        content: str
+        importance: float = 0.5
+        year: int = 0
+        tags: list = None
+except ImportError:
+    # Fallback: module not available, create stub
+    CognitiveMemory = None
+    MemoryItem = None
 
 
 # =============================================================================

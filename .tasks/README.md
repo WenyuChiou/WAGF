@@ -35,6 +35,35 @@ Keep it small, readable, and up to date.
 - On "Read task": read `handoff/current-session.md` and `registry.json` first.
 - If no next_step, set `next_step` to `none` and ask for planning.
 - Artifacts are outputs (csv, plots, summaries). Handoff is status only.
+- Keep `current-session.md` short; move long notes to `handoff/task-XXX.md`.
+- Only repo-assigned agents update `.tasks/` (Codex, Claude Code, Gemini CLI). Others must not mix their own task systems here.
+- Any new work item must be recorded in `registry.json` first (task or plan) before execution.
+- Do not rely on private model memory; all plans and task scopes must be written in `.tasks` for handoff.
+- Execution-only agents should not edit `.tasks`; they must report results to Claude Code, who owns task records and final review.
+- If `next_step` is missing/empty, execution agents must report it and wait for Claude Code to plan and assign work.
+
+## Execution Report Format
+
+Execution-only agents must report in this format to Claude Code:
+
+```
+REPORT
+agent: <name>
+task_id: <task-XXX or none>
+scope: <area/dir>
+status: <done|blocked|partial>
+changes: <files touched or "none">
+tests: <commands run or "none">
+artifacts: <paths or "none">
+issues: <bugs/risks or "none">
+next: <suggested next_step or "none">
+```
+
+## Micro-plan Policy
+
+If work is small (single step, <30 minutes, low risk), do not create a new task.
+Log a short "Micro-plan" line in `handoff/current-session.md` with outcome.
+For multi-step or shared work, create a task entry and a `handoff/task-XXX.md`.
 
 ## New Task Workflow
 

@@ -1,6 +1,6 @@
-﻿{
+{
   "version": "1.1",
-  "last_updated": "2026-01-16T23:20:00.000Z",
+  "last_updated": "2026-01-17T18:30:00.000Z",
   "tasks": [
     {
       "id": "task-001",
@@ -44,10 +44,14 @@
       "id": "task-003",
       "title": "全模型基準測試 (Strict Mode)",
       "description": "執行 4+ 模型與 2 種記憶體引擎的對比實驗。",
-      "status": "in_progress",
+      "status": "completed",
       "type": "experiment",
       "priority": "high",
-      "handoff_file": "handoff/task-003.md"
+      "handoff_file": "handoff/task-003.md",
+      "next_step": "none",
+      "done_when": [
+        "Marked completed by user"
+      ]
     },
     {
       "id": "task-008",
@@ -66,6 +70,57 @@
       "type": "feature",
       "priority": "critical",
       "handoff_file": "handoff/current-session.md"
+    },
+    {
+      "id": "task-010",
+      "title": "Module Integration Testing",
+      "description": "Validator (InterventionReport), Memory (3-tier), Hazard (FEMA curves), MA integration test summary (36 cases).",
+      "status": "completed",
+      "type": "testing",
+      "priority": "high",
+      "handoff_file": "handoff/current-session.md",
+      "artifacts": [
+        "examples/multi_agent/tests/test_module_integration.py"
+      ],
+      "notes": [
+        "Renamed examples/multi_agent/agents to ma_agents to fix module shadowing",
+        "Renamed examples/multi_agent/broker to ma_broker_legacy to fix import conflicts",
+        "35 tests passing, 1 skipped (strict mode edge case)"
+      ]
+    },
+    {
+      "id": "task-011",
+      "title": "Unified Gemini API Integration",
+      "description": "Implement a universal module interface for connecting to the Gemini model API.",
+      "status": "in-progress",
+      "type": "feature",
+      "priority": "high",
+      "handoff_file": "handoff/task-011.md"
+    },
+    {
+      "id": "task-012",
+      "title": "MA Case 重構 (Survey-based Initialization)",
+      "description": "將 MA 系統從隨機生成改為基於真實 NJ 問卷資料初始化，包含 PMT 構念、NJDEP/FEMA 角色與初始記憶。",
+      "status": "completed",
+      "type": "feature",
+      "priority": "high",
+      "handoff_file": "handoff/current-session.md",
+      "artifacts": [
+        "examples/multi_agent/survey_loader.py",
+        "examples/multi_agent/flood_zone_assigner.py",
+        "examples/multi_agent/initial_memory.py",
+        "examples/multi_agent/generate_agents.py",
+        "examples/multi_agent/ma_agent_types.yaml"
+      ],
+      "subtasks": [
+        {"id": "011-A", "title": "SurveyDataLoader", "status": "completed"},
+        {"id": "011-B", "title": "Agent 初始化重構 (移除 trust)", "status": "completed"},
+        {"id": "011-C", "title": "FloodZoneAssigner", "status": "completed"},
+        {"id": "011-D", "title": "初始記憶設計 (5 條)", "status": "completed"},
+        {"id": "011-E", "title": "政府/保險角色重構 (NJ Gov, FEMA)", "status": "completed"},
+        {"id": "011-F", "title": "Household Prompt 更新 (PMT 構念)", "status": "completed"},
+        {"id": "011-G", "title": "記憶系統擴展", "status": "completed"}
+      ]
     }
   ]
 }

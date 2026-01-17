@@ -42,3 +42,20 @@
 
 - `examples/single_agent/results_window/*/simulation_log.csv`
 - `examples/single_agent/results_humancentric/*/simulation_log.csv`
+
+---
+
+## Task 4-7 Scope Correction (2026-01-16)
+- Task 4 (PRB Flood Depth Analysis): implemented under examples/multi_agent/hazard/ only; SA references removed.
+- Task 5 (Government/Insurance Impact Assessment): files under examples/multi_agent/analysis/ (currently untracked; MA-only).
+- Task 6 (README Update): MA README updated for hazard tools; SA README stripped of hazard/schema notes.
+- Task 7 (RQ1-RQ3): scripts/notes moved to examples/multi_agent/experiments/; SA content removed.
+
+
+---
+
+## Pending (Claude) Items (2026-01-17)
+- task-003 remains in_progress (full model benchmark not finished).
+- Untracked MA assets pending decision: examples/multi_agent/tests/, examples/multi_agent/experiments/, examples/multi_agent/analysis/equity_metrics.py, examples/multi_agent/analysis/policy_impact.py.
+- Untracked analysis drafts pending decision: examples/single_agent/preliminary_llama_analysis.py, examples/single_agent/cross_model_preliminary.py, debug_read_zh.py.
+
