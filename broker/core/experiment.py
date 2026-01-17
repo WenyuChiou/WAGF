@@ -177,10 +177,9 @@ class ExperimentRunner:
 
     def _apply_state_changes(self, agent: BaseAgent, result: Any):
         """Update agent attributes and memory from execution results."""
-        # 1. Update State Flags
-        changes = result.execution_result.state_changes
-        for key, value in changes.items():
-            setattr(agent, key, value)
+        # 1. Update State Flags using canonical method
+        if result.execution_result and result.execution_result.state_changes:
+            agent.apply_delta(result.execution_result.state_changes)
         
         # 2. Update Memory via Engine
         action_desc = result.approved_skill.skill_name.replace("_", " ").capitalize()

@@ -337,6 +337,26 @@ class BaseAgent:
         
         return True
     
+    def apply_delta(self, state_changes: Dict[str, Any]) -> None:
+        """
+        Apply execution result state changes to agent attributes.
+
+        This is the CANONICAL method for updating agent state from
+        skill execution results. Applications SHOULD NOT use setattr
+        directly.
+
+        Args:
+            state_changes: Dict of {attribute_name: new_value}
+        """
+        if not state_changes:
+            return
+        for key, value in state_changes.items():
+            if hasattr(self, key):
+                setattr(self, key, value)
+            else:
+                # Store in dynamic_state for new attributes
+                self.dynamic_state[key] = value
+    
     # -------------------------------------------------------------------------
     # Serialization
     # -------------------------------------------------------------------------
