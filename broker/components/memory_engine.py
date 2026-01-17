@@ -496,7 +496,16 @@ class HierarchicalMemoryEngine(MemoryEngine):
         """
         agent_id = agent.id
         
+        # Phase 0: Initialize from profile if empty
+        if agent_id not in self.episodic:
+            initial_mem = getattr(agent, 'memory', [])
+            self.episodic[agent_id] = []
+            if isinstance(initial_mem, list):
+                for m in initial_mem:
+                    self.add_memory(agent_id, m)
+        
         # 1. CORE MEMORY (Fixed Attributes)
+
         core = {}
         if hasattr(agent, 'fixed_attributes'):
             core = {k: v for k, v in agent.fixed_attributes.items() if isinstance(v, (str, int, float, bool))}
