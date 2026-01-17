@@ -63,50 +63,127 @@ def load_rationality_data(root_dirs):
 
 def load_adaptation_data(root_dirs):
     """
-    Scans for simulation_log.csv to compute Adaptation Density over time.
+    Scans for household_traces.jsonl to compute Cumulative Adaptation Rate.
+    Adaptation Rate = (Agents who have EVER Elevated OR Relocated OR Currently Have Insurance) / Total Agents
     """
     all_dfs = []
     
-    for root in root_dirs:
-        # Priority 1: Check for interim CSVs (Active Runs)
-        interim_files = glob.glob(os.path.join(root, "**", "interim_*.csv"), recursive=True)
-        # Priority 2: Check for final CSVs
-        final_files = glob.glob(os.path.join(root, "**", "simulation_log.csv"), recursive=True)
+    # scan for traces
+    trace_files = []
+    for r in root_dirs:
+        trace_files.extend(glob.glob(os.path.join(r, "**", "household_traces.jsonl"), recursive=True))
         
-        files = interim_files + final_files
-        
-        for p in files:
-            try:
-                df = pd.read_csv(p)
-                path = str(p)
+    for tf in trace_files:
+        try:
+            # Infer metadata
+            model = "Unknown"
+            lower_path = str(tf).lower()
+            if "llama" in lower_path: model = "Llama 3.2"
+            elif "gemma" in lower_path: model = "Gemma 3"
+            elif "gpt" in lower_path: model = "GPT-OSS"
+            elif "deepseek" in lower_path: model = "DeepSeek-R1"
+            
+            # Robust Group Detection
+            abs_path = os.path.abspath(tf)
+            group = "Baseline"
+            if "Group_B" in abs_path or "Governance_Window" in abs_path:
+                group = "Group B (Window)"
+            elif "Group_C" in abs_path or "Reflection" in abs_path:
+                group = "Group C (Reflection)"
+            
+            # 1. Parse entire history first
+            history = []
+            with open(tf, 'r', encoding='utf-8') as f:
+                for line in f:
+                    try:
+                        record = json.loads(line)
+                        res = record.get('execution_result', {})
+                        changes = res.get('state_changes', {})
+                        
+                        year = record.get('current_year')
+                        if year is None:
+                            mem = record.get('memory_pre', [])
+                            if mem and isinstance(mem, list):
+                                import re
+                                match = re.search(r"Year (\d+)", mem[0])
+                                if match:
+                                    year = int(match.group(1))
+                        
+                        if year is None: year = 1
+
+                        history.append({
+                            'agent_id': record.get('agent_id'),
+                            'year': year,
+                            'step_id': record.get('step_id', 0),
+                            'changes': changes
+                        })
+                    except: pass
+                    
+            if not history: continue
+            
+            raw_df = pd.DataFrame(history)
+            
+            # 2. Cumulative State Tracking
+            # We need to map Agent ID -> {elevated, relocated, has_insurance}
+            # Iterate year by year
+            
+            total_agents = raw_df['agent_id'].nunique()
+            max_year = raw_df['year'].max()
+            
+            # State for this file's population
+            agent_states = {} # {aid: {'elevated': False, 'relocated': False, 'has_insurance': False}}
+            
+            yearly_stats = []
+            
+            for y in range(1, max_year + 1):
+                # Get events for this year
+                events = raw_df[raw_df['year'] == y]
                 
-                model = "Unknown"
-                if "llama" in path.lower(): model = "Llama 3.2"
-                elif "gemma" in path.lower(): model = "Gemma 3"
-                elif "gpt" in path.lower(): model = "GPT-OSS"
-                elif "deepseek" in path.lower(): model = "DeepSeek-R1"
+                # Update states based on events
+                for _, row in events.iterrows():
+                    aid = row['agent_id']
+                    if aid not in agent_states:
+                        agent_states[aid] = {'elevated': False, 'relocated': False, 'has_insurance': False}
+                    
+                    changes = row['changes']
+                    if not isinstance(changes, dict): continue
+                    
+                    # Apply updates (Accumulate PERMANENT states, Toggle TEMPORARY states)
+                    # Elevated/Relocated are permanent once True
+                    if changes.get('elevated'): agent_states[aid]['elevated'] = True
+                    if changes.get('relocated'): agent_states[aid]['relocated'] = True
+                    
+                    # Insurance is temporary/annual, so we take the latest value if present
+                    # BUT, usually 'has_insurance' in state_changes reflects the *result* of the action.
+                    # If they buy, it's True. If they expire, simulation might set False?
+                    # Let's assume 'has_insurance' IS valid for the year if present.
+                    # If not present in changes, we assume it holds? 
+                    # Actually, for 'Adaptation Rate', we usually count "Protected Status".
+                    if 'has_insurance' in changes:
+                        agent_states[aid]['has_insurance'] = changes['has_insurance']
                 
-                group = "Baseline"
-                if "Group_B" in path: group = "Group B (Window)"
-                if "Group_C" in path: group = "Group C (Reflection)"
+                # Calculate Count for Year Y
+                adapted_count = 0
+                for aid, st in agent_states.items():
+                    if st['elevated'] or st['relocated'] or st['has_insurance']:
+                        adapted_count += 1
                 
-                yearly = df.groupby('year').apply(
-                    lambda x: pd.Series({
-                        'Adaptation Rate': len(x[
-                            (x['elevated']==True) | 
-                            (x['has_insurance']==True) | 
-                            (x['relocated']==True)
-                        ]) / len(x)
-                    })
-                ).reset_index()
+                rate = adapted_count / max(1, total_agents)
                 
-                yearly['Model'] = model
-                yearly['Group'] = group
-                all_dfs.append(yearly)
+                # print(f"DEBUG: {model} {group} Y{y} -> {adapted_count}/{total_agents} ({rate:.2f})")
                 
-            except Exception as e:
-                pass 
-                
+                yearly_stats.append({
+                    'year': y,
+                    'Adaptation Rate': rate,
+                    'Model': model,
+                    'Group': group
+                })
+            
+            all_dfs.append(pd.DataFrame(yearly_stats))
+
+        except Exception as e:
+            print(f"Error parsing trace {tf}: {e}")
+
     if not all_dfs:
         return pd.DataFrame()
     return pd.concat(all_dfs)
@@ -139,8 +216,13 @@ def plot_rationality(df, output_path="figure_2_rationality.png"):
 
 def plot_adaptation(df, output_path="figure_3_adaptation.png"):
     if df.empty:
-        # print("No data for Adaptation Plot.")
+        print("No data for Adaptation Plot.")
         return
+
+    print("--- Adaptation Data Debug ---")
+    print(df.head(20))
+    print(df.groupby(['Model', 'Group', 'year'])['Adaptation Rate'].mean())
+    print("-----------------------------")
 
     plt.figure(figsize=(12, 6))
     sns.lineplot(

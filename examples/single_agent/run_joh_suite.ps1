@@ -26,7 +26,8 @@ Write-Host "[1/2] Launching Group B (Governance + Window)..." -ForegroundColor Y
 $JobB = Start-Job -ScriptBlock {
     param($Model, $Agents, $Years, $GroupBPath, $ExperimentDir)
     Set-Location $ExperimentDir
-    python run_flood.py `
+    # Added -u for unbuffered, --verbose for detailed logs
+    python -u run_flood.py `
         --model $Model `
         --years $Years `
         --agents $Agents `
@@ -34,14 +35,16 @@ $JobB = Start-Job -ScriptBlock {
         --governance-mode strict `
         --output $GroupBPath `
         --survey-mode `
-        --workers 5
+        --workers 5 `
+        --verbose
 } -ArgumentList $Model, $Agents, $Years, $GroupBPath, $ExperimentDir
 
 Write-Host "[2/2] Launching Group C (Full: Human-Centric + Reflection)..." -ForegroundColor Yellow
 $JobC = Start-Job -ScriptBlock {
     param($Model, $Agents, $Years, $GroupCPath, $ExperimentDir)
     Set-Location $ExperimentDir
-    python run_flood.py `
+    # Added -u for unbuffered, --verbose for detailed logs
+    python -u run_flood.py `
         --model $Model `
         --years $Years `
         --agents $Agents `
@@ -50,7 +53,8 @@ $JobC = Start-Job -ScriptBlock {
         --use-priority-schema `
         --output $GroupCPath `
         --survey-mode `
-        --workers 5
+        --workers 5 `
+        --verbose
 } -ArgumentList $Model, $Agents, $Years, $GroupCPath, $ExperimentDir
 
 Write-Host ""
