@@ -163,7 +163,7 @@ class GenericAuditWriter:
                 "year": t.get("year"),
                 "timestamp": t.get("timestamp"),
                 "agent_id": t.get("agent_id"),
-                "status": t.get("approved_skill", {}).get("status", "UNKNOWN"),
+                "status": (t.get("approved_skill") or {}).get("status", "UNKNOWN"),
                 "retry_count": t.get("retry_count", 0),
                 "validated": t.get("validated", True),
             }
@@ -173,11 +173,12 @@ class GenericAuditWriter:
             row["llm_success"] = t.get("llm_success", True)
             
             # 2. Skill Logic (Proposed vs Approved)
-            skill_prop = t.get("skill_proposal", {})
+            skill_prop = t.get("skill_proposal") or {}
+            appr_skill = t.get("approved_skill") or {}
             row["proposed_skill"] = skill_prop.get("skill_name")
-            row["final_skill"] = t.get("approved_skill", {}).get("skill_name")
-            row["parsing_warnings"] = "|".join(skill_prop.get("parsing_warnings", []))
-            row["raw_output"] = skill_prop.get("raw_output", "")
+            row["final_skill"] = appr_skill.get("skill_name")
+            row["parsing_warnings"] = "|".join(skill_prop.get("parsing_warnings", []) or [])
+            row["raw_output"] = skill_prop.get("raw_output", t.get("raw_output", ""))
             
             # 3. Reasoning (TP/CP Appraisal + Audits)
             reasoning = skill_prop.get("reasoning", {})
