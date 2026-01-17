@@ -353,8 +353,10 @@ class FinalParityHook:
         print(f"[Year {year}] Stats: {stats_str}")
         print(f"[Year {year}] Avg Trust: Ins={avg_trust_ins:.3f}, Nb={avg_trust_nb:.3f}")
 
-        # Intermediate Save for Validation
-        pd.DataFrame(self.logs).to_csv("simulation_log_interim.csv", index=False)
+        # Intermediate Save for Validation (Run-specific to prevent collisions)
+        log_filename = f"interim_{getattr(self.runner.config, 'model', 'unknown').replace(':','_')}_{getattr(self.runner.config, 'governance_profile', 'default')}.csv"
+        pd.DataFrame(self.logs).to_csv(log_filename, index=False)
+        # pd.DataFrame(self.logs).to_csv("simulation_log_interim.csv", index=False) # Legacy shared file
         
         # --- PILLAR 2: BATCH YEAR-END REFLECTION ---
         if self.reflection_engine and self.reflection_engine.should_reflect("any", year):
