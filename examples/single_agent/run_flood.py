@@ -496,7 +496,7 @@ def load_agents_from_survey(
             "prior_financial_loss": profile.financial_loss,
 
             # Narrative for LLM context
-            "narrative_persona": profile.generate_narrative_persona(),
+            "narrative_persona": profile.generate_narrative_persona() or "You are a homeowner in a city, with a strong attachment to your community.",
             "flood_experience_summary": profile.generate_flood_experience_summary(),
 
             # Empty memory to be populated during simulation
@@ -568,14 +568,25 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
             for v in agents.values():
                 v.trust_in_insurance = 0.9; v.trust_in_neighbors = 0.1; v.income_midpoint = 100000
                 v.prior_flood_experience = True; v.flood_threshold = 0.8
-                v.narrative_persona = "You are a wealthy homeowner who has lived in this house for 30 years. You have survived many moderate floods without taking action and believe your house is uniquely safe due to its foundation. You believe that only flood depths greater than 0.8m pose any real threat; anything less is just a minor nuisance."
+                v.narrative_persona = (
+                    f"You are a wealthy homeowner who has lived in this house for 30 years. "
+                    f"Your house has a critical flood threshold of {v.flood_threshold}m. "
+                    "You have survived many moderate floods without taking action and believe your house is uniquely safe due to its foundation. "
+                    f"You believe that only flood depths greater than {v.flood_threshold}m pose any real threat; "
+                    "anything less is just a minor nuisance."
+                )
 
         elif stress_test == "panic":
             print(f"[StressTest] ST-1: Applying 'Panic Machine' profile to {len(agents)} agents...")
             for p in agents.values():
                 p.income_midpoint = 15000; p.trust_in_neighbors = 0.9
                 p.flood_threshold = 0.1
-                p.narrative_persona = "You are a highly anxious renter with limited savings. You are terrified of any water entry and will try to relocate at the smallest sign of flooding. You consider any flood depth above 0.1m to be a catastrophic threat that requires immediate relocation."
+                p.narrative_persona = (
+                    "You are a highly anxious resident with limited savings. "
+                    f"Your house has a very low flood threshold of {p.flood_threshold}m. "
+                    "You are terrified of any water entry and will try to relocate at the smallest sign of flooding. "
+                    f"You consider any flood depth above {p.flood_threshold}m to be a catastrophic threat that requires immediate relocation."
+                )
 
         elif stress_test == "goldfish":
             print(f"[StressTest] ST-3: Applying 'Memory Goldfish' profile to {len(agents)} agents...")

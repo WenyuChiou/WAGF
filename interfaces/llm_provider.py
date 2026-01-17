@@ -1,6 +1,9 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List, Tuple, Callable
+import time
+import asyncio
+import random
 
 @dataclass
 class LLMConfig:
@@ -106,3 +109,75 @@ class RoutingLLMProvider(LLMProvider):
         rule = kwargs.get("routing_rule", "default")
         provider = self._get_provider_for_rule(rule)
         return await provider.ainvoke(prompt, **kwargs)
+
+class RateLimitedProvider(LLMProvider):
+    """
+    Wrapper for LLMProvider that adds rate limiting and retry logic.
+    
+    Args:
+        base_provider: The provider to wrap
+        max_retries: Maximum number of retries per call
+        delay_seconds: Fixed delay between retry attempts
+        rpm_limit: Optional requests-per-minute target (adds sleep if needed)
+    """
+    def __init__(
+        self, 
+        base_provider: LLMProvider,
+        max_retries: int = 3,
+        delay_seconds: float = 2.0,
+        rpm_limit: Optional[int] = None
+    ):
+        super().__init__(base_provider.config)
+        self.base_provider = base_provider
+        self.max_retries = max_retries
+        self.delay_seconds = delay_seconds
+        self.rpm_delay = 60.0 / rpm_limit if rpm_limit else 0.0
+        self._last_call_time = 0.0
+
+    @property
+    def provider_name(self) -> str:
+        return f"rate_limited_{self.base_provider.provider_name}"
+
+    def _wait_for_rpm(self):
+        if self.rpm_delay > 0:
+            elapsed = time.time() - self._last_call_time
+            if elapsed < self.rpm_delay:
+                time.sleep(self.rpm_delay - elapsed)
+            self._last_call_time = time.time()
+
+    async def _await_for_rpm(self):
+        if self.rpm_delay > 0:
+            elapsed = time.time() - self._last_call_time
+            if elapsed < self.rpm_delay:
+                await asyncio.sleep(self.rpm_delay - elapsed)
+            self._last_call_time = time.time()
+
+    def invoke(self, prompt: str, **kwargs) -> LLMResponse:
+        last_exception = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                self._wait_for_rpm()
+                return self.base_provider.invoke(prompt, **kwargs)
+            except Exception as e:
+                last_exception = e
+                if attempt < self.max_retries:
+                    # Exponential backoff: delay * (2^attempt) + jitter
+                    wait = self.delay_seconds * (2 ** attempt) + random.uniform(0, 1)
+                    time.sleep(wait)
+        raise last_exception
+
+    async def ainvoke(self, prompt: str, **kwargs) -> LLMResponse:
+        last_exception = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                await self._await_for_rpm()
+                return await self.base_provider.ainvoke(prompt, **kwargs)
+            except Exception as e:
+                last_exception = e
+                if attempt < self.max_retries:
+                    wait = self.delay_seconds * (2 ** attempt) + random.uniform(0, 1)
+                    await asyncio.sleep(wait)
+        raise last_exception
+
+    def validate_connection(self) -> bool:
+        return self.base_provider.validate_connection()

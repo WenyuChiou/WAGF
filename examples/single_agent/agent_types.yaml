@@ -56,7 +56,8 @@ household:
 
   # Prompt Template (FINAL version aligned)
   prompt_template: |
-    You are a homeowner in a city, with a strong attachment to your community. {elevation_status_text}
+    {narrative_persona}
+    {elevation_status_text}
     Your memory includes:
     {memory}
 

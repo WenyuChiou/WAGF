@@ -4,60 +4,61 @@ from pathlib import Path
 import os
 import sys
 
+# Discovery
+SCRIPT_DIR = Path(__file__).parent
+REPORT_DIR = SCRIPT_DIR / "reports"
+REPORT_DIR.mkdir(parents=True, exist_ok=True)
+
 def calculate_kpis(result_dir: str):
     """
     Unified KPI Evaluator for JOH Technical Note.
-    Processes simulation_log.csv and governance_summary.json.
+    Processes simulation_log.csv and audit_summary.json.
     """
-    run_path = Path(result_dir)
-    if not run_path.exists():
-        print(f"Error: Directory {result_dir} not found.")
-        return
+    run_dir = Path(result_dir)
+    log_path = run_dir / "simulation_log.csv"
+    summary_path = run_dir / "audit_summary.json"
+    
+    if not log_path.exists():
+        return None
+
+    metrics = {
+        "RS_RationalityScore": 0.0,
+        "AD_AdaptationDensity": 0.0,
+        "PC_PanicCoefficient": 0.0,
+        "FI_FidelityIndex": "N/A"
+    }
 
     # 1. Load Data
-    log_path = run_path / "simulation_log.csv"
-    summary_path = run_path / "audit_summary.json"
-    
-    metrics = {
-        "RS_RationalityScore": 0,
-        "AD_AdaptationDensity": 0,
-        "PC_PanicCoefficient": 0,
-        "FI_FidelityIndex": "N/A (Requires manual trace review)"
-    }
+    df = pd.read_csv(log_path)
+    total_agents = len(df['agent_id'].unique())
+    final_yr = df['year'].max()
+    final_state = df[df['year'] == final_yr]
 
     # 2. Process Rationality Score (RS)
     if summary_path.exists():
         with open(summary_path, 'r') as f:
             gov = json.load(f)
-            # RS = (Total Requests - Interventions) / Total Requests
-            total = gov.get("total_evaluations", 1000) # Fallback to 100 agents * 10 years
+            total = gov.get("total_evaluations", total_agents * final_yr)
             interventions = gov.get("total_blocking_events", 0)
-            metrics["RS_RationalityScore"] = (total - interventions) / total
+            metrics["RS_RationalityScore"] = (total - interventions) / max(1, total)
             metrics["Interventions"] = interventions
+    else:
+        metrics["RS_RationalityScore"] = 1.0 # If no governance summary, assume 1.0 or N/A
+        metrics["Interventions"] = 0
 
-        # 3. Process Adaptation Density (AD)
-        # AD = % of population with ANY adaptation (Elevation or Insurance or Relocated) at Yr 10
-        final_yr = df['year'].max()
-        final_state = df[df['year'] == final_yr]
-        
-        # Count non-trivial adaptations
-        # Note: 'relocated' agents might be marked in 'cumulative_state' or 'relocated' column
-        # We check specific columns.
-        adapted = final_state[
-            (final_state['elevated'] == True) | 
-            (final_state['has_insurance'] == True) |
-            (final_state['relocated'] == True)
-        ]
-        
-        # Safe division
-        total_agents = len(final_state)
-        metrics["AD_AdaptationDensity"] = len(adapted) / total_agents if total_agents > 0 else 0.0
-        
-        # 4. Process Panic Coefficient (PC)
-        # PC = Relocation Rate.
-        relocated_count = len(final_state[final_state['relocated'] == True])
-        metrics["PC_PanicCoefficient"] = relocated_count / total_agents if total_agents > 0 else 0.0
-        metrics["TotalAgents"] = total_agents
+    # 3. Process Adaptation Density (AD)
+    # Count non-trivial adaptations at Yr 10
+    adapted = final_state[
+        (final_state['elevated'] == True) | 
+        (final_state['has_insurance'] == True) |
+        (final_state['relocated'] == True)
+    ]
+    metrics["AD_AdaptationDensity"] = len(adapted) / total_agents if total_agents > 0 else 0.0
+    
+    # 4. Process Panic Coefficient (PC)
+    relocated_count = len(final_state[final_state['relocated'] == True])
+    metrics["PC_PanicCoefficient"] = relocated_count / total_agents if total_agents > 0 else 0.0
+    metrics["TotalAgents"] = total_agents
 
     return metrics
 
@@ -66,68 +67,60 @@ if __name__ == "__main__":
     import csv
     
     parser = argparse.ArgumentParser()
-    parser.add_argument("--root", type=str, required=True, help="Root directory containing model results (e.g., results/JOH_FINAL)")
+    parser.add_argument("--root", type=str, default=str(SCRIPT_DIR.parent / "results"), help="Root directory containing model results")
     parser.add_argument("--output", type=str, default="joh_metrics_summary.csv", help="Output CSV filename")
     args = parser.parse_args()
     
     root_path = Path(args.root)
+    if not root_path.is_absolute():
+        root_path = SCRIPT_DIR.parent / root_path
+
     all_results = []
-    
-    # Walk through the directory to find model run folders (those with simulation_log.csv or audit_summary.json)
-    print(f"\nSearching for runs in: {root_path}...")
-    
-    # Walk through the directory to find model run folders (those with simulation_log.csv or audit_summary.json)
     print(f"\nSearching for runs in: {root_path}...")
     
     # Recursive search for simulation_log.csv
     for log_file in root_path.rglob("simulation_log.csv"):
         run_dir = log_file.parent
-        print(f" -> Processing: {run_dir.name} (Found log)")
+        # Avoid processing reports or raw subdirs as root
+        if "reports" in run_dir.parts or "raw" in run_dir.parts:
+            continue
+            
+        print(f" -> Processing: {run_dir.relative_to(root_path)}")
         metrics = calculate_kpis(str(run_dir))
         if metrics:
-            # Try to infer meaningful names
-            # path: results/JOH_STRESS/goldfish/llama3_2_3b_strict
-            # Group -> goldfish, Model -> llama3_2_3b_strict
-            
-            # Simple heuristic: parent of run_dir is Group, parent of that is Root
-            relative_path = run_dir.relative_to(root_path)
-            parts = relative_path.parts
-            
+            # Heuristic to find Group and Model names
+            rel = run_dir.relative_to(root_path)
+            parts = rel.parts
             if len(parts) >= 2:
-                group_name = parts[0]
-                model_name = parts[1]
+                metrics["Group"] = parts[0]
+                metrics["Model"] = parts[1]
             elif len(parts) == 1:
-                group_name = "Root"
-                model_name = parts[0]
+                metrics["Group"] = "Root"
+                metrics["Model"] = parts[0]
             else:
-                group_name = "Unknown"
-                model_name = "Unknown"
+                metrics["Group"] = "Unknown"
+                metrics["Model"] = "Unknown"
 
-            metrics["Model"] = model_name
-            metrics["Group"] = group_name
             metrics["RunPath"] = str(run_dir)
             all_results.append(metrics)
 
     # Export to CSV
     if all_results:
-        output_csv = root_path / "joh_metrics_summary.csv"
-        keys = ["Model", "Group", "RS_RationalityScore", "AD_AdaptationDensity", "PC_PanicCoefficient", "Interventions", "FI_FidelityIndex", "RunPath"]
+        output_path = REPORT_DIR / args.output
+        keys = ["Model", "Group", "RS_RationalityScore", "AD_AdaptationDensity", "PC_PanicCoefficient", "Interventions", "TotalAgents", "RunPath"]
         
-        with open(output_csv, 'w', newline='') as f:
-            writer = csv.DictWriter(f, fieldnames=keys)
+        with open(output_path, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=keys, extrasaction='ignore')
             writer.writeheader()
             for row in all_results:
-                # Filter row to only match keys
-                clean_row = {k: row.get(k, "N/A") for k in keys}
-                writer.writerow(clean_row)
+                writer.writerow(row)
                 
         print("\n" + "="*60)
-        print(f" BATCH PROCESSING COMPLETE. metrics saved to: {output_csv}")
+        print(f" BATCH PROCESSING COMPLETE. metrics saved to: {output_path}")
         print("="*60)
         
-        # Print Summary Table to Console
+        # Print Summary Table
         df_summary = pd.DataFrame(all_results)
-        if not df_summary.empty:
-            print(df_summary[["Model", "Group", "RS_RationalityScore", "AD_AdaptationDensity"]].to_string(index=False))
+        print(df_summary[["Model", "Group", "RS_RationalityScore", "AD_AdaptationDensity", "PC_PanicCoefficient"]].sort_values("Group").to_string(index=False))
     else:
-        print("No valid runs found.")
+        print(f"No valid runs found in {root_path}.")

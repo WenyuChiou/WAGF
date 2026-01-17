@@ -21,17 +21,10 @@ def create_provider(config: Dict[str, Any]) -> LLMProvider:
         
     Returns:
         LLMProvider instance
-        
-    Example:
-        provider = create_provider({
-            "type": "ollama",
-            "model": "llama3.2:3b",
-            "temperature": 0.7
-        })
     """
     provider_type = config.get("type", "ollama").lower()
     
-    # Build LLMConfig
+    # 1. Base Configuration
     llm_config = LLMConfig(
         model=config.get("model", "llama3.2:3b"),
         temperature=config.get("temperature", 0.7),
@@ -40,24 +33,23 @@ def create_provider(config: Dict[str, Any]) -> LLMProvider:
         extra_params=config.get("extra_params", {})
     )
     
-    # Create appropriate provider
+    # 2. Instantiate Concrete Provider
+    provider = None
     if provider_type == "ollama":
         from .ollama import OllamaProvider
-        return OllamaProvider(
+        provider = OllamaProvider(
             config=llm_config,
             base_url=config.get("base_url", "http://localhost:11434")
         )
-    
     elif provider_type in ("openai", "azure"):
         from .openai_provider import OpenAIProvider
         
-        # Support environment variable substitution
         api_key = config.get("api_key", "")
         if api_key.startswith("${") and api_key.endswith("}"):
             env_var = api_key[2:-1]
             api_key = os.getenv(env_var, "")
-        
-        return OpenAIProvider(
+            
+        provider = OpenAIProvider(
             config=llm_config,
             api_key=api_key,
             base_url=config.get("base_url")
@@ -71,13 +63,32 @@ def create_provider(config: Dict[str, Any]) -> LLMProvider:
             env_var = api_key[2:-1]
             api_key = os.getenv(env_var, "")
             
-        return GeminiProvider(
+        provider = GeminiProvider(
             config=llm_config,
             api_key=api_key
         )
     
     else:
         raise ValueError(f"Unknown provider type: {provider_type}")
+
+    # 3. Apply Rate Limiting / Retries if specified
+    rpm_limit = config.get("rpm_limit")
+    max_retries = config.get("max_retries", 3)
+    
+    # If using cloud providers, default to some safety if not specified
+    if provider_type in ["gemini", "openai"] and rpm_limit is None:
+        # Defaults for safety (adjust as needed)
+        rpm_limit = 15 
+
+    if rpm_limit or max_retries:
+        from interfaces.llm_provider import RateLimitedProvider
+        provider = RateLimitedProvider(
+            base_provider=provider,
+            max_retries=max_retries,
+            rpm_limit=rpm_limit
+        )
+        
+    return provider
 
 
 def load_providers_from_config(config_path: str | Path) -> LLMProviderRegistry:
