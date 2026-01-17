@@ -40,6 +40,12 @@ class GeminiProvider(LLMProvider):
             generation_config={
                 "temperature": self.config.temperature,
                 "max_output_tokens": self.config.max_tokens,
+            },
+            safety_settings={
+                "HARM_CATEGORY_HARASSMENT": "BLOCK_NONE",
+                "HARM_CATEGORY_HATE_SPEECH": "BLOCK_NONE",
+                "HARM_CATEGORY_SEXUALLY_EXPLICIT": "BLOCK_NONE",
+                "HARM_CATEGORY_DANGEROUS_CONTENT": "BLOCK_NONE",
             }
         )
     
@@ -49,8 +55,14 @@ class GeminiProvider(LLMProvider):
     
     def _format_response(self, response: GenerateContentResponse) -> LLMResponse:
         """Helper to convert Gemini response to standard LLMResponse."""
+        try:
+            content = response.text
+        except ValueError:
+            # If the response was blocked, we can't access .text
+            content = f"Error: Response blocked by safety filters. Finish reason: {response.candidates[0].finish_reason if response.candidates else 'unknown'}"
+            
         return LLMResponse(
-            content=response.text,
+            content=content,
             model=self.config.model,
             usage={
                 "prompt_tokens": response.usage_metadata.prompt_token_count if hasattr(response, 'usage_metadata') else 0,

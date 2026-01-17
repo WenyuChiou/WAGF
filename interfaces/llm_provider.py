@@ -4,6 +4,7 @@ from typing import Dict, Any, Optional, List, Tuple, Callable
 import time
 import asyncio
 import random
+import threading
 
 @dataclass
 class LLMConfig:
@@ -133,6 +134,7 @@ class RateLimitedProvider(LLMProvider):
         self.delay_seconds = delay_seconds
         self.rpm_delay = 60.0 / rpm_limit if rpm_limit else 0.0
         self._last_call_time = 0.0
+        self._lock = threading.Lock()
 
     @property
     def provider_name(self) -> str:
@@ -140,17 +142,28 @@ class RateLimitedProvider(LLMProvider):
 
     def _wait_for_rpm(self):
         if self.rpm_delay > 0:
-            elapsed = time.time() - self._last_call_time
-            if elapsed < self.rpm_delay:
-                time.sleep(self.rpm_delay - elapsed)
-            self._last_call_time = time.time()
+            with self._lock:
+                elapsed = time.time() - self._last_call_time
+                if elapsed < self.rpm_delay:
+                    time.sleep(self.rpm_delay - elapsed)
+                self._last_call_time = time.time()
 
     async def _await_for_rpm(self):
         if self.rpm_delay > 0:
-            elapsed = time.time() - self._last_call_time
-            if elapsed < self.rpm_delay:
-                await asyncio.sleep(self.rpm_delay - elapsed)
-            self._last_call_time = time.time()
+            # Note: For async, we should ideally use asyncio.Lock, 
+            # but if we are in a mixed thread environment (like ExperimentRunner), 
+            # threading.Lock is safer for the shared variable.
+            # However, await must not be inside threading.Lock.
+            
+            # Simple spin-lock with sleep for async
+            while True:
+                with self._lock:
+                    elapsed = time.time() - self._last_call_time
+                    if elapsed >= self.rpm_delay:
+                        self._last_call_time = time.time()
+                        return
+                    wait = self.rpm_delay - elapsed
+                await asyncio.sleep(wait)
 
     def invoke(self, prompt: str, **kwargs) -> LLMResponse:
         last_exception = None
