@@ -131,32 +131,32 @@ python run_flood.py --model gemma3:4b --memory-engine humancentric
 
 ````
 
-### HumanCentricMemoryEngine Parameters
+### HumanCentricMemoryEngine: A Heuristic Weighting Schema (HWS)
 
-All weights and probabilities use 0-1 scale:
+To ensure realistic cognitive persistence, the engine uses an **Importance-Decay** model where memories are scored based on their theoretical significance to the agent's survival and identity.
 
-```python
-HumanCentricMemoryEngine(
-    window_size=5,              # int: Recent items always included
-    top_k_significant=2,        # int: Top historical events to retrieve
-    consolidation_prob=0.7,     # float [0-1]: Base P(consolidate) for important items
-    decay_rate=0.1,             # float [0-1]: Exponential decay rate (λ)
-    emotional_weights={
-        "fear": 1.0,            # Flood damage, high threat
-        "regret": 0.9,          # "I should have elevated"
-        "relief": 0.8,          # Insurance claim success
-        "trust_shift": 0.7,     # Trust changes
-        "observation": 0.4,     # Neutral social observation
-        "routine": 0.1          # No notable event
-    },
-    source_weights={
-        "personal": 1.0,        # MY house flooded
-        "neighbor": 0.7,        # Neighbor's experience
-        "community": 0.5,       # Community statistics
-        "abstract": 0.3         # General information
-    }
-)
-````
+| Parameter | Type | Default | Theoretical Basis (Citations) |
+| :--- | :--- | :--- | :--- |
+| **`window_size`** | `int` | `5` | **Working Memory Capacity.** Limits active context to prevent cognitive overload. |
+| **`consolidation_prob`** | `float` | `0.7` | **Sleep-Dependent Consolidation.** Probability of transfer to long-term storage (Stickgold, 2005). |
+| **`decay_rate`** | `float` | `0.1` | **Ebbinghaus Forgetting Curve.** Exponential decay of non-critical information (Ebbinghaus, 1885). |
+
+#### 1. Emotional Priority (`emotional_weights`)
+Categorizes events by their impact on the agent's internal status, grounded in **Protection Motivation Theory (PMT)**.
+
+- **`direct_impact` (1.0)**: **Severity/Vulnerability.** High-trauma events (floods) have maximum persistence (Siegrist & Gutscher, 2008).
+- **`strategic_choice` (0.8)**: **Self-Efficacy Feedback.** Memories of choosing to adapt (elevate/relocate) reinforce behavioral patterns.
+- **`efficacy_gain` (0.6)**: **Response Efficacy.** Successful protection (insurance claims) reinforces the believe in mitigation efficacy.
+- **`social_feedback` (0.4)**: **Social Learning.** Observations of neighbors' choices (Bandura, 1977).
+- **`baseline_observation` (0.1)**: **Information Noise.** Minimal weight for non-event years to prevent memory window flooding (Information Filtering).
+
+#### 2. Source Distance (`source_weights`)
+Weights information by proximity, grounded in **Construal Level Theory (CLT)** (Trope & Liberman, 2010).
+
+- **`personal` (1.0)**: **Spatial/Social Zero-Distance.** Direct experience is the strongest adaptation driver (**Availability Heuristic**, Tversky & Kahneman, 1973).
+- **`neighbor` (0.8)**: **Proximal Social Distance.** Learning from immediate peer outcomes.
+- **`community` (0.6)**: **Social Aggregation.** Statistical trends within the local group.
+- **`general_knowledge` (0.4)**: **Abstract Psychology Distance.** Distant news or generic reports have lower cognitive "vividness."
 
 ### ImportanceMemoryEngine Parameters
 
@@ -360,3 +360,4 @@ The following references provide the theoretical basis for our cognitive guardra
 ---
 
 _Note: This framework is part of a technical note submission to the Journal of Hydrology (JOH)._
+````

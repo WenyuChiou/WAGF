@@ -7,9 +7,9 @@ param (
 $ExperimentDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ModelFolder = $Model -replace ':', '_' -replace '-', '_' -replace '\.', '_'
 
-$BaseDir = Join-Path $ExperimentDir "results\JOH\$ModelFolder"
-$GroupBPath = Join-Path $BaseDir "baseline"
-$GroupCPath = Join-Path $BaseDir "full"
+$BaseDir = Join-Path $ExperimentDir "results\JOH_FINAL\$ModelFolder"
+$GroupBPath = Join-Path $BaseDir "Group_B_Governance_Window"
+$GroupCPath = Join-Path $BaseDir "Group_C_Full_HumanCentric"
 
 Write-Host "--- JOH Master Suite: Concurrent Execution ---" -ForegroundColor Cyan
 Write-Host "Model: $Model"
@@ -22,7 +22,7 @@ Write-Host ""
 New-Item -ItemType Directory -Force $GroupBPath | Out-Null
 New-Item -ItemType Directory -Force $GroupCPath | Out-Null
 
-Write-Host "[1/2] Launching Group B (Baseline: Window Memory)..." -ForegroundColor Yellow
+Write-Host "[1/2] Launching Group B (Governance + Window)..." -ForegroundColor Yellow
 $JobB = Start-Job -ScriptBlock {
     param($Model, $Agents, $Years, $GroupBPath, $ExperimentDir)
     Set-Location $ExperimentDir
