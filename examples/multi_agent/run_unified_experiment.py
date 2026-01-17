@@ -39,7 +39,9 @@ from examples.multi_agent.environment.hazard import HazardModule, VulnerabilityM
 # Local imports from multi_agent directory
 MULTI_AGENT_DIR = Path(__file__).parent
 sys.path.insert(0, str(MULTI_AGENT_DIR))
-from generate_agents import generate_agents
+from generate_agents import generate_agents_random, load_survey_agents, HouseholdProfile
+from initial_memory import generate_all_memories, get_agent_memories_text
+import json
 
 # =============================================================================
 # INSTITUTIONAL AGENT FACTORIES
@@ -93,15 +95,27 @@ def create_insurance_agent() -> BaseAgent:
 # HOUSEHOLD AGENT WRAPPER
 # =============================================================================
 
-def wrap_household(profile) -> BaseAgent:
-    # We map the profile to a BaseAgent compatible with the framework
+def pmt_score_to_rating(score: float) -> str:
+    """Convert PMT score (1-5) to descriptive rating."""
+    if score >= 4.0:
+        return "High"
+    elif score >= 3.0:
+        return "Moderate"
+    elif score >= 2.0:
+        return "Low"
+    else:
+        return "Very Low"
+
+
+def wrap_household(profile: HouseholdProfile) -> BaseAgent:
+    """Wrap HouseholdProfile as BaseAgent compatible with the framework."""
     # Subdivide household into owner/renter for specialized prompts/skills
     ma_type = "household_owner" if profile.tenure == "Owner" else "household_renter"
-    
+
     config = AgentConfig(
         name=profile.agent_id,
         agent_type=ma_type,
-        state_params=[], 
+        state_params=[],
         objectives=[],
         constraints=[],
         skills=[], # Loaded from YAML via SkillBrokerEngine
@@ -110,15 +124,32 @@ def wrap_household(profile) -> BaseAgent:
         ]
     )
     agent = BaseAgent(config)
-    
+
     # Store profile data in fixed/dynamic state
     agent.fixed_attributes = {
         "mg": profile.mg,
         "tenure": profile.tenure,
         "income": profile.income,
+        "income_bracket": profile.income_bracket,
         "rcv_building": profile.rcv_building,
         "rcv_contents": profile.rcv_contents,
-        "property_value": profile.rcv_building + profile.rcv_contents
+        "property_value": profile.rcv_building + profile.rcv_contents,
+        "household_size": profile.household_size,
+        "generations": profile.generations,
+        # PMT constructs (from survey)
+        "sc_score": profile.sc_score,
+        "pa_score": profile.pa_score,
+        "tp_score": profile.tp_score,
+        "cp_score": profile.cp_score,
+        "sp_score": profile.sp_score,
+        # Spatial data
+        "flood_zone": profile.flood_zone,
+        "flood_depth": profile.flood_depth,
+        "grid_x": profile.grid_x,
+        "grid_y": profile.grid_y,
+        # Flood experience
+        "flood_experience": profile.flood_experience,
+        "flood_frequency": profile.flood_frequency,
     }
     agent.dynamic_state = {
         "elevated": profile.elevated,
@@ -127,12 +158,24 @@ def wrap_household(profile) -> BaseAgent:
         "cumulative_damage": 0.0,
         # Derived attributes for prompt
         "elevation_status_text": "Your house is elevated." if profile.elevated else "Your house is NOT elevated.",
-        "insurance_status": "have" if profile.has_insurance else "do NOT have"
+        "insurance_status": "have" if profile.has_insurance else "do NOT have",
+        # PMT ratings for prompt (descriptive)
+        "tp_rating": pmt_score_to_rating(profile.tp_score),
+        "cp_rating": pmt_score_to_rating(profile.cp_score),
+        "sp_rating": pmt_score_to_rating(profile.sp_score),
+        "sc_rating": pmt_score_to_rating(profile.sc_score),
+        "pa_rating": pmt_score_to_rating(profile.pa_score),
+        # Flood experience summary
+        "flood_experience_summary": (
+            f"Experienced {profile.flood_frequency} flood event(s)"
+            if profile.flood_experience
+            else "No direct flood experience"
+        ),
     }
-    
+
     # Ensure agent.id matches profile.agent_id
     agent.id = profile.agent_id
-    
+
     return agent
 
 # =============================================================================
@@ -301,18 +344,23 @@ class MultiAgentHooks:
 def run_unified_experiment():
     parser = argparse.ArgumentParser(description="Multi-Agent Unified Experiment")
     parser.add_argument("--model", type=str, default="gpt-oss:latest", help="LLM model")
-    parser.add_argument("--agents", type=int, default=10, help="Number of household agents")
+    parser.add_argument("--agents", type=int, default=10, help="Number of household agents (random mode only)")
     parser.add_argument("--years", type=int, default=10, help="Simulation years")
     parser.add_argument("--output", type=str, default="examples/multi_agent/results_unified")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose LLM output")
-    parser.add_argument("--memory-engine", type=str, default="humancentric", 
-                        choices=["window", "humancentric", "hierarchical"], 
+    parser.add_argument("--memory-engine", type=str, default="humancentric",
+                        choices=["window", "humancentric", "hierarchical"],
                         help="Memory engine type")
     parser.add_argument("--gossip", action="store_true", help="Enable neighbor gossip (SQ2)")
     parser.add_argument("--initial-subsidy", type=float, default=0.50, help="Initial gov subsidy rate (SQ3)")
     parser.add_argument("--initial-premium", type=float, default=0.02, help="Initial insurance premium rate (SQ3)")
     parser.add_argument("--grid-dir", type=str, default=None, help="Path to PRB ASCII grid directory")
     parser.add_argument("--grid-years", type=str, default=None, help="Comma-separated PRB years to load (e.g. 2011,2012,2023)")
+    # New: Survey vs Random mode
+    parser.add_argument("--mode", type=str, choices=["survey", "random"], default="survey",
+                        help="Agent initialization mode: survey (from questionnaire) or random (synthetic)")
+    parser.add_argument("--load-initial-memories", action="store_true", default=True,
+                        help="Load initial memories from initial_memories.json (survey mode)")
     args = parser.parse_args()
 
     # 1. Init environment
@@ -332,12 +380,24 @@ def run_unified_experiment():
     # 2. Setup agents (Gov + Ins + Households)
     gov = create_government_agent()
     ins = create_insurance_agent()
-    
-    profiles = generate_agents(n_agents=args.agents)
+
+    # Load household profiles based on mode
+    if args.mode == "survey":
+        print("[INFO] Loading agents from survey data...")
+        profiles = load_survey_agents()
+    else:
+        print(f"[INFO] Generating {args.agents} random agents...")
+        profiles = generate_agents_random(n_agents=args.agents)
+
     households = [wrap_household(p) for p in profiles]
-    
+
     # Order: Institutional agents first
     all_agents = {a.id: a for a in [gov, ins] + households}
+
+    # Calculate MG statistics for government prompt
+    mg_count = sum(1 for p in profiles if p.mg)
+    env_data["mg_count"] = mg_count
+    env_data["mg_ratio"] = mg_count / len(profiles) if profiles else 0
     
     # 3. Memory Engine
     if args.memory_engine == "humancentric":
@@ -347,7 +407,33 @@ def run_unified_experiment():
         memory_engine = HierarchicalMemoryEngine(window_size=5, semantic_top_k=3)
     else:
         memory_engine = WindowMemoryEngine(window_size=3)
-    
+
+    # 3a. Load initial memories (survey mode)
+    if args.mode == "survey" and args.load_initial_memories:
+        initial_memories_path = MULTI_AGENT_DIR / "data" / "initial_memories.json"
+        if initial_memories_path.exists():
+            print(f"[INFO] Loading initial memories from {initial_memories_path}")
+            with open(initial_memories_path, 'r', encoding='utf-8') as f:
+                initial_memories = json.load(f)
+            # Inject initial memories into memory engine
+            for agent_id, memories in initial_memories.items():
+                if agent_id in all_agents:
+                    for mem in memories:
+                        memory_engine.add_memory(
+                            agent_id,
+                            mem["content"],
+                            metadata={
+                                "category": mem.get("category", "general"),
+                                "importance": mem.get("importance", 0.5),
+                                "source": mem.get("source", "survey"),
+                                "year": 0  # Initial memories are pre-simulation
+                            }
+                        )
+            print(f"[INFO] Loaded initial memories for {len(initial_memories)} agents")
+        else:
+            print(f"[WARN] Initial memories file not found: {initial_memories_path}")
+            print("[INFO] Run initial_memory.py to generate initial memories")
+
     # 3b. Social & Interaction Hub
     agent_ids = list(all_agents.keys())
     if args.gossip:

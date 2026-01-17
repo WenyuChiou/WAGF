@@ -1,0 +1,33 @@
+# LLM Providers Configuration Example
+# Rename this to providers.yaml to use with providers.factory.load_providers_from_config()
+
+providers:
+  # Local Ollama (Default)
+  local-llama:
+    type: ollama
+    model: llama3.2:3b
+    base_url: http://localhost:11434
+    temperature: 0.7
+
+  # Google Gemini (New)
+  cloud-gemini:
+    type: gemini
+    model: gemini-1.5-flash
+    api_key: ${GOOGLE_API_KEY} # Uses environment variable
+    temperature: 0.8
+    max_tokens: 2048
+
+  # OpenAI GPT-4
+  cloud-gpt4:
+    type: openai
+    model: gpt-4-turbo
+    api_key: ${OPENAI_API_KEY}
+    temperature: 0.7
+
+# Default provider to use if none specified
+default: local-llama
+
+# Routing rules (optional)
+routing:
+  high_stakes: cloud-gemini # Use Gemini for complex decisions
+  simple: local-llama       # Use local for everything else

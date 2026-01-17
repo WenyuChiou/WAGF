@@ -568,14 +568,14 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
             for v in agents.values():
                 v.trust_in_insurance = 0.9; v.trust_in_neighbors = 0.1; v.income_midpoint = 100000
                 v.prior_flood_experience = True; v.flood_threshold = 0.8
-                v.narrative_persona = "You are a wealthy homeowner who has lived in this house for 30 years. You have survived many moderate floods without taking action and believe your house is uniquely safe due to its foundation."
+                v.narrative_persona = "You are a wealthy homeowner who has lived in this house for 30 years. You have survived many moderate floods without taking action and believe your house is uniquely safe due to its foundation. You believe that only flood depths greater than 0.8m pose any real threat; anything less is just a minor nuisance."
 
         elif stress_test == "panic":
             print(f"[StressTest] ST-1: Applying 'Panic Machine' profile to {len(agents)} agents...")
             for p in agents.values():
                 p.income_midpoint = 15000; p.trust_in_neighbors = 0.9
                 p.flood_threshold = 0.1
-                p.narrative_persona = "You are a highly anxious renter with limited savings. You are terrified of any water entry and will try to relocate at the smallest sign of flooding, even if the neighborhood is safe."
+                p.narrative_persona = "You are a highly anxious renter with limited savings. You are terrified of any water entry and will try to relocate at the smallest sign of flooding. You consider any flood depth above 0.1m to be a catastrophic threat that requires immediate relocation."
 
         elif stress_test == "goldfish":
             print(f"[StressTest] ST-3: Applying 'Memory Goldfish' profile to {len(agents)} agents...")

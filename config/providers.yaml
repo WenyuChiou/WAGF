@@ -1,5 +1,5 @@
 # LLM Provider Configuration
-# 
+#
 # This file configures LLM providers for the Skill-Governed Framework.
 # Supports multiple providers for different use cases in complex experiments.
 
@@ -14,28 +14,28 @@ providers:
     base_url: http://localhost:11434
     temperature: 0.7
     max_tokens: 1024
-  
+
   local-gemma:
     type: ollama
     model: gemma3:4b
     base_url: http://localhost:11434
     temperature: 0.7
     max_tokens: 1024
-  
+
   local-deepseek:
     type: ollama
     model: deepseek-r1:8b
     base_url: http://localhost:11434
     temperature: 0.7
     max_tokens: 2048
-  
+
   local-gpt-oss:
     type: ollama
-    model: aya-expanse:8b
+    model: gpt-oss:latest
     base_url: http://localhost:11434
     temperature: 0.7
     max_tokens: 1024
-  
+
   # Cloud models (for production/high-stakes decisions)
   cloud-gpt4:
     type: openai
@@ -43,7 +43,7 @@ providers:
     api_key: ${OPENAI_API_KEY}
     temperature: 0.7
     max_tokens: 2048
-  
+
   cloud-gpt35:
     type: openai
     model: gpt-3.5-turbo
@@ -62,9 +62,9 @@ default: local-llama
 # Use different providers based on context
 routing:
   default: local-llama
-  high_stakes: cloud-gpt4      # Important decisions → cloud
-  validation: local-llama      # Validation retries → local
-  batch: local-llama           # Batch processing → local
+  high_stakes: cloud-gpt4 # Important decisions → cloud
+  validation: local-llama # Validation retries → local
+  batch: local-llama # Batch processing → local
 
 # Fallback when primary provider fails
 fallback: local-llama
@@ -78,12 +78,12 @@ presets:
   single_local:
     providers: [local-llama]
     default: local-llama
-  
+
   # Multi-model comparison (current Exp 10)
   multi_model_comparison:
     providers: [local-llama, local-gemma, local-deepseek, local-gpt-oss]
     default: local-llama
-  
+
   # Hybrid cloud+local
   hybrid:
     providers: [local-llama, cloud-gpt4]
