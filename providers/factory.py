@@ -24,9 +24,17 @@ def create_provider(config: Dict[str, Any]) -> LLMProvider:
     """
     provider_type = config.get("type", "ollama").lower()
     
+    # Define provider-specific default models
+    DEFAULT_MODELS = {
+        "ollama": "llama3.2:3b",
+        "openai": "gpt-4-turbo",
+        "gemini": "gemini-1.5-flash-latest"
+    }
+    
     # 1. Base Configuration
+    default_model = DEFAULT_MODELS.get(provider_type, "llama3.2:3b")
     llm_config = LLMConfig(
-        model=config.get("model", "llama3.2:3b"),
+        model=config.get("model", default_model),
         temperature=config.get("temperature", 0.7),
         max_tokens=config.get("max_tokens", 1024),
         timeout=config.get("timeout", 60.0),
@@ -78,7 +86,7 @@ def create_provider(config: Dict[str, Any]) -> LLMProvider:
     # If using cloud providers, default to some safety if not specified
     if provider_type in ["gemini", "openai"] and rpm_limit is None:
         # Defaults for safety (adjust as needed)
-        rpm_limit = 15 
+        rpm_limit = 10 
 
     if rpm_limit or max_retries:
         from interfaces.llm_provider import RateLimitedProvider
