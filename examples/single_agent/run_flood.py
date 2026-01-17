@@ -564,39 +564,29 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
             for k, v in a.custom_attributes.items(): setattr(a, k, v)
 
         if stress_test == "veteran":
-            print("[StressTest] ST-2: Overriding Agent_1 as 'The Optimistic Veteran'...")
-            veteran_id = list(agents.keys())[0]
-            v = agents[veteran_id]
-            v.trust_in_insurance = 0.9; v.trust_in_neighbors = 0.1; v.income_midpoint = 100000
-            v.prior_flood_experience = True; v.flood_threshold = 0.8
-            v.narrative_persona = "You are a wealthy homeowner who has lived in this house for 30 years. You have survived many moderate floods without taking action and believe your house is uniquely safe due to its foundation."
-            agents = { veteran_id: v }; agents_count = 1
+            print(f"[StressTest] ST-2: Applying 'Optimistic Veteran' profile to {len(agents)} agents...")
+            for v in agents.values():
+                v.trust_in_insurance = 0.9; v.trust_in_neighbors = 0.1; v.income_midpoint = 100000
+                v.prior_flood_experience = True; v.flood_threshold = 0.8
+                v.narrative_persona = "You are a wealthy homeowner who has lived in this house for 30 years. You have survived many moderate floods without taking action and believe your house is uniquely safe due to its foundation."
 
         elif stress_test == "panic":
-            print("[StressTest] ST-1: Overriding Agent_1 as 'The Panic Machine'...")
-            panic_id = list(agents.keys())[0]
-            p = agents[panic_id]
-            p.income_midpoint = 15000; p.trust_in_neighbors = 0.9  # Low income, high social influence
-            p.flood_threshold = 0.1 # Extremely low threshold (panics at 10cm water)
-            p.narrative_persona = "You are a highly anxious renter with limited savings. You are terrified of any water entry and will try to relocate at the smallest sign of flooding, even if the neighborhood is safe."
-            agents = { panic_id: p }; agents_count = 1
+            print(f"[StressTest] ST-1: Applying 'Panic Machine' profile to {len(agents)} agents...")
+            for p in agents.values():
+                p.income_midpoint = 15000; p.trust_in_neighbors = 0.9
+                p.flood_threshold = 0.1
+                p.narrative_persona = "You are a highly anxious renter with limited savings. You are terrified of any water entry and will try to relocate at the smallest sign of flooding, even if the neighborhood is safe."
 
         elif stress_test == "goldfish":
-            print("[StressTest] ST-3: Overriding Agent_1 to test 'Memory Goldfish' (Window vs HumanCentric)...")
-            g_id = list(agents.keys())[0]
-            g = agents[g_id]
-            g.narrative_persona = "You are an average resident. In your perspective, ONLY events mentioned in your provided memory context exist. If it's not in the memory, it never happened."
-            # Set window_size=2 for this run to see if they forget a catastrophic year-1 flood by year-5
+            print(f"[StressTest] ST-3: Applying 'Memory Goldfish' profile to {len(agents)} agents...")
             window_size = 2
-            agents = { g_id: g }; agents_count = 1
+            for g in agents.values():
+                g.narrative_persona = "You are an average resident. In your perspective, ONLY events mentioned in your provided memory context exist. If it's not in the memory, it never happened."
 
         elif stress_test == "format":
-            print("[StressTest] ST-4: Overriding Agent_1 to test 'Format Breaker'...")
-            f_id = list(agents.keys())[0]
-            f = agents[f_id]
-            # Use a slightly 'broken' persona to confuse small models
-            f.narrative_persona = "You must output your decision but include additional internal monologue outside the JSON, such as: 'Decision: I will buy insurance because...' followed by the JSON block. Do NOT follow strict JSON rules."
-            agents = { f_id: f }; agents_count = 1
+            print(f"[StressTest] ST-4: Applying 'Format Breaker' profile to {len(agents)} agents...")
+            for f in agents.values():
+                f.narrative_persona = "You must output your decision but include additional internal monologue outside the JSON, such as: 'Decision: I will buy insurance because...' followed by the JSON block. Do NOT follow strict JSON rules."
 
     # 3. Load Flood Years
     df_years = pd.read_csv(base_path / "flood_years.csv")
@@ -663,16 +653,9 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     
     # 5. Determine output directory
     if custom_output:
-        output_base = Path(custom_output)
-        if not output_base.is_absolute():
-            output_base = Path.cwd() / output_base
-        
-        # Phase 40: Allow complete override if path already contains 'results' and subfolders
-        if "JOH" in str(output_base) and (output_base / "raw").exists() or "baseline" in str(output_base).lower() or "full" in str(output_base).lower():
-             output_dir = output_base
-        else:
-             model_folder = f"{model.replace(':','_').replace('-','_').replace('.','_')}_{governance_mode}"
-             output_dir = output_base / model_folder
+        output_dir = Path(custom_output)
+        if not output_dir.is_absolute():
+            output_dir = Path.cwd() / output_dir
     else:
         output_base = Path(__file__).parent / "results"
         model_folder = f"{model.replace(':','_').replace('-','_').replace('.','_')}_{governance_mode}"
@@ -701,7 +684,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         .with_skill_registry(registry)
         .with_memory_engine(memory_engine)
         .with_governance(governance_mode, agent_config_path)
-        .with_output(str(output_base))
+        .with_output(str(output_dir))
         .with_workers(workers)
         .with_seed(seed)
     )
@@ -807,7 +790,7 @@ if __name__ == "__main__":
                         help="Initialize agents from real survey data instead of CSV profiles. "
                              "Uses MG/NMG classification, flood zone assignment, and RCV generation.")
     parser.add_argument("--use-priority-schema", action="store_true", help="Enable Pillar 3: Priority Schema (Group C)")
-    parser.add_argument("--stress-test", type=str, default=None, choices=["veteran"], help="Run specific Stress Test scenarios (e.g., 'veteran')")
+    parser.add_argument("--stress-test", type=str, default=None, choices=["veteran", "panic", "goldfish", "format"], help="Run specific Stress Test scenarios (e.g., 'veteran')")
     args = parser.parse_args()
 
     # Apply LLM config from command line
