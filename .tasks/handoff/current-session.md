@@ -195,6 +195,25 @@ python run_flood.py --model llama3.2:3b --agents 100 --years 10 --memory-engine 
 
 ---
 
+### Update (2026-01-16) - Configurable Retries & Memory Resilience
+
+- **Governance Robustness**: Implemented centralized retry configuration in `agent_types.yaml` and enhanced `SkillBrokerEngine` to inject specific validation errors into retry prompts (Pillar 1).
+- **Parallel Benchmarking**: Created `run_joh_suite.ps1` for concurrent Group B/C execution.
+- **Documentation**: Documented Pillar 2 Memory Tiering (Working/Long-term/Reflection) in `walkthrough.md`.
+
+### Update (2026-01-16 Late) - Batch Reflection & Architectural Documentation
+
+- **Efficiency Optimization**: Implemented **Batch Reflection** (10 agents/call) in `ReflectionEngine` an `run_flood.py`, reducing LLM calls by ~90% for "System 2" consolidation.
+- **Documentation**:
+  - Updated Root `README.md` with **3 Universal Pillars** (Governance, Memory, Perception) and **Step-by-Step Retrieval** flows.
+  - Created `journal_experiment_inventory.md` listing 7 critical experiments for the JOH paper.
+  - Created `framework_optimization_strategy.md` for future scaling (Rule Caching, Vector DB).
+- **Benchmark Status**:
+  - **Llama 3.2 (Group C)**: Running (Batch Mode).
+  - **Gemma**: Pending Launch (Concurrent Plan).
+
+---
+
 ## Update (2026-01-16)
 
 - Added audit trace auto-clear (prevents mixed run_ids in `*_traces.jsonl`).

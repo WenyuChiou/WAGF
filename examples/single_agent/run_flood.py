@@ -358,7 +358,9 @@ class FinalParityHook:
         
         # --- PILLAR 2: BATCH YEAR-END REFLECTION ---
         if self.reflection_engine and self.reflection_engine.should_reflect("any", year):
-            batch_size = 10  # Default; can be made configurable via YAML
+            # Optimized: Pull batch_size from YAML (Pillar 2)
+            refl_cfg = self.runner.config.get_reflection_config()
+            batch_size = refl_cfg.get("batch_size", 10)
             
             # 1. Collect all agents that need reflection this year
             candidates = []
@@ -669,12 +671,14 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     reflection_engine = None
     if memory_engine_type == "humancentric":
         from broker.components.reflection_engine import ReflectionEngine
+        # Load configurable weights/intervals from YAML (Pillar 2)
+        refl_cfg = runner.config.get_reflection_config()
         reflection_engine = ReflectionEngine(
-            reflection_interval=1,  # Reflect at end of each year
+            reflection_interval=refl_cfg.get("interval", 1),
             max_insights_per_reflection=2,
-            insight_importance_boost=0.9
+            insight_importance_boost=refl_cfg.get("importance_boost", 0.9)
         )
-        print(" [Pillar 2] ReflectionEngine enabled for year-end memory consolidation")
+        print(f" [Pillar 2] ReflectionEngine enabled (Interval: {reflection_engine.reflection_interval}, Boost: {reflection_engine.importance_boost})")
     
     # Inject Parity Hooks manually after build
     parity = FinalParityHook(sim, runner, reflection_engine=reflection_engine)

@@ -190,8 +190,6 @@ The framework is strictly validated against the following model families to ensu
 
 ---
 
-## 🏗️ Technical Architecture Details
-
 ### 1. State Layer: Multi-Level Ownership
 
 - **Individual**: Private (`memory`, `elevated`, `insurance`).
@@ -204,9 +202,50 @@ The framework is strictly validated against the following model families to ensu
 - **Salience Filtering**: Retrieves top-k relevant memories via Memory Engine.
 - **Demographic Anchoring**: Injects fixed traits (Income, Generation).
 
-### 3. Simulation Engine: Sequential World Evolution
+---
 
-- **Sandboxed Execution**: Agents propose skills; Engine executes them.
+## 🏛️ The Three Pillars of Generalizability
+
+The framework is built on three architectural pillars. Two are **Universal Modules** (usable in any domain), while one acts as the **Domain Interface**.
+
+### Pillar 1: Explainable Governance (Universal)
+
+**Module**: `broker/core/SkillBrokerEngine.py`
+
+- **Function**: Acts as the "Super-Ego" of the agent. It validates LLM decisions against a set of `Rule` objects.
+- **Why it's General**: The engine doesn't know about floods. It only knows `ProposedSkill` vs. `ApprovedSkill`. You can swap flood rules for financial trading rules (`StopLossRule`) without changing the engine.
+
+### Pillar 2: Cognitive Consolidation (Universal)
+
+**Module**: `broker/components/reflection_engine.py` & `HumanCentricMemoryEngine`
+
+- **Function**: Solves the "Goldfish Effect" (LLM context limits) via a dual-process memory system.
+  - **System 1 (Fast)**: Keyword-based retrieval of recent events.
+  - **System 2 (Slow)**: Year-end reflection where the LLM synthesizes periodic experiences into "Insights".
+- **Step-by-Step Retrieval**:
+  1.  **Trigger**: Simulation requests action for Year $t$.
+  2.  **Filter**: Engine scans 100+ past memory strings.
+  3.  **Score**: Calculates Priority $S = (W_{emotion} \times W_{source}) \times e^{-\lambda t}$.
+  4.  **Inject**: Top-5 highest scoring memories are inserted into the prompt.
+  5.  **Reflect**: At Year-End, the `ReflectionEngine` batches agents, asks the LLM "What did you learn?", and writes the insight back with $W_{emotion}=0.9$ (Permanent Memory).
+
+### Pillar 3: Constrained Perception (Domain Interface)
+
+**Module**: `broker/components/context_builder.py` (via `PrioritySchemaProvider`)
+
+- **Function**: Defines _what_ the agent "sees" in the prompt.
+- **Why it's Specific**: This layer translates raw simulation data (water depth, bank balance) into the textual narrative the LLM reads. This is the only layer users must customize for new domains.
+
+---
+
+## 📜 References (APA)
+
+The architecture is derived from and contributes to the following literature:
+
+1.  **Park, J. S., O'Brien, J. C., Cai, C. J., Morris, M. R., Liang, P., & Bernstein, M. S.** (2023). Generative Agents: Interactive Simulacra of Human Behavior. _Proceedings of the 36th Annual ACM Symposium on User Interface Software and Technology_.
+2.  **Xi, Z., Chen, W., Guo, X., He, W., Ding, Y., Hong, B., ... & Zhang, Y.** (2023). The Rise and Potential of Large Language Model Based Agents: A Survey. _arXiv preprint arXiv:2309.07864_.
+3.  **Wolf, M. J., Miller, K., & Grodzinsky, F. S.** (2017). Why We Should Have Moral Zombie Agents. _The Cambridge Handbook of Artificial Intelligence_, 338-349. (Theoretical basis for Governance layers).
+4.  **Kahneman, D.** (2011). _Thinking, Fast and Slow_. Farrar, Straus and Giroux. (Basis for System 1/System 2 Memory separation).
 
 ---
 
