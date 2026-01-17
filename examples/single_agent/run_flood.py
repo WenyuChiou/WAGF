@@ -617,7 +617,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         print(f" Using ImportanceMemoryEngine (active retrieval with flood-specific keywords)")
     elif memory_engine_type == "humancentric":
         # Load memory config from YAML (universality proof)
-        mem_cfg = runner.broker.config.get_memory_config("household")
+        mem_cfg = agent_cfg_data.get('shared', {}).get('memory_config', {})
         memory_engine = HumanCentricMemoryEngine(
             window_size=window_size,
             top_k_significant=2,
@@ -691,13 +691,16 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     if memory_engine_type == "humancentric":
         from broker.components.reflection_engine import ReflectionEngine
         # Load configurable weights/intervals from YAML (Pillar 2)
-        refl_cfg = runner.broker.config.get_reflection_config()
+        refl_cfg = agent_cfg_data.get('shared', {}).get('reflection_config', {})
         reflection_engine = ReflectionEngine(
             reflection_interval=refl_cfg.get("interval", 1),
             max_insights_per_reflection=2,
             insight_importance_boost=refl_cfg.get("importance_boost", 0.9)
         )
         print(f" [Pillar 2] ReflectionEngine enabled (Interval: {reflection_engine.reflection_interval}, Boost: {reflection_engine.importance_boost})")
+        
+        # Connect to batch_size in runner config if needed
+        # Note: batch_size is handled in post_year hook of FinalParityHook
     
     # Inject Parity Hooks manually after build
     parity = FinalParityHook(sim, runner, reflection_engine=reflection_engine)
