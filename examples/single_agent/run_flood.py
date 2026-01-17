@@ -297,6 +297,14 @@ class FinalParityHook:
         if result and result.approved_skill:
             skill_name = result.approved_skill.skill_name
         self.yearly_decisions[(agent.id, year)] = skill_name
+        
+        # BUGFIX: Apply state_changes to agent attributes
+        # The execute_skill method returns state_changes, but they were never applied to the agent
+        if result and hasattr(result, 'state_changes') and result.state_changes:
+            for key, value in result.state_changes.items():
+                setattr(agent, key, value)
+        
+        # Update flood threshold when house is elevated
         if result.approved_skill and result.approved_skill.skill_name == "elevate_house":
             agent.flood_threshold = round(agent.flood_threshold * 0.2, 2)
             agent.flood_threshold = max(0.001, agent.flood_threshold)

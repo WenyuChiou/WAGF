@@ -129,23 +129,30 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
     Returns:
         A callable that takes prompt str and returns (content, LLMStats) tuple.
     """
-    # Phase 0.3: Route to modern provider factory if type is specified via colon
+    # Phase 0.3: Route to modern provider factory ONLY for known cloud providers
+    # This prevents "gemma3:4b" from being split into provider="gemma3"
+    KNOWN_PROVIDERS = ["gemini", "openai", "azure"]
+    
     if ":" in model and not model.startswith("mock"):
         parts = model.split(":", 1)
-        provider_type = parts[0]
-        model_name = parts[1]
+        provider_type = parts[0].lower()
         
-        # Build config dict for factory
-        config = {
-            "type": provider_type,
-            "model": model_name
-        }
-        
-        # Apply overrides if present (e.g. temperature)
-        if overrides:
-            config.update(overrides)
-        
-        return create_provider_invoke(config, verbose=verbose)
+        # Only route to factory if it's a known cloud provider
+        if provider_type in KNOWN_PROVIDERS:
+            model_name = parts[1]
+            
+            # Build config dict for factory
+            config = {
+                "type": provider_type,
+                "model": model_name
+            }
+            
+            # Apply overrides if present (e.g. temperature)
+            if overrides:
+                config.update(overrides)
+            
+            return create_provider_invoke(config, verbose=verbose)
+
 
     # Simple Mock for testing if model starts with 'mock'
     # This mock is domain-agnostic and returns a generic decision format
