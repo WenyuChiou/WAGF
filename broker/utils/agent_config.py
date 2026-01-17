@@ -139,6 +139,15 @@ class AgentTypeConfig:
         llm = self._config.get("shared", {}).get("llm", {})
         return llm.get("max_retries", default)
     
+    def get_reflection_config(self) -> dict:
+        """Get reflection configuration from shared settings.
+        
+        Returns dict with keys: interval, batch_size, importance_boost
+        """
+        defaults = {"interval": 1, "batch_size": 10, "importance_boost": 0.9}
+        reflection = self._config.get("shared", {}).get("reflection", {})
+        return {k: reflection.get(k, v) for k, v in defaults.items()}
+    
     def get_valid_actions(self, agent_type: str) -> List[str]:
         """Get all valid action IDs and aliases for agent type."""
         cfg = self.get(agent_type)
