@@ -246,37 +246,31 @@ The framework is strictly validated against the following model families to ensu
 
 ---
 
-## 🏛️ The Three Pillars of Generalizability
+---
 
-The framework is built on three architectural pillars. Two are **Universal Modules** (usable in any domain), while one acts as the **Domain Interface**.
+## 🎨 Generalization & Domain Adaptation
 
-### Pillar 1: Explainable Governance (Universal)
+The framework's power lies in its **Universal Modules**. While currently validated for socio-hydrology, it can be adapted to any disaster or socio-economic domain by simply modifying the `agent_types.yaml` and `SkillRegistry`.
 
-**Module**: `broker/core/SkillBrokerEngine.py`
+### 1. Adaptation Guide: Categorizing "Signals"
 
-- **Function**: Acts as the "Super-Ego" of the agent. It validates LLM decisions against a set of `Rule` objects.
-- **Why it's General**: The engine doesn't know about floods. It only knows `ProposedSkill` vs. `ApprovedSkill`. You can swap flood rules for financial trading rules (`StopLossRule`) without changing the engine.
+To adapt the `HumanCentricMemoryEngine` to a new domain, categorize your event signals into the following psychological bins:
 
-### Pillar 2: Cognitive Consolidation (Universal)
+| Memory Category            | Target Domain: **Wildfire**                 | Target Domain: **Public Health**    |
+| :------------------------- | :------------------------------------------ | :---------------------------------- |
+| **`direct_impact`**        | "Property scorched", "Mandatory evacuation" | "Severe illness", "Hospitalization" |
+| **`strategic_choice`**     | "Cleared brush", "Fireproofed roof"         | "Vaccinated", "Self-isolated"       |
+| **`efficacy_gain`**        | "Home survived fire", "Insurance payout"    | "Tested negative", "Fast recovery"  |
+| **`social_feedback`**      | "Neighbors fled", "Lookout tower alert"     | "Masking compliance in store"       |
+| **`baseline_observation`** | "Normal wind", "Smokey horizon"             | "Daily case count update"           |
 
-**Module**: `broker/components/reflection_engine.py` & `HumanCentricMemoryEngine`
+### 2. Weighting Strategy: The "Human Priority" Lens
 
-- **Function**: Solves the "Goldfish Effect" (LLM context limits) via a dual-process memory system.
-  - **System 1 (Fast)**: Keyword-based retrieval of recent events.
-  - **System 2 (Slow)**: Year-end reflection where the LLM synthesizes periodic experiences into "Insights".
-- **Step-by-Step Retrieval**:
-  1.  **Trigger**: Simulation requests action for Year $t$.
-  2.  **Filter**: Engine scans 100+ past memory strings.
-  3.  **Score**: Calculates Priority $S = (W_{emotion} \times W_{source}) \times e^{-\lambda t}$.
-  4.  **Inject**: Top-5 highest scoring memories are inserted into the prompt.
-  5.  **Reflect**: At Year-End, the `ReflectionEngine` batches agents, asks the LLM "What did you learn?", and writes the insight back with $W_{emotion}=0.9$ (Permanent Memory).
+We recommend following the **Distance-Weighting** principle (Trope & Liberman, 2010):
 
-### Pillar 3: Constrained Perception (Domain Interface)
-
-**Module**: `broker/components/context_builder.py` (via `PrioritySchemaProvider`)
-
-- **Function**: Defines _what_ the agent "sees" in the prompt.
-- **Why it's Specific**: This layer translates raw simulation data (water depth, bank balance) into the textual narrative the LLM reads. This is the only layer users must customize for new domains.
+- **Spatial Proximity**: `personal` (1.0) > `neighbor` (0.8).
+- **Social Proximity**: `community_feedback` (0.6) > `abstract_news` (0.4).
+- **Vividness**: High-trauma events (`direct_impact`) should always decay slower than routine updates.
 
 ---
 
@@ -284,10 +278,12 @@ The framework is built on three architectural pillars. Two are **Universal Modul
 
 The architecture is derived from and contributes to the following literature:
 
-1.  **Park, J. S., O'Brien, J. C., Cai, C. J., Morris, M. R., Liang, P., & Bernstein, M. S.** (2023). Generative Agents: Interactive Simulacra of Human Behavior. _Proceedings of the 36th Annual ACM Symposium on User Interface Software and Technology_.
-2.  **Xi, Z., Chen, W., Guo, X., He, W., Ding, Y., Hong, B., ... & Zhang, Y.** (2023). The Rise and Potential of Large Language Model Based Agents: A Survey. _arXiv preprint arXiv:2309.07864_.
-3.  **Wolf, M. J., Miller, K., & Grodzinsky, F. S.** (2017). Why We Should Have Moral Zombie Agents. _The Cambridge Handbook of Artificial Intelligence_, 338-349. (Theoretical basis for Governance layers).
-4.  **Kahneman, D.** (2011). _Thinking, Fast and Slow_. Farrar, Straus and Giroux. (Basis for System 1/System 2 Memory separation).
+1.  **Park, J. S., ... & Bernstein, M. S.** (2023). Generative Agents: Interactive Simulacra of Human Behavior. _ACM CHI_.
+2.  **Trope, Y., & Liberman, N.** (2010). Construal-level theory of psychological distance. _Psychological Review_, 117(2), 440.
+3.  **Tversky, A., & Kahneman, D.** (1973). Availability: A heuristic for judging frequency and probability. _Cognitive Psychology_, 5(2), 207-232.
+4.  **Siegrist, M., & Gutscher, H.** (2008). Natural hazards and motivation for self-protection: Memory matters. _Risk Analysis_, 28(3), 771-778.
+5.  **Rogers, R. W.** (1983). Cognitive and physiological processes in fear appeals and attitude change: A revised theory of protection motivation. _Social Psychophysiology_.
+6.  **Ebbinghaus, H.** (1885). _Memory: A Contribution to Experimental Psychology_. (The Forgetting Curve basis).
 
 ---
 

@@ -359,7 +359,7 @@ class FinalParityHook:
         # --- PILLAR 2: BATCH YEAR-END REFLECTION ---
         if self.reflection_engine and self.reflection_engine.should_reflect("any", year):
             # Optimized: Pull batch_size from YAML (Pillar 2)
-            refl_cfg = self.runner.config.get_reflection_config()
+            refl_cfg = self.runner.broker.config.get_reflection_config()
             batch_size = refl_cfg.get("batch_size", 10)
             
             # 1. Collect all agents that need reflection this year
@@ -512,7 +512,7 @@ def load_agents_from_survey(
 
 
 # --- 6. Main Runner ---
-def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5, seed: Optional[int] = None, flood_mode: str = "fixed", survey_mode: bool = False, governance_mode: str = "strict", use_priority_schema: bool = False):
+def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5, seed: Optional[int] = None, flood_mode: str = "fixed", survey_mode: bool = False, governance_mode: str = "strict", use_priority_schema: bool = False, stress_test: str = None):
     print(f"--- Llama {agents_count}-Agent {years}-Year Benchmark (Final Parity Edition) ---")
     
     # 1. Load Registry & Prompt Template
@@ -561,6 +561,21 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
             a.config.skills = ["buy_insurance", "elevate_house", "relocate", "do_nothing"]
             for k, v in a.custom_attributes.items(): setattr(a, k, v)
 
+        if stress_test == "veteran":
+            print("[StressTest] Overriding Agent_1 as 'The Optimistic Veteran'...")
+            # We take the first agent and turn them into a high-trust, survival-bias veteran
+            veteran_id = list(agents.keys())[0]
+            v = agents[veteran_id]
+            v.trust_in_insurance = 0.9  # High initial trust
+            v.trust_in_neighbors = 0.1 # Sceptical of neighbors
+            v.income_midpoint = 100000  # High wealth
+            v.prior_flood_experience = True
+            v.flood_threshold = 0.8  # Unrealistic optimism (believe they are safe)
+            v.narrative_persona = "You are a wealthy homeowner who has lived in this house for 30 years. You have survived many moderate floods without taking action and believe your house is uniquely safe due to its foundation. You trust official insurance but are sceptical of neighbor's panic."
+            # Clear other agents to focus on this case for higher quality trace
+            agents = { veteran_id: v }
+            agents_count = 1
+
     # 3. Load Flood Years
     df_years = pd.read_csv(base_path / "flood_years.csv")
     flood_years = sorted(df_years['Flood_Years'].tolist())
@@ -601,11 +616,15 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         )
         print(f" Using ImportanceMemoryEngine (active retrieval with flood-specific keywords)")
     elif memory_engine_type == "humancentric":
+        # Load memory config from YAML (universality proof)
+        mem_cfg = runner.broker.config.get_memory_config("household")
         memory_engine = HumanCentricMemoryEngine(
             window_size=window_size,
             top_k_significant=2,
             consolidation_prob=0.7,
             decay_rate=0.1,
+            emotional_weights=mem_cfg.get("emotional_weights"),
+            source_weights=mem_cfg.get("source_weights"),
             seed=42  # For reproducibility
         )
         print(f" Using HumanCentricMemoryEngine (emotional encoding + stochastic consolidation, window={window_size})")
@@ -672,7 +691,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     if memory_engine_type == "humancentric":
         from broker.components.reflection_engine import ReflectionEngine
         # Load configurable weights/intervals from YAML (Pillar 2)
-        refl_cfg = runner.config.get_reflection_config()
+        refl_cfg = runner.broker.config.get_reflection_config()
         reflection_engine = ReflectionEngine(
             reflection_interval=refl_cfg.get("interval", 1),
             max_insights_per_reflection=2,
@@ -763,6 +782,7 @@ if __name__ == "__main__":
                         help="Initialize agents from real survey data instead of CSV profiles. "
                              "Uses MG/NMG classification, flood zone assignment, and RCV generation.")
     parser.add_argument("--use-priority-schema", action="store_true", help="Enable Pillar 3: Priority Schema (Group C)")
+    parser.add_argument("--stress-test", type=str, default=None, choices=["veteran"], help="Run specific Stress Test scenarios (e.g., 'veteran')")
     args = parser.parse_args()
 
     # Apply LLM config from command line
@@ -792,5 +812,6 @@ if __name__ == "__main__":
         flood_mode=args.flood_mode,
         survey_mode=args.survey_mode,
         governance_mode=args.governance_mode,
-        use_priority_schema=args.use_priority_schema
+        use_priority_schema=args.use_priority_schema,
+        stress_test=args.stress_test
     )

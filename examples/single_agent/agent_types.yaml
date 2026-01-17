@@ -191,26 +191,26 @@ household:
     window_size: 5
     top_k_significant: 2
     emotion_keywords:
-      critical: ["flood", "flooded", "damage", "destroyed", "loss", "trauma"]
-      major: ["decision", "grant", "relocate", "elevate", "move"]
-      positive: ["protected", "safe", "insurance", "saved", "relief"]
-      shift: ["trust", "neighbor", "judgment", "observe"]
+      direct_impact:
+        ["flood", "flooded", "damage", "destroyed", "loss", "trauma"]
+      strategic_choice: ["decision", "grant", "relocate", "elevate", "move"]
+      efficacy_gain: ["protected", "safe", "insurance", "saved", "relief"]
+      social_feedback: ["trust", "neighbor", "judgment", "observe"]
     source_patterns:
       personal: ["i ", "my ", "me ", "got flooded", "my house"]
       neighbor: ["neighbor", "others", "friend"]
       community: ["%", "residents", "community", "everyone"]
     emotional_weights:
-      critical: 1.0
-      major: 0.8
-      positive: 0.6
-      shift: 0.4
-      observation: 0.2
-      routine: 0.1
+      direct_impact: 1.0
+      strategic_choice: 0.8
+      efficacy_gain: 0.6
+      social_feedback: 0.4
+      baseline_observation: 0.1
     source_weights:
       personal: 1.0
       neighbor: 0.8
       community: 0.6
-      abstract: 0.4
+      general_knowledge: 0.4
 
   # Available Actions (mapped to Skill Registry IDs)
   actions:
