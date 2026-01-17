@@ -325,32 +325,8 @@ class FinalParityHook:
             # Memory engine returns list of strings. Join with | for CSV parity.
             mem_str = " | ".join(mem_items)
             
-            # --- PILLAR 2: YEAR-END REFLECTION ---
-            if self.reflection_engine and self.reflection_engine.should_reflect(agent.id, year):
-                # Retrieve memories for synthesis (System 2 consolidation)
-                # Use a larger retrieval for reflection than for regular prompts if desired
-                reflection_memories = self.runner.memory_engine.retrieve(agent, top_k=10)
-                prompt = self.reflection_engine.generate_reflection_prompt(agent.id, reflection_memories, year)
-                
-                # Use sequential LLM call for reflection (System 2 is slower/deliberate)
-                llm_call = self.runner.get_llm_invoke(agent.agent_type)
-                try:
-                    # Get response (handles content, stats tuple)
-                    raw_res = llm_call(prompt)
-                    response_text = raw_res[0] if isinstance(raw_res, tuple) else raw_res
-                    
-                    insight = self.reflection_engine.parse_reflection_response(response_text, len(reflection_memories), year)
-                    if insight:
-                        self.reflection_engine.store_insight(agent.id, insight)
-                        # Feed the insight back into Memory Engine with HIGH importance
-                        # This enables Pillar 2 "Episodic Resilience"
-                        self.runner.memory_engine.add_memory(
-                            agent.id, 
-                            f"Consolidated Reflection: {insight.summary}", 
-                            {"significance": 0.9, "emotion": "major", "source": "personal"}
-                        )
-                except Exception as e:
-                    print(f" [Reflection:Error] Agent {agent.id} failed synthesis: {e}")
+            # Note: Reflection is now handled in BATCH mode after the agent loop.
+            # The old per-agent reflection code has been replaced for efficiency.
 
             yearly_decision = self.yearly_decisions.get((agent.id, year))
             if yearly_decision is None and getattr(agent, "relocated", False):
@@ -379,6 +355,49 @@ class FinalParityHook:
 
         # Intermediate Save for Validation
         pd.DataFrame(self.logs).to_csv("simulation_log_interim.csv", index=False)
+        
+        # --- PILLAR 2: BATCH YEAR-END REFLECTION ---
+        if self.reflection_engine and self.reflection_engine.should_reflect("any", year):
+            batch_size = 10  # Default; can be made configurable via YAML
+            
+            # 1. Collect all agents that need reflection this year
+            candidates = []
+            for agent_id, agent in self.sim.agents.items():
+                if getattr(agent, "relocated", False):
+                    continue  # Skip relocated agents
+                memories = self.runner.memory_engine.retrieve(agent, top_k=10)
+                if memories:
+                    candidates.append({"agent_id": agent_id, "memories": memories})
+            
+            if candidates:
+                print(f" [Reflection:Batch] Processing {len(candidates)} agents in batches of {batch_size}...")
+                llm_call = self.runner.get_llm_invoke("household")
+                
+                # 2. Process in batches
+                for i in range(0, len(candidates), batch_size):
+                    batch = candidates[i:i+batch_size]
+                    batch_ids = [c["agent_id"] for c in batch]
+                    prompt = self.reflection_engine.generate_batch_reflection_prompt(batch, year)
+                    
+                    try:
+                        raw_res = llm_call(prompt)
+                        response_text = raw_res[0] if isinstance(raw_res, tuple) else raw_res
+                        
+                        # 3. Parse and store insights
+                        insights = self.reflection_engine.parse_batch_reflection_response(response_text, batch_ids, year)
+                        for agent_id, insight in insights.items():
+                            if insight:
+                                self.reflection_engine.store_insight(agent_id, insight)
+                                # Feed insight back to Memory Engine
+                                self.runner.memory_engine.add_memory(
+                                    agent_id,
+                                    f"Consolidated Reflection: {insight.summary}",
+                                    {"significance": 0.9, "emotion": "major", "source": "personal"}
+                                )
+                    except Exception as e:
+                        print(f" [Reflection:Batch:Error] Batch {i//batch_size+1} failed: {e}")
+                
+                print(f" [Reflection:Batch] Completed reflection for Year {year}.")
 
 # --- 5. Survey-Based Agent Initialization ---
 def load_agents_from_survey(
