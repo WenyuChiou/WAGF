@@ -8,8 +8,8 @@ $ExperimentDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ModelFolder = $Model -replace ':', '_' -replace '-', '_' -replace '\.', '_'
 
 $BaseDir = Join-Path $ExperimentDir "results\JOH_FINAL\$ModelFolder"
-$GroupBPath = Join-Path $BaseDir "Group_B_Governance_Window"
-$GroupCPath = Join-Path $BaseDir "Group_C_Full_HumanCentric"
+$GroupBPath = Join-Path $BaseDir "Group_B"
+$GroupCPath = Join-Path $BaseDir "Group_C"
 
 Write-Host "--- JOH Master Suite: Concurrent Execution ---" -ForegroundColor Cyan
 Write-Host "Model: $Model"

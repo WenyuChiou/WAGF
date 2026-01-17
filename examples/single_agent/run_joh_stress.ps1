@@ -13,7 +13,8 @@ Write-Host "Model: $Model"
 Write-Host ""
 
 # Run with VERBOSE to capture the "Reject -> Hint -> Correct" loop in stdout
-$ScenarioOutput = Join-Path "results\JOH_STRESS" $Scenario
+$ModelDir = $Model -replace ":", "_" -replace "-", "_" -replace "\.", "_"
+$ScenarioOutput = Join-Path "results\JOH_STRESS" "$Scenario\$ModelDir"
 python run_flood.py `
     --model $Model `
     --years $Years `

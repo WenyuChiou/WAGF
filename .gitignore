@@ -61,3 +61,6 @@ toy_output/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Local Skills (Antigravity)
+skills/

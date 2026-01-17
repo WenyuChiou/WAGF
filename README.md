@@ -56,6 +56,7 @@ The framework utilizes a layered middleware approach that unifies single-agent i
 2. **One-Way Governance**: LLM proposals flow unidirectionally into a validation pipeline before system execution.
 3. **Closed Feedback Loop**: Simulation outcomes are simultaneously committed to memory and environment state.
 4. **Lifecycle Auditing**: The `AuditWriter` captures traces from proposal to execution for full reproducibility.
+5. **Unified State Persistence**: Atomic `apply_delta` interface ensures agent state (Attributes, Memory) is committed transactionally after validation.
 
 **Version History**:
 
@@ -70,7 +71,11 @@ The framework utilizes a layered middleware approach that unifies single-agent i
 - **v3.2**: **Advanced Memory & Skill Retrieval**. Implements MemGPT-style Tiered Memory and RAG-based Skill Selection.
 - **v3.3 (Production)**: **Domain-Agnostic Parsing & Human-Centric Memory**.
   - All domain-specific logic moved to `agent_types.yaml`.
+  - All domain-specific logic moved to `agent_types.yaml`.
   - **Human-Centric Memory Engine**: Implements emotional encoding and passive retrieval.
+- **v3.4 (Core Persistence)**: **Atomic State Management**.
+  - **`apply_delta` Interface**: Standardized state updates across all agent types.
+  - **Rigorous Parity**: Canonical synchronization between LLM Context and Agent Object.
 
 ---
 
@@ -148,7 +153,6 @@ The framework is transitioning from a simple sliding window memory to a **Tiered
 In our validation workflows (e.g., the JOH Paper), we define two core configurations to test the universal modules:
 
 1. **Baseline**:
-
    - **Memory**: Simple `WindowMemoryEngine` (sliding window).
    - **Governance**: Basic Syntax Validation.
    - **Purpose**: Establishes a control group to measure behavioral drift without cognitive assistance.

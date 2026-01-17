@@ -48,8 +48,9 @@ FLOOD_PRIORITY_SCHEMA = {
 
 class FinalContextBuilder(TieredContextBuilder):
     """Subclass of TieredContextBuilder to verbalize floats and format memory into string."""
-    def __init__(self, *args, memory_top_k: int = 5, **kwargs):
+    def __init__(self, *args, sim=None, memory_top_k: int = 5, **kwargs):
         super().__init__(*args, **kwargs)
+        self.sim = sim
         self.memory_top_k = memory_top_k
     
     def _verbalize_trust(self, trust_value: float, category: str = "insurance") -> str:
@@ -79,10 +80,13 @@ class FinalContextBuilder(TieredContextBuilder):
         personal['memory'] = personal_memory # Override the default top_k=3 from hub
         
         # 2. Extract state for verbalization
-        elevated = personal.get('elevated', False)
-        has_insurance = personal.get('has_insurance', False)
-        trust_ins = personal.get('trust_in_insurance', 0.5)
-        trust_nb = personal.get('trust_in_neighbors', 0.5)
+        # 2. Extract state for verbalization - USE LIVE AGENT STATE for parity
+        # The hub context might be stale if apply_delta happens after context build
+        # We must read from the agent object directly to ensure accurate option checks
+        elevated = getattr(agent, 'elevated', False)
+        has_insurance = getattr(agent, 'has_insurance', False)
+        trust_ins = getattr(agent, 'trust_in_insurance', 0.5)
+        trust_nb = getattr(agent, 'trust_in_neighbors', 0.5)
         
         # 3. Inject Verbalized Variables (Standardized for flattened template usage)
         personal['elevation_status_text'] = (
@@ -93,7 +97,16 @@ class FinalContextBuilder(TieredContextBuilder):
         personal['trust_insurance_text'] = self._verbalize_trust(trust_ins, "insurance")
         personal['trust_neighbors_text'] = self._verbalize_trust(trust_nb, "neighbors")
         
-        # 4. Format memory list/dict into a bulleted string
+        # 4. Filter Available Skills (Pillar 1: Governance)
+        # STRICTLY prevent proposing re-elevation if already elevated
+        available_skills = context.get('available_skills', [])
+        filtered_skills = []
+        for s in available_skills:
+            skill_id = s.get('skill_name') if isinstance(s, dict) else s
+            if skill_id == "elevate_house" and elevated:
+                continue 
+            filtered_skills.append(s)
+        context['available_skills'] = filtered_skills
         mem_val = personal.get('memory', [])
         if isinstance(mem_val, dict):
             # Flatten tiered memory for prompt
@@ -207,17 +220,27 @@ class ResearchSimulation:
         return {"flood_event": self.flood_event, "grant_available": self.grant_available}
 
     def execute_skill(self, approved_skill) -> ExecutionResult:
+        agent_id = approved_skill.agent_id
+        agent = self.agents[agent_id]
         skill = approved_skill.skill_name
         state_changes = {}
-        if skill == "buy_insurance": 
+        
+        if skill == "elevate_house":
+            if getattr(agent, "elevated", False):
+                return ExecutionResult(success=False, message="House already elevated.")
+            state_changes["elevated"] = True
+            
+        elif skill == "buy_insurance": 
             state_changes["has_insurance"] = True
-        else:
-            # All other decisions (elevate, relocate, do_nothing) result in insurance expiration
+            
+        elif skill == "relocate": 
+            state_changes["relocated"] = True
+            agent.is_active = False
+            
+        # 2. Insurance Renewal Logic (Annual expiry if not buying)
+        if skill != "buy_insurance":
             state_changes["has_insurance"] = False
-            if skill == "elevate_house": 
-                state_changes["elevated"] = True
-            elif skill == "relocate": 
-                state_changes["relocated"] = True
+            
         return ExecutionResult(success=True, state_changes=state_changes)
 
 def classify_adaptation_state(agent):
@@ -617,6 +640,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     ctx_builder = FinalContextBuilder(
         agents=agents, 
         hub=hub, 
+        sim=sim,
         skill_registry=registry,
         prompt_templates={"household": household_template, "default": household_template},
         yaml_path=str(agent_config_path),

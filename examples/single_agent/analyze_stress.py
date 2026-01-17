@@ -46,23 +46,22 @@ class StressAnalyzer:
             scenario_dir = root / scenario
             if not scenario_dir.exists(): continue
             
-            # Strategy A: Look for explicit model folder (e.g., veteran/gemma3_4b)
-            candidate = scenario_dir / safe_model
-            if candidate.exists():
-                # Check for sub-runs (Run_1, Run_2) inside the model folder
-                sub_runs = [d for d in candidate.iterdir() if d.is_dir() and "Run_" in d.name]
-                if sub_runs:
-                    found_dirs.extend(sub_runs)
-                else: 
-                    # Treat as single run if it directly contains simulation_log.csv
-                    # OR if it contains the timestamped subfolder from run_flood.py
-                    if (candidate / "simulation_log.csv").exists():
-                         found_dirs.append(candidate)
-                    else:
-                         # Deep Search for nested logs (common in direct python runs like 'ollama_gemma3_4b_strict')
-                         # We want the DIRECT parent of simulation_log.csv
-                         for path in candidate.rglob("simulation_log.csv"):
-                             found_dirs.append(path.parent)
+            # Strategy A: Search for model folders (prefix match to handle _strict, _relaxed, etc.)
+            for candidate in scenario_dir.iterdir():
+                if not candidate.is_dir(): continue
+                if candidate.name.startswith(safe_model):
+                    # Check for sub-runs (Run_1, Run_2) inside the model folder
+                    sub_runs = [d for d in candidate.iterdir() if d.is_dir() and "Run_" in d.name]
+                    if sub_runs:
+                        found_dirs.extend(sub_runs)
+                    else: 
+                        # Treat as single run if it directly contains simulation_log.csv
+                        if (candidate / "simulation_log.csv").exists():
+                             found_dirs.append(candidate)
+                        else:
+                             # Deep Search for nested logs
+                             for path in candidate.rglob("simulation_log.csv"):
+                                 found_dirs.append(path.parent)
 
             # Strategy B: Legacy Llama Handling (files directly in Run_X under scenario root)
             # This handles the strict "Run_1", "Run_2" folders directly under "veteran/" for the baseline

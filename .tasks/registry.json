@@ -1,6 +1,6 @@
 {
   "version": "1.1",
-  "last_updated": "2026-01-17T21:27:55Z",
+  "last_updated": "2026-01-17T23:15:00Z",
   "tasks": [
     {
       "id": "task-011",
@@ -39,6 +39,45 @@
       "artifacts": "none",
       "next_step": "none",
       "handoff_file": "handoff/task-012.md"
+    },
+    {
+      "id": "task-013",
+      "title": "Memory & Reflection Module MA Integration",
+      "status": "in-progress",
+      "type": "feature",
+      "priority": "high",
+      "owner": "antigravity",
+      "reviewer": "WenyuChiou",
+      "assigned_to": "Claude Code",
+      "scope": "run_unified_experiment.py, memory_engine.py, initial_memory.py",
+      "description": "Integrate per-agent memory configs and reflection engine for MA system",
+      "subtasks": [
+        {"id": "013-A", "title": "Agent Type Memory Config", "status": "completed"},
+        {"id": "013-E", "title": "Initial memory loading enhancement", "status": "completed"},
+        {"id": "013-C", "title": "Reflection engine integration", "status": "completed"},
+        {"id": "013-D", "title": "Retrieval strategy selection", "status": "completed"},
+        {"id": "013-B", "title": "Survey data additional fields", "status": "pending"}
+      ],
+      "handoff_file": "handoff/current-session.md"
+    },
+    {
+      "id": "task-014",
+      "title": "MA State Persistence Alignment",
+      "status": "completed",
+      "type": "refactor",
+      "priority": "low",
+      "owner": "antigravity",
+      "reviewer": "WenyuChiou",
+      "assigned_to": "Gemini CLI",
+      "scope": "examples/multi_agent/run_unified_experiment.py",
+      "done_when": "MA post_step uses apply_delta() for state updates",
+      "tests_run": "none",
+      "risks": "Very low - pure refactor, no logic change",
+      "rollback": "git revert <commit>",
+      "artifacts": "none",
+      "next_step": "none",
+      "tests_run": "Syntax verified via code modification",
+      "handoff_file": "handoff/task-014.md"
     }
   ]
 }

@@ -45,6 +45,14 @@ This module ensures the agent-environment feedback loop is standardized and repr
 - **Damage Physics**: Base damage is $10k; Elevation provides a 90% reduction ($1k net damage).
 - **Incentive Signals**: Grant availability (`GRANT_PROBABILITY`) and neighbor behavioral cues provide shifting social/financial context.
 - **Identity Initialization**: Agents are initialized with distinct profiles (Tenure, Income, Property Value) to ensure diverse decision-making baselines.
+
+### Pillar 5: Core Persistence (System Reliability)
+
+To ensure **Scientific Reproducibility**, the framework implements an **Atomic State Persistence** layer (v3.4):
+
+- **Atomic `apply_delta`**: State updates (attributes, memory) are committed in a single transactional block per step.
+- **Context-State Parity**: The `ContextBuilder` is rigorously synchronized with the live agent object, eliminating "Context Lag" where agents make decisions based on stale states.
+
   54: ### Key Configuration Fields
 
 ### Pillar 1: Context Governance (Perception Shaping)
