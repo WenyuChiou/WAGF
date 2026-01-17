@@ -17,22 +17,19 @@ from validators.agent_validator import AgentValidator
 # Constants
 script_dir = Path(__file__).parent
 # Interim Analysis: Filtering for available models as requested
-MODELS = ["llama3_2_3b", "gemma3_4b"] 
+MODELS = ["llama3_2_3b", "gemma3_4b", "deepseek-r1_8b"] 
 GROUPS = {
-    "A_Control": {"path": script_dir.parent / "old_results", "suffix": ""},
-    "B_Governance": {"path": script_dir.parent / "results_window", "suffix": "_strict"},
-    "C_Enhancement": {"path": script_dir.parent / "results_humancentric", "suffix": "_strict"}
+    "A_Control": {"path": script_dir.parent / "results" / "old_results", "suffix": ""},
+    "B_Governance": {"path": script_dir.parent / "results" / "JOH_FINAL", "suffix": "_Group_B"},
+    "C_Enhancement": {"path": script_dir.parent / "results" / "JOH_FINAL", "suffix": "_Group_C"}
 }
 
-# Map normalized model ID to old_results folder names
+# Map normalized model ID to folder names
 OLD_RESULTS_MAP = {
     "llama3_2_3b": "Llama_3.2_3B",
     "gemma3_4b": "Gemma_3_4B",
-    "deepseek-r1:8b": "DeepSeek_R1_8B",
-    "gpt-oss": "GPT-OSS_20B",
-    "llama3.2:3b": "Llama_3.2_3B",
-    "gemma3:4b": "Gemma_3_4B",
-    "llama3.1:latest": "Llama_3.1_8B" # Assumption, check if needed
+    "deepseek-r1_8b": "DeepSeek_R1_8B",
+    "gpt-oss": "GPT-OSS_20B"
 }
 
 # --- Post-Hoc Audit Helpers ---
@@ -93,15 +90,23 @@ def load_metrics(base_path, model_name, suffix):
     # Handle Group A special naming approach
     if "old_results" in str(base_path):
         folder_name = OLD_RESULTS_MAP.get(model_name, model_name)
+        run_dir = Path(base_path) / folder_name
     else:
-        # Standardize for generated results
-        folder_name = f"{model_name.replace(':', '_').replace('.', '_')}{suffix}"
+        # Structure: JOH_FINAL/{model_name}/{group_subfolder}
+        model_root = Path(base_path) / model_name
+        if not model_root.exists():
+            print(f"Warning: Model root not found: {model_root}")
+            return None
         
-    run_dir = Path(base_path) / folder_name
-    
-    if not run_dir.exists():
-        # Try finding partial match if exact name fails
-        print(f"Warning: Directory not found: {run_dir}")
+        # Find subfolder matching the suffix (which is now a search string like "Group_B")
+        run_dir = None
+        for sub in model_root.iterdir():
+            if sub.is_dir() and suffix in sub.name:
+                run_dir = sub
+                break
+        
+    if not run_dir or not run_dir.exists():
+        print(f"Warning: Directory not found: {run_dir if run_dir else f'matching {suffix} in {model_name}'}")
         return None
 
     # Load Logs

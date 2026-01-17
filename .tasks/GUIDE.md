@@ -121,3 +121,8 @@ next: <suggested next_step or "none">
 Small work (single step, <30 minutes, low risk) does not require a new task.
 Record a one-line "Micro-plan" note in `handoff/current-session.md`.
 Multi-step or shared work must be tracked in `registry.json` + `handoff/task-XXX.md`.
+
+## 13) Assignment Rule
+
+Plans must explicitly include `assigned_to` plus `owner/reviewer` for each step.
+If assignment is missing, the plan is incomplete and should not proceed.

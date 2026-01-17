@@ -65,6 +65,11 @@ If work is small (single step, <30 minutes, low risk), do not create a new task.
 Log a short "Micro-plan" line in `handoff/current-session.md` with outcome.
 For multi-step or shared work, create a task entry and a `handoff/task-XXX.md`.
 
+## Assignment Rule
+
+When a plan is created, every step must have `assigned_to` (who executes) and `owner/reviewer`.
+Plans without explicit assignment are considered incomplete.
+
 ## New Task Workflow
 
 When adding a new task:
