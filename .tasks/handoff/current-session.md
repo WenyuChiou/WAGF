@@ -20,7 +20,13 @@
 
 ## Current Simulations Running
 
-8 processes running Llama/Gemma macro and stress tests. **DO NOT execute task-012 until these complete.**
+> [!IMPORTANT]
+> **CONCURRENT EXECUTION AUTHORIZED** (See `.tasks/handoff/task-012.md`)
+> You MAY execute Task-012 while simulations are running, provided you strictly follow the **"Execution Context (Concurrent Safety)"** protocols.
+
+- 2 prioritized processes running (Gemma Group B/C).
+- **Branch Isolation**: Work ONLY in `feat/core-persistence-implementation-012`.
+- **Resource Limit**: Use `--workers 2` for parity verification.
 
 Check status:
 
@@ -37,11 +43,11 @@ Get-Process python | Select-Object Id, StartTime
 
 ## Instructions for Claude Code
 
-1. Read `.tasks/handoff/task-012.md`
-2. Wait for all Python simulations to finish (no `python` processes running)
-3. Execute Phase 1 → 2 → 3 → 4 in order
-4. Report after each phase using the template in task-012.md
-5. Do NOT improvise - use exact code snippets provided
+1. Read `.tasks/handoff/task-012.md` **carefully**.
+2. Create branch `feat/core-persistence-implementation-012`.
+3. **Concurrent Execution**: You may proceed immediately. Do NOT wait for simulations to finish.
+4. Execute Phase 1 → 2 → 3 → 4 in order.
+5. Report after each phase using the template in task-012.md.
 
 ## Recent Decisions
 
