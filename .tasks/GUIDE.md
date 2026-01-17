@@ -126,3 +126,19 @@ Multi-step or shared work must be tracked in `registry.json` + `handoff/task-XXX
 
 Plans must explicitly include `assigned_to` plus `owner/reviewer` for each step.
 If assignment is missing, the plan is incomplete and should not proceed.
+
+## 14) Task Relay Protocol
+
+To hand off work from Agent A to Agent B:
+
+1. **Agent A** (Completer):
+   - Marks current task `completed` in `registry.json`.
+   - Updates `current-session.md` **"Active Task"** to the _next_ ID.
+   - Sets `current-session.md` **"Status"** to `ready_for_execution`.
+   - Updates **"Instructions"** in `current-session.md` for Agent B.
+   - Ends session with string: `RELAY TO [Agent B]: [Next Task ID]`
+
+2. **Agent B** (Receiver):
+   - Starts session by reading `handoff/current-session.md`.
+   - Confirms **"Active Task"** and **"Assigned To"** match.
+   - Begins execution immediately.
