@@ -1,24 +1,18 @@
-# JOH Experiment 2: Stress Test (Qualitative Case Study)
-# Focus: Explainability & Trace Generation (The "Impulsive Relocator" Scenario)
-# Output Directory: results/JOH_Stress
-# Config: experiments/JOH_Stress/config.yaml
+param (
+    [string]$Scenario = "veteran",
+    [string]$Model = "llama3.2:3b",
+    [int]$Agents = 1,  # Focused tracing on targeted agents
+    [int]$Years = 10
+)
 
 $ExperimentDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$ConfigPath = Join-Path $ExperimentDir "experiments\JOH_Stress\config.yaml"
 
-Write-Host "--- Starting JOH Stress Test (Micro Case Study) ---" -ForegroundColor Cyan
-Write-Host "Config: $ConfigPath"
+Write-Host "--- JOH Stress Test: Case Study Extraction ---" -ForegroundColor Cyan
+Write-Host "Scenario: $Scenario"
+Write-Host "Model: $Model"
+Write-Host ""
 
-# Group C Configuration with VERBOSE logging enabled
-# We need verbose logs to see the "Reject -> Hint -> Correct" dialogue
-
-$Model = "llama3.2:3b"
-$Agents = 20  # Smaller batch to focus on trace quality
-$Years = 5    # Shorter duration
-
-Write-Host "Running Stress Test: Collecting Explainability Traces..."
-Write-Host "Looking for 'The Impulsive Relocator' scenario..."
-
+# Run with VERBOSE to capture the "Reject -> Hint -> Correct" loop in stdout
 python run_flood.py `
     --model $Model `
     --years $Years `
@@ -26,8 +20,8 @@ python run_flood.py `
     --memory-engine humancentric `
     --governance-mode strict `
     --use-priority-schema `
-    --output results/JOH_Stress `
-    --survey-mode `
+    --output results/JOH_STRESS `
+    --stress-test $Scenario `
     --verbose
 
 Write-Host ""

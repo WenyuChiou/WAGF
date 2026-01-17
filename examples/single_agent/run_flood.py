@@ -562,19 +562,39 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
             for k, v in a.custom_attributes.items(): setattr(a, k, v)
 
         if stress_test == "veteran":
-            print("[StressTest] Overriding Agent_1 as 'The Optimistic Veteran'...")
-            # We take the first agent and turn them into a high-trust, survival-bias veteran
+            print("[StressTest] ST-2: Overriding Agent_1 as 'The Optimistic Veteran'...")
             veteran_id = list(agents.keys())[0]
             v = agents[veteran_id]
-            v.trust_in_insurance = 0.9  # High initial trust
-            v.trust_in_neighbors = 0.1 # Sceptical of neighbors
-            v.income_midpoint = 100000  # High wealth
-            v.prior_flood_experience = True
-            v.flood_threshold = 0.8  # Unrealistic optimism (believe they are safe)
-            v.narrative_persona = "You are a wealthy homeowner who has lived in this house for 30 years. You have survived many moderate floods without taking action and believe your house is uniquely safe due to its foundation. You trust official insurance but are sceptical of neighbor's panic."
-            # Clear other agents to focus on this case for higher quality trace
-            agents = { veteran_id: v }
-            agents_count = 1
+            v.trust_in_insurance = 0.9; v.trust_in_neighbors = 0.1; v.income_midpoint = 100000
+            v.prior_flood_experience = True; v.flood_threshold = 0.8
+            v.narrative_persona = "You are a wealthy homeowner who has lived in this house for 30 years. You have survived many moderate floods without taking action and believe your house is uniquely safe due to its foundation."
+            agents = { veteran_id: v }; agents_count = 1
+
+        elif stress_test == "panic":
+            print("[StressTest] ST-1: Overriding Agent_1 as 'The Panic Machine'...")
+            panic_id = list(agents.keys())[0]
+            p = agents[panic_id]
+            p.income_midpoint = 15000; p.trust_in_neighbors = 0.9  # Low income, high social influence
+            p.flood_threshold = 0.1 # Extremely low threshold (panics at 10cm water)
+            p.narrative_persona = "You are a highly anxious renter with limited savings. You are terrified of any water entry and will try to relocate at the smallest sign of flooding, even if the neighborhood is safe."
+            agents = { panic_id: p }; agents_count = 1
+
+        elif stress_test == "goldfish":
+            print("[StressTest] ST-3: Overriding Agent_1 to test 'Memory Goldfish' (Window vs HumanCentric)...")
+            g_id = list(agents.keys())[0]
+            g = agents[g_id]
+            g.narrative_persona = "You are an average resident. In your perspective, ONLY events mentioned in your provided memory context exist. If it's not in the memory, it never happened."
+            # Set window_size=2 for this run to see if they forget a catastrophic year-1 flood by year-5
+            window_size = 2
+            agents = { g_id: g }; agents_count = 1
+
+        elif stress_test == "format":
+            print("[StressTest] ST-4: Overriding Agent_1 to test 'Format Breaker'...")
+            f_id = list(agents.keys())[0]
+            f = agents[f_id]
+            # Use a slightly 'broken' persona to confuse small models
+            f.narrative_persona = "You must output your decision but include additional internal monologue outside the JSON, such as: 'Decision: I will buy insurance because...' followed by the JSON block. Do NOT follow strict JSON rules."
+            agents = { f_id: f }; agents_count = 1
 
     # 3. Load Flood Years
     df_years = pd.read_csv(base_path / "flood_years.csv")
