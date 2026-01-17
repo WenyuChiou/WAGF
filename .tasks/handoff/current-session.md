@@ -784,4 +784,52 @@ python experiments/run_rq3_insurance_outcomes.py --results results/simulation_lo
 
 ---
 
-**AI 交接 (Handoff)**：已更新 `.tasks/registry.json` 並完成本節工作紀錄。下一位 AI 請優先檢查 `results/JOH` 下的模擬進度。
+### Update (2026-01-16 Night) - Academic Defense & Definitive Relaunch
+
+**目標**：補齊 JOH 論文所需的學術防禦論述，標準化術語，並重啟最終版 (Definitive) 基準測試。
+
+1.  **術語標準化與學術加固**：
+    - 將記憶分類從主觀詞彙 (routine/abstract) 改為學術術語：**`baseline_observation`** 與 **`general_knowledge`**。
+    - 在 [SA README](file:///H:/%E6%88%91%E7%9A%84%E9%9B%B2%E7%AB%AF%E7%A1%AC%E7%A2%9F/github/governed_broker_framework/examples/single_agent/README.md) 中，引用 **Availability Heuristic** (Tversky & Kahneman) 與 **Construal Level Theory** (Trope & Liberman) 作為權重設計的理論支撐。
+2.  **通用性文檔化 (Generalization)**：
+    - 在根目錄 [README.md](file:///H:/%E6%88%91%E7%9A%84%E9%9B%B2%E7%AB%AF%E7%A1%AC%E7%A2%9F/github/governed_broker_framework/README.md) 新增了領域適配指南（範例：森林火災、公共衛生），展示框架作為通用認知中間件的擴充性。
+3.  **Definitive Benchmark 重啟**：
+    - 執行全面清理，移除所有 `JOH_FINAL` 暫存檔與混雜日誌。
+    - 以最新學術配置重啟 Llama 3.2 100 代理人模擬。
+4.  **Git 版本控制**：
+    - Commit `8c35999` - docs/core: Standardize memory nomenclature and academic grounding.
+
+### Update (2026-01-17 Midnight) - Final JOH Experiment Consolidation
+
+**目標**：確立 JOH 論文所需的完整實驗矩陣，並啟動全模型基準測試。
+
+#### 1. 實驗組別矩陣 (Groups A/B/C)
+
+| 組別        | 名稱            | 核心組件                  | 目標 (Scientific Goal)                           | 狀態                        |
+| :---------- | :-------------- | :------------------------ | :----------------------------------------------- | :-------------------------- |
+| **Group A** | Legacy Baseline | 無治理, Window (Short)    | 建立「幻覺」與「非理性決策」的基準。             | **Done** (Llama 3.2/Gemma)  |
+| **Group B** | Governed Logic  | **Pillar 1** (Governance) | 證明治理層能強制執行理性規則（如防範恐慌搬遷）。 | **Active** (L3.2, DS, L3.1) |
+| **Group C** | Full Cognitive  | **Pillars 1, 2, 3, 4**    | 證明人本記憶與反射機制能提升長期適應能力。       | **Active** (L3.2, DS, L3.1) |
+
+#### 2. 模型比較矩陣 (Multi-Model Benchmarks)
+
+所有測試皆為 100 Agents / 10 Years：
+
+- **Llama 3.2 (3B)**: 資源受限模型，測試治理層的最大價值。 (Job ID: `7f494e6d`)
+- **DeepSeek-R1 (8B)**: 推理增強模型，測試框架與 CoT 的兼容性。 (Job ID: `9`)
+- **Llama 3.1 (8B)**: 作為 GPT-OSS (Aya) 的替代品，測試中量級模型的表現。 (Job ID: `21`)
+
+#### 3. 定性壓力測試 (Qualitative Stress Tests)
+
+目的：產出論文圖表 (Traces) 的個案分析。
+
+- **ST-1: Panic** (治理糾錯) - [Active]
+- **ST-2: Veteran** (認知偏誤) - [Active]
+- **ST-3: Goldfish** (記憶消逝) - [Active]
+- **ST-4: Format** (解析韌性) - [Active]
+
+#### 4. 下一步里程碑 (Next Milestones)
+
+1. **Data Harvesting**: 待 10 年模擬完成後，執行 `joh_evaluator.py` 計算 RS 與 AD 分數。
+2. **Figure Generation**: 產出 3 組適應率比較圖 (Group B vs C, Across Models)。
+3. **Commit ID**: [`06d7893`](file:///H:/%E6%88%91%E7%9A%84%E9%9B%B2%E7%AB%AF%E7%A1%AC%E7%A2%9F/github/governed_broker_framework) (Stress Test Suite).
