@@ -7,6 +7,8 @@ Inspired by Park et al. (2023) Generative Agents reflection architecture.
 from typing import Dict, Any, List, Optional, Callable
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
+from datetime import datetime
+from pathlib import Path
 
 from broker.utils.logging import setup_logger
 
@@ -36,12 +38,25 @@ class ReflectionEngine:
         self,
         reflection_interval: int = 1,      # Trigger reflection every N years/epochs
         max_insights_per_reflection: int = 2,  # How many insights to generate per cycle
-        insight_importance_boost: float = 0.9  # Importance score for new insights
+        insight_importance_boost: float = 0.9,  # Importance score for new insights
+        output_path: Optional[str] = None       # Path to save reflection logs
     ):
         self.reflection_interval = reflection_interval
         self.max_insights = max_insights_per_reflection
         self.importance_boost = insight_importance_boost
         self.reflection_history: Dict[str, List[ReflectionInsight]] = {}
+        self.output_path = output_path
+        
+        # Initialize log file if path provided
+        if self.output_path:
+            p = Path(self.output_path)
+            p.parent.mkdir(parents=True, exist_ok=True)
+            # Write header if file doesn't exist (for CSV) or just append (for JSONL)
+            # We'll use JSONL for flexibility
+            if not p.exists():
+                with open(p, 'w', encoding='utf-8') as f:
+                    pass
+
     
     def should_reflect(self, agent_id: str, current_year: int) -> bool:
         """Check if it's time for an agent to perform reflection."""
@@ -105,6 +120,20 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
         if agent_id not in self.reflection_history:
             self.reflection_history[agent_id] = []
         self.reflection_history[agent_id].append(insight)
+        
+        # Log to file if configured
+        if self.output_path:
+            import json
+            from dataclasses import asdict
+            entry = asdict(insight)
+            entry["agent_id"] = agent_id
+            entry["timestamp"] = datetime.now().isoformat()
+            try:
+                with open(self.output_path, 'a', encoding='utf-8') as f:
+                    f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+            except Exception as e:
+                logger.error(f"[Reflection] Failed to write log: {e}")
+
         logger.info(f"[Reflection] Agent {agent_id} | New insight stored | Importance: {insight.importance:.2f}")
     
     def get_insights(self, agent_id: str, top_k: int = 3) -> List[ReflectionInsight]:

@@ -430,6 +430,69 @@ next: <next subtask>
 
 ---
 
+## Subtasks
+- id: task-018/018-A
+  assigned_to: codex
+  status: done
+  summary: Decision distribution stacked bars + Shannon entropy trend from household traces.
+  changes: examples/multi_agent/tests/viz_decision_distribution.py
+  tests: python examples/multi_agent/tests/viz_decision_distribution.py --results examples/multi_agent/results_unified/llama3_2_3b_strict --output examples/multi_agent/tests/reports/figures
+  artifacts: examples/multi_agent/tests/reports/figures/decision_distribution.png
+  issues: Uses raw traces (simulation_log.csv not present in results dir).
+
+- id: task-018/018-B
+  assigned_to: codex
+  status: done
+  summary: PMT construct vs decision heatmap (point-biserial correlation).
+  changes: examples/multi_agent/tests/viz_pmt_decision_heatmap.py
+  tests: python examples/multi_agent/tests/viz_pmt_decision_heatmap.py --results examples/multi_agent/results_unified/llama3_2_3b_strict --output examples/multi_agent/tests/reports/figures
+  artifacts: examples/multi_agent/tests/reports/figures/pmt_decision_heatmap.png
+  issues: Uses raw traces; sample is small (2 agents, 2 steps).
+
+- id: task-018/018-E
+  assigned_to: codex
+  status: done
+  summary: Policy impact chart (subsidy/premium vs adoption) from institutional + household traces.
+  changes: examples/multi_agent/tests/viz_policy_impact.py, examples/multi_agent/tests/viz_utils.py
+  tests: python examples/multi_agent/tests/viz_policy_impact.py --results examples/multi_agent/results_unified/llama3_2_3b_strict --output examples/multi_agent/tests/reports/figures
+  artifacts: examples/multi_agent/tests/reports/figures/policy_impact.png
+  issues: Uses raw traces; sample is small (2 agents, 2 steps).
+
+- id: task-018/018-C
+  assigned_to: codex
+  status: done
+  summary: Agent trajectory heatmap from household traces.
+  changes: examples/multi_agent/tests/viz_agent_trajectory.py, examples/multi_agent/tests/viz_utils.py
+  tests: python examples/multi_agent/tests/viz_agent_trajectory.py --results examples/multi_agent/results_unified/llama3_2_3b_strict --output examples/multi_agent/tests/reports/figures
+  artifacts: examples/multi_agent/tests/reports/figures/agent_trajectories.png
+  issues: Uses raw traces; sample is small (2 agents, 2 steps).
+
+- id: task-018/018-D
+  assigned_to: codex
+  status: done
+  summary: MG equity comparison charts from household traces.
+  changes: examples/multi_agent/tests/viz_mg_equity.py
+  tests: python examples/multi_agent/tests/viz_mg_equity.py --results examples/multi_agent/results_unified/llama3_2_3b_strict --output examples/multi_agent/tests/reports/figures
+  artifacts: examples/multi_agent/tests/reports/figures/mg_equity_analysis.png
+  issues: Uses raw traces; sample is small (2 agents, 2 steps).
+
+- id: task-018/018-F
+  assigned_to: codex
+  status: done
+  summary: PMT construct evolution line chart from household traces.
+  changes: examples/multi_agent/tests/viz_pmt_evolution.py
+  tests: python examples/multi_agent/tests/viz_pmt_evolution.py --results examples/multi_agent/results_unified/llama3_2_3b_strict --output examples/multi_agent/tests/reports/figures
+  artifacts: examples/multi_agent/tests/reports/figures/pmt_construct_evolution.png
+  issues: Uses raw traces; sample is small (2 agents, 2 steps).
+
+---
+
+## Recommendation (for Claude Code)
+
+- Run a full MA experiment that outputs `simulation_log.csv` plus complete `raw/*.jsonl` traces, then re-run the visualization scripts under `examples/multi_agent/tests/` to generate publication-ready charts.
+
+---
+
 ## Dependencies
 
 - Python packages: `matplotlib`, `seaborn`, `pandas`, `numpy`, `scipy`

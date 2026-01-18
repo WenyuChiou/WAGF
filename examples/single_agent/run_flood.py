@@ -747,7 +747,8 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         reflection_engine = ReflectionEngine(
             reflection_interval=refl_cfg.get("interval", 1),
             max_insights_per_reflection=2,
-            insight_importance_boost=refl_cfg.get("importance_boost", 0.9)
+            insight_importance_boost=refl_cfg.get("importance_boost", 0.9),
+            output_path=str(output_dir / "reflection_log.jsonl")
         )
         print(f" [Pillar 2] ReflectionEngine enabled (Interval: {reflection_engine.reflection_interval}, Boost: {reflection_engine.importance_boost})")
         

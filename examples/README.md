@@ -1,44 +1,32 @@
-# Framework Examples Directory
+# Benchmarks & Examples
 
-This directory contains reference implementations of the **Governed Broker Framework** across different domains and complexities.
+**🌐 Language: [English](README.md) | [中文](README_zh.md)**
 
-| Domain                 | Description                                                                                         | Complexity    | Main Script                          |
-| :--------------------- | :-------------------------------------------------------------------------------------------------- | :------------ | :----------------------------------- |
-| **Multi-Agent Flood**  | Full simulation with Resident, Government, and Insurance agents interacting in a social network.    | ⭐⭐⭐ (High) | `multi_agent/run_flood.py`           |
-| **Single-Agent Flood** | Controlled "Parity Benchmark" to test single agent reasoning against baseline scenarios.            | ⭐ (Low)      | `single_agent/run_flood.py`          |
-| **Finance Trading**    | Demonstrates domain transferability via a Stock Market simulation with retail/institutional agents. | ⭐⭐ (Med)    | `finance/run_finance_multi_agent.py` |
+This directory contains reproduction scripts and experimental results for the Governed Broker Framework.
 
-## 🚀 Quick Start
+## 📂 Directory Structure
 
-### 1. Multi-Agent Flood Simulation (Flagship)
+| Directory                            | Content                                                                                                                       | Status           |
+| :----------------------------------- | :---------------------------------------------------------------------------------------------------------------------------- | :--------------- |
+| **[`single_agent/`](single_agent/)** | **Longitudinal Flood Study (JOH Benchmark)**. 100-agent simulations focused on memory retention and adaptation over 10 years. | ✅ **Active**    |
+| **[`multi_agent/`](multi_agent/)**   | **Social Dynamics**. Simulations involving peer effects, insurance market interactions, and government subsidies.             | 🚧 _In Progress_ |
 
-The most complete demonstration of the framework's capabilities, including the new **Demographic Audit**.
+## 🚀 How to Run Benchmarks
 
-```bash
-# Run a 5-step simulation with verbose logging to see reasoning audit
-python examples/multi_agent/run_flood.py --steps 5 --agents 10 --verbose
-```
+### Single Agent Benchmark (JOH Paper)
 
-### 2. Single-Agent Parity Check
-
-Useful for testing new LLMs against standard prompt templates without social dynamics.
+Replicates the "Ablation Study" (Group A vs B vs C).
 
 ```bash
-python examples/single_agent/run_flood.py --model llama3.2:3b --years 5
+# Run the full triple-comparison suite
+cd single_agent
+./run_joh_triple.ps1 -Model llama3.2:3b -Agents 100 -Years 10
 ```
 
-### 3. Finance Multi-Agent Simulation
+### Stress Testing
 
-Shows how the _exact same_ Broker and Context system adapts to a completely different domain (Stock Trading) just by changing the `agent_types.yaml` and `skill_registry.yaml`.
+Run specific stress scenarios (Panic, Amnesia, etc.).
 
 ```bash
-python examples/finance/run_finance_multi_agent.py
+python single_agent/run_flood.py --stress-test panic --agents 50
 ```
-
-## 📂 Configuration Guide
-
-Each example folder typically contains:
-
-- `agent_types.yaml`: Defines Prompt Templates and available Skills.
-- `skill_registry.yaml`: Defines physical constraints and effects of skills.
-- `README.md` (Optional): Domain-specific details.

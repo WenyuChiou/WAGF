@@ -216,9 +216,9 @@ class GenericAuditWriter:
                 # Put custom ones after the absolute core (step, agent) but before others
                 priority_keys = ["step_id", "agent_id"] + custom_priority + [k for k in priority_keys if k not in ["step_id", "agent_id"] + custom_priority]
 
-        all_keys = list(flat_rows[0].keys())
+        all_keys = set().union(*(d.keys() for d in flat_rows))
         # Sort keys to keep priority ones first
-        fieldnames = priority_keys + [k for k in all_keys if k not in priority_keys]
+        fieldnames = priority_keys + [k for k in sorted(list(all_keys)) if k not in priority_keys]
         
         with open(csv_path, 'w', newline='', encoding='utf-8-sig') as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction='ignore')
