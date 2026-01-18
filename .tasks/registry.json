@@ -1,6 +1,6 @@
 {
   "version": "1.1",
-  "last_updated": "2026-01-17T23:15:00Z",
+  "last_updated": "2026-01-18T14:31:05.000Z",
   "tasks": [
     {
       "id": "task-011",
@@ -52,11 +52,31 @@
       "scope": "run_unified_experiment.py, memory_engine.py, initial_memory.py",
       "description": "Integrate per-agent memory configs and reflection engine for MA system",
       "subtasks": [
-        {"id": "013-A", "title": "Agent Type Memory Config", "status": "completed"},
-        {"id": "013-E", "title": "Initial memory loading enhancement", "status": "completed"},
-        {"id": "013-C", "title": "Reflection engine integration", "status": "completed"},
-        {"id": "013-D", "title": "Retrieval strategy selection", "status": "completed"},
-        {"id": "013-B", "title": "Survey data additional fields", "status": "pending"}
+        {
+          "id": "013-A",
+          "title": "Agent Type Memory Config",
+          "status": "completed"
+        },
+        {
+          "id": "013-E",
+          "title": "Initial memory loading enhancement",
+          "status": "completed"
+        },
+        {
+          "id": "013-C",
+          "title": "Reflection engine integration",
+          "status": "completed"
+        },
+        {
+          "id": "013-D",
+          "title": "Retrieval strategy selection",
+          "status": "completed"
+        },
+        {
+          "id": "013-B",
+          "title": "Survey data additional fields",
+          "status": "pending"
+        }
       ],
       "handoff_file": "handoff/current-session.md"
     },
@@ -71,13 +91,118 @@
       "assigned_to": "Gemini CLI",
       "scope": "examples/multi_agent/run_unified_experiment.py",
       "done_when": "MA post_step uses apply_delta() for state updates",
-      "tests_run": "none",
+      "tests_run": "Syntax verified via code modification",
       "risks": "Very low - pure refactor, no logic change",
       "rollback": "git revert <commit>",
       "artifacts": "none",
       "next_step": "none",
-      "tests_run": "Syntax verified via code modification",
       "handoff_file": "handoff/task-014.md"
+    },
+    {
+      "id": "task-015",
+      "title": "MA System Comprehensive Verification",
+      "status": "in-progress",
+      "type": "verification",
+      "priority": "High",
+      "owner": "antigravity",
+      "reviewer": "WenyuChiou",
+      "assigned_to": "Claude Code + Codex",
+      "scope": "examples/multi_agent/",
+      "done_when": "All 6 verification requirements pass",
+      "handoff_file": "handoff/task-015.md",
+      "blocker": "Gemini CLI blocked by non-ASCII path issue; Codex assigned as executor",
+      "subtasks": [
+        {
+          "id": "015-A",
+          "title": "Decision diversity verification",
+          "status": "pending",
+          "assigned_to": "Codex"
+        },
+        {
+          "id": "015-B",
+          "title": "Elevated state persistence",
+          "status": "completed",
+          "assigned_to": "Claude Code",
+          "note": "V2 bug fixed by Claude Code"
+        },
+        {
+          "id": "015-C",
+          "title": "Insurance annual reset",
+          "status": "completed",
+          "assigned_to": "Claude Code"
+        },
+        {
+          "id": "015-D",
+          "title": "Behavior rationality",
+          "status": "pending",
+          "assigned_to": "Codex"
+        },
+        {
+          "id": "015-E",
+          "title": "Memory & state logic",
+          "status": "completed",
+          "assigned_to": "Codex",
+          "note": "V5 verification updated to handle missing trace fields"
+        },
+        {
+          "id": "015-F",
+          "title": "Institutional dynamics",
+          "status": "pending",
+          "assigned_to": "Codex",
+          "note": "Mock model expected to fail; need real LLM"
+        }
+      ]
+    },
+    {
+      "id": "Task-016",
+      "title": "JOH Technical Note Finalization",
+      "status": "planned",
+      "owner": "Antigravity",
+      "description": "Finalize the single-agent technical note with verified Gemma 3 results and halted DeepSeek findings.",
+      "dependencies": [
+        "Task-015"
+      ],
+      "created_at": "2026-01-18T16:05:21.286068Z",
+      "subtasks": [
+        {
+          "id": "016-A",
+          "title": "Draft Integration",
+          "status": "in_progress",
+          "assigned_to": "Antigravity"
+        },
+        {
+          "id": "016-B",
+          "title": "DeepSeek Slowness Analysis",
+          "status": "completed",
+          "assigned_to": "Antigravity"
+        },
+        {
+          "id": "016-C",
+          "title": "Figure Generation",
+          "status": "completed",
+          "assigned_to": "Antigravity"
+        },
+        {
+          "id": "016-D",
+          "title": "Final Submission Polish",
+          "status": "pending",
+          "assigned_to": "Antigravity"
+        }
+      ]
+    }
+  ],
+  "known_issues": [
+    {
+      "id": "issue-001",
+      "title": "Non-ASCII Path Blocker",
+      "description": "Gemini CLI cannot execute file operations due to non-ASCII characters in project path (???端硬?)",
+      "affected_agents": [
+        "Gemini CLI"
+      ],
+      "workaround": "Move project to ASCII-only path (e.g., C:\\projects\\gbf)",
+      "status": "open",
+      "reported_by": "Gemini CLI",
+      "reported_date": "2026-01-18"
     }
   ]
 }

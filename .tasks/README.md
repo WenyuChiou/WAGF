@@ -70,6 +70,43 @@ For multi-step or shared work, create a task entry and a `handoff/task-XXX.md`.
 When a plan is created, every step must have `assigned_to` (who executes) and `owner/reviewer`.
 Plans without explicit assignment are considered incomplete.
 
+## PR and Branch Visibility
+
+- Only Claude Code opens PRs and merges.
+- If work is done on a branch, report the branch name in the execution report.
+- Claude Code must fetch/pull that branch before review; otherwise changes are invisible.
+
+## Hooks / Orchestration
+
+- Hooks live under `.tasks/hooks/` (optional).
+- Supported phases: `pre-task`, `post-task`, `pre-commit`, `post-commit`.
+- Only Claude Code triggers hooks.
+- Each hook run must log to `.tasks/logs/` (what ran + outputs).
+
+## Subtask Handoff
+
+Subtasks are recorded inside the parent `handoff/task-XXX.md`:
+
+```
+## Subtasks
+- id: task-XXX/1
+  assigned_to: codex
+  status: done|partial|blocked
+  summary: ...
+  changes: ...
+  tests: ...
+  artifacts: ...
+  issues: ...
+```
+
+Execution agents only update their own subtask block; Claude Code consolidates.
+
+## Accept or Handoff
+
+Execution agents must explicitly accept or decline a subtask.
+If declined, notify Claude Code and propose a different assignee.
+Claude Code confirms reassignment in `handoff/task-XXX.md`.
+
 ## New Task Workflow
 
 When adding a new task:
@@ -86,3 +123,34 @@ When adding a new task:
 - `Clear todo` (sets `next_step` to `none`)
 - `Run test <cmd>`
 - `Log artifact <path>`
+
+---
+
+## Agent Compatibility
+
+### Available Executors
+
+| Agent | Path Encoding | Role | Notes |
+|:------|:--------------|:-----|:------|
+| Claude Code | ✅ Full Unicode | Planner/Reviewer | Task coordination, PR review |
+| Codex | ✅ Full Unicode | Executor | CLI agent, good for batch operations |
+| Gemini CLI | ❌ ASCII only | Executor | **Blocked** on non-ASCII paths |
+| Cursor | ✅ Full Unicode | Executor | AI IDE, good for code editing |
+| Antigravity | ✅ Full Unicode | Executor | AI IDE, alternative to Cursor |
+
+### Workarounds for Gemini CLI
+
+If the project is in a non-ASCII path (e.g., `我的雲端硬碟`), Gemini CLI cannot execute file operations. Options:
+
+1. **Reassign to Codex** - CLI agent, handles non-ASCII paths
+2. **Reassign to Cursor/Antigravity** - AI IDEs, full Unicode support
+3. **Use relative paths** - May work for some operations
+4. **Move project** - Last resort: move to ASCII-only path (e.g., `C:\projects\`)
+
+### Best Practices
+
+- When assigning execution tasks, check agent compatibility first
+- If Gemini CLI is blocked, reassign to Codex or AI IDE immediately
+- For complex code changes, prefer AI IDEs (Cursor/Antigravity)
+- For batch operations or tests, prefer CLI agents (Codex)
+- Record path-related blockers in `known_issues` section of `registry.json`
