@@ -8,6 +8,7 @@
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Ollama](https://img.shields.io/badge/Ollama-Local_Inference-000000?style=flat&logo=ollama&logoColor=white)](https://ollama.com/)
 
 </div>
 
@@ -50,13 +51,18 @@ The framework utilizes a layered middleware approach that unifies single-agent i
 
 ![Unified Architecture v3.3](docs/architecture.png)
 
-### Key Architectural Pillars:
+### 🧩 Combinatorial Intelligence (The "Building Blocks")
 
-1. **Context-Aware Perception**: Explicitly separates Environmental **State** from Historical **Memories**.
-2. **One-Way Governance**: LLM proposals flow unidirectionally into a validation pipeline before system execution.
-3. **Closed Feedback Loop**: Simulation outcomes are simultaneously committed to memory and environment state.
-4. **Lifecycle Auditing**: The `AuditWriter` captures traces from proposal to execution for full reproducibility.
-5. **Unified State Persistence**: Atomic `apply_delta` interface ensures agent state (Attributes, Memory) is committed transactionally after validation.
+This framework implements a **"Stacking Blocks"** architecture. You can build agents of varying complexity by stacking different cognitive modules onto the base Execution Engine—just like Legos.
+
+| Stack Level   | Cognitive Block      | Function          | Effect                                                                                          |
+| :------------ | :------------------- | :---------------- | :---------------------------------------------------------------------------------------------- |
+| **Base**      | **Execution Engine** | _The Body_        | Can execute actions but has no memory or rationality.                                           |
+| **+ Level 1** | **Context Lens**     | _The Eyes_        | Adds bounded perception (Window Memory). Prevents context overflow.                             |
+| **+ Level 2** | **Memory Engine**    | _The Hippocampus_ | Adds **Tiered Memory**. Enables trauma recall (Availability Heuristic) and long-term learning.  |
+| **+ Level 3** | **Skill Broker**     | _The Superego_    | Adds **Governance**. Enforces "Thinking Rules" to ensure decisions match beliefs (Rationality). |
+
+> **Why this matters?** allows for controlled scientific experiments. You can run a "Level 1 Agent" (Baseline) vs. a "Level 3 Agent" (Full) to isolate exactly _which_ cognitive component solves a specific bias.
 
 **Version History**:
 

@@ -8,6 +8,7 @@
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Ollama](https://img.shields.io/badge/Ollama-Local_Inference-000000?style=flat&logo=ollama&logoColor=white)](https://ollama.com/)
 
 </div>
 
@@ -48,12 +49,18 @@
 
 ![Unified Architecture v3.0](docs/governed_broker_architecture_v3.png)
 
-### 核心架構支柱：
+### 🧩 組合式智能 (「蓋積木」架構)
 
-1. **上下文感知感知 (Context-Aware Perception)**：明確區分環境 **狀態 (State)** 與歷史 **記憶 (Memories)**。
-2. **單向治理 (One-Way Governance)**：LLM 提案單向流入驗證管線，隨後由系統執行。
-3. **閉環反饋 (Closed Feedback Loop)**：模擬結果同時提交至記憶與環境狀態。
-4. **全生命週期審計 (Lifecycle Auditing)**：`AuditWriter` 捕捉從提案到執行的完整軌跡，確保可重現性。
+本框架採用獨特的 **"堆疊積木 (Stacking Blocks)"** 設計哲學。您可以像玩樂高一樣，將不同的認知模組疊加在基礎執行引擎上，打造出不同複雜度的代理人。
+
+| 堆疊層級 (Stack Level) | 認知積木 (Block)                | 功能 (Function)        | 效果 (Effect)                                                                               |
+| :--------------------- | :------------------------------ | :--------------------- | :------------------------------------------------------------------------------------------ |
+| **底座 (Base)**        | **執行引擎 (Execution Engine)** | _身體 (Body)_          | 能夠執行物理動作，但沒有記憶或理性。                                                        |
+| **+ Level 1**          | **感知透鏡 (Context Lens)**     | _眼睛 (Eyes)_          | 加入 **有界感知** (視窗記憶)。防止 LLM 因為歷史過長而當機。                                 |
+| **+ Level 2**          | **記憶引擎 (Memory Engine)**    | _海馬迴 (Hippocampus)_ | 加入 **分層記憶**。讓 Agent 能「回想起」過去的創傷 (Availability Heuristic)，不再是金魚腦。 |
+| **+ Level 3**          | **技能仲裁 (Skill Broker)**     | _超我 (Superego)_      | 加入 **治理機制**。強制執行 "Thinking Rules"，確保 Agent 的行為符合其信念 (理性驗證)。      |
+
+> **為什麼這很重要？** 這允許進行受控的科學實驗。您可以運行「Level 1 Agent」(基準組) 對決「Level 3 Agent」(完整組)，精確區分出 _哪一個_ 認知組件解決了特定的偏差。
 
 **遷移說明**:
 
@@ -97,7 +104,6 @@
 ### 資訊流
 
 1.  **主動檢索 (`retrieve()`)**:
-
     - 在做出決策之前，**Context Builder** 呼叫 `retrieve()` 獲取相關記憶。
     - _範例_: "檢索過去 3 年的洪水災害和理賠成功率。"
     - 這些數據會被注入到發送給 LLM 的 **Bounded Context (有界上下文)** 中。
@@ -218,7 +224,6 @@ python run_experiment.py --model llama3.2:3b --num-agents 100 --num-years 10
 在框架的驗證流程（如 JOH 論文）中，我們定義了兩種核心配置來測試通用模組的效能：
 
 1. **Baseline (基準組)**：
-
    - **記憶**: 使用 `WindowMemoryEngine` (簡單滑動窗口)。
    - **治理**: 僅開啟基礎語法驗證。
    - **目的**: 建立一個控制組，用來衡量「認知中介層」在缺乏長效記憶時的行為表現。
