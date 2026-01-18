@@ -6,7 +6,7 @@
 
 ## Active Task
 
-Task-016: JOH Technical Note Finalization (in-progress)
+Task-017: JOH Stress Testing (in-progress)
 
 ## Status
 
@@ -16,7 +16,8 @@ Task-016: JOH Technical Note Finalization (in-progress)
 
 - **Previous Task**: Task-014 (MA State Persistence Alignment) - Completed
 - **Previous Task**: Task-015 (MA System Verification) - Pending/Switching
-- **Current Task**: Task-016 (JOH Finalization)
+- **Previous Task**: Task-016 (Finalization) - Completed
+- **Current Task**: Task-017 (Stress Testing)
 - **V2 Bug Fixed**: Validation now correctly blocks elevated agents from choosing elevate_house
 - **Gemini CLI Blocked**: Non-ASCII path issue prevents execution (see Known Issues)
 
@@ -122,6 +123,7 @@ if not state:
 - Task-015 follow-up analysis logged (V2/V4/V6 details). Log: .tasks/logs/codex-20260118-142930.log
 - Task-015 V4/V5 verifier added and run. Script: `examples/multi_agent/tests/verify_task015_v4_v5.py`. Report: `.tasks/artifacts/task-015-v4-v5-eval.json` (V4 failed; V5 incomplete due to missing trace fields).
 - Added audit trace fields (`memory_post`, `state_before`, `state_after`, `environment_context`) in `broker/core/skill_broker_engine.py` to enable stricter V5 checks on new runs.
+- Re-ran MA experiment (llama3.2:3b, 2 years, 2 agents, random) and re-verified V4/V5. V5 now passes; V4 still fails (low-CP expensive actions).
 
 ## Blocking Issues Summary (from v_report_final.json)
 

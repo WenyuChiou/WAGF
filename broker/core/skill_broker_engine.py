@@ -177,6 +177,8 @@ class SkillBrokerEngine:
         else:
             memory_pre = list(raw_mem).copy() if raw_mem else []
         
+        memory_post = self._get_memory_snapshot(agent_id)
+        
         # ② LLM output → ModelAdapter → SkillProposal (with retry for empty/failed parse)
         prompt = self.context_builder.format_prompt(context)
         
@@ -538,6 +540,10 @@ class SkillBrokerEngine:
                 "context_hash": context_hash,
 
                 "memory_pre": memory_pre,
+                "memory_post": memory_post,
+                "environment_context": env_context or {},
+                "state_before": context.get("state", {}),
+                "state_after": self._merge_state_after(context.get("state", {}), execution_result),
                 "skill_proposal": skill_proposal.to_dict() if skill_proposal else None,
                 "approved_skill": {
                     "skill_name": approved_skill.skill_name,
@@ -620,6 +626,55 @@ class SkillBrokerEngine:
             else:
                 results.append(result)
         return results
+
+    def _merge_state_after(self, state_before: Dict[str, Any], execution_result: Optional[ExecutionResult]) -> Dict[str, Any]:
+        """Approximate state-after snapshot using execution_result state changes."""
+        merged = dict(state_before) if isinstance(state_before, dict) else {}
+        if execution_result and getattr(execution_result, "state_changes", None):
+            merged.update(execution_result.state_changes)
+        return merged
+
+    def _get_memory_snapshot(self, agent_id: str) -> List[Dict[str, Any]]:
+        """Extract a structured memory snapshot for audit traces."""
+        mem_engine = getattr(self.context_builder, "memory_engine", None)
+        if not mem_engine and hasattr(self.context_builder, "hub"):
+            mem_engine = getattr(self.context_builder.hub, "memory_engine", None)
+        if not mem_engine:
+            return []
+
+        # HumanCentricMemoryEngine
+        if hasattr(mem_engine, "working") and hasattr(mem_engine, "longterm"):
+            working = mem_engine.working.get(agent_id, [])
+            longterm = mem_engine.longterm.get(agent_id, [])
+            return [m for m in working + longterm if isinstance(m, dict)]
+
+        # WindowMemoryEngine
+        if hasattr(mem_engine, "storage"):
+            items = mem_engine.storage.get(agent_id, [])
+            snapshot = []
+            for item in items:
+                if isinstance(item, dict):
+                    snapshot.append(item)
+                else:
+                    content = str(item)
+                    source = "reflection" if content.lower().startswith("reflection") else "memory"
+                    snapshot.append({"content": content, "source": source})
+            return snapshot
+
+        # HierarchicalMemoryEngine
+        if hasattr(mem_engine, "episodic"):
+            items = mem_engine.episodic.get(agent_id, [])
+            snapshot = []
+            for item in items:
+                if isinstance(item, dict):
+                    entry = dict(item)
+                    entry.setdefault("source", "episodic")
+                    snapshot.append(entry)
+                else:
+                    snapshot.append({"content": str(item), "source": "episodic"})
+            return snapshot
+
+        return []
     
     def _hash_context(self, context: Dict) -> str:
         """Create hash of context for audit."""

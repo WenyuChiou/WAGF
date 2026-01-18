@@ -196,10 +196,17 @@ class AgentTypeConfig:
         """Get identity/status rules."""
         cfg = self.get(agent_type)
         profile = os.environ.get("GOVERNANCE_PROFILE", "default").lower()
-        gov = cfg.get("governance", {})
-        
-        # Load profile-specific rules if they exist, otherwise fallback
-        rules = gov.get(profile, {}).get("identity_rules", cfg.get("identity_rules", {}))
+
+        # Task 015 fix: Look in both locations for governance rules
+        # 1. Top-level governance section: governance.{profile}.{agent_type}.identity_rules
+        # 2. Agent-type section: {agent_type}.governance.{profile}.identity_rules (legacy)
+        top_level_gov = self._config.get("governance", {})
+        rules = top_level_gov.get(profile, {}).get(agent_type, {}).get("identity_rules", [])
+
+        # Fallback to agent-type embedded governance (legacy format)
+        if not rules:
+            gov = cfg.get("governance", {})
+            rules = gov.get(profile, {}).get("identity_rules", cfg.get("identity_rules", {}))
         
         # DEBUG
         # print(f"DEBUG_CONFIG: Loading identity_rules for {agent_type} (Profile: {profile}). Found {len(rules)} entries.")
@@ -234,7 +241,10 @@ class AgentTypeConfig:
         # 1. Check Profile
         profile = os.environ.get("GOVERNANCE_PROFILE", "default").lower()
         gov = cfg.get("governance", {})
-        if profile != "default" and profile not in gov:
+        top_level_gov = self._config.get("governance", {})
+        top_level_profile = top_level_gov.get(profile, {}) if profile != "default" else {}
+        has_top_level = agent_type in top_level_profile
+        if profile != "default" and profile not in gov and not has_top_level:
             issues.append(f"WARNING: Governance profile '{profile}' not found for '{agent_type}'. Falling back to default.")
 
         # 2. Check Thinking Rules vs Constructs
@@ -263,11 +273,18 @@ class AgentTypeConfig:
         """Get cognitive/thinking rules."""
         cfg = self.get(agent_type)
         profile = os.environ.get("GOVERNANCE_PROFILE", "default").lower()
-        gov = cfg.get("governance", {})
-        
-        # Load profile-specific rules if they exist, otherwise fallback
-        rules_container = gov.get(profile, {}) if profile in gov else gov.get("default", {})
-        rules = rules_container.get("thinking_rules", cfg.get("thinking_rules", cfg.get("coherence_rules", {})))
+
+        # Task 015 fix: Look in both locations for governance rules
+        # 1. Top-level governance section: governance.{profile}.{agent_type}.thinking_rules
+        # 2. Agent-type section: {agent_type}.governance.{profile}.thinking_rules (legacy)
+        top_level_gov = self._config.get("governance", {})
+        rules = top_level_gov.get(profile, {}).get(agent_type, {}).get("thinking_rules", [])
+
+        # Fallback to agent-type embedded governance (legacy format)
+        if not rules:
+            gov = cfg.get("governance", {})
+            rules_container = gov.get(profile, {}) if profile in gov else gov.get("default", {})
+            rules = rules_container.get("thinking_rules", cfg.get("thinking_rules", cfg.get("coherence_rules", {})))
         
         # DEBUG
         # print(f"DEBUG_CONFIG: Loading thinking_rules for {agent_type} (Profile: {profile}). Found {len(rules)} entries.")

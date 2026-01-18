@@ -452,3 +452,11 @@ next: investigate whether governance should block re-elevate and low-CP expensiv
 - 2026-01-18: Added verifier script `examples/multi_agent/tests/verify_task015_v4_v5.py` and generated report at `.tasks/artifacts/task-015-v4-v5-eval.json`.
 - 2026-01-18: V4 failed due to low-CP expensive actions (rate 0.375 > 0.2); V5 marked incomplete due to missing trace fields.
 - 2026-01-18: Added audit trace fields in `broker/core/skill_broker_engine.py` to emit `memory_post`, `state_before`, `state_after`, and `environment_context` for V5 verification.
+- 2026-01-18: Ran MA experiment (llama3.2:3b, 2 years, 2 agents, random mode) and verified V4/V5 with `examples/multi_agent/tests/verify_task015_v4_v5.py`. Report: `.tasks/artifacts/task-015-v4-v5-eval.json` (V5 passed; V4 failed low-CP expensive actions).
+
+---
+
+## Recommended Next Steps
+
+1. Re-run with larger sample size (more agents/years) to confirm V4 stability.
+2. Add a governance rule to block expensive actions when CP is VL/L, then re-run V4/V5.

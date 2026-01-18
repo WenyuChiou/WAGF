@@ -1,58 +1,45 @@
 {
   "overall_passed": false,
   "blocking_issues": [
-    "V4_behavior_rationality",
-    "V5_memory_state"
+    "V4_behavior_rationality"
   ],
   "results": {
     "V4_behavior_rationality": {
       "passed": false,
       "details": {
-        "low_cp_total": 8,
-        "low_cp_expensive": 3,
-        "low_cp_expensive_rate": 0.375,
+        "low_cp_total": 3,
+        "low_cp_expensive": 2,
+        "low_cp_expensive_rate": 0.667,
         "low_cp_threshold": 0.2,
         "low_cp_ok": false,
         "rule_reminder": "If CP is VL/L, expensive actions (elevate/buyout/relocate) should be blocked or penalized.",
         "examples": [
           {
-            "agent_id": "H0003",
-            "step_id": 5,
-            "decision": "elevate_house",
-            "cp_label": "L"
-          },
-          {
-            "agent_id": "H0003",
-            "step_id": 12,
+            "agent_id": "H0001",
+            "step_id": 3,
             "decision": "elevate_house",
             "cp_label": "L"
           },
           {
             "agent_id": "H0001",
-            "step_id": 17,
-            "decision": "buyout_program",
+            "step_id": 7,
+            "decision": "elevate_house",
             "cp_label": "L"
           }
         ]
       }
     },
     "V5_memory_state": {
-      "passed": false,
+      "passed": true,
       "details": {
-        "total_traces": 21,
-        "missing_fields": {
-          "memory_post": 21,
-          "state_after": 21,
-          "environment_context": 21
-        },
-        "missing_fields_total": 63,
+        "total_traces": 8,
+        "missing_fields": {},
+        "missing_fields_total": 0,
         "reflection_missing_count": 0,
         "damage_violation_count": 0,
-        "incomplete": true
+        "incomplete": false
       },
-      "violations": [
-        "Required trace fields missing; V5 cannot be fully verified."
-      ]
+      "violations": []
     }
   }
 }
