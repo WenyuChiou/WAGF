@@ -24,15 +24,14 @@ from typing import Dict, List, Any, Optional
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from broker import (
-    ExperimentBuilder,
-    MemoryEngine,
-    WindowMemoryEngine,
+    ExperimentBuilder, 
+    MemoryEngine, 
+    WindowMemoryEngine, 
     HumanCentricMemoryEngine,
     TieredContextBuilder,
     InteractionHub,
     create_social_graph
 )
-from broker.components.reflection_engine import ReflectionEngine
 from simulation.environment import TieredEnvironment
 from agents.base_agent import BaseAgent, AgentConfig, StateParam, Skill, PerceptionSource
 from examples.multi_agent.environment.hazard import HazardModule, VulnerabilityModule
@@ -43,123 +42,6 @@ sys.path.insert(0, str(MULTI_AGENT_DIR))
 from generate_agents import generate_agents_random, load_survey_agents, HouseholdProfile
 from initial_memory import generate_all_memories, get_agent_memories_text
 import json
-
-# =============================================================================
-# MEMORY CONFIGURATIONS (Task 013-A)
-# Per-agent type memory retrieval weights and categories
-# =============================================================================
-
-HOUSEHOLD_MEMORY_CONFIG = {
-    # Task 013-D: Retrieval strategy settings
-    "top_k": 5,             # Retrieve 5 memories for household prompts
-    "window_size": 3,       # Recent window size
-    "weights": {
-        "critical": 1.0,    # flood damage, loss
-        "major": 0.9,       # insurance, elevation decisions
-        "positive": 0.7,    # neighbor help, community support
-        "neutral": 0.3      # routine observations
-    },
-    "categories": {
-        "critical": ["flood", "damage", "loss", "destroyed", "evacuate", "emergency"],
-        "major": ["insurance", "premium", "elevated", "buyout", "subsidy", "decision"],
-        "positive": ["neighbor", "community", "help", "support", "together"],
-    },
-    "emotion_keywords": {
-        "critical": ["flood", "damage", "loss", "worried", "concerned", "destroyed"],
-        "major": ["decided", "purchased", "elevated", "applied"],
-        "positive": ["subsidy", "help", "support", "recovery", "neighbor"],
-        "shift": ["trust", "doubt", "change", "skeptic"]
-    },
-    "source_weights": {
-        "personal": 1.0,    # Direct experience
-        "neighbor": 0.7,    # Neighbor sharing (SQ2 gossip)
-        "government": 0.5,  # Government announcements
-        "insurance": 0.5    # Insurance messages
-    }
-}
-
-GOVERNMENT_MEMORY_CONFIG = {
-    # Task 013-D: Retrieval strategy settings
-    "top_k": 3,             # Retrieve 3 memories for institutional prompts
-    "window_size": 2,       # Smaller window for policy focus
-    "weights": {
-        "policy": 1.0,      # subsidy, budget decisions
-        "outcome": 0.9,     # adaptation rates, community response
-        "community": 0.6    # MG equity metrics
-    },
-    "categories": {
-        "policy": ["subsidy", "budget", "increase", "decrease", "maintain", "funding"],
-        "outcome": ["elevated", "buyout", "adapted", "insured", "relocated"],
-        "community": ["marginalized", "equity", "MG", "vulnerable", "disparit"]
-    },
-    "emotion_keywords": {
-        "critical": ["failure", "gap", "inequity", "budget exceeded"],
-        "major": ["policy", "decision", "approved", "implemented"],
-        "positive": ["success", "progress", "improvement", "adoption"]
-    },
-    "source_weights": {
-        "policy": 1.0,
-        "statistics": 0.8,
-        "community": 0.6
-    }
-}
-
-INSURANCE_MEMORY_CONFIG = {
-    # Task 013-D: Retrieval strategy settings
-    "top_k": 3,             # Retrieve 3 memories for institutional prompts
-    "window_size": 2,       # Smaller window for financial focus
-    "weights": {
-        "financial": 1.0,   # premium, claims, loss ratio
-        "market": 0.8,      # insured count, take-up rate
-        "risk": 0.7         # flood events, damage
-    },
-    "categories": {
-        "financial": ["premium", "claims", "loss", "ratio", "solvency", "actuarial"],
-        "market": ["insured", "policy", "coverage", "take-up", "enrollment"],
-        "risk": ["flood", "damage", "event", "disaster"]
-    },
-    "emotion_keywords": {
-        "critical": ["loss", "claims", "deficit", "unsustainable"],
-        "major": ["premium", "rate", "adjustment", "decision"],
-        "positive": ["solvency", "growth", "sustainable"]
-    },
-    "source_weights": {
-        "actuarial": 1.0,
-        "market": 0.8,
-        "community": 0.5
-    }
-}
-
-
-def classify_memory_emotion(content: str, category: str) -> str:
-    """
-    Classify emotion for initial memory based on content and category.
-    Task 013-E: Emotion classification for initial memories.
-
-    Returns one of: critical, major, positive, shift, routine
-    """
-    content_lower = content.lower()
-
-    # Category-based defaults
-    category_emotions = {
-        "flood_event": "critical",
-        "insurance_claim": "major",
-        "social_interaction": "positive",
-        "government_notice": "major",
-        "adaptation_action": "shift"
-    }
-
-    # Keyword overrides
-    if any(kw in content_lower for kw in ["damage", "loss", "destroyed", "worried", "concerned"]):
-        return "critical"
-    if any(kw in content_lower for kw in ["help", "support", "community", "neighbor", "together"]):
-        return "positive"
-    if any(kw in content_lower for kw in ["decided", "trust", "doubt", "change"]):
-        return "shift"
-    if any(kw in content_lower for kw in ["insurance", "premium", "subsidy", "program", "policy"]):
-        return "major"
-
-    return category_emotions.get(category, "routine")
 
 # =============================================================================
 # INSTITUTIONAL AGENT FACTORIES
@@ -185,10 +67,7 @@ def create_government_agent() -> BaseAgent:
         ],
         role_description="You represent the NJ State Government. Your goal is to support household adaptation while managing budget."
     )
-    agent = BaseAgent(config)
-    # Attach memory config (Task 013-A)
-    agent.memory_config = GOVERNMENT_MEMORY_CONFIG
-    return agent
+    return BaseAgent(config)
 
 def create_insurance_agent() -> BaseAgent:
     config = AgentConfig(
@@ -210,10 +89,7 @@ def create_insurance_agent() -> BaseAgent:
         ],
         role_description="You represent FEMA/NFIP. Your goal is to maintain program solvency (RR 2.0)."
     )
-    agent = BaseAgent(config)
-    # Attach memory config (Task 013-A)
-    agent.memory_config = INSURANCE_MEMORY_CONFIG
-    return agent
+    return BaseAgent(config)
 
 # =============================================================================
 # HOUSEHOLD AGENT WRAPPER
@@ -300,9 +176,6 @@ def wrap_household(profile: HouseholdProfile) -> BaseAgent:
     # Ensure agent.id matches profile.agent_id
     agent.id = profile.agent_id
 
-    # Attach memory config (Task 013-A)
-    agent.memory_config = HOUSEHOLD_MEMORY_CONFIG
-
     return agent
 
 # =============================================================================
@@ -315,18 +188,11 @@ class MultiAgentHooks:
         environment: Dict,
         memory_engine: Optional[MemoryEngine] = None,
         hazard_module: Optional[HazardModule] = None,
-        reflection_engine: Optional[ReflectionEngine] = None,
     ):
         self.env = environment
         self.memory_engine = memory_engine
         self.hazard = hazard_module or HazardModule()
         self.vuln = VulnerabilityModule()
-        # Task 013-C: Reflection engine for periodic cognitive consolidation
-        self.reflection = reflection_engine or ReflectionEngine(
-            reflection_interval=1,           # Reflect every year
-            max_insights_per_reflection=2,   # Up to 2 insights per reflection
-            insight_importance_boost=0.9     # High importance for insights
-        )
     
     def pre_year(self, year, env, agents):
         """Randomly determine if flood occurs and resolve pending actions."""
@@ -341,16 +207,14 @@ class MultiAgentHooks:
             
             if pending and completion_year and year >= completion_year:
                 if pending == "elevation":
-                    agent.apply_delta({"elevated": True})
+                    agent.dynamic_state["elevated"] = True
                     print(f" [LIFECYCLE] {agent.id} elevation COMPLETE.")
                 elif pending == "buyout":
-                    agent.apply_delta({"relocated": True})
+                    agent.dynamic_state["relocated"] = True
                     print(f" [LIFECYCLE] {agent.id} buyout FINALIZED (left community).")
-                # Clear pending state using apply_delta (Task-014)
-                agent.apply_delta({
-                    "pending_action": None,
-                    "action_completion_year": None
-                })
+                # Clear pending state
+                agent.dynamic_state["pending_action"] = None
+                agent.dynamic_state["action_completion_year"] = None
         
         # Determine flood event using PRB grid (meters) as primary source
         event = self.hazard.get_flood_event(year=year)
@@ -405,23 +269,16 @@ class MultiAgentHooks:
         # Phase 30: Pending Actions for multi-year lifecycle
         elif agent.agent_type in ["household_owner", "household_renter"]:
             current_year = self.env.get("year", 1)
-
+            
             if decision in ["buy_insurance", "buy_contents_insurance"]:
-                # Use canonical apply_delta method (Task-014)
-                agent.apply_delta({"has_insurance": True})
+                agent.dynamic_state["has_insurance"] = True  # Effective immediately
             elif decision == "elevate_house":
-                # Elevation takes 1 year to complete - use apply_delta (Task-014)
-                agent.apply_delta({
-                    "pending_action": "elevation",
-                    "action_completion_year": current_year + 1
-                })
+                # Elevation takes 1 year to complete
+                agent.dynamic_state["pending_action"] = "elevation"
+                agent.dynamic_state["action_completion_year"] = current_year + 1
                 print(f" [LIFECYCLE] {agent.id} started elevation (completes Year {current_year + 1})")
-            elif decision == "apply_buyout":
-                # Buyout takes 2 years - use apply_delta (Task-014)
-                agent.apply_delta({
-                    "pending_action": "buyout",
-                    "action_completion_year": current_year + 2
-                })
+                agent.dynamic_state["pending_action"] = "buyout"
+                agent.dynamic_state["action_completion_year"] = current_year + 2
                 print(f" [LIFECYCLE] {agent.id} applied for buyout (finalizes Year {current_year + 2})")
 
             # Phase 3: Reasoning Gossip (SQ2) - Log reasoning to memory for others to hear
@@ -445,75 +302,40 @@ class MultiAgentHooks:
                         )
 
     def post_year(self, year, agents, memory_engine):
-        """Apply damage, consolidation, and trigger reflection (Task 013-C)."""
-        # --- Damage Calculation (if flood occurred) ---
-        if self.env["flood_occurred"]:
-            depth_ft = self.env.get("flood_depth_ft", 0.0)
-            if depth_ft > 0:
-                total_damage = 0
-                for agent in agents.values():
-                    if agent.agent_type not in ["household_owner", "household_renter"] or agent.dynamic_state.get("relocated"):
-                        continue
+        """Apply damage and consolidation."""
+        if not self.env["flood_occurred"]:
+            return
 
-                    rcv_building = agent.fixed_attributes["rcv_building"]
-                    rcv_contents = agent.fixed_attributes["rcv_contents"]
-                    damage_res = self.vuln.calculate_damage(
-                        depth_ft=depth_ft,
-                        rcv_building=rcv_building,
-                        rcv_contents=rcv_contents,
-                        is_elevated=agent.dynamic_state["elevated"],
-                    )
-                    damage = damage_res["total_damage"]
-
-                    agent.dynamic_state["cumulative_damage"] += damage
-                    total_damage += damage
-
-                    # Emotional memory
-                    memory_engine.add_memory(
-                        agent.id,
-                        f"Year {year}: Flood depth {depth_ft:.1f}ft caused ${damage:,.0f} damage to my property.",
-                        metadata={"emotion": "critical", "source": "personal", "importance": 0.9}
-                    )
-
-                print(f" [YEAR-END] Total Community Damage: ${total_damage:,.0f}")
-
-        # --- Task 013-C: Reflection for Household Agents ---
-        reflection_count = 0
+        depth_ft = self.env.get("flood_depth_ft", 0.0)
+        if depth_ft <= 0:
+            return
+        total_damage = 0
+        
         for agent in agents.values():
-            if agent.agent_type not in ["household_owner", "household_renter"]:
+            if agent.agent_type not in ["household_owner", "household_renter"] or agent.dynamic_state.get("relocated"):
                 continue
-            if agent.dynamic_state.get("relocated"):
-                continue
-
-            if self.reflection.should_reflect(agent.id, year):
-                # Retrieve recent memories for reflection
-                recent_memories = memory_engine.retrieve(agent, top_k=5)
-                if recent_memories:
-                    # Generate reflection prompt (Note: Actual LLM call would happen in experiment runner)
-                    # For now, we create a synthetic insight from the memories
-                    insight_summary = f"Reflection (Year {year}): Based on my experiences, I have learned to "
-                    if any("damage" in m.lower() or "flood" in m.lower() for m in recent_memories):
-                        insight_summary += "take flood risk more seriously."
-                    elif any("elevated" in m.lower() or "insurance" in m.lower() for m in recent_memories):
-                        insight_summary += "value protective measures and insurance."
-                    else:
-                        insight_summary += "adapt my approach based on circumstances."
-
-                    # Store reflection as high-importance memory
-                    memory_engine.add_memory(
-                        agent.id,
-                        insight_summary,
-                        metadata={
-                            "source": "reflection",
-                            "importance": self.reflection.importance_boost,
-                            "emotion": "shift",
-                            "year": year
-                        }
-                    )
-                    reflection_count += 1
-
-        if reflection_count > 0:
-            print(f" [REFLECTION] {reflection_count} households completed year-end reflection.")
+                
+            rcv_building = agent.fixed_attributes["rcv_building"]
+            rcv_contents = agent.fixed_attributes["rcv_contents"]
+            damage_res = self.vuln.calculate_damage(
+                depth_ft=depth_ft,
+                rcv_building=rcv_building,
+                rcv_contents=rcv_contents,
+                is_elevated=agent.dynamic_state["elevated"],
+            )
+            damage = damage_res["total_damage"]
+            
+            agent.dynamic_state["cumulative_damage"] += damage
+            total_damage += damage
+            
+            # Emotional memory
+            memory_engine.add_memory(
+                agent.id, 
+                f"Year {year}: Flood depth {depth_ft:.1f}ft caused ${damage:,.0f} damage to my property.",
+                metadata={"emotion": "fear", "source": "personal", "importance": 0.8}
+            )
+        
+        print(f" [YEAR-END] Total Community Damage: ${total_damage:,.0f}")
 
 # =============================================================================
 # MAIN
@@ -586,36 +408,28 @@ def run_unified_experiment():
     else:
         memory_engine = WindowMemoryEngine(window_size=3)
 
-    # 3a. Load initial memories with enhanced metadata (Task 013-E)
+    # 3a. Load initial memories (survey mode)
     if args.mode == "survey" and args.load_initial_memories:
         initial_memories_path = MULTI_AGENT_DIR / "data" / "initial_memories.json"
         if initial_memories_path.exists():
             print(f"[INFO] Loading initial memories from {initial_memories_path}")
             with open(initial_memories_path, 'r', encoding='utf-8') as f:
                 initial_memories = json.load(f)
-            # Inject initial memories into memory engine with enhanced metadata
-            total_memories = 0
+            # Inject initial memories into memory engine
             for agent_id, memories in initial_memories.items():
                 if agent_id in all_agents:
                     for mem in memories:
-                        content = mem["content"]
-                        category = mem.get("category", "general")
-                        importance = mem.get("importance", 0.5)
-                        # Task 013-E: Classify emotion for enhanced retrieval
-                        emotion = classify_memory_emotion(content, category)
                         memory_engine.add_memory(
                             agent_id,
-                            content,
+                            mem["content"],
                             metadata={
-                                "category": category,
-                                "importance": importance,
+                                "category": mem.get("category", "general"),
+                                "importance": mem.get("importance", 0.5),
                                 "source": mem.get("source", "survey"),
-                                "year": 0,  # Initial memories are pre-simulation
-                                "emotion": emotion  # Task 013-E enhancement
+                                "year": 0  # Initial memories are pre-simulation
                             }
                         )
-                        total_memories += 1
-            print(f"[INFO] Loaded {total_memories} initial memories for {len(initial_memories)} agents")
+            print(f"[INFO] Loaded initial memories for {len(initial_memories)} agents")
         else:
             print(f"[WARN] Initial memories file not found: {initial_memories_path}")
             print("[INFO] Run initial_memory.py to generate initial memories")
