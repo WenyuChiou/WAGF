@@ -133,31 +133,29 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
     ) -> str:
         """
         Generate a prompt for batch reflection across multiple agents.
-        
-        Args:
-            batch_data: List of dicts with 'agent_id' and 'memories' keys.
-            current_year: The current simulation year.
-        
-        Returns:
-            A prompt instructing the LLM to output a JSON object mapping Agent IDs to insights.
+        Optimized for smaller models like Llama 3.2.
         """
         if not batch_data:
             return ""
         
-        lines = [f"You are a reflection assistant helping {len(batch_data)} agents summarize their experiences from Year {current_year}.\n"]
-        lines.append("For EACH agent below, write a concise 2-3 sentence lesson learned from their listed memories.\n")
-        lines.append("---\n")
+        lines = [f"### Background\nYou are a Reflection Assistant for {len(batch_data)} agents in a flood simulation (Year {current_year})."]
+        lines.append("Instructions: Summarize each agent's memories into a 2-sentence 'Lesson Learned'.\n")
         
+        lines.append("### Example Format (1-Shot)")
+        lines.append("Agent_001 Memories: Flood caused $5000 damage. I had no insurance.")
+        lines.append("Agent_002 Memories: I elevated my house. Year 3 flood caused $0 damage.")
+        lines.append("Result JSON:")
+        lines.append('{"Agent_001": "I learned that floods cause high financial loss without insurance.", "Agent_002": "I discovered that elevating my house is effective against floods."}\n')
+        
+        lines.append("### Task Data to Process")
         for item in batch_data:
             agent_id = item.get("agent_id", "Unknown")
             memories = item.get("memories", [])
-            mem_text = "\n".join([f"  - {m}" for m in memories]) if memories else "  (No memories recorded)"
-            lines.append(f"**{agent_id} Memories:**\n{mem_text}\n")
+            mem_text = " ".join(memories) if memories else "(No memories recorded)"
+            lines.append(f"{agent_id} Memories: {mem_text}")
         
-        lines.append("---\n")
-        lines.append("**Output Format:** Return a JSON object where each key is an Agent ID and the value is their insight string.\n")
-        lines.append("Example: {\"Agent_001\": \"I learned that...\", \"Agent_002\": \"Floods are...\"}\n")
-        lines.append("**IMPORTANT:** Return ONLY the JSON object, no other text.")
+        lines.append("\n### Output Requirement")
+        lines.append("Return ONLY the JSON object mapping Agent IDs to strings. No conversational filler.")
         
         return "\n".join(lines)
     
@@ -168,54 +166,87 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
         current_year: int
     ) -> Dict[str, Optional[ReflectionInsight]]:
         """
-        Parse LLM batch response into per-agent ReflectionInsights.
-        
-        Args:
-            raw_response: The raw LLM output (expected to be JSON).
-            batch_agent_ids: List of agent IDs that were in the batch.
-            current_year: The current simulation year.
-        
-        Returns:
-            Dict mapping agent_id -> ReflectionInsight (or None if parsing failed).
+        Robust multi-stage parser for batch reflections.
+        Handles JSON, Markdown, and Heuristic Line-parsing.
         """
         import json
         import re
         
         results: Dict[str, Optional[ReflectionInsight]] = {aid: None for aid in batch_agent_ids}
         
-        if not raw_response:
-            logger.warning("[Reflection:Batch] Empty response received.")
+        if not raw_response or len(raw_response.strip()) < 5:
+            logger.warning("[Reflection:Batch] Empty or trivial response.")
             return results
         
-        # Try to extract JSON from the response (handle markdown code blocks)
-        json_match = re.search(r'\{.*\}', raw_response, re.DOTALL)
-        if not json_match:
-            logger.warning(f"[Reflection:Batch] Could not find JSON in response: {raw_response[:200]}...")
-            return results
+        # --- Stage 1: Standard JSON Extraction & Repair ---
+        json_content = raw_response
+        # Find latest/outermost { } block
+        json_match = re.search(r'(\{.*\})', raw_response, re.DOTALL)
+        if json_match:
+            json_content = json_match.group(1)
         
+        success = False
         try:
-            data = json.loads(json_match.group())
-        except json.JSONDecodeError as e:
-            logger.warning(f"[Reflection:Batch] JSON parse error: {e}")
-            return results
-        
-        # Map parsed insights to agents
-        for agent_id in batch_agent_ids:
-            insight_text = data.get(agent_id)
-            if insight_text and isinstance(insight_text, str) and len(insight_text.strip()) > 10:
-                results[agent_id] = ReflectionInsight(
-                    summary=insight_text.strip()[:500],
-                    source_memory_count=0,  # Will be updated by caller if needed
-                    importance=self.importance_boost,
-                    year_created=current_year,
-                    domain_tags=[]
-                )
-                logger.info(f"[Reflection:Batch] {agent_id} | Insight parsed successfully.")
-            else:
-                logger.warning(f"[Reflection:Batch] {agent_id} | No valid insight found in response.")
+            # Try to repair common small-model JSON errors
+            repaired = json_content.strip()
+            # Quote Agent IDs if unquoted (e.g. Agent_001: "...")
+            repaired = re.sub(r'(?<!")(\bAgent_\d+\b)(?!")', r'"\1"', repaired)
+            # Clean trailing commas (e.g. "key": "val", })
+            repaired = re.sub(r',\s*\}', '}', repaired)
+            
+            data = json.loads(repaired)
+            if isinstance(data, dict):
+                for aid in batch_agent_ids:
+                    # Case-insensitive key lookup for robustness
+                    found_key = next((k for k in data.keys() if k.lower() == aid.lower()), None)
+                    if found_key and isinstance(data[found_key], str):
+                        results[aid] = self._create_insight(data[found_key], current_year)
+                
+                if any(v is not None for v in results.values()):
+                    success = True
+                    logger.info("[Reflection:Batch] Stage 1 (JSON) parsing successful.")
+        except Exception as e:
+            logger.debug(f"[Reflection:Batch] Stage 1 failed: {e}")
+
+        # --- Stage 2: Regex Fallback (Key: Value Pattern) ---
+        if not success or any(v is None for v in results.values()):
+            logger.info("[Reflection:Batch] Attempting Stage 2 (Regex) parsing...")
+            for aid in batch_agent_ids:
+                if results[aid] is not None: continue
+                # Match "Agent_XXX": "Insight..." or **Agent_XXX**: Insight...
+                pattern = rf'["\*\']?{re.escape(aid)}["\*\']?\s*[:\-]\s*["\']?([^"\'\n\r]+)["\']?'
+                match = re.search(pattern, raw_response, re.IGNORECASE)
+                if match:
+                    results[aid] = self._create_insight(match.group(1).strip(), current_year)
+            
+            if any(v is not None for v in results.values()):
+                success = True
+
+        # --- Stage 3: Heuristic Line Parsing (Final Resort) ---
+        if not success or any(v is None for v in results.values()):
+            logger.info("[Reflection:Batch] Attempting Stage 3 (Heuristic) parsing...")
+            lines = raw_response.split('\n')
+            for line in lines:
+                for aid in batch_agent_ids:
+                    if results[aid] is not None: continue
+                    if aid.lower() in line.lower() and (':' in line or '-' in line):
+                        # Extract everything after the delimiter
+                        parts = re.split(r'[:\-]', line, 1)
+                        if len(parts) > 1 and len(parts[1].strip()) > 10:
+                            results[aid] = self._create_insight(parts[1].strip(), current_year)
         
         return results
-    
+
+    def _create_insight(self, text: str, year: int) -> ReflectionInsight:
+        """Helper to create a standard insight object."""
+        return ReflectionInsight(
+            summary=text.strip()[:500],
+            source_memory_count=0,
+            importance=self.importance_boost,
+            year_created=year,
+            domain_tags=[]
+        )
+
     def clear(self, agent_id: str) -> None:
         """Clear reflection history for an agent."""
         if agent_id in self.reflection_history:
