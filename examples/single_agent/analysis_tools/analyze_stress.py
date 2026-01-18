@@ -8,8 +8,8 @@ import sys
 # We scan both the local 'results' (if run from examples/single_agent) 
 # and the project root 'results' (if run from root)
 DEFAULT_ROOTS = [
-    Path(__file__).parent / "results" / "JOH_STRESS",           # examples/single_agent/results/JOH_STRESS
-    Path(__file__).parent.parent.parent / "results" / "JOH_STRESS" # project_root/results/JOH_STRESS
+    Path(__file__).parent / "results" / "JOH_STRESS",           
+    Path(__file__).parent.parent / "results" / "JOH_STRESS"     # examples/single_agent/results/JOH_STRESS
 ]
 REPORT_DIR = Path(__file__).parent / "analysis" / "reports"
 REPORT_DIR.mkdir(parents=True, exist_ok=True)

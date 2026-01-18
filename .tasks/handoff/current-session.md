@@ -2,15 +2,17 @@
 
 ## Last Updated
 
-2026-01-18T15:15:00Z
+2026-01-18T17:00:00Z
 
-## Active Task
+## Active Tasks
 
-Task-017: JOH Stress Testing (in-progress)
+- Task-015: MA System Verification (in-progress) - Subtasks A/D/F pending
+- Task-017: JOH Stress Testing (planned) - Waiting for Task-016
+- **Task-018: MA Visualization (NEW)** - Assigned to Codex + Antigravity
 
 ## Status
 
-`in-progress` - V2 bug fixed. 015-E completed. Remaining subtasks (015-A, 015-D, 015-F) assigned to Codex.
+`transitioning` - Task-015 B/C/E completed. Task-018 created for visualization phase.
 
 ## Context
 
@@ -146,9 +148,74 @@ if not state:
 
 ---
 
-## Next Actions for Codex
+## Task Assignment (2026-01-18 Updated)
 
-1. **V2 Investigation**: Trace H0007's decision history, check why validator didn't block
-2. **V5 Investigation**: Check if ReflectionEngine.reflect() is called in post_year hook
-3. **V4 Analysis**: Analyze CP scores vs decision patterns for low-CP agents
+### For Codex (CLI Executor)
+
+#### Task-015 Verification (Remaining)
+
+| Task | 說明 | 優先級 |
+|:-----|:-----|:-------|
+| **015-A** | Decision diversity verification - 執行驗證腳本 | High |
+| **015-D** | Behavior rationality - 分析 V4 低 CP 問題 | High |
+| **015-F** | Institutional dynamics - 需用真實 LLM 測試 | Medium |
+
+**執行指令**:
+```bash
+cd examples/multi_agent
+set GOVERNANCE_PROFILE=strict
+python run_unified_experiment.py --model llama3.2:3b --years 3 --agents 10 --mode random --output v015_codex
+
+cd tests
+python test_task015_verification.py --traces ../v015_codex/raw --report ../v015_codex/report.json
+```
+
+#### Task-018 Visualization (NEW)
+
+| Task | 說明 | 優先級 |
+|:-----|:-----|:-------|
+| **018-A** | Decision Distribution Charts - 年度決策分布 + entropy | High |
+| **018-B** | PMT-Decision Heatmap - PMT 與決策相關性 | High |
+| **018-E** | Institutional Policy Impact - 政策影響分析 | Medium |
+
+**Handoff**: 詳見 `.tasks/handoff/task-018.md`
+
+### For Antigravity (AI IDE)
+
+#### Task-018 Visualization (NEW - Priority)
+
+| Task | 說明 | 優先級 |
+|:-----|:-----|:-------|
+| **018-C** | Agent Trajectory Analysis - 個別 agent 決策軌跡 | High |
+| **018-D** | MG Equity Analysis - MG vs non-MG 適應比較 | High |
+| **018-F** | PMT Construct Evolution - PMT 構念時序變化 | Medium |
+
+**Handoff**: 詳見 `.tasks/handoff/task-018.md`
+
+#### Other Tasks
+
+| Task | 說明 | 優先級 |
+|:-----|:-----|:-------|
+| **013-B** | Survey data additional fields | Low |
+| **017-A** | Script Configuration for stress testing | Medium |
+| **017-B** | Gemma 3 Stress Marathon | Medium |
+| **017-C** | Llama 3 Stress Marathon | Medium |
+| **017-D** | Analysis & Appendix Update | Low |
+
+**注意**: Task-017 依賴 Task-016 完成，目前 Task-016 已標記為 completed。
+
+---
+
+## Investigation Notes (Claude Code)
+
+### V2 Issue Analysis
+- 報告顯示 H0007 在 Year 3 重複選擇 elevate_house
+- Validator 規則存在 (`elevated_already` in YAML)
+- 問題可能是 state 未正確傳遞到 validator
+- **已修復**: `agent_validator.py` L60-72 增加 state unwrapping
+
+### V5 Issue Analysis
+- 所有 agents 缺少 `source: "reflection"` 記憶
+- ReflectionEngine 可能未正確整合到 post_year hook
+- **待調查**: 檢查 `run_unified_experiment.py` 的 reflection 調用
 

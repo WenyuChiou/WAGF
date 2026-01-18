@@ -101,7 +101,7 @@ To enforce **theoretically grounded behavior** (whether based on PMT, PADM, or e
 
 First, **Bounded Rationality Governance** serves as the primary defense against **Factuality Hallucinations**. It implements hard-coded constraints against the physical world layer, ensuring that agents cannot execute actions—such as "elevating a house"—without sufficient financial capital and valid institutional permits, regardless of how eloquently they justify the expense.
 
-Second, **Episodic-Semantic Consolidation** addresses the "Goldfish Effect" by utilizing a background reflection process. This mirrors the **Episodic Buffer** model of working memory (Baddeley, 2000), where specific traumatic events (episodic) are consolidated into durable beliefs (semantic). This ensures that long-term vulnerability is maintained even as the LLM's context window shifts.
+Second, **Episodic-Semantic Consolidation** addresses the "Goldfish Effect" by utilizing a background reflection and consolidation mechanism. This mirrors the **Episodic Buffer** model of working memory (Baddeley, 2000), where specific traumatic events (episodic) are consolidated into durable beliefs (semantic) via a year-end reflection process. This ensures that long-term vulnerability is maintained even as the LLM's context window shifts.
 
 Third, **Perception Anchoring** mitigates **Faithfulness Hallucinations** by structuring the reasoning process. By explicitly requiring the model to assess key situational variables (e.g., risk level, resource availability) before making a final decision, this pillar prevents the agent from drifting into "social chit-chat" or uncharacteristic optimism, forcing it to remain faithful to the underlying theoretical model.
 

@@ -5,10 +5,11 @@ from pathlib import Path
 import json
 
 # Configuration
-PROJECT_ROOT = Path("H:/我的雲端硬碟/github/governed_broker_framework")
-RESULTS_DIR = PROJECT_ROOT / "examples/single_agent/results"
-ROOT_RESULTS = PROJECT_ROOT / "results"  # Catch misplaced data
-REPORT_DIR = PROJECT_ROOT / "examples/single_agent/analysis/reports"
+SCRIPT_DIR = Path(__file__).parent
+PROJECT_ROOT = SCRIPT_DIR.parent.parent  # examples/single_agent/analysis_tools -> root
+RESULTS_DIR = SCRIPT_DIR.parent / "results"
+ROOT_RESULTS = PROJECT_ROOT / "results"
+REPORT_DIR = SCRIPT_DIR.parent / "analysis/reports"
 
 class ABCAnalyzer:
     def __init__(self):
@@ -25,35 +26,16 @@ class ABCAnalyzer:
     def find_run_dirs(self, group, model_id):
         found = []
         safe_model = model_id.replace(":", "_").replace("-", "_").replace(".", "_")
-        
-        # Mapping Groups to sub-paths or naming conventions
-        # Group A: Legacy (no governance)
-        # Group B: Standard (governance only)
-        # Group C: Enhanced (governance + cognitive)
+        safe_group = group.replace(" ", "_")
         
         for root in self.roots:
-            # Check for legacy Group A in 'old_results' or 'results_fixed' if they exist
-            if group == "Group A":
-                # Look for baseline runs (often named without human/strict in old structure)
-                legacy_candidates = [root / "old_results", root / "results_fixed", root / "JOH_FINAL"]
-                for cand in legacy_candidates:
-                    if not cand.exists(): continue
-                    # Search specifically for non-governed or baseline folders for the model
-                    for path in cand.rglob("simulation_log.csv"):
-                        # Group A shouldn't have 'human' or 'strict' in path if it's pure legacy
-                        if safe_model in str(path) and "human" not in str(path).lower() and "strict" not in str(path).lower():
-                            found.append(path.parent)
-            
-            # Check for current JOH structure
             base_dir = root / "JOH_FINAL"
             if base_dir.exists():
                 model_dir = base_dir / safe_model
                 if model_dir.exists():
-                    for path in model_dir.rglob("simulation_log.csv"):
-                        is_human = "human" in str(path).lower()
-                        if group == "Group C" and is_human:
-                            found.append(path.parent)
-                        elif group == "Group B" and not is_human and "strict" in str(path).lower():
+                    group_dir = model_dir / safe_group
+                    if group_dir.exists():
+                        for path in group_dir.rglob("simulation_log.csv"):
                             found.append(path.parent)
         return list(set(found))
 
