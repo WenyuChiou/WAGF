@@ -4,6 +4,22 @@
     "V4_behavior_rationality"
   ],
   "results": {
+    "V1_decision_diversity": {
+      "passed": true,
+      "details": {
+        "shannon_entropy": 2.25,
+        "entropy_threshold": 1.5,
+        "total_decisions": 8,
+        "unique_decisions": 5,
+        "decision_distribution": {
+          "MAINTAIN": 2,
+          "maintain_subsidy": 1,
+          "elevate_house": 2,
+          "buy_contents_insurance": 2,
+          "maintain_premium": 1
+        }
+      }
+    },
     "V4_behavior_rationality": {
       "passed": false,
       "details": {

@@ -1,0 +1,50 @@
+{
+  "parse_success_analysis": {
+    "model": "llama3.2:3b",
+    "agent_stats": {
+      "government": {
+        "total": 2,
+        "success": 2,
+        "retry_needed": 2,
+        "success_rate": 1.0,
+        "layer_distribution": {
+          "enclosure": 1,
+          "default": 1
+        }
+      },
+      "household_owner": {
+        "total": 2,
+        "success": 2,
+        "retry_needed": 0,
+        "success_rate": 1.0,
+        "layer_distribution": {
+          "enclosure": 2
+        }
+      },
+      "household_renter": {
+        "total": 2,
+        "success": 2,
+        "retry_needed": 0,
+        "success_rate": 1.0,
+        "layer_distribution": {
+          "enclosure": 2
+        }
+      },
+      "insurance": {
+        "total": 2,
+        "success": 2,
+        "retry_needed": 2,
+        "success_rate": 1.0,
+        "layer_distribution": {
+          "enclosure": 1,
+          "default": 1
+        }
+      }
+    },
+    "overall_layer_distribution": {
+      "enclosure": 6,
+      "default": 2
+    },
+    "comparison_notes": "MA parse methodology: multi-layer (enclosure -> JSON -> keyword -> digit -> default). Success rate reflects if a valid decision was eventually made, including after retries."
+  }
+}
