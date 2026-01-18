@@ -41,6 +41,15 @@ We define the framework through three cognitive pillars and one extensibility fe
 - **Function**: Filters noise.
 - **Innovation**: **Schema-Driven Context**. Uses a YAML config to force the LLM to process "Physical Reality" (Flood Depth) _before_ "Social Preference".
 
+### Pillar 4: Combinatorial Intelligence (The "Stacking Blocks")
+
+We present a "Lego-like" architecture where cognitive modules can be stacked to perform ablation studies:
+
+- **Base**: Execution Engine (Body).
+- **Level 1**: Context Lens (Eyes) - Solves Context Limit.
+- **Level 2**: Memory Engine (Hippocampus) - Solves Availability Bias.
+- **Level 3**: Skill Broker (Superego) - Solves Logical Inconsistency.
+
 ### (+1) Extensibility: The Coupling Interface
 
 - **Mechanism**: JSON-based Input/Output Decoupling.
@@ -72,8 +81,13 @@ We define the framework through three cognitive pillars and one extensibility fe
 
 ### **Section 4: Results & Discussion**
 
-- **4.1 Quantitative (Macro)**: Rationality Scores & Adaptation Rates.
-- **4.2 Qualitative (Micro)**: **The Stress Test Case Study**.
+- **4.1 The Instability of Naive Agents (The "Desktop vs Repo" Discovery)**:
+  - Present data showing how identical prompts produce divergent behaviors (Adapt vs Do Nothing) based on random seeds when `Memory Window` is small.
+  - **Conclusion**: Naive LLM agents are **Stochastically Unstable**.
+- **4.2 The Stabilization Effect (Group C)**:
+  - Show how Tiered Memory reduces inter-run variance.
+- **4.3 Quantitative Analysis**: Rationality Scores & Adaptation Rates.
+- **4.4 Qualitative Case Studies**: The Stress Tests (Section 5).
 
 ### **Section 5: Conclusion**
 
@@ -100,13 +114,28 @@ To prove **Explainable Governance (XAI)**, we will include a specific **Micro-Ca
 
 **Goal**: Demonstrate that the model doesn't just "guess right", but is "reasoned into compliance."
 
-**The Scenario: "The Impulsive Relocator"**
+**Case 1: "The Impulsive Relocator" (Governance XAI)**
 
-- **Agent Setup**: Low Income, Moderate Flood Damage.
-- **Agent Impulse (System 1)**: "I am scared! I will RELOCATE!" (Classic Hallucination).
-- **Governance Intervention**:
-  > _BLOCK: "Budget Insufficient ($500 < $50,000). Threat Level is only Moderate. Relocation is disproportionate."_
-- **Agent Correction (System 2)**:
-  > _"I understand. I cannot afford relocation. Given the moderate threat, I will apply for a government subsidy and buy insurance instead."_
+- **Scenario**: Agent wants to relocate despite low threat/funds.
+- **Outcome**: Governance intercedes (Budget < Cost), forcing a rational downgrade to "Insurance".
 
-**Why this matters**: This trace **is** the result. It proves the middleware actively **teaches** the agent to follow domain rules.
+**Case 2: "The Trauma Recall" (Memory XAI)**
+
+- **Scenario**: Year 9 (Sunny). Agent considers dropping insurance.
+- **System Push**: "Recall: Year 2 Flood (Depth 1.5m, Trauma High)".
+- **Outcome**: Agent cites the past trauma: _"Despite the nice weather, I remember the devastation of Year 2. I will keep insurance."_
+- **Significance**: Proves the "Goldfish Effect" is eliminated by Tiered Memory.
+
+---
+
+## 6. Reproducibility Mapping (Stacking Levels)
+
+To ensure the technical note is fully reproducible, each section is mapped to a specific Python script and output artifact:
+
+| Stacking Level            | Goal                                | Primary Script                                                                                                                                                                              | Key Artifact                                                                                                                                                                                        |
+| :------------------------ | :---------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Level 1: Chaos**        | Quantification of Naive Instability | [analyze_group_a_instability.py](file:///H:/%E6%88%91%E7%9A%84%E9%9B%B2%E7%AB%AF%E7%A1%AC%E7%A2%9F/github/governed_broker_framework/examples/single_agent/analyze_group_a_instability.py)   | `group_a_stability.csv`                                                                                                                                                                             |
+| **Level 2: Rationality**  | Governed Decision Check             | `run_baseline_original.py`                                                                                                                                                                  | `household_governance_audit.csv`                                                                                                                                                                    |
+| **Level 3: Resilience**   | Memory Stabilization fix            | [run_tiered_memory.py](file:///H:/%E6%88%91%E7%9A%84%E9%9B%B2%E7%AB%AF%E7%A1%AC%E7%A2%9F/github/governed_broker_framework/examples/single_agent/run_tiered_memory.py)                       | `simulation_log.csv` (Group C)                                                                                                                                                                      |
+| **Level 4: Verification** | Inter-run variance & Metrics        | [analyze_all_groups_stability.py](file:///H:/%E6%88%91%E7%9A%84%E9%9B%B2%E7%AB%AF%E7%A1%AC%E7%A2%9F/github/governed_broker_framework/examples/single_agent/analyze_all_groups_stability.py) | [Figure 2](file:///H:/%E6%88%91%E7%9A%84%E9%9B%B2%E7%AB%AF%E7%A1%AC%E7%A2%9F/github/governed_broker_framework/examples/single_agent/results/JOH_FINAL/gemma3_4b/Figure2_Stochastic_Instability.png) |
+| **Level 5: Illustration** | Behavioral Sawtooth Curve           | [extract_sawtooth_data.py](file:///H:/%E6%88%91%E7%9A%84%E9%9B%B2%E7%AB%AF%E7%A1%AC%E7%A2%9F/github/governed_broker_framework/examples/single_agent/extract_sawtooth_data.py)               | [Figure 3](file:///H:/%E6%88%91%E7%9A%84%E9%9B%B2%E7%AB%AF%E7%A1%AC%E7%A2%9F/github/governed_broker_framework/examples/single_agent/results/JOH_FINAL/gemma3_4b/Figure3_Sawtooth_Curve.png)         |

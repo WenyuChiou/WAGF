@@ -127,6 +127,53 @@ Multi-step or shared work must be tracked in `registry.json` + `handoff/task-XXX
 Plans must explicitly include `assigned_to` plus `owner/reviewer` for each step.
 If assignment is missing, the plan is incomplete and should not proceed.
 
+## 14) PR and Branch Visibility
+
+- Only Claude Code opens PRs and merges.
+- If work is done on a branch, report the branch name in the execution report.
+- Claude Code must fetch/pull that branch before review; otherwise changes are invisible.
+
+## 15) Hooks / Orchestration
+
+- Hooks live under `.tasks/hooks/` (optional).
+- Supported phases: `pre-task`, `post-task`, `pre-commit`, `post-commit`.
+- Only Claude Code triggers hooks.
+- Each hook run must log to `.tasks/logs/` (what ran + outputs).
+
+## 16) Subtask Handoff
+
+Subtasks live inside the parent `handoff/task-XXX.md`:
+
+```
+## Subtasks
+- id: task-XXX/1
+  assigned_to: codex
+  status: done|partial|blocked
+  summary: ...
+  changes: ...
+  tests: ...
+  artifacts: ...
+  issues: ...
+```
+
+Execution agents only update their own subtask block; Claude Code consolidates.
+
+## 17) Collaboration Defaults
+
+- Roles: Claude Code = planning/review/PR; Codex = implementation/tests; Gemini CLI = execution/logs; AI IDEs = execute-only.
+- Plan steps must include `assigned_to`, `owner`, `reviewer`, `difficulty`.
+- Report in three phases when possible: start / progress / done.
+- If you detect unexpected changes, stop and report to Claude Code.
+- Branch naming: `agent/<name>/<task-id>`; report branch names in execution reports.
+- Tests: if skipped, report `tests: none (reason)`.
+- Subtask results must list `changes` + `artifacts`.
+
+## 18) Accept or Handoff
+
+Execution agents must explicitly accept or decline a subtask.
+If declined, notify Claude Code and propose a different assignee.
+Claude Code confirms reassignment in `handoff/task-XXX.md`.
+
 ## 14) Task Relay Protocol
 
 To hand off work from Agent A to Agent B:
