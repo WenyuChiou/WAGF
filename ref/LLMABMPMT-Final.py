@@ -1,61 +1,39 @@
-﻿# -*- coding: utf-8 -*-
-# =============================================================================
-# LLMABMPMT-Final.py - Long-term Flood Adaptation with LLM via Ollama
-# =============================================================================
-# Author: Dr. Y. C. Ethan Yang @ Lehigh University
-# Created: 2025/08/08
-# Last Modified: 2025/12/04
+﻿# VS Code-Compatible Simulation: Long-term Flood Adaptation with LLM via Ollama
+# This script simulates a number of household agents adapting to flood risk over multiple years.
+# Each agent makes decisions (insurance, elevate, relocate, or nothing) using a large language model (LLM)
+# based on Protection Motivation Theory (PMT) and their own memory of past events.
+# The simulation outputs: agent-level decision plots, logs, initial profiles, and sample prompts.
+# Developed by Dr. Y. C. Ethan Yang @ Lehigh University 2025/08/08
 #
-# MODIFICATION HISTORY (Line References)
-# -----------------------------------------------------------------------------
-# [2025/08/05] ROBUSTNESS (Lines 55-65, 349-368)
-# [2025/08/10] REPRODUCIBILITY (Lines 245-262)
-# [2025/11/21] RISK REDUCTION (Lines 393-396)
-# [2025/11/30] VERBALIZATION (Lines 67-89)
+# --- MODIFIED FOR ROBUSTNESS (2025/08/05) ---
+# - Implemented batch chunking to manage LLM memory and request size.
+# - Added retry logic for failed LLM batches to improve resilience.
+# - Implemented llm.batch() for massive speedup on LLM calls.
+# - Removed inefficient O(N^2) neighborhood statistics calculation.
+# - Added stochastic memory recall: agents have a chance to remember a random past event each year.
+# - Only use artificial time.sleep() delay in retry.
+# - Agents who have already elevated are given a different set of choices within the same template.
+# - Centralized simulation parameters.
+# --- MODIFIED FOR REPRODUCIBILITY (2025/08/10) ---
+# - The script now checks for 'agent_initial_profiles.csv' and 'flood_years.csv'.
+# - If files exist, it loads them to run a deterministic simulation.
+# - If files do not exist, it runs a random simulation and saves the generated files for future use.
+# --- MODIFIED FOR RISK REDUCTION (2025/11/21) ---
+# - Elevation reduces flood_threshold by 80% permanently.
+# - Elevated agents have probabilistic protection (checked against reduced threshold).
 #
-# [2025/12/04] EVENT-DRIVEN TRUST UPDATE (Lines 407-443)
-# -----------------------------------------------------------------------------
-# TRUST IN INSURANCE (based on individual flood experience):
-#   Scenario A: Insured + Flooded     -> -0.10 
-#               "The Hassle" - Filing claims is stressful and disappointing
-#   Scenario B: Insured + Safe        -> +0.02
-#               "Peace of Mind" - Feels responsible and protected
-#   Scenario C: Not Insured + Flooded -> +0.05
-#               "The Hard Lesson" - Regrets not having coverage
-#   Scenario D: Not Insured + Safe    -> -0.02
-#               "The Gambler's Reward" - Saved money, thinks insurance is waste
+# --- MODIFIED FOR VERBALIZATION (2025/11/30) ---
+# - Converts numerical trust values into natural language for the LLM prompt.
 #
-# TRUST IN NEIGHBORS (based on community_action_rate):
-#   community_action_rate = (total_elevated + total_relocated) / NUM_AGENTS
-#   - If rate > 30%                   -> +0.04 "Everyone is acting, they know something"
-#   - If Flooded + rate < 10%         -> -0.05 "We are all sitting ducks here"
-#   - Otherwise                       -> -0.01 (natural decay over time)
-#
-# Values clamped to [0.0, 1.0] after each update.
-# =============================================================================
-# Author: Dr. Y. C. Ethan Yang @ Lehigh University
-# Created: 2025/08/08
-# Last Modified: 2025/12/04
-#
-# MODIFICATION HISTORY (Line References)
-# -----------------------------------------------------------------------------
-# [2025/08/05] ROBUSTNESS (Lines 55-65, 349-368)
-# [2025/08/10] REPRODUCIBILITY (Lines 245-262)
-# [2025/11/21] RISK REDUCTION (Lines 393-396)
-# [2025/11/30] VERBALIZATION (Lines 67-89)
-# [2025/12/04] EVENT-DRIVEN TRUST UPDATE (Lines 407-443)
-#   Trust in Insurance: A:-0.10, B:+0.02, C:+0.05, D:-0.02
-#   Trust in Neighbors: >30%:+0.04, Flooded+<10%:-0.05, Else:-0.01
-# =============================================================================
-
-
+# --- MODIFIED FOR TRUST DYNAMIC UPDATE (2025/12/4) ---
+# - Trust update change from random "noise" to Event-Driven Logic.
 
 import pandas as pd  # For handling tabular data
 import random  # For randomness in agent attributes and flood events
 import time  # To track simulation runtime
 import os # For checking if files exist
 from langchain_ollama import OllamaLLM  # LangChain wrapper to call Ollama LLM
-from langchain_core.prompts import PromptTemplate  # For formatting LLM prompts
+from langchain.prompts import PromptTemplate  # For formatting LLM prompts
 from tqdm import tqdm  # Progress bar for loops
 import matplotlib.pyplot as plt  # For plotting 
 import numpy as np # For plotting
@@ -194,7 +172,7 @@ Using the Protection Motivation Theory, evaluate your current situation by consi
 
 Now, choose one of the following actions:
 {options_text}
-Note: If no flood occurred this year, since no immediate threat, most people would choose ?�Do Nothing.??
+Note: If no flood occurred this year, since no immediate threat, most people would choose “Do Nothing.” 
                                                                                               
 Please respond using the exact format below. Do NOT include any markdown symbols:
 Threat Appraisal: [One sentence summary of how threatened you feel by any remaining flood risks.]
@@ -256,13 +234,13 @@ def run_simulation():
 
 # --- Conditional setup: Load from files or generate randomly ---
     if os.path.exists(AGENT_PROFILE_FILE) and os.path.exists(FLOOD_YEARS_FILE):
-        print(f"??Input files found. Loading simulation from '{AGENT_PROFILE_FILE}' and '{FLOOD_YEARS_FILE}'.")
+        print(f"[OK] Input files found. Loading simulation from '{AGENT_PROFILE_FILE}' and '{FLOOD_YEARS_FILE}'.")
         agents = load_agents_from_file(AGENT_PROFILE_FILE, past_events)
         flood_years_df = pd.read_csv(FLOOD_YEARS_FILE)
         predefined_flood_years = set(flood_years_df['Flood_Years'])
         run_mode = 'deterministic'
     else:
-        print(f"?��? Input files not found. Generating a new random simulation.")
+        print(f"[WARNING] Input files not found. Generating a new random simulation.")
         agents = initialize_agents_randomly(past_events)
         init_df = pd.DataFrame([{**{k: a[k] for k in ['id', 'elevated', 'has_insurance', 'relocated', 'trust_in_insurance', 'trust_in_neighbors']}, "memory": " | ".join(a["memory"]), "flood_threshold": a["flood_threshold"]} for a in agents])
         init_df.to_csv(AGENT_PROFILE_FILE, index=False)
@@ -279,7 +257,6 @@ def run_simulation():
     with open("example_llm_prompts.txt", "w", encoding="utf-8") as prompt_file:
         # Loop through each year
         for year in tqdm(range(1, NUM_YEARS + 1), desc="Simulating Years"):
-            print(f"[Year {year}] Starting simulation...", flush=True)
             # Determine flood event based on run mode
             if run_mode == 'random':
                 flood_event = random.random() < FLOOD_PROBABILITY
@@ -470,10 +447,6 @@ def run_simulation():
                 if agent["relocated"] and len(agent["yearly_decisions"]) < year:
                     agent["yearly_decisions"].append("Already relocated")
                     logs.append({"agent_id": agent["id"], "year": year, "decision": "Already relocated"})
-            # --- SAVE LOG EACH YEAR ---
-            df_log_yearly = pd.DataFrame(logs)
-            df_log_yearly.to_csv("flood_adaptation_simulation_log.csv", index=False, encoding="utf-8-sig")
-            print(f"[Year {year}] Log saved with {len(logs)} entries", flush=True)
 
     total_time = time.time() - start_time
 
@@ -539,7 +512,7 @@ if __name__ == "__main__":
             ax.axvspan(fy - 0.5, fy + 0.5, color='red', alpha=0.15,
                        label='Flood Year (community)' if fy == (flood_years[0] if flood_years else None) else "")
 
-        # Agent-specific flood markers (?? at the agent's y-value for those years
+        # Agent-specific flood markers (▲) at the agent's y-value for those years
         flooded_rows = agent_df[agent_df["flooded_this_year"] == True]
         if not flooded_rows.empty:
             ax.scatter(flooded_rows["year"], flooded_rows["decision"].map(decision_map_numeric),
@@ -555,6 +528,3 @@ if __name__ == "__main__":
         ax.legend()
         plt.tight_layout()
         plt.savefig(f"agent_decision_{agent_id}.jpg", dpi=300)
-    
-
-

@@ -100,9 +100,15 @@ class InteractionHub:
         # 1. Collect all non-private simple attributes from the agent object - LOAD LAST (Overlay Layer)
         # This ensures dynamic runtime updates (e.g. trust scores) override initial static values.
         for k, v in agent.__dict__.items():
-            if k == "agent_type": continue 
+            if k == "agent_type": continue
             if not k.startswith('_') and isinstance(v, (str, int, float, bool)) and k not in ["memory", "id"]:
                 personal[k] = v
+
+        # 2. Include dynamic_state contents (Task 015 fix: ensure elevated, has_insurance etc. are visible)
+        if hasattr(agent, 'dynamic_state') and isinstance(agent.dynamic_state, dict):
+            for k, v in agent.dynamic_state.items():
+                if isinstance(v, (str, int, float, bool)):
+                    personal[k] = v
 
         # 4. Adaptation status (Custom summary)
         if hasattr(agent, 'get_adaptation_status'):

@@ -1,0 +1,33 @@
+{
+  "experiment_name": "mock",
+  "agent_types": {
+    "government": {
+      "total": 5,
+      "decisions": {
+        "increase_subsidy": 5
+      }
+    },
+    "insurance": {
+      "total": 5,
+      "decisions": {
+        "raise_premium": 5
+      }
+    },
+    "household_owner": {
+      "total": 35,
+      "decisions": {
+        "do_nothing": 35
+      }
+    },
+    "household_renter": {
+      "total": 15,
+      "decisions": {
+        "do_nothing": 15
+      }
+    }
+  },
+  "total_traces": 60,
+  "validation_errors": 40,
+  "validation_warnings": 0,
+  "finalized_at": "2026-01-18T09:15:26.726863"
+}

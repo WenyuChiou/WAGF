@@ -56,8 +56,20 @@ class AgentValidator:
             decision = proposal.skill_name
             if alias_map:
                 decision = alias_map.get(decision.lower(), decision)
-            
+
+            # Task 015 fix: Support both 'state' and 'agent_state' keys
+            # The broker passes context as 'agent_state', but legacy code may use 'state'
+            # The context structure from build_tiered_context is:
+            #   {"personal": {...}, "state": {...}, "local": {...}, ...}
+            # But governed_broker wraps it as:
+            #   {"agent_state": <context>, "agent_type": ...}
+            # So we need to unwrap it properly.
             state = context.get('state', {})
+            if not state:
+                agent_state = context.get('agent_state', {})
+                if isinstance(agent_state, dict):
+                    # agent_state is the full context, get state or personal from it
+                    state = agent_state.get('state', agent_state.get('personal', agent_state))
             reasoning = getattr(proposal, 'reasoning', {})
             parse_layer = getattr(proposal, 'parse_layer', "")
             
@@ -240,9 +252,11 @@ class AgentValidator:
         """Tier 1: Identity/Condition validation (Status-based)."""
         results = []
         rules = self.config.get_identity_rules(agent_type)
-        
-        # DEBUG
-        # logger.debug(f"DEBUG_VALIDATOR: Tier=identity Decision={decision} Rules={len(rules)}")
+
+        # DEBUG Task 015-V2: Track elevated state during elevate_house attempts
+        if decision == "elevate_house":
+            elevated_val = state.get("elevated")
+            print(f"[V2-DEBUG] {agent_id} chose elevate_house | elevated={elevated_val} (type={type(elevated_val).__name__ if elevated_val is not None else 'None'}) | rules={len(rules)}")
 
         for rule in rules:
             if not rule.blocked_skills: continue

@@ -156,7 +156,7 @@
     {
       "id": "Task-016",
       "title": "JOH Technical Note Finalization",
-      "status": "planned",
+      "status": "completed",
       "owner": "Antigravity",
       "description": "Finalize the single-agent technical note with verified Gemma 3 results and halted DeepSeek findings.",
       "dependencies": [
@@ -185,6 +185,43 @@
         {
           "id": "016-D",
           "title": "Final Submission Polish",
+          "status": "pending",
+          "assigned_to": "Antigravity"
+        }
+      ]
+    },
+    {
+      "id": "Task-017",
+      "title": "JOH Stress Testing (Gemma/Llama)",
+      "status": "planned",
+      "owner": "Antigravity",
+      "description": "Execute ST-1 to ST-4 matrix for Gemma 3 and Llama 3.",
+      "dependencies": [
+        "Task-016"
+      ],
+      "created_at": "2026-01-18T11:56:20.757616Z",
+      "subtasks": [
+        {
+          "id": "017-A",
+          "title": "Script Configuration",
+          "status": "pending",
+          "assigned_to": "Antigravity"
+        },
+        {
+          "id": "017-B",
+          "title": "Gemma 3 Stress Marthon",
+          "status": "pending",
+          "assigned_to": "Antigravity"
+        },
+        {
+          "id": "017-C",
+          "title": "Llama 3 Stress Marathon",
+          "status": "pending",
+          "assigned_to": "Antigravity"
+        },
+        {
+          "id": "017-D",
+          "title": "Analysis & Appendix Update",
           "status": "pending",
           "assigned_to": "Antigravity"
         }

@@ -1,0 +1,8 @@
+{
+  "experiment_name": "ollama:llama3.1",
+  "agent_types": {},
+  "total_traces": 0,
+  "validation_errors": 0,
+  "validation_warnings": 0,
+  "finalized_at": "2026-01-17T22:24:58.675148"
+}

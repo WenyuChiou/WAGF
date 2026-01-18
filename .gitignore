@@ -64,3 +64,17 @@ htmlcov/
 
 # Local Skills (Antigravity)
 skills/
+
+# Private Configuration & Keys
+config/providers.yaml
+!config/providers.yaml.example
+
+# Personal Developer Notes (Brain Backup)
+doc/dev_notes_gemini/
+
+# External References (Nested Repos)
+ref/openskills/
+ref/openskills
+
+# Windows Reserved Names
+nul

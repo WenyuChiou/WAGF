@@ -1,0 +1,174 @@
+
+--- Agent_15 | Year 2 (Elevated: False) ---
+
+You are a homeowner in a city, with a strong attachment to your community. You have not elevated your home.
+Your memory includes:
+- Year 1: I observe 0% of my neighbors have relocated.
+- Year 2: No flood occurred this year.
+- Year 2: Elevation grants are available.
+- Year 2: I observe 5% of my neighbors have elevated homes.
+- Year 2: I observe 0% of my neighbors have relocated.
+
+You currently do not have flood insurance.
+You have slight doubts about the insurance company. You are skeptical of your neighbors' judgment.
+
+Using the Protection Motivation Theory, evaluate your current situation by considering the following factors:
+- Perceived Severity: How serious the consequences of flooding feel to you.
+- Perceived Vulnerability: How likely you think you are to be affected.
+- Response Efficacy: How effective you believe each action is.
+- Self-Efficacy: Your confidence in your ability to take that action.
+- Response Cost: The financial and emotional cost of the action.
+- Maladaptive Rewards: The benefit of doing nothing immediately.
+
+Now, choose one of the following actions:
+1. Buy flood insurance (Lower cost, provides partial financial protection but does not reduce physical damage.)
+2. Elevate your house (High upfront cost but can prevent most physical damage.)
+3. Relocate (Requires leaving your neighborhood but eliminates flood risk permanently.)
+4. Do nothing (Require no financial investment or effort this year, but it might leave you exposed to future flood damage.)
+Note: If no flood occurred this year, since no immediate threat, most people would choose “Do Nothing.” 
+                                                                                              
+Please respond using the exact format below. Do NOT include any markdown symbols:
+Threat Appraisal: [One sentence summary of how threatened you feel by any remaining flood risks.]
+Coping Appraisal: [One sentence summary of how well you think you can cope or act.]
+Final Decision: [Choose 1, 2, 3, or 4 only]
+
+
+
+--- Agent_28 | Year 2 (Elevated: True) ---
+
+You are a homeowner in a city, with a strong attachment to your community. Your house is already elevated, which provides very good protection.
+Your memory includes:
+- Suddenly recalled: 'News outlets have reported a possible trend of increasing flood frequency and severity in recent years'.
+- Year 2: No flood occurred this year.
+- Year 2: Elevation grants are available.
+- Year 2: I observe 4% of my neighbors have elevated homes.
+- Year 2: I observe 0% of my neighbors have relocated.
+
+You currently do not have flood insurance.
+You have slight doubts about the insurance company. You generally trust your neighbors' judgment.
+
+Using the Protection Motivation Theory, evaluate your current situation by considering the following factors:
+- Perceived Severity: How serious the consequences of flooding feel to you.
+- Perceived Vulnerability: How likely you think you are to be affected.
+- Response Efficacy: How effective you believe each action is.
+- Self-Efficacy: Your confidence in your ability to take that action.
+- Response Cost: The financial and emotional cost of the action.
+- Maladaptive Rewards: The benefit of doing nothing immediately.
+
+Now, choose one of the following actions:
+1. Buy flood insurance (Lower cost, provides partial financial protection but does not reduce physical damage.)
+2. Relocate (Requires leaving your neighborhood but eliminates flood risk permanently.)
+3. Do nothing (Require no financial investment or effort this year, but it might leave you exposed to future flood damage.)
+Note: If no flood occurred this year, since no immediate threat, most people would choose “Do Nothing.” 
+                                                                                              
+Please respond using the exact format below. Do NOT include any markdown symbols:
+Threat Appraisal: [One sentence summary of how threatened you feel by any remaining flood risks.]
+Coping Appraisal: [One sentence summary of how well you think you can cope or act.]
+Final Decision: [Choose 1, 2, or 3 only]
+
+
+
+--- Agent_59 | Year 2 (Elevated: False) ---
+
+You are a homeowner in a city, with a strong attachment to your community. You have not elevated your home.
+Your memory includes:
+- Suddenly recalled: 'A few households in the area elevated their homes before recent floods'.
+- Year 2: No flood occurred this year.
+- Year 2: Elevation grants are available.
+- Year 2: I observe 5% of my neighbors have elevated homes.
+- Year 2: I observe 0% of my neighbors have relocated.
+
+You currently do not have flood insurance.
+You have slight doubts about the insurance company. You are skeptical of your neighbors' judgment.
+
+Using the Protection Motivation Theory, evaluate your current situation by considering the following factors:
+- Perceived Severity: How serious the consequences of flooding feel to you.
+- Perceived Vulnerability: How likely you think you are to be affected.
+- Response Efficacy: How effective you believe each action is.
+- Self-Efficacy: Your confidence in your ability to take that action.
+- Response Cost: The financial and emotional cost of the action.
+- Maladaptive Rewards: The benefit of doing nothing immediately.
+
+Now, choose one of the following actions:
+1. Buy flood insurance (Lower cost, provides partial financial protection but does not reduce physical damage.)
+2. Elevate your house (High upfront cost but can prevent most physical damage.)
+3. Relocate (Requires leaving your neighborhood but eliminates flood risk permanently.)
+4. Do nothing (Require no financial investment or effort this year, but it might leave you exposed to future flood damage.)
+Note: If no flood occurred this year, since no immediate threat, most people would choose “Do Nothing.” 
+                                                                                              
+Please respond using the exact format below. Do NOT include any markdown symbols:
+Threat Appraisal: [One sentence summary of how threatened you feel by any remaining flood risks.]
+Coping Appraisal: [One sentence summary of how well you think you can cope or act.]
+Final Decision: [Choose 1, 2, 3, or 4 only]
+
+
+
+--- Agent_64 | Year 2 (Elevated: False) ---
+
+You are a homeowner in a city, with a strong attachment to your community. You have not elevated your home.
+Your memory includes:
+- Year 1: I observe 0% of my neighbors have relocated.
+- Year 2: No flood occurred this year.
+- Year 2: Elevation grants are available.
+- Year 2: I observe 5% of my neighbors have elevated homes.
+- Year 2: I observe 0% of my neighbors have relocated.
+
+You currently do not have flood insurance.
+You have slight doubts about the insurance company. You generally trust your neighbors' judgment.
+
+Using the Protection Motivation Theory, evaluate your current situation by considering the following factors:
+- Perceived Severity: How serious the consequences of flooding feel to you.
+- Perceived Vulnerability: How likely you think you are to be affected.
+- Response Efficacy: How effective you believe each action is.
+- Self-Efficacy: Your confidence in your ability to take that action.
+- Response Cost: The financial and emotional cost of the action.
+- Maladaptive Rewards: The benefit of doing nothing immediately.
+
+Now, choose one of the following actions:
+1. Buy flood insurance (Lower cost, provides partial financial protection but does not reduce physical damage.)
+2. Elevate your house (High upfront cost but can prevent most physical damage.)
+3. Relocate (Requires leaving your neighborhood but eliminates flood risk permanently.)
+4. Do nothing (Require no financial investment or effort this year, but it might leave you exposed to future flood damage.)
+Note: If no flood occurred this year, since no immediate threat, most people would choose “Do Nothing.” 
+                                                                                              
+Please respond using the exact format below. Do NOT include any markdown symbols:
+Threat Appraisal: [One sentence summary of how threatened you feel by any remaining flood risks.]
+Coping Appraisal: [One sentence summary of how well you think you can cope or act.]
+Final Decision: [Choose 1, 2, 3, or 4 only]
+
+
+
+--- Agent_95 | Year 2 (Elevated: False) ---
+
+You are a homeowner in a city, with a strong attachment to your community. You have not elevated your home.
+Your memory includes:
+- Year 1: I observe 0% of my neighbors have relocated.
+- Year 2: No flood occurred this year.
+- Year 2: Elevation grants are available.
+- Year 2: I observe 5% of my neighbors have elevated homes.
+- Year 2: I observe 0% of my neighbors have relocated.
+
+You currently have flood insurance.
+You have slight doubts about the insurance company. You are skeptical of your neighbors' judgment.
+
+Using the Protection Motivation Theory, evaluate your current situation by considering the following factors:
+- Perceived Severity: How serious the consequences of flooding feel to you.
+- Perceived Vulnerability: How likely you think you are to be affected.
+- Response Efficacy: How effective you believe each action is.
+- Self-Efficacy: Your confidence in your ability to take that action.
+- Response Cost: The financial and emotional cost of the action.
+- Maladaptive Rewards: The benefit of doing nothing immediately.
+
+Now, choose one of the following actions:
+1. Buy flood insurance (Lower cost, provides partial financial protection but does not reduce physical damage.)
+2. Elevate your house (High upfront cost but can prevent most physical damage.)
+3. Relocate (Requires leaving your neighborhood but eliminates flood risk permanently.)
+4. Do nothing (Require no financial investment or effort this year, but it might leave you exposed to future flood damage.)
+Note: If no flood occurred this year, since no immediate threat, most people would choose “Do Nothing.” 
+                                                                                              
+Please respond using the exact format below. Do NOT include any markdown symbols:
+Threat Appraisal: [One sentence summary of how threatened you feel by any remaining flood risks.]
+Coping Appraisal: [One sentence summary of how well you think you can cope or act.]
+Final Decision: [Choose 1, 2, 3, or 4 only]
+
+

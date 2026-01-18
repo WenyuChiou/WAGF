@@ -5,7 +5,7 @@ param (
 )
 
 $SmallModels = @("llama3.2:3b", "gemma3:4b")
-$LargeModels = @("gpt-oss-safeguard:20b", "deepseek-r1:8b")
+$LargeModels = @() # Disabled for efficiency
 $Scenarios = @("panic", "veteran", "goldfish", "format")
 $BaseSeed = 42
 
@@ -34,7 +34,7 @@ $StressBlock = {
             New-Item -ItemType Directory -Force $OutputPath | Out-Null
             
             # Run Stress Test
-            python -u run_flood.py --model $Model --years $Years --agents $Agents --memory-engine window --governance-mode strict --output $OutputPath --survey-mode --workers 4 --stress-test $Scenario --seed $CurrentSeed
+            python -u run_flood.py --model $Model --years $Years --agents $Agents --memory-engine humancentric --governance-mode strict --output $OutputPath --survey-mode --workers 4 --stress-test $Scenario --seed $CurrentSeed
         }
     }
 }

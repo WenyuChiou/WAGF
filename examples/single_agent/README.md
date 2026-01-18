@@ -161,10 +161,12 @@ Categorizes events by their impact on the agent's internal status, grounded in *
 #### 2. Source Distance (`source_weights`)
 Weights information by proximity, grounded in **Construal Level Theory (CLT)** (Trope & Liberman, 2010).
 
-- **`personal` (1.0)**: **Spatial/Social Zero-Distance.** Direct experience is the strongest adaptation driver (**Availability Heuristic**, Tversky & Kahneman, 1973).
+- **`personal` (1.0)**: **Spatial/Social Zero-Distance.** Direct experience is the strongest adaptation driver.
+  - *Theoretical Basis*: **Availability Heuristic** (Tversky & Kahneman, 1973).
 - **`neighbor` (0.8)**: **Proximal Social Distance.** Learning from immediate peer outcomes.
 - **`community` (0.6)**: **Social Aggregation.** Statistical trends within the local group.
-- **`general_knowledge` (0.4)**: **Abstract Psychology Distance.** Distant news or generic reports have lower cognitive "vividness."
+- **`general_knowledge` (0.4)**: **Abstract Psychology Distance.** Distant news has lower cognitive "vividness".
+  - *Theoretical Basis*: **Construal Level Theory (CLT)** (Trope & Liberman, 2010).
 
 ### ImportanceMemoryEngine Parameters
 
@@ -361,11 +363,59 @@ The following references provide the theoretical basis for our cognitive guardra
 - Gao, C., et al. (2024). S3: Social-network Simulation System with Large Language Model-driven Agents. _arXiv preprint arXiv:2307.13988_.
 - Grothmann, T., & Reusswig, F. (2006). People at risk of flooding: Why some residents take precautionary action while others do not. _Natural Hazards_, 38(1-2), 101-120.
 - Liu, Y., Guo, Z., Liang, T., Shareghi, E., Vulic, I., & Collier, N. (2025). Measuring, Evaluating and Improving Logical Consistency in Large Language Models. _International Conference on Learning Representations (ICLR) 2025_.
-- Park, J. S., O'Brien, J., Cai, C. J., Morris, M. R., Liang, P., & Bernstein, M. S. (2023). Generative agents: Interactive simulacra of human behavior. _ACM CHI Conference on Human Factors in Computing Systems_.
+- Park, J. S., O'Brien, J., Cai, C. J., Morris, M. R., Liang, P., & Bernstein, M. S. (2023). Generative Agents: Interactive simulacra of human behavior. _ACM CHI_.
+- Rogers, R. W. (1983). Cognitive and physiological processes in fear appeals and attitude change: A revised theory of protection motivation. _Social Psychophysiology_.
 - Sumers, T. R., Yao, S., Narasimhan, K., & Griffiths, T. L. (2024). Cognitive Architectures for Language Agents. _Transactions on Machine Learning Research_.
+- Trope, Y., & Liberman, N. (2010). Construal-level theory of psychological distance. _Psychological Review_, 117(2), 440.
+- Tversky, A., & Kahneman, D. (1973). Availability: A heuristic for judging frequency and probability. _Cognitive Psychology_, 5(2), 207-232.
 - Wang, L., Li, T., et al. (2021). Panic Manifestations in Flood Evacuation: A Cellular Automata Approach. _Journal of Computational Science_.
 
 ---
+
+## 🌪️ Stress Test Protocols (Robustness Check)
+
+To ensure the framework is not just "lucky," we rigorously test it against 4 adversarial scenarios using `run_stress_marathon.ps1`.
+
+| Scenario | Description | Target Failure |
+| :--- | :--- | :--- |
+| **ST-1: Panic Machine** | High Neuroticism Agents + Category 5 Warnings | **Hyper-Relocation** (Panic) |
+| **ST-2: Optimistic Veteran** | 30 Years of No Floods | **Complacency** (Inaction) |
+| **ST-3: Memory Goldfish** | Context Window Noise Injection | **Amnesia** (Forgetting Past) |
+| **ST-4: Format Breaker** | Malformed JSON Injections | **Crash** (System Instability) |
+
+```powershell
+# Run the full validation suite
+./run_stress_marathon.ps1
+```
+
+---
+
+## 🛠️ Configuration & Customization
+
+### 1. Skill Registry (`skill_registry.yaml`)
+We strictly separate **Logic** (Python) from **Definition** (YAML). You can add new behaviors by editing the registry:
+```yaml
+- name: "sandbagging"
+  description: "Temporary flood protection."
+  validators: ["budget_check", "physical_feasibility"]
+```
+
+### 2. Scientific Assistant (Persona)
+We have included a specialized AI persona to help you write and review papers based on this framework.
+👉 **[Read the Scientific Assistant Manual](../../doc/Scientific_Assistant_Manual.md)**
+
+---
+
+## 🇹🇼 中文摘要 (Chinese Summary)
+
+**Governed Broker Framework** 是一個旨在解決 LLM "幻覺" 與 "不理性行為" 的認知治理架構。
+本實驗 (Single Agent Experiment) 通過比較三組 Agent (Baseline, Window, Tiered Memory) 證明了：
+1.  **Context Governance** 有效抑制了隨機幻覺。
+2.  **Tiered Memory** (分層記憶) 解決了 "金魚效應"，讓 Agent 能記住 10 年前的災難。
+3.  **Skill Registry** 確保了所有動作符合物理與經濟約束。
+
+詳細中文分析請參見：`doc/ref/JOH_Cognitive_Architecture_Guide_ZH.md`
+
 
 _Note: This framework is part of a technical note submission to the Journal of Hydrology (JOH)._
 ````

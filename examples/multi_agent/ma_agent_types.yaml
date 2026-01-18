@@ -48,14 +48,6 @@ household_owner:
     - Current Status: {elevation_status_text}
     - Insurance: You currently {insurance_status} flood insurance.
 
-    ### YOUR PSYCHOLOGICAL PROFILE (Protection Motivation Theory)
-    Based on your survey responses, your initial PMT construct scores are:
-    - Threat Perception (TP): {tp_score:.1f}/5 - {tp_rating}
-    - Coping Perception (CP): {cp_score:.1f}/5 - {cp_rating}
-    - Stakeholder Perception (SP): {sp_score:.1f}/5 - {sp_rating}
-    - Social Capital (SC): {sc_score:.1f}/5 - {sc_rating}
-    - Place Attachment (PA): {pa_score:.1f}/5 - {pa_rating}
-
     ### RELEVANT MEMORIES
     {memory}
 

@@ -1,0 +1,55 @@
+{
+  "overall_passed": false,
+  "blocking_issues": [
+    "V1_diversity",
+    "V5_memory_state"
+  ],
+  "results": {
+    "V1_diversity": {
+      "passed": false,
+      "details": {},
+      "error": "No household traces found"
+    },
+    "V2_elevated_persistence": {
+      "passed": true,
+      "violations": [],
+      "details": {
+        "elevated_agents": 0,
+        "violation_count": 0,
+        "note": "Verifying via decision history since state_after not in traces"
+      }
+    },
+    "V3_insurance_reset": {
+      "passed": true,
+      "violations": [],
+      "details": {
+        "agents_who_bought": 0,
+        "multi_year_buyers": 0,
+        "multi_year_details": {},
+        "note": "Insurance reset logic validated via pre_year hook in governance"
+      }
+    },
+    "V4_behavior_rationality": {
+      "passed": true,
+      "details": {},
+      "error": "No household traces found"
+    },
+    "V5_memory_state": {
+      "passed": false,
+      "details": {},
+      "error": "No household traces found"
+    },
+    "V6_institutional_dynamics": {
+      "passed": true,
+      "details": {
+        "gov_decisions": [],
+        "gov_unique_count": 0,
+        "gov_dynamic": true,
+        "ins_decisions": [],
+        "ins_unique_count": 0,
+        "ins_dynamic": true,
+        "note": "Mock model returns same decision; real model should vary"
+      }
+    }
+  }
+}

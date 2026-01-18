@@ -1,0 +1,36 @@
+{
+  "experiment_name": "llama3.2:3b",
+  "agent_types": {
+    "government": {
+      "total": 3,
+      "decisions": {
+        "maintain_subsidy": 3
+      }
+    },
+    "insurance": {
+      "total": 3,
+      "decisions": {
+        "maintain_premium": 3
+      }
+    },
+    "household_owner": {
+      "total": 12,
+      "decisions": {
+        "buyout_program": 3,
+        "elevate_house": 6,
+        "buy_insurance": 3
+      }
+    },
+    "household_renter": {
+      "total": 3,
+      "decisions": {
+        "buy_contents_insurance": 2,
+        "relocate": 1
+      }
+    }
+  },
+  "total_traces": 21,
+  "validation_errors": 5,
+  "validation_warnings": 0,
+  "finalized_at": "2026-01-18T07:54:08.390581"
+}

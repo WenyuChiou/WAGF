@@ -1,0 +1,7 @@
+{
+  "model": "mock",
+  "seed": 42,
+  "num_years": 3,
+  "governance_profile": "strict",
+  "agent_types_config": "H:\\\u6211\u7684\u96f2\u7aef\u786c\u789f\\github\\governed_broker_framework\\examples\\multi_agent\\ma_agent_types.yaml"
+}
