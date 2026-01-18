@@ -146,7 +146,7 @@ Using the Protection Motivation Theory, evaluate your current situation by consi
 
 Now, choose one of the following actions:
 {options_text}
-Note: If no flood occurred this year, since no immediate threat, most people would choose ？ Do Nothing.？
+Note: If no flood occurred this year, since no immediate threat, most people would choose “Do Nothing.” 
                                                                                               
 Please respond using the exact format below. Do NOT include any markdown symbols:
 Threat Appraisal: [One sentence summary of how threatened you feel by any remaining flood risks.]
@@ -202,13 +202,13 @@ def run_simulation(model_name, output_dir):
     FLOOD_YEARS_FILE = "flood_years.csv"
 
     if os.path.exists(AGENT_PROFILE_FILE) and os.path.exists(FLOOD_YEARS_FILE):
-        print(f"??Input files found. Loading simulation from '{AGENT_PROFILE_FILE}' and '{FLOOD_YEARS_FILE}'.")
+        print(f"[OK] Input files found. Loading simulation from '{AGENT_PROFILE_FILE}' and '{FLOOD_YEARS_FILE}'.")
         agents = load_agents_from_file(AGENT_PROFILE_FILE, past_events)
         flood_years_df = pd.read_csv(FLOOD_YEARS_FILE)
         predefined_flood_years = set(flood_years_df['Flood_Years'])
         run_mode = 'deterministic'
     else:
-        print(f"?? Input files not found. Generating a new random simulation.")
+        print(f"[WARNING] Input files not found. Generating a new random simulation.")
         agents = initialize_agents_randomly(past_events)
         init_df = pd.DataFrame([{**{k: a[k] for k in ['id', 'elevated', 'has_insurance', 'relocated', 'trust_in_insurance', 'trust_in_neighbors']}, "memory": " | ".join(a["memory"]), "flood_threshold": a["flood_threshold"]} for a in agents])
         init_df.to_csv(output_path / AGENT_PROFILE_FILE, index=False)
