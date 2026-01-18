@@ -15,14 +15,29 @@
 
 The framework is designed as a **governance middleware** that sits between the Agent's decision-making model (LLM) and the simulation environment (ABM). Each component is decoupled, allowing for flexible experimentation with different models, validation rules, and environmental dynamics.
 
-### The 4 Core Modules
+### 🧩 System Components (Common Modules & Connectors)
 
-| Module              | Role          | Description                                                                                          |
-| :------------------ | :------------ | :--------------------------------------------------------------------------------------------------- |
-| **Skill Registry**  | _The Charter_ | Defines _what_ an agent can do (actions), including costs, constraints, and physical consequences.   |
-| **Skill Broker**    | _The Judge_   | The central governance engine. Enforces institutional and psychological coherence on LLM proposals.  |
-| **Sim Engine**      | _The World_   | Executes validated actions and manages the physical state evolution (e.g., flood damage).            |
-| **Context Builder** | _The Lens_    | Synthesizes a bounded view of reality (Personal Memory, Social Signals, Global State) for the agent. |
+The framework is architected as a set of **Common Modules** (logic) and **Integration Connectors** (interfaces), ensuring adaptability across different models and domains.
+
+#### 1. Common Logic Modules (`simulation/`)
+
+These are the domain-agnostic engines that drive the agent's cognition. They are shared across all simulation types (Single/Multi-Agent).
+
+| Module               | Python Component  | Responsibility                                                                                                                                     |
+| :------------------- | :---------------- | :------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Cognitive Memory** | `MemoryEngine`    | **Tiered Storage**. Manages Short-Term (Window) and Long-Term (Stochastic) memory retention. Implements "System-Push" retrieval based on salience. |
+| **Perception Lens**  | `ContextBuilder`  | **Prompt Synthesis**. Assembles the prompt by filtering huge history into a bounded context window (Episodic Buffer).                              |
+| **Governance Core**  | `SkillBroker`     | **Rationality Enforcement**. Validates LLM outputs against "Thinking Rules" (e.g., Threat Appraisal matching Action) to prevent hallucination.     |
+| **Parity Check**     | `FinalParityHook` | **State Synchronization**. Ensures the Agent's internal Python object state perfectly matches the LLM's belief state.                              |
+
+#### 2. Integration Connectors (`providers/` & `InteractionHub`)
+
+These adapters allow the framework to plug into different "Brains" (LLMs) and "Worlds" (Simulators).
+
+| Connector           | Component         | Responsibility                                                                                                                                                                                                                          |
+| :------------------ | :---------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **LLM Connector**   | `ProviderFactory` | **Model Agnosticism**. A unified factory interface that connects to **Ollama** (Local Llama/Gemma/DeepSeek) or **OpenAI/Anthropic** (API). Handles retry logic and parsing differences automatically.                                   |
+| **World Connector** | `InteractionHub`  | **Simulation Bridging**. Decouples the agent from the physical simulator. It translates standard signals (e.g., `flood_depth: 1.5m`) into agent perceptions and translates agent actions (e.g., `elevate`) into simulator instructions. |
 
 ---
 
@@ -50,13 +65,16 @@ The framework utilizes a layered middleware approach that unifies single-agent i
 
 ![Unified Architecture v3.3](docs/architecture.png)
 
-### Key Architectural Pillars:
+### The 4 Cognitive Pillars ("The Stacking Blocks")
 
-1. **Context-Aware Perception**: Explicitly separates Environmental **State** from Historical **Memories**.
-2. **One-Way Governance**: LLM proposals flow unidirectionally into a validation pipeline before system execution.
-3. **Closed Feedback Loop**: Simulation outcomes are simultaneously committed to memory and environment state.
-4. **Lifecycle Auditing**: The `AuditWriter` captures traces from proposal to execution for full reproducibility.
-5. **Unified State Persistence**: Atomic `apply_delta` interface ensures agent state (Attributes, Memory) is committed transactionally after validation.
+> **Scientific Core**: This framework implements a "Stacking Blocks" architecture (Combinatorial Cognition) to ensure rationality.
+
+| Pillar                        | Mechanism        | Objective                                                                                                                       |
+| :---------------------------- | :--------------- | :------------------------------------------------------------------------------------------------------------------------------ |
+| **1. Context Governance**     | `ContextBuilder` | **Suppresses Hallucinations.** Structures perception to ensure agents focus on relevant hydro-social signals without noise.     |
+| **2. Cognitive Intervention** | `Skill Broker`   | **Enforces Rationality.** Uses Tier 2 Thinking Rules to eliminate the "Appraisal-Decision Gap" via real-time validation.        |
+| **3. World Interaction**      | `InteractionHub` | **Standardizes Feedback.** Standardizes how agents receive disaster signals (depths, grants) and apply environmental feedbacks. |
+| **4. Episodic Cognition**     | `Memory Engine`  | **Prevents Erosion.** Consolidates significant flood experiences to solve the "Goldfish Effect" in long-horizon studies.        |
 
 **Version History**:
 
