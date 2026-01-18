@@ -1,5 +1,5 @@
 param (
-    [int]$Runs = 3,
+    [int]$Runs = 10,
     [string]$Model = "llama3.2:3b"
 )
 
@@ -22,7 +22,7 @@ foreach ($Scenario in $Scenarios) {
         
         # Run Stress Test with population-wide injection (N=50 for speed)
         # Note: --workers 2 for stability during parallel exec
-        python -u run_flood.py --model $Model --years 10 --agents 50 --memory-engine window --governance-mode strict --output $OutputPath --survey-mode --workers 2 --stress-test $Scenario --seed $CurrentSeed
+        python -u run_flood.py --model $Model --years 10 --agents 100 --memory-engine window --governance-mode strict --output $OutputPath --survey-mode --workers 2 --stress-test $Scenario --seed $CurrentSeed
         
         if ($LASTEXITCODE -ne 0) {
             Write-Error "Run $i for scenario $Scenario failed!"

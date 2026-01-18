@@ -631,6 +631,12 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     # 3. Load Flood Years
     df_years = pd.read_csv(base_path / "flood_years.csv")
     flood_years = sorted(df_years['Flood_Years'].tolist())
+    
+    if stress_test == "panic":
+        # Force high frequency for ST-1 Panic (7/10 years)
+        flood_years = [1, 2, 4, 5, 7, 8, 10]
+        print(f" [StressTest] ST-1 Panic Override: Forced flood years {flood_years}")
+    
     print(f" Flood Years scheduled: {flood_years}")
 
     # 4. Setup Components
