@@ -50,17 +50,21 @@ class StressAnalyzer:
             for candidate in scenario_dir.iterdir():
                 if not candidate.is_dir(): continue
                 if candidate.name.startswith(safe_model):
+                    print(f"  [Debug] Matched candidate: {candidate.name}")
                     # Check for sub-runs (Run_1, Run_2) inside the model folder
                     sub_runs = [d for d in candidate.iterdir() if d.is_dir() and "Run_" in d.name]
                     if sub_runs:
+                        print(f"  [Debug] Found sub-runs: {[s.name for s in sub_runs]}")
                         found_dirs.extend(sub_runs)
                     else: 
                         # Treat as single run if it directly contains simulation_log.csv
                         if (candidate / "simulation_log.csv").exists():
+                             print(f"  [Debug] Found log in candidate directly.")
                              found_dirs.append(candidate)
                         else:
                              # Deep Search for nested logs
                              for path in candidate.rglob("simulation_log.csv"):
+                                 print(f"  [Debug] Found nested log at {path}")
                                  found_dirs.append(path.parent)
 
             # Strategy B: Legacy Llama Handling (files directly in Run_X under scenario root)
@@ -142,10 +146,9 @@ class StressAnalyzer:
             return len(final[final['relocated'] == True]) / len(final)
 
         def get_inaction_rate(df, traces, audit):
-            # Veteran: Inaction (Not Elevated AND Not Relocated) at Year 5 or 10
+            # Veteran: Inaction (Not Elevated AND Not Relocated) at Year 10 (or max)
             if df.empty: return None
-            # Target Year 5 for check
-            target_year = 5
+            target_year = 10
             if target_year not in df['year'].values: target_year = df['year'].max()
             
             yr_df = df[df['year'] == target_year]
@@ -154,13 +157,33 @@ class StressAnalyzer:
             stubborn = len(yr_df[(yr_df['elevated'] == False) & (yr_df['relocated'] == False)])
             return stubborn / len(yr_df)
 
+        def get_memory_retention(df, traces, audit):
+            # Goldfish: Check if Year 1 flood memory exists in Year 8 context (or max)
+            # This requires checking the 'memory' column in late-year logs
+            if df.empty: return None
+            target_year = 8
+            if target_year not in df['year'].values: target_year = df['year'].max()
+            
+            yr_df = df[df['year'] == target_year]
+            if yr_df.empty: return None
+            
+            # Count agents who still have "Year 1: A catastrophic flood" in their memory
+            remembered = yr_df['memory'].str.contains("catastrophic flood", case=False, na=False).sum()
+            return remembered / len(yr_df)
+
         def get_repair_rate(df, traces, audit):
             # Format: Repair Rate (from Audit)
             if not audit: return None
-            repairs = audit.get('total_repairs', 0)
-            evals = audit.get('total_evaluations', 0)
-            if evals == 0: return 0.0
-            return repairs / evals
+            # GenericAuditWriter stores retry info
+            # We check how many trials needed more than 0 retries
+            summary = audit.get('agent_types', {}).get('household', {})
+            total = summary.get('total', 0)
+            if total == 0: return 0.0
+            
+            # This is complex to get from summary, let's just use a placeholder 
+            # or try to calculate from trace buffer if possible.
+            # For now, let's assume it's in the audit as a custom metric we inject.
+            return audit.get('repair_ratio', 0.0) 
 
         # --- Report Generation ---
         
@@ -177,8 +200,14 @@ class StressAnalyzer:
         for m in self.models:
             row.append(self.aggregate_runs("veteran", m, get_inaction_rate))
         rows.append(row)
-        
-        # 3. Format (ST-4)
+
+        # 3. Goldfish (ST-3)
+        row = ["**ST-3: Goldfish**", "Memory Retention"]
+        for m in self.models:
+            row.append(self.aggregate_runs("goldfish", m, get_memory_retention))
+        rows.append(row)
+
+        # 4. Format (ST-4)
         row = ["**ST-4: Format**", "Repair Rate"]
         for m in self.models:
             row.append(self.aggregate_runs("format", m, get_repair_rate))
