@@ -43,7 +43,8 @@ $StressBlock = {
 Write-Host ">>> Launching Small Models stress suite parallel..." -ForegroundColor Magenta
 $Jobs = @()
 foreach ($Model in $SmallModels) {
-    $Jobs += Start-Job -ScriptBlock $StressBlock -ArgumentList $Model, $Scenarios, $Runs, $Agents, $Years, $BaseSeed, $PWD
+    # We pass $PSScriptRoot so the jobs know where run_flood.py is
+    $Jobs += Start-Job -ScriptBlock $StressBlock -ArgumentList $Model, $Scenarios, $Runs, $Agents, $Years, $BaseSeed, $PSScriptRoot
 }
 Receive-Job -Job $Jobs -Wait | Out-Default
 Remove-Job $Jobs
@@ -51,11 +52,11 @@ Remove-Job $Jobs
 # 2. Process Large Models Sequentially
 foreach ($Model in $LargeModels) {
     Write-Host "`n>>> Processing Large Model Sequentially: [ $Model ]" -ForegroundColor Magenta
-    & $StressBlock -Model $Model -Scenarios $Scenarios -Runs $Runs -Agents $Agents -Years $Years -BaseSeed $BaseSeed -ExperimentDir $PWD
+    & $StressBlock -Model $Model -Scenarios $Scenarios -Runs $Runs -Agents $Agents -Years $Years -BaseSeed $BaseSeed -ExperimentDir $PSScriptRoot
 }
 
 $EndTime = Get-Date
 $Duration = $EndTime - $StartTime
 Write-Host "`n--- Stress Test Marathon Complete! ---" -ForegroundColor Green
 Write-Host "Total Duration: $($Duration.TotalMinutes) minutes"
-python analyze_stress.py
+python analysis_tools/analyze_stress.py

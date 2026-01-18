@@ -144,9 +144,10 @@ The framework is transitioning from a simple sliding window memory to a **Tiered
 - **Scope**: Historical traumatic events (e.g., "The great flood of Year 2").
 - **Function**: Uses **Stochastic Retrieval**. Memories are scored by `Importance = (Emotion x Source) x Decay`. High-emotion memories bypass the window limit and are "pushed" into the prompt even 10 years later.
 
-### Tier 3: Semantic Insights (The Reflection Engine) - [LATEST v3.3]
+### Tier 3: Semantic Insights (The Reflection Engine) - [ROADMAP / FUTURE]
 
 - **Scope**: Consolidated life lessons.
+- **Status**: _Design phase / Not used in current JOH experiments._
 - **Function**: At Year-End, the **Reflection Engine** triggers a "System 2" thinking process. It asks the LLM to summarize the year's events into a single **Insight** (e.g., _"Insurance is my only buffer against financial ruin"_).
 - **Consolidation**: These insights are stored as high-priority semantic memories, ensuring the agent's "Personality" evolves based on past successes or failures.
 
@@ -209,13 +210,14 @@ Instead, the **Memory Engine** acts as a cognitive filter that runs _before_ the
 
 ### 2. Scoring Mechanics (The Filter)
 
-Memories are retained and retrieved based on a composite **Importance Score**:
+Memories are retrieved based on a **Salience-Biased Hybrid Score ($S$)** that balances semantic relevance, temporal decay, and survival importance:
 
-$$ \text{Importance} = (\text{Emotion Weight} \times \text{Source Weight}) \times e^{-\lambda t} $$
+$$ S = (\text{Similarity}\_{semantic} \times e^{-\lambda t}) \times (0.8 + I \times 0.4) $$
 
-- **Emotion (What)**: Events with high emotional keywords (`damage`, `success`, `fail`) score higher (0.8-1.0) than routine events (0.1).
-- **Source (Who)**: Personal experiences (1.0) outweigh hearsay/neighbor observations (0.7) or generic news (0.5).
-- **Time Decay ($e^{-\lambda t}$)**: All memories fade, but high-emotion memories decay much slower, allowing "Accessable History" (e.g., a major flood 5 years ago) to persist while recent trivia vanishes.
+- **$I$ (Importance)**: Calculated as $\text{Emotion Weight} \times \text{Source Weight}$.
+- **Emotion (What)**: Events with high impact (`damage`, `trauma`) score higher (0.8-1.0).
+- **Source (Who)**: Personal experiences (1.0) outweigh news (0.5).
+- **Time Decay ($e^{-\lambda t}$)**: Fades non-critical info while preserving "Historical Anchors."
 
 ### 3. Stochastic Consolidation
 

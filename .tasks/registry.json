@@ -1,6 +1,6 @@
 {
   "version": "1.1",
-  "last_updated": "2026-01-18T14:31:05.000Z",
+  "last_updated": "2026-01-18T17:00:00.000Z",
   "tasks": [
     {
       "id": "task-011",
@@ -75,7 +75,9 @@
         {
           "id": "013-B",
           "title": "Survey data additional fields",
-          "status": "pending"
+          "status": "pending",
+          "assigned_to": "Antigravity",
+          "priority": "low"
         }
       ],
       "handoff_file": "handoff/current-session.md"
@@ -226,6 +228,63 @@
           "assigned_to": "Antigravity"
         }
       ]
+    },
+    {
+      "id": "Task-018",
+      "title": "MA Experiment Visualization & Analysis",
+      "status": "planned",
+      "type": "visualization",
+      "priority": "high",
+      "owner": "antigravity",
+      "reviewer": "WenyuChiou",
+      "description": "Create visualization charts for agent behavior changes, PMT construct evolution, and scientific analysis",
+      "dependencies": ["Task-015"],
+      "created_at": "2026-01-18T17:00:00.000Z",
+      "subtasks": [
+        {
+          "id": "018-A",
+          "title": "Decision Distribution Charts",
+          "status": "pending",
+          "assigned_to": "Codex",
+          "description": "Yearly decision distribution bar charts, Shannon entropy trend"
+        },
+        {
+          "id": "018-B",
+          "title": "PMT-Decision Correlation Heatmap",
+          "status": "pending",
+          "assigned_to": "Codex",
+          "description": "5x5 heatmap showing PMT constructs vs decision types correlation"
+        },
+        {
+          "id": "018-C",
+          "title": "Agent Trajectory Analysis",
+          "status": "pending",
+          "assigned_to": "Antigravity",
+          "description": "Individual agent decision timelines, state transition diagrams"
+        },
+        {
+          "id": "018-D",
+          "title": "MG Equity Analysis Charts",
+          "status": "pending",
+          "assigned_to": "Antigravity",
+          "description": "MG vs non-MG adaptation rate comparison, subsidy benefit distribution"
+        },
+        {
+          "id": "018-E",
+          "title": "Institutional Policy Impact",
+          "status": "pending",
+          "assigned_to": "Codex",
+          "description": "Government subsidy rate vs elevation adoption, insurance premium vs take-up rate"
+        },
+        {
+          "id": "018-F",
+          "title": "PMT Construct Temporal Evolution",
+          "status": "pending",
+          "assigned_to": "Antigravity",
+          "description": "Line charts showing PMT construct changes over simulation years"
+        }
+      ],
+      "handoff_file": "handoff/task-018.md"
     }
   ],
   "known_issues": [
