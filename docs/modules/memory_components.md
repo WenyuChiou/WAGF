@@ -6,6 +6,64 @@ This document details the cognitive architecture of the agent, designed to solve
 
 ---
 
+### 3. Deep Dive: How It Actually Works (The Math)
+
+To understand how the agent "remembers," let's walk through a concrete calculation trace from the JOH Simulation.
+
+#### 3.1 The Scenario
+
+- **Configuration**: `decay_rate (λ) = 0.1`, `importance_threshold = 0.6`.
+- **Event**: In **Year 2**, the agent's house floods (Depth: 2.0ft).
+- **Source**: Personal Experience (Weight: 1.0).
+- **Emotion**: `trauma` (Weight: 1.5).
+
+#### 3.2 Step 1: Valuation (Encoding)
+
+The memory engine first calculates the **Unified Importance Score ($I$)**:
+$$I = W_{source} \times W_{emotion}$$
+$$I = 1.0 \times 1.5 = \textbf{1.5}$$
+
+Since $1.5 \ge 0.6$, this event is **Consolidated** into Long-Term Memory (saved to JSON). It is now a "Durable Belief."
+
+#### 3.3 Step 2: Retrieval in the Future
+
+It is now **Year 5** (3 years later). The agent is deciding whether to buy insurance. The system queries memory.
+
+- **Time Delta ($t$)**: 3 years.
+- **Decay Function**: The engine calculates the current retrieval strength ($S$):
+  $$S = I \times e^{-\lambda t}$$
+  $$S = 1.5 \times e^{-0.1 \times 3} = 1.5 \times 0.74 = \textbf{1.11}$$
+
+- **Comparison**: A routine event from Year 4 (e.g., "Sunny day", $I=0.2$) has decayed to $0.2 \times e^{-0.1 \times 1} = 0.18$.
+- **Result**: The Flood Memory (1.11) is **6x stronger** than the recent weather (0.18). The agent "remembers" the flood vividly and ignores the sun.
+
+### 4. Information Flow Diagram
+
+The following diagram illustrates how raw signals are transformed into permanent convictions.
+
+```mermaid
+graph TD
+    World[Check World State] --> Perc[Perception Layer]
+    Perc --> Filter{Salience Filter}
+    Filter -- Score < 0.6 --> ShortTerm[Working Memory Loop]
+    Filter -- Score >= 0.6 --> Consolidation[Consolidation Engine]
+    Consolidation --> LTM[(Long-Term Memory)]
+    Consolidation --> Reflection[(Reflection Log)]
+    Task[Decision Point] --> Retriever[Retrieval Engine]
+    LTM --> Retriever
+    Retriever --> Context[Final Reasoning Context]
+    ShortTerm --> Context
+```
+
+### 6. Further Reading
+
+For a deep dive into the academic theories (PMT, Availability Heuristic) and their code implementation, please see:
+[Theoretical Basis & Architecture Master Map](theoretical_basis.md)
+
+This architecture ensures that **High-Impact Events** (Red Path) bypass the standard forgetting mechanism of the LLM context window.
+
+---
+
 ## 1. Core Concepts & Definitions
 
 Before understanding the code, it is essential to define the cognitive terms and their academic basis.

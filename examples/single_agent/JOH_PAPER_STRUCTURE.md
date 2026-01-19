@@ -33,7 +33,7 @@ We define the framework through three cognitive pillars and one extensibility fe
 
 - **Mechanism**: `ReflectionEngine` & `HumanCentricMemory`.
 - **Function**: Prevents the Goldfish Effect.
-- **Innovation**: **Year-End Consolidation**. Converts raw daily logs into permanent "Semantic Insights" (e.g., "Flood risk is increasing"), ensuring long-term adaptation.
+- **Innovation**: **Year-End Consolidation & Dual-Layer Logging**. Converts raw daily logs into permanent "Semantic Insights" (e.g., "Flood risk is increasing"). Crucially, these insights are automatically exported to a dedicated `reflection_log` (JSONL), creating an independent audit trail of the agent's _belief evolution_ separate from its operational history.
 
 ### Pillar 3: Theoretically-Constrained Perception (The "Lens")
 
@@ -88,6 +88,10 @@ We present a "Lego-like" architecture where cognitive modules can be stacked to 
   - Show how Tiered Memory reduces inter-run variance.
 - **4.3 Quantitative Analysis**: Rationality Scores & Adaptation Rates.
 - **4.4 Qualitative Case Studies**: The Stress Tests (Section 5).
+- **4.5 Explainable AI (XAI): Auditing the Cognitive Trace**:
+  - Highlights the value of the "Glass Box" approach.
+  - Demonstrates how `reflection_log.jsonl` allows researchers to validate the _reasoning_ behind the metrics.
+  - **Example**: Distinguishing between an agent who buys insurance because of "Panic" vs. one who buys it due to "Calculated Risk Assessment" using the semantic log trail.
 
 ### **Section 5: Conclusion**
 

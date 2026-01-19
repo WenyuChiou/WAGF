@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 from agents.base_agent import BaseAgent
 from broker.utils.logging import setup_logger
+import heapq
 
 logger = setup_logger(__name__)
 
@@ -308,6 +309,10 @@ class HumanCentricMemoryEngine(MemoryEngine):
     
     def _compute_importance(self, content: str, metadata: Optional[Dict] = None, agent: Optional[BaseAgent] = None) -> float:
         """Compute memory importance score [0-1] based on emotion and source."""
+        # Allow direct override via metadata
+        if metadata and "significance" in metadata:
+            return float(metadata["significance"])
+            
         emotion = metadata.get("emotion") if metadata else None
         source = metadata.get("source") if metadata else None
         
@@ -405,12 +410,21 @@ class HumanCentricMemoryEngine(MemoryEngine):
         recent = working[-self.window_size:]
         recent_texts = [m["content"] for m in recent]
         
-        # 2. Get significant long-term memories (with decay)
+        # 2. Get significant long-term memories (with decay) - Optimized with heapq
         decayed_longterm = self._apply_decay(longterm, current_time)
-        sorted_longterm = sorted(decayed_longterm, key=lambda x: x["decayed_importance"], reverse=True)
+        
+        # Use simple sort for small lists, heapq for larger ones (heuristic threshold 50)
+        # Here we use heapq always for O(N) vs O(N log N)
+        target_k = self.top_k_significant + len(recent_texts) + 5 # Buffer for overlap removal
+        
+        sorted_candidates = heapq.nlargest(
+            target_k, 
+            decayed_longterm, 
+            key=lambda x: x["decayed_importance"]
+        )
         
         significant = []
-        for m in sorted_longterm:
+        for m in sorted_candidates:
             if m["content"] not in recent_texts and m["content"] not in significant:
                 significant.append(m["content"])
             if len(significant) >= self.top_k_significant:

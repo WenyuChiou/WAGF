@@ -49,7 +49,75 @@ Checks if the Agent has the **right** to perform this action.
 Checks if the Agent's **reasoning is sound**.
 
 - _Example_: If `threat_appraisal` is "High", you should not `do_nothing`.
-- _Config_: Defined in the `thinking_rules` block of `agent_types.yaml`.
+- _Config_: Defined in the `thinking_rules` block of `agent_types.yaml`
+
+### 4. Tutorial: Creating a Logic Constraint (The "Ordering" Example)
+
+A common use case for Governance is enforcing a specific **Logical Hierarchy**. For example, imagine you want an agent to propose 3 options, but you strictly require them to be ranked by **Risk** (Lowest to Highest), regardless of Cost.
+
+#### 4.1 Step 1: Define the Rule (Thinking Pattern)
+
+You want to ban the agent from putting a "High Risk" option before a "Low Risk" option.
+
+#### 4.2 Step 2: Implement the Validator
+
+In `validators/custom_validators.py` (or similar), you would write:
+
+```python
+def validate_risk_ordering(decision, context):
+    """
+    Ensures options are sorted by Risk (Low -> High).
+    """
+    options = decision.get("ranked_options", [])
+    current_risk = 0
+
+    for opt in options:
+        opt_risk = get_risk_score(opt) # Helper function
+        if opt_risk < current_risk:
+            return ValidationResult(
+                is_valid=False,
+                violation_type="logic_error",
+                message=f"Risk Ordering Violation: {opt['name']} (Risk {opt_risk}) is ranked after a higher risk option.",
+                fix_hint="Please re-order your list strictly by Risk Score ascending."
+            )
+        current_risk = opt_risk
+
+    return ValidationResult(is_valid=True)
+```
+
+#### 4.3 Step 3: Register in YAML
+
+Add this rule to your `agent_types.yaml`:
+
+```yaml
+agent_types:
+  risk_analyst:
+    governance:
+      validators:
+        tier1:
+          - name: "risk_ordering_enforcement"
+            enabled: true
+            function: "validate_risk_ordering"
+```
+
+#### 4.4 Step 4: The Audit Trail
+
+When the agent tries to cheat (listing a "High Profit" but "High Risk" item first), the **Governance Auditor** intercepts it. You will see this in `audit.log`:
+
+```json
+{
+  "agent_id": "Analyst_01",
+  "cycle": 12,
+  "status": "REJECTED",
+  "intervention": {
+    "type": "logic_error",
+    "message": "Risk Ordering Violation: 'Crypto-Bet' (Risk 9) is ranked after 'Bonds' (Risk 1).",
+    "correction_count": 1
+  }
+}
+```
+
+The system then **Auto-Corrects**: It sends the error message back to the LLM (System 2 Feedback). The LLM re-reads the error, apologizes, and outputs the correct `1, 2, 3` order. The Audit Log proves that _Governance_ enforced the rule, not the _Model_.
 
 ---
 

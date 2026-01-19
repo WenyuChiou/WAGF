@@ -60,6 +60,140 @@ _注意：本系統不使用 $\alpha, \beta, \gamma$ 線性加權參數。_
 
 ---
 
+### 2.5 記憶是如何形成的？(Memory Formation)
+
+系統中有兩條路徑可以產生「記憶」，它們的生成方式完全不同：
+
+**路徑 A：直接經驗 (Direct Experience)** — **非 LLM 生成**
+
+- **來源**：模擬器的客觀狀態（例如：「水位 = 2.0ft」、「帳戶扣除 $5000」）。
+- **形式**：這是一條**原始事實 (Raw Fact)**。
+- **過程**：系統直接將這些事實轉錄為文字（Template-Based），然後丟進正則掃描器 (Regex) 評分。
+- **特點**：快速、客觀、不會有幻覺。
+
+**路徑 B：反思洞察 (Reflected Insights)** — **由 LLM 生成**
+
+- **來源**：代理人「睡覺時」回顧過去一年的日誌。
+- **形式**：這是 LLM 寫的**心得總結**。
+- **過程**：
+  1.  Python 收集一整年的 Log。
+  2.  將 Log 餵給 `reflection_engine` (LLM)。
+  3.  Prompt: _"What are the 3 most critical lessons you learned this year?"_
+  4.  LLM 回答: _"I realized that floods are becoming frequent and my savings are low."_
+  5.  這段**LLM 寫的話**被存入記憶庫，並賦予極高權重。
+
+### 2.6 關於關鍵字 `%` 的特殊設計
+
+在 `agent_types.yaml` 中，您會看到：
+`community: ["%", "residents", "community"]`
+
+**為什麼會有 `%` 符號？**
+這是一個啟發式 (Heuristic) 設計，用來捕捉**統計數據**。
+
+- 當輸入文字是：「**80%** of your neighbors bought insurance.」
+- 正則掃描器看到 `%` 符號。
+- **判定**：這不是「個人故事」，這是「群體數據 (Community Data)」。
+- **權重**：賦予 0.6 的權重（低於個人創傷，但高於普通閒聊）。
+
+這種設計讓我們不需要用昂貴的 AI 去分析句子語義，只要看到百分比符號，就假設它是社會統計資訊。
+
+---
+
+### 2.7 完整故事範例：記憶的生命週期 (Life of a Memory)
+
+我們同時使用 **Path A (經驗)** 和 **Path B (反思)**。兩者互補。
+讓我們看一個具體的故事，說明記憶如何從發生到被檢索：
+
+#### 第一幕：發生 (Year 2) - 短期記憶與 Path A
+
+- **事件**：模擬器產生事件「High Flood (Depth: 5.0ft) causes $50k damage.」
+- **短期記憶 (Short-Term)**：這句話進入了當前的 Context Window。代理人做出反應：「我很害怕，我決定無所作為 (Do Nothing)。」
+- **Path A 運作 (固化)**：
+  - 系統 Regex 掃描到關鍵字 "flood" (Weight 1.0) 和 "damage" (Weight 1.0)。
+  - 計算重要性 $I = 1.0$。
+  - 因為 $1.0 > 0.6$ (閾值)，這條關於洪水的**原始事實**被立即寫入 `long_term_memory.json`。
+
+#### 第二幕：反思 (Year 2 年末) - Path B
+
+- **睡眠階段**：一年結束了。Reflection Engine 讀取這年的日誌。
+- **Prompt**：「回顧這一年，你學到了什麼？」
+- **LLM 回答**：「我發現我的家如果不墊高，很快就會破產。」(Insight)
+- **Path B 運作**：這條由 LLM 生成的**智慧**被寫入 `long_term_memory.json`，並賦予超高權重 ($I = 10.0$)。
+
+#### 3.7 進階機制問答 (Advanced Mechanics)
+
+**Q1: 不理性 (Irrationality) 會被抓到嗎？**
+
+- **會的。** 這是 `Thinking Rules` 的職責。
+- 如果代理人的思考邏輯是：「雖然洪水來了，但我懶得動。」
+- Validator 會根據 PMT 規則攔截它：「錯誤：必須評估威脅。」
+- 因此，我們的框架確保了代理人**至少在形式上**是理性的。
+
+**Q2: 記憶衰退 (Decay) 對 Semantic 和 Episodic 都有效嗎？**
+
+- **是的，公式對所有長期記憶都適用。**
+  - $Score = Importance \times e^{-\lambda t}$
+- **但是**，因為 Semantic (智慧) 的初始分數極高 ($I=10.0$)，而 Episodic (事件) 初始分數較低 ($I=1.0$)。
+- **結果**：
+  - **事件** (Episodic)：約 5-8 年後會衰減到被遺忘。
+  - **智慧** (Semantic)：即使衰減了 20 年，分數可能還有 2.0，依然高於閾值。
+  - 這模擬了人類：忘了小時候發生什麼事 (事件忘記)，但記得"玩火會尿床" (智慧永存)。
+
+**Q3: 目前使用向量化 (Vectorization/Embeddings) 嗎？**
+
+- **目前沒有。** 我們目前使用的是 **Keyword-Based Weighted Scoring (關鍵字加權計分)**。
+- **為什麼不是 Cosine Similarity？**
+  - 在社會模擬中，「心理創傷 (Trauma)」比「語意相似 (Semantic Similarity)」更重要。
+  - 例如：如果是用相似度，問 "今天天氣如何" 可能會檢索到 "那年天氣很好"。
+  - 但我們的 **Importance 演算法** 會強制檢索 "那年發了大水"，因為那是創傷，這比單純的語意相似更符合心理學模型。
+
+#### 3.5 驗證失敗 (Validation Failures) 會被記住嗎？
+
+**Q: 如果代理人想作弊被 Governance 擋下，這件事會被記住嗎？**
+**A: 短期會，長期不會 (Short-term Yes, Long-term No)。**
+
+1.  **當下 (Retry Loop)**：**會記住**。
+    - 驗證器會立刻回傳錯誤：「你錢不夠，請重選。」
+    - LLM 在當下的 `Context Window` 裡看得到這個錯誤，所以它能修正並重試。
+2.  **隔年 (Long-Term Memory)**：**不會記住**。
+    - 一旦這一回合結束，我們會把那些「嘗試錯誤」的對話紀錄**丟棄**。
+    - 我們只將**最終成功**的結果寫入長期記憶庫。
+    - _原因_：為了節省 Token，也模擬人類傾向於記住「結論」而非「掙扎過程」。
+
+- **Audit Log (上帝視角)**：則會完整保留所有失敗紀錄供研究用。
+
+### 3.6 那 Thinking Rules (思考規則) 呢？
+
+**Q: 如果是思維被糾正（例如：忘了考慮 PMT 模型），會被記住嗎？**
+**A: 同樣邏輯：記住結果，忘記糾正過程。**
+
+- **例子**：
+  1.  **Agent (Attempt 1)**: "我覺得沒差，不做事。" (違反規則：未評估威脅)
+  2.  **Validator**: "錯誤：你必須根據 PMT 模型評估威脅感與應對能力。"
+  3.  **Agent (Attempt 2)**: "好吧，根據 PMT，洪水威脅很高，但我沒錢，所以我感到無助。" (合規)
+- **長期記憶**：
+  - 系統只會存入 **Attempt 2**：「即使威脅很高，我因缺錢而感到無助。」
+  - **結果**：未來的代理人回顧歷史時，會覺得自己「一直都很理性且符合 PMT」，而不知道自己其實是被強迫修正的。這就是我們如何**塑造 (Shape)** 代理人性格的方式。
+
+#### 第三幕：遺忘與檢索 (Year 5) - 長期記憶取用
+
+- 現在是第 5 年，是一個晴朗的日子。代理人正在決定是否買保險。
+- **檢索引擎啟動**：
+  - 它查看 JSON 中的數百條紀錄。
+  - **計算衰減**：$Score = I \times e^{-0.1 \times 3 \text{years}}$。
+  - 第 4 年的「晴天記憶」($I=0.1$) 衰減到趨近 0 -> **被過濾掉**。
+  - 第 2 年的「洪水事實 (Path A)」($I=1.0$) 雖然衰減，但分數仍高 -> **被選中**。
+  - 第 2 年的「反思心得 (Path B)」($I=10.0$) 分數依然極高 -> **被選中**。
+- **最終 Prompt (Context)**：
+  系統將這兩條舊記憶「注入」到第 5 年的 Prompt 中：
+  > "You recall that in Year 2, a flood caused $50k damage." (Path A)
+  > "Deep down, you know that without elevation, you will go bankrupt." (Path B)
+  > "Current Status: It is sunny."
+
+**結果**：即使現在是晴天，代理人讀到這些「注入的舊記憶」，決定購買保險。這就是記憶系統運作的全貌。
+
+---
+
 ## 3. ⚙️ 配置與參數指南 (Configuration & Parameters)
 
 針對 Llama 3 / Gemma 等模型的建議設定。

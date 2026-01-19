@@ -382,10 +382,16 @@ class FinalParityHook:
         print(f"[Year {year}] Stats: {stats_str}")
         print(f"[Year {year}] Avg Trust: Ins={avg_trust_ins:.3f}, Nb={avg_trust_nb:.3f}")
 
-        # Intermediate Save for Validation (Run-specific to prevent collisions)
-        log_filename = f"interim_{getattr(self.runner.config, 'model', 'unknown').replace(':','_')}_{getattr(self.runner.config, 'governance_profile', 'default')}.csv"
-        pd.DataFrame(self.logs).to_csv(log_filename, index=False)
-        # pd.DataFrame(self.logs).to_csv("simulation_log_interim.csv", index=False) # Legacy shared file
+        # Intermediate Save for Validation (Optimized: Append Mode + PID for Parallel Safety)
+        import os
+        log_filename = f"interim_{getattr(self.runner.config, 'model', 'unknown').replace(':','_')}_{getattr(self.runner.config, 'governance_profile', 'default')}_{os.getpid()}.csv"
+        
+        # Write only current year's data to avoid O(N^2) I/O cost
+        # Use 'w' mode for first year to clear old runs (if PID reused), 'a' for subsequent
+        mode = 'w' if year == 1 else 'a'
+        header = (year == 1)
+        
+        df_year.to_csv(log_filename, mode=mode, header=header, index=False)
         
         # --- PILLAR 2: BATCH YEAR-END REFLECTION ---
         if self.reflection_engine and self.reflection_engine.should_reflect("any", year):
