@@ -50,11 +50,13 @@ python examples/single_agent/run_flood.py --model llama3.2:3b --agents 50 --year
 
 ## 🗺️ Module Directory (Documentation Hub)
 
-- **🧠 Components (Memory, Reflection)**: [docs/modules/memory_components.md](docs/modules/memory_components.md)
-- **👁️ Context (Context System)**: [docs/modules/context_system.md](docs/modules/context_system.md)
-- **⚖️ Governance (Core Logic)**: [docs/modules/governance_core.md](docs/modules/governance_core.md)
-- **🌍 Simulation (Environment)**: [docs/modules/simulation_engine.md](docs/modules/simulation_engine.md)
-- **🧪 Experiments**: [examples/README.md](examples/README.md)
+- **📚 Chapter 0: Theoretical Basis**: [System Theory & Architecture](docs/modules/00_theoretical_basis_overview.md) | [中文連結](docs/modules/00_theoretical_basis_overview_zh.md)
+- **🧠 Chapter 1: Memory & Reflection**: [Memory Components](docs/modules/memory_components.md) | [Reflection Engine](docs/modules/reflection_engine.md)
+- **👁️ Chapter 2: Context System**: [Context Builder](docs/modules/context_system.md)
+- **⚖️ Chapter 3: Governance Core**: [Governance Logic](docs/modules/governance_core.md)
+- **🛠️ Chapter 4: Skill Registry**: [Action Ontology](docs/modules/skill_registry.md)
+- **🌍 Chapter 5: Simulation Engine**: [Environment & Loop](docs/modules/simulation_engine.md)
+- **🧪 Experiments**: [Single Agent Benchmarks](examples/README.md)
 
 ---
 

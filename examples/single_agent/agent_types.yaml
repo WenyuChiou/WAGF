@@ -74,7 +74,7 @@ household:
 
     Now, choose one of the following actions:
     {options_text}
-    Note: If no flood occurred this year, since no immediate threat, most people would choose ?Do Nothing.??
+    Note: If no flood occurred this year, since no immediate threat, most people would choose "Do Nothing."
 
     {rating_scale}
 
@@ -161,8 +161,8 @@ household:
     skill_map:
       "1": "buy_insurance"
       "2": "elevate_house"
-      "4": "relocate"
-      "3": "do_nothing"
+      "3": "relocate"
+      "4": "do_nothing"
 
     skill_map_elevated:
       "1": "buy_insurance"

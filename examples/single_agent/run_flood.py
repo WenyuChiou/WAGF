@@ -598,6 +598,11 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
             # Synchronize Registry IDs - Include full global suite for disclosure parity
             a.config.skills = ["buy_insurance", "elevate_house", "relocate", "do_nothing"]
             for k, v in a.custom_attributes.items(): setattr(a, k, v)
+            
+            # Ensure narrative_persona is set for prompt compatibility
+            if not hasattr(a, 'narrative_persona') or not a.narrative_persona:
+                a.narrative_persona = "You are a homeowner in a city, with a strong attachment to your community."
+                a.custom_attributes['narrative_persona'] = a.narrative_persona
 
         if stress_test == "veteran":
             print(f"[StressTest] ST-2: Applying 'Optimistic Veteran' profile to {len(agents)} agents...")
