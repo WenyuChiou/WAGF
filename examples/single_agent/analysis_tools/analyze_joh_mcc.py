@@ -117,7 +117,20 @@ def main():
             
             for run in os.listdir(path_group):
                 if not run.startswith("Run_"): continue
-                log_path = os.path.join(path_group, run, "simulation_log.csv")
+                
+                # Robustly find log file (handle nested "gemma3_4b_disabled" etc)
+                run_dir = os.path.join(path_group, run)
+                log_path = os.path.join(run_dir, "simulation_log.csv")
+                
+                if not os.path.exists(log_path):
+                    # Deep search using recursive glob
+                    from pathlib import Path
+                    found = list(Path(run_dir).rglob("simulation_log.csv"))
+                    if found:
+                        log_path = str(found[0])
+                    else:
+                        continue 
+                
                 if not os.path.exists(log_path): continue
                 
                 try:
@@ -154,8 +167,12 @@ def main():
     print("\n=== Agent Rationality Analysis (MCC) ===")
     print(summary)
     
-    df_res.to_csv(os.path.join(args.base_dir, "mcc_analysis_raw.csv"), index=False)
-    print(f"\nSaved to {os.path.join(args.base_dir, 'mcc_analysis_raw.csv')}")
+    metrics_dir = os.path.join(args.base_dir, "metrics")
+    os.makedirs(metrics_dir, exist_ok=True)
+    
+    out_path = os.path.join(metrics_dir, "mcc_analysis_all.csv")
+    df_res.to_csv(out_path, index=False)
+    print(f"\n✅ Saved consolidated MCC analysis to: {out_path}")
 
 if __name__ == "__main__":
     main()
