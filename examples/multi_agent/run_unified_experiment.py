@@ -181,6 +181,19 @@ def wrap_household(profile: HouseholdProfile) -> BaseAgent:
 # LIFECYCLE HOOKS
 # =============================================================================
 
+def depth_to_qualitative_description(depth_ft: float) -> str:
+    """Converts flood depth in feet to a qualitative description."""
+    if depth_ft <= 0:
+        return "no flooding"
+    elif depth_ft < 0.5:
+        return "minor flooding (ankle-deep)"
+    elif depth_ft < 2.0:
+        return "significant flooding (knee-deep)"
+    elif depth_ft < 5.0:
+        return "severe flooding (first-floor inundation)"
+    else:
+        return "catastrophic flooding"
+
 class MultiAgentHooks:
     def __init__(
         self,
@@ -328,9 +341,10 @@ class MultiAgentHooks:
             total_damage += damage
             
             # Emotional memory
+            description = depth_to_qualitative_description(depth_ft)
             memory_engine.add_memory(
                 agent.id, 
-                f"Year {year}: Flood depth {depth_ft:.1f}ft caused ${damage:,.0f} damage to my property.",
+                f"Year {year}: We experienced {description} which caused about ${damage:,.0f} in damages.",
                 metadata={"emotion": "fear", "source": "personal", "importance": 0.8}
             )
         
