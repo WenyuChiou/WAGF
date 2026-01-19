@@ -35,48 +35,30 @@ class StressAnalyzer:
     def find_run_dirs(self, scenario, model_id):
         """
         Finds valid run directories for a given scenario and model.
-        Supports both 'Run_X' structure and direct model folders.
+        Robustly searches: results/JOH_STRESS/{model}/{scenario}/Run_X
         """
         found_dirs = []
-        # Normalize model ID tokens for folder matching
-        # e.g. "gemma3:4b" -> "gemma3_4b"
         safe_model = model_id.replace(":", "_").replace("-", "_").replace(".", "_")
         
         for root in self.roots:
-            scenario_dir = root / scenario
-            if not scenario_dir.exists(): continue
+            # Structure matches: root / safe_model / scenario / Run_X
+            # Or legacy: root / scenario / Run_X (if model implicit)
             
-            # Strategy A: Search for model folders (prefix match to handle _strict, _relaxed, etc.)
-            for candidate in scenario_dir.iterdir():
-                if not candidate.is_dir(): continue
-                if candidate.name.startswith(safe_model):
-                    print(f"  [Debug] Matched candidate: {candidate.name}")
-                    # Check for sub-runs (Run_1, Run_2) inside the model folder
-                    sub_runs = [d for d in candidate.iterdir() if d.is_dir() and "Run_" in d.name]
-                    if sub_runs:
-                        print(f"  [Debug] Found sub-runs: {[s.name for s in sub_runs]}")
-                        found_dirs.extend(sub_runs)
-                    else: 
-                        # Treat as single run if it directly contains simulation_log.csv
-                        if (candidate / "simulation_log.csv").exists():
-                             print(f"  [Debug] Found log in candidate directly.")
-                             found_dirs.append(candidate)
-                        else:
-                             # Deep Search for nested logs
-                             for path in candidate.rglob("simulation_log.csv"):
-                                 print(f"  [Debug] Found nested log at {path}")
-                                 found_dirs.append(path.parent)
-
-            # Strategy B: Legacy Llama Handling (files directly in Run_X under scenario root)
-            # This handles the strict "Run_1", "Run_2" folders directly under "veteran/" for the baseline
-            if "llama" in model_id.lower() and not found_dirs:
-                legacy_runs = [d for d in scenario_dir.iterdir() if d.is_dir() and d.name.startswith("Run_")]
-                # Filter to ensure these are actually Llama runs if we can (usually by checking config or just assuming baseline)
-                # For now, we assume direct Run_X under scenario is the Llama baseline
-                if legacy_runs:
-                    found_dirs.extend(legacy_runs)
+            # 1. Try Specific Model Path: results/JOH_STRESS/gemma3_4b/panic
+            model_scenario_dir = root / safe_model / scenario
+            if model_scenario_dir.exists():
+                runs = [d for d in model_scenario_dir.iterdir() if d.is_dir() and d.name.startswith("Run_")]
+                found_dirs.extend(runs)
                 
-        # Deduplicate paths
+            # 2. Try Scenario Path directly (Legacy/Flat): results/JOH_STRESS/panic
+            scenario_dir = root / scenario
+            if scenario_dir.exists():
+                 # Check subfolders that might be Run_X
+                 runs = [d for d in scenario_dir.iterdir() if d.is_dir() and d.name.startswith("Run_")]
+                 # Only add if we suspect it belongs to this model (weak check, prefer Strategy 1)
+                 if runs and not found_dirs:
+                     found_dirs.extend(runs)
+
         return list(set(found_dirs))
 
     def aggregate_runs(self, scenario, model_id, metric_func):
@@ -87,12 +69,19 @@ class StressAnalyzer:
 
         values = []
         for rd in run_dirs:
-            # Locate log file
+            # Locate log file (robust recursive search)
             csv_path = rd / "simulation_log.csv"
             audit_path = rd / "audit.json"
             
             if not csv_path.exists(): 
-                continue
+                # Deep search for nested folders like "gemma3_4b_strict"
+                found = list(rd.rglob("simulation_log.csv"))
+                if found:
+                    csv_path = found[0]
+                    # Assume audit is sibling
+                    audit_path = csv_path.parent / "audit.json"
+                else:
+                    continue
             
             try:
                 df = pd.read_csv(csv_path)
