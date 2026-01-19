@@ -28,7 +28,7 @@ Log-Progress "--- Gemma Group A (Baseline) ---"
 for ($i = 1; $i -le 10; $i++) {
     $seed = 300 + $i
     Log-Progress "  > Gemma A Run $i (Seed $seed)"
-    python run_flood.py --model $GemmaModel --years $NumYears --agents $NumAgents --memory-engine window --governance-mode disabled --output "results/JOH_FINAL/gemma3_4b/Group_A/Run_$i" --seed $seed
+    python run_flood.py --model $GemmaModel --years $NumYears --agents $NumAgents --workers 10 --memory-engine window --governance-mode disabled --output "results/JOH_FINAL/gemma3_4b/Group_A/Run_$i" --seed $seed
 }
 
 # --- Group B: Governed (Pillar 1+2) ---
@@ -36,7 +36,7 @@ Log-Progress "--- Gemma Group B (Governed) ---"
 for ($i = 1; $i -le 10; $i++) {
     $seed = 300 + $i
     Log-Progress "  > Gemma B Run $i (Seed $seed)"
-    python run_flood.py --model $GemmaModel --years $NumYears --agents $NumAgents --memory-engine window --governance-mode strict --output "results/JOH_FINAL/gemma3_4b/Group_B/Run_$i" --seed $seed
+    python run_flood.py --model $GemmaModel --years $NumYears --agents $NumAgents --workers 10 --memory-engine window --governance-mode strict --output "results/JOH_FINAL/gemma3_4b/Group_B/Run_$i" --seed $seed
 }
 
 # --- Group C: Priority Schema (Pillar 1+2+3) ---
@@ -44,7 +44,7 @@ Log-Progress "--- Gemma Group C (Priority Schema) ---"
 for ($i = 1; $i -le 10; $i++) {
     $seed = 300 + $i  
     Log-Progress "  > Gemma C Run $i (Seed $seed)"
-    python run_flood.py --model $GemmaModel --years $NumYears --agents $NumAgents --memory-engine humancentric --governance-mode strict --use-priority-schema --output "results/JOH_FINAL/gemma3_4b/Group_C/Run_$i" --seed $seed
+    python run_flood.py --model $GemmaModel --years $NumYears --agents $NumAgents --workers 10 --memory-engine humancentric --governance-mode strict --use-priority-schema --output "results/JOH_FINAL/gemma3_4b/Group_C/Run_$i" --seed $seed
 }
 
 # =============================================================================
@@ -57,7 +57,7 @@ Log-Progress "--- Llama Group A (Baseline) ---"
 for ($i = 1; $i -le 10; $i++) {
     $seed = 300 + $i
     Log-Progress "  > Llama A Run $i (Seed $seed)"
-    python run_flood.py --model $LlamaModel --years $NumYears --agents $NumAgents --memory-engine window --governance-mode disabled --output "results/JOH_FINAL/llama3_2_3b/Group_A/Run_$i" --seed $seed
+    python run_flood.py --model $LlamaModel --years $NumYears --agents $NumAgents --workers 10 --memory-engine window --governance-mode disabled --output "results/JOH_FINAL/llama3_2_3b/Group_A/Run_$i" --seed $seed
 }
 
 # --- Group B: Governed (Pillar 1+2) ---
@@ -65,7 +65,7 @@ Log-Progress "--- Llama Group B (Governed) ---"
 for ($i = 1; $i -le 10; $i++) {
     $seed = 300 + $i
     Log-Progress "  > Llama B Run $i (Seed $seed)"
-    python run_flood.py --model $LlamaModel --years $NumYears --agents $NumAgents --memory-engine window --governance-mode strict --output "results/JOH_FINAL/llama3_2_3b/Group_B/Run_$i" --seed $seed
+    python run_flood.py --model $LlamaModel --years $NumYears --agents $NumAgents --workers 10 --memory-engine window --governance-mode strict --output "results/JOH_FINAL/llama3_2_3b/Group_B/Run_$i" --seed $seed
 }
 
 # --- Group C: Priority Schema (Pillar 1+2+3) ---
@@ -73,7 +73,7 @@ Log-Progress "--- Llama Group C (Priority Schema) ---"
 for ($i = 1; $i -le 10; $i++) {
     $seed = 300 + $i
     Log-Progress "  > Llama C Run $i (Seed $seed)"
-    python run_flood.py --model $LlamaModel --years $NumYears --agents $NumAgents --memory-engine humancentric --governance-mode strict --use-priority-schema --output "results/JOH_FINAL/llama3_2_3b/Group_C/Run_$i" --seed $seed
+    python run_flood.py --model $LlamaModel --years $NumYears --agents $NumAgents --workers 10 --memory-engine humancentric --governance-mode strict --use-priority-schema --output "results/JOH_FINAL/llama3_2_3b/Group_C/Run_$i" --seed $seed
 }
 
 Log-Progress "=== JOH EXPERIMENT SUITE COMPLETE ==="
