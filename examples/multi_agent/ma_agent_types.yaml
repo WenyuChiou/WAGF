@@ -48,6 +48,14 @@ household_owner:
     - Current Status: {elevation_status_text}
     - Insurance: You currently {insurance_status} flood insurance.
 
+    ### YOUR PSYCHOLOGICAL PROFILE (Protection Motivation Theory)
+    Based on your survey responses:
+    - Threat Perception (TP): {tp_score:.1f}/5 - {tp_rating}
+    - Coping Perception (CP): {cp_score:.1f}/5 - {cp_rating}
+    - Stakeholder Perception (SP): {sp_score:.1f}/5 - {sp_rating}
+    - Social Capital (SC): {sc_score:.1f}/5 - {sc_rating}
+    - Place Attachment (PA): {pa_score:.1f}/5 - {pa_rating}
+
     ### RELEVANT MEMORIES
     {memory}
 
@@ -125,14 +133,6 @@ household_renter:
     - Flood Experience: {flood_experience_summary}
     - Contents Value: ${rcv_contents:,.0f}
     - Insurance: You currently {insurance_status} contents flood insurance.
-
-    ### YOUR PSYCHOLOGICAL PROFILE (Protection Motivation Theory)
-    Based on your survey responses:
-    - Threat Perception (TP): {tp_score:.1f}/5 - {tp_rating}
-    - Coping Perception (CP): {cp_score:.1f}/5 - {cp_rating}
-    - Stakeholder Perception (SP): {sp_score:.1f}/5 - {sp_rating}
-    - Social Capital (SC): {sc_score:.1f}/5 - {sc_rating}
-    - Place Attachment (PA): {pa_score:.1f}/5 - {pa_rating}
 
     ### RELEVANT MEMORIES
     {memory}
@@ -454,11 +454,14 @@ governance:
         - { id: elevated_already, precondition: elevated, blocked_skills: ["elevate_house"], level: ERROR }
         - { id: relocated_already, precondition: relocated, blocked_skills: ["buy_insurance", "elevate_house", "buyout_program"], level: ERROR }
       thinking_rules:
-        - { construct: TP_LABEL, when_above: ["VH"], blocked_skills: ["do_nothing"], level: ERROR }
-        - { construct: CP_LABEL, when_above: ["VL"], blocked_skills: ["elevate_house", "buyout_program"], level: ERROR }
+        - { id: owner_inaction_high_threat, construct: TP_LABEL, conditions: [{ construct: TP_LABEL, values: ["VH", "H"] }], blocked_skills: ["do_nothing"], level: ERROR, message: "Inaction is irrational given your high threat perception." }
+        - { id: owner_complex_action_low_coping, construct: CP_LABEL, conditions: [{ construct: CP_LABEL, values: ["VL", "L"] }], blocked_skills: ["elevate_house", "buyout_program"], level: ERROR, message: "Complex actions are blocked due to your low confidence in your ability to cope." }
     household_renter:
       identity_rules:
         - { id: relocated_already, precondition: relocated, blocked_skills: ["buy_contents_insurance", "relocate"], level: ERROR }
+      thinking_rules:
+        - { id: renter_inaction_high_threat, construct: TP_LABEL, conditions: [{ construct: TP_LABEL, values: ["VH", "H"] }], blocked_skills: ["do_nothing"], level: ERROR, message: "Inaction is irrational given your high threat perception." }
+        - { id: renter_complex_action_low_coping, construct: CP_LABEL, conditions: [{ construct: CP_LABEL, values: ["VL", "L"] }], blocked_skills: ["relocate"], level: ERROR, message: "Relocation is blocked due to your low confidence in your ability to cope." }
     nj_government:
       identity_rules: []
       thinking_rules: []

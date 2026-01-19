@@ -127,7 +127,9 @@ def wrap_household(profile: HouseholdProfile) -> BaseAgent:
 
     # Store profile data in fixed/dynamic state
     agent.fixed_attributes = {
+        "survey_id": profile.survey_id,
         "mg": profile.mg,
+        "mg_criteria_met": profile.mg_criteria_met,
         "tenure": profile.tenure,
         "income": profile.income,
         "income_bracket": profile.income_bracket,
@@ -136,12 +138,12 @@ def wrap_household(profile: HouseholdProfile) -> BaseAgent:
         "property_value": profile.rcv_building + profile.rcv_contents,
         "household_size": profile.household_size,
         "generations": profile.generations,
-        # PMT constructs (from survey)
-        "sc_score": profile.sc_score,
-        "pa_score": profile.pa_score,
-        "tp_score": profile.tp_score,
-        "cp_score": profile.cp_score,
-        "sp_score": profile.sp_score,
+        "zipcode": profile.zipcode,
+        "has_vehicle": profile.has_vehicle,
+        "has_children": profile.has_children,
+        "has_elderly": profile.has_elderly,
+        "housing_cost_burden": profile.housing_cost_burden,
+        "sfha_awareness": profile.sfha_awareness,
         # Spatial data
         "flood_zone": profile.flood_zone,
         "flood_depth": profile.flood_depth,
@@ -150,6 +152,9 @@ def wrap_household(profile: HouseholdProfile) -> BaseAgent:
         # Flood experience
         "flood_experience": profile.flood_experience,
         "flood_frequency": profile.flood_frequency,
+        "recent_flood_text": profile.recent_flood_text,
+        "insurance_type": profile.insurance_type,
+        "post_flood_action": profile.post_flood_action,
     }
     agent.dynamic_state = {
         "elevated": profile.elevated,
@@ -159,12 +164,6 @@ def wrap_household(profile: HouseholdProfile) -> BaseAgent:
         # Derived attributes for prompt
         "elevation_status_text": "Your house is elevated." if profile.elevated else "Your house is NOT elevated.",
         "insurance_status": "have" if profile.has_insurance else "do NOT have",
-        # PMT ratings for prompt (descriptive)
-        "tp_rating": pmt_score_to_rating(profile.tp_score),
-        "cp_rating": pmt_score_to_rating(profile.cp_score),
-        "sp_rating": pmt_score_to_rating(profile.sp_score),
-        "sc_rating": pmt_score_to_rating(profile.sc_score),
-        "pa_rating": pmt_score_to_rating(profile.pa_score),
         # Flood experience summary
         "flood_experience_summary": (
             f"Experienced {profile.flood_frequency} flood event(s)"
@@ -362,6 +361,8 @@ def run_unified_experiment():
                         help="Load initial memories from initial_memories.json (survey mode)")
     parser.add_argument("--enable-custom-affordability", action="store_true",
                         help="Enable custom income-based affordability checks from experiment script.")
+    parser.add_argument("--enable-financial-constraints", action="store_true",
+                        help="Enable income-based affordability checks in the validator.")
     parser.add_argument("--mock-response-file", type=str, default=None,
                         help="Path to a JSON file containing a mock response for the LLM.")
     args = parser.parse_args()
@@ -554,7 +555,8 @@ def run_unified_experiment():
                     "flood_depth_m",
                     "flood_depth_ft",
                 ], # Phase 2 PR2: Allow institutional influence
-                prompt_templates={} # Loaded from YAML via with_governance
+                prompt_templates={}, # Loaded from YAML via with_governance
+                enable_financial_constraints=args.enable_financial_constraints
             )
         )
         .with_governance(
@@ -568,57 +570,7 @@ def run_unified_experiment():
     
     # 6. Execute
     runner = builder.build()
-    
-    # Custom llm_invoke for mock model with response file
-    if args.model == "mock" and args.mock_response_file:
-        from broker.utils.llm_utils import create_llm_invoke
-        from broker.interfaces.skill_types import SkillProposal
-        from dataclasses import dataclass
-
-        @dataclass
-        class MockLLMStats:
-            retries: int = 0
-            success: bool = True
-
-        mock_responses = []
-        with open(args.mock_response_file, 'r') as f:
-            for line in f:
-                mock_responses.append(json.loads(line))
-
-        def mock_llm_invoke(prompt: str):
-            import re
-            match = re.search(r"id: (\S+)", prompt)
-            agent_id = match.group(1) if match else "unknown"
-
-            # Find matching mock response
-            for resp in mock_responses:
-                if resp.get("agent_id") == agent_id:
-                    # Determine agent type from response or default
-                    agent_type = "default"
-                    if "NJ_STATE" in agent_id:
-                        agent_type = "government"
-                    elif "FEMA_NFIP" in agent_id:
-                        agent_type = "insurance"
-                    elif "H" in agent_id:
-                        # Simple check for household agent
-                        agent_type = "household_owner"
-
-
-                    return (SkillProposal(
-                        skill_name=resp.get("skill_name"),
-                        agent_id=resp.get("agent_id"),
-                        reasoning=resp.get("reasoning"),
-                        agent_type=agent_type
-                    ), MockLLMStats())
-            
-            # Default response if no match
-            return (SkillProposal(skill_name="do_nothing", agent_id=agent_id, reasoning={"reasoning": "default"}, agent_type="default"), MockLLMStats())
-
-        llm_invoke_func = mock_llm_invoke
-    else:
-        llm_invoke_func = runner.llm_invoke
-        
-    runner.run(llm_invoke_func) # Use the selected llm_invoke
+    runner.run(runner.llm_invoke) # Use the selected llm_invoke
 
 
 if __name__ == "__main__":
