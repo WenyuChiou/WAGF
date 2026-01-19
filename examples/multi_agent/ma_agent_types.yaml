@@ -48,16 +48,11 @@ household_owner:
     - Current Status: {elevation_status_text}
     - Insurance: You currently {insurance_status} flood insurance.
 
-    ### YOUR PSYCHOLOGICAL PROFILE (Protection Motivation Theory)
-    Based on your survey responses:
-    - Threat Perception (TP): {tp_score:.1f}/5 - {tp_rating}
-    - Coping Perception (CP): {cp_score:.1f}/5 - {cp_rating}
-    - Stakeholder Perception (SP): {sp_score:.1f}/5 - {sp_rating}
-    - Social Capital (SC): {sc_score:.1f}/5 - {sc_rating}
-    - Place Attachment (PA): {pa_score:.1f}/5 - {pa_rating}
-
     ### RELEVANT MEMORIES
     {memory}
+
+    ### CRITICAL RISK ASSESSMENT
+    It is crucial to accurately assess your flood risk. Underestimating the threat of flooding can lead to severe financial hardship, loss of property, and long-term emotional distress. Your decisions must reflect a realistic understanding of potential dangers and your vulnerability.
 
     ### POLICY UPDATES THIS YEAR
     - NJ Government (NJDEP Blue Acres): {govt_message}
@@ -66,6 +61,13 @@ household_owner:
     ### CURRENT COSTS
     - Annual NFIP Premium: ${current_premium:,.0f}
     - Elevation Subsidy Rate: {subsidy_rate:.0%}
+
+    ### COST GUIDANCE (IMPORTANT)
+    - Elevation is a HIGH-cost action: baseline ~$150,000 before subsidy.
+      Your out-of-pocket cost is roughly $150,000 * (1 - subsidy_rate).
+    - Buyout is a HIGH-cost, irreversible move (you leave the community).
+    - Insurance is a MODERATE annual cost tied to property value and premium rate.
+    - If you are uncertain you can afford a high-cost action, choose a lower-cost option.
 
     ### ADAPTATION OPTIONS
     {options_text}
@@ -138,9 +140,17 @@ household_renter:
     ### RELEVANT MEMORIES
     {memory}
 
+    ### CRITICAL RISK ASSESSMENT
+    It is crucial to accurately assess your flood risk. Underestimating the threat of flooding can lead to severe financial hardship, loss of property, and long-term emotional distress. Your decisions must reflect a realistic understanding of potential dangers and your vulnerability.
+
     ### POLICY UPDATES THIS YEAR
     - NJ Government: {govt_message}
     - FEMA/NFIP: {insurance_message}
+
+    ### COST GUIDANCE (IMPORTANT)
+    - Contents insurance is a MODERATE annual cost tied to contents value.
+    - Relocation is a HIGH-cost, disruptive move (moving costs + loss of community ties).
+    - If you are uncertain you can afford a high-cost action, choose a lower-cost option.
 
     ### ADAPTATION OPTIONS (as a renter)
     {options_text}
