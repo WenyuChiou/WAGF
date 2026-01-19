@@ -354,6 +354,8 @@ def run_unified_experiment():
     parser.add_argument("--gossip", action="store_true", help="Enable neighbor gossip (SQ2)")
     parser.add_argument("--initial-subsidy", type=float, default=0.50, help="Initial gov subsidy rate (SQ3)")
     parser.add_argument("--initial-premium", type=float, default=0.02, help="Initial insurance premium rate (SQ3)")
+    parser.add_argument("--enable-financial-constraints", action="store_true",
+                        help="Enable income-based affordability checks")
     parser.add_argument("--grid-dir", type=str, default=None, help="Path to PRB ASCII grid directory")
     parser.add_argument("--grid-years", type=str, default=None, help="Comma-separated PRB years to load (e.g. 2011,2012,2023)")
     # New: Survey vs Random mode
@@ -361,6 +363,8 @@ def run_unified_experiment():
                         help="Agent initialization mode: survey (from questionnaire) or random (synthetic)")
     parser.add_argument("--load-initial-memories", action="store_true", default=True,
                         help="Load initial memories from initial_memories.json (survey mode)")
+    parser.add_argument("--enable-financial-constraints", action="store_true",
+                        help="Enable income-based affordability checks")
     args = parser.parse_args()
 
     # 1. Init environment
@@ -494,6 +498,7 @@ def run_unified_experiment():
             profile="strict", 
             config_path=str(MULTI_AGENT_DIR / "ma_agent_types.yaml")
         )
+        .with_financial_constraints(args.enable_financial_constraints)
     )
     
     # 6. Execute

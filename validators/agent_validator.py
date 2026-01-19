@@ -33,11 +33,12 @@ class AgentValidator:
     Uses agent_type label to lookup validation rules from agent_types.yaml.
     """
     
-    def __init__(self, config_path: str = None):
+    def __init__(self, config_path: str = None, enable_financial_constraints: bool = False):
         self.config = load_agent_config(config_path)
         self.errors: List[ValidationResult] = []
         self.warnings: List[ValidationResult] = []
         self.auditor = GovernanceAuditor()
+        self.enable_financial_constraints = enable_financial_constraints
     
     def validate(self, *args, **kwargs) -> List[ValidationResult]:
         """

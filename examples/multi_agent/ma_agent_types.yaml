@@ -201,20 +201,15 @@ nj_government:
     - Marginalized Group (MG) Households: {mg_count} ({mg_ratio:.0%})
 
     ### POLICY OPTIONS
-    - [1] INCREASE_SUBSIDY: Raise elevation subsidy by 5% to encourage more adaptation
-    - [2] DECREASE_SUBSIDY: Reduce subsidy by 5% to conserve budget
-    - [3] MAINTAIN: Keep current subsidy rate unchanged
-
-    ### OBJECTIVES (per NJ Environmental Justice guidelines)
-    1. Reduce community flood risk through voluntary buyouts and elevation incentives
-    2. Balance program budget with community needs
-    3. Prioritize assistance to marginalized and repetitive-loss communities
-    4. Support long-term community resilience
+    Choose ONE of the following:
+    - "increase_subsidy": Raise elevation subsidy by 5% to encourage more adaptation
+    - "decrease_subsidy": Reduce subsidy by 5% to conserve budget
+    - "maintain_subsidy": Keep current subsidy rate unchanged
 
     ### RESPONSE FORMAT
     Respond ONLY with a valid JSON object:
     {
-      "decision": "1",
+      "decision": "increase_subsidy | decrease_subsidy | maintain_subsidy",
       "reasoning": "Your policy rationale here"
     }
   response_format:
@@ -262,14 +257,14 @@ government:
     ### TASK
     Decide whether to adjust the subsidy rate.
     Options:
-    - [1] INCREASE: Boost subsidy (Current + 5%) to encourage more adaptation.
-    - [2] DECREASE: Lower subsidy (Current - 5%) to save budget.
-    - [3] MAINTAIN: Keep the current rate.
+    - "increase_subsidy": Boost subsidy (Current + 5%) to encourage more adaptation.
+    - "decrease_subsidy": Lower subsidy (Current - 5%) to save budget.
+    - "maintain_subsidy": Keep the current rate.
 
     ### RESPONSE FORMAT
     Respond ONLY with a valid JSON object:
     {
-      "decision": "1",
+      "decision": "increase_subsidy | decrease_subsidy | maintain_subsidy",
       "reasoning": "Reason here"
     }
   response_format:
@@ -316,9 +311,10 @@ fema_nfip:
     - Recent Claims: {recent_claims} in past year
 
     ### POLICY OPTIONS
-    - [1] RAISE_PREMIUM: Increase rates by 0.5% per Risk Rating 2.0 actuarial guidelines
-    - [2] LOWER_PREMIUM: Reduce rates by 0.5% to improve affordability and take-up
-    - [3] MAINTAIN: Keep current premium structure
+    Choose ONE of the following:
+    - "raise_premium": Increase rates by 0.5% per Risk Rating 2.0 actuarial guidelines
+    - "lower_premium": Reduce rates by 0.5% to improve affordability and take-up
+    - "maintain_premium": Keep current premium structure
 
     ### OBJECTIVES
     1. Maintain program solvency while ensuring affordability
@@ -329,7 +325,7 @@ fema_nfip:
     ### RESPONSE FORMAT
     Respond ONLY with a valid JSON object:
     {
-      "decision": "1",
+      "decision": "raise_premium | lower_premium | maintain_premium",
       "reasoning": "Your policy rationale here"
     }
   response_format:
@@ -373,17 +369,16 @@ insurance:
     2. Maintain market share (Insured base).
     3. Encourage mitigation through premium discounts.
 
-    ### TASK
-    Decide whether to adjust premium rates.
-    Options:
-    - [1] RAISE: Increase premiums (+0.5%) to offset losses.
-    - [2] LOWER: Decrease premiums (-0.5%) to attract more customers.
-    - [3] MAINTAIN: Keep current premiums.
+    ### POLICY OPTIONS
+    Choose ONE of the following:
+    - "raise_premium": Increase premiums (+0.5%) to offset losses.
+    - "lower_premium": Decrease premiums (-0.5%) to attract more customers.
+    - "maintain_premium": Keep current premiums.
 
     ### RESPONSE FORMAT
     Respond ONLY with a valid JSON object:
     {
-      "decision": "1",
+      "decision": "raise_premium | lower_premium | maintain_premium",
       "reasoning": "Reason here"
     }
   response_format:
@@ -402,6 +397,52 @@ insurance:
         aliases: ["LOWER", "lower", "2", "[2]"]
       - id: maintain_premium
         aliases: ["MAINTAIN", "maintain", "3", "[3]"]
+
+# =============================================================================
+# MEMORY CONFIGURATION
+# =============================================================================
+memory_config:
+  household_owner:
+    engine: "humancentric"
+    window_size: 3
+    top_k_significant: 2
+    consolidation_prob: 0.7
+    decay_rate: 0.1
+  household_renter:
+    engine: "humancentric"
+    window_size: 3
+    top_k_significant: 2
+  government:
+    engine: "window"
+    window_size: 5
+  insurance:
+    engine: "window"
+    window_size: 5
+
+retrieval_config:
+  household:
+    strategy: "importance_weighted"
+    emotional_weights:
+      critical: 1.0
+      major: 0.9
+      positive: 0.8
+      observation: 0.4
+    source_weights:
+      personal: 1.0
+      neighbor: 0.7
+      community: 0.5
+  institutional:
+    strategy: "recency"
+    top_k: 5
+
+social_memory_config:
+  gossip_enabled: true
+  max_gossip: 2
+  gossip_categories:
+    - "decision_reasoning"
+    - "flood_experience"
+    - "adaptation_outcome"
+  gossip_importance_threshold: 0.5
 
 # =============================================================================
 # GOVERNANCE RULES
@@ -430,5 +471,51 @@ governance:
     insurance:
       identity_rules: []
       thinking_rules: []
+
+# =============================================================================
+# MEMORY CONFIGURATION
+# =============================================================================
+memory_config:
+  household_owner:
+    engine: "humancentric"
+    window_size: 3
+    top_k_significant: 2
+    consolidation_prob: 0.7
+    decay_rate: 0.1
+  household_renter:
+    engine: "humancentric"
+    window_size: 3
+    top_k_significant: 2
+  government:
+    engine: "window"
+    window_size: 5
+  insurance:
+    engine: "window"
+    window_size: 5
+
+retrieval_config:
+  household:
+    strategy: "importance_weighted"
+    emotional_weights:
+      critical: 1.0
+      major: 0.9
+      positive: 0.8
+      observation: 0.4
+    source_weights:
+      personal: 1.0
+      neighbor: 0.7
+      community: 0.5
+  institutional:
+    strategy: "recency"
+    top_k: 5
+
+social_memory_config:
+  gossip_enabled: true
+  max_gossip: 2
+  gossip_categories:
+    - "decision_reasoning"
+    - "flood_experience"
+    - "adaptation_outcome"
+  gossip_importance_threshold: 0.5
 
 metadata: { version: "v24-nj-fema-pmt-refactored" }
