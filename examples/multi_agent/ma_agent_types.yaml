@@ -42,7 +42,7 @@ household_owner:
     - Income: {income_range}
     - Household Size: {household_size} people
     - Generations in Area: {residency_generations}
-    - Flood Zone: {flood_zone} (depth: {flood_depth:.2f}m)
+    - Flood Zone: {flood_zone}
     - Flood Experience: {flood_experience_summary}
     - Property Value: ${rcv_building:,.0f} (building) + ${rcv_contents:,.0f} (contents)
     - Current Status: {elevation_status_text}
@@ -130,7 +130,7 @@ household_renter:
     - Income: {income_range}
     - Household Size: {household_size} people
     - Years at Current Address: {residency_generations}
-    - Flood Zone: {flood_zone} (depth: {flood_depth:.2f}m)
+    - Flood Zone: {flood_zone}
     - Flood Experience: {flood_experience_summary}
     - Contents Value: ${rcv_contents:,.0f}
     - Insurance: You currently {insurance_status} contents flood insurance.
