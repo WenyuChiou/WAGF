@@ -354,18 +354,81 @@ def run_unified_experiment():
     parser.add_argument("--gossip", action="store_true", help="Enable neighbor gossip (SQ2)")
     parser.add_argument("--initial-subsidy", type=float, default=0.50, help="Initial gov subsidy rate (SQ3)")
     parser.add_argument("--initial-premium", type=float, default=0.02, help="Initial insurance premium rate (SQ3)")
-    parser.add_argument("--enable-financial-constraints", action="store_true",
-                        help="Enable income-based affordability checks")
     parser.add_argument("--grid-dir", type=str, default=None, help="Path to PRB ASCII grid directory")
     parser.add_argument("--grid-years", type=str, default=None, help="Comma-separated PRB years to load (e.g. 2011,2012,2023)")
-    # New: Survey vs Random mode
     parser.add_argument("--mode", type=str, choices=["survey", "random"], default="survey",
                         help="Agent initialization mode: survey (from questionnaire) or random (synthetic)")
     parser.add_argument("--load-initial-memories", action="store_true", default=True,
                         help="Load initial memories from initial_memories.json (survey mode)")
-    parser.add_argument("--enable-financial-constraints", action="store_true",
-                        help="Enable income-based affordability checks")
+    parser.add_argument("--enable-custom-affordability", action="store_true",
+                        help="Enable custom income-based affordability checks from experiment script.")
+    parser.add_argument("--mock-response-file", type=str, default=None,
+                        help="Path to a JSON file containing a mock response for the LLM.")
     args = parser.parse_args()
+    
+    # =============================================================================
+    # CUSTOM VALIDATOR FUNCTIONS (Application-Specific)
+    # =============================================================================
+
+    from broker.interfaces.skill_types import ValidationResult, SkillProposal, ValidationLevel
+    from typing import Tuple
+
+    def validate_affordability(
+        proposal: SkillProposal, 
+        context: Dict[str, Any], 
+        skill_registry: Any # Not used here, but part of standard signature
+    ) -> List[ValidationResult]:
+        """
+        Application-specific financial affordability check for household agents.
+        Returns a list of ValidationResult objects.
+        """
+        results = []
+
+        if proposal.agent_type not in ["household_owner", "household_renter"]:
+            return results # Only applies to household agents
+
+        agent_data_from_builder = context.get('agent_state', {})
+        fixed = agent_data_from_builder.get('personal', {}).get('fixed_attributes', {})
+        env = context.get('env_state', {})
+
+        income = fixed.get('income', 50000)
+        subsidy_rate = env.get('subsidy_rate', 0.5)
+        premium_rate = env.get('premium_rate', 0.02)
+        property_value = fixed.get('property_value', 300000)
+        
+        decision = proposal.skill_name
+
+        if decision == "elevate_house":
+            cost = 150_000 * (1 - subsidy_rate)
+            if cost > income * 3.0:
+                results.append(ValidationResult(
+                    valid=False,
+                    validator_name="CustomAffordabilityValidator",
+                    errors=[f"AFFORDABILITY: Cannot afford elevation (${cost:,.0f} > 3x income ${income*3:,.0f})"],
+                    metadata={
+                        "level": ValidationLevel.ERROR,
+                        "rule": "affordability",
+                        "field": "decision",
+                        "constraint": "financial_affordability"
+                    }
+                ))
+
+        if decision in ["buy_insurance", "buy_contents_insurance"]:
+            premium = premium_rate * property_value
+            if premium > income * 0.05:
+                results.append(ValidationResult(
+                    valid=False,
+                    validator_name="CustomAffordabilityValidator",
+                    errors=[f"AFFORDABILITY: Premium ${premium:,.0f} exceeds 5% of income ${income*0.05:,.0f})"],
+                    metadata={
+                        "level": ValidationLevel.ERROR,
+                        "rule": "affordability",
+                        "field": "decision",
+                        "constraint": "financial_affordability"
+                    }
+                ))
+
+        return results
 
     # 1. Init environment
     env_data = {
@@ -498,12 +561,65 @@ def run_unified_experiment():
             profile="strict", 
             config_path=str(MULTI_AGENT_DIR / "ma_agent_types.yaml")
         )
-        .with_financial_constraints(args.enable_financial_constraints)
     )
+
+    if args.enable_custom_affordability:
+        builder.with_custom_validators([validate_affordability])
     
     # 6. Execute
     runner = builder.build()
-    runner.run(runner.llm_invoke) # Standard framework invocation
+    
+    # Custom llm_invoke for mock model with response file
+    if args.model == "mock" and args.mock_response_file:
+        from broker.utils.llm_utils import create_llm_invoke
+        from broker.interfaces.skill_types import SkillProposal
+        from dataclasses import dataclass
+
+        @dataclass
+        class MockLLMStats:
+            retries: int = 0
+            success: bool = True
+
+        mock_responses = []
+        with open(args.mock_response_file, 'r') as f:
+            for line in f:
+                mock_responses.append(json.loads(line))
+
+        def mock_llm_invoke(prompt: str):
+            import re
+            match = re.search(r"id: (\S+)", prompt)
+            agent_id = match.group(1) if match else "unknown"
+
+            # Find matching mock response
+            for resp in mock_responses:
+                if resp.get("agent_id") == agent_id:
+                    # Determine agent type from response or default
+                    agent_type = "default"
+                    if "NJ_STATE" in agent_id:
+                        agent_type = "government"
+                    elif "FEMA_NFIP" in agent_id:
+                        agent_type = "insurance"
+                    elif "H" in agent_id:
+                        # Simple check for household agent
+                        agent_type = "household_owner"
+
+
+                    return (SkillProposal(
+                        skill_name=resp.get("skill_name"),
+                        agent_id=resp.get("agent_id"),
+                        reasoning=resp.get("reasoning"),
+                        agent_type=agent_type
+                    ), MockLLMStats())
+            
+            # Default response if no match
+            return (SkillProposal(skill_name="do_nothing", agent_id=agent_id, reasoning={"reasoning": "default"}, agent_type="default"), MockLLMStats())
+
+        llm_invoke_func = mock_llm_invoke
+    else:
+        llm_invoke_func = runner.llm_invoke
+        
+    runner.run(llm_invoke_func) # Use the selected llm_invoke
+
 
 if __name__ == "__main__":
     run_unified_experiment()

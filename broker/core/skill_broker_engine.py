@@ -61,26 +61,25 @@ class SkillBrokerEngine:
         validators: List[AgentValidator],
         simulation_engine: Any,
         context_builder: Any,
-        config: Optional[Any] = None, # Phase 12: Accept config for generic logging
-        skill_retriever: Optional[SkillRetriever] = None, # Phase 28: Dynamic Skill Retrieval
+        config: Optional[Any] = None,
+        skill_retriever: Optional[SkillRetriever] = None,
         audit_writer: Optional[Any] = None,
         max_retries: int = 3,
-        log_prompt: bool = False
+        log_prompt: bool = False,
+        custom_validators: Optional[List[Callable]] = None # New parameter
     ):
         self.skill_registry = skill_registry
         self.model_adapter = model_adapter
         self.validators = validators
         self.simulation_engine = simulation_engine
         self.context_builder = context_builder
-        # Phase 28: Universal RAG support. If no retriever provided, use default.
-        # Phase 32: Configure Global Skills (Always Available)
-        self.config = config or load_agent_config() # Default if not provided
+        self.config = config or load_agent_config()
+        self.custom_validators = custom_validators or [] # Store custom validators
         
         if skill_retriever:
             self.skill_retriever = skill_retriever
         else:
-            # Create a retriever with global skills from config
-            global_skills = self.config.get_global_skills("default") # Base default
+            global_skills = self.config.get_global_skills("default")
             full_disclosure = self.config.get_full_disclosure_agent_types()
             self.skill_retriever = SkillRetriever(
                 top_n=3, 
@@ -89,12 +88,10 @@ class SkillBrokerEngine:
             )
             
         self.audit_writer = audit_writer
-        # Use config-driven default if not explicitly passed
         self.max_retries = max_retries if max_retries != 3 else self.config.get_governance_retries(max_retries)
         self.max_reports = self.config.get_governance_max_reports()
         self.log_prompt = log_prompt
         
-        # Statistics
         self.stats = {
             "total": 0,
             "approved": 0,
@@ -103,6 +100,7 @@ class SkillBrokerEngine:
             "aborted": 0
         }
         self.auditor = GovernanceAuditor()
+
     
     def process_step(
         self,
@@ -205,13 +203,17 @@ class SkillBrokerEngine:
                     total_llm_stats["llm_retries"] += stats.get("current_retries", 0)
                     total_llm_stats["llm_success"] = stats.get("current_success", True)
                 
-                # Pass full context for audit access
-                skill_proposal = self.model_adapter.parse_output(raw_output, {
-                    "agent_id": agent_id,
-                    "agent_type": agent_type,
-                    "retry_attempt": initial_attempts - 1,
-                    **context
-                })
+                # If the llm_invoke returned a SkillProposal, use it directly.
+                if isinstance(raw_output, SkillProposal):
+                    skill_proposal = raw_output
+                else:
+                    # Pass full context for audit access
+                    skill_proposal = self.model_adapter.parse_output(raw_output, {
+                        "agent_id": agent_id,
+                        "agent_type": agent_type,
+                        "retry_attempt": initial_attempts - 1,
+                        **context
+                    })
                 
                 # Phase 33: Explicit handling for Empty/Null responses
                 if skill_proposal is None:
@@ -619,12 +621,27 @@ class SkillBrokerEngine:
     def _run_validators(self, proposal: SkillProposal, context: Dict) -> List[ValidationResult]:
         """Run all validators on the skill proposal."""
         results = []
+        print(f"DEBUG: _run_validators: Running {len(self.validators)} standard validators and {len(self.custom_validators)} custom validators.")
         for validator in self.validators:
             result = validator.validate(proposal, context, self.skill_registry)
             if isinstance(result, list):
                 results.extend(result)
             else:
                 results.append(result)
+        
+        # Run custom validators
+        for custom_validator_func in self.custom_validators:
+            custom_results = custom_validator_func(proposal, context, self.skill_registry)
+            if isinstance(custom_results, list):
+                results.extend(custom_results)
+            else: # Assume single ValidationResult if not list
+                results.append(custom_results)
+        
+        print(f"DEBUG: _run_validators: Total validation results: {len(results)}")
+        if results:
+            for i, r in enumerate(results):
+                print(f"  - Result {i}: valid={r.valid}, validator='{r.validator_name}', errors={r.errors}")
+        
         return results
 
     def _merge_state_after(self, state_before: Dict[str, Any], execution_result: Optional[ExecutionResult]) -> Dict[str, Any]:

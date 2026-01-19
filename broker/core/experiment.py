@@ -279,6 +279,7 @@ class ExperimentBuilder:
         self.hooks = {}
         self.workers = 1  # PR: Multiprocessing Core - default to sequential
         self.seed = 42    # Default seed for reproducibility
+        self.custom_validators = [] # New: custom validator functions
 
     def with_workers(self, workers: int = 4):
         """Set number of parallel workers for LLM calls. 1=sequential (default)."""
@@ -298,6 +299,11 @@ class ExperimentBuilder:
         self.verbose = verbose
         return self
     
+    def with_custom_validators(self, validators: List[Callable]):
+        """Register custom validator functions to be run by the broker."""
+        self.custom_validators = validators
+        return self
+
     def with_context_builder(self, builder: Any):
         self.ctx_builder = builder
         return self
@@ -440,7 +446,9 @@ class ExperimentBuilder:
         audit_writer = GenericAuditWriter(audit_cfg)
         
         # 5. Setup Validator & Adapter
-        validator = AgentValidator(config_path=self.agent_types_path)
+        validator = AgentValidator(
+            config_path=self.agent_types_path
+        )
         from broker.utils.model_adapter import get_adapter
         
         # PR 13.1: Inject registry skills into adapter for robust parsing via factory
@@ -488,7 +496,8 @@ class ExperimentBuilder:
             context_builder=ctx_builder,
             config=config,           # Added for generic logging
             audit_writer=audit_writer,
-            log_prompt=self.verbose
+            log_prompt=self.verbose,
+            custom_validators=self.custom_validators # Pass custom validators
         )
         
         # PR 11: Pass active project dir to adapter

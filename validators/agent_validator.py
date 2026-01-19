@@ -33,12 +33,11 @@ class AgentValidator:
     Uses agent_type label to lookup validation rules from agent_types.yaml.
     """
     
-    def __init__(self, config_path: str = None, enable_financial_constraints: bool = False):
+    def __init__(self, config_path: str = None):
         self.config = load_agent_config(config_path)
         self.errors: List[ValidationResult] = []
         self.warnings: List[ValidationResult] = []
         self.auditor = GovernanceAuditor()
-        self.enable_financial_constraints = enable_financial_constraints
     
     def validate(self, *args, **kwargs) -> List[ValidationResult]:
         """
@@ -97,54 +96,91 @@ class AgentValidator:
         
         base_type = self.config.get_base_type(agent_type)
             
-        # 0. Validate Response Format (Tier 0)
-        # Check if required fields from YAML are present in reasoning
-        try:
-            from broker.components.response_format import ResponseFormatBuilder
-            shared_config = {"response_format": self.config._config.get("shared", {}).get("response_format", {})}
-            agent_config = self.config.get(base_type)
-            rfb = ResponseFormatBuilder(agent_config, shared_config)
-            required_fields = rfb.get_required_fields()
+                        # 0. Validate Response Format (Tier 0)
             
-            # Map required fields to reasoning keys
-            missing = []
-            for field in required_fields:
-                if field == "decision":
-                    # Decision is valid if we have a skill_name extracted
-                    if not decision:
-                        missing.append(field)
-                    continue
-
-
-
-
-
+                        # Check if required fields from YAML are present in reasoning
+            
+                        try:
+            
+                            from broker.components.response_format import ResponseFormatBuilder
+            
+                            shared_config = {"response_format": self.config._config.get("shared", {}).get("response_format", {})}
+            
+                            agent_config = self.config.get(base_type)
+            
+                            rfb = ResponseFormatBuilder(agent_config, shared_config)
+            
+                            required_fields = rfb.get_required_fields()
+            
+                            
+            
+                            # Map required fields to reasoning keys
+            
+                            missing = []
+            
+                            for field in required_fields:
+            
+                                if field == "decision":
+            
+                                    # Decision is valid if we have a skill_name extracted
+            
+                                    if not decision:
+            
+                                        missing.append(field)
+            
+                                    continue
+            
                 
-                if field not in reasoning:
-                    # Also check for construct mapping (e.g. TP_LABEL)
-                    mapping = rfb.get_construct_mapping()
-                    construct = mapping.get(field)
-                    if construct and construct not in reasoning:
-                        missing.append(field)
-                    elif not construct:
-                        missing.append(field)
-
             
-            if missing:
-                results.append(ValidationResult(
-                    valid=False,
-                    validator_name="AgentValidator:format",
-                    errors=[f"Response missing required fields: {', '.join(missing)}"],
-                    metadata={
-                        "level": ValidationLevel.ERROR,
-                        "rule": "format",
-                        "field": "json_structure",
-                        "constraint": f"required={required_fields}"
-                    }
-                ))
-        except Exception as e:
-            # logger.error(f"Error in Tier 0 validation: {e}")
-            pass
+                                if field not in reasoning:
+            
+                                    # Also check for construct mapping (e.g. TP_LABEL)
+            
+                                    mapping = rfb.get_construct_mapping()
+            
+                                    construct = mapping.get(field)
+            
+                                    if construct and construct not in reasoning:
+            
+                                        missing.append(field)
+            
+                                    elif not construct:
+            
+                                        missing.append(field)
+            
+                
+            
+                            
+            
+                            if missing:
+            
+                                results.append(ValidationResult(
+            
+                                    valid=False,
+            
+                                    validator_name="AgentValidator:format",
+            
+                                    errors=[f"Response missing required fields: {', '.join(missing)}"],
+            
+                                    metadata={
+            
+                                        "level": ValidationLevel.ERROR,
+            
+                                        "rule": "format",
+            
+                                        "field": "json_structure",
+            
+                                        "constraint": f"required={required_fields}"
+            
+                                    }
+            
+                                ))
+            
+                        except Exception as e:
+            
+                            # logger.error(f"Error in Tier 0 validation: {e}")
+            
+                            pass
 
 
 
@@ -410,24 +446,25 @@ class AgentValidator:
                 blocked_normalized = [b.lower().strip().replace("_", "") for b in rule.blocked_skills]
                 
                 if normalized_decision in blocked_normalized:
-                    # LOG ALL INTERVENTIONS TO AUDITOR
-                    self.auditor.log_intervention(rule.id, success=False, is_final=False)
-                    
                     lv = ValidationLevel.ERROR if rule.level == "ERROR" else ValidationLevel.WARNING
-                    rule_msg = f"[Rule: {rule.id}] {rule.message or f'Logic Block: {decision} flagged by {tier_name} rules'}"
+                    if lv == ValidationLevel.ERROR:
+                        self.auditor.log_intervention(rule.id, success=False, is_final=False)
+
+                    rule_msg = f"[Rule: {rule.id}] {rule.message or f'Identity Block: {decision} restricted by {tier_name} rules'}"
                     results.append(ValidationResult(
                         valid=(lv == ValidationLevel.WARNING),
-                        validator_name=f"AgentValidator:{tier_name}_{rule.level.lower()}",
+                        validator_name=f"AgentValidator:identity_{rule.level.lower()}",
                         errors=[rule_msg] if lv == ValidationLevel.ERROR else [],
                         warnings=[rule_msg] if lv == ValidationLevel.WARNING else [],
                         metadata={
                             "level": lv,
-                            "tier": f"Tier 2: {tier_name.capitalize()}",
-                            "rule": f"{tier_name}_{rule.level.lower()}",
+                            "tier": "Tier 1: Identity/Status",
+                            "rule": f"identity_{rule.level.lower()}",
                             "rule_id": rule.id,
+                            "message": rule.message,
                             "field": "decision",
                             "value": decision,
-                            "constraint": f"Tier: {tier_name}",
+                            "constraint": f"Identity: {rule.level}",
                             "rules_hit": [rule.id]
                         }
                     ))
@@ -451,8 +488,8 @@ class AgentValidator:
                     errors=[f"Missing '{field}' in response"],
                     metadata={
                         "level": ValidationLevel.ERROR,
-                        "rule": "response_format",
-                        "field": "response",
+                        "rule": "format",
+                        "field": "json_structure",
                         "constraint": f"required: {required}"
                     }
                 ))

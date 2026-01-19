@@ -17,6 +17,10 @@ class SkillOutcome(Enum):
     UNCERTAIN = "UNCERTAIN"
     ABORTED = "ABORTED"
 
+class ValidationLevel(Enum):
+    ERROR = "ERROR"      # Must fix, decision rejected
+    WARNING = "WARNING"  # Log but allow
+
 
 @dataclass
 class SkillProposal:
