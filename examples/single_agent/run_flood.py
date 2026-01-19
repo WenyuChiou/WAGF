@@ -253,6 +253,7 @@ def classify_adaptation_state(agent):
     else: return "Do Nothing"
 
 # --- 4. Parity Hook ---
+class FinalParityHook:
     def __init__(self, sim: ResearchSimulation, runner: ExperimentRunner, reflection_engine=None, output_dir=None):
         self.sim = sim
         self.runner = runner
@@ -382,16 +383,16 @@ def classify_adaptation_state(agent):
         print(f"[Year {year}] Stats: {stats_str}")
         print(f"[Year {year}] Avg Trust: Ins={avg_trust_ins:.3f}, Nb={avg_trust_nb:.3f}")
 
-        # Intermediate Save for Validation (Optimized: Append Mode + PID for Parallel Safety)
-        import os
-        log_filename = self.output_dir / f"interim_{getattr(self.runner.config, 'model', 'unknown').replace(':','_')}_{getattr(self.runner.config, 'governance_profile', 'default')}_{os.getpid()}.csv"
-        
-        # Write only current year's data to avoid O(N^2) I/O cost
-        # Use 'w' mode for first year to clear old runs (if PID reused), 'a' for subsequent
-        mode = 'w' if year == 1 else 'a'
-        header = (year == 1)
-        
-        df_year.to_csv(log_filename, mode=mode, header=header, index=False)
+        # Intermediate Save for Validation (DISABLED: Production runs skip interim csvs)
+        # import os
+        # log_filename = self.output_dir / f"interim_{getattr(self.runner.config, 'model', 'unknown').replace(':','_')}_{getattr(self.runner.config, 'governance_profile', 'default')}_{os.getpid()}.csv"
+        # 
+        # # Write only current year's data to avoid O(N^2) I/O cost
+        # # Use 'w' mode for first year to clear old runs (if PID reused), 'a' for subsequent
+        # mode = 'w' if year == 1 else 'a'
+        # header = (year == 1)
+        # 
+        # df_year.to_csv(log_filename, mode=mode, header=header, index=False)
         
         # --- PILLAR 2: BATCH YEAR-END REFLECTION ---
         if self.reflection_engine and self.reflection_engine.should_reflect("any", year):

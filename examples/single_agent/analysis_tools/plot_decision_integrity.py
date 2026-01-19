@@ -5,8 +5,18 @@ import seaborn as sns
 import numpy as np
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--base-dir", type=str, default="results/JOH_FINAL")
+    args = parser.parse_args()
+
     # Load IF Data
-    if_df = pd.read_csv("results/JOH_FINAL/internal_fidelity_raw_scores.csv")
+    csv_path = os.path.join(args.base_dir, "metrics", "internal_fidelity_raw_scores.csv")
+    if not os.path.exists(csv_path):
+        print(f"Error: {csv_path} not found. Run analysis script first.")
+        return
+        
+    if_df = pd.read_csv(csv_path)
     
     # Synthetic Rationality Score (RS) for visualization purposes
     # Logic: 
@@ -33,11 +43,10 @@ def main():
     if_df['Rationality_Score'] = if_df.apply(estimate_rs, axis=1)
     
     # Plotting
-    plt.figure(figsize=(10, 6))
+    plt.figure(figsize=(12, 8))
     
     # Custom Palette
     palette = {'Group_A': '#e74c3c', 'Group_B': '#f1c40f', 'Group_C': '#2ecc71'}
-    markers = {'llama3_2_3b': 'o', 'gemma3_4b': 's', 'deepseek_r1_8b': 'D'}
     
     sns.set_style("whitegrid")
     
@@ -51,35 +60,34 @@ def main():
             y='Rationality_Score', 
             hue='Group', 
             palette=palette,
-            style='Group', # Redundant but safe if model column is sparse
-            s=100,
-            alpha=0.8,
-            legend=False # Manual legend later
+            style='Model', 
+            s=120,
+            alpha=0.7,
         )
         
     # Annotations
-    plt.axvline(x=0, color='gray', linestyle='--', alpha=0.5)
-    plt.axhline(y=0.8, color='gray', linestyle='--', alpha=0.5)
+    plt.axvline(x=0, color='black', linestyle='-', alpha=0.3)
+    plt.axhline(y=0.8, color='black', linestyle='--', alpha=0.3)
     
-    plt.text(-0.8, 0.3, "Zone of Hallucination\n(Stably Insane)", fontsize=10, color='red')
-    plt.text(0.5, 0.9, "Zone of Integrity\n(Governed Rational)", fontsize=10, color='green')
+    plt.text(-0.5, 0.3, "Zone of Hallucination\n(Low Fidelity & Rationality)", fontsize=11, color='#c0392b', fontweight='bold', ha='center')
+    plt.text(0.5, 0.9, "Zone of Integrity\n(Governed Rationality)", fontsize=11, color='#27ae60', fontweight='bold', ha='center')
     
-    plt.title("Decision Integrity: Internal Fidelity vs. Rationality Score", fontsize=14)
-    plt.xlabel("Internal Fidelity (IF)\n(Correlation: Threat vs. Action)", fontsize=12)
-    plt.ylabel("Rationality Score (RS)\n(Constraint Survival Rate)", fontsize=12)
+    plt.title("JOH Validation: Internal Fidelity (Logic) vs. Rationality Score (Action)", fontsize=16, fontweight='bold', pad=20)
+    plt.xlabel("Internal Fidelity (IF)\n[Spearman Correlation: Mind-Action Alignment]", fontsize=13)
+    plt.ylabel("Rationality Score (RS)\n[Constraint Adherence Rate]", fontsize=13)
     
-    # Custom Legend
-    from matplotlib.lines import Line2D
-    custom_lines = [
-        Line2D([0], [0], marker='o', color='w', markerfacecolor='#e74c3c', markersize=10, label='Group A (Naive)'),
-        Line2D([0], [0], marker='o', color='w', markerfacecolor='#f1c40f', markersize=10, label='Group B (Governed)'),
-        Line2D([0], [0], marker='o', color='w', markerfacecolor='#2ecc71', markersize=10, label='Group C (Cognitive)')
-    ]
-    plt.legend(handles=custom_lines, loc='lower right')
+    plt.xlim(-1.1, 1.1)
+    plt.ylim(0, 1.1)
+
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
     
     plt.tight_layout()
-    plt.savefig("results/JOH_FINAL/Figure5_Decision_Integrity.png", dpi=300)
-    print("Generated Figure 5: Decision Integrity")
+    plots_dir = os.path.join(args.base_dir, "plots")
+    os.makedirs(plots_dir, exist_ok=True)
+    out_path = os.path.join(plots_dir, "Figure5_Decision_Integrity.png")
+    plt.savefig(out_path, dpi=300, bbox_inches='tight')
+    print(f"✅ Generated Figure 5: {out_path}")
 
 if __name__ == "__main__":
+    import os
     main()

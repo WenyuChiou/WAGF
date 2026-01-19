@@ -274,9 +274,10 @@ class AgentValidator:
         rules = self.config.get_identity_rules(agent_type)
 
         # DEBUG Task 015-V2: Track elevated state during elevate_house attempts
-        if decision == "elevate_house":
-            elevated_val = state.get("elevated")
-            print(f"[V2-DEBUG] {agent_id} chose elevate_house | elevated={elevated_val} (type={type(elevated_val).__name__ if elevated_val is not None else 'None'}) | rules={len(rules)}")
+        # (Debug print removed to reduce log noise)
+        # if decision == "elevate_house":
+        #    elevated_val = state.get("elevated")
+        #    print(f"[V2-DEBUG] {agent_id} chose elevate_house | elevated={elevated_val} (type={type(elevated_val).__name__ if elevated_val is not None else 'None'}) | rules={len(rules)}")
 
         for rule in rules:
             if not rule.blocked_skills: continue
