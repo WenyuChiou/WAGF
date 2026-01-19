@@ -3,8 +3,38 @@ from typing import List, Dict, Any, Optional
 from agents.base_agent import BaseAgent
 from broker.utils.logging import setup_logger
 import heapq
+import logging
 
-logger = setup_logger(__name__)
+logger = logging.getLogger(__name__)
+
+def seed_memory_from_agents(memory_engine: 'MemoryEngine', agents: Dict[str, Any]):
+    """
+    Framework-level utility to synchronize initial Agent.memory (from profiles)
+    into the active MemoryEngine.
+    
+    This bridges the gap between static CSV loading and dynamic simulation execution.
+    Prevents duplicates by checking if the engine is already seeded.
+    """
+    for aid, agent in agents.items():
+        # Check if engine already has data for this agent (avoid double seeding)
+        # This protects SA scripts that might have manually seeded or re-used engines.
+        existing = memory_engine.retrieve(agent, top_k=1)
+        if existing:
+            continue
+            
+        initial_mem = getattr(agent, 'memory', None)
+        if not initial_mem:
+            continue
+            
+        if not isinstance(initial_mem, list):
+            logger.warning(f"[MemoryEngine:Seeding] Agent {aid} has non-list memory type: {type(initial_mem)}. Skipping.")
+            continue
+            
+        # Seed into engine
+        for content in initial_mem:
+            memory_engine.add_memory(aid, content)
+    
+    logger.info(f"[MemoryEngine:Seeding] Synchronized initial memory for {len(agents)} agents.")
 
 class MemoryEngine(ABC):
     """
@@ -544,3 +574,55 @@ class HierarchicalMemoryEngine(MemoryEngine):
     def clear(self, agent_id: str):
         self.episodic[agent_id] = []
         self.semantic[agent_id] = []
+
+def seed_memory_from_agents(memory_engine: MemoryEngine, agents: Dict[str, BaseAgent], overwrite: bool = False) -> None:
+    """
+    Seed memory engine storage from agent.profile memory lists.
+
+    This avoids lazy-only initialization and provides a consistent startup path.
+    """
+    if not memory_engine or not agents:
+        return
+
+    seeded = getattr(memory_engine, "_seeded_agents", set())
+    if not isinstance(seeded, set):
+        seeded = set()
+
+    def has_existing_memory(agent_id: str) -> bool:
+        for attr in ("storage", "working", "longterm", "episodic", "semantic"):
+            buf = getattr(memory_engine, attr, None)
+            if isinstance(buf, dict) and buf.get(agent_id):
+                return True
+        return False
+
+    for agent in agents.values():
+        agent_id = getattr(agent, "id", None) or getattr(agent, "name", None)
+        if not agent_id:
+            continue
+        if not overwrite and agent_id in seeded:
+            continue
+        if not overwrite and has_existing_memory(agent_id):
+            seeded.add(agent_id)
+            continue
+
+        initial_mem = getattr(agent, "memory", None)
+        if initial_mem is None:
+            continue
+        if not isinstance(initial_mem, list):
+            logger.warning(f"[Memory:Warning] Agent {agent_id} memory not list; skipping seed.")
+            continue
+        if not initial_mem:
+            continue
+
+        for mem in initial_mem:
+            if hasattr(memory_engine, "add_memory_for_agent"):
+                try:
+                    memory_engine.add_memory_for_agent(agent, mem)
+                except TypeError:
+                    memory_engine.add_memory(agent_id, mem)
+            else:
+                memory_engine.add_memory(agent_id, mem)
+
+        seeded.add(agent_id)
+
+    setattr(memory_engine, "_seeded_agents", seeded)

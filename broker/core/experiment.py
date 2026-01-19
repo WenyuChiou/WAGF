@@ -407,6 +407,9 @@ class ExperimentBuilder:
         
         # 2. Setup Memory Engine (Default to Window if not provided)
         mem_engine = self.memory_engine or WindowMemoryEngine(window_size=3)
+        # Seed initial memory from agent profiles (if provided)
+        from broker.components.memory_engine import seed_memory_from_agents
+        seed_memory_from_agents(mem_engine, self.agents)
         
         # Phase 28: If using HierarchicalMemoryEngine, ensure ContextBuilder supports it
         from ..components.context_builder import TieredContextBuilder
