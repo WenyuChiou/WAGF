@@ -253,14 +253,14 @@ def classify_adaptation_state(agent):
     else: return "Do Nothing"
 
 # --- 4. Parity Hook ---
-class FinalParityHook:
-    def __init__(self, sim: ResearchSimulation, runner: ExperimentRunner, reflection_engine=None):
+    def __init__(self, sim: ResearchSimulation, runner: ExperimentRunner, reflection_engine=None, output_dir=None):
         self.sim = sim
         self.runner = runner
         self.reflection_engine = reflection_engine  # Pillar 2: Year-End Reflection
         self.logs = []
         self.prompt_inspected = False
         self.yearly_decisions = {}
+        self.output_dir = Path(output_dir) if output_dir else Path(".")
 
     def pre_year(self, year, env, agents):
         year = year
@@ -384,7 +384,7 @@ class FinalParityHook:
 
         # Intermediate Save for Validation (Optimized: Append Mode + PID for Parallel Safety)
         import os
-        log_filename = f"interim_{getattr(self.runner.config, 'model', 'unknown').replace(':','_')}_{getattr(self.runner.config, 'governance_profile', 'default')}_{os.getpid()}.csv"
+        log_filename = self.output_dir / f"interim_{getattr(self.runner.config, 'model', 'unknown').replace(':','_')}_{getattr(self.runner.config, 'governance_profile', 'default')}_{os.getpid()}.csv"
         
         # Write only current year's data to avoid O(N^2) I/O cost
         # Use 'w' mode for first year to clear old runs (if PID reused), 'a' for subsequent
@@ -762,7 +762,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         # Note: batch_size is handled in post_year hook of FinalParityHook
     
     # Inject Parity Hooks manually after build
-    parity = FinalParityHook(sim, runner, reflection_engine=reflection_engine)
+    parity = FinalParityHook(sim, runner, reflection_engine=reflection_engine, output_dir=output_dir)
     runner.hooks = {
         "pre_year": parity.pre_year, 
         "post_step": parity.post_step, 

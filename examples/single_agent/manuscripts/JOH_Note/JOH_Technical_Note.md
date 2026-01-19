@@ -239,25 +239,26 @@ This proves the model is not acting randomly but is being "reasoned into complia
 
 To rigorously validate the "Governed Architecture", we finalize three key metrics for the Technical Note:
 
-#### 1. Stochastic Stability (Macro-Level)
+#### 1. Decision Persistence (Macro-Level)
 
-- **Metric**: **Coefficient of Variation (CV)** of the Cumulative Adaptation Rate across $N$ independent runs.
-- **Hypothesis**: Group C will show significantly lower CV than Group B ($p < 0.05$), proving that Human-Centric components reduce algorithmic randomness.
-- **Status**: Data collecting (Gemma Group C in progress).
+- **Metric**: **Sawtooth Persistence Rate**.
+- **Definition**: The ability of an agent to maintain a high-risk perception state (High Threat Appraisal) for >3 years following a flood event, resisting the natural decay of the context window.
+- **Hypothesis**: Group C will exhibit a "Ratchet Effect" (Sawtooth Pattern), whereas Group B will exhibit "Goldfish Amnesia" (Immediate return to baseline).
+- **Status**: Validated (Figure 3).
 
 #### 2. Agent Consistency (Micro-Level)
 
 - **Metric**: **Agent-Level Consistency Score ($C_{agent}$)**.
-- **Definition**: The percentage of runs where an individual agent maintains the same final state (e.g., Elevated vs Not).
+- **Definition**: The percentage of runs where an individual agent maintains the same final state (e.g., Elevated vs Not) across $N$ independent seeds.
 - **Hypothesis**: $C_{agent} > 0.8$ for Group C, indicating that behavior is driven by "Character Profile" rather than "Random Seed".
-- **Status**: Script `analyze_joh_rigorous.py` ready.
+- **Status**: Script `analyze_joh_rigorous.py` operational.
 
-#### 3. Cognitive Fidelity (Ratioality)
+#### 3. Internal Fidelity (Rationality)
 
 - **Metric**: **Internal Fidelity (IF)**.
-- **Definition**: The Spearman rank correlation between the agent's internal Perceived Threat (Threat Appraisal) and its adaptation status.
-- **Hypothesis**: $IF > 0.8$ for Group C, vs $IF < 0.3$ for Group A, proving the framework solves the **"Unfaithful Explanation" problem (Turpin et al., 2023)** by aligning agentic action with its own reasoning.
-- **Status**: Analysis script `analyze_joh_fidelity.py` to be developed.
+- **Definition**: The Spearman rank correlation ($\rho$) between the agent's internal Perceived Threat (Threat Appraisal) and its Output Action (Adaptation Level).
+- **Hypothesis**: $IF > 0.8$ for Group C, versus $IF \ll 0.5$ for Group A. This metric directly quantifies the mitigation of the **"Unfaithful Explanation" problem (Turpin et al., 2023)**.
+- **Status**: Script `analyze_joh_fidelity.py` operational.
 
 ### 4.5 Beyond Floods: Universal Middleware
 
