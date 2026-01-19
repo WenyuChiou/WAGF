@@ -80,6 +80,7 @@ household_owner:
     {response_format}
 
   parsing:
+    preprocessor: { type: "smart_repair" }
     actions:
       - id: do_nothing
         aliases: ["DN", "nothing", "wait", "Do nothing", "Do Nothing", "Take no action", "[DN]"]
@@ -89,7 +90,7 @@ household_owner:
         description: "Purchase NFIP flood insurance"
       - id: elevate_house
         aliases: ["HE", "elevate", "elevation", "elevate_house", "Elevate house", "[HE]"]
-        description: "Elevate house structure (with subsidy)"
+        description: "Elevate house structure (Cost: $150,000 * (1 - subsidy rate))"
       - id: buyout_program
         aliases: ["BT", "buyout", "Blue Acres", "Accept buyout", "[BT]"]
         description: "Accept NJ Blue Acres buyout"
@@ -156,6 +157,7 @@ household_renter:
     {response_format}
 
   parsing:
+    preprocessor: { type: "smart_repair" }
     actions:
       - id: do_nothing
         aliases: ["DN", "nothing", "wait", "Do nothing", "Do Nothing", "Take no action", "[DN]"]
