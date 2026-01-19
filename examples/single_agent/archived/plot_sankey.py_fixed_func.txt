@@ -1,0 +1,93 @@
+def load_reflection_logs(result_dir):
+    """Load reflection logs and determine dominant theme per agent per year."""
+    data = []
+    # 1. Search for dedicated reflection logs
+    files = glob.glob(os.path.join(result_dir, "**", "reflection_log.jsonl"), recursive=True)
+    for file_path in files:
+        path_parts = Path(file_path).parts
+        path_str = str(file_path).lower()
+        
+        model = "Unknown"
+        if "gemma" in path_str: model = "gemma3_4b"
+        elif "llama" in path_str: model = "llama3_2_3b"
+        elif "deepseek" in path_str: model = "deepseek_r1_8b"
+        elif "gpt_oss" in path_str: model = "gpt_oss_20b"
+            
+        try:
+            group = next((p for p in path_parts if "Group_" in p), "Unknown")
+            run = next((p for p in path_parts if "Run_" in p), "Run_1")
+        except:
+            group, run = "Unknown", "Run_1"
+
+        with open(file_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                try:
+                    entry = json.loads(line)
+                    summary = entry.get("summary", "").lower()
+                    year = entry.get("year_created", entry.get("year", 0))
+                    agent_id = entry.get("agent_id", "Unknown")
+                    
+                    # Determine themes present in this reflection
+                    themes_found = []
+                    for category, words in KEYWORDS.items():
+                        if any(word in summary for word in words):
+                            themes_found.append(category)
+                    
+                    if summary:
+                        data.append({
+                            "Model": model, "Group": group, "Run": run,
+                            "AgentID": agent_id, "Year": year, "Summary": summary,
+                            "Themes": themes_found
+                        })
+                except Exception:
+                    continue
+
+    # 2. Search for simulation logs (fallback)
+    sim_files = glob.glob(os.path.join(result_dir, "**", "simulation_log.csv"), recursive=True)
+    sim_files += glob.glob(os.path.join(result_dir, "**", "flood_adaptation_simulation_log.csv"), recursive=True)
+    
+    loaded_runs = set([(d['Model'], d['Group'], d['Run']) for d in data])
+    
+    for file_path in sim_files:
+        path_parts = Path(file_path).parts
+        path_str = str(file_path).lower()
+        
+        model = "Unknown"
+        if "gemma" in path_str: model = "gemma3_4b"
+        elif "llama" in path_str: model = "llama3_2_3b"
+            
+        try:
+            group = next((p for p in path_parts if "Group_" in p), "Unknown")
+            run = next((p for p in path_parts if "Run_" in p), "Run_1")
+        except:
+            group, run = "Unknown", "Run_1"
+            
+        if (model, group, run) in loaded_runs:
+            continue
+            
+        try:
+            df = pd.read_csv(file_path)
+            appraisal_cols = [c for c in ['threat_appraisal', 'coping_appraisal'] if c in df.columns]
+            if not appraisal_cols:
+                continue
+            
+            for _, row in df.iterrows():
+                summary = " ".join([str(row[c]) for c in appraisal_cols if pd.notna(row[c])]).lower()
+                year = row.get('year', row.get('Year', 0))
+                agent_id = row.get('agent_id', row.get('AgentID', 'Unknown'))
+                
+                themes_found = []
+                for category, words in KEYWORDS.items():
+                    if any(word in summary for word in words):
+                        themes_found.append(category)
+
+                if summary:
+                    data.append({
+                        "Model": model, "Group": group, "Run": run,
+                        "AgentID": agent_id, "Year": year, "Summary": summary,
+                        "Themes": themes_found
+                    })
+        except Exception:
+            continue
+            
+    return pd.DataFrame(data)
