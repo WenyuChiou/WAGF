@@ -1,6 +1,8 @@
 # JOH Technical Note: Framework & Validation Strategy
 
 > **Title**: Bridging the Cognitive Governance Gap: A Framework for Explainable Bounded Rationality in LLM-Based Hydro-Social Modeling
+>
+> - **Research Objective**: To evaluate whether a "Governed Broker" architecture can reduce the **Fluency-Reality Gap (Turpin et al., 2023)** and enforce **Bounded Rationality (Simon, 1955)** in hydro-social simulations.
 
 This document outlines the core arguments, structure, and validation strategy for the Journal of Hydrology (JOH) Technical Note.
 
@@ -27,7 +29,8 @@ We define the framework through three cognitive pillars and one extensibility fe
 
 - **Mechanism**: `Skill Broker` & `InterventionReport`.
 - **Function**: Blocks "Impossible" or "Irrational" moves using PMT Logic rules.
-- **Innovation**: **Self-Correction Trace**. Instead of silently failing, it gives the agent a "Rejection Letter" (System 2 Feedback), forcing it to reason correctly (XAI).
+- **Innovation**: **Rationality Filtering**. The broker identifies "Hallucinated Adaptation" (e.g., relocating due to non-existent grants).
+- **Core Narrative**: **Rational Stability**. High adaptation is only a success if it correlates with risk signals (Fidelity Index).
 
 ### Pillar 2: Episodic Resilience (The "Memory")
 
@@ -55,6 +58,7 @@ We present a "Lego-like" architecture where cognitive modules can be stacked to 
 - **Mechanism**: JSON-based Input/Output Decoupling.
 - **Function**: Connects to _any_ external world.
 - **Argument**: "The framework is model-agnostic Cognitive Middleware, compatible with SWMM/HEC-RAS."
+- **Theoretical Framework**: Combines **Protection Motivation Theory (Rogers, 1975)** with **Cognitive Governance** to simulate validatable adaptive behavior.
 
 ---
 
@@ -81,16 +85,16 @@ We present a "Lego-like" architecture where cognitive modules can be stacked to 
 
 ### **Section 4: Results & Discussion**
 
-- **4.1 The Instability of Naive Agents (The "Desktop vs Repo" Discovery)**:
-  - Present data showing how identical prompts produce divergent behaviors (Adapt vs Do Nothing) based on random seeds when `Memory Window` is small.
-  - **Conclusion**: Naive LLM agents are **Stochastically Unstable**.
-- **4.2 The Stabilization Effect (Group C)**:
-  - Show how Tiered Memory reduces inter-run variance.
-- **4.3 Quantitative Analysis**: Rationality Scores & Adaptation Rates.
+- **4.1 The Instability of Naive Agents (The "Stably Insane" Discovery)**:
+  - Present data showing how identical prompts produce divergent behaviors (Gemma Sawtooth) or uniform hallucinations (Llama 3.2 100% Adaptation anomaly).
+  - **Conclusion**: Naive LLM agents are **Stochastically Unstable** (Gemma) or **Logically Irrational** (Llama).
+- **4.2 The Transformation Effect (Group C)**:
+  - Show how the Broker restores **Internal Consistency** (IF) even when the LLM is volatile.
+- **4.3 Quantitative Analysis**: Rationality Scores (RS) vs. Internal Fidelity (IF).
 - **4.4 Qualitative Case Studies**: The Stress Tests (Section 5).
-- **4.5 Explainable AI (XAI): Auditing the Cognitive Trace**:
+- **4.5 Explainable AI (XAI): Auditing the Cognitive Trace (Internal Fidelity)**:
   - Highlights the value of the "Glass Box" approach.
-  - Demonstrates how `reflection_log.jsonl` allows researchers to validate the _reasoning_ behind the metrics.
+  - **Internal Fidelity (IF)**: Measuring the Spearman correlation between Perceived Threat (Internal Appraisal) and agent action.
   - **Example**: Distinguishing between an agent who buys insurance because of "Panic" vs. one who buys it due to "Calculated Risk Assessment" using the semantic log trail.
 
 ### **Section 5: Conclusion**
@@ -103,12 +107,11 @@ We present a "Lego-like" architecture where cognitive modules can be stacked to 
 
 These metrics define "Success" in the paper:
 
-| Metric | Full Name              | Definition                                                              | Target                                       |
-| :----- | :--------------------- | :---------------------------------------------------------------------- | :------------------------------------------- |
-| **RS** | **Rationality Score**  | % of decisions that pass logic checks without intervention.             | **>95%** (Group B/C)                         |
-| **AD** | **Adaptation Density** | Cumulative implementation of protective measures (Elevation/Insurance). | **Growth Trend** (Group C shouldn't plateau) |
-| **PC** | **Panic Coefficient**  | Ratio of "Relocation" vs "Do Nothing" under low threat.                 | **Low** (Group B should stop panic)          |
-| **FI** | **Fidelity Index**     | Semantic alignment between Context (Risk High) and Action (Elevate).    | **High**                                     |
+| Metric | Full Name              | Definition                                                                                    | Target               |
+| :----- | :--------------------- | :-------------------------------------------------------------------------------------------- | :------------------- |
+| **RS** | **Rationality Score**  | % of proposals that pass the Broker's logic checks without modification.                      | **>95%** (Group B/C) |
+| **IF** | **Internal Fidelity**  | Spearman rank correlation between Internal Appraisal (Threat) and Output Action (Adaptation). | **High (>0.6)**      |
+| **AD** | **Adaptation Density** | Cumulative implementation of protective measures (Elevation/Insurance).                       | **Growth Trend**     |
 
 ---
 

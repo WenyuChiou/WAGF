@@ -511,7 +511,8 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         trust_verbalizer: Optional[Callable[[float, str], str]] = None,
         dynamic_whitelist: List[str] = None,
         yaml_path: Optional[str] = None,
-        max_prompt_tokens: int = 16384
+        max_prompt_tokens: int = 16384,
+        enable_financial_constraints: bool = False # New parameter
     ):
         providers = [
             DynamicStateProvider(dynamic_whitelist),
@@ -537,6 +538,7 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         self.global_news = global_news or []
         self.trust_verbalizer = trust_verbalizer
         self.yaml_path = yaml_path
+        self.enable_financial_constraints = enable_financial_constraints # Store the flag
 
 
     def build(self, agent_id: str, **kwargs) -> Dict[str, Any]:

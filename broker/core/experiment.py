@@ -447,7 +447,8 @@ class ExperimentBuilder:
         
         # 5. Setup Validator & Adapter
         validator = AgentValidator(
-            config_path=self.agent_types_path
+            config_path=self.agent_types_path,
+            enable_financial_constraints=getattr(ctx_builder, "enable_financial_constraints", False)
         )
         from broker.utils.model_adapter import get_adapter
         

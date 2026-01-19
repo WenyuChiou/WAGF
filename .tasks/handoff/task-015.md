@@ -2,7 +2,7 @@
 
 ## Last Updated
 
-**2026-01-18T14:30:00Z** - V2 Bug Fixed by Claude Code
+**2026-01-18T18:45:00Z** - 重新規劃分配給 Codex/Gemini CLI
 
 ## Metadata
 
@@ -460,3 +460,336 @@ next: investigate whether governance should block re-elevate and low-CP expensiv
 
 1. Re-run with larger sample size (more agents/years) to confirm V4 stability.
 2. Add a governance rule to block expensive actions when CP is VL/L, then re-run V4/V5.
+
+---
+
+## 2026-01-18 重新規劃 (Claude Code)
+
+### 前置條件
+- **Task-019** 需先完成 (配置增強：response format, memory config, financial constraints)
+
+### 剩餘子任務分配
+
+| ID | Title | 驗證項 | Status | Assigned |
+|:---|:------|:-------|:-------|:---------|
+| 015-A | Decision Diversity | V1 | `pending` | **Codex** |
+| 015-B | Elevated Persistence | V2 | ✅ completed | Claude Code |
+| 015-C | Insurance Reset | V3 | ✅ completed | Claude Code |
+| 015-D | Behavior Rationality | V4 | `pending` | **Codex** |
+| 015-E | Memory & State | V5 | ✅ completed | Codex |
+| 015-F | Institutional Dynamics | V6 | `pending` | **Gemini CLI** |
+
+---
+
+## 執行指令 (給 Codex)
+
+### Step 1: 跑完整實驗
+```bash
+cd examples/multi_agent
+set GOVERNANCE_PROFILE=strict
+python run_unified_experiment.py \
+  --model llama3.2:3b \
+  --years 10 \
+  --agents 20 \
+  --mode random \
+  --memory-engine humancentric \
+  --gossip \
+  --enable-financial-constraints \
+  --output results_unified/v015_full
+```
+
+### Step 2: 015-A 驗證 (Decision Diversity)
+```bash
+cd examples/multi_agent/tests
+python -c "
+import json
+from pathlib import Path
+from collections import Counter
+from math import log2
+
+traces_dir = Path('../results_unified/v015_full/raw')
+decisions = []
+
+for f in traces_dir.glob('household_*_traces.jsonl'):
+    with open(f) as fp:
+        for line in fp:
+            trace = json.loads(line)
+            if 'approved_skill' in trace:
+                decisions.append(trace['approved_skill'].get('skill_name', 'unknown'))
+
+counter = Counter(decisions)
+total = sum(counter.values())
+probs = [c/total for c in counter.values()]
+entropy = -sum(p * log2(p) for p in probs if p > 0)
+do_nothing_rate = counter.get('do_nothing', 0) / total if total > 0 else 0
+
+print(f'Shannon Entropy: {entropy:.2f} (threshold: > 1.0)')
+print(f'do_nothing rate: {do_nothing_rate:.1%} (threshold: < 70%)')
+print(f'Unique decisions: {len(counter)} (threshold: >= 3)')
+print(f'Distribution: {dict(counter)}')
+print(f'V1 PASS: {entropy > 1.0 and do_nothing_rate < 0.70 and len(counter) >= 3}')
+"
+```
+
+**驗收標準**:
+- [ ] Shannon Entropy > 1.0
+- [ ] do_nothing rate < 70%
+- [ ] 決策種類 >= 3
+
+### Step 3: 015-D 驗證 (Behavior Rationality)
+```bash
+python -c "
+import json
+from pathlib import Path
+
+traces_dir = Path('../results_unified/v015_full/raw')
+LOW_CP = {'VL', 'L'}
+HIGH_TP = {'H', 'VH'}
+EXPENSIVE = {'elevate_house', 'buyout_program', 'relocate'}
+ACTIONS = {'buy_insurance', 'buy_contents_insurance', 'elevate_house', 'buyout_program', 'relocate'}
+
+low_cp_total = low_cp_expensive = high_tp_total = high_tp_action = 0
+
+for f in traces_dir.glob('household_*_traces.jsonl'):
+    with open(f) as fp:
+        for line in fp:
+            t = json.loads(line)
+            r = t.get('skill_proposal', {}).get('reasoning', {})
+            d = t.get('approved_skill', {}).get('skill_name', '')
+            cp = r.get('CP_LABEL', r.get('coping_perception', ''))
+            tp = r.get('TP_LABEL', r.get('threat_perception', ''))
+
+            if cp in LOW_CP:
+                low_cp_total += 1
+                if d in EXPENSIVE: low_cp_expensive += 1
+            if tp in HIGH_TP:
+                high_tp_total += 1
+                if d in ACTIONS: high_tp_action += 1
+
+lc_rate = low_cp_expensive / low_cp_total if low_cp_total > 0 else 0
+ht_rate = high_tp_action / high_tp_total if high_tp_total > 0 else 0
+
+print(f'Low CP expensive rate: {lc_rate:.1%} (threshold: < 20%)')
+print(f'High TP action rate: {ht_rate:.1%} (threshold: > 30%)')
+print(f'V4 PASS: {lc_rate < 0.20 and ht_rate > 0.30}')
+"
+```
+
+**驗收標準**:
+- [ ] low_cp_expensive_rate < 20%
+- [ ] high_tp_action_rate > 30%
+
+---
+
+## 執行指令 (給 Gemini CLI)
+
+### 015-F 驗證 (Institutional Dynamics)
+```bash
+cd examples/multi_agent/tests
+python -c "
+import json
+from pathlib import Path
+
+traces_dir = Path('../results_unified/v015_full/raw')
+gov = ins = []
+
+gf = traces_dir / 'government_traces.jsonl'
+if gf.exists():
+    with open(gf) as f:
+        gov = [json.loads(l).get('approved_skill',{}).get('skill_name','') for l in f]
+
+inf = traces_dir / 'insurance_traces.jsonl'
+if inf.exists():
+    with open(inf) as f:
+        ins = [json.loads(l).get('approved_skill',{}).get('skill_name','') for l in f]
+
+gc = sum(1 for d in gov if d not in ['maintain_subsidy','MAINTAIN','3'])
+ic = sum(1 for d in ins if d not in ['maintain_premium','MAINTAIN','3'])
+
+print(f'Gov decisions: {gov}')
+print(f'Gov changes: {gc}')
+print(f'Ins decisions: {ins}')
+print(f'Ins changes: {ic}')
+print(f'V6 PASS: {gc > 0 or ic > 0}')
+"
+```
+
+**驗收標準**:
+- [ ] Government 或 Insurance 至少有 1 次政策變化
+
+---
+
+## Claude Code 檢核清單
+
+| 驗證項 | 指標 | 閾值 | 狀態 |
+|:-------|:-----|:-----|:-----|
+| V1 (015-A) | Shannon Entropy | > 1.0 | ⏳ pending |
+| V1 (015-A) | do_nothing rate | < 70% | ⏳ pending |
+| V1 (015-A) | 決策種類 | >= 3 | ⏳ pending |
+| V4 (015-D) | low_cp_expensive_rate | < 20% | ⏳ pending |
+| V4 (015-D) | high_tp_action_rate | > 30% | ⏳ pending |
+| V6 (015-F) | Gov/Ins 政策變化 | > 0 | ⏳ pending |
+
+---
+
+## 回報格式
+
+```
+REPORT
+agent: Codex | Gemini CLI
+task_id: task-015-A | task-015-D | task-015-F
+scope: examples/multi_agent/results_unified/v015_full/
+status: done | partial | blocked
+metrics:
+  - V1 entropy: X.XX (pass/fail)
+  - V4 low_cp_expensive: X.X% (pass/fail)
+  - V6 policy_changes: N (pass/fail)
+issues: <any problems>
+next: <next subtask>
+```
+
+
+---
+
+## Execution Update (Codex) - 2026-01-18
+
+Run: `examples/multi_agent/run_unified_experiment.py --model llama3.2:3b --years 3 --agents 10 --mode random --output v015_codex` (console timeout but traces produced).
+
+Verification: `examples/multi_agent/tests/verify_task015_v4_v5.py --traces-dir examples/multi_agent/v015_codex/llama3_2_3b_strict/raw --output examples/multi_agent/v015_codex/report.json`
+
+Results:
+- V1_decision_diversity: PASS (entropy 2.513, unique_decisions 7)
+- V4_behavior_rationality: FAIL (low_cp_expensive_rate 0.526 > 0.2)
+- V5_memory_state: PASS
+
+Artifacts:
+- `examples/multi_agent/v015_codex/report.json`
+- `examples/multi_agent/v015_codex/llama3_2_3b_strict/raw/`
+
+Notes:
+- Household parsing required retries under strict mode; institutional agents succeeded after retries.
+
+---
+
+## Execution Update (Codex) - Partial Run (2026-01-18)
+
+- Ran `examples/multi_agent/run_unified_experiment.py` with `llama3.2:3b`, 10 years, 20 agents, random, gossip, financial constraints.
+- Output 1 (timed out): `examples/multi_agent/results_unified/v015_full/llama3_2_3b_strict/raw` (max step_id=74).
+- Output 2 (timed out after 15 min): `examples/multi_agent/results_unified/v015_full_rerun/llama3_2_3b_strict/raw` (max step_id=53).
+
+Metrics (from `v015_full_rerun` partial traces):
+- V1 entropy: 1.565; do_nothing rate: 6.122%; unique decisions: 5.
+- V4 low_cp_expensive_rate: 5.405% (37 total); high_tp_action_rate: 0.000% (0 total).
+- V6 policy changes: 0 (gov+ins all maintain).
+
+Note: Full 10-year run still incomplete; V4/V6 results are partial and not final.
+
+Next: complete a full-length run (or reduce years/agents) and re-run V1/V4/V6 checks.
+
+---
+
+## Root Cause Analysis: V4 Failure (Claude Code - 2026-01-19)
+
+### 問題描述
+v015_codex 實驗的 V4 失敗 (`low_cp_expensive_rate = 52.6%`)，原因是實驗使用了**舊版 YAML 配置格式**。
+
+### 配置差異
+
+| 配置 | 格式 | 實際效果 |
+|:-----|:-----|:---------|
+| **舊** (config_snapshot) | `when_above: ["VL"]` → `expected_levels=['VL']` | 只匹配 "VL"，**不匹配 "L"** |
+| **新** (ma_agent_types.yaml) | `conditions: [{construct: CP_LABEL, values: ["VL", "L"]}]` | 匹配 "VL" 和 "L" |
+
+### 技術細節
+
+舊配置 (v015_codex/config_snapshot.yaml L457-458):
+```yaml
+thinking_rules:
+  - { construct: CP_LABEL, when_above: ["VL"], blocked_skills: ["elevate_house", "buyout_program"], level: ERROR }
+```
+
+新配置 (ma_agent_types.yaml L459-460):
+```yaml
+thinking_rules:
+  - { id: owner_complex_action_low_coping, construct: CP_LABEL,
+      conditions: [{ construct: CP_LABEL, values: ["VL", "L"] }],
+      blocked_skills: ["elevate_house", "buyout_program"], level: ERROR,
+      message: "Complex actions are blocked due to your low confidence in your ability to cope." }
+```
+
+### 驗證測試
+
+```bash
+# 測試 1: 舊配置 (when_above: ["VL"]), CP_LABEL='L', decision='elevate_house'
+# 結果: Validation results: 0 → 沒有被阻止
+
+# 測試 2: 新配置 (conditions: [{values: ["VL", "L"]}]), CP_LABEL='L', decision='elevate_house'
+# 結果: [Rule: owner_complex_action_low_coping] → 正確阻止
+```
+
+### 解決方案
+
+使用更新後的 `ma_agent_types.yaml` 重跑實驗，無需修改代碼：
+
+```bash
+cd examples/multi_agent
+python run_unified_experiment.py \
+  --model llama3.2:3b \
+  --years 10 \
+  --agents 20 \
+  --mode random \
+  --memory-engine humancentric \
+  --gossip \
+  --output results_unified/v015_fixed
+```
+
+### 預期改善
+
+| 指標 | 舊結果 | 預期結果 |
+|:-----|:-------|:---------|
+| low_cp_expensive_rate | 52.6% | < 20% |
+| V4 狀態 | ❌ FAIL | ✅ PASS |
+
+---
+
+## Subtask Report: 015-F (Institutional Dynamics) - Codex (Attempt)
+REPORT
+agent: Codex
+task_id: task-015-F
+scope: examples/multi_agent/results_unified/v015_v6_short/llama3_2_3b_strict/raw
+status: partial
+changes: none
+tests: run_unified_experiment.py (llama3.2:3b, 5y/10 agents), inline V6 check
+artifacts: examples/multi_agent/results_unified/v015_v6_short/llama3_2_3b_strict/raw
+issues: run timed out; partial traces only (max step_id=60). V6 policy changes=0 (gov/ins all maintain).
+next: complete a full run (or reduce workload further) to confirm V6.
+
+---
+
+## Handoff (2026-01-18)
+
+015-F reassigned to Gemini CLI. Run the full V6 check using a background process to avoid CLI timeout. Suggested command:
+
+$env:GOVERNANCE_PROFILE='strict'
+Start-Process -FilePath python -ArgumentList "run_unified_experiment.py --model llama3.2:3b --years 10 --agents 20 --mode random --memory-engine humancentric --gossip --enable-financial-constraints --output results_unified/v015_full_bg" -WorkingDirectory "examples/multi_agent" -RedirectStandardOutput "examples/multi_agent/results_unified/v015_full_bg/run.log" -RedirectStandardError "examples/multi_agent/results_unified/v015_full_bg/run.err" -NoNewWindow
+
+After completion, compute V6:
+python - <<'PY'
+import json
+from pathlib import Path
+traces_dir = Path('examples/multi_agent/results_unified/v015_full_bg/llama3_2_3b_strict/raw')
+
+gov = []
+ins = []
+if (traces_dir / 'government_traces.jsonl').exists():
+    with (traces_dir / 'government_traces.jsonl').open() as f:
+        gov = [json.loads(l).get('approved_skill', {}).get('skill_name', '') for l in f]
+if (traces_dir / 'insurance_traces.jsonl').exists():
+    with (traces_dir / 'insurance_traces.jsonl').open() as f:
+        ins = [json.loads(l).get('approved_skill', {}).get('skill_name', '') for l in f]
+changes = sum(1 for d in gov if d and d not in ['maintain_subsidy', 'MAINTAIN', '3'])
+changes += sum(1 for d in ins if d and d not in ['maintain_premium', 'MAINTAIN', '3'])
+print(f"Gov decisions: {gov}")
+print(f"Ins decisions: {ins}")
+print(f"V6 policy changes: {changes}")
+PY

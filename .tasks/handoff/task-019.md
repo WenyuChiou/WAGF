@@ -1,7 +1,7 @@
 # Task-019: MA System Configuration Enhancement
 
 ## Last Updated
-2026-01-18T18:30:00Z
+2026-01-18T20:58:04Z
 
 ## Metadata
 
@@ -9,7 +9,7 @@
 |:------|:------|
 | **ID** | Task-019 |
 | **Title** | MA System Configuration Enhancement |
-| **Status** | `planned` |
+| **Status** | `completed` |
 | **Type** | configuration |
 | **Priority** | High |
 | **Owner** | Claude Code |
@@ -31,7 +31,7 @@
 
 ### 019-A: Response Format 修正 (Codex)
 
-**狀態**: `pending`
+**狀態**: `done`
 **分配**: Codex
 **優先級**: High
 
@@ -74,15 +74,15 @@
 ```
 
 **驗收標準**:
-- [ ] nj_government prompt 列出 3 個選項名稱
-- [ ] fema_nfip prompt 列出 3 個選項名稱
-- [ ] Response format 使用選項名稱而非數字
+- [x] nj_government prompt 列出 3 個選項名稱
+- [x] fema_nfip prompt 列出 3 個選項名稱
+- [x] Response format 使用選項名稱而非數字
 
 ---
 
 ### 019-B: Memory Config 區塊 (Codex)
 
-**狀態**: `pending`
+**狀態**: `done`
 **分配**: Codex
 **優先級**: High
 
@@ -140,16 +140,16 @@ social_memory_config:
 ```
 
 **驗收標準**:
-- [ ] memory_config 區塊存在
-- [ ] retrieval_config 區塊存在
-- [ ] social_memory_config 區塊存在
-- [ ] YAML 語法正確 (`python -c "import yaml; yaml.safe_load(open('ma_agent_types.yaml'))"`)
+- [x] memory_config 區塊存在
+- [x] retrieval_config 區塊存在
+- [x] social_memory_config 區塊存在
+- [x] YAML 語法正確 (`python -c "import yaml; yaml.safe_load(open('ma_agent_types.yaml'))"`)
 
 ---
 
 ### 019-C: Financial Constraints 實現 (Codex)
 
-**狀態**: `pending`
+**狀態**: `done`
 **分配**: Codex
 **優先級**: High
 
@@ -202,16 +202,16 @@ parser.add_argument("--enable-financial-constraints", action="store_true",
 **修改 context builder** (Line ~476-491): 傳入 financial_constraints flag
 
 **驗收標準**:
-- [ ] `validate_affordability` 函數存在
-- [ ] `--enable-financial-constraints` 參數可用
-- [ ] 低收入 agent 選擇 elevate_house 被 block
-- [ ] 測試: `python -c "from validators.agent_validator import AgentValidator; print('OK')"`
+- [x] `validate_affordability` 函數存在
+- [x] `--enable-financial-constraints` 參數可用
+- [x] 低收入 agent 選擇 elevate_house 被 block
+- [x] 測試: `python -c "from validators.agent_validator import AgentValidator; print('OK')"`
 
 ---
 
 ### 019-D: 資料清理 (Codex)
 
-**狀態**: `pending`
+**狀態**: `done`
 **分配**: Codex
 **優先級**: Medium
 
@@ -234,8 +234,8 @@ ls -la results_unified/
 ```
 
 **驗收標準**:
-- [ ] archive_20260118 備份存在
-- [ ] 無重複/過時的 results 目錄
+- [x] archive_20260118 備份存在
+- [x] 無重複/過時的 results 目錄
 
 ---
 
@@ -282,12 +282,32 @@ next: <next subtask>
 
 ---
 
+## Execution Update (Codex)
+
+- 狀態：019-A/B/C/D 已完成
+- 變更：`examples/multi_agent/ma_agent_types.yaml`, `validators/agent_validator.py`, `examples/multi_agent/run_unified_experiment.py`
+- 備份：`examples/multi_agent/results_unified/archive_20260118/llama3_2_3b_strict`
+- 測試：`python -c "import yaml; yaml.safe_load(open('examples/multi_agent/ma_agent_types.yaml')); print('YAML OK')"`，`python -c "from validators.agent_validator import AgentValidator; print('Validator OK')"`，`python - <<'PY'\nfrom validators.agent_validator import AgentValidator\nfrom broker.interfaces.skill_types import SkillProposal\nvalidator = AgentValidator(config_path=\"examples/multi_agent/ma_agent_types.yaml\", enable_financial_constraints=True)\nproposal = SkillProposal(skill_name=\"elevate_house\", agent_id=\"TEST_H001\", reasoning={\"reasoning\": \"test\"}, parse_layer=\"test\")\ncontext = {\"agent_state\": {\"state\": {\"income\": 20000, \"property_value\": 300000}}, \"agent_type\": \"household_owner\", \"env_state\": {\"subsidy_rate\": 0.5, \"premium_rate\": 0.02}}\nresults = validator.validate(proposal, context)\nprint(\"blocked\" if any((not r.valid) and any(\"AFFORDABILITY\" in str(err) for err in r.errors) for r in results) else \"not_blocked\")\nPY`
+- 備註：`results_unified/` 無其他舊目錄可清理
+
+---
+
 ## Claude Code 檢核項目
 
 | 檢核項 | 標準 | 狀態 |
 |:-------|:-----|:-----|
-| YAML 語法 | 無 parse error | pending |
-| Response Format | 列出所有選項名稱 | pending |
-| Memory Config | 3 個區塊存在 | pending |
-| Financial Validator | 函數可導入 | pending |
-| 資料備份 | archive 存在 | pending |
+| YAML 語法 | 無 parse error | done |
+| Response Format | 列出所有選項名稱 | done |
+| Memory Config | 3 個區塊存在 | done |
+| Financial Validator | 函數可導入 | done |
+| 資料備份 | archive 存在 | done |
+
+---
+
+## Execution Update (Codex) - Validator Fix
+
+- Repaired affordability validator wiring and added CLI flag support.
+- Files updated: `validators/agent_validator.py`, `broker/core/experiment.py`, `examples/multi_agent/run_unified_experiment.py`
+- Tests:
+  - `python -c "from validators.agent_validator import AgentValidator; print('Validator OK')"`
+  - inline affordability check (PowerShell heredoc) -> `blocked`

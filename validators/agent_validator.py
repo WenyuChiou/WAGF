@@ -6,7 +6,7 @@ Rules are configured per agent_type label, not per file.
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 from enum import Enum
 
 
@@ -33,11 +33,12 @@ class AgentValidator:
     Uses agent_type label to lookup validation rules from agent_types.yaml.
     """
     
-    def __init__(self, config_path: str = None):
+    def __init__(self, config_path: str = None, enable_financial_constraints: bool = False):
         self.config = load_agent_config(config_path)
         self.errors: List[ValidationResult] = []
         self.warnings: List[ValidationResult] = []
         self.auditor = GovernanceAuditor()
+        self.enable_financial_constraints = enable_financial_constraints
     
     def validate(self, *args, **kwargs) -> List[ValidationResult]:
         """
@@ -73,7 +74,16 @@ class AgentValidator:
             reasoning = getattr(proposal, 'reasoning', {})
             parse_layer = getattr(proposal, 'parse_layer', "")
             
-            return self._validate_internal(agent_type, agent_id, decision, state, None, reasoning, parse_layer)
+            return self._validate_internal(
+                agent_type,
+                agent_id,
+                decision,
+                state,
+                None,
+                reasoning,
+                parse_layer,
+                full_validation_context=context
+            )
 
             
         return self._validate_internal(*args, **kwargs)
@@ -86,7 +96,8 @@ class AgentValidator:
         state: Dict[str, Any],
         prev_state: Dict[str, Any] = None,
         reasoning: Dict[str, str] = None,
-        parse_layer: str = ""
+        parse_layer: str = "",
+        full_validation_context: Optional[Dict[str, Any]] = None
     ) -> List[ValidationResult]:
 
         """
@@ -95,95 +106,67 @@ class AgentValidator:
         results = []
         
         base_type = self.config.get_base_type(agent_type)
-            
-                        # 0. Validate Response Format (Tier 0)
-            
-                        # Check if required fields from YAML are present in reasoning
-            
-                        try:
-            
-                            from broker.components.response_format import ResponseFormatBuilder
-            
-                            shared_config = {"response_format": self.config._config.get("shared", {}).get("response_format", {})}
-            
-                            agent_config = self.config.get(base_type)
-            
-                            rfb = ResponseFormatBuilder(agent_config, shared_config)
-            
-                            required_fields = rfb.get_required_fields()
-            
-                            
-            
-                            # Map required fields to reasoning keys
-            
-                            missing = []
-            
-                            for field in required_fields:
-            
-                                if field == "decision":
-            
-                                    # Decision is valid if we have a skill_name extracted
-            
-                                    if not decision:
-            
-                                        missing.append(field)
-            
-                                    continue
-            
-                
-            
-                                if field not in reasoning:
-            
-                                    # Also check for construct mapping (e.g. TP_LABEL)
-            
-                                    mapping = rfb.get_construct_mapping()
-            
-                                    construct = mapping.get(field)
-            
-                                    if construct and construct not in reasoning:
-            
-                                        missing.append(field)
-            
-                                    elif not construct:
-            
-                                        missing.append(field)
-            
-                
-            
-                            
-            
-                            if missing:
-            
-                                results.append(ValidationResult(
-            
-                                    valid=False,
-            
-                                    validator_name="AgentValidator:format",
-            
-                                    errors=[f"Response missing required fields: {', '.join(missing)}"],
-            
-                                    metadata={
-            
-                                        "level": ValidationLevel.ERROR,
-            
-                                        "rule": "format",
-            
-                                        "field": "json_structure",
-            
-                                        "constraint": f"required={required_fields}"
-            
-                                    }
-            
-                                ))
-            
-                        except Exception as e:
-            
-                            # logger.error(f"Error in Tier 0 validation: {e}")
-            
-                            pass
 
+        # 0. Validate Response Format (Tier 0)
+        # Check if required fields from YAML are present in reasoning
+        try:
+            from broker.components.response_format import ResponseFormatBuilder
+            shared_config = {"response_format": self.config._config.get("shared", {}).get("response_format", {})}
+            agent_config = self.config.get(base_type)
+            rfb = ResponseFormatBuilder(agent_config, shared_config)
+            required_fields = rfb.get_required_fields()
 
+            # Map required fields to reasoning keys
+            missing = []
+            for field in required_fields:
+                if field == "decision":
+                    # Decision is valid if we have a skill_name extracted
+                    if not decision:
+                        missing.append(field)
+                    continue
 
+                if field not in reasoning:
+                    # Also check for construct mapping (e.g. TP_LABEL)
+                    mapping = rfb.get_construct_mapping()
+                    construct = mapping.get(field)
+                    if construct and construct not in reasoning:
+                        missing.append(field)
+                    elif not construct:
+                        missing.append(field)
+
+            if missing:
+                results.append(ValidationResult(
+                    valid=False,
+                    validator_name="AgentValidator:format",
+                    errors=[f"Response missing required fields: {', '.join(missing)}"],
+                    metadata={
+                        "level": ValidationLevel.ERROR,
+                        "rule": "format",
+                        "field": "json_structure",
+                        "constraint": f"required={required_fields}"
+                    }
+                ))
+        except Exception as e:
+            # logger.error(f"Error in Tier 0 validation: {e}")
+            pass
+
+        # 0.1. Validate Financial Affordability (Tier 0.1)
+        if self.enable_financial_constraints and full_validation_context:
+            is_affordable, affordability_reason = self.validate_affordability(
+                agent_id, decision, full_validation_context
+            )
+            if not is_affordable:
+                results.append(ValidationResult(
+                    valid=False,
+                    validator_name="AgentValidator:affordability",
+                    errors=[affordability_reason],
+                    metadata={
+                        "level": ValidationLevel.ERROR,
+                        "rule": "affordability",
+                        "field": "decision",
+                        "constraint": "financial_affordability"
+                    }
+                ))
 
         # 1. Validate decision is in allowed values
         valid_actions = self.config.get_valid_actions(base_type)
@@ -469,6 +452,73 @@ class AgentValidator:
                         }
                     ))
         return results
+
+    def validate_affordability(
+        self,
+        agent_id: str,
+        decision: str,
+        context: Dict[str, Any]
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Tier 0: Financial affordability check.
+
+        Rules:
+        - elevate_house: cost after subsidy <= 3x annual income
+        - buy_insurance/buy_contents_insurance: annual premium <= 5% of income
+        """
+        if not context:
+            return True, None
+
+        agent_type = context.get("agent_type")
+        if agent_type not in ["household_owner", "household_renter", "household"]:
+            return True, None
+
+        agent_state = context.get("agent_state", {})
+        state = {}
+        if isinstance(agent_state, dict):
+            state = agent_state.get("state") or agent_state.get("personal") or {}
+        if not isinstance(state, dict):
+            state = {}
+
+        fixed = state.get("fixed_attributes", {})
+        if not isinstance(fixed, dict):
+            fixed = {}
+
+        env = context.get("env_state", {})
+        if not isinstance(env, dict):
+            env = {}
+
+        def get_number(key: str, default: float) -> float:
+            val = state.get(key, fixed.get(key, default))
+            try:
+                return float(val)
+            except (TypeError, ValueError):
+                return float(default)
+
+        income = get_number("income", 50000)
+        subsidy_rate = get_number("subsidy_rate", env.get("subsidy_rate", 0.5))
+        premium_rate = get_number("premium_rate", env.get("premium_rate", 0.02))
+        property_value = get_number("property_value", 0.0)
+        if not property_value:
+            property_value = get_number("rcv_building", 0.0) + get_number("rcv_contents", 0.0)
+        if not property_value:
+            property_value = 300000.0
+
+        if decision == "elevate_house":
+            cost = 150_000 * (1 - subsidy_rate)
+            if cost > income * 3.0:
+                return False, (
+                    f"AFFORDABILITY: Cannot afford elevation (${cost:,.0f} > 3x income ${income*3:,.0f})"
+                )
+
+        if decision in ["buy_insurance", "buy_contents_insurance"]:
+            premium = premium_rate * property_value
+            if premium > income * 0.05:
+                return False, (
+                    f"AFFORDABILITY: Premium ${premium:,.0f} exceeds 5% of income ${income*0.05:,.0f}"
+                )
+
+        return True, None
     
     def validate_response_format(
         self,

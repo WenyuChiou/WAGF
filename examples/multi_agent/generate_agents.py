@@ -54,6 +54,8 @@ class HouseholdProfile:
     has_children: bool = False                        # Under 18 in household
     has_elderly: bool = False                         # Over 65 in household
     housing_cost_burden: bool = False                 # >30% income on housing
+    mg_criteria_met: bool = False                     # Survey MG criteria flag
+    zipcode: str = ""                                 # ZIP code (survey)
 
     # ---- Flood Experience (from survey) ----
     flood_experience: bool = False                    # Q14: Has experienced flooding
@@ -196,6 +198,8 @@ def load_survey_agents(
             has_children=bool(row.get("has_children", False)),
             has_elderly=bool(row.get("has_elderly", False)),
             housing_cost_burden=bool(row.get("housing_cost_burden", False)),
+            mg_criteria_met=bool(row.get("mg_criteria_met", False)),
+            zipcode=str(row.get("zipcode", "")),
 
             # Flood experience
             flood_experience=bool(row.get("flood_experience", False)),
@@ -378,6 +382,8 @@ def generate_agents_random(
             has_children=demo["has_children"],
             has_elderly=demo["has_elderly"],
             housing_cost_burden=demo["housing_cost_burden"],
+            mg_criteria_met=mg,
+            zipcode="",
 
             # Flood experience
             flood_experience=flood_experience,

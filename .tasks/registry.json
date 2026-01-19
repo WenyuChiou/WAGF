@@ -1,6 +1,6 @@
 {
   "version": "1.1",
-  "last_updated": "2026-01-18T17:00:00.000Z",
+  "last_updated": "2026-01-19T08:00:00.000Z",
   "tasks": [
     {
       "id": "task-011",
@@ -75,9 +75,10 @@
         {
           "id": "013-B",
           "title": "Survey data additional fields",
-          "status": "pending",
+          "status": "completed",
           "assigned_to": "Antigravity",
-          "priority": "low"
+          "priority": "low",
+          "note": "Added mg_criteria_met/zipcode fields to profiles; regenerated agent_profiles.csv"
         }
       ],
       "handoff_file": "handoff/current-session.md"
@@ -117,8 +118,9 @@
         {
           "id": "015-A",
           "title": "Decision diversity verification",
-          "status": "pending",
-          "assigned_to": "Codex"
+          "status": "completed",
+          "assigned_to": "Codex",
+          "note": "V1 decision diversity passed (entropy 2.513)"
         },
         {
           "id": "015-B",
@@ -137,23 +139,26 @@
           "id": "015-D",
           "title": "Behavior rationality",
           "status": "pending",
-          "assigned_to": "Codex"
+          "assigned_to": "Codex",
+          "note": "V4 failed (52.6%). Root cause: old config used when_above:[VL] instead of conditions:[VL,L]. Re-run with updated ma_agent_types.yaml to fix.",
+          "action": "Re-run experiment with current ma_agent_types.yaml"
         },
         {
           "id": "015-E",
           "title": "Memory & state logic",
           "status": "completed",
           "assigned_to": "Codex",
-          "note": "V5 verification updated to handle missing trace fields"
+          "note": "V5 memory/state passed"
         },
         {
           "id": "015-F",
           "title": "Institutional dynamics",
           "status": "pending",
-          "assigned_to": "Codex",
+          "assigned_to": "Gemini CLI",
           "note": "Mock model expected to fail; need real LLM"
         }
-      ]
+      ],
+      "note": "v015_codex run complete; V1 pass, V4 fail, V5 pass (report: examples/multi_agent/v015_codex/report.json)"
     },
     {
       "id": "Task-016",
@@ -232,13 +237,16 @@
     {
       "id": "Task-018",
       "title": "MA Experiment Visualization & Analysis",
-      "status": "planned",
+      "status": "partial",
+      "note": "Scripts done, charts generated but sample too small (2 agents). Need re-run with full data.",
       "type": "visualization",
       "priority": "high",
       "owner": "antigravity",
       "reviewer": "WenyuChiou",
       "description": "Create visualization charts for agent behavior changes, PMT construct evolution, and scientific analysis",
-      "dependencies": ["Task-015"],
+      "dependencies": [
+        "Task-015"
+      ],
       "created_at": "2026-01-18T17:00:00.000Z",
       "subtasks": [
         {
@@ -285,6 +293,79 @@
         }
       ],
       "handoff_file": "handoff/task-018.md"
+    },
+    {
+      "id": "Task-019",
+      "title": "MA System Configuration Enhancement",
+      "status": "completed",
+      "type": "configuration",
+      "priority": "high",
+      "owner": "Claude Code",
+      "reviewer": "WenyuChiou",
+      "description": "Enhance MA system config: response format, memory config, gossip, financial constraints",
+      "dependencies": [
+        "Task-015",
+        "Task-018"
+      ],
+      "created_at": "2026-01-18T18:30:00.000Z",
+      "subtasks": [
+        {
+          "id": "019-A",
+          "title": "Response Format Correction",
+          "status": "done",
+          "assigned_to": "Codex",
+          "description": "Fix Government/Insurance prompt to list all option names"
+        },
+        {
+          "id": "019-B",
+          "title": "Memory Config Block",
+          "status": "done",
+          "assigned_to": "Codex",
+          "description": "Add memory_config, retrieval_config, social_memory_config to YAML"
+        },
+        {
+          "id": "019-C",
+          "title": "Financial Constraints",
+          "status": "done",
+          "assigned_to": "Codex",
+          "description": "Implement affordability validation based on income"
+        },
+        {
+          "id": "019-D",
+          "title": "Data Cleanup",
+          "status": "done",
+          "assigned_to": "Codex",
+          "description": "Backup and clean old results_unified data"
+        }
+      ],
+      "handoff_file": "handoff/task-019.md",
+      "note": "019-A/B/C/D completed; affordability block verified; no old results to clean."
+    },
+    {
+      "id": "Task-020",
+      "title": "MA Architecture Improvement (Gemini CLI)",
+      "status": "completed",
+      "type": "refactor",
+      "priority": "high",
+      "owner": "Gemini CLI",
+      "description": "Major architecture improvements: financial constraint decoupling, unified household psychological evaluation, improved realism, smart_repair parsing",
+      "created_at": "2026-01-19T08:00:00.000Z",
+      "changes": [
+        "Decoupled financial constraints from core validator to pluggable custom validators",
+        "Removed preset psychological scores from household agents - now inferred from context",
+        "Unified thinking_rules for household_owner and household_renter",
+        "Added qualitative flood descriptions instead of precise flood_depth",
+        "Enabled smart_repair preprocessor for JSON parsing stability",
+        "Designed institutional agent validators (government budget, insurance solvency)"
+      ],
+      "files_modified": [
+        "validators/agent_validator.py",
+        "broker/core/skill_broker_engine.py",
+        "broker/core/experiment.py",
+        "broker/interfaces/skill_types.py",
+        "examples/multi_agent/run_unified_experiment.py",
+        "examples/multi_agent/ma_agent_types.yaml"
+      ]
     }
   ],
   "known_issues": [
@@ -296,7 +377,8 @@
         "Gemini CLI"
       ],
       "workaround": "Move project to ASCII-only path (e.g., C:\\projects\\gbf)",
-      "status": "open",
+      "status": "resolved",
+      "resolution": "Project moved to C:\\Users\\wenyu\\Desktop\\Lehigh",
       "reported_by": "Gemini CLI",
       "reported_date": "2026-01-18"
     }
