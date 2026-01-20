@@ -125,28 +125,42 @@ class AgentTypeConfig:
         return shared.get(key, default)
     
     def get_governance_retries(self, default: int = 3) -> int:
-        """Get max retries for governance loop."""
-        gov = self._config.get("shared", {}).get("governance", {})
-        return gov.get("max_retries", default)
+        """Get max retries for governance loop (Global > Shared > Default)."""
+        # 1. Check Global Config
+        global_gov = self._config.get("global_config", {}).get("governance", {})
+        return global_gov.get("max_retries", self._config.get("shared", {}).get("governance", {}).get("max_retries", default))
     
     def get_governance_max_reports(self, default: int = 3) -> int:
-        """Get max reports to send back in a single retry prompt."""
-        gov = self._config.get("shared", {}).get("governance", {})
-        return gov.get("max_reports_per_retry", default)
+        """Get max reports per retry (Global > Shared > Default)."""
+        # 1. Check Global Config
+        global_gov = self._config.get("global_config", {}).get("governance", {})
+        return global_gov.get("max_reports_per_retry", self._config.get("shared", {}).get("governance", {}).get("max_reports_per_retry", default))
     
     def get_llm_retries(self, default: int = 2) -> int:
-        """Get max retries for raw LLM invocation."""
-        llm = self._config.get("shared", {}).get("llm", {})
-        return llm.get("max_retries", default)
+        """Get max retries for raw LLM invocation (Global > Shared > Default)."""
+        # 1. Check Global Config
+        global_llm = self._config.get("global_config", {}).get("llm", {})
+        return global_llm.get("max_retries", self._config.get("shared", {}).get("llm", {}).get("max_retries", default))
     
     def get_reflection_config(self) -> dict:
-        """Get reflection configuration from shared settings.
+        """Get reflection configuration (Global > Shared > Default).
         
         Returns dict with keys: interval, batch_size, importance_boost
         """
         defaults = {"interval": 1, "batch_size": 10, "importance_boost": 0.9}
-        reflection = self._config.get("shared", {}).get("reflection", {})
-        return {k: reflection.get(k, v) for k, v in defaults.items()}
+        
+        # 1. Global Config
+        global_refl = self._config.get("global_config", {}).get("reflection", {})
+        
+        # 2. Shared (Legacy Fallback)
+        shared_refl = self._config.get("shared", {}).get("reflection", {})
+        
+        # Merge: Global > Shared > Default
+        merged = defaults.copy()
+        merged.update(shared_refl) # Apply legacy shared
+        merged.update(global_refl) # Apply new global
+        
+        return merged
     
     def get_valid_actions(self, agent_type: str) -> List[str]:
         """Get all valid action IDs and aliases for agent type."""
