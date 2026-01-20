@@ -4,7 +4,7 @@ import os
 # Define a custom log format that matches the existing style but allows level control
 LOG_FORMAT = "%(message)s"
 
-def setup_logger(name: str, level: int = logging.DEBUG):
+def setup_logger(name: str, level: int = logging.INFO):
     """Setup a standard logger with a clean format."""
     logger = logging.getLogger(name)
     if not logger.handlers:
