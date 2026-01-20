@@ -407,7 +407,9 @@
       "owner": "Claude Code",
       "reviewer": "WenyuChiou",
       "description": "Integrate 13-year PRB flood data, implement spatial neighbor graph, per-agent flood depth, and media channels",
-      "dependencies": ["Task-020"],
+      "dependencies": [
+        "Task-020"
+      ],
       "created_at": "2026-01-19T18:00:00.000Z",
       "subtasks": [
         {
@@ -480,13 +482,15 @@
     {
       "id": "Task-024",
       "title": "Task-022 Integration Testing & Validation",
-      "status": "planned",
+      "status": "completed",
       "type": "verification",
       "priority": "high",
       "owner": "Claude Code",
       "reviewer": "WenyuChiou",
       "description": "Verify Task-022 new features: SpatialNeighborhoodGraph, Per-Agent flood depth, MediaHub (News + Social channels)",
-      "dependencies": ["Task-022"],
+      "dependencies": [
+        "Task-022"
+      ],
       "created_at": "2026-01-20T00:00:00.000Z",
       "subtasks": [
         {
@@ -525,7 +529,8 @@
           "description": "Analyze spatial and media feature effects"
         }
       ],
-      "handoff_file": "handoff/task-024.md"
+      "handoff_file": "handoff/task-024.md",
+      "note": "Integration testing completed (024-A/B/C), background run v024_test_bg5 completed; media messages appear in prompts."
     },
     {
       "id": "Task-025",
@@ -536,7 +541,9 @@
       "owner": "Claude Code",
       "reviewer": "WenyuChiou",
       "description": "Integrate MediaHub messages into agent prompts via TieredContextBuilder",
-      "dependencies": ["Task-024"],
+      "dependencies": [
+        "Task-024"
+      ],
       "created_at": "2026-01-20T00:00:00.000Z",
       "subtasks": [
         {
@@ -572,7 +579,9 @@
       "owner": "Antigravity",
       "reviewer": "Claude Code",
       "description": "Implemented the Phase 3 'Surprise Engine' with EMAPredictor and System 1/2 switching logic. Supports dynamic System 1 (routine) / System 2 (crisis) switching based on Prediction Error.",
-      "dependencies": ["Task-021"],
+      "dependencies": [
+        "Task-021"
+      ],
       "created_at": "2026-01-20T09:30:00.000Z",
       "completed_at": "2026-01-20T09:40:00.000Z",
       "subtasks": [
