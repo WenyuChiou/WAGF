@@ -28,7 +28,7 @@ Log-Progress ">>> PHASE 1: Gemma 3 4B <<<"
 
 # --- Group A: TRUE BASELINE (LLMABMPMT-Final.py directly) ---
 Log-Progress "--- Gemma Group A (TRUE Baseline - LLMABMPMT-Final.py) ---"
-for ($i = 1; $i -le 10; $i++) {
+for ($i = 6; $i -le 10; $i++) {
     $seed = 300 + $i
     $outputDir = "results/JOH_FINAL/gemma3_4b/Group_A/Run_$i"
     Log-Progress "  > Gemma A Run $i (Seed $seed) - Using LLMABMPMT-Final.py"

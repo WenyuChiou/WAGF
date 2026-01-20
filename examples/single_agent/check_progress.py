@@ -32,59 +32,63 @@ def analyze():
                 continue
 
             run_counts[group].add(run)
-            path = os.path.join(root, "household_traces.jsonl")
-            
-            try:
-                with open(path, 'r', encoding='utf-8') as f:
-                    for line in f:
-                        if not line.strip(): continue
-                        try:
-                            record = json.loads(line)
-                            step = record.get('step_id')
-                            if step is None: continue
-                            
-                            # Heuristic: Map global step to Year
-                            year = step
-                            if step > 100: # Assuming simple year ID is small
-                                year = (step - 1) // NUM_AGENTS + 1
-                            elif step > 10 and step <= 100:
-                                # Ambiguous range if step_id is mixed. 
-                                # But usually step_id 1..10 is Year. 
-                                # If step_id 11..100, maybe it's Year 11..100?
-                                year = step 
-                            
-                            # Extract Decision from nested structure
-                            decision = "Unknown"
-                            approved = record.get('approved_skill')
-                            if isinstance(approved, dict):
-                                decision = approved.get('skill_name', 'Unknown')
-                            else:
-                                # Fallback if key existed differently
-                                decision = record.get('decision', 'Unknown')
+            # Check for JSONL (Groups B/C)
+            if "household_traces.jsonl" in files:
+                path = os.path.join(root, "household_traces.jsonl")
+                try:
+                    with open(path, 'r', encoding='utf-8') as f:
+                        for line in f:
+                            if not line.strip(): continue
+                            try:
+                                record = json.loads(line)
+                                step = record.get('step_id')
+                                if step is None: continue
+                                year = step if step <= 10 else (step - 1) // NUM_AGENTS + 1
+                                
+                                decision = "Unknown"
+                                approved = record.get('approved_skill')
+                                if isinstance(approved, dict):
+                                    decision = approved.get('skill_name', 'Unknown')
+                                else:
+                                    decision = record.get('decision', 'Unknown')
+                                
+                                update_stats(stats, group, run, year, decision, other_decisions)
+                            except: pass
+                except: pass
 
-                            # Normalize decision string
-                            d_norm = str(decision).strip().lower()
-                            
-                            key = (group, year)
-                            
-                            if d_norm in ['do_nothing', 'do nothing']:
-                                d_key = 'do_nothing'
-                            elif d_norm in ['buy_insurance', 'buy insurance']:
-                                d_key = 'buy_insurance'
-                            elif d_norm in ['elevate_house', 'elevate house', 'elevate']:
-                                d_key = 'elevate_house'
-                            elif d_norm in ['relocate']:
-                                d_key = 'relocate'
-                            else:
-                                d_key = 'Others'
-                                other_decisions.add(str(decision))
-                            
-                            stats[key][d_key] += 1
-                            stats[key]['Total'] += 1
-                        except:
-                            pass
-            except:
-                pass
+            # Check for CSV (Group A - Baseline)
+            elif "simulation_log.csv" in files:
+                path = os.path.join(root, "simulation_log.csv")
+                try:
+                    df = pd.read_csv(path)
+                    for _, row in df.iterrows():
+                        year = int(row['year'])
+                        decision = str(row['decision'])
+                        update_stats(stats, group, run, year, decision, other_decisions)
+                except: pass
+
+def update_stats(stats, group, run, year, decision, other_decisions):
+    d_norm = str(decision).strip().lower()
+    key = (group, year)
+    
+    if d_norm in ['do_nothing', 'do nothing']:
+        d_key = 'do_nothing'
+    elif 'insurance' in d_norm and 'elevation' not in d_norm:
+        d_key = 'buy_insurance'
+    elif 'elevation' in d_norm: # Covers "Only House Elevation" and "Both..."
+        d_key = 'elevate_house'
+    elif 'relocate' in d_norm:
+        d_key = 'relocate'
+    elif d_norm in ['buy_insurance', 'buy insurance']: # Legacy check
+        d_key = 'buy_insurance'
+    elif d_norm in ['elevate_house', 'elevate house']: # Legacy check
+        d_key = 'elevate_house'
+    else:
+        d_key = 'Others'
+        other_decisions.add(str(decision))
+    
+    stats[key][d_key] += 1
+    stats[key]['Total'] += 1
 
     with open(REPORT_FILE, 'w', encoding='utf-8') as f:
         f.write("# Interim Simulation Analysis Report (Behavior)\n\n")

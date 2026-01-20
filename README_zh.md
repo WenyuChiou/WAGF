@@ -50,11 +50,13 @@ python examples/single_agent/run_flood.py --model llama3.2:3b --agents 50 --year
 
 ## 🗺️ 模組導覽大廳 (Module Directory)
 
-- **🧠 認知組件 (Memory, Reflection)**: [docs/modules/memory_components_zh.md](docs/modules/memory_components_zh.md)
-- **👁️ 上下文系統 (Context System)**: [docs/modules/context_system_zh.md](docs/modules/context_system_zh.md)
-- **⚖️ 核心治理 (Governance Core)**: [docs/modules/governance_core_zh.md](docs/modules/governance_core_zh.md)
-- **🌍 模擬引擎 (Environment)**: [docs/modules/simulation_engine_zh.md](docs/modules/simulation_engine_zh.md)
-- **🧪 基準測試 (Experiments)**: [examples/README_zh.md](examples/README_zh.md)
+- **📚 第 0 章：理論基礎 (Theoretical Basis)**: [系統理論與架構](docs/modules/00_theoretical_basis_overview_zh.md)
+- **🧠 第 1 章：記憶與反思 (Memory & Reflection)**: [記憶組件](docs/modules/memory_components_zh.md) | [反思引擎](docs/modules/reflection_engine_zh.md)
+- **👁️ 第 2 章：上下文系統 (Context System)**: [上下文構建器](docs/modules/context_system_zh.md)
+- **⚖️ 第 3 章：核心治理 (Governance Core)**: [治理邏輯](docs/modules/governance_core_zh.md)
+- **🛠️ 第 4 章：技能註冊表 (Skill Registry)**: [動作本體論](docs/modules/skill_registry_zh.md)
+- **🌍 第 5 章：模擬引擎 (Simulation Engine)**: [環境與迴圈](docs/modules/simulation_engine_zh.md)
+- **🧪 基準測試 (Experiments)**: [單代理人實驗](examples/README_zh.md)
 
 ---
 
