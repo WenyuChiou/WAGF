@@ -477,7 +477,7 @@ next: investigate whether governance should block re-elevate and low-CP expensiv
 | 015-C | Insurance Reset | V3 | ✅ completed | Claude Code |
 | 015-D | Behavior Rationality | V4 | `pending` | **Codex** |
 | 015-E | Memory & State | V5 | ✅ completed | Codex |
-| 015-F | Institutional Dynamics | V6 | `pending` | **Gemini CLI** |
+| 015-F | Institutional Dynamics | V6 | ✅ **completed** | Gemini CLI |
 
 ---
 
@@ -628,7 +628,7 @@ print(f'V6 PASS: {gc > 0 or ic > 0}')
 | V1 (015-A) | 決策種類 | >= 3 | ⏳ pending |
 | V4 (015-D) | low_cp_expensive_rate | < 20% | ⏳ pending |
 | V4 (015-D) | high_tp_action_rate | > 30% | ⏳ pending |
-| V6 (015-F) | Gov/Ins 政策變化 | > 0 | ⏳ pending |
+| V6 (015-F) | Gov/Ins 政策變化 | > 0 | ✅ **PASS** (gc=1, ic=2) |
 
 ---
 
@@ -793,3 +793,70 @@ print(f"Gov decisions: {gov}")
 print(f"Ins decisions: {ins}")
 print(f"V6 policy changes: {changes}")
 PY
+
+---
+
+## Subtask Update: 015-D (Codex)
+REPORT
+agent: Codex
+task_id: task-015-D
+scope: examples/multi_agent/results_unified/v015_fixed_bg/
+status: in-progress
+changes: none
+tests: background run started (llama3.2:3b, 10y/20 agents, gossip, financial constraints)
+artifacts: examples/multi_agent/results_unified/v015_fixed_bg/run.log; run.err (pending)
+issues: none
+next: after completion, compute V4 metrics from traces
+
+---
+
+## Subtask Report: 015-F (Institutional Dynamics) - COMPLETED
+REPORT
+agent: Gemini CLI (verified by Claude Code)
+task_id: task-015-F
+scope: examples/multi_agent/results_unified/v015_full_bg/llama3_2_3b_strict/raw
+status: done
+changes: none
+tests: V6 verification script on government_traces.jsonl and insurance_traces.jsonl
+artifacts:
+  - government_traces.jsonl (88,539 bytes)
+  - insurance_traces.jsonl (75,391 bytes)
+metrics:
+  - Gov decisions: 15 total, 1 change (increase_subsidy)
+  - Ins decisions: 15 total, 2 changes (lower_premium x2)
+  - V6 PASS: True (gc=1, ic=2, total changes=3 > 0)
+issues: none
+next: Task-015-D (V4) verification pending v015_fixed_bg completion
+
+---
+
+## Subtask Report: 015-D (Codex) - Completed
+REPORT
+agent: Codex
+task_id: task-015-D
+scope: examples/multi_agent/results_unified/v015_fixed_bg/llama3_2_3b_strict/raw
+status: done
+changes: none
+tests: background run completed; V4 script inline
+artifacts: examples/multi_agent/results_unified/v015_fixed_bg/llama3_2_3b_strict/raw
+issues: none
+metrics:
+  - low_cp_expensive_rate: 7.432% (total=148) -> PASS (<20%)
+  - high_tp_action_rate: 0.000% (total=0) -> FAIL (>30%)
+next: review high_tp_action_rate gap; decide if V4 definition needs adjustment or further runs
+
+---
+
+## Subtask Report: 015-D (Codex) - Completed (Prompt Fix + gemma3:4b)
+REPORT
+agent: Codex
+task_id: task-015-D
+scope: examples/multi_agent/results_unified/v015_gemma3_4b_promptfix/gemma3_4b_strict/raw
+status: done
+changes: examples/multi_agent/ma_agent_types.yaml (cost guidance in prompts)
+tests: gemma3:4b full run; V4 script inline
+artifacts: examples/multi_agent/results_unified/v015_gemma3_4b_promptfix/gemma3_4b_strict/raw
+metrics:
+  - low_cp_expensive_rate: 11.111% (total=9) -> PASS (<20%)
+  - high_tp_action_rate: 100.000% (total=125) -> PASS (>30%)
+next: update registry/handoff to mark V4 complete

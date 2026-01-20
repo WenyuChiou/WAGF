@@ -55,9 +55,9 @@
 | 015-A | `pending` | Codex | V1: Shannon Entropy > 1.0 |
 | 015-B | ✅ completed | Claude Code | V2: Elevated persistence |
 | 015-C | ✅ completed | Claude Code | V3: Insurance reset |
-| 015-D | `pending` | Codex | V4: Low-CP expensive < 20% |
+| 015-D | ⏳ **pending** | Codex | V4: Low-CP expensive < 20% (v015_fixed_bg run in progress) |
 | 015-E | ✅ completed | Codex | V5: Memory/state logic |
-| 015-F | `pending` | Gemini CLI | V6: Institutional dynamics |
+| 015-F | ✅ **completed** | Gemini CLI | V6: Institutional dynamics |
 
 ### 執行順序
 1. 先完成 Task-019 (配置增強)
@@ -165,7 +165,7 @@ python run_unified_experiment.py \
 | 019-D | archive 備份存在 | ⏳ pending |
 | 015-A | Shannon Entropy > 1.0 | ⏳ pending |
 | 015-D | low_cp_expensive < 20% | ⏳ pending |
-| 015-F | Gov/Ins 政策有變化 | ⏳ pending |
+| 015-F | Gov/Ins 政策有變化 | ✅ **PASS** |
 | 018-* | 圖表統計有效 | ⏳ pending |
 
 ---
@@ -206,7 +206,7 @@ Next: complete a full-length run (or reduce years/agents) and re-run V1/V4/V6 ch
 | 015-C | ✅ completed | - | Claude Code |
 | 015-D | ❌ **failed** | low_cp_expensive=52.6% | Codex |
 | 015-E | ✅ completed | - | Codex |
-| 015-F | ⏳ pending | - | **Gemini CLI** |
+| 015-F | ✅ **completed** | Gov=1, Ins=2 changes | Gemini CLI |
 
 ### Task-019 完成
 
@@ -363,3 +363,159 @@ Active Task: Task-015
 Status: ready_for_execution
 Assigned: Gemini CLI
 Instructions: Run Task-015F via background process (see handoff/task-015.md) and report V6 policy changes.
+
+---
+
+## Update (2026-01-19) - Part 7 & 8 Planning Complete
+
+### Part 7: Agent Information Visibility Enhancement
+
+Claude Code completed exploration and design for agent information visibility improvements.
+
+**Current Implementation Status**:
+
+| Agent Type | Feature | Status |
+|:-----------|:--------|:-------|
+| Household | Qualitative flood descriptions | ✅ Implemented |
+| Household | Neighbor gossip (max 2) | ✅ Implemented |
+| Household | Damage amount in memory | ✅ Implemented |
+| Household | Social media tier | ⚠️ Partial |
+| Household | Family communication | ❌ Not implemented |
+| Government | Aggregate statistics | ✅ Implemented |
+| Government | Budget constraint ($500K) | ✅ Implemented |
+| Government | Tradeoff framing in prompt | ⚠️ Needs enhancement |
+| Government | Alternative actions | ❌ Only 3 fixed options |
+| Insurance | Loss ratio monitoring | ✅ Implemented |
+| Insurance | Zone-based pricing | ❌ Not implemented |
+| Insurance | Adverse selection modeling | ❌ Not implemented |
+
+**Design Document**: See plan file at `C:\Users\wenyu\.claude\plans\elegant-honking-harbor.md` Part 7
+
+### Part 8: File Cleanup Complete
+
+**Archival Structure**:
+```
+examples/multi_agent/results_unified/
+├── archive/
+│   ├── archive_20260118/         # Historical backup
+│   ├── v015_codex_v4_fail/       # V4 failure record (moved)
+│   ├── v015_full/                # Partial run
+│   ├── v015_full_rerun/          # Partial run
+│   └── v015_v6_short/            # V6 test run
+└── v015_full_bg/                 # Latest background run
+```
+
+### Antigravity Literature Search
+
+**New Task**: Literature search assigned to Antigravity IDE
+
+**Handoff File**: `.tasks/handoff/antigravity-literature-search.md`
+
+**Topics**:
+1. Household flood risk perception & information sources
+2. Government disaster resource allocation & equity
+3. Flood insurance risk pricing & adverse selection
+
+**Expected Output**: Summary report with key findings, relevant papers, and design implications
+
+---
+
+## Role Division (Updated 2026-01-19)
+
+| Role | Agent | Status | Tasks |
+|:-----|:------|:-------|:------|
+| **Planner/Reviewer** | Claude Code | Active | Part 7/8 design, verification |
+| **CLI Executor** | Codex | Active | Re-run V4 experiment |
+| **CLI Executor** | Gemini CLI | Active | 015-F V6 verification |
+| **AI IDE** | Antigravity | **Assigned** | Literature search (Part 7.4) |
+| **AI IDE** | Cursor | Available | - |
+
+---
+
+## Next Steps (Priority Order)
+
+1. **Codex**: Re-run experiment with updated `ma_agent_types.yaml` to fix V4
+2. **Gemini CLI**: Complete 015-F V6 institutional dynamics verification
+3. **Antigravity**: Execute literature search per `.tasks/handoff/antigravity-literature-search.md`
+4. **Claude Code**: Review results and sign off on Task-015
+
+## Update (2026-01-18) - Task-015-D
+
+- Started background full run for V4 fix: `examples/multi_agent/results_unified/v015_fixed_bg/` (llama3.2:3b, 10y/20 agents).
+- Logs: `examples/multi_agent/results_unified/v015_fixed_bg/run.log`, `examples/multi_agent/results_unified/v015_fixed_bg/run.err`.
+
+---
+
+## Update (2026-01-19) - Task-015-F V6 Verification PASS
+
+### V6 結果 (Institutional Dynamics)
+
+**資料來源**: `results_unified/v015_full_bg/llama3_2_3b_strict/raw/`
+
+| Agent | Total Decisions | Policy Changes | 詳細 |
+|:------|:----------------|:---------------|:-----|
+| Government | 15 | 1 | `increase_subsidy` x1 |
+| Insurance | 15 | 2 | `lower_premium` x2 |
+
+**V6 PASS**: ✅ (gc=1 + ic=2 = 3 policy changes > 0)
+
+### 驗證指令
+
+```python
+import json
+from pathlib import Path
+
+traces_dir = Path('results_unified/v015_full_bg/llama3_2_3b_strict/raw')
+
+gov = []
+gf = traces_dir / 'government_traces.jsonl'
+if gf.exists():
+    with open(gf) as f:
+        gov = [json.loads(l).get('approved_skill',{}).get('skill_name','') for l in f]
+
+ins = []
+inf = traces_dir / 'insurance_traces.jsonl'
+if inf.exists():
+    with open(inf) as f:
+        ins = [json.loads(l).get('approved_skill',{}).get('skill_name','') for l in f]
+
+gc = sum(1 for d in gov if d not in ['maintain_subsidy','MAINTAIN','3',''])
+ic = sum(1 for d in ins if d not in ['maintain_premium','MAINTAIN','3',''])
+
+# 結果: Gov changes=1, Ins changes=2, V6 PASS=True
+```
+
+### Task-015 完成狀態
+
+| Subtask | Status | Metrics |
+|:--------|:-------|:--------|
+| 015-A | ✅ completed | entropy=2.513 |
+| 015-B | ✅ completed | V2 bug fixed |
+| 015-C | ✅ completed | Insurance reset |
+| 015-D | ⏳ **pending** | Waiting for v015_fixed_bg |
+| 015-E | ✅ completed | V5 memory/state passed |
+| 015-F | ✅ **completed** | V6 policy changes=3 |
+
+### 下一步
+
+1. **Codex**: 等待 `v015_fixed_bg` 完成，驗證 V4
+2. **Claude Code**: V4 完成後 sign off Task-015
+
+## Update (2026-01-19) - V4/V6 Results (v015_fixed_bg)
+
+- Output: `examples/multi_agent/results_unified/v015_fixed_bg/llama3_2_3b_strict/raw`
+- V4 low_cp_expensive_rate: 7.432% (total=148) -> PASS (<20%)
+- V4 high_tp_action_rate: 0.000% (total=0) -> FAIL (>30%)
+- V1 entropy: 1.629; do_nothing 2.000%; unique decisions 6
+- V6 policy changes: 1 (gov increased subsidy once; insurance maintained)
+
+## Update (2026-01-19) - Framework Memory Seeding
+
+- Added explicit memory seeding in ExperimentBuilder via `seed_memory_from_agents` to close integration gap while avoiding duplicates if engine already has memory.
+- Added warning when `agent.memory` is not a list.
+
+## Update (2026-01-19) - V4 PASS (Prompt Fix)
+
+- Run: `examples/multi_agent/results_unified/v015_gemma3_4b_promptfix/gemma3_4b_strict/raw`
+- V4 low_cp_expensive_rate: 11.111% (total=9) -> PASS
+- V4 high_tp_action_rate: 100.000% (total=125) -> PASS
