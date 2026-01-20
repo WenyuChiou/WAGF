@@ -1,9 +1,6 @@
 # =============================================================================
 # GLOBAL CONFIGURATION (Experiment-level parameters)
 # =============================================================================
-# =============================================================================
-# GLOBAL CONFIGURATION (Experiment-level parameters)
-# =============================================================================
 global_config:
   # [Cognitive Biology] - Shared mental constraints (Default for all agents)
   memory:
