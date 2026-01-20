@@ -8,57 +8,86 @@
 
 ## 1. 名詞與理論詳解 (Detailed Dictionary)
 
-### 1.1 可得性捷思 (Availability Heuristic)
+### 1.1 可得性捷思與遺忘曲線 (Availability Heuristic & The Forgetting Curve)
 
-- **定義**：心理學概念。人類判斷一件事發生的機率，不是看統計數據，而是看「多容易想起它」。如果有很深刻的創傷（如洪水），人就會高估災難再發的機率。
-- **對應模組**：`broker/components/memory_engine.py`
+- **理論**：心理學概念 (**Tversky & Kahneman, 1973**)。人類判斷事件機率是看想起它的難易度，而非統計數據。記憶隨時間呈指數級衰減 (**Ebbinghaus, 1885**)。
+- **對應模組**：`HumanCentricMemoryEngine` (v1 模式)
 - **實作方式**：
-  - 我們使用 `Importance Score` (重要性分數) 來模擬這種「心理深刻度」。
-  - 關鍵字 "Flood" 會觸發高分 (1.5)，導致這條記憶比 "Sunny Day" (0.1) 更難被遺忘。
-  - **公式**：$S = I \times e^{-\lambda t}$ (時間越久忘越多，但創傷忘得慢)。
-  - 🔧 **深入實作細節**：請參閱 [記憶組件說明 (Memory Components)](./memory_components_zh.md)
+  - **重要性評分 ($I$)**：基於情緒與來源可靠度的 [0, 1] 標準化評分。
+  - **衰減函數**：$S = I \times e^{-\lambda t}$。創傷性事件因 $I$ 高，在腦中保持「可得性」的時間遠長於日常瑣事。
 
-### 1.2 可配置的推論邏輯 (Configurable Reasoning Logic - e.g., PMT)
+### 1.2 情境依賴記憶 (Context-Dependent Memory)
 
-- **核心概念**：這是一個**可抽換的理論插槽 (Theory Slot)**。目前的設定是 PMT，但您可以隨意更換。
-  - **例子**：若研究行為財務學，可換成 **展望理論 (Prospect Theory)**，要求代理人在決策時必須展現「損失規避 (Loss Aversion)」。
-- **目前的實例 (PMT)**：保護動機理論 (Rogers, 1975)。人要採取防災決策，必須經過兩個認知評估 (威脅 vs 應對)。
-- **對應模組**：`validators/agent_validator.py` + `agent_types.yaml`
+- **理論**：當檢索時的情境（Context）與編碼時的情境吻合時，記憶檢索效率會顯著大幅提升 (**Godden & Baddeley, 1975**)。
+- **對應模組**：`HumanCentricMemoryEngine` (v2 模式)
 - **實作方式**：
-  - 我們在 `agent_types.yaml` 中定義 `thinking_rules`。
-  - Validator 會檢查 LLM 的思考內容是否包含這兩個步驟。如果不包含，就判定為「不合規思考」並駁回。
-  - 🔧 **深入實作細節**：請參閱 [治理核心說明 (Governance Core)](./governance_core_zh.md) 和 [技能註冊表 (Skill Registry)](./skill_registry_zh.md)
+  - **情境分數 ($C$)**：當前環境標籤與記憶標籤的二元匹配 {0, 1}。
+  - **加權檢索**：$S = W_{rec}R + W_{imp}I + W_{ctx}C$。即使是十年前的老記憶，只要環境匹配，就會被重新喚醒。
 
-### 1.3 有限理性 (Bounded Rationality)
+### 1.3 雙系統理論與主動推理 (Dual-Process Theory & Active Inference)
 
-- **定義**：經濟學概念 (Herbert Simon)。人不是完美的計算機，人的理性受限於資訊、時間和認知能力。
-- **對應模組**：`broker/core/governance.py` (Governance Layer)
+- **理論**：人類認知在快速直覺的「系統一」與慢速分析的「系統二」之間平衡 (**Kahneman, 2011**)。這種切換由「驚奇感」或「預測誤差 ($PE$)」驅動，當預期被違背時，大腦才會分配更多認知資源 (**Friston, 2010**)。
+- **對應模組**：`UniversalCognitiveEngine` (v3 「驚奇引擎」)
 - **實作方式**：
-  - 如果完全放任 LLM (Gemma/Llama)，它會產生幻覺或隨機行為 (完全不理性)。
-  - 我們的 **Governance Layer** 就是那個「邊界 (Bound)」，它強迫代理人在一個合理的範圍內做決策，排除那些明顯錯誤的選項。
-  - 🔧 **深入實作細節**：請參閱 [上下文系統說明 (Context System)](./context_system_zh.md)
+  - **日常模式 ($PE < \theta$)**：執行 v1 (系統一/習慣)。節省算力。
+  - **驚奇模式 ($PE \ge \theta$)**：執行 v2 (系統二/深思)。強制啟動情境感知檢索。
 
-### 1.4 元認知與反思 (Metacognition & Reflexion)
+### 1.4 可配置的推論邏輯 (Configurable Reasoning - e.g., PMT)
 
-- **定義**：認知科學概念。不僅僅是「思考」，而是「思考自己的思考」。
-- **對應模組**：`broker/components/reflection_engine.py`
-- **實作方式**：
-  - 每天的行動是「反應 (Reaction)」。
-  - 每年的總結是「反思 (Reflection)」。
-  - 系統將一整年的日誌餵給 LLM，要求它：「找出你這一年學到的最大教訓。」產出的 **Insight (洞察)** 會成為永久記憶。
-  - 🔧 **深入實作細節**：請參閱 [反思引擎說明 (Reflection Engine)](./reflection_engine_zh.md)
+- **核心概念**：這是一個**可抽換的理論插槽 (Theory Slot)**。
+  - **行為財務學**：可換成 **展望理論 (Prospect Theory)**，要求代理人展現「損失規避」。
+- **對應模組**：`AgentValidator` (雙層驗證機制)。
+
+### 1.5 有限理性 (Bounded Rationality)
+
+- **理論**：代理人的理性受限於資訊、時間和認知能力 (**Simon, 1957**)。
+- **對應模組**：**治理層 (Governance Layer)**。
+
+### 1.6 元認知與反思 (Metacognition & Reflexion)
+
+- **理論**：學習不僅發生在行動中，更發生在對行動的反思中 (**Shinn et al., 2023**)。
+- **對應模組**：`ReflectionEngine`。
 
 ---
 
-## 2. 模組對照表 (Mapping Table)
+## 2. 整合認知流 (雙系統架構圖)
 
-| 理論 (Theory)              | 程式模組 (Code)               | 檔案位置 (File)                        | 作用 (Function)                      |
-| :------------------------- | :---------------------------- | :------------------------------------- | :----------------------------------- |
-| **Availability Heuristic** | **HumanCentricMemoryEngine**  | `broker/components/memory_engine.py`   | 決定哪些記憶被檢索出來 (Retrieve)。  |
-| **PMT**                    | **AgentValidator**            | `validators/agent_validator.py`        | 檢查思考邏輯是否合規 (Validate)。    |
-| **Episodic Memory**        | **Path A (Raw Logs)**         | `experiment.py`                        | 紀錄客觀事實 (Record Facts)。        |
-| **Semantic Memory**        | **Path B (ReflectionEngine)** | `reflection_engine.py`                 | 產生抽象智慧 (Generate Wisdom)。     |
-| **Context Window**         | **ContextBuilder**            | `broker/components/context_builder.py` | 將記憶組合成 Prompt (Build Prompt)。 |
+本框架將上述理論整合進一個「狀態到心智 (State-to-Mind)」的循環中。以下是由 **驚奇引擎 (Surprise Engine)** 驅動的切換邏輯：
+
+```mermaid
+graph TD
+    A[環境觀察 Environment Observation] --> B{預測誤差 PE}
+    B -- "低 (PE < 0.5)" --> C["系統一：習慣模式 System 1"]
+    B -- "高 (PE >= 0.5)" --> D["系統二：分析模式 System 2"]
+
+    subgraph "系統一 (捷思/直覺)"
+        C --> C1[v1 繼承檢索 Legacy]
+        C1 --> C2[基於新鮮度的記憶]
+    end
+
+    subgraph "系統二 (理性/深思)"
+        D --> D1[v2 加權檢索 Weighted]
+        D1 --> D2[情境依賴記憶檢索]
+        D2 --> D3[PMT 邏輯驗證]
+    end
+
+    C2 --> E[決定行動 Decided Action]
+    D3 --> E
+    E --> F[更新內部預期 Update Expectation]
+    F --> A
+```
+
+## 3. 模組對照表 (Mapping Table)
+
+| 理論 (Theory)                 | 程式模組 (Code)    | 檔案位置 (File)        | 作用 (Function)                       |
+| :---------------------------- | :----------------- | :--------------------- | :------------------------------------ |
+| **Availability Heuristic**    | **記憶引擎 (v1)**  | `memory_engine.py`     | `HumanCentricMemoryEngine` (Legacy)   |
+| **Context-Dependent Memory**  | **記憶引擎 (v2)**  | `memory_engine.py`     | `HumanCentricMemoryEngine` (Weighted) |
+| **Dual-Process / Active Inf** | **驚奇引擎 (v3)**  | `universal_memory.py`  | `UniversalCognitiveEngine.retrieve`   |
+| **PMT / 理性推論**            | **思考驗證器**     | `agent_validator.py`   | `AgentValidator.validate`             |
+| **Bounded Rationality**       | **治理層**         | `governance.py`        | `GovernanceLayer.process`             |
+| **Reflexion**                 | **反思引擎**       | `reflection_engine.py` | `ReflectionEngine.reflect`            |
+| **Prompt 組合**               | **ContextBuilder** | `context_builder.py`   | `ContextBuilder.build_prompt`         |
 
 ---
 
@@ -66,13 +95,16 @@
 
 這是一個代理人 (Agent) 在模擬環境中做出決策的**完整生命週期**，展示了所有模組如何協作：
 
-### 步驟 1：感知 (Perception & Retrieval)
+### 步驟 1：感知與喚起 (Dual-Process & Arousal)
 
-- **情況**：第 5 年，外面下大雨，水位 1.0ft。
-- **Memory Engine (Availability Heuristic)**：
-  - 系統掃描大腦，發現一條 3 年前的記憶：「第 2 年發大水，房子全毀 (Imp=1.5)」。
-  - 雖然過了 3 年，但分數僅衰減至 1.1，依然很高。
-  - **決定**：將這條「創傷記憶」強制注入 Prompt。
+- **情況**：第 5 年，外面下大雨，水位 1.0ft (Reality)。
+- **Predictor**：預期水位 0.1ft (Expectation)。
+- **驚奇度 (PE)**：$PE = |1.0 - 0.1| = 0.9$。
+- **切換**：$0.9 > \theta$，啟動 **系統二的 v2 檢索**。
+- **Memory Engine**：
+  - 系統掃描發現一條 3 年前的記憶：「第 2 年大水致屋毀 (Imp=1.0)」。
+  - 因為當前關鍵字匹配，「情境分數 $C$」爆發，該記憶得分躍居第一。
+  - **決定**：將這條「創傷記憶」強制注入 Prompt，衝破「九年安逸」產生的偏見。
 
 ### 步驟 2：思考 (Reasoning with PMT)
 
@@ -114,4 +146,3 @@
 ### 4.2 如何操作？
 
 您只需要修改 `agent_types.yaml` 的 `emotion_keywords` 和 `thinking_rules` 即可。系統核心代碼 (**System Execution Layer**) 完全不需要更動。這一點證明了本研究貢獻在於「架構」而非單一案例。
-

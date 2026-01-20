@@ -50,12 +50,11 @@ python examples/single_agent/run_flood.py --model llama3.2:3b --agents 50 --year
 
 ## 🗺️ Module Directory (Documentation Hub)
 
-- **📚 Chapter 0: Theoretical Basis**: [System Theory &amp; Architecture](docs/modules/00_theoretical_basis_overview.md) | [中文連結](docs/modules/00_theoretical_basis_overview_zh.md)
-- **🧠 Chapter 1: Memory & Reflection**: [Memory Components](docs/modules/memory_components.md) | [Reflection Engine](docs/modules/reflection_engine.md)
-- **👁️ Chapter 2: Context System**: [Context Builder](docs/modules/context_system.md)
-- **⚖️ Chapter 3: Governance Core**: [Governance Logic](docs/modules/governance_core.md)
+- **📚 Chapter 0: Theoretical Basis**: [Theoretical Basis Overview](docs/modules/00_theoretical_basis_overview.md) | [中文連結](docs/modules/00_theoretical_basis_overview_zh.md)
+- **🧠 Chapter 1: Memory & Reflection**: [Memory & Surprise Engine](docs/modules/memory_components.md) | [Reflection Engine](docs/modules/reflection_engine.md)
+- **⚖️ Chapter 2: Governance Core**: [Governance Logic & Validators](docs/modules/governance_core.md)
+- **👁️ Chapter 3: Context & Perception**: [Context Builder](docs/modules/context_system.md) | [Simulation Engine](docs/modules/simulation_engine.md)
 - **🛠️ Chapter 4: Skill Registry**: [Action Ontology](docs/modules/skill_registry.md)
-- **🌍 Chapter 5: Simulation Engine**: [Environment &amp; Loop](docs/modules/simulation_engine.md)
 - **🧪 Experiments**: [Single Agent Benchmarks](examples/README.md)
 
 ---
@@ -122,13 +121,16 @@ This framework implements a **"Stacking Blocks"** architecture. You can build ag
 
 **Evolution Roadmap**:
 
-- **v1 (Legacy)**: Monolithic scripts with basic Window Memory. (Group A/B Baseline).
-- **v2 (Stable)**: Modular `SkillBrokerEngine` with Governance.
-- **v3 (Current)**: **Universal Cognitive Architecture**.
-  - **Surprise Engine**: Neuro-modulated System 1/2 switching.
-  - **Human-Centric Memory**: Emotional Decay + Weighted Context.
-  - **Explainable Governance**: Validator traces.
-- **v4 (Future - Universal)**: **Hierarchical MemGPT-style Storage**.
+![Memory Evolution: v1 vs v2 vs v3](file:///C:/Users/wenyu/.gemini/antigravity/brain/9793af22-8e51-4316-9d6b-59ba45b8fe7a/memory_v1_v2_v3_comparison_1768929313022.png)
+
+- **v1 (Legacy)**: [Availability Heuristic] - Monolithic scripts with basic Window Memory. (Group A/B Baseline).
+- **v2 (Weighted)**: [Context-Dependent Memory] - Modular `SkillBrokerEngine` with **Weighted Retrieval** ($S = W_{rec}R + W_{imp}I + W_{ctx}C$).
+- **v3 (Current)**: [Dual-Process & Active Inference] - **Universal Cognitive Architecture (The Surprise Engine)**.
+  - **Dynamic Switching**: Flips between System 1 (v1 Routine) and System 2 (v2 Rational Focus) based on Prediction Error ($PE$).
+  - **State-Mind Coupling**: Expectation ($E$) and Reality ($R$) drive the arousal loop.
+  - **Explainable Audit**: Provides a full logic trace of "Why the agent remembered/selected this action."
+
+👉 **[Deep Dive: Memory Priority & Retrieval Math](docs/modules/memory_components.md)**
 
 ---
 
@@ -250,9 +252,9 @@ The **Human-Centric Memory Engine** (v3.3) solves the "Goldfish Effect" by prior
 
 ### Key Features:
 
-1. **Passive Retrieval**: The system pushes relevant memories to the LLM based on `Importance = Emotion x Source x Decay`.
-2. **Reflection Loop**: Yearly consolidation of events into generalized "Insights" (e.g., "Insurance is vital").
-3. **Bounded Context**: Filters thousands of logs into a concise, token-efficient prompt.
+1. **Priority-Driven Retrieval**: The Context Builder dynamically injects memories based on the retrieval score $S = (W_{rec} \cdot S_{rec}) + (W_{imp} \cdot S_{imp}) + (W_{ctx} \cdot S_{ctx})$. This ensures that even distant trauma (High Importance) or situationally-relevant facts (High Context) are pushed to the LLM's working memory.
+2. **Reflection Loop**: Yearly consolidation of events into generalized "Insights" (assigned maximum weight $I = 10.0$ to resist decay).
+3. **Bounded Context**: Filters thousands of logs into a concise, token-efficient prompt, prioritizing accuracy over volume.
 
 👉 **[Read the full Memory &amp; Reflection Specification](docs/modules/memory_components.md)**
 
@@ -282,8 +284,8 @@ The framework is strictly validated against the following model families to ensu
 
 ### 2. Context Builder: Bounded Perception
 
-- **Salience Filtering**: Retrieves top-k relevant memories via Memory Engine.
-- **Demographic Anchoring**: Injects fixed traits (Income, Generation).
+- **Priority Retrieval**: Injects top-k memories using the **Memory Priority Mechanism** ($S$) to counteract "Memory Erosion."
+- **Demographic Anchoring**: Injects fixed traits (Income, Generation) to ground the persona.
 
 ---
 

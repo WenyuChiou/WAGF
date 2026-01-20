@@ -1,246 +1,147 @@
-# Components: Memory, Context & Reflection
+# Components: Memory and Retrieval System
 
 **🌐 Language: [English](memory_components.md) | [中文](memory_components_zh.md)**
 
-This document details the cognitive architecture of the agent, designed to solve the "Goldfish Effect" in LLMs using psychological principles.
+The **Memory and Retrieval System** is the cognitive bridge between an agent's past experiences and its current decision-making. In this framework, we explicitly decouple **Memory (Storage)** from **Retrieval (Access Control)** to ensure that the agent remains rational even under high information density.
 
 ---
 
 ## 🏛️ Memory Evolution & Roadmap
 
-The memory system is evolving from a simple sliding window to a **Universal Cognitive Architecture** grounded in established cognitive science.
+The system is a **Universal Cognitive Architecture** grounded in established cognitive science, evolving across three specific phases of retrieval depth.
 
-### Phase 1: Human-Centric Memory (Unified in v3)
-
-_Implementation_: `UniversalCognitiveEngine` (Arousal Threshold = 99.0) -> **System 1**
-
-- **Logic**: **Emotional Decay**. High-emotion events (trauma) persist longer.
-- **Goal**: Solves the "Goldfish Effect" efficiently. Defines the **"Routine"** state of the agent.
-- **Reference**: _Park, J. S., et al. (2023). Generative Agents._ (Emotion-based retrieval).
-
-### Phase 2: Weighted Contextual Retrieval (Unified in v3)
-
-_Implementation_: `UniversalCognitiveEngine` (Arousal Threshold = 0.0) -> **System 2 Lite**
-
-- **Logic**: **Contextual Boosting**. ($S = W_r R + W_i I + W_c C$).
-- **Goal**: Retrieves memories relevant to the _current_ state (e.g., "It is raining" retrieves "Flood Memory" even if old).
-- **Reference**: _Trope, Y., & Liberman, N. (2010). Construal-level theory._ (Contextual Relevance).
-
-### Phase 3: Universal Architecture (The "Surprise Engine") - **Current Standard**
-
-_Vision_: **Neuro-Modulated Mode Switching**
-
-- **Implementation**: `UniversalCognitiveEngine` (Dynamic Mode)
-- **Theory**: **Prediction Error** drives cognition.
-  - **System 1 (Routine)**: When $Reality \approx Expectation$ (Low Surprise), use cheap heuristics (Phase 1).
-  - **System 2 (Crisis)**: When $Reality \neq Expectation$ (High Surprise), trigger high-compute reflection (Phase 2 + Tier 3).
-- **Component**: `UniversalCognitiveEngine` automatically handles the switch based on `arousal_threshold`.
-- **Reference**: _Friston, K. (2010). The Free-Energy Principle._ (Active Inference) & _Kahneman, D. (2011). Thinking, Fast and Slow._ (Dual Process).
+![Memory Evolution Roadmap](../architecture/memory_evolution_roadmap.png)
 
 ---
 
-### 3. Deep Dive: How It Actually Works (The Math)
+## 1. The Memory Lifecycle: From Perception to Prompt
 
-To understand how the agent "remembers," let's walk through a concrete calculation trace from the JOH Simulation.
+To understand how our agents "think" about the past, we follow a single event through its lifecycle:
 
-#### 3.1 The Scenario
+### Step 1: Memory Systems, Appraisal & Symbol Dictionary
 
-- **Configuration**: `decay_rate (λ) = 0.1`, `importance_threshold = 0.6`.
-- **Event**: In **Year 2**, the agent's house floods (Depth: 2.0ft).
-- **Source**: Personal Experience (Weight: 1.0).
-- **Emotion**: `trauma` (Weight: 1.5).
+#### **A. Strategic Comparison of Memory Systems:**
 
-#### 3.2 Step 1: Valuation (Encoding)
+| Feature               | Model v1: Legacy (Habit)        | Model v2: Weighted (Deliberate)      | Model v3: Universal (Both)    |
+| :-------------------- | :------------------------------ | :----------------------------------- | :---------------------------- |
+| **Retrieval Logic**   | **Saliency-Based**.             | **Unified Scoring**.                 | **Surprise-Driven Gating**.   |
+| **Core Formula**      | $S(t) = I \cdot e^{-\lambda t}$ | $S = W_{rec}R + W_{imp}I + W_{ctx}C$ | Toggles between v1 and v2.    |
+| **Design Philosophy** | **Availability Heuristic**.     | **Contextual Relevance**.            | **Cognitive Arousal (PE)**.   |
+| **Goal**              | Remember "recent shocks".       | Remember "relevant history".         | **Habit** until **Surprise**. |
 
-The memory engine first calculates the **Unified Importance Score ($I$)**:
-$$I = W_{source} \times W_{emotion}$$
-$$I = 1.0 \times 1.5 = \textbf{1.5}$$
+#### **B. Parameter & Symbol Dictionary (Scale: 0.0 to 1.0):**
 
-Since $1.5 \ge 0.6$, this event is **Consolidated** into Long-Term Memory (saved to JSON). It is now a "Durable Belief."
+| Symbol        | Component/Parameter     | Default | Definition                                                    |
+| :------------ | :---------------------- | :------ | :------------------------------------------------------------ |
+| **$R$**       | **Recency Score**       | (Calc)  | $1 - (\text{age} / \text{max\_age})$: Freshness (Now=1.0).    |
+| **$I$**       | **Importance Score**    | (Calc)  | $I_{initial} \cdot e^{-\lambda t}$: Decay-adjusted intensity. |
+| **$C$**       | **Context Score**       | (Calc)  | Binary match between memory tags and current prompt.          |
+| **$PE$**      | **Prediction Error**    | (Calc)  | Level of "Surprise" (Reality vs Expectation).                 |
+| **$\lambda$** | **Decay Rate**          | 0.1     | Constant determining forgetting speed.                        |
+| $W_{rec}$     | **Recency Weight**      | 0.3     | Weight of "Freshness" in the prompt.                          |
+| $W_{imp}$     | **Importance Weight**   | 0.5     | Weight of "Historical Significance" ($I$).                    |
+| $W_{ctx}$     | **Context Weight**      | 0.2     | Weight of "Situational Relevance" ($C$).                      |
+| $I_{gate}$    | **Consolidation Gate**  | 0.6     | Min. $I_{initial}$ to attempt permanent storage.              |
+| $P_{burn}$    | **Burning Probability** | 0.8     | Prob. a memory is consolidated if it passes the gate.         |
 
-#### 3.3 Step 2: Retrieval in the Future
+> [!NOTE]
+> **Why are $R, C,$ and $PE$ "Dynamic Variables"?**
+> Unlike static weights ($W$), these values are recalculated during every retrieval cycle/perception step:
+>
+> - **$R$ (Recency)**: Changes every step because "Time" is constantly moving forward. Yesterday's memory is less "recent" today.
+> - **$C$ (Context)**: Changes because it depends on the **current prompt**. A memory of "buying a boat" has $C=0.0$ during a fire, but $C=1.0$ during a flood discussion.
+> - **$PE$ (Prediction Error)**: Changes because it is the "Surprise" of the **current moment** (Reality vs. what was expected).
 
-It is now **Year 5** (3 years later). The agent is deciding whether to buy insurance. The system queries memory.
+---
 
-- **Time Delta ($t$)**: 3 years.
-- **Decay Function**: The engine calculates the current retrieval strength ($S$):
-  $$S = I \times e^{-\lambda t}$$
-  $$S = 1.5 \times e^{-0.1 \times 3} = 1.5 \times 0.74 = \textbf{1.11}$$
+## 2. Practical Case: Household Agent Retrieval Trace
 
-- **Comparison**: A routine event from Year 4 (e.g., "Sunny day", $I=0.2$) has decayed to $0.2 \times e^{-0.1 \times 1} = 0.18$.
-- **Result**: The Flood Memory (1.11) is **6x stronger** than the recent weather (0.18). The agent "remembers" the flood vividly and ignores the sun.
+**Current Setting (Year 11)**: The weather forecast just issued a **Red Alert**. Forecast: "Extreme rainfall expected. High risk of river flood."
 
-### 4. Information Flow Diagram
+> **Current Tags**: `[Flood, Danger, Rain]`
 
-The following diagram illustrates how raw signals are transformed into permanent convictions.
+The agent has the following two historical memories stored in its long-term archive:
 
-```mermaid
-graph TD
-    World[Check World State] --> Perc[Perception Layer]
-    Perc --> Filter{Salience Filter}
-    Filter -- Score < 0.6 --> ShortTerm[Working Memory Loop]
-    Filter -- Score >= 0.6 --> Consolidation[Consolidation Engine]
-    Consolidation --> LTM[(Long-Term Memory)]
-    Consolidation --> Reflection[(Reflection Log)]
-    Task[Decision Point] --> Retriever[Retrieval Engine]
-    LTM --> Retriever
-    Retriever --> Context[Final Reasoning Context]
-    ShortTerm --> Context
+- **Memory A (The Disaster)**: "Year 1: A massive flood breached the levee. My basement was under 2 feet of water, and I lost all my furniture. It was terrifying."
+  - **Stats**: $I_{initial}=1.0$, Age=10, Tags: `[Flood]`.
+- **Memory B (The Routine)**: "Year 10: The sun was out all day. I spent the afternoon gardening in the backyard. It was a normal, quiet Saturday."
+  - **Stats**: $I_{initial}=0.1$, Age=1, Tags: `[Routine]`.
+
+---
+
+#### **Model v1: The Habitual Agent (Habit)**
+
+V1 only cares about Saliency ($I \cdot e^{-\lambda t}$).
+
+1.  **Memory A Score**: $1.0 \cdot e^{-(0.1 \times 10)} = 0.36$.
+2.  **Memory B Score**: $0.1 \cdot e^{-(0.1 \times 1)} \approx 0.09$.
+3.  **The Result**: Memory A (Flood) is decaying. It is being heavily crowded out by the **Working Memory Window**, which is full of hundreds of routine memories like Memory B (Recent Sunny Days) with $S \approx 1.0$.
+4.  **Action**: The agent stays calm and **ignores the warning** because the "Normalcy Bias" of the last 9 sunny years dominates its thoughts.
+
+---
+
+#### **Model v2: The Rational Agent (Deliberate)**
+
+V2 uses $S = (R \times 0.3) + (I \times 0.5) + (C \times 0.2)$.
+
+1.  **Memory A (Disaster)**:
+    - **Math**: $(R=0.0 \times 0.3) + (I=0.36 \times 0.5) + (C=1.0 \times 0.2) = 0.0 + 0.18 + 0.20 = \mathbf{0.38}$
+    - **Why**: The **Context Score** ($C=1.0$) is triggered by the word "Flood" in the current forecast.
+2.  **Memory B (Routine)**:
+    - **Math**: $(R=0.9 \times 0.3) + (I=0.09 \times 0.5) + (C=0.0 \times 0.2) = 0.27 + 0.045 + 0.0 = \mathbf{0.315}$
+    - **Why**: High recency ($R=0.9$) but zero context match ($C=0.0$).
+3.  **The Result**: **0.38 > 0.315**. The catastrophe from 10 years ago beats the gardening trip from last year.
+4.  **Action**: The agent **purchases flood insurance** immediately.
+
+---
+
+## 3. v3: Universal Memory (The Surprise Engine)
+
+V3 is the "controller" of the cognitive architecture. It models the **Arousal Loop**—deciding when to act on habit (v1) and when to wake up and act rationally (v2).
+
+### 🧠 The Arousal Loop Mechanics
+
+1.  **Sensory Input ($Reality$ from State)**:
+    Every cycle, the engine reads the `world_state`. In our case, it tracks the `flood_depth`. This is a **Dynamic State Variable**.
+2.  **Internal Prediction ($Expectation$)**:
+    The agent maintains an internal "Normalcy Model" using an **EMA Predictor** (Exponential Moving Average).
+    - **Formula**: $E_t = (\alpha \times R_t) + ((1 - \alpha) \times E_{t-1})$
+    - This creates **Normalcy Bias**: even if a flood starts, the agent's expectation moves slowly, creating a gap between reality and belief.
+
+3.  **Prediction Error ($PE$ / Surprise)**:
+    The "Surprise" is the absolute difference: $PE = |Reality - Expectation|$.
+    - **Dynamic Calculation**: As $Reality$ shoots up (Flood alert), $PE$ spikes.
+    - **Dynamic Toggling**:
+      - If $PE < \text{Arousal Threshold}$ (0.5): The agent remains in **System 1 (Model v1)**. It trusts its habits and filters out deep archives.
+      - If $PE \ge \text{Arousal Threshold}$: The agent enters **System 2 (Model v2)**. It triggers a "Context Search," enabling the weighted scoring that brings back the 10-year-old flood trauma.
+
+### 🔄 Does v3 change with State?
+
+**YES.** All core components of v3 are state-dependent:
+
+- **Reality**: Direct feed from `world_state`.
+- **Expectation**: Updates every step based on new observations.
+- **Arousal Mode**: Flips between "Legacy" and "Weighted" based on the current Environment-to-Mind mismatch.
+
+> [!TIP]
+> **Theory Link**: This implements **Active Inference (Friston, 2010)**, where the brain's goal is to minimize surprise, and **Thinking, Fast and Slow (Kahneman, 2011)**, which defines the two speeds of thought.
+
+---
+
+## 4. ⚙️ Configuration & References
+
+```yaml
+memory_config:
+  type: "universal" # v3
+  params:
+    arousal_threshold: 0.5
+    W_recency: 0.3
+    W_importance: 0.5
+    W_context: 0.2
 ```
 
-### 6. Further Reading
-
-For a deep dive into the academic theories (PMT, Availability Heuristic) and their code implementation, please see:
-[Theoretical Basis & Architecture Master Map](theoretical_basis.md)
-
-This architecture ensures that **High-Impact Events** (Red Path) bypass the standard forgetting mechanism of the LLM context window.
-
----
-
-## 1. Core Concepts & Definitions
-
-Before understanding the code, it is essential to define the cognitive terms and their academic basis.
-
-- **Human-Centric Memory**: A retrieval mechanism that prioritizes "Emotional Salience" (Trauma/Major Events) over simple recency. It mimics human availability heuristics.
-  - _Reference_: **Park, J. S., et al.** (2023). Generative Agents: Interactive Simulacra of Human Behavior.
-- **Bounded Context**: The limit of the LLM's attention. We cannot feed 10 years of logs; we must construct a "Frame of Reality" that fits within the token window.
-- **Reflection**: A meta-cognitive process where the agent looks back at its history to form high-level "Insights" (e.g., "I live in a flood zone").
-  - _Reference_: **Shinn, N., et al.** (2023). Reflexion: Language Agents with Verbal Reinforcement Learning.
-- **Protection Motivation (PMT)**: The psychological theory driving the agent's decision-making, balancing Threat Perception vs. Coping Appraisal.
-  - _Reference_: **Rogers, R. W.** (1975). A Protection Motivation Theory.
-
----
-
-## 2. System Design & Architecture
-
-### 🧠 Memory Engine: The Science of Recall
-
-The `MemoryEngine` is a **Reconstructive Process**. It acts as a filter _before_ the prompt is meaningful.
-
-**Mathematical Formulation**
-The retrieval score $S$ for a memory $m$ at time $t$ uses a **Decay-Weighted Product** model:
-
-$$ S(m, t) = Imp(m) \cdot e^{-\lambda' \cdot \Delta t} $$
-
-Where:
-
-- $Imp(m) = W_{emotion} \times W_{source}$
-- $\lambda'$ is the emotion-adjusted decay rate:
-  $$ \lambda' = \lambda*{base} \cdot (1 - 0.5 \cdot W*{emotion}) $$
-  _(Impact: Higher emotion memories decay significantly slower)_
-
-_Note: The system does not use linear $\alpha, \beta, \gamma$ weights._
-
-### 👁️ Context Builder: The Cognitive Lens
-
-The `ContextBuilder` frames reality to prevent **Hallucination**. It constructs a strict schema for every prompt:
-
-1.  **Global Truth**: "You are a homeowner." (Identity)
-2.  **Retrieved Memory**: "You recall the flood of Year 2." (From Memory Engine)
-3.  **Immediate State**: "Current water level: 1.5m." (Sensors)
-4.  **Social Signals**: "Neighbor bought insurance." (Influence)
-
-### 🪞 Tier 3: Semantic Insights (The Reflection Engine)
-
-_Status_: **Implemented (v3 System 2 Core)**
-
-Executed at the end of every simulation year (or when **Surprise** is high).
-
-1.  **Aggregate**: Reads all daily logs.
-2.  **Synthesize**: LLM generates 3 high-level bullet points (Insights).
-3.  **Consolidate**: Insights are stored as high-priority semantic memories, ensuring the agent's "Personality" evolves based on past successes or failures.
-    - _Example_: "I learned that insurance is vital." (Observation) -> "I am a cautious person." (Identity Update).
-
----
-
-## 3. ⚙️ Configuration & Parameters
-
-Recommended settings for Llama 3 / Gemma sized models.
-
-### Keywords & Weights Configuration
-
-Users can customize priorities via `agent_types.yaml`. These directly affect $Imp(m)$.
-
-| Category            | Keyword Examples            | Weight               |
-| :------------------ | :-------------------------- | :------------------- |
-| **Direct Impact**   | `flood`, `damage`, `trauma` | **1.0** (Max)        |
-| **Personal Source** | `i`, `my`, `me`             | **1.0** (Direct Exp) |
-| **Strategic**       | `decision`, `relocate`      | **0.8**              |
-| **Neighbor**        | `neighbor`, `others`        | **0.8**              |
-| **Routine**         | (default behavior)          | **0.1**              |
-
-### General Parameters
-
-| Parameter                       | Type    | Default | Description                            |
-| :------------------------------ | :------ | :------ | :------------------------------------- |
-| `window_size`                   | `int`   | `5`     | Items in "Working Memory".             |
-| `decay_rate` ($\lambda_{base}$) | `float` | `0.1`   | Base forgetting rate.                  |
-| `importance_boost`              | `float` | `0.9`   | Multiplier for **Reflected Insights**. |
-
----
-
-## 4. 🔌 Usage & Connector Guide
-
-How to instantiate and connect the components in your experiment script (`run.py`).
-
-```python
-# 1. Initialize the Engine (Using Factory)
-from broker.components import create_memory_engine
-
-memory_engine = create_memory_engine(
-    engine_type="universal",
-    window_size=5,
-    arousal_threshold=0.5,
-    ema_alpha=0.3
-)
-
-# 2. Link to Context Builder
-ctx_builder = FinalContextBuilder(
-    agents=agents,
-    hub=hub,
-    sim=sim,
-    memory_top_k=5
-)
-
-# 3. Main Loop Integration
-# Pass 'world_state' to enable Surprise Detection
-personal_memory = memory_engine.retrieve(
-    agent,
-    top_k=5,
-    world_state={"flood_depth": current_depth}
-)
-# 'observation' now contains the injected memories + current state
-```
-
----
-
-## 5. 📝 Input / Output Examples
-
-What actually happens inside the prompt?
-
-**Input: Raw Memory Store**
-
-```json
-[
-  {
-    "year": 2,
-    "text": "House destroyed by flood. Trauma High.",
-    "importance": 1.0
-  },
-  { "year": 8, "text": "Sunny day.", "importance": 0.1 }
-]
-```
-
-**Process: Year 10 Retrieval**
-
-- Year 8 is forgotten (Decay).
-- Year 2 is **Retrieved** (High Importance outweighs Decay).
-
-**Output: Injected Context**
-
-```text
-[Your History]
-- Recurring Memory: "House destroyed by flood..." (Year 2)
-[Current Situation]
-- "It is raining heavily."
-```
+[1] Tversky & Kahneman (1973). _Availability Heuristic_. (v1: Basis for recency/saliency bias).
+[2] Friston (2010). _The free-energy principle: a rough guide to the brain?_. (v3: Basis for surprise-driven arousal).
+[3] Ebbinghaus (1885). _Memory: A Contribution to Experimental Psychology_. (v1/v2: The Forgetting Curve).
+[4] Park et al. (2023). _Generative Agents: Interactive Simulacra of Human Behavior_. (v2: The Weighted Scoring model of _Recency, Importance, and Relevance_).
+[5] Kahneman (2011). _Thinking, Fast and Slow_. (v3: Dual-Process Theory - switching between System 1 habits and System 2 rational deliberation).
