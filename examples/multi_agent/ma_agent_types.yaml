@@ -18,6 +18,26 @@ shared:
       - { key: "decision", type: "choice", required: true }
       - { key: "reasoning", type: "text", required: false }
 
+global_config:
+  memory:
+    window_size: 5
+    consolidation_threshold: 0.6
+    consolidation_probability: 0.7
+    top_k_significant: 2
+    decay_rate: 0.1
+  reflection:
+    interval: 1
+    batch_size: 10
+    importance_boost: 0.9
+  llm:
+    temperature: 0.1
+    top_p: 0.9
+    top_k: 40
+    max_retries: 2
+  governance:
+    max_retries: 3
+    max_reports_per_retry: 3
+
 # =============================================================================
 # HOUSEHOLD AGENT TYPES (PMT-based)
 # =============================================================================

@@ -440,7 +440,30 @@ class AgentTypeConfig:
     def get_llm_params(self, agent_type: str) -> Dict[str, Any]:
         """Get LLM parameters (num_predict, num_ctx, etc.) for agent type."""
         cfg = self.get(agent_type)
-        return cfg.get("llm_params", {})
+        shared_llm = self._config.get("shared", {}).get("llm", {})
+        global_llm = self._config.get("global_config", {}).get("llm", {})
+        agent_llm = cfg.get("llm_params", {})
+        merged = {}
+        merged.update(shared_llm)
+        merged.update(global_llm)
+        merged.update(agent_llm)
+        return merged
+
+    def get_global_memory_config(self) -> Dict[str, Any]:
+        """Get global memory config (Global > Shared > Default)."""
+        defaults = {
+            "window_size": 3,
+            "consolidation_threshold": 0.6,
+            "consolidation_probability": 0.7,
+            "top_k_significant": 2,
+            "decay_rate": 0.1
+        }
+        shared_mem = self._config.get("shared", {}).get("memory", {})
+        global_mem = self._config.get("global_config", {}).get("memory", {})
+        merged = defaults.copy()
+        merged.update(shared_mem)
+        merged.update(global_mem)
+        return merged
 
     def get_response_format(self, agent_type: str) -> Dict[str, Any]:
         """Get response format configuration (delimiters, fields) with shared fallback."""

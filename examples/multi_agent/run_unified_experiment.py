@@ -564,13 +564,25 @@ def run_unified_experiment():
     env_data["mg_ratio"] = mg_count / len(profiles) if profiles else 0
     
     # 3. Memory Engine
+    from broker.utils.agent_config import AgentTypeConfig
+    agent_cfg = AgentTypeConfig.load(MULTI_AGENT_DIR / "ma_agent_types.yaml")
+    mem_cfg = agent_cfg.get_global_memory_config()
+
     if args.memory_engine == "humancentric":
-        memory_engine = HumanCentricMemoryEngine(window_size=3)
+        memory_engine = HumanCentricMemoryEngine(
+            window_size=mem_cfg.get("window_size", 3),
+            top_k_significant=mem_cfg.get("top_k_significant", 2),
+            consolidation_prob=mem_cfg.get("consolidation_probability", 0.7),
+            decay_rate=mem_cfg.get("decay_rate", 0.1)
+        )
     elif args.memory_engine == "hierarchical":
         from broker.components.memory_engine import HierarchicalMemoryEngine
-        memory_engine = HierarchicalMemoryEngine(window_size=5, semantic_top_k=3)
+        memory_engine = HierarchicalMemoryEngine(
+            window_size=mem_cfg.get("window_size", 5),
+            semantic_top_k=mem_cfg.get("top_k_significant", 3)
+        )
     else:
-        memory_engine = WindowMemoryEngine(window_size=3)
+        memory_engine = WindowMemoryEngine(window_size=mem_cfg.get("window_size", 3))
 
     # 3a. Load initial memories (survey mode)
     if args.mode == "survey" and args.load_initial_memories:
