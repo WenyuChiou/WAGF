@@ -249,6 +249,9 @@ class HumanCentricMemoryEngine(MemoryEngine):
         decay_rate: float = 0.1,               # λ in e^(-λt) decay
         emotional_weights: Optional[Dict[str, float]] = None,
         source_weights: Optional[Dict[str, float]] = None,
+        W_recency: float = 0.3,               # Weight for recency score
+        W_importance: float = 0.5,            # Weight for importance score
+        W_context: float = 0.2,               # Weight for contextual boost
         seed: Optional[int] = None
     ):
         """
@@ -259,6 +262,9 @@ class HumanCentricMemoryEngine(MemoryEngine):
             decay_rate: Exponential decay rate for time-based forgetting [0-1]
             emotional_weights: Override emotional category weights
             source_weights: Override source type weights
+            W_recency: Weight for recency score in retrieval
+            W_importance: Weight for importance score in retrieval
+            W_context: Weight for contextual boost in retrieval
             seed: Random seed for stochastic consolidation
         """
         import random
@@ -268,6 +274,11 @@ class HumanCentricMemoryEngine(MemoryEngine):
         self.top_k_significant = top_k_significant
         self.consolidation_prob = consolidation_prob
         self.decay_rate = decay_rate
+        
+        # Retrieval weights
+        self.W_recency = W_recency
+        self.W_importance = W_importance
+        self.W_context = W_context
         
         # Working memory (short-term)
         self.working: Dict[str, List[Dict[str, Any]]] = {}
@@ -418,20 +429,18 @@ class HumanCentricMemoryEngine(MemoryEngine):
         return decayed
     
     def retrieve(self, agent: BaseAgent, query: Optional[str] = None, top_k: int = 5, contextual_boosters: Optional[Dict[str, float]] = None) -> List[str]:
-        """Retrieve memories: recent working + significant long-term.
+        """Retrieve memories using weighted scoring: recency + importance + context boost.
         
         Args:
-            contextual_boosters: Dict mapping memory attributes (e.g. "emotion:fear") to boost multipliers. 
-                                 Example: {"emotion:fear": 0.5} adds 0.5 to importance.
+            contextual_boosters: Dict mapping memory attributes (e.g. "emotion:fear") to boost values.
         """
         if agent.id not in self.working:
-            # Initialize from agent profile
             initial_mem = getattr(agent, 'memory', [])
             self.working[agent.id] = []
             self.longterm[agent.id] = []
             if isinstance(initial_mem, list):
                 for m in initial_mem:
-                    self.add_memory(agent.id, m)
+                    self.add_memory_for_agent(agent, m)
         
         working = self.working.get(agent.id, [])
         longterm = self.longterm.get(agent.id, [])
@@ -441,59 +450,39 @@ class HumanCentricMemoryEngine(MemoryEngine):
         
         current_time = len(working) + len(longterm)
         
-        # 1. Get recent working memory
-        recent = working[-self.window_size:]
-        recent_texts = [m["content"] for m in recent]
+        # Combine working and long-term memories for unified scoring
+        all_memories = working + self._apply_decay(longterm, current_time)
         
-        # 2. Get significant long-term memories (with decay) - Optimized with heapq
-        decayed_longterm = self._apply_decay(longterm, current_time)
-        
-        # Apply Contextual Boosting if provided
-        # We work on a copy or modify 'decayed_importance' temporarily for sorting
-        candidate_pool = []
-        for m in decayed_longterm:
-            boosted_score = m["decayed_importance"]
+        scored_memories = []
+        for mem in all_memories:
+            # Recency score (higher = more recent)
+            age = current_time - mem["timestamp"]
+            recency_score = 1.0 - (age / max(current_time, 1))
             
+            # Importance score
+            importance_score = mem.get("importance", 0.1)
+            
+            # Contextual boost
+            contextual_boost = 0.0
             if contextual_boosters:
-                # Check for boosting matches
-                # Optimization: flattened check could be faster, but this is explicit
                 for tag_key_val, boost_val in contextual_boosters.items():
-                    # Support "emotion:fear" or just "fear" (if mapped to specific fields? No, stick to explicit keys)
-                    # Implementation Plan schema: "emotion:fear"
                     if ":" in tag_key_val:
                         tag_cat, tag_val = tag_key_val.split(":", 1)
-                        # Check if memory has this metadata
-                        if m.get(tag_cat) == tag_val:
-                            boosted_score += boost_val
-                            # Break or continue? Plan said break (first match wins or cumulative?)
-                            # Let's simple break for now to avoid over-boosting
+                        if mem.get(tag_cat) == tag_val:
+                            contextual_boost = boost_val
                             break
             
-            # create a lightweight tuple/dict for sorting to avoid modifying original storage
-            candidate_pool.append({
-                "content": m["content"],
-                "sort_score": boosted_score
-            })
+            # Final weighted score
+            final_score = (recency_score * self.W_recency) + \
+                          (importance_score * self.W_importance) + \
+                          (contextual_boost * self.W_context)
+            
+            scored_memories.append((mem["content"], final_score))
         
-        # Use simple sort for small lists, heapq for larger ones (heuristic threshold 50)
-        # Here we use heapq always for O(N) vs O(N log N)
-        target_k = self.top_k_significant + len(recent_texts) + 5 # Buffer for overlap removal
+        # Select top_k using heapq
+        top_k_memories = heapq.nlargest(top_k, scored_memories, key=lambda x: x[1])
         
-        sorted_candidates = heapq.nlargest(
-            target_k, 
-            candidate_pool, 
-            key=lambda x: x["sort_score"]
-        )
-        
-        significant = []
-        for m in sorted_candidates:
-            if m["content"] not in recent_texts and m["content"] not in significant:
-                significant.append(m["content"])
-            if len(significant) >= self.top_k_significant:
-                break
-        
-        # Combine: significant (historical context) + recent (continuity)
-        return significant + recent_texts
+        return [content for content, score in top_k_memories]
     
     def forget(self, agent_id: str, strategy: str = "importance", threshold: float = 0.2) -> int:
         """Forget memories using specified strategy.
