@@ -71,7 +71,17 @@ class FinalContextBuilder(TieredContextBuilder):
         # We manually retrieve more memories for parity with baseline
         agent = self.agents[agent_id]
         if hasattr(self.hub, 'memory_engine') and self.hub.memory_engine:
-            personal_memory = self.hub.memory_engine.retrieve(agent, top_k=self.memory_top_k)
+            # v3 Integration: Feed observable world state (Flood Depth) to memory engine
+            # This allows the "Surprise Engine" to detect prediction errors.
+            current_depth = getattr(agent, 'base_depth_m', 0.0) if self.sim.flood_event else 0.0
+            world_state = {"flood_depth": current_depth}
+             
+            # Pass world_state to retrieve (Universal Engine will use it, others will ignore it)
+            personal_memory = self.hub.memory_engine.retrieve(
+                agent, 
+                top_k=self.memory_top_k,
+                world_state=world_state
+            )
         else:
             personal_memory = []
             

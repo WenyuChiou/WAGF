@@ -63,7 +63,7 @@ class MemoryEngine(ABC):
         pass
 
     @abstractmethod
-    def retrieve(self, agent: BaseAgent, query: Optional[str] = None, top_k: int = 3) -> List[str]:
+    def retrieve(self, agent: BaseAgent, query: Optional[str] = None, top_k: int = 3, **kwargs) -> List[str]:
         """
         Retrieve relevant memories for an agent.
         
@@ -71,6 +71,7 @@ class MemoryEngine(ABC):
             agent: The agent instance (for accessing custom_attributes/demographics).
             query: Optional semantic query for retrieval.
             top_k: Number of items to retrieve.
+            **kwargs: Additional context (e.g., world_state).
         """
         pass
 
@@ -96,7 +97,7 @@ class WindowMemoryEngine(MemoryEngine):
         # but for simplicity we can truncate to a maximum reasonable buffer.
         self.storage[agent_id] = self.storage[agent_id][-100:] 
 
-    def retrieve(self, agent: BaseAgent, query: Optional[str] = None, top_k: int = 3) -> List[str]:
+    def retrieve(self, agent: BaseAgent, query: Optional[str] = None, top_k: int = 3, **kwargs) -> List[str]:
         if agent.id not in self.storage:
             # First time access: check if agent has initial memory from profile
             initial_mem = getattr(agent, 'memory', [])
@@ -202,7 +203,7 @@ class ImportanceMemoryEngine(MemoryEngine):
             
         self._add_memory_internal(agent.id, content, score)
 
-    def retrieve(self, agent: BaseAgent, query: Optional[str] = None, top_k: int = 5) -> List[str]:
+    def retrieve(self, agent: BaseAgent, query: Optional[str] = None, top_k: int = 5, **kwargs) -> List[str]:
         if agent.id not in self.storage:
             # First time access: check if agent has initial memory from profile
             initial_mem = getattr(agent, 'memory', [])
@@ -622,7 +623,7 @@ class HumanCentricMemoryEngine(MemoryEngine):
                 decayed.append(m)
         return decayed
     
-    def retrieve(self, agent: BaseAgent, query: Optional[str] = None, top_k: int = 5, contextual_boosters: Optional[Dict[str, float]] = None) -> List[str]:
+    def retrieve(self, agent: BaseAgent, query: Optional[str] = None, top_k: int = 5, contextual_boosters: Optional[Dict[str, float]] = None, **kwargs) -> List[str]:
         """Retrieve memories using dual mode: Legacy (v1) or Weighted (v2)."""
         
         if agent.id not in self.working:
@@ -791,7 +792,7 @@ class HierarchicalMemoryEngine(MemoryEngine):
         # In a real system, episodic would be pruned and semantic would be summarized or indexed.
         pass
 
-    def retrieve(self, agent: BaseAgent, query: Optional[str] = None, top_k: int = 5) -> Dict[str, Any]:
+    def retrieve(self, agent: BaseAgent, query: Optional[str] = None, top_k: int = 5, **kwargs) -> Dict[str, Any]:
         """
         Returns a structured dictionary of memories across all tiers.
         """
