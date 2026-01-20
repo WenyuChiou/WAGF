@@ -186,10 +186,13 @@ household:
 
   log_fields: ["threat_appraisal", "coping_appraisal"]
 
-  # Human-Centric Memory Configuration
+  # Memory Configuration
   memory:
-    engine_type: "human_centric"
+    engine_type: "human_centric" # Default for now. Change to "universal" to enable v3.
     window_size: 5
+    # v3 Parameters (Ready for activation)
+    arousal_threshold: 0.5  # Surprise threshold
+    ema_alpha: 0.3         # Adaptation rate
     top_k_significant: 2
     emotion_keywords:
       direct_impact:
