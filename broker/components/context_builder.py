@@ -164,7 +164,10 @@ class MemoryProvider(ContextProvider):
         if not agent or not self.engine: return
         
         # Memory bucket
-        context["memory"] = self.engine.retrieve(agent, top_k=3)
+        contextual_boosters = kwargs.get("contextual_boosters") # Extract boosters from kwargs
+        
+        # Pass boosters to engine
+        context["memory"] = self.engine.retrieve(agent, top_k=3, contextual_boosters=contextual_boosters)
 
 class BaseAgentContextBuilder(ContextBuilder):
     """
@@ -544,14 +547,28 @@ class TieredContextBuilder(BaseAgentContextBuilder):
     def build(self, agent_id: str, **kwargs) -> Dict[str, Any]:
         """Build context using the InteractionHub's tiered logic and any additional providers."""
         agent = self.agents.get(agent_id)
-        context = self.hub.build_tiered_context(agent_id, self.agents, self.global_news)
+        # Pass kwargs to hub (in case it needs env_context)
+        context = self.hub.build_tiered_context(agent_id, self.agents, self.global_news, **kwargs) # <-- Pass kwargs here
         
         # Ensure critical metadata is at top level for providers/formatter
         context["agent_id"] = agent_id
         context["agent_type"] = getattr(agent, 'agent_type', 'default') if agent else 'default'
         
-        # Trigger all providers in sequence (e.g. SystemPromptProvider)
+        # --- NEW: Application-specific context analysis to generate contextual_boosters ---
+        env_context = kwargs.get("env_context", {})
+        contextual_boosters_for_memory = {}
+        if env_context and env_context.get("flood_occurred"):
+            # If a flood occurred, we instruct the memory engine to boost 'emotion:fear' memories
+            contextual_boosters_for_memory["emotion:fear"] = 1.5 # The boost value can be configured or fixed
+        
+        # Augment kwargs with these generated boosters for MemoryProvider to consume
+        kwargs["contextual_boosters"] = contextual_boosters_for_memory
+        # --- End of application-specific context analysis ---
+        
+        # Trigger all providers in sequence (e.g. SystemPromptProvider, MemoryProvider)
         for provider in self.providers:
+            # provider.provide() signature: (agent_id, agents, context, **kwargs)
+            # MemoryProvider needs to look for 'contextual_boosters' in kwargs
             provider.provide(agent_id, self.agents, context, **kwargs)
             
         return context

@@ -417,8 +417,13 @@ class HumanCentricMemoryEngine(MemoryEngine):
                 decayed.append(m)
         return decayed
     
-    def retrieve(self, agent: BaseAgent, query: Optional[str] = None, top_k: int = 5) -> List[str]:
-        """Retrieve memories: recent working + significant long-term."""
+    def retrieve(self, agent: BaseAgent, query: Optional[str] = None, top_k: int = 5, contextual_boosters: Optional[Dict[str, float]] = None) -> List[str]:
+        """Retrieve memories: recent working + significant long-term.
+        
+        Args:
+            contextual_boosters: Dict mapping memory attributes (e.g. "emotion:fear") to boost multipliers. 
+                                 Example: {"emotion:fear": 0.5} adds 0.5 to importance.
+        """
         if agent.id not in self.working:
             # Initialize from agent profile
             initial_mem = getattr(agent, 'memory', [])
@@ -443,14 +448,41 @@ class HumanCentricMemoryEngine(MemoryEngine):
         # 2. Get significant long-term memories (with decay) - Optimized with heapq
         decayed_longterm = self._apply_decay(longterm, current_time)
         
+        # Apply Contextual Boosting if provided
+        # We work on a copy or modify 'decayed_importance' temporarily for sorting
+        candidate_pool = []
+        for m in decayed_longterm:
+            boosted_score = m["decayed_importance"]
+            
+            if contextual_boosters:
+                # Check for boosting matches
+                # Optimization: flattened check could be faster, but this is explicit
+                for tag_key_val, boost_val in contextual_boosters.items():
+                    # Support "emotion:fear" or just "fear" (if mapped to specific fields? No, stick to explicit keys)
+                    # Implementation Plan schema: "emotion:fear"
+                    if ":" in tag_key_val:
+                        tag_cat, tag_val = tag_key_val.split(":", 1)
+                        # Check if memory has this metadata
+                        if m.get(tag_cat) == tag_val:
+                            boosted_score += boost_val
+                            # Break or continue? Plan said break (first match wins or cumulative?)
+                            # Let's simple break for now to avoid over-boosting
+                            break
+            
+            # create a lightweight tuple/dict for sorting to avoid modifying original storage
+            candidate_pool.append({
+                "content": m["content"],
+                "sort_score": boosted_score
+            })
+        
         # Use simple sort for small lists, heapq for larger ones (heuristic threshold 50)
         # Here we use heapq always for O(N) vs O(N log N)
         target_k = self.top_k_significant + len(recent_texts) + 5 # Buffer for overlap removal
         
         sorted_candidates = heapq.nlargest(
             target_k, 
-            decayed_longterm, 
-            key=lambda x: x["decayed_importance"]
+            candidate_pool, 
+            key=lambda x: x["sort_score"]
         )
         
         significant = []
