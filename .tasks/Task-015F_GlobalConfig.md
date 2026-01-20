@@ -51,3 +51,7 @@ Updated experiment runner to load parameters via this layered logic, ensuring le
 - [x] `run_flood.py` loads without error.
 - [x] Memory engine receives correct values from YAML.
 - [x] Agent override logic verified via script `verify_global_config.py`.
+
+### Bug Fixes (2026-01-20)
+
+- Fixed `NameError: global_cfg` in `run_flood.py` (Benchmarking mode) by ensuring `global_cfg` is loaded from `agent_types.yaml` at startup.
