@@ -23,16 +23,31 @@ def seed_memory_from_agents(memory_engine: 'MemoryEngine', agents: Dict[str, Any
             continue
             
         initial_mem = getattr(agent, 'memory', None)
+        if initial_mem is None:
+            continue
+        if not isinstance(initial_mem, list):
+            logger.warning(f"[Memory:Warning] Agent {aid} memory not list; skipping seed.")
+            continue
+            
         if not initial_mem:
             continue
             
-        if not isinstance(initial_mem, list):
-            logger.warning(f"[MemoryEngine:Seeding] Agent {aid} has non-list memory type: {type(initial_mem)}. Skipping.")
-            continue
-            
         # Seed into engine
-        for content in initial_mem:
-            memory_engine.add_memory(aid, content)
+        for mem in initial_mem:
+            if isinstance(mem, dict) and "content" in mem:
+                content_to_add = mem["content"]
+                metadata_to_add = mem.get("metadata", {})
+            else:
+                content_to_add = mem
+                metadata_to_add = {}
+
+            if hasattr(memory_engine, "add_memory_for_agent"):
+                try:
+                    memory_engine.add_memory_for_agent(agent, content_to_add, metadata_to_add)
+                except TypeError:
+                    memory_engine.add_memory(aid, content_to_add, metadata_to_add)
+            else:
+                memory_engine.add_memory(aid, content_to_add, metadata_to_add)
     
     logger.info(f"[MemoryEngine:Seeding] Synchronized initial memory for {len(agents)} agents.")
 
@@ -225,6 +240,170 @@ class ImportanceMemoryEngine(MemoryEngine):
         self.storage[agent_id] = []
 
 
+
+
+
+class WindowMemoryEngine(MemoryEngine):
+    """
+    Standard sliding window memory. Returns the last N items.
+    """
+    def __init__(self, window_size: int = 3):
+        self.window_size = window_size
+        self.storage: Dict[str, List[str]] = {}
+
+    def add_memory(self, agent_id: str, content: str, metadata: Optional[Dict[str, Any]] = None):
+        if agent_id not in self.storage:
+            self.storage[agent_id] = []
+        self.storage[agent_id].append(content)
+        # We don't truncate here to allow retrieve() to handle different window sizes if needed,
+        # but for simplicity we can truncate to a maximum reasonable buffer.
+        self.storage[agent_id] = self.storage[agent_id][-100:] 
+
+    def retrieve(self, agent: BaseAgent, query: Optional[str] = None, top_k: int = 3) -> List[str]:
+        if agent.id not in self.storage:
+            # First time access: check if agent has initial memory from profile
+            initial_mem = getattr(agent, 'memory', [])
+            if isinstance(initial_mem, list):
+                self.storage[agent.id] = list(initial_mem)
+            else:
+                self.storage[agent.id] = []
+                
+        mems = self.storage.get(agent.id, [])
+        return mems[-top_k:]
+
+    def clear(self, agent_id: str):
+        if agent_id in self.storage:
+            self.storage[agent_id] = []
+
+
+class ImportanceMemoryEngine(MemoryEngine):
+    """
+    Active Retrieval Engine.
+    Prioritizes significant events over routine ones.
+
+    Weights and categories can be customized per domain:
+    - categories: {"crisis": ["damage", "loss"], "social": ["neighbor", "friend"]}
+    - weights: {"crisis": 1.0, "social": 0.5, "routine": 0.1}
+    """
+    def __init__(
+        self, 
+        window_size: int = 3, 
+        top_k_significant: int = 2,
+        weights: Optional[Dict[str, float]] = None,
+        categories: Optional[Dict[str, List[str]]] = None
+    ):
+        self.window_size = window_size
+        self.top_k_significant = top_k_significant
+        self.storage: Dict[str, List[Dict[str, Any]]] = {}
+        
+        # Merge weights and categories (Generic defaults)
+        self.weights = weights or {
+            "critical": 1.0, "high": 0.8, "medium": 0.5, "routine": 0.1
+        }
+        self.categories = categories or {
+            "critical": ["alert", "danger", "failure", "emergency"],
+            "high": ["change", "success", "important", "new"],
+            "medium": ["observed", "heard", "social", "network"]
+        }
+        
+        # Standard: Enforce 0-1 normalization for scoring weights
+        if any(w < 0.0 or w > 1.0 for w in self.weights.values()):
+            logger.warning(f"[Universality:Warning] Memory weights {self.weights.values()} are outside 0-1 range. Standardizing to [0,1] is recommended.")
+
+    def _score_content(self, content: str, agent: Optional[BaseAgent] = None) -> float:
+        """Heuristic scoring based on keyword importance."""
+        content_lower = content.lower()
+        
+        # Determine weights and categories (Support per-agent override)
+        weights = self.weights
+        categories = self.categories
+        
+        if agent and hasattr(agent, 'memory_config'):
+            cfg = agent.memory_config
+            weights = cfg.get("weights", self.weights)
+            categories = cfg.get("categories", self.categories)
+
+        # Use simple max-score strategy (highest category weight found)
+        highest_weight = weights.get("routine", 0.1)
+        
+        for category, keywords in categories.items():
+            for kw in keywords:
+                if kw in content_lower:
+                    weight = weights.get(category, 0.1)
+                    if weight > highest_weight:
+                        highest_weight = weight
+                    break # Found a match for this category
+                    
+        return highest_weight
+
+    def add_memory(self, agent_id: str, content: str, metadata: Optional[Dict[str, Any]] = None):
+        """Standard add_memory (Compatibility)"""
+        if agent_id not in self.storage:
+            self.storage[agent_id] = []
+        
+        score = metadata.get("significance") if metadata else None
+        if score is None:
+            score = self._score_content(content)
+            
+        self._add_memory_internal(agent_id, content, score)
+
+    def _add_memory_internal(self, agent_id: str, content: str, score: float):
+        self.storage[agent_id].append({
+            "content": content,
+            "score": score,
+            "timestamp": len(self.storage[agent_id])
+        })
+
+    def add_memory_for_agent(self, agent: BaseAgent, content: str, metadata: Optional[Dict[str, Any]] = None):
+        """Added for Phase 12: Context-aware memory scoring."""
+        if agent.id not in self.storage:
+            self.storage[agent.id] = []
+        
+        score = metadata.get("significance") if metadata else None
+        if score is None:
+            score = self._score_content(content, agent)
+            
+        self._add_memory_internal(agent.id, content, score)
+
+    def retrieve(self, agent: BaseAgent, query: Optional[str] = None, top_k: int = 5) -> List[str]:
+        if agent.id not in self.storage:
+            # First time access: check if agent has initial memory from profile
+            initial_mem = getattr(agent, 'memory', [])
+            if isinstance(initial_mem, list):
+                self.storage[agent.id] = []
+                for m in initial_mem:
+                    self.add_memory(agent.id, m)
+            else:
+                self.storage[agent.id] = []
+
+        mems = self.storage.get(agent.id, [])
+        if not mems:
+            return []
+            
+        # 1. Get most recent (Recency)
+        recent = mems[-self.window_size:]
+        recent_texts = [m["content"] for m in recent]
+        
+        # 2. Get most significant (Significance) - excluding those already in recent
+        others = mems[:-self.window_size]
+        significant = sorted(others, key=lambda x: x["score"], reverse=True)
+        
+        top_sig = []
+        for s in significant:
+            if s["content"] not in recent_texts:
+                top_sig.append(s["content"])
+            if len(top_sig) >= self.top_k_significant:
+                break
+                
+        # Combine: Significant events first (for context) then Recent (for continuity)
+        # or vice versa? Usually Significant provides the 'Trauma/History' context.
+        return top_sig + recent_texts
+
+    def clear(self, agent_id: str):
+        self.storage[agent_id] = []
+
+
+import heapq
 class HumanCentricMemoryEngine(MemoryEngine):
     """
     Human-Centered Memory Engine with:
@@ -236,7 +415,7 @@ class HumanCentricMemoryEngine(MemoryEngine):
     All parameters use 0-1 scale for consistency.
     
     References:
-    - Park et al. (2023) Generative Agents: recency × importance × relevance
+    - Park et al. (2023) Generative Agents: recency x importance x relevance
     - Chapter 8: Memory consolidation and forgetting strategies
     - Tulving (1972): Episodic vs Semantic memory distinction
     """
@@ -249,9 +428,12 @@ class HumanCentricMemoryEngine(MemoryEngine):
         decay_rate: float = 0.1,               # λ in e^(-λt) decay
         emotional_weights: Optional[Dict[str, float]] = None,
         source_weights: Optional[Dict[str, float]] = None,
-        W_recency: float = 0.3,               # Weight for recency score
-        W_importance: float = 0.5,            # Weight for importance score
-        W_context: float = 0.2,               # Weight for contextual boost
+        # v2 Weighted Scoring Params
+        W_recency: float = 0.3,
+        W_importance: float = 0.5,
+        W_context: float = 0.2,
+        # Mode switch: "legacy" (v1 compatible) or "weighted" (v2)
+        ranking_mode: str = "legacy", 
         seed: Optional[int] = None
     ):
         """
@@ -260,11 +442,10 @@ class HumanCentricMemoryEngine(MemoryEngine):
             top_k_significant: Number of significant historical events to retrieve
             consolidation_prob: Base probability of consolidating high-importance memory [0-1]
             decay_rate: Exponential decay rate for time-based forgetting [0-1]
-            emotional_weights: Override emotional category weights
-            source_weights: Override source type weights
-            W_recency: Weight for recency score in retrieval
-            W_importance: Weight for importance score in retrieval
-            W_context: Weight for contextual boost in retrieval
+            ranking_mode: "legacy" (multiplicative decay, v1 parity) or "weighted" (additive, v2)
+            W_recency: Weight for recency score (v2 only)
+            W_importance: Weight for importance score (v2 only)
+            W_context: Weight for contextual boost (v2 only)
             seed: Random seed for stochastic consolidation
         """
         import random
@@ -274,6 +455,7 @@ class HumanCentricMemoryEngine(MemoryEngine):
         self.top_k_significant = top_k_significant
         self.consolidation_prob = consolidation_prob
         self.decay_rate = decay_rate
+        self.ranking_mode = ranking_mode
         
         # Retrieval weights
         self.W_recency = W_recency
@@ -329,7 +511,7 @@ class HumanCentricMemoryEngine(MemoryEngine):
         """Classify content source type."""
         content_lower = content.lower()
         
-        # Default patterns
+        # Default patterns logic (Fixing the logic error)
         personal_patterns = ["i ", "my ", "me ", "i've"]
         neighbor_patterns = ["neighbor", "friend"]
         community_patterns = ["%", "community", "region", "area"]
@@ -351,16 +533,14 @@ class HumanCentricMemoryEngine(MemoryEngine):
     def _compute_importance(self, content: str, metadata: Optional[Dict] = None, agent: Optional[BaseAgent] = None) -> float:
         """Compute memory importance score [0-1] based on emotion and source."""
         # Allow direct override via metadata
-        if metadata and "significance" in metadata:
-            return float(metadata["significance"])
+        if metadata and "importance" in metadata:
+            return float(metadata["importance"])
             
         emotion = metadata.get("emotion") if metadata else None
         source = metadata.get("source") if metadata else None
         
-        if emotion is None:
-            emotion = self._classify_emotion(content, agent)
-        if source is None:
-            source = self._classify_source(content, agent)
+        if emotion is None: emotion = self._classify_emotion(content, agent)
+        if source is None: source = self._classify_source(content, agent)
         
         emotional_weights = self.emotional_weights
         source_weights = self.source_weights
@@ -391,10 +571,21 @@ class HumanCentricMemoryEngine(MemoryEngine):
         if agent_id not in self.longterm:
             self.longterm[agent_id] = []
         
-        emotion = self._classify_emotion(content, agent)
-        source = self._classify_source(content, agent)
-        importance = self._compute_importance(content, metadata, agent)
-        
+        # Direct handling of importance from metadata.
+        if metadata and "importance" in metadata:
+            importance = float(metadata["importance"])
+            emotion = metadata.get("emotion", self._classify_emotion(content, agent))
+            source = metadata.get("source", self._classify_source(content, agent))
+        else:
+            emotion = self._classify_emotion(content, agent)
+            source = self._classify_source(content, agent)
+            # Pass computed emotion and source back into _compute_importance
+            if metadata is None:
+                metadata = {}
+            metadata["emotion"] = emotion
+            metadata["source"] = source
+            importance = self._compute_importance(content, metadata, agent)
+
         memory_item = {
             "content": content,
             "importance": importance,
@@ -414,13 +605,13 @@ class HumanCentricMemoryEngine(MemoryEngine):
                 self.longterm[agent_id].append(memory_item)
     
     def _apply_decay(self, memories: List[Dict], current_time: int) -> List[Dict]:
-        """Apply time-decay to memories, removing those below threshold."""
+        """Apply emotional time decay (Legacy Logic)."""
         import math
         decayed = []
         for m in memories:
             age = current_time - m["timestamp"]
             # Emotion-modified decay: high emotion memories decay slower
-            emotion_modifier = 1.0 - (0.5 * self.emotional_weights.get(m["emotion"], 0.1))
+            emotion_modifier = 1.0 - (0.5 * self.emotional_weights.get(m.get("emotion"), 0.1))
             effective_decay = self.decay_rate * emotion_modifier
             decay_factor = math.exp(-effective_decay * age)
             m["decayed_importance"] = m["importance"] * decay_factor
@@ -429,18 +620,18 @@ class HumanCentricMemoryEngine(MemoryEngine):
         return decayed
     
     def retrieve(self, agent: BaseAgent, query: Optional[str] = None, top_k: int = 5, contextual_boosters: Optional[Dict[str, float]] = None) -> List[str]:
-        """Retrieve memories using weighted scoring: recency + importance + context boost.
+        """Retrieve memories using dual mode: Legacy (v1) or Weighted (v2)."""
         
-        Args:
-            contextual_boosters: Dict mapping memory attributes (e.g. "emotion:fear") to boost values.
-        """
         if agent.id not in self.working:
             initial_mem = getattr(agent, 'memory', [])
             self.working[agent.id] = []
             self.longterm[agent.id] = []
             if isinstance(initial_mem, list):
                 for m in initial_mem:
-                    self.add_memory_for_agent(agent, m)
+                    if isinstance(m, dict) and "content" in m:
+                         self.add_memory_for_agent(agent, m["content"], m)
+                    else:
+                         self.add_memory_for_agent(agent, m)
         
         working = self.working.get(agent.id, [])
         longterm = self.longterm.get(agent.id, [])
@@ -448,42 +639,80 @@ class HumanCentricMemoryEngine(MemoryEngine):
         if not working and not longterm:
             return []
         
-        current_time = len(working) + len(longterm)
-        
-        # Combine working and long-term memories for unified scoring
-        all_memories = working + self._apply_decay(longterm, current_time)
-        
-        scored_memories = []
-        for mem in all_memories:
-            # Recency score (higher = more recent)
-            age = current_time - mem["timestamp"]
-            recency_score = 1.0 - (age / max(current_time, 1))
+        max_timestamp = 0
+        if working:
+            max_timestamp = max(max_timestamp, max(m["timestamp"] for m in working))
+        if longterm:
+            max_timestamp = max(max_timestamp, max(m["timestamp"] for m in longterm))
+        current_time = max_timestamp + 1
+
+        # --- MODE 1: LEGACY (v1 Parity for Groups A/B) ---
+        if self.ranking_mode == "legacy":
+             recent = working[-self.window_size:]
+             recent_texts = [m["content"] for m in recent]
+             
+             decayed_longterm = self._apply_decay(longterm, current_time)
+             
+             # Contextual Boosters are IGNORED in legacy mode
+             # Use generic significance key
+             top_significant = heapq.nlargest(
+                 self.top_k_significant + len(recent_texts) + 2,
+                 decayed_longterm,
+                 key=lambda x: x.get("decayed_importance", 0)
+             )
+             
+             significant = []
+             for m in top_significant:
+                 if m["content"] not in recent_texts and m["content"] not in significant:
+                     significant.append(m["content"])
+                 if len(significant) >= self.top_k_significant:
+                     break
             
-            # Importance score
-            importance_score = mem.get("importance", 0.1)
+             return significant + recent_texts
+
+        # --- MODE 2: WEIGHTED (v2 Model for Stress Test) ---
+        else:
+            # Correctly combine and deduplicate memories while preserving metadata.
+            all_memories_map = {}
+            for mem in self._apply_decay(longterm, current_time):
+                all_memories_map[mem["content"]] = mem
+            for mem in working:
+                all_memories_map[mem["content"]] = mem
+            all_memories = list(all_memories_map.values())
+
+            scored_memories = []
+            for mem in all_memories:
+                age = current_time - mem["timestamp"]
+                recency_score = 1.0 - (age / max(current_time, 1))
+                importance_score = mem.get("importance", mem.get("decayed_importance", 0.1))
+                
+                contextual_boost = 0.0
+                if contextual_boosters:
+                    for tag_key_val, boost_val in contextual_boosters.items():
+                        if ":" in tag_key_val:
+                            tag_cat, tag_val = tag_key_val.split(":", 1)
+                            if mem.get(tag_cat) == tag_val:
+                                contextual_boost = boost_val
+                                break
+                
+                final_score = (recency_score * self.W_recency) + \
+                              (importance_score * self.W_importance) + \
+                              (contextual_boost * self.W_context)
+
+                logger.debug(f"Memory: '{mem['content']}'")
+                logger.debug(f"  Timestamp: {mem['timestamp']}, Current Time: {current_time}")
+                logger.debug(f"  Emotion: {mem.get('emotion')}, Source: {mem.get('source')}")
+                logger.debug(
+                    f"  Scores - Recency: {recency_score:.2f}, Importance: {importance_score:.2f}, "
+                    f"Contextual Boost: {contextual_boost:.2f}"
+                )
+                logger.debug(f"  Final Score: {final_score:.2f}")
+
+                scored_memories.append((mem["content"], final_score))
             
-            # Contextual boost
-            contextual_boost = 0.0
-            if contextual_boosters:
-                for tag_key_val, boost_val in contextual_boosters.items():
-                    if ":" in tag_key_val:
-                        tag_cat, tag_val = tag_key_val.split(":", 1)
-                        if mem.get(tag_cat) == tag_val:
-                            contextual_boost = boost_val
-                            break
-            
-            # Final weighted score
-            final_score = (recency_score * self.W_recency) + \
-                          (importance_score * self.W_importance) + \
-                          (contextual_boost * self.W_context)
-            
-            scored_memories.append((mem["content"], final_score))
-        
-        # Select top_k using heapq
-        top_k_memories = heapq.nlargest(top_k, scored_memories, key=lambda x: x[1])
-        
-        return [content for content, score in top_k_memories]
-    
+            top_k_memories = heapq.nlargest(top_k, scored_memories, key=lambda x: x[1])
+            return [content for content, score in top_k_memories]
+
     def forget(self, agent_id: str, strategy: str = "importance", threshold: float = 0.2) -> int:
         """Forget memories using specified strategy.
         
@@ -500,13 +729,13 @@ class HumanCentricMemoryEngine(MemoryEngine):
         original_count = len(self.working[agent_id]) + len(self.longterm.get(agent_id, []))
         
         if strategy == "importance":
-            self.working[agent_id] = [m for m in self.working[agent_id] if m["importance"] >= threshold]
-            self.longterm[agent_id] = [m for m in self.longterm.get(agent_id, []) if m["importance"] >= threshold]
+            self.working[agent_id] = [m for m in self.working[agent_id] if m.get("importance", 0) >= threshold]
+            self.longterm[agent_id] = [m for m in self.longterm.get(agent_id, []) if m.get("importance", 0) >= threshold]
         elif strategy == "time":
             # Keep only recent 50 in working, recent 20 high-importance in longterm
             self.working[agent_id] = self.working[agent_id][-50:]
             self.longterm[agent_id] = sorted(self.longterm.get(agent_id, []), 
-                                              key=lambda x: x["importance"], reverse=True)[:20]
+                                              key=lambda x: x.get("importance", 0), reverse=True)[:20]
         
         new_count = len(self.working[agent_id]) + len(self.longterm.get(agent_id, []))
         return original_count - new_count

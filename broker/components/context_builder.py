@@ -548,7 +548,11 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         """Build context using the InteractionHub's tiered logic and any additional providers."""
         agent = self.agents.get(agent_id)
         # Pass kwargs to hub (in case it needs env_context)
-        context = self.hub.build_tiered_context(agent_id, self.agents, self.global_news, **kwargs) # <-- Pass kwargs here
+        # Fix for Task-024: InteractionHub.build_tiered_context() does not accept arbitrary kwargs.
+        # We must only pass arguments that it accepts, or default ones.
+        # For now, we only pass explicit arguments and handle 'env_context' if needed (Hub doesn't use it yet).
+        # To avoid TypeError with 'step_id', we call it explicitly.
+        context = self.hub.build_tiered_context(agent_id, self.agents, self.global_news)
         
         # Ensure critical metadata is at top level for providers/formatter
         context["agent_id"] = agent_id
