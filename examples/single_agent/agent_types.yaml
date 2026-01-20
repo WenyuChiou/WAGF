@@ -1,15 +1,35 @@
 # =============================================================================
 # GLOBAL CONFIGURATION (Experiment-level parameters)
 # =============================================================================
+# =============================================================================
+# GLOBAL CONFIGURATION (Experiment-level parameters)
+# =============================================================================
 global_config:
-  # Memory Consolidation: Short-term to Long-term Transfer
-  # - threshold: Minimum importance score (0.0-1.0) for a memory to be 
-  #              considered for long-term consolidation.
-  # - probability: Base probability (0.0-1.0) that a memory above threshold 
-  #                will be consolidated. Actual P = probability × importance.
-  memory_consolidation:
-    threshold: 0.6   # Default: 0.6 (only important memories are candidates)
-    probability: 0.7 # Default: 0.7 (70% base consolidation chance)
+  # [Cognitive Biology] - Shared mental constraints (Default for all agents)
+  memory:
+    window_size: 5            # Short-term working memory capacity
+    consolidation_threshold: 0.6
+    consolidation_probability: 0.7
+    top_k_significant: 2      # Active retrieval span
+    decay_rate: 0.1           # Forgetting curve
+
+  # [Cognitive Routine] - Metacognition schedules
+  reflection:
+    interval: 1               # Reflect every N years
+    batch_size: 10
+
+  # [Universe Physics] - LLM & System Generation Settings
+  llm:
+    temperature: 0.1          # Low for deterministic experiments
+    top_p: 0.9
+    top_k: 40
+    max_retries: 2            # Infrastructure resilience
+    
+  # [System Governance] - Global Rules
+  governance:
+    max_retries: 3
+    max_reports_per_retry: 3
+
 
 # =============================================================================
 # SHARED DEFINITIONS (Reusable across agent types)

@@ -703,18 +703,18 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
             "medium": ["neighbor", "relocated", "observed", "pct%"]
         }
         memory_engine = ImportanceMemoryEngine(
-            window_size=3,
-            top_k_significant=2,
-            categories=flood_categories # Injecting domain keywords without touching base module
+            window_size=window_size, # Use CLI window_size (was hardcoded 3)
+            top_k_significant=global_cfg.get('memory', {}).get('top_k_significant', 2),
+            decay_rate=global_cfg.get('memory', {}).get('decay_rate', 0.1),
+            categories=flood_categories 
         )
         print(f" Using ImportanceMemoryEngine (active retrieval with flood-specific keywords)")
     elif memory_engine_type == "humancentric":
         # Load memory config from YAML (universality proof)
-        # Prioritize household-specific override, fallback to shared
         household_mem = agent_cfg_data.get('household', {}).get('memory', {})
         shared_mem = agent_cfg_data.get('shared', {}).get('memory_config', {})
         
-        # Merge: household override shared
+        # Helper to merge configs
         def merge_configs(target, source):
             for k, v in source.items():
                 if isinstance(v, dict) and k in target:
@@ -725,29 +725,24 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
 
         final_mem_cfg = shared_mem.copy()
         merge_configs(final_mem_cfg, household_mem)
-        
-        # Extract weights
         retrieval_w = final_mem_cfg.get('retrieval_weights', {})
         
-        # Load global consolidation settings (with fallback defaults for parity)
-        global_cfg = agent_cfg_data.get('global_config', {})
-        consolidation_cfg = global_cfg.get('memory_consolidation', {})
-        consolidation_prob = consolidation_cfg.get('probability', 0.7)
-        consolidation_threshold = consolidation_cfg.get('threshold', 0.6)
-
+        # Load global memory settings (Biology Defaults)
+        global_mem = global_cfg.get('memory', {})
+        
         memory_engine = HumanCentricMemoryEngine(
-            window_size=window_size,
-            top_k_significant=2,
-            consolidation_prob=consolidation_prob,
-            consolidation_threshold=consolidation_threshold,
-            decay_rate=0.1,
+            window_size=window_size, # CLI override > Global Default
+            top_k_significant=global_mem.get('top_k_significant', 2),
+            consolidation_prob=global_mem.get('consolidation_probability', 0.7),
+            consolidation_threshold=global_mem.get('consolidation_threshold', 0.6),
+            decay_rate=global_mem.get('decay_rate', 0.1),
             emotional_weights=final_mem_cfg.get("emotional_weights"),
             source_weights=final_mem_cfg.get("source_weights"),
-            W_recency=retrieval_w.get("recency", 0.3),     # Default 0.3
-            W_importance=retrieval_w.get("importance", 0.5), # Default 0.5
-            W_context=retrieval_w.get("context", 0.2),       # Default 0.2
+            W_recency=retrieval_w.get("recency", 0.3),
+            W_importance=retrieval_w.get("importance", 0.5),
+            W_context=retrieval_w.get("context", 0.2),
             ranking_mode=memory_ranking_mode,
-            seed=42  # For reproducibility
+            seed=42
         )
         print(f" Using HumanCentricMemoryEngine (emotional encoding + stochastic consolidation, window={window_size})")
     elif memory_engine_type == "hierarchical":
@@ -755,21 +750,24 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         memory_engine = HierarchicalMemoryEngine(window_size=window_size, semantic_top_k=3)
         print(f" Using HierarchicalMemoryEngine (Tiered: Core, Episodic, Semantic)")
     elif memory_engine_type == "universal":
-        # v3 Universal Cognitive Engine: Surprise-driven dual-process switching
         from broker.components.memory_engine import create_memory_engine
         
-        # Load memory config from YAML for v3
+        # Load memory config
         household_mem = agent_cfg_data.get('household', {}).get('memory', {})
         shared_mem = agent_cfg_data.get('shared', {}).get('memory_config', {})
         final_mem_cfg = {**shared_mem, **household_mem}
         retrieval_w = final_mem_cfg.get('retrieval_weights', {})
         
+        # Load global memory settings
+        global_mem = global_cfg.get('memory', {})
+
         memory_engine = create_memory_engine(
             engine_type="universal",
             window_size=window_size,
-            top_k_significant=2,
-            consolidation_prob=0.7,
-            decay_rate=0.1,
+            top_k_significant=global_mem.get('top_k_significant', 2),
+            consolidation_prob=global_mem.get('consolidation_probability', 0.7),
+            consolidation_threshold=global_mem.get('consolidation_threshold', 0.6),
+            decay_rate=global_mem.get('decay_rate', 0.1),
             emotional_weights=final_mem_cfg.get("emotional_weights"),
             source_weights=final_mem_cfg.get("source_weights"),
             W_recency=retrieval_w.get("recency", 0.3),
