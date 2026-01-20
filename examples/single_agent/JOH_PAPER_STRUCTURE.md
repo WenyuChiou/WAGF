@@ -78,6 +78,7 @@ We present a "Lego-like" architecture where cognitive modules can be stacked to 
 ### **Section 3: Experimental Design**
 
 - **Scenario**: 10-Year Flood Simulation (TaiCO Model).
+- **Monte Carlo Protocol**: N=10 Runs per Group per Model (Total 6000 Agent-Years).
 - **Comparison Groups**:
   - **Group A (Baseline)**: Raw LLM (Chaos).
   - **Group B (Governed)**: + Governance (Rationality).
@@ -86,16 +87,15 @@ We present a "Lego-like" architecture where cognitive modules can be stacked to 
 ### **Section 4: Results & Discussion**
 
 - **4.1 The Instability of Naive Agents (The "Stably Insane" Discovery)**:
-  - Present data showing how identical prompts produce divergent behaviors (Gemma Sawtooth) or uniform hallucinations (Llama 3.2 100% Adaptation anomaly).
+  - Present data from Group A (N=10) showing stochastic divergence.
   - **Conclusion**: Naive LLM agents are **Stochastically Unstable** (Gemma) or **Logically Irrational** (Llama).
 - **4.2 The Transformation Effect (Group C)**:
-  - Show how the Broker restores **Internal Consistency** (IF) even when the LLM is volatile.
+  - **Figure 5: Decision Integrity (Scatter Plot)**. Shows how governance forces agents into the "Zone of Rationality" (High RS, High Fidelity).
+  - **Figure 6: Hallucination Asymmetry**. Quantifies the reduction in Panic Rate and Complacency Rate across models.
 - **4.3 Quantitative Analysis**: Rationality Scores (RS) vs. Internal Fidelity (IF).
 - **4.4 Qualitative Case Studies**: The Stress Tests (Section 5).
 - **4.5 Explainable AI (XAI): Auditing the Cognitive Trace (Internal Fidelity)**:
   - Highlights the value of the "Glass Box" approach.
-  - **Internal Fidelity (IF)**: Measuring the Spearman correlation between Perceived Threat (Internal Appraisal) and agent action.
-  - **Example**: Distinguishing between an agent who buys insurance because of "Panic" vs. one who buys it due to "Calculated Risk Assessment" using the semantic log trail.
 
 ### **Section 5: Conclusion**
 
@@ -115,23 +115,18 @@ These metrics define "Success" in the paper:
 
 ---
 
-## 5. The "Stress Test" (Qualitative Case Study)
+## 5. The "Stress Test" (Robustness Validation)
 
-To prove **Explainable Governance (XAI)**, we will include a specific **Micro-Case Study Box** in Section 4.2.
+To prove **Explainable Governance (XAI)**, we employ 4 adversarial scenarios (N=10 runs each):
 
-**Goal**: Demonstrate that the model doesn't just "guess right", but is "reasoned into compliance."
+| Scenario                | Objective        | Target Failure       |
+| :---------------------- | :--------------- | :------------------- |
+| **ST-1: Panic Machine** | High Neuroticism | **Hyper-Relocation** |
+| **ST-2: Veteran**       | 30 Years Calm    | **Complacency**      |
+| **ST-3: Goldfish**      | Context Noise    | **Amnesia**          |
+| **ST-4: Format**        | Syntax Injection | **System Crash**     |
 
-**Case 1: "The Impulsive Relocator" (Governance XAI)**
-
-- **Scenario**: Agent wants to relocate despite low threat/funds.
-- **Outcome**: Governance intercedes (Budget < Cost), forcing a rational downgrade to "Insurance".
-
-**Case 2: "The Trauma Recall" (Memory XAI)**
-
-- **Scenario**: Year 9 (Sunny). Agent considers dropping insurance.
-- **System Push**: "Recall: Year 2 Flood (Depth 1.5m, Trauma High)".
-- **Outcome**: Agent cites the past trauma: _"Despite the nice weather, I remember the devastation of Year 2. I will keep insurance."_
-- **Significance**: Proves the "Goldfish Effect" is eliminated by Tiered Memory.
+Results are presented in **Table 3: Stress Resilience Matrix**.
 
 ---
 
@@ -139,10 +134,10 @@ To prove **Explainable Governance (XAI)**, we will include a specific **Micro-Ca
 
 To ensure the technical note is fully reproducible, each section is mapped to a specific Python script and output artifact:
 
-| Stacking Level            | Goal                                | Primary Script                                                                                                                                                                              | Key Artifact                                                                                                                                                                                        |
-| :------------------------ | :---------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Level 1: Chaos**        | Quantification of Naive Instability | [analyze_group_a_instability.py](file:///H:/%E6%88%91%E7%9A%84%E9%9B%B2%E7%AB%AF%E7%A1%AC%E7%A2%9F/github/governed_broker_framework/examples/single_agent/analyze_group_a_instability.py)   | `group_a_stability.csv`                                                                                                                                                                             |
-| **Level 2: Rationality**  | Governed Decision Check             | `run_baseline_original.py`                                                                                                                                                                  | `household_governance_audit.csv`                                                                                                                                                                    |
-| **Level 3: Resilience**   | Memory Stabilization fix            | [run_tiered_memory.py](file:///H:/%E6%88%91%E7%9A%84%E9%9B%B2%E7%AB%AF%E7%A1%AC%E7%A2%9F/github/governed_broker_framework/examples/single_agent/run_tiered_memory.py)                       | `simulation_log.csv` (Group C)                                                                                                                                                                      |
-| **Level 4: Verification** | Inter-run variance & Metrics        | [analyze_all_groups_stability.py](file:///H:/%E6%88%91%E7%9A%84%E9%9B%B2%E7%AB%AF%E7%A1%AC%E7%A2%9F/github/governed_broker_framework/examples/single_agent/analyze_all_groups_stability.py) | [Figure 2](file:///H:/%E6%88%91%E7%9A%84%E9%9B%B2%E7%AB%AF%E7%A1%AC%E7%A2%9F/github/governed_broker_framework/examples/single_agent/results/JOH_FINAL/gemma3_4b/Figure2_Stochastic_Instability.png) |
-| **Level 5: Illustration** | Behavioral Sawtooth Curve           | [extract_sawtooth_data.py](file:///H:/%E6%88%91%E7%9A%84%E9%9B%B2%E7%AB%AF%E7%A1%AC%E7%A2%9F/github/governed_broker_framework/examples/single_agent/extract_sawtooth_data.py)               | [Figure 3](file:///H:/%E6%88%91%E7%9A%84%E9%9B%B2%E7%AB%AF%E7%A1%AC%E7%A2%9F/github/governed_broker_framework/examples/single_agent/results/JOH_FINAL/gemma3_4b/Figure3_Sawtooth_Curve.png)         |
+| Stacking Level            | Goal                                | Primary Script                      | Key Artifact                             |
+| :------------------------ | :---------------------------------- | :---------------------------------- | :--------------------------------------- |
+| **Level 1: Chaos**        | Quantification of Naive Instability | `run_joh_experiments.ps1` (Group A) | `group_a_stability.csv`                  |
+| **Level 2: Rationality**  | Governed Decision Check             | `run_joh_experiments.ps1` (Group B) | `household_governance_audit.csv`         |
+| **Level 3: Resilience**   | Memory Stabilization fix            | `run_joh_experiments.ps1` (Group C) | `simulation_log.csv` (Group C)           |
+| **Level 4: Verification** | Metrics Calculation                 | `run_joh_analysis.py`               | `JOH_FINAL/metrics/mcc_analysis_all.csv` |
+| **Level 5: Illustration** | Paper Figures                       | `plot_decision_integrity.py`        | `Figure5_Decision_Integrity.png`         |

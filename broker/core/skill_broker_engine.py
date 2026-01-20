@@ -621,7 +621,7 @@ class SkillBrokerEngine:
     def _run_validators(self, proposal: SkillProposal, context: Dict) -> List[ValidationResult]:
         """Run all validators on the skill proposal."""
         results = []
-        print(f"DEBUG: _run_validators: Running {len(self.validators)} standard validators and {len(self.custom_validators)} custom validators.")
+        # print(f"DEBUG: _run_validators: Running {len(self.validators)} standard validators and {len(self.custom_validators)} custom validators.")
         for validator in self.validators:
             result = validator.validate(proposal, context, self.skill_registry)
             if isinstance(result, list):
@@ -637,7 +637,7 @@ class SkillBrokerEngine:
             else: # Assume single ValidationResult if not list
                 results.append(custom_results)
         
-        print(f"DEBUG: _run_validators: Total validation results: {len(results)}")
+        # print(f"DEBUG: _run_validators: Total validation results: {len(results)}")
         if results:
             for i, r in enumerate(results):
                 print(f"  - Result {i}: valid={r.valid}, validator='{r.validator_name}', errors={r.errors}")
