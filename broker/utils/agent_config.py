@@ -82,11 +82,18 @@ class AgentTypeConfig:
     def _load_yaml(self, yaml_path: str = None):
         """Load from YAML file."""
         if yaml_path is None:
-            yaml_path = Path(__file__).parent / "agent_types.yaml"
+            # 1. Try CWD
+            cwd_path = Path.cwd() / "agent_types.yaml"
+            if cwd_path.exists():
+                yaml_path = cwd_path
+            else:
+                # 2. Fallback to package default
+                yaml_path = Path(__file__).parent / "agent_types.yaml"
         
         try:
             with open(yaml_path, 'r', encoding='utf-8') as f:
                 self._config = yaml.safe_load(f) or {}
+            # logger.info(f"Loaded configuration from {yaml_path}")
         except FileNotFoundError:
             # Fallback to empty config if file missing (useful for testing)
             self._config = {}

@@ -67,7 +67,31 @@ class LLMConfig:
 
 
 # Global instance - modify this to change default behavior
-LLM_CONFIG = LLMConfig()
+from broker.utils.agent_config import load_agent_config
+
+# ... (Previous code)
+
+# Global instance - modify this to change default behavior
+def _load_global_config() -> LLMConfig:
+    try:
+        # Load agent_types.yaml via helper
+        config = load_agent_config()
+        
+        # Access global_config.llm using .get("global_config")
+        # Note: AgentTypeConfig.get() works for any top-level key
+        global_llm = config.get("global_config").get("llm", {})
+        
+        return LLMConfig(
+            temperature=global_llm.get("temperature"), 
+            top_p=global_llm.get("top_p"),
+            top_k=global_llm.get("top_k"),
+            max_retries=global_llm.get("max_retries", 2)
+        )
+    except Exception as e:
+        _LOGGER.warning(f"Could not load global LLM config: {e}. Using defaults.")
+        return LLMConfig()
+
+LLM_CONFIG = _load_global_config()
 
 @dataclass
 class LLMStats:

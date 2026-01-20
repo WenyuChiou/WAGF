@@ -55,3 +55,4 @@ Updated experiment runner to load parameters via this layered logic, ensuring le
 ### Bug Fixes (2026-01-20)
 
 - Fixed `NameError: global_cfg` in `run_flood.py` (Benchmarking mode) by ensuring `global_cfg` is loaded from `agent_types.yaml` at startup.
+- Refactored `llm_utils.py` to load default config (temperature, retries) from `agent_types.yaml` via `AgentTypeConfig`, removing hardcoded defaults. Updated `agent_config.py` to prioritize `CWD/agent_types.yaml`.
