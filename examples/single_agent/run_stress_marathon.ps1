@@ -1,8 +1,14 @@
 param (
     [int]$Runs = 10,
     [int]$Agents = 100,
-    [int]$Years = 10
+    [int]$Years = 10,
+    [switch]$DryRun
 )
+
+if ($DryRun) {
+    $Runs = 1
+    Write-Host ">>> DRY RUN MODE ENABLED (Runs=1) <<<" -ForegroundColor Yellow
+}
 
 $SmallModels = @("llama3.2:3b", "gemma3:4b")
 $LargeModels = @() # Disabled for efficiency
@@ -34,7 +40,7 @@ $StressBlock = {
             New-Item -ItemType Directory -Force $OutputPath | Out-Null
             
             # Run Stress Test
-            python -u run_flood.py --model $Model --years $Years --agents $Agents --memory-engine humancentric --governance-mode strict --output $OutputPath --survey-mode --workers 4 --stress-test $Scenario --seed $CurrentSeed
+            python -u run_flood.py --model $Model --years $Years --agents $Agents --memory-engine humancentric --governance-mode strict --output $OutputPath --survey-mode --workers 4 --stress-test $Scenario --seed $CurrentSeed --memory-ranking-mode legacy
         }
     }
 }
