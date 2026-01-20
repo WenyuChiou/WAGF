@@ -239,7 +239,14 @@ memory_config:
   source_weights:
     personal: 1.0 # Direct experience "I saw..."
     neighbor: 0.7 # "My neighbor did..."
+    neighbor: 0.7 # "My neighbor did..."
     community: 0.5 # "The news said..."
+
+  # Context Priority Weights (Pillar 3)
+  priority_schema:
+    flood_depth: 1.0     # Highest reality
+    savings: 0.8         # Financial reality
+    risk_tolerance: 0.5  # Psychological
 ```
 
 ---

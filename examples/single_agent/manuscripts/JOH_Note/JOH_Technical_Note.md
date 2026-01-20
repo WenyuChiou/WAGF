@@ -1,26 +1,22 @@
-# JOH Technical Note: Bridging the Cognitive Governance Gap
+# JOH Technical Note (v3): Bridging the Cognitive Governance Gap
 
-**Title**: Bridging the Cognitive Governance Gap: A Framework for Explainable Bounded Rationality in LLM-Based Hydro-Social Modeling
+> **Version**: 3.0 (Universal Cognitive Architecture Edition)
+> **Date**: January 2026
+
+**Title**: Bridging the Cognitive Governance Gap: A Framework for Explainable Bounded Rationality and Eco-Cognitive Gating in LLM-Based Hydro-Social Modeling
 
 **Abstract**
-Agent-Based Models (ABMs) are increasingly using Large Language Models (LLMs) to simulate how humans make decisions during disasters. However, these "Generative Agents" often suffer from a critical flaw: they are improved storytellers but poor actors. We call this the **"Fluency-Reality Gap."** Agents may write convincing arguments for actions that are logically inconsistent with their own internal appraisals (e.g., relocating despite perceived low risk). This Technical Note introduces the **Governed Broker Framework**, a system that forces these agents to "check their math" before acting.
+Agent-Based Models (ABMs) are increasingly leveraging Large Language Models (LLMs) to simulate human behavioral responses to environmental extremes. However, these "Generative Agents" often suffer from a critical **"Fluency-Reality Gap"** (Turpin et al., 2023): they remain proficient storytellers but inconsistent actors. Agents frequently produce unfaithful explanations, where stated appraisals are logically decoupled from simulated actions (e.g., acknowledging catastrophic risk while taking zero protective measures). This Technical Note introduces the **Governed Broker Framework**, a multi-tiered architecture that enforces **Bounded Rationality** by decoupling stochastic reasoning (System 1) from deterministic governance (System 2).
 
-In a **Pilot Study** comparing Naive (Group A) vs Governed (Group B) agents in a 10-year flood simulation, we found a stark divergence:
+In a comparative study of three cohorts—**Naive (Group A)**, **Static-Governed (Group B)**, and **Human-Centric (Group C)**—we identify a fundamental trade-off between "Apathy" and "Artificial Reactivity." We demonstrate that while static governance provides a safety net, behavioral realism requires a **v3 Universal Cognitive Architecture** driven by **Active Inference** (Friston, 2010). By implementing a "Surprise Engine" (Prediction-Error-driven gating), we allow agents to dynamically switch between low-power routine habits and high-fidelity crisis reasoning, bridging the gap between fluency and physical reality.
 
-- **Group A (Naive)**: exhibited a **Panic Rate of <1%** and **Adaptation Rate of ~0%**, confirming a "Goldfish Effect" where agents normalize risk instantly.
-- **Group B (Governed)**: exhibited a **Panic Rate of ~25%**, demonstrating that static constraints can force reactivity, but potentially at the cost of artificial "Sawtooth" behavior.
-
-This validation demonstrates that while Governance restricts hallucinate irrationality, true behavioral realism requires a **Universal Cognitive Architecture (v3)** to internalize the "Crisis Mode" dynamically.
-
-**Keywords**: Socio-hydrology, Large Language Models, Agent-Based Modeling, Cognitive Governance, Explainable AI.
+**Keywords**: Socio-hydrology, Generative Agents, Cognitive Governance, Active Inference, Bounded Rationality, LLM-ABM.
 
 ## 1. Introduction: The Calibration Crisis in Generative ABM
 
-Integrating realistic human behavior into physical models (Socio-Hydrology) is essential for accurate disaster risk assessment (Di Baldassarre et al., 2013). Traditional Agent-Based Models (ABMs) often rely on rigid, hard-coded rules that struggle to capture the complex, boundedly rational nature of human decision-making under stress. The emergence of Large Language Models (LLMs) offers a transformative path: **"Generative Agents"** (Park et al., 2023) capable of reasoning, reflection, and natural language communication.
+Integrating realistic human behavior into physical modeling (Socio-Hydrology) is paramount for assessing community resilience (Di Baldassarre et al., 2013). While Large Language Models (LLMs) enable the creation of **"Generative Agents"** (Park et al., 2023) with rich narrative personas, their deployment in scientific simulations reveals a "Calibration Crisis." LLMs act as unconstrained "System 1" probabilistic engines, often drifting into **temporal incoherence** (the "Goldfish Effect") or producing **unfaithful reasoning** where internal appraisals (Threat/Coping) do not causally drive the final decision.
 
-However, the use of LLMs in scientific simulations introduces a new "Calibration Crisis." While LLMs are exceptionally fluent, their reasoning often lacks grounding in physical reality—a phenomenon we term the **"Fluency-Reality Gap."** Recent research suggests that LLMs frequently produce **Unfaithful Explanations** (Turpin et al., 2023), where the stated reasoning (System 1) does not causally align with the final action. In socio-hydrological contexts, this manifests as agents who can poetically describe flood trauma but fail to take protective actions (Apathy), or conversely, agents who "hallucinate" resources to justify irrational panic.
-
-Valid scientific modeling requires the enforcement of **Bounded Rationality** (Simon, 1955). Pure LLM agents act as unconstrained "System 1" probabilistic engines, vulnerable to stochastic volatility and temporal incoherence (the "Goldfish Effect"). To transform these agents into reliable scientific instruments, we argue for a move toward **Cognitive Governance**. This requires an architecture that decouples "Reasoning" from "Execution," forcing agents to align their actions with internal logic and physical constraints.
+To address this, we argue for the enforcement of **Bounded Rationality** (Simon, 1955) via an externalized **Cognitive Governance** layer. This layer must move beyond simple rule-checking toward **Eco-Cognitive Gating**—a process where the agent's internal state determines the depth of its cognitive processing. This paper explores the transition from "Static Governance" (Prosthetic System 2) to an "Emergent Governance" (v3) based on **Predictive Coding**, where environmental "Surprise" (Prediction Error) triggers the activation of high-fidelity memory and reasoning.
 
 ## 2. Methodology: The Three-Layer Architecture
 
@@ -45,7 +41,7 @@ Unlike standard ABMs where agents access global variables directly, we implement
 
 We implement the **Unified Architecture** (Figure 1), following the CoALA pattern by treating the LLM not as the _agent itself_, but as the _reasoning core_ (System 1). The "Broker" acts as the wrapper (System 2), managing the input/output cycle:
 
-![Framework Architecture](file:///C:/Users/wenyu/Desktop/Lehigh/governed_broker_framework/docs/architecture.png)
+![Figure 1: The Unified Structural Architecture (Mechanism Independent)](file:///C:/Users/wenyu/Desktop/Lehigh/governed_broker_framework/docs/architecture.png)
 
 1.  **Perception (`ContextBuilder`)**: The system aggregates signals from the Tiered Environment (Global, Local, Social) into a structured JSON prompt, filtering out "omniscient" data.
 2.  **Reasoning (`Generative Agent`)**: The LLM (System 1) processes the context and proposes an adaptation `Skill` (e.g., "Elevate House").
@@ -68,9 +64,9 @@ To demonstrate the efficacy of the Governed Broker Framework, we applied it to a
 
 ### 3.1 Experimental Cohorts
 
-- **Group A (Baseline)**: Ungoverned "System 1" agents using standard LLM prompting. Represents the "Naive" approach.
-- **Group B (Governed - Window)**: Governed agents using standard sliding-window memory. Represents the "Prosthetic System 2" with **Rigid Constraints**.
-- **Group C (Governed - Human-Centric)**: Governed agents using **Human-Centric Memory** (Episodic-Semantic Consolidation). Represents the "State-Dependent" approach.
+- **Group A (Naive)**: Ungoverned "System 1" agents using standard LLM prompting. Represents the unconstrained baseline susceptible to stochastic drift.
+- **Group B (Static-Governed)**: Agents monitored by a "Prosthetic System 2" with hard-coded logic constraints. Uses sliding-window memory.
+- **Group C (Human-Centric/v1)**: Agents using **Human-Centric Memory** (Episodic-Semantic Consolidation) with multiplicative decay. Represents the "State-Dependent" baseline where memory persistence is tied to emotional significance.
 
 ### 3.2 Metrics
 
@@ -80,52 +76,78 @@ We tracked:
 2.  **Panic Rate**: Frequency of `High` Threat Appraisal decisions in non-flood years.
 3.  **Internal Fidelity (IF)**: Correlation between Threat Appraisal and Action.
 
-## 4. Results: The "Apathy vs Reactivity" Dilemma
+## 4. Results: Apathy, Reactivity, and Persistence
 
-We evaluated the framework using a "Difference-in-Differences" approach.
+We evaluated behavioral phenotypes using a "Difference-in-Differences" approach across the 10-year simulation.
 
-### 4.1 Group A: The "Frozen" Agent (Apathy)
+### 4.1 Group A: The "Frozen" Phenotype (Inaction Bias)
 
-We found that Naive LLMs (Group A) exhibit a profound **Inaction Bias**.
+Naive agents (Group A) exhibited a profound **Inaction Bias**. While they did take disjointed actions (approx. 20% cumulative adaptation), these decisions were rarely sustained.
 
-- **Panic Rate**: **0.8%** (Extremely low reactivity).
-- **Adaptation Rate**: **~0%** (Even after 3 catastrophic floods).
-- **Behavioral Phenotype**: Agents would write text acknowledging the flood ("This is terrible!") but select `Do Nothing` actions in the simulation. This confirms the **Fluency-Reality Gap**.
+- **Behavioral Drift**: Agents would write text acknowledging "High" risk in year 3 but revert to "Do Nothing" in year 4 despite rising water levels.
+- **Conclusion**: Without governance, agents normalize risk instantly—the **Goldfish Effect**.
 
-### 4.2 Group B: The "Sawtooth" Effect (Artificial Reactivity)
+### 4.2 Group B: The "Sawtooth" Phenotype (Artificial Reactivity)
 
-The introduction of basic Governance (Group B) successfully "woke up" the agents, but introduced a new artifact.
+The introduction of Static Governance (Group B) successfully forced protective actions but induced a **"Sawtooth"** behavioral artifact.
 
-- **Panic Rate**: **~25%** (High reactivity).
-- **Pattern**: Agents exhibited a **"Sawtooth"** pattern: High Panic immediately after a flood, followed by a sharp drop when external rule constraints relaxed.
-- **Mechanism**: The Governance acts as an external "Prosthetic," forcing action without changing internal belief.
+- **Pattern**: Agents exhibited a burst of protective activity (Panic Rate ~25%) immediately after a flood, followed by a sharp drop in perception once the external rule-trigger was removed.
+- **Interpretation**: Governance here acts as a "Prosthetic"—it forces a valid action record but fails to update the agent's internal world-model.
 
-### 4.3 Group C: The "Ratchet" Effect (True Persistence)
+### 4.3 Group C: The "Ratchet" Phenotype (Trauma Persistence)
 
-Group C (Human Centric) demonstrated the superior stability of **Internalized Governance**.
+Group C (Human-Centric v1) demonstrated the stability of **Internalized Persistence**.
 
-- **Persistence**: Unlike Group B's rapid decay, Group C agents maintained high risk perception for >3 years after a flood (**The Ratchet Effect**).
-- **Fidelity**: High Internal Fidelity (IF > 0.8), indicating actions were driven by consolidated "Trauma Anchors" rather than just external rules.
+- **The Ratchet Effect**: Unlike Group B's rapid decay, Group C agents maintained high risk perception for multiple years after an event. Memory retention was driven by the $Recency \times Significance$ decay formula.
+- **Fidelity**: Internal Fidelity (IF > 0.8) indicated that actions were causally driven by consolidated "Trauma Anchors."
 
 ## 5. Discussion: Why Human-Centric Memory Matters
 
 ### 5.1 Rules vs. Memory
 
 Group A proves that Naive LLMs are apathetic. Group B proves that Static Rules can force action but create "Sawtooth" instability.
-**Group C (Human Centric)** bridges this gap by using memory to create _durable_ behavioral change.
+**Group C (Human Centric)** bridges this gap by using memory strategies (specifically emotional decay) to create _durable_ behavioral change.
 
-### 5.2 Conclusion
+## 6. The v3 Universal Cognitive Engine: Surprise-Driven Gating
 
-The **Governed Broker Framework** successfully bridges the calibration gap.
+The limitations observed in Groups B (Artificial Reactivity) and C (Static Persistence) necessitate a transition to **Emergent Realism**. We propose the **v3 Universal Cognitive Engine**, which unifies efficient routine behavior with high-fidelity crisis management through **Eco-Cognitive Gating**.
 
-- **Window Memory (Group B)** provides a "Safety Net" against hallucination.
-- **Human-Centric Memory (Group C)** provides "Psychological Realism" (Trauma Persistence).
+### 6.1 Theoretical Framework: Active Inference
 
-This confirms that valid socio-hydrological modeling requires not just "Smart Agents" (LLMs), but **"Deep Agents"** with architecturally enforced memory structures.
+Drawing on the **Free Energy Principle (FEP)** (Friston, 2010), the v3 engine treats the agent as a "Categorical Predictor" that seeks to minimize informational surprise. Behavioral realism is not hard-coded but emerges from the agent's attempt to reconcile its internal expectations with environmental reality.
+
+### 6.2 Mathematical Formalization
+
+We model the agent's expectation of environmental stress (e.g., flood depth) using an **Exponential Moving Average (EMA)** predictor:
+
+**1. Expected Stress ($\bar{S}_t$):**
+$$\bar{S}_t = (1 - \alpha) \bar{S}_{t-1} + \alpha R_t$$
+_Where $\alpha$ is the cognitive smoothing factor and $R_t$ is the current environmental reality._
+
+**2. Prediction Error ($\delta_t$):**
+$$\delta_t = | R_t - \bar{S}_{t-1} |$$
+
+**3. The Cognitive Gating Function ($\Phi$):**
+
+$$
+\text{Memory Mode} = \begin{cases}
+\text{Crisis (System 2/Weighted)} & \text{if } \delta_t > \tau \cdot \bar{S}_{t-1} + \epsilon \\
+\text{Routine (System 1/Legacy)} & \text{otherwise}
+\end{cases}
+$$
+
+Here, $\tau$ represents the **Arousal Sensitivity** and $\epsilon$ the **Baseline Arousal Threshold**. When "Surprise" exceeds the threshold, the system "cranks the gain," forcing a switch from low-fidelity window memory (v1) to high-fidelity weighted retrieval (v2), ensuring that deep reasoning is reserved for critical anomalies.
+
+### 6.3 Conclusion: Toward "Deep Agents"
+
+The **Governed Broker Framework** provides the necessary infrastructure to bridge the Fluency-Reality Gap. While **Window Memory (Group B)** and **Human-Centric Memory (Group C)** provide baseline persistence, the **Universal Cognitive Architecture (v3)** offers a neuro-inspired path toward adaptive, explainable, and ecologically rational agents. Valid hydro-social modeling requires not just "Smart Agents," but "Deep Agents" capable of cognitive surprise.
 
 ## 7. References
 
-- **Di Baldassarre, G., et al. (2013)**. _Socio-hydrology: conceptualising human-flood interactions_.
-- **Park, J. S., et al. (2023)**. _Generative agents: Interactive simulacra of human behavior_.
-- **Turpin, M., et al. (2023)**. _Language Models Don't Always Say What They Think_.
-- **Simon, H. A. (1955)**. _A Behavioral Model of Rational Choice_.
+- **Di Baldassarre, G., et al. (2013)**. Socio-hydrology: conceptualising human-flood interactions. _Hydrology and Earth System Sciences_.
+- **Friston, K. (2010)**. The free-energy principle: a rough guide to the brain? _Nature Reviews Neuroscience_.
+- **Kahneman, D. (2011)**. _Thinking, Fast and Slow_. Farrar, Straus and Giroux.
+- **Park, J. S., et al. (2023)**. Generative agents: Interactive simulacra of human behavior. _arXiv:2304.03442_.
+- **Simon, H. A. (1955)**. A Behavioral Model of Rational Choice. _The Quarterly Journal of Economics_.
+- **Turpin, M., et al. (2023)**. Language Models Don't Always Say What They Think: Unfaithful Explanations in Chain-of-Thought. _arXiv:2305.04388_.
+- **Mather, M., & Sutherland, G. C. (2011)**. Arousal-biased competition in perception and memory. _Perspectives on Psychological Science_.

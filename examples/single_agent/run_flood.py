@@ -36,13 +36,8 @@ PAST_EVENTS = [
 ]
 
 # Schema Definition for Group C (Pillar 3)
-FLOOD_PRIORITY_SCHEMA = {
-    "flood_depth": 1.0,      # Physical reality (Highest)
-    "flood_threshold": 0.9,  # Physical vulnerability
-    "savings": 0.8,          # Financial Reality
-    "income_level": 0.7,     # Socio-economic Constaint
-    "risk_tolerance": 0.5    # Psychological preference (Lower priority)
-}
+# DEPRECATED: Now moved to agent_types.yaml for user configuration
+# FLOOD_PRIORITY_SCHEMA = { ... }
 
 # --- 2. Custom Components for Perception Parity ---
 
@@ -194,8 +189,8 @@ class DecisionFilteredMemoryEngine:
             return self.inner.add_memory_for_agent(agent, content, metadata)
         return self.inner.add_memory(agent.id, content, metadata)
 
-    def retrieve(self, agent, query: Optional[str] = None, top_k: int = 3):
-        return self.inner.retrieve(agent, query=query, top_k=top_k)
+    def retrieve(self, agent, query: Optional[str] = None, top_k: int = 3, **kwargs):
+        return self.inner.retrieve(agent, query=query, top_k=top_k, **kwargs)
 
     def clear(self, agent_id: str):
         return self.inner.clear(agent_id)
@@ -676,10 +671,27 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     )
 
     # Inject PrioritySchemaProvider if enabled (Separation for Group C)
+    # Inject PrioritySchemaProvider if enabled (Separation for Group C)
     if use_priority_schema:
         print("[Experimental] Injecting PrioritySchemaProvider (Pillar 3)")
+        
+        # Load schema from YAML (or fallback to empty if missing)
+        hh_config = agent_cfg_data.get('household', {})
+        loaded_schema = hh_config.get('priority_schema', {})
+        
+        if not loaded_schema:
+             print(" [Warning] No 'priority_schema' found in agent_types.yaml. Using default fallback.")
+             # Fallback just in case user deletes it
+             loaded_schema = {
+                "flood_depth": 1.0, 
+                "flood_threshold": 0.9,
+                "savings": 0.8,
+                "income_level": 0.7,
+                "risk_tolerance": 0.5
+            }
+        
         # Insert at index 1 (after Dynamic, before Attribute) to prioritize in context filtering if needed
-        schema_provider = PrioritySchemaProvider(FLOOD_PRIORITY_SCHEMA)
+        schema_provider = PrioritySchemaProvider(loaded_schema)
         ctx_builder.providers.insert(1, schema_provider)
 
     # Select memory engine based on CLI argument

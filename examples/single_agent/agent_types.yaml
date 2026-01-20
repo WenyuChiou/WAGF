@@ -232,10 +232,19 @@ household:
       importance: 0.5
       context: 0.2
 
-    # [v3 Surprise Engine] ONLY active if engine_type="universal"
+  # [v3 Surprise Engine] ONLY active if engine_type="universal"
     # Inactive for all current JOH Groups (A, B, C).
     arousal_threshold: 0.5  # Surprise trigger
     ema_alpha: 0.3         # Memory adaptation speed
+
+  # Pillar 3: Priority Context Schema
+  # Defines the weight of different context factors for PrioritySchemaProvider
+  priority_schema:
+    flood_depth: 1.0      # Physical reality (Highest)
+    flood_threshold: 0.9  # Physical vulnerability
+    savings: 0.8          # Financial Reality
+    income_level: 0.7     # Socio-economic Constaint
+    risk_tolerance: 0.5   # Psychological preference (Lower priority)
 
   # Available Actions (mapped to Skill Registry IDs)
   actions:

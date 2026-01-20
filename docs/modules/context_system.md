@@ -20,6 +20,15 @@ The `ContextBuilder` transforms raw data into a narrative structure understandab
       $$S(m) = (W_{rec} \cdot S_{rec}) + (W_{imp} \cdot S_{imp}) + (W_{ctx} \cdot S_{ctx})$$
       This allows high-importance (trauma) or situationally-relevant (tag-matched) memories to bypass simple recency decay.
 
+    **Note**: You can configure the `priority_schema` weights directly in `agent_types.yaml`.
+
+    ```yaml
+    household:
+      priority_schema:
+        flood_depth: 1.0 # Physical reality (Highest)
+        savings: 0.8 # Financial Reality
+    ```
+
 3.  **Immediate Perception**:
     - Specific values for the current year (water level, neighbor actions, policy changes).
     - _Source_: `EnvironmentProvider` and `InteractionHub`.
