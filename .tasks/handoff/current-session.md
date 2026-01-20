@@ -689,3 +689,11 @@ python run_unified_experiment.py \
 - 024-A/B/C complete (spatial graph, year mapping, MediaHub basic checks).
 - 024-D completed via background run: `examples/multi_agent/results_unified/v024_test_bg5/gemma3_4b_strict/`.
 - 024-E verified media messages appear in prompts (NEWS + SOCIAL).
+
+---
+
+## Update (2026-01-20) - MA Global Config Sync
+
+- Added `global_config` to `examples/multi_agent/ma_agent_types.yaml` and wired MA memory engine to read it.
+- Smoke test: `results_unified/v024_globalcfg_smoke/gemma3_4b_strict/` (1y/5 agents).
+- Warnings observed: context builder YAML path not injected (`agent_type ... not found in config`), causing parse failures. Follow-up needed.

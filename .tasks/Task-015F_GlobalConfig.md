@@ -56,3 +56,9 @@ Updated experiment runner to load parameters via this layered logic, ensuring le
 
 - Fixed `NameError: global_cfg` in `run_flood.py` (Benchmarking mode) by ensuring `global_cfg` is loaded from `agent_types.yaml` at startup.
 - Refactored `llm_utils.py` to load default config (temperature, retries) from `agent_types.yaml` via `AgentTypeConfig`, removing hardcoded defaults. Updated `agent_config.py` to prioritize `CWD/agent_types.yaml`.
+
+### MA Sync Notes (2026-01-20)
+
+- Added `global_config` to `examples/multi_agent/ma_agent_types.yaml`.
+- `run_unified_experiment.py` now reads `global_config.memory` for MA memory engine setup.
+- MA smoke test ran (1 year, 5 agents) but emitted warnings: config path not injected into context builder (`agent_type ... not found in config`), leading to parse failures. Follow-up: pass `yaml_path` into TieredContextBuilder or ensure config injection earlier in build.
