@@ -15,8 +15,10 @@
     - _來源_：`agent_initial_profiles.csv` 與 `run_flood.py` 中的 `narrative_persona`。
 
 2.  **記憶檢索 (Retrieved Memory)**：
-    - 從 10 年的歷史中檢索最相關的 3-5 個片段。
-    - _機制_：使用 `HumanCentricMemoryEngine` 計算 $S_{retrieval}$ 分數。
+    - 從代理人的長期歷史中檢索最相關的 3-5 個片段。
+    - _機制_：使用 **優先級檢索機制 (Memory Priority mechanism)** ($S$)，公式如下：
+      $$S(m) = (W_{rec} \cdot S_{rec}) + (W_{imp} \cdot S_{imp}) + (W_{ctx} \cdot S_{ctx})$$
+      這確保了高重要性（創傷）或環境相關（標籤匹配）的記憶能戰勝時間衰減被注入。
 
 3.  **當前感知 (Immediate Perception)**：
     - 當前年份的具體數值（水位、鄰居行動、政策變化）。
@@ -37,8 +39,8 @@ Property Value: $200,000. Current Savings: $15,000.
 3. BUDGET_CONSTRAINT: You cannot spend more than your simulation savings.
 
 [Prioritized Memory]
-- Year 3: Flood depth 1.2m. "My basement was destroyed." (Importance: 0.9)
-- Year 4: Neighbor Bob elevated his house. (Importance: 0.6)
+- Year 3: Flood depth 1.2m. "My basement was destroyed." (Priority Score S: 1.11)
+- Year 4: Neighbor Bob elevated his house. (Priority Score S: 0.85)
 
 [Current Situation - Year 5]
 Flood Forecast: High Probability.
