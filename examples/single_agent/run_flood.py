@@ -728,11 +728,18 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         
         # Extract weights
         retrieval_w = final_mem_cfg.get('retrieval_weights', {})
+        
+        # Load global consolidation settings (with fallback defaults for parity)
+        global_cfg = agent_cfg_data.get('global_config', {})
+        consolidation_cfg = global_cfg.get('memory_consolidation', {})
+        consolidation_prob = consolidation_cfg.get('probability', 0.7)
+        consolidation_threshold = consolidation_cfg.get('threshold', 0.6)
 
         memory_engine = HumanCentricMemoryEngine(
             window_size=window_size,
             top_k_significant=2,
-            consolidation_prob=0.7,
+            consolidation_prob=consolidation_prob,
+            consolidation_threshold=consolidation_threshold,
             decay_rate=0.1,
             emotional_weights=final_mem_cfg.get("emotional_weights"),
             source_weights=final_mem_cfg.get("source_weights"),

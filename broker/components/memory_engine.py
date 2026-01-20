@@ -264,6 +264,7 @@ class HumanCentricMemoryEngine(MemoryEngine):
         window_size: int = 3,
         top_k_significant: int = 2,
         consolidation_prob: float = 0.7,      # P(consolidate) for high-importance items
+        consolidation_threshold: float = 0.6, # Min importance to consider consolidation
         decay_rate: float = 0.1,               # λ in e^(-λt) decay
         emotional_weights: Optional[Dict[str, float]] = None,
         source_weights: Optional[Dict[str, float]] = None,
@@ -295,6 +296,7 @@ class HumanCentricMemoryEngine(MemoryEngine):
         self.window_size = window_size
         self.top_k_significant = top_k_significant
         self.consolidation_prob = consolidation_prob
+        self.consolidation_threshold = consolidation_threshold
         self.decay_rate = decay_rate
         self.ranking_mode = ranking_mode
         
@@ -445,7 +447,7 @@ class HumanCentricMemoryEngine(MemoryEngine):
         self.working[agent_id].append(memory_item)
         
         # Stochastic consolidation: high importance items have chance to go to long-term
-        if importance >= 0.6:  # Only consider consolidation for significant memories
+        if importance >= self.consolidation_threshold:  # Configurable threshold
             consolidate_p = self.consolidation_prob * importance
             if self.rng.random() < consolidate_p:
                 memory_item["consolidated"] = True
