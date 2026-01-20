@@ -61,4 +61,4 @@ Updated experiment runner to load parameters via this layered logic, ensuring le
 
 - Added `global_config` to `examples/multi_agent/ma_agent_types.yaml`.
 - `run_unified_experiment.py` now reads `global_config.memory` for MA memory engine setup.
-- MA smoke test ran (1 year, 5 agents) but emitted warnings: config path not injected into context builder (`agent_type ... not found in config`), leading to parse failures. Follow-up: pass `yaml_path` into TieredContextBuilder or ensure config injection earlier in build.
+- MA smoke test rerun (1y/5 agents) after config reload fix: no "agent_type not found" warnings. Output: `results_unified/v024_globalcfg_smoke3/`.

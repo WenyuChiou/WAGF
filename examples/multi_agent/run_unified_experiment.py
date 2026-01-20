@@ -712,6 +712,7 @@ def run_unified_experiment():
                 hub=hub,
                 memory_engine=memory_engine,
                 media_hub=media_hub,
+                yaml_path=str(MULTI_AGENT_DIR / "ma_agent_types.yaml"),
                 dynamic_whitelist=[
                     "govt_message",
                     "insurance_message",

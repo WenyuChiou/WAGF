@@ -697,3 +697,11 @@ python run_unified_experiment.py \
 - Added `global_config` to `examples/multi_agent/ma_agent_types.yaml` and wired MA memory engine to read it.
 - Smoke test: `results_unified/v024_globalcfg_smoke/gemma3_4b_strict/` (1y/5 agents).
 - Warnings observed: context builder YAML path not injected (`agent_type ... not found in config`), causing parse failures. Follow-up needed.
+
+---
+
+## Update (2026-01-20) - MA Global Config Smoke Test (Pass)
+
+- Reloaded AgentTypeConfig when yaml_path is provided to avoid stale cache.
+- Reran smoke test: `results_unified/v024_globalcfg_smoke3/gemma3_4b_strict/`.
+- Config warnings resolved (no "agent_type not found" messages).
