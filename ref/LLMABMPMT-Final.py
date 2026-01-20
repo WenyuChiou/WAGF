@@ -33,7 +33,7 @@ import random  # For randomness in agent attributes and flood events
 import time  # To track simulation runtime
 import os # For checking if files exist
 from langchain_ollama import OllamaLLM  # LangChain wrapper to call Ollama LLM
-from langchain.prompts import PromptTemplate  # For formatting LLM prompts
+from langchain_core.prompts import PromptTemplate  # For formatting LLM prompts
 from tqdm import tqdm  # Progress bar for loops
 import matplotlib.pyplot as plt  # For plotting 
 import numpy as np # For plotting
@@ -214,10 +214,10 @@ DECISION_MAP_ELEVATED = {"1": "Buy flood insurance", "2": "Relocate", "3": "Do n
 DECISION_MAP_NOT_ELEVATED = {"1": "Buy flood insurance", "2": "Elevate the house", "3": "Relocate", "4": "Do nothing"}
 
 # --- 7. Main simulation function ) ---
-def run_simulation():
+def run_simulation(output_dir=None, model_name="gemma3:4b"):
     start_time = time.time()
     #llm = OllamaLLM(model="llama3.1:8b")
-    llm = OllamaLLM(model="gemma3:4b")
+    llm = OllamaLLM(model=model_name)
     #llm = OllamaLLM(model="gpt-oss:20b")
 
     # Define past events here to have it in scope for both initialization and random recall
@@ -448,6 +448,17 @@ def run_simulation():
                     agent["yearly_decisions"].append("Already relocated")
                     logs.append({"agent_id": agent["id"], "year": year, "decision": "Already relocated"})
 
+            # --- INCREMENTAL SAVE (Per Year) ---
+            if output_dir:
+                try:
+                    df_current = pd.DataFrame(logs)
+                    df_current.fillna({"threat_appraisal": "N/A", "coping_appraisal": "N/A"}, inplace=True)
+                    # Overwrite the log file with current accumulated data
+                    df_current.to_csv(output_dir / "simulation_log.csv", index=False, encoding="utf-8-sig")
+                    print(f"  [Auto-Save] Year {year} logs saved to {output_dir / 'simulation_log.csv'}")
+                except Exception as e:
+                    print(f"  [Warning] Failed to save incremental log: {e}")
+
     total_time = time.time() - start_time
 
     # Determine which flood years to save and plot
@@ -460,15 +471,40 @@ def run_simulation():
 
 # --- 7. Main block: run simulation and save results ---
 if __name__ == "__main__":
-    agents, logs, sim_time, agent_ids_to_plot, flood_years = run_simulation()
+    import argparse
+    from pathlib import Path
+    
+    parser = argparse.ArgumentParser(description="LLMABMPMT-Final Simulation")
+    parser.add_argument("--output", default=".", help="Output directory for results")
+    parser.add_argument("--model", default="gemma3:4b", help="Ollama model name")
+    parser.add_argument("--seed", type=int, default=None, help="Random seed (optional)")
+    args = parser.parse_args()
+    
+    # Set seed if provided
+    if args.seed is not None:
+        import random
+        random.seed(args.seed)
+    
+    # Override model in run_simulation if needed (patch global)
+    # For now, model is hardcoded in run_simulation, so we patch it
+    output_path = Path(args.output) if args.output else None
+    if output_path:
+        output_path.mkdir(parents=True, exist_ok=True)
+
+    agents, logs, sim_time, agent_ids_to_plot, flood_years = run_simulation(output_dir=output_path, model_name=args.model)
+    
+    # Create output directory
+    output_dir = Path(args.output)
+    output_dir.mkdir(parents=True, exist_ok=True)
     
     # Create DataFrame and fill NA for consistent structure
     df_log = pd.DataFrame(logs)
     df_log.fillna({"threat_appraisal": "N/A", "coping_appraisal": "N/A"}, inplace=True)
-    df_log.to_csv("flood_adaptation_simulation_log.csv", index=False, encoding="utf-8-sig")
+    df_log.to_csv(output_dir / "simulation_log.csv", index=False, encoding="utf-8-sig")
 
     print("\nSimulation complete!")
     print(f"\nTotal simulation time: {sim_time:.2f} seconds\n")
+    print(f"Results saved to: {output_dir / 'simulation_log.csv'}")
 
     # --- Plot 1: Overall stacked bar of adaptation states ---
     state_counts = (
@@ -488,7 +524,8 @@ if __name__ == "__main__":
     plt.xlabel("Year")
     plt.legend(title="Adaptation State", bbox_to_anchor=(1.05, 1))
     plt.tight_layout()
-    plt.savefig("overall_adaptation_by_year.jpg", dpi=300)
+    plt.savefig(output_dir / "overall_adaptation_by_year.jpg", dpi=300)
+    plt.close()
 
     # --- Plot 2: Individual agent decision histories with flood years ---
     decision_map_numeric = {
@@ -527,4 +564,5 @@ if __name__ == "__main__":
         ax.grid(axis='y', linestyle='--')
         ax.legend()
         plt.tight_layout()
-        plt.savefig(f"agent_decision_{agent_id}.jpg", dpi=300)
+        plt.savefig(output_dir / f"agent_decision_{agent_id}.jpg", dpi=300)
+        plt.close()

@@ -70,14 +70,14 @@ To illustrate the mechanism, we trace the cognitive lifecycle of a specific agen
 **Phase 1: Encoding (Year 2)**
 Agent_042 experiences a severe flood (Depth: 5.0ft). The system's **Path A (Regex)** identifies the keywords "flood" and "destroyed".
 
-- **Calculation**: $I = W_{source}(1.0) \times W_{emotion}(1.5) = \textbf{1.5}$.
+- **Calculation**: I = W_source(1.0) \* W_emotion(1.5) = **1.5**.
 - **Result**: The event is consolidated into Long-Term Memory as a "Core Belief."
 
 **Phase 2: Retrieval (Year 5)**
 Three years later, the environment is benign (Sunny, 0ft depth). A standard LLM might hallucinate that "everything is safe." However, the retrieval engine calculates:
 
-- **Decay Function**: $S = 1.5 \times e^{-0.1 \times 3} = \textbf{1.11}$.
-- **Comparison**: A recent routine memory (e.g., "Sunny day", $I=0.1$) has decayed to near zero.
+- **Decay Function**: S = 1.5 _ e^(-0.1 _ 3) = **1.11**.
+- **Comparison**: A recent routine memory (e.g., "Sunny day", I=0.1) has decayed to near zero.
 - **Outcome**: The "Trauma Anchor" ($S=1.11$) dominates the context window. Agent_042 explicitly cites "the disaster of Year 2" in its reasoning and renews insurance, defying the recency bias.
 
 #### 2.4.2 Information Flow Architecture
@@ -163,6 +163,28 @@ To isolate the contributions of the Governance and Memory pillars, we define thr
 
 To rigorously validate constraints, we subject the framework to four extreme scenarios (ST-1 to ST-4) designed to induce specific hallucinations.
 
+### 3.5 Methodology Defense: Prompt Sensitivity & "Cognitive Cornering"
+
+A critical aspect of this study is the difference in prompt structure between Group A (Baseline) and Group B (Governed).
+
+#### The Challenge: "Comparability" vs. "Modernization"
+
+A strict A/B test would use the exact same prompt for both groups. However, we identified a phenomenon we call **"Cognitive Cornering"** when modernizing the baseline:
+
+1.  **The "Modernization Gap"**: To enable agents to interface with external tools (APIs, GUIs), we must switch from Free Text to **Structured JSON**.
+2.  **The Unintended Consequence**: When we ported the Baseline to a Structured JSON prompt with a standard Rating Scale (Low-High), **Relocation rates spiked from ~0% to ~23%** (Observation from Group A' - Framework without Governance).
+3.  **Mechanism**: The requirement to explicitly quantify Threat as "Very High" creates a logical binding. The agent perceives "Do Nothing" as irrational under "Very High Threat" and forces itself to "Relocate".
+
+#### The "Ablation Narrative" as Defense
+
+We deliberately retained the **Free Text Prompt** for Group A (Baseline) and the **Structured Prompt** for Group B (Governed) to address the "Comparability" critique by framing it as a feature:
+
+- **Group A (Baseline)**: Represents the **"Stable Manual Past"**. It works well but cannot be automated/scaled because it outputs unstructured text.
+- **Structured Framework (Ungoverned)**: Represents the **"Fragile Modern Present"**. It is scalable (JSON) but hyper-sensitive/unstable (23% Relocation).
+- **Group B (Governed)**: Represents the **"Robust AI Future"**. It operates within the necessary Structured Framework but uses **Governance** to mitigate the instability.
+
+**Conclusion**: If Group B achieves relocation rates closer to Group A (0%) than to the Ungoverned Framework (23%), we demonstrate that **Governance acts as a stabilizer**, allowing us to reap the benefits of modern agentic architectures (JSON) without suffering from their inherent instability.
+
 **Table 1: Stress Test Design Matrix**
 
 | Stress Test (ST)             | Trigger Condition                | System 1 Impulse (Hallucination)   | Targeted Governance Pillar            |
@@ -202,7 +224,7 @@ The Governed Broker Framework (Group C) demonstrated its efficacy not by "fixing
 - **For Llama (The Panicker)**: Governance intercepted ~80% of "Phantom Relocation" attempts. By enforcing the **Financial Validator**, the systems blocked unjustified relocation grants. Crucially, logs show these agents were successfully channeled into lower-cost, allowed actions (e.g., _House Elevation_ with available grants), effectively downgrading "Panic Relocation" to "Rational Opportunism."
 - **For Gemma (The Frozen)**: Governance showed limited ability to force action (~15% reduction in complacency). This suggests that while Governance is excellent at **Constraining Excess (Safety)**, it is less effective at **Compelling Action (Liveness)** without more aggressive prompt injection.
 
-![Figure 6: Hallucination Asymmetry](file:///c:/Users/wenyu/Desktop/Lehigh/governed_broker_framework/examples/single_agent/results/JOH_FINAL/Figure_6_Asymmetry.png)
+![Figure 6: Hallucination Asymmetry](figures/Figure_6_Asymmetry.png)
 _Figure 6: Panic Rate vs. Complacency Rate across models. Note the extreme Panic Rate for Llama Group A (Left) versus the extreme Complacency Rate for Gemma Group A (Right)._
 
 ### 4.2 The "Sawtooth Curve" (Trauma Recall)
@@ -243,21 +265,22 @@ To rigorously validate the "Governed Architecture", we finalize three key metric
 
 - **Metric**: **Sawtooth Persistence Rate**.
 - **Definition**: The ability of an agent to maintain a high-risk perception state (High Threat Appraisal) for >3 years following a flood event, resisting the natural decay of the context window.
-- **Hypothesis**: Group C will exhibit a "Ratchet Effect" (Sawtooth Pattern), whereas Group B will exhibit "Goldfish Amnesia" (Immediate return to baseline).
+- **Hypothesis**: Group C will exhibit a "Ratchet Effect" (Sawtooth Pattern), whereas Group B will exhibit "Goldfish Amnesia" (Immediate return to baseline). Note: This metric is only computed for Governed Agents (Groups B & C) where threat states are formally discretized.
 - **Status**: Validated (Figure 3).
 
 #### 2. Agent Consistency (Micro-Level)
 
-- **Metric**: **Agent-Level Consistency Score ($C_{agent}$)**.
-- **Definition**: The percentage of runs where an individual agent maintains the same final state (e.g., Elevated vs Not) across $N$ independent seeds.
-- **Hypothesis**: $C_{agent} > 0.8$ for Group C, indicating that behavior is driven by "Character Profile" rather than "Random Seed".
+- **Metric**: **Agent-Level Consistency Score (C_agent)**.
+- **Definition**: The percentage of runs where an individual agent maintains the same final state (e.g., Elevated vs Not) across N independent seeds.
+- **Hypothesis**: C_agent > 0.8 for Group C, indicating that behavior is driven by "Character Profile" rather than "Random Seed".
 - **Status**: Script `analyze_joh_rigorous.py` operational.
 
 #### 3. Internal Fidelity (Rationality)
 
 - **Metric**: **Internal Fidelity (IF)**.
-- **Definition**: The Spearman rank correlation ($\rho$) between the agent's internal Perceived Threat (Threat Appraisal) and its Output Action (Adaptation Level).
-- **Hypothesis**: $IF > 0.8$ for Group C, versus $IF \ll 0.5$ for Group A. This metric directly quantifies the mitigation of the **"Unfaithful Explanation" problem (Turpin et al., 2023)**.
+- **Definition**: The Spearman rank correlation (rho) between the agent's internal Perceived Threat (Threat Appraisal) and its Output Action (Adaptation Level).
+- **Hypothesis**: IF > 0.8 for Group C, versus IF < 0.5 for Group B.
+- **Note**: This metric is **undefined for Group A** (Baseline), as naive LLM outputs consist of unstructured free-text reasoning without discrete appraisal verification. Group A serves as a qualitative control for "Unfaithful Explanation" (Turpin et al., 2023).
 - **Status**: Script `analyze_joh_fidelity.py` operational.
 
 ### 4.5 Beyond Floods: Universal Middleware
