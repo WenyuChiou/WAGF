@@ -16,7 +16,7 @@ $GemmaModel = "gemma3:4b"
 $LlamaModel = "llama3.2:3b"
 $NumYears = 10
 $NumAgents = 100
-$BaselinePath = "..\..\ref\LLMABMPMT-Final.py"
+$BaselinePath = Join-Path $PSScriptRoot "..\..\ref\LLMABMPMT-Final.py"
 
 Log-Progress "=== STARTING JOH EXPERIMENT SUITE (N=10 per group) ==="
 Log-Progress "NOTE: Group A uses ref/LLMABMPMT-Final.py DIRECTLY for 100% parity"
@@ -26,21 +26,29 @@ Log-Progress "NOTE: Group A uses ref/LLMABMPMT-Final.py DIRECTLY for 100% parity
 # =============================================================================
 Log-Progress ">>> PHASE 1: Gemma 3 4B <<<"
 
-# --- Group A: TRUE BASELINE (LLMABMPMT-Final.py directly) ---
-Log-Progress "--- Gemma Group A (TRUE Baseline - LLMABMPMT-Final.py) ---"
-for ($i = 6; $i -le 10; $i++) {
-    $seed = 300 + $i
-    $outputDir = "results/JOH_FINAL/gemma3_4b/Group_A/Run_$i"
-    Log-Progress "  > Gemma A Run $i (Seed $seed) - Using LLMABMPMT-Final.py"
-    python $BaselinePath --output $outputDir --seed $seed
-}
+# --- Group A: TRUE BASELINE (Skipped as per user request) ---
+# Log-Progress "--- Gemma Group A (TRUE Baseline - LLMABMPMT-Final.py) ---"
+# for ($i = 6; $i -le 10; $i++) {
+#     $seed = 300 + $i
+#     $outputDir = "results/JOH_FINAL/gemma3_4b/Group_A/Run_$i"
+#     Log-Progress "  > Gemma A Run $i (Seed $seed) - Using LLMABMPMT-Final.py"
+#     python $BaselinePath --output $outputDir --seed $seed --model $GemmaModel
+# }
 
-# --- Group B: Governed (Pillar 1+2) ---
-Log-Progress "--- Gemma Group B (Governed) ---"
+# --- Group B: Governed (Skipped as per user request) ---
+# Log-Progress "--- Gemma Group B (Governed) ---"
+# for ($i = 1; $i -le 10; $i++) {
+#     $seed = 300 + $i
+#     Log-Progress "  > Gemma B Run $i (Seed $seed)"
+#     python run_flood.py --model $GemmaModel --years $NumYears --agents $NumAgents --workers 10 --memory-engine window --governance-mode strict --output "results/JOH_FINAL/gemma3_4b/Group_B/Run_$i" --seed $seed
+# }
+
+# --- Group C: Priority Schema (Pillar 1+2+3) ---
+Log-Progress "--- Gemma Group C (Priority Schema) ---"
 for ($i = 1; $i -le 10; $i++) {
     $seed = 300 + $i
-    Log-Progress "  > Gemma B Run $i (Seed $seed)"
-    python run_flood.py --model $GemmaModel --years $NumYears --agents $NumAgents --workers 10 --memory-engine window --governance-mode strict --output "results/JOH_FINAL/gemma3_4b/Group_B/Run_$i" --seed $seed
+    Log-Progress "  > Gemma C Run $i (Seed $seed)"
+    python run_flood.py --model $GemmaModel --years $NumYears --agents $NumAgents --workers 10 --memory-engine humancentric --governance-mode strict --use-priority-schema --output "results/JOH_FINAL/gemma3_4b/Group_C/Run_$i" --seed $seed
 }
 
 # =============================================================================
@@ -70,7 +78,7 @@ for ($i = 1; $i -le 10; $i++) {
     $seed = 300 + $i
     $outputDir = "results/JOH_FINAL/llama3_2_3b/Group_A/Run_$i"
     Log-Progress "  > Llama A Run $i (Seed $seed) - Using LLMABMPMT-Final.py"
-    python $BaselinePath --output $outputDir --seed $seed
+    python $BaselinePath --output $outputDir --seed $seed --model $LlamaModel
 }
 
 Log-Progress "=== JOH EXPERIMENT SUITE COMPLETE ==="

@@ -550,7 +550,7 @@ def load_agents_from_survey(
 
 
 # --- 6. Main Runner ---
-def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5, seed: Optional[int] = None, flood_mode: str = "fixed", survey_mode: bool = False, governance_mode: str = "strict", use_priority_schema: bool = False, stress_test: str = None):
+def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5, seed: Optional[int] = None, flood_mode: str = "fixed", survey_mode: bool = False, governance_mode: str = "strict", use_priority_schema: bool = False, stress_test: str = None, memory_ranking_mode: str = "legacy"):
     print(f"--- Llama {agents_count}-Agent {years}-Year Benchmark (Final Parity Edition) ---")
     
     # 1. Load Registry & Prompt Template
@@ -688,14 +688,36 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         print(f" Using ImportanceMemoryEngine (active retrieval with flood-specific keywords)")
     elif memory_engine_type == "humancentric":
         # Load memory config from YAML (universality proof)
-        mem_cfg = agent_cfg_data.get('shared', {}).get('memory_config', {})
+        # Prioritize household-specific override, fallback to shared
+        household_mem = agent_cfg_data.get('household', {}).get('memory', {})
+        shared_mem = agent_cfg_data.get('shared', {}).get('memory_config', {})
+        
+        # Merge: household override shared
+        def merge_configs(target, source):
+            for k, v in source.items():
+                if isinstance(v, dict) and k in target:
+                    merge_configs(target[k], v)
+                else:
+                    target[k] = v
+            return target
+
+        final_mem_cfg = shared_mem.copy()
+        merge_configs(final_mem_cfg, household_mem)
+        
+        # Extract weights
+        retrieval_w = final_mem_cfg.get('retrieval_weights', {})
+
         memory_engine = HumanCentricMemoryEngine(
             window_size=window_size,
             top_k_significant=2,
             consolidation_prob=0.7,
             decay_rate=0.1,
-            emotional_weights=mem_cfg.get("emotional_weights"),
-            source_weights=mem_cfg.get("source_weights"),
+            emotional_weights=final_mem_cfg.get("emotional_weights"),
+            source_weights=final_mem_cfg.get("source_weights"),
+            W_recency=retrieval_w.get("recency", 0.3),     # Default 0.3
+            W_importance=retrieval_w.get("importance", 0.5), # Default 0.5
+            W_context=retrieval_w.get("context", 0.2),       # Default 0.2
+            ranking_mode=memory_ranking_mode,
             seed=42  # For reproducibility
         )
         print(f" Using HumanCentricMemoryEngine (emotional encoding + stochastic consolidation, window={window_size})")
@@ -851,6 +873,7 @@ if __name__ == "__main__":
                              "Uses MG/NMG classification, flood zone assignment, and RCV generation.")
     parser.add_argument("--use-priority-schema", action="store_true", help="Enable Pillar 3: Priority Schema (Group C)")
     parser.add_argument("--stress-test", type=str, default=None, choices=["veteran", "panic", "goldfish", "format"], help="Run specific Stress Test scenarios (e.g., 'veteran')")
+    parser.add_argument("--memory-ranking-mode", type=str, default="legacy", choices=["legacy", "weighted"], help="Ranking logic for HumanCentricMemoryEngine (legacy=v1 decay, weighted=v2 unified scoring)")
     args = parser.parse_args()
 
     # Apply LLM config from command line
@@ -879,7 +902,9 @@ if __name__ == "__main__":
         seed=actual_seed,
         flood_mode=args.flood_mode,
         survey_mode=args.survey_mode,
+
         governance_mode=args.governance_mode,
         use_priority_schema=args.use_priority_schema,
-        stress_test=args.stress_test
+        stress_test=args.stress_test,
+        memory_ranking_mode=args.memory_ranking_mode
     )
