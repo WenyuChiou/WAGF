@@ -50,12 +50,12 @@ python examples/single_agent/run_flood.py --model llama3.2:3b --agents 50 --year
 
 ## 🗺️ Module Directory (Documentation Hub)
 
-- **📚 Chapter 0: Theoretical Basis**: [System Theory & Architecture](docs/modules/00_theoretical_basis_overview.md) | [中文連結](docs/modules/00_theoretical_basis_overview_zh.md)
+- **📚 Chapter 0: Theoretical Basis**: [System Theory &amp; Architecture](docs/modules/00_theoretical_basis_overview.md) | [中文連結](docs/modules/00_theoretical_basis_overview_zh.md)
 - **🧠 Chapter 1: Memory & Reflection**: [Memory Components](docs/modules/memory_components.md) | [Reflection Engine](docs/modules/reflection_engine.md)
 - **👁️ Chapter 2: Context System**: [Context Builder](docs/modules/context_system.md)
 - **⚖️ Chapter 3: Governance Core**: [Governance Logic](docs/modules/governance_core.md)
 - **🛠️ Chapter 4: Skill Registry**: [Action Ontology](docs/modules/skill_registry.md)
-- **🌍 Chapter 5: Simulation Engine**: [Environment & Loop](docs/modules/simulation_engine.md)
+- **🌍 Chapter 5: Simulation Engine**: [Environment &amp; Loop](docs/modules/simulation_engine.md)
 - **🧪 Experiments**: [Single Agent Benchmarks](examples/README.md)
 
 ---
@@ -109,35 +109,26 @@ The framework utilizes a layered middleware approach that unifies single-agent i
 
 This framework implements a **"Stacking Blocks"** architecture. You can build agents of varying complexity by stacking different cognitive modules onto the base Execution Engine—just like Legos.
 
-| Stack Level   | Cognitive Block      | Function          | Effect                                                                                          |
-| :------------ | :------------------- | :---------------- | :---------------------------------------------------------------------------------------------- |
-| **Base**      | **Execution Engine** | _The Body_        | Can execute actions but has no memory or rationality.                                           |
-| **+ Level 1** | **Context Lens**     | _The Eyes_        | Adds bounded perception (Window Memory). Prevents context overflow.                             |
-| **+ Level 2** | **Memory Engine**    | _The Hippocampus_ | Adds **Tiered Memory**. Enables trauma recall (Availability Heuristic) and long-term learning.  |
-| **+ Level 3** | **Skill Broker**     | _The Superego_    | Adds **Governance**. Enforces "Thinking Rules" to ensure decisions match beliefs (Rationality). |
+| Stack Level   | Cognitive Block      | Function          | Effect                                                                                                    |
+| :------------ | :------------------- | :---------------- | :-------------------------------------------------------------------------------------------------------- |
+| **Base**      | **Execution Engine** | _The Body_        | Can execute actions but has no memory or rationality.                                                     |
+| **+ Level 1** | **Context Lens**     | _The Eyes_        | Adds bounded perception (Window Memory). Prevents context overflow.                                       |
+| **+ Level 2** | **Memory Engine**    | _The Hippocampus_ | Adds**Universal Cognitive Engine (v3)**. Includes Surprise-driven System 1/2 switching and trauma recall. |
+| **+ Level 3** | **Skill Broker**     | _The Superego_    | Adds**Governance**. Enforces "Thinking Rules" to ensure decisions match beliefs (Rationality).            |
 
 > **Why this matters?** allows for controlled scientific experiments. You can run a "Level 1 Agent" (Baseline) vs. a "Level 3 Agent" (Full) to isolate exactly _which_ cognitive component solves a specific bias.
 
 👉 **[Learn how to assemble custom agents](docs/agent_assembly.md)**
 
-**Version History**:
+**Evolution Roadmap**:
 
-- **v1 (Legacy)**: Monolithic scripts.
-- **v2 (Stable)**: Modular `SkillBrokerEngine` + `providers`.
-- **v3 (Latest)**: Unified Single/Multi-Agent Architecture + Professional Audit Trail.
-- **v3.3 (JOH Edition)**: **Cognitive Middleware Implementation**.
-  - **Coupling Interface**: Decoupled Input (JSON Signals) and Output (Action JSONs) for integration with HEC-RAS/SWMM.
-  - **Human-Centric Memory**: Emotional encoding and stochastic consolidation.
-  - **Explainable Governance**: Self-correction traces for transparent rationality.
-- **v3.1**: **Demographic Grounding & Statistical Validation**. Agents are grounded in real-world surveys.
-- **v3.2**: **Advanced Memory & Skill Retrieval**. Implements MemGPT-style Tiered Memory and RAG-based Skill Selection.
-- **v3.3 (Production)**: **Domain-Agnostic Parsing & Human-Centric Memory**.
-  - All domain-specific logic moved to `agent_types.yaml`.
-  - All domain-specific logic moved to `agent_types.yaml`.
-  - **Human-Centric Memory Engine**: Implements emotional encoding and passive retrieval.
-- **v3.4 (Core Persistence)**: **Atomic State Management**.
-  - **`apply_delta` Interface**: Standardized state updates across all agent types.
-  - **Rigorous Parity**: Canonical synchronization between LLM Context and Agent Object.
+- **v1 (Legacy)**: Monolithic scripts with basic Window Memory. (Group A/B Baseline).
+- **v2 (Stable)**: Modular `SkillBrokerEngine` with Governance.
+- **v3 (Current)**: **Universal Cognitive Architecture**.
+  - **Surprise Engine**: Neuro-modulated System 1/2 switching.
+  - **Human-Centric Memory**: Emotional Decay + Weighted Context.
+  - **Explainable Governance**: Validator traces.
+- **v4 (Future - Universal)**: **Hierarchical MemGPT-style Storage**.
 
 ---
 
@@ -185,27 +176,33 @@ Developing LLM-based agents within a governed framework revealed several recurri
 
 ---
 
-## 🧠 Memory Evolution: From Window to Tiered (v4 Roadmap)
+## 🧠 Memory Architecture: Theory & Roadmap
 
-The framework is transitioning from a simple sliding window memory to a **Tiered Cognitive Architecture**, solving the context-overload problem while maintaining historical grounding.
+![Human-Centric Memory System](docs/human_centric_memory_diagram.png)
 
-### Tier 1: Working Memory (Sliding Window)
+The framework's memory system is evolving from a simple sliding window to a **Universal Cognitive Architecture** grounded in **Dual Process Theory** (Kahneman) and **Active Inference** (Friston).
 
-- **Scope**: Last 5 years of detailed events.
-- **Function**: Provides immediate context for the current decision step.
-- **Cleanup**: Low-importance events are purged to maintain LLM token efficiency.
+### 🗺️ Evolution Roadmap
 
-### Tier 2: Episodic Summary (Human-Centric Search)
+This architecture is evolving through three distinct phases:
 
-- **Scope**: Historical traumatic events (e.g., "The great flood of Year 2").
-- **Function**: Uses **Stochastic Retrieval**. Memories are scored by `Importance = (Emotion x Source) x Decay`. High-emotion memories bypass the window limit and are "pushed" into the prompt even 10 years later.
+1. **Phase 1 (Current)**: **Human-Centric Memory** (Emotional Decay).
+2. **Phase 2 (Planned)**: **Weighted Retrieval** (Contextual Boosting).
+3. **Phase 3 (Vision)**: **Universal "Surprise Engine"** (Prediction Error).
 
-### Tier 3: Semantic Insights (The Reflection Engine) - [ROADMAP / FUTURE]
+👉 **[Read the Full Cognitive Roadmap &amp; Theory](docs/modules/memory_components.md#memory-evolution--roadmap)**
 
-- **Scope**: Consolidated life lessons.
-- **Status**: _Design phase / Not used in current JOH experiments._
-- **Function**: At Year-End, the **Reflection Engine** triggers a "System 2" thinking process. It asks the LLM to summarize the year's events into a single **Insight** (e.g., _"Insurance is my only buffer against financial ruin"_).
-- **Consolidation**: These insights are stored as high-priority semantic memories, ensuring the agent's "Personality" evolves based on past successes or failures.
+---
+
+### Tiered Memory Roadmap (v4 Target)
+
+| Tier  | Component             | Function (Theory)                                                                       |
+| :---- | :-------------------- | :-------------------------------------------------------------------------------------- |
+| **1** | **Working Memory**    | **Sensory Buffer**. Immediate context (last 5 years).                                   |
+| **2** | **Episodic Summary**  | **Hippocampus**. Long-term storage of "Significant" events (Phase 1/2 logic).           |
+| **3** | **Semantic Insights** | **Neocortex**. Abstracted "Rules" derived from reflection (e.g., "Insurance is vital"). |
+
+---
 
 ---
 
@@ -214,7 +211,7 @@ The framework is transitioning from a simple sliding window memory to a **Tiered
 ## 🧪 Experimental Validation & Benchmarks
 
 For detailed experimental setups (Baseline vs. Full), stress tests, and results from the JOH Paper, please refer to:
-👉 **[Benchmarks & Examples](examples/README.md)**
+👉 **[Benchmarks &amp; Examples](examples/README.md)**
 
 ---
 
@@ -253,11 +250,11 @@ The **Human-Centric Memory Engine** (v3.3) solves the "Goldfish Effect" by prior
 
 ### Key Features:
 
-1.  **Passive Retrieval**: The system pushes relevant memories to the LLM based on `Importance = Emotion x Source x Decay`.
-2.  **Reflection Loop**: Yearly consolidation of events into generalized "Insights" (e.g., "Insurance is vital").
-3.  **Bounded Context**: Filters thousands of logs into a concise, token-efficient prompt.
+1. **Passive Retrieval**: The system pushes relevant memories to the LLM based on `Importance = Emotion x Source x Decay`.
+2. **Reflection Loop**: Yearly consolidation of events into generalized "Insights" (e.g., "Insurance is vital").
+3. **Bounded Context**: Filters thousands of logs into a concise, token-efficient prompt.
 
-👉 **[Read the full Memory & Reflection Specification](docs/modules/memory_components.md)**
+👉 **[Read the full Memory &amp; Reflection Specification](docs/modules/memory_components.md)**
 
 ---
 
@@ -298,12 +295,12 @@ The framework is strictly validated against the following model families to ensu
 
 The architecture is derived from and contributes to the following literature:
 
-1.  **Park, J. S., ... & Bernstein, M. S.** (2023). Generative Agents: Interactive Simulacra of Human Behavior. _ACM CHI_.
-2.  **Trope, Y., & Liberman, N.** (2010). Construal-level theory of psychological distance. _Psychological Review_, 117(2), 440.
-3.  **Tversky, A., & Kahneman, D.** (1973). Availability: A heuristic for judging frequency and probability. _Cognitive Psychology_, 5(2), 207-232.
-4.  **Siegrist, M., & Gutscher, H.** (2008). Natural hazards and motivation for self-protection: Memory matters. _Risk Analysis_, 28(3), 771-778.
-5.  **Rogers, R. W.** (1983). Cognitive and physiological processes in fear appeals and attitude change: A revised theory of protection motivation. _Social Psychophysiology_.
-6.  **Ebbinghaus, H.** (1885). _Memory: A Contribution to Experimental Psychology_. (The Forgetting Curve basis).
+1. **Park, J. S., ... & Bernstein, M. S.** (2023). Generative Agents: Interactive Simulacra of Human Behavior. _ACM CHI_.
+2. **Trope, Y., & Liberman, N.** (2010). Construal-level theory of psychological distance. _Psychological Review_, 117(2), 440.
+3. **Tversky, A., & Kahneman, D.** (1973). Availability: A heuristic for judging frequency and probability. _Cognitive Psychology_, 5(2), 207-232.
+4. **Siegrist, M., & Gutscher, H.** (2008). Natural hazards and motivation for self-protection: Memory matters. _Risk Analysis_, 28(3), 771-778.
+5. **Rogers, R. W.** (1983). Cognitive and physiological processes in fear appeals and attitude change: A revised theory of protection motivation. _Social Psychophysiology_.
+6. **Ebbinghaus, H.** (1885). _Memory: A Contribution to Experimental Psychology_. (The Forgetting Curve basis).
 
 ---
 

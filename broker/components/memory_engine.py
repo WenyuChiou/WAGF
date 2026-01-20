@@ -440,12 +440,17 @@ class HumanCentricMemoryEngine(MemoryEngine):
         """
         Args:
             window_size: Number of recent memories always included
-            top_k_significant: Number of significant historical events to retrieve
-            consolidation_prob: Base probability of consolidating high-importance memory [0-1]
-            decay_rate: Exponential decay rate for time-based forgetting [0-1]
-            ranking_mode: "legacy" (multiplicative decay, v1 parity) or "weighted" (additive, v2)
-            W_recency: Weight for recency score (v2 only)
+            top_k_significant: Number of historical events
+            ranking_mode: "legacy" (v1) or "weighted" (v2)
         """
+        import warnings
+        warnings.warn(
+            "HumanCentricMemoryEngine is deprecated in favor of UniversalCognitiveEngine (v3). "
+            "v1 behavior can be emulated by setting arousal_threshold=99.0 in UniversalCognitiveEngine. "
+            "v2 behavior can be emulated by setting arousal_threshold=0.0.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         import random
         self.rng = random.Random(seed)
         

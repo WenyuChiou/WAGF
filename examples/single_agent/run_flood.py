@@ -736,7 +736,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         memory_engine = HierarchicalMemoryEngine(window_size=window_size, semantic_top_k=3)
         print(f" Using HierarchicalMemoryEngine (Tiered: Core, Episodic, Semantic)")
     elif memory_engine_type == "universal":
-        # v3 Universal Cognitive Engine: Dynamic System 1/2 switching based on Prediction Error
+        # v3 Universal Cognitive Engine: Surprise-driven dual-process switching
         from broker.components.memory_engine import create_memory_engine
         
         # Load memory config from YAML for v3
