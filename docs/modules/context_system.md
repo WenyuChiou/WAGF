@@ -22,12 +22,21 @@ The `ContextBuilder` transforms raw data into a narrative structure understandab
 
     **Note**: You can configure the `priority_schema` weights directly in `agent_types.yaml`.
 
+    ````yaml
+    household:
+      priority_schema:
+        flood_depth: 1.0 # Physical reality (Highest)
+        savings: 0.8 # Financial Reality
     ```yaml
     household:
       priority_schema:
         flood_depth: 1.0 # Physical reality (Highest)
         savings: 0.8 # Financial Reality
-    ```
+    ````
+
+    #### Theoretical Basis: Why Prioritize?
+
+    This prioritization is not arbitrary; it implements **Arousal-Biased Competition (ABC) Theory** (Mather & Sutherland, 2011). In high-stress environments, cognitive processing resources are scarce (Simon's Bounded Rationality). The "Priority Schema" mimics the brain's mechanism of amplifying "High Arousal" signals (like flood depth) while suppressing "Low Arousal" noise (like routine preferences), ensuring agents focus on survival-critical data during key decision windows.
 
 3.  **Immediate Perception**:
     - Specific values for the current year (water level, neighbor actions, policy changes).

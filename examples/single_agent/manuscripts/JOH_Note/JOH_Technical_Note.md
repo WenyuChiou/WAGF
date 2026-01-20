@@ -136,7 +136,7 @@ $$
 \end{cases}
 $$
 
-Here, $\tau$ represents the **Arousal Sensitivity** and $\epsilon$ the **Baseline Arousal Threshold**. When "Surprise" exceeds the threshold, the system "cranks the gain," forcing a switch from low-fidelity window memory (v1) to high-fidelity weighted retrieval (v2), ensuring that deep reasoning is reserved for critical anomalies.
+Here, $\tau$ represents the **Arousal Sensitivity** and $\epsilon$ the **Baseline Arousal Threshold**. When "Surprise" exceeds the threshold, the system "cranks the gain," forcing a switch from low-fidelity window memory (v1) to high-fidelity weighted retrieval (v2). This mechanism aligns with **Arousal-Biased Competition (ABC) Theory** (Mather & Sutherland, 2011), ensuring that deep reasoning is reserved for critical anomalies.
 
 ### 6.3 Conclusion: Toward "Deep Agents"
 
