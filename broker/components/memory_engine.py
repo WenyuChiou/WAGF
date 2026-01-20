@@ -444,9 +444,6 @@ class HumanCentricMemoryEngine(MemoryEngine):
             decay_rate: Exponential decay rate for time-based forgetting [0-1]
             ranking_mode: "legacy" (multiplicative decay, v1 parity) or "weighted" (additive, v2)
             W_recency: Weight for recency score (v2 only)
-            W_importance: Weight for importance score (v2 only)
-            W_context: Weight for contextual boost (v2 only)
-            seed: Random seed for stochastic consolidation
         """
         import random
         self.rng = random.Random(seed)
@@ -886,3 +883,32 @@ def seed_memory_from_agents(memory_engine: MemoryEngine, agents: Dict[str, BaseA
         seeded.add(agent_id)
 
     setattr(memory_engine, "_seeded_agents", seeded)
+
+
+# --- Factory Function ---
+
+def create_memory_engine(engine_type: str = "universal", **kwargs) -> MemoryEngine:
+    """
+    Factory function for creating memory engines.
+    
+    Args:
+        engine_type (str): "window" | "importance" | "humancentric" | "universal"
+        **kwargs: Arguments passed to the engine constructor.
+    
+    Returns:
+        MemoryEngine: The instantiated engine.
+    """
+    engine_type = engine_type.lower()
+    
+    if engine_type == "window":
+        return WindowMemoryEngine(**kwargs)
+    elif engine_type == "importance":
+        return ImportanceMemoryEngine(**kwargs)
+    elif engine_type == "humancentric":
+        return HumanCentricMemoryEngine(**kwargs)
+    elif engine_type == "universal":
+        from broker.components.universal_memory import UniversalCognitiveEngine
+        return UniversalCognitiveEngine(**kwargs)
+    else:
+        raise ValueError(f"Unknown memory engine type: {engine_type}")
+

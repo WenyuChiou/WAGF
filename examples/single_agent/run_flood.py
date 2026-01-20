@@ -725,6 +725,33 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         from broker.components.memory_engine import HierarchicalMemoryEngine
         memory_engine = HierarchicalMemoryEngine(window_size=window_size, semantic_top_k=3)
         print(f" Using HierarchicalMemoryEngine (Tiered: Core, Episodic, Semantic)")
+    elif memory_engine_type == "universal":
+        # v3 Universal Cognitive Engine: Dynamic System 1/2 switching based on Prediction Error
+        from broker.components.memory_engine import create_memory_engine
+        
+        # Load memory config from YAML for v3
+        household_mem = agent_cfg_data.get('household', {}).get('memory', {})
+        shared_mem = agent_cfg_data.get('shared', {}).get('memory_config', {})
+        final_mem_cfg = {**shared_mem, **household_mem}
+        retrieval_w = final_mem_cfg.get('retrieval_weights', {})
+        
+        memory_engine = create_memory_engine(
+            engine_type="universal",
+            window_size=window_size,
+            top_k_significant=2,
+            consolidation_prob=0.7,
+            decay_rate=0.1,
+            emotional_weights=final_mem_cfg.get("emotional_weights"),
+            source_weights=final_mem_cfg.get("source_weights"),
+            W_recency=retrieval_w.get("recency", 0.3),
+            W_importance=retrieval_w.get("importance", 0.5),
+            W_context=retrieval_w.get("context", 0.2),
+            ranking_mode="dynamic",  # v3 uses dynamic switching
+            arousal_threshold=0.5,   # Tune this for sensitivity
+            ema_alpha=0.3,           # Learning rate for expectation
+            seed=42
+        )
+        print(f" Using UniversalCognitiveEngine (v3 Surprise Engine, window={window_size})")
     else:
         memory_engine = WindowMemoryEngine(window_size=window_size)
         print(f" Using WindowMemoryEngine (sliding window, size={window_size})")
