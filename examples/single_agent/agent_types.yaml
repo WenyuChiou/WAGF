@@ -61,18 +61,7 @@ shared:
       - { key: "decision", type: "choice", required: true }
       - { key: "reasoning", type: "text", required: false }
 
-  # Centralized Retry Configuration
-  governance:
-    max_retries: 3
-    max_reports_per_retry: 3
-  llm:
-    max_retries: 2
 
-  # Reflection Configuration (Pillar 2: Cognitive Consolidation)
-  reflection:
-    interval: 1 # Reflect every N years (1 = every year)
-    batch_size: 10 # Number of agents per LLM call
-    importance_boost: 0.9 # Weight for consolidated insights (0.0-1.0)
 
 # =============================================================================
 # HOUSEHOLD AGENT TYPE

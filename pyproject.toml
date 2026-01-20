@@ -15,9 +15,18 @@ authors = [
 dependencies = [
     "pydantic>=2.0",
     "pyyaml>=6.0",
+    "fastapi>=0.100.0",
+    "uvicorn>=0.22.0",
+    "Jinja2>=3.1.2",
+    "python-dotenv>=1.0.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0",
+]
+full = [
+    "governed-broker-framework[dev]",
+    "httpx>=0.24.0",
+    "beautifulsoup4>=4.12.2",
 ]
