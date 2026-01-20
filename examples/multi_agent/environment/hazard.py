@@ -30,6 +30,7 @@ class FloodEvent:
     depth_m: float
     row: Optional[int] = None
     col: Optional[int] = None
+    agent_id: Optional[str] = None  # For per-agent events
 
     @property
     def depth_ft(self) -> float:
@@ -45,6 +46,42 @@ class FloodEvent:
         if self.depth_m > 0:
             return "MINOR"
         return "NONE"
+
+
+@dataclass
+class YearMapping:
+    """
+    Maps simulation years to PRB data years.
+
+    PRB data covers 2011-2023 (13 years). This class handles:
+    - Converting simulation year (1, 2, 3...) to PRB year (2011, 2012...)
+    - Cycling when simulation exceeds available data
+    """
+    start_sim_year: int = 1
+    start_prb_year: int = 2011
+    available_years: Optional[List[int]] = None
+
+    def __post_init__(self):
+        if self.available_years is None:
+            self.available_years = list(range(2011, 2024))  # 13 years
+
+    def sim_to_prb(self, sim_year: int) -> int:
+        """
+        Convert simulation year to PRB data year.
+
+        Args:
+            sim_year: Simulation year (1, 2, 3, ...)
+
+        Returns:
+            PRB data year (2011-2023, cycling if needed)
+        """
+        offset = sim_year - self.start_sim_year
+        idx = offset % len(self.available_years)
+        return self.available_years[idx]
+
+    def get_prb_years_for_range(self, start: int, end: int) -> List[Tuple[int, int]]:
+        """Get mapping of simulation years to PRB years for a range."""
+        return [(y, self.sim_to_prb(y)) for y in range(start, end + 1)]
 
 
 class HazardModule:
@@ -120,6 +157,85 @@ class HazardModule:
             depth_m = self._sample_depth_from_grid(year) if self.loader else self._generate_synthetic_depth_m()
 
         return FloodEvent(year=year, depth_m=depth_m, row=row, col=col)
+
+    def get_agent_flood_event(
+        self,
+        sim_year: int,
+        grid_x: int,
+        grid_y: int,
+        agent_id: Optional[str] = None,
+        year_mapping: Optional[YearMapping] = None,
+    ) -> FloodEvent:
+        """
+        Get flood event for a specific agent's grid position.
+
+        This method enables per-agent flood depth based on their location
+        in the PRB grid, providing spatial heterogeneity in flood exposure.
+
+        Args:
+            sim_year: Simulation year (1, 2, 3, ...)
+            grid_x: Agent's column in PRB grid (0-456)
+            grid_y: Agent's row in PRB grid (0-410)
+            agent_id: Optional agent identifier for logging
+            year_mapping: Optional year mapping config (defaults to standard 2011 start)
+
+        Returns:
+            FloodEvent with agent-specific depth from their grid cell
+        """
+        # Convert simulation year to PRB data year
+        if year_mapping:
+            prb_year = year_mapping.sim_to_prb(sim_year)
+        else:
+            # Default mapping: sim year 1 = PRB 2011
+            prb_year = 2010 + sim_year
+            # Clamp to available years
+            if prb_year > 2023:
+                prb_year = 2011 + ((prb_year - 2011) % 13)
+
+        # Query depth at agent's grid cell
+        depth_m = 0.0
+        if self.loader:
+            depth = self.get_depth_at_cell(prb_year, grid_y, grid_x)
+            depth_m = depth if depth is not None else 0.0
+        else:
+            # Fallback to synthetic if no grid data
+            depth_m = self._generate_synthetic_depth_m()
+
+        return FloodEvent(
+            year=prb_year,
+            depth_m=depth_m,
+            row=grid_y,
+            col=grid_x,
+            agent_id=agent_id,
+        )
+
+    def get_flood_events_for_agents(
+        self,
+        sim_year: int,
+        agent_positions: Dict[str, Tuple[int, int]],
+        year_mapping: Optional[YearMapping] = None,
+    ) -> Dict[str, FloodEvent]:
+        """
+        Get flood events for all agents based on their grid positions.
+
+        Args:
+            sim_year: Simulation year
+            agent_positions: Dict mapping agent_id to (grid_x, grid_y)
+            year_mapping: Optional year mapping config
+
+        Returns:
+            Dict mapping agent_id to FloodEvent
+        """
+        events = {}
+        for agent_id, (grid_x, grid_y) in agent_positions.items():
+            events[agent_id] = self.get_agent_flood_event(
+                sim_year=sim_year,
+                grid_x=grid_x,
+                grid_y=grid_y,
+                agent_id=agent_id,
+                year_mapping=year_mapping,
+            )
+        return events
 
     def _sample_depth_from_grid(self, year: int) -> float:
         """

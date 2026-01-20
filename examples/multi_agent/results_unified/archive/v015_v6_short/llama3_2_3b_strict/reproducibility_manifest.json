@@ -1,7 +1,0 @@
-{
-  "model": "llama3.2:3b",
-  "seed": 42,
-  "num_years": 5,
-  "governance_profile": "strict",
-  "agent_types_config": "C:\\Users\\wenyu\\Desktop\\Lehigh\\governed_broker_framework\\examples\\multi_agent\\ma_agent_types.yaml"
-}

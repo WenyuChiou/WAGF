@@ -17,19 +17,32 @@ def calculate_internal_fidelity(base_dir):
     print(f"Analyzing Internal Fidelity in: {base_dir}")
     
     # Robustly find traces file (handle nested "gemma3_4b_disabled" etc)
+    # Robustly find traces file
+    # Priority 1: Direct path
     traces_path = os.path.join(base_dir, "raw", "household_traces.jsonl")
+    print(f"  [Debug] Checking P1: {traces_path} -> {os.path.exists(traces_path)}")
     if not os.path.exists(traces_path):
-        # Deep search
-        found = list(Path(base_dir).rglob("household_traces.jsonl"))
+        traces_path = os.path.join(base_dir, "household_traces.jsonl")
+        print(f"  [Debug] Checking P1b: {traces_path} -> {os.path.exists(traces_path)}")
+    
+    if not os.path.exists(traces_path):
+        # Priority 2: Deep search in raw or root with WILDCARD
+        print(f"  [Debug] Starting P2 deep search in {base_dir} for *household_traces.jsonl")
+        found = list(Path(base_dir).rglob("*household_traces.jsonl"))
         if found:
             traces_path = str(found[0])
+            print(f"  [Debug] Found via P2: {traces_path}")
         else:
-            # Try finding Run_* folders if base_dir is a Group dir
+            # Priority 3: If base_dir is a Group dir, recurse into Run folders
+            print(f"  [Debug] Checking P3 runs in {base_dir}")
             run_folders = glob.glob(os.path.join(base_dir, "Run_*"))
             if not run_folders:
-                print(f"No traces found in {base_dir}")
+                print(f"  [Skip] No traces found in {base_dir} (Checked P1, P2, P3)")
                 return None
-            return calculate_internal_fidelity(run_folders[0]) # Start recursion
+            else:
+                # We do not recurse here for single run analysis, handled by main loop
+                print(f"  [Info] Skipping group-level dir, expecting run-level call. Found {len(run_folders)} runs.")
+                return None
     
     print(f"Reading traces from: {traces_path}")
     
@@ -67,6 +80,9 @@ def calculate_internal_fidelity(base_dir):
                         "skill": skill_name
                     })
                     
+                    if len(data) <= 5:
+                        print(f"  [Debug Record #{len(data)}]: Threat='{threat_label}'({threat_rank}) -> Action='{skill_name}'({action_rank})")
+                    
                 except json.JSONDecodeError:
                     continue
                     
@@ -81,21 +97,59 @@ def calculate_internal_fidelity(base_dir):
 
     print(f"Extracted {len(df)} decision points.")
     
+    # Debug: Check variance
+    print("Threat Distribution:")
+    print(df['threat_label'].value_counts())
+    print("Action Distribution:")
+    print(df['skill'].value_counts())
+    print("Threat Ranks:", df['threat_rank'].unique())
+    print("Action Ranks:", df['action_rank'].unique())
+
+    # Save to file for easy inspection (Bypass console truncation)
+    try:
+        with open("distribution_stats.txt", "w", encoding='utf-8') as f:
+            f.write(f"Run: {trace_path}\n")
+            f.write("--- Threat Distribution ---\n")
+            f.write(str(df['threat_label'].value_counts()))
+            f.write("\n\n--- Action Distribution ---\n")
+            f.write(str(df['skill'].value_counts()))
+            f.write("\n\n--- Unique Ranks ---\n")
+            f.write(f"Threat: {df['threat_rank'].unique()}\n")
+            f.write(f"Action: {df['action_rank'].unique()}\n")
+            f.write("\n\n--- Extracted Records ---\n")
+            f.write(str(df.head(10)))
+    except Exception as e:
+        print(f"Failed to write stats: {e}")
+    
     # Calculate Spearman Correlation
     # We remove 'do_nothing' noise if needed, or keep it as rank 0
     
-    rho, p_val = spearmanr(df["threat_rank"], df["action_rank"])
+    if len(df['threat_rank'].unique()) < 2 or len(df['action_rank'].unique()) < 2:
+        print("WARNING: Zero variance in Threat or Action. Correlation is undefined (NaN).")
+        rho, p_val = 0.0, 1.0 # technically undefined, but 0 indicates no correlation
+    else:
+        rho, p_val = spearmanr(df["threat_rank"], df["action_rank"])
     
     print(f"\n--- Internal Fidelity (IF) Results ---")
     print(f"Spearman Rho: {rho:.4f}")
     print(f"P-Value: {p_val:.4e}")
     
+    with open("fidelity_result.txt", "w", encoding="utf-8") as f:
+        f.write(f"Spearman Rho: {rho:.4f}\n")
+        f.write(f"P-Value: {p_val:.4e}\n")
+    
     if rho > 0.6:
-        print("VERDICT: HIGH Fidelity (Reasoning drives Action)") # Target for Group C
+        print("VERDICT: HIGH Fidelity (Reasoning drives Action)")
     elif rho < 0.3:
-        print("VERDICT: LOW Fidelity (Hallucination/Disconnect)") # Expected for Group A
+        print("VERDICT: LOW Fidelity (Hallucination/Disconnect)")
     else:
         print("VERDICT: Moderate Fidelity")
+
+    return {
+        "rho": rho,
+        "p_value": p_val,
+        "n": len(df)
+    }
 
 def semantic_to_ordinal(label):
     """Maps VL/L/M/H/VH to 0-4."""
@@ -172,13 +226,13 @@ if __name__ == "__main__":
         df = pd.DataFrame(all_scores)
         out_path = os.path.join(metrics_dir, "internal_fidelity_raw_scores.csv")
         df.to_csv(out_path, index=False)
-        print(f"\n✅ Saved consolidated IF scores to: {out_path}")
+        print(f"\nSaved consolidated IF scores to: {out_path}")
         
         # Summary
         summary = df.groupby(['Model', 'Group'])['Internal_Fidelity'].agg(['mean', 'std', 'count']).reset_index()
         summary_path = os.path.join(metrics_dir, "internal_fidelity_summary.csv")
         summary.to_csv(summary_path, index=False)
-        print(f"✅ Saved summary to: {summary_path}")
+        print(f"Saved summary to: {summary_path}")
         print(summary)
     else:
-        print("❌ No data found to analyze. Ensure simulation runs are complete and trace files exist.")
+        print("No data found to analyze. Ensure simulation runs are complete and trace files exist.")

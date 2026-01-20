@@ -34,7 +34,8 @@ from broker import (
 )
 from simulation.environment import TieredEnvironment
 from agents.base_agent import BaseAgent, AgentConfig, StateParam, Skill, PerceptionSource
-from examples.multi_agent.environment.hazard import HazardModule, VulnerabilityModule
+from examples.multi_agent.environment.hazard import HazardModule, VulnerabilityModule, YearMapping
+from broker.components.media_channels import MediaHub
 
 # Local imports from multi_agent directory
 MULTI_AGENT_DIR = Path(__file__).parent
@@ -200,11 +201,18 @@ class MultiAgentHooks:
         environment: Dict,
         memory_engine: Optional[MemoryEngine] = None,
         hazard_module: Optional[HazardModule] = None,
+        media_hub: Optional[MediaHub] = None,
+        per_agent_depth: bool = False,
+        year_mapping: Optional[YearMapping] = None,
     ):
         self.env = environment
         self.memory_engine = memory_engine
         self.hazard = hazard_module or HazardModule()
         self.vuln = VulnerabilityModule()
+        self.media_hub = media_hub
+        self.per_agent_depth = per_agent_depth
+        self.year_mapping = year_mapping or YearMapping()
+        self.agent_flood_depths: Dict[str, float] = {}  # Per-agent flood depths for current year
     
     def pre_year(self, year, env, agents):
         """Randomly determine if flood occurs and resolve pending actions."""
@@ -229,15 +237,59 @@ class MultiAgentHooks:
                 agent.dynamic_state["action_completion_year"] = None
         
         # Determine flood event using PRB grid (meters) as primary source
-        event = self.hazard.get_flood_event(year=year)
-        self.env["flood_occurred"] = event.depth_m > 0
-        self.env["flood_depth_m"] = round(event.depth_m, 3)
-        self.env["flood_depth_ft"] = round(event.depth_ft, 3)
+        if self.per_agent_depth:
+            # Per-agent flood depth based on grid position
+            households = [a for a in agents.values() if a.agent_type in ["household_owner", "household_renter"]]
+            agent_positions = {}
+            for agent in households:
+                fixed = agent.fixed_attributes or {}
+                grid_x = fixed.get("grid_x", 0)
+                grid_y = fixed.get("grid_y", 0)
+                agent_positions[agent.id] = (grid_x, grid_y)
 
-        if self.env["flood_occurred"]:
-            print(f" [ENV] !!! FLOOD WARNING for Year {year} !!! depth={event.depth_m:.2f}m")
+            # Get per-agent flood events
+            flood_events = self.hazard.get_flood_events_for_agents(
+                sim_year=year,
+                agent_positions=agent_positions,
+                year_mapping=self.year_mapping
+            )
+            self.agent_flood_depths = {aid: ev.depth_m for aid, ev in flood_events.items()}
+
+            # Community-level stats (max depth for reporting)
+            max_depth_m = max(self.agent_flood_depths.values()) if self.agent_flood_depths else 0.0
+            avg_depth_m = sum(self.agent_flood_depths.values()) / len(self.agent_flood_depths) if self.agent_flood_depths else 0.0
+            flooded_count = sum(1 for d in self.agent_flood_depths.values() if d > 0)
+
+            self.env["flood_occurred"] = max_depth_m > 0
+            self.env["flood_depth_m"] = round(max_depth_m, 3)  # Max for community reporting
+            self.env["flood_depth_ft"] = round(max_depth_m * 3.28084, 3)
+            self.env["avg_flood_depth_m"] = round(avg_depth_m, 3)
+            self.env["flooded_household_count"] = flooded_count
+
+            if self.env["flood_occurred"]:
+                print(f" [ENV] !!! FLOOD WARNING for Year {year} !!! max_depth={max_depth_m:.2f}m, avg={avg_depth_m:.2f}m, flooded={flooded_count}/{len(households)}")
+            else:
+                print(f" [ENV] Year {year}: No flood events.")
         else:
-            print(f" [ENV] Year {year}: No flood events.")
+            # Community-wide single depth (legacy mode)
+            event = self.hazard.get_flood_event(year=year)
+            self.env["flood_occurred"] = event.depth_m > 0
+            self.env["flood_depth_m"] = round(event.depth_m, 3)
+            self.env["flood_depth_ft"] = round(event.depth_ft, 3)
+            self.agent_flood_depths = {}  # Clear per-agent depths
+
+            if self.env["flood_occurred"]:
+                print(f" [ENV] !!! FLOOD WARNING for Year {year} !!! depth={event.depth_m:.2f}m")
+            else:
+                print(f" [ENV] Year {year}: No flood events.")
+
+        # Broadcast flood event to media channels (Task-022)
+        if self.media_hub and self.env["flood_occurred"]:
+            self.media_hub.broadcast_event({
+                "flood_occurred": True,
+                "flood_depth_m": self.env["flood_depth_m"],
+                "affected_households": self.env.get("flooded_household_count", "multiple"),
+            }, year)
 
         # Calculate community statistics for Institutional perception
         households = [a for a in agents.values() if a.agent_type in ["household_owner", "household_renter"]]
@@ -318,15 +370,29 @@ class MultiAgentHooks:
         if not self.env["flood_occurred"]:
             return
 
-        depth_ft = self.env.get("flood_depth_ft", 0.0)
-        if depth_ft <= 0:
+        community_depth_ft = self.env.get("flood_depth_ft", 0.0)
+        if community_depth_ft <= 0 and not self.agent_flood_depths:
             return
+
         total_damage = 0
-        
+        flooded_agents = 0
+
         for agent in agents.values():
             if agent.agent_type not in ["household_owner", "household_renter"] or agent.dynamic_state.get("relocated"):
                 continue
-                
+
+            # Use per-agent depth if available, otherwise community-wide depth
+            if self.per_agent_depth and agent.id in self.agent_flood_depths:
+                depth_m = self.agent_flood_depths[agent.id]
+                depth_ft = depth_m * 3.28084
+            else:
+                depth_ft = community_depth_ft
+                depth_m = depth_ft / 3.28084
+
+            if depth_ft <= 0:
+                continue  # This agent wasn't flooded
+
+            flooded_agents += 1
             rcv_building = agent.fixed_attributes["rcv_building"]
             rcv_contents = agent.fixed_attributes["rcv_contents"]
             damage_res = self.vuln.calculate_damage(
@@ -336,19 +402,22 @@ class MultiAgentHooks:
                 is_elevated=agent.dynamic_state["elevated"],
             )
             damage = damage_res["total_damage"]
-            
+
             agent.dynamic_state["cumulative_damage"] += damage
             total_damage += damage
-            
-            # Emotional memory
+
+            # Emotional memory with agent-specific depth description
             description = depth_to_qualitative_description(depth_ft)
             memory_engine.add_memory(
-                agent.id, 
+                agent.id,
                 f"Year {year}: We experienced {description} which caused about ${damage:,.0f} in damages.",
                 metadata={"emotion": "fear", "source": "personal", "importance": 0.8}
             )
-        
-        print(f" [YEAR-END] Total Community Damage: ${total_damage:,.0f}")
+
+        if self.per_agent_depth:
+            print(f" [YEAR-END] Total Community Damage: ${total_damage:,.0f} ({flooded_agents} households flooded)")
+        else:
+            print(f" [YEAR-END] Total Community Damage: ${total_damage:,.0f}")
 
 # =============================================================================
 # MAIN
@@ -379,6 +448,19 @@ def run_unified_experiment():
                         help="Enable income-based affordability checks in the validator.")
     parser.add_argument("--mock-response-file", type=str, default=None,
                         help="Path to a JSON file containing a mock response for the LLM.")
+    # PRB Integration & Spatial Enhancement (Task-022)
+    parser.add_argument("--neighbor-mode", type=str, choices=["ring", "spatial"], default="ring",
+                        help="Neighbor graph mode: ring (K-nearest) or spatial (grid-based)")
+    parser.add_argument("--neighbor-radius", type=float, default=3.0,
+                        help="Connection radius in grid cells for spatial mode (default: 3 = ~90m)")
+    parser.add_argument("--per-agent-depth", action="store_true",
+                        help="Enable per-agent flood depth based on grid position")
+    parser.add_argument("--enable-news-media", action="store_true",
+                        help="Enable news media channel (delayed, high reliability)")
+    parser.add_argument("--enable-social-media", action="store_true",
+                        help="Enable social media channel (immediate, variable reliability)")
+    parser.add_argument("--news-delay", type=int, default=1,
+                        help="News media delay in turns (default: 1)")
     args = parser.parse_args()
     
     # =============================================================================
@@ -519,25 +601,83 @@ def run_unified_experiment():
     # 3b. Social & Interaction Hub
     agent_ids = list(all_agents.keys())
     if args.gossip:
-        graph = create_social_graph("neighborhood", agent_ids, k=4)
+        if args.neighbor_mode == "spatial":
+            # Build spatial graph using agent grid positions
+            positions = {}
+            for agent in households:
+                fixed = agent.fixed_attributes or {}
+                grid_x = fixed.get("grid_x", 0)
+                grid_y = fixed.get("grid_y", 0)
+                positions[agent.id] = (grid_x, grid_y)
+            # Institutional agents don't participate in spatial gossip
+            graph = create_social_graph(
+                "spatial",
+                [a.id for a in households],  # Only households in spatial graph
+                positions=positions,
+                radius=args.neighbor_radius,
+                metric="euclidean",
+                fallback_k=2
+            )
+            print(f"[INFO] Using spatial neighbor graph (radius={args.neighbor_radius} cells)")
+        else:
+            graph = create_social_graph("neighborhood", agent_ids, k=4)
+            print("[INFO] Using ring neighbor graph (k=4)")
     else:
         graph = create_social_graph("custom", agent_ids, edge_builder=lambda ids: []) # Isolated
-        
+        print("[INFO] Gossip disabled - isolated agents")
+
+    # 3c. Media Hub (Task-022)
+    media_hub = None
+    if args.enable_news_media or args.enable_social_media:
+        media_hub = MediaHub(
+            enable_news=args.enable_news_media,
+            enable_social=args.enable_social_media,
+            news_delay=args.news_delay,
+            seed=42
+        )
+        channels = []
+        if args.enable_news_media:
+            channels.append("news")
+        if args.enable_social_media:
+            channels.append("social_media")
+        print(f"[INFO] Media channels enabled: {', '.join(channels)}")
+
     hub = InteractionHub(graph=graph, memory_engine=memory_engine, environment=tiered_env)
     
     # 4. Hooks
     grid_years = None
     if args.grid_years:
         grid_years = [int(y.strip()) for y in args.grid_years.split(",") if y.strip()]
+
+    # Default grid_dir to project PRB data if not specified and per_agent_depth enabled
+    grid_dir = args.grid_dir
+    if args.per_agent_depth and not grid_dir:
+        default_prb_path = MULTI_AGENT_DIR / "input" / "PRB"
+        if default_prb_path.exists():
+            grid_dir = str(default_prb_path)
+            print(f"[INFO] Using default PRB data: {grid_dir}")
+        else:
+            print(f"[WARN] Per-agent depth enabled but no PRB data found at {default_prb_path}")
+
     hazard_module = HazardModule(
-        grid_dir=Path(args.grid_dir) if args.grid_dir else None,
+        grid_dir=Path(grid_dir) if grid_dir else None,
         years=grid_years,
     )
+
+    # Create year mapping for PRB data
+    year_mapping = YearMapping(start_sim_year=1, start_prb_year=2011)
+
     ma_hooks = MultiAgentHooks(
         tiered_env.global_state,
         memory_engine=memory_engine,
         hazard_module=hazard_module,
+        media_hub=media_hub,
+        per_agent_depth=args.per_agent_depth,
+        year_mapping=year_mapping,
     )
+
+    if args.per_agent_depth:
+        print(f"[INFO] Per-agent flood depth ENABLED (PRB year mapping: sim 1 -> PRB 2011)")
 
     
     # 5. Build Experiment

@@ -68,8 +68,9 @@ To demonstrate the efficacy of the Governed Broker Framework, we applied it to a
 
 ### 3.1 Experimental Cohorts
 
-- **Group A (Baseline)**: Ungoverned "System 1" agents using standard LLM prompting (Legacy Memory). Represents the "Naive" approach.
-- **Group B (Governed)**: Governed agents using the "Three-Layer" architecture (Window Memory). Represents the "Prosthetic System 2" approach.
+- **Group A (Baseline)**: Ungoverned "System 1" agents using standard LLM prompting. Represents the "Naive" approach.
+- **Group B (Governed - Window)**: Governed agents using standard sliding-window memory. Represents the "Prosthetic System 2" with **Rigid Constraints**.
+- **Group C (Governed - Human-Centric)**: Governed agents using **Human-Centric Memory** (Episodic-Semantic Consolidation). Represents the "State-Dependent" approach.
 
 ### 3.2 Metrics
 
@@ -89,41 +90,38 @@ We found that Naive LLMs (Group A) exhibit a profound **Inaction Bias**.
 
 - **Panic Rate**: **0.8%** (Extremely low reactivity).
 - **Adaptation Rate**: **~0%** (Even after 3 catastrophic floods).
-- **Behavioral Phenotype**: Agents would write text acknowledging the flood ("This is terrible!") but select `Do Nothing` actions in the simulation. This confirms the **Fluency-Reality Gap**: their semantic fluency disguised their behavioral paralysis.
+- **Behavioral Phenotype**: Agents would write text acknowledging the flood ("This is terrible!") but select `Do Nothing` actions in the simulation. This confirms the **Fluency-Reality Gap**.
 
-### 4.2 Group B: The "Prosthetic" Agent (Reactivity)
+### 4.2 Group B: The "Sawtooth" Effect (Artificial Reactivity)
 
-The introduction of Cognitive Governance (Group B) successfully "woke up" the agents.
+The introduction of basic Governance (Group B) successfully "woke up" the agents, but introduced a new artifact.
 
 - **Panic Rate**: **~25%** (High reactivity).
-- **Adaptation Rate**: Significant relocation observed.
-- **Mechanism**: The Governance layer's "Financial Validators" and "Structured Prompts" forced the agents to confront the reality of their risk, breaking the "Goldfish" cycle.
+- **Pattern**: Agents exhibited a **"Sawtooth"** pattern: High Panic immediately after a flood, followed by a sharp drop when external rule constraints relaxed.
+- **Mechanism**: The Governance acts as an external "Prosthetic," forcing action without changing internal belief.
 
-### 4.3 The "Sawtooth" Trade-off
+### 4.3 Group C: The "Ratchet" Effect (True Persistence)
 
-While Group B succeeded in creating adaptation, it introduced a new artifact: **Artificial Reactivity**.
+Group C (Human Centric) demonstrated the superior stability of **Internalized Governance**.
 
-- Agents in Group B often exhibited a "Sawtooth" pattern: High Panic immediately after a flood, followed by a sharp drop when external rule constraints relaxed.
-- This suggests that while Governance acts as an effective safety valve, it functions as an external "Prosthetic" rather than a true internal cognitive process.
+- **Persistence**: Unlike Group B's rapid decay, Group C agents maintained high risk perception for >3 years after a flood (**The Ratchet Effect**).
+- **Fidelity**: High Internal Fidelity (IF > 0.8), indicating actions were driven by consolidated "Trauma Anchors" rather than just external rules.
 
-## 5. Discussion: Towards a Universal Architecture
+## 5. Discussion: Why Human-Centric Memory Matters
 
-### 5.1 The Limits of Rules
+### 5.1 Rules vs. Memory
 
-Group A proves that "Pure LLMs" are too simple (Apathy). Group B proves that "Pure Rules" are too rigid (Sawtooth).
-The "Governor" acts upon the agent, but does not change the agent's internal _state of mind_ in a durable way.
+Group A proves that Naive LLMs are apathetic. Group B proves that Static Rules can force action but create "Sawtooth" instability.
+**Group C (Human Centric)** bridges this gap by using memory to create _durable_ behavioral change.
 
-### 5.2 Trade-offs of Cognitive Governance
+### 5.2 Conclusion
 
-While Group B succeeded in creating adaptation, it introduced a new artifact: **Artificial Reactivity** (The Sawtooth Pattern). This suggests that while Governance acts as an effective safety valve, it currently functions as an external "Prosthetic" to the agent's internal cognition.
+The **Governed Broker Framework** successfully bridges the calibration gap.
 
-## 6. Conclusion
+- **Window Memory (Group B)** provides a "Safety Net" against hallucination.
+- **Human-Centric Memory (Group C)** provides "Psychological Realism" (Trauma Persistence).
 
-The **Governed Broker Framework** successfully bridges the calibration gap. By enforcing **Rational Governance**, we demonstrated that Agentic AI can be moved from "Poetic Apathy" (0% adaptation) to "Governed Action."
-
-The discovery of the "Stably Insane" failure mode highlights a critical lesson: **Adaptation volume is not a proxy for model validity.** Only by measuring **Internal Fidelity** and **Rationality Scores** can we ensure that Generative Agents are truly reflecting boundedly rational human behavior rather than just hallucinating responses.
-
-Our findings suggest that for scientific ABMs, "Freedom of Thought" (System 1) must be constrained by "Laws of Physics" (System 2) to ensure validity. The Governed Broker provides the necessary architecture to enforce these laws.
+This confirms that valid socio-hydrological modeling requires not just "Smart Agents" (LLMs), but **"Deep Agents"** with architecturally enforced memory structures.
 
 ## 7. References
 

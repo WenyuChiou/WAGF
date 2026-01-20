@@ -8,7 +8,10 @@ def run_step(name, command):
     print(f"Command: {' '.join(command)}")
     try:
         result = subprocess.run(command, check=True, capture_output=True, text=True)
-        print(result.stdout)
+        try:
+            print(result.stdout)
+        except UnicodeEncodeError:
+            print(result.stdout.encode(sys.stdout.encoding, errors='replace').decode(sys.stdout.encoding))
     except subprocess.CalledProcessError as e:
         print(f"❌ Error in {name}:")
         print(e.stderr)

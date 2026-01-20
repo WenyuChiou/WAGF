@@ -145,18 +145,171 @@ class NeighborhoodGraph(SocialGraph):
 class CustomGraph(SocialGraph):
     """
     User-defined graph via edge builder function.
-    
+
     Args:
         agent_ids: List of agent identifiers
         edge_builder: Callable that returns list of (from_id, to_id) tuples
     """
-    
-    def __init__(self, agent_ids: List[str], 
+
+    def __init__(self, agent_ids: List[str],
                  edge_builder: Callable[[List[str]], List[Tuple[str, str]]]):
         super().__init__(agent_ids)
         edges = edge_builder(agent_ids)
         for a, b in edges:
             self.add_edge(a, b)
+
+
+class SpatialNeighborhoodGraph(SocialGraph):
+    """
+    Spatial neighbor graph using actual grid coordinates.
+
+    Connects agents within a configurable radius based on Euclidean or Manhattan
+    distance between their (grid_x, grid_y) positions. This is more realistic
+    than ring topology as it reflects actual geographic proximity.
+
+    Args:
+        agent_ids: List of agent identifiers
+        positions: Dict mapping agent_id to (grid_x, grid_y) tuple
+        radius: Connection radius in grid cells (default: 3 cells = ~90m at 30m resolution)
+        metric: Distance metric ('euclidean' or 'manhattan')
+        fallback_k: If an agent has fewer than fallback_k neighbors within radius,
+                    connect to k-nearest regardless of radius (handles sparse areas)
+        cell_size_m: Physical cell size in meters (default: 30.0) for logging
+
+    Example:
+        positions = {"H0001": (100, 200), "H0002": (101, 201), "H0003": (150, 250)}
+        graph = SpatialNeighborhoodGraph(
+            list(positions.keys()),
+            positions=positions,
+            radius=3
+        )
+    """
+
+    def __init__(
+        self,
+        agent_ids: List[str],
+        positions: Dict[str, Tuple[int, int]],
+        radius: float = 3.0,
+        metric: str = "euclidean",
+        fallback_k: int = 2,
+        cell_size_m: float = 30.0,
+    ):
+        super().__init__(agent_ids)
+        self.positions = positions
+        self.radius = radius
+        self.metric = metric.lower()
+        self.fallback_k = fallback_k
+        self.cell_size_m = cell_size_m
+
+        # Build graph based on spatial proximity
+        self._build_spatial_graph()
+
+    def _calculate_distance(
+        self, pos1: Tuple[int, int], pos2: Tuple[int, int]
+    ) -> float:
+        """Calculate distance between two grid positions."""
+        dx = pos1[0] - pos2[0]
+        dy = pos1[1] - pos2[1]
+
+        if self.metric == "manhattan":
+            return abs(dx) + abs(dy)
+        else:  # euclidean
+            return (dx**2 + dy**2) ** 0.5
+
+    def _build_spatial_graph(self):
+        """Build edges based on spatial proximity."""
+        # Pre-compute all pairwise distances
+        distances: Dict[str, List[Tuple[str, float]]] = {aid: [] for aid in self.agent_ids}
+
+        for i, a_id in enumerate(self.agent_ids):
+            if a_id not in self.positions:
+                continue
+            pos_a = self.positions[a_id]
+
+            for b_id in self.agent_ids[i+1:]:
+                if b_id not in self.positions:
+                    continue
+                pos_b = self.positions[b_id]
+
+                dist = self._calculate_distance(pos_a, pos_b)
+                distances[a_id].append((b_id, dist))
+                distances[b_id].append((a_id, dist))
+
+                # Add edge if within radius
+                if dist <= self.radius:
+                    self.add_edge(a_id, b_id)
+
+        # Apply fallback for isolated agents
+        for a_id in self.agent_ids:
+            if self.get_neighbor_count(a_id) < self.fallback_k and distances[a_id]:
+                # Sort by distance and connect to k-nearest
+                sorted_neighbors = sorted(distances[a_id], key=lambda x: x[1])
+                for b_id, _ in sorted_neighbors[:self.fallback_k]:
+                    self.add_edge(a_id, b_id)
+
+    def get_neighbors_within_radius(
+        self, agent_id: str, radius: Optional[float] = None
+    ) -> List[str]:
+        """
+        Get neighbors within a custom radius (dynamic query).
+
+        Args:
+            agent_id: Agent to query
+            radius: Custom radius (uses instance radius if None)
+
+        Returns:
+            List of neighbor IDs within radius
+        """
+        if agent_id not in self.positions:
+            return []
+
+        radius = radius if radius is not None else self.radius
+        pos_a = self.positions[agent_id]
+        neighbors = []
+
+        for b_id in self.agent_ids:
+            if b_id == agent_id or b_id not in self.positions:
+                continue
+            pos_b = self.positions[b_id]
+            if self._calculate_distance(pos_a, pos_b) <= radius:
+                neighbors.append(b_id)
+
+        return neighbors
+
+    def get_spatial_stats(self) -> Dict[str, any]:
+        """Get spatial graph statistics."""
+        base_stats = self.summary()
+
+        # Calculate isolation stats
+        isolated = sum(1 for aid in self.agent_ids if self.get_neighbor_count(aid) == 0)
+        fallback_applied = sum(
+            1 for aid in self.agent_ids
+            if 0 < self.get_neighbor_count(aid) < self.fallback_k
+        )
+
+        # Calculate distance stats for connected pairs
+        distances = []
+        for a_id in self.agent_ids:
+            if a_id not in self.positions:
+                continue
+            pos_a = self.positions[a_id]
+            for b_id in self.get_neighbors(a_id):
+                if b_id not in self.positions:
+                    continue
+                pos_b = self.positions[b_id]
+                distances.append(self._calculate_distance(pos_a, pos_b))
+
+        base_stats.update({
+            "radius": self.radius,
+            "radius_m": self.radius * self.cell_size_m,
+            "metric": self.metric,
+            "isolated_agents": isolated,
+            "fallback_applied": fallback_applied,
+            "avg_neighbor_distance": sum(distances) / len(distances) if distances else 0,
+            "max_neighbor_distance": max(distances) if distances else 0,
+        })
+
+        return base_stats
 
 
 # =============================================================================
@@ -170,29 +323,47 @@ def create_social_graph(
 ) -> SocialGraph:
     """
     Factory function to create social graphs.
-    
+
     Args:
-        graph_type: One of "global", "random", "neighborhood", "custom"
+        graph_type: One of "global", "random", "neighborhood", "spatial", "custom"
         agent_ids: List of agent identifiers
         **kwargs: Graph-specific parameters:
             - random: p (float), seed (int)
             - neighborhood: k (int)
+            - spatial: positions (Dict), radius (float), metric (str), fallback_k (int)
             - custom: edge_builder (Callable)
-    
+
     Returns:
         SocialGraph instance
-    
+
     Example:
         graph = create_social_graph("neighborhood", ["A1", "A2", "A3"], k=2)
+
+        # Spatial graph with grid positions
+        positions = {"A1": (0, 0), "A2": (1, 1), "A3": (10, 10)}
+        graph = create_social_graph("spatial", list(positions.keys()),
+                                    positions=positions, radius=3)
     """
     graph_type = graph_type.lower()
-    
+
     if graph_type == "global":
         return GlobalGraph(agent_ids)
     elif graph_type == "random":
         return RandomGraph(agent_ids, p=kwargs.get("p", 0.1), seed=kwargs.get("seed"))
     elif graph_type == "neighborhood":
         return NeighborhoodGraph(agent_ids, k=kwargs.get("k", 5))
+    elif graph_type == "spatial":
+        positions = kwargs.get("positions")
+        if not positions:
+            raise ValueError("SpatialNeighborhoodGraph requires 'positions' dict")
+        return SpatialNeighborhoodGraph(
+            agent_ids,
+            positions=positions,
+            radius=kwargs.get("radius", 3.0),
+            metric=kwargs.get("metric", "euclidean"),
+            fallback_k=kwargs.get("fallback_k", 2),
+            cell_size_m=kwargs.get("cell_size_m", 30.0),
+        )
     elif graph_type == "custom":
         edge_builder = kwargs.get("edge_builder")
         if not edge_builder:
@@ -200,5 +371,5 @@ def create_social_graph(
         return CustomGraph(agent_ids, edge_builder)
     else:
         raise ValueError(f"Unknown graph type: {graph_type}. "
-                         f"Supported: global, random, neighborhood, custom")
+                         f"Supported: global, random, neighborhood, spatial, custom")
 

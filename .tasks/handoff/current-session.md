@@ -2,31 +2,36 @@
 
 ## Last Updated
 
-2026-01-18T18:30:00Z
+2026-01-20T00:30:00Z
 
 ## Active Tasks
 
-| Task | Title | Status | Assigned |
-|:-----|:------|:-------|:---------|
-| Task-015 | MA System Verification | in-progress | Codex + Gemini CLI |
-| Task-018 | MA Visualization | **partial** | Codex (re-run needed) |
-| **Task-019** | **MA Config Enhancement** | **planned** | **Codex** |
+| Task         | Title                                  | Status          | Assigned              |
+| :----------- | :------------------------------------- | :-------------- | :-------------------- |
+| Task-015     | MA System Verification                 | ✅ **completed** | Codex + Gemini CLI    |
+| Task-018     | MA Visualization                       | 🔄 in-progress  | Codex (needs new data) |
+| Task-019     | MA Config Enhancement                  | ✅ completed     | Codex                 |
+| Task-020     | MA Architecture Improvement            | ✅ completed     | Gemini CLI            |
+| Task-021     | Context-Dependent Memory & Lit Review  | ✅ completed     | Antigravity           |
+| Task-022     | PRB Integration & Spatial Enhancement  | ✅ **completed** | Claude Code           |
+| **Task-024** | **Integration Testing & Validation**   | 📋 **planned**  | **Codex + Gemini CLI** |
+| Task-025     | Media Channels Prompt Integration      | 📋 planned      | Claude Code + Gemini  |
 
 ## Status
 
-`active` - Task-019 created for configuration enhancement. Codex/Gemini CLI assigned.
+`active` - Task-022 completed. Task-024 planned for integration testing. Registry updated to fix duplicate Task-023.
 
 ---
 
 ## Role Division (Updated)
 
-| Role | Agent | Status | Tasks |
-|:-----|:------|:-------|:------|
-| **Planner/Reviewer** | Claude Code | Active | 規劃、檢核、協調 |
-| **CLI Executor** | Codex | Active | 019-A/B/C/D, 015-A/D/F |
-| **CLI Executor** | Gemini CLI | Active | 015 驗證 (path issue resolved) |
-| **AI IDE** | Antigravity | **Not assigned** | - |
-| **AI IDE** | Cursor | Available | - |
+| Role                 | Agent       | Status           | Tasks                          |
+| :------------------- | :---------- | :--------------- | :----------------------------- |
+| **Planner/Reviewer** | Claude Code | Active           | 規劃、檢核、協調               |
+| **CLI Executor**     | Codex       | Active           | 019-A/B/C/D, 015-A/D/F         |
+| **CLI Executor**     | Gemini CLI  | Active           | 015 驗證 (path issue resolved) |
+| **AI IDE**           | Antigravity | **Not assigned** | -                              |
+| **AI IDE**           | Cursor      | Available        | -                              |
 
 ---
 
@@ -34,14 +39,15 @@
 
 ### 分配給 Codex
 
-| Subtask | Title | Priority | 說明 |
-|:--------|:------|:---------|:-----|
-| **019-A** | Response Format | High | 修正 Gov/Ins prompt 列出所有選項 |
-| **019-B** | Memory Config | High | 新增 memory_config 區塊 |
-| **019-C** | Financial Constraints | High | 新增收入驗證邏輯 |
-| **019-D** | Data Cleanup | Medium | 備份並清理舊資料 |
+| Subtask   | Title                 | Priority | 說明                             |
+| :-------- | :-------------------- | :------- | :------------------------------- |
+| **019-A** | Response Format       | High     | 修正 Gov/Ins prompt 列出所有選項 |
+| **019-B** | Memory Config         | High     | 新增 memory_config 區塊          |
+| **019-C** | Financial Constraints | High     | 新增收入驗證邏輯                 |
+| **019-D** | Data Cleanup          | Medium   | 備份並清理舊資料                 |
 
 ### Handoff File
+
 `.tasks/handoff/task-019.md` - 包含完整指令和驗收標準
 
 ---
@@ -50,16 +56,17 @@
 
 ### 分配給 Codex + Gemini CLI
 
-| Subtask | Status | Assigned | 驗證項 |
-|:--------|:-------|:---------|:-------|
-| 015-A | `pending` | Codex | V1: Shannon Entropy > 1.0 |
-| 015-B | ✅ completed | Claude Code | V2: Elevated persistence |
-| 015-C | ✅ completed | Claude Code | V3: Insurance reset |
-| 015-D | ⏳ **pending** | Codex | V4: Low-CP expensive < 20% (v015_fixed_bg run in progress) |
-| 015-E | ✅ completed | Codex | V5: Memory/state logic |
-| 015-F | ✅ **completed** | Gemini CLI | V6: Institutional dynamics |
+| Subtask | Status           | Assigned    | 驗證項                                                     |
+| :------ | :--------------- | :---------- | :--------------------------------------------------------- |
+| 015-A   | `pending`        | Codex       | V1: Shannon Entropy > 1.0                                  |
+| 015-B   | ✅ completed     | Claude Code | V2: Elevated persistence                                   |
+| 015-C   | ✅ completed     | Claude Code | V3: Insurance reset                                        |
+| 015-D   | ⏳ **pending**   | Codex       | V4: Low-CP expensive < 20% (v015_fixed_bg run in progress) |
+| 015-E   | ✅ completed     | Codex       | V5: Memory/state logic                                     |
+| 015-F   | ✅ **completed** | Gemini CLI  | V6: Institutional dynamics                                 |
 
 ### 執行順序
+
 1. 先完成 Task-019 (配置增強)
 2. 跑完整實驗 (10 years × 20 agents)
 3. 執行 015-A/D/F 驗證
@@ -72,24 +79,25 @@
 
 **狀態**: ⚠️ 腳本完成，資料不足
 
-| Subtask | 腳本 | 圖表 | 問題 |
-|:--------|:-----|:-----|:-----|
-| 018-A | ✅ | ✅ | Entropy=0 (4 資料點) |
-| 018-B | ✅ | ✅ | 相關係數=±1.00 (2 agents) |
-| 018-C | ✅ | ✅ | 只有 2 agents |
-| 018-D | ✅ | ✅ | 無 MG 樣本 |
-| 018-E | ✅ | ✅ | 較佳 |
-| 018-F | ✅ | ✅ | 較佳 |
+| Subtask | 腳本 | 圖表 | 問題                      |
+| :------ | :--- | :--- | :------------------------ |
+| 018-A   | ✅   | ✅   | Entropy=0 (4 資料點)      |
+| 018-B   | ✅   | ✅   | 相關係數=±1.00 (2 agents) |
+| 018-C   | ✅   | ✅   | 只有 2 agents             |
+| 018-D   | ✅   | ✅   | 無 MG 樣本                |
+| 018-E   | ✅   | ✅   | 較佳                      |
+| 018-F   | ✅   | ✅   | 較佳                      |
 
 ### 需要重跑
+
 完成 Task-019 + 跑完整實驗後，使用新資料重跑視覺化腳本
 
 ---
 
 ## Known Issues
 
-| Issue | Status | Notes |
-|:------|:-------|:------|
+| Issue          | Status          | Notes                                    |
+| :------------- | :-------------- | :--------------------------------------- |
 | Non-ASCII Path | ✅ **Resolved** | 已搬遷到 `C:\Users\wenyu\Desktop\Lehigh` |
 
 ---
@@ -127,6 +135,7 @@ Task-019 (Codex)
 ## Quick Commands for Codex
 
 ### Task-019 執行
+
 ```bash
 # 參考 .tasks/handoff/task-019.md 完整指令
 
@@ -140,6 +149,7 @@ python -c "import yaml; yaml.safe_load(open('ma_agent_types.yaml')); print('OK')
 ```
 
 ### Task-015 完整實驗
+
 ```bash
 cd examples/multi_agent
 set GOVERNANCE_PROFILE=strict
@@ -157,16 +167,16 @@ python run_unified_experiment.py \
 
 ## Claude Code 檢核清單
 
-| 檢核項 | 標準 | 狀態 |
-|:-------|:-----|:-----|
-| 019-A | Response Format 列出選項名稱 | ⏳ pending |
-| 019-B | memory_config 3 區塊存在 | ⏳ pending |
-| 019-C | validate_affordability 可導入 | ⏳ pending |
-| 019-D | archive 備份存在 | ⏳ pending |
-| 015-A | Shannon Entropy > 1.0 | ⏳ pending |
-| 015-D | low_cp_expensive < 20% | ⏳ pending |
-| 015-F | Gov/Ins 政策有變化 | ✅ **PASS** |
-| 018-* | 圖表統計有效 | ⏳ pending |
+| 檢核項 | 標準                          | 狀態        |
+| :----- | :---------------------------- | :---------- |
+| 019-A  | Response Format 列出選項名稱  | ⏳ pending  |
+| 019-B  | memory_config 3 區塊存在      | ⏳ pending  |
+| 019-C  | validate_affordability 可導入 | ⏳ pending  |
+| 019-D  | archive 備份存在              | ⏳ pending  |
+| 015-A  | Shannon Entropy > 1.0         | ⏳ pending  |
+| 015-D  | low_cp_expensive < 20%        | ⏳ pending  |
+| 015-F  | Gov/Ins 政策有變化            | ✅ **PASS** |
+| 018-\* | 圖表統計有效                  | ⏳ pending  |
 
 ---
 
@@ -199,23 +209,23 @@ Next: complete a full-length run (or reduce years/agents) and re-run V1/V4/V6 ch
 
 ### Task-015 最新狀態
 
-| Subtask | Status | Metrics | Assigned |
-|:--------|:-------|:--------|:---------|
-| 015-A | ✅ completed | entropy=2.513 | Codex |
-| 015-B | ✅ completed | - | Claude Code |
-| 015-C | ✅ completed | - | Claude Code |
-| 015-D | ❌ **failed** | low_cp_expensive=52.6% | Codex |
-| 015-E | ✅ completed | - | Codex |
-| 015-F | ✅ **completed** | Gov=1, Ins=2 changes | Gemini CLI |
+| Subtask | Status           | Metrics                | Assigned    |
+| :------ | :--------------- | :--------------------- | :---------- |
+| 015-A   | ✅ completed     | entropy=2.513          | Codex       |
+| 015-B   | ✅ completed     | -                      | Claude Code |
+| 015-C   | ✅ completed     | -                      | Claude Code |
+| 015-D   | ❌ **failed**    | low_cp_expensive=52.6% | Codex       |
+| 015-E   | ✅ completed     | -                      | Codex       |
+| 015-F   | ✅ **completed** | Gov=1, Ins=2 changes   | Gemini CLI  |
 
 ### Task-019 完成
 
-| Subtask | Status |
-|:--------|:-------|
-| 019-A | ✅ done |
-| 019-B | ✅ done |
-| 019-C | ✅ done |
-| 019-D | ✅ done |
+| Subtask | Status  |
+| :------ | :------ |
+| 019-A   | ✅ done |
+| 019-B   | ✅ done |
+| 019-C   | ✅ done |
+| 019-D   | ✅ done |
 
 ### Claude Code 檢核發現
 
@@ -243,10 +253,10 @@ Next: complete a full-length run (or reduce years/agents) and re-run V1/V4/V6 ch
 
 **問題**: v015_codex 實驗使用了**舊版 YAML 配置**，`thinking_rules` 格式不正確。
 
-| 配置版本 | 格式 | 含義 | CP="L" 時效果 |
-|:---------|:-----|:-----|:--------------|
-| **舊** (config_snapshot) | `when_above: ["VL"]` | 只匹配 "VL" | ❌ 不阻止 |
-| **新** (ma_agent_types.yaml) | `conditions: [{construct: CP_LABEL, values: ["VL", "L"]}]` | 匹配 "VL" 或 "L" | ✅ 阻止 |
+| 配置版本                     | 格式                                                       | 含義             | CP="L" 時效果 |
+| :--------------------------- | :--------------------------------------------------------- | :--------------- | :------------ |
+| **舊** (config_snapshot)     | `when_above: ["VL"]`                                       | 只匹配 "VL"      | ❌ 不阻止     |
+| **新** (ma_agent_types.yaml) | `conditions: [{construct: CP_LABEL, values: ["VL", "L"]}]` | 匹配 "VL" 或 "L" | ✅ 阻止       |
 
 ### 驗證測試
 
@@ -291,39 +301,41 @@ Gemini CLI 完成了一系列重大架構改進，提升了模擬的真實性和
 
 ### 1. 財務約束邏輯重構
 
-| 項目 | 變更 |
-|:-----|:-----|
-| 解耦 | 從核心驗證器 (`agent_validator.py`) 移出應用特定邏輯 |
-| 可插拔設計 | 作為自定義驗證規則實作 (`validate_affordability`) |
-| 新增功能 | `SkillBrokerEngine` 支持自定義驗證函數 |
-| 介面調整 | `ValidationLevel` enum 移至 `broker/interfaces/skill_types.py` |
+| 項目       | 變更                                                           |
+| :--------- | :------------------------------------------------------------- |
+| 解耦       | 從核心驗證器 (`agent_validator.py`) 移出應用特定邏輯           |
+| 可插拔設計 | 作為自定義驗證規則實作 (`validate_affordability`)              |
+| 新增功能   | `SkillBrokerEngine` 支持自定義驗證函數                         |
+| 介面調整   | `ValidationLevel` enum 移至 `broker/interfaces/skill_types.py` |
 
 ### 2. 家庭 Agent 心理評估統一
 
-| 項目 | 變更 |
-|:-----|:-----|
-| 移除預設分數 | 不再從 `HouseholdProfile` 載入 `tp_score`, `cp_score` 等 |
-| Prompt 更新 | 移除 `YOUR PSYCHOLOGICAL PROFILE` 區塊 |
-| 統一規則 | `household_owner` 和 `household_renter` 使用一致的 `thinking_rules` |
-| 效果 | Agent 從情境推斷心理狀態，而非使用預設值 |
+| 項目         | 變更                                                                |
+| :----------- | :------------------------------------------------------------------ |
+| 移除預設分數 | 不再從 `HouseholdProfile` 載入 `tp_score`, `cp_score` 等            |
+| Prompt 更新  | 移除 `YOUR PSYCHOLOGICAL PROFILE` 區塊                              |
+| 統一規則     | `household_owner` 和 `household_renter` 使用一致的 `thinking_rules` |
+| 效果         | Agent 從情境推斷心理狀態，而非使用預設值                            |
 
 ### 3. 資訊獲取真實性改進
 
-| 項目 | 變更 |
-|:-----|:-----|
+| 項目         | 變更                                     |
+| :----------- | :--------------------------------------- |
 | 質化洪水描述 | 用「輕微洪水」取代精確數值 `flood_depth` |
-| 成本資訊 | 在行動描述中加入明確成本公式 |
-| Smart Repair | 啟用 JSON 自動修復，提高解析成功率 |
-| 狀態過濾 | `identity_rules` 正確過濾不可能的行動 |
+| 成本資訊     | 在行動描述中加入明確成本公式             |
+| Smart Repair | 啟用 JSON 自動修復，提高解析成功率       |
+| 狀態過濾     | `identity_rules` 正確過濾不可能的行動    |
 
 ### 4. 機構 Agent 驗證器設計
 
 **政府 (nj_government)**:
+
 - 預算約束
 - 政策連貫性
 - 韌性導向規則（社區韌性低時阻止削減補貼）
 
 **保險 (fema_nfip)**:
+
 - 償付能力維護（基於 loss_ratio）
 - 監管上限
 - 市場邏輯
@@ -339,12 +351,12 @@ Gemini CLI 完成了一系列重大架構改進，提升了模擬的真實性和
 
 ### 影響評估
 
-| 指標 | 改善 |
-|:-----|:-----|
-| 解析穩定性 | ✅ 啟用 smart_repair |
-| Agent 真實性 | ✅ 情境驅動心理狀態 |
-| 架構解耦 | ✅ 核心邏輯與應用邏輯分離 |
-| 治理強度 | ✅ 機構 Agent 驗證器設計完成 |
+| 指標         | 改善                         |
+| :----------- | :--------------------------- |
+| 解析穩定性   | ✅ 啟用 smart_repair         |
+| Agent 真實性 | ✅ 情境驅動心理狀態          |
+| 架構解耦     | ✅ 核心邏輯與應用邏輯分離    |
+| 治理強度     | ✅ 機構 Agent 驗證器設計完成 |
 
 ### 下一步
 
@@ -374,26 +386,27 @@ Claude Code completed exploration and design for agent information visibility im
 
 **Current Implementation Status**:
 
-| Agent Type | Feature | Status |
-|:-----------|:--------|:-------|
-| Household | Qualitative flood descriptions | ✅ Implemented |
-| Household | Neighbor gossip (max 2) | ✅ Implemented |
-| Household | Damage amount in memory | ✅ Implemented |
-| Household | Social media tier | ⚠️ Partial |
-| Household | Family communication | ❌ Not implemented |
-| Government | Aggregate statistics | ✅ Implemented |
-| Government | Budget constraint ($500K) | ✅ Implemented |
-| Government | Tradeoff framing in prompt | ⚠️ Needs enhancement |
-| Government | Alternative actions | ❌ Only 3 fixed options |
-| Insurance | Loss ratio monitoring | ✅ Implemented |
-| Insurance | Zone-based pricing | ❌ Not implemented |
-| Insurance | Adverse selection modeling | ❌ Not implemented |
+| Agent Type | Feature                        | Status                  |
+| :--------- | :----------------------------- | :---------------------- |
+| Household  | Qualitative flood descriptions | ✅ Implemented          |
+| Household  | Neighbor gossip (max 2)        | ✅ Implemented          |
+| Household  | Damage amount in memory        | ✅ Implemented          |
+| Household  | Social media tier              | ⚠️ Partial              |
+| Household  | Family communication           | ❌ Not implemented      |
+| Government | Aggregate statistics           | ✅ Implemented          |
+| Government | Budget constraint ($500K)      | ✅ Implemented          |
+| Government | Tradeoff framing in prompt     | ⚠️ Needs enhancement    |
+| Government | Alternative actions            | ❌ Only 3 fixed options |
+| Insurance  | Loss ratio monitoring          | ✅ Implemented          |
+| Insurance  | Zone-based pricing             | ❌ Not implemented      |
+| Insurance  | Adverse selection modeling     | ❌ Not implemented      |
 
 **Design Document**: See plan file at `C:\Users\wenyu\.claude\plans\elegant-honking-harbor.md` Part 7
 
 ### Part 8: File Cleanup Complete
 
 **Archival Structure**:
+
 ```
 examples/multi_agent/results_unified/
 ├── archive/
@@ -412,6 +425,7 @@ examples/multi_agent/results_unified/
 **Handoff File**: `.tasks/handoff/antigravity-literature-search.md`
 
 **Topics**:
+
 1. Household flood risk perception & information sources
 2. Government disaster resource allocation & equity
 3. Flood insurance risk pricing & adverse selection
@@ -422,13 +436,13 @@ examples/multi_agent/results_unified/
 
 ## Role Division (Updated 2026-01-19)
 
-| Role | Agent | Status | Tasks |
-|:-----|:------|:-------|:------|
-| **Planner/Reviewer** | Claude Code | Active | Part 7/8 design, verification |
-| **CLI Executor** | Codex | Active | Re-run V4 experiment |
-| **CLI Executor** | Gemini CLI | Active | 015-F V6 verification |
-| **AI IDE** | Antigravity | **Assigned** | Literature search (Part 7.4) |
-| **AI IDE** | Cursor | Available | - |
+| Role                 | Agent       | Status       | Tasks                         |
+| :------------------- | :---------- | :----------- | :---------------------------- |
+| **Planner/Reviewer** | Claude Code | Active       | Part 7/8 design, verification |
+| **CLI Executor**     | Codex       | Active       | Re-run V4 experiment          |
+| **CLI Executor**     | Gemini CLI  | Active       | 015-F V6 verification         |
+| **AI IDE**           | Antigravity | **Assigned** | Literature search (Part 7.4)  |
+| **AI IDE**           | Cursor      | Available    | -                             |
 
 ---
 
@@ -452,10 +466,10 @@ examples/multi_agent/results_unified/
 
 **資料來源**: `results_unified/v015_full_bg/llama3_2_3b_strict/raw/`
 
-| Agent | Total Decisions | Policy Changes | 詳細 |
-|:------|:----------------|:---------------|:-----|
-| Government | 15 | 1 | `increase_subsidy` x1 |
-| Insurance | 15 | 2 | `lower_premium` x2 |
+| Agent      | Total Decisions | Policy Changes | 詳細                  |
+| :--------- | :-------------- | :------------- | :-------------------- |
+| Government | 15              | 1              | `increase_subsidy` x1 |
+| Insurance  | 15              | 2              | `lower_premium` x2    |
 
 **V6 PASS**: ✅ (gc=1 + ic=2 = 3 policy changes > 0)
 
@@ -487,14 +501,14 @@ ic = sum(1 for d in ins if d not in ['maintain_premium','MAINTAIN','3',''])
 
 ### Task-015 完成狀態
 
-| Subtask | Status | Metrics |
-|:--------|:-------|:--------|
-| 015-A | ✅ completed | entropy=2.513 |
-| 015-B | ✅ completed | V2 bug fixed |
-| 015-C | ✅ completed | Insurance reset |
-| 015-D | ⏳ **pending** | Waiting for v015_fixed_bg |
-| 015-E | ✅ completed | V5 memory/state passed |
-| 015-F | ✅ **completed** | V6 policy changes=3 |
+| Subtask | Status           | Metrics                   |
+| :------ | :--------------- | :------------------------ |
+| 015-A   | ✅ completed     | entropy=2.513             |
+| 015-B   | ✅ completed     | V2 bug fixed              |
+| 015-C   | ✅ completed     | Insurance reset           |
+| 015-D   | ⏳ **pending**   | Waiting for v015_fixed_bg |
+| 015-E   | ✅ completed     | V5 memory/state passed    |
+| 015-F   | ✅ **completed** | V6 policy changes=3       |
 
 ### 下一步
 
@@ -513,9 +527,156 @@ ic = sum(1 for d in ins if d not in ['maintain_premium','MAINTAIN','3',''])
 
 - Added explicit memory seeding in ExperimentBuilder via `seed_memory_from_agents` to close integration gap while avoiding duplicates if engine already has memory.
 - Added warning when `agent.memory` is not a list.
+- Added warning when `agent.memory` is not a list.
 
 ## Update (2026-01-19) - V4 PASS (Prompt Fix)
 
 - Run: `examples/multi_agent/results_unified/v015_gemma3_4b_promptfix/gemma3_4b_strict/raw`
 - V4 low_cp_expensive_rate: 11.111% (total=9) -> PASS
 - V4 high_tp_action_rate: 100.000% (total=125) -> PASS
+
+## Update (2026-01-19) - Task-021 Completed (Antigravity)
+
+**Literature Review & Bibliography**:
+
+- **Artifacts**: `examples/multi_agent/manuscripts/literature_review/`
+  - `MA_Literature_Review.md`: Synthesis of 73 papers.
+  - `references.bib`: BibTeX file with verified citations.
+- **Skill**: Imported `literature-review` skill to `skills/`.
+- **Status**: `completed` in `registry.json`.
+
+**Experiment Status (Gemma 3)**:
+
+- Group A (Baseline) is currently executing **Run 9**.
+- Output path: `results/JOH_FINAL/gemma3_4b/Group_A/Run_9`.
+
+---
+
+## Relay TO Claude Code (2026-01-19)
+
+**From**: Antigravity
+**Subject**: Literature Review Handoff
+
+I have completed the literature search and synthesis (Task-021). The `MA_Literature_Review.md` provides the theoretical backing for our design choices (risk perception, equity, insurance 2.0).
+
+**Action Required**:
+
+1.  Review `MA_Literature_Review.md` for alignment with your "Part 7" visibility design.
+2.  Once the background experiment (Gemma Group A) finishes Run 10, proceed with the Stress Tests (Task-017) or Visualization (Task-018).
+
+Experiment is currently at **Run 9**. Monitoring should continue until completion.
+
+---
+
+## Update (2026-01-20) - Task Inventory & Planning Session
+
+### Task Registry Update
+
+**版本**: 1.2
+
+**修正項目**:
+1. ⚠️ **Task-023 標記為 DEPRECATED** - 與 Task-021 重複，功能已實現
+2. Task-021 標題更新為 "Context-Dependent Memory Retrieval & Literature Review"
+3. 新增 **Task-024** (Integration Testing)
+4. 新增 **Task-025** (Media Prompt Integration)
+
+### Task-022 完成摘要
+
+| 子任務 | 功能 | 狀態 |
+|:-------|:-----|:-----|
+| 022-A | PRB 資料複製 (13 ASC files) | ✅ completed |
+| 022-B | SpatialNeighborhoodGraph | ✅ completed |
+| 022-C | Per-Agent 深度 (YearMapping) | ✅ completed |
+| 022-D | 媒體管道 (News + Social) | ✅ completed |
+| 022-E | CLI 參數 (6 個新參數) | ✅ completed |
+| 022-F | 整合到 run_unified_experiment.py | ✅ completed |
+
+**新增 CLI 參數**:
+```bash
+--neighbor-mode spatial|ring
+--neighbor-radius 3.0
+--per-agent-depth
+--enable-news-media
+--enable-social-media
+--news-delay 1
+```
+
+### Task-021 評估結果
+
+**Context-Dependent Memory Retrieval**:
+- 實現: 解耦設計 (Decoupled Architecture)
+- `TieredContextBuilder` 生成 `contextual_boosters`
+- `HumanCentricMemoryEngine` 支援 `W_context` 權重
+- 單元測試通過
+
+### 下一階段任務
+
+| Task | 標題 | 負責人 | 優先級 |
+|:-----|:-----|:-------|:-------|
+| **Task-024** | Integration Testing | Codex + Gemini CLI | High |
+| Task-025 | Media Prompt Integration | Claude Code + Gemini | Medium |
+| Task-017 | JOH Stress Testing | Antigravity | Medium |
+| Task-018 | MA Visualization (續) | Codex + Gemini CLI | Medium |
+
+### 執行指令 (Task-024)
+
+**For Codex**:
+```bash
+# 024-A: 空間圖測試
+cd c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework
+python -c "
+from broker.components.social_graph import SpatialNeighborhoodGraph, create_social_graph
+positions = {'A1': (0, 0), 'A2': (1, 1), 'A3': (10, 10), 'A4': (2, 0)}
+graph = create_social_graph('spatial', list(positions.keys()), positions=positions, radius=3.0)
+print(f'Neighbors of A1: {graph.get_neighbors(\"A1\")}')
+print(f'Stats: {graph.get_spatial_stats()}')
+"
+
+# 024-B: Per-Agent 深度測試
+python -c "
+from examples.multi_agent.environment.hazard import YearMapping, HazardModule
+from pathlib import Path
+mapping = YearMapping(start_sim_year=1, start_prb_year=2011)
+for sim in [1, 5, 13, 14, 20]:
+    print(f'Sim Year {sim} -> PRB Year {mapping.sim_to_prb(sim)}')
+"
+
+# 024-C: 媒體管道測試
+python -c "
+from broker.components.media_channels import MediaHub
+hub = MediaHub(enable_news=True, enable_social=True, news_delay=1)
+hub.broadcast_event({'flood_occurred': True, 'flood_depth_m': 1.5}, year=1)
+print(f'Year 1 context: {hub.get_media_context(\"H0001\", 1)}')
+hub.broadcast_event({'flood_occurred': False}, year=2)
+print(f'Year 2 context: {hub.get_media_context(\"H0001\", 2)}')
+"
+```
+
+**For Gemini CLI**:
+```bash
+# 024-D: 整合實驗
+cd examples/multi_agent
+python run_unified_experiment.py \
+  --model gemma3:4b \
+  --years 5 \
+  --agents 10 \
+  --mode random \
+  --gossip \
+  --neighbor-mode spatial \
+  --neighbor-radius 3 \
+  --per-agent-depth \
+  --enable-news-media \
+  --enable-social-media \
+  --enable-financial-constraints \
+  --output results_unified/v024_test
+```
+
+### Role Division (Updated 2026-01-20)
+
+| Role                 | Agent       | Status       | Tasks                            |
+| :------------------- | :---------- | :----------- | :------------------------------- |
+| **Planner/Reviewer** | Claude Code | Active       | Task-024-E, Task-025-A           |
+| **CLI Executor**     | Codex       | Active       | Task-024-A/B/C, Task-018-D/E/F   |
+| **CLI Executor**     | Gemini CLI  | Active       | Task-024-D, Task-018-A/B/C       |
+| **AI IDE**           | Antigravity | Available    | Task-017 (JOH Stress Testing)    |
+| **AI IDE**           | Cursor      | Available    | -                                |

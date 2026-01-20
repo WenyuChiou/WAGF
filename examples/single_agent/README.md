@@ -144,6 +144,41 @@ We have included a specialized AI persona to help you write and review papers ba
 
 ---
 
+## 🧠 Memory Engine Modes: v1 vs v2
+
+To ensure both historical comparability and future robustness, the `HumanCentricMemoryEngine` operates in two distinct modes:
+
+| Feature               | **v1 (Legacy)**                                                   | **v2 (Weighted)**                                                                   |
+| :-------------------- | :---------------------------------------------------------------- | :---------------------------------------------------------------------------------- |
+| **Target Group**      | **Group C** (ABC Experiment)                                      | **Stress Tests**                                                                    |
+| **Scoring Logic**     | **Multiplicative Decay**<br>`Score = Importance * (Decay ^ Time)` | **Additive Weighted Score**<br>`Score = 0.3*Recency + 0.5*Importance + 0.2*Context` |
+| **Context Awareness** | **Ignored** (Static retrieval)                                    | **Active** (Boosts memory relevance during floods)                                  |
+| **Objective**         | Strict parity with original baseline experiments.                 | Enhanced responsiveness and dynamic adaptation.                                     |
+
+---
+
+## 🚀 Roadmap: v3 Integrated Model (Proposed)
+
+We are actively designing a **v3 Hybrid Model** to merge the stability of v1 with the intelligence of v2.
+
+**Core Concept:**
+Instead of a hard toggle, v3 will use a **Dynamic Weighting Mechanism**:
+
+1.  **Baseline State**: Behaves like v1 (Decay-dominant) when environmental stress is low.
+2.  **Crisis State**: Shifts to v2 (Context-dominant) when `threat_appraisal` exceeds a threshold.
+
+**Proposed Architecture:**
+
+```python
+# v3 Concept
+dynamic_context_weight = sigmoid(current_threat_level) * max_context_weight
+final_score = (1 - dynamic_context_weight) * decay_score + (dynamic_context_weight) * context_score
+```
+
+This ensures agents are "calm" during peace but "alert" during disaster, mimicking human cognitive arousal.
+
+---
+
 ## 🇹🇼 中文摘要 (Chinese Summary)
 
 **Governed Broker Framework** 是一個旨在解決 LLM "幻覺" 與 "不理性行為" 的認知治理架構。

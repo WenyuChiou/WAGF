@@ -212,6 +212,11 @@ household:
       neighbor: 0.8
       community: 0.6
       general_knowledge: 0.4
+    # v2 Model: Weighted Retrieval Configuration
+    retrieval_weights:
+      recency: 0.3
+      importance: 0.5
+      context: 0.2
 
   # Available Actions (mapped to Skill Registry IDs)
   actions:

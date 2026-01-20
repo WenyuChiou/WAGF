@@ -1,6 +1,6 @@
 {
-  "version": "1.1",
-  "last_updated": "2026-01-19T14:00:00.000Z",
+  "version": "1.2",
+  "last_updated": "2026-01-20T00:30:00.000Z",
   "tasks": [
     {
       "id": "task-011",
@@ -360,6 +360,208 @@
         "examples/multi_agent/run_unified_experiment.py",
         "examples/multi_agent/ma_agent_types.yaml"
       ]
+    },
+    {
+      "id": "Task-021",
+      "title": "Context-Dependent Memory Retrieval & Literature Review",
+      "status": "completed",
+      "type": "feature",
+      "priority": "high",
+      "owner": "Antigravity",
+      "reviewer": "Claude Code",
+      "description": "Implement decoupled contextual boosting for memory retrieval based on environmental context. Also includes comprehensive literature review (N=73).",
+      "dependencies": [],
+      "created_at": "2026-01-19T16:00:00.000Z",
+      "subtasks": [
+        {
+          "id": "021-A",
+          "title": "Context-Dependent Memory Retrieval",
+          "status": "completed",
+          "assigned_to": "Antigravity",
+          "note": "Implemented decoupled design with contextual_boosters mechanism"
+        },
+        {
+          "id": "021-B",
+          "title": "Literature Review & Bibliography",
+          "status": "completed",
+          "assigned_to": "Antigravity",
+          "note": "N=73 papers reviewed, BibTeX generated"
+        }
+      ],
+      "artifacts": [
+        "examples/multi_agent/manuscripts/literature_review/MA_Literature_Review.md",
+        "examples/multi_agent/manuscripts/literature_review/references.bib",
+        "broker/components/context_builder.py",
+        "broker/components/memory_engine.py",
+        "tests/test_human_centric_memory_engine.py"
+      ],
+      "handoff_file": "handoff/task-021.md",
+      "note": "Memory retrieval enhancement + literature review completed."
+    },
+    {
+      "id": "Task-022",
+      "title": "PRB Flood Data Integration & Spatial Enhancement",
+      "status": "completed",
+      "type": "feature",
+      "priority": "high",
+      "owner": "Claude Code",
+      "reviewer": "WenyuChiou",
+      "description": "Integrate 13-year PRB flood data, implement spatial neighbor graph, per-agent flood depth, and media channels",
+      "dependencies": ["Task-020"],
+      "created_at": "2026-01-19T18:00:00.000Z",
+      "subtasks": [
+        {
+          "id": "022-A",
+          "title": "Copy PRB Data to Project",
+          "status": "completed",
+          "assigned_to": "Claude Code",
+          "note": "13 ASC files copied to examples/multi_agent/input/PRB/"
+        },
+        {
+          "id": "022-B",
+          "title": "SpatialNeighborhoodGraph Implementation",
+          "status": "completed",
+          "assigned_to": "Claude Code",
+          "note": "Added to broker/components/social_graph.py with factory support"
+        },
+        {
+          "id": "022-C",
+          "title": "Per-Agent Flood Depth (YearMapping + HazardModule)",
+          "status": "completed",
+          "assigned_to": "Claude Code",
+          "note": "Added get_agent_flood_event() and get_flood_events_for_agents()"
+        },
+        {
+          "id": "022-D",
+          "title": "Media Channels (News + Social)",
+          "status": "completed",
+          "assigned_to": "Claude Code",
+          "note": "Created broker/components/media_channels.py with MediaHub"
+        },
+        {
+          "id": "022-E",
+          "title": "CLI Parameters & YAML Config",
+          "status": "completed",
+          "assigned_to": "Claude Code",
+          "description": "Add --prb-grid-dir, --neighbor-mode, --enable-news-media params",
+          "note": "Added --neighbor-mode, --neighbor-radius, --per-agent-depth, --enable-news-media, --enable-social-media, --news-delay"
+        },
+        {
+          "id": "022-F",
+          "title": "Integration into run_unified_experiment.py",
+          "status": "completed",
+          "assigned_to": "Claude Code",
+          "description": "Wire up new components with experiment runner",
+          "note": "Integrated SpatialNeighborhoodGraph, per-agent depth with YearMapping, MediaHub into experiment runner"
+        }
+      ],
+      "files_modified": [
+        "broker/components/social_graph.py",
+        "broker/components/media_channels.py",
+        "examples/multi_agent/environment/hazard.py",
+        "examples/multi_agent/input/PRB/*.asc"
+      ],
+      "handoff_file": "handoff/task-022.md"
+    },
+    {
+      "id": "Task-023",
+      "title": "[DEPRECATED] Context-Dependent Memory Retrieval",
+      "status": "deprecated",
+      "type": "feature",
+      "priority": "low",
+      "owner": "Antigravity",
+      "description": "DUPLICATE of Task-021. This entry should be ignored - functionality was implemented as part of Task-021.",
+      "dependencies": [],
+      "created_at": "2026-01-19T23:20:00.000Z",
+      "deprecated_at": "2026-01-20T00:00:00.000Z",
+      "deprecated_reason": "Duplicate of Task-021. The context-dependent memory retrieval was implemented as Task-021-A.",
+      "handoff_file": "handoff/task-021-memory-retrieval-plan.md"
+    },
+    {
+      "id": "Task-024",
+      "title": "Task-022 Integration Testing & Validation",
+      "status": "planned",
+      "type": "verification",
+      "priority": "high",
+      "owner": "Claude Code",
+      "reviewer": "WenyuChiou",
+      "description": "Verify Task-022 new features: SpatialNeighborhoodGraph, Per-Agent flood depth, MediaHub (News + Social channels)",
+      "dependencies": ["Task-022"],
+      "created_at": "2026-01-20T00:00:00.000Z",
+      "subtasks": [
+        {
+          "id": "024-A",
+          "title": "Spatial Graph Unit Test",
+          "status": "pending",
+          "assigned_to": "Codex",
+          "description": "Verify SpatialNeighborhoodGraph connection logic within radius"
+        },
+        {
+          "id": "024-B",
+          "title": "Per-Agent Depth Test",
+          "status": "pending",
+          "assigned_to": "Codex",
+          "description": "Verify YearMapping and PRB depth query"
+        },
+        {
+          "id": "024-C",
+          "title": "Media Channels Test",
+          "status": "pending",
+          "assigned_to": "Codex",
+          "description": "Verify News delay and Social exaggeration"
+        },
+        {
+          "id": "024-D",
+          "title": "Integration Experiment",
+          "status": "pending",
+          "assigned_to": "Gemini CLI",
+          "description": "Run full experiment with new features enabled"
+        },
+        {
+          "id": "024-E",
+          "title": "Results Analysis",
+          "status": "pending",
+          "assigned_to": "Claude Code",
+          "description": "Analyze spatial and media feature effects"
+        }
+      ],
+      "handoff_file": "handoff/task-024.md"
+    },
+    {
+      "id": "Task-025",
+      "title": "Media Channels Prompt Integration",
+      "status": "planned",
+      "type": "feature",
+      "priority": "medium",
+      "owner": "Claude Code",
+      "reviewer": "WenyuChiou",
+      "description": "Integrate MediaHub messages into agent prompts via TieredContextBuilder",
+      "dependencies": ["Task-024"],
+      "created_at": "2026-01-20T00:00:00.000Z",
+      "subtasks": [
+        {
+          "id": "025-A",
+          "title": "Prompt Template Update",
+          "status": "pending",
+          "assigned_to": "Claude Code",
+          "description": "Add media section to ma_agent_types.yaml prompts"
+        },
+        {
+          "id": "025-B",
+          "title": "Context Builder Update",
+          "status": "pending",
+          "assigned_to": "Gemini CLI",
+          "description": "Integrate get_media_context() into TieredContextBuilder"
+        },
+        {
+          "id": "025-C",
+          "title": "Validation Test",
+          "status": "pending",
+          "assigned_to": "Codex",
+          "description": "Verify agents receive media messages in prompts"
+        }
+      ],
+      "handoff_file": "handoff/task-025.md"
     }
   ],
   "known_issues": [
