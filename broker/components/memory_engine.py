@@ -570,21 +570,26 @@ class HumanCentricMemoryEngine(MemoryEngine):
             self.working[agent_id] = []
         if agent_id not in self.longterm:
             self.longterm[agent_id] = []
-        
-        # Direct handling of importance from metadata.
-        if metadata and "importance" in metadata:
-            importance = float(metadata["importance"])
+
+        # Revised logic for importance, emotion, source.
+        # Initialize importance, emotion, and source. Prioritize metadata if available.
+        importance = 0.5
+        emotion = "routine"
+        source = "abstract"
+
+        if metadata:
+            importance = float(metadata.get("importance", importance))
             emotion = metadata.get("emotion", self._classify_emotion(content, agent))
             source = metadata.get("source", self._classify_source(content, agent))
         else:
             emotion = self._classify_emotion(content, agent)
             source = self._classify_source(content, agent)
-            # Pass computed emotion and source back into _compute_importance
-            if metadata is None:
-                metadata = {}
-            metadata["emotion"] = emotion
-            metadata["source"] = source
-            importance = self._compute_importance(content, metadata, agent)
+            importance = self._compute_importance(content, {"emotion": emotion, "source": source}, agent)
+
+        final_metadata = metadata.copy() if metadata else {}
+        final_metadata["importance"] = importance
+        final_metadata["emotion"] = emotion
+        final_metadata["source"] = source
 
         memory_item = {
             "content": content,
@@ -592,9 +597,10 @@ class HumanCentricMemoryEngine(MemoryEngine):
             "emotion": emotion,
             "source": source,
             "timestamp": len(self.working[agent_id]) + len(self.longterm[agent_id]),
-            "consolidated": False
+            "consolidated": False,
+            **final_metadata
         }
-        
+
         self.working[agent_id].append(memory_item)
         
         # Stochastic consolidation: high importance items have chance to go to long-term
@@ -628,10 +634,14 @@ class HumanCentricMemoryEngine(MemoryEngine):
             self.longterm[agent.id] = []
             if isinstance(initial_mem, list):
                 for m in initial_mem:
+                    # Ensure metadata is correctly extracted and passed.
                     if isinstance(m, dict) and "content" in m:
-                         self.add_memory_for_agent(agent, m["content"], m)
+                        content_to_add = m["content"]
+                        metadata_to_add = m.get("metadata", {})
+                        self.add_memory_for_agent(agent, content_to_add, metadata_to_add)
                     else:
-                         self.add_memory_for_agent(agent, m)
+                        # Handle cases where 'm' is just a string (no metadata).
+                        self.add_memory_for_agent(agent, m)
         
         working = self.working.get(agent.id, [])
         longterm = self.longterm.get(agent.id, [])
@@ -639,7 +649,7 @@ class HumanCentricMemoryEngine(MemoryEngine):
         if not working and not longterm:
             return []
         
-        max_timestamp = 0
+        max_timestamp = -1
         if working:
             max_timestamp = max(max_timestamp, max(m["timestamp"] for m in working))
         if longterm:
