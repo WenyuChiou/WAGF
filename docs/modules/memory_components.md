@@ -6,6 +6,39 @@ This document details the cognitive architecture of the agent, designed to solve
 
 ---
 
+## 🏛️ Memory Evolution & Roadmap
+
+The memory system is evolving from a simple sliding window to a **Universal Cognitive Architecture** grounded in established cognitive science.
+
+### Phase 1: Human-Centric Memory (Unified in v3)
+
+_Implementation_: `UniversalCognitiveEngine` (Arousal Threshold = 99.0) -> **System 1**
+
+- **Logic**: **Emotional Decay**. High-emotion events (trauma) persist longer.
+- **Goal**: Solves the "Goldfish Effect" efficiently. Defines the **"Routine"** state of the agent.
+- **Reference**: _Park, J. S., et al. (2023). Generative Agents._ (Emotion-based retrieval).
+
+### Phase 2: Weighted Contextual Retrieval (Unified in v3)
+
+_Implementation_: `UniversalCognitiveEngine` (Arousal Threshold = 0.0) -> **System 2 Lite**
+
+- **Logic**: **Contextual Boosting**. ($S = W_r R + W_i I + W_c C$).
+- **Goal**: Retrieves memories relevant to the _current_ state (e.g., "It is raining" retrieves "Flood Memory" even if old).
+- **Reference**: _Trope, Y., & Liberman, N. (2010). Construal-level theory._ (Contextual Relevance).
+
+### Phase 3: Universal Architecture (The "Surprise Engine") - **Current Standard**
+
+_Vision_: **Neuro-Modulated Mode Switching**
+
+- **Implementation**: `UniversalCognitiveEngine` (Dynamic Mode)
+- **Theory**: **Prediction Error** drives cognition.
+  - **System 1 (Routine)**: When $Reality \approx Expectation$ (Low Surprise), use cheap heuristics (Phase 1).
+  - **System 2 (Crisis)**: When $Reality \neq Expectation$ (High Surprise), trigger high-compute reflection (Phase 2 + Tier 3).
+- **Component**: `UniversalCognitiveEngine` automatically handles the switch based on `arousal_threshold`.
+- **Reference**: _Friston, K. (2010). The Free-Energy Principle._ (Active Inference) & _Kahneman, D. (2011). Thinking, Fast and Slow._ (Dual Process).
+
+---
+
 ### 3. Deep Dive: How It Actually Works (The Math)
 
 To understand how the agent "remembers," let's walk through a concrete calculation trace from the JOH Simulation.
@@ -107,13 +140,16 @@ The `ContextBuilder` frames reality to prevent **Hallucination**. It constructs 
 3.  **Immediate State**: "Current water level: 1.5m." (Sensors)
 4.  **Social Signals**: "Neighbor bought insurance." (Influence)
 
-### 🪞 Reflection Engine: Long-Term Caching
+### 🪞 Tier 3: Semantic Insights (The Reflection Engine)
 
-Executed at the end of every simulation year (The "Sleep" phase).
+_Status_: **Implemented (v3 System 2 Core)**
+
+Executed at the end of every simulation year (or when **Surprise** is high).
 
 1.  **Aggregate**: Reads all daily logs.
 2.  **Synthesize**: LLM generates 3 high-level bullet points (Insights).
-3.  **Consolidate**: Insights are saved to memory with `Importance=10`.
+3.  **Consolidate**: Insights are stored as high-priority semantic memories, ensuring the agent's "Personality" evolves based on past successes or failures.
+    - _Example_: "I learned that insurance is vital." (Observation) -> "I am a cautious person." (Identity Update).
 
 ---
 
@@ -148,24 +184,30 @@ Users can customize priorities via `agent_types.yaml`. These directly affect $Im
 How to instantiate and connect the components in your experiment script (`run.py`).
 
 ```python
-# 1. Initialize the Engine
-memory_engine = HumanCentricMemoryEngine(
+# 1. Initialize the Engine (Using Factory)
+from broker.components import create_memory_engine
+
+memory_engine = create_memory_engine(
+    engine_type="universal",
     window_size=5,
-    top_k_significant=2,
-    consolidation_prob=0.7
+    arousal_threshold=0.5,
+    ema_alpha=0.3
 )
 
 # 2. Link to Context Builder
-# The ContextBuilder automatically triggers retrieval during the 'build()' step
 ctx_builder = FinalContextBuilder(
-    memory_engine=memory_engine,
-    agent_id=agent.id
+    agents=agents,
+    hub=hub,
+    sim=sim,
+    memory_top_k=5
 )
 
 # 3. Main Loop Integration
-observation = ctx_builder.build(
-    agent=agent,
-    world_state=flood_depth
+# Pass 'world_state' to enable Surprise Detection
+personal_memory = memory_engine.retrieve(
+    agent,
+    top_k=5,
+    world_state={"flood_depth": current_depth}
 )
 # 'observation' now contains the injected memories + current state
 ```
