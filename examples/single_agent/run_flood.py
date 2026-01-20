@@ -756,9 +756,9 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
             W_recency=retrieval_w.get("recency", 0.3),
             W_importance=retrieval_w.get("importance", 0.5),
             W_context=retrieval_w.get("context", 0.2),
-            ranking_mode="dynamic",  # v3 uses dynamic switching
-            arousal_threshold=0.5,   # Tune this for sensitivity
-            ema_alpha=0.3,           # Learning rate for expectation
+            ranking_mode="dynamic",
+            arousal_threshold=final_mem_cfg.get("arousal_threshold", 0.5),
+            ema_alpha=final_mem_cfg.get("ema_alpha", 0.3),
             seed=42
         )
         print(f" Using UniversalCognitiveEngine (v3 Surprise Engine, window={window_size})")
