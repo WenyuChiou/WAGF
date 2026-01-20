@@ -188,22 +188,27 @@ household:
 
   # Memory Configuration
   memory:
-    engine_type: "human_centric" # Default for now. Change to "universal" to enable v3.
+    # --- EXPERIMENT GROUP SETTINGS ---
+    # Group A: WindowMemoryEngine (window_size: 5)
+    # Group B: WindowMemoryEngine (window_size: 5) + Governance
+    # Group C: HumanCentricMemoryEngine (Legacy v1) + Priority Schema (Pillar 3)
+    
+    engine_type: "human_centric" # Default. Change to "universal" to enable v3 Sudden Surprise.
     window_size: 5
-    # v3 Parameters (Ready for activation)
-    arousal_threshold: 0.5  # Surprise threshold
-    ema_alpha: 0.3         # Adaptation rate
-    top_k_significant: 2
+    
+    # [Group C / v1 Legacy] Stochastic Consolidation & Decay
+    # Only items with Importance >= 0.6 have a chance to enter long-term memory.
+    # Memories decay exponentially over time: e^(-decay_rate * age).
+    top_k_significant: 2 
+    
+    # [Group C / v1 Legacy] Importance Calculation
+    # Importance = Emotional Weight x Source Weight (Both 0.0 - 1.0)
     emotion_keywords:
       direct_impact:
         ["flood", "flooded", "damage", "destroyed", "loss", "trauma"]
       strategic_choice: ["decision", "grant", "relocate", "elevate", "move"]
       efficacy_gain: ["protected", "safe", "insurance", "saved", "relief"]
       social_feedback: ["trust", "neighbor", "judgment", "observe"]
-    source_patterns:
-      personal: ["i ", "my ", "me ", "got flooded", "my house"]
-      neighbor: ["neighbor", "others", "friend"]
-      community: ["%", "residents", "community", "everyone"]
     emotional_weights:
       direct_impact: 1.0
       strategic_choice: 0.8
@@ -215,11 +220,22 @@ household:
       neighbor: 0.8
       community: 0.6
       general_knowledge: 0.4
-    # v2 Model: Weighted Retrieval Configuration
+    source_patterns:
+      personal: ["i ", "my ", "me ", "got flooded", "my house"]
+      neighbor: ["neighbor", "others", "friend"]
+      community: ["%", "residents", "community", "everyone"]
+      
+    # [v2 Weighted Model] ONLY active if ranking_mode="weighted"
+    # Not used in current JOH Group ABC experiments.
     retrieval_weights:
       recency: 0.3
       importance: 0.5
       context: 0.2
+
+    # [v3 Surprise Engine] ONLY active if engine_type="universal"
+    # Inactive for all current JOH Groups (A, B, C).
+    arousal_threshold: 0.5  # Surprise trigger
+    ema_alpha: 0.3         # Memory adaptation speed
 
   # Available Actions (mapped to Skill Registry IDs)
   actions:

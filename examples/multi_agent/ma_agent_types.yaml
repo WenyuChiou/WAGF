@@ -58,6 +58,12 @@ household_owner:
     - NJ Government (NJDEP Blue Acres): {govt_message}
     - FEMA/NFIP Insurance: {insurance_message}
 
+    ### WORLD EVENTS
+    {global_news}
+
+    ### LOCAL NEIGHBORHOOD
+    {social_gossip}
+
     ### CURRENT COSTS
     - Annual NFIP Premium: ${current_premium:,.0f}
     - Elevation Subsidy Rate: {subsidy_rate:.0%}
@@ -146,6 +152,12 @@ household_renter:
     ### POLICY UPDATES THIS YEAR
     - NJ Government: {govt_message}
     - FEMA/NFIP: {insurance_message}
+
+    ### WORLD EVENTS
+    {global_news}
+
+    ### LOCAL NEIGHBORHOOD
+    {social_gossip}
 
     ### COST GUIDANCE (IMPORTANT)
     - Contents insurance is a MODERATE annual cost tied to contents value.

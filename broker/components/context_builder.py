@@ -509,6 +509,7 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         hub: InteractionHub,
         skill_registry: Optional[Any] = None,
         global_news: List[str] = None,
+        media_hub: Optional[Any] = None,
         prompt_templates: Dict[str, str] = None,
         memory_engine: Optional[MemoryEngine] = None,
         trust_verbalizer: Optional[Callable[[float, str], str]] = None,
@@ -539,6 +540,7 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         self.hub = hub
         self.skill_registry = skill_registry
         self.global_news = global_news or []
+        self.media_hub = media_hub
         self.trust_verbalizer = trust_verbalizer
         self.yaml_path = yaml_path
         self.enable_financial_constraints = enable_financial_constraints # Store the flag
@@ -557,9 +559,14 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         # Ensure critical metadata is at top level for providers/formatter
         context["agent_id"] = agent_id
         context["agent_type"] = getattr(agent, 'agent_type', 'default') if agent else 'default'
-        
-        # --- NEW: Application-specific context analysis to generate contextual_boosters ---
+
+        # Use environment global state when env_context is empty.
         env_context = kwargs.get("env_context", {})
+        if (not env_context) and getattr(self.hub, "environment", None):
+            env_context = self.hub.environment.global_state
+
+        # --- NEW: Application-specific context analysis to generate contextual_boosters ---
+        env_context = env_context or kwargs.get("env_context", {})
         contextual_boosters_for_memory = {}
         if env_context and env_context.get("flood_occurred"):
             # If a flood occurred, we instruct the memory engine to boost 'emotion:fear' memories
@@ -574,7 +581,22 @@ class TieredContextBuilder(BaseAgentContextBuilder):
             # provider.provide() signature: (agent_id, agents, context, **kwargs)
             # MemoryProvider needs to look for 'contextual_boosters' in kwargs
             provider.provide(agent_id, self.agents, context, **kwargs)
-            
+
+        # Inject media context (news/social) after providers so it isn't overwritten.
+        if self.media_hub:
+            year = env_context.get("year", 1)
+            media_context = self.media_hub.get_media_context(agent_id, year)
+            if media_context:
+                news = media_context.get("news", [])
+                social_media = media_context.get("social_media", [])
+                if news:
+                    context["global"] = news
+                if social_media:
+                    local = context.get("local") or {}
+                    local_social = local.get("social", [])
+                    local["social"] = local_social + social_media
+                    context["local"] = local
+
         return context
 
 

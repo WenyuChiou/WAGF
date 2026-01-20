@@ -699,6 +699,7 @@ def run_unified_experiment():
                 agents=all_agents,
                 hub=hub,
                 memory_engine=memory_engine,
+                media_hub=media_hub,
                 dynamic_whitelist=[
                     "govt_message",
                     "insurance_message",

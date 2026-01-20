@@ -15,8 +15,10 @@ The `ContextBuilder` transforms raw data into a narrative structure understandab
     - _Source_: `agent_initial_profiles.csv` and `narrative_persona` in `run_flood.py`.
 
 2.  **Retrieved Memory**:
-    - Retrieves the 3-5 most relevant segments from 10 years of history.
-    - _Mechanism_: Uses `HumanCentricMemoryEngine` to calculate the $S_{retrieval}$ score.
+    - Retrieves the 3-5 most relevant segments from the agent's long-term history.
+    - _Mechanism_: Uses the **Priority Retrieval Mechanism** ($S$) where:
+      $$S(m) = (W_{rec} \cdot S_{rec}) + (W_{imp} \cdot S_{imp}) + (W_{ctx} \cdot S_{ctx})$$
+      This allows high-importance (trauma) or situationally-relevant (tag-matched) memories to bypass simple recency decay.
 
 3.  **Immediate Perception**:
     - Specific values for the current year (water level, neighbor actions, policy changes).
@@ -37,8 +39,8 @@ Property Value: $200,000. Current Savings: $15,000.
 3. BUDGET_CONSTRAINT: You cannot spend more than your simulation savings.
 
 [Prioritized Memory]
-- Year 3: Flood depth 1.2m. "My basement was destroyed." (Importance: 0.9)
-- Year 4: Neighbor Bob elevated his house. (Importance: 0.6)
+- Year 3: Flood depth 1.2m. "My basement was destroyed." (Priority Score S: 1.11)
+- Year 4: Neighbor Bob elevated his house. (Priority Score S: 0.85)
 
 [Current Situation - Year 5]
 Flood Forecast: High Probability.
