@@ -50,12 +50,11 @@ python examples/single_agent/run_flood.py --model llama3.2:3b --agents 50 --year
 
 ## 🗺️ 模組導覽大廳 (Module Directory)
 
-- **📚 第 0 章：理論基礎 (Theoretical Basis)**: [系統理論與架構](docs/modules/00_theoretical_basis_overview_zh.md)
-- **🧠 第 1 章：記憶與反思 (Memory & Reflection)**: [記憶組件](docs/modules/memory_components_zh.md) | [反思引擎](docs/modules/reflection_engine_zh.md)
-- **👁️ 第 2 章：上下文系統 (Context System)**: [上下文構建器](docs/modules/context_system_zh.md)
-- **⚖️ 第 3 章：核心治理 (Governance Core)**: [治理邏輯](docs/modules/governance_core_zh.md)
+- **📚 第 0 章：理論基礎 (Theoretical Basis)**: [理論背景總覽](docs/modules/00_theoretical_basis_overview_zh.md)
+- **🧠 第 1 章：記憶與反思 (Memory & Reflection)**: [記憶組件與驚奇引擎](docs/modules/memory_components_zh.md) | [反思引擎](docs/modules/reflection_engine_zh.md)
+- **⚖️ 第 2 章：核心治理 (Governance Core)**: [治理邏輯與驗證器](docs/modules/governance_core_zh.md)
+- **👁️ 第 3 章：感知與上下文 (Context System)**: [上下文構建器](docs/modules/context_system_zh.md) | [模擬引擎](docs/modules/simulation_engine_zh.md)
 - **🛠️ 第 4 章：技能註冊表 (Skill Registry)**: [動作本體論](docs/modules/skill_registry_zh.md)
-- **🌍 第 5 章：模擬引擎 (Simulation Engine)**: [環境與迴圈](docs/modules/simulation_engine_zh.md)
 - **🧪 基準測試 (Experiments)**: [單代理人實驗](examples/README_zh.md)
 
 ---
@@ -107,28 +106,23 @@ python examples/single_agent/run_flood.py --model llama3.2:3b --agents 50 --year
 
 本框架採用獨特的 **"堆疊積木 (Stacking Blocks)"** 設計哲學。您可以像玩樂高一樣，將不同的認知模組疊加在基礎執行引擎上，打造出不同複雜度的代理人。
 
-| 堆疊層級 (Stack Level) | 認知積木 (Block)                | 功能 (Function)        | 效果 (Effect)                                                                               |
-| :--------------------- | :------------------------------ | :--------------------- | :------------------------------------------------------------------------------------------ |
-| **底座 (Base)**        | **執行引擎 (Execution Engine)** | _身體 (Body)_          | 能夠執行物理動作，但沒有記憶或理性。                                                        |
-| **+ Level 1**          | **感知透鏡 (Context Lens)**     | _眼睛 (Eyes)_          | 加入 **有界感知** (視窗記憶)。防止 LLM 因為歷史過長而當機。                                 |
-| **+ Level 2**          | **記憶引擎 (Memory Engine)**    | _海馬迴 (Hippocampus)_ | 加入 **分層記憶**。讓 Agent 能「回想起」過去的創傷 (Availability Heuristic)，不再是金魚腦。 |
-| **+ Level 3**          | **技能仲裁 (Skill Broker)**     | _超我 (Superego)_      | 加入 **治理機制**。強制執行 "Thinking Rules"，確保 Agent 的行為符合其信念 (理性驗證)。      |
+| 堆疊層級 (Stack Level) | 認知積木 (Block)                | 功能 (Function)        | 效果 (Effect)                                                                          |
+| :--------------------- | :------------------------------ | :--------------------- | :------------------------------------------------------------------------------------- |
+| **底座 (Base)**        | **執行引擎 (Execution Engine)** | _身體 (Body)_          | 能夠執行物理動作，但沒有記憶或理性。                                                   |
+| **+ Level 1**          | **感知透鏡 (Context Lens)**     | _眼睛 (Eyes)_          | 加入 **有界感知** (視窗記憶)。防止 LLM 因為歷史過長而當機。                            |
+| **+ Level 2**          | **記憶引擎 (Memory Engine)**    | _海馬迴 (Hippocampus)_ | 加入 **通用認知架構 (v3)**。包含驚喜驅動的系統 1/2 切換與創傷優先檢索。                |
+| **+ Level 3**          | **技能仲裁 (Skill Broker)**     | _超我 (Superego)_      | 加入 **治理機制**。強制執行 "Thinking Rules"，確保 Agent 的行為符合其信念 (理性驗證)。 |
 
 > **為什麼這很重要？** 這允許進行受控的科學實驗。您可以運行「Level 1 Agent」(基準組) 對決「Level 3 Agent」(完整組)，精確區分出 _哪一個_ 認知組件解決了特定的偏差。
 
 👉 **[學習如何組裝自定義代理人](docs/agent_assembly_zh.md)**
 
-**遷移說明**:
-
-- **v1 (舊版)**：單體腳本。
-- **v2 (穩定)**：模組化 `SkillBrokerEngine` + `providers`。
-- **v3 (最新)**：統一單/多代理人架構 + 專業審計軌跡。請使用 `run_unified_experiment.py`。
-- **v3.3 (JOH Edition)**：**認知中介層實作 (Cognitive Middleware Implementation)**。
-  - **耦合介面 (Coupling Interface)**：輸入 (JSON 信號) 與 輸出 (Action JSON) 完全解耦，支援與 HEC-RAS/SWMM 等物理模型整合。
-  - **以人為本的記憶 (Human-Centric Memory)**：引入情感編碼與隨機固化機制。
-  - **可解釋的治理 (Explainable Governance)**：新增自我修正軌跡 (Self-Correction Trace)，實現透明的理性決策。
-- **v3.1**：**人口統計錨定與統計驗證**。代理人決策與真實世界調研數據掛鉤。
-- **v3.2 (正式版)**：**進階記憶與技能檢索**。實作 MemGPT 風格的分層記憶（核心/情節/語義）。
+- **v1 (舊版)**：[可得性捷思] - 單一視窗記憶模式 (Group A/B 基準)。
+- **v2 (加權)**：[情境依賴記憶] - 模組化 `SkillBrokerEngine` 與 **加權優先級檢索** ($S = W_{rec}R + W_{imp}I + W_{ctx}C$)。
+- **v3 (最新)**：[雙系統理論與主動推理] - **通用認知架構 (驚喜引擎)**。
+  - **動態切換**：根據預測誤差 ($PE$) 自動在系統一（習慣）與系統二（理性）之間切換。
+  - **狀態-心智耦聯**：環境現實 ($R$) 與心理預期 ($E$) 直接驅動決定認知喚起程度。
+  - **可解釋審計**：提供完整的邏輯軌跡，解釋「代理人為何想起這件事/選擇此行動」。
 
 ---
 
@@ -261,11 +255,11 @@ python run_experiment.py --model llama3.2:3b --num-agents 100 --num-years 10
 
 ### 核心功能:
 
-1.  **被動檢索 (Passive Retrieval)**: 系統根據 `重要性 = 情緒 x 來源 x 衰減` 主動將相關記憶推送到 LLM。
-2.  **反思迴圈 (Reflection Loop)**: 年度事件整合為通用的「洞察」(例如：「保險至關重要」)。
-3.  **有界上下文 (Bounded Context)**: 將數千條日誌過濾為簡潔、節省 Token 的提示詞。
+1.  **優先級驅動檢索 (Priority Retrieval)**: Context Builder 根據檢索分數 $S = (W_{rec} \cdot S_{rec}) + (W_{imp} \cdot S_{imp}) + (W_{ctx} \cdot S_{ctx})$ 動態注入記憶。確保即便時間久遠的創傷（高重要性）或與現狀匹配的事實（高上下文）能被 LLM 看見。
+2.  **反思迴圈 (Reflection Loop)**: 年度事件整合為通用的「洞察」(初始權重 $I=10.0$ 以抵抗衰減)。
+3.  **有界上下文 (Bounded Context)**: 將數千條日誌精煉為節省 Token 的提示詞，優先保障準確性。
 
-👉 **[閱讀完整的記憶與反思規格說明](docs/modules/memory_components_zh.md)**
+👉 **[閱讀完整的記憶與檢索規格說明](docs/modules/memory_components_zh.md)**
 
 ---
 

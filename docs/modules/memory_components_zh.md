@@ -1,319 +1,147 @@
-# 組件說明：記憶、上下文與反思 (Components: Memory, Context & Reflection)
+# 組件：記憶與檢索系統
 
-**🌐 Language: [English](memory_components.md) | [中文](memory_components_zh.md)**
+**🌐 語言：[English](memory_components.md) | [中文](memory_components_zh.md)**
 
-本文檔詳細說明了代理人的認知架構設計，旨在利用心理學原理解決 LLM 的「金魚腦效應 (Goldfish Effect)」。
-
----
-
-## 🏛️ 記憶演進圖 (Memory Evolution & Roadmap)
-
-本框架的記憶系統正從簡單的滑動窗口演進為基於認知科學的**通用認知架構 (Universal Cognitive Architecture)**。
-
-### 第一階段 (Phase 1)：以人為本的情感記憶 (已整合至 v3)
-
-_實作_：`UniversalCognitiveEngine` (驚喜閾值 = 99.0) -> **系統一 (System 1)**
-
-- **邏輯**：**情感衰減 (Emotional Decay)**。高情感事件（如創傷）保留時間更長。
-- **目標**：有效解決「金魚腦效應」。定義了代理人的 **"日常 (Routine)"** 狀態。
-- **參考文獻**：_Park, J. S., et al. (2023). Generative Agents._ (Emotion-based retrieval).
-
-### 第二階段 (Phase 2)：加權上下文檢索 (已整合至 v3)
-
-_實作_：`UniversalCognitiveEngine` (驚喜閾值 = 0.0) -> **輕量級系統二 (System 2 Lite)**
-
-- **邏輯**：**上下文增強 (Contextual Boosting)**。($S = W_r R + W_i I + W_c C$)。
-- **目標**：檢索與 _當前狀態_ 相關的記憶（例如：「正在下雨」會觸發檢索舊的「洪水記憶」，即使它很久遠）。
-- **參考文獻**：_Trope, Y., & Liberman, N. (2010). Construal-level theory._ (Contextual Relevance).
-
-### 第三階段 (Phase 3)：通用驚喜引擎 (當前標準標準)
-
-_願景_：**神經調節模式切換 (Neuro-Modulated Mode Switching)**
-
-- **實作**：`UniversalCognitiveEngine` (動態模式)
-- **理論**：**預測誤差 (Prediction Error)** 驅動認知。
-  - **系統一 (常態)**：當 $現實 \approx 預期$ (低驚喜)，使用廉價的啟發式思考 (Phase 1)。
-  - **系統二 (危機)**：當 $現實 \neq 預期$ (高驚喜)，觸發高算力的反思模式 (Phase 2 + Tier 3)。
-- **組件**：`UniversalCognitiveEngine` 會根據 `arousal_threshold` 自動處理切換。
-- **參考文獻**：_Friston, K. (2010). The Free-Energy Principle._ (Active Inference) & _Kahneman, D. (2011). Thinking, Fast and Slow._ (Dual Process).
+**記憶與檢索系統** 是代理人過去經驗與當前決策之間的認知橋樑。在該框架中，我們明確地將 **記憶 (存儲)** 與 **檢索 (訪問控制)** 解耦，以確保代理人在高資訊密度下仍能保持理性。
 
 ---
 
-## 1. 核心概念與定義 (Core Concepts & Definitions)
+## 🏛️ 記憶演進與路線圖
 
-在深入代碼之前，了解認知術語及其學術基礎至關重要。
+本系統是一個基於認知科學的 **通用認知架構**，在檢索深度上演進出三個階段。
 
-- **以人為本的記憶 (Human-Centric Memory)**：一種優先處理「情感顯著性 (Emotional Salience)」（如創傷/重大事件）而非僅僅是時間新近度的檢索機制。它模擬了人類的可得性捷思。
-  - _參考文獻_：**Park, J. S., et al.** (2023). Generative Agents: Interactive Simulacra of Human Behavior.
-- **有界上下文 (Bounded Context)**：LLM 注意力的物理限制。我們無法餵入 10 年的日誌；我們必須建構一個適合 Token 窗口的「現實框架」。
-- **反思 (Reflection)**：一種元認知過程，代理人回顧其歷史以形成高層次的「洞察 (Insights)」（例如：「我住在洪水區」）。
-  - _參考文獻_：**Shinn, N., et al.** (2023). Reflexion: Language Agents with Verbal Reinforcement Learning.
-- **保護動機 (PMT)**：驅動代理人決策的心理學理論，平衡「威脅感知」與「應對評估」。
-  - _參考文獻_：**Rogers, R. W.** (1975). A Protection Motivation Theory.
+![Memory Evolution Roadmap](../architecture/memory_evolution_roadmap.png)
 
 ---
 
-## 2. 系統設計與架構 (System Design & Architecture)
+## 1. 記憶生命週期：從感知到提示詞
 
-### 🧠 記憶引擎：回憶的科學
+要理解代理人如何「回憶」，我們需要跟蹤一個單一事件的完整生命週期：
 
-`MemoryEngine` 是一個 **重構過程 (Reconstructive Process)**。它在 Prompt 變得有意義 _之前_ 作為過濾器運作。
+### 第一步：記憶系統、評估與參數辭典
 
-**數學公式定義 (Mathematical Formulation)**
+#### **A. 記憶系統的戰略對照：**
 
-`HumanCentricMemoryEngine` 的檢索評分 $S$ 採用 **衰減加權乘積** 模型：
+| 特性         | 模型 v1：繼承模式 (習慣)        | 模型 v2：加權模式 (深思)             | 模型 v3：通用模式 (兩者) |
+| :----------- | :------------------------------ | :----------------------------------- | :----------------------- |
+| **檢索邏輯** | **基於顯著性**。                | **統一評分制**。                     | **驚奇驅動選通**。       |
+| **核心公式** | $S(t) = I \cdot e^{-\lambda t}$ | $S = W_{rec}R + W_{imp}I + W_{ctx}C$ | 在 v1 與 v2 之間切換。   |
+| **設計哲學** | **可得性捷思 (Availability)**。 | **情境關聯性 (Contextual)**。        | **認知喚起 (Arousal)**。 |
+| **行為目標** | 記得「最近的震撼」。            | 記得「相關的歷史」。                 | **習慣** 直到 **驚奇**。 |
 
-$$ S(m, t) = Imp(m) \cdot e^{-\lambda' \cdot \Delta t} $$
+#### **B. 參數與符號辭典 (數值範圍：0.0 至 1.0)：**
 
-其中：
+| 符號          | 組件 / 參數    | 默認值 | 定義                                                           |
+| :------------ | :------------- | :----- | :------------------------------------------------------------- |
+| **$R$**       | **時間分數**   | (計算) | $1 - (\text{age} / \text{max\_age})$：記憶新鮮度（現在=1.0）。 |
+| **$I$**       | **重要性分數** | (計算) | $I_{initial} \cdot e^{-\lambda t}$：經時間衰減後的顯著性。     |
+| **$C$**       | **情境分數**   | (計算) | 二元匹配：當前場景關鍵字與記憶標記是否吻合。                   |
+| **$PE$**      | **預測誤差**   | (計算) | 「驚奇」程度 (現狀 vs 預期)。v3 切換閥值。                     |
+| **$\lambda$** | **衰減率**     | 0.1    | 遺忘常數，決定 v1 記憶消失的速度。                             |
+| $W_{rec}$     | **時間權重**   | 0.3    | 檢索時對「新鮮度」的重視程度。                                 |
+| $W_{imp}$     | **重要性權重** | 0.5    | 檢索時對「歷史意義 ($I$)」的重視程度。                         |
+| $W_{ctx}$     | **情境權重**   | 0.2    | 檢索時環境「喚醒往事 ($C$)」的強度。                           |
+| $I_{gate}$    | **固化門檻**   | 0.6    | 嘗試進入永久存檔所需的最低 $I_{initial}$。                     |
+| $P_{burn}$    | **固化機率**   | 0.8    | 通過門檻後，記憶成功固化的機率。                               |
 
-- $Imp(m) = W_{emotion} \times W_{source}$
-- $\lambda'$ 是經情感修正後的衰減率：
-  $$ \lambda' = \lambda*{base} \cdot (1 - 0.5 \cdot W*{emotion}) $$
-  _(意義：情感越強烈的記憶，遺忘速度越慢)_
-
-_注意：本系統不使用 $\alpha, \beta, \gamma$ 線性加權參數。_
-
-### 👁️ 上下文建構器：認知透鏡
-
-`ContextBuilder` 負責框架化現實以防止 **幻覺**。它為每個 Prompt 建構嚴格的 Schema：
-
-1.  **全局真理**：「你是一位屋主。」(身分認同)
-2.  **檢索記憶**：「你回想起第 2 年的洪水。」(來自記憶引擎)
-3.  **當前狀態**：「目前水位：1.5m。」(感測器)
-4.  **社交信號**：「鄰居購買了保險。」(同儕影響)
-
-### 🪞 Layer 3: 語義洞察 (Semantic Insights) - 反思引擎
-
-_狀態_: **已實作 (v3 System 2 Core)**
-
-在每個模擬年份結束時（或當 **驚喜值 (Surprise)** 過高時）執行。
-
-1.  **聚合 (Aggregate)**：讀取所有每日日誌。
-2.  **合成 (Synthesize)**：LLM 生成 3 個高層次要點（洞察）。
-3.  **固化 (Consolidate)**：洞察被存儲為高優先級的語義記憶，確保代理人的「性格」根據過去的成功或失敗而演變。
-    - _例子_：「我學到了保險至關重要。」(觀察) -> 「我是一個謹慎的人。」(身分更新)。
+> [!NOTE]
+> **為什麼 $R, C, PE$ 被稱為「變動變數 (Dynamic Variables)」？**
+> 與固定的權重參數 ($W$) 不同，這些數值在每次檢索或感知時都會被「重新計算」：
+>
+> - **$R$ (時間分數)**：隨時間推移而變動。同樣的一段回憶，在第 1 年看它是「昨天 (R=1.0)」，在第 10 年看它就是「遠古 (R=0.1)」。
+> - **$C$ (情境分數)**：隨「當前情境」變動。如果你現在在處理「洪水」，這筆記憶的 C 就是 1.0；如果你在處理「火災」，這筆記憶的 C 就是 0.0。
+> - **$PE$ (預測誤差)**：隨「當前現實與期待的落差」變動。它是每個模擬週期的「驚奇感」即時反映。
 
 ---
 
-### 2.5 記憶是如何形成的？(Memory Formation)
+## 2. 實戰案例：住戶代理人的記憶檢索軌跡
 
-系統中有兩條路徑可以產生「記憶」，它們的生成方式完全不同：
+**當前情境 (第 11 年)**：天氣預報發布了 **紅色預警**。氣象局稱：「預計將有特大暴雨，河流泛濫風險極高。」
 
-**路徑 A：直接經驗 (Direct Experience)** — **非 LLM 生成**
+> **當前場景關鍵字**：`[洪水, 危險, 暴雨]`
 
-- **來源**：模擬器的客觀狀態（例如：「水位 = 2.0ft」、「帳戶扣除 $5000」）。
-- **形式**：這是一條**原始事實 (Raw Fact)**。
-- **過程**：系統直接將這些事實轉錄為文字（Template-Based），然後丟進正則掃描器 (Regex) 評分。
-- **特點**：快速、客觀、不會有幻覺。
+代理人的長期存檔中存有以下兩段具體的敘事記憶：
 
-**路徑 B：反思洞察 (Reflected Insights)** — **由 LLM 生成**
-
-- **來源**：代理人「睡覺時」回顧過去一年的日誌。
-- **形式**：這是 LLM 寫的**心得總結**。
-- **過程**：
-  1.  Python 收集一整年的 Log。
-  2.  將 Log 餵給 `reflection_engine` (LLM)。
-  3.  Prompt: _"What are the 3 most critical lessons you learned this year?"_
-  4.  LLM 回答: _"I realized that floods are becoming frequent and my savings are low."_
-  5.  這段**LLM 寫的話**被存入記憶庫，並賦予極高權重。
-
-### 2.6 關於關鍵字 `%` 的特殊設計
-
-在 `agent_types.yaml` 中，您會看到：
-`community: ["%", "residents", "community"]`
-
-**為什麼會有 `%` 符號？**
-這是一個啟發式 (Heuristic) 設計，用來捕捉**統計數據**。
-
-- 當輸入文字是：「**80%** of your neighbors bought insurance.」
-- 正則掃描器看到 `%` 符號。
-- **判定**：這不是「個人故事」，這是「群體數據 (Community Data)」。
-- **權重**：賦予 0.6 的權重（低於個人創傷，但高於普通閒聊）。
-
-這種設計讓我們不需要用昂貴的 AI 去分析句子語義，只要看到百分比符號，就假設它是社會統計資訊。
+- **記憶 A (災難性創傷)**：「第一年，一場巨大的洪水沖垮了堤防。我的地下室淹水深達兩英尺，家具全毀了，當時的情景非常恐怖。」
+  - **屬性**：$I_{initial}=1.0$, Age=10, 標記: `[洪水]`。
+- **記憶 B (日常生活)**：「第十年，整天都是大太陽。我下午在後院修剪花木，度過了一個平凡而安靜的週六。」
+  - **屬性**：$I_{initial}=0.1$, Age=1, 標記: `[常規]`。
 
 ---
 
-### 2.7 完整故事範例：記憶的生命週期 (Life of a Memory)
+#### **模型 v1：習慣型代理人 (Habit)**
 
-我們同時使用 **Path A (經驗)** 和 **Path B (反思)**。兩者互補。
-讓我們看一個具體的故事，說明記憶如何從發生到被檢索：
+v1 僅根據遺忘曲線的顯著性 ($I \cdot e^{-\lambda t}$) 排序：
 
-#### 第一幕：發生 (Year 2) - 短期記憶與 Path A
-
-- **事件**：模擬器產生事件「High Flood (Depth: 5.0ft) causes $50k damage.」
-- **短期記憶 (Short-Term)**：這句話進入了當前的 Context Window。代理人做出反應：「我很害怕，我決定無所作為 (Do Nothing)。」
-- **Path A 運作 (固化)**：
-  - 系統 Regex 掃描到關鍵字 "flood" (Weight 1.0) 和 "damage" (Weight 1.0)。
-  - 計算重要性 $I = 1.0$。
-  - 因為 $1.0 > 0.6$ (閾值)，這條關於洪水的**原始事實**被立即寫入 `long_term_memory.json`。
-
-#### 第二幕：反思 (Year 2 年末) - Path B
-
-- **睡眠階段**：一年結束了。Reflection Engine 讀取這年的日誌。
-- **Prompt**：「回顧這一年，你學到了什麼？」
-- **LLM 回答**：「我發現我的家如果不墊高，很快就會破產。」(Insight)
-- **Path B 運作**：這條由 LLM 生成的**智慧**被寫入 `long_term_memory.json`，並賦予超高權重 ($I = 10.0$)。
-
-#### 3.7 進階機制問答 (Advanced Mechanics)
-
-**Q1: 不理性 (Irrationality) 會被抓到嗎？**
-
-- **會的。** 這是 `Thinking Rules` 的職責。
-- 如果代理人的思考邏輯是：「雖然洪水來了，但我懶得動。」
-- Validator 會根據 PMT 規則攔截它：「錯誤：必須評估威脅。」
-- 因此，我們的框架確保了代理人**至少在形式上**是理性的。
-
-**Q2: 記憶衰退 (Decay) 對 Semantic 和 Episodic 都有效嗎？**
-
-- **是的，公式對所有長期記憶都適用。**
-  - $Score = Importance \times e^{-\lambda t}$
-- **但是**，因為 Semantic (智慧) 的初始分數極高 ($I=10.0$)，而 Episodic (事件) 初始分數較低 ($I=1.0$)。
-- **結果**：
-  - **事件** (Episodic)：約 5-8 年後會衰減到被遺忘。
-  - **智慧** (Semantic)：即使衰減了 20 年，分數可能還有 2.0，依然高於閾值。
-  - 這模擬了人類：忘了小時候發生什麼事 (事件忘記)，但記得"玩火會尿床" (智慧永存)。
-
-**Q3: 目前使用向量化 (Vectorization/Embeddings) 嗎？**
-
-- **目前沒有。** 我們目前使用的是 **Keyword-Based Weighted Scoring (關鍵字加權計分)**。
-- **為什麼不是 Cosine Similarity？**
-  - 在社會模擬中，「心理創傷 (Trauma)」比「語意相似 (Semantic Similarity)」更重要。
-  - 例如：如果是用相似度，問 "今天天氣如何" 可能會檢索到 "那年天氣很好"。
-  - 但我們的 **Importance 演算法** 會強制檢索 "那年發了大水"，因為那是創傷，這比單純的語意相似更符合心理學模型。
-
-#### 3.5 驗證失敗 (Validation Failures) 會被記住嗎？
-
-**Q: 如果代理人想作弊被 Governance 擋下，這件事會被記住嗎？**
-**A: 短期會，長期不會 (Short-term Yes, Long-term No)。**
-
-1.  **當下 (Retry Loop)**：**會記住**。
-    - 驗證器會立刻回傳錯誤：「你錢不夠，請重選。」
-    - LLM 在當下的 `Context Window` 裡看得到這個錯誤，所以它能修正並重試。
-2.  **隔年 (Long-Term Memory)**：**不會記住**。
-    - 一旦這一回合結束，我們會把那些「嘗試錯誤」的對話紀錄**丟棄**。
-    - 我們只將**最終成功**的結果寫入長期記憶庫。
-    - _原因_：為了節省 Token，也模擬人類傾向於記住「結論」而非「掙扎過程」。
-
-- **Audit Log (上帝視角)**：則會完整保留所有失敗紀錄供研究用。
-
-### 3.6 那 Thinking Rules (思考規則) 呢？
-
-**Q: 如果是思維被糾正（例如：忘了考慮 PMT 模型），會被記住嗎？**
-**A: 同樣邏輯：記住結果，忘記糾正過程。**
-
-- **例子**：
-  1.  **Agent (Attempt 1)**: "我覺得沒差，不做事。" (違反規則：未評估威脅)
-  2.  **Validator**: "錯誤：你必須根據 PMT 模型評估威脅感與應對能力。"
-  3.  **Agent (Attempt 2)**: "好吧，根據 PMT，洪水威脅很高，但我沒錢，所以我感到無助。" (合規)
-- **長期記憶**：
-  - 系統只會存入 **Attempt 2**：「即使威脅很高，我因缺錢而感到無助。」
-  - **結果**：未來的代理人回顧歷史時，會覺得自己「一直都很理性且符合 PMT」，而不知道自己其實是被強迫修正的。這就是我們如何**塑造 (Shape)** 代理人性格的方式。
-
-#### 第三幕：遺忘與檢索 (Year 5) - 長期記憶取用
-
-- 現在是第 5 年，是一個晴朗的日子。代理人正在決定是否買保險。
-- **檢索引擎啟動**：
-  - 它查看 JSON 中的數百條紀錄。
-  - **計算衰減**：$Score = I \times e^{-0.1 \times 3 \text{years}}$。
-  - 第 4 年的「晴天記憶」($I=0.1$) 衰減到趨近 0 -> **被過濾掉**。
-  - 第 2 年的「洪水事實 (Path A)」($I=1.0$) 雖然衰減，但分數仍高 -> **被選中**。
-  - 第 2 年的「反思心得 (Path B)」($I=10.0$) 分數依然極高 -> **被選中**。
-- **最終 Prompt (Context)**：
-  系統將這兩條舊記憶「注入」到第 5 年的 Prompt 中：
-  > "You recall that in Year 2, a flood caused $50k damage." (Path A)
-  > "Deep down, you know that without elevation, you will go bankrupt." (Path B)
-  > "Current Status: It is sunny."
-
-**結果**：即使現在是晴天，代理人讀到這些「注入的舊記憶」，決定購買保險。這就是記憶系統運作的全貌。
+1.  **記憶 A 評分**：$1.0 \cdot e^{-(0.1 \times 10)} = 0.36$。
+2.  **記憶 B 評分**：$0.1 \cdot e^{-(0.1 \times 1)} \approx 0.09$。
+3.  **分析**：雖然記憶 A 的分值較高，但它正與 **工作記憶窗口** 中數以百計像記憶 B 這樣分數接近 $1.0$ 的「近期大晴天」競爭。
+4.  **結果**：代理人因「正常化偏見」而保持冷漠，**忽略了預警**，因為過去九年的安逸經驗佔據了主要思維。
 
 ---
 
-## 3. ⚙️ 配置與參數指南 (Configuration & Parameters)
+#### **模型 v2：理性型代理人 (Deliberate)**
 
-針對 Llama 3 / Gemma 等模型的建議設定。
+v2 使用公式 $S = (R \times 0.3) + (I \times 0.5) + (C \times 0.2)$。
 
-### 情感與來源權重 (Keywords & Weights)
-
-用戶可通過 `agent_types.yaml` 自定義情感關鍵字與來源權重，這直接影響 $Imp(m)$ 的計算。
-
-| 類別 (Category)     | 關鍵字範例                  | 權重 (Weight)       |
-| :------------------ | :-------------------------- | :------------------ |
-| **Direct Impact**   | `flood`, `damage`, `trauma` | **1.0** (最高/創傷) |
-| **Personal Source** | `i`, `my`, `me`             | **1.0** (親身經歷)  |
-| **Strategic**       | `decision`, `relocate`      | **0.8**             |
-| **Neighbor**        | `neighbor`, `others`        | **0.8**             |
-| **Routine**         | (default)                   | **0.1**             |
-
-### 一般參數 (General Parameters)
-
-| 參數                            | 類型    | 預設值 | 說明                      |
-| :------------------------------ | :------ | :----- | :------------------------ |
-| `window_size`                   | `int`   | `5`    | 「工作記憶」中的項目數。  |
-| `decay_rate` ($\lambda_{base}$) | `float` | `0.1`  | 基礎遺忘率。              |
-| `importance_boost`              | `float` | `0.9`  | **反思洞察** 的權重乘數。 |
+1.  **記憶 A (洪水創傷)**:
+    - **數學推導**: $(R=0.0 \times 0.3) + (I=0.36 \times 0.5) + (C=1.0 \times 0.2) = 0.0 + 0.18 + 0.20 = \mathbf{0.38}$
+    - **關鍵點**: 因當前預警包含「洪水」關鍵字，**情境分數 ($C$) 直接跳至 1.0**。
+2.  **記憶 B (日常修剪)**:
+    - **數學推導**: $(R=0.9 \times 0.3) + (I=0.09 \times 0.5) + (C=0.0 \times 0.2) = 0.27 + 0.045 + 0.0 = \mathbf{0.315}$
+    - **關鍵點**: 雖然非常新鮮 ($R=0.9$)，但與當前危機情境完全不相關。
+3.  **分析**：**0.38 > 0.315**。十年前的慘痛教訓在評分上強行超越了去年的平淡日子。
+4.  **結果**：代理人立刻被喚回創傷記憶，並 **決定購買洪水保險**。
 
 ---
 
-## 4. 🔌 使用與連接器指南 (Usage & Connector Guide)
+## 3. v3：通用記憶引擎 (驚奇引擎)
 
-如何在您的實驗腳本 (`run.py`) 中實例化並連接組件。
+v3 是整個認知架構的「控制器」。它模擬了 **「喚起迴路 (Arousal Loop)」** —— 決定代理人何時該依循習慣 (v1)，以及何時該醒轉並展現理性 (v2)。
 
-```python
-# 1. 初始化引擎 (使用工廠模式)
-from broker.components import create_memory_engine
+### 🧠 喚起迴路的運作機制
 
-memory_engine = create_memory_engine(
-    engine_type="universal",
-    window_size=5,
-    arousal_threshold=0.5,
-    ema_alpha=0.3
-)
+1.  **感官輸入 ($Reality$, 來自 State)**：
+    在每個模擬週期，引擎會讀取 `world_state`。在我們的案例中，它追蹤的是「洪水水位 (flood_depth)」。這是一個 **變動的環境狀態變數 (Dynamic State Variable)**。
+2.  **內部預期 ($Expectation$)**：
+    代理人使用 **EMA 預測器 (Exponential Moving Average)** 維持一個內部的「常態模型」。
+    - **公式**：$E_t = (\alpha \times R_t) + ((1 - \alpha) \times E_{t-1})$
+    - 這創造了 **「常態偏見 (Normalcy Bias)」**：即使洪水開始上漲，代理人的「心理預期」也會緩慢移動，導致現實與信念之間產生落差。
 
-# 2. 連結到上下文建構器
-ctx_builder = FinalContextBuilder(
-    agents=agents,
-    hub=hub,
-    sim=sim,
-    memory_top_k=5
-)
+3.  **預測誤差 ($PE$, 驚奇值)**：
+    「驚奇度」即為絕對差值：$PE = |\text{現實} - \text{期待}|$。
+    - **動態計算**：當現實水位暴漲時，$PE$ 也會隨之飆升。
+    - **動態切換 (Dynamic Toggling)**：
+      - 若 $PE < \text{喚起閾值}$ (0.5)：代理人保持在 **系統一 (模型 v1)**。它信任習慣，並過濾掉深層的存檔記憶。
+      - 若 $PE \ge \text{喚起閾值}$：代理人進入 **系統二 (模型 v2)**。這會觸發「情境全搜索」，啟動加權評分，進而喚回十年前的創傷。
 
-# 3. 主迴圈整合
-# 傳入 'world_state' 以啟用驚喜檢測
-personal_memory = memory_engine.retrieve(
-    agent,
-    top_k=5,
-    world_state={"flood_depth": current_depth}
-)
-# 'observation' 現在包含注入的記憶 + 當前狀態
+### 🔄 v3 會隨狀態 (State) 改變嗎？
+
+**是的。** v3 的所有核心指標都是「狀態依賴」的：
+
+- **Reality (現實)**：直接由環境 `world_state` 輸入。
+- **Expectation (期待)**：根據每一輪的新觀察進行學習與更新。
+- **Arousal Mode (喚起模式)**：根據「環境與心智的落差」即時在「繼承模式」與「加權模式」之間翻轉。
+
+> [!TIP]
+> **理論連結**：這完美實作了 **主動推理 (Active Inference, Friston, 2010)** —— 大腦的目標是最小化驚奇度；以及 **《快思慢想》(Kahneman, 2011)** 中定義的兩種思考速度。
+
+---
+
+## 4. ⚙️ 配置與參考文獻
+
+```yaml
+memory_config:
+  type: "universal" # v3
+  params:
+    arousal_threshold: 0.5
+    W_recency: 0.3
+    W_importance: 0.5
+    W_context: 0.2
 ```
 
----
-
-## 5. 📝 輸入/輸出範例 (Input / Output Examples)
-
-Prompt 內部究竟發生了什麼？
-
-**輸入：原始記憶庫**
-
-```json
-[
-  { "year": 2, "text": "洪水摧毀房屋。創傷極高。", "importance": 1.0 },
-  { "year": 8, "text": "晴天。", "importance": 0.1 }
-]
-```
-
-**過程：第 10 年檢索**
-
-- 第 8 年被遺忘 (衰減)。
-- 第 2 年 **被檢索** (高重要性戰勝了衰減)。
-
-**輸出：注入後的上下文**
-
-```text
-[Your History]
-- Recurring Memory: "洪水摧毀房屋..." (第 2 年)
-[Current Situation]
-- "目前正在下大雨。"
-```
+[1] Tversky & Kahneman (1973). _Availability Heuristic_. (v1: 心理學基礎，說明代理人為何會受到新鮮度與顯著性的偏誤影響)。
+[2] Friston (2010). _The free-energy principle_. (v3: 驚奇引擎的理論基礎，說明生物如何透過最小化預測誤差來分配資源)。
+[3] Ebbinghaus (1885). _Forgetting Curve_. (v1/v2: 描述記憶隨時間衰減的數學模型)。
+[4] Park et al. (2023). _Generative Agents_. (v2: **加權模式**的直接文獻來源，定義了「新鮮度、重要性、相關性」的三元檢索邏輯)。
+[5] Kahneman (2011). _Thinking, Fast and Slow_. (v3: **雙系統理論**的文獻來源，定義了系統一（習慣）與系統二（理性）的切換)。
