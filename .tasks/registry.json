@@ -1,6 +1,6 @@
 {
   "version": "1.2",
-  "last_updated": "2026-01-21T15:00:35.597228Z",
+  "last_updated": "2026-01-21T15:19:25.966434Z",
   "tasks": [
     {
       "id": "task-011",
@@ -466,20 +466,6 @@
       "handoff_file": "handoff/task-022.md"
     },
     {
-      "id": "Task-023",
-      "title": "[DEPRECATED] Context-Dependent Memory Retrieval",
-      "status": "deprecated",
-      "type": "feature",
-      "priority": "low",
-      "owner": "Antigravity",
-      "description": "DUPLICATE of Task-021. This entry should be ignored - functionality was implemented as part of Task-021.",
-      "dependencies": [],
-      "created_at": "2026-01-19T23:20:00.000Z",
-      "deprecated_at": "2026-01-20T00:00:00.000Z",
-      "deprecated_reason": "Duplicate of Task-021. The context-dependent memory retrieval was implemented as Task-021-A.",
-      "handoff_file": "handoff/task-021-memory-retrieval-plan.md"
-    },
-    {
       "id": "Task-024",
       "title": "Task-022 Integration Testing & Validation",
       "status": "completed",
@@ -747,10 +733,20 @@
         {
           "id": "028-G",
           "title": "Run verification tests",
-          "status": "blocked",
+          "status": "ready_for_execution",
           "assigned_to": "Gemini CLI",
           "description": "Verify no import errors, crisis mechanism works, System 2 triggers on flood",
-          "blocker": "Waiting for 028-C/D file moves to complete"
+          "blocker": {
+            "reason": "Waiting for 028-C/D file moves to complete",
+            "depends_on": [
+              "028-C",
+              "028-D"
+            ],
+            "unblock_trigger": "all_dependencies_complete",
+            "unblock_action": "cd examples/multi_agent && python run_unified_experiment.py --model gemma3:4b --years 3 --agents 5 --memory-engine universal --output results_unified/v028_verification",
+            "blocked_at": "2026-01-21T06:30:00Z",
+            "unblocked_at": "2026-01-21T15:19:25.966409Z"
+          }
         }
       ],
       "scope": "broker/components/, examples/multi_agent/",
