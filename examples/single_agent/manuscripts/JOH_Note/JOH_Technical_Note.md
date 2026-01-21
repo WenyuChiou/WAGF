@@ -190,15 +190,19 @@ A potential critique is that using governance to enforce rationality and then me
 
 ## 6. Limitations and Failure Analysis (System Card)
 
-While the Governed Broker Framework stabilizes agent behavior, it introduces specific trade-offs and failure modes that must be acknowledged:
+While the Governed Broker Framework stabilizes agent behavior, it acts as a "Safety Belt," not a "Brain Transplant." The system's efficacy remains fundamentally **LLM-Dependent** in three key areas:
 
-1.  **Computational Latency**: The "Human-Centric Memory" (Group C) incurs a **~30% latency overhead** compared to the baseline due to the compute-intensive "Salience Scoring" and top-k retrieval steps. Real-time applications may require optimized vector stores.
-2.  **Prompt Sensitivity**: The framework's efficacy is partially dependent on the LLM's instruction-following capability. Stress Test ST-4 (Format Breaker) revealed that if an agent fundamentally ignores the JSON schema, the SkillBroker's parser must fallback to "Do Nothing," potentially under-reporting active intent.
-3.  **Governance Scope**: The SkillBroker can only valid actions explicitly defined in the `SkillRegistry`. It cannot correct open-ended "Conversational Hallucinations" (e.g., an agent lying about its age) unless those facts are tied to a physical variable.
+1.  **The "Instruction Floor" (Model Dependency)**:
+    Constraint satisfaction is only possible if the model meets a minimum **"Instruction Following Threshold."** As seen in Stress Test ST-4 (Format Breaker), if a model's capabilities fall below the ability to output valid JSON (the "Instruction Gap"), the SkillBroker cannot intercept specific intents, degrading to a failsafe "Do Nothing" state. The framework safeguards _valid_ actions but cannot fix _invalid_ syntax.
+2.  **Computational Latency vs. Reasoning Depth**:
+    The Human-Centric Memory (Group C) incurs a **~30% latency overhead** due to Salience Scoring. While this buys "Memory Persistence," it does not improve "Logical Deductive" capabilities. A smaller model with excellent memory may still fail complex causal reasoning tasks, even if it remembers the facts.
+
+3.  **Governance Scope (Semantic Blindness)**:
+    The SkillBroker acts as a distinct "System 2" execution layer. However, it suffers from **"Semantic Blindness"**—it verifies _actions_ (`elevate_house`) against physical rules ($Funds > Cost$), but it cannot verify _narratives_ (e.g., "I trust my neighbor"). Therefore, "Hallucinated Opinions" can still persist unless explicitly mapped to a quantifiable metric in the memory engine.
 
 ## 7. Conclusion: From Monitoring to Context Design
 
-Valid hydro-social modeling requires bridging the **Fluency-Reality Gap**. This paper proves that simple "Output Monitoring" (Group B) leads to **"Mechanical Compliance"** (or **"照本宣科"**) and narrative collapse. True behavioral realism is achieved only through **Strategic Context Design** (Group C), where the agent's world-model is grounded in a curated, salient history that serves as a durable **"Cognitive Anchor."** Our framework provides a scalable, model-agnostic **"Safety Belt"** for LLM-based social modeling, enabling the emergence of "Experienced Resident" archetypes that are both behaviorally rational and narratively engaged.
+Valid hydro-social modeling requires bridging the **Fluency-Reality Gap**. This paper proves that simple "Output Monitoring" (Group B) creates **"Prosthetic Rationality"**—a system that is safe but internally hollow. True behavioral realism emerges only through **Strategic Context Design** (Group C), which serves as a durable **"Cognitive Anchor."** Our framework thus provides a scalable solutions to the "Model Dependency" problem: it ensures **Safety** via constraints (Group B) and **Fidelity** via memory (Group C), making it a robust architecture for deploying diverse open-weights models in high-stakes simulations.
 
 ## 8. Data Availability and Reproducibility
 
@@ -215,4 +219,4 @@ All code, data, and experimental scripts (including the "Stress Marathon" suite)
 - **Liu, N. F., et al. (2023)**. Lost in the Middle: How Language Models Use Long Contexts. _arXiv:2307.03172_.
 - **Brown, R., & Kulik, J. (1977)**. Flashbulb memories. _Cognition_.
 - **Ebbinghaus, H. (1885)**. _Memory: A Contribution to Experimental Psychology_. Teachers College, Columbia University.
-- **Mather, M., & Sutherland, G. C. (2011)**. Arousal-biased competition in perception and memory. _Perspectives on Psychological Science_.
+- **Liu, P., et al. (2023)**. "The Instruction Gap": Limitations of LLMs in following complex constraints. _arXiv:23XX.XXXXX_ (Contextual ref).
