@@ -1,6 +1,6 @@
 {
   "version": "1.2",
-  "last_updated": "2026-01-21T05:15:31.178090Z",
+  "last_updated": "2026-01-21T14:04:01.972031Z",
   "tasks": [
     {
       "id": "task-011",
@@ -685,6 +685,94 @@
       "created_at": "2026-01-21T01:20:00.000Z",
       "assigned_to": "Gemini CLI",
       "handoff_file": "handoff/task-018-viz.md"
+    },
+    {
+      "id": "Task-028",
+      "title": "Framework Cleanup & Agent-Type Cognitive Config",
+      "status": "in_progress",
+      "type": "refactor",
+      "priority": "high",
+      "owner": "Claude Code",
+      "reviewer": "WenyuChiou",
+      "description": "Clean up MA-specific code from generic broker framework and implement agent-type-specific cognitive/memory configuration. Addresses framework contamination found during Task-027 evaluation.",
+      "dependencies": [
+        "Task-027"
+      ],
+      "created_at": "2026-01-21T06:00:00.000Z",
+      "subtasks": [
+        {
+          "id": "028-A",
+          "title": "Make stimulus_key required in universal_memory.py",
+          "status": "completed",
+          "assigned_to": "Claude Code",
+          "note": "Changed stimulus_key from optional (default 'flood_depth') to required parameter"
+        },
+        {
+          "id": "028-B",
+          "title": "Remove MA hardcoding from context_builder.py",
+          "status": "completed",
+          "assigned_to": "Claude Code",
+          "note": "Replaced hardcoded flood_occurred/emotion:fear with generic crisis_event/crisis_boosters mechanism"
+        },
+        {
+          "id": "028-C",
+          "title": "Move media_channels.py to examples/multi_agent/components/",
+          "status": "completed",
+          "assigned_to": "Codex",
+          "description": "Move MA-specific media_channels.py out of broker/components/",
+          "note": "Moved files into examples/multi_agent and updated imports."
+        },
+        {
+          "id": "028-D",
+          "title": "Move broker/modules/hazard/ to examples/multi_agent/environment/",
+          "status": "completed",
+          "assigned_to": "Codex",
+          "description": "Move MA-specific hazard module out of broker/",
+          "note": "Moved files into examples/multi_agent and updated imports."
+        },
+        {
+          "id": "028-E",
+          "title": "Update ma_agent_types.yaml with cognitive_config/memory_config",
+          "status": "completed",
+          "assigned_to": "Claude Code",
+          "note": "Added agent-type-specific cognitive_config (stimulus_key, arousal_threshold) and memory_config (emotional_weights)"
+        },
+        {
+          "id": "028-F",
+          "title": "Update run_unified_experiment.py for crisis_event/crisis_boosters",
+          "status": "completed",
+          "assigned_to": "Claude Code",
+          "note": "Added crisis_event and crisis_boosters to env_data initialization and flood event handling"
+        },
+        {
+          "id": "028-G",
+          "title": "Run verification tests",
+          "status": "blocked",
+          "assigned_to": "Gemini CLI",
+          "description": "Verify no import errors, crisis mechanism works, System 2 triggers on flood",
+          "blocker": "Waiting for 028-C/D file moves to complete"
+        }
+      ],
+      "scope": "broker/components/, examples/multi_agent/",
+      "done_when": "Framework is generic (no MA pollution), agent-type config works, tests pass",
+      "tests_run": "pending",
+      "risks": "Import path changes may break existing code",
+      "rollback": "git revert commits for 028-A/B/E/F",
+      "artifacts": [
+        "broker/components/universal_memory.py",
+        "broker/components/context_builder.py",
+        "examples/multi_agent/ma_agent_types.yaml",
+        "examples/multi_agent/run_unified_experiment.py"
+      ],
+      "next_step": "Run 028-G verification",
+      "handoff_file": "handoff/task-028.md",
+      "design_decisions": [
+        "Government stimulus: adaptation_gap (policy effect deviation)",
+        "Insurance stimulus: loss_ratio (claims ratio)",
+        "Household arousal_threshold: 1.0 (lowered from 2.0 for first-flood sensitivity)",
+        "Framework cleanup: Complete (move MA files out of broker/)"
+      ],
+      "blocker": null
     }
   ],
   "known_issues": [

@@ -23,7 +23,7 @@
 | 028-D | Move broker/modules/hazard/ to examples/multi_agent/environment/ | **Codex** | **DONE** |
 | 028-E | Update ma_agent_types.yaml with cognitive_config/memory_config | Claude Code | **DONE** |
 | 028-F | Update run_unified_experiment.py for crisis_event/crisis_boosters | Claude Code | **DONE** |
-| 028-G | Run verification tests | **Gemini CLI** | **PENDING** |
+| 028-G | Run verification tests | **Gemini CLI** | **BLOCKED** |
 
 ---
 
