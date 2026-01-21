@@ -238,3 +238,24 @@ issues:
 cleanup:
   - Removed results_unified/v027_test*, v027_v1_emulate, v027_v2_emulate directories
 next: optional deeper validation of System1/2 switching signals in traces if required
+
+
+---
+
+## Verification Addendum: System 1/2 Switching (Inline) - 2026-01-21T05:15:31.178090Z
+
+Performed direct engine calls (no LLM) to validate system switching:
+
+```python
+engine_s1 = UniversalCognitiveEngine(arousal_threshold=99.0, stimulus_key="flood_depth_m")
+engine_s1.retrieve(agent, world_state={"flood_depth_m": 1.0})
+# current_system=SYSTEM_1, surprise=1.0
+
+engine_s2 = UniversalCognitiveEngine(arousal_threshold=0.0, stimulus_key="flood_depth_m")
+engine_s2.retrieve(agent, world_state={"flood_depth_m": 1.0})
+# current_system=SYSTEM_2, surprise=1.0
+```
+
+Notes:
+- Default `stimulus_key` in UniversalCognitiveEngine is `flood_depth` (not `flood_depth_m`).
+- MA YAML sets `stimulus_key: flood_depth_m`, so runner must pass this (now supported).

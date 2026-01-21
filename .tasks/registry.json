@@ -1,6 +1,6 @@
 {
   "version": "1.2",
-  "last_updated": "2026-01-21T05:11:20.712313Z",
+  "last_updated": "2026-01-21T05:15:31.178090Z",
   "tasks": [
     {
       "id": "task-011",
@@ -668,7 +668,7 @@
         }
       ],
       "handoff_file": "handoff/task-027.md",
-      "note": "All subtasks completed; universal engine wired + verification smoke runs done."
+      "note": "All subtasks completed; universal engine wired + verification smoke runs done; system switching verified inline."
     },
     {
       "id": "Task-018-Viz",
