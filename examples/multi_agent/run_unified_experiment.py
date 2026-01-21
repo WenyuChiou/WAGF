@@ -35,7 +35,7 @@ from broker import (
 from simulation.environment import TieredEnvironment
 from agents.base_agent import BaseAgent, AgentConfig, StateParam, Skill, PerceptionSource
 from examples.multi_agent.environment.hazard import HazardModule, VulnerabilityModule, YearMapping
-from broker.components.media_channels import MediaHub
+from components.media_channels import MediaHub
 
 # Local imports from multi_agent directory
 MULTI_AGENT_DIR = Path(__file__).parent
@@ -265,6 +265,9 @@ class MultiAgentHooks:
             self.env["flood_depth_ft"] = round(max_depth_m * 3.28084, 3)
             self.env["avg_flood_depth_m"] = round(avg_depth_m, 3)
             self.env["flooded_household_count"] = flooded_count
+            # Generic crisis mechanism for TieredContextBuilder (Task-028)
+            self.env["crisis_event"] = self.env["flood_occurred"]
+            self.env["crisis_boosters"] = {"emotion:fear": 1.5} if self.env["flood_occurred"] else {}
 
             if self.env["flood_occurred"]:
                 print(f" [ENV] !!! FLOOD WARNING for Year {year} !!! max_depth={max_depth_m:.2f}m, avg={avg_depth_m:.2f}m, flooded={flooded_count}/{len(households)}")
@@ -277,6 +280,9 @@ class MultiAgentHooks:
             self.env["flood_depth_m"] = round(event.depth_m, 3)
             self.env["flood_depth_ft"] = round(event.depth_ft, 3)
             self.agent_flood_depths = {}  # Clear per-agent depths
+            # Generic crisis mechanism for TieredContextBuilder (Task-028)
+            self.env["crisis_event"] = self.env["flood_occurred"]
+            self.env["crisis_boosters"] = {"emotion:fear": 1.5} if self.env["flood_occurred"] else {}
 
             if self.env["flood_occurred"]:
                 print(f" [ENV] !!! FLOOD WARNING for Year {year} !!! depth={event.depth_m:.2f}m")
@@ -542,7 +548,10 @@ def run_unified_experiment():
         "flood_depth_ft": 0.0,
         "year": 1,
         "govt_message": "The government is monitoring the situation.",
-        "insurance_message": "Insurance rates are stable."
+        "insurance_message": "Insurance rates are stable.",
+        # Generic crisis mechanism for TieredContextBuilder (Task-028)
+        "crisis_event": False,
+        "crisis_boosters": {},
     }
     tiered_env = TieredEnvironment(global_state=env_data)
 
