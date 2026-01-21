@@ -1,6 +1,6 @@
 {
   "version": "1.2",
-  "last_updated": "2026-01-21T01:17:18.693691Z",
+  "last_updated": "2026-01-21T04:24:11.537373Z",
   "tasks": [
     {
       "id": "task-011",
@@ -234,7 +234,7 @@
     {
       "id": "Task-018",
       "title": "MA Experiment Visualization & Analysis",
-      "status": "in-progress",
+      "status": "completed",
       "type": "visualization",
       "priority": "medium",
       "owner": "antigravity",
@@ -248,48 +248,48 @@
         {
           "id": "018-A",
           "title": "Decision Distribution Charts",
-          "status": "pending",
+          "status": "completed",
           "assigned_to": "Gemini CLI",
           "description": "Yearly decision distribution bar charts, Shannon entropy trend"
         },
         {
           "id": "018-B",
           "title": "PMT-Decision Correlation Heatmap",
-          "status": "pending",
+          "status": "completed",
           "assigned_to": "Gemini CLI",
           "description": "5x5 heatmap showing PMT constructs vs decision types correlation"
         },
         {
           "id": "018-C",
           "title": "Agent Trajectory Analysis",
-          "status": "pending",
+          "status": "completed",
           "assigned_to": "Gemini CLI",
           "description": "Individual agent decision timelines, state transition diagrams"
         },
         {
           "id": "018-D",
           "title": "MG Equity Analysis Charts",
-          "status": "pending",
+          "status": "completed",
           "assigned_to": "Codex",
           "description": "MG vs non-MG adaptation rate comparison, subsidy benefit distribution"
         },
         {
           "id": "018-E",
           "title": "Institutional Policy Impact",
-          "status": "pending",
+          "status": "completed",
           "assigned_to": "Codex",
           "description": "Government subsidy rate vs elevation adoption, insurance premium vs take-up rate"
         },
         {
           "id": "018-F",
           "title": "PMT Construct Temporal Evolution",
-          "status": "pending",
+          "status": "completed",
           "assigned_to": "Codex",
           "description": "Line charts showing PMT construct changes over simulation years"
         }
       ],
       "handoff_file": "handoff/task-018.md",
-      "note": "UNBLOCKED. Data available at results_unified/v015_fixed_bg/. Ready for visualization."
+      "note": "All visualization subtasks completed; charts generated (see tests/reports/figures)."
     },
     {
       "id": "Task-019",
@@ -667,6 +667,22 @@
         }
       ],
       "handoff_file": "handoff/task-027.md"
+    },
+    {
+      "id": "Task-018-Viz",
+      "title": "Generate Visualizations for Task-018",
+      "status": "completed",
+      "type": "visualization",
+      "priority": "medium",
+      "owner": "Gemini CLI",
+      "reviewer": "WenyuChiou",
+      "description": "Generate the visualization charts for Task-018 using the data from the MA experiment.",
+      "dependencies": [
+        "Task-018"
+      ],
+      "created_at": "2026-01-21T01:20:00.000Z",
+      "assigned_to": "Gemini CLI",
+      "handoff_file": "handoff/task-018-viz.md"
     }
   ],
   "known_issues": [
