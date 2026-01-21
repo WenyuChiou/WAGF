@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "last_updated": "2026-01-21T16:40:00Z",
+  "last_updated": "2026-01-21T16:52:00Z",
   "description": "Centralized artifact registry for all tasks. Tracks produced files, their types, and ownership.",
   "artifacts": [
     {
@@ -227,6 +227,24 @@
       "produced_by": "Claude Code",
       "timestamp": "2026-01-21T16:40:00Z",
       "description": "Verification report for Task-028-G: Framework cleanup verified, crisis mechanism needs flood test"
+    },
+    {
+      "task_id": "Task-028",
+      "subtask_id": "028-G-MONITOR",
+      "file": "monitor_experiment.ps1",
+      "type": "script",
+      "produced_by": "Claude Code",
+      "timestamp": "2026-01-21T16:50:00Z",
+      "description": "PowerShell monitor script for tracking experiment progress and highlighting key events"
+    },
+    {
+      "task_id": "Task-028",
+      "subtask_id": "028-G-STATUS",
+      "file": "examples/multi_agent/results_unified/v028_flood_test/STATUS.md",
+      "type": "documentation",
+      "produced_by": "Claude Code",
+      "timestamp": "2026-01-21T16:52:00Z",
+      "description": "Status tracking document for ongoing flood verification test (Task-028-G rerun)"
     }
   ]
 }
