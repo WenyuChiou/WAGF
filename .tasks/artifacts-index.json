@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "last_updated": "2026-01-21T16:52:00Z",
+  "last_updated": "2026-01-21T17:00:00Z",
   "description": "Centralized artifact registry for all tasks. Tracks produced files, their types, and ownership.",
   "artifacts": [
     {
@@ -245,6 +245,24 @@
       "produced_by": "Claude Code",
       "timestamp": "2026-01-21T16:52:00Z",
       "description": "Status tracking document for ongoing flood verification test (Task-028-G rerun)"
+    },
+    {
+      "task_id": "Task-028",
+      "subtask_id": "028-G-FINAL",
+      "file": "examples/multi_agent/results_unified/v028_flood_test/FINAL_VERIFICATION_REPORT.md",
+      "type": "documentation",
+      "produced_by": "Claude Code",
+      "timestamp": "2026-01-21T17:00:00Z",
+      "description": "Final verification report: Task-028 COMPLETE (8/8 subtasks verified), all features working"
+    },
+    {
+      "task_id": "Task-028",
+      "subtask_id": "028-G-RESULTS",
+      "file": "examples/multi_agent/results_unified/v028_flood_test/gemma3_4b_strict/",
+      "type": "data",
+      "produced_by": "Claude Code",
+      "timestamp": "2026-01-21T14:29:00Z",
+      "description": "Experiment results: 21 traces, 3 flood events, crisis mechanism verified, $696K total damage"
     }
   ]
 }
