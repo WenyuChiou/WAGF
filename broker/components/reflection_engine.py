@@ -167,15 +167,9 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
         if not batch_data:
             return ""
         
-        lines = [f"### Background\nYou are a Reflection Assistant for {len(batch_data)} agents in a flood simulation (Year {current_year})."]
+        lines = [f"### Background\nYou are a Reflection Assistant for {len(batch_data)} agents in a simulation (Year {current_year})."]
         lines.append("Instructions: Summarize each agent's memories into a 2-sentence 'Lesson Learned'.\n")
-        
-        lines.append("### Example Format (1-Shot)")
-        lines.append("Agent_001 Memories: Flood caused $5000 damage. I had no insurance.")
-        lines.append("Agent_002 Memories: I elevated my house. Year 3 flood caused $0 damage.")
-        lines.append("Result JSON:")
-        lines.append('{"Agent_001": "I learned that floods cause high financial loss without insurance.", "Agent_002": "I discovered that elevating my house is effective against floods."}\n')
-        
+
         lines.append("### Task Data to Process")
         for item in batch_data:
             agent_id = item.get("agent_id", "Unknown")

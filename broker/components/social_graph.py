@@ -10,17 +10,34 @@ Design Principles:
 Usage:
     # Option 1: Use built-in graph types
     graph = create_social_graph("neighborhood", agent_ids, k=5)
-    
+
     # Option 2: Custom graph via edge builder
     def my_edge_builder(agent_ids):
         return [("A1", "A2"), ("A2", "A3")]  # List of (from, to) tuples
     graph = create_social_graph("custom", agent_ids, edge_builder=my_edge_builder)
-    
+
     # Option 3: Subclass SocialGraph
     class MyGraph(SocialGraph):
         def __init__(self, agent_ids):
             super().__init__(agent_ids)
             # Custom connection logic
+
+Examples Across Domains:
+    # Disaster Risk Simulation
+    positions = {"H001": (100, 200), "H002": (101, 201)}
+    graph = create_social_graph("spatial", agent_ids, positions=positions, radius=3)
+
+    # Trading Network
+    graph = create_social_graph("random", trader_ids, p=0.15, seed=42)
+
+    # Organizational Hierarchy
+    def org_edges(employee_ids):
+        # Custom logic for reporting structure
+        return [("Manager_1", "Employee_1"), ("Manager_1", "Employee_2")]
+    graph = create_social_graph("custom", employee_ids, edge_builder=org_edges)
+
+    # Social Media Platform
+    graph = create_social_graph("neighborhood", user_ids, k=10)  # Follow 10 nearest users
 """
 from abc import ABC, abstractmethod
 from typing import List, Dict, Set, Callable, Optional, Tuple

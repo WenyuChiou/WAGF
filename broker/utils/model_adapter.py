@@ -107,7 +107,7 @@ class UnifiedAdapter(ModelAdapter):
         Initialize unified adapter.
         
         Args:
-            agent_type: Type of agent (household, insurance, government)
+            agent_type: Type of agent (e.g., "trader", "manager", "consumer")
             preprocessor: Optional function to preprocess raw output
             valid_skills: Optional set of valid skill names (overrides agent_type config)
             config_path: Optional path to agent_types.yaml
@@ -142,7 +142,7 @@ class UnifiedAdapter(ModelAdapter):
         
         # Load valid skills for the agent type to build alias map
         self.valid_skills = self.agent_config.get_valid_actions(agent_type)
-        # Build alias map from config (e.g., "HE" -> "elevate_house", "FI" -> "buy_insurance")
+        # Build alias map from config (e.g., "ACT1" -> "action_alpha", "ACT2" -> "action_beta")
         self.alias_map = self.agent_config.get_action_alias_map(agent_type)
             
     def _get_preprocessor_for_type(self, agent_type: str) -> Callable[[str], str]:
