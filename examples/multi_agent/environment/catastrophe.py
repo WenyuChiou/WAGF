@@ -8,7 +8,7 @@ Separates environmental physics from agent decision logic.
 from dataclasses import dataclass
 from typing import Dict, Any, Tuple
 import numpy as np
-from examples.multi_agent.environment.hazard import VulnerabilityModule
+from .hazard import VulnerabilityModule
 
 @dataclass
 class FloodEvent:

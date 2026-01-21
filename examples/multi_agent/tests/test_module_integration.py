@@ -338,7 +338,7 @@ class TestVulnerabilityCalculator(unittest.TestCase):
 
     def setUp(self):
         """Import vulnerability calculator."""
-        from broker.modules.hazard.vulnerability import VulnerabilityCalculator
+        from examples.multi_agent.environment.vulnerability import VulnerabilityCalculator
         self.calc = VulnerabilityCalculator()
         # Conversion: 1 foot = 0.3048 meters
         self.FT_TO_M = 0.3048

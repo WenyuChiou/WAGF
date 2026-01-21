@@ -13,14 +13,14 @@ from typing import Dict, Optional, List, Tuple
 
 import numpy as np
 
-from broker.modules.hazard.prb_loader import PRBGridLoader
-from broker.modules.hazard.depth_sampler import (
+from .prb_loader import PRBGridLoader
+from .depth_sampler import (
     DepthSampler,
     DepthCategory,
     PositionAssignment,
     sample_flood_depth_for_year,
 )
-from broker.modules.hazard.vulnerability import VulnerabilityCalculator, FEET_PER_METER
+from .vulnerability import VulnerabilityCalculator, FEET_PER_METER
 
 
 @dataclass
