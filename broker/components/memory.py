@@ -421,13 +421,41 @@ class MemoryAwareContextBuilder(ContextBuilder):
         return context
     
     def _get_relevant_tags(self, agent_type: str) -> List[str]:
-        """Get relevant retrieval tags for agent type."""
-        base_tags = ["general"]
-        if "MG" in agent_type:
-            base_tags.append("subsidy")
-        if "Owner" in agent_type:
-            base_tags.extend(["action"])
-        return base_tags
+        """
+        Get relevant retrieval tags for agent type (config-driven, v0.29+).
+
+        Loads tags from agent_types.yaml memory_config section.
+        Falls back to ["general"] if config not found.
+
+        Args:
+            agent_type: Full agent type string (e.g., "household_mg", "household_owner")
+
+        Returns:
+            List of retrieval tags for filtering memories
+        """
+        from broker.utils.agent_config import load_agent_config
+
+        try:
+            cfg = load_agent_config()
+
+            # Try agent-type-specific tags first (e.g., household_mg)
+            memory_config = cfg.get_memory_config(agent_type)
+            if memory_config and "retrieval_tags" in memory_config:
+                return memory_config["retrieval_tags"]
+
+            # Fallback to generic household/institutional tags
+            generic_type = "household" if "household" in agent_type.lower() else "institutional"
+            memory_config = cfg.get_memory_config(generic_type)
+            if memory_config and "retrieval_tags" in memory_config:
+                return memory_config["retrieval_tags"]
+
+        except Exception as e:
+            # Log but don't crash if config unavailable
+            import logging
+            logging.getLogger(__name__).debug(f"Could not load retrieval_tags for {agent_type}: {e}")
+
+        # Final fallback
+        return ["general"]
     
     def format_prompt(self, context: Dict[str, Any]) -> str:
         """Format with memory section."""

@@ -19,12 +19,106 @@ shared:
       - { key: "reasoning", type: "text", required: false }
 
 global_config:
+  # =============================================================================
+  # DEFAULT MEMORY SETTINGS (used when agent-type-specific config not available)
+  # =============================================================================
   memory:
     window_size: 5
     consolidation_threshold: 0.6
     consolidation_probability: 0.7
     top_k_significant: 2
     decay_rate: 0.1
+    # UniversalCognitiveEngine v3 defaults (can be overridden per agent type)
+    arousal_threshold: 1.0    # Lowered from 2.0 for better first-flood sensitivity
+    ema_alpha: 0.3            # EMA smoothing factor [0-1], lower = slower adaptation
+    stimulus_key: "flood_depth_m"  # Default for households
+    ranking_mode: "weighted"  # Memory ranking mode: "legacy" or "weighted"
+
+  # =============================================================================
+  # COGNITIVE CONFIG (Agent-Type Specific Surprise Engine Settings)
+  # =============================================================================
+  # Each agent type can have different stimulus_key and arousal_threshold
+  # based on what triggers their "surprise" response
+  cognitive_config:
+    # Households: Environmental stimulus (flood depth)
+    household_owner:
+      stimulus_key: "flood_depth_m"     # Physical flood depth
+      arousal_threshold: 1.0            # First 1m flood triggers System 2
+      ema_alpha: 0.3
+      engine: "universal"               # Use v3 cognitive engine
+
+    household_renter:
+      stimulus_key: "flood_depth_m"
+      arousal_threshold: 0.8            # Renters more sensitive (no property investment)
+      ema_alpha: 0.3
+      engine: "universal"
+
+    # Government: Policy effectiveness deviation
+    nj_government:
+      stimulus_key: "adaptation_gap"    # |actual_rate - target_rate|
+      arousal_threshold: 0.15           # 15% deviation triggers deliberation
+      ema_alpha: 0.2                    # Slower policy adaptation
+      engine: "window"                  # Simpler engine for institutional agents
+
+    # Insurance: Financial risk indicator
+    fema_nfip:
+      stimulus_key: "loss_ratio"        # Claims paid / premiums collected
+      arousal_threshold: 0.3            # 30% change triggers review
+      ema_alpha: 0.25
+      engine: "window"
+
+  # =============================================================================
+  # MEMORY CONFIG (Agent-Type Specific Memory Weights)
+  # =============================================================================
+  # Households use emotional weights; institutions use data-driven weights
+  memory_config:
+    household:
+      # Generic household retrieval tags (used if agent-specific not found)
+      retrieval_tags:
+        - "general"
+        - "adaptation"
+        - "risk"
+      emotional_weights:
+        critical: 1.0       # Loss/failure events
+        fear: 1.2           # Flood-related fear (household-specific)
+        major: 0.9          # Major decisions
+        positive: 0.8       # Success experiences
+        observation: 0.4    # Social observations
+      source_weights:
+        personal: 1.0       # First-hand experience
+        neighbor: 0.7       # Neighbor gossip
+        news: 0.5           # News media
+        social_media: 0.3   # Social media (less reliable)
+      emotion_keywords:
+        fear: ["flood", "damage", "loss", "destroy", "water", "inundation"]
+        hope: ["subsidy", "elevated", "safe", "protected", "insurance", "grant"]
+        anxiety: ["premium", "cost", "afford", "expense", "budget"]
+
+    # Agent-type-specific retrieval tags (NEW in v0.29)
+    # These override the generic "household" tags above
+    household_mg:
+      retrieval_tags:
+        - "subsidy"           # MG-specific: financial assistance
+        - "vulnerability"     # MG-specific: risk exposure
+        - "financial_hardship"  # MG-specific: affordability
+        - "general"
+
+    household_nmg:
+      retrieval_tags:
+        - "insurance"         # NMG-specific: insurance options
+        - "elevation"         # NMG-specific: structural adaptation
+        - "adaptation"        # NMG-specific: proactive measures
+        - "general"
+
+    institutional:
+      # Institutions don't use emotional weights - data-driven only
+      emotional_weights: null
+      source_weights:
+        policy_data: 1.0
+        statistics: 0.9
+        reports: 0.7
+      ranking_mode: "recency"   # Most recent data prioritized
+
   reflection:
     interval: 1
     batch_size: 10

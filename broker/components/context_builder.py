@@ -571,16 +571,21 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         if (not env_context) and getattr(self.hub, "environment", None):
             env_context = self.hub.environment.global_state
 
-        # --- NEW: Application-specific context analysis to generate contextual_boosters ---
+        # --- Generalized context analysis to generate contextual_boosters ---
+        # Applications should pass crisis_boosters in env_context for domain-specific boosting
+        # Example: env_context = {"crisis_event": True, "crisis_boosters": {"emotion:fear": 1.5}}
         env_context = env_context or kwargs.get("env_context", {})
         contextual_boosters_for_memory = {}
-        if env_context and env_context.get("flood_occurred"):
-            # If a flood occurred, we instruct the memory engine to boost 'emotion:fear' memories
-            contextual_boosters_for_memory["emotion:fear"] = 1.5 # The boost value can be configured or fixed
-        
+
+        # Check for application-defined crisis boosters (generic mechanism)
+        if env_context.get("crisis_event") or env_context.get("crisis_boosters"):
+            crisis_boosters = env_context.get("crisis_boosters", {})
+            for tag, weight in crisis_boosters.items():
+                contextual_boosters_for_memory[tag] = weight
+
         # Augment kwargs with these generated boosters for MemoryProvider to consume
         kwargs["contextual_boosters"] = contextual_boosters_for_memory
-        # --- End of application-specific context analysis ---
+        # --- End of context analysis ---
         
         # Trigger all providers in sequence (e.g. SystemPromptProvider, MemoryProvider)
         for provider in self.providers:
@@ -588,19 +593,22 @@ class TieredContextBuilder(BaseAgentContextBuilder):
             # MemoryProvider needs to look for 'contextual_boosters' in kwargs
             provider.provide(agent_id, self.agents, context, **kwargs)
 
-        # Inject media context (news/social) after providers so it isn't overwritten.
+        # Inject media context (broadcast/peer messages) after providers so it isn't overwritten.
+        # v0.29+: Uses generic field names with backward-compatible fallbacks
         if self.media_hub:
             year = env_context.get("year", 1)
             media_context = self.media_hub.get_media_context(agent_id, year)
             if media_context:
-                news = media_context.get("news", [])
-                social_media = media_context.get("social_media", [])
-                if news:
-                    context["global"] = news
-                if social_media:
+                # Generic field names (v0.29+) with legacy fallbacks
+                broadcast = media_context.get("broadcast", media_context.get("news", []))
+                peer_messages = media_context.get("peer_messages", media_context.get("social_media", []))
+
+                if broadcast:
+                    context["global"] = broadcast
+                if peer_messages:
                     local = context.get("local") or {}
                     local_social = local.get("social", [])
-                    local["social"] = local_social + social_media
+                    local["social"] = local_social + peer_messages
                     context["local"] = local
 
         return context

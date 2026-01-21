@@ -240,14 +240,30 @@ class MediaHub:
         return results
 
     def get_media_context(self, agent_id: str, year: int, channel_types: Optional[List[str]] = None, max_per_channel: int = 3) -> Dict[str, List[str]]:
+        """
+        Get media context for agent (v0.29+: returns both legacy and standard field names).
+
+        Returns:
+            Dict with both legacy keys ("news", "social_media") and standard keys
+            ("broadcast", "peer_messages") for backward compatibility.
+        """
         channel_types = channel_types or list(self.channels.keys())
         context = {}
+
+        # Collect messages by channel type
         for ch_type in channel_types:
             if ch_type in self.channels:
                 messages = self.channels[ch_type].get_messages_for_agent(agent_id, year)
                 context[ch_type] = [m.to_prompt_string() for m in messages[:max_per_channel]]
             else:
                 context[ch_type] = []
+
+        # Add standardized field names (v0.29+)
+        if "news" in context:
+            context["broadcast"] = context["news"]
+        if "social_media" in context:
+            context["peer_messages"] = context["social_media"]
+
         return context
 
     def get_media_context_formatted(self, agent_id: str, year: int) -> str:
