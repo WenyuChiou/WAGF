@@ -661,10 +661,10 @@
         {
           "id": "027-E",
           "title": "Verification Testing",
-          "status": "completed",
+          "status": "blocked",
           "assigned_to": "Gemini CLI",
           "description": "Run experiments with universal engine, verify System 1/2 switching",
-          "note": "Universal engine smoke runs completed; CLI overrides added."
+          "note": "Blocked by persistent FileNotFoundError from AuditWriter and inability to verify System 1/2 switching from logs."
         }
       ],
       "handoff_file": "handoff/task-027.md",
