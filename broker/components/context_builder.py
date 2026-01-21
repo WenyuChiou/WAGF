@@ -165,9 +165,15 @@ class MemoryProvider(ContextProvider):
         
         # Memory bucket
         contextual_boosters = kwargs.get("contextual_boosters") # Extract boosters from kwargs
+        env_context = kwargs.get("env_context", {})  # NEW: Pass world_state for v3 Surprise calculation
         
         # Pass boosters to engine
-        context["memory"] = self.engine.retrieve(agent, top_k=3, contextual_boosters=contextual_boosters)
+        context["memory"] = self.engine.retrieve(
+            agent,
+            top_k=3,
+            contextual_boosters=contextual_boosters,
+            world_state=env_context
+        )
 
 class BaseAgentContextBuilder(ContextBuilder):
     """
