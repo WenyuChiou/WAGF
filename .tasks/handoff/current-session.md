@@ -8,7 +8,7 @@
 
 | Task         | Title                                  | Status         | Assigned            |
 | :----------- | :------------------------------------- | :------------- | :------------------ |
-| Task-015     | MA System Verification                 | in-progress    | Codex + Gemini CLI  |
+| Task-015     | MA System Verification                 | completed      | Codex + Gemini CLI  |
 | Task-018     | MA Visualization                       | in-progress    | Codex + Gemini CLI  |
 | Task-019     | MA Config Enhancement                  | completed      | Codex               |
 | Task-020     | MA Architecture Improvement            | completed      | Gemini CLI          |
@@ -21,7 +21,7 @@
 
 ## Status
 
-active X Task-024 complete. Global config sync done. Current focus: Task-027-C (MemoryProvider change), confirm Task-015/018 follow-ups if needed.
+active X Task-024 complete. Global config sync done. Current focus: Task-027-C (MemoryProvider change), confirm Task-018 follow-ups if needed.
 
 ---
 

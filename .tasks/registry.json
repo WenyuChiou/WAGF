@@ -1,6 +1,6 @@
 {
   "version": "1.2",
-  "last_updated": "2026-01-21T00:08:05.259337Z",
+  "last_updated": "2026-01-21T01:17:18.693691Z",
   "tasks": [
     {
       "id": "task-011",
@@ -156,7 +156,7 @@
           "note": "V6 PASS: Gov changes=1 (increase_subsidy), Ins changes=2 (lower_premium x2). Verified from v015_full_bg traces."
         }
       ],
-      "note": "V4 and V6 now pass; pending overall sign-off."
+      "note": "All verification subtasks complete; Task-015 closed."
     },
     {
       "id": "Task-016",
