@@ -188,11 +188,23 @@ A critical concern is whether these results are LLM-dependent. We maintain that 
 
 A potential critique is that using governance to enforce rationality and then measuring compliance (RS) is circular. However, our primary interest is not in the _final act_, but in the **Cognitive Asymmetry**—how the agent's reasoning (System 1) attempts to navigate the constraints (System 2). By tracking the **Interception Rate** and **SRR**, we measure the framework's ability to _cleanse_ the agent's internal world-view, rather than just masking its failures.
 
-## 6. Conclusion: From Monitoring to Context Design
+## 6. Limitations and Failure Analysis (System Card)
+
+While the Governed Broker Framework stabilizes agent behavior, it introduces specific trade-offs and failure modes that must be acknowledged:
+
+1.  **Computational Latency**: The "Human-Centric Memory" (Group C) incurs a **~30% latency overhead** compared to the baseline due to the compute-intensive "Salience Scoring" and top-k retrieval steps. Real-time applications may require optimized vector stores.
+2.  **Prompt Sensitivity**: The framework's efficacy is partially dependent on the LLM's instruction-following capability. Stress Test ST-4 (Format Breaker) revealed that if an agent fundamentally ignores the JSON schema, the SkillBroker's parser must fallback to "Do Nothing," potentially under-reporting active intent.
+3.  **Governance Scope**: The SkillBroker can only valid actions explicitly defined in the `SkillRegistry`. It cannot correct open-ended "Conversational Hallucinations" (e.g., an agent lying about its age) unless those facts are tied to a physical variable.
+
+## 7. Conclusion: From Monitoring to Context Design
 
 Valid hydro-social modeling requires bridging the **Fluency-Reality Gap**. This paper proves that simple "Output Monitoring" (Group B) leads to **"Mechanical Compliance"** (or **"照本宣科"**) and narrative collapse. True behavioral realism is achieved only through **Strategic Context Design** (Group C), where the agent's world-model is grounded in a curated, salient history that serves as a durable **"Cognitive Anchor."** Our framework provides a scalable, model-agnostic **"Safety Belt"** for LLM-based social modeling, enabling the emergence of "Experienced Resident" archetypes that are both behaviorally rational and narratively engaged.
 
-## 7. References
+## 8. Data Availability and Reproducibility
+
+All code, data, and experimental scripts (including the "Stress Marathon" suite) are available in the supplementary repository. Detailed parameter dictionaries and prompt templates are provided in the **Supplementary Material**.
+
+## 9. References
 
 - **Di Baldassarre, G., et al. (2013)**. Socio-hydrology: conceptualising human-flood interactions. _Hydrology and Earth System Sciences_.
 - **Friston, K. (2010)**. The free-energy principle: a rough guide to the brain? _Nature Reviews Neuroscience_.
