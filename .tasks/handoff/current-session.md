@@ -72,4 +72,4 @@ python run_unified_experiment.py \
 
 ## Next Action
 
-**Codex**: 027-E smoke runs completed; CLI overrides added; outputs cleaned.
+**Codex**: 027-E smoke runs completed; CLI overrides added; outputs cleaned. System 1/2 switching verified via inline engine call (stimulus_key=flood_depth_m).
