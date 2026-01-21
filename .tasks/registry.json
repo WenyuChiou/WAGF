@@ -1,6 +1,6 @@
 {
   "version": "1.2",
-  "last_updated": "2026-01-21T14:04:01.972031Z",
+  "last_updated": "2026-01-21T15:00:35.597228Z",
   "tasks": [
     {
       "id": "task-011",
@@ -720,7 +720,7 @@
           "status": "completed",
           "assigned_to": "Codex",
           "description": "Move MA-specific media_channels.py out of broker/components/",
-          "note": "Moved files into examples/multi_agent and updated imports."
+          "note": "Moves verified: media_channels in examples/multi_agent/components; hazard module removed from broker and uses examples path."
         },
         {
           "id": "028-D",
@@ -728,7 +728,7 @@
           "status": "completed",
           "assigned_to": "Codex",
           "description": "Move MA-specific hazard module out of broker/",
-          "note": "Moved files into examples/multi_agent and updated imports."
+          "note": "Moves verified: media_channels in examples/multi_agent/components; hazard module removed from broker and uses examples path."
         },
         {
           "id": "028-E",
