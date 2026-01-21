@@ -1,6 +1,18 @@
 import sys
 import yaml
 import random
+
+
+def _get_flood_ext(profile):
+    return getattr(profile, "extensions", {}).get("flood")
+
+
+def _ext_value(ext, key, default=None):
+    if ext is None:
+        return default
+    if isinstance(ext, dict):
+        return ext.get(key, default)
+    return getattr(ext, key, default)
 import pandas as pd
 from pathlib import Path
 from datetime import datetime
@@ -68,7 +80,7 @@ class FinalContextBuilder(TieredContextBuilder):
         if hasattr(self.hub, 'memory_engine') and self.hub.memory_engine:
             # v3 Integration: Feed observable world state (Flood Depth) to memory engine
             # This allows the "Surprise Engine" to detect prediction errors.
-            current_depth = getattr(agent, 'base_depth_m', 0.0) if self.sim.flood_event else 0.0
+            current_depth = _ext_value(_get_flood_ext(agent), 'base_depth_m', 0.0) if self.sim.flood_event else 0.0
             world_state = {"flood_depth": current_depth}
              
             # Pass world_state to retrieve (Universal Engine will use it, others will ignore it)
@@ -491,12 +503,15 @@ def load_agents_from_survey(
 
         # Calculate flood threshold from base depth
         # Higher depth = higher flood probability threshold
-        base_threshold = 0.3 if profile.base_depth_m > 0 else 0.1
-        if profile.flood_zone in ("deep", "very_deep", "extreme"):
+        flood_ext = _get_flood_ext(profile)
+        base_depth = _ext_value(flood_ext, "base_depth_m", 0.0)
+        flood_zone = _ext_value(flood_ext, "flood_zone", "unknown")
+        base_threshold = 0.3 if base_depth > 0 else 0.1
+        if flood_zone in ("deep", "very_deep", "extreme"):
             base_threshold = 0.5
-        elif profile.flood_zone == "moderate":
+        elif flood_zone == "moderate":
             base_threshold = 0.4
-        elif profile.flood_zone == "shallow":
+        elif flood_zone == "shallow":
             base_threshold = 0.3
 
         agent = BaseAgent(config)
@@ -526,19 +541,25 @@ def load_agents_from_survey(
             "family_size": profile.family_size,
             "income_bracket": profile.income_bracket,
             "income_midpoint": profile.income_midpoint,
-            "flood_zone": profile.flood_zone,
-            "base_depth_m": profile.base_depth_m,
-            "flood_probability": profile.flood_probability,
-            "building_rcv_usd": profile.building_rcv_usd,
-            "contents_rcv_usd": profile.contents_rcv_usd,
+            "flood_zone": _ext_value(_get_flood_ext(profile), "flood_zone", "unknown"),
+            "base_depth_m": _ext_value(_get_flood_ext(profile), "base_depth_m", 0.0),
+            "flood_probability": _ext_value(_get_flood_ext(profile), "flood_probability", 0.0),
+            "building_rcv_usd": _ext_value(_get_flood_ext(profile), "building_rcv_usd", 0.0),
+            "contents_rcv_usd": _ext_value(_get_flood_ext(profile), "contents_rcv_usd", 0.0),
             "has_children": profile.has_children,
             "has_elderly": profile.has_elderly,
-            "prior_flood_experience": profile.flood_experience,
-            "prior_financial_loss": profile.financial_loss,
+            "prior_flood_experience": _ext_value(_get_flood_ext(profile), "flood_experience", False),
+            "prior_financial_loss": _ext_value(_get_flood_ext(profile), "financial_loss", False),
 
             # Narrative for LLM context
             "narrative_persona": profile.generate_narrative_persona() or "You are a homeowner in a city, with a strong attachment to your community.",
-            "flood_experience_summary": profile.generate_flood_experience_summary(),
+            "flood_experience_summary": (
+                "Experienced flooding with financial loss"
+                if _ext_value(_get_flood_ext(profile), "flood_experience", False) and _ext_value(_get_flood_ext(profile), "financial_loss", False)
+                else ("Experienced flooding without major financial loss"
+                if _ext_value(_get_flood_ext(profile), "flood_experience", False)
+                else "No direct flood experience")
+            ),
 
             # Empty memory to be populated during simulation
             "memory": "",

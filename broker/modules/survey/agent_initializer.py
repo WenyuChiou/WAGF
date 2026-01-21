@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from .survey_loader import SurveyLoader, SurveyRecord, INCOME_MIDPOINTS
+from .survey_loader import SurveyLoader, INCOME_MIDPOINTS
 from .mg_classifier import MGClassifier, MGClassificationResult
 
 # Protocol types imported for type hints (runtime_checkable not needed for usage)
@@ -27,6 +27,37 @@ from .mg_classifier import MGClassifier, MGClassificationResult
 
 logger = logging.getLogger(__name__)
 
+
+
+def _create_flood_extension(flood_experience: bool, financial_loss: bool):
+    from types import SimpleNamespace
+    return SimpleNamespace(
+        flood_experience=flood_experience,
+        financial_loss=financial_loss,
+        flood_zone="unknown",
+        base_depth_m=0.0,
+        flood_probability=0.0,
+        building_rcv_usd=0.0,
+        contents_rcv_usd=0.0,
+    )
+
+
+def _set_ext_value(ext, key: str, value):
+    if isinstance(ext, dict):
+        ext[key] = value
+    else:
+        setattr(ext, key, value)
+
+
+def _get_ext_value(ext, key: str, default=None):
+    if ext is None:
+        return default
+    if isinstance(ext, dict):
+        return ext.get(key, default)
+    return getattr(ext, key, default)
+
+
+@dataclass
 
 @dataclass
 class AgentProfile:
@@ -54,23 +85,13 @@ class AgentProfile:
     has_elderly: bool
     has_vulnerable_members: bool
 
-    # Flood Experience
-    flood_experience: bool
-    financial_loss: bool
-
     # Raw survey data for flexible narrative use
     raw_data: Dict[str, Any] = field(default_factory=dict)
     narrative_fields: List[str] = field(default_factory=list)
     narrative_labels: Dict[str, str] = field(default_factory=dict)
 
-    # Position & Exposure (to be filled by hazard module)
-    flood_zone: str = "unknown"
-    base_depth_m: float = 0.0
-    flood_probability: float = 0.0
-
-    # RCV (to be filled by RCV generator)
-    building_rcv_usd: float = 0.0
-    contents_rcv_usd: float = 0.0
+    # Extensible domain-specific data
+    extensions: Dict[str, Any] = field(default_factory=dict)
 
     # Derived identity for framework
     @property
@@ -143,25 +164,17 @@ class AgentProfile:
 
         return ". ".join(filter(None, parts)) + "."
 
-    def generate_flood_experience_summary(self) -> str:
-        """Generate flood experience summary for LLM prompt."""
-        if not self.flood_experience:
-            return "You have not personally experienced flooding in your current home."
-
-        if self.financial_loss:
-            return (
-                "You have experienced flooding in the past and suffered financial losses. "
-                "This experience has made you more aware of flood risks."
-            )
-        else:
-            return (
-                "You have experienced flooding in the past, though without major financial losses. "
-                "You understand that floods can happen in this area."
-            )
+    @staticmethod
+    def _ext_value(ext: Any, key: str, default: Any = None) -> Any:
+        if ext is None:
+            return default
+        if isinstance(ext, dict):
+            return ext.get(key, default)
+        return getattr(ext, key, default)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for CSV export or framework use."""
-        return {
+        data = {
             "agent_id": self.agent_id,
             "record_id": self.record_id,
             "family_size": self.family_size,
@@ -176,18 +189,24 @@ class AgentProfile:
             "mg_score": self.mg_score,
             "has_children": self.has_children,
             "has_elderly": self.has_elderly,
-            "flood_experience": self.flood_experience,
-            "financial_loss": self.financial_loss,
-            "flood_zone": self.flood_zone,
-            "base_depth_m": self.base_depth_m,
-            "flood_probability": self.flood_probability,
-            "building_rcv_usd": self.building_rcv_usd,
-            "contents_rcv_usd": self.contents_rcv_usd,
-            "rcv_kUSD": self.building_rcv_usd / 1000.0,
-            "contents_kUSD": self.contents_rcv_usd / 1000.0,
             "narrative_persona": self.generate_narrative_persona(),
-            "flood_experience_summary": self.generate_flood_experience_summary(),
         }
+
+        flood = self.extensions.get("flood")
+        if flood is not None:
+            data.update({
+                "flood_experience": self._ext_value(flood, "flood_experience", False),
+                "financial_loss": self._ext_value(flood, "financial_loss", False),
+                "flood_zone": self._ext_value(flood, "flood_zone", "unknown"),
+                "base_depth_m": self._ext_value(flood, "base_depth_m", 0.0),
+                "flood_probability": self._ext_value(flood, "flood_probability", 0.0),
+                "building_rcv_usd": self._ext_value(flood, "building_rcv_usd", 0.0),
+                "contents_rcv_usd": self._ext_value(flood, "contents_rcv_usd", 0.0),
+            })
+            data["rcv_kUSD"] = data["building_rcv_usd"] / 1000.0
+            data["contents_kUSD"] = data["contents_rcv_usd"] / 1000.0
+
+        return data
 
 
 class AgentInitializer:
@@ -261,7 +280,7 @@ class AgentInitializer:
                 family_size=record.family_size,
                 generations=record.generations,
                 income_bracket=record.income_bracket,
-                income_midpoint=INCOME_MIDPOINTS.get(record.income_bracket, 50000),
+                income_midpoint=getattr(record, "income_midpoint", INCOME_MIDPOINTS.get(record.income_bracket, 50000)),
                 housing_status=record.housing_status,
                 house_type=record.house_type,
                 is_mg=mg_result.is_mg,
@@ -270,8 +289,7 @@ class AgentInitializer:
                 has_children=record.has_children,
                 has_elderly=record.elderly_over_65,
                 has_vulnerable_members=record.has_vulnerable_members,
-                flood_experience=record.flood_experience,
-                financial_loss=record.financial_loss,
+                extensions={"flood": _create_flood_extension(record.flood_experience, record.financial_loss)},
                 raw_data=record.raw_data,
                 narrative_fields=self.narrative_fields,
                 narrative_labels=self.narrative_labels,
@@ -289,7 +307,7 @@ class AgentInitializer:
             "mg_ratio": mg_count / len(profiles) if profiles else 0,
             "owner_count": sum(1 for p in profiles if p.is_owner),
             "renter_count": sum(1 for p in profiles if not p.is_owner),
-            "flood_experience_count": sum(1 for p in profiles if p.flood_experience),
+            "flood_experience_count": sum(1 for p in profiles if _get_ext_value(p.extensions.get("flood"), "flood_experience", False)),
             "validation_errors": len(self.survey_loader.validation_errors),
         }
 
@@ -314,13 +332,15 @@ class AgentInitializer:
             depth_sampler: DepthSampler instance for position assignment
         """
         for profile in profiles:
-            # AgentProfile already has flood_experience and financial_loss attributes
+            # Flood experience data stored in profile.extensions["flood"]
             # which match the FloodExperienceRecord protocol
             position = depth_sampler.assign_position(profile)
 
-            profile.flood_zone = position.zone_name
-            profile.base_depth_m = position.base_depth_m
-            profile.flood_probability = position.flood_probability
+            flood_ext = profile.extensions.get("flood") or _create_flood_extension(False, False)
+            profile.extensions["flood"] = flood_ext
+            _set_ext_value(flood_ext, "flood_zone", position.zone_name)
+            _set_ext_value(flood_ext, "base_depth_m", position.base_depth_m)
+            _set_ext_value(flood_ext, "flood_probability", position.flood_probability)
 
     def enrich_with_rcv(
         self,
@@ -342,8 +362,10 @@ class AgentInitializer:
                 family_size=profile.family_size,
             )
 
-            profile.building_rcv_usd = rcv.building_rcv_usd
-            profile.contents_rcv_usd = rcv.contents_rcv_usd
+            flood_ext = profile.extensions.get("flood") or _create_flood_extension(False, False)
+            profile.extensions["flood"] = flood_ext
+            _set_ext_value(flood_ext, "building_rcv_usd", rcv.building_rcv_usd)
+            _set_ext_value(flood_ext, "contents_rcv_usd", rcv.contents_rcv_usd)
 
 
 def initialize_agents_from_survey(

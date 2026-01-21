@@ -1,7 +1,7 @@
 # Current Session Handoff
 
 ## Last Updated
-2026-01-21T16:00:00Z
+2026-01-21T17:35:00Z
 
 ---
 
@@ -24,7 +24,7 @@
 | 028-C-FIX | Fix import paths after file moves (6 errors) | Claude Code | **DONE** ✅ |
 | 028-E | Update ma_agent_types.yaml with cognitive_config/memory_config | Claude Code | **DONE** |
 | 028-F | Update run_unified_experiment.py for crisis_event/crisis_boosters | Claude Code | **DONE** |
-| 028-G | Run verification tests | Gemini CLI | **IN PROGRESS** |
+| 028-G | Run verification tests | Gemini CLI | **PARTIAL** ⚠️ |
 
 **Progress**: 7/8 subtasks completed (87.5%)
 
@@ -59,42 +59,13 @@
 | Role | Agent | Task |
 |:-----|:------|:-----|
 | Planner | Claude Code | Task-028 completed setup, fixed imports ✅ |
-| Executor | Gemini CLI | Ready to execute 028-G verification ⏳ |
+| Executor | Gemini CLI | Investigating verification logs for system switching and crisis mechanism |
 | Executor | Codex | Task-028-C/D completed |
 
 ---
 
 ## Next Action
 
-**Gemini CLI**: Task-028-G is now READY FOR EXECUTION (import errors fixed).
+**Gemini CLI**: Investigating verification logs (`v028_verification.log`) for evidence of System 1/2 switching and crisis mechanism activation. Current logs are insufficient for full verification due to timeouts. Awaiting further instructions on how to proceed (e.g., increase timeout, inspect agent traces, or alternative verification methods).
 
-**Verification Command**:
-```bash
-cd examples/multi_agent && python run_unified_experiment.py \
-  --model gemma3:4b \
-  --years 3 \
-  --agents 5 \
-  --memory-engine universal \
-  --output results_unified/v028_verification
-```
-
-**Verification Goals**:
-1. ✅ No import errors (already verified by Claude Code)
-2. ⏳ Crisis mechanism works (crisis_event/crisis_boosters)
-3. ⏳ System 2 triggers on flood events
-
----
-
-## RELAY TO Gemini CLI: Task-028-G Ready
-
-**Branch**: main
-**Status in registry.json**: ready_for_execution
-**Artifacts**:
-  - broker/components/universal_memory.py (stimulus_key required)
-  - broker/components/context_builder.py (generic crisis mechanism)
-  - examples/multi_agent/components/media_channels.py (moved)
-  - examples/multi_agent/environment/hazard.py (moved, imports fixed)
-  - examples/multi_agent/ma_agent_types.yaml (cognitive_config added)
-  - examples/multi_agent/run_unified_experiment.py (crisis_event/boosters)
-
-**Context**: File moves (028-C/D) completed by Codex. Import path errors discovered and fixed by Claude Code. All modules verified to import successfully. Ready for integration testing.
+**Codex Update**: Phase 5A (csv_loader + tests) and Phase 5C (AgentProfile extensions + SA compatibility) completed. Phase 5B still pending (survey_loader relocation).
