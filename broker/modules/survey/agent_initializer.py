@@ -3,6 +3,13 @@ Agent Initializer from Survey Data.
 
 Integrates survey loading, MG classification, position assignment,
 and RCV generation to create fully initialized agent profiles.
+
+Design Pattern (v0.29+):
+    Uses Protocol-based dependency injection for enrichers to avoid
+    hardcoding domain-specific imports. Enrichers implementing
+    PositionEnricher and ValueEnricher protocols can be passed in.
+
+    See broker/interfaces/enrichment.py for protocol definitions.
 """
 
 from __future__ import annotations
@@ -14,6 +21,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .survey_loader import SurveyLoader, SurveyRecord, INCOME_MIDPOINTS
 from .mg_classifier import MGClassifier, MGClassificationResult
+
+# Protocol types imported for type hints (runtime_checkable not needed for usage)
+# Concrete implementations provided by domain-specific code (e.g., examples/multi_agent/)
 
 logger = logging.getLogger(__name__)
 
@@ -340,25 +350,94 @@ def initialize_agents_from_survey(
     survey_path: Path,
     max_agents: Optional[int] = None,
     seed: int = 42,
-    include_hazard: bool = True,
-    include_rcv: bool = True,
+    position_enricher: Optional[Any] = None,
+    value_enricher: Optional[Any] = None,
+    include_hazard: bool = None,  # DEPRECATED
+    include_rcv: bool = None,  # DEPRECATED
     schema_path: Optional[Path] = None,
     narrative_fields: Optional[List[str]] = None,
     narrative_labels: Optional[Dict[str, str]] = None,
 ) -> Tuple[List[AgentProfile], Dict[str, Any]]:
     """
-    Convenience function to initialize agents from survey with full enrichment.
+    Convenience function to initialize agents from survey with optional enrichment.
 
     Args:
         survey_path: Path to survey Excel file
         max_agents: Maximum number of agents
         seed: Random seed
-        include_hazard: Whether to add hazard/position data
-        include_rcv: Whether to generate RCV values
+        position_enricher: Optional enricher implementing PositionEnricher protocol
+                          (e.g., DepthSampler for flood sim, LocationSampler for trading)
+        value_enricher: Optional enricher implementing ValueEnricher protocol
+                       (e.g., RCVGenerator for flood sim, PortfolioGenerator for trading)
+        include_hazard: DEPRECATED - use position_enricher instead
+        include_rcv: DEPRECATED - use value_enricher instead
+        schema_path: Optional path to survey schema
+        narrative_fields: Optional list of narrative field names
+        narrative_labels: Optional mapping of field names to labels
 
     Returns:
         Tuple of (agent_profiles, statistics)
+
+    Migration Guide:
+        # Old API (deprecated)
+        profiles, stats = initialize_agents_from_survey(
+            survey_path, include_hazard=True, include_rcv=True
+        )
+
+        # New API (recommended)
+        from examples.multi_agent.environment.depth_sampler import DepthSampler
+        from examples.multi_agent.environment.rcv_generator import RCVGenerator
+        profiles, stats = initialize_agents_from_survey(
+            survey_path,
+            position_enricher=DepthSampler(seed=42),
+            value_enricher=RCVGenerator(seed=42)
+        )
     """
+    # Handle deprecated parameters
+    import warnings
+    if include_hazard is not None:
+        warnings.warn(
+            "include_hazard is deprecated and will be removed in v0.30. "
+            "Pass position_enricher instead (e.g., DepthSampler(seed=42)).",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        if include_hazard and position_enricher is None:
+            # Fallback: Try to import for backward compatibility
+            try:
+                import sys
+                from pathlib import Path as _Path
+                _env_path = _Path(__file__).resolve().parents[3] / 'examples' / 'multi_agent' / 'environment'
+                if str(_env_path) not in sys.path:
+                    sys.path.insert(0, str(_env_path))
+                from depth_sampler import DepthSampler
+                position_enricher = DepthSampler(seed=seed)
+                logger.warning("Using legacy include_hazard=True. Migrate to position_enricher parameter.")
+            except ImportError as e:
+                logger.warning(f'Hazard enrichment skipped: {e}')
+
+    if include_rcv is not None:
+        warnings.warn(
+            "include_rcv is deprecated and will be removed in v0.30. "
+            "Pass value_enricher instead (e.g., RCVGenerator(seed=42)).",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        if include_rcv and value_enricher is None:
+            # Fallback: Try to import for backward compatibility
+            try:
+                import sys
+                from pathlib import Path as _Path
+                _env_path = _Path(__file__).resolve().parents[3] / 'examples' / 'multi_agent' / 'environment'
+                if str(_env_path) not in sys.path:
+                    sys.path.insert(0, str(_env_path))
+                from rcv_generator import RCVGenerator
+                value_enricher = RCVGenerator(seed=seed)
+                logger.warning("Using legacy include_rcv=True. Migrate to value_enricher parameter.")
+            except ImportError as e:
+                logger.warning(f'RCV enrichment skipped: {e}')
+
+    # Initialize from survey
     survey_loader = SurveyLoader(schema_path=schema_path) if schema_path else SurveyLoader()
     initializer = AgentInitializer(
         survey_loader=survey_loader,
@@ -368,23 +447,11 @@ def initialize_agents_from_survey(
     )
     profiles, stats = initializer.load_from_survey(survey_path, max_agents)
 
-    if include_hazard:
-        # Import from sibling hazard package (handle both package and script modes)
-        try:
-            from broker.modules.hazard.depth_sampler import DepthSampler
-        except ImportError:
-            from ...modules.hazard.depth_sampler import DepthSampler
+    # Apply enrichers if provided (new protocol-based API)
+    if position_enricher is not None:
+        initializer.enrich_with_hazard(profiles, position_enricher)
 
-        sampler = DepthSampler(seed=seed)
-        initializer.enrich_with_hazard(profiles, sampler)
-
-    if include_rcv:
-        try:
-            from broker.modules.hazard.rcv_generator import RCVGenerator
-        except ImportError:
-            from ...modules.hazard.rcv_generator import RCVGenerator
-
-        gen = RCVGenerator(seed=seed)
-        initializer.enrich_with_rcv(profiles, gen)
+    if value_enricher is not None:
+        initializer.enrich_with_rcv(profiles, value_enricher)
 
     return profiles, stats
