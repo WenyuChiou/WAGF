@@ -104,7 +104,7 @@ class InteractionHub:
             if not k.startswith('_') and isinstance(v, (str, int, float, bool)) and k not in ["memory", "id"]:
                 personal[k] = v
 
-        # 2. Include dynamic_state contents (Task 015 fix: ensure elevated, has_insurance etc. are visible)
+        # 2. Include dynamic_state contents (Task 015 fix: ensure dynamic attributes are visible)
         if hasattr(agent, 'dynamic_state') and isinstance(agent.dynamic_state, dict):
             for k, v in agent.dynamic_state.items():
                 if isinstance(v, (str, int, float, bool)):

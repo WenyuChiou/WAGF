@@ -13,7 +13,7 @@ class ResponseFormatBuilder:
     Generates response format instructions from YAML config.
 
     Usage:
-        config = load_agent_config().get("my_agent_type")  # e.g., "household", "trader"
+        config = load_agent_config().get("my_agent_type")  # e.g., "agent_type1", "agent_type2"
         rfb = ResponseFormatBuilder(config)
         format_block = rfb.build(valid_choices_text="1, 2, or 3")
     """

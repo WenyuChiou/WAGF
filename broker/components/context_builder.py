@@ -113,12 +113,12 @@ class AttributeProvider(ContextProvider):
 class PrioritySchemaProvider(ContextProvider):
     """
     Provider that applies domain-specific priority weights to context attributes.
-    
+
     Loads weights from YAML config to maintain domain-agnosticism.
     Example config:
         priority_schema:
-          hydrology: {damage: 1.0, elevated: 0.9, flood_threshold: 0.8}
-          finance: {liquidity_ratio: 1.0, yield: 0.9}
+          domain1: {metric_a: 1.0, status_b: 0.9, threshold_c: 0.8}
+          domain2: {metric_x: 1.0, indicator_y: 0.9}
     """
     def __init__(self, schema: Dict[str, float] = None):
         self.schema = schema or {}

@@ -22,7 +22,7 @@ class ReflectionInsight:
     source_memory_count: int = 0      # How many memories contributed
     importance: float = 1.0           # Consolidated importance score (0-1)
     year_created: int = 0             # When this insight was generated
-    domain_tags: List[str] = field(default_factory=list)  # e.g., ["flood", "damage", "adaptation"]
+    domain_tags: List[str] = field(default_factory=list)  # e.g., ["event_type", "impact", "response"]
 
 
 class ReflectionEngine:
