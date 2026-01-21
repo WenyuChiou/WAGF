@@ -36,6 +36,12 @@ $$T_{new} = \text{clamp}(T_{old} + \Delta T_{density} + \Delta T_{feedback}, 0.0
 - **Policy Feedback**: If flood occurs and insurance pays out, $T_{insurance} += 0.02$. If claim denied/delayed, $T_{insurance} -= 0.10$.
 - **Constraints**: Trust scores are strictly bounded between 0.0 and 1.0.
 
+### S1.4 Standard "Baseline" Persona
+
+Unless overridden by a Stress Test profile (S3), all agents share this default identity:
+
+> "You are a homeowner living in a flood-prone area. You have a limited budget and must balance financial security with physical safety. You are part of a close-knit community and care about your neighbors actions."
+
 ---
 
 ## S2. Memory Engine Configuration (Human-Centric)
@@ -63,6 +69,7 @@ The **HumanCentricMemoryEngine** (used in Group C) implements the salience formu
 
 ### S2.2 Decay Parameters
 
+- **Time Unit ($t$)**: Integer Years (0, 1, 2...). Events decay discretely at the end of each simulation year.
 - **Base Decay Rate ($\lambda_0$)**: $0.1$ (per year).
 - **Emotion Modifier ($\alpha$)**: $0.5$ (High emotion reduces decay by up to 50%).
 - **Consolidation Threshold**: Events with $I_e \ge 0.6$ are candidates for Long-Term Memory (LTM).
@@ -71,7 +78,8 @@ The **HumanCentricMemoryEngine** (used in Group C) implements the salience formu
 
 ## S3. Stress Test Protocols (Sensitivity Analysis)
 
-To test the limits of the framework, we deployed four "Adversarial Personas" (Stress Marathon). Below are the exact persona injections used in the simulation (`run_flood.py`):
+To test the limits of the framework, we deployed four "Adversarial Personas" (Stress Marathon). Below are the exact persona injections used in the simulation (`run_flood.py`).
+_Note: These profiles **replace** the standard baseline persona described in S1.4._
 
 ### ST-1: The "Panic Machine" (Low-Threshold)
 
@@ -184,6 +192,33 @@ Please respond using the EXACT JSON format below.
   "memory_update": {
     "content": "Tried to elevate house but failed due to insufficient funds.",
     "salience": 1.0, // High Traumatic Learning
+    "consolidated": true
+  }
+}
+```
+
+**Event**: SkillBroker **Allows** a valid "Buy Insurance" attempt.
+
+```json
+{
+  "agent_id": "Agent_15",
+  "year": 4,
+  "input_context": {
+    "funds": 1200,
+    "cost": 1000,
+    "memory": "Year 3: No flood."
+  },
+  "llm_output": {
+    "reasoning": "I am worried about future risks. I can afford insurance.",
+    "action": "buy_insurance"
+  },
+  "governance_result": {
+    "status": "ALLOWED",
+    "violation": null
+  },
+  "memory_update": {
+    "content": "Decided to: buy_insurance",
+    "salience": 0.8, // Strategic Major Decision
     "consolidated": true
   }
 }
