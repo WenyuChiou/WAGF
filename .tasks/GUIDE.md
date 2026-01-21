@@ -10,6 +10,9 @@ Keep it simple, deterministic, and easy to read.
 - Run `git status` to see local changes.
 - Confirm no other AI is running the same task.
 
+## Workflow Guidelines
+- **Planning-to-Execution Flow**: After an agent (e.g., Claude Code) completes planning, the task must first be recorded in `handoff/current-session.md` before any execution begins. This ensures clear communication and state management.
+
 ## 2) Terminology
 
 - `SA` = single agent (`examples/single_agent/`).
