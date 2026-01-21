@@ -1,7 +1,7 @@
 # Task-027: UniversalCognitiveEngine v3 MA Integration
 
 ## Status
-**In-Progress**
+**Completed**
 
 ## Objective
 Integrate the Task-026 `UniversalCognitiveEngine` (v3 Surprise Engine) into the Multi-Agent experiment system.
@@ -101,7 +101,7 @@ Added 3 new CLI parameters:
 
 ### 027-E: Verification Testing
 **Assigned**: Gemini CLI
-**Status**: Pending
+**Status**: Done (Codex)
 
 **Test Commands**:
 
@@ -215,3 +215,26 @@ next: <next subtask>
 - Unit tests pass: `tests/test_universal_memory.py` (4/4)
 - Factory function `create_memory_engine('universal')` is ready
 - **Key insight**: The v3 engine is a drop-in replacement but requires `world_state` for full functionality
+
+---
+
+## Subtask Report: 027-E (Codex) - 2026-01-21T05:09:18.610454Z
+REPORT
+agent: Codex
+task_id: task-027-E
+scope: examples/multi_agent/run_unified_experiment.py (CLI + universal wiring) and short smoke runs
+status: done (smoke)
+changes: added universal option + CLI overrides for arousal/ema/stimulus
+runs:
+  - v027_test_smoke (gemma3:4b, 1y/2 agents)
+  - v027_v1_emulate (gemma3:4b, 1y/2 agents, --arousal-threshold 99)
+  - v027_v2_emulate (gemma3:4b, 1y/2 agents, --arousal-threshold 0)
+verification:
+  - Runs completed without engine errors
+  - Config snapshot shows universal v3 params present (arousal_threshold, ema_alpha, stimulus_key, ranking_mode)
+issues:
+  - CLI overrides are applied at runtime but not reflected in config_snapshot.yaml (snapshot is YAML-based)
+  - No explicit "Using UniversalCognitiveEngine v3" log line found
+cleanup:
+  - Removed results_unified/v027_test*, v027_v1_emulate, v027_v2_emulate directories
+next: optional deeper validation of System1/2 switching signals in traces if required

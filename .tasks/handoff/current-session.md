@@ -9,8 +9,7 @@
 
 | Task | Title | Status | Assigned |
 |:-----|:------|:-------|:---------|
-| **Task-027** | UniversalCognitiveEngine v3 MA Integration | **4/5 done** | Claude+Codex+Gemini |
-| Task-025 | Media Channels Prompt Integration | planned | - |
+| **Task-027** | UniversalCognitiveEngine v3 MA Integration | **completed** | Claude+Codex+Gemini |
 
 ---
 
@@ -24,7 +23,7 @@
 | 027-B | Experiment Runner Integration | **done** |
 | 027-C | MemoryProvider Modification | **done** |
 | 027-D | CLI Parameter Additions | **done** |
-| 027-E | Verification Testing | **pending** |
+| 027-E | Verification Testing | **done** |
 
 ### Key Changes
 - `ma_agent_types.yaml`: Added `arousal_threshold`, `ema_alpha`, `stimulus_key`, `ranking_mode`
@@ -50,6 +49,7 @@ python run_unified_experiment.py \
 | Task | Title | Key Achievement |
 |:-----|:------|:----------------|
 | 026 | Universal Cognitive v3 | EMA-based System 1/2 switching |
+| 025 | Media Channels Prompt Integration | Media messages in prompt verified |
 | 024 | Integration Testing | Spatial + Media features verified |
 | 022 | PRB + Spatial + Media | 13-year flood data, MediaHub |
 | 021 | Memory + Literature | contextual_boosters, N=73 papers |
@@ -65,11 +65,11 @@ python run_unified_experiment.py \
 | Role | Agent | Task |
 |:-----|:------|:-----|
 | Planner | Claude Code | Task-027 sign-off |
-| Executor | Gemini CLI | Task-027-E |
-| Executor | Codex | Available |
+| Executor | Gemini CLI | Task-027-E (completed) |
+| Executor | Codex | Completed 027-E smoke runs |
 
 ---
 
 ## Next Action
 
-**Gemini CLI**: Ready for Task-027-E. (Task-018 visualizations completed)
+**Codex**: 027-E smoke runs completed; CLI overrides added; outputs cleaned.

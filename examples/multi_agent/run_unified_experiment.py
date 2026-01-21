@@ -431,7 +431,7 @@ def run_unified_experiment():
     parser.add_argument("--output", type=str, default="examples/multi_agent/results_unified")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose LLM output")
     parser.add_argument("--memory-engine", type=str, default="humancentric",
-                        choices=["window", "humancentric", "hierarchical"],
+                        choices=["window", "humancentric", "hierarchical", "universal"],
                         help="Memory engine type")
     parser.add_argument("--gossip", action="store_true", help="Enable neighbor gossip (SQ2)")
     parser.add_argument("--initial-subsidy", type=float, default=0.50, help="Initial gov subsidy rate (SQ3)")
@@ -461,6 +461,12 @@ def run_unified_experiment():
                         help="Enable social media channel (immediate, variable reliability)")
     parser.add_argument("--news-delay", type=int, default=1,
                         help="News media delay in turns (default: 1)")
+    parser.add_argument("--arousal-threshold", type=float, default=None,
+                        help="Universal engine: prediction error threshold for System 2 activation")
+    parser.add_argument("--ema-alpha", type=float, default=None,
+                        help="Universal engine: EMA alpha for expectation tracking")
+    parser.add_argument("--stimulus-key", type=str, default=None,
+                        help="Universal engine: env field used for surprise computation")
     args = parser.parse_args()
     
     # =============================================================================
@@ -567,6 +573,12 @@ def run_unified_experiment():
     from broker.utils.agent_config import AgentTypeConfig
     agent_cfg = AgentTypeConfig.load(MULTI_AGENT_DIR / "ma_agent_types.yaml")
     mem_cfg = agent_cfg.get_global_memory_config()
+    if args.arousal_threshold is not None:
+        mem_cfg["arousal_threshold"] = args.arousal_threshold
+    if args.ema_alpha is not None:
+        mem_cfg["ema_alpha"] = args.ema_alpha
+    if args.stimulus_key is not None:
+        mem_cfg["stimulus_key"] = args.stimulus_key
 
     if args.memory_engine == "humancentric":
         memory_engine = HumanCentricMemoryEngine(

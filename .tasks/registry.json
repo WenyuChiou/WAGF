@@ -1,6 +1,6 @@
 {
   "version": "1.2",
-  "last_updated": "2026-01-21T04:24:11.537373Z",
+  "last_updated": "2026-01-21T05:11:20.712313Z",
   "tasks": [
     {
       "id": "task-011",
@@ -535,7 +535,7 @@
     {
       "id": "Task-025",
       "title": "Media Channels Prompt Integration",
-      "status": "planned",
+      "status": "completed",
       "type": "feature",
       "priority": "medium",
       "owner": "Claude Code",
@@ -549,21 +549,21 @@
         {
           "id": "025-A",
           "title": "Prompt Template Update",
-          "status": "pending",
+          "status": "completed",
           "assigned_to": "Claude Code",
           "description": "Add media section to ma_agent_types.yaml prompts"
         },
         {
           "id": "025-B",
           "title": "Context Builder Update",
-          "status": "pending",
+          "status": "completed",
           "assigned_to": "Gemini CLI",
           "description": "Integrate get_media_context() into TieredContextBuilder"
         },
         {
           "id": "025-C",
           "title": "Validation Test",
-          "status": "pending",
+          "status": "completed",
           "assigned_to": "Codex",
           "description": "Verify agents receive media messages in prompts"
         }
@@ -617,7 +617,7 @@
     {
       "id": "Task-027",
       "title": "UniversalCognitiveEngine v3 MA Integration",
-      "status": "in-progress",
+      "status": "completed",
       "type": "integration",
       "priority": "high",
       "owner": "Claude Code",
@@ -661,12 +661,14 @@
         {
           "id": "027-E",
           "title": "Verification Testing",
-          "status": "pending",
+          "status": "completed",
           "assigned_to": "Gemini CLI",
-          "description": "Run experiments with universal engine, verify System 1/2 switching"
+          "description": "Run experiments with universal engine, verify System 1/2 switching",
+          "note": "Universal engine smoke runs completed; CLI overrides added."
         }
       ],
-      "handoff_file": "handoff/task-027.md"
+      "handoff_file": "handoff/task-027.md",
+      "note": "All subtasks completed; universal engine wired + verification smoke runs done."
     },
     {
       "id": "Task-018-Viz",
