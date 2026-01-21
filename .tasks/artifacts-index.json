@@ -1,0 +1,205 @@
+{
+  "version": "1.0",
+  "last_updated": "2026-01-21T16:00:00Z",
+  "description": "Centralized artifact registry for all tasks. Tracks produced files, their types, and ownership.",
+  "artifacts": [
+    {
+      "task_id": "Task-028",
+      "subtask_id": "028-A",
+      "file": "broker/components/universal_memory.py",
+      "type": "code",
+      "produced_by": "Claude Code",
+      "timestamp": "2026-01-21T06:30:00Z",
+      "description": "Modified to make stimulus_key a required parameter"
+    },
+    {
+      "task_id": "Task-028",
+      "subtask_id": "028-B",
+      "file": "broker/components/context_builder.py",
+      "type": "code",
+      "produced_by": "Claude Code",
+      "timestamp": "2026-01-21T07:00:00Z",
+      "description": "Replaced hardcoded flood_occurred with generic crisis_event/crisis_boosters"
+    },
+    {
+      "task_id": "Task-028",
+      "subtask_id": "028-C",
+      "file": "examples/multi_agent/components/media_channels.py",
+      "type": "code",
+      "produced_by": "Codex",
+      "timestamp": "2026-01-21T14:00:00Z",
+      "description": "Moved from broker/components/"
+    },
+    {
+      "task_id": "Task-028",
+      "subtask_id": "028-D",
+      "file": "examples/multi_agent/environment/hazard.py",
+      "type": "code",
+      "produced_by": "Codex",
+      "timestamp": "2026-01-21T14:00:00Z",
+      "description": "Moved from broker/modules/hazard/"
+    },
+    {
+      "task_id": "Task-028",
+      "subtask_id": "028-E",
+      "file": "examples/multi_agent/ma_agent_types.yaml",
+      "type": "config",
+      "produced_by": "Claude Code",
+      "timestamp": "2026-01-21T08:00:00Z",
+      "description": "Added cognitive_config and memory_config sections"
+    },
+    {
+      "task_id": "Task-028",
+      "subtask_id": "028-F",
+      "file": "examples/multi_agent/run_unified_experiment.py",
+      "type": "code",
+      "produced_by": "Claude Code",
+      "timestamp": "2026-01-21T08:30:00Z",
+      "description": "Added crisis_event and crisis_boosters setup"
+    },
+    {
+      "task_id": "Workflow-Improvement",
+      "subtask_id": "WF-01",
+      "file": ".tasks/scripts/validate_sync.py",
+      "type": "script",
+      "produced_by": "Claude Code",
+      "timestamp": "2026-01-21T14:30:00Z",
+      "description": "Registry.json and handoff files synchronization validator"
+    },
+    {
+      "task_id": "Workflow-Improvement",
+      "subtask_id": "WF-02",
+      "file": ".tasks/scripts/check_unblock.py",
+      "type": "script",
+      "produced_by": "Claude Code",
+      "timestamp": "2026-01-21T14:35:00Z",
+      "description": "Blocked task dependency checker and auto-unblock tool"
+    },
+    {
+      "task_id": "Workflow-Improvement",
+      "subtask_id": "WF-03",
+      "file": ".tasks/templates/handoff-simple.md",
+      "type": "template",
+      "produced_by": "Claude Code",
+      "timestamp": "2026-01-21T14:35:00Z",
+      "description": "Lightweight handoff template for simple tasks"
+    },
+    {
+      "task_id": "Workflow-Improvement",
+      "subtask_id": "WF-04",
+      "file": ".tasks/templates/handoff-complex.md",
+      "type": "template",
+      "produced_by": "Claude Code",
+      "timestamp": "2026-01-21T14:35:00Z",
+      "description": "Complex handoff template for multi-agent tasks"
+    },
+    {
+      "task_id": "Workflow-Improvement",
+      "subtask_id": "WF-05",
+      "file": ".tasks/artifacts-index.json",
+      "type": "registry",
+      "produced_by": "Claude Code",
+      "timestamp": "2026-01-21T14:40:00Z",
+      "description": "Centralized artifact tracking registry"
+    },
+    {
+      "task_id": "Workflow-Improvement",
+      "subtask_id": "WF-06",
+      "file": ".tasks/GUIDE.md",
+      "type": "documentation",
+      "produced_by": "Claude Code",
+      "timestamp": "2026-01-21T15:15:00Z",
+      "description": "Updated with new protocols: status sync (3.1), handoff templates (6.2), artifact registry (7.1), blocked task management (10.1), enhanced RELAY protocol (14)"
+    },
+    {
+      "task_id": "Workflow-Improvement",
+      "subtask_id": "WF-07",
+      "file": ".tasks/registry.json",
+      "type": "registry",
+      "produced_by": "Claude Code",
+      "timestamp": "2026-01-21T15:19:00Z",
+      "description": "Updated Task-028 blocker format to dict with depends_on; auto-unblocked 028-G"
+    },
+    {
+      "task_id": "Workflow-Improvement",
+      "subtask_id": "WF-08",
+      "file": ".tasks/handoff/current-session.md",
+      "type": "documentation",
+      "produced_by": "Claude Code",
+      "timestamp": "2026-01-21T15:20:00Z",
+      "description": "Updated with workflow improvement status and RELAY message to Gemini CLI for 028-G"
+    },
+    {
+      "task_id": "Workflow-Improvement",
+      "subtask_id": "WF-09",
+      "file": ".tasks/handoff/task-015.md",
+      "type": "documentation",
+      "produced_by": "Claude Code",
+      "timestamp": "2026-01-21T15:22:00Z",
+      "description": "Fixed status synchronization issue (Ready -> Completed)"
+    },
+    {
+      "task_id": "Task-Cleanup",
+      "subtask_id": "TC-01",
+      "file": ".tasks/registry.json",
+      "type": "registry",
+      "produced_by": "Claude Code",
+      "timestamp": "2026-01-21T15:32:00Z",
+      "description": "Removed deprecated Task-023 (duplicate of Task-021); reduced total tasks from 19 to 18"
+    },
+    {
+      "task_id": "Task-028",
+      "subtask_id": "028-C-FIX",
+      "file": "examples/multi_agent/environment/catastrophe.py",
+      "type": "code",
+      "produced_by": "Claude Code",
+      "timestamp": "2026-01-21T15:40:00Z",
+      "description": "Fixed import path: broker.modules.hazard → .hazard (relative import)"
+    },
+    {
+      "task_id": "Task-028",
+      "subtask_id": "028-D-FIX",
+      "file": "examples/multi_agent/environment/hazard.py",
+      "type": "code",
+      "produced_by": "Claude Code",
+      "timestamp": "2026-01-21T15:42:00Z",
+      "description": "Fixed 3 import paths: broker.modules.hazard.* → .* (relative imports for prb_loader, depth_sampler, vulnerability)"
+    },
+    {
+      "task_id": "Task-028",
+      "subtask_id": "028-D-FIX2",
+      "file": "examples/multi_agent/hazard/prb_analysis.py",
+      "type": "code",
+      "produced_by": "Claude Code",
+      "timestamp": "2026-01-21T15:43:00Z",
+      "description": "Fixed import path: broker.modules.hazard.prb_loader → examples.multi_agent.environment.prb_loader"
+    },
+    {
+      "task_id": "Task-028",
+      "subtask_id": "028-D-FIX3",
+      "file": "examples/multi_agent/tests/test_module_integration.py",
+      "type": "code",
+      "produced_by": "Claude Code",
+      "timestamp": "2026-01-21T15:44:00Z",
+      "description": "Fixed import path: broker.modules.hazard.vulnerability → examples.multi_agent.environment.vulnerability"
+    },
+    {
+      "task_id": "Workflow-Improvement",
+      "subtask_id": "WF-10",
+      "file": ".tasks/CHANGELOG.md",
+      "type": "documentation",
+      "produced_by": "Claude Code",
+      "timestamp": "2026-01-21T16:00:00Z",
+      "description": "Created project-wide changelog documenting Task-028 import fixes, workflow improvements, and recent tasks"
+    },
+    {
+      "task_id": "Workflow-Improvement",
+      "subtask_id": "WF-11",
+      "file": ".tasks/handoff/current-session.md",
+      "type": "documentation",
+      "produced_by": "Claude Code",
+      "timestamp": "2026-01-21T16:00:00Z",
+      "description": "Updated with import fix details, 028-C/D completion status, and RELAY message for 028-G"
+    }
+  ]
+}
