@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "last_updated": "2026-01-21T16:00:00Z",
+  "last_updated": "2026-01-21T16:40:00Z",
   "description": "Centralized artifact registry for all tasks. Tracks produced files, their types, and ownership.",
   "artifacts": [
     {
@@ -200,6 +200,33 @@
       "produced_by": "Claude Code",
       "timestamp": "2026-01-21T16:00:00Z",
       "description": "Updated with import fix details, 028-C/D completion status, and RELAY message for 028-G"
+    },
+    {
+      "task_id": "Workflow-Improvement",
+      "subtask_id": "WF-12",
+      "file": ".tasks/QUICK_START.md",
+      "type": "documentation",
+      "produced_by": "Claude Code",
+      "timestamp": "2026-01-21T16:35:00Z",
+      "description": "Created simplified quick start guide for Gemini CLI to avoid confusion with plan files"
+    },
+    {
+      "task_id": "Workflow-Improvement",
+      "subtask_id": "WF-13",
+      "file": ".tasks/GUIDE.md",
+      "type": "documentation",
+      "produced_by": "Claude Code",
+      "timestamp": "2026-01-21T16:36:00Z",
+      "description": "Updated Section 1 with document hierarchy and clear separation between execution/planning docs"
+    },
+    {
+      "task_id": "Task-028",
+      "subtask_id": "028-G-REPORT",
+      "file": "examples/multi_agent/results_unified/v028_verification/VERIFICATION_REPORT.md",
+      "type": "documentation",
+      "produced_by": "Claude Code",
+      "timestamp": "2026-01-21T16:40:00Z",
+      "description": "Verification report for Task-028-G: Framework cleanup verified, crisis mechanism needs flood test"
     }
   ]
 }

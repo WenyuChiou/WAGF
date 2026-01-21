@@ -5,13 +5,40 @@ Keep it simple, deterministic, and easy to read.
 
 ## 1) Start checklist
 
-- Read `handoff/current-session.md`.
-- Read `registry.json`.
-- Run `git status` to see local changes.
-- Confirm no other AI is running the same task.
+**For Execution Agents (Gemini CLI, Codex)**:
+- Read **`QUICK_START.md`** first (simplified guide)
+- Read **`handoff/current-session.md`** (current task status)
+- Check if task is assigned to you
+- Confirm no blockers
+- **DO NOT** read plan files (`.claude/plans/*.md`) - those are for planning only
+
+**For Planning Agents (Claude Code)**:
+- Read `handoff/current-session.md`
+- Read `registry.json`
+- Read plan file if exists (`.claude/plans/*.md`)
+- Run `git status` to see local changes
+- Confirm no other AI is running the same task
+
+## 1.1) Document Hierarchy (Avoid Confusion)
+
+```
+.tasks/
+├── QUICK_START.md          → Execution agents start here
+├── handoff/
+│   ├── current-session.md  → Current task (ALL agents read this)
+│   └── task-XXX.md         → Detailed task history (optional)
+├── registry.json           → Source of truth (Claude Code updates)
+└── GUIDE.md                → Full workflow reference
+
+.claude/plans/
+└── *.md                    → Strategic planning ONLY (execution agents ignore)
+```
+
+**Rule**: Execution agents focus on `current-session.md` for WHAT to do. Planning agents use plan files for HOW to design.
 
 ## Workflow Guidelines
 - **Planning-to-Execution Flow**: After an agent (e.g., Claude Code) completes planning, the task must first be recorded in `handoff/current-session.md` before any execution begins. This ensures clear communication and state management.
+- **Documentation Separation**: Plan files contain strategic design; `current-session.md` contains execution instructions. Keep them separate to avoid confusion.
 
 ## 2) Terminology
 
