@@ -428,7 +428,7 @@ class MemoryAwareContextBuilder(ContextBuilder):
         Falls back to ["general"] if config not found.
 
         Args:
-            agent_type: Full agent type string (e.g., "household_mg", "household_owner")
+            agent_type: Full agent type string (e.g., "agent_type_a", "agent_type_b")
 
         Returns:
             List of retrieval tags for filtering memories
@@ -438,7 +438,7 @@ class MemoryAwareContextBuilder(ContextBuilder):
         try:
             cfg = load_agent_config()
 
-            # Try agent-type-specific tags first (e.g., household_mg)
+            # Try agent-type-specific tags first
             memory_config = cfg.get_memory_config(agent_type)
             if memory_config and "retrieval_tags" in memory_config:
                 return memory_config["retrieval_tags"]
