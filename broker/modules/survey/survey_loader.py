@@ -35,10 +35,6 @@ class SurveyRecord:
     housing_cost_burden: bool  # >30% of income on housing
     vehicle_ownership: bool
 
-    # Flood Experience
-    flood_experience: bool
-    financial_loss: bool
-
     # Household Composition
     children_under_6: bool
     children_6_18: bool
@@ -74,8 +70,6 @@ DEFAULT_COLUMN_MAPPING = {
     "house_type": {"index": 20, "code": "Q1"},  # Which type of house
     "housing_cost_burden": {"index": 101, "code": "Q38"},  # >30% of income on housing
     "vehicle_ownership": {"index": 26, "code": "Q5"},  # Does household own a vehicle
-    "flood_experience": {"index": 34, "code": "Q11"},  # Ever experienced flood
-    "financial_loss": {"index": 36, "code": "Q13"},  # Flood financial loss
     "children_under_6": {"index": 31, "code": "Q10_1"},  # Children <6
     "children_6_18": {"index": 32, "code": "Q10_2"},  # Children 6-18
     "elderly_over_65": {"index": 33, "code": "Q10_3"},  # Elderly >65
@@ -263,8 +257,6 @@ class SurveyLoader:
             house_type=self._parse_house_type(get_val("house_type")),
             housing_cost_burden=self._parse_boolean(get_val("housing_cost_burden")),
             vehicle_ownership=self._parse_boolean(get_val("vehicle_ownership")),
-            flood_experience=self._parse_boolean(get_val("flood_experience")),
-            financial_loss=self._parse_boolean(get_val("financial_loss")),
             children_under_6=self._parse_boolean(get_val("children_under_6")),
             children_6_18=self._parse_boolean(get_val("children_6_18")),
             elderly_over_65=self._parse_boolean(get_val("elderly_over_65")),
