@@ -182,6 +182,13 @@ class UnifiedAdapter(ModelAdapter):
         if not raw_output:
             return None
 
+        # Phase 46: Strip Qwen3 thinking tokens before parsing
+        # Qwen3 models wrap reasoning in <think>...</think> tags
+        import re
+        raw_output = re.sub(r'<think>.*?</think>', '', raw_output, flags=re.DOTALL).strip()
+        if not raw_output:
+            return None  # Only thinking tokens, no actual response
+
         # 1. Phase 15: Enclosure Extraction (Priority)
         # Dynamic Delimiters (from YAML config) - Phase 23
         try:

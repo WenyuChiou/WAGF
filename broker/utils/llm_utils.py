@@ -253,6 +253,12 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
             llm_retries = 0
             current_prompt = prompt
             
+            # Phase 46: Qwen3 models support /no_think to disable thinking mode
+            # This prevents models from outputting <think>...</think> blocks
+            if "qwen3" in model.lower() or "qwen-3" in model.lower():
+                if "/no_think" not in current_prompt and "/think" not in current_prompt:
+                    current_prompt = current_prompt + "\n/no_think"
+            
             for attempt in range(max_llm_retries):
                 try:
                     response = llm.invoke(current_prompt)
@@ -266,12 +272,22 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
                     if debug_llm:
                         _LOGGER.debug(f" [LLM:Output] Raw Content: {repr(content[:200] if content else '')}...")
                     
-                    if content and content.strip():
-                        return content, LLMStats(retries=llm_retries, success=True)
+                    # Phase 46: Strip Qwen3 thinking tokens before empty check
+                    # Qwen3 models wrap reasoning in <think>...</think> tags
+                    import re
+                    stripped_content = content
+                    if content:
+                        # Remove thinking blocks to get actual response
+                        stripped_content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
+                        if debug_llm and stripped_content != content.strip():
+                            _LOGGER.debug(f" [LLM:ThinkStrip] Removed thinking tokens, extracted: {repr(stripped_content[:100])}...")
+                    
+                    if stripped_content and stripped_content.strip():
+                        return content, LLMStats(retries=llm_retries, success=True)  # Return full content for logging
                     else:
                         llm_retries += 1
                         if attempt < max_llm_retries - 1:
-                            _LOGGER.warning(f" [LLM:Retry] Model '{model}' returned empty content. Retrying...")
+                            _LOGGER.warning(f" [LLM:Retry] Model '{model}' returned empty/thinking-only content. Retrying...")
                             current_prompt += " " 
                         else:
                             _LOGGER.error(f" [LLM:Error] Model '{model}' returned empty content after {max_llm_retries} attempts.")

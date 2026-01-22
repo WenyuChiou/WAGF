@@ -8,6 +8,7 @@ from .interfaces.skill_types import (
 from .utils.model_adapter import ModelAdapter, UnifiedAdapter, deepseek_preprocessor
 from .utils.agent_config import load_agent_config, ValidationRule, CoherenceRule, AgentTypeConfig
 from .utils.data_loader import load_agents_from_csv
+from .utils.performance_tuner import get_optimal_config, apply_to_llm_config
 
 # 3. Components (Dependent on interfaces/utils)
 from .components.memory_engine import MemoryEngine, WindowMemoryEngine, ImportanceMemoryEngine, HumanCentricMemoryEngine

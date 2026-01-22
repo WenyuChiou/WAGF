@@ -1,0 +1,19 @@
+{
+  "experiment_name": "qwen3:1.7b",
+  "agent_types": {
+    "household": {
+      "total": 30,
+      "decisions": {
+        "do_nothing": 25,
+        "HE": 1,
+        "insurance": 1,
+        "FI": 2,
+        "buy_insurance": 1
+      }
+    }
+  },
+  "total_traces": 30,
+  "validation_errors": 1,
+  "validation_warnings": 0,
+  "finalized_at": "2026-01-22T12:38:52.840386"
+}

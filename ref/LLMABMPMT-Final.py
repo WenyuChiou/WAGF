@@ -484,7 +484,13 @@ if __name__ == "__main__":
     parser.add_argument("--output", default=".", help="Output directory for results")
     parser.add_argument("--model", default="gemma3:4b", help="Ollama model name")
     parser.add_argument("--seed", type=int, default=None, help="Random seed (optional)")
+    parser.add_argument("--agents", type=int, default=NUM_AGENTS, help="Number of agents")
+    parser.add_argument("--years", type=int, default=NUM_YEARS, help="Number of years")
     args = parser.parse_args()
+    
+    # Update globals
+    NUM_AGENTS = args.agents
+    NUM_YEARS = args.years
     
     # Set seed if provided
     if args.seed is not None:

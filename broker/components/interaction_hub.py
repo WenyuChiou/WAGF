@@ -37,44 +37,85 @@ class InteractionHub:
             
         return spatial_context
 
-    def get_social_context(self, agent_id: str, agents: Dict[str, Any], max_gossip: int = 2) -> List[str]:
-        """Tier 1 (Social): Gossip/Shared snippets from neighbor memories."""
-        if not self.memory_engine:
-            return []
-            
-        neighbor_ids = self.graph.get_neighbors(agent_id)
-        gossip = []
-        
-        # Select chatty neighbors (those who have actual content in memory)
-        chatty_neighbors = []
-        for nid in neighbor_ids:
-            mem = self.memory_engine.retrieve(agents[nid], top_k=1)
-            if isinstance(mem, dict):
-                if mem.get("episodic") or mem.get("semantic"):
-                    chatty_neighbors.append(nid)
-            elif mem:
-                chatty_neighbors.append(nid)
+    def get_visible_neighbor_actions(self, agent_id: str, agents: Dict[str, Any]) -> List[str]:
+        """
+        Get visible physical actions of neighbors (e.g., elevation, relocation).
 
-        if not chatty_neighbors:
-            return []
-            
-        # Select random snippets from neighbors
-        sample_size = min(len(chatty_neighbors), max_gossip)
-        for nid in random.sample(chatty_neighbors, sample_size):
-            # Retrieve the most recent memory from the neighbor as gossip
-            neighbor_mems = self.memory_engine.retrieve(agents[nid], top_k=1)
-            
-            # Normalize: Hierarchical memory returns a dict, others return a list
-            mems_list = []
-            if isinstance(neighbor_mems, dict):
-                mems_list = neighbor_mems.get("episodic", []) or neighbor_mems.get("semantic", [])
-            else:
-                mems_list = neighbor_mems
-                
-            if mems_list:
-                gossip.append(f"Neighbor {nid} mentioned: '{mems_list[0]}'")
-            
-        return gossip
+        Real-world grounding: Households can observe neighbors' physical changes
+        like house elevation construction or moving trucks, even without direct
+        conversation (observational learning per PubMed 29148082).
+
+        Returns:
+            List of visible action descriptions
+        """
+        neighbor_ids = self.graph.get_neighbors(agent_id)
+        visible_actions = []
+
+        for nid in neighbor_ids:
+            neighbor = agents.get(nid)
+            if not neighbor:
+                continue
+
+            # Check for elevated status (visible: construction/raised foundation)
+            if getattr(neighbor, 'elevated', False):
+                visible_actions.append(f"Neighbor {nid} has elevated their house")
+
+            # Check for relocated status (visible: moving truck/empty house)
+            if getattr(neighbor, 'relocated', False):
+                visible_actions.append(f"Neighbor {nid} has moved away")
+
+            # Check for insurance (not directly visible, but may be inferred from flood sign)
+            # Skipped: insurance is private info, not visually observable
+
+        return visible_actions
+
+    def get_social_context(self, agent_id: str, agents: Dict[str, Any], max_gossip: int = 2) -> Dict[str, Any]:
+        """
+        Tier 1 (Social): Gossip snippets + visible neighbor actions.
+
+        Returns:
+            Dict with 'gossip' (list of snippets) and 'visible_actions' (list of observations)
+        """
+        gossip = []
+
+        # Gossip from memory engine
+        if self.memory_engine:
+            neighbor_ids = self.graph.get_neighbors(agent_id)
+
+            # Select chatty neighbors (those who have actual content in memory)
+            chatty_neighbors = []
+            for nid in neighbor_ids:
+                mem = self.memory_engine.retrieve(agents[nid], top_k=1)
+                if isinstance(mem, dict):
+                    if mem.get("episodic") or mem.get("semantic"):
+                        chatty_neighbors.append(nid)
+                elif mem:
+                    chatty_neighbors.append(nid)
+
+            # Select random snippets from neighbors
+            if chatty_neighbors:
+                sample_size = min(len(chatty_neighbors), max_gossip)
+                for nid in random.sample(chatty_neighbors, sample_size):
+                    # Retrieve the most recent memory from the neighbor as gossip
+                    neighbor_mems = self.memory_engine.retrieve(agents[nid], top_k=1)
+
+                    # Normalize: Hierarchical memory returns a dict, others return a list
+                    mems_list = []
+                    if isinstance(neighbor_mems, dict):
+                        mems_list = neighbor_mems.get("episodic", []) or neighbor_mems.get("semantic", [])
+                    else:
+                        mems_list = neighbor_mems
+
+                    if mems_list:
+                        gossip.append(f"Neighbor {nid} mentioned: '{mems_list[0]}'")
+
+        # Visible neighbor actions (observational learning)
+        visible_actions = self.get_visible_neighbor_actions(agent_id, agents)
+
+        return {
+            "gossip": gossip,
+            "visible_actions": visible_actions
+        }
 
     def build_tiered_context(self, agent_id: str, agents: Dict[str, Any], global_news: List[str] = None) -> Dict[str, Any]:
         """Aggregate all tiers into a unified context slice."""
@@ -130,11 +171,15 @@ class InteractionHub:
             if inst_id:
                 env_context["institutional"] = self.environment.institutions.get(inst_id, {})
 
+        # Get social context (gossip + visible actions)
+        social_context = self.get_social_context(agent_id, agents)
+
         result = {
             "personal": personal,
             "local": {
                 "spatial": self.get_spatial_context(agent_id, agents),
-                "social": self.get_social_context(agent_id, agents),
+                "social": social_context.get("gossip", []) if isinstance(social_context, dict) else social_context,
+                "visible_actions": social_context.get("visible_actions", []) if isinstance(social_context, dict) else [],
                 "environment": env_context["local"]
             },
             "global": global_news or env_context["global"],
