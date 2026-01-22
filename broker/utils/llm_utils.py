@@ -85,6 +85,8 @@ def _load_global_config() -> LLMConfig:
             temperature=global_llm.get("temperature"), 
             top_p=global_llm.get("top_p"),
             top_k=global_llm.get("top_k"),
+            num_ctx=global_llm.get("num_ctx", 16384),
+            num_predict=global_llm.get("num_predict", 2048),
             max_retries=global_llm.get("max_retries", 2)
         )
     except Exception as e:
@@ -228,6 +230,9 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
         # Apply any runtime overrides
         if overrides:
             ollama_params.update(overrides)
+
+        # Remove 'model' from params if present (it's passed explicitly above)
+        ollama_params.pop("model", None)
 
         # Select provider based on config
         if LLM_CONFIG.use_chat_api:

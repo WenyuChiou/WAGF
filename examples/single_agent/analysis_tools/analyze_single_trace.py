@@ -59,5 +59,23 @@ def analyze_trace(file_path, target_agent="Agent_001"):
         print(f"{y:<5} | {decision:<15} | {str(log_elev):<8} | {str(log_reloc):<9} | {str(log_ins):<9}")
 
 if __name__ == "__main__":
-    path = r"H:\我的雲端硬碟\github\governed_broker_framework\examples\single_agent\results\JOH_FINAL\llama3_2_3b\Group_C_Full_HumanCentric\llama3_2_3b_strict\raw\household_traces.jsonl"
-    analyze_trace(path)
+    import argparse
+    parser = argparse.ArgumentParser(description="Analyze a single agent trace from JSONL.")
+    parser.add_argument("--run-dir", type=str, help="Directory containing household_traces.jsonl")
+    parser.add_argument("--file", type=str, help="Path to household_traces.jsonl")
+    parser.add_argument("--agent", type=str, default="Agent_001", help="Target Agent ID")
+    
+    args = parser.parse_args()
+    
+    target_file = None
+    if args.file:
+        target_file = args.file
+    elif args.run_dir:
+        target_file = os.path.join(args.run_dir, "household_traces.jsonl")
+        
+    if target_file and os.path.exists(target_file):
+        analyze_trace(target_file, target_agent=args.agent)
+    else:
+        print(f"Error: Could not find trace file at {target_file}")
+        print("Usage: python analyze_single_trace.py --run-dir <path> or --file <path>")
+

@@ -434,16 +434,16 @@ class AgentValidator:
                     if lv == ValidationLevel.ERROR:
                         self.auditor.log_intervention(rule.id, success=False, is_final=False)
 
-                    rule_msg = f"[Rule: {rule.id}] {rule.message or f'Identity Block: {decision} restricted by {tier_name} rules'}"
+                    rule_msg = f"[Rule: {rule.id}] {rule.message or f'{tier_name.capitalize()} Block: {decision} restricted by {tier_name} rules'}"
                     results.append(ValidationResult(
                         valid=(lv == ValidationLevel.WARNING),
-                        validator_name=f"AgentValidator:identity_{rule.level.lower()}",
+                        validator_name=f"AgentValidator:{tier_name}_{rule.level.lower()}",
                         errors=[rule_msg] if lv == ValidationLevel.ERROR else [],
                         warnings=[rule_msg] if lv == ValidationLevel.WARNING else [],
                         metadata={
                             "level": lv,
-                            "tier": "Tier 1: Identity/Status",
-                            "rule": f"identity_{rule.level.lower()}",
+                            "tier": f"Tier 2: {tier_name.capitalize()}",
+                            "rule": f"{tier_name}_{rule.level.lower()}",
                             "rule_id": rule.id,
                             "message": rule.message,
                             "field": "decision",

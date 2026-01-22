@@ -32,6 +32,8 @@ import pandas as pd  # For handling tabular data
 import random  # For randomness in agent attributes and flood events
 import time  # To track simulation runtime
 import os # For checking if files exist
+import re # For DeepSeek <think> tag cleaning
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from langchain_ollama import OllamaLLM  # LangChain wrapper to call Ollama LLM
 from langchain_core.prompts import PromptTemplate  # For formatting LLM prompts
 from tqdm import tqdm  # Progress bar for loops
@@ -43,7 +45,7 @@ NUM_AGENTS = 100                    # Number of agents in the simulation
 NUM_YEARS = 10                      # Number of simulation years
 NUM_SAMPLED_AGENTS = 5              # Number of agents to select for prompts and plots
 NUM_SAMPLED_YEARS = 3               # Number of years to sample for prompts
-BATCH_SIZE = 25                     # Max number of prompts to send to the LLM in one batch
+BATCH_SIZE = 25                     # Restored to 25 for performance as requested
 MAX_RETRIES = 3                     # Number of times to retry a failed LLM batch
 RETRY_DELAY_SECONDS = 5             # Seconds to wait between retries
 FLOOD_PROBABILITY = 0.2             # 20% chance of a flood event in any given year
@@ -183,6 +185,10 @@ Final Decision: [Choose {valid_choices_text} only]
 # --- 5. Parse LLM output to extract decision and PMT reasoning ---
 def parse_response(response):
     """Extracts threat, coping, and decision from the LLM's text response."""
+    # DeepSeek Preprocessor: Strip <think> tags
+    if "<think>" in response:
+        response = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL)
+    
     lines = response.splitlines()
     threat, coping, decision = "", "", "4" # Default to "Do nothing"
     for line in lines:
@@ -333,29 +339,29 @@ def run_simulation(output_dir=None, model_name="gemma3:4b"):
                 if agent["id"] in selected_agent_ids and year in sampled_years:
                     prompt_file.write(f"\n--- {agent['id']} | Year {year} (Elevated: {agent['elevated']}) ---\n{prompt}\n\n")
 
-            # Process agents in chunks with retry logic
-            for i in tqdm(range(0, len(tasks_to_process), BATCH_SIZE), desc=f"Year {year} Batches", leave=False):
-                task_chunk = tasks_to_process[i:i + BATCH_SIZE]
-                prompt_chunk = [task['prompt'] for task in task_chunk]
-                
-                responses_chunk = None
+            # Process the agents in parallel using ThreadPoolExecutor
+            def process_agent(task):
+                agent_prompt = task['prompt']
                 for attempt in range(MAX_RETRIES):
                     try:
-                        responses_chunk = llm.batch(prompt_chunk)
-                        break
+                        resp = llm.invoke(agent_prompt)
+                        return task, resp
                     except Exception as e:
-                        print(f"\n  [Attempt {attempt + 1}/{MAX_RETRIES}] Error on batch: {e}")
+                        print(f"\n  [Retry {attempt+1}/{MAX_RETRIES}] Error for {task['agent']['id']}: {e}")
                         if attempt < MAX_RETRIES - 1:
-                            print(f"  Retrying in {RETRY_DELAY_SECONDS} seconds...")
                             time.sleep(RETRY_DELAY_SECONDS)
-                        else: print("  Batch failed. Assigning default responses.")
+                return task, "Threat Appraisal: Error\nCoping Appraisal: Error\nFinal Decision: 4"
 
-                if responses_chunk is None:
-                    default_response = "Threat Appraisal: Error\nCoping Appraisal: Error\nFinal Decision: 4"
-                    responses_chunk = [default_response] * len(task_chunk)
+            results_chunk = []
+            max_workers = 10 # Parallelism level
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                future_to_agent = {executor.submit(process_agent, task): task for task in tasks_to_process}
+                for future in tqdm(as_completed(future_to_agent), total=len(tasks_to_process), desc=f"Year {year} Agents", leave=False):
+                    task, response = future.result()
+                    results_chunk.append((task, response))
 
-                # Process the responses for the current chunk
-                for task, response in zip(task_chunk, responses_chunk):
+            # Process the responses
+            for task, response in results_chunk:
                     agent, was_elevated = task['agent'], task['was_elevated']
                     threat, coping, decision_code = parse_response(response)
                     
