@@ -142,6 +142,54 @@ class LLMProvider(ABC):
 LLMInvokeFunc = Callable[[str], Tuple[str, LLMStats]]
 
 
+def _invoke_ollama_direct(model: str, prompt: str, params: Dict[str, Any], verbose: bool) -> Tuple[str, LLMStats]:
+    """
+    Phase 46: Invoke Ollama direct via API to avoid LangChain/Python 3.14 issues
+    and enable native JSON-mode.
+    """
+    import requests
+    import json
+    
+    url = "http://localhost:11434/api/generate"
+    
+    # Standardize options
+    options = {
+        "num_predict": params.get("num_predict", 2048),
+        "num_ctx": params.get("num_ctx", 8192 if "8b" in model.lower() or "14b" in model.lower() else 4096),
+        "temperature": params.get("temperature", 0.0),
+        "top_p": params.get("top_p", 0.9),
+    }
+    
+    # Phase 46: Add stop sequences to cut off thinking loops
+    options["stop"] = ["\n{", "\n\n", "Done", "Thinking", "The JSON", "{"]
+    
+    data = {
+        "model": model,
+        "prompt": prompt,
+        "stream": False,
+        "format": "json", # FORCE OLLAMA TO OUTPUT JSON
+        "options": options
+    }
+    
+    try:
+        # Increase timeout for 30B models
+        timeout = 180 if "30b" in model.lower() else 120
+        response = requests.post(url, json=data, timeout=timeout)
+        
+        if response.status_code == 200:
+            result = response.json()
+            content = result.get('response', '')
+            if verbose:
+                _LOGGER.debug(f" [LLM:Direct] Model '{model}' responded successfully ({len(content)} chars).")
+            return content, LLMStats(retries=0, success=True)
+        else:
+            _LOGGER.error(f" [LLM:Direct] Model '{model}' HTTP Error {response.status_code}: {response.text}")
+            return "", LLMStats(retries=0, success=False)
+    except Exception as e:
+        _LOGGER.error(f" [LLM:Direct] Model '{model}' Request Exception: {e}")
+        return "", LLMStats(retries=0, success=False)
+
+
 def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dict[str, Any]] = None) -> LLMInvokeFunc:
     """
     Creates an invocation function for a given model using LangChain-Ollama.
@@ -261,13 +309,13 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
             
             for attempt in range(max_llm_retries):
                 try:
-                    response = llm.invoke(current_prompt)
-                    
-                    # Handle return type difference: ChatOllama -> Message, OllamaLLM -> str
-                    if hasattr(response, 'content'):
-                        content = response.content
-                    else:
-                        content = str(response)
+                    # Phase 46F: UNIVERSAL DIRECT API for ALL Ollama models
+                    # This bypasses LangChain entirely and ensures:
+                    # 1. Native JSON mode (format: "json") for strict output
+                    # 2. Consistent behavior across all model families
+                    # 3. Avoids Python 3.14 compatibility issues
+                    # LangChain path is deprecated but preserved for potential cloud providers
+                    content, stats = _invoke_ollama_direct(model, current_prompt, ollama_params, debug_llm)
                     
                     if debug_llm:
                         _LOGGER.debug(f" [LLM:Output] Raw Content: {repr(content[:200] if content else '')}...")
