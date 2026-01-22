@@ -160,10 +160,10 @@ class AgentTypeConfig:
         defaults = {"interval": 1, "batch_size": 10, "importance_boost": 0.9}
         
         # 1. Global Config
-        global_refl = self._config.get("global_config", {}).get("reflection", {})
+        global_refl = self._config.get("global_config", {}).get("reflection", {}) or {}
         
         # 2. Shared (Legacy Fallback)
-        shared_refl = self._config.get("shared", {}).get("reflection", {})
+        shared_refl = self._config.get("shared", {}).get("reflection", {}) or {}
         
         # Merge: Global > Shared > Default
         merged = defaults.copy()
@@ -362,11 +362,11 @@ class AgentTypeConfig:
         return parsing
 
     def get_memory_config(self, agent_type: str) -> Dict[str, Any]:
-        """Get memory engine configuration (Phase 12), falling back to default."""
+        """Get memory engine configuration (v1/v2/v3 supported), falling back to default."""
         cfg = self.get(agent_type)
-        memory = cfg.get("memory", {})
+        memory = cfg.get("memory", {}) or {}
         if not memory:
-            return self._config.get("default", {}).get("memory", {})
+            return self._config.get("default", {}).get("memory", {}) or {}
         return memory
 
     def get_log_fields(self, agent_type: str) -> List[str]:
@@ -443,9 +443,9 @@ class AgentTypeConfig:
     def get_llm_params(self, agent_type: str) -> Dict[str, Any]:
         """Get LLM parameters (num_predict, num_ctx, etc.) for agent type."""
         cfg = self.get(agent_type)
-        shared_llm = self._config.get("shared", {}).get("llm", {})
-        global_llm = self._config.get("global_config", {}).get("llm", {})
-        agent_llm = cfg.get("llm_params", {})
+        shared_llm = self._config.get("shared", {}).get("llm", {}) or {}
+        global_llm = self._config.get("global_config", {}).get("llm", {}) or {}
+        agent_llm = cfg.get("llm_params", {}) or {}
         merged = {}
         merged.update(shared_llm)
         merged.update(global_llm)

@@ -40,7 +40,7 @@ $StressBlock = {
             New-Item -ItemType Directory -Force $OutputPath | Out-Null
             
             # Run Stress Test
-            python -u run_flood.py --model $Model --years $Years --agents $Agents --memory-engine humancentric --governance-mode strict --output $OutputPath --survey-mode --workers 4 --stress-test $Scenario --seed $CurrentSeed --memory-ranking-mode legacy
+            python -u run_flood.py --model $Model --years $Years --agents $Agents --memory-engine humancentric --governance-mode strict --output $OutputPath --workers 4 --stress-test $Scenario --seed $CurrentSeed --memory-ranking-mode legacy
         }
     }
 }

@@ -43,7 +43,9 @@ output/
 results/
 results_humancentric/
 examples/single_agent/results_*/
+examples/single_agent/archived/
 examples/multi_agent/input/
+examples/multi_agent/results_unified/
 *.log
 *_output.txt
 trace_*.txt
@@ -51,6 +53,9 @@ temp_*.txt
 temp_*.json
 *.jpg
 *.csv
+
+# Analysis figures (generated)
+examples/single_agent/analysis_tools/analysis/reports/figures/
 audit_output/
 toy_output/
 

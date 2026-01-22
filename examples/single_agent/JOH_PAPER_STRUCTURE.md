@@ -60,6 +60,11 @@ We present a "Lego-like" architecture where cognitive modules can be stacked to 
 - **Argument**: "The framework is model-agnostic Cognitive Middleware, compatible with SWMM/HEC-RAS."
 - **Theoretical Framework**: Combines **Protection Motivation Theory (Rogers, 1975)** with **Cognitive Governance** to simulate validatable adaptive behavior.
 
+### Pillar 3.5: Future Direction (Active Inference)
+
+- **Concept**: **v3 Universal Cognitive Engine**.
+- **Role**: Moving from "Static Decay" (v1) to "Surprise-Driven Gating" (v3). Presented as a theoretical roadmap rather than experimental result.
+
 ---
 
 ## 3. Paper Structure (Proposed Chapters)
@@ -86,20 +91,21 @@ We present a "Lego-like" architecture where cognitive modules can be stacked to 
 
 ### **Section 4: Results & Discussion**
 
-- **4.1 The Instability of Naive Agents (The "Stably Insane" Discovery)**:
-  - Present data from Group A (N=10) showing stochastic divergence.
-  - **Conclusion**: Naive LLM agents are **Stochastically Unstable** (Gemma) or **Logically Irrational** (Llama).
-- **4.2 The Transformation Effect (Group C)**:
-  - **Figure 5: Decision Integrity (Scatter Plot)**. Shows how governance forces agents into the "Zone of Rationality" (High RS, High Fidelity).
-  - **Figure 6: Hallucination Asymmetry**. Quantifies the reduction in Panic Rate and Complacency Rate across models.
+- **4.1 The Instability of Naive Agents (Group A)**:
+  - Present data from Group A showing stochastic divergence.
+- **4.2 The Mechanism of Action (Group B vs. C)**:
+  - **Prosthetic Rationality (Group B)**: Governance forces compliance but leads to Cyclical Amnesia.
+  - **Internalized Rationality (Group C)**: Memory acts as a metabolic process (Ratchet Effect).
 - **4.3 Quantitative Analysis**: Rationality Scores (RS) vs. Internal Fidelity (IF).
-- **4.4 Qualitative Case Studies**: The Stress Tests (Section 5).
-- **4.5 Explainable AI (XAI): Auditing the Cognitive Trace (Internal Fidelity)**:
-  - Highlights the value of the "Glass Box" approach.
+- **4.4 The "Ratchet Effect" Visualization**:
+  - **Figure 5: Persistence Curves**. Showing how Group C maintains risk perception.
+- **4.5 Stress Testing (Robustness)**:
+  - Demonstration of Group C's stability under Panic/Goldfish scenarios.
 
-### **Section 5: Conclusion**
+### **Section 5: Conclusion & Future Work**
 
-- Summary: We successfully turned a Stochastic LLM into a Validatable Scientific Instrument.
+- **Summary**: We successfully turned a Stochastic LLM into a Validatable Scientific Instrument.
+- **Future Work**: The transition to **v3 Active Inference**.
 
 ---
 
@@ -139,5 +145,6 @@ To ensure the technical note is fully reproducible, each section is mapped to a 
 | **Level 1: Chaos**        | Quantification of Naive Instability | `run_joh_experiments.ps1` (Group A) | `group_a_stability.csv`                  |
 | **Level 2: Rationality**  | Governed Decision Check             | `run_joh_experiments.ps1` (Group B) | `household_governance_audit.csv`         |
 | **Level 3: Resilience**   | Memory Stabilization fix            | `run_joh_experiments.ps1` (Group C) | `simulation_log.csv` (Group C)           |
-| **Level 4: Verification** | Metrics Calculation                 | `run_joh_analysis.py`               | `JOH_FINAL/metrics/mcc_analysis_all.csv` |
-| **Level 5: Illustration** | Paper Figures                       | `plot_decision_integrity.py`        | `Figure5_Decision_Integrity.png`         |
+| **Level 4: Robustness**   | Stress Testing                      | `run_stress_marathon.ps1`           | `results/JOH_STRESS`                     |
+| **Level 5: Verification** | Metrics Calculation                 | `run_joh_analysis.py`               | `JOH_FINAL/metrics/mcc_analysis_all.csv` |
+| **Level 6: Illustration** | Paper Figures                       | `plot_decision_integrity.py`        | `Figure5_Decision_Integrity.png`         |
