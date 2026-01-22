@@ -1,8 +1,7 @@
 """
 Agent Initializer from Survey Data.
 
-Integrates survey loading, MG classification, position assignment,
-and RCV generation to create fully initialized agent profiles.
+Generic survey-to-agent profile initialization.
 
 Design Pattern (v0.29+):
     Uses Protocol-based dependency injection for enrichers to avoid
@@ -10,6 +9,10 @@ Design Pattern (v0.29+):
     PositionEnricher and ValueEnricher protocols can be passed in.
 
     See broker/interfaces/enrichment.py for protocol definitions.
+
+Domain-Specific Usage:
+    For MA (flood simulation), use examples/multi_agent/survey/ma_initializer.py
+    which adds MG classification and flood extensions.
 """
 
 from __future__ import annotations
@@ -28,45 +31,14 @@ logger = logging.getLogger(__name__)
 
 
 
-def _create_flood_extension(flood_experience: bool, financial_loss: bool):
-    """
-    DEPRECATION BRIDGE: Create flood extension (MA-specific).
-
-    TODO(v0.30): Move this to examples/multi_agent/survey/ after full migration.
-    Currently kept here for backward compatibility with existing workflows.
-    """
-    from types import SimpleNamespace
-    return SimpleNamespace(
-        flood_experience=flood_experience,
-        financial_loss=financial_loss,
-        flood_zone="unknown",
-        base_depth_m=0.0,
-        flood_probability=0.0,
-        building_rcv_usd=0.0,
-        contents_rcv_usd=0.0,
-    )
-
-
-def _set_ext_value(ext, key: str, value):
-    if isinstance(ext, dict):
-        ext[key] = value
-    else:
-        setattr(ext, key, value)
-
-
-def _get_ext_value(ext, key: str, default=None):
-    if ext is None:
-        return default
-    if isinstance(ext, dict):
-        return ext.get(key, default)
-    return getattr(ext, key, default)
-
-
-@dataclass
-
 @dataclass
 class AgentProfile:
-    """Complete agent profile ready for simulation."""
+    """
+    Complete agent profile ready for simulation.
+
+    Generic profile structure. Domain-specific data should be stored
+    in the extensions dict (e.g., extensions["flood"] for MA simulation).
+    """
 
     # Identity
     agent_id: str
@@ -80,15 +52,33 @@ class AgentProfile:
     housing_status: str  # "mortgage", "rent", "own_free"
     house_type: str
 
-    # MG Classification
-    is_mg: bool
-    mg_score: int
-    mg_criteria: Dict[str, bool]
+    # Classification flags (domain-specific classifiers can populate these)
+    # e.g., for MA flood sim: is_mg=True means "Marginalized Group"
+    # for other domains: can represent any binary classification
+    is_classified: bool = False
+    classification_score: int = 0
+    classification_criteria: Dict[str, bool] = field(default_factory=dict)
+
+    # Legacy aliases for backward compatibility with MA code
+    @property
+    def is_mg(self) -> bool:
+        """Backward compatibility alias for is_classified."""
+        return self.is_classified
+
+    @property
+    def mg_score(self) -> int:
+        """Backward compatibility alias for classification_score."""
+        return self.classification_score
+
+    @property
+    def mg_criteria(self) -> Dict[str, bool]:
+        """Backward compatibility alias for classification_criteria."""
+        return self.classification_criteria
 
     # Household Composition
-    has_children: bool
-    has_elderly: bool
-    has_vulnerable_members: bool
+    has_children: bool = False
+    has_elderly: bool = False
+    has_vulnerable_members: bool = False
 
     # Raw survey data for flexible narrative use
     raw_data: Dict[str, Any] = field(default_factory=dict)
@@ -110,7 +100,8 @@ class AgentProfile:
 
     @property
     def group_label(self) -> str:
-        return "MG" if self.is_mg else "NMG"
+        """Return classification group label (default: 'A'/'B', override for domain-specific)."""
+        return "A" if self.is_classified else "B"
 
     # Narrative generation
     def generate_narrative_persona(self) -> str:
@@ -162,9 +153,9 @@ class AgentProfile:
         }
         parts.append(gen_text.get(self.generations, ""))
 
-        # MG status context
-        if self.is_mg:
-            if self.mg_criteria.get("housing_cost_burden"):
+        # Classification context (if applicable)
+        if self.is_classified:
+            if self.classification_criteria.get("housing_cost_burden"):
                 parts.append("Housing costs are a significant burden for your household")
 
         return ". ".join(filter(None, parts)) + "."
@@ -178,7 +169,12 @@ class AgentProfile:
         return getattr(ext, key, default)
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for CSV export or framework use."""
+        """
+        Convert to dictionary for CSV export or framework use.
+
+        Returns generic profile data. Domain-specific extensions are
+        included as nested dicts that callers can flatten if needed.
+        """
         data = {
             "agent_id": self.agent_id,
             "record_id": self.record_id,
@@ -197,32 +193,29 @@ class AgentProfile:
             "narrative_persona": self.generate_narrative_persona(),
         }
 
-        flood = self.extensions.get("flood")
-        if flood is not None:
-            data.update({
-                "flood_experience": self._ext_value(flood, "flood_experience", False),
-                "financial_loss": self._ext_value(flood, "financial_loss", False),
-                "flood_zone": self._ext_value(flood, "flood_zone", "unknown"),
-                "base_depth_m": self._ext_value(flood, "base_depth_m", 0.0),
-                "flood_probability": self._ext_value(flood, "flood_probability", 0.0),
-                "building_rcv_usd": self._ext_value(flood, "building_rcv_usd", 0.0),
-                "contents_rcv_usd": self._ext_value(flood, "contents_rcv_usd", 0.0),
-            })
-            data["rcv_kUSD"] = data["building_rcv_usd"] / 1000.0
-            data["contents_kUSD"] = data["contents_rcv_usd"] / 1000.0
+        # Include extensions as nested data (domain-specific code can flatten)
+        if self.extensions:
+            data["extensions"] = {}
+            for ext_key, ext_val in self.extensions.items():
+                if hasattr(ext_val, "__dict__"):
+                    data["extensions"][ext_key] = vars(ext_val)
+                elif isinstance(ext_val, dict):
+                    data["extensions"][ext_key] = ext_val
+                else:
+                    data["extensions"][ext_key] = ext_val
 
         return data
 
 
 class AgentInitializer:
     """
-    Initialize agents from survey data with full context.
+    Initialize agents from survey data.
 
-    Integrates:
-    - Survey data loading
-    - MG classification
-    - Position assignment (via hazard module)
-    - RCV generation (via RCV generator)
+    Generic initialization that creates AgentProfile instances from
+    survey records. Domain-specific classification and enrichment
+    should be handled by domain-specific wrappers.
+
+    For MA flood simulation, use examples/multi_agent/survey/ma_initializer.py
     """
 
     def __init__(
@@ -237,8 +230,9 @@ class AgentInitializer:
 
         Args:
             survey_loader: Custom survey loader (uses default if None)
-            mg_classifier: Custom MG classifier (uses default if None)
             seed: Random seed for reproducibility
+            narrative_fields: Fields to include in narrative generation
+            narrative_labels: Labels for narrative fields
         """
         self.survey_loader = survey_loader or SurveyLoader()
         self.seed = seed
@@ -247,22 +241,13 @@ class AgentInitializer:
 
     def _create_extensions(self, record) -> Dict[str, Any]:
         """
-        Create extensions dict based on record type (generic or domain-specific).
+        Create extensions dict for a record.
 
-        Auto-detects record type by checking for domain-specific fields.
-        TODO(v0.30): Make this fully pluggable via extension registry.
+        Generic implementation returns empty dict.
+        Domain-specific subclasses or wrappers can override to add
+        domain-specific extensions.
         """
-        extensions = {}
-
-        # Check if record has flood-specific fields (FloodSurveyRecord)
-        # DEPRECATION BRIDGE: This should be moved to MA-specific initialization
-        if hasattr(record, "flood_experience") and hasattr(record, "financial_loss"):
-            extensions["flood"] = _create_flood_extension(
-                record.flood_experience,
-                record.financial_loss
-            )
-
-        return extensions
+        return {}
 
     def load_from_survey(
         self,
@@ -314,12 +299,12 @@ class AgentInitializer:
             )
 
             profiles.append(profile)
-        # Calculate statistics
+
+        # Calculate generic statistics
         stats = {
             "total_agents": len(profiles),
             "owner_count": sum(1 for p in profiles if p.is_owner),
             "renter_count": sum(1 for p in profiles if not p.is_owner),
-            "flood_experience_count": sum(1 for p in profiles if _get_ext_value(p.extensions.get("flood"), "flood_experience", False)),
             "validation_errors": len(self.survey_loader.validation_errors),
         }
 
@@ -330,53 +315,46 @@ class AgentInitializer:
 
         return profiles, stats
 
-    def enrich_with_hazard(
+    def enrich_with_position(
         self,
         profiles: List[AgentProfile],
-        depth_sampler,  # DepthSampler instance
+        position_enricher,
+        extension_key: str = "position",
     ) -> None:
         """
-        Enrich profiles with flood zone and position data.
+        Enrich profiles with position data using a generic enricher.
 
         Args:
             profiles: List of AgentProfile to enrich
-            depth_sampler: DepthSampler instance for position assignment
+            position_enricher: Enricher implementing assign_position(profile) -> PositionData
+            extension_key: Key to store position data in extensions (default: "position")
         """
         for profile in profiles:
-            # Flood experience data stored in profile.extensions["flood"]
-            # which match the FloodExperienceRecord protocol
-            position = depth_sampler.assign_position(profile)
+            position = position_enricher.assign_position(profile)
+            profile.extensions[extension_key] = position
 
-            flood_ext = profile.extensions.get("flood") or _create_flood_extension(False, False)
-            profile.extensions["flood"] = flood_ext
-            _set_ext_value(flood_ext, "flood_zone", position.zone_name)
-            _set_ext_value(flood_ext, "base_depth_m", position.base_depth_m)
-            _set_ext_value(flood_ext, "flood_probability", position.flood_probability)
-
-    def enrich_with_rcv(
+    def enrich_with_values(
         self,
         profiles: List[AgentProfile],
-        rcv_generator,  # RCVGenerator instance
+        value_enricher,
+        extension_key: str = "values",
     ) -> None:
         """
-        Enrich profiles with RCV data.
+        Enrich profiles with value data using a generic enricher.
 
         Args:
             profiles: List of AgentProfile to enrich
-            rcv_generator: RCVGenerator instance
+            value_enricher: Enricher implementing generate(...) -> ValueData
+            extension_key: Key to store value data in extensions (default: "values")
         """
         for profile in profiles:
-            rcv = rcv_generator.generate(
+            values = value_enricher.generate(
                 income_bracket=profile.income_bracket,
                 is_owner=profile.is_owner,
                 is_mg=profile.is_mg,
                 family_size=profile.family_size,
             )
-
-            flood_ext = profile.extensions.get("flood") or _create_flood_extension(False, False)
-            profile.extensions["flood"] = flood_ext
-            _set_ext_value(flood_ext, "building_rcv_usd", rcv.building_rcv_usd)
-            _set_ext_value(flood_ext, "contents_rcv_usd", rcv.contents_rcv_usd)
+            profile.extensions[extension_key] = values
 
 
 def initialize_agents_from_survey(
@@ -385,8 +363,6 @@ def initialize_agents_from_survey(
     seed: int = 42,
     position_enricher: Optional[Any] = None,
     value_enricher: Optional[Any] = None,
-    include_hazard: bool = None,  # DEPRECATED
-    include_rcv: bool = None,  # DEPRECATED
     schema_path: Optional[Path] = None,
     narrative_fields: Optional[List[str]] = None,
     narrative_labels: Optional[Dict[str, str]] = None,
@@ -394,16 +370,16 @@ def initialize_agents_from_survey(
     """
     Convenience function to initialize agents from survey with optional enrichment.
 
+    Generic initialization that creates AgentProfile instances.
+    For domain-specific initialization (e.g., MA flood simulation with MG
+    classification), use the domain-specific wrapper instead.
+
     Args:
         survey_path: Path to survey Excel file
         max_agents: Maximum number of agents
         seed: Random seed
         position_enricher: Optional enricher implementing PositionEnricher protocol
-                          (e.g., DepthSampler for flood sim, LocationSampler for trading)
         value_enricher: Optional enricher implementing ValueEnricher protocol
-                       (e.g., RCVGenerator for flood sim, PortfolioGenerator for trading)
-        include_hazard: DEPRECATED - use position_enricher instead
-        include_rcv: DEPRECATED - use value_enricher instead
         schema_path: Optional path to survey schema
         narrative_fields: Optional list of narrative field names
         narrative_labels: Optional mapping of field names to labels
@@ -411,65 +387,20 @@ def initialize_agents_from_survey(
     Returns:
         Tuple of (agent_profiles, statistics)
 
-    Migration Guide:
-        # Old API (deprecated)
-        profiles, stats = initialize_agents_from_survey(
-            survey_path, include_hazard=True, include_rcv=True
-        )
+    Example:
+        # Generic initialization
+        profiles, stats = initialize_agents_from_survey(survey_path)
 
-        # New API (recommended)
-        from examples.multi_agent.environment.depth_sampler import DepthSampler
-        from examples.multi_agent.environment.rcv_generator import RCVGenerator
+        # With custom enrichers
         profiles, stats = initialize_agents_from_survey(
             survey_path,
-            position_enricher=DepthSampler(seed=42),
-            value_enricher=RCVGenerator(seed=42)
+            position_enricher=MyPositionEnricher(),
+            value_enricher=MyValueEnricher()
         )
+
+    For MA flood simulation:
+        Use examples/multi_agent/survey/ma_initializer.py instead
     """
-    # Handle deprecated parameters
-    import warnings
-    if include_hazard is not None:
-        warnings.warn(
-            "include_hazard is deprecated and will be removed in v0.30. "
-            "Pass position_enricher instead (e.g., DepthSampler(seed=42)).",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        if include_hazard and position_enricher is None:
-            # Fallback: Try to import for backward compatibility
-            try:
-                import sys
-                from pathlib import Path as _Path
-                _env_path = _Path(__file__).resolve().parents[3] / 'examples' / 'multi_agent' / 'environment'
-                if str(_env_path) not in sys.path:
-                    sys.path.insert(0, str(_env_path))
-                from depth_sampler import DepthSampler
-                position_enricher = DepthSampler(seed=seed)
-                logger.warning("Using legacy include_hazard=True. Migrate to position_enricher parameter.")
-            except ImportError as e:
-                logger.warning(f'Hazard enrichment skipped: {e}')
-
-    if include_rcv is not None:
-        warnings.warn(
-            "include_rcv is deprecated and will be removed in v0.30. "
-            "Pass value_enricher instead (e.g., RCVGenerator(seed=42)).",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        if include_rcv and value_enricher is None:
-            # Fallback: Try to import for backward compatibility
-            try:
-                import sys
-                from pathlib import Path as _Path
-                _env_path = _Path(__file__).resolve().parents[3] / 'examples' / 'multi_agent' / 'environment'
-                if str(_env_path) not in sys.path:
-                    sys.path.insert(0, str(_env_path))
-                from rcv_generator import RCVGenerator
-                value_enricher = RCVGenerator(seed=seed)
-                logger.warning("Using legacy include_rcv=True. Migrate to value_enricher parameter.")
-            except ImportError as e:
-                logger.warning(f'RCV enrichment skipped: {e}')
-
     # Initialize from survey
     survey_loader = SurveyLoader(schema_path=schema_path) if schema_path else SurveyLoader()
     initializer = AgentInitializer(
@@ -480,11 +411,11 @@ def initialize_agents_from_survey(
     )
     profiles, stats = initializer.load_from_survey(survey_path, max_agents)
 
-    # Apply enrichers if provided (new protocol-based API)
+    # Apply enrichers if provided (protocol-based API)
     if position_enricher is not None:
-        initializer.enrich_with_hazard(profiles, position_enricher)
+        initializer.enrich_with_position(profiles, position_enricher)
 
     if value_enricher is not None:
-        initializer.enrich_with_rcv(profiles, value_enricher)
+        initializer.enrich_with_values(profiles, value_enricher)
 
     return profiles, stats

@@ -1,8 +1,11 @@
 """
-Survey data loader for household flood adaptation survey.
+Generic survey data loader for agent initialization.
 
 Loads and validates survey data from Excel file, mapping columns to agent attributes.
 Designed to be configurable via YAML schema for different survey formats.
+
+For domain-specific survey loading with additional fields (e.g., flood experience),
+use domain-specific loaders like examples/multi_agent/survey/flood_survey_loader.py.
 """
 
 from __future__ import annotations
@@ -31,7 +34,7 @@ class SurveyRecord:
     housing_status: str  # "mortgage", "rent", "own_free"
     house_type: str  # "single_family", "multi_family", etc.
 
-    # MG Classification Factors
+    # Socioeconomic factors (can be used for classification)
     housing_cost_burden: bool  # >30% of income on housing
     vehicle_ownership: bool
 
@@ -60,8 +63,8 @@ class SurveyRecord:
         return self.housing_status == "rent"
 
 
-# Default column mapping for the household flood adaptation survey
-# Based on actual Excel structure with header at row 1 (0-indexed)
+# Default column mapping for household survey
+# Based on typical survey Excel structure with header at row 1 (0-indexed)
 DEFAULT_COLUMN_MAPPING = {
     "family_size": {"index": 28, "code": "Q7"},  # How many people live in your household
     "generations": {"index": 30, "code": "Q9"},  # How many generations
