@@ -1,19 +1,35 @@
 # Current Session Handoff
 
 ## Last Updated
-2026-01-21T20:30:00Z
+2026-01-21T22:15:00Z
 
 ---
 
 ## Active Task: Task-029
 
-**Title**: MA Pollution Remediation - Sprint 5 Survey Module Restructuring
+**Title**: MA Pollution Remediation - Sprint 5.5 URGENT Cleanup
 
-**Objective**: Extract MA-specific survey code from broker/ to examples/multi_agent/, making framework domain-agnostic.
+**Objective**: Complete removal of ALL MA-specific code from broker/modules/survey/
 
 ---
 
-## Progress Overview - Task-029 Sprint 5
+## ⚠️ CRITICAL ISSUE FOUND
+
+**Sprint 5 was INCOMPLETE** - grep audit reveals significant MA pollution remains:
+
+- `broker/modules/survey/mg_classifier.py` (214 lines, 100% MA-specific)
+- `broker/modules/survey/agent_initializer.py` (~100 lines MA code)
+- MG classification and flood helpers still in broker/
+
+**Impact**: Sprint 6 verification will FAIL without cleanup.
+
+**See**: [task-029-pollution-assessment.md](.tasks/handoff/task-029-pollution-assessment.md)
+
+---
+
+## Progress Overview - Task-029
+
+### Sprint 5 (PARTIAL ✅)
 
 | Phase | Title | Assigned | Status |
 |:------|:------|:---------|:-------|
@@ -21,9 +37,16 @@
 | 5B | Make SurveyRecord generic + create FloodSurveyRecord | Claude Code | **DONE** ✅ |
 | 5C | AgentProfile extensions pattern | Codex | **DONE** ✅ |
 
-**Progress**: 3/3 phases completed (100%)
+**Progress**: 3/3 phases completed - BUT incomplete scope
 
-**Sprint 5 Complete!** ✅
+### Sprint 5.5 (URGENT - BLOCKING Sprint 6) 🔥
+
+| Phase | Title | Assigned | Status |
+|:------|:------|:---------|:-------|
+| 5.5-A+B | Move MG Classifier to examples/ | Codex | ⏳ ASSIGNED |
+| 5.5-C | Remove flood helpers from agent_initializer | Gemini | ⏳ ASSIGNED |
+
+**Assignment**: [task-029-sprint5.5-assignment.md](.tasks/handoff/task-029-sprint5.5-assignment.md)
 
 ---
 
@@ -72,23 +95,48 @@
 
 ---
 
-## Next Action
+## Next Action - URGENT
 
-**Sprint 6 Assignment**: [task-029-sprint6-assignment.md](.tasks/handoff/task-029-sprint6-assignment.md)
+**Sprint 5.5 MUST complete before Sprint 6 can begin.**
 
-### Phase Assignments:
+### Sprint 5.5 Assignment (URGENT):
 
-| Agent | Phase | Task | Est. Time |
-|:------|:------|:-----|:----------|
-| **Gemini** | 6A | Full regression test (5yr, 10 agents) | 2-3 hrs |
-| **Gemini** | 6B | Comprehensive grep audit | 1 hr |
-| **Codex** | 6C | Update ARCHITECTURE.md | 2 hrs |
-| **Codex** | 6D | Create Migration Guide | 1-2 hrs |
+[task-029-sprint5.5-assignment.md](.tasks/handoff/task-029-sprint5.5-assignment.md)
 
-### Key Deliverables:
-- `.tasks/handoff/task-029-regression-report.md` (Gemini)
-- `.tasks/handoff/task-029-audit-report.md` (Gemini)
-- `ARCHITECTURE.md` updates (Codex)
-- `.tasks/handoff/task-029-migration-guide.md` (Codex)
+| Agent | Phase | Task | Est. Time | Status |
+|:------|:------|:-----|:----------|:-------|
+| **Codex** | 5.5-A+B | Move MG Classifier + Remove MG from agent_initializer | 3-4 hrs | ⏳ ASSIGNED |
+| **Gemini** | 5.5-C | Remove flood helper functions | 2-3 hrs | ⏳ ASSIGNED |
 
-**Status**: Ready for assignment ⏳
+**Critical Requirements**:
+- Codex does 5.5-A+B first (MG classifier relocation)
+- Gemini then does 5.5-C (flood helper removal)
+- Test after each phase
+- Commit separately for easy rollback
+
+### Sprint 6 Assignment (BLOCKED):
+
+[task-029-sprint6-assignment.md](.tasks/handoff/task-029-sprint6-assignment.md) - Cannot start until Sprint 5.5 complete
+
+---
+
+## Recent Work (2026-01-21 Session)
+
+### Task-028-G Verification (COMPLETED)
+- **Request**: User asked to handle Task-028-G verification
+- **Challenge**: Cognitive state not logged in traces (no flood events in test)
+- **Solution**: Verified via code review + unit tests instead of runtime traces
+- **Files Created**:
+  - `examples/multi_agent/verify_028g_simple.py` - Verification script
+  - `.tasks/handoff/task-028-g-verification-report.md` - Complete analysis
+- **Outcome**: Task-028 marked complete (8/8) ✅
+- **Commits**: b63fd26, fcb3475
+
+### Sprint 5.5 Assignment Creation (COMPLETED)
+- **Trigger**: User feedback - Sprint 6 grep audit will fail
+- **Root Cause**: Sprint 5 only cleaned SurveyRecord, missed MG classifier
+- **Action Taken**:
+  1. Ran comprehensive grep audit confirming MA pollution
+  2. Created [task-029-pollution-assessment.md](.tasks/handoff/task-029-pollution-assessment.md)
+  3. Created [task-029-sprint5.5-assignment.md](.tasks/handoff/task-029-sprint5.5-assignment.md)
+- **Commits**: fd2f532, 435edd6
