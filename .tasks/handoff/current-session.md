@@ -73,20 +73,21 @@
 
 ## Next Action
 
-**Sprint 6**: Final verification
-- [ ] Run full regression test (5 years, 10 agents)
-- [ ] Grep audit: Confirm no MA hardcoding in broker/
-- [ ] Update ARCHITECTURE.md
-- [ ] Create Migration Guide (v0.29 → v0.30)
-- [ ] Tag release v0.30
+**Sprint 6 Assignment**: [task-029-sprint6-assignment.md](.tasks/handoff/task-029-sprint6-assignment.md)
 
-**Command for regression**:
-```bash
-cd examples/multi_agent
-python run_unified_experiment.py --years 5 --agents 10 --model gemma3:4b --output final_verification/
-```
+### Phase Assignments:
 
-**Grep audit**:
-```bash
-grep -r "flood_zone\|base_depth_m\|flood_experience\|financial_loss" broker/ --include="*.py" --exclude-dir=__pycache__ | grep -v "# " | grep -v '"""'
-```
+| Agent | Phase | Task | Est. Time |
+|:------|:------|:-----|:----------|
+| **Gemini** | 6A | Full regression test (5yr, 10 agents) | 2-3 hrs |
+| **Gemini** | 6B | Comprehensive grep audit | 1 hr |
+| **Codex** | 6C | Update ARCHITECTURE.md | 2 hrs |
+| **Codex** | 6D | Create Migration Guide | 1-2 hrs |
+
+### Key Deliverables:
+- `.tasks/handoff/task-029-regression-report.md` (Gemini)
+- `.tasks/handoff/task-029-audit-report.md` (Gemini)
+- `ARCHITECTURE.md` updates (Codex)
+- `.tasks/handoff/task-029-migration-guide.md` (Codex)
+
+**Status**: Ready for assignment ⏳
