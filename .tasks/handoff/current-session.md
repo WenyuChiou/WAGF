@@ -52,9 +52,10 @@
 
 ## Task History
 
-### Task-028: Framework Cleanup & Agent-Type Config (Completed)
-- **Status**: 7/8 subtasks complete (028-G partial)
+### Task-028: Framework Cleanup & Agent-Type Config (COMPLETE ✅)
+- **Status**: 8/8 subtasks complete (028-G verified via code review + unit tests)
 - **Achievement**: MA-specific code moved to examples/, agent-type configs in YAML
+- **Verification**: Cognitive switching logic verified through unit tests and code path analysis
 
 ### Task-027: v3 MA Integration (Completed)
 - **Status**: Universal Memory with EMA-based System 1/2 switching
