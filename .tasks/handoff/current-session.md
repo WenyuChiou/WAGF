@@ -92,10 +92,16 @@ db28dfb refactor(survey): complete Sprint 5.5 Phase C - remove flood helpers
 
 ## Next Steps
 
-### Recommended
-1. **Tag Release**: `git tag v0.29.0 -m "Task-029: MA Pollution Remediation Complete"`
-2. **Create CHANGELOG**: Document v0.29 changes
-3. **Plan Task-030**: Remove deprecation bridges in v0.30
+### Completed ✅
+1. **Tag Release**: `git tag v0.29.0` - Created
+2. **Create CHANGELOG**: v0.29 changes documented in `.tasks/CHANGELOG.md`
+
+### Recommended for Task-030
+1. **Remove Deprecation Bridges**:
+   - Remove `is_mg`, `mg_score`, `mg_criteria` aliases from AgentProfile
+   - Target: v0.31 release
+2. **Rename Protocol Fields** (optional):
+   - `flood_probability` → `risk_probability` in enrichment.py
 
 ### Optional
 1. Run full MA regression test to validate changes
