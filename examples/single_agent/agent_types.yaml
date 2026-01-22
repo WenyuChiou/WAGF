@@ -101,7 +101,8 @@ household:
 
     Please respond using the EXACT JSON format below.
     - IMPORTANT: The "decision" field MUST be the NUMERIC ID (e.g. 1, 2, 3, or 4) from the available options list.
-    - Do NOT include any markdown symbols (like ```json), conversational text, or explanations outside the JSON.
+    - Strictly forbidden: Any reasoning text, thought blocks (<think> tags), markdown symbols (like ```json), or conversational text outside the JSON.
+    - Start your response directly with '{' and end with '}'.
 
     - Use EXACTLY one of: VL, L, M, H, VH for each appraisal label.
     - Ensure all keys match the format exactly.

@@ -26,13 +26,13 @@ _LOGGER = logging.getLogger(__name__)
 # NOTE: Small models need higher num_predict because they output more tokens
 #       to express the same idea (less compression efficiency).
 MODEL_TIER_PRESETS = [
-    (2.0,   4096,  1024, 4),  # Tiny: 0-2B (e.g., Qwen 1.7B) - Extra space for thinking tokens
-    (5.0,   4096,  1536, 3),  # Small: 2-5B (e.g., Qwen 4B) - 1536 for thinking + JSON
-    (10.0,  8192,  1024, 2),  # Base: 5-10B (e.g., Qwen 8B, DeepSeek 8B)
-    (20.0,  8192,  1024, 1),  # Mid: 10-20B (e.g., Qwen 14B)
-    (30.0,  4096,  1536, 1),  # Large: 30B (User Custom) - Extra for thinking tokens
-    (50.0,  4096,  1024, 1),  # Large: 32B-50B (e.g., Qwen 32B)
-    (100.0, 2048,  512, 1),   # XL: 50-100B (e.g., Qwen 72B)
+    (2.0,   4096,  2048, 4),  # Tiny: 0-2B (e.g., Qwen 1.7B) - Unified 2048 for Fairness
+    (5.0,   4096,  2048, 2),  # Small: 2-5B (e.g., Qwen 4B) - 2048 for Thinking + JSON
+    (10.0,  8192,  2048, 2),  # Base: 5-10B (e.g., Qwen 8B, DeepSeek 8B)
+    (20.0,  8192,  2048, 1),  # Mid: 10-20B (e.g., Qwen 14B)
+    (30.0,  8192,  2048, 1),  # Large: 30B (User Custom) - Standardized Buffer
+    (50.0,  4096,  2048, 1),  # Large: 32B-50B (e.g., Qwen 32B)
+    (100.0, 2048,  2048, 1),  # XL: 50-100B (e.g., Qwen 72B)
 ]
 
 # VRAM thresholds for worker scaling (in GB)

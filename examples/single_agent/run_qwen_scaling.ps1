@@ -10,20 +10,20 @@ function Log-Progress {
 
 # --- CONFIGURATION (Small-to-Large Order for Stability Testing) ---
 $Models = @(
-    # Tier 1: Tiny (1.7B) - Verified Working
+    # Tier 1: Tiny (1.7B)
     @{ Name="Qwen3-1.7B"; Tag="qwen3:1.7b" },
     
-    # Tier 2: Small (4B) - DISABLED: Thinking-only output issue
-    # @{ Name="Qwen3-4B";   Tag="qwen3:4b" },
+    # Tier 2: Small (4B)
+    @{ Name="Qwen3-4B";   Tag="qwen3:4b" },
     
-    # Tier 3: Base (8B) - Verified Working
+    # Tier 3: Base (8B)
     @{ Name="Qwen3-8B";   Tag="qwen3:8b" },
     
-    # Tier 4: Mid (14B) - Verified Working
-    @{ Name="Qwen3-14B";  Tag="qwen3:14b" }
+    # Tier 4: Mid (14B)
+    @{ Name="Qwen3-14B";  Tag="qwen3:14b" },
     
-    # Tier 5: Large (30B) - DISABLED: Thinking-only output issue
-    # @{ Name="Qwen3-30B";  Tag="qwen3:30b" }
+    # Tier 5: Large (30B) - User Custom Quantum
+    @{ Name="Qwen3-30B";  Tag="qwen3:30b" }
 )
 
 $Groups = @("Group_A", "Group_B", "Group_C")
