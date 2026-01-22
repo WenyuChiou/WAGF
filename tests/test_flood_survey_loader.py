@@ -14,6 +14,11 @@ from examples.multi_agent.survey.flood_survey_loader import (
     FloodSurveyLoader,
     FLOOD_COLUMN_MAPPING
 )
+from examples.multi_agent.survey.ma_initializer import (
+    MAAgentInitializer,
+    MAAgentProfile,
+    _create_flood_extension
+)
 from broker.modules.survey.survey_loader import SurveyRecord
 from broker.modules.survey.agent_initializer import AgentInitializer
 
@@ -93,8 +98,12 @@ class TestFloodSurveyLoader(unittest.TestCase):
 class TestAgentInitializerIntegration(unittest.TestCase):
     """Test AgentInitializer integration with FloodSurveyRecord."""
 
-    def test_agent_initializer_creates_flood_extension(self):
-        """AgentInitializer should auto-detect and create flood extensions."""
+    def test_generic_agent_initializer_returns_empty_extensions(self):
+        """Generic AgentInitializer returns empty extensions (domain-agnostic design).
+
+        As of Task-029, flood extensions are created by MAAgentInitializer,
+        not the generic AgentInitializer.
+        """
         initializer = AgentInitializer()
 
         # Create flood record
@@ -115,14 +124,11 @@ class TestAgentInitializerIntegration(unittest.TestCase):
             financial_loss=False
         )
 
-        # Create extensions
+        # Generic AgentInitializer returns empty extensions
         extensions = initializer._create_extensions(flood_record)
 
-        # Should have flood extension
-        self.assertIn("flood", extensions)
-        self.assertTrue(hasattr(extensions["flood"], "flood_experience"))
-        self.assertTrue(extensions["flood"].flood_experience)
-        self.assertFalse(extensions["flood"].financial_loss)
+        # Should be empty (domain-agnostic)
+        self.assertEqual(extensions, {})
 
     def test_agent_initializer_no_flood_extension_for_generic_record(self):
         """AgentInitializer should NOT create flood extension for generic records."""
@@ -150,6 +156,71 @@ class TestAgentInitializerIntegration(unittest.TestCase):
         # Should NOT have flood extension
         self.assertNotIn("flood", extensions)
         self.assertEqual(len(extensions), 0)
+
+
+class TestMAAgentInitializer(unittest.TestCase):
+    """Test MAAgentInitializer flood extension creation (Task-029 compliant)."""
+
+    def test_ma_initializer_creates_flood_extension(self):
+        """MAAgentInitializer should create flood extensions from FloodSurveyRecord."""
+        # Create flood extension using the helper function
+        flood_ext = _create_flood_extension(
+            flood_experience=True,
+            financial_loss=False
+        )
+
+        # Should have all required attributes
+        self.assertTrue(flood_ext.flood_experience)
+        self.assertFalse(flood_ext.financial_loss)
+        self.assertEqual(flood_ext.flood_zone, "unknown")
+        self.assertEqual(flood_ext.base_depth_m, 0.0)
+        self.assertEqual(flood_ext.flood_probability, 0.0)
+        self.assertEqual(flood_ext.building_rcv_usd, 0.0)
+        self.assertEqual(flood_ext.contents_rcv_usd, 0.0)
+
+    def test_ma_agent_profile_flattens_flood_extension(self):
+        """MAAgentProfile.to_dict() should flatten flood extension."""
+        # Create flood extension
+        flood_ext = _create_flood_extension(
+            flood_experience=True,
+            financial_loss=True
+        )
+
+        # Create MAAgentProfile with flood extension
+        profile = MAAgentProfile(
+            agent_id="H0001",
+            record_id="S0001",
+            family_size=4,
+            generations="2",
+            income_bracket="50k_to_60k",
+            income_midpoint=55000,
+            housing_status="mortgage",
+            house_type="single_family",
+            is_classified=True,
+            classification_score=2,
+            classification_criteria={"housing_burden": True, "no_vehicle": True},
+            has_children=True,
+            has_elderly=False,
+            has_vulnerable_members=True,
+            extensions={"flood": flood_ext},
+            raw_data={},
+            narrative_fields=["income_bracket", "generations"],
+            narrative_labels={"income_bracket": "Income", "generations": "Years in Area"},
+        )
+
+        # Convert to dict
+        data = profile.to_dict()
+
+        # Should have flattened flood fields
+        self.assertTrue(data["flood_experience"])
+        self.assertTrue(data["financial_loss"])
+        self.assertEqual(data["flood_zone"], "unknown")
+        self.assertEqual(data["base_depth_m"], 0.0)
+
+        # Should have MG classification
+        self.assertTrue(data["is_mg"])
+        self.assertEqual(data["group"], "MG")
+        self.assertEqual(data["mg_score"], 2)
 
 
 if __name__ == "__main__":

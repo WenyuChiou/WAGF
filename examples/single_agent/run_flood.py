@@ -335,9 +335,27 @@ class FinalParityHook:
     def post_step(self, agent, result):
         year = self.sim.current_year
         skill_name = None
+        appraisals = {}
+        
+        if result and result.skill_proposal and result.skill_proposal.reasoning:
+            reasoning = result.skill_proposal.reasoning
+            # Extract appraisals following config-driven logic or common variants
+            for key in ["threat_appraisal", "THREAT_APPRAISAL_LABEL", "threat"]:
+                if key in reasoning:
+                    appraisals["threat_appraisal"] = reasoning[key]
+                    break
+            for key in ["coping_appraisal", "COPING_APPRAISAL_LABEL", "coping"]:
+                if key in reasoning:
+                    appraisals["coping_appraisal"] = reasoning[key]
+                    break
+        
         if result and result.approved_skill:
             skill_name = result.approved_skill.skill_name
-        self.yearly_decisions[(agent.id, year)] = skill_name
+            
+        self.yearly_decisions[(agent.id, year)] = {
+            "skill": skill_name,
+            "appraisals": appraisals
+        }
         
         # Apply state_changes using canonical BaseAgent method
         if result and hasattr(result, 'state_changes') and result.state_changes:
@@ -375,13 +393,22 @@ class FinalParityHook:
             # Note: Reflection is now handled in BATCH mode after the agent loop.
             # The old per-agent reflection code has been replaced for efficiency.
 
-            yearly_decision = self.yearly_decisions.get((agent.id, year))
+            decision_data = self.yearly_decisions.get((agent.id, year), {})
+            if isinstance(decision_data, dict):
+                yearly_decision = decision_data.get("skill")
+                appraisals = decision_data.get("appraisals", {})
+            else:
+                yearly_decision = decision_data
+                appraisals = {}
+
             if yearly_decision is None and getattr(agent, "relocated", False):
                 yearly_decision = "relocated"
 
             self.logs.append({
                 "agent_id": agent.id, "year": year, "cumulative_state": classify_adaptation_state(agent),
                 "yearly_decision": yearly_decision if yearly_decision else "N/A",
+                "threat_appraisal": appraisals.get("threat_appraisal", "N/A"),
+                "coping_appraisal": appraisals.get("coping_appraisal", "N/A"),
                 "elevated": getattr(agent, 'elevated', False), "has_insurance": getattr(agent, 'has_insurance', False),
                 "relocated": getattr(agent, 'relocated', False), "trust_insurance": getattr(agent, 'trust_in_insurance', 0),
                 "trust_neighbors": getattr(agent, 'trust_in_neighbors', 0),
@@ -831,6 +858,17 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     # 6. Setup ExperimentBuilder and Runner
     from broker import ExperimentBuilder
     
+    # --- PERFORMANCE AUTO-TUNING (Phase 42) ---
+    # Always apply optimal LLM settings based on model size and available VRAM
+    from broker.utils.performance_tuner import get_optimal_config, apply_to_llm_config
+    perf_config = get_optimal_config(model)
+    apply_to_llm_config(perf_config)
+    
+    # If workers not explicitly set (==0), use tuner's recommendation
+    if workers == 0:
+        workers = perf_config.workers
+    print(f" [AutoTune] Model:{model} -> ctx={perf_config.num_ctx}, predict={perf_config.num_predict}, workers={workers}")
+    
     builder = (
         ExperimentBuilder()
         .with_model(model)
@@ -847,6 +885,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     )
     
     runner = builder.build()
+
     
     # Pillar 2: Instantiate ReflectionEngine for HumanCentric memory
     reflection_engine = None

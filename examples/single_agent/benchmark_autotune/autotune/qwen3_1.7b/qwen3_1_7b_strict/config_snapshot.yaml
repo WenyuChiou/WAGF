@@ -5,15 +5,15 @@ global_config:
   # [Cognitive Biology] - Shared mental constraints (Default for all agents)
   memory:
     window_size: 5            # Short-term working memory capacity
-    consolidation_threshold: 0.6  # Importance score needed to consider LTM transfer
-    consolidation_probability: 0.7 # [Global Param] Probability of transfer to LTM (0.0-1.0)
+    consolidation_threshold: 0.6
+    consolidation_probability: 0.7
     top_k_significant: 2      # Active retrieval span
-    decay_rate: 0.1           # [Global Param] Forgetting rate (Higher = Faster forgetting)
+    decay_rate: 0.1           # Forgetting curve
 
   # [Cognitive Routine] - Metacognition schedules
   reflection:
     interval: 1               # Reflect every N years
-    batch_size: 10            # Reduced from 25 to avoid LLM output truncation
+    batch_size: 25
     importance_boost: 0.9     # Boost emotional weight for reflected memories
 
   # [Universe Physics] - LLM & System Generation Settings

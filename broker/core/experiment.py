@@ -164,11 +164,35 @@ class ExperimentRunner:
             "agent_types_config": str(self.broker.model_adapter.config_path) if hasattr(self.broker.model_adapter, 'config_path') else "unknown"
         }
         
-        # Copy configuration for future audit
+        # Copy configuration for future audit (with CLI overrides applied)
         if hasattr(self.broker.model_adapter, 'config_path') and self.broker.model_adapter.config_path:
             config_src = Path(self.broker.model_adapter.config_path)
             if config_src.exists():
-                shutil.copy(config_src, self.config.output_dir / "config_snapshot.yaml")
+                try:
+                    import yaml
+                    with open(config_src, 'r', encoding='utf-8') as f:
+                        config_data = yaml.safe_load(f)
+                    
+                    # Inject CLI overrides so snapshot reflects actual run
+                    if 'global_config' not in config_data:
+                        config_data['global_config'] = {}
+                    if 'llm' not in config_data['global_config']:
+                        config_data['global_config']['llm'] = {}
+                    
+                    # Override model with actual CLI value
+                    config_data['global_config']['llm']['model'] = self.config.model
+                    
+                    # Add metadata about this specific run
+                    config_data['metadata'] = config_data.get('metadata', {})
+                    config_data['metadata']['actual_model'] = self.config.model
+                    config_data['metadata']['seed'] = self.config.seed
+                    config_data['metadata']['governance_profile'] = self.config.governance_profile
+                    
+                    with open(self.config.output_dir / "config_snapshot.yaml", 'w', encoding='utf-8') as f:
+                        yaml.dump(config_data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+                except Exception as e:
+                    # Fallback to simple copy if YAML processing fails
+                    shutil.copy(config_src, self.config.output_dir / "config_snapshot.yaml")
         
         with open(self.config.output_dir / "reproducibility_manifest.json", 'w') as f:
             json.dump(manifest, f, indent=2)
@@ -280,10 +304,29 @@ class ExperimentBuilder:
         self.workers = 1  # PR: Multiprocessing Core - default to sequential
         self.seed = 42    # Default seed for reproducibility
         self.custom_validators = [] # New: custom validator functions
+        self._auto_tune = False  # PR: Adaptive Performance Module
 
     def with_workers(self, workers: int = 4):
         """Set number of parallel workers for LLM calls. 1=sequential (default)."""
         self.workers = workers
+        return self
+
+    def with_auto_tune(self, enabled: bool = True):
+        """
+        Enable automatic performance tuning based on model size and available VRAM.
+        
+        When enabled, the builder will:
+        1. Detect model parameter count from model tag
+        2. Query available GPU VRAM
+        3. Automatically set optimal workers, num_ctx, and num_predict
+        
+        Usage:
+            builder = ExperimentBuilder()
+                .with_model("qwen3:1.7b")
+                .with_auto_tune()  # Auto-detect optimal settings
+                .build()
+        """
+        self._auto_tune = enabled
         return self
 
     def with_seed(self, seed: Optional[int]):
@@ -392,6 +435,18 @@ class ExperimentBuilder:
         from validators import AgentValidator
         from broker.components.context_builder import create_context_builder
         import os
+
+        # PR: Adaptive Performance Module - Auto-tune if enabled
+        if getattr(self, '_auto_tune', False):
+            try:
+                from broker.utils.performance_tuner import get_optimal_config, apply_to_llm_config
+                recommended = get_optimal_config(self.model)
+                apply_to_llm_config(recommended)
+                # Override workers with recommended value
+                self.workers = recommended.workers
+                logger.info(f"[AutoTune] Applied: workers={self.workers}, num_ctx={recommended.num_ctx}, num_predict={recommended.num_predict}")
+            except Exception as e:
+                logger.warning(f"[AutoTune] Failed to apply: {e}. Using defaults.")
 
         # Set environment variable for validator/config loader
         os.environ["GOVERNANCE_PROFILE"] = self.profile

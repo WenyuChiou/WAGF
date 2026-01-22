@@ -324,19 +324,109 @@ def generate_place_attachment_memory(
     )
 
 
+def generate_flood_zone_memory(
+    flood_zone: str,
+    sfha_awareness: bool,
+    tenure: str
+) -> Memory:
+    """
+    Generate memory #6: Flood zone risk awareness.
+
+    Based on FEMA flood zone classification and SFHA awareness (Q7).
+    Real-world grounding: FEMA flood maps are publicly available, and
+    households in SFHAs are often informed through mortgage requirements.
+
+    Literature: PMC (2024) - Social vulnerability affects flood insurance uptake
+    """
+    # Map flood zones to human-readable descriptions
+    zone_descriptions = {
+        "AE": "high-risk Special Flood Hazard Area (SFHA) with base flood elevations",
+        "VE": "very high-risk coastal flood zone with wave action",
+        "A": "high-risk flood zone without detailed analysis",
+        "AO": "shallow flooding area with sheet flow",
+        "AH": "shallow flooding area with ponding",
+        "X": "moderate to low risk zone outside the SFHA",
+        "X500": "moderate risk zone with 0.2% annual chance of flooding",
+        "HIGH": "high-risk flood area",
+        "MEDIUM": "moderate flood risk area",
+        "LOW": "low flood risk area",
+    }
+
+    zone_text = zone_descriptions.get(
+        flood_zone.upper(),
+        f"flood risk zone classified as {flood_zone}"
+    )
+
+    # High-risk zones
+    high_risk_zones = ["AE", "VE", "A", "AO", "AH", "HIGH"]
+    is_high_risk = flood_zone.upper() in high_risk_zones
+
+    if is_high_risk and sfha_awareness:
+        content = (
+            f"I am aware that my property is located in a {zone_text}. "
+            f"According to FEMA flood maps, I face significant flood risk. "
+        )
+        if tenure == "Owner":
+            content += (
+                "My mortgage lender informed me that flood insurance may be required. "
+                "I should consider protective measures like elevation or flood-proofing."
+            )
+        else:
+            content += (
+                "As a renter, I should consider contents insurance to protect my belongings "
+                "in case of flooding."
+            )
+        importance = 0.7
+    elif is_high_risk and not sfha_awareness:
+        content = (
+            f"I live in an area that may be at risk of flooding. "
+            f"I'm not entirely sure about the official flood zone classification, "
+            f"but I've heard this neighborhood has experienced floods before."
+        )
+        importance = 0.55
+    elif sfha_awareness:
+        content = (
+            f"I've checked the FEMA flood maps and my property is in a {zone_text}. "
+            f"While not in a high-risk zone, I understand that floods can still occur "
+            f"outside designated flood zones."
+        )
+        importance = 0.5
+    else:
+        content = (
+            f"I live in what I believe is a {zone_text}. "
+            f"I haven't looked closely at FEMA flood maps, but the area seems "
+            f"relatively safe from major flooding."
+        )
+        importance = 0.4
+
+    return Memory(
+        content=content,
+        category="risk_awareness",
+        importance=round(importance, 2)
+    )
+
+
 # ============================================================================
 # MAIN FUNCTIONS
 # ============================================================================
 
 def generate_initial_memories(agent_row: pd.Series) -> List[Memory]:
     """
-    Generate 5 initial memories for a household agent.
+    Generate 6 initial memories for a household agent.
+
+    Memory categories:
+    1. Flood experience (Q14, Q15, Q17)
+    2. Insurance awareness (Q23)
+    3. Social/neighbor observation (SC score)
+    4. Government interaction (SP score)
+    5. Place attachment (PA score)
+    6. Flood zone risk awareness (FEMA maps, Q7)  # NEW in Phase 8.2
 
     Args:
         agent_row: Row from agent_profiles.csv with all profile data
 
     Returns:
-        List of 5 Memory objects
+        List of 6 Memory objects
     """
     memories = []
 
@@ -380,6 +470,11 @@ def generate_initial_memories(agent_row: pd.Series) -> List[Memory]:
         pa_score, generations, tenure, mg
     ))
 
+    # Memory 6: Flood zone risk awareness (NEW - Phase 8.2)
+    memories.append(generate_flood_zone_memory(
+        flood_zone, sfha_awareness, tenure
+    ))
+
     return memories
 
 
@@ -408,7 +503,7 @@ def generate_all_memories(
     all_memories = {}
     category_counts = {"flood_event": 0, "insurance_claim": 0,
                        "social_interaction": 0, "government_notice": 0,
-                       "adaptation_action": 0}
+                       "adaptation_action": 0, "risk_awareness": 0}
 
     for idx, row in df.iterrows():
         agent_id = row.get("agent_id", f"H{idx+1:04d}")

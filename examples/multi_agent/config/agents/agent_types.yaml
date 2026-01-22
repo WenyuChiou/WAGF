@@ -133,115 +133,11 @@ global_config:
     max_reports_per_retry: 3
 
 # =============================================================================
-# FLOODABM PARAMETERS (Supplementary Materials Tables S1-S4)
-# =============================================================================
-# Reference: FLOODABM Supplementary Materials
-# - Table S1: Insurance initialization values
-# - Table S2: Model parameters and settings
-# - Table S3: Beta distribution parameters for behavioral state initialization
-# - Table S4: Calibrated TP decay parameters
-floodabm_parameters:
-  # ---------------------------------------------------------------------------
-  # Beta Distribution Parameters for PMT Constructs (Table S3)
-  # ---------------------------------------------------------------------------
-  # Used for sampling initial tract-level behavioral parameters
-  # X ~ Beta(alpha, beta) where alpha, beta determine shape
-  tp_distribution:
-    mg: { alpha: 4.44, beta: 2.89 }   # MG: higher initial TP
-    nmg: { alpha: 5.35, beta: 3.62 }  # NMG: moderate initial TP
-  cp_distribution:
-    mg: { alpha: 4.07, beta: 3.30 }   # MG: lower coping perception
-    nmg: { alpha: 5.27, beta: 4.18 }  # NMG: higher coping perception
-  sp_distribution:
-    mg: { alpha: 1.37, beta: 1.69 }   # MG: lower trust in institutions
-    nmg: { alpha: 1.73, beta: 1.93 }  # NMG: moderate trust
-  sc_distribution:
-    mg: { alpha: 2.37, beta: 3.11 }   # MG: lower social capital (isolation)
-    nmg: { alpha: 4.56, beta: 2.39 }  # NMG: higher social capital
-  pa_distribution:
-    mg: { alpha: 2.56, beta: 2.17 }   # MG: moderate place attachment
-    nmg: { alpha: 4.01, beta: 2.79 }  # NMG: higher place attachment
-
-  # ---------------------------------------------------------------------------
-  # TP Decay Parameters (Table S4)
-  # ---------------------------------------------------------------------------
-  # Formula: tau(t) = tau_inf - (tau_inf - tau_0) * exp(-k*t)
-  #          mu_t = ln(2) / tau(t) * (alpha * PA + beta * SC)
-  tp_decay:
-    mg:
-      alpha: 0.50      # PA weight
-      beta: 0.21       # SC weight
-      tau_0: 1.00      # Initial half-life (years)
-      tau_inf: 32.19   # Asymptotic half-life (years)
-      k: 0.03          # Decay rate constant
-    nmg:
-      alpha: 0.22
-      beta: 0.10
-      tau_0: 2.72
-      tau_inf: 50.10
-      k: 0.01
-    theta: 0.5         # Damage ratio threshold for TP gain
-    shock_scale: 0.3   # cs: shock scaling factor
-
-  # ---------------------------------------------------------------------------
-  # Insurance Parameters (Table S1, S2)
-  # ---------------------------------------------------------------------------
-  insurance:
-    # Base premium rates (per $1K of coverage)
-    r1k_structure: 3.56  # $/1K structure coverage
-    r1k_contents: 4.90   # $/1K contents coverage
-    # Coverage limits
-    limit_structure: 250000  # Ls
-    limit_contents: 100000   # Lc
-    # Deductibles
-    deductible_structure: 1000  # DDs
-    deductible_contents: 1000   # DDc
-    # Reserve and fees
-    reserve_fund_factor: 1.15  # R
-    small_fee: 100             # F
-
-  # ---------------------------------------------------------------------------
-  # Initial Insurance Uptake Rates (Table S1)
-  # ---------------------------------------------------------------------------
-  # References: Bradt et al. (2020), Dixon (2006), Kousky et al. (2018)
-  initial_uptake:
-    flood_prone_owner: 0.25   # 25%
-    flood_prone_renter: 0.08  # 8%
-    non_flood_prone_owner: 0.03  # 3%
-    non_flood_prone_renter: 0.01 # 1%
-
-  # ---------------------------------------------------------------------------
-  # Elevation Parameters (Table S2)
-  # ---------------------------------------------------------------------------
-  elevation:
-    h_elevate_ft: 5.0   # One-time elevation increment (feet)
-    ffe_default_ft: 1.0 # First Finished Floor elevation (feet)
-
-  # ---------------------------------------------------------------------------
-  # Contents-to-Structure Value Ratio (Table S2)
-  # ---------------------------------------------------------------------------
-  # Reference: USACE (2006)
-  csrv: 0.57  # Contents value = 0.57 * Structure value
-
-  # ---------------------------------------------------------------------------
-  # Lognormal RCV Parameters (Table S5)
-  # ---------------------------------------------------------------------------
-  # Used for initializing household-level structure/contents values
-  rcv_lognormal:
-    homeowner:
-      ln_mu: 12.46
-      ln_sigma: 0.63
-      mean_rcv_usd: 313250
-      cv: 0.69
-    renter:
-      ln_mu: 12.82
-      ln_sigma: 1.20
-      mean_rcv_usd: 766352
-      cv: 1.81
-
-# =============================================================================
 # HOUSEHOLD AGENT TYPES (PMT-based)
 # =============================================================================
+# Extracted FLOODABM parameters (Tables S1-S6) from ma_agent_types.yaml
+# See config/parameters/floodabm_params.yaml for full details.
+
 household_owner:
   description: "Homeowner household agent in Passaic River Basin, NJ."
   llm_params:
@@ -449,7 +345,7 @@ nj_government:
     Choose ONE of the following:
     - "increase_subsidy": Raise elevation subsidy by 5% to encourage more adaptation
     - "decrease_subsidy": Reduce subsidy by 5% to conserve budget
-    - "maintain_subsidy": Keep current subsidy rate unchanged
+    - "maintain_subsidy": Keep current subsidy rate
 
     ### RESPONSE FORMAT
     Respond ONLY with a valid JSON object:
@@ -642,83 +538,6 @@ insurance:
         aliases: ["LOWER", "lower", "2", "[2]"]
       - id: maintain_premium
         aliases: ["MAINTAIN", "maintain", "3", "[3]"]
-
-# =============================================================================
-# MEMORY CONFIGURATION
-# =============================================================================
-memory_config:
-  household_owner:
-    engine: "humancentric"
-    window_size: 3
-    top_k_significant: 2
-    consolidation_prob: 0.7
-    decay_rate: 0.1
-  household_renter:
-    engine: "humancentric"
-    window_size: 3
-    top_k_significant: 2
-  government:
-    engine: "window"
-    window_size: 5
-  insurance:
-    engine: "window"
-    window_size: 5
-
-retrieval_config:
-  household:
-    strategy: "importance_weighted"
-    emotional_weights:
-      critical: 1.0
-      major: 0.9
-      positive: 0.8
-      observation: 0.4
-    source_weights:
-      personal: 1.0
-      neighbor: 0.7
-      community: 0.5
-  institutional:
-    strategy: "recency"
-    top_k: 5
-
-social_memory_config:
-  gossip_enabled: true
-  max_gossip: 2
-  gossip_categories:
-    - "decision_reasoning"
-    - "flood_experience"
-    - "adaptation_outcome"
-  gossip_importance_threshold: 0.5
-
-# =============================================================================
-# GOVERNANCE RULES
-# =============================================================================
-governance:
-  strict:
-    household_owner:
-      identity_rules:
-        - { id: elevated_already, precondition: elevated, blocked_skills: ["elevate_house"], level: ERROR }
-        - { id: relocated_already, precondition: relocated, blocked_skills: ["buy_insurance", "elevate_house", "buyout_program"], level: ERROR }
-      thinking_rules:
-        - { id: owner_inaction_high_threat, construct: TP_LABEL, conditions: [{ construct: TP_LABEL, values: ["VH", "H"] }], blocked_skills: ["do_nothing"], level: ERROR, message: "Inaction is irrational given your high threat perception." }
-        - { id: owner_complex_action_low_coping, construct: CP_LABEL, conditions: [{ construct: CP_LABEL, values: ["VL", "L"] }], blocked_skills: ["elevate_house", "buyout_program"], level: ERROR, message: "Complex actions are blocked due to your low confidence in your ability to cope." }
-    household_renter:
-      identity_rules:
-        - { id: relocated_already, precondition: relocated, blocked_skills: ["buy_contents_insurance", "relocate"], level: ERROR }
-      thinking_rules:
-        - { id: renter_inaction_high_threat, construct: TP_LABEL, conditions: [{ construct: TP_LABEL, values: ["VH", "H"] }], blocked_skills: ["do_nothing"], level: ERROR, message: "Inaction is irrational given your high threat perception." }
-        - { id: renter_complex_action_low_coping, construct: CP_LABEL, conditions: [{ construct: CP_LABEL, values: ["VL", "L"] }], blocked_skills: ["relocate"], level: ERROR, message: "Relocation is blocked due to your low confidence in your ability to cope." }
-    nj_government:
-      identity_rules: []
-      thinking_rules: []
-    fema_nfip:
-      identity_rules: []
-      thinking_rules: []
-    government:
-      identity_rules: []
-      thinking_rules: []
-    insurance:
-      identity_rules: []
-      thinking_rules: []
 
 # =============================================================================
 # MEMORY CONFIGURATION

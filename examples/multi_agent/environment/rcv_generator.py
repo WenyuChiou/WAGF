@@ -68,10 +68,19 @@ NJ_BUILDING_RCV_PARAMS = {
     },
 }
 
-# Contents value as ratio of building RCV
+# =============================================================================
+# FLOODABM PARAMETER: Contents-to-Structure Value Ratio (CSVR)
+# =============================================================================
+# Reference: USACE (2006) "Depth-Damage Relationships for Structures, Contents,
+# and Vehicles and Content-to-Structure Value Ratios (CSVR) in Support of the
+# Donaldsonville to the Gulf, Louisiana, Feasibility Study"
+# DACW29-00-D-0001, Delivery Order No. 0038
+CSRV = 0.57  # Fixed ratio: contents value = 0.57 * structure value
+
+# Contents value configuration
 CONTENTS_RATIO_RANGES = {
-    "owner": (0.35, 0.55),  # 35-55% of building value
-    "renter": (15_000, 50_000),  # Absolute range for renters
+    "owner": CSRV,  # FLOODABM: Fixed 0.57 ratio (USACE 2006)
+    "renter": (15_000, 50_000),  # Absolute range for renters (no structure)
 }
 
 # Income bracket to tier mapping
@@ -141,13 +150,9 @@ class RCVGenerator:
             # Generate building RCV
             building_rcv = self._generate_building_rcv(params, is_mg)
 
-            # Generate contents as ratio of building
-            ratio_min, ratio_max = CONTENTS_RATIO_RANGES["owner"]
-            # Larger families have more contents
-            family_factor = 1.0 + (family_size - 3) * 0.05
-            family_factor = np.clip(family_factor, 0.8, 1.3)
-
-            contents_ratio = self.rng.uniform(ratio_min, ratio_max) * family_factor
+            # Generate contents as fixed ratio of building (FLOODABM: CSRV = 0.57)
+            # Reference: USACE (2006) - Contents-to-Structure Value Ratio
+            contents_ratio = CONTENTS_RATIO_RANGES["owner"]  # Fixed 0.57
             contents_rcv = building_rcv * contents_ratio
 
         else:

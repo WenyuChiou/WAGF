@@ -10,7 +10,7 @@ function Log-Progress {
 
 # --- CONFIGURATION ---
 $Models = @(
-    @{ Name="DeepSeek-R1-8b"; Tag="deepseek-r1:8b" },
+    # @{ Name="DeepSeek-R1-8b"; Tag="deepseek-r1:8b" },
     @{ Name="GPT-OSS-20b";   Tag="gpt-oss:latest" }
 )
 
@@ -51,10 +51,10 @@ foreach ($model in $Models) {
                 python $BaselinePath --output $outputDir --seed $seed --model $model.Tag
             } elseif ($group -eq "Group_B") {
                 # Group B: Strict Governance, Window Memory
-                python run_flood.py --model $model.Tag --years $NumYears --agents $NumAgents --workers 12 --memory-engine window --governance-mode strict --output $outputDir --seed $seed
+                python run_flood.py --model $model.Tag --years $NumYears --agents $NumAgents --workers 1 --memory-engine window --governance-mode strict --output $outputDir --seed $seed
             } elseif ($group -eq "Group_C") {
                 # Group C: Strict Governance, Human-Centric Memory
-                python run_flood.py --model $model.Tag --years $NumYears --agents $NumAgents --workers 12 --memory-engine humancentric --governance-mode strict --output $outputDir --seed $seed
+                python run_flood.py --model $model.Tag --years $NumYears --agents $NumAgents --workers 1 --memory-engine humancentric --governance-mode strict --output $outputDir --seed $seed
             }
         }
     }

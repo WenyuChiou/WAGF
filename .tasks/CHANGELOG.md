@@ -6,6 +6,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [v0.30.0] - In Progress - Task-030 FLOODABM Parameter Alignment
+
+### Added
+
+- **FLOODABM Parameters** (Sprint 1-5.1 ✅)
+  - `CSRV = 0.57` constant in `rcv_generator.py`
+  - Risk Rating 2.0 module (`risk_rating.py`) with r1k rates
+  - TP decay module (`tp_decay.py`) with MG/NMG calibrated params
+  - Beta distribution parameters (Table S3) in YAML
+  - 33 verification tests (`test_floodabm_alignment.py`)
+
+- **Config Reorganization** (Sprint 6.1 🔲 - Assigned to Gemini CLI)
+  - Centralized config structure: `examples/multi_agent/config/`
+  - FLOODABM params extracted to `config/parameters/floodabm_params.yaml`
+  - Skill registry: `config/skills/skill_registry.yaml`
+  - Config loader: `config/globals.py`
+
+### Changed
+
+- **Insurance Parameters** (FLOODABM Table S2)
+  - Deductible: $2,000 → $1,000
+  - Added `r1k_structure = 3.56`, `r1k_contents = 4.90`
+  - Added `reserve_fund_factor = 1.15`, `small_fee = 100`
+
+- **Damage Parameters**
+  - Added `damage_ratio_threshold = 0.5` (theta)
+  - Added `shock_scale = 0.3` (cs)
+
+### Design Decisions
+
+- **LLM-Driven Cognition**: Cognitive formulas (tp_decay, EMA) kept as reference/validation only
+  - LLM reasons from context to determine TP/CP/SP levels
+  - Formulas NOT used for controlling agent decisions
+
+### References
+
+- Handoff: `.tasks/handoff/task-030.md`
+- Plan: `C:\Users\wenyu\.claude\plans\cozy-roaming-perlis.md`
+- FLOODABM Supplementary Materials (Tables S1-S6)
+
+---
+
 ## [v0.29.0] - 2026-01-21 - Task-029 MA Pollution Remediation
 
 ### BREAKING CHANGES

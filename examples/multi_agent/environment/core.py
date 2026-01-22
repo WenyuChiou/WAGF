@@ -74,30 +74,40 @@ ENV_CONFIG = {
     },
     
     # Damage parameters
+    # FLOODABM Table S2
     "damage": {
         "elevation_reduction": 0.95,  # BFE+1ft reduces damage by ~95%
         "elevation_overtop_reduction": 0.5,  # When overtopped (severity > 0.9)
         "contents_ratio": 0.3,  # Contents = 30% of building damage
+        # TP Gain Threshold (FLOODABM Supplementary)
+        "damage_ratio_threshold": 0.5,  # theta: flood damage ratio for TP gain
+        "shock_scale": 0.3,  # cs: shock scaling factor
     },
     
     # Insurance parameters - NFIP compliant [1][2][4]
+    # FLOODABM Supplementary Table S2
     "insurance": {
         # Coverage Limits (Residential) [1]
-        "nfip_building_limit": 250_000,  # Max building coverage
-        "nfip_contents_limit": 100_000,  # Max contents coverage
-        
+        "nfip_building_limit": 250_000,  # Max building coverage (Ls)
+        "nfip_contents_limit": 100_000,  # Max contents coverage (Lc)
+
         # Deductible Options [2][4]
-        # Range: $1,000 - $10,000 (higher = lower premium)
-        # Post-FIRM: $1,000 (≤$100K), $1,250 (>$100K)
-        # Pre-FIRM subsidized: $1,500 (≤$100K), $2,000 (>$100K)
-        "default_deductible": 2_000,  # Common choice
+        # FLOODABM: DDs = DDc = $1,000
+        "default_deductible": 1_000,  # FLOODABM Table S2
+        "default_deductible_structure": 1_000,  # DDs
+        "default_deductible_contents": 1_000,  # DDc
         "min_deductible": 1_000,
         "max_deductible": 10_000,
-        
+
         # Premium Rate (Risk Rating 2.0) [3][5]
-        # National average: $888-$1,064/year (2024-2025)
-        # As percentage of coverage for modeling
-        "base_premium_rate": 0.004,  # ~$1,000/yr on $250K coverage
+        # FLOODABM: r1k,s = 3.56, r1k,c = 4.90 (per $1K coverage)
+        "base_premium_rate": 0.004,  # Legacy: ~$1,000/yr on $250K coverage
+        "r1k_structure": 3.56,  # FLOODABM: $/1K structure coverage
+        "r1k_contents": 4.90,  # FLOODABM: $/1K contents coverage
+
+        # Reserve and fees (FLOODABM Table S2)
+        "reserve_fund_factor": 1.15,  # R = 1.15
+        "small_fee": 100,  # F = $100 (federal policy fee, ICC, etc.)
     },
     
     # Subsidy parameters (FEMA Hazard Mitigation Assistance)
