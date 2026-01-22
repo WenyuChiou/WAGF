@@ -242,6 +242,19 @@ class AgentInitializer:
         self.narrative_fields = narrative_fields or self.survey_loader.narrative_fields
         self.narrative_labels = narrative_labels or self.survey_loader.narrative_labels
 
+    def _create_extensions(self, record) -> Dict[str, Any]:
+        """Create extensions dict based on record type (generic or domain-specific)."""
+        extensions = {}
+
+        # Check if record has flood-specific fields (FloodSurveyRecord)
+        if hasattr(record, "flood_experience") and hasattr(record, "financial_loss"):
+            extensions["flood"] = _create_flood_extension(
+                record.flood_experience,
+                record.financial_loss
+            )
+
+        return extensions
+
     def load_from_survey(
         self,
         survey_path: Path,
@@ -289,7 +302,7 @@ class AgentInitializer:
                 has_children=record.has_children,
                 has_elderly=record.elderly_over_65,
                 has_vulnerable_members=record.has_vulnerable_members,
-                extensions={"flood": _create_flood_extension(record.flood_experience, record.financial_loss)},
+                extensions=self._create_extensions(record),
                 raw_data=record.raw_data,
                 narrative_fields=self.narrative_fields,
                 narrative_labels=self.narrative_labels,
