@@ -30,6 +30,12 @@ logger = logging.getLogger(__name__)
 
 
 def _create_flood_extension(flood_experience: bool, financial_loss: bool):
+    """
+    DEPRECATION BRIDGE: Create flood extension (MA-specific).
+
+    TODO(v0.30): Move this to examples/multi_agent/survey/ after full migration.
+    Currently kept here for backward compatibility with existing workflows.
+    """
     from types import SimpleNamespace
     return SimpleNamespace(
         flood_experience=flood_experience,
@@ -243,10 +249,16 @@ class AgentInitializer:
         self.narrative_labels = narrative_labels or self.survey_loader.narrative_labels
 
     def _create_extensions(self, record) -> Dict[str, Any]:
-        """Create extensions dict based on record type (generic or domain-specific)."""
+        """
+        Create extensions dict based on record type (generic or domain-specific).
+
+        Auto-detects record type by checking for domain-specific fields.
+        TODO(v0.30): Make this fully pluggable via extension registry.
+        """
         extensions = {}
 
         # Check if record has flood-specific fields (FloodSurveyRecord)
+        # DEPRECATION BRIDGE: This should be moved to MA-specific initialization
         if hasattr(record, "flood_experience") and hasattr(record, "financial_loss"):
             extensions["flood"] = _create_flood_extension(
                 record.flood_experience,
