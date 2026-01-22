@@ -6,6 +6,96 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [v0.29.0] - 2026-01-21 - Task-029 MA Pollution Remediation
+
+### BREAKING CHANGES
+
+- **SurveyRecord No Longer Has Flood Fields**
+  - `flood_experience`, `financial_loss` fields removed from base `SurveyRecord`
+  - Use `FloodSurveyLoader` from `examples/multi_agent/survey/` for MA-specific fields
+
+- **AgentProfile Uses Extensions Dict**
+  - `flood_zone`, `base_depth_m`, `flood_probability` no longer direct attributes
+  - Access via `profile.extensions["flood"].field_name`
+
+- **AgentInitializer No Longer Has mg_classifier Parameter**
+  - Use `MAAgentInitializer` from `examples/multi_agent/survey/` for MG classification
+
+- **Enrichment API Changed**
+  - `include_hazard=True` → `position_enricher=DepthSampler()`
+  - `include_rcv=True` → `value_enricher=RCVGenerator()`
+  - Old parameters removed (were deprecated in v0.28)
+
+### Added
+
+- **Protocol-Based Dependency Injection** (`broker/interfaces/enrichment.py`)
+  - `PositionEnricher` protocol for spatial data assignment
+  - `ValueEnricher` protocol for asset value calculation
+  - `PositionData` and `ValueData` named tuples
+
+- **MA-Specific Survey Module** (`examples/multi_agent/survey/`)
+  - `FloodSurveyLoader` - Survey loader with flood experience fields
+  - `FloodSurveyRecord` - Record with flood-specific attributes
+  - `MGClassifier` - Marginalized Group classification (moved from broker/)
+  - `MAAgentInitializer` - MA-specific agent initialization with MG integration
+  - `MAAgentProfile` - Extended profile with flood extension flattening
+
+- **Architecture Documentation** (`ARCHITECTURE.md`)
+  - Protocol-based dependency injection patterns
+  - Extensions pattern for domain-specific data
+  - Config-driven domain logic documentation
+
+- **Migration Guide** (`.tasks/handoff/task-029-migration-guide.md`)
+  - Breaking changes with before/after code examples
+  - Quick migration checklist
+
+### Changed
+
+- **AgentProfile Classification Fields** (Generic naming)
+  - `is_mg` → `is_classified` (with backward-compat alias)
+  - `mg_score` → `classification_score` (with backward-compat alias)
+  - `mg_criteria` → `classification_criteria` (with backward-compat alias)
+  - `group_label` now returns "A"/"B" instead of "MG"/"NMG"
+
+- **AgentInitializer Methods** (Generic naming)
+  - `enrich_with_hazard()` → `enrich_with_position()`
+  - `enrich_with_rcv()` → `enrich_with_values()`
+  - `_create_extensions()` now returns empty dict (override in subclass)
+
+- **Memory Tags** (Config-driven)
+  - Tags now loaded from `agent_types.yaml` `memory_config.retrieval_tags`
+  - No hardcoded "MG" → "subsidy" mapping in broker/
+
+- **Media Context Fields** (Generic naming)
+  - `social_media` → `peer_messages`
+  - `news` → `broadcast`
+
+### Removed
+
+- **Hardcoded MA Examples** from broker/ docstrings
+  - reflection_engine.py - Removed flood damage examples
+  - memory.py - Changed "household_mg" to generic examples
+  - context_builder.py - Removed flood-specific field names
+
+- **Path Traversal Anti-Pattern**
+  - Removed `sys.path.insert()` hack in agent_initializer.py
+  - Domain code no longer imported via path manipulation
+
+### Deprecated
+
+- **Backward Compatibility Aliases** (will be removed in v0.31)
+  - `AgentProfile.is_mg` → use `is_classified`
+  - `AgentProfile.mg_score` → use `classification_score`
+  - `AgentProfile.mg_criteria` → use `classification_criteria`
+
+### Documentation
+
+- **Audit Report** (`.tasks/handoff/task-029-audit-report.md`)
+  - Grep audit confirming zero executable MA code in broker/
+  - Status: PASS
+
+---
+
 ## [2026-01-21] - Task-028 Import Path Fixes
 
 ### Fixed
