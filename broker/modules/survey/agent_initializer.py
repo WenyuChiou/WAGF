@@ -20,7 +20,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from .survey_loader import SurveyLoader, INCOME_MIDPOINTS
-from .mg_classifier import MGClassifier, MGClassificationResult
 
 # Protocol types imported for type hints (runtime_checkable not needed for usage)
 # Concrete implementations provided by domain-specific code (e.g., examples/multi_agent/)
@@ -229,7 +228,6 @@ class AgentInitializer:
     def __init__(
         self,
         survey_loader: Optional[SurveyLoader] = None,
-        mg_classifier: Optional[MGClassifier] = None,
         seed: int = 42,
         narrative_fields: Optional[List[str]] = None,
         narrative_labels: Optional[Dict[str, str]] = None,
@@ -243,7 +241,6 @@ class AgentInitializer:
             seed: Random seed for reproducibility
         """
         self.survey_loader = survey_loader or SurveyLoader()
-        self.mg_classifier = mg_classifier or MGClassifier()
         self.seed = seed
         self.narrative_fields = narrative_fields or self.survey_loader.narrative_fields
         self.narrative_labels = narrative_labels or self.survey_loader.narrative_labels
@@ -292,12 +289,8 @@ class AgentInitializer:
 
         # Classify and create profiles
         profiles = []
-        mg_count = 0
 
         for i, record in enumerate(records):
-            # MG classification
-            mg_result = self.mg_classifier.classify(record)
-
             # Create profile
             profile = AgentProfile(
                 agent_id=f"Agent_{i+1:03d}",
@@ -308,9 +301,9 @@ class AgentInitializer:
                 income_midpoint=getattr(record, "income_midpoint", INCOME_MIDPOINTS.get(record.income_bracket, 50000)),
                 housing_status=record.housing_status,
                 house_type=record.house_type,
-                is_mg=mg_result.is_mg,
-                mg_score=mg_result.score,
-                mg_criteria=mg_result.criteria,
+                is_mg=False,
+                mg_score=0,
+                mg_criteria={},
                 has_children=record.has_children,
                 has_elderly=record.elderly_over_65,
                 has_vulnerable_members=record.has_vulnerable_members,
@@ -321,15 +314,9 @@ class AgentInitializer:
             )
 
             profiles.append(profile)
-            if mg_result.is_mg:
-                mg_count += 1
-
         # Calculate statistics
         stats = {
             "total_agents": len(profiles),
-            "mg_count": mg_count,
-            "nmg_count": len(profiles) - mg_count,
-            "mg_ratio": mg_count / len(profiles) if profiles else 0,
             "owner_count": sum(1 for p in profiles if p.is_owner),
             "renter_count": sum(1 for p in profiles if not p.is_owner),
             "flood_experience_count": sum(1 for p in profiles if _get_ext_value(p.extensions.get("flood"), "flood_experience", False)),
@@ -338,7 +325,6 @@ class AgentInitializer:
 
         logger.info(
             f"Created {stats['total_agents']} agents: "
-            f"{stats['mg_count']} MG ({stats['mg_ratio']:.1%}), "
             f"{stats['owner_count']} owners, {stats['renter_count']} renters"
         )
 

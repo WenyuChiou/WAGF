@@ -140,3 +140,6 @@
   2. Created [task-029-pollution-assessment.md](.tasks/handoff/task-029-pollution-assessment.md)
   3. Created [task-029-sprint5.5-assignment.md](.tasks/handoff/task-029-sprint5.5-assignment.md)
 - **Commits**: fd2f532, 435edd6
+
+
+**Codex Update**: Sprint 5.5 Phase A+B completed (MG classifier moved to examples; broker survey cleaned). Tests: `pytest tests/test_survey_pollution.py -v` pass.
