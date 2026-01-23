@@ -1,69 +1,70 @@
-# Reflection Engine (Meta-Cognition)
+# Components: The Reflection Engine (Meta-Cognition)
 
-**🌐 Language: [English](reflection_engine.md)**
+**🌐 Language: [English](reflection_engine.md) | [中文](reflection_engine_zh.md)**
 
-The **Reflection Engine** is the meta-cognitive layer of the agent architecture. Unlike the "fast" decision-making loop (System 1/2), Reflection is a "slow", periodic process dedicated to **synthesizing wisdom** from raw experience.
-
----
-
-## 1. Core Purpose: From Data to Wisdom
-
-The engine solves the **"Scatter Problem"** of episodic memory.
-
-- **Without Reflection**: An agent has 10 scattered memories about floods.
-- **With Reflection**: An agent has 1 synthesized rule: _"Floods are frequent here, so insurance is a must."_
-
-### The Transformation Pipeline
-
-| Stage          | Type          | Content Example                                                             | Focus          | Logic               |
-| :------------- | :------------ | :-------------------------------------------------------------------------- | :------------- | :------------------ |
-| **1. Input**   | **Episodic**  | "Year 1: Flood." <br> "Year 1: Bought Insurance."                           | **Raw Events** | "What happened?"    |
-| **2. Process** | **Reasoning** | "Looking back, buying insurance saved me money because the flood happened." | **Analysis**   | "Was it good?"      |
-| **3. Output**  | **Semantic**  | **Insight**: "Insurance is a critical hedge against local flood risks."     | **Rule**       | "What did I learn?" |
+While the **Memory System** stores the "What" (Episodic Events), the **Reflection Engine** produces the "Why" (Semantic Wisdom). It serves as the meta-cognitive layer of the agent, transforming raw experience into actionable insights.
 
 ---
 
-## 2. Decision vs. Reflection
+## 5. The Reflection Engine
 
-A common confusion is between _Decision-Making_ and _Reflection_, as both use LLMs. They are fundamentally different functions:
+### 5.1 The Loop: From Experience to Wisdom
 
-| Feature       | Decision-Making (The Exam)                    | Reflection (The Review)                          |
-| :------------ | :-------------------------------------------- | :----------------------------------------------- |
-| **Question**  | "Given context X, what should I do **NOW**?"  | "Looking at the past, was my decision **GOOD**?" |
-| **Direction** | **Forward-Looking** (Proactive)               | **Backward-Looking** (Retrospective)             |
-| **Goal**      | **Apply** existing wisdom to solve a problem. | **Create** new wisdom for the future.            |
-| **Output**    | An **Action** (Buy, Elevate).                 | An **Insight** (Memory Object).                  |
+1.  **Input (Episodic)**: "Year 1: Flood." + "Year 1: Bought Insurance."
+2.  **Process (Reasoning)**: The LLM analyzes the causal link between Event and Action.
+3.  **Output (Semantic)**: "Insight: Insurance is critical for financial survival during floods."
 
----
+### 5.2 Why is this necessary?
 
-## 3. The "Boiling Frog" Solution
+| Feature          | Decision Logic (System 1/2)  | Reflection Logic (Meta)                |
+| :--------------- | :--------------------------- | :------------------------------------- |
+| **Question**     | "What should I do **NOW**?"  | "Was my past decision **GOOD**?"       |
+| **Time Horizon** | Present / Immediate Future   | Past / Long-term Future                |
+| **Mechanism**    | In-Context Learning          | Offline batch processing               |
+| **Output**       | Action (e.g., Buy Insurance) | Wisdom (e.g., "Floods are increasing") |
 
-Reflection is critical for countering the **Boiling Frog Effect** (System 1 Habituation).
-
-- **System 1 (Habit)** might say: "Flood again? Just ignore it like last year." (Numbness).
-- **Reflection** might say: "Wait, I've ignored it 3 times and lost $30k total. This strategy is failing."
-- **Result**: The _Insight_ ("Strategy Failing") has high **Importance**, forcing the agent to wake up next year even if the flood event itself isn't surprising.
+**Without Reflection**, the agent is smart but static. **With Reflection**, the agent evolves its mental model over time, becoming more resilient to memory decay (The Goldfish Effect).
 
 ---
 
-## 4. Technical Implementation
+### 5.3 Practical Case: The Reflection Loop (Input -> Process -> Output)
 
-### A. The S-R Loop (Stimulus-Response)
+To understand how "Data" becomes "Wisdom," consider an agent facing repeated floods over 5 years.
 
-We explicitly feed **Context-Action Pairs** to the LLM to enable Reinforcement Learning behavior.
+#### **1. Input: Scattered Episodic Memories (The Puzzle Pieces)**
 
-1.  **Stimulus (Context)**: `"Year 5: Flood occurred."`
-2.  **Response (Action)**: `"Year 5: Decided to: Do Nothing."`
-3.  **Outcome**: `"Year 5: Suffered financial loss."`
+The memory store contains raw, time-stamped events:
 
-The Reflection Prompt asks: _"What actions proved beneficial or harmful?"_
-The LLM sees the sequence **[Do Nothing -> Loss]** and generates the insight: _"Doing nothing during floods leads to loss."_
+- **Year 1 (Event)**: "Flood occurred. I did nothing." (Result: House damaged, \$10k loss)
+- **Year 3 (Event)**: "Flood occurred. I bought insurance." (Result: Financial relief, \$0 loss)
+- **Year 4 (Observation)**: "Neighbor A elevated their house. Neighbor B moved away."
 
-### B. Configuration (`agent_types.yaml`)
+#### **2. Process: Reasoning (The Synthesis)**
+
+The Reflection Engine (LLM) analyzes these scattered points during the year-end review:
+
+> _"I notice a pattern: floods are happening frequently (Y1, Y3). When I did nothing (Y1), I suffered financial loss. When I bought insurance (Y3), I was protected. However, my neighbors are taking permanent measures like elevation."_
+
+#### **3. Output: Semantic Insight (The Wisdom)**
+
+The engine generates a new, high-importance memory that persists even if the raw events fade:
+
+- **Insight A (Rule)**: "Passive behavior ('Do Nothing') is financially risky in this area."
+- **Insight B (Strategy)**: "Insurance provides a safety net, but Elevation offers permanent protection."
+
+---
+
+## 6. ⚙️ Configuration & References
 
 ```yaml
-reflection:
-  interval: 1 # Reflect every N years
-  batch_size: 10 # Efficiency optimization
-  importance_boost: 0.9 # New insights are "Sticky" (hard to forget)
+reflection_config:
+  interval: 1 # Reflect every year
+  importance_boost: 0.9 # Insights are "Sticky"
 ```
+
+### References
+
+[1] **Schön, D. A. (1983)**. _The Reflective Practitioner_. (Basis for "Reflection-on-Action" vs "Reflection-in-Action").
+[2] **Dewey, J. (1933)**. _How We Think_. (Defining Reflection as the active, persistent, and careful consideration of beliefs).
+[3] **Park et al. (2023)**. _Generative Agents_. (Technical implementation of the Reflection Tree structure).
+[4] **Kahneman (2011)**. _Thinking, Fast and Slow_. (Dual-Process Theory).
