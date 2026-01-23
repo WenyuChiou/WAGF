@@ -20,7 +20,8 @@ from .depth_sampler import (
     PositionAssignment,
     sample_flood_depth_for_year,
 )
-from .vulnerability import VulnerabilityCalculator, FEET_PER_METER
+from .year_mapping import YearMapping
+from .vulnerability import VulnerabilityCalculator, FEET_PER_METER, VulnerabilityModule, depth_damage_building, depth_damage_contents
 
 
 @dataclass
@@ -46,42 +47,6 @@ class FloodEvent:
         if self.depth_m > 0:
             return "MINOR"
         return "NONE"
-
-
-@dataclass
-class YearMapping:
-    """
-    Maps simulation years to PRB data years.
-
-    PRB data covers 2011-2023 (13 years). This class handles:
-    - Converting simulation year (1, 2, 3...) to PRB year (2011, 2012...)
-    - Cycling when simulation exceeds available data
-    """
-    start_sim_year: int = 1
-    start_prb_year: int = 2011
-    available_years: Optional[List[int]] = None
-
-    def __post_init__(self):
-        if self.available_years is None:
-            self.available_years = list(range(2011, 2024))  # 13 years
-
-    def sim_to_prb(self, sim_year: int) -> int:
-        """
-        Convert simulation year to PRB data year.
-
-        Args:
-            sim_year: Simulation year (1, 2, 3, ...)
-
-        Returns:
-            PRB data year (2011-2023, cycling if needed)
-        """
-        offset = sim_year - self.start_sim_year
-        idx = offset % len(self.available_years)
-        return self.available_years[idx]
-
-    def get_prb_years_for_range(self, start: int, end: int) -> List[Tuple[int, int]]:
-        """Get mapping of simulation years to PRB years for a range."""
-        return [(y, self.sim_to_prb(y)) for y in range(start, end + 1)]
 
 
 class HazardModule:
@@ -273,77 +238,6 @@ class HazardModule:
             depth = max(0, self.rng.normal(mean_depth_m, std_depth_m))
             return round(float(depth), 3)
         return 0.0
-
-
-def depth_damage_building(depth_ft: float) -> float:
-    """Building damage ratio from depth (fine-grained FEMA curve)."""
-    calc = VulnerabilityCalculator()
-    return calc.get_structure_damage_ratio(depth_ft)
-
-
-def depth_damage_contents(depth_ft: float) -> float:
-    """Contents damage ratio from depth (fine-grained FEMA curve)."""
-    calc = VulnerabilityCalculator()
-    return calc.get_contents_damage_ratio(depth_ft)
-
-
-class VulnerabilityModule:
-    """
-    Calculate damage from hazard exposure using fine-grained curves.
-
-    Input depth is in feet to preserve existing MA interfaces.
-    """
-
-    def __init__(self, elevation_height_ft: float = 5.0):
-        self.elevation_height = elevation_height_ft
-        self.calc = VulnerabilityCalculator()
-
-    def calculate_damage(
-        self,
-        depth_ft: float,
-        rcv_building: float,
-        rcv_contents: float,
-        is_elevated: bool = False,
-    ) -> Dict[str, float]:
-        effective_depth_ft = depth_ft
-        if is_elevated:
-            effective_depth_ft = max(0.0, depth_ft - self.elevation_height)
-
-        depth_m = effective_depth_ft / FEET_PER_METER
-        result = self.calc.calculate_damage(
-            depth_m=depth_m,
-            rcv_usd=rcv_building,
-            contents_usd=rcv_contents,
-            is_owner=rcv_building > 0,
-            ffe_ft=0.0,
-        )
-
-        return {
-            "effective_depth": round(effective_depth_ft, 3),
-            "building_damage": round(result.structure_damage_usd, 2),
-            "contents_damage": round(result.contents_damage_usd, 2),
-            "total_damage": round(result.total_damage_usd, 2),
-            "building_ratio": round(result.structure_damage_ratio, 4),
-            "contents_ratio": round(result.contents_damage_ratio, 4),
-        }
-
-    def calculate_payout(
-        self,
-        damage: float,
-        coverage_limit: float,
-        deductible: float,
-        payout_ratio: float = 0.80,
-    ) -> float:
-        covered_damage = max(0, min(damage, coverage_limit) - deductible)
-        return round(covered_damage * payout_ratio, 2)
-
-    def calculate_oop(
-        self,
-        total_damage: float,
-        payout: float,
-        subsidy: float = 0.0,
-    ) -> float:
-        return max(0, round(total_damage - payout - subsidy, 2))
 
 
 if __name__ == "__main__":
