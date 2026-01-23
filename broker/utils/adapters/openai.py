@@ -1,4 +1,4 @@
-"""
+﻿"""
 OpenAI adapter alias.
 """
 from ..model_adapter import UnifiedAdapter

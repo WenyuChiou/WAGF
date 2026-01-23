@@ -1,4 +1,4 @@
-"""
+﻿"""
 Preprocessors for model adapter output normalization.
 """
 from typing import Dict, Any, List, Callable
@@ -38,19 +38,15 @@ class SmartRepairPreprocessor:
         if not text:
             return ""
 
-        # 1. Quote unquoted string values (Generalized)
-        # Pattern: "key": Value -> "key": "Value"
-        # Excludes: true, false, null, and numbers
         if self.specific_values:
             labels = "|".join(re.escape(v) for v in self.specific_values)
             text = re.sub(
-                rf'([\'"]?\w+[\'"]?):\s*({labels})\b(?![@\w\'"])',
+                rf'([\'\"]?\w+[\'\"]?):\s*({labels})\b(?![@\w\'\"])',
                 r'\1: "\2"',
                 text,
                 flags=re.IGNORECASE,
             )
         else:
-            # Fully generic: Quote any word-like value that isn't true/false/null/number
             def quote_match(match):
                 key_part = match.group(1)
                 val = match.group(2)
@@ -59,21 +55,19 @@ class SmartRepairPreprocessor:
                 return f'{key_part}: "{val}"'
 
             text = re.sub(
-                r'([\'"]?\w+[\'"]?):\s*([a-zA-Z_][\w-]*)\b(?![@\w\'"])',
+                r'([\'\"]?\w+[\'\"]?):\s*([a-zA-Z_][\w-]*)\b(?![@\w\'\"])',
                 quote_match,
                 text,
             )
 
-        # 2. Quote unquoted numeric IDs specifically for decision/choice keys
         text = re.sub(
-            r'([\'"]?(?:decision|choice|action)[\'"]?):\s*(\d)\b(?![@\w\'"])',
+            r'([\'\"]?(?:decision|choice|action)[\'\"]?):\s*(\d)\b(?![@\w\'\"])',
             r'\1: "\2"',
             text,
             flags=re.IGNORECASE,
         )
 
-        # 3. Fix common missing commas
-        text = re.sub(r'("[\'"]?)\s*\n\s*(["\'\w])', r"\1,\n\2", text)
+        text = re.sub(r'("[\'\"]?)\s*\n\s*(["\'\w])', r"\1,\n\2", text)
 
         return text
 

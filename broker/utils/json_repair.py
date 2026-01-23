@@ -1,4 +1,4 @@
-"""
+﻿"""
 JSON extraction and repair helpers.
 """
 import json

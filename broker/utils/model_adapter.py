@@ -18,8 +18,6 @@ from ..interfaces.skill_types import SkillProposal
 from ..utils.logging import logger
 from .preprocessors import GenericRegexPreprocessor, SmartRepairPreprocessor, get_preprocessor
 from .adapters.deepseek import deepseek_preprocessor
-from .preprocessors import GenericRegexPreprocessor, SmartRepairPreprocessor, get_preprocessor
-from .adapters.deepseek import deepseek_preprocessor
 
 
 class ModelAdapter(ABC):
@@ -60,8 +58,6 @@ class ModelAdapter(ABC):
 
 
 from .agent_config import load_agent_config
-
-
 
 class UnifiedAdapter(ModelAdapter):
     """
@@ -662,130 +658,6 @@ Please reconsider your decision. Ensure your new response addresses the violatio
 
 
 # =============================================================================
-# PREPROCESSORS for model-specific quirks
-# =============================================================================
-def deepseek_preprocessor(text: str) -> str:
-    """
-    Preprocessor for DeepSeek models.
-    Removes <think>...</think> reasoning tags, but PRESERVES content
-    if the model put the entire decision inside the think tag.
-    
-    Enhanced to handle:
-    - Unclosed think tags
-    - Content split between inside/outside tags
-    - Very long think sections
-    """
-    if not text:
-        return ""
-    
-    # Handle both <think> and <thinking> variations
-    text = text.replace('<thinking>', '<think>').replace('</thinking>', '</think>')
-    
-    # 1. Try to get content AFTER </think> tag first (preferred)
-    after_think_match = re.search(r'</think>\s*(.+)', text, flags=re.DOTALL)
-    if after_think_match:
-        after_content = after_think_match.group(1).strip()
-        if len(after_content) > 30:  # Substantial content after tag
-            return after_content
-    
-    # 2. Remove think tags and get what's left
-    cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
-    
-    # 3. If cleaned is empty or very short, extract from inside think tags
-    if not cleaned or len(cleaned) < 20 or re.match(r'^\[?N/A\]?$', cleaned, re.I):
-        # Find think content
-        think_match = re.search(r'<think>(.*?)(?:</think>|$)', text, flags=re.DOTALL)
-        if think_match:
-            inner = think_match.group(1).strip()
-            
-            # Look for the final answer section within think
-            decision_patterns = [
-                r'(final decision:?\s*\d+.*)',  # Numerical decision
-                r'(final decision:?\s*\w+.*)',  # Named decision
-                r'(selected action:?\s*.+)',     # Selected action
-                r'(決策|decision)[:：]\s*(.+)',  # With Chinese/Global markers
-            ]
-            for pattern in decision_patterns:
-                match = re.search(pattern, inner, re.IGNORECASE | re.DOTALL)
-                if match:
-                    return match.group(0).strip()
-            
-            # If inner has any decision-like content, take the end of it
-            # This is a generic heuristic: look for trailing content that mentions decision keywords
-            decision_kws = ['decide', 'decision', 'action', 'choice', 'id']
-            if any(kw in inner.lower() for kw in decision_kws):
-                return inner[-500:] if len(inner) > 500 else inner
-            
-            # Return inner if cleaned is empty
-            if not cleaned and inner:
-                return inner
-    
-    # Final check: if it's literally [N/A], try to keep it for the alias map to find
-    return cleaned if cleaned else text # Fallback to original text if everything failed
-
-
-class SmartRepairPreprocessor:
-    """
-    Generalized preprocessor to repair common LLM JSON errors.
-    Automatically quotes unquoted string values and repairs common syntax issues.
-    """
-    def __init__(self, specific_values: List[str] = None):
-        self.specific_values = [v.upper() for v in specific_values] if specific_values else None
-
-    def __call__(self, text: str) -> str:
-        if not text: return ""
-        
-        # 1. Quote unquoted string values (Generalized)
-        # Pattern: "key": Value -> "key": "Value"
-        # Excludes: true, false, null, and numbers
-        if self.specific_values:
-            # If specific labels are provided (like VL, L, M, H, VH)
-            labels = "|".join(re.escape(v) for v in self.specific_values)
-            text = re.sub(rf'([\'"]?\w+[\'"]?):\s*({labels})\b(?![@\w\'"])', r'\1: "\2"', text, flags=re.IGNORECASE)
-        else:
-            # Fully generic: Quote any word-like value that isn't true/false/null/number
-            # Pattern looks for : followed by an identifier that isn't a known JSON constant or number
-            def quote_match(match):
-                key_part = match.group(1)
-                val = match.group(2)
-                if val.lower() in ["true", "false", "null"] or re.match(r'^-?\d+(\.\d+)?$', val):
-                    return f'{key_part}: {val}'
-                return f'{key_part}: "{val}"'
-            
-            text = re.sub(r'([\'"]?\w+[\'"]?):\s*([a-zA-Z_][\w-]*)\b(?![@\w\'"])', quote_match, text)
-
-        # 2. Quote unquoted numeric IDs specifically for decision/choice keys
-        # Some models use: decision: 4 (unquoted)
-        text = re.sub(r'([\'"]?(?:decision|choice|action)[\'"]?):\s*(\d)\b(?![@\w\'"])', r'\1: "\2"', text, flags=re.IGNORECASE)
-        
-        # 3. Fix common missing commas
-        text = re.sub(r'("[\'"]?)\s*\n\s*(["\'\w])', r'\1,\n\2', text)
-        
-        return text
-
-
-def json_extract_preprocessor(text: str) -> str:
-
-
-
-    """
-    Preprocessor for models that may return JSON.
-    Extracts text content from JSON if present.
-    """
-    import json
-    try:
-        data = json.loads(text)
-        if isinstance(data, dict):
-            # Look for common fields
-            for key in ['response', 'output', 'text', 'content']:
-                if key in data:
-                    return str(data[key])
-        return text
-    except json.JSONDecodeError:
-        return text
-
-
-# =============================================================================
 # FACTORY FUNCTION
 # =============================================================================
 
@@ -807,5 +679,15 @@ def get_adapter(model_name: str) -> ModelAdapter:
 
 
 
-from .adapters.ollama import OllamaAdapter
-from .adapters.openai import OpenAIAdapter
+# =============================================================================
+# LEGACY ALIASES (for backward compatibility)
+# =============================================================================
+
+class OllamaAdapter(UnifiedAdapter):
+    """Alias for UnifiedAdapter (backward compatibility)."""
+    pass
+
+
+class OpenAIAdapter(UnifiedAdapter):
+    """Alias for UnifiedAdapter (backward compatibility)."""
+    pass
