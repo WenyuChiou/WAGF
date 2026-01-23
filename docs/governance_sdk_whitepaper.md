@@ -19,7 +19,20 @@ The current "AI Safety" landscape for agents focuses on three layers:
 
 **The Gap**: There is no _Runtime, Automated, Educational_ governance layer.
 
-## 3. The Problem: "Stochastic Drilling"
+## 3. The ABM Fidelity Crisis: Why Guardrails Break Simulations
+
+In Agent-Based Modeling, the goal is often to **quantify aggregate outcomes** (e.g., "What is the insurance penetration rate if we offer a $500 subsidy?").
+Standard "Guardrails" ruin this measurement by introducing **Artificial Blockages**:
+
+- **Scenario**: An agent wants to buy insurance but forgets to specify the `provider_id`.
+- **Guardrail Outcome**: `Block (Missing Field)`. The agent stays uninsured.
+- **Resulting Data**: Insurance Rate = 0%. **(False Negative)**.
+- **GovernedAI Outcome**: `Critique ("Please specify provider_id")`. The agent retries and succeeds.
+- **Resulting Data**: Insurance Rate = 40%. **(True Behavioral Signal)**.
+
+Thus, **Pedagogical Governance** is not just a safety feature; it is a **Calibration Tool** that ensures agent incompetence does not skew policy evaluation metrics.
+
+## 4. The Problem: "Stochastic Drilling"
 
 In our _JOH (Flood)_ experiments (Group A/B), we observed that when an agent is simply blocked (SRR), it treats the block as a "random failure" and retries with high entropy.
 
