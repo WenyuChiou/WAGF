@@ -8,6 +8,24 @@
 
 ---
 
+## Git Branch
+
+```bash
+# Checkout this branch to start work
+git checkout task-032-phase1
+
+# Base commit: 927c4cc (Phase 0 complete)
+```
+
+**Stacked PR Structure**:
+```
+main
+ └── task-032-sdk-base (Phase 0) ← 927c4cc
+      └── task-032-phase1 (this branch) ← YOUR WORK HERE
+```
+
+---
+
 ## Objective
 
 Create the SDK skeleton structure with the `GovernedAgent` wrapper class - the central abstraction that wraps any agent framework with cognitive governance.
