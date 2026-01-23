@@ -173,8 +173,11 @@ def _invoke_ollama_direct(model: str, prompt: str, params: Dict[str, Any], verbo
     }
     
     try:
-        # Increase timeout for 30B models
-        timeout = 180 if "30b" in model.lower() else 120
+        # Increase timeout for 30B/32B models
+        if any(x in model.lower() for x in ["30b", "32b", "70b", "deepseek-r1:32b"]):
+            timeout = 300
+        else:
+            timeout = 120
         response = requests.post(url, json=data, timeout=timeout)
         
         if response.status_code == 200:
@@ -336,8 +339,12 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
                     else:
                         llm_retries += 1
                         if attempt < max_llm_retries - 1:
-                            _LOGGER.warning(f" [LLM:Retry] Model '{model}' returned empty/thinking-only content. Retrying...")
-                            current_prompt += " " 
+                            if content and not stripped_content.strip():
+                                _LOGGER.warning(f" [LLM:Retry] Model '{model}' returned ONLY thinking content. Appending 'Please continue'.")
+                                current_prompt += " \nPlease continue and output the JSON."
+                            else:
+                                _LOGGER.warning(f" [LLM:Retry] Model '{model}' returned truly empty content. Retrying...")
+                                current_prompt += " " 
                         else:
                             _LOGGER.error(f" [LLM:Error] Model '{model}' returned empty content after {max_llm_retries} attempts.")
                             return "", LLMStats(retries=llm_retries, success=False)
