@@ -14,7 +14,8 @@ References:
 - Park et al. (2023): Generative Agents memory architecture
 """
 
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
+from datetime import datetime
 import logging
 
 logger = logging.getLogger(__name__)
@@ -317,9 +318,206 @@ class UniversalCognitiveEngine:
         Returns:
             Dict with system state, surprise level, and expectation
         """
+        expectation = None
+        if self.ema_predictor:
+            expectation = self.ema_predictor.predict()
         return {
             "system": self.current_system,
             "surprise": self.last_surprise,
-            "expectation": self.ema_predictor.predict(),
+            "expectation": expectation,
             "arousal_threshold": self.arousal_threshold
         }
+
+    def retrieve_with_trace(
+        self,
+        agent,
+        query: Optional[str] = None,
+        top_k: int = 5,
+        contextual_boosters: Optional[Dict[str, float]] = None,
+        world_state: Optional[Dict[str, Any]] = None,
+        **kwargs
+    ) -> Tuple[List[str], "CognitiveTrace"]:
+        """
+        Retrieve memories with full cognitive trace for XAI-ABM integration.
+
+        This is the explainable version of retrieve() that returns both
+        memories and a CognitiveTrace explaining the decision process.
+
+        Args:
+            agent: The agent requesting memories
+            query: Optional semantic query
+            top_k: Number of memories to retrieve
+            contextual_boosters: Context-aware tag boosters
+            world_state: Current environment state for surprise calculation
+            **kwargs: Additional arguments
+
+        Returns:
+            Tuple of (memory_contents, CognitiveTrace)
+        """
+        from broker.components.cognitive_trace import CognitiveTrace
+
+        # Stage 1: Compute surprise and capture trace data
+        trace_kwargs = {}
+        if self.mode == "symbolic" and self.context_monitor:
+            sig, surprise = self.context_monitor.observe(world_state or {})
+            sensor_trace = self.context_monitor.get_last_trace()
+            trace_kwargs = {
+                "quantized_sensors": sensor_trace.get("quantized_sensors"),
+                "signature": sensor_trace.get("signature"),
+                "is_novel": sensor_trace.get("is_novel"),
+                "prior_frequency": sensor_trace.get("prior_frequency"),
+            }
+        else:
+            reality = float((world_state or {}).get(self.stimulus_key, 0.0))
+            surprise = self.ema_predictor.surprise(reality) if self.ema_predictor else 0.0
+            trace_kwargs = {
+                "stimulus_key": self.stimulus_key,
+                "reality": reality,
+                "expectation": self.ema_predictor.predict() if self.ema_predictor else None,
+            }
+            # Update EMA after capturing trace
+            if self.ema_predictor:
+                self.ema_predictor.update(reality)
+
+        self.last_surprise = surprise
+
+        # Stage 2: Determine system
+        system = "SYSTEM_2" if surprise > self.arousal_threshold else "SYSTEM_1"
+        margin = abs(surprise - self.arousal_threshold)
+        self.current_system = system
+
+        # Stage 3: Select ranking mode
+        original_mode = self._base_engine.ranking_mode
+        ranking_mode = "weighted" if system == "SYSTEM_2" else "legacy"
+        self._base_engine.ranking_mode = ranking_mode
+
+        # Stage 4: Retrieve memories with reasoning trail
+        memories, reasoning = self._retrieve_with_reasoning(
+            agent, top_k, contextual_boosters, ranking_mode
+        )
+
+        # Restore original mode
+        self._base_engine.ranking_mode = original_mode
+
+        # Stage 5: Build trace
+        trace = CognitiveTrace(
+            agent_id=str(getattr(agent, 'unique_id', 'unknown')),
+            tick=getattr(agent, 'current_tick', 0),
+            timestamp=datetime.now(),
+            mode=self.mode,
+            world_state=world_state or {},
+            surprise=surprise,
+            arousal_threshold=self.arousal_threshold,
+            system=system,
+            margin_to_switch=margin,
+            ranking_mode=ranking_mode,
+            retrieved_memories=[{"content": m} for m in memories],
+            retrieval_reasoning=reasoning,
+            **trace_kwargs
+        )
+
+        return memories, trace
+
+    def _retrieve_with_reasoning(
+        self,
+        agent,
+        top_k: int,
+        contextual_boosters: Optional[Dict[str, float]],
+        ranking_mode: str
+    ) -> Tuple[List[str], List[str]]:
+        """
+        Internal: retrieve memories and generate human-readable reasoning.
+
+        Args:
+            agent: The agent requesting memories
+            top_k: Number of memories to retrieve
+            contextual_boosters: Context-aware tag boosters
+            ranking_mode: "legacy" or "weighted"
+
+        Returns:
+            Tuple of (memory_contents, reasoning_trail)
+        """
+        import time
+        reasoning = []
+        agent_id = str(getattr(agent, 'unique_id', 'unknown'))
+
+        # Get memory stores
+        working = self._base_engine.working.get(agent_id, [])
+        longterm = self._base_engine.longterm.get(agent_id, [])
+
+        if ranking_mode == "legacy":
+            # System 1: Recency-based (fast, automatic)
+            reasoning.append("System 1 (Routine): Using recency-based retrieval")
+
+            window_size = self._base_engine.window_size
+            top_k_significant = self._base_engine.top_k_significant
+
+            recent = working[-window_size:]
+            reasoning.append(f"  -> Selected {len(recent)} most recent working memories")
+
+            # Top-k significant from long-term
+            sorted_lt = sorted(longterm, key=lambda m: m.get('importance', 0), reverse=True)
+            significant = sorted_lt[:top_k_significant]
+            reasoning.append(f"  -> Selected top {len(significant)} significant long-term memories")
+
+            all_memories = significant + recent
+            memories = [m.get('content', '') for m in all_memories[:top_k]]
+
+        else:
+            # System 2: Weighted (deliberate, importance-focused)
+            reasoning.append("System 2 (Crisis): Using importance-weighted retrieval")
+
+            all_memories = working + longterm
+            current_time = time.time()
+
+            scored = []
+            for m in all_memories:
+                # Calculate recency score (same as HumanCentricMemoryEngine)
+                created_at = m.get('created_at', current_time)
+                age = current_time - created_at
+                recency_score = 1.0 - (age / max(current_time, 1))
+                recency_score = max(0.0, min(1.0, recency_score))  # Clamp to [0, 1]
+
+                importance_score = m.get('importance', 0.5)
+                boost = self._compute_contextual_boost(m, contextual_boosters)
+
+                W_r = self._base_engine.W_recency
+                W_i = self._base_engine.W_importance
+                W_c = self._base_engine.W_context
+
+                final = (recency_score * W_r) + (importance_score * W_i) + (boost * W_c)
+                scored.append((m, final, {
+                    'recency': recency_score,
+                    'importance': importance_score,
+                    'boost': boost
+                }))
+
+            scored.sort(key=lambda x: x[1], reverse=True)
+
+            for i, (m, score, breakdown) in enumerate(scored[:top_k]):
+                content = m.get('content', '')
+                content_preview = content[:50] + "..." if len(content) > 50 else content
+                reasoning.append(
+                    f"  #{i+1} [{score:.2f}] \"{content_preview}\" "
+                    f"(R={breakdown['recency']:.2f}, I={breakdown['importance']:.2f}, B={breakdown['boost']:.2f})"
+                )
+
+            memories = [m.get('content', '') for m, _, _ in scored[:top_k]]
+
+        return memories, reasoning
+
+    def _compute_contextual_boost(
+        self,
+        memory: Dict[str, Any],
+        contextual_boosters: Optional[Dict[str, float]]
+    ) -> float:
+        """Compute contextual boost for a memory based on tag matching."""
+        if not contextual_boosters:
+            return 0.0
+
+        tags = memory.get('tags', [])
+        boost = 0.0
+        for tag in tags:
+            if tag in contextual_boosters:
+                boost += contextual_boosters[tag]
+        return min(boost, 1.0)  # Cap at 1.0
