@@ -9,7 +9,7 @@ import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from agents.base_agent import BaseAgent
-from ..interfaces.skill_types import ApprovedSkill
+from ..interfaces.skill_types import ApprovedSkill, SkillOutcome, SkillBrokerResult, ExecutionResult, SkillProposal
 from .skill_broker_engine import SkillBrokerEngine
 from ..components.context_builder import BaseAgentContextBuilder
 from ..components.memory_engine import MemoryEngine, WindowMemoryEngine, HierarchicalMemoryEngine
@@ -254,11 +254,39 @@ class ExperimentRunner:
             context = ctx_builder.build(agent.id, env_context=env)
             context_hash = self.efficiency.compute_hash(context)
             
-            cached_result = self.efficiency.get(context_hash)
-            if cached_result:
-                # In full implementation, we'd skip process_step. 
-                # For Phase 7 validation, we still run but log the hit potential.
-                logger.info(f"[Efficiency] Cache HIT for {agent.id} (Hash={context_hash[:8]})")
+            cached_data = self.efficiency.get(context_hash)
+            if cached_data:
+                logger.info(f"[Efficiency] Cache HIT for {agent.id} (Hash={context_hash[:8]}). Bypassing LLM.")
+                # Reconstruct result from cache
+                
+                # Restore reasoning metadata to ensure AuditWriter can find appraisals
+                cached_proposal = cached_data.get("skill_proposal") or {}
+                proposal = SkillProposal(
+                    skill_name=cached_proposal.get("skill_name", "do_nothing"),
+                    agent_id=agent.id,
+                    reasoning=cached_proposal.get("reasoning", {}),
+                    agent_type=cached_proposal.get("agent_type", "default")
+                )
+                
+                # Basic reconstruction (Logic here should match SkillBrokerResult structure)
+                result = SkillBrokerResult(
+                    outcome=SkillOutcome(cached_data.get("outcome", "APPROVED")),
+                    skill_proposal=proposal, # Restore proposal for audit
+                    approved_skill=ApprovedSkill(
+                        skill_name=cached_data.get("approved_skill", {}).get("skill_name", "do_nothing"),
+                        agent_id=agent.id,
+                        approval_status="APPROVED",
+                        execution_mapping=cached_data.get("approved_skill", {}).get("mapping", "sim.noop")
+                    ),
+                    execution_result=ExecutionResult(
+                        success=True,
+                        state_changes=cached_data.get("execution_result", {}).get("state_changes", {})
+                    ),
+                    validation_errors=[],
+                    retry_count=0
+                )
+                results.append((agent, result))
+                continue
             
             result = self.broker.process_step(
                 agent_id=agent.id,
@@ -271,9 +299,9 @@ class ExperimentRunner:
             )
             
             # Store validated result in cache
-            if result.validated:
+            if result.outcome in [SkillOutcome.APPROVED, SkillOutcome.RETRY_SUCCESS]:
                 # We store the raw_output or structured decision
-                self.efficiency.put(context_hash, result.to_dict() if hasattr(result, "to_dict") else {})
+                self.efficiency.put(context_hash, result.to_dict())
             
             results.append((agent, result))
         return results
@@ -288,9 +316,35 @@ class ExperimentRunner:
             context = ctx_builder.build(agent.id, env_context=env)
             context_hash = self.efficiency.compute_hash(context)
             
-            cached_result = self.efficiency.get(context_hash)
-            if cached_result:
-                logger.info(f"[Efficiency:Parallel] Cache HIT for {agent.id} (Hash={context_hash[:8]})")
+            cached_data = self.efficiency.get(context_hash)
+            if cached_data:
+                logger.info(f"[Efficiency:Parallel] Cache HIT for {agent.id} (Hash={context_hash[:8]}). Bypassing LLM.")
+                
+                cached_proposal = cached_data.get("skill_proposal") or {}
+                proposal = SkillProposal(
+                    skill_name=cached_proposal.get("skill_name", "do_nothing"),
+                    agent_id=agent.id,
+                    reasoning=cached_proposal.get("reasoning", {}),
+                    agent_type=cached_proposal.get("agent_type", "default")
+                )
+                
+                result = SkillBrokerResult(
+                    outcome=SkillOutcome(cached_data.get("outcome", "APPROVED")),
+                    skill_proposal=proposal,
+                    approved_skill=ApprovedSkill(
+                        skill_name=cached_data.get("approved_skill", {}).get("skill_name", "do_nothing"),
+                        agent_id=agent.id,
+                        approval_status="APPROVED",
+                        execution_mapping=cached_data.get("approved_skill", {}).get("mapping", "sim.noop")
+                    ),
+                    execution_result=ExecutionResult(
+                        success=True,
+                        state_changes=cached_data.get("execution_result", {}).get("state_changes", {})
+                    ),
+                    validation_errors=[],
+                    retry_count=0
+                )
+                return agent, result
             
             result = self.broker.process_step(
                 agent_id=agent.id,
@@ -302,8 +356,8 @@ class ExperimentRunner:
                 env_context=env
             )
             
-            if result.validated:
-                self.efficiency.put(context_hash, result.to_dict() if hasattr(result, "to_dict") else {})
+            if result.outcome in [SkillOutcome.APPROVED, SkillOutcome.RETRY_SUCCESS]:
+                self.efficiency.put(context_hash, result.to_dict())
                 
             return agent, result
         

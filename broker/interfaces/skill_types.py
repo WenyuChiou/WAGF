@@ -151,3 +151,17 @@ class SkillBrokerResult:
     execution_result: Optional[ExecutionResult]
     validation_errors: List[str] = field(default_factory=list)
     retry_count: int = 0
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "outcome": self.outcome.value if self.outcome else "ABORTED",
+            "skill_proposal": self.skill_proposal.to_dict() if self.skill_proposal else None,
+            "approved_skill": {
+                "skill_name": self.approved_skill.skill_name,
+                "status": self.approved_skill.approval_status,
+                "mapping": self.approved_skill.execution_mapping
+            } if self.approved_skill else None,
+            "execution_result": self.execution_result.to_dict() if self.execution_result else None,
+            "validation_errors": self.validation_errors,
+            "retry_count": self.retry_count
+        }
