@@ -15,6 +15,7 @@ from ..components.context_builder import BaseAgentContextBuilder
 from ..components.memory_engine import MemoryEngine, WindowMemoryEngine, HierarchicalMemoryEngine
 from ..utils.agent_config import GovernanceAuditor
 from ..utils.logging import logger
+from .efficiency import CognitiveCache
 
 @dataclass
 class ExperimentConfig:
@@ -52,6 +53,10 @@ class ExperimentRunner:
         
         # Cache for llm_invoke functions per agent type
         self._llm_cache = {}
+        
+        # [Efficiency Hub] Cognitive Caching for decision reuse
+        persistence_path = config.output_dir / "cognitive_cache.json"
+        self.efficiency = CognitiveCache(persistence_path=persistence_path)
 
     @property
     def llm_invoke(self) -> Callable:
@@ -242,6 +247,19 @@ class ExperimentRunner:
         results = []
         for agent in agents:
             self.step_counter += 1
+            
+            # [Efficiency Hub] Cognitive Cache Check
+            ctx_builder = self.broker.context_builder
+            # Build context early to compute hash
+            context = ctx_builder.build(agent.id, env_context=env)
+            context_hash = self.efficiency.compute_hash(context)
+            
+            cached_result = self.efficiency.get(context_hash)
+            if cached_result:
+                # In full implementation, we'd skip process_step. 
+                # For Phase 7 validation, we still run but log the hit potential.
+                logger.info(f"[Efficiency] Cache HIT for {agent.id} (Hash={context_hash[:8]})")
+            
             result = self.broker.process_step(
                 agent_id=agent.id,
                 step_id=self.step_counter,
@@ -251,6 +269,12 @@ class ExperimentRunner:
                 agent_type=getattr(agent, 'agent_type', 'default'),
                 env_context=env
             )
+            
+            # Store validated result in cache
+            if result.validated:
+                # We store the raw_output or structured decision
+                self.efficiency.put(context_hash, result.to_dict() if hasattr(result, "to_dict") else {})
+            
             results.append((agent, result))
         return results
 
@@ -259,7 +283,16 @@ class ExperimentRunner:
         results = []
         
         def process_agent(agent, step_id):
-            return agent, self.broker.process_step(
+            # [Efficiency Hub] Cognitive Cache Check
+            ctx_builder = self.broker.context_builder
+            context = ctx_builder.build(agent.id, env_context=env)
+            context_hash = self.efficiency.compute_hash(context)
+            
+            cached_result = self.efficiency.get(context_hash)
+            if cached_result:
+                logger.info(f"[Efficiency:Parallel] Cache HIT for {agent.id} (Hash={context_hash[:8]})")
+            
+            result = self.broker.process_step(
                 agent_id=agent.id,
                 step_id=step_id,
                 run_id=run_id,
@@ -268,6 +301,11 @@ class ExperimentRunner:
                 agent_type=getattr(agent, 'agent_type', 'default'),
                 env_context=env
             )
+            
+            if result.validated:
+                self.efficiency.put(context_hash, result.to_dict() if hasattr(result, "to_dict") else {})
+                
+            return agent, result
         
         with ThreadPoolExecutor(max_workers=self.config.workers) as executor:
             futures = {}
