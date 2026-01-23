@@ -49,6 +49,17 @@ Why invest computational resources in reflection? Behavioral science suggests th
 
 ---
 
+### 2.4 Comparative Outcome: The "Goldfish" vs. The "Strategist"
+
+| Metric               | Without Reflection (System 1/2 only)                                            | With Reflection (Meta-Cognitive)                                              |
+| :------------------- | :------------------------------------------------------------------------------ | :---------------------------------------------------------------------------- |
+| **Reaction Pattern** | **Panic-Cycle**: Panics at every flood, relaxes when sun comes out.             | **Adaptive**: Shifts strategy permanently after detecting a trend.            |
+| **Memory Limit**     | Fades after $T$ steps (Exponential Decay).                                      | **Permanent**: Synthesized rules generally have `retention=1.0`.              |
+| **Efficiency**       | High Cost: Re-analyzes specific events every year.                              | High Speed: Retrieves 1 rule ("Floods are likely") vs 10 events.              |
+| **Blind Spot**       | **Boiling Frog**: Fails to detect slow-moving threats (e.g., repeating floods). | **Trend Spotting**: Aggregates disparate data points to find invisible risks. |
+
+---
+
 ## 3. Practical Case: The Reflection Loop (Input -> Process -> Output)
 
 To understand how "Data" becomes "Wisdom," consider an agent facing repeated floods over 5 years.
