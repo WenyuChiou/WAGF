@@ -173,8 +173,8 @@ def _invoke_ollama_direct(model: str, prompt: str, params: Dict[str, Any], verbo
     }
     
     try:
-        # Increase timeout for 30B/32B models
-        if any(x in model.lower() for x in ["30b", "32b", "70b", "deepseek-r1:32b"]):
+        # Increase timeout for 30B/32B models AND all DeepSeek R1 models (known to be slow)
+        if any(x in model.lower() for x in ["30b", "32b", "70b", "deepseek"]) and "1.5b" not in model.lower():
             timeout = 300
         else:
             timeout = 120
@@ -302,6 +302,11 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
             
             # Phase 40: Use global or override retry limit
             max_llm_retries = overrides.get("max_retries", LLM_CONFIG.max_retries) if overrides else LLM_CONFIG.max_retries
+            
+            # Phase 48: Increase retries for unstable DeepSeek models
+            if "deepseek" in model.lower():
+                max_llm_retries = max(max_llm_retries, 5)
+                
             llm_retries = 0
             current_prompt = prompt
             
