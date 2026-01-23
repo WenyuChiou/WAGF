@@ -10,7 +10,7 @@ The **Memory and Retrieval System** is the cognitive bridge between an agent's p
 
 The system is a **Universal Cognitive Architecture** grounded in established cognitive science, evolving across three specific phases of retrieval depth.
 
-![Memory Evolution Roadmap](../architecture/memory_evolution_roadmap.png)
+![Memory Evolution: v1 to v4](../architecture/memory_evolution_v4.png)
 
 ---
 
@@ -22,12 +22,12 @@ To understand how our agents "think" about the past, we follow a single event th
 
 #### **A. Strategic Comparison of Memory Systems:**
 
-| Feature               | Model v1: Legacy (Habit)        | Model v2: Weighted (Deliberate)      | Model v3: Universal (Both)    |
-| :-------------------- | :------------------------------ | :----------------------------------- | :---------------------------- |
-| **Retrieval Logic**   | **Saliency-Based**.             | **Unified Scoring**.                 | **Surprise-Driven Gating**.   |
-| **Core Formula**      | $S(t) = I \cdot e^{-\lambda t}$ | $S = W_{rec}R + W_{imp}I + W_{ctx}C$ | Toggles between v1 and v2.    |
-| **Design Philosophy** | **Availability Heuristic**.     | **Contextual Relevance**.            | **Cognitive Arousal (PE)**.   |
-| **Goal**              | Remember "recent shocks".       | Remember "relevant history".         | **Habit** until **Surprise**. |
+| Feature               | Model v1: Legacy (Habit)        | Model v2: Weighted (Deliberate)      | Model v3: Universal (Switch)     | Model v4: Symbolic (Gestalt)  |
+| :-------------------- | :------------------------------ | :----------------------------------- | :------------------------------- | :---------------------------- |
+| **Retrieval Logic**   | **Saliency-Based**.             | **Unified Scoring**.                 | **Surprise-Driven Gating**.      | **Signature-Based**.          |
+| **Core Formula**      | $S(t) = I \cdot e^{-\lambda t}$ | $S = W_{rec}R + W_{imp}I + W_{ctx}C$ | $PE = \|Reality - Expectation\|$ | $S = 1 - P(Signature)$        |
+| **Design Philosophy** | **Availability Heuristic**.     | **Contextual Relevance**.            | **Active Inference**.            | **Bounded Rationality**.      |
+| **Goal**              | Remember "recent shocks".       | Remember "relevant history".         | **Habit** until **Surprise**.    | **Context** without **Cost**. |
 
 #### **B. Parameter & Symbol Dictionary (Scale: 0.0 to 1.0):**
 
@@ -44,13 +44,11 @@ To understand how our agents "think" about the past, we follow a single event th
 | $I_{gate}$    | **Consolidation Gate**  | 0.6     | Min. $I_{initial}$ to attempt permanent storage.              |
 | $P_{burn}$    | **Burning Probability** | 0.8     | Prob. a memory is consolidated if it passes the gate.         |
 
-> [!NOTE]
-> **Why are $R, C,$ and $PE$ "Dynamic Variables"?**
-> Unlike static weights ($W$), these values are recalculated during every retrieval cycle/perception step:
->
-> - **$R$ (Recency)**: Changes every step because "Time" is constantly moving forward. Yesterday's memory is less "recent" today.
-> - **$C$ (Context)**: Changes because it depends on the **current prompt**. A memory of "buying a boat" has $C=0.0$ during a fire, but $C=1.0$ during a flood discussion.
-> - **$PE$ (Prediction Error)**: Changes because it is the "Surprise" of the **current moment** (Reality vs. what was expected).
+#### **C. Importance Calculation Logic (How we derive $I$):**
+
+Importance ($I$) is not random; it is the product of **Emotional Weight** and **Source Reliability**.
+
+$$I_{initial} = W_{emotion} \times W_{source}$$
 
 ---
 
@@ -99,49 +97,91 @@ V2 uses $S = (R \times 0.3) + (I \times 0.5) + (C \times 0.2)$.
 
 V3 is the "controller" of the cognitive architecture. It models the **Arousal Loop**—deciding when to act on habit (v1) and when to wake up and act rationally (v2).
 
-### 🧠 The Arousal Loop Mechanics
+### 3.1 The Arousal Loop Mechanics
 
-1.  **Sensory Input ($Reality$ from State)**:
-    Every cycle, the engine reads the `world_state`. In our case, it tracks the `flood_depth`. This is a **Dynamic State Variable**.
-2.  **Internal Prediction ($Expectation$)**:
-    The agent maintains an internal "Normalcy Model" using an **EMA Predictor** (Exponential Moving Average).
-    - **Formula**: $E_t = (\alpha \times R_t) + ((1 - \alpha) \times E_{t-1})$
-    - This creates **Normalcy Bias**: even if a flood starts, the agent's expectation moves slowly, creating a gap between reality and belief.
-
-3.  **Prediction Error ($PE$ / Surprise)**:
-    The "Surprise" is the absolute difference: $PE = |Reality - Expectation|$.
-    - **Dynamic Calculation**: As $Reality$ shoots up (Flood alert), $PE$ spikes.
-    - **Dynamic Toggling**:
-      - If $PE < \text{Arousal Threshold}$ (0.5): The agent remains in **System 1 (Model v1)**. It trusts its habits and filters out deep archives.
-      - If $PE \ge \text{Arousal Threshold}$: The agent enters **System 2 (Model v2)**. It triggers a "Context Search," enabling the weighted scoring that brings back the 10-year-old flood trauma.
-
-### 🔄 Does v3 change with State?
-
-**YES.** All core components of v3 are state-dependent:
-
-- **Reality**: Direct feed from `world_state`.
-- **Expectation**: Updates every step based on new observations.
-- **Arousal Mode**: Flips between "Legacy" and "Weighted" based on the current Environment-to-Mind mismatch.
-
-> [!TIP]
-> **Theory Link**: This implements **Active Inference (Friston, 2010)**, where the brain's goal is to minimize surprise, and **Thinking, Fast and Slow (Kahneman, 2011)**, which defines the two speeds of thought.
+1.  **Sensory Input ($Reality$)**: The agent sees `flood_depth = 2.0m`.
+2.  **Internal Prediction ($Expectation$)**: The agent expects `flood_depth = 0.1m` (based on EMA of past years).
+3.  **Surprise ($PE$)**: $PE = |2.0 - 0.1| = 1.9$.
+4.  **Arousal Switch**:
+    - If $PE \ge 0.5$ (Threshold): **Switch to System 2**.
 
 ---
 
-## 4. ⚙️ Configuration & References
+## 4. v4: The Symbolic Architecture (Symbolic Context)
+
+### 4.1 Motivation: Why Symbolic? (The "Goldilocks" Solution)
+
+- **Problem with v3 (Scalar)**: Single-variable thresholds (e.g., `Depth > 0.5`) are brittle. They fail to capture complex context (e.g., "High Water" is fine if it's a "Controlled Release").
+- **Problem with Vector Embeddings**: While powerful, calculating 1000-dimensional cosine similarities for every agent step is **computationally prohibitive** ($O(N)$) for 100+ agents.
+- **The v4 Solution**: **Symbolic Signatures**. By hashing discrete states, we get the **contextual flexibility** of vectors with the **$O(1)$ speed** of hash maps.
+
+### 4.2 The Mechanism
+
+1.  **Sensors**: Detect `FLOOD:HIGH` and `PANIC:LOW`.
+2.  **Signature**: `Hash("FLOOD:HIGH|PANIC:LOW")`.
+3.  **Surprise**: $S = 1 - P(\text{Signature})$.
+
+### 4.3 Practical Calculation: The "Boiling Frog" Trace
+
+**Q: How does the agent react to repeating disasters?**
+
+| Year    | Event (Stimulus) | Signature                           | Probability ($P$) | Surprise ($S = 1-P$) | System State                | Agent Action       |
+| :------ | :--------------- | :---------------------------------- | :---------------- | :------------------- | :-------------------------- | :----------------- |
+| **Y1**  | **Flash Flood**  | `FLOOD:HIGH`                        | 0.0 (New)         | **1.0 (High)**       | **System 2 (Panic)**        | **Buy Insurance**  |
+| **Y2**  | Flood Again      | `FLOOD:HIGH`                        | 0.5 (Seen)        | 0.5 (Med)            | System 1 (Habit)            | Renew / Complacent |
+| **Y3**  | Flood Again      | `FLOOD:HIGH`                        | 0.66 (Common)     | 0.33 (Low)           | System 1 (Habit)            | Ignore / Numb      |
+| **Y4**  | Flood Again      | `FLOOD:HIGH`                        | 0.75 (Frequent)   | 0.25 (Very Low)      | **System 1 (Boiling Frog)** | **Do Nothing**     |
+| **Y10** | **New Context**  | `FLOOD:HIGH` + `NEIGHBOR:ELEVATING` | 0.0 (New Combo)   | **1.0 (High)**       | **System 2 (Wake Up)**      | **Elevate House**  |
+
+> [!IMPORTANT]
+> **The Boiling Frog Effect**: Note how in Year 4, despite the high risk (`FLOOD:HIGH`), the Surprise is effectively zero ($S=0.25$). The agent has "normalized" the disaster. Only a **Context Shift** (Year 10) can break this habit loop.
+
+---
+
+## 5. The Reflection Engine (Meta-Cognition)
+
+While Memory stores the "What" (Episodic), Reflection produces the "Why" (Semantic).
+
+### 5.1 The Loop: From Experience to Wisdom
+
+1.  **Input (Episodic)**: "Year 1: Flood." + "Year 1: Bought Insurance."
+2.  **Process (Reasoning)**: The LLM analyzes the causal link between Event and Action.
+3.  **Output (Semantic)**: "Insight: Insurance is critical for financial survival during floods."
+
+### 5.2 Why is this necessary?
+
+| Feature          | Decision Logic (System 1/2)  | Reflection Logic (Meta)                |
+| :--------------- | :--------------------------- | :------------------------------------- |
+| **Question**     | "What should I do **NOW**?"  | "Was my past decision **GOOD**?"       |
+| **Time Horizon** | Present / Immediate Future   | Past / Long-term Future                |
+| **Mechanism**    | In-Context Learning          | Offline batch processing               |
+| **Output**       | Action (e.g., Buy Insurance) | Wisdom (e.g., "Floods are increasing") |
+
+**Without Reflection**, the agent is smart but static. **With Reflection**, the agent evolves its mental model over time, becoming more resilient to memory decay (The Goldfish Effect).
+
+---
+
+## 6. ⚙️ Configuration & References
 
 ```yaml
 memory_config:
-  type: "universal" # v3
+  type: "universal" # v3/v4
   params:
     arousal_threshold: 0.5
     W_recency: 0.3
     W_importance: 0.5
     W_context: 0.2
+
+reflection_config:
+  interval: 1 # Reflect every year
+  importance_boost: 0.9 # Insights are "Sticky"
 ```
 
-[1] Tversky & Kahneman (1973). _Availability Heuristic_. (v1: Basis for recency/saliency bias).
-[2] Friston (2010). _The free-energy principle: a rough guide to the brain?_. (v3: Basis for surprise-driven arousal).
-[3] Ebbinghaus (1885). _Memory: A Contribution to Experimental Psychology_. (v1/v2: The Forgetting Curve).
-[4] Park et al. (2023). _Generative Agents: Interactive Simulacra of Human Behavior_. (v2: The Weighted Scoring model of _Recency, Importance, and Relevance_).
-[5] Kahneman (2011). _Thinking, Fast and Slow_. (v3: Dual-Process Theory - switching between System 1 habits and System 2 rational deliberation).
+### References
+
+[1] **Tversky & Kahneman (1973)**. _Availability Heuristic_. (Basis for Recency Bias).
+[2] **Friston (2010)**. _The free-energy principle_. (Basis for Surprise Minimization).
+[3] **Schön, D. A. (1983)**. _The Reflective Practitioner_. (Basis for "Reflection-on-Action" vs "Reflection-in-Action").
+[4] **Dewey, J. (1933)**. _How We Think_. (Defining Reflection as the active, persistent, and careful consideration of beliefs).
+[5] **Park et al. (2023)**. _Generative Agents_. (Technical implementation of the Reflection Tree structure).
+[6] **Kahneman (2011)**. _Thinking, Fast and Slow_. (Dual-Process Theory).
