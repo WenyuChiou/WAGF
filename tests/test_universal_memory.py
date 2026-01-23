@@ -104,5 +104,32 @@ class TestUniversalCognitiveEngine(unittest.TestCase):
         # Should drop back to System 1
         self.assertEqual(engine.current_system, "SYSTEM_1", "Agent should have normalized by now.")
 
+    def test_symbolic_mode_novelty_first(self):
+        """Symbolic mode uses novelty-first surprise and switches systems."""
+        sensory_cortex = [
+            {
+                "path": "x",
+                "name": "X",
+                "bins": [
+                    {"label": "LOW", "max": 0.5},
+                    {"label": "HIGH", "max": 99.0},
+                ],
+            }
+        ]
+        engine = UniversalCognitiveEngine(
+            stimulus_key=None,
+            sensory_cortex=sensory_cortex,
+            arousal_threshold=0.5,
+            ema_alpha=0.5,
+        )
+
+        engine.retrieve(self.agent, world_state={"x": 0.8})
+        self.assertEqual(engine.current_system, "SYSTEM_2")
+        self.assertEqual(engine.last_surprise, 1.0)
+
+        engine.retrieve(self.agent, world_state={"x": 0.8})
+        self.assertEqual(engine.current_system, "SYSTEM_1")
+        self.assertLess(engine.last_surprise, 1.0)
+
 if __name__ == '__main__':
     unittest.main()

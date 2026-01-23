@@ -33,6 +33,20 @@ global_config:
     ema_alpha: 0.3            # EMA smoothing factor [0-1], lower = slower adaptation
     stimulus_key: "flood_depth_m"  # Default for households
     ranking_mode: "weighted"  # Memory ranking mode: "legacy" or "weighted"
+    sensory_cortex:
+      - path: "flood_depth_m"
+        name: "FLOOD"
+        bins:
+          - { label: "NONE", max: 0.0 }
+          - { label: "MINOR", max: 0.5 }
+          - { label: "MODERATE", max: 1.5 }
+          - { label: "SEVERE", max: 99.9 }
+      - path: "subsidy_rate"
+        name: "SUBSIDY"
+        bins:
+          - { label: "LOW", max: 0.3 }
+          - { label: "MEDIUM", max: 0.6 }
+          - { label: "HIGH", max: 1.0 }
 
   # =============================================================================
   # COGNITIVE CONFIG (Agent-Type Specific Surprise Engine Settings)
