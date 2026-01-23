@@ -20,92 +20,12 @@ References:
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
 from typing import Dict, Optional
-
-
-# =============================================================================
-# FLOODABM CALIBRATED PARAMETERS (Table S4)
-# =============================================================================
-# These are calibrated separately for MG and NMG using hybrid grid search
-# and bounded numerical optimization (RMSE + MAE minimization)
-
-# Default parameters (use MG/NMG specific when available)
-TAU_0 = 2.0       # tau_0: Initial half-life (years) - memory decays faster initially
-TAU_INF = 8.0     # tau_inf: Asymptotic half-life (years) - long-term memory persistence
-K_DECAY = 0.3     # k: Decay rate constant for half-life evolution
-
-# TP Gain Parameters
-THETA = 0.5       # theta: Damage ratio threshold for TP gain (50% damage)
-SHOCK_SCALE = 0.3  # cs: Shock scaling factor (not used in current formula)
-
-# Weighted decay coefficients
-ALPHA = 0.4       # PA weight in decay formula
-BETA = 0.6        # SC weight in decay formula
-
-# MG-specific calibrated parameters (Table S4)
-MG_PARAMS = {
-    "alpha": 0.50,
-    "beta": 0.21,
-    "tau_0": 1.00,
-    "tau_inf": 32.19,
-    "k": 0.03,
-}
-
-# NMG-specific calibrated parameters (Table S4)
-NMG_PARAMS = {
-    "alpha": 0.22,
-    "beta": 0.10,
-    "tau_0": 2.72,
-    "tau_inf": 50.10,
-    "k": 0.01,
-}
-
-
-@dataclass
-class TPState:
-    """Threat perception state for a group or agent."""
-
-    tp: float           # Current TP value [0, 1]
-    pa: float           # Place attachment score [0, 1]
-    sc: float           # Social capital score [0, 1]
-    year: int           # Current simulation year
-    is_mg: bool = False  # Whether this is a marginalized group
-
-    def to_dict(self) -> dict:
-        return {
-            "tp": round(self.tp, 4),
-            "pa": round(self.pa, 4),
-            "sc": round(self.sc, 4),
-            "year": self.year,
-            "is_mg": self.is_mg,
-        }
-
-
-@dataclass
-class TPUpdateResult:
-    """Result of TP update calculation."""
-
-    tp_new: float       # Updated TP value
-    tp_old: float       # Previous TP value
-    tau_t: float        # Current half-life
-    mu_t: float         # Current decay coefficient
-    damage_ratio: float  # Computed damage ratio
-    damage_gate: bool   # Whether damage gate was triggered
-    tp_decay: float     # TP lost to decay
-    tp_gain: float      # TP gained from damage
-
-    def to_dict(self) -> dict:
-        return {
-            "tp_new": round(self.tp_new, 4),
-            "tp_old": round(self.tp_old, 4),
-            "tau_t": round(self.tau_t, 4),
-            "mu_t": round(self.mu_t, 4),
-            "damage_ratio": round(self.damage_ratio, 4),
-            "damage_gate": self.damage_gate,
-            "tp_decay": round(self.tp_decay, 4),
-            "tp_gain": round(self.tp_gain, 4),
-        }
+from examples.multi_agent.environment.decay_models import (
+    TAU_0, TAU_INF, K_DECAY, THETA, SHOCK_SCALE, ALPHA, BETA,
+    MG_PARAMS, NMG_PARAMS,
+)
+from examples.multi_agent.environment.tp_state import TPState, TPUpdateResult
 
 
 class TPDecayEngine:
