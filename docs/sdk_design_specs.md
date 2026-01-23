@@ -94,18 +94,71 @@ policy = pmt.get_flood_recovery_policy(strictness="High")
 
 To ensure governance is transparent and non-arbitrary, the SDK provides **Narrative Justifications** for every intervention.
 
-- **GovernanceTrace**: Instead of a "Blocked" signal, the SDK outputs a structured trace:
+- **GovernanceTrace**: Instead of a simple "Blocked" signal, the SDK outputs a structured trace:
   - _Rule Hit_: `Financial-Prudence-V1`
   - _Metric_: `Current_Savings ($200) < Required_Premium ($500)`
-  - _Rationale_: "Agent attempted to purchase high-premium insurance despite critical liquidity shortage. This behavior is inconsistent with Risk-Averse household profiles."
-  - _Corrective Path_: "Recommend applying for government flood-relief grant (Skill: `apply_grant`)."
+  - _Rationale_: "Agent attempted to purchase insurance despite liquidity shortage."
+- **Counter-Factual Explanations**: The engine identifies the "Minimal State Change" required for success.
+  - _Logic_: "If `Savings` were > $500 (currently $200), this action would be valid. Theoretical Link: Bounded Rationality."
+  - _Value_: Provides researchers with the 'Causal Logic' behind every intervention.
 
 ### 2.6 Calibration & Validation Suite
 
-A critical requirement for ABM is ensuring the governance layer does not introduce **Researcher Bias** or suppress **Emergent Human Diversity**.
+A critical requirement for ABM is ensuring the governance layer does not introduce **Researcher Bias**.
 
-- **Calibration Sweeps**: An automated tool to find the "Goldilocks Zone" of rule strictness. It sweeps through `Rationality_Thresholds` and plots the **Safety vs. Agency Curve**.
-- **Behavioral Fidelity Benchmarking**: Built-in support for loading human survey data (e.g., Household Flood Surveys). The SDK calculates the **KL-Divergence** between the governed agent distribution and the human empirical distribution to validate simulation realism.
+- **Entropy Friction Analysis**: The SDK calculates the ratio between raw agent entropy ($S_{raw}$) and governed entropy ($S_{gov}$).
+  - _Insight_: A ratio $> 2.0$ indicates "Over-Governance," where the framework is suppressing too much emergent behavioral diversity.
+- **KL-Divergence Validation**: Quantitative comparison between Governed Agent distributions and Empirical Human distributions (CSV import).
+- **Functional Adapters**: Middleware that allows the SDK to read state from _any_ existing ABM environment (Mesa, NetLogo, etc.) using simple functional mappings:
+  ```python
+  GovernedAgent(agent, state_mapping={"wealth": lambda x: x.money})
+  ```
+
+### 2.7 The Governance Auditor (Scientific Rigor)
+
+To ensure simulations are reproducible and trustable, the Auditor layer provides immutable traces of every decision lifecycle.
+
+- **Scientific Replay**: Every step is logged as a "Replay Object" containing (Context + Prompt + Raw LLM Output + Governance Rationale). Researchers can reload any single step into a debugger to verify logic.
+- **Integrity Hashing**: Traces are cryptographically hashed to prevent post-hoc data tampering in sensitive policy simulations.
+
+### 2.8 The Execution Layer (Approval Gateway)
+
+The SDK follows a **"Look, Don't Touch"** policy to remain framework-agnostic.
+
+- **Decoupled Permissions**: Instead of executing code, the SDK returns a `ValidatedSkill` object.
+- **Approval Semantics**: The external simulation engine receives this object and is responsible for the actual state mutation. This prevents the SDK from needing complex "Write Access" to the user's database or world model.
+
+### 2.9 The External Environment Adapter
+
+To avoid hardcoding, the SDK uses a **Schema Mapping** approach to read world state.
+
+- **Universal Adapters**: Support for any environment (Mesa, NetLogo-Python, Custom).
+- **Mapping Interface**: Users define how to extract metrics (e.g., `savings`) from their specific environment objects via a simple dictionary mapping.
+
+### 2.10 Governed Memory (Temporal Consistency)
+
+Governance is applied not just to the _Action_, but to the **Write Path** of the agent's memory.
+
+- **Anti-Temporal Hallucination**: Prevents agents from "remembering" events that never occurred in the environment.
+- **Selective Retention**: Policies can define which events are "significant" enough to be committed to Long-Term Memory (LTM), reducing cognitive noise in long-horizon simulations.
+
+---
+
+### 2.11 Heterogeneous Context (Subjective Reality)
+
+To support complex ABMs where agents have limited or different information (e.g., Resident vs. Government), the SDK separates **Omniscient State** from **Subjective Context**.
+
+- **Context Mappers**: Developers define filters that restrict what an agent "sees."
+  - _Resident_: `Context = {local_flood_depth, family_health}`
+  - _Government_: `Context = {district_flood_risk, budget_deficit}`
+- **Fair Validation**: The Cognitive Interceptor validates the agent's reasoning against its _Subjective Context_, not the Omniscient State. This ensures agents aren't penalized for acting rationally based on incomplete information (Bounded Rationality).
+
+### 2.12 Symbolic Mechanics (The v4 Logic)
+
+To handle the scale of millions of agents, the SDK adopts the **v4 Neuro-Symbolic Engine**.
+
+- **Symbolic Signatures**: Instead of heavy vector embeddings for every memory, the SDK converts context into lightweight "Hashes" (e.g., `FLOOD:HIGH|PANIC:LOW`).
+- **Fast Retrieval**: $O(1)$ lookup for similar past experiences, enabling massive-scale memory systems without GPU overhead.
 
 ---
 
