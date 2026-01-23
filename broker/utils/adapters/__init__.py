@@ -1,0 +1,3 @@
+﻿"""
+Model-specific adapter helpers.
+"""
