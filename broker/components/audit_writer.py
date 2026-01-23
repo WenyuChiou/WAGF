@@ -54,6 +54,10 @@ class GenericAuditWriter:
         
         # Buffer for CSV export
         self._trace_buffer: Dict[str, List[Dict[str, Any]]] = {}
+        
+        # Buffer for JSONL writes (Performance Optimization)
+        self._jsonl_buffer: Dict[str, List[str]] = {}
+        self._jsonl_buffer_size = 10 # Flush every N traces
     
     def _get_file_path(self, agent_type: str) -> Path:
         """Get or create file path for agent type (JSONL traces in raw/ subdir)."""
@@ -113,20 +117,17 @@ class GenericAuditWriter:
         decisions = self.summary["agent_types"][agent_type]["decisions"]
         decisions[decision] = decisions.get(decision, 0) + 1
         
-        # Write JSONL with retry for cloud drive flakiness (Errno 22 / Locks)
+        # Buffered JSONL write (Optimized: flush every N traces)
         file_path = self._get_file_path(agent_type)
-        import time
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                with open(file_path, 'a', encoding='utf-8') as f:
-                    f.write(json.dumps(trace, ensure_ascii=False, default=str) + '\n')
-                break # Success
-            except (OSError, IOError) as e:
-                if attempt == max_retries - 1:
-                    logger.error(f" [AuditWriter:Error] Final failure writing trace to {file_path}: {e}")
-                else:
-                    time.sleep(1.0) # Wait for sync/lock to clear
+        json_line = json.dumps(trace, ensure_ascii=False, default=str) + '\n'
+        
+        if agent_type not in self._jsonl_buffer:
+            self._jsonl_buffer[agent_type] = []
+        self._jsonl_buffer[agent_type].append(json_line)
+        
+        # Flush buffer when threshold reached
+        if len(self._jsonl_buffer[agent_type]) >= self._jsonl_buffer_size:
+            self._flush_jsonl_buffer(agent_type, file_path)
         
         # Buffer for CSV
         if agent_type not in self._trace_buffer:
@@ -136,6 +137,11 @@ class GenericAuditWriter:
     def finalize(self) -> Dict[str, Any]:
         """Write summary and export CSVs."""
         self.summary["finalized_at"] = datetime.now().isoformat()
+        
+        # Flush remaining JSONL buffers before closing
+        for agent_type in list(self._jsonl_buffer.keys()):
+            file_path = self._get_file_path(agent_type)
+            self._flush_jsonl_buffer(agent_type, file_path)
         
         # Export summary JSON
         summary_path = self.output_dir / "audit_summary.json"
@@ -148,6 +154,25 @@ class GenericAuditWriter:
             
         logger.info(f"[Audit] Finalized. Summary: {summary_path}")
         return self.summary
+    
+    def _flush_jsonl_buffer(self, agent_type: str, file_path: Path) -> None:
+        """Flush buffered JSONL lines to disk."""
+        if agent_type not in self._jsonl_buffer or not self._jsonl_buffer[agent_type]:
+            return
+        
+        import time
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                with open(file_path, 'a', encoding='utf-8') as f:
+                    f.writelines(self._jsonl_buffer[agent_type])
+                self._jsonl_buffer[agent_type] = [] # Clear buffer
+                break
+            except (OSError, IOError) as e:
+                if attempt == max_retries - 1:
+                    logger.error(f" [AuditWriter:Error] Final failure flushing buffer to {file_path}: {e}")
+                else:
+                    time.sleep(1.0)
 
     def _export_csv(self, agent_type: str, traces: List[Dict[str, Any]]):
         """Export buffered traces to flat CSV with deep governance fields."""
@@ -188,9 +213,13 @@ class GenericAuditWriter:
                         # Flatten Demographic Audit (Phase 21)
                         row["demo_score"] = v.get("score", 0.0)
                         row["demo_anchors"] = "|".join(v.get("cited_anchors", []))
+                    elif k.lower() == "appraisal":
+                         # PROMOTE Appraisal to top level for CSV visibility
+                         row["appraisal"] = v
                     else:
                         row[f"reason_{k.lower()}"] = v
             else:
+                # Fallback: if reasoning is a string, check if it contains Appraisal logic
                 row["reason_text"] = str(reasoning)
             
             # 4. Validation Details (Which rule triggered)

@@ -23,7 +23,7 @@ global_config:
     # top_p: 0.9
     # top_k: 40
     num_ctx: 8192            # Context window size (Optimized for local stability)
-    num_predict: 1024         # Max tokens to generate
+    num_predict: 4096         # Max tokens to generate (Extended for DeepSeek R1 thinking)
     max_retries: 2            # Infrastructure resilience
     
   # [System Governance] - Global Rules
