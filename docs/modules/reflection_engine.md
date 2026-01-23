@@ -6,15 +6,15 @@ While the **Memory System** stores the "What" (Episodic Events), the **Reflectio
 
 ---
 
-## 5. The Reflection Engine
+## 1. The Mechanics of Reflection
 
-### 5.1 The Loop: From Experience to Wisdom
+### 1.1 The Loop: From Experience to Wisdom
 
 1.  **Input (Episodic)**: "Year 1: Flood." + "Year 1: Bought Insurance."
 2.  **Process (Reasoning)**: The LLM analyzes the causal link between Event and Action.
 3.  **Output (Semantic)**: "Insight: Insurance is critical for financial survival during floods."
 
-### 5.2 Why is this necessary?
+### 1.2 Decision vs. Reflection
 
 | Feature          | Decision Logic (System 1/2)  | Reflection Logic (Meta)                |
 | :--------------- | :--------------------------- | :------------------------------------- |
@@ -27,7 +27,29 @@ While the **Memory System** stores the "What" (Episodic Events), the **Reflectio
 
 ---
 
-### 5.3 Practical Case: The Reflection Loop (Input -> Process -> Output)
+## 2. Theoretical Benefits of Reflection
+
+Why invest computational resources in reflection? Behavioral science suggests three key benefits:
+
+### 2.1 Double-Loop Learning (Argyris & Schön)
+
+- **Single-Loop**: "Thermostat behavior." Correcting actions to match a goal (e.g., buying insurance to fix a loss).
+- **Double-Loop**: "Questioning the goal." Reflection allows the agent to ask: _"Is living here even sustainable?"_ This leads to fundamental behavioral shifts (e.g., Relocation) rather than just iterative fixes.
+
+### 2.2 Cognitive Economy (The Map vs. Territory)
+
+- Raw episodic memory is expensive to search (The "Territory").
+- Reflection compresses thousands of events into a few salient rules (The "Map").
+- This allows the agent to make faster decisions in Year 10 without re-reading Year 1's logs.
+
+### 2.3 Noise Filtering
+
+- In a stochastic environment, not every outcome is a signal.
+- Reflection acts as a **Low-Pass Filter**, ignoring one-off anomalies while amplifying consistent trends (Semantic Consolidation).
+
+---
+
+## 3. Practical Case: The Reflection Loop (Input -> Process -> Output)
 
 To understand how "Data" becomes "Wisdom," consider an agent facing repeated floods over 5 years.
 
@@ -54,7 +76,7 @@ The engine generates a new, high-importance memory that persists even if the raw
 
 ---
 
-## 6. ⚙️ Configuration & References
+## 4. ⚙️ Configuration & References
 
 ```yaml
 reflection_config:
@@ -66,5 +88,7 @@ reflection_config:
 
 [1] **Schön, D. A. (1983)**. _The Reflective Practitioner_. (Basis for "Reflection-on-Action" vs "Reflection-in-Action").
 [2] **Dewey, J. (1933)**. _How We Think_. (Defining Reflection as the active, persistent, and careful consideration of beliefs).
-[3] **Park et al. (2023)**. _Generative Agents_. (Technical implementation of the Reflection Tree structure).
-[4] **Kahneman (2011)**. _Thinking, Fast and Slow_. (Dual-Process Theory).
+[3] **Argyris, C. (1976)**. _Single-Loop and Double-Loop Models in Research on Decision Making_. (Theoretical basis for updating mental models vs just actions).
+[4] **Bandura, A. (1977)**. _Social Learning Theory_. (Basis for learning from neighbors/observations).
+[5] **Park et al. (2023)**. _Generative Agents_. (Technical implementation of the Reflection Tree structure).
+[6] **Kahneman (2011)**. _Thinking, Fast and Slow_. (Dual-Process Theory).
