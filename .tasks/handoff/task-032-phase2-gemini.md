@@ -8,6 +8,28 @@
 
 ---
 
+## Git Branch
+
+```bash
+# Wait for Phase 1 to complete, then:
+git checkout task-032-phase1
+git checkout -b task-032-phase2
+
+# Or if Phase 1 is not done yet, start from base:
+git checkout task-032-sdk-base
+git checkout -b task-032-phase2
+```
+
+**Stacked PR Structure**:
+```
+main
+ └── task-032-sdk-base (Phase 0)
+      └── task-032-phase1 (Codex)
+           └── task-032-phase2 (this branch) ← YOUR WORK HERE
+```
+
+---
+
 ## Objective
 
 Port the rule evaluation logic from `validators/agent_validator.py` to create a clean, stateless `PolicyEngine` class that supports numeric, categorical, and composite rules.
