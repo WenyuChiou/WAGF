@@ -400,9 +400,11 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         except Exception as e:
             logger.error(f"[Context:Error] Failed to inject response_format/rating_scale: {e}")
 
+        # KV Cache Optimization: Static sections (System, Institutional, Global) placed first
+        # to maximize prefix sharing across agents within the same simulation year.
         default_template = (
-            "{system_prompt}\n\n{priority_section}\n\n{personal_section}\n\n{local_section}\n\n"
-            "{institutional_section}\n\n{global_section}\n\n### [AVAILABLE OPTIONS]\n{options_text}"
+            "{system_prompt}\n\n{institutional_section}\n\n{global_section}\n\n"
+            "{priority_section}\n\n{personal_section}\n\n{local_section}\n\n### [AVAILABLE OPTIONS]\n{options_text}"
         )
         template = self.prompt_templates.get(agent_type, default_template)
         if "{system_prompt}" not in template:
