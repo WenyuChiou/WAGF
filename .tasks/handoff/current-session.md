@@ -87,3 +87,32 @@ Task-030 is complete. Ready for:
 - New experiment runs with aligned parameters
 - Documentation updates (README migration guide)
 - Further development tasks
+
+---
+
+## Updates (2026-01-23)
+
+### Task-031B Progress (Gemini CLI)
+- Priority 1 complete in stacked branches:
+  - 1.1 model_adapter split (branch task-031b-model-adapter, commit cd6329d)
+  - 1.2 context_builder split (branch task-031b-context-builder, commit b4fe8f5)
+  - 1.3 memory_engine split (branch task-031b-memory-engine, commit f3a5b51)
+- Priority 2 in progress: 2.1 run_unified_experiment split
+
+### Task-031C Complete (Claude Code) ✅
+- **Sprint 0**: Restored corrupted `symbolic_context.py` from git
+- **Sprint 1**: Created `cognitive_trace.py` dataclass
+- **Sprint 2**: Enhanced `SymbolicContextMonitor` with tracing
+- **Sprint 3**: Added `retrieve_with_trace()` to `UniversalCognitiveEngine`
+- **Sprint 4**: Created `broker/visualization/cognitive_plots.py`
+- **Sprint 5**: Created `tests/test_cognitive_trace.py` (8 tests pass)
+
+**Verification**: 16/16 tests pass (symbolic_context + universal_memory + cognitive_trace)
+
+### Files Created/Modified in Task-031C
+1. `broker/components/cognitive_trace.py` - NEW (CognitiveTrace dataclass)
+2. `broker/components/symbolic_context.py` - MODIFIED (added tracing methods)
+3. `broker/components/universal_memory.py` - MODIFIED (added retrieve_with_trace)
+4. `broker/visualization/__init__.py` - NEW
+5. `broker/visualization/cognitive_plots.py` - NEW (visualization tools)
+6. `tests/test_cognitive_trace.py` - NEW (8 tests)

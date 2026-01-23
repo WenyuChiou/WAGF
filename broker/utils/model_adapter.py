@@ -16,6 +16,10 @@ import json
 
 from ..interfaces.skill_types import SkillProposal
 from ..utils.logging import logger
+from .preprocessors import GenericRegexPreprocessor, SmartRepairPreprocessor, get_preprocessor
+from .adapters.deepseek import deepseek_preprocessor
+from .preprocessors import GenericRegexPreprocessor, SmartRepairPreprocessor, get_preprocessor
+from .adapters.deepseek import deepseek_preprocessor
 
 
 class ModelAdapter(ABC):
@@ -56,35 +60,6 @@ class ModelAdapter(ABC):
 
 
 from .agent_config import load_agent_config
-
-class GenericRegexPreprocessor:
-    """Configurable regex-based preprocessor."""
-    def __init__(self, patterns: List[Dict[str, Any]]):
-        self.patterns = patterns
-    def __call__(self, text: str) -> str:
-        if not text: return ""
-        for p in self.patterns:
-            pattern = p.get("pattern", "")
-            repl = p.get("repl", "")
-            if pattern:
-                text = re.sub(pattern, repl, text, flags=re.DOTALL)
-        return text.strip()
-
-def get_preprocessor(p_cfg: Dict[str, Any]) -> Callable[[str], str]:
-    """Factory for preprocessors based on config."""
-    p_type = p_cfg.get("type", "identity").lower()
-    if p_type == "deepseek":
-        return deepseek_preprocessor
-    elif p_type == "json_extract":
-        return json_extract_preprocessor
-    elif p_type == "smart_repair":
-        return SmartRepairPreprocessor(p_cfg.get("quote_values"))
-    elif p_type == "regex":
-        return GenericRegexPreprocessor(p_cfg.get("patterns", []))
-    return lambda x: x
-
-
-    return lambda x: x
 
 
 
@@ -832,15 +807,5 @@ def get_adapter(model_name: str) -> ModelAdapter:
 
 
 
-# =============================================================================
-# LEGACY ALIASES (for backward compatibility)
-# =============================================================================
-
-class OllamaAdapter(UnifiedAdapter):
-    """Alias for UnifiedAdapter (backward compatibility)."""
-    pass
-
-
-class OpenAIAdapter(UnifiedAdapter):
-    """Alias for UnifiedAdapter (backward compatibility)."""
-    pass
+from .adapters.ollama import OllamaAdapter
+from .adapters.openai import OpenAIAdapter

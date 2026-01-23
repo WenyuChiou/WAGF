@@ -53,7 +53,9 @@ def analyze_qualitative(filepath):
                         "reasoning": reasoning.get("TP_REASON", "")
                     })
 
-            except Exception:
+            except Exception as e:
+                # Debug failures
+                if total_records <= 5: print(f"Error parse: {e}")
                 continue
 
     # Results
@@ -75,7 +77,7 @@ def analyze_qualitative(filepath):
         print(f"  Strategy (Why Act?): {ex['strategy'][:200]}...")
 
 if __name__ == "__main__":
-    path = r"examples/single_agent/results/JOH_FINAL/deepseek_r1_8b/Group_B/Run_1/deepseek_r1_8b_strict/raw/household_traces.jsonl"
+    path = r"examples/single_agent/results/JOH_FINAL/deepseek_r1_1_5b/Group_B/Run_1/deepseek_r1_1_5b_strict/raw/household_traces.jsonl"
     if os.path.exists(path):
         analyze_qualitative(path)
     else:

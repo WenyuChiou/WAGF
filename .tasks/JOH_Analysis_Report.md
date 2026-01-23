@@ -1,49 +1,56 @@
-# JOH Experiment Analysis Report (DeepSeek R1 8B)
+# JOH Experiment Analysis Report (Final Integration)
 
-## 1. Model Verification: `gpt-oss`
+## 1. The Governance Scaling Law (Consolidated)
 
-- **Status**: ✅ Compatible
-- **Test Result**: Successfully generated valid JSON output.
-- **Performance**: ~13.44s per inference (Slower than DeepSeek 8B ~7s).
-- **Recommendation**: Valid backup model.
+Our analysis of DeepSeek R1 1.5B vs 8B across 3 experimental groups (Control, Governed, Memory) reveals a distinct phase transition in how LLMs behave under varying constraint levels.
 
----
+### Phase 1: The Guardrail Phase (1.5B)
 
-## 2. DeepSeek R1 8B Analysis (Corrected)
+_Governance as "Life Support" against Entropy and Hallucination._
 
-### 2.1 Stability (Efficiency)
+- **The Hallucination Problem**: In Group A (Control), **73.9%** of 1.5B agents claimed to be _"Already Relocated"_ despite never moving.
+  - This is a textbook "Fluency-Reality Gap": The model hallucinates a safe state to avoid the cognitive load of decision-making.
+- **The Correction**: Group B (Governed) forces the agents to acknowledge their risk state.
+  - **Result**: Self-Repair Rate (SRR) indicates **18.77%** of outputs require structural repair.
+  - **Behavior**: Shifts from "Lying" (Already Relocated) to "Alarmist" (336 counts of buying insurance).
+- **Verdict**: For small models, Governance acts as a **Reality Anchor**, preventing state hallucination.
 
-- **Metric**: Self-Repair Rate (SRR)
-- **Result**: **1.53%** Error Rate (98.5% First-Pass Success).
-- **Insight**: DeepSeek R1 8B exhibits exceptional syntactic stability. The "Governance Tax" is primarily computational (reasoning time), not corrective (retries). This places it firmly in the **T3/T4 (Efficiency Sweet-spot)** category of the Governance Scaling Law.
+### Phase 2: The Compass Phase (8B)
 
-### 2.2 Cognitive Activity (Reasoning)
+_Governance as "Rationality Filter" against Anxiety._
 
-- **PMT Counts** (Group B):
-  - Severity: ~6.75/agent
-  - Cost: ~8.48/agent
-- **Insight**: The model actively weighs costs against risks. It is not "mindlessly" following rules; it is deliberating.
+- **The Anxiety Problem**: In Group A (Control), 8B agents exhibit "Action Bias".
+  - **45%** chose to Elevate House (Major Action) immediately.
+  - **24%** bought insurance.
+  - Only **21%** did nothing.
+  - _Economic Reality_: If 70% of a city acts instantly, the market collapses. This represents "System 1" anxiety unchecked by "System 2" constraints.
+- **The Correction**: Group B (Governed) suppresses this over-reaction.
+  - **Result**: "Do Nothing" rises to ~80%. Insurance/Elevation drops to ~10%.
+  - **Fidelity**: $\rho = 0.37$ (Honest). Agents only act when threat is high.
+- **Verdict**: For medium models, Governance acts as a **Rationality Filter**, damping "Action Bias" and ensuring actions are proportional to risk.
 
-### 2.3 Internal Fidelity (Rationality)
+### Phase 3: The Memory Amplifier (Group C)
 
-_Measurement of alignment between Perceived Threat (TP) and Adaptive Action._
+_How Long-Term Memory alters the equation._
 
-| Group                  | Spearman $\rho$ | P-Value      | Verdict                        |
-| ---------------------- | --------------- | ------------ | ------------------------------ |
-| **Group B (Governed)** | **0.37**        | $< 10^{-30}$ | **Moderate Fidelity** (Honest) |
-| **Group C (Memory)**   | **0.43**        | $< 10^{-30}$ | **High Fidelity** (+16% Boost) |
-
-**Key Findings**:
-
-1.  **Honesty Confirmed**: Qualitative analysis found **0 mismatches** where Threat was "Low" but Action was "High". The model buys insurance _only_ when it perceives High/Medium threat.
-2.  **The Memory Amplifier**: Group C (with Memory) shows higher fidelity than Group B. This suggests that **Long-Term Memory acts as a cognitive stabilizer**, refining the agent's risk perception over time and aligning it closer to rational action.
-3.  **Governance Scaling Law**: At 8B parameters, the Governance Framework does not just "constrain" chaos (as with 1.5B); it **amplifies rationality** by providing the structure for consistent reasoning.
+- **1.5B + Memory**: Fidelity $\rho$ jumps to **0.46**. Memory provides context that stabilizes the chaotic 1.5B reasoning better than rules alone.
+- **8B + Memory**: Fidelity $\rho$ improves to **0.43** (+16%). Memory refines the risk perception, making the "Compass" more accurate.
 
 ---
 
-## 3. Conclusion & Next Steps
+## 2. Summary of Metrics
 
-DeepSeek R1 8B is a viable, rational engine for Socio-Hydrology.
+| Metric                 | 1.5B (Chaos)                              | 8B (Rational)                          |
+| ---------------------- | ----------------------------------------- | -------------------------------------- |
+| **Stability (SRR)**    | 18.77% Error Rate                         | 1.53% Error Rate                       |
+| **Logic (Group A)**    | Hallucinated Safety ("Already Relocated") | Action Bias (Anxiety/Over-reaction)    |
+| **Role of Governance** | **Reality Anchor** (Fixes Hallucination)  | **Rationality Filter** (Fixes Anxiety) |
+| **Role of Memory**     | Stabilizer                                | Optimizer                              |
 
-- **Hypothesis Confirmed**: 8B represents a "Rationality Plateau" where agents are honest and responsive to governance.
-- **Next Experiment**: Run `gpt-oss` as Group B to compare if a non-reasoning model (standard GPT) acts with similar fidelity or succumbs to "Narrative Entropy".
+## 3. Conclusion
+
+The "Governance Scaling Law" is non-linear.
+
+- At low parameters, we govern to **prevent lies**.
+- At medium parameters, we govern to **prevent panic**.
+  This finding directly addresses the "Asymmetry" and "Hallucination" hypothesis in the Technical Note.
