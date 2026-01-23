@@ -161,6 +161,33 @@ While Memory stores the "What" (Episodic), Reflection produces the "Why" (Semant
 
 ---
 
+### 5.3 Practical Case: The Reflection Loop (Input -> Process -> Output)
+
+To understand how "Data" becomes "Wisdom," consider an agent facing repeated floods over 5 years.
+
+#### **1. Input: Scattered Episodic Memories (The Puzzle Pieces)**
+
+The memory store contains raw, time-stamped events:
+
+- **Year 1 (Event)**: "Flood occurred. I did nothing." (Result: House damaged, \$10k loss)
+- **Year 3 (Event)**: "Flood occurred. I bought insurance." (Result: Financial relief, \$0 loss)
+- **Year 4 (Observation)**: "Neighbor A elevated their house. Neighbor B moved away."
+
+#### **2. Process: Reasoning (The Synthesis)**
+
+The Reflection Engine (LLM) analyzes these scattered points during the year-end review:
+
+> _"I notice a pattern: floods are happening frequently (Y1, Y3). When I did nothing (Y1), I suffered financial loss. When I bought insurance (Y3), I was protected. However, my neighbors are taking permanent measures like elevation."_
+
+#### **3. Output: Semantic Insight (The Wisdom)**
+
+The engine generates a new, high-importance memory that persists even if the raw events fade:
+
+- **Insight A (Rule)**: "Passive behavior ('Do Nothing') is financially risky in this area."
+- **Insight B (Strategy)**: "Insurance provides a safety net, but Elevation offers permanent protection."
+
+---
+
 ## 6. ⚙️ Configuration & References
 
 ```yaml
