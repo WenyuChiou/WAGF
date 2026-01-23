@@ -116,3 +116,78 @@ Task-030 is complete. Ready for:
 4. `broker/visualization/__init__.py` - NEW
 5. `broker/visualization/cognitive_plots.py` - NEW (visualization tools)
 6. `tests/test_cognitive_trace.py` - NEW (8 tests)
+
+---
+
+## Task-031B Evaluation Complete (Claude Code) ✅
+
+**Evaluated**: 2026-01-23
+**Result**: All splits verified, all tests pass
+
+### Verification Summary
+- **All 8 split tests pass**: model_adapter, context_builder, memory_engine, run_unified_experiment, initial_memory, survey_loader, tp_decay, hazard
+- **All 16 core tests pass**: symbolic_context (3), universal_memory (5), cognitive_trace (8)
+- **Line count reductions verified**: context_builder.py 948→82, memory_engine.py 760→64
+
+### Minor Issue Found
+- `UnifiedModelAdapter` renamed to `UnifiedAdapter` (backwards compatibility note)
+
+---
+
+## Task-032: SDK Migration - IN PROGRESS
+
+**Title**: GovernedAI SDK Migration
+**Status**: 🔄 Phase 0 COMPLETE, Phase 1-2 ready for delegation
+
+### Phase 0 Complete (Claude Code) ✅
+
+**Completed**: 2026-01-23
+
+| Item | Status |
+|:-----|:-------|
+| SDK directory structure | ✅ Created |
+| `types.py` (4 dataclasses) | ✅ Created |
+| `test_types.py` (18 tests) | ✅ All pass |
+| Handoff for Codex (Phase 1) | ✅ Created |
+| Handoff for Gemini CLI (Phase 2) | ✅ Created |
+
+### Files Created in Phase 0
+1. `governed_ai_sdk/__init__.py`
+2. `governed_ai_sdk/v1_prototype/__init__.py`
+3. `governed_ai_sdk/v1_prototype/types.py` - GovernanceTrace, PolicyRule, CounterFactualResult, EntropyFriction
+4. `governed_ai_sdk/v1_prototype/core/__init__.py`
+5. `governed_ai_sdk/v1_prototype/memory/__init__.py`
+6. `governed_ai_sdk/v1_prototype/audit/__init__.py`
+7. `governed_ai_sdk/v1_prototype/xai/__init__.py`
+8. `governed_ai_sdk/v1_prototype/interfaces/__init__.py`
+9. `governed_ai_sdk/tests/__init__.py`
+10. `governed_ai_sdk/tests/test_types.py`
+
+### Handoff Files Created
+1. `.tasks/handoff/task-032-phase1-codex.md` - Skeleton & Core (wrapper.py, audit/replay.py)
+2. `.tasks/handoff/task-032-phase2-gemini.md` - Policy Engine (engine.py, policy_loader.py)
+
+### Phase Assignments
+
+| Phase | Description | Assignee | Status |
+|:------|:------------|:---------|:-------|
+| **0** | Type Definitions | Claude Code | ✅ COMPLETE |
+| **1** | Skeleton & Core | Codex | 🔲 Ready |
+| **2** | Policy Engine | Gemini CLI | 🔲 Ready |
+| **3** | Memory Layer | Claude Code | 🔲 Blocked on 1 |
+| **4A** | XAI Counterfactual | Claude Code | 🔲 Blocked on 2 |
+| **4B** | Entropy Calibrator | Gemini CLI | 🔲 Blocked on 2 |
+| **5** | Integration Tests | All | 🔲 Blocked on 4 |
+| **6** | Documentation | Claude Code | 🔲 Blocked on 5 |
+
+### Verification Command
+```bash
+python -c "from governed_ai_sdk.v1_prototype.types import GovernanceTrace, PolicyRule; print('Phase 0 OK')"
+pytest governed_ai_sdk/tests/test_types.py -v  # 18 tests pass
+```
+
+### Phase 1 Progress (Codex)
+
+- Created: `interfaces/protocols.py`, `core/wrapper.py`, `audit/replay.py`, `demo_sdk_usage.py`
+- Added tests: `governed_ai_sdk/tests/test_wrapper.py`
+- Verified: `pytest governed_ai_sdk/tests/test_wrapper.py -v` (5 tests pass)
