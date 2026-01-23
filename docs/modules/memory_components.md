@@ -138,11 +138,10 @@ V3 is the "controller" of the cognitive architecture. It models the **Arousal Lo
 
 ---
 
-## 5. The Reflection Engine (Meta-Cognition)
+## 5. Related Components
 
-> [!NOTE]
-> The Reflection Engine has been moved to its own module documentation: **[Reflection Engine](reflection_engine.md)**.
-> It details the process of transforming episodic memory into semantic wisdom (Meta-Cognition).
+- **[Reflection Engine (Meta-Cognition)](reflection_engine.md)**: Defines how this memory system's outputs are processed into semantic wisdom.
+- **[Simulation Engine](../modules/simulation_engine.md)**: The environment that generates the `Event` and `Observation` signals.
 
 ---
 
