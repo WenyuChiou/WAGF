@@ -15,6 +15,9 @@ References:
 
 import pandas as pd
 import numpy as np
+from survey.pmt_calculator import compute_construct_score
+from survey.mg_classifier import determine_mg_status
+from survey.stratified_sampler import stratified_sample
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass, asdict
@@ -179,85 +182,6 @@ def filter_nj_respondents(df: pd.DataFrame) -> pd.DataFrame:
     return nj_df
 
 
-def compute_construct_score(row: pd.Series, columns: List[str]) -> float:
-    """
-    Compute mean score for a PMT construct.
-
-    Args:
-        row: Survey response row
-        columns: List of column names for this construct
-
-    Returns:
-        Mean score (1-5), defaults to 3.0 if no valid responses
-    """
-    values = []
-    for col in columns:
-        if col in row.index and pd.notna(row[col]):
-            val = row[col]
-            # Convert Likert text to number
-            if isinstance(val, str):
-                val = LIKERT_MAP.get(val.strip(), 3)
-            elif isinstance(val, (int, float)):
-                val = max(1, min(5, val))  # Clamp to 1-5
-            else:
-                continue
-            values.append(val)
-
-    return np.mean(values) if values else 3.0
-
-
-def determine_mg_status(row: pd.Series) -> Tuple[bool, int]:
-    """
-    Determine Marginalized Group status based on 2/3 criteria.
-
-    Criteria:
-    1. Housing cost burden >30%: Q41 = "Yes"
-    2. No vehicle: Q8 = "No"
-    3. Below 150% poverty line: Q43 < threshold (by family size)
-
-    Returns:
-        (is_mg, criteria_met_count)
-    """
-    criteria_met = 0
-
-    # Criterion 1: Housing cost burden
-    cost_burden = str(row.get("Q41", "")).strip().lower()
-    if cost_burden == "yes":
-        criteria_met += 1
-
-    # Criterion 2: No vehicle
-    vehicle = str(row.get("Q8", "")).strip().lower()
-    if vehicle == "no":
-        criteria_met += 1
-
-    # Criterion 3: Below 150% poverty line
-    income_bracket = str(row.get("Q43", ""))
-    income = INCOME_MIDPOINTS.get(income_bracket, 50000)
-
-    # Get family size (default to 3)
-    family_size_raw = row.get("Q10", 3)
-    if isinstance(family_size_raw, str):
-        # Extract number from string like "3" or "more than 8"
-        if "more than" in family_size_raw.lower():
-            family_size = 8
-        else:
-            try:
-                family_size = int(family_size_raw)
-            except:
-                family_size = 3
-    else:
-        family_size = int(family_size_raw) if pd.notna(family_size_raw) else 3
-
-    family_size = max(1, min(8, family_size))
-    poverty_threshold = POVERTY_150_PCT.get(family_size, 46800)
-
-    if income < poverty_threshold:
-        criteria_met += 1
-
-    is_mg = criteria_met >= 2
-    return is_mg, criteria_met
-
-
 def parse_tenure(row: pd.Series) -> str:
     """Parse tenure status from survey response."""
     tenure_raw = str(row.get("Q5", "")).strip().lower()
@@ -382,75 +306,6 @@ def process_survey_row(row: pd.Series, idx: int) -> SurveyHousehold:
         post_flood_action=post_flood_action,
         zipcode=zipcode,
     )
-
-
-def stratified_sample(
-    households: List[SurveyHousehold],
-    n_sample: int = 100,
-    seed: int = SEED
-) -> List[SurveyHousehold]:
-    """
-    Perform stratified sampling by MG status × tenure.
-
-    Maintains original population proportions:
-    - MG: ~16%, NMG: ~84%
-    - Owner: ~64%, Renter: ~36%
-    """
-    random.seed(seed)
-    np.random.seed(seed)
-
-    # Group by strata
-    strata = {
-        ("MG", "Owner"): [],
-        ("MG", "Renter"): [],
-        ("NMG", "Owner"): [],
-        ("NMG", "Renter"): [],
-    }
-
-    for h in households:
-        mg_key = "MG" if h.mg else "NMG"
-        strata[(mg_key, h.tenure)].append(h)
-
-    # Calculate proportions
-    total = len(households)
-    proportions = {k: len(v) / total for k, v in strata.items()}
-
-    print(f"\n[INFO] Population proportions:")
-    for k, p in proportions.items():
-        print(f"  {k}: {p:.1%} ({len(strata[k])} households)")
-
-    # Sample from each stratum
-    sampled = []
-    for key, proportion in proportions.items():
-        stratum_n = max(1, round(n_sample * proportion))
-        available = strata[key]
-
-        if len(available) >= stratum_n:
-            sampled.extend(random.sample(available, stratum_n))
-        else:
-            # If not enough, take all available
-            sampled.extend(available)
-            print(f"[WARN] Stratum {key} has only {len(available)} (needed {stratum_n})")
-
-    # Adjust if we have too many or too few
-    if len(sampled) > n_sample:
-        sampled = random.sample(sampled, n_sample)
-    elif len(sampled) < n_sample:
-        # Fill from largest stratum
-        remaining = n_sample - len(sampled)
-        all_remaining = [h for h in households if h not in sampled]
-        if all_remaining:
-            sampled.extend(random.sample(all_remaining, min(remaining, len(all_remaining))))
-
-    print(f"\n[INFO] Sampled {len(sampled)} households")
-
-    # Verify sample proportions
-    sample_mg = sum(1 for h in sampled if h.mg) / len(sampled)
-    sample_owner = sum(1 for h in sampled if h.tenure == "Owner") / len(sampled)
-    print(f"  MG ratio: {sample_mg:.1%}")
-    print(f"  Owner ratio: {sample_owner:.1%}")
-
-    return sampled
 
 
 def save_to_csv(households: List[SurveyHousehold], output_path: Path) -> None:
