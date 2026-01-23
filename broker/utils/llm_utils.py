@@ -174,8 +174,8 @@ def _invoke_ollama_direct(model: str, prompt: str, params: Dict[str, Any], verbo
     
     try:
         # Increase timeout for 30B/32B models AND all DeepSeek R1 models (known to be slow)
-        if any(x in model.lower() for x in ["30b", "32b", "70b", "deepseek"]) and "1.5b" not in model.lower():
-            timeout = 300
+        if any(x in model.lower() for x in ["30b", "32b", "70b", "deepseek"]):
+            timeout = 600 # Extended to 10 minutes for DeepSeek R1 Thinking
         else:
             timeout = 120
         response = requests.post(url, json=data, timeout=timeout)
