@@ -160,14 +160,15 @@ def _invoke_ollama_direct(model: str, prompt: str, params: Dict[str, Any], verbo
         "top_p": params.get("top_p", 0.9),
     }
     
-    # Phase 46: Add stop sequences to cut off thinking loops
-    options["stop"] = ["\n{", "\n\n", "Done", "Thinking", "The JSON", "{"]
+    # Phase 47: Global Disable of Strict JSON Mode
+    # User Request: "Turn it off for all" to fix DeepSeek R1 <think> tokens.
+    # We rely on the prompt to enforce JSON structure.
     
     data = {
         "model": model,
         "prompt": prompt,
         "stream": False,
-        "format": "json", # FORCE OLLAMA TO OUTPUT JSON
+        "format": None, # DISABLED globally for Reasoning Model compatibility
         "options": options
     }
     
