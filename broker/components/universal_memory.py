@@ -116,7 +116,8 @@ class UniversalCognitiveEngine:
 
     def __init__(
         self,
-        stimulus_key: str,  # REQUIRED - no default value to ensure explicit configuration
+        stimulus_key: Optional[str] = None,
+        sensory_cortex: Optional[List[Dict]] = None,
         arousal_threshold: float = 2.0,
         ema_alpha: float = 0.3,
         # HumanCentricMemoryEngine params
@@ -133,14 +134,6 @@ class UniversalCognitiveEngine:
         ranking_mode: str = "weighted",
         seed: Optional[int] = None
     ):
-        # Validate required parameters
-        if not stimulus_key:
-            raise ValueError(
-                "stimulus_key is required for UniversalCognitiveEngine. "
-                "Examples: 'environmental_indicator' (agent_type1), 'economic_metric' (agent_type2), "
-                "'capability_gap' (agent_type3)"
-            )
-
         # Import here to avoid circular dependency
         from broker.components.memory_engine import HumanCentricMemoryEngine
         import warnings
@@ -165,8 +158,22 @@ class UniversalCognitiveEngine:
 
         # Surprise engine params
         self.arousal_threshold = arousal_threshold
-        self.stimulus_key = stimulus_key
-        self.ema_predictor = EMAPredictor(alpha=ema_alpha, initial_value=0.0)
+        self.mode = "scalar"
+        self.context_monitor = None
+
+        if sensory_cortex:
+            from broker.components.symbolic_context import Sensor, SymbolicContextMonitor
+
+            sensors = [Sensor(**sensor_cfg) for sensor_cfg in sensory_cortex]
+            self.context_monitor = SymbolicContextMonitor(sensors, arousal_threshold)
+            self.mode = "symbolic"
+            self.stimulus_key = None
+            self.ema_predictor = None
+        else:
+            if not stimulus_key:
+                stimulus_key = "flood_depth_m"
+            self.stimulus_key = stimulus_key
+            self.ema_predictor = EMAPredictor(alpha=ema_alpha, initial_value=0.0)
 
         # Current cognitive state
         self.current_system = "SYSTEM_1"
@@ -216,6 +223,10 @@ class UniversalCognitiveEngine:
 
         # Extract the stimulus value
         reality = float(world_state.get(self.stimulus_key, 0.0))
+
+        if self.mode == "symbolic" and self.context_monitor:
+            _, surprise = self.context_monitor.observe(world_state)
+            return surprise
 
         # Calculate surprise before updating expectation
         surprise = self.ema_predictor.surprise(reality)

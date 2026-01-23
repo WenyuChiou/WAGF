@@ -468,6 +468,11 @@ class AgentTypeConfig:
         merged.update(global_mem)
         return merged
 
+    def get_sensory_cortex(self, agent_type: str = None) -> Optional[List[Dict]]:
+        """Return sensory_cortex config if defined in global memory config."""
+        memory_cfg = self._config.get("global_config", {}).get("memory", {})
+        return memory_cfg.get("sensory_cortex", None)
+
     def get_response_format(self, agent_type: str) -> Dict[str, Any]:
         """Get response format configuration (delimiters, fields) with shared fallback."""
         cfg = self.get(agent_type)
