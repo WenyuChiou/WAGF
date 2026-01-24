@@ -12,10 +12,13 @@ class InteractionHub:
     """
     Manages the 'Worldview' of agents by aggregating tiered information.
     """
-    def __init__(self, graph: SocialGraph, memory_engine: Optional[MemoryEngine] = None, 
+    def __init__(self, graph: Optional[SocialGraph] = None, memory_engine: Optional[MemoryEngine] = None, 
                  environment: Optional[TieredEnvironment] = None,
-                 spatial_observables: List[str] = None):
-        self.graph = graph
+                 spatial_observables: List[str] = None,
+                 social_graph: Optional[SocialGraph] = None):
+        if graph is None and social_graph is None:
+            raise ValueError("InteractionHub requires a social graph")
+        self.graph = graph or social_graph
         self.memory_engine = memory_engine
         self.environment = environment
         self.spatial_observables = spatial_observables or []
