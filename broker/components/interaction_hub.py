@@ -37,7 +37,7 @@ class InteractionHub:
             
         return spatial_context
 
-    def get_visible_neighbor_actions(self, agent_id: str, agents: Dict[str, Any]) -> List[str]:
+    def get_visible_neighbor_actions(self, agent_id: str, agents: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         Get visible physical actions of neighbors (e.g., elevation, relocation).
 
@@ -46,7 +46,7 @@ class InteractionHub:
         conversation (observational learning per PubMed 29148082).
 
         Returns:
-            List of visible action descriptions
+            List of visible action dicts
         """
         neighbor_ids = self.graph.get_neighbors(agent_id)
         visible_actions = []
@@ -58,14 +58,27 @@ class InteractionHub:
 
             # Check for elevated status (visible: construction/raised foundation)
             if getattr(neighbor, 'elevated', False):
-                visible_actions.append(f"Neighbor {nid} has elevated their house")
+                visible_actions.append({
+                    "neighbor_id": nid,
+                    "action": "elevated_house",
+                    "description": f"Neighbor {nid} has elevated their house",
+                })
 
             # Check for relocated status (visible: moving truck/empty house)
             if getattr(neighbor, 'relocated', False):
-                visible_actions.append(f"Neighbor {nid} has moved away")
+                visible_actions.append({
+                    "neighbor_id": nid,
+                    "action": "relocated",
+                    "description": f"Neighbor {nid} has moved away",
+                })
 
-            # Check for insurance (not directly visible, but may be inferred from flood sign)
-            # Skipped: insurance is private info, not visually observable
+            # Check for insurance (visible sign/sticker)
+            if getattr(neighbor, 'has_flood_insurance', False):
+                visible_actions.append({
+                    "neighbor_id": nid,
+                    "action": "insured",
+                    "description": f"Neighbor {nid} appears to have flood insurance",
+                })
 
         return visible_actions
 
@@ -114,7 +127,8 @@ class InteractionHub:
 
         return {
             "gossip": gossip,
-            "visible_actions": visible_actions
+            "visible_actions": visible_actions,
+            "neighbor_count": len(self.graph.get_neighbors(agent_id)),
         }
 
     def build_tiered_context(self, agent_id: str, agents: Dict[str, Any], global_news: List[str] = None) -> Dict[str, Any]:
