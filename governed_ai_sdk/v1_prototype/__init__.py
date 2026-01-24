@@ -32,6 +32,9 @@ from .xai.counterfactual import (
     explain_blocked_action,
 )
 
+# Phase 4B: Entropy Calibrator
+from .core.calibrator import EntropyCalibrator
+
 __all__ = [
     # Enums
     "RuleOperator",
@@ -52,4 +55,5 @@ __all__ = [
     # Phase 4A: XAI
     "CounterfactualEngine",
     "explain_blocked_action",
+    "EntropyCalibrator",
 ]
