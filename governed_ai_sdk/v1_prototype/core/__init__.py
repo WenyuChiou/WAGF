@@ -8,10 +8,12 @@ Core SDK components.
 
 from .engine import PolicyEngine, create_engine
 from .policy_loader import PolicyLoader, load_policy
+from .calibrator import EntropyCalibrator
 
 __all__ = [
     "PolicyEngine",
     "create_engine",
     "PolicyLoader",
     "load_policy",
+    "EntropyCalibrator",
 ]

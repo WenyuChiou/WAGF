@@ -1,5 +1,7 @@
 """
-Demo script to validate SDK skeleton works.
+GovernedAI SDK Demo - End-to-End Validation
+
+Run: python governed_ai_sdk/demo_sdk_usage.py
 """
 
 import sys
@@ -10,64 +12,127 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from governed_ai_sdk.v1_prototype.types import PolicyRule
-from governed_ai_sdk.v1_prototype.core.wrapper import (
-    GovernedAgent,
-    CognitiveInterceptor,
-    AuditConfig,
+from governed_ai_sdk.v1_prototype.types import (
+    GovernanceTrace,
+    PolicyRule,
+    CounterFactualResult,
+    EntropyFriction,
 )
+from governed_ai_sdk.v1_prototype.core.wrapper import GovernedAgent
+from governed_ai_sdk.v1_prototype.core.engine import PolicyEngine
+from governed_ai_sdk.v1_prototype.core.policy_loader import PolicyLoader
+from governed_ai_sdk.v1_prototype.core.calibrator import EntropyCalibrator
+from governed_ai_sdk.v1_prototype.memory.symbolic import SymbolicMemory
+from governed_ai_sdk.v1_prototype.xai.counterfactual import CounterfactualEngine
 
 
-class MockHouseholdAgent:
-    """Mock agent for testing."""
+def test_all_phases() -> None:
+    print("=" * 60)
+    print("   GovernedAI SDK - Integration Test Suite")
+    print("=" * 60)
 
-    def __init__(self, savings: int = 300):
-        self.savings = savings
-        self.insurance_status = "none"
-
-    def decide(self, _context):
-        return {"action": "buy_insurance", "premium": 100}
-
-
-def main() -> None:
-    print("=== GovernedAI SDK Demo ===\n")
-
-    agent = MockHouseholdAgent(savings=300)
-    print(f"1. Created agent with savings=${agent.savings}")
-
-    def state_fn(a):
-        return {"savings": a.savings, "insurance_status": a.insurance_status}
-
-    governed = GovernedAgent(
-        backend=agent,
-        interceptors=[CognitiveInterceptor(mode="LogicalConsistency")],
-        state_mapping_fn=state_fn,
-        audit_config=AuditConfig(enabled=True, output_path="demo_audit.jsonl"),
-    )
-    print("2. Wrapped agent with GovernedAgent")
-
-    result = governed.execute(context={})
-    print(f"3. Executed action: {result.action}")
-    print(f"   Trace valid: {result.trace.valid}")
-    print(f"   Trace message: {result.trace.rule_message}")
-
-    state = governed.get_state()
-    print(f"4. Current state: {state}")
-
+    # Phase 0: Types
+    print("\n[Phase 0] Types...")
     rule = PolicyRule(
         id="min_savings",
         param="savings",
         operator=">=",
         value=500,
-        message="Need $500 minimum",
+        message="Need $500",
         level="ERROR",
     )
-    print(f"5. Created rule: {rule.id} ({rule.param} {rule.operator} {rule.value})")
+    assert rule.operator == ">="
+    print("  ? PolicyRule OK")
 
-    print("\n=== Demo Complete ===")
-    print("All SDK skeleton components working!")
-    print("\nNext: Phase 2 will implement PolicyEngine")
+    # Phase 1: Wrapper
+    print("\n[Phase 1] Wrapper...")
+
+    class MockAgent:
+        def __init__(self):
+            self.savings = 300
+
+        def decide(self, _ctx):
+            return {"action": "buy"}
+
+    agent = MockAgent()
+    governed = GovernedAgent(
+        backend=agent,
+        interceptors=[],
+        state_mapping_fn=lambda a: {"savings": a.savings},
+    )
+    print("  ? GovernedAgent OK")
+
+    # Phase 2: PolicyEngine
+    print("\n[Phase 2] PolicyEngine...")
+    engine = PolicyEngine()
+    policy = PolicyLoader.from_dict(
+        {
+            "rules": [
+                {
+                    "id": "r1",
+                    "param": "savings",
+                    "operator": ">=",
+                    "value": 500,
+                    "message": "Need $500",
+                    "level": "ERROR",
+                }
+            ]
+        }
+    )
+    trace = engine.verify({}, {"savings": 600}, policy)
+    assert trace.valid is True
+    print("  ? PolicyEngine PASS case OK")
+
+    trace = engine.verify({}, {"savings": 300}, policy)
+    assert trace.valid is False
+    print("  ? PolicyEngine BLOCK case OK")
+
+    # Phase 3: SymbolicMemory
+    print("\n[Phase 3] SymbolicMemory...")
+    sensors = [
+        {
+            "path": "flood",
+            "name": "FLOOD",
+            "bins": [
+                {"label": "SAFE", "max": 0.5},
+                {"label": "DANGER", "max": 99.0},
+            ],
+        }
+    ]
+    memory = SymbolicMemory(sensors)
+    sig, surprise = memory.observe({"flood": 2.0})
+    assert surprise == 1.0
+    print(f"  ? SymbolicMemory novelty detection OK (surprise={surprise})")
+
+    # Phase 4A: Counterfactual XAI
+    print("\n[Phase 4A] CounterfactualEngine...")
+    xai = CounterfactualEngine()
+    cf_result = xai.explain(rule, {"savings": 300})
+    assert cf_result.delta_state["savings"] == 200
+    print(f"  ? Counterfactual: {cf_result.explanation}")
+
+    # Phase 4B: EntropyCalibrator
+    print("\n[Phase 4B] EntropyCalibrator...")
+    calibrator = EntropyCalibrator()
+    raw = ["buy", "sell", "hold", "speculate", "hedge"]
+    governed_actions = ["buy", "hold"]
+    friction = calibrator.calculate_friction(raw, governed_actions)
+    print(f"  ? Friction ratio: {friction.friction_ratio:.2f} ({friction.interpretation})")
+
+    # End-to-End
+    print("\n[End-to-End] Full Flow...")
+    state = {"savings": 300, "status": "normal"}
+    action = {"action": "buy_insurance"}
+    trace = engine.verify(action, state, policy)
+    if not trace.valid:
+        cf = xai.explain(PolicyRule(**policy["rules"][0]), state)
+        print(f"  Action BLOCKED: {trace.rule_message}")
+        print(f"  XAI: {cf.explanation}")
+
+    print("\n" + "=" * 60)
+    print("   ALL PHASES PASSED")
+    print("=" * 60)
 
 
 if __name__ == "__main__":
-    main()
+    test_all_phases()
