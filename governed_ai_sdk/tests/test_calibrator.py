@@ -57,3 +57,13 @@ def test_entropy_calibrator_kl_divergence_non_negative():
     result = calibrator.calculate_friction(raw, governed)
 
     assert result.kl_divergence >= 0.0
+
+
+def test_create_calibrator_factory():
+    from governed_ai_sdk.v1_prototype.core.calibrator import (
+        create_calibrator,
+        EntropyCalibrator,
+    )
+
+    calibrator = create_calibrator()
+    assert isinstance(calibrator, EntropyCalibrator)

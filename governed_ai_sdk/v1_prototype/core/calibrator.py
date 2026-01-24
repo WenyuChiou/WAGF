@@ -74,3 +74,8 @@ class EntropyCalibrator:
             p_gov = max(p_gov, eps)
             kl += p_raw * log2(p_raw / p_gov)
         return kl
+
+
+def create_calibrator() -> EntropyCalibrator:
+    """Factory helper for EntropyCalibrator."""
+    return EntropyCalibrator()
