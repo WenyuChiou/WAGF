@@ -13,6 +13,7 @@ from typing import List, Dict, Any, Optional
 
 from broker.components.memory import CognitiveMemory
 from broker.utils.agent_config import AgentTypeConfig
+from ..environment.risk_rating import calculate_individual_premium
 
 @dataclass
 class InsuranceAgentState:
@@ -59,6 +60,22 @@ class InsuranceAgent:
         """Resets annual tracking metrics."""
         self.state.premium_collected = 0
         self.state.claims_paid = 0
+
+    def calculate_premium_for_agent(self, agent: Any) -> float:
+        """
+        Calculate individualized premium using Risk Rating 2.0 factors.
+        """
+        return calculate_individual_premium(
+            agent_profile={
+                "building_rcv": getattr(agent, "building_rcv", getattr(agent, "property_value", 250000)),
+                "flood_zone": getattr(agent, "flood_zone", "MEDIUM"),
+                "flood_depth_m": getattr(agent, "max_flood_depth", 0.0),
+                "house_type": getattr(agent, "house_type", "single_family"),
+                "elevated": getattr(agent, "elevated", False),
+                "claim_count": getattr(agent, "claim_count", 0),
+            },
+            community_crs=getattr(self, "community_crs_rate", 0.0),
+        )
 
     def decide_strategy(self, year: int) -> str:
         """

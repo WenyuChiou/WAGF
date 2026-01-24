@@ -12,7 +12,7 @@ References:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 from enum import Enum
 
 
@@ -106,6 +106,34 @@ class PremiumResult:
         }
 
 
+@dataclass
+class PremiumBreakdown:
+    """Detailed premium calculation breakdown (simplified)."""
+
+    base_premium: float
+    zone_multiplier: float
+    depth_multiplier: float
+    building_multiplier: float
+    elevation_multiplier: float
+    rcv_multiplier: float
+    claims_multiplier: float
+    crs_discount: float
+    final_premium: float
+
+    def breakdown(self) -> str:
+        return (
+            f"Base: ${self.base_premium:,.0f}\n"
+            f"  • Zone ({self.zone_multiplier:.2f})\n"
+            f"  • Depth ({self.depth_multiplier:.2f})\n"
+            f"  • Building ({self.building_multiplier:.2f})\n"
+            f"  • Elevation ({self.elevation_multiplier:.2f})\n"
+            f"  • RCV ({self.rcv_multiplier:.2f})\n"
+            f"  • Claims ({self.claims_multiplier:.2f})\n"
+            f"  • CRS (1 - {self.crs_discount:.2f})\n"
+            f"  = ${self.final_premium:,.0f}"
+        )
+
+
 class RiskRating2Calculator:
     """
     Calculate NFIP premiums using Risk Rating 2.0 methodology.
@@ -141,13 +169,13 @@ class RiskRating2Calculator:
     def calculate_premium(
         self,
         rcv_structure: float,
-        rcv_contents: float,
-        flood_zone: str,
+        rcv_contents: Union[float, str],
+        flood_zone: Union[str, float],
         is_elevated: bool = False,
         is_owner: bool = True,
         distance_to_water_ft: Optional[float] = None,
         prior_claims: int = 0,
-    ) -> PremiumResult:
+    ) -> Union[PremiumResult, PremiumBreakdown]:
         """
         Calculate annual NFIP premium.
 
@@ -167,8 +195,21 @@ class RiskRating2Calculator:
             prior_claims: Number of prior flood insurance claims
 
         Returns:
-            PremiumResult with detailed breakdown
+            PremiumResult with detailed breakdown, or PremiumBreakdown for simplified calls.
         """
+        # Support simplified signature:
+        # calculate_premium(building_rcv, flood_zone, max_flood_depth, is_elevated=...)
+        if isinstance(rcv_contents, str) and isinstance(flood_zone, (int, float)):
+            return _calculate_simple_breakdown(
+                building_rcv=rcv_structure,
+                flood_zone=rcv_contents,
+                max_flood_depth=float(flood_zone),
+                building_type="single_family",
+                is_elevated=is_elevated,
+                prior_claims=prior_claims,
+                community_crs_discount=self.crs_discount,
+            )
+
         # Cap coverage at NFIP limits
         covered_structure = min(rcv_structure, LIMIT_STRUCTURE) if is_owner else 0
         covered_contents = min(rcv_contents, LIMIT_CONTENTS)
@@ -303,3 +344,74 @@ def calculate_simple_premium(
         is_elevated=is_elevated,
     )
     return result.annual_premium
+
+
+def _calculate_simple_breakdown(
+    building_rcv: float,
+    flood_zone: str,
+    max_flood_depth: float = 0.0,
+    building_type: str = "single_family",
+    is_elevated: bool = False,
+    prior_claims: int = 0,
+    community_crs_discount: float = 0.0,
+) -> PremiumBreakdown:
+    """Simplified premium breakdown used for RR2.0 style agent pricing."""
+    base = (building_rcv / 1000) * 3.50
+    zone_mult = {
+        "HIGH": 2.0,
+        "MEDIUM": 1.0,
+        "LOW": 0.5,
+    }.get(flood_zone.upper(), 1.0)
+    depth_mult = min(1.0 + max_flood_depth * 0.2, 1.6)
+    building_mult = {
+        "single_family": 1.0,
+        "multi_family": 1.1,
+        "mobile_home": 1.5,
+        "condo": 0.9,
+    }.get(building_type, 1.0)
+    elevation_mult = 0.6 if is_elevated else 1.0
+    if building_rcv < 200000:
+        rcv_mult = 0.9
+    elif building_rcv > 400000:
+        rcv_mult = 1.1
+    else:
+        rcv_mult = 1.0
+    claims_mult = 1.0 + (prior_claims * 0.15)
+    crs_discount = min(community_crs_discount, 0.25)
+
+    final = base * zone_mult * depth_mult * building_mult * elevation_mult * rcv_mult * claims_mult * (1 - crs_discount)
+    return PremiumBreakdown(
+        base_premium=base,
+        zone_multiplier=zone_mult,
+        depth_multiplier=depth_mult,
+        building_multiplier=building_mult,
+        elevation_multiplier=elevation_mult,
+        rcv_multiplier=rcv_mult,
+        claims_multiplier=claims_mult,
+        crs_discount=crs_discount,
+        final_premium=final,
+    )
+
+
+def calculate_individual_premium(agent_profile: dict, community_crs: float = 0.0) -> float:
+    """
+    Convenience function for agent premium calculation.
+
+    Args:
+        agent_profile: Dict with keys: building_rcv, flood_zone, flood_depth_m,
+                      house_type, elevated, claim_count
+        community_crs: Community CRS discount rate
+
+    Returns:
+        Annual premium in USD
+    """
+    result = _calculate_simple_breakdown(
+        building_rcv=agent_profile.get("building_rcv", 250000),
+        flood_zone=agent_profile.get("flood_zone", "MEDIUM"),
+        max_flood_depth=agent_profile.get("flood_depth_m", 0.0),
+        building_type=agent_profile.get("house_type", "single_family"),
+        is_elevated=agent_profile.get("elevated", False),
+        prior_claims=agent_profile.get("claim_count", 0),
+        community_crs_discount=community_crs,
+    )
+    return result.final_premium
