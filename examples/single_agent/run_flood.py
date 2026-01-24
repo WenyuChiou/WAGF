@@ -244,7 +244,7 @@ class ResearchSimulation:
         
         if skill == "elevate_house":
             if getattr(agent, "elevated", False):
-                return ExecutionResult(success=False, message="House already elevated.")
+                return ExecutionResult(success=False, error="House already elevated.")
             state_changes["elevated"] = True
             
         elif skill == "buy_insurance": 
@@ -859,15 +859,23 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     from broker import ExperimentBuilder
     
     # --- PERFORMANCE AUTO-TUNING (Phase 42) ---
-    # Always apply optimal LLM settings based on model size and available VRAM
+    # Always get optimal settings, but allow explicit command-line overrides
     from broker.utils.performance_tuner import get_optimal_config, apply_to_llm_config
     perf_config = get_optimal_config(model)
-    apply_to_llm_config(perf_config)
     
+    # Apply settings (Manual overrides from CLI take precedence)
+    apply_to_llm_config(
+        perf_config, 
+        num_ctx_override=getattr(args, 'num_ctx', None),
+        num_predict_override=getattr(args, 'num_predict', None)
+    )
+
     # If workers not explicitly set (==0), use tuner's recommendation
     if workers == 0:
         workers = perf_config.workers
-    print(f" [AutoTune] Model:{model} -> ctx={perf_config.num_ctx}, predict={perf_config.num_predict}, workers={workers}")
+    
+    from broker.utils.llm_utils import LLM_CONFIG
+    print(f" [AutoTune] Final Summary: Model:{model} -> ctx={LLM_CONFIG.num_ctx}, predict={LLM_CONFIG.num_predict}, workers={workers}")
     
     builder = (
         ExperimentBuilder()
@@ -988,6 +996,8 @@ if __name__ == "__main__":
                              "Uses MG/NMG classification, flood zone assignment, and RCV generation.")
     parser.add_argument("--use-priority-schema", action="store_true", help="Enable Pillar 3: Priority Schema (Group C)")
     parser.add_argument("--stress-test", type=str, default=None, choices=["veteran", "panic", "goldfish", "format"], help="Run specific Stress Test scenarios (e.g., 'veteran')")
+    parser.add_argument("--num-ctx", type=int, default=None, help="Ollama context window size. Overrides YAML/AutoTune.")
+    parser.add_argument("--num-predict", type=int, default=None, help="Ollama max tokens. Overrides YAML/AutoTune.")
     parser.add_argument("--memory-ranking-mode", type=str, default="legacy", choices=["legacy", "weighted"], help="Ranking logic for HumanCentricMemoryEngine (legacy=v1 decay, weighted=v2 unified scoring)")
     args = parser.parse_args()
 
@@ -1001,6 +1011,10 @@ if __name__ == "__main__":
         LLM_CONFIG.top_k = args.top_k
     if args.use_chat_api:
         LLM_CONFIG.use_chat_api = True
+    if args.num_ctx is not None:
+        LLM_CONFIG.num_ctx = args.num_ctx
+    if args.num_predict is not None:
+        LLM_CONFIG.num_predict = args.num_predict
     
     # Generate random seed if not specified
     actual_seed = args.seed if args.seed is not None else random.randint(0, 1000000)
@@ -1017,6 +1031,7 @@ if __name__ == "__main__":
         seed=actual_seed,
         flood_mode=args.flood_mode,
         survey_mode=args.survey_mode,
+        workers=args.workers,
 
         governance_mode=args.governance_mode,
         use_priority_schema=args.use_priority_schema,
