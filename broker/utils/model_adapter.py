@@ -19,6 +19,56 @@ from ..utils.logging import logger
 from .preprocessors import GenericRegexPreprocessor, SmartRepairPreprocessor, get_preprocessor
 from .adapters.deepseek import deepseek_preprocessor
 
+# Universal framework-level normalization defaults
+# (Domain-independent mappings only)
+# Universal framework-level normalization defaults
+# (Domain-independent mappings only)
+FRAMEWORK_NORMALIZATION_MAP = {
+    # PMT Scale (Threat/Coping Perception) - Embedded per User Request
+    "very low": "VL", "verylow": "VL", "v low": "VL", "v.low": "VL",
+    "low": "L",
+    "medium": "M", "med": "M", "moderate": "M", "mid": "M", "middle": "M",
+    "high": "H", "hi": "H",
+    "very high": "VH", "veryhigh": "VH", "v high": "VH", "v.high": "VH",
+
+    # Boolean variations
+    "true": "True", "yes": "True", "1": "True", "on": "True",
+    "false": "False", "no": "False", "0": "False", "off": "False",
+}
+
+def normalize_construct_value(value: str, allowed_values: Optional[List[str]] = None, custom_mapping: Optional[Dict[str, str]] = None) -> str:
+    """
+    Normalize common LLM output variations to canonical forms.
+
+    Args:
+        value: Raw value from LLM
+        allowed_values: Optional list of allowed values to check against
+        custom_mapping: Optional agent-specific mapping (e.g., from config)
+
+    Returns:
+        Normalized value if found in mappings, otherwise original value
+    """
+    if not isinstance(value, str):
+        return value
+
+    normalized = value.strip()
+    lower_val = normalized.lower()
+
+    # 1. Try agent-specific custom mapping (highest priority)
+    if custom_mapping and lower_val in custom_mapping:
+        normalized = custom_mapping[lower_val]
+    # 2. Try universal framework defaults
+    elif lower_val in FRAMEWORK_NORMALIZATION_MAP:
+        normalized = FRAMEWORK_NORMALIZATION_MAP[lower_val]
+
+    # 3. If allowed_values provided, check case-insensitive match
+    if allowed_values:
+        for allowed in allowed_values:
+            if normalized.lower() == allowed.lower():
+                return allowed
+
+    return normalized
+
 
 class ModelAdapter(ABC):
     """
@@ -131,6 +181,31 @@ class UnifiedAdapter(ModelAdapter):
             return get_preprocessor(p_cfg)
         return self._preprocessor
 
+    def _is_list_item(self, text: str, start: int, end: int) -> bool:
+        """Helper to determine if a matched token is part of an option list like VL/L/M."""
+        if start < 0 or end > len(text):
+            return False
+
+        # Load delimiters from config (framework default if missing)
+        list_chars = self.config.get("list_delimiters", ['/', '|', '\\'])
+
+        # Check trailing context (ignoring spaces AND optional quotes from preprocessor)
+        next_char_idx = end
+        while next_char_idx < len(text) and (text[next_char_idx].isspace() or text[next_char_idx] in ['"', "'"]):
+            next_char_idx += 1
+
+        # Check preceding context
+        prev_char_idx = start - 1
+        while prev_char_idx >= 0 and (text[prev_char_idx].isspace() or text[prev_char_idx] in ['"', "'"]):
+            prev_char_idx -= 1
+
+        # Indicators of a list: slashes or pipes
+        if next_char_idx < len(text) and text[next_char_idx] in list_chars:
+            return True
+        if prev_char_idx >= 0 and text[prev_char_idx] in list_chars:
+            return True
+        return False
+
     def parse_output(self, raw_output: str, context: Dict[str, Any]) -> Optional[SkillProposal]:
         """
         Parse LLM output into SkillProposal.
@@ -147,7 +222,12 @@ class UnifiedAdapter(ModelAdapter):
         skill_name = None
         reasoning = {}
         parsing_warnings = []
-        parse_layer = ""  # Track which parsing method succeeded (enclosure/json/keyword/digit/default)
+        # Phase 0.3: Retrieve agent-specific normalization map
+        custom_mapping = self.config.get("normalization", {})
+        proximity_window = self.config.get("proximity_window", 35)
+
+        # Track which parsing method succeeded (enclosure/json/keyword/digit/default)
+        parse_layer = ""
 
         # Phase 15: Early return for empty output
         if not raw_output:
@@ -183,36 +263,36 @@ class UnifiedAdapter(ModelAdapter):
         ]
         
         target_content = raw_output
+        is_enclosed = False
         for pattern in [p for p in patterns if p]:
             match = re.search(pattern, raw_output, re.DOTALL | re.IGNORECASE)
             if match:
                 target_content = match.group(1)
                 parse_layer = "enclosure"
+                is_enclosed = True
                 break
-
 
         # 2. Preprocess target
         cleaned_target = preprocessor(target_content)
         
         # 3. ATTEMPT JSON PARSING
+        found_json = False
         try:
             json_text = cleaned_target.strip()
             if "{" in json_text:
                 json_text = json_text[json_text.find("{"):json_text.rfind("}")+1]
             
             # Preprocessor Failsafe: Handle double-braces mimicry from small models
-            # Specifically: {{ ... }} -> { ... } and "{{": "{" -> "{": "{"
             if json_text.startswith("{{") and json_text.endswith("}}"):
                 json_text = json_text[1:-1]
             
-            # Replace recurring double braces inside the object
             json_text = json_text.replace("{{", "{").replace("}}", "}")
-            
-            # Clean trailing commas (common in LLM output)
             json_text = re.sub(r',\s*([\]}])', r'\1', json_text)
                 
             data = json.loads(json_text)
             if isinstance(data, dict):
+                found_json = True
+                parse_layer = f"{parse_layer}+json" if is_enclosed else "json"
                 # Robust case-insensitive key lookup
                 data_lowered = {k.lower(): v for k, v in data.items()}
                 
@@ -272,10 +352,9 @@ class UnifiedAdapter(ModelAdapter):
 
 
                     
-                    if skill_name:
-                        parse_layer = "json"
-                        # Reset warnings if JSON parsing succeeded
-                        parsing_warnings = [w for w in parsing_warnings if "STRICT_MODE" not in w]
+                if skill_name:
+                    # Reset warnings if JSON parsing succeeded (even with digit recovery)
+                    parsing_warnings = [w for w in parsing_warnings if "STRICT_MODE" not in w]
                 
                 # Extract Reasoning & Constructs
                 reasoning = {
@@ -332,12 +411,12 @@ class UnifiedAdapter(ModelAdapter):
                             # Nested mapping: check if sub-key is a label or reason
                             if "label" in sub_k_lower:
                                 for name in [n for n in matched_names if "_LABEL" in n]:
-                                    reasoning[name] = sub_v
+                                    reasoning[name] = normalize_construct_value(sub_v, custom_mapping=custom_mapping)
                             elif any(rk in sub_k_lower for rk in ["reason", "why", "explanation", "because"]):
                                 for name in [n for n in matched_names if "_REASON" in n]:
                                     reasoning[name] = sub_v
                             else:
-                                reasoning[f"{k}_{sub_k}"] = sub_v
+                                reasoning[f"{k}_{sub_k}"] = normalize_construct_value(sub_v, custom_mapping=custom_mapping)
                     elif isinstance(v, (str, int, float)):
                         # Flattened string or value: assign to matched constructs
                         if matched_names:
@@ -363,62 +442,116 @@ class UnifiedAdapter(ModelAdapter):
                                                     alternatives = [alt.strip() for alt in inner_pattern.group(1).split('|')]
                                                     # Sort by length descending to match "Very High" before "High"
                                                     alternatives.sort(key=len, reverse=True)
+
+                                                    # First try direct match
+                                                    matched = False
                                                     for alt in alternatives:
                                                         if alt.lower() in v.lower():
                                                             reasoning[name] = alt
+                                                            matched = True
                                                             break
-                                                    else:
-                                                        reasoning[name] = v
+
+                                                    # If not matched, try normalization
+                                                    if not matched:
+                                                        normalized = normalize_construct_value(v, alternatives, custom_mapping=custom_mapping)
+                                                        if normalized.upper() in [a.upper() for a in alternatives]:
+                                                            reasoning[name] = normalized
+                                                        # else: Leave empty, let CONSTRUCT EXTRACTION handle it
                                                 else:
-                                                    reasoning[name] = v
+                                                    # No alternatives to match against, try normalization
+                                                    reasoning[name] = normalize_construct_value(v, custom_mapping=custom_mapping)
                                             except Exception:
-                                                reasoning[name] = v
+                                                reasoning[name] = normalize_construct_value(v, custom_mapping=custom_mapping)
                                     else:
-                                        reasoning[name] = v
+                                        reasoning[name] = normalize_construct_value(v, custom_mapping=custom_mapping)
                                 else:
-                                    reasoning[name] = v
+                                    reasoning[name] = normalize_construct_value(v, custom_mapping=custom_mapping)
                         else:
                             # Fallback: direct name match
                             k_upper = k.upper()
                             if k_upper in construct_mapping:
-                                reasoning[k_upper] = v
+                                reasoning[k_upper] = normalize_construct_value(v, custom_mapping=custom_mapping)
                             else:
-                                reasoning[k] = v
+                                reasoning[k] = normalize_construct_value(v, custom_mapping=custom_mapping)
         except (json.JSONDecodeError, AttributeError):
             pass
 
-        # 4. FALLBACK TO REGEX/KEYWORD (if skill_name still None)
+        # 4. KEYWORD SEARCH (Fallback if JSON resolution failed)
         if not skill_name:
-            lines = cleaned_target.split('\n')
-            keywords = parsing_cfg.get("decision_keywords", ["decide:", "decision:", "choice:", "selected_action:"])
-            
-            for line in lines:
-                line_lower = line.strip().lower()
-                for kw in keywords:
-                    if kw.lower() in line_lower:
-                        raw_val = line_lower.split(kw.lower())[1].strip()
-                        digit_match = re.search(r'(\d)', raw_val)
-                        if digit_match and digit_match.group(1) in skill_map:
-                            skill_name = skill_map[digit_match.group(1)]
-                            parse_layer = "keyword"
-                            break
-                        for s in valid_skills:
-                            if s.lower() in raw_val:
-                                skill_name = s
-                                parse_layer = "keyword"
-                                break
-                if skill_name: break
+            kw_res = self._parse_keywords(cleaned_target, agent_type)
+            if kw_res:
+                skill_name = kw_res.get("skill_name")
+                # Merge keyword reasoning if json failed
+                if not reasoning.get("strategy"):
+                    reasoning.update(kw_res.get("reasoning", {}))
+                parse_layer = f"{parse_layer}+keyword" if is_enclosed else "keyword"
 
-        # 5. CONSTRUCT EXTRACTION (Regex based, applied to cleaned_target)
+        # 5. NAKED DIGIT SEARCH (Last Resort)
+        if not skill_name:
+            digit_match = re.search(r'\b(\d)\b', cleaned_target)
+            if digit_match and digit_match.group(1) in skill_map:
+                skill_name = skill_map[digit_match.group(1)]
+                parse_layer = f"{parse_layer}+digit" if is_enclosed else "digit"
+
+        # 6. CONSTRUCT EXTRACTION (Regex based, applied to cleaned_target)
         constructs_cfg = parsing_cfg.get("constructs", {})
         if constructs_cfg and cleaned_target:
             for key, cfg in constructs_cfg.items():
                 if key not in reasoning or not reasoning[key]:
                     regex = cfg.get("regex")
-                    if regex:
-                        match = re.search(regex, cleaned_target, re.IGNORECASE | re.DOTALL)
-                        if match:
-                            reasoning[key] = match.group(1).strip() if match.groups() else match.group(0).strip()
+
+                    keywords = cfg.get("keywords", [])
+                    if regex and keywords:
+                        # 1. Find all keywords and their positions
+                        kw_pattern = "|".join([re.escape(kw) for kw in keywords])
+                        # Look for keyword with word boundaries
+                        kw_matches = list(re.finditer(rf"(?i)\b(?:{kw_pattern})\b", cleaned_target))
+                        
+                        # Process keywords in reverse (prioritize mentions near the end)
+                        found = False
+                        for kw_match in reversed(kw_matches):
+                            # 2. Look at text following the keyword (up to proximity_window chars gap)
+                            start_search = kw_match.end()
+                            end_search = min(start_search + proximity_window, len(cleaned_target))
+                            gap_text = cleaned_target[start_search:end_search]
+                            
+                            # 3. Check for values in this gap - pick the FIRST match which is most adjacent
+                            # Attempt 1: Exact code match (VL, L, M, H, VH) 
+                            val_matches = list(re.finditer(regex, gap_text, re.IGNORECASE | re.DOTALL))
+                            for val_match in val_matches:
+                                temp_val = val_match.group(1).strip() if val_match.groups() else val_match.group(0).strip()
+                                g_start = start_search + val_match.start()
+                                g_end = start_search + val_match.end()
+                                
+                                # Only accept if it's NOT just an item in an echoed list
+                                if not self._is_list_item(cleaned_target, g_start, g_end):
+                                    reasoning[key] = normalize_construct_value(temp_val, custom_mapping=custom_mapping)
+                                    found = True
+                                    break
+                            
+                            if not found:
+                                # Attempt 2: Search for long-form names (e.g. "Medium") in this gap
+                                # Collect all matches to pick the one closest to the keyword
+                                word_matches = []
+                                for word, code in custom_mapping.items():
+                                    if len(word) > 2: # Stick to descriptive labels
+                                        for m in re.finditer(rf"\b{re.escape(word)}\b", gap_text, re.IGNORECASE):
+                                            word_matches.append((m.start(), m.end(), code))
+                                
+                                if word_matches:
+                                    # Sort by start index and pick the first one that passes the list guard
+                                    word_matches.sort()
+                                    for w_start, w_end, code in word_matches:
+                                        g_start = start_search + w_start
+                                        g_end = start_search + w_end
+                                        if not self._is_list_item(cleaned_target, g_start, g_end):
+                                            reasoning[key] = code
+                                            found = True
+                                            break
+                                            
+                            if found: break
+
+
 
         # 6. LAST RESORT: Search for bracketed numbers [1-7] in cleaned_target
         # STRICT MODE: If enabled, do NOT use digit extraction (prevents bias from reasoning text)
@@ -530,6 +663,11 @@ class UnifiedAdapter(ModelAdapter):
             if construct_parts:
                 logger.info(f"  - Constructs: {' | '.join(construct_parts)}")
 
+        # 7. Final Polish: Ensure all _LABEL values are normalized before returning
+        for k in list(reasoning.keys()):
+            if "_LABEL" in k:
+                reasoning[k] = normalize_construct_value(str(reasoning[k]), custom_mapping=custom_mapping)
+
         # 8. Skill Name Normalization (Cross-Model Fix)
         # Convert aliases like "HE", "FI", "insurance" to canonical names
         if skill_name:
@@ -617,6 +755,33 @@ class UnifiedAdapter(ModelAdapter):
             "cited_anchors": hit_anchors,
             "total_anchors": list(anchors)
         }
+
+    def _parse_keywords(self, text: str, agent_type: str) -> Optional[Dict[str, Any]]:
+        """
+        Fallback keyword/regex based parsing.
+        """
+        parsing_cfg = self.agent_config.get_parsing_config(agent_type)
+        if not parsing_cfg: return None
+        
+        keywords = parsing_cfg.get("decision_keywords", ["decision:", "choice:", "selected_action:"])
+        valid_skills = self.agent_config.get_valid_actions(agent_type)
+        skill_map = self.agent_config.get_skill_map(agent_type)
+        
+        lines = text.split('\n')
+        for line in lines:
+            line_lower = line.strip().lower()
+            for kw in keywords:
+                if kw.lower() in line_lower:
+                    raw_val = line_lower.split(kw.lower())[1].strip()
+                    # 1. Try Digit in keyword line
+                    digit_match = re.search(r'(\d)', raw_val)
+                    if digit_match and digit_match.group(1) in skill_map:
+                        return {"skill_name": skill_map[digit_match.group(1)], "reasoning": {}}
+                    # 2. Try mapping
+                    for s in valid_skills:
+                        if s.lower() in raw_val:
+                            return {"skill_name": s, "reasoning": {}}
+        return None
 
     
     def format_retry_prompt(self, original_prompt: str, errors: List[Any], max_reports: Optional[int] = None) -> str:
