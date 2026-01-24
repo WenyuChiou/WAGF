@@ -116,6 +116,13 @@ household:
     preprocessor:
       { type: "smart_repair", quote_values: ["VL", "L", "M", "H", "VH"] }
 
+    # Extraction Heuristics (Generalized)
+    proximity_window: 35
+    list_delimiters: ["/", "|", "\\"]
+
+    # Value Normalization (Experiment-specific mapping)
+    # normalization: Embedded in ModelAdapter defaults as requested
+
     # Audit Keywords (Domain-specific keywords moved here from code)
     audit_keywords:
       [
