@@ -20,6 +20,18 @@ from .types import (
     Policy,
 )
 
+# Phase 3: Memory Layer
+from .memory.symbolic import (
+    Sensor,
+    SymbolicMemory,
+)
+
+# Phase 4A: XAI Counterfactual
+from .xai.counterfactual import (
+    CounterfactualEngine,
+    explain_blocked_action,
+)
+
 __all__ = [
     # Enums
     "RuleOperator",
@@ -34,4 +46,10 @@ __all__ = [
     "State",
     "Action",
     "Policy",
+    # Phase 3: Memory
+    "Sensor",
+    "SymbolicMemory",
+    # Phase 4A: XAI
+    "CounterfactualEngine",
+    "explain_blocked_action",
 ]
