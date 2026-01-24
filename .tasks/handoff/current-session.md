@@ -172,22 +172,58 @@ Task-030 is complete. Ready for:
 | Phase | Description | Assignee | Status |
 |:------|:------------|:---------|:-------|
 | **0** | Type Definitions | Claude Code | ✅ COMPLETE |
-| **1** | Skeleton & Core | Codex | 🔲 Ready |
-| **2** | Policy Engine | Gemini CLI | 🔲 Ready |
-| **3** | Memory Layer | Claude Code | 🔲 Blocked on 1 |
-| **4A** | XAI Counterfactual | Claude Code | 🔲 Blocked on 2 |
-| **4B** | Entropy Calibrator | Gemini CLI | 🔲 Blocked on 2 |
-| **5** | Integration Tests | All | 🔲 Blocked on 4 |
+| **1** | Skeleton & Core | Codex | ✅ COMPLETE |
+| **2** | Policy Engine | Gemini CLI | ✅ COMPLETE |
+| **3** | Memory Layer | Claude Code | ✅ COMPLETE |
+| **4A** | XAI Counterfactual | Claude Code | ✅ COMPLETE |
+| **4B** | Entropy Calibrator | Gemini CLI | 🔲 Ready |
+| **5** | Integration Tests | All | 🔲 Blocked on 4B |
 | **6** | Documentation | Claude Code | 🔲 Blocked on 5 |
 
 ### Verification Command
 ```bash
 python -c "from governed_ai_sdk.v1_prototype.types import GovernanceTrace, PolicyRule; print('Phase 0 OK')"
-pytest governed_ai_sdk/tests/test_types.py -v  # 18 tests pass
+pytest governed_ai_sdk/tests/ -v  # 62 tests pass
 ```
 
-### Phase 1 Progress (Codex)
+### Phase 1 Progress (Codex) ✅
 
 - Created: `interfaces/protocols.py`, `core/wrapper.py`, `audit/replay.py`, `demo_sdk_usage.py`
 - Added tests: `governed_ai_sdk/tests/test_wrapper.py`
 - Verified: `pytest governed_ai_sdk/tests/test_wrapper.py -v` (5 tests pass)
+
+### Phase 2 Progress (Gemini CLI) ✅
+
+- Created: `core/engine.py`, `core/policy_loader.py`
+- Added tests: `governed_ai_sdk/tests/test_policy_engine.py`
+- Verified: 9 tests pass
+
+### Phase 3 & 4A Complete (Claude Code) ✅
+
+**Completed**: 2026-01-23
+
+#### Phase 3: Memory Layer
+- Created: `memory/symbolic.py` - SymbolicMemory wrapper
+- Updated: `memory/__init__.py` - exports
+- Tests: 13 tests pass
+
+#### Phase 4A: XAI Counterfactual
+- Created: `xai/counterfactual.py` - CounterfactualEngine (3 strategies)
+- Updated: `xai/__init__.py` - exports
+- Tests: 17 tests pass
+
+#### Files Created/Modified
+1. `governed_ai_sdk/v1_prototype/memory/symbolic.py` - NEW (SymbolicMemory wrapper)
+2. `governed_ai_sdk/v1_prototype/memory/__init__.py` - MODIFIED (exports)
+3. `governed_ai_sdk/v1_prototype/xai/counterfactual.py` - NEW (CounterfactualEngine)
+4. `governed_ai_sdk/v1_prototype/xai/__init__.py` - MODIFIED (exports)
+5. `governed_ai_sdk/v1_prototype/__init__.py` - MODIFIED (SDK-level exports)
+6. `governed_ai_sdk/tests/test_symbolic_memory.py` - NEW (13 tests)
+7. `governed_ai_sdk/tests/test_counterfactual.py` - NEW (17 tests)
+
+#### Total SDK Tests: 62 passing
+- test_types.py: 18 tests
+- test_wrapper.py: 5 tests
+- test_policy_engine.py: 9 tests
+- test_symbolic_memory.py: 13 tests
+- test_counterfactual.py: 17 tests
