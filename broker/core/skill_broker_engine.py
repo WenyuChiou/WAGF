@@ -309,21 +309,27 @@ class SkillBrokerEngine:
             "env_state": env_context, # The "New Standard" source of truth
             **env_context             # Flat injection for legacy validator lookups
         }
-        
+
         validation_results = self._run_validators(skill_proposal, validation_context)
         all_validation_history = list(validation_results)
         all_valid = all(v.valid for v in validation_results)
-        
+
         # Track initial errors for audit summary
         initial_rule_ids = set()
         for v in validation_results:
             initial_rule_ids.update(v.metadata.get("rules_hit", []))
-        
+
+        # Log initial validation failure (before retry loop) for diagnostic clarity
+        if not all_valid:
+            initial_errors = [e for v in validation_results if v and hasattr(v, 'errors') for e in v.errors]
+            choice_name = skill_proposal.skill_name if skill_proposal else "parsing_failed"
+            logger.warning(f" [Governance:Initial] {agent_id} | Choice: '{choice_name}' | Validation FAILED | Errors: {initial_errors}")
+
         # Diagnostic summary for User
         if self.log_prompt:
             reasoning = skill_proposal.reasoning or {}
             label_parts = []
-            
+
             # Dynamic Label Extraction from reasoning
             # Try to get labels (config-driven)
             if self.config:
@@ -337,7 +343,7 @@ class SkillBrokerEngine:
                             break
                     if val:
                         label_parts.append(f"{field_name}: {val}")
-            
+
             # Legacy Fallback for Strategy/Confidence if not in log_fields
             if not any("Strategy" in p for p in label_parts) and "Strategy" in reasoning:
                 label_parts.append(f"Strategy: {reasoning['Strategy']}")
@@ -346,7 +352,7 @@ class SkillBrokerEngine:
 
             # Determine governance summary (Moved to end for consolidated reporting)
             pass
-        
+
         # Retry loop
         retry_count = 0
         while not all_valid and retry_count < self.max_retries:
