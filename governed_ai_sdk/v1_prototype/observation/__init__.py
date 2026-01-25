@@ -14,6 +14,7 @@ from .observers import (
     FloodEnvironmentObserver,
     FinanceEnvironmentObserver,
     EducationEnvironmentObserver,
+    HealthEnvironmentObserver,
 )
 
 __all__ = [
@@ -25,4 +26,5 @@ __all__ = [
     "FloodEnvironmentObserver",
     "FinanceEnvironmentObserver",
     "EducationEnvironmentObserver",
+    "HealthEnvironmentObserver",
 ]

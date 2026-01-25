@@ -6,7 +6,7 @@ across different research domains (flood, finance, education, health).
 """
 from .observer import SocialObserver, ObservationResult
 from .registry import ObserverRegistry
-from .observers import FloodObserver, FinanceObserver, EducationObserver
+from .observers import FloodObserver, FinanceObserver, EducationObserver, HealthObserver
 
 __all__ = [
     "SocialObserver",
@@ -15,4 +15,5 @@ __all__ = [
     "FloodObserver",
     "FinanceObserver",
     "EducationObserver",
+    "HealthObserver",
 ]
