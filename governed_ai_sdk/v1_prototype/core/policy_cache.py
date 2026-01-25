@@ -28,7 +28,16 @@ class PolicyCache:
         """Compute deterministic hash for policy dict."""
         import hashlib
         import json
-        policy_str = json.dumps(policy, sort_keys=True)
+
+        def default_serializer(obj):
+            """Handle non-JSON-serializable objects."""
+            if isinstance(obj, PolicyRule):
+                return {"__type__": "PolicyRule", "id": obj.id, "param": obj.param}
+            return str(obj)
+
+        # Only hash the rules portion, ignore any internal keys
+        rules_data = policy.get("rules", [])
+        policy_str = json.dumps(rules_data, sort_keys=True, default=default_serializer)
         return hashlib.md5(policy_str.encode()).hexdigest()
 
     def _compile_rules(self, policy: Dict[str, Any]) -> List[PolicyRule]:
