@@ -59,7 +59,7 @@ class HealthObserver(SocialObserver):
 
         return actions
 
-    def generate_gossip(self, observer: Any, observed: Any) -> Optional[str]:
+    def get_gossip_content(self, observer: Any, observed: Any, memory: Any = None) -> Optional[str]:
         """Generate health-related gossip."""
         activity = getattr(observed, "activity_level", None)
         smoking = getattr(observed, "smoking_status", None)
