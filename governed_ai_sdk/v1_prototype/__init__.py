@@ -60,6 +60,7 @@ from .social import (
     FloodObserver,
     FinanceObserver,
     EducationObserver,
+    HealthObserver,
 )
 
 # Environment observation (Phase 6b)
@@ -70,6 +71,7 @@ from .observation import (
     FloodEnvironmentObserver,
     FinanceEnvironmentObserver,
     EducationEnvironmentObserver,
+    HealthEnvironmentObserver,
 )
 
 
@@ -106,6 +108,7 @@ __all__ = [
     "FloodObserver",
     "FinanceObserver",
     "EducationObserver",
+    "HealthObserver",
     # Environment Observation (Phase 6b)
     "EnvironmentObserver",
     "EnvironmentObservation",
@@ -113,6 +116,7 @@ __all__ = [
     "FloodEnvironmentObserver",
     "FinanceEnvironmentObserver",
     "EducationEnvironmentObserver",
+    "HealthEnvironmentObserver",
 ]
 
 __version__ = "0.1.0"
