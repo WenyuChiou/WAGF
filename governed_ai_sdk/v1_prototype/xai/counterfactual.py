@@ -6,13 +6,18 @@ Provides explainable AI through counterfactual analysis:
 
 Three strategies:
 - NUMERIC: Delta calculation for threshold rules
-- CATEGORICAL: Suggest valid category for membership rules
+- CATEGORICAL: Suggest valid category for membership rules (with domain-aware feasibility)
 - COMPOSITE: Multi-objective relaxation for compound rules
+
+Phase 4 Enhancement: Domain-aware categorical feasibility scoring.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
-from ..types import PolicyRule, CounterFactualResult, CounterFactualStrategy
+from ..types import PolicyRule, CounterFactualResult, CounterFactualStrategy, CompositeRule
+
+if TYPE_CHECKING:
+    from .feasibility import CategoricalFeasibilityScorer
 
 
 class CounterfactualEngine:
@@ -21,6 +26,9 @@ class CounterfactualEngine:
 
     For each failed rule, generates a CounterFactualResult explaining
     the minimal state change needed to pass the rule.
+
+    Phase 4 Enhancement: Supports domain-aware categorical feasibility scoring
+    via CategoricalFeasibilityScorer.
 
     Example:
         >>> engine = CounterfactualEngine()
@@ -31,7 +39,26 @@ class CounterfactualEngine:
         >>> result = engine.explain(rule, {"savings": 300})
         >>> print(result.explanation)
         "If savings were +200 (>=500), action would pass."
+
+        # With feasibility scorer:
+        >>> from governed_ai_sdk.v1_prototype.xai.feasibility import create_default_scorer
+        >>> engine = CounterfactualEngine(feasibility_scorer=create_default_scorer())
+        >>> result = engine.explain(categorical_rule, state)
+        >>> print(result.feasibility_score)  # Domain-aware score instead of 0.5
     """
+
+    def __init__(
+        self,
+        feasibility_scorer: Optional["CategoricalFeasibilityScorer"] = None,
+    ):
+        """
+        Initialize CounterfactualEngine.
+
+        Args:
+            feasibility_scorer: Optional scorer for domain-aware categorical
+                               feasibility. If None, uses fixed 0.5 score.
+        """
+        self.feasibility_scorer = feasibility_scorer
 
     def explain(
         self,
@@ -103,24 +130,53 @@ class CounterfactualEngine:
         Categorical constraint suggestion for membership rules.
 
         Handles: in, not_in
+
+        Phase 4 Enhancement: Uses CategoricalFeasibilityScorer for domain-aware
+        feasibility scoring instead of fixed 0.5.
         """
         current = state.get(rule.param)
         valid_options = rule.value if isinstance(rule.value, list) else [rule.value]
 
+        # Get domain from rule (Phase 1 enhancement)
+        domain = getattr(rule, "domain", "generic")
+
         if rule.operator == "in":
             # Need to be IN the valid options
-            suggested = valid_options[0] if valid_options else None
-            explanation = f"Change {rule.param} from '{current}' to one of {valid_options}"
+            if self.feasibility_scorer and current:
+                # Use scorer to rank options by feasibility
+                ranked = self.feasibility_scorer.rank_options(
+                    rule.param, current, valid_options, domain
+                )
+                if ranked:
+                    best = ranked[0]
+                    suggested = best.to_value
+                    feasibility = best.feasibility
+                    rationale = best.rationale
+                else:
+                    suggested = valid_options[0] if valid_options else None
+                    feasibility = 0.5
+                    rationale = None
+            else:
+                suggested = valid_options[0] if valid_options else None
+                feasibility = 0.5
+                rationale = None
+
+            if rationale:
+                explanation = f"Change {rule.param} from '{current}' to '{suggested}' ({rationale}) [feasibility: {feasibility:.0%}]"
+            else:
+                explanation = f"Change {rule.param} from '{current}' to '{suggested}' [feasibility: {feasibility:.0%}]"
+
         else:  # not_in
             # Need to NOT be in the invalid options
             suggested = f"not_{current}"  # Placeholder - actual value depends on domain
+            feasibility = 0.4  # Default for not_in
             explanation = f"Change {rule.param} from '{current}' to any value not in {valid_options}"
 
         return CounterFactualResult(
             passed=False,
             delta_state={rule.param: suggested},
             explanation=explanation,
-            feasibility_score=0.5,  # Binary: can or can't change category
+            feasibility_score=feasibility,
             strategy_used=CounterFactualStrategy.CATEGORICAL
         )
 
@@ -167,6 +223,116 @@ class CounterfactualEngine:
             passed=False,
             delta_state={},
             explanation=f"Composite rule '{rule.id}': multiple changes may be needed. Check rule '{rule.param}' with operator '{rule.operator}'.",
+            feasibility_score=0.3,
+            strategy_used=CounterFactualStrategy.COMPOSITE
+        )
+
+    def explain_composite_rule(
+        self,
+        rule: CompositeRule,
+        state: Dict[str, Any]
+    ) -> CounterFactualResult:
+        """
+        Explain a CompositeRule by finding the easiest path to satisfaction.
+
+        Phase 4 Enhancement: Analyzes sub-rules and suggests the most feasible
+        change path based on individual rule feasibility scores.
+
+        Args:
+            rule: CompositeRule with multiple sub-rules
+            state: Current state dict
+
+        Returns:
+            CounterFactualResult with the easiest path explanation
+        """
+        if not rule.rules:
+            return CounterFactualResult(
+                passed=True,
+                delta_state={},
+                explanation="No sub-rules to evaluate.",
+                feasibility_score=1.0,
+                strategy_used=CounterFactualStrategy.COMPOSITE
+            )
+
+        # Explain each sub-rule
+        sub_results = [self.explain(sub, state) for sub in rule.rules]
+
+        if rule.logic == "OR":
+            # For OR: find the easiest single change
+            easiest = max(sub_results, key=lambda r: r.feasibility_score)
+            return CounterFactualResult(
+                passed=False,
+                delta_state=easiest.delta_state,
+                explanation=f"Easiest path (OR): {easiest.explanation}",
+                feasibility_score=easiest.feasibility_score,
+                strategy_used=CounterFactualStrategy.COMPOSITE
+            )
+
+        elif rule.logic == "AND":
+            # For AND: all changes needed, feasibility is product
+            combined_delta = {}
+            explanations = []
+            feasibility = 1.0
+
+            for result in sub_results:
+                combined_delta.update(result.delta_state)
+                explanations.append(result.explanation)
+                feasibility *= result.feasibility_score
+
+            return CounterFactualResult(
+                passed=False,
+                delta_state=combined_delta,
+                explanation=f"All required (AND): {'; '.join(explanations)}",
+                feasibility_score=feasibility,
+                strategy_used=CounterFactualStrategy.COMPOSITE
+            )
+
+        elif rule.logic == "IF_THEN":
+            # For IF_THEN: if condition met, explain consequent
+            # Check for condition_rule attribute (proper IF_THEN structure)
+            condition_rule = getattr(rule, "condition_rule", None)
+
+            if condition_rule:
+                condition_result = self.explain(condition_rule, state)
+                # If we have consequent rules, explain them
+                if sub_results:
+                    consequent_result = sub_results[0]
+                    return CounterFactualResult(
+                        passed=False,
+                        delta_state=consequent_result.delta_state,
+                        explanation=f"Condition '{condition_rule.param}': {consequent_result.explanation}",
+                        feasibility_score=consequent_result.feasibility_score,
+                        strategy_used=CounterFactualStrategy.COMPOSITE
+                    )
+
+            elif len(rule.rules) >= 2:
+                # Legacy format: first rule is condition, rest are consequents
+                condition_result = sub_results[0]
+                consequent_result = sub_results[1]
+
+                # Check if condition would pass
+                if condition_result.feasibility_score > 0.5:
+                    return CounterFactualResult(
+                        passed=False,
+                        delta_state=consequent_result.delta_state,
+                        explanation=f"Since condition met, required: {consequent_result.explanation}",
+                        feasibility_score=consequent_result.feasibility_score,
+                        strategy_used=CounterFactualStrategy.COMPOSITE
+                    )
+                else:
+                    return CounterFactualResult(
+                        passed=True,
+                        delta_state={},
+                        explanation="Condition not met, consequent not required.",
+                        feasibility_score=1.0,
+                        strategy_used=CounterFactualStrategy.COMPOSITE
+                    )
+
+        # Fallback for unknown logic
+        return CounterFactualResult(
+            passed=False,
+            delta_state={},
+            explanation=f"Composite rule '{rule.id}' with logic '{rule.logic}': analyze sub-rules individually.",
             feasibility_score=0.3,
             strategy_used=CounterFactualStrategy.COMPOSITE
         )
