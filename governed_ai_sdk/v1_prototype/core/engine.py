@@ -6,6 +6,7 @@ Enhanced in Phase 3 with OperatorRegistry support.
 """
 
 from typing import Any, Dict, List, Optional
+from concurrent.futures import ThreadPoolExecutor
 from governed_ai_sdk.v1_prototype.types import (
     GovernanceTrace,
     PolicyRule,
@@ -13,6 +14,7 @@ from governed_ai_sdk.v1_prototype.types import (
     RuleLevel,
 )
 from .operators import OperatorRegistry
+from .policy_cache import PolicyCache
 
 
 class PolicyEngine:
@@ -23,7 +25,7 @@ class PolicyEngine:
     explaining pass/fail status.
     """
 
-    def __init__(self, strict_mode: bool = True):
+    def __init__(self, strict_mode: bool = True, cache_size: int = 100):
         """
         Initialize engine.
 
@@ -31,6 +33,7 @@ class PolicyEngine:
             strict_mode: If True, ERROR rules block. If False, all are warnings.
         """
         self.strict_mode = strict_mode
+        self._cache = PolicyCache(max_size=cache_size)
 
     def verify(
         self,
@@ -79,13 +82,37 @@ class PolicyEngine:
 
     def _load_rules(self, policy: Dict[str, Any]) -> List[PolicyRule]:
         """Convert policy dict to PolicyRule objects."""
-        rules = []
-        for r in policy.get("rules", []):
-            if isinstance(r, PolicyRule):
-                rules.append(r)
-            elif isinstance(r, dict):
-                rules.append(PolicyRule(**r))
-        return rules
+        rules = policy.get("rules", [])
+        if rules and all(isinstance(r, PolicyRule) for r in rules):
+            return list(rules)
+        return self._cache.get_or_compile(policy)
+
+    def batch_verify(
+        self,
+        requests,
+        policy,
+        parallel: bool = True,
+        max_workers: int = 4
+    ) -> List[GovernanceTrace]:
+        """
+        Verify multiple action-state pairs efficiently.
+
+        Args:
+            requests: List of (action, state) tuples
+            policy: Policy configuration
+            parallel: Whether to use parallel processing
+            max_workers: Number of parallel workers
+
+        Returns:
+            List of GovernanceTrace results
+        """
+        if parallel and len(requests) > 10:
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                return list(executor.map(
+                    lambda req: self.verify(req[0], req[1], policy),
+                    requests
+                ))
+        return [self.verify(action, state, policy) for action, state in requests]
 
     def _evaluate_rule(self, rule: PolicyRule, state: Dict[str, Any]) -> bool:
         """
