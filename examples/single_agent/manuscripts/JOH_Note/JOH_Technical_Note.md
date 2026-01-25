@@ -68,50 +68,11 @@ Ultimately, the purpose of this framework is not merely to build "smarter" agent
 - **Metric**: **Runtime Duration & Token Volume**.
   - _Purpose_: Quantifies the "Price of Agency"—the extra compute required to turn a Small Model into a Wise Agent.
 
-## 2. Results: The Cognitive Architecture of Adaptation (SQ1)
+## 2. Preliminary Results Summary
 
-### 2.1 The "U-Shaped" Scaling Curve
+_For detailed analysis of Rationality (SQ1), please refer to the standalone [SQ1 Analysis Report](../analysis/SQ1_Analysis_Report.md)._
 
-Contrary to the expectation of linear improvement, our analysis reveals a **U-Shaped Curve** in decision rationality across model sizes (1.5B $\rightarrow$ 8B $\rightarrow$ 14B).
-
-#### Metric Summary Table (SQ1)
-
-| Model    | Group        | HiTA (Threat)    | TA_Al (Alignment)     | HiCA (Coping)   | CA_Al (Alignment) | FF (Stability)    | Intv (Cost)     |
-| :------- | :----------- | :--------------- | :-------------------- | :-------------- | :---------------- | :---------------- | :-------------- |
-| **1.5B** | A (Null)     | 0.30 (Low)       | 0.85 (High)           | 0.27 (Low)      | 0.84 (High)       | 0.14 (Stable)     | -               |
-| **1.5B** | B (Rule)     | 0.08 (Mute)      | 0.91 (High)           | 0.04 (Mute)     | 0.97 (High)       | 0.91 (Unstable)   | **138 (Fail)**  |
-| **1.5B** | **C (Sage)** | **0.03 (Calm)**  | **0.91 (High)**       | **0.03 (Calm)** | **0.93 (High)**   | **0.66 (Stable)** | **0 (Perfect)** |
-|          |              |                  |                       |                 |                   |                   |                 |
-| **8B**   | A (Null)     | **0.96 (Panic)** | 0.83 (High)           | **0.90 (Ego)**  | 0.83 (High)       | **1.86 (Chaos)**  | -               |
-| **8B**   | B (Rule)     | 0.32 (Mod)       | **0.49 (Disconnect)** | 0.22 (Low)      | **0.20 (Lazy)**   | 1.31 (Unstable)   | **23 (Leak)**   |
-| **8B**   | **C (Sage)** | 0.43 (Calm)      | 0.44 (Low)            | 0.35 (Mod)      | 0.23 (Low)        | 1.54 (Unstable)   | **0 (Perfect)** |
-|          |              |                  |                       |                 |                   |                   |                 |
-| **14B**  | A (Null)     | 0.72 (Rational)  | 0.97 (Perfect)        | 0.62 (Real)     | 0.97 (Perfect)    | **0.56 (Stable)** | -               |
-| **14B**  | B (Rule)     | 0.55 (Mod)       | 0.93 (High)           | 0.20 (Low)      | 0.90 (High)       | 1.60 (Wobble)     | 0 (Perfect)     |
-| **14B**  | C (Sage)     | 0.53 (Mod)       | 0.90 (High)           | 0.18 (Low)      | 0.76 (Drop)       | **2.05 (Wobble)** | 0 (Perfect)     |
-
-### 2.2 Mechanism Analysis
-
-#### (1) The Small Model Problem (1.5B): Need for Scaffolding
-
-- **Observation**: In Group B (Governance Only), the 1.5B model fails catastrophically, requiring **138 interventions** to maintain format/logic.
-- **Solution**: Group C (Memory + Reflection) acts as a **"Cognitive Prosthetic"**. The explicit reflection step allows the model to decompose complex logic it cannot handle in a single pass.
-- **Result**: Interventions drop to **0**. The framework effectively "upgrades" the 1.5B model's reasoning capacity to match larger models.
-
-#### (2) The Adolescent Phase (8B): The Problem of Focus
-
-- **Observation**: The 8B model in Baseline (Group A) is hyper-sensitive (**HiTA 0.96**). It perceives everything as a threat but lacks the executive function to act, leading to **Cognitive Dissonance** (High Threat, Low Action).
-- **Solution**: Governance forces it to prioritize. While alignment remains low (it still "feels" scared but is forced to act calmly), Group C successfully successfully suppresses the panic-induced chaos (Intv 23 $\rightarrow$ 0).
-
-#### (3) The Large Model Paradox (14B): The Problem of Over-Thinking
-
-- **Observation**: The 14B model is natively stable and rational (Group A FF 0.56).
-- **Governance Cost**: Adding deep reflection (Group C) actually **destabilizes** the agent (FF increases to 2.05). The additional context causes the model to second-guess its optimal initial intuition ("Rumination").
-- **Implication**: For high-functioning models, lighter governance (Group B) is superior to heavy cognitive architecture (Group C).
-
-### 2.3 Conclusion on Architecture vs Scale
-
-**Type C Architecture acts as a "Cognitive Equalizer".** It allows cheap, unstable 1.5B models to achieve the **zero-intervention reliability** of 14B models. However, it obeys a law of diminishing returns; applying the same heavy architecture to an already capable 14B model yields regression (instability) rather than improvement.
+Our pilot data indicates a "Cognitive Equalizer" effect where architecture compensates for model size deficits in small models (1.5B), but acts as a constraint in larger models (14B).
 
 ## 3. Governance as a Memory Prosthetic
 
