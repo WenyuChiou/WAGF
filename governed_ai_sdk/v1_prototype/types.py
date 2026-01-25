@@ -23,6 +23,7 @@ class RuleOperator(str, Enum):
     NEQ = "!="
     IN = "in"
     NOT_IN = "not_in"
+    BETWEEN = "between"  # Phase 3: range operator
 
 
 class RuleLevel(str, Enum):
@@ -375,6 +376,58 @@ class ResearchTrace:
         return result
 
 
+# =============================================================================
+# NEW v2 Phase 3: Composite and Temporal Rules
+# =============================================================================
+
+@dataclass
+class CompositeRule:
+    """
+    Multi-constraint rule supporting AND/OR/IF-THEN logic.
+
+    Examples:
+        - AND: All sub-rules must pass
+        - OR: At least one sub-rule must pass
+        - AT_LEAST_N: At least N sub-rules must pass
+        - IF_THEN: If condition rule passes, then consequent must pass
+    """
+    id: str
+    logic: str  # "AND", "OR", "AT_LEAST_N", "IF_THEN"
+    rules: List["PolicyRule"]
+    threshold: Optional[int] = None  # For "AT_LEAST_N"
+    condition_rule: Optional["PolicyRule"] = None  # For "IF_THEN"
+    message: str = ""
+    level: str = "ERROR"
+
+    def __post_init__(self):
+        if self.logic == "AT_LEAST_N" and self.threshold is None:
+            raise ValueError("AT_LEAST_N logic requires threshold")
+        if self.logic == "IF_THEN" and self.condition_rule is None:
+            raise ValueError("IF_THEN logic requires condition_rule")
+
+
+@dataclass
+class TemporalRule:
+    """
+    Time-series rule for rate of change, rolling averages, trends.
+
+    Aggregations:
+        - mean: Rolling mean over window
+        - max: Maximum value in window
+        - min: Minimum value in window
+        - delta: Change from start to end of window
+        - trend: Linear trend coefficient
+    """
+    id: str
+    param: str
+    operator: str
+    aggregation: str  # "mean", "max", "min", "delta", "trend"
+    window: int  # Number of time steps
+    value: float
+    message: str
+    level: str = "ERROR"
+
+
 # Type aliases for cleaner function signatures
 State = Dict[str, Any]
 Action = Dict[str, Any]
@@ -395,6 +448,8 @@ __all__ = [
     "EntropyFriction",
     "SensorConfig",
     "ResearchTrace",
+    "CompositeRule",
+    "TemporalRule",
     # Type aliases
     "State",
     "Action",

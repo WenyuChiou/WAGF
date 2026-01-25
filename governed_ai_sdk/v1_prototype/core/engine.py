@@ -2,6 +2,7 @@
 PolicyEngine - Stateless rule verifier.
 
 Ported from: validators/agent_validator.py (lines 333-455)
+Enhanced in Phase 3 with OperatorRegistry support.
 """
 
 from typing import Any, Dict, List, Optional
@@ -11,6 +12,7 @@ from governed_ai_sdk.v1_prototype.types import (
     RuleOperator,
     RuleLevel,
 )
+from .operators import OperatorRegistry
 
 
 class PolicyEngine:
@@ -87,9 +89,10 @@ class PolicyEngine:
 
     def _evaluate_rule(self, rule: PolicyRule, state: Dict[str, Any]) -> bool:
         """
-        Evaluate a single rule against state.
+        Evaluate a single rule against state using OperatorRegistry.
 
-        Supports operators: >, <, >=, <=, ==, !=, in, not_in
+        Supports all registered operators (default: >, <, >=, <=, ==, !=, in, not_in, between)
+        Custom operators can be registered via OperatorRegistry.register().
         """
         value = state.get(rule.param)
 
@@ -100,6 +103,16 @@ class PolicyEngine:
         op = rule.operator
         target = rule.value
 
+        # Try to use registered operator first
+        evaluator = OperatorRegistry.get(op)
+        if evaluator is not None:
+            return evaluator.evaluate(value, target, context=state)
+
+        # Fallback to legacy hardcoded operators for backwards compatibility
+        return self._legacy_evaluate(op, value, target)
+
+    def _legacy_evaluate(self, op: str, value: Any, target: Any) -> bool:
+        """Legacy operator evaluation for backwards compatibility."""
         # Numeric comparisons
         if op == ">":
             return value > target

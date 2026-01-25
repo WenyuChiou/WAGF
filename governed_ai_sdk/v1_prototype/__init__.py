@@ -21,7 +21,7 @@ Components:
     - xai.counterfactual: Explainable AI through counterfactual analysis
 """
 
-# Core types (Phase 0 + Phase 1 v2)
+# Core types (Phase 0 + Phase 1 v2 + Phase 3)
 from .types import (
     PolicyRule,
     GovernanceTrace,
@@ -30,12 +30,18 @@ from .types import (
     RuleOperator,
     RuleLevel,
     CounterFactualStrategy,
-    # v2 additions
+    # v2 additions (Phase 1)
     ParamType,
     Domain,
     SensorConfig,
     ResearchTrace,
+    # v2 additions (Phase 3)
+    CompositeRule,
+    TemporalRule,
 )
+
+# Operator Registry (Phase 3)
+from .core.operators import OperatorRegistry, RuleEvaluator
 
 # Memory layer (Phase 3)
 from .memory.symbolic import SymbolicMemory
@@ -45,6 +51,16 @@ from .xai.counterfactual import CounterfactualEngine
 
 # Entropy calibrator (Phase 4B)
 from .core.calibrator import EntropyCalibrator
+
+# Social observation (Phase 6)
+from .social import (
+    SocialObserver,
+    ObservationResult,
+    ObserverRegistry,
+    FloodObserver,
+    FinanceObserver,
+    EducationObserver,
+)
 
 
 __all__ = [
@@ -61,12 +77,25 @@ __all__ = [
     "Domain",
     "SensorConfig",
     "ResearchTrace",
+    # Types (Phase 3)
+    "CompositeRule",
+    "TemporalRule",
+    # Operators (Phase 3)
+    "OperatorRegistry",
+    "RuleEvaluator",
     # Memory
     "SymbolicMemory",
     # XAI
     "CounterfactualEngine",
     # Calibrator
     "EntropyCalibrator",
+    # Social (Phase 6)
+    "SocialObserver",
+    "ObservationResult",
+    "ObserverRegistry",
+    "FloodObserver",
+    "FinanceObserver",
+    "EducationObserver",
 ]
 
 __version__ = "0.1.0"
