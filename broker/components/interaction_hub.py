@@ -1,27 +1,49 @@
 """
 Interaction Hub Component - PR 2
 Handles information diffusion across Institutional, Social, and Spatial tiers.
+
+Phase 8 Update: Supports SDK observers for domain-agnostic observation.
 """
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, TYPE_CHECKING
 import random
 from .social_graph import SocialGraph
 from .memory_engine import MemoryEngine
 from simulation.environment import TieredEnvironment
 
+# SDK observer imports (optional, for v2 methods)
+if TYPE_CHECKING:
+    from governed_ai_sdk.v1_prototype.social import SocialObserver
+    from governed_ai_sdk.v1_prototype.observation import EnvironmentObserver
+
+
 class InteractionHub:
     """
     Manages the 'Worldview' of agents by aggregating tiered information.
+
+    Phase 8: Now supports SDK observers for domain-agnostic observation.
+    Use `social_observer` and `environment_observer` params for SDK integration,
+    or omit them to use legacy hardcoded observation logic.
     """
-    def __init__(self, graph: Optional[SocialGraph] = None, memory_engine: Optional[MemoryEngine] = None, 
-                 environment: Optional[TieredEnvironment] = None,
-                 spatial_observables: List[str] = None,
-                 social_graph: Optional[SocialGraph] = None):
+    def __init__(
+        self,
+        graph: Optional[SocialGraph] = None,
+        memory_engine: Optional[MemoryEngine] = None,
+        environment: Optional[TieredEnvironment] = None,
+        spatial_observables: List[str] = None,
+        social_graph: Optional[SocialGraph] = None,
+        # Phase 8: SDK observer support
+        social_observer: Optional["SocialObserver"] = None,
+        environment_observer: Optional["EnvironmentObserver"] = None,
+    ):
         if graph is None and social_graph is None:
             raise ValueError("InteractionHub requires a social graph")
         self.graph = graph or social_graph
         self.memory_engine = memory_engine
         self.environment = environment
         self.spatial_observables = spatial_observables or []
+        # SDK observers (None = use legacy logic)
+        self.social_observer = social_observer
+        self.environment_observer = environment_observer
 
     def get_spatial_context(self, agent_id: str, agents: Dict[str, Any]) -> Dict[str, Any]:
         """Tier 1 (Spatial): Aggregated observation of neighbors."""
@@ -84,6 +106,154 @@ class InteractionHub:
                 })
 
         return visible_actions
+
+    def get_visible_neighbor_actions_v2(
+        self,
+        agent_id: str,
+        agents: Dict[str, Any],
+        observer: Optional["SocialObserver"] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Get visible neighbor actions using SDK SocialObserver.
+
+        Phase 8: Uses domain-agnostic observer pattern instead of hardcoded checks.
+
+        Args:
+            agent_id: The observing agent's ID
+            agents: Dictionary of all agents
+            observer: SDK SocialObserver instance (uses self.social_observer if None)
+
+        Returns:
+            List of visible action dicts from SDK observer
+        """
+        obs = observer or self.social_observer
+        if obs is None:
+            # Fallback to legacy method
+            return self.get_visible_neighbor_actions(agent_id, agents)
+
+        neighbor_ids = self.graph.get_neighbors(agent_id)
+        visible_actions = []
+
+        for nid in neighbor_ids:
+            neighbor = agents.get(nid)
+            if not neighbor:
+                continue
+
+            # Use SDK observer
+            result = obs.observe(agents[agent_id], neighbor)
+            for action in result.visible_actions:
+                # Add neighbor_id for consistency with legacy format
+                action_copy = dict(action)
+                action_copy["neighbor_id"] = nid
+                visible_actions.append(action_copy)
+
+        return visible_actions
+
+    def get_social_context_v2(
+        self,
+        agent_id: str,
+        agents: Dict[str, Any],
+        observer: Optional["SocialObserver"] = None,
+        max_gossip: int = 2,
+    ) -> Dict[str, Any]:
+        """
+        Get social context using SDK SocialObserver.
+
+        Phase 8: Uses domain-agnostic observer pattern for visible actions and gossip.
+
+        Args:
+            agent_id: The observing agent's ID
+            agents: Dictionary of all agents
+            observer: SDK SocialObserver instance (uses self.social_observer if None)
+            max_gossip: Maximum number of gossip snippets
+
+        Returns:
+            Dict with 'gossip', 'visible_actions', 'neighbor_count', 'observable_attrs'
+        """
+        obs = observer or self.social_observer
+        if obs is None:
+            # Fallback to legacy method
+            return self.get_social_context(agent_id, agents, max_gossip)
+
+        neighbor_ids = self.graph.get_neighbors(agent_id)
+        gossip = []
+        visible_actions = []
+        observable_attrs = {}  # Aggregated observable attributes
+
+        for nid in neighbor_ids:
+            neighbor = agents.get(nid)
+            if not neighbor:
+                continue
+
+            # Use SDK observer
+            result = obs.observe(agents[agent_id], neighbor)
+
+            # Collect visible actions
+            for action in result.visible_actions:
+                action_copy = dict(action)
+                action_copy["neighbor_id"] = nid
+                visible_actions.append(action_copy)
+
+            # Collect gossip
+            if result.gossip and len(gossip) < max_gossip:
+                gossip.append(f"Neighbor {nid} mentioned: '{result.gossip}'")
+
+            # Aggregate observable attributes
+            for attr, value in result.visible_attributes.items():
+                if attr not in observable_attrs:
+                    observable_attrs[attr] = {"count": 0, "total": 0}
+                observable_attrs[attr]["total"] += 1
+                if value:  # Count truthy values
+                    observable_attrs[attr]["count"] += 1
+
+        # Convert to percentages
+        for attr in observable_attrs:
+            total = observable_attrs[attr]["total"]
+            count = observable_attrs[attr]["count"]
+            observable_attrs[attr] = round((count / total) * 100) if total > 0 else 0
+
+        return {
+            "gossip": gossip,
+            "visible_actions": visible_actions,
+            "neighbor_count": len(neighbor_ids),
+            "observable_attrs": observable_attrs,
+        }
+
+    def get_environment_observation(
+        self,
+        agent_id: str,
+        agents: Dict[str, Any],
+        observer: Optional["EnvironmentObserver"] = None,
+    ) -> Dict[str, Any]:
+        """
+        Get environment observation using SDK EnvironmentObserver.
+
+        Phase 8: Uses domain-agnostic observer pattern for environment sensing.
+
+        Args:
+            agent_id: The observing agent's ID
+            agents: Dictionary of all agents
+            observer: SDK EnvironmentObserver instance (uses self.environment_observer if None)
+
+        Returns:
+            Dict with 'sensed_state', 'detected_events', 'observation_accuracy'
+        """
+        obs = observer or self.environment_observer
+        if obs is None or self.environment is None:
+            return {}
+
+        agent = agents.get(agent_id)
+        if not agent:
+            return {}
+
+        # Use SDK observer
+        result = obs.observe(agent, self.environment)
+
+        return {
+            "sensed_state": result.sensed_state,
+            "detected_events": result.detected_events,
+            "observation_accuracy": result.observation_accuracy,
+        }
 
     def get_social_context(self, agent_id: str, agents: Dict[str, Any], max_gossip: int = 2) -> Dict[str, Any]:
         """
@@ -189,7 +359,16 @@ class InteractionHub:
                 env_context["institutional"] = self.environment.institutions.get(inst_id, {})
 
         # Get social context (gossip + visible actions)
-        social_context = self.get_social_context(agent_id, agents)
+        # Phase 8: Use SDK observer if available
+        if self.social_observer:
+            social_context = self.get_social_context_v2(agent_id, agents)
+        else:
+            social_context = self.get_social_context(agent_id, agents)
+
+        # Phase 8: Get environment observation via SDK if available
+        env_sdk_observation = {}
+        if self.environment_observer:
+            env_sdk_observation = self.get_environment_observation(agent_id, agents)
 
         result = {
             "personal": personal,
@@ -197,7 +376,10 @@ class InteractionHub:
                 "spatial": self.get_spatial_context(agent_id, agents),
                 "social": social_context.get("gossip", []) if isinstance(social_context, dict) else social_context,
                 "visible_actions": social_context.get("visible_actions", []) if isinstance(social_context, dict) else [],
-                "environment": env_context["local"]
+                "environment": env_context["local"],
+                # Phase 8: SDK environment observation
+                "sensed_environment": env_sdk_observation.get("sensed_state", {}),
+                "detected_events": env_sdk_observation.get("detected_events", []),
             },
             "global": global_news or env_context["global"],
             "institutional": env_context["institutional"]

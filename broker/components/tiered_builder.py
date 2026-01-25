@@ -1,5 +1,8 @@
-﻿"""Tiered context builder implementations."""
-from typing import Dict, List, Any, Optional, Callable
+"""Tiered context builder implementations.
+
+Phase 8: Added SDK observer support for domain-agnostic observation.
+"""
+from typing import Dict, List, Any, Optional, Callable, TYPE_CHECKING
 
 from broker.utils.logging import setup_logger
 from broker.utils.agent_config import load_agent_config
@@ -11,6 +14,7 @@ from .context_providers import (
     AttributeProvider,
     PrioritySchemaProvider,
     EnvironmentProvider,
+    EnvironmentObservationProvider,  # Phase 8: SDK observer
     MemoryProvider,
     SocialProvider,
     InstitutionalProvider,
@@ -20,6 +24,11 @@ from .context_providers import (
 from .memory_engine import MemoryEngine
 from .interaction_hub import InteractionHub
 from .neighbor_utils import get_neighbor_summary
+
+# SDK observer imports (optional, for Phase 8)
+if TYPE_CHECKING:
+    from governed_ai_sdk.v1_prototype.social import SocialObserver
+    from governed_ai_sdk.v1_prototype.observation import EnvironmentObserver
 
 logger = setup_logger(__name__)
 
@@ -210,7 +219,11 @@ class BaseAgentContextBuilder(ContextBuilder):
 
 
 class TieredContextBuilder(BaseAgentContextBuilder):
-    """Modular Tiered Context Builder using the Provider pipeline."""
+    """Modular Tiered Context Builder using the Provider pipeline.
+
+    Phase 8: Supports SDK observers for domain-agnostic observation.
+    Pass `social_observer` and/or `environment_observer` for SDK integration.
+    """
 
     def __init__(
         self,
@@ -226,17 +239,31 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         yaml_path: Optional[str] = None,
         max_prompt_tokens: int = 16384,
         enable_financial_constraints: bool = False,
+        # Phase 8: SDK observer support
+        social_observer: Optional["SocialObserver"] = None,
+        environment_observer: Optional["EnvironmentObserver"] = None,
     ):
+        # Phase 8: Store observers for potential use
+        self.social_observer = social_observer
+        self.environment_observer = environment_observer
+
         providers = [
             DynamicStateProvider(dynamic_whitelist),
             AttributeProvider(),
             MemoryProvider(memory_engine),
-            SocialProvider(hub),
+            # Phase 8: Pass SDK observer to SocialProvider if available
+            SocialProvider(hub, observer=social_observer),
             NarrativeProvider(),
         ]
 
         if getattr(hub, "environment", None):
             providers.append(InstitutionalProvider(hub.environment))
+
+        # Phase 8: Add EnvironmentObservationProvider if SDK observer provided
+        if environment_observer and getattr(hub, "environment", None):
+            providers.append(
+                EnvironmentObservationProvider(environment_observer, hub.environment)
+            )
 
         super().__init__(
             agents=agents,

@@ -1,9 +1,17 @@
-﻿"""Context provider implementations."""
-from typing import Dict, List, Any, Optional, Callable
+"""Context provider implementations.
+
+Phase 8: Added SDK observer support for domain-agnostic observation.
+"""
+from typing import Dict, List, Any, Optional, Callable, TYPE_CHECKING
 from broker.utils.logging import setup_logger
 
 from .memory_engine import MemoryEngine
 from .interaction_hub import InteractionHub
+
+# SDK observer imports (optional, for Phase 8)
+if TYPE_CHECKING:
+    from governed_ai_sdk.v1_prototype.social import SocialObserver
+    from governed_ai_sdk.v1_prototype.observation import EnvironmentObserver
 
 logger = setup_logger(__name__)
 
@@ -115,18 +123,66 @@ class MemoryProvider(ContextProvider):
 
 
 class SocialProvider(ContextProvider):
-    """Provides T1 Social/Spatial context from InteractionHub."""
+    """Provides T1 Social/Spatial context from InteractionHub.
 
-    def __init__(self, hub: InteractionHub):
+    Phase 8: Supports SDK SocialObserver for domain-agnostic observation.
+    """
+
+    def __init__(
+        self,
+        hub: InteractionHub,
+        observer: Optional["SocialObserver"] = None,
+    ):
         self.hub = hub
+        self.observer = observer  # SDK observer (optional)
 
     def provide(self, agent_id, agents, context, **kwargs):
         spatial = self.hub.get_spatial_context(agent_id, agents)
-        social = self.hub.get_social_context(agent_id, agents)
+
+        # Phase 8: Use SDK observer if available
+        if self.observer:
+            social = self.hub.get_social_context_v2(agent_id, agents, self.observer)
+        else:
+            social = self.hub.get_social_context(agent_id, agents)
 
         local = context.setdefault("local", {})
         local["spatial"] = spatial
-        local["social"] = social
+        local["social"] = social.get("gossip", []) if isinstance(social, dict) else social
+        local["visible_actions"] = social.get("visible_actions", []) if isinstance(social, dict) else []
+
+        # Phase 8: Include aggregated observable attributes from SDK
+        if self.observer and isinstance(social, dict):
+            local["observable_attrs"] = social.get("observable_attrs", {})
+
+
+class EnvironmentObservationProvider(ContextProvider):
+    """Provides environment observation using SDK EnvironmentObserver.
+
+    Phase 8: Uses domain-agnostic observer pattern for environment sensing.
+    This is separate from the legacy EnvironmentProvider which checks for
+    agent.observe() method.
+    """
+
+    def __init__(
+        self,
+        observer: "EnvironmentObserver",
+        environment: Any,
+    ):
+        self.observer = observer
+        self.environment = environment
+
+    def provide(self, agent_id, agents, context, **kwargs):
+        agent = agents.get(agent_id)
+        if not agent:
+            return
+
+        # Use SDK observer
+        observation = self.observer.observe(agent, self.environment)
+
+        local = context.setdefault("local", {})
+        local["sensed_environment"] = observation.sensed_state
+        local["detected_events"] = observation.detected_events
+        local["observation_accuracy"] = observation.observation_accuracy
 
 
 class InstitutionalProvider(ContextProvider):
@@ -207,6 +263,7 @@ __all__ = [
     "AttributeProvider",
     "PrioritySchemaProvider",
     "EnvironmentProvider",
+    "EnvironmentObservationProvider",  # Phase 8: SDK observer
     "MemoryProvider",
     "SocialProvider",
     "InstitutionalProvider",
