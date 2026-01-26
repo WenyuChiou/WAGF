@@ -2,7 +2,7 @@ from typing import List, Dict, Any, Optional, Tuple
 import heapq
 import logging
 
-from agents.base_agent import BaseAgent
+from governed_ai_sdk.agents import BaseAgent
 from broker.components.memory_engine import MemoryEngine
 
 logger = logging.getLogger(__name__)
