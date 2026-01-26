@@ -52,7 +52,11 @@ class TieredEnvironment:
         if location_id not in self.local_states:
             self.local_states[location_id] = {}
         self.local_states[location_id][key] = value
-    
+
+    def get_local(self, location_id: str, key: str, default: Any = None) -> Any:
+        """Get a variable for a specific location (tract)."""
+        return self.local_states.get(location_id, {}).get(key, default)
+
     def set_social(self, agent_id: str, key: str, value: Any):
         """Set an observable social state for an agent."""
         if agent_id not in self.social_states:

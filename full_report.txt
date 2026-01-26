@@ -1,0 +1,9 @@
+﻿=== FINAL JOH COMPARISON TABLE ===
+           Model   Group  Sensitivity  Interventions  FlipFlops         Status
+deepseek_r1_1_5b Group_A         0.77              0       0.14 Truncated (Y8)
+deepseek_r1_1_5b Group_B         1.00            138       0.91       Complete
+deepseek_r1_1_5b Group_C         1.00              0       0.66       Complete
+  deepseek_r1_8b Group_A         0.28              0       1.86       Complete
+  deepseek_r1_8b Group_B         1.00             23       1.31       Complete
+  deepseek_r1_8b Group_C         1.00              0       1.54       Complete
+ deepseek_r1_14b Group_A         0.87              0       0.56       Complete

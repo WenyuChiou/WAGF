@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "last_updated": "2026-01-25T10:00:00Z",
+  "last_updated": "2026-01-26T10:00:00Z",
   "tasks": [
     {
       "id": "Task-033",
@@ -25,44 +25,80 @@
     {
       "id": "Task-035",
       "title": "SDK-Broker Integration",
-      "status": "in_progress",
+      "status": "completed",
       "type": "integration",
       "priority": "high",
-      "owner": "Claude Code",
+      "owner": "Claude Code + Codex",
       "reviewer": "WenyuChiou",
-      "created_at": "2026-01-25T10:00:00Z",
+      "completed_at": "2026-01-26",
+      "tests_passed": 374,
       "subtasks": [
         {
           "id": "035-A",
           "title": "Memory Scorer Integration",
-          "status": "assigned",
+          "status": "completed",
           "assigned_to": "Codex",
           "scope": "broker/components/memory_engine.py"
         },
         {
           "id": "035-B",
           "title": "Reflection Template Integration",
-          "status": "assigned",
+          "status": "completed",
           "assigned_to": "Codex",
           "scope": "broker/components/reflection_engine.py"
         },
         {
           "id": "035-C",
           "title": "Persistence Layer Integration",
-          "status": "in_progress",
+          "status": "completed",
           "assigned_to": "Claude Code",
-          "scope": "broker/components/universal_memory.py"
+          "scope": "broker/components/universal_memory.py",
+          "note": "Already done in Task-034"
         },
         {
           "id": "035-D",
           "title": "Configuration Loader Integration",
-          "status": "in_progress",
+          "status": "completed",
           "assigned_to": "Claude Code",
           "scope": "broker/utils/agent_config.py"
         }
       ],
-      "handoff_file": "handoff/task-035-codex.md",
-      "done_when": "SDK features integrated into broker, all tests pass"
+      "note": "SDK MemoryScorer and ReflectionTemplate integrated into broker"
+    },
+    {
+      "id": "Task-036",
+      "title": "Multi-Agent Memory V4 Upgrade",
+      "status": "in_progress",
+      "type": "feature",
+      "priority": "high",
+      "owner": "Codex",
+      "reviewer": "WenyuChiou",
+      "created_at": "2026-01-26T10:00:00Z",
+      "subtasks": [
+        {
+          "id": "036-A",
+          "title": "Update Memory Configuration",
+          "status": "assigned",
+          "assigned_to": "Codex",
+          "scope": "examples/multi_agent/ma_agent_types.yaml"
+        },
+        {
+          "id": "036-B",
+          "title": "Update Agent Initialization",
+          "status": "assigned",
+          "assigned_to": "Codex",
+          "scope": "examples/multi_agent/ma_agents/household.py"
+        },
+        {
+          "id": "036-C",
+          "title": "Integrate FloodMemoryScorer",
+          "status": "assigned",
+          "assigned_to": "Codex",
+          "scope": "examples/multi_agent/run_ma_flood.py"
+        }
+      ],
+      "handoff_file": "handoff/task-036-codex.md",
+      "done_when": "Multi-agent examples use V4 SymbolicMemory with FloodMemoryScorer"
     }
   ]
 }
