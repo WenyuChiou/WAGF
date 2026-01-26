@@ -11,7 +11,9 @@ from pathlib import Path
 TA_KEYWORDS = {
     "H": [
         "flood", "storm", "damage", "warning", "danger", "threat", "risky", 
-        "exposed", "vulnerable", "imminent", "severe", "property loss", "high risk"
+        "exposed", "vulnerable", "imminent", "severe", "property loss", "high risk",
+        "critical", "extreme", "destroy", "devastat", "unsafe", "peril", "crisis",
+        "emergency", "evacuate", "run", "flee", "disaster", "catastrophe"
     ],
     "L": [
         "minimal", "safe", "none", "low", "unlikely", "no risk", "protected", "secure"
@@ -45,6 +47,14 @@ def map_text_to_level(text, keywords=None):
         if any(w.upper() in text for w in keywords.get("L", [])): return "L"
         
     return "M"
+
+def normalize_decision(d):
+    d = str(d).lower()
+    if 'relocate' in d: return 'Relocate'
+    if 'elevat' in d or 'he' in d: return 'Elevation'
+    if 'insur' in d or 'fi' in d: return 'Insurance'
+    if 'dn' in d or 'nothing' in d: return 'DoNothing'
+    return 'Other'
 
 def get_stats(model, group):
     root = Path("examples/single_agent/results/JOH_FINAL")
@@ -158,24 +168,107 @@ def get_stats(model, group):
             
             intv_ok_str = f"{interv_success}" if interv_total > 0 else "-"
             
-            # Flip-flops
-            avg_ff = 0
-            df_cleaned = df.drop_duplicates(subset=['agent_id', 'year'])
-            if 'has_insurance' in df_cleaned.columns and 'elevated' in df_cleaned.columns:
-                ins_p = df_cleaned.pivot(index='agent_id', columns='year', values='has_insurance').fillna(method='ffill', axis=1)
-                ele_p = df_cleaned.pivot(index='agent_id', columns='year', values='elevated').fillna(method='ffill', axis=1)
-                ff_count = ((ins_p.shift(axis=1) == True) & (ins_p == False)).sum().sum()
-                ff_count += ((ele_p.shift(axis=1) == True) & (ele_p == False)).sum().sum()
-                avg_ff = ff_count / len(ins_p) if len(ins_p) > 0 else 0
+            # --- VERIFICATION RULES ANALYSIS ---
+            # Rule 1: No Panic Relocation (L/M Threat -> Relocate)
+            # Rule 2: No Panic Elevation (L/M Threat -> Elevate)
+            # Rule 3: No Complacency (H/VH Threat -> DoNothing)
+            
+            # V1: Panic Relocation
+            # Hybrid Logic v14:
+            # - Group A (Keywords): Panic = Not High (L, VL, M) -> Relocate. (Since M is default)
+            # - Group B/C (JSON):   Panic = Strict Low (L, VL)  -> Relocate/Elevate.
+            
+            if group == "Group_A":
+                # For Group A, "Medium" usually means "No keyword found". 
+                # So if they Relocate without Explicit High Risk ('H', 'VH'), it's Panic.
+                # using ~isin(['H', 'VH']) is safer than listing L/VL/M
+                panic_states = full_data[~full_data['ta_level'].isin(["H", "VH"])]
+            else:
+                # For Group B/C, "Medium" is a valid calibrated state allowing Elevation.
+                # Panic is strictly L/VL.
+                panic_states = full_data[full_data['ta_level'].isin(["L", "VL"])]
+            
+            v1_count = 0
+            v1_rate = 0.0
+            v2_count = 0
+            v2_rate = 0.0
+            
+            # Global Frequency Calculation (User Request Step 578)
+            # Metric: (Actual V1 + Blocked Attempts) / Total Active Steps
+            # We treat Successful Interventions as "Blocked Panic Attempts" (mostly Relocation/Elevation)
+            
+            # For Group A: Intv=0, so it's just Actual / Total
+            # For Group B/C: Actual=0 (usually), so it's Intv / Total
+            
+            # Calculate actual V1 and V2 counts based on panic_states
+            if len(panic_states) > 0:
+                v1_count = panic_states[dec_col].apply(lambda x: normalize_decision(x) == 'Relocate').sum()
+                v2_count = panic_states[dec_col].apply(lambda x: normalize_decision(x) == 'Elevation').sum()
+            
+            # V3: Complacency (Under-reaction)
+            # Definition: High/Very High Threat -> DoNothing
+            high_states = full_data[full_data['ta_level'].isin(["H", "VH"])]
+            v3_count = 0
+            if len(high_states) > 0:
+                v3_count = high_states[dec_col].apply(lambda x: normalize_decision(x) == 'DoNothing').sum()
 
+            total_panic_intent = v1_count + interv_success
+            v1_global_rate = total_panic_intent / len(full_data) if len(full_data) > 0 else 0
+            
+            # V2 (Elevation) is usually allowed, so Intv mostly maps to V1 or drastic V2 blocks.
+            # We will report V2 based on Actual / Total for now, as Intv is lump sum.
+            v2_global_rate = v2_count / len(full_data) if len(full_data) > 0 else 0
+            
+            # V3 (Complacency) / Total
+            v3_global_rate = v3_count / len(full_data) if len(full_data) > 0 else 0
+
+            # Flip-flops (Weighted Calculation: Total Flips / Total Active Intervals)
+            total_flips = 0
+            total_active_intervals = 0
+            weighted_ff = 0.0
+            
+            # Robust FF Calculation Logic using Year-over-Year comparison
+            try:
+                dec_col_ff = next((c for c in df.columns if 'yearly_decision' in c or 'decision' in c or 'skill' in c), None)
+                if dec_col_ff:
+                    df_sorted = df.sort_values(['agent_id', 'year'])
+                    
+                    for year in range(1, df['year'].max() + 1):
+                        prev = df_sorted[df_sorted['year'] == year-1][['agent_id', dec_col_ff]].set_index('agent_id')
+                        curr = df_sorted[df_sorted['year'] == year][['agent_id', dec_col_ff]].set_index('agent_id')
+                        
+                        if prev.empty: continue
+                        
+                        # Filter Stayers (Active Population) - Exclude those who relocated
+                        stayers = prev[~prev[dec_col_ff].astype(str).str.contains('Relocate', case=False, na=False)].index
+                        
+                        merged = prev.loc[stayers].join(curr, lsuffix='_prev', rsuffix='_curr').dropna()
+                        
+                        n_active = len(merged)
+                        if n_active > 0:
+                            flips = (merged[f'{dec_col_ff}_prev'].apply(normalize_decision) != merged[f'{dec_col_ff}_curr'].apply(normalize_decision)).sum()
+                            total_flips += flips
+                            total_active_intervals += n_active
+                    
+                    weighted_ff = (total_flips / total_active_intervals) if total_active_intervals > 0 else 0
+            except Exception as e_ff:
+                print(f"FF Calc Error: {e_ff}")
+                weighted_ff = 0.0
+            
             return {
-                "Hi_TA": round(hi_ta, 2),
-                "TA_Al": round(ta_align, 2),
-                "Hi_CA": round(hi_ca, 2),
-                "CA_Al": round(ca_align, 2),
+                "N": len(full_data),
+                "N_L": len(panic_states),
+                "N_H": len(high_states),
+                "V1_%": round(v1_global_rate * 100, 1), # Global Panic Intent
+                "V1_N": total_panic_intent,             # Count = Actual + Blocked
+                "V1_Act": v1_count,                     # Keep Actual for reference
+                "V2_%": round(v2_global_rate * 100, 1), 
+                "V2_N": v2_count,
+                "V3_%": round(v3_global_rate * 100, 1), 
+                "V3_N": v3_count,
                 "Intv": interv_total,
-                "Intv_OK": intv_ok_str,
-                "FF": round(avg_ff, 2),
+                "Intv_S": interv_success,
+                "FF": round(weighted_ff * 100, 2),
                 "Status": "Done" if df['year'].max() >= 10 else f"Y{df['year'].max()}"
             }
         return None
@@ -185,9 +278,19 @@ def get_stats(model, group):
 models = ["deepseek_r1_1_5b", "deepseek_r1_8b", "deepseek_r1_14b", "deepseek_r1_32b"]
 groups = ["Group_A", "Group_B", "Group_C"]
 
-print("\n=== JOH SCALING MASTER REPORT (LLM DIRECT RATING v11) ===")
-print(f"{'Model':<18} {'Grp':<7} {'HiTA':<7} {'TA_Al':<7} {'HiCA':<7} {'CA_Al':<7} {'Intv':<6} {'Succ':<6} {'FF':<6} {'Status'}")
-print("-" * 100)
+print("\n=== JOH SCALING REPORT: VERIFICATION RULES (GLOBAL FREQUENCY - FINAL) ===")
+# Headers
+h_model = "Model Scale"
+h_grp = "Group"
+h_n = "Total Steps"
+h_v1 = "Panic Relocation Frequency"
+h_v2 = "Panic Elevation Frequency"
+h_v3 = "Complacency Rate"
+h_intv = "Interventions (Success)"
+h_ff = "Decision Instability"
+
+print(f"{h_model:<18} {h_grp:<7} {h_n:<12} {h_v1:<30} {h_v2:<28} {h_v3:<20} {h_intv:<25} {h_ff:<20}")
+print("-" * 180)
 
 all_data = []
 
@@ -195,37 +298,40 @@ for m in models:
     for g in groups:
         stats = get_stats(m, g)
         if stats:
-            print(f"{m:<18} {g:<7} {stats['Hi_TA']:<7} {stats['TA_Al']:<7} {stats['Hi_CA']:<7} {stats['CA_Al']:<7} {stats['Intv']:<6} {stats['Intv_OK']:<6} {stats['FF']:<6} {stats['Status']}")
+            # Format values
+            v1_str = f"{stats['V1_%']}% (n={stats['V1_N']})"
+            v2_str = f"{stats['V2_%']}% (n={stats['V2_N']})"
+            v3_str = f"{stats['V3_%']}% (n={stats['V3_N']})"
+            intv_str = f"{stats['Intv']} ({stats['Intv_S']})"
+            ff_str = f"{stats['FF']}%"
+            
+            print(f"{m:<18} {g:<7} {stats['N']:<12} {v1_str:<30} {v2_str:<28} {v3_str:<20} {intv_str:<25} {ff_str:<20}")
             
             # Collect for Export
             row = stats.copy()
             row['Model'] = m
             row['Group'] = g
+            row['N_Audit'] = stats['N_L']
+            # Add full name keys for Excel
+            row['Panic Relocation Freq'] = row['V1_%']
+            row['Panic Elevation Freq'] = row['V2_%']
+            row['Complacency Rate'] = row['V3_%']
+            row['Flip-Flop Rate'] = row['FF']
             all_data.append(row)
 
-print("\n=== INDICATOR DEFINITIONS (LLM 定義指標) ===")
-print("1. HiTA (Threat)  : LLM 原始回覆中直接標註為高威脅 (H/VH) 之比例。無人工關鍵字干預。")
-print("2. TA_Al (Align)  : 威脅行為一致性。當 LLM 給出 H/VH 評分時，其實際採取行為的條件機率。")
-print("3. HiCA (Coping)  : LLM 原始回覆中直接標註為高應對感 (H/VH) 之比例。反映模型自覺之效能。")
-print("4. CA_Al (Align)  : 應對行為一致性。當 LLM 自覺有高能力時，其採取行為之機率。")
-print("5. Intv/Succ      : 治理干預 (Retry) 次數 與 最終誘導行動的成功次數。")
-print("6. FF (Flip-Flop) : 平均每位 Agent 放棄已執行調適行為的次數（反映決策穩定性）。")
-print("-" * 100)
-print("註：此版本完全依賴 LLM 的類別評分 (Categorical Rating)，不進行任何關鍵字文本採集。")
+print("\n=== LEGEND ===")
+print("V1 (Panic Intent)  : (Actual Relocate + Blocked Intv) / Total Steps.")
+print("V2 (Panic Elevate) : Actual Elevate / Total Steps. (Side Effect)")
+print("V3 (Complacency)   : Actual Complacency / Total Steps.")
+print("N_Tot              : Total Active Agent Steps.")
+print("-" * 120)
 
 # Export to Excel
 if all_data:
     try:
         df_out = pd.DataFrame(all_data)
-        # Reorder columns
-        cols = ['Model', 'Group'] + [c for c in df_out.columns if c not in ['Model', 'Group']]
-        df_out = df_out[cols]
-        
-        out_path = "examples/single_agent/analysis/sq1_metrics.xlsx"
+        out_path = "examples/single_agent/analysis/sq1_metrics_rules.xlsx"
         df_out.to_excel(out_path, index=False)
-        print(f"\n[System] Successfully exported metrics to: {out_path}")
+        print(f"\n[System] Successfully exported to: {out_path}")
     except Exception as e:
-        print(f"\n[System] Excel export failed ({e}). Attempting CSV...")
-        csv_path = "examples/single_agent/analysis/sq1_metrics.csv"
-        df_out.to_csv(csv_path, index=False)
-        print(f"[System] Saved to CSV: {csv_path}")
+        print(f"\n[System] Excel export failed ({e}).")
