@@ -1,6 +1,6 @@
 from typing import List, Dict, Any, Optional
 
-from agents.base_agent import BaseAgent
+from governed_ai_sdk.agents import BaseAgent
 from broker.components.memory_engine import MemoryEngine
 
 class HierarchicalMemoryEngine(MemoryEngine):

@@ -1,24 +1,30 @@
 """
-Generic Agent Framework
+Generic Agent Framework - DEPRECATED
 
-Provides base classes for building domain-agnostic agents with:
-- 0-1 normalized state
-- YAML-defined configuration
-- Literature-backed objectives and constraints
+This module is deprecated. Please import from governed_ai_sdk.agents instead:
 
-Usage:
-    # Load from user-defined YAML
-    agents = load_agents("my_agents.yaml")
-    
-    # Or create programmatically
+    # Old (deprecated)
     from agents import BaseAgent, AgentConfig
-"""
 
-from agents.base_agent import (
+    # New
+    from governed_ai_sdk.agents import BaseAgent, AgentConfig
+
+Task-037: SDK-Broker Architecture Separation
+"""
+import warnings
+
+warnings.warn(
+    "The 'agents' module is deprecated. "
+    "Please import from 'governed_ai_sdk.agents' instead.",
+    DeprecationWarning,
+    stacklevel=2
+)
+
+# Re-export from SDK for backward compatibility
+from governed_ai_sdk.agents import (
     # Normalization utilities
     normalize,
     denormalize,
-    
     # Configuration classes
     StateParam,
     Objective,
@@ -26,12 +32,9 @@ from agents.base_agent import (
     PerceptionSource,
     Skill,
     AgentConfig,
-    
     # Agent base class
     BaseAgent,
-)
-
-from agents.loader import (
+    # Loader
     load_agent_configs,
     load_agents,
 )
@@ -41,18 +44,15 @@ __all__ = [
     # Utils
     'normalize',
     'denormalize',
-    
     # Config
     'StateParam',
-    'Objective', 
+    'Objective',
     'Constraint',
     'PerceptionSource',
     'Skill',
     'AgentConfig',
-    
     # Agent
     'BaseAgent',
-    
     # Loader
     'load_agent_configs',
     'load_agents',

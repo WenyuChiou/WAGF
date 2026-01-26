@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional, Tuple, TYPE_CHECKING
 
-from agents.base_agent import BaseAgent
+from governed_ai_sdk.agents import BaseAgent
 
 if TYPE_CHECKING:
     from governed_ai_sdk.v1_prototype.memory import MemoryScorer, MemoryScore

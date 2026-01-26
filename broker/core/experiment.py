@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from agents.base_agent import BaseAgent
+from governed_ai_sdk.agents import BaseAgent
 from ..interfaces.skill_types import ApprovedSkill, SkillOutcome, SkillBrokerResult, ExecutionResult, SkillProposal
 from .skill_broker_engine import SkillBrokerEngine
 from ..components.context_builder import BaseAgentContextBuilder
