@@ -1,124 +1,121 @@
-# =============================================================================
-# SHARED DEFINITIONS
-# =============================================================================
 shared:
-  rating_scale: "VL=Very Low, L=Low, M=Medium, H=High, VH=Very High"
-  criteria_definitions: |
-    Protection Motivation Theory (PMT) Constructs:
-    - TP (Threat Perception): How serious do you perceive the flood risk? Consider likelihood and potential severity.
-    - CP (Coping Perception): How confident are you that mitigation options (insurance, elevation, buyout) are effective and affordable?
-    - SP (Stakeholder Perception): How much do you trust institutions (NJDEP, FEMA/NFIP) to provide reliable support?
-    - SC (Social Capital): How connected are you with neighbors? Are they taking protective actions?
+  rating_scale: VL=Very Low, L=Low, M=Medium, H=High, VH=Very High
+  criteria_definitions: 'Protection Motivation Theory (PMT) Constructs:
+
+    - TP (Threat Perception): How serious do you perceive the flood risk? Consider
+    likelihood and potential severity.
+
+    - CP (Coping Perception): How confident are you that mitigation options (insurance,
+    elevation, buyout) are effective and affordable?
+
+    - SP (Stakeholder Perception): How much do you trust institutions (NJDEP, FEMA/NFIP)
+    to provide reliable support?
+
+    - SC (Social Capital): How connected are you with neighbors? Are they taking protective
+    actions?
+
     - PA (Place Attachment): How emotionally attached are you to your home and community?
 
+    '
   response_format:
-    delimiter_start: "<<<DECISION_START>>>"
-    delimiter_end: "<<<DECISION_END>>>"
+    delimiter_start: <<<DECISION_START>>>
+    delimiter_end: <<<DECISION_END>>>
     fields:
-      - { key: "decision", type: "choice", required: true }
-      - { key: "reasoning", type: "text", required: false }
-
+    - key: decision
+      type: choice
+      required: true
+    - key: reasoning
+      type: text
+      required: false
 global_config:
-  # =============================================================================
-  # DEFAULT MEMORY SETTINGS (used when agent-type-specific config not available)
-  # =============================================================================
   memory:
     window_size: 5
     consolidation_threshold: 0.6
     consolidation_probability: 0.7
     top_k_significant: 2
     decay_rate: 0.1
-    # UniversalCognitiveEngine v3 defaults (can be overridden per agent type)
-    arousal_threshold: 1.0    # Lowered from 2.0 for better first-flood sensitivity
-    ema_alpha: 0.3            # EMA smoothing factor [0-1], lower = slower adaptation
-    stimulus_key: "flood_depth_m"  # Default for households
-    ranking_mode: "weighted"  # Memory ranking mode: "legacy" or "weighted"
-
-  # =============================================================================
-  # COGNITIVE CONFIG (Agent-Type Specific Surprise Engine Settings)
-  # =============================================================================
-  # Each agent type can have different stimulus_key and arousal_threshold
-  # based on what triggers their "surprise" response
+    arousal_threshold: 1.0
+    ema_alpha: 0.3
+    stimulus_key: flood_depth_m
+    ranking_mode: weighted
   cognitive_config:
-    # Households: Environmental stimulus (flood depth)
     household_owner:
-      stimulus_key: "flood_depth_m"     # Physical flood depth
-      arousal_threshold: 1.0            # First 1m flood triggers System 2
+      stimulus_key: flood_depth_m
+      arousal_threshold: 1.0
       ema_alpha: 0.3
-      engine: "universal"               # Use v3 cognitive engine
-
+      engine: universal
     household_renter:
-      stimulus_key: "flood_depth_m"
-      arousal_threshold: 0.8            # Renters more sensitive (no property investment)
+      stimulus_key: flood_depth_m
+      arousal_threshold: 0.8
       ema_alpha: 0.3
-      engine: "universal"
-
-    # Government: Policy effectiveness deviation
+      engine: universal
     nj_government:
-      stimulus_key: "adaptation_gap"    # |actual_rate - target_rate|
-      arousal_threshold: 0.15           # 15% deviation triggers deliberation
-      ema_alpha: 0.2                    # Slower policy adaptation
-      engine: "window"                  # Simpler engine for institutional agents
-
-    # Insurance: Financial risk indicator
+      stimulus_key: adaptation_gap
+      arousal_threshold: 0.15
+      ema_alpha: 0.2
+      engine: window
     fema_nfip:
-      stimulus_key: "loss_ratio"        # Claims paid / premiums collected
-      arousal_threshold: 0.3            # 30% change triggers review
+      stimulus_key: loss_ratio
+      arousal_threshold: 0.3
       ema_alpha: 0.25
-      engine: "window"
-
-  # =============================================================================
-  # MEMORY CONFIG (Agent-Type Specific Memory Weights)
-  # =============================================================================
-  # Households use emotional weights; institutions use data-driven weights
+      engine: window
   memory_config:
     household:
-      # Generic household retrieval tags (used if agent-specific not found)
       retrieval_tags:
-        - "general"
-        - "adaptation"
-        - "risk"
+      - general
+      - adaptation
+      - risk
       emotional_weights:
-        critical: 1.0       # Loss/failure events
-        fear: 1.2           # Flood-related fear (household-specific)
-        major: 0.9          # Major decisions
-        positive: 0.8       # Success experiences
-        observation: 0.4    # Social observations
+        critical: 1.0
+        fear: 1.2
+        major: 0.9
+        positive: 0.8
+        observation: 0.4
       source_weights:
-        personal: 1.0       # First-hand experience
-        neighbor: 0.7       # Neighbor gossip
-        news: 0.5           # News media
-        social_media: 0.3   # Social media (less reliable)
+        personal: 1.0
+        neighbor: 0.7
+        news: 0.5
+        social_media: 0.3
       emotion_keywords:
-        fear: ["flood", "damage", "loss", "destroy", "water", "inundation"]
-        hope: ["subsidy", "elevated", "safe", "protected", "insurance", "grant"]
-        anxiety: ["premium", "cost", "afford", "expense", "budget"]
-
-    # Agent-type-specific retrieval tags (NEW in v0.29)
-    # These override the generic "household" tags above
+        fear:
+        - flood
+        - damage
+        - loss
+        - destroy
+        - water
+        - inundation
+        hope:
+        - subsidy
+        - elevated
+        - safe
+        - protected
+        - insurance
+        - grant
+        anxiety:
+        - premium
+        - cost
+        - afford
+        - expense
+        - budget
     household_mg:
       retrieval_tags:
-        - "subsidy"           # MG-specific: financial assistance
-        - "vulnerability"     # MG-specific: risk exposure
-        - "financial_hardship"  # MG-specific: affordability
-        - "general"
-
+      - subsidy
+      - vulnerability
+      - financial_hardship
+      - general
     household_nmg:
       retrieval_tags:
-        - "insurance"         # NMG-specific: insurance options
-        - "elevation"         # NMG-specific: structural adaptation
-        - "adaptation"        # NMG-specific: proactive measures
-        - "general"
-
+      - insurance
+      - elevation
+      - adaptation
+      - general
     institutional:
-      # Institutions don't use emotional weights - data-driven only
       emotional_weights: null
       source_weights:
         policy_data: 1.0
         statistics: 0.9
         reports: 0.7
-      ranking_mode: "recency"   # Most recent data prioritized
-
+      ranking_mode: recency
   reflection:
     interval: 1
     batch_size: 10
@@ -131,102 +128,75 @@ global_config:
   governance:
     max_retries: 3
     max_reports_per_retry: 3
-
-# =============================================================================
-# FLOODABM PARAMETERS (Supplementary Materials Tables S1-S4)
-# =============================================================================
-# Reference: FLOODABM Supplementary Materials
-# - Table S1: Insurance initialization values
-# - Table S2: Model parameters and settings
-# - Table S3: Beta distribution parameters for behavioral state initialization
-# - Table S4: Calibrated TP decay parameters
 floodabm_parameters:
-  # ---------------------------------------------------------------------------
-  # Beta Distribution Parameters for PMT Constructs (Table S3)
-  # ---------------------------------------------------------------------------
-  # Used for sampling initial tract-level behavioral parameters
-  # X ~ Beta(alpha, beta) where alpha, beta determine shape
   tp_distribution:
-    mg: { alpha: 4.44, beta: 2.89 }   # MG: higher initial TP
-    nmg: { alpha: 5.35, beta: 3.62 }  # NMG: moderate initial TP
+    mg:
+      alpha: 4.44
+      beta: 2.89
+    nmg:
+      alpha: 5.35
+      beta: 3.62
   cp_distribution:
-    mg: { alpha: 4.07, beta: 3.30 }   # MG: lower coping perception
-    nmg: { alpha: 5.27, beta: 4.18 }  # NMG: higher coping perception
+    mg:
+      alpha: 4.07
+      beta: 3.3
+    nmg:
+      alpha: 5.27
+      beta: 4.18
   sp_distribution:
-    mg: { alpha: 1.37, beta: 1.69 }   # MG: lower trust in institutions
-    nmg: { alpha: 1.73, beta: 1.93 }  # NMG: moderate trust
+    mg:
+      alpha: 1.37
+      beta: 1.69
+    nmg:
+      alpha: 1.73
+      beta: 1.93
   sc_distribution:
-    mg: { alpha: 2.37, beta: 3.11 }   # MG: lower social capital (isolation)
-    nmg: { alpha: 4.56, beta: 2.39 }  # NMG: higher social capital
+    mg:
+      alpha: 2.37
+      beta: 3.11
+    nmg:
+      alpha: 4.56
+      beta: 2.39
   pa_distribution:
-    mg: { alpha: 2.56, beta: 2.17 }   # MG: moderate place attachment
-    nmg: { alpha: 4.01, beta: 2.79 }  # NMG: higher place attachment
-
-  # ---------------------------------------------------------------------------
-  # TP Decay Parameters (Table S4)
-  # ---------------------------------------------------------------------------
-  # Formula: tau(t) = tau_inf - (tau_inf - tau_0) * exp(-k*t)
-  #          mu_t = ln(2) / tau(t) * (alpha * PA + beta * SC)
+    mg:
+      alpha: 2.56
+      beta: 2.17
+    nmg:
+      alpha: 4.01
+      beta: 2.79
   tp_decay:
     mg:
-      alpha: 0.50      # PA weight
-      beta: 0.21       # SC weight
-      tau_0: 1.00      # Initial half-life (years)
-      tau_inf: 32.19   # Asymptotic half-life (years)
-      k: 0.03          # Decay rate constant
+      alpha: 0.5
+      beta: 0.21
+      tau_0: 1.0
+      tau_inf: 32.19
+      k: 0.03
     nmg:
       alpha: 0.22
-      beta: 0.10
+      beta: 0.1
       tau_0: 2.72
-      tau_inf: 50.10
+      tau_inf: 50.1
       k: 0.01
-    theta: 0.5         # Damage ratio threshold for TP gain
-    shock_scale: 0.3   # cs: shock scaling factor
-
-  # ---------------------------------------------------------------------------
-  # Insurance Parameters (Table S1, S2)
-  # ---------------------------------------------------------------------------
+    theta: 0.5
+    shock_scale: 0.3
   insurance:
-    # Base premium rates (per $1K of coverage)
-    r1k_structure: 3.56  # $/1K structure coverage
-    r1k_contents: 4.90   # $/1K contents coverage
-    # Coverage limits
-    limit_structure: 250000  # Ls
-    limit_contents: 100000   # Lc
-    # Deductibles
-    deductible_structure: 1000  # DDs
-    deductible_contents: 1000   # DDc
-    # Reserve and fees
-    reserve_fund_factor: 1.15  # R
-    small_fee: 100             # F
-
-  # ---------------------------------------------------------------------------
-  # Initial Insurance Uptake Rates (Table S1)
-  # ---------------------------------------------------------------------------
-  # References: Bradt et al. (2020), Dixon (2006), Kousky et al. (2018)
+    r1k_structure: 3.56
+    r1k_contents: 4.9
+    limit_structure: 250000
+    limit_contents: 100000
+    deductible_structure: 1000
+    deductible_contents: 1000
+    reserve_fund_factor: 1.15
+    small_fee: 100
   initial_uptake:
-    flood_prone_owner: 0.25   # 25%
-    flood_prone_renter: 0.08  # 8%
-    non_flood_prone_owner: 0.03  # 3%
-    non_flood_prone_renter: 0.01 # 1%
-
-  # ---------------------------------------------------------------------------
-  # Elevation Parameters (Table S2)
-  # ---------------------------------------------------------------------------
+    flood_prone_owner: 0.25
+    flood_prone_renter: 0.08
+    non_flood_prone_owner: 0.03
+    non_flood_prone_renter: 0.01
   elevation:
-    h_elevate_ft: 5.0   # One-time elevation increment (feet)
-    ffe_default_ft: 1.0 # First Finished Floor elevation (feet)
-
-  # ---------------------------------------------------------------------------
-  # Contents-to-Structure Value Ratio (Table S2)
-  # ---------------------------------------------------------------------------
-  # Reference: USACE (2006)
-  csrv: 0.57  # Contents value = 0.57 * Structure value
-
-  # ---------------------------------------------------------------------------
-  # Lognormal RCV Parameters (Table S5)
-  # ---------------------------------------------------------------------------
-  # Used for initializing household-level structure/contents values
+    h_elevate_ft: 5.0
+    ffe_default_ft: 1.0
+  csrv: 0.57
   rcv_lognormal:
     homeowner:
       ln_mu: 12.46
@@ -235,438 +205,627 @@ floodabm_parameters:
       cv: 0.69
     renter:
       ln_mu: 12.82
-      ln_sigma: 1.20
+      ln_sigma: 1.2
       mean_rcv_usd: 766352
       cv: 1.81
-
-# =============================================================================
-# HOUSEHOLD AGENT TYPES (PMT-based)
-# =============================================================================
 household_owner:
-  description: "Homeowner household agent in Passaic River Basin, NJ."
+  description: Homeowner household agent in Passaic River Basin, NJ.
   llm_params:
     num_ctx: 16384
     num_predict: 2048
   response_format:
     fields:
-      - { key: "threat_perception", type: "appraisal", required: true, construct: "TP_LABEL" }
-      - { key: "coping_perception", type: "appraisal", required: true, construct: "CP_LABEL" }
-      - { key: "stakeholder_perception", type: "appraisal", required: true, construct: "SP_LABEL" }
-      - { key: "social_capital", type: "appraisal", required: true, construct: "SC_LABEL" }
-      - { key: "place_attachment", type: "appraisal", required: true, construct: "PA_LABEL" }
-      - { key: "decision", type: "choice", required: true }
-      - { key: "reasoning", type: "text", required: false }
-  prompt_template: |
-    You are a homeowner (Agent ID: {agent_id}) in the Passaic River Basin, New Jersey.
-
-    ### YOUR SITUATION
-    - Income: {income_range}
-    - Household Size: {household_size} people
-    - Generations in Area: {residency_generations}
-    - Flood Zone: {flood_zone}
-    - Flood Experience: {flood_experience_summary}
-    - Property Value: ${rcv_building:,.0f} (building) + ${rcv_contents:,.0f} (contents)
-    - Current Status: {elevation_status_text}
-    - Insurance: You currently {insurance_status} flood insurance.
-
-    ### RELEVANT MEMORIES
-    {memory}
-
-    ### CRITICAL RISK ASSESSMENT
-    It is crucial to accurately assess your flood risk. Underestimating the threat of flooding can lead to severe financial hardship, loss of property, and long-term emotional distress. Your decisions must reflect a realistic understanding of potential dangers and your vulnerability.
-
-    ### POLICY UPDATES THIS YEAR
-    - NJ Government (NJDEP Blue Acres): {govt_message}
-    - FEMA/NFIP Insurance: {insurance_message}
-
-    ### WORLD EVENTS
-    {global_news}
-
-    ### LOCAL NEIGHBORHOOD
-    {social_gossip}
-
-    ### CURRENT COSTS
-    - Annual NFIP Premium: ${current_premium:,.0f}
-    - Elevation Subsidy Rate: {subsidy_rate:.0%}
-
-    ### COST GUIDANCE (IMPORTANT)
-    - Elevation is a HIGH-cost action: baseline ~$150,000 before subsidy.
-      Your out-of-pocket cost is roughly $150,000 * (1 - subsidy_rate).
-    - Buyout is a HIGH-cost, irreversible move (you leave the community).
-    - Insurance is a MODERATE annual cost tied to property value and premium rate.
-    - If you are uncertain you can afford a high-cost action, choose a lower-cost option.
-
-    ### ADAPTATION OPTIONS
-    {options_text}
-
-    ### EVALUATION CRITERIA
-    {criteria_definitions}
-
-    Rating Scale: {rating_scale}
-
-    Based on your situation and PMT profile, evaluate each criterion and make your decision.
-    Respond ONLY with valid JSON in this format:
-    {response_format}
-
+    - key: threat_perception
+      type: appraisal
+      required: true
+      construct: TP_LABEL
+    - key: coping_perception
+      type: appraisal
+      required: true
+      construct: CP_LABEL
+    - key: stakeholder_perception
+      type: appraisal
+      required: true
+      construct: SP_LABEL
+    - key: social_capital
+      type: appraisal
+      required: true
+      construct: SC_LABEL
+    - key: place_attachment
+      type: appraisal
+      required: true
+      construct: PA_LABEL
+    - key: decision
+      type: choice
+      required: true
+    - key: reasoning
+      type: text
+      required: false
+  prompt_template: "You are a homeowner (Agent ID: {agent_id}) in the Passaic River\
+    \ Basin, New Jersey.\n\n### YOUR SITUATION\n- Income: {income_range}\n- Household\
+    \ Size: {household_size} people\n- Generations in Area: {residency_generations}\n\
+    - Flood Zone: {flood_zone}\n- Flood Experience: {flood_experience_summary}\n-\
+    \ Property Value: ${rcv_building:,.0f} (building) + ${rcv_contents:,.0f} (contents)\n\
+    - Current Status: {elevation_status_text}\n- Insurance: You currently {insurance_status}\
+    \ flood insurance.\n\n### RELEVANT MEMORIES\n{memory}\n\n### CRITICAL RISK ASSESSMENT\n\
+    It is crucial to accurately assess your flood risk. Underestimating the threat\
+    \ of flooding can lead to severe financial hardship, loss of property, and long-term\
+    \ emotional distress. Your decisions must reflect a realistic understanding of\
+    \ potential dangers and your vulnerability.\n\n### POLICY UPDATES THIS YEAR\n\
+    - NJ Government (NJDEP Blue Acres): {govt_message}\n- FEMA/NFIP Insurance: {insurance_message}\n\
+    \n### WORLD EVENTS\n{global_news}\n\n### LOCAL NEIGHBORHOOD\n{social_gossip}\n\
+    \n### CURRENT COSTS\n- Annual NFIP Premium: ${current_premium:,.0f}\n- Elevation\
+    \ Subsidy Rate: {subsidy_rate:.0%}\n\n### COST GUIDANCE (IMPORTANT)\n- Elevation\
+    \ is a HIGH-cost action: baseline ~$150,000 before subsidy.\n  Your out-of-pocket\
+    \ cost is roughly $150,000 * (1 - subsidy_rate).\n- Buyout is a HIGH-cost, irreversible\
+    \ move (you leave the community).\n- Insurance is a MODERATE annual cost tied\
+    \ to property value and premium rate.\n- If you are uncertain you can afford a\
+    \ high-cost action, choose a lower-cost option.\n\n### ADAPTATION OPTIONS\n{options_text}\n\
+    \n### EVALUATION CRITERIA\n{criteria_definitions}\n\nRating Scale: {rating_scale}\n\
+    \nBased on your situation and PMT profile, evaluate each criterion and make your\
+    \ decision.\nRespond ONLY with valid JSON in this format:\n{response_format}\n"
   parsing:
-    preprocessor: { type: "smart_repair" }
+    preprocessor:
+      type: smart_repair
     actions:
-      - id: do_nothing
-        aliases: ["DN", "nothing", "wait", "Do nothing", "Do Nothing", "Take no action", "[DN]"]
-        description: "Take no action this year"
-      - id: buy_insurance
-        aliases: ["FI", "insurance", "buy_insurance", "Buy insurance", "Purchase flood insurance", "[FI]"]
-        description: "Purchase NFIP flood insurance"
-      - id: elevate_house
-        aliases: ["HE", "elevate", "elevation", "elevate_house", "Elevate house", "[HE]"]
-        description: "Elevate house structure (Cost: $150,000 * (1 - subsidy rate))"
-      - id: buyout_program
-        aliases: ["BT", "buyout", "Blue Acres", "Accept buyout", "[BT]"]
-        description: "Accept NJ Blue Acres buyout"
+    - id: do_nothing
+      aliases:
+      - DN
+      - nothing
+      - wait
+      - Do nothing
+      - Do Nothing
+      - Take no action
+      - '[DN]'
+      description: Take no action this year
+    - id: buy_insurance
+      aliases:
+      - FI
+      - insurance
+      - buy_insurance
+      - Buy insurance
+      - Purchase flood insurance
+      - '[FI]'
+      description: Purchase NFIP flood insurance
+    - id: elevate_house
+      aliases:
+      - HE
+      - elevate
+      - elevation
+      - elevate_house
+      - Elevate house
+      - '[HE]'
+      description: 'Elevate house structure (Cost: $150,000 * (1 - subsidy rate))'
+    - id: buyout_program
+      aliases:
+      - BT
+      - buyout
+      - Blue Acres
+      - Accept buyout
+      - '[BT]'
+      description: Accept NJ Blue Acres buyout
     constructs:
-      TP_LABEL: { keywords: ["threat", "severity", "vulnerability"], regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b" }
-      TP_REASON: { keywords: ["threat", "severity", "vulnerability"], regex: "(?i)(?:reason|why|because|explanation)[:\\s\\*]*(.*)" }
-      CP_LABEL: { keywords: ["coping", "efficacy", "ability"], regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b" }
-      CP_REASON: { keywords: ["coping", "efficacy", "ability"], regex: "(?i)(?:reason|why|because|explanation)[:\\s\\*]*(.*)" }
-      SP_LABEL: { keywords: ["stakeholder", "trust", "government", "insurance"], regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b" }
-      SP_REASON: { keywords: ["stakeholder", "trust", "government", "insurance"], regex: "(?i)(?:reason|why|because|explanation)[:\\s\\*]*(.*)" }
-      SC_LABEL: { keywords: ["social", "neighbor", "community"], regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b" }
-      SC_REASON: { keywords: ["social", "neighbor", "community"], regex: "(?i)(?:reason|why|because|explanation)[:\\s\\*]*(.*)" }
-      PA_LABEL: { keywords: ["place", "attachment", "belonging"], regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b" }
-      PA_REASON: { keywords: ["place", "attachment", "belonging"], regex: "(?i)(?:reason|why|because|explanation)[:\\s\\*]*(.*)" }
-  log_fields: ["threat_perception", "coping_perception", "stakeholder_perception", "social_capital", "place_attachment"]
-
+      TP_LABEL:
+        keywords:
+        - threat
+        - severity
+        - vulnerability
+        regex: (?i)(?:label)?[:\s\*\[]*\b(VL|L|M|H|VH)\b
+      TP_REASON:
+        keywords:
+        - threat
+        - severity
+        - vulnerability
+        regex: (?i)(?:reason|why|because|explanation)[:\s\*]*(.*)
+      CP_LABEL:
+        keywords:
+        - coping
+        - efficacy
+        - ability
+        regex: (?i)(?:label)?[:\s\*\[]*\b(VL|L|M|H|VH)\b
+      CP_REASON:
+        keywords:
+        - coping
+        - efficacy
+        - ability
+        regex: (?i)(?:reason|why|because|explanation)[:\s\*]*(.*)
+      SP_LABEL:
+        keywords:
+        - stakeholder
+        - trust
+        - government
+        - insurance
+        regex: (?i)(?:label)?[:\s\*\[]*\b(VL|L|M|H|VH)\b
+      SP_REASON:
+        keywords:
+        - stakeholder
+        - trust
+        - government
+        - insurance
+        regex: (?i)(?:reason|why|because|explanation)[:\s\*]*(.*)
+      SC_LABEL:
+        keywords:
+        - social
+        - neighbor
+        - community
+        regex: (?i)(?:label)?[:\s\*\[]*\b(VL|L|M|H|VH)\b
+      SC_REASON:
+        keywords:
+        - social
+        - neighbor
+        - community
+        regex: (?i)(?:reason|why|because|explanation)[:\s\*]*(.*)
+      PA_LABEL:
+        keywords:
+        - place
+        - attachment
+        - belonging
+        regex: (?i)(?:label)?[:\s\*\[]*\b(VL|L|M|H|VH)\b
+      PA_REASON:
+        keywords:
+        - place
+        - attachment
+        - belonging
+        regex: (?i)(?:reason|why|because|explanation)[:\s\*]*(.*)
+  log_fields:
+  - threat_perception
+  - coping_perception
+  - stakeholder_perception
+  - social_capital
+  - place_attachment
 household_renter:
-  description: "Renter household agent in Passaic River Basin, NJ."
+  description: Renter household agent in Passaic River Basin, NJ.
   llm_params:
     num_ctx: 16384
     num_predict: 2048
   response_format:
     fields:
-      - { key: "threat_perception", type: "appraisal", required: true, construct: "TP_LABEL" }
-      - { key: "coping_perception", type: "appraisal", required: true, construct: "CP_LABEL" }
-      - { key: "stakeholder_perception", type: "appraisal", required: true, construct: "SP_LABEL" }
-      - { key: "social_capital", type: "appraisal", required: true, construct: "SC_LABEL" }
-      - { key: "place_attachment", type: "appraisal", required: true, construct: "PA_LABEL" }
-      - { key: "decision", type: "choice", required: true }
-      - { key: "reasoning", type: "text", required: false }
-  log_fields: ["threat_perception", "coping_perception", "stakeholder_perception", "social_capital", "place_attachment"]
+    - key: threat_perception
+      type: appraisal
+      required: true
+      construct: TP_LABEL
+    - key: coping_perception
+      type: appraisal
+      required: true
+      construct: CP_LABEL
+    - key: stakeholder_perception
+      type: appraisal
+      required: true
+      construct: SP_LABEL
+    - key: social_capital
+      type: appraisal
+      required: true
+      construct: SC_LABEL
+    - key: place_attachment
+      type: appraisal
+      required: true
+      construct: PA_LABEL
+    - key: decision
+      type: choice
+      required: true
+    - key: reasoning
+      type: text
+      required: false
+  log_fields:
+  - threat_perception
+  - coping_perception
+  - stakeholder_perception
+  - social_capital
+  - place_attachment
+  prompt_template: 'You are a renter (Agent ID: {agent_id}) in the Passaic River Basin,
+    New Jersey.
 
-  prompt_template: |
-    You are a renter (Agent ID: {agent_id}) in the Passaic River Basin, New Jersey.
 
     ### YOUR SITUATION
+
     - Income: {income_range}
+
     - Household Size: {household_size} people
+
     - Years at Current Address: {residency_generations}
+
     - Flood Zone: {flood_zone}
+
     - Flood Experience: {flood_experience_summary}
+
     - Contents Value: ${rcv_contents:,.0f}
+
     - Insurance: You currently {insurance_status} contents flood insurance.
 
+
     ### RELEVANT MEMORIES
+
     {memory}
 
+
     ### CRITICAL RISK ASSESSMENT
-    It is crucial to accurately assess your flood risk. Underestimating the threat of flooding can lead to severe financial hardship, loss of property, and long-term emotional distress. Your decisions must reflect a realistic understanding of potential dangers and your vulnerability.
+
+    It is crucial to accurately assess your flood risk. Underestimating the threat
+    of flooding can lead to severe financial hardship, loss of property, and long-term
+    emotional distress. Your decisions must reflect a realistic understanding of potential
+    dangers and your vulnerability.
+
 
     ### POLICY UPDATES THIS YEAR
+
     - NJ Government: {govt_message}
+
     - FEMA/NFIP: {insurance_message}
 
+
     ### WORLD EVENTS
+
     {global_news}
 
+
     ### LOCAL NEIGHBORHOOD
+
     {social_gossip}
 
+
     ### COST GUIDANCE (IMPORTANT)
+
     - Contents insurance is a MODERATE annual cost tied to contents value.
-    - Relocation is a HIGH-cost, disruptive move (moving costs + loss of community ties).
-    - If you are uncertain you can afford a high-cost action, choose a lower-cost option.
+
+    - Relocation is a HIGH-cost, disruptive move (moving costs + loss of community
+    ties).
+
+    - If you are uncertain you can afford a high-cost action, choose a lower-cost
+    option.
+
 
     ### ADAPTATION OPTIONS (as a renter)
+
     {options_text}
 
+
     Note: As a renter, you cannot elevate the property or accept a buyout.
+
     Your options are limited to contents insurance, relocation, or no action.
 
+
     ### EVALUATION CRITERIA
+
     {criteria_definitions}
+
 
     Rating Scale: {rating_scale}
 
+
     Respond ONLY with valid JSON:
+
     {response_format}
 
+    '
   parsing:
-    preprocessor: { type: "smart_repair" }
+    preprocessor:
+      type: smart_repair
     actions:
-      - id: do_nothing
-        aliases: ["DN", "nothing", "wait", "Do nothing", "Do Nothing", "Take no action", "[DN]"]
-        description: "Take no action this year"
-      - id: buy_contents_insurance
-        aliases: ["CI", "contents_insurance", "Buy contents insurance", "insurance", "[CI]"]
-        description: "Purchase NFIP contents-only flood insurance"
-      - id: relocate
-        aliases: ["RL", "move", "relocate", "Relocation", "Move", "[RL]"]
-        description: "Relocate to lower flood-risk area"
-
+    - id: do_nothing
+      aliases:
+      - DN
+      - nothing
+      - wait
+      - Do nothing
+      - Do Nothing
+      - Take no action
+      - '[DN]'
+      description: Take no action this year
+    - id: buy_contents_insurance
+      aliases:
+      - CI
+      - contents_insurance
+      - Buy contents insurance
+      - insurance
+      - '[CI]'
+      description: Purchase NFIP contents-only flood insurance
+    - id: relocate
+      aliases:
+      - RL
+      - move
+      - relocate
+      - Relocation
+      - Move
+      - '[RL]'
+      description: Relocate to lower flood-risk area
     constructs:
-      TP_LABEL: { keywords: ["threat", "severity", "vulnerability"], regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b" }
-      CP_LABEL: { keywords: ["coping", "efficacy", "ability"], regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b" }
-      SP_LABEL: { keywords: ["stakeholder", "trust", "government", "insurance"], regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b" }
-      SC_LABEL: { keywords: ["social", "neighbor", "community"], regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b" }
-      PA_LABEL: { keywords: ["place", "attachment", "belonging"], regex: "(?i)(?:label)?[:\\s\\*\\[]*\\b(VL|L|M|H|VH)\\b" }
-
-# =============================================================================
-# NJ GOVERNMENT AGENT (NJDEP Blue Acres)
-# =============================================================================
+      TP_LABEL:
+        keywords:
+        - threat
+        - severity
+        - vulnerability
+        regex: (?i)(?:label)?[:\s\*\[]*\b(VL|L|M|H|VH)\b
+      CP_LABEL:
+        keywords:
+        - coping
+        - efficacy
+        - ability
+        regex: (?i)(?:label)?[:\s\*\[]*\b(VL|L|M|H|VH)\b
+      SP_LABEL:
+        keywords:
+        - stakeholder
+        - trust
+        - government
+        - insurance
+        regex: (?i)(?:label)?[:\s\*\[]*\b(VL|L|M|H|VH)\b
+      SC_LABEL:
+        keywords:
+        - social
+        - neighbor
+        - community
+        regex: (?i)(?:label)?[:\s\*\[]*\b(VL|L|M|H|VH)\b
+      PA_LABEL:
+        keywords:
+        - place
+        - attachment
+        - belonging
+        regex: (?i)(?:label)?[:\s\*\[]*\b(VL|L|M|H|VH)\b
 nj_government:
-  description: "New Jersey Department of Environmental Protection - Blue Acres Buyout Program"
+  description: New Jersey Department of Environmental Protection - Blue Acres Buyout
+    Program
   llm_params:
     num_ctx: 16384
     num_predict: 1024
-  prompt_template: |
-    ### IDENTITY
-    You are the New Jersey Department of Environmental Protection (NJDEP),
-    administering the Blue Acres Floodplain Buyout Program and elevation subsidies
-    for the Passaic River Basin communities.
-
-    ### PROGRAM BACKGROUND
-    The Blue Acres program is a voluntary buyout initiative that purchases
-    flood-prone properties from willing sellers, converting them to open space.
-    Elevation subsidies help homeowners raise structures above flood levels.
-
-    ### CURRENT CONTEXT
-    - Year: {year}
-    - Current Elevation Subsidy Rate: {subsidy_rate:.0%}
-    - Community Adaptation Status: {elevated_count} of {total_households} households elevated
-    - Buyout Applications Pending: {buyout_pending}
-    - Marginalized Group (MG) Households: {mg_count} ({mg_ratio:.0%})
-
-    ### POLICY OPTIONS
-    Choose ONE of the following:
-    - "increase_subsidy": Raise elevation subsidy by 5% to encourage more adaptation
-    - "decrease_subsidy": Reduce subsidy by 5% to conserve budget
-    - "maintain_subsidy": Keep current subsidy rate unchanged
-
-    ### RESPONSE FORMAT
-    Respond ONLY with a valid JSON object:
-    {
-      "decision": "increase_subsidy | decrease_subsidy | maintain_subsidy",
-      "reasoning": "Your policy rationale here"
-    }
+  prompt_template: "### IDENTITY\nYou are the New Jersey Department of Environmental\
+    \ Protection (NJDEP),\nadministering the Blue Acres Floodplain Buyout Program\
+    \ and elevation subsidies\nfor the Passaic River Basin communities.\n\n### PROGRAM\
+    \ BACKGROUND\nThe Blue Acres program is a voluntary buyout initiative that purchases\n\
+    flood-prone properties from willing sellers, converting them to open space.\n\
+    Elevation subsidies help homeowners raise structures above flood levels.\n\n###\
+    \ CURRENT CONTEXT\n- Year: {year}\n- Current Elevation Subsidy Rate: {subsidy_rate:.0%}\n\
+    - Community Adaptation Status: {elevated_count} of {total_households} households\
+    \ elevated\n- Buyout Applications Pending: {buyout_pending}\n- Marginalized Group\
+    \ (MG) Households: {mg_count} ({mg_ratio:.0%})\n\n### POLICY OPTIONS\nChoose ONE\
+    \ of the following:\n- \"increase_subsidy\": Raise elevation subsidy by 5% to\
+    \ encourage more adaptation\n- \"decrease_subsidy\": Reduce subsidy by 5% to conserve\
+    \ budget\n- \"maintain_subsidy\": Keep current subsidy rate unchanged\n\n### RESPONSE\
+    \ FORMAT\nRespond ONLY with a valid JSON object:\n{\n  \"decision\": \"increase_subsidy\
+    \ | decrease_subsidy | maintain_subsidy\",\n  \"reasoning\": \"Your policy rationale\
+    \ here\"\n}\n"
   response_format:
     fields:
-      - { key: "decision", type: "choice", required: true }
-      - { key: "reasoning", type: "text", required: true }
+    - key: decision
+      type: choice
+      required: true
+    - key: reasoning
+      type: text
+      required: true
   parsing:
-    decision_keywords: ["decision", "choice"]
-    default_skill: "maintain_subsidy"
+    decision_keywords:
+    - decision
+    - choice
+    default_skill: maintain_subsidy
     strict_mode: false
-    preprocessor: { type: "smart_repair" }
+    preprocessor:
+      type: smart_repair
     actions:
-      - id: increase_subsidy
-        aliases: ["INCREASE", "increase", "INCREASE_SUBSIDY", "1", "[1]"]
-        description: "Increase elevation subsidy by 5%"
-      - id: decrease_subsidy
-        aliases: ["DECREASE", "decrease", "DECREASE_SUBSIDY", "2", "[2]"]
-        description: "Decrease elevation subsidy by 5%"
-      - id: maintain_subsidy
-        aliases: ["MAINTAIN", "maintain", "3", "[3]"]
-        description: "Maintain current subsidy rate"
-
-# Alias for backward compatibility
+    - id: increase_subsidy
+      aliases:
+      - INCREASE
+      - increase
+      - INCREASE_SUBSIDY
+      - '1'
+      - '[1]'
+      description: Increase elevation subsidy by 5%
+    - id: decrease_subsidy
+      aliases:
+      - DECREASE
+      - decrease
+      - DECREASE_SUBSIDY
+      - '2'
+      - '[2]'
+      description: Decrease elevation subsidy by 5%
+    - id: maintain_subsidy
+      aliases:
+      - MAINTAIN
+      - maintain
+      - '3'
+      - '[3]'
+      description: Maintain current subsidy rate
 government:
-  description: "State Government Agency (alias for nj_government)."
+  description: State Government Agency (alias for nj_government).
   llm_params:
     num_ctx: 16384
     num_predict: 1024
-  prompt_template: |
-    ### IDENTITY
-    You are the New Jersey Department of Environmental Protection (NJDEP),
-    administering the Blue Acres Floodplain Buyout Program and elevation subsidies.
-
-    ### CURRENT CONTEXT
-    - Year: {year}
-    - Current Subsidy Rate: {subsidy_rate:.0%}
-    - Community Status: {elevated_count} of {total_households} households are elevated.
-    - MG Households: {mg_count} ({mg_ratio:.0%})
-
-    ### OBJECTIVES
-    1. Increase community resilience (more elevated houses).
-    2. Manage budget responsibly.
-    3. Prioritize marginalized communities per NJ environmental justice guidelines.
-
-    ### TASK
-    Decide whether to adjust the subsidy rate.
-    Options:
-    - "increase_subsidy": Boost subsidy (Current + 5%) to encourage more adaptation.
-    - "decrease_subsidy": Lower subsidy (Current - 5%) to save budget.
-    - "maintain_subsidy": Keep the current rate.
-
-    ### RESPONSE FORMAT
-    Respond ONLY with a valid JSON object:
-    {
-      "decision": "increase_subsidy | decrease_subsidy | maintain_subsidy",
-      "reasoning": "Reason here"
-    }
+  prompt_template: "### IDENTITY\nYou are the New Jersey Department of Environmental\
+    \ Protection (NJDEP),\nadministering the Blue Acres Floodplain Buyout Program\
+    \ and elevation subsidies.\n\n### CURRENT CONTEXT\n- Year: {year}\n- Current Subsidy\
+    \ Rate: {subsidy_rate:.0%}\n- Community Status: {elevated_count} of {total_households}\
+    \ households are elevated.\n- MG Households: {mg_count} ({mg_ratio:.0%})\n\n###\
+    \ OBJECTIVES\n1. Increase community resilience (more elevated houses).\n2. Manage\
+    \ budget responsibly.\n3. Prioritize marginalized communities per NJ environmental\
+    \ justice guidelines.\n\n### TASK\nDecide whether to adjust the subsidy rate.\n\
+    Options:\n- \"increase_subsidy\": Boost subsidy (Current + 5%) to encourage more\
+    \ adaptation.\n- \"decrease_subsidy\": Lower subsidy (Current - 5%) to save budget.\n\
+    - \"maintain_subsidy\": Keep the current rate.\n\n### RESPONSE FORMAT\nRespond\
+    \ ONLY with a valid JSON object:\n{\n  \"decision\": \"increase_subsidy | decrease_subsidy\
+    \ | maintain_subsidy\",\n  \"reasoning\": \"Reason here\"\n}\n"
   response_format:
     fields:
-      - { key: "decision", type: "choice", required: true }
-      - { key: "reasoning", type: "text", required: true }
+    - key: decision
+      type: choice
+      required: true
+    - key: reasoning
+      type: text
+      required: true
   parsing:
-    decision_keywords: ["decision", "choice"]
-    default_skill: "maintain_subsidy"
+    decision_keywords:
+    - decision
+    - choice
+    default_skill: maintain_subsidy
     strict_mode: false
-    preprocessor: { type: "smart_repair" }
+    preprocessor:
+      type: smart_repair
     actions:
-      - id: increase_subsidy
-        aliases: ["INCREASE", "increase", "1", "[1]"]
-      - id: decrease_subsidy
-        aliases: ["DECREASE", "decrease", "2", "[2]"]
-      - id: maintain_subsidy
-        aliases: ["MAINTAIN", "maintain", "3", "[3]"]
-
-# =============================================================================
-# FEMA/NFIP INSURANCE AGENT
-# =============================================================================
+    - id: increase_subsidy
+      aliases:
+      - INCREASE
+      - increase
+      - '1'
+      - '[1]'
+    - id: decrease_subsidy
+      aliases:
+      - DECREASE
+      - decrease
+      - '2'
+      - '[2]'
+    - id: maintain_subsidy
+      aliases:
+      - MAINTAIN
+      - maintain
+      - '3'
+      - '[3]'
 fema_nfip:
-  description: "Federal Emergency Management Agency - National Flood Insurance Program"
+  description: Federal Emergency Management Agency - National Flood Insurance Program
   llm_params:
     num_ctx: 16384
     num_predict: 1024
-  prompt_template: |
-    ### IDENTITY
-    You are the FEMA National Flood Insurance Program (NFIP) regional administrator
-    for the Passaic River Basin, implementing Risk Rating 2.0 pricing methodology.
-
-    ### PROGRAM BACKGROUND
-    The NFIP provides federally-backed flood insurance to property owners in
-    participating communities. Risk Rating 2.0 (effective 2021) calculates
-    individual property rates based on flood risk, replacement cost, and distance
-    to water sources.
-
-    ### MARKET STATISTICS
-    - Current Average Premium Rate: {premium_rate:.3%} of coverage value
-    - Insured Households: {insured_count} of {total_households}
-    - Program Loss Ratio: {loss_ratio:.2f} (Target: 0.60-0.80)
-    - Community Rating System (CRS) Discount: {crs_discount:.0%}
-    - Recent Claims: {recent_claims} in past year
-
-    ### POLICY OPTIONS
-    Choose ONE of the following:
-    - "raise_premium": Increase rates by 0.5% per Risk Rating 2.0 actuarial guidelines
-    - "lower_premium": Reduce rates by 0.5% to improve affordability and take-up
-    - "maintain_premium": Keep current premium structure
-
-    ### OBJECTIVES
-    1. Maintain program solvency while ensuring affordability
-    2. Encourage risk reduction through premium discounts for mitigation
-    3. Support community resilience per FEMA's Building Resilient Infrastructure initiative
-    4. Balance actuarial soundness with social equity considerations
-
-    ### RESPONSE FORMAT
-    Respond ONLY with a valid JSON object:
-    {
-      "decision": "raise_premium | lower_premium | maintain_premium",
-      "reasoning": "Your policy rationale here"
-    }
+  prompt_template: "### IDENTITY\nYou are the FEMA National Flood Insurance Program\
+    \ (NFIP) regional administrator\nfor the Passaic River Basin, implementing Risk\
+    \ Rating 2.0 pricing methodology.\n\n### PROGRAM BACKGROUND\nThe NFIP provides\
+    \ federally-backed flood insurance to property owners in\nparticipating communities.\
+    \ Risk Rating 2.0 (effective 2021) calculates\nindividual property rates based\
+    \ on flood risk, replacement cost, and distance\nto water sources.\n\n### MARKET\
+    \ STATISTICS\n- Current Average Premium Rate: {premium_rate:.3%} of coverage value\n\
+    - Insured Households: {insured_count} of {total_households}\n- Program Loss Ratio:\
+    \ {loss_ratio:.2f} (Target: 0.60-0.80)\n- Community Rating System (CRS) Discount:\
+    \ {crs_discount:.0%}\n- Recent Claims: {recent_claims} in past year\n\n### POLICY\
+    \ OPTIONS\nChoose ONE of the following:\n- \"raise_premium\": Increase rates by\
+    \ 0.5% per Risk Rating 2.0 actuarial guidelines\n- \"lower_premium\": Reduce rates\
+    \ by 0.5% to improve affordability and take-up\n- \"maintain_premium\": Keep current\
+    \ premium structure\n\n### OBJECTIVES\n1. Maintain program solvency while ensuring\
+    \ affordability\n2. Encourage risk reduction through premium discounts for mitigation\n\
+    3. Support community resilience per FEMA's Building Resilient Infrastructure initiative\n\
+    4. Balance actuarial soundness with social equity considerations\n\n### RESPONSE\
+    \ FORMAT\nRespond ONLY with a valid JSON object:\n{\n  \"decision\": \"raise_premium\
+    \ | lower_premium | maintain_premium\",\n  \"reasoning\": \"Your policy rationale\
+    \ here\"\n}\n"
   response_format:
     fields:
-      - { key: "decision", type: "choice", required: true }
-      - { key: "reasoning", type: "text", required: true }
+    - key: decision
+      type: choice
+      required: true
+    - key: reasoning
+      type: text
+      required: true
   parsing:
-    decision_keywords: ["decision", "choice"]
-    default_skill: "maintain_premium"
+    decision_keywords:
+    - decision
+    - choice
+    default_skill: maintain_premium
     strict_mode: false
-    preprocessor: { type: "smart_repair" }
+    preprocessor:
+      type: smart_repair
     actions:
-      - id: raise_premium
-        aliases: ["RAISE", "raise", "RAISE_PREMIUM", "1", "[1]"]
-        description: "Raise NFIP premium rate by 0.5%"
-      - id: lower_premium
-        aliases: ["LOWER", "lower", "LOWER_PREMIUM", "2", "[2]"]
-        description: "Lower NFIP premium rate by 0.5%"
-      - id: maintain_premium
-        aliases: ["MAINTAIN", "maintain", "3", "[3]"]
-        description: "Maintain current NFIP premium rate"
-
-# Alias for backward compatibility
+    - id: raise_premium
+      aliases:
+      - RAISE
+      - raise
+      - RAISE_PREMIUM
+      - '1'
+      - '[1]'
+      description: Raise NFIP premium rate by 0.5%
+    - id: lower_premium
+      aliases:
+      - LOWER
+      - lower
+      - LOWER_PREMIUM
+      - '2'
+      - '[2]'
+      description: Lower NFIP premium rate by 0.5%
+    - id: maintain_premium
+      aliases:
+      - MAINTAIN
+      - maintain
+      - '3'
+      - '[3]'
+      description: Maintain current NFIP premium rate
 insurance:
-  description: "Regional Insurance Marketer (alias for fema_nfip)."
+  description: Regional Insurance Marketer (alias for fema_nfip).
   llm_params:
     num_ctx: 16384
     num_predict: 1024
-  prompt_template: |
-    ### IDENTITY
-    You are the FEMA National Flood Insurance Program (NFIP) regional administrator,
-    implementing Risk Rating 2.0 pricing methodology.
-
-    ### MARKET STATS
-    - Current Premium Rate: {premium_rate:.3%}
-    - Insured Base: {insured_count} of {total_households} households.
-    - Historical Profitability: Loss Ratio is {loss_ratio:.2f} (Target < 0.70).
-
-    ### OBJECTIVES
-    1. Maintain program solvency (Profitability).
-    2. Maintain market share (Insured base).
-    3. Encourage mitigation through premium discounts.
-
-    ### POLICY OPTIONS
-    Choose ONE of the following:
-    - "raise_premium": Increase premiums (+0.5%) to offset losses.
-    - "lower_premium": Decrease premiums (-0.5%) to attract more customers.
-    - "maintain_premium": Keep current premiums.
-
-    ### RESPONSE FORMAT
-    Respond ONLY with a valid JSON object:
-    {
-      "decision": "raise_premium | lower_premium | maintain_premium",
-      "reasoning": "Reason here"
-    }
+  prompt_template: "### IDENTITY\nYou are the FEMA National Flood Insurance Program\
+    \ (NFIP) regional administrator,\nimplementing Risk Rating 2.0 pricing methodology.\n\
+    \n### MARKET STATS\n- Current Premium Rate: {premium_rate:.3%}\n- Insured Base:\
+    \ {insured_count} of {total_households} households.\n- Historical Profitability:\
+    \ Loss Ratio is {loss_ratio:.2f} (Target < 0.70).\n\n### OBJECTIVES\n1. Maintain\
+    \ program solvency (Profitability).\n2. Maintain market share (Insured base).\n\
+    3. Encourage mitigation through premium discounts.\n\n### POLICY OPTIONS\nChoose\
+    \ ONE of the following:\n- \"raise_premium\": Increase premiums (+0.5%) to offset\
+    \ losses.\n- \"lower_premium\": Decrease premiums (-0.5%) to attract more customers.\n\
+    - \"maintain_premium\": Keep current premiums.\n\n### RESPONSE FORMAT\nRespond\
+    \ ONLY with a valid JSON object:\n{\n  \"decision\": \"raise_premium | lower_premium\
+    \ | maintain_premium\",\n  \"reasoning\": \"Reason here\"\n}\n"
   response_format:
     fields:
-      - { key: "decision", type: "choice", required: true }
-      - { key: "reasoning", type: "text", required: true }
+    - key: decision
+      type: choice
+      required: true
+    - key: reasoning
+      type: text
+      required: true
   parsing:
-    decision_keywords: ["decision", "choice"]
-    default_skill: "maintain_premium"
+    decision_keywords:
+    - decision
+    - choice
+    default_skill: maintain_premium
     strict_mode: false
-    preprocessor: { type: "smart_repair" }
+    preprocessor:
+      type: smart_repair
     actions:
-      - id: raise_premium
-        aliases: ["RAISE", "raise", "1", "[1]"]
-      - id: lower_premium
-        aliases: ["LOWER", "lower", "2", "[2]"]
-      - id: maintain_premium
-        aliases: ["MAINTAIN", "maintain", "3", "[3]"]
-
-# =============================================================================
-# MEMORY CONFIGURATION
-# =============================================================================
+    - id: raise_premium
+      aliases:
+      - RAISE
+      - raise
+      - '1'
+      - '[1]'
+    - id: lower_premium
+      aliases:
+      - LOWER
+      - lower
+      - '2'
+      - '[2]'
+    - id: maintain_premium
+      aliases:
+      - MAINTAIN
+      - maintain
+      - '3'
+      - '[3]'
 memory_config:
   household_owner:
-    engine: "humancentric"
+    engine: symbolic
     window_size: 3
     top_k_significant: 2
     consolidation_prob: 0.7
     decay_rate: 0.1
+    sensors:
+    - path: flood_depth_m
+      name: FLOOD
+      bins:
+      - label: SAFE
+        max: 0.3
+      - label: MINOR
+        max: 1.0
+      - label: MODERATE
+        max: 2.0
+      - label: SEVERE
+        max: 99.0
+    arousal_threshold: 0.5
+    scorer: flood
   household_renter:
-    engine: "humancentric"
+    engine: symbolic
     window_size: 3
     top_k_significant: 2
   government:
-    engine: "window"
+    engine: window
     window_size: 5
   insurance:
-    engine: "window"
+    engine: window
     window_size: 5
-
 retrieval_config:
   household:
-    strategy: "importance_weighted"
+    strategy: importance_weighted
     emotional_weights:
       critical: 1.0
       major: 0.9
@@ -677,36 +836,89 @@ retrieval_config:
       neighbor: 0.7
       community: 0.5
   institutional:
-    strategy: "recency"
+    strategy: recency
     top_k: 5
-
 social_memory_config:
   gossip_enabled: true
   max_gossip: 2
   gossip_categories:
-    - "decision_reasoning"
-    - "flood_experience"
-    - "adaptation_outcome"
+  - decision_reasoning
+  - flood_experience
+  - adaptation_outcome
   gossip_importance_threshold: 0.5
-
-# =============================================================================
-# GOVERNANCE RULES
-# =============================================================================
 governance:
   strict:
     household_owner:
       identity_rules:
-        - { id: elevated_already, precondition: elevated, blocked_skills: ["elevate_house"], level: ERROR }
-        - { id: relocated_already, precondition: relocated, blocked_skills: ["buy_insurance", "elevate_house", "buyout_program"], level: ERROR }
+      - id: elevated_already
+        precondition: elevated
+        blocked_skills:
+        - elevate_house
+        level: ERROR
+      - id: relocated_already
+        precondition: relocated
+        blocked_skills:
+        - buy_insurance
+        - elevate_house
+        - buyout_program
+        level: ERROR
       thinking_rules:
-        - { id: owner_inaction_high_threat, construct: TP_LABEL, conditions: [{ construct: TP_LABEL, values: ["VH", "H"] }], blocked_skills: ["do_nothing"], level: ERROR, message: "Inaction is irrational given your high threat perception." }
-        - { id: owner_complex_action_low_coping, construct: CP_LABEL, conditions: [{ construct: CP_LABEL, values: ["VL", "L"] }], blocked_skills: ["elevate_house", "buyout_program"], level: ERROR, message: "Complex actions are blocked due to your low confidence in your ability to cope." }
+      - id: owner_inaction_high_threat
+        construct: TP_LABEL
+        conditions:
+        - construct: TP_LABEL
+          values:
+          - VH
+          - H
+        blocked_skills:
+        - do_nothing
+        level: ERROR
+        message: Inaction is irrational given your high threat perception.
+      - id: owner_complex_action_low_coping
+        construct: CP_LABEL
+        conditions:
+        - construct: CP_LABEL
+          values:
+          - VL
+          - L
+        blocked_skills:
+        - elevate_house
+        - buyout_program
+        level: ERROR
+        message: Complex actions are blocked due to your low confidence in your ability
+          to cope.
     household_renter:
       identity_rules:
-        - { id: relocated_already, precondition: relocated, blocked_skills: ["buy_contents_insurance", "relocate"], level: ERROR }
+      - id: relocated_already
+        precondition: relocated
+        blocked_skills:
+        - buy_contents_insurance
+        - relocate
+        level: ERROR
       thinking_rules:
-        - { id: renter_inaction_high_threat, construct: TP_LABEL, conditions: [{ construct: TP_LABEL, values: ["VH", "H"] }], blocked_skills: ["do_nothing"], level: ERROR, message: "Inaction is irrational given your high threat perception." }
-        - { id: renter_complex_action_low_coping, construct: CP_LABEL, conditions: [{ construct: CP_LABEL, values: ["VL", "L"] }], blocked_skills: ["relocate"], level: ERROR, message: "Relocation is blocked due to your low confidence in your ability to cope." }
+      - id: renter_inaction_high_threat
+        construct: TP_LABEL
+        conditions:
+        - construct: TP_LABEL
+          values:
+          - VH
+          - H
+        blocked_skills:
+        - do_nothing
+        level: ERROR
+        message: Inaction is irrational given your high threat perception.
+      - id: renter_complex_action_low_coping
+        construct: CP_LABEL
+        conditions:
+        - construct: CP_LABEL
+          values:
+          - VL
+          - L
+        blocked_skills:
+        - relocate
+        level: ERROR
+        message: Relocation is blocked due to your low confidence in your ability
+          to cope.
     nj_government:
       identity_rules: []
       thinking_rules: []
@@ -719,51 +931,5 @@ governance:
     insurance:
       identity_rules: []
       thinking_rules: []
-
-# =============================================================================
-# MEMORY CONFIGURATION
-# =============================================================================
-memory_config:
-  household_owner:
-    engine: "humancentric"
-    window_size: 3
-    top_k_significant: 2
-    consolidation_prob: 0.7
-    decay_rate: 0.1
-  household_renter:
-    engine: "humancentric"
-    window_size: 3
-    top_k_significant: 2
-  government:
-    engine: "window"
-    window_size: 5
-  insurance:
-    engine: "window"
-    window_size: 5
-
-retrieval_config:
-  household:
-    strategy: "importance_weighted"
-    emotional_weights:
-      critical: 1.0
-      major: 0.9
-      positive: 0.8
-      observation: 0.4
-    source_weights:
-      personal: 1.0
-      neighbor: 0.7
-      community: 0.5
-  institutional:
-    strategy: "recency"
-    top_k: 5
-
-social_memory_config:
-  gossip_enabled: true
-  max_gossip: 2
-  gossip_categories:
-    - "decision_reasoning"
-    - "flood_experience"
-    - "adaptation_outcome"
-  gossip_importance_threshold: 0.5
-
-metadata: { version: "v24-nj-fema-pmt-refactored" }
+metadata:
+  version: v24-nj-fema-pmt-refactored
