@@ -1,7 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, TYPE_CHECKING
 
 from agents.base_agent import BaseAgent
+
+if TYPE_CHECKING:
+    from governed_ai_sdk.v1_prototype.memory import MemoryScorer
 
 class MemoryEngine(ABC):
     """
@@ -9,6 +12,9 @@ class MemoryEngine(ABC):
     Decouples 'Thinking' (LLM) from 'Retention' (Storage).
     """
     
+    def __init__(self, scorer: Optional["MemoryScorer"] = None):
+        self.scorer = scorer
+
     @abstractmethod
     def add_memory(self, agent_id: str, content: str, metadata: Optional[Dict[str, Any]] = None):
         """Add a new memory item for an agent."""
@@ -26,6 +32,18 @@ class MemoryEngine(ABC):
             **kwargs: Additional context (e.g., world_state).
         """
         pass
+
+    def retrieve_with_scoring(self, agent: BaseAgent, context: dict, **kwargs):
+        """v2 retrieval with domain-aware scoring."""
+        memories = self.retrieve(agent, **kwargs)
+        if self.scorer:
+            scored = [
+                (m, self.scorer.score(m, context, getattr(agent, "__dict__", {})))
+                for m in memories
+            ]
+            scored.sort(key=lambda x: x[1].total, reverse=True)
+            return scored
+        return [(m, None) for m in memories]
 
     @abstractmethod
     def clear(self, agent_id: str):
