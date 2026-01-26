@@ -32,6 +32,7 @@ from broker import (
     InteractionHub,
     create_social_graph
 )
+from broker.components.memory_engine import create_memory_engine
 from simulation.environment import TieredEnvironment
 from agents.base_agent import BaseAgent, AgentConfig, StateParam, Skill, PerceptionSource
 from examples.multi_agent.environment.hazard import HazardModule, VulnerabilityModule, YearMapping
@@ -45,6 +46,41 @@ from initial_memory import generate_all_memories, get_agent_memories_text
 from orchestration.agent_factories import create_government_agent, create_insurance_agent, wrap_household
 from orchestration.lifecycle_hooks import MultiAgentHooks
 import json
+
+
+def build_memory_engine(mem_cfg: Dict[str, Any], engine_type: str = "universal") -> MemoryEngine:
+    """Create memory engine with optional SDK scorer."""
+    scorer = None
+    scorer_key = mem_cfg.get("scorer")
+    if scorer_key:
+        from governed_ai_sdk.v1_prototype.memory import get_memory_scorer
+        scorer = get_memory_scorer(scorer_key)
+
+    if engine_type == "humancentric":
+        return HumanCentricMemoryEngine(
+            window_size=mem_cfg.get("window_size", 3),
+            top_k_significant=mem_cfg.get("top_k_significant", 2),
+            consolidation_prob=mem_cfg.get("consolidation_probability", 0.7),
+            decay_rate=mem_cfg.get("decay_rate", 0.1),
+            scorer=scorer,
+        )
+    if engine_type == "hierarchical":
+        from broker.components.memory_engine import HierarchicalMemoryEngine
+        return HierarchicalMemoryEngine(
+            window_size=mem_cfg.get("window_size", 5),
+            semantic_top_k=mem_cfg.get("top_k_significant", 3),
+            scorer=scorer,
+        )
+    if engine_type == "universal":
+        return create_memory_engine(
+            engine_type="universal",
+            scorer=scorer,
+            arousal_threshold=mem_cfg.get("arousal_threshold", 1.0),
+        )
+    return WindowMemoryEngine(
+        window_size=mem_cfg.get("window_size", 3),
+        scorer=scorer,
+    )
 
 
 # =============================================================================
@@ -211,21 +247,7 @@ def run_unified_experiment():
     if args.stimulus_key is not None:
         mem_cfg["stimulus_key"] = args.stimulus_key
 
-    if args.memory_engine == "humancentric":
-        memory_engine = HumanCentricMemoryEngine(
-            window_size=mem_cfg.get("window_size", 3),
-            top_k_significant=mem_cfg.get("top_k_significant", 2),
-            consolidation_prob=mem_cfg.get("consolidation_probability", 0.7),
-            decay_rate=mem_cfg.get("decay_rate", 0.1)
-        )
-    elif args.memory_engine == "hierarchical":
-        from broker.components.memory_engine import HierarchicalMemoryEngine
-        memory_engine = HierarchicalMemoryEngine(
-            window_size=mem_cfg.get("window_size", 5),
-            semantic_top_k=mem_cfg.get("top_k_significant", 3)
-        )
-    else:
-        memory_engine = WindowMemoryEngine(window_size=mem_cfg.get("window_size", 3))
+    memory_engine = build_memory_engine(mem_cfg, args.memory_engine)
 
     # 3a. Load initial memories (survey mode)
     if args.mode == "survey" and args.load_initial_memories:
