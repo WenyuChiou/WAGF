@@ -206,7 +206,7 @@ def get_optimal_config(
 # =============================================================================
 # Convenience Functions
 # =============================================================================
-def apply_to_llm_config(config: PerformanceConfig):
+def apply_to_llm_config(config: PerformanceConfig, num_ctx_override: Optional[int] = None, num_predict_override: Optional[int] = None):
     """
     Apply performance config to the global LLM_CONFIG.
     
@@ -216,9 +216,13 @@ def apply_to_llm_config(config: PerformanceConfig):
         apply_to_llm_config(perf)
     """
     from broker.utils.llm_utils import LLM_CONFIG
-    LLM_CONFIG.num_ctx = config.num_ctx
-    LLM_CONFIG.num_predict = config.num_predict
-    _LOGGER.info(f"[PerformanceTuner] Applied: num_ctx={config.num_ctx}, num_predict={config.num_predict}")
+    
+    final_ctx = num_ctx_override if num_ctx_override else config.num_ctx
+    final_predict = num_predict_override if num_predict_override else config.num_predict
+    
+    LLM_CONFIG.num_ctx = int(final_ctx)
+    LLM_CONFIG.num_predict = int(final_predict)
+    _LOGGER.info(f"[PerformanceTuner] Applied: num_ctx={final_ctx}, num_predict={final_predict} (Overrides: ctx={num_ctx_override}, pred={num_predict_override})")
 
 
 def print_config_summary(model_tag: str):

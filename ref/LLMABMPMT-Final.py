@@ -220,13 +220,11 @@ DECISION_MAP_ELEVATED = {"1": "Buy flood insurance", "2": "Relocate", "3": "Do n
 DECISION_MAP_NOT_ELEVATED = {"1": "Buy flood insurance", "2": "Elevate the house", "3": "Relocate", "4": "Do nothing"}
 
 # --- 7. Main simulation function ) ---
-def run_simulation(output_dir=None, model_name="gemma3:4b"):
+def run_simulation(output_dir=None, model_name="gemma3:4b", agents_path=None, flood_years_path=None):
     start_time = time.time()
-    #llm = OllamaLLM(model="llama3.1:8b")
     llm = OllamaLLM(model=model_name)
-    #llm = OllamaLLM(model="gpt-oss:20b")
 
-    # Define past events here to have it in scope for both initialization and random recall
+    # Define past events for initialization and random recall
     past_events = [
         "A flood event about 15 years ago caused $500,000 in city-wide damages; my neighborhood was not impacted at all",
         "Some residents reported delays when processing their flood insurance claims",
@@ -235,8 +233,8 @@ def run_simulation(output_dir=None, model_name="gemma3:4b"):
         "News outlets have reported a possible trend of increasing flood frequency and severity in recent years"
     ]
 
-    AGENT_PROFILE_FILE = "agent_initial_profiles.csv"
-    FLOOD_YEARS_FILE = "flood_years.csv"
+    AGENT_PROFILE_FILE = agents_path or "agent_initial_profiles.csv"
+    FLOOD_YEARS_FILE = flood_years_path or "flood_years.csv"
 
 # --- Conditional setup: Load from files or generate randomly ---
     if os.path.exists(AGENT_PROFILE_FILE) and os.path.exists(FLOOD_YEARS_FILE):
@@ -246,7 +244,7 @@ def run_simulation(output_dir=None, model_name="gemma3:4b"):
         predefined_flood_years = set(flood_years_df['Flood_Years'])
         run_mode = 'deterministic'
     else:
-        print(f"[WARNING] Input files not found. Generating a new random simulation.")
+        print(f"[WARNING] Input files not found or incomplete. Generating a new random simulation.")
         agents = initialize_agents_randomly(past_events)
         init_df = pd.DataFrame([{**{k: a[k] for k in ['id', 'elevated', 'has_insurance', 'relocated', 'trust_in_insurance', 'trust_in_neighbors']}, "memory": " | ".join(a["memory"]), "flood_threshold": a["flood_threshold"]} for a in agents])
         init_df.to_csv(AGENT_PROFILE_FILE, index=False)
@@ -486,6 +484,8 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=None, help="Random seed (optional)")
     parser.add_argument("--agents", type=int, default=NUM_AGENTS, help="Number of agents")
     parser.add_argument("--years", type=int, default=NUM_YEARS, help="Number of years")
+    parser.add_argument("--agents-path", default=None, help="Path to existing agent profiles CSV")
+    parser.add_argument("--flood-years-path", default=None, help="Path to existing flood years CSV")
     args = parser.parse_args()
     
     # Update globals
@@ -503,7 +503,12 @@ if __name__ == "__main__":
     if output_path:
         output_path.mkdir(parents=True, exist_ok=True)
 
-    agents, logs, sim_time, agent_ids_to_plot, flood_years = run_simulation(output_dir=output_path, model_name=args.model)
+    agents, logs, sim_time, agent_ids_to_plot, flood_years = run_simulation(
+        output_dir=output_path, 
+        model_name=args.model,
+        agents_path=args.agents_path,
+        flood_years_path=args.flood_years_path
+    )
     
     # Create output directory
     output_dir = Path(args.output)

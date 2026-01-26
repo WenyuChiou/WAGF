@@ -1,7 +1,0 @@
-{
-  "model": "qwen3:1.7b",
-  "seed": 923973,
-  "num_years": 3,
-  "governance_profile": "strict",
-  "agent_types_config": "C:\\Users\\wenyu\\Desktop\\Lehigh\\governed_broker_framework\\examples\\single_agent\\agent_types.yaml"
-}

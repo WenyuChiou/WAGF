@@ -160,10 +160,23 @@ def get_stats(model, group):
                     for line in f:
                         try:
                             data = json.loads(line)
-                            if data.get('retry_count', 0) > 0:
-                                interv_total += 1
-                                final_dec = data.get('skill_proposal', {}).get('skill_name', '')
-                                if is_action(final_dec): interv_success += 1
+                            # Robust Intervention Detection
+                            retry_active = data.get('retry_count', 0) > 0
+                            failed_rules = str(data.get('failed_rules', '')).lower()
+                            has_rules = failed_rules and failed_rules not in ['nan', 'none', '', '[]']
+                            
+                            # Intervention occurred if Retry > 0 OR explicit Rule Failures detected
+                            # (We prioritize Failed Rules as the source of truth for Governance)
+                            if retry_active or has_rules:
+                                parsed_error = str(data.get('parsing_warnings', '') or data.get('error_messages', '')).lower()
+                                
+                                # Heuristic: It is Governance if Rules Failed OR Error is not purely syntax
+                                is_syntax = ('json' in parsed_error or 'parse' in parsed_error) and not has_rules
+                                
+                                if not is_syntax:
+                                    interv_total += 1
+                                    final_dec = data.get('skill_proposal', {}).get('skill_name', '')
+                                    if is_action(final_dec): interv_success += 1
                         except: continue
             
             intv_ok_str = f"{interv_success}" if interv_total > 0 else "-"

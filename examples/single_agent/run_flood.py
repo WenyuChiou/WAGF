@@ -234,7 +234,11 @@ class ResearchSimulation:
         else:
             self.flood_event = self.current_year in self.flood_years
         self.grant_available = random.random() < GRANT_PROBABILITY
-        return {"flood_event": self.flood_event, "grant_available": self.grant_available}
+        return {
+            "flood_event": self.flood_event, 
+            "grant_available": self.grant_available,
+            "current_year": self.current_year
+        }
 
     def execute_skill(self, approved_skill) -> ExecutionResult:
         agent_id = approved_skill.agent_id
@@ -603,7 +607,7 @@ def load_agents_from_survey(
 
 
 # --- 6. Main Runner ---
-def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5, seed: Optional[int] = None, flood_mode: str = "fixed", survey_mode: bool = False, governance_mode: str = "strict", use_priority_schema: bool = False, stress_test: str = None, memory_ranking_mode: str = "legacy"):
+def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5, seed: Optional[int] = None, flood_mode: str = "fixed", survey_mode: bool = False, governance_mode: str = "strict", use_priority_schema: bool = False, stress_test: str = None, memory_ranking_mode: str = "legacy", initial_agents_path: str = None):
     print(f"--- Llama {agents_count}-Agent {years}-Year Benchmark (Final Parity Edition) ---")
     
     # 1. Load Registry & Prompt Template
@@ -637,7 +641,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     else:
         # Legacy CSV-based initialization
         from broker import load_agents_from_csv
-        profiles_path = base_path / "agent_initial_profiles.csv"
+        profiles_path = Path(initial_agents_path) if initial_agents_path else base_path / "agent_initial_profiles.csv"
         agents = load_agents_from_csv(str(profiles_path), {
             "id": "id", "elevated": "elevated", "has_insurance": "has_insurance",
             "relocated": "relocated", "trust_in_insurance": "trust_in_insurance",
@@ -887,7 +891,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         .with_skill_registry(registry)
         .with_memory_engine(memory_engine)
         .with_governance(governance_mode, agent_config_path)
-        .with_output(str(output_dir))
+        .with_exact_output(str(output_dir))
         .with_workers(workers)
         .with_seed(seed)
     )
@@ -999,6 +1003,7 @@ if __name__ == "__main__":
     parser.add_argument("--num-ctx", type=int, default=None, help="Ollama context window size. Overrides YAML/AutoTune.")
     parser.add_argument("--num-predict", type=int, default=None, help="Ollama max tokens. Overrides YAML/AutoTune.")
     parser.add_argument("--memory-ranking-mode", type=str, default="legacy", choices=["legacy", "weighted"], help="Ranking logic for HumanCentricMemoryEngine (legacy=v1 decay, weighted=v2 unified scoring)")
+    parser.add_argument("--initial-agents", type=str, default=None, help="Path to standard agent profiles CSV")
     args = parser.parse_args()
 
     # Apply LLM config from command line
@@ -1036,5 +1041,6 @@ if __name__ == "__main__":
         governance_mode=args.governance_mode,
         use_priority_schema=args.use_priority_schema,
         stress_test=args.stress_test,
-        memory_ranking_mode=args.memory_ranking_mode
+        memory_ranking_mode=args.memory_ranking_mode,
+        initial_agents_path=args.initial_agents
     )

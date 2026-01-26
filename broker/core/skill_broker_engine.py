@@ -212,6 +212,7 @@ class SkillBrokerEngine:
                         "agent_id": agent_id,
                         "agent_type": agent_type,
                         "retry_attempt": initial_attempts - 1,
+                        "current_year": env_context.get("current_year"),
                         **context
                     })
                 
@@ -538,6 +539,7 @@ class SkillBrokerEngine:
                 "run_id": run_id,
                 "step_id": step_id,
                 "timestamp": timestamp,
+                "year": env_context.get("current_year"),
                 "seed": seed,
                 "agent_id": agent_id,
                 "validated": all_valid,

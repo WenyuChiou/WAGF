@@ -3,6 +3,8 @@ Agent Type Configuration Loader
 
 Loads unified agent configuration from broker/agent_types.yaml.
 Provides easy access to prompts, validation rules, and coherence rules.
+
+Task-035: Added SDK UnifiedConfigLoader integration for experiment configs.
 """
 
 import yaml
@@ -10,10 +12,17 @@ import os
 import json
 import threading
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, TYPE_CHECKING
 from dataclasses import dataclass, field
 from collections import defaultdict
 from broker.utils.logging import setup_logger
+
+if TYPE_CHECKING:
+    from governed_ai_sdk.v1_prototype.config import (
+        UnifiedConfigLoader,
+        ExperimentConfig,
+        MemoryConfig as SDKMemoryConfig,
+    )
 
 logger = setup_logger(__name__)
 
@@ -488,6 +497,143 @@ class AgentTypeConfig:
     def agent_types(self) -> List[str]:
         """List all available agent types."""
         return list(self._config.keys())
+
+    # =========================================================================
+    # Task-035: SDK UnifiedConfigLoader Integration
+    # =========================================================================
+
+    _sdk_loader: Optional["UnifiedConfigLoader"] = None
+    _sdk_experiment_config: Optional["ExperimentConfig"] = None
+
+    @classmethod
+    def set_sdk_loader(cls, loader: "UnifiedConfigLoader"):
+        """
+        Set the SDK UnifiedConfigLoader for experiment config access.
+
+        This allows using SDK-style configuration (YAML with validation)
+        alongside the existing agent_types.yaml system.
+
+        Args:
+            loader: Instance of governed_ai_sdk.v1_prototype.config.UnifiedConfigLoader
+
+        Example:
+            >>> from governed_ai_sdk.v1_prototype.config import UnifiedConfigLoader
+            >>> loader = UnifiedConfigLoader()
+            >>> AgentTypeConfig.set_sdk_loader(loader)
+        """
+        cls._sdk_loader = loader
+
+    @classmethod
+    def load_sdk_experiment(cls, config_path: str) -> Optional["ExperimentConfig"]:
+        """
+        Load experiment configuration using SDK UnifiedConfigLoader.
+
+        Args:
+            config_path: Path to YAML experiment config file
+
+        Returns:
+            ExperimentConfig instance or None if SDK not available
+
+        Example:
+            >>> config = AgentTypeConfig.load_sdk_experiment("config/flood_study.yaml")
+            >>> print(config.domain, config.agents)
+        """
+        if cls._sdk_loader is None:
+            try:
+                from governed_ai_sdk.v1_prototype.config import UnifiedConfigLoader
+                cls._sdk_loader = UnifiedConfigLoader()
+            except ImportError:
+                logger.warning("SDK not available, cannot load experiment config")
+                return None
+
+        try:
+            cls._sdk_experiment_config = cls._sdk_loader.load_experiment(config_path)
+            logger.info(f"Loaded SDK experiment config: {cls._sdk_experiment_config.name}")
+            return cls._sdk_experiment_config
+        except Exception as e:
+            logger.error(f"Failed to load SDK experiment config: {e}")
+            return None
+
+    def get_sdk_memory_config(self) -> Optional["SDKMemoryConfig"]:
+        """
+        Get SDK MemoryConfig from loaded experiment.
+
+        Returns SDK-style MemoryConfig with validated fields, or None if
+        no SDK experiment config is loaded.
+
+        Returns:
+            SDKMemoryConfig instance or None
+        """
+        if self._sdk_experiment_config is not None:
+            return self._sdk_experiment_config.memory
+        return None
+
+    def get_sdk_reflection_config(self) -> Optional[Dict[str, Any]]:
+        """
+        Get SDK ReflectionConfig from loaded experiment.
+
+        Returns:
+            Dict with reflection settings or None
+        """
+        if self._sdk_experiment_config is not None:
+            refl = self._sdk_experiment_config.reflection
+            return {
+                "enabled": refl.enabled,
+                "interval": refl.interval,
+                "auto_promote": refl.auto_promote,
+                "promotion_threshold": refl.promotion_threshold,
+                "max_memories_per_reflection": refl.max_memories_per_reflection,
+            }
+        return None
+
+    def get_sdk_llm_config(self) -> Optional[Dict[str, Any]]:
+        """
+        Get SDK LLMConfig from loaded experiment.
+
+        Returns:
+            Dict with LLM settings or None
+        """
+        if self._sdk_experiment_config is not None:
+            llm = self._sdk_experiment_config.llm
+            return {
+                "provider": llm.provider,
+                "model": llm.model,
+                "temperature": llm.temperature,
+                "max_tokens": llm.max_tokens,
+                "base_url": llm.base_url,
+            }
+        return None
+
+    def get_memory_config_v2(self, agent_type: str) -> Dict[str, Any]:
+        """
+        Get memory config with SDK fallback.
+
+        Priority:
+        1. SDK experiment config (if loaded)
+        2. Agent-type specific config from YAML
+        3. Global memory config
+
+        Args:
+            agent_type: The agent type name
+
+        Returns:
+            Dict with memory configuration
+        """
+        # 1. Try SDK config first
+        sdk_mem = self.get_sdk_memory_config()
+        if sdk_mem is not None:
+            return {
+                "engine": sdk_mem.engine,
+                "window_size": sdk_mem.window_size,
+                "arousal_threshold": sdk_mem.arousal_threshold,
+                "ema_alpha": sdk_mem.ema_alpha,
+                "consolidation_threshold": sdk_mem.consolidation_threshold,
+                "persistence": sdk_mem.persistence,
+                "persistence_path": sdk_mem.persistence_path,
+            }
+
+        # 2. Fallback to existing logic
+        return self.get_memory_config(agent_type)
 
 
 
