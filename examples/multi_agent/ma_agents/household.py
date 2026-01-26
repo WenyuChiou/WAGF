@@ -16,11 +16,14 @@ Output Format follows PMT 5 Constructs:
 """
 
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional, Literal
+from typing import List, Dict, Any, Optional, Literal, TYPE_CHECKING
 import random
 
 from broker.components.memory import CognitiveMemory
 from broker.utils.agent_config import AgentTypeConfig
+
+if TYPE_CHECKING:
+    from governed_ai_sdk.v1_prototype.memory import SymbolicMemory
 
 @dataclass
 class HouseholdAgentState:
@@ -143,6 +146,15 @@ class HouseholdAgent:
         # Load config parameters
         self.config_loader = AgentTypeConfig.load()
         self.params = self.config_loader.get_parameters("household")
+
+    def _init_memory_v4(self, config: dict):
+        """Initialize V4 symbolic memory if configured."""
+        if config.get("engine") == "symbolic":
+            from governed_ai_sdk.v1_prototype.memory.symbolic import SymbolicMemory
+            sensors = config.get("sensors", [])
+            arousal = config.get("arousal_threshold", 0.5)
+            return SymbolicMemory(sensors, arousal_threshold=arousal)
+        return None
 
 
     def reset_insurance(self):
