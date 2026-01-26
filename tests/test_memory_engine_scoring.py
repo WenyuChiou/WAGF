@@ -19,7 +19,9 @@ class DummyScore:
 
 class DummyScorer:
     def score(self, memory, context, agent_state):
-        return DummyScore(2 if memory == "m2" else 1)
+        # memory is passed as {"content": str} dict
+        content = memory.get("content", memory) if isinstance(memory, dict) else memory
+        return DummyScore(2 if content == "m2" else 1)
 
 
 class DummyAgent:
