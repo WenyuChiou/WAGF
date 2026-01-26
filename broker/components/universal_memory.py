@@ -8,15 +8,20 @@ This module implements the "Surprise Engine" pattern for human-like memory retri
 The switching is governed by Prediction Error (Surprise) calculated via
 Exponential Moving Average (EMA) of environmental stimuli.
 
+Task-034: Added optional MemoryPersistence support for save/load across sessions.
+
 References:
 - Kahneman (2011): Thinking, Fast and Slow
 - Friston (2010): Free Energy Principle / Predictive Processing
 - Park et al. (2023): Generative Agents memory architecture
 """
 
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List, Tuple, TYPE_CHECKING
 from datetime import datetime
 import logging
+
+if TYPE_CHECKING:
+    from governed_ai_sdk.v1_prototype.memory import MemoryPersistence
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +138,10 @@ class UniversalCognitiveEngine:
         W_importance: float = 0.5,
         W_context: float = 0.2,
         ranking_mode: str = "weighted",
-        seed: Optional[int] = None
+        seed: Optional[int] = None,
+        # Task-034: Persistence support
+        persistence: Optional["MemoryPersistence"] = None,
+        auto_persist: bool = True,
     ):
         # Import here to avoid circular dependency
         from broker.components.memory_engine import HumanCentricMemoryEngine
@@ -182,6 +190,10 @@ class UniversalCognitiveEngine:
 
         # Store ranking mode for access
         self.ranking_mode = ranking_mode
+
+        # Task-034: Persistence support
+        self._persistence = persistence
+        self._auto_persist = auto_persist
 
     @property
     def working(self) -> Dict[str, List[Dict[str, Any]]]:
@@ -521,3 +533,154 @@ class UniversalCognitiveEngine:
             if tag in contextual_boosters:
                 boost += contextual_boosters[tag]
         return min(boost, 1.0)  # Cap at 1.0
+
+    # =========================================================================
+    # Task-034: Persistence Support
+    # =========================================================================
+
+    @property
+    def persistence(self) -> Optional["MemoryPersistence"]:
+        """Get the configured persistence backend."""
+        return self._persistence
+
+    @persistence.setter
+    def persistence(self, value: Optional["MemoryPersistence"]):
+        """Set a persistence backend for save/load."""
+        self._persistence = value
+
+    def save_agent_memories(self, agent_id: str) -> bool:
+        """
+        Save all memories for an agent to the persistence backend.
+
+        Args:
+            agent_id: The agent's unique identifier
+
+        Returns:
+            True if saved successfully, False if no persistence configured
+        """
+        if not self._persistence:
+            logger.debug(f"No persistence configured, skipping save for {agent_id}")
+            return False
+
+        # Collect all memories for this agent
+        working = self._base_engine.working.get(agent_id, [])
+        longterm = self._base_engine.longterm.get(agent_id, [])
+
+        all_memories = [
+            {**m, "store": "working"} for m in working
+        ] + [
+            {**m, "store": "longterm"} for m in longterm
+        ]
+
+        self._persistence.save(agent_id, all_memories)
+        logger.info(f"Saved {len(all_memories)} memories for agent {agent_id}")
+        return True
+
+    def load_agent_memories(self, agent_id: str) -> int:
+        """
+        Load memories for an agent from the persistence backend.
+
+        Args:
+            agent_id: The agent's unique identifier
+
+        Returns:
+            Number of memories loaded
+        """
+        if not self._persistence:
+            logger.debug(f"No persistence configured, skipping load for {agent_id}")
+            return 0
+
+        memories = self._persistence.load(agent_id)
+        if not memories:
+            return 0
+
+        # Clear existing memories
+        self._base_engine.clear(agent_id)
+
+        # Restore to appropriate stores
+        for m in memories:
+            store = m.pop("store", "working")
+            if store == "longterm":
+                if agent_id not in self._base_engine.longterm:
+                    self._base_engine.longterm[agent_id] = []
+                self._base_engine.longterm[agent_id].append(m)
+            else:
+                if agent_id not in self._base_engine.working:
+                    self._base_engine.working[agent_id] = []
+                self._base_engine.working[agent_id].append(m)
+
+        logger.info(f"Loaded {len(memories)} memories for agent {agent_id}")
+        return len(memories)
+
+    def save_all_memories(self) -> Dict[str, int]:
+        """
+        Save all agent memories to the persistence backend.
+
+        Returns:
+            Dict mapping agent_id to number of memories saved
+        """
+        if not self._persistence:
+            return {}
+
+        result = {}
+        all_agents = set(self._base_engine.working.keys()) | set(self._base_engine.longterm.keys())
+
+        for agent_id in all_agents:
+            working = self._base_engine.working.get(agent_id, [])
+            longterm = self._base_engine.longterm.get(agent_id, [])
+            count = len(working) + len(longterm)
+            self.save_agent_memories(agent_id)
+            result[agent_id] = count
+
+        return result
+
+    def load_all_memories(self) -> Dict[str, int]:
+        """
+        Load all agent memories from the persistence backend.
+
+        Note: This requires the persistence backend to support list_agents().
+
+        Returns:
+            Dict mapping agent_id to number of memories loaded
+        """
+        if not self._persistence:
+            return {}
+
+        result = {}
+
+        # Check if persistence has list_agents method
+        if hasattr(self._persistence, "list_agents"):
+            agents = self._persistence.list_agents()
+            for agent_id in agents:
+                count = self.load_agent_memories(agent_id)
+                result[agent_id] = count
+
+        return result
+
+    def add_memory_with_persist(
+        self,
+        agent_id: str,
+        content: str,
+        metadata: Optional[Dict[str, Any]] = None
+    ):
+        """
+        Add memory and optionally persist immediately.
+
+        This is an alternative to add_memory that respects auto_persist setting.
+
+        Args:
+            agent_id: The agent's unique identifier
+            content: Memory content string
+            metadata: Optional metadata dict
+        """
+        self._base_engine.add_memory(agent_id, content, metadata)
+
+        if self._auto_persist and self._persistence:
+            # Append just this memory to persistence
+            memory_dict = {
+                "content": content,
+                "created_at": datetime.now().isoformat(),
+                "store": "working",
+                **(metadata or {})
+            }
+            self._persistence.append(agent_id, memory_dict)

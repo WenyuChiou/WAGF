@@ -649,7 +649,8 @@ class UnifiedAdapter(ModelAdapter):
                 if missing_labels:
                     parsing_warnings.append(f"CRITICAL: Missing LABEL constructs {missing_labels}. Triggering retry.")
         if parse_layer:
-            logger.info(f" [Adapter:Audit] Agent {agent_id} | Layer: {parse_layer} | Warnings: {len(parsing_warnings)}")
+            year = context.get("current_year", "?")
+            logger.info(f" [Year {year}] [Adapter:Audit] Agent {agent_id} | Layer: {parse_layer} | Warnings: {len(parsing_warnings)}")
             # Show reasoning summary
             strat = reasoning.get("strategy", "") or reasoning.get("reason", "")
             if strat:

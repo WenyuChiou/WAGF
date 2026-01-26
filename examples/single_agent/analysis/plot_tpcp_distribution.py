@@ -8,7 +8,7 @@ from pathlib import Path
 # --- Configuration ---
 MODELS = ["deepseek_r1_1_5b", "deepseek_r1_8b", "deepseek_r1_14b"]
 GROUPS = ["Group_A", "Group_B", "Group_C"]
-LABEL_ORDER = ["VL", "L", "M", "H", "VH"]
+LABEL_ORDER = ["VH", "H", "M", "L", "VL"]
 
 # --- Semantic Keywords (Same as master_report.py) ---
 TA_KEYWORDS = {
@@ -129,64 +129,49 @@ tp_props = tp_counts.merge(tp_total, on=['Model', 'Group'])
 tp_props['Probability'] = tp_props['Count'] / tp_props['Total']
 
 sns.barplot(data=tp_props, x='Label', y='Probability', hue='Model', ax=axes[0], order=LABEL_ORDER, errorbar=None)
-# --- Combined 2x3 Plotting ---
+axes[0].set_title('Threat Appraisal (TP) Probability (All Groups)')
+axes[0].set_ylim(0, 1.0)
+
+# Plot CP Distribution
+cp_df = df[df['Type'] == 'CP']
+cp_counts = cp_df.groupby(['Model', 'Group', 'Label']).size().reset_index(name='Count')
+cp_total = cp_df.groupby(['Model', 'Group']).size().reset_index(name='Total')
+cp_props = cp_counts.merge(cp_total, on=['Model', 'Group'])
+cp_props['Probability'] = cp_props['Count'] / cp_props['Total']
+
+# Faceted Plot or Hue adjustment for 9 bars?
+# Using 'hue' with 3 models ok, but we have 3 groups now. 
+# Better to use catplot or separate by Group. 
+# Let's keep existing style but be aware X-axis handles Model/Group combination? 
+# The existing code plots: x='Label', hue='Model'. This aggregates groups if we are not careful?
+# Wait, existing code: sns.barplot(data=tp_props, x='Label', y='Probability', hue='Model')
+# This merges Groups into the same bar if we don't separate. 
+# Actually, if we want to compare Groups, we should probably FacetGrid or put Group in Hue and Model in X.
+# But request is "加入group A".
+# Let's modify the plot to Facet by "Group".
+
 plt.clf()
-fig, axes = plt.subplots(2, 3, figsize=(18, 10), sharey=True)
+fig = plt.figure(figsize=(12, 10))
 
-metrics = [('TP', 'Threat Appraisal'), ('CP', 'Coping Appraisal')]
+# TP Plot
+g_tp = sns.catplot(
+    data=tp_props, x='Label', y='Probability', hue='Model', col='Group',
+    kind='bar', order=LABEL_ORDER, palette='Reds', height=4, aspect=1
+)
+g_tp.fig.suptitle('Threat Appraisal Distribution by Group', y=1.02)
+g_tp.set(ylim=(0, 1.0))
+g_tp.savefig("examples/single_agent/analysis/tp_distribution_all.png")
 
-# Prepare data aggregation first
-aggregated_data = df.groupby(['Type', 'Model', 'Group', 'Label']).size().reset_index(name='Count')
-# Calculate totals per Type/Model/Group to get probabilities
-totals = df.groupby(['Type', 'Model', 'Group']).size().reset_index(name='Total')
-aggregated_data = aggregated_data.merge(totals, on=['Type', 'Model', 'Group'])
-aggregated_data['Probability'] = aggregated_data['Count'] / aggregated_data['Total']
+# CP Plot
+g_cp = sns.catplot(
+    data=cp_props, x='Label', y='Probability', hue='Model', col='Group',
+    kind='bar', order=LABEL_ORDER, palette='Blues', height=4, aspect=1
+)
+g_cp.fig.suptitle('Coping Appraisal Distribution by Group', y=1.02)
+g_cp.set(ylim=(0, 1.0))
+g_cp.savefig("examples/single_agent/analysis/cp_distribution_all.png")
 
-for row_idx, (metric_code, metric_name) in enumerate(metrics):
-    for col_idx, group in enumerate(GROUPS):
-        ax = axes[row_idx, col_idx]
-        
-        # Filter data
-        subset = aggregated_data[
-            (aggregated_data['Type'] == metric_code) & 
-            (aggregated_data['Group'] == group)
-        ]
-        
-        # Plot
-        sns.barplot(
-            data=subset, 
-            x='Label', 
-            y='Probability', 
-            hue='Model', 
-            ax=ax, 
-            order=LABEL_ORDER, 
-            palette='viridis',
-            errorbar=None
-        )
-        
-        # Titles and Labels
-        if row_idx == 0:
-            ax.set_title(f"{group}\n(Threat Appraisal)", fontsize=14, fontweight='bold')
-        else:
-            ax.set_title(f"{group}\n(Coping Appraisal)", fontsize=14, fontweight='bold')
-            
-        ax.set_ylim(0, 1.0)
-        ax.set_xlabel("")
-        ax.set_ylabel("Probability" if col_idx == 0 else "")
-        
-        # Grid
-        ax.grid(axis='y', linestyle='--', alpha=0.7)
-        
-        # Legend (Only keep for the last plot to avoid clutter, or put outside?)
-        if row_idx == 0 and col_idx == 2:
-             sns.move_legend(ax, "upper left", bbox_to_anchor=(1, 1))
-        else:
-             if ax.get_legend(): ax.get_legend().remove()
-
-plt.tight_layout()
-out_path = "examples/single_agent/analysis/tp_cp_distribution_combined.png"
-plt.savefig(out_path)
-print(f"Combined plot saved to {out_path}")
+print("Plots saved: examples/single_agent/analysis/tp_distribution_all.png, examples/single_agent/analysis/cp_distribution_all.png")
 
 # Print Pivot Table for User
 print("\n=== TP Distribution Table (Probability) ===")

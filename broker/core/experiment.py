@@ -113,6 +113,11 @@ class ExperimentRunner:
             else:
                 env = self.sim_engine.advance_year() if self.sim_engine else {}
             
+            # Ensure current_year is in env (Standardized)
+            if env is None: env = {}
+            if "current_year" not in env:
+                env["current_year"] = step
+            
             # Print status using generic term if steps used, otherwise year
             term = "Step" if self.config.num_steps else "Year"
             logger.info(f"--- {term} {step} ---")
@@ -397,6 +402,7 @@ class ExperimentBuilder:
         self.seed = 42    # Default seed for reproducibility
         self.custom_validators = [] # New: custom validator functions
         self._auto_tune = False  # PR: Adaptive Performance Module
+        self._exact_output = False # New: bypass model subfolder
 
     def with_workers(self, workers: int = 4):
         """Set number of parallel workers for LLM calls. 1=sequential (default)."""
@@ -518,6 +524,13 @@ class ExperimentBuilder:
     
     def with_output(self, path: str):
         self.output_base = Path(path)
+        self._exact_output = False
+        return self
+
+    def with_exact_output(self, path: str):
+        """Set output path exactly without appending model/profile subfolders."""
+        self.output_base = Path(path)
+        self._exact_output = True
         return self
 
     def build(self) -> ExperimentRunner:
@@ -585,8 +598,12 @@ class ExperimentBuilder:
         
         # 4. Setup Output Directory
         # Resolve final model-specific sub-directory here so it's consistent across all components
-        model_subfolder = f"{self.model.replace(':','_').replace('-','_').replace('.','_')}_{self.profile}"
-        final_output_path = self.output_base / model_subfolder
+        if self._exact_output:
+            final_output_path = self.output_base
+        else:
+            model_subfolder = f"{self.model.replace(':','_').replace('-','_').replace('.','_')}_{self.profile}"
+            final_output_path = self.output_base / model_subfolder
+        
         final_output_path.mkdir(parents=True, exist_ok=True)
 
         audit_cfg = AuditConfig(
