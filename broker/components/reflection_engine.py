@@ -4,7 +4,7 @@ Reflection Engine - Cognitive consolidation for long-term memory resilience.
 Implements "Year-End Reflection" to combat memory erosion (the Goldfish Effect).
 Inspired by Park et al. (2023) Generative Agents reflection architecture.
 """
-from typing import Dict, Any, List, Optional, Callable
+from typing import Dict, Any, List, Optional, Callable, TYPE_CHECKING
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 from datetime import datetime
@@ -14,6 +14,11 @@ from broker.utils.logging import setup_logger
 
 logger = setup_logger(__name__)
 
+if TYPE_CHECKING:
+    from governed_ai_sdk.v1_prototype.reflection import (
+        ReflectionTemplate,
+        ReflectionMemoryIntegrator,
+    )
 
 @dataclass
 class ReflectionInsight:
@@ -39,13 +44,19 @@ class ReflectionEngine:
         reflection_interval: int = 1,      # Trigger reflection every N years/epochs
         max_insights_per_reflection: int = 2,  # How many insights to generate per cycle
         insight_importance_boost: float = 0.9,  # Importance score for new insights
-        output_path: Optional[str] = None       # Path to save reflection logs
+        output_path: Optional[str] = None,       # Path to save reflection logs
+        llm_client=None,
+        template: Optional["ReflectionTemplate"] = None,
+        integrator: Optional["ReflectionMemoryIntegrator"] = None,
     ):
         self.reflection_interval = reflection_interval
         self.max_insights = max_insights_per_reflection
         self.importance_boost = insight_importance_boost
         self.reflection_history: Dict[str, List[ReflectionInsight]] = {}
         self.output_path = output_path
+        self.llm_client = llm_client
+        self.template = template
+        self.integrator = integrator
         
         # Initialize log file if path provided
         if self.output_path:
@@ -114,6 +125,38 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
             year_created=current_year,
             domain_tags=[]  # Could be enhanced with keyword extraction
         )
+
+    def _call_llm(self, prompt: str) -> str:
+        """Call the configured LLM client."""
+        if self.llm_client is None:
+            raise RuntimeError("ReflectionEngine requires llm_client for prompt execution.")
+        if callable(self.llm_client):
+            return self.llm_client(prompt)
+        if hasattr(self.llm_client, "generate"):
+            return self.llm_client.generate(prompt)
+        raise RuntimeError("ReflectionEngine llm_client is not callable or compatible.")
+
+    def reflect(self, agent_id: str, memories: List[str], context: dict):
+        """Legacy reflection flow using built-in prompt + parse."""
+        current_year = int(context.get("current_year", 0)) if context else 0
+        prompt = self.generate_reflection_prompt(agent_id, memories, current_year)
+        if not prompt:
+            return None
+        response = self._call_llm(prompt)
+        return self.parse_reflection_response(response, len(memories), current_year)
+
+    def reflect_v2(self, agent_id: str, memories: list, context: dict):
+        """v2 reflection using SDK templates."""
+        if self.template:
+            prompt = self.template.generate_prompt(agent_id, memories, context)
+            response = self._call_llm(prompt)
+            insight = self.template.parse_response(response, memories, context)
+
+            if self.integrator:
+                self.integrator.process_reflection(agent_id, response, memories, context)
+
+            return insight
+        return self.reflect(agent_id, memories, context)
     
     def store_insight(self, agent_id: str, insight: ReflectionInsight) -> None:
         """Store a reflection insight for an agent."""
