@@ -1,6 +1,6 @@
 from typing import Dict, Any, Optional
 
-from agents.base_agent import BaseAgent
+from governed_ai_sdk.agents import BaseAgent
 from broker import MemoryEngine
 from examples.multi_agent.environment.hazard import HazardModule, VulnerabilityModule, YearMapping
 from components.media_channels import MediaHub

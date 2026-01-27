@@ -1,4 +1,4 @@
-from agents.base_agent import BaseAgent, AgentConfig, StateParam, Skill, PerceptionSource
+from governed_ai_sdk.agents import BaseAgent, AgentConfig, StateParam, Skill, PerceptionSource
 from generate_agents import HouseholdProfile
 
 

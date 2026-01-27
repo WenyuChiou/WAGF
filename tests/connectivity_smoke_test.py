@@ -7,7 +7,7 @@ from typing import Dict, Any
 # Add workspace to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from agents.base_agent import BaseAgent, AgentConfig, StateParam
+from governed_ai_sdk.agents import BaseAgent, AgentConfig, StateParam
 from broker.components.context_builder import TieredContextBuilder, AttributeProvider, SocialProvider
 from broker.components.interaction_hub import InteractionHub
 from broker.core.governed_broker import SkillBrokerEngine

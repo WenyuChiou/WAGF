@@ -12,8 +12,7 @@ from typing import Dict, Any, Optional
 from pathlib import Path
 
 # Import from generic framework
-from agents import BaseAgent, load_agents, normalize, denormalize
-from agents.base_agent import AgentConfig
+from governed_ai_sdk.agents import BaseAgent, load_agents, normalize, denormalize, AgentConfig
 from broker.components.context_builder import BaseAgentContextBuilder, create_context_builder
 from broker.components.memory import CognitiveMemory
 
