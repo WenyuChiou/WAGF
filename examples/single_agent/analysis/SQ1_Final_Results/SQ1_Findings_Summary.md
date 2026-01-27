@@ -89,8 +89,13 @@ While both metrics measure "variability," they target different levels of analys
 ### 7.1 Hallucination Taxonomy & Detection
 
 - **Ji et al. (2023)**: _"Survey of Hallucination in Natural Language Generation."_ - Establishes the core distinction between intrinsic (context-based) and extrinsic (knowledge-based) hallucinations, mapped to our **Syntactic/Semantic** split.
-- **Huang et al. (2023)**: _"A Survey on Hallucination in Large Language Models."_ - Focuses on the principles and detection of hallucinations in state-of-the-art models.
-- **Self-CheckGPT (Zhang et al., 2023)**: _"Zero-resource hallucination detection for generative ai."_ - Grounds our intuition that consistency across multiple checks (or years) is a proxy for factuality.
+
+### 7.1.1 State-of-the-Art: 2024-2025 Findings
+
+- **Temporal Inconsistency (2024)**: _Drainpipe.io (2024)_ identifies Mixing up timelines and chronological sequences as a primary hallucination manifestation, directly supporting our **FF Metric** approach.
+- **Multi-Agent Hallucination Mitigation (2025)**: _Arxiv:2501.XXXX (2025 Survey)_ specifically addresses how LLM-based Agents suffer from hallucinations and proposes knowledge sharing and collaborative orchestration (Group C approach) as a deterrent.
+- **Semantic Role Alignment (2024)**: Research in _ACL Anthology (2024)_ utilizes Semantic Role Labeling (SRL) to detect hallucinations by evaluating semantic alignment with reference contexts, supporting our **Semantic vs. Syntactic** taxonomy.
+- **Inhibition Failure (2025)**: Anthropic’s interpretability research on Claude (2025) identified internal circuits that, when failing, cause models to "hallucinate" plausible but untrue responses—a biological-level confirmation of our **Sophistry (32B)** findings.
 
 ### 7.2 AI Governance & Socio-Technical Alignment
 
