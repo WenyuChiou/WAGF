@@ -71,6 +71,17 @@ The **Flip-Flop (FF)** metric is specifically designed to capture the **Temporal
   2.  **Catastrophic Forgetting**: The model losing focus on long-term safety goals within the context window.
 - **SQ1 Relevance**: High FF in small models (42%) vs. lower FF in large models (27%) proves that "Stochastic Instability" is a parameter-dependent phenomenon, making it the primary metric for SQ1's investigation into LLM reliability.
 
+### 6.2 Comparison: Flip-Flop (FF) vs. Shannon Entropy ($H$)
+
+While both metrics measure "variability," they target different levels of analysis:
+
+| Metric             | Level          | Dimension           | Analytical Goal                                  | Project Context                                                               |
+| :----------------- | :------------- | :------------------ | :----------------------------------------------- | :---------------------------------------------------------------------------- |
+| **Flip-Flop (FF)** | **Individual** | Temporal (Time)     | Measures **Consistency** over consecutive years. | **SQ1 (Rationality)**: High FF indicates high native stochasticity (noise).   |
+| **Entropy ($H$)**  | **Population** | Spatial (Diversity) | Measures **Heterogeneity** across the community. | **SQ2 (Diversity)**: High $H$ indicates a healthy, multi-strategy population. |
+
+- **The Key Differentiator**: FF measures a single agent's "unsteadiness" over time, whereas Entropy measures how many different "sub-cultures" or strategies exist in the simulation. High individual noise (FF) often degrades population diversity (Entropy) over time as agents converge on a single failure mode (Panic).
+
 ---
 
 ## 7. Recommended Literature Review
