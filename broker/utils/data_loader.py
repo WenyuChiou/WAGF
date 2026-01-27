@@ -54,7 +54,7 @@ def load_agents_from_csv(
         )
         
         agent = BaseAgent(config)
-        agent.id = agent_id
+        # agent.id is derived from config.name and is read-only
         
         # 3. Populate Custom Attributes from Mapping
         for csv_col, attr_name in mapping.items():

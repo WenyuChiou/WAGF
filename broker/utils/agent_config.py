@@ -251,6 +251,7 @@ class AgentTypeConfig:
             
         return [
             CoherenceRule(
+                id=rule.get("id", "unknown"),
                 construct=rule.get("construct", rule.get("id")),
                 conditions=rule.get("conditions"),
                 blocked_skills=rule.get("blocked_skills"),

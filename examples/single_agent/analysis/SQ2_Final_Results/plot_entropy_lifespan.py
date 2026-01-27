@@ -9,8 +9,8 @@ sns.set_context("talk") # Larger fonts for presentation/papers
 plt.rcParams['font.family'] = 'DejaVu Sans'
 
 def plot_lifespan():
-    # Input is now local in this folder
-    csv_path = "yearly_entropy_audited.csv" 
+    # Input is now local in this folder, but we use relative path from root for safety
+    csv_path = r"examples/single_agent/analysis/SQ2_Final_Results/yearly_entropy_audited.csv" 
     
     if not os.path.exists(csv_path):
         print(f"Error: {csv_path} not found (Expected in current directory).")

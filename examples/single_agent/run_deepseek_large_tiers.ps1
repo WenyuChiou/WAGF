@@ -13,12 +13,12 @@ $ErrorActionPreference = "Continue"
 $Models = @(
     # Tier 2: Mid-Small (8B)
     # @{ Name="DeepSeek-R1-8B"; Tag="deepseek-r1:8b" },
-# 
+    # 
     # Tier 3: Mid-Large (14B)
     # @{ Name="DeepSeek-R1-14B"; Tag="deepseek-r1:14b" },
 
     # Tier 4: Large (32B)
-    @{ Name="DeepSeek-R1-32B"; Tag="deepseek-r1:32b" }
+    @{ Name = "DeepSeek-R1-32B"; Tag = "deepseek-r1:32b" }
 )
 
 $Groups = @("Group_A", "Group_B", "Group_C")
@@ -46,7 +46,8 @@ foreach ($Model in $Models) {
         # If directory exists but CSV is missing, it's a failed/interrupted run.
         if (Test-Path $OutputDir) {
             Write-Host "  [Retry] $OutputDir exists but is incomplete. Re-running..." -ForegroundColor Cyan
-        } else {
+        }
+        else {
             New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
         }
         $LogFile = "$OutputDir\execution.log"
@@ -62,21 +63,22 @@ foreach ($Model in $Models) {
         else {
             # --- GROUP B/C: MODERN FRAMEWORK ---
             $MemEngine = if ($Group -eq "Group_B") { "window" } else { "humancentric" }
-            $GovMode = if ($Group -eq "Group_B") { "strict" } else { "disabled" }
+            $GovMode = "strict"
             $UseSchema = ($Group -eq "Group_C")
             $SAPath = "examples/single_agent"
 
             python examples/single_agent/run_flood.py `
                 --model $ModelTag --years $NumYears --agents 100 --workers 1 `
                 --memory-engine $MemEngine --window-size 5 --governance-mode $GovMode `
-                $(if ($UseSchema) { "--use-priority-schema" }) `
+            $(if ($UseSchema) { "--use-priority-schema" }) `
                 --initial-agents "$SAPath/agent_initial_profiles.csv" `
                 --output $OutputDir --seed $BaseSeed --num-ctx 8192 --num-predict 1536 2>&1 | Tee-Object -FilePath $LogFile
         }
 
         if ($LASTEXITCODE -ne 0) {
             Write-Host "  [ERROR] $Group execution failed." -ForegroundColor Red
-        } else {
+        }
+        else {
             Write-Host "  [OK] $Group completed successfully." -ForegroundColor Green
         }
     }

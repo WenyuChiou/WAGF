@@ -343,6 +343,7 @@ household:
     strict:
       thinking_rules:
         - {
+            id: extreme_threat_block,
             construct: TP_LABEL,
             when_above: ["VH"],
             blocked_skills: ["do_nothing"],
@@ -350,6 +351,7 @@ household:
           }
         # Realism Rule: Block complex actions if self-efficacy (Coping) is too low
         - {
+            id: low_coping_block,
             construct: CP_LABEL,
             conditions: [{ construct: CP_LABEL, values: ["VL"] }],
             blocked_skills: ["elevate_house", "relocate"],

@@ -1,16 +1,16 @@
 """
 Symbolic Context Memory Layer for SDK.
 
-Re-exports v4.0 Symbolic Context components from broker.
 Provides O(1) state signature lookup and novelty-first surprise detection.
+Core primitives are defined in symbolic_core.py (domain-agnostic).
 
-Reference: broker/components/symbolic_context.py
+Task-037: Fixed SDK -> broker dependency violation
 """
 
 from typing import Dict, List, Optional, Tuple, Any
 
-# Re-export from broker
-from broker.components.symbolic_context import (
+# Import from SDK core (NOT from broker - maintains clean dependency)
+from .symbolic_core import (
     Sensor,
     SignatureEngine,
     SymbolicContextMonitor,

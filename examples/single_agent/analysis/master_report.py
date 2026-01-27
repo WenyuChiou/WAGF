@@ -63,20 +63,42 @@ def get_stats(model, group):
     if not group_dir.exists(): return None
     
     # 1. Data Discovery
-    csv_candidates = list(group_dir.glob("**/simulation_log.csv"))
-    jsonl_candidates = list(group_dir.glob("**/household_traces.jsonl"))
+    # STRICT PATH SELECTION (No Glob Ghosts)
+    candidates = [
+        group_dir / "simulation_log.csv",
+        group_dir / f"{model}_disabled" / "simulation_log.csv",
+        group_dir / f"{model}_strict" / "simulation_log.csv"
+    ]
     
-    if not csv_candidates: return None
-    csv = max(csv_candidates, key=lambda p: p.stat().st_size)
+    csv = None
+    for c in candidates:
+        if c.exists():
+            csv = c
+            break
+            
+    if not csv: 
+        print(f"   [Warning] No simulation_log.csv found in {group_dir}")
+        return None
+
+    print(f"   [File Check] {model}/{group} -> {csv}")
     
     try:
         df = pd.read_csv(csv)
         df.columns = [c.lower() for c in df.columns]
+        print(f"   [Year Check] Max Year: {df['year'].max()}")
         num_agents = df['agent_id'].nunique()
         
         # 2. High-Fidelity Appraisal Extraction
         appraisals = []
         if jsonl_candidates:
+            # DEBUG: Verify Data Integrity (Proposed Edit)
+            try:
+                with open(jsonl_candidates[0], 'r', encoding='utf-8') as f:
+                    jsonl_count = sum(1 for _ in f)
+                print(f"   [Data Audit] {model}/{group}: CSV rows={len(df)}, JSONL lines={jsonl_count} (Delta={jsonl_count - len(df)})")
+            except:
+                pass
+
             # Group B/C: Use Traces for all years
             with open(jsonl_candidates[0], 'r', encoding='utf-8') as f:
                 for line in f:
@@ -311,6 +333,15 @@ for m in models:
     for g in groups:
         stats = get_stats(m, g)
         if stats:
+            if "V1_% " not in stats and "Status" in stats and str(stats["Status"]).startswith("Err"):
+                print(f"{m:<18} {g:<7} ERROR: {stats['Status']}")
+                continue
+                
+            # Double check keys
+            if 'V1_%' not in stats:
+                 print(f"{m:<18} {g:<7} ERROR: Missing Keys in return. Status={stats.get('Status')}")
+                 continue
+
             # Format values
             v1_str = f"{stats['V1_%']}% (n={stats['V1_N']})"
             v2_str = f"{stats['V2_%']}% (n={stats['V2_N']})"

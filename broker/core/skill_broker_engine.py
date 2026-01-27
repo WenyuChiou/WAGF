@@ -212,7 +212,7 @@ class SkillBrokerEngine:
                         "agent_id": agent_id,
                         "agent_type": agent_type,
                         "retry_attempt": initial_attempts - 1,
-                        "current_year": env_context.get("current_year"),
+                        "current_year": env_context.get("current_year") if env_context else "?",
                         **context
                     })
                 
@@ -303,23 +303,6 @@ class SkillBrokerEngine:
             if not any("Confidence" in p for p in label_parts) and "Confidence" in reasoning:
                 label_parts.append(f"Confidence: {reasoning['Confidence']}")
 
-
-        validation_context = {
-            "agent_state": context,
-            "agent_type": agent_type,
-            "env_state": env_context, # The "New Standard" source of truth
-            **env_context             # Flat injection for legacy validator lookups
-        }
-
-        validation_results = self._run_validators(skill_proposal, validation_context)
-        all_validation_history = list(validation_results)
-        all_valid = all(v.valid for v in validation_results)
-
-        # Track initial errors for audit summary
-        initial_rule_ids = set()
-        for v in validation_results:
-            initial_rule_ids.update(v.metadata.get("rules_hit", []))
-
         # Log initial validation failure (before retry loop) for diagnostic clarity
         if not all_valid:
             initial_errors = [e for v in validation_results if v and hasattr(v, 'errors') for e in v.errors]
@@ -409,7 +392,8 @@ class SkillBrokerEngine:
                 **context,
                 "agent_id": agent_id,
                 "agent_type": agent_type,
-                "retry_attempt": retry_count
+                "retry_attempt": retry_count,
+                "current_year": env_context.get("current_year") if env_context else "?"
             })
             
             if skill_proposal:

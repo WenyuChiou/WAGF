@@ -11,14 +11,16 @@ import numpy as np
 # CONFIGURATION
 # =============================================================================
 from pathlib import Path
-# Resolve based on script location: analysis/ -> ../results/JOH_FINAL
-RESULTS_DIR = Path(__file__).parent.parent / "results" / "JOH_FINAL"
-MODELS = ["deepseek_r1_1_5b", "deepseek_r1_8b", "deepseek_r1_14b", "deepseek_r1_32b"]
+# Resolve based on script location: analysis/SQ3_Final_Results/ -> ../../../results/JOH_FINAL
+RESULTS_DIR = Path(__file__).parent.parent.parent / "results" / "JOH_FINAL"
+MODELS = ["deepseek_r1_1_5b", "deepseek_r1_8b", "deepseek_r1_14b", "deepseek_r1_32b", "gemma3_4b", "llama3_2_3b"]
 MODEL_LABELS = {
-    "deepseek_r1_1_5b": "1.5B",
-    "deepseek_r1_8b": "8B",
-    "deepseek_r1_14b": "14B",
-    "deepseek_r1_32b": "32B"
+    "deepseek_r1_1_5b": "1.5B (DeepSeek)",
+    "deepseek_r1_8b": "8B (DeepSeek)",
+    "deepseek_r1_14b": "14B (DeepSeek)",
+    "deepseek_r1_32b": "32B (DeepSeek)",
+    "gemma3_4b": "4B (Gemma)",
+    "llama3_2_3b": "3B (Llama)"
 }
 GROUPS = ["Group_A", "Group_B", "Group_C"]
 GROUP_TITLES = {
@@ -160,61 +162,69 @@ def load_all_adaptation_data_detailed():
                 
     return data_map
 
-def plot_4x3_matrix_stacked_bar(data_map):
-    fig, axes = plt.subplots(4, 3, figsize=(18, 16), sharex=True, sharey=True)
+def plot_dynamic_matrix_stacked_bar(data_map):
+    nrows = len(MODELS)
+    ncols = len(GROUPS)
+    
+    fig, axes = plt.subplots(nrows, ncols, figsize=(6*ncols, 4*nrows), sharex=True, sharey=True)
+    
+    # Handle single row/col edge cases (though unlikely here)
+    if nrows == 1 and ncols == 1: axes = [[axes]]
+    elif nrows == 1: axes = [axes]
+    elif ncols == 1: axes = [[ax] for ax in axes]
     
     for row_idx, model in enumerate(MODELS):
         for col_idx, group in enumerate(GROUPS):
-            ax = axes[row_idx, col_idx]
+            ax = axes[row_idx][col_idx]
             df = data_map.get((model, group))
             model_label = MODEL_LABELS[model]
             
             # Labels
             if row_idx == 0:
                 ax.set_title(GROUP_TITLES.get(group, group), fontsize=14, fontweight='bold')
-            if col_idx == 0:
-                ax.set_ylabel(f"{model_label}\nNum Agents", fontsize=12, fontweight='bold')
-            
+            # Ensure X-axis is always 1-10
+            ax.set_xlim(0.5, 10.5)
+            ax.set_xticks(range(1, 11))
+
             if df is not None and not df.empty:
                 # Plot Stacked Bar
-                # x = df.index (Years 1..10)
-                # y = df columns
                 colors = [COLOR_MAP[c] for c in CATEGORIES]
                 
                 df.plot(kind='bar', stacked=True, color=colors, ax=ax, width=0.85, legend=False)
                 
                 ax.set_ylim(0, 100)
                 ax.grid(axis='y', linestyle='--', alpha=0.5)
-                ax.set_xticklabels(df.index, rotation=0) # Ensure vertical bars usually imply categorical X, but here distinct years
+                # Only show x tick labels for bottom row, but code below handles label visibility via sharex
                 
             else:
                 # Placeholder
-                ax.text(0.5, 0.5, "Simulation Pending", 
+                ax.text(0.5, 0.5, "Pending Data", 
                         ha='center', va='center', transform=ax.transAxes, color='gray', fontsize=12)
                 ax.set_facecolor("#f9f9f9")
-                # Hide ticks for clean look
-                ax.set_xticks([])
                 ax.set_yticks([])
 
             # X Label
-            if row_idx == 3:
+            if row_idx == nrows - 1:
                 ax.set_xlabel("Year")
+                ax.set_xticklabels(range(1, 11), rotation=0)
+            else:
+                ax.set_xticklabels([]) # Hide for non-bottom rows explicitly just in case
 
     # Legend
     from matplotlib.patches import Patch
     legend_elements = [Patch(facecolor=COLOR_MAP[c], label=c) for c in CATEGORIES]
     
-    fig.legend(handles=legend_elements, loc='upper center', bbox_to_anchor=(0.5, 1.02), 
+    fig.legend(handles=legend_elements, loc='upper center', bbox_to_anchor=(0.5, 1.01), 
                ncol=5, fontsize=12, frameon=False, title="Adaptation State")
 
-    plt.suptitle("Figure: Overall Adaptation Strategy Evolution (10 Years)", fontsize=20, fontweight='bold', y=1.05)
+    plt.suptitle("Figure: Overall Adaptation Strategy Evolution (10 Years)", fontsize=20, fontweight='bold', y=1.03)
     plt.tight_layout()
     plt.savefig(f"{FIGURE_OUTPUT}/overall_adaptation_by_year.png", dpi=300, bbox_inches='tight')
     plt.close()
-    print("Generated 4x3 Adaptation Matrix (Stacked Bar).")
+    print(f"Generated {nrows}x{ncols} Adaptation Matrix (Stacked Bar).")
 
 if __name__ == "__main__":
     print("Generating Overall Adaptation Matrix (Detailed)...")
     data = load_all_adaptation_data_detailed()
-    plot_4x3_matrix_stacked_bar(data)
+    plot_dynamic_matrix_stacked_bar(data)
     print("Done.")

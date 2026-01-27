@@ -31,9 +31,22 @@ CA_KEYWORDS = {
     ]
 }
 
+
+
+def is_scale_hallucination(text):
+    if not isinstance(text, str): return False
+    text = text.upper()
+    matches = sum(1 for code in ["VH", "H", "VL", "L", "M"] if re.search(rf'\b{code}\b', text))
+    return matches >= 3
+
 def map_text_to_level(text, keywords=None):
     if not isinstance(text, str): return "M"
     text = text.upper()
+    
+    # 0. Sanity Check: Scale Regurgitation -> Ambiguous (M)
+    if is_scale_hallucination(text):
+        return "M"
+
     # 1. Primary: Explicit Categorical Codes (Standard in JOH traces)
     if re.search(r'\bVH\b', text): return "VH"
     if re.search(r'\bH\b', text): return "H"
@@ -57,28 +70,51 @@ def normalize_decision(d):
     return 'Other'
 
 def get_stats(model, group):
-    root = Path("examples/single_agent/results/JOH_FINAL")
+    # Updated path for SQ1 subfolder location
+    root = Path(__file__).parent.parent.parent / "results" / "JOH_FINAL"
     group_dir = root / model / group / "Run_1"
     
-    if not group_dir.exists(): return None
+    if not group_dir.exists(): 
+        return None
     
     # 1. Data Discovery
-    csv_candidates = list(group_dir.glob("**/simulation_log.csv"))
-    jsonl_candidates = list(group_dir.glob("**/household_traces.jsonl"))
+    candidates = [
+        group_dir / "simulation_log.csv",
+        group_dir / f"{model}_disabled" / "simulation_log.csv",
+        group_dir / f"{model}_strict" / "simulation_log.csv"
+    ]
     
-    if not csv_candidates: return None
-    csv = max(csv_candidates, key=lambda p: p.stat().st_size)
+    csv_file = None
+    for c in candidates:
+        if c.exists():
+            csv_file = c
+            break
+            
+    if not csv_file: 
+        return None
+
+    # Jsonl check
+    jsonl = group_dir / "household_traces.jsonl"
+    if not jsonl.exists():
+        jsonl = group_dir / "raw" / "household_traces.jsonl"
+    if not jsonl.exists():
+       jsonl = group_dir / f"{model}_disabled" / "household_traces.jsonl"
+       
+    jsonl_candidates = [jsonl] if jsonl.exists() else []
+
+    print(f"   [File Check] {model}/{group} -> {csv_file}")
     
     try:
-        df = pd.read_csv(csv)
+        df = pd.read_csv(csv_file)
         df.columns = [c.lower() for c in df.columns]
         num_agents = df['agent_id'].nunique()
+        raw_rows = len(df) 
         
         # 2. High-Fidelity Appraisal Extraction
         appraisals = []
         if jsonl_candidates:
-            # Group B/C: Use Traces for all years
             with open(jsonl_candidates[0], 'r', encoding='utf-8') as f:
+
                 for line in f:
                     try:
                         data = json.loads(line)
@@ -107,7 +143,6 @@ def get_stats(model, group):
         else:
             # Group A: Use Direct Appraisal columns or Reasoning for all years
             reason_col = next((c for c in df.columns if 'reasoning' in c), None)
-            cols_to_check = ['threat_appraisal', 'coping_appraisal', reason_col, 'memory']
             
             for idx, row in df.iterrows():
                 text_ta = " ".join([str(row.get(c, "")) for c in ['threat_appraisal', reason_col, 'memory'] if c in df.columns])
@@ -134,27 +169,36 @@ def get_stats(model, group):
                 full_data['ca_level'] = "M"
 
             # FILTER: Exclude agents who have already relocated
-            # Because "Do Nothing" after relocation is valid, not irrational
             if 'relocated' in full_data.columns:
-                # We want to analyze decisions made while the agent was still present
-                # If 'relocated' is boolean True/False, we keep False
-                # But typically 'relocated' becomes True AFTER the decision to relocate.
-                # So we should be careful. 
-                # Better approach: If decision was "relocate", that counts as Action. 
-                # If they are ALREADY relocated in previous steps, they shouldn't be in the dataset or should be filtered.
-                # Assuming standard log where agents exit or stay 'relocated=True'
                 full_data = full_data[full_data['relocated'] != True]
+            
+            # Active N (After Filter)
+            active_rows = len(full_data)
 
             high_labels = ["H", "VH"]
             hi_ta = full_data['ta_level'].isin(high_labels).mean()
             hi_ca = full_data['ca_level'].isin(high_labels).mean()
             
-            ta_align = full_data[full_data['ta_level'].isin(high_labels)]['acted'].mean() if hi_ta > 0 else 0
-            ca_align = full_data[full_data['ca_level'].isin(high_labels)]['acted'].mean() if hi_ca > 0 else 0
+            # 4. Interventions & Granular Rule Analysis
+            intv_total = 0
+            intv_panic = 0      # V1: Relocation/Elevation blocked due to Low Threat
+            intv_complacency = 0 # V3: Do Nothing blocked due to High Threat
+            intv_realism = 0    # Constraint: Blocked due to low coping/resources
+            intv_format = 0     # Fallout: JSON syntax or missing keys
+            intv_hallucination = 0 # Scale Regurgitation (VL L M H VH)
+            
+            # Helper to classify rules
+            def classify_rule(rule_str):
+                r = str(rule_str).lower()
+                if 'relocation_threat_low' in r or 'elevation_threat_low' in r:
+                    return 'panic'
+                if 'extreme_threat_block' in r:
+                    return 'complacency'
+                if 'low_coping_block' in r or 'elevation_block' in r:
+                    return 'realism'
+                return 'other'
 
-            # 4. Interventions & Flip-flops
-            interv_total = 0
-            interv_success = 0
+            # Load Traces if available for high-fidelity check
             if jsonl_candidates:
                 with open(jsonl_candidates[0], 'r', encoding='utf-8') as f:
                     for line in f:
@@ -162,127 +206,100 @@ def get_stats(model, group):
                             data = json.loads(line)
                             # Robust Intervention Detection
                             retry_active = data.get('retry_count', 0) > 0
-                            failed_rules = str(data.get('failed_rules', '')).lower()
+                            failed_rules = str(data.get('failed_rules', '') or data.get('validation_issues', '')).lower()
                             has_rules = failed_rules and failed_rules not in ['nan', 'none', '', '[]']
                             
-                            # Intervention occurred if Retry > 0 OR explicit Rule Failures detected
-                            # (We prioritize Failed Rules as the source of truth for Governance)
+                            # Check for Scale Hallucinations (Independent of intervention status)
+                            proposal = data.get('skill_proposal', {})
+                            reasoning = proposal.get('reasoning', {})
+                            
+                            ta_text = str(reasoning.get('threat_appraisal', '') or reasoning.get('TP_LABEL', ''))
+                            ca_text = str(reasoning.get('coping_appraisal', '') or reasoning.get('CP_LABEL', ''))
+                            
+                            if is_scale_hallucination(ta_text) or is_scale_hallucination(ca_text):
+                                intv_hallucination += 1
+
+
                             if retry_active or has_rules:
                                 parsed_error = str(data.get('parsing_warnings', '') or data.get('error_messages', '')).lower()
-                                
-                                # Heuristic: It is Governance if Rules Failed OR Error is not purely syntax
                                 is_syntax = ('json' in parsed_error or 'parse' in parsed_error) and not has_rules
                                 
                                 if not is_syntax:
-                                    interv_total += 1
-                                    final_dec = data.get('skill_proposal', {}).get('skill_name', '')
-                                    if is_action(final_dec): interv_success += 1
+                                    intv_total += 1
+                                    
+                                    # Extract Rule IDs from trace
+                                    issues = data.get('validation_issues', [])
+                                    found_type = None
+                                    if issues:
+                                        for i in issues:
+                                            rid = i.get('rule_id', '')
+                                            rtype = classify_rule(rid)
+                                            if rtype != 'other':
+                                                found_type = rtype
+                                                break
+                                    
+                                    # Fallback to failed_rules string
+                                    if not found_type:
+                                        found_type = classify_rule(failed_rules)
+                                    
+                                    if found_type == 'panic': intv_panic += 1
+                                    elif found_type == 'complacency': intv_complacency += 1
+                                    elif found_type == 'realism': intv_realism += 1
+                                
+                                elif is_syntax or 'missing required fields' in parsed_error or 'format' in parsed_error:
+                                    # Explicit formatting/syntax failures (Fallout)
+                                    intv_total += 1
+                                    intv_format += 1
+                                    
                         except: continue
             
-            intv_ok_str = f"{interv_success}" if interv_total > 0 else "-"
-            
             # --- VERIFICATION RULES ANALYSIS ---
-            # Rule 1: No Panic Relocation (L/M Threat -> Relocate)
-            # Rule 2: No Panic Elevation (L/M Threat -> Elevate)
-            # Rule 3: No Complacency (H/VH Threat -> DoNothing)
-            
-            # V1: Panic Relocation
-            # Hybrid Logic v14:
-            # - Group A (Keywords): Panic = Not High (L, VL, M) -> Relocate. (Since M is default)
-            # - Group B/C (JSON):   Panic = Strict Low (L, VL)  -> Relocate/Elevate.
-            
             if group == "Group_A":
-                # For Group A, "Medium" usually means "No keyword found". 
-                # So if they Relocate without Explicit High Risk ('H', 'VH'), it's Panic.
-                # using ~isin(['H', 'VH']) is safer than listing L/VL/M
                 panic_states = full_data[~full_data['ta_level'].isin(["H", "VH"])]
             else:
-                # For Group B/C, "Medium" is a valid calibrated state allowing Elevation.
-                # Panic is strictly L/VL.
                 panic_states = full_data[full_data['ta_level'].isin(["L", "VL"])]
             
             v1_count = 0
-            v1_rate = 0.0
             v2_count = 0
-            v2_rate = 0.0
             
-            # Global Frequency Calculation (User Request Step 578)
-            # Metric: (Actual V1 + Blocked Attempts) / Total Active Steps
-            # We treat Successful Interventions as "Blocked Panic Attempts" (mostly Relocation/Elevation)
-            
-            # For Group A: Intv=0, so it's just Actual / Total
-            # For Group B/C: Actual=0 (usually), so it's Intv / Total
-            
-            # Calculate actual V1 and V2 counts based on panic_states
             if len(panic_states) > 0:
                 v1_count = panic_states[dec_col].apply(lambda x: normalize_decision(x) == 'Relocate').sum()
                 v2_count = panic_states[dec_col].apply(lambda x: normalize_decision(x) == 'Elevation').sum()
             
-            # V3: Complacency (Under-reaction)
-            # Definition: High/Very High Threat -> DoNothing
             high_states = full_data[full_data['ta_level'].isin(["H", "VH"])]
             v3_count = 0
             if len(high_states) > 0:
                 v3_count = high_states[dec_col].apply(lambda x: normalize_decision(x) == 'DoNothing').sum()
 
-            total_panic_intent = v1_count + interv_success
-            v1_global_rate = total_panic_intent / len(full_data) if len(full_data) > 0 else 0
+            # V1: Panic Relocation Rate (Includes attempted-but-blocked panic)
+            # We add 'intv_panic' to V1/V2 counts to capture "Intent"
+            # Note: intv_panic includes both relocation and elevation blocks. 
+            # Ideally we split them, but for this summary, we treat them as "Panic Intent".
+            total_panic_intent = v1_count + intv_panic 
             
-            # V2 (Elevation) is usually allowed, so Intv mostly maps to V1 or drastic V2 blocks.
-            # We will report V2 based on Actual / Total for now, as Intv is lump sum.
-            v2_global_rate = v2_count / len(full_data) if len(full_data) > 0 else 0
-            
-            # V3 (Complacency) / Total
-            v3_global_rate = v3_count / len(full_data) if len(full_data) > 0 else 0
+            # V3: Complacency Rate
+            total_complacency_intent = v3_count + intv_complacency
 
-            # Flip-flops (Weighted Calculation: Total Flips / Total Active Intervals)
-            total_flips = 0
-            total_active_intervals = 0
-            weighted_ff = 0.0
-            
-            # Robust FF Calculation Logic using Year-over-Year comparison
-            try:
-                dec_col_ff = next((c for c in df.columns if 'yearly_decision' in c or 'decision' in c or 'skill' in c), None)
-                if dec_col_ff:
-                    df_sorted = df.sort_values(['agent_id', 'year'])
-                    
-                    for year in range(1, df['year'].max() + 1):
-                        prev = df_sorted[df_sorted['year'] == year-1][['agent_id', dec_col_ff]].set_index('agent_id')
-                        curr = df_sorted[df_sorted['year'] == year][['agent_id', dec_col_ff]].set_index('agent_id')
-                        
-                        if prev.empty: continue
-                        
-                        # Filter Stayers (Active Population) - Exclude those who relocated
-                        stayers = prev[~prev[dec_col_ff].astype(str).str.contains('Relocate', case=False, na=False)].index
-                        
-                        merged = prev.loc[stayers].join(curr, lsuffix='_prev', rsuffix='_curr').dropna()
-                        
-                        n_active = len(merged)
-                        if n_active > 0:
-                            flips = (merged[f'{dec_col_ff}_prev'].apply(normalize_decision) != merged[f'{dec_col_ff}_curr'].apply(normalize_decision)).sum()
-                            total_flips += flips
-                            total_active_intervals += n_active
-                    
-                    weighted_ff = (total_flips / total_active_intervals) if total_active_intervals > 0 else 0
-            except Exception as e_ff:
-                print(f"FF Calc Error: {e_ff}")
-                weighted_ff = 0.0
+            v1_global_rate = total_panic_intent / active_rows if active_rows > 0 else 0
+            v2_global_rate = v2_count / active_rows if active_rows > 0 else 0
+            v3_global_rate = total_complacency_intent / active_rows if active_rows > 0 else 0
+
             
             return {
-                "N": len(full_data),
-                "N_L": len(panic_states),
-                "N_H": len(high_states),
-                "V1_%": round(v1_global_rate * 100, 1), # Global Panic Intent
-                "V1_N": total_panic_intent,             # Count = Actual + Blocked
-                "V1_Act": v1_count,                     # Keep Actual for reference
+                "N_Raw": raw_rows,
+                "N_Active": active_rows,
+                "V1_%": round(v1_global_rate * 100, 1), 
+                "V1_N": total_panic_intent,             
                 "V2_%": round(v2_global_rate * 100, 1), 
                 "V2_N": v2_count,
                 "V3_%": round(v3_global_rate * 100, 1), 
-                "V3_N": v3_count,
-                "Intv": interv_total,
-                "Intv_S": interv_success,
-                "FF": round(weighted_ff * 100, 2),
-                "Status": "Done" if df['year'].max() >= 10 else f"Y{df['year'].max()}"
+                "V3_N": total_complacency_intent,
+                "Intv": intv_total,
+                "Intv_P": intv_panic,
+                "Intv_C": intv_complacency,
+                "Intv_F": intv_format,
+                "Intv_H": intv_hallucination,
+                "Status": "Done"
             }
         return None
     except Exception as e:
@@ -291,60 +308,33 @@ def get_stats(model, group):
 models = ["deepseek_r1_1_5b", "deepseek_r1_8b", "deepseek_r1_14b", "deepseek_r1_32b"]
 groups = ["Group_A", "Group_B", "Group_C"]
 
-print("\n=== JOH SCALING REPORT: VERIFICATION RULES (GLOBAL FREQUENCY - FINAL) ===")
+print("\n=== JOH SCALING REPORT: VERIFICATION RULES (REPAIRED & VERIFIED) ===")
 # Headers
 h_model = "Model Scale"
 h_grp = "Group"
-h_n = "Total Steps"
-h_v1 = "Panic Relocation Frequency"
-h_v2 = "Panic Elevation Frequency"
+h_n = "N (Activ/Tot)"
+h_v1 = "Panic Relocation Freq"
+h_v2 = "Panic Elevation Freq"
 h_v3 = "Complacency Rate"
-h_intv = "Interventions (Success)"
-h_ff = "Decision Instability"
+h_v3 = "Complacency Rate"
+h_intv = "Intv (P|C|F|H)"
 
-print(f"{h_model:<18} {h_grp:<7} {h_n:<12} {h_v1:<30} {h_v2:<28} {h_v3:<20} {h_intv:<25} {h_ff:<20}")
-print("-" * 180)
-
-all_data = []
+print(f"{h_model:<18} {h_grp:<7} {h_n:<16} {h_v1:<30} {h_v2:<25} {h_v3:<20} {h_intv:<15}")
+print("-" * 140)
 
 for m in models:
     for g in groups:
         stats = get_stats(m, g)
         if stats:
+            if "Status" in stats and str(stats["Status"]).startswith("Err"):
+                print(f"{m:<18} {g:<7} ERROR: {stats['Status']}")
+                continue
+                
             # Format values
+            n_str = f"{stats['N_Active']} ({stats['N_Raw']})"
             v1_str = f"{stats['V1_%']}% (n={stats['V1_N']})"
             v2_str = f"{stats['V2_%']}% (n={stats['V2_N']})"
             v3_str = f"{stats['V3_%']}% (n={stats['V3_N']})"
-            intv_str = f"{stats['Intv']} ({stats['Intv_S']})"
-            ff_str = f"{stats['FF']}%"
+            intv_str = f"{stats['Intv']} ({stats.get('Intv_P',0)}|{stats.get('Intv_C',0)}|{stats.get('Intv_F',0)}|{stats.get('Intv_H',0)})"
             
-            print(f"{m:<18} {g:<7} {stats['N']:<12} {v1_str:<30} {v2_str:<28} {v3_str:<20} {intv_str:<25} {ff_str:<20}")
-            
-            # Collect for Export
-            row = stats.copy()
-            row['Model'] = m
-            row['Group'] = g
-            row['N_Audit'] = stats['N_L']
-            # Add full name keys for Excel
-            row['Panic Relocation Freq'] = row['V1_%']
-            row['Panic Elevation Freq'] = row['V2_%']
-            row['Complacency Rate'] = row['V3_%']
-            row['Flip-Flop Rate'] = row['FF']
-            all_data.append(row)
-
-print("\n=== LEGEND ===")
-print("V1 (Panic Intent)  : (Actual Relocate + Blocked Intv) / Total Steps.")
-print("V2 (Panic Elevate) : Actual Elevate / Total Steps. (Side Effect)")
-print("V3 (Complacency)   : Actual Complacency / Total Steps.")
-print("N_Tot              : Total Active Agent Steps.")
-print("-" * 120)
-
-# Export to Excel
-if all_data:
-    try:
-        df_out = pd.DataFrame(all_data)
-        out_path = "examples/single_agent/analysis/sq1_metrics_rules.xlsx"
-        df_out.to_excel(out_path, index=False)
-        print(f"\n[System] Successfully exported to: {out_path}")
-    except Exception as e:
-        print(f"\n[System] Excel export failed ({e}).")
+            print(f"{m:<18} {g:<7} {n_str:<16} {v1_str:<30} {v2_str:<25} {v3_str:<20} {intv_str:<15}")

@@ -31,7 +31,7 @@ from broker.components.context_builder import TieredContextBuilder, PrioritySche
 from broker.components.skill_registry import SkillRegistry
 from broker.components.memory_engine import WindowMemoryEngine, ImportanceMemoryEngine, HumanCentricMemoryEngine
 from broker.interfaces.skill_types import ExecutionResult
-from analysis.plot_results import plot_adaptation_results
+# from analysis.plot_results import plot_adaptation_results
 from broker.utils.llm_utils import create_legacy_invoke as create_llm_invoke
 from broker.utils.agent_config import GovernanceAuditor
 
@@ -649,13 +649,14 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
             "memory": "memory"
         }, agent_type="household")
 
-        agents = {aid: agents[aid] for aid in sorted(agents.keys(), key=natural_key)[:agents_count]}
         for a in agents.values():
             a.flood_history = []
-            a.agent_type = "household"
+            # a.agent_type is derived from config and is read-only
             # Synchronize Registry IDs - Include full global suite for disclosure parity
             a.config.skills = ["buy_insurance", "elevate_house", "relocate", "do_nothing"]
-            for k, v in a.custom_attributes.items(): setattr(a, k, v)
+            for k, v in a.custom_attributes.items():
+                if k not in ["id", "agent_type"]:
+                    setattr(a, k, v)
             
             # Ensure narrative_persona is set for prompt compatibility
             if not hasattr(a, 'narrative_persona') or not a.narrative_persona:
