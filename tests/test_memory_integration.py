@@ -1,7 +1,7 @@
 import pytest
 from broker.components.memory_engine import create_memory_engine
 from broker.components.universal_memory import UniversalCognitiveEngine
-from agents.base_agent import BaseAgent
+from governed_ai_sdk.agents import BaseAgent
 
 class MockAgent(BaseAgent):
     def __init__(self, agent_id="test_agent"):

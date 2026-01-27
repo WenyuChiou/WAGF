@@ -34,7 +34,7 @@ from broker import (
 )
 from broker.components.memory_engine import create_memory_engine
 from simulation.environment import TieredEnvironment
-from agents.base_agent import BaseAgent, AgentConfig, StateParam, Skill, PerceptionSource
+from governed_ai_sdk.agents import BaseAgent, AgentConfig, StateParam, Skill, PerceptionSource
 from examples.multi_agent.environment.hazard import HazardModule, VulnerabilityModule, YearMapping
 from components.media_channels import MediaHub
 
