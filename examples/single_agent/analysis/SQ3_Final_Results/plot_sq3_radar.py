@@ -47,12 +47,18 @@ def load_and_prep_data():
         model, group = row['Model'], row['Group']
         diversity = entropy_map.get((model, group), 0.5)
         
+        # Logarithmic Normalization for Velocity (0.1 to 100 decisions/min)
+        raw_v = row['Throughput']
+        log_v = np.log10(max(0.1, raw_v))
+        norm_v = (log_v - np.log10(0.1)) / (np.log10(100) - np.log10(0.1))
+        norm_v = max(0.0, min(1.0, norm_v))
+        
         plot_data.append({
             'Model_Key': f"{model.replace('deepseek_r1_', '')} {group}",
             'Rationality': row['Rationality'],
-            'Stability': 1.0 - row['V1'],
-            'Precision': 1.0 - row['Intv_S'],
-            'Efficiency': 1.0 - row['Intv_H'],
+            'Velocity': norm_v,
+            'Autonomy': 1.0 - row['Intv_S'],
+            'Reliability': 1.0 - row['Intv_H'],
             'Diversity': diversity
         })
     
@@ -61,7 +67,7 @@ def load_and_prep_data():
 def make_radar_chart(df, output_path):
     if df is None or df.empty: return
     
-    categories = ['Rationality', 'Stability', 'Precision', 'Efficiency', 'Diversity']
+    categories = ['Rationality', 'Velocity', 'Autonomy', 'Reliability', 'Diversity']
     N = len(categories)
     
     angles = [n / float(N) * 2 * pi for n in range(N)]

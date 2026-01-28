@@ -79,9 +79,35 @@ def create_memory_engine(
             **kwargs,
         )
     elif engine_type == "unified":
+        # v5 UnifiedEngine requires explicit strategy creation
+        from governed_ai_sdk.memory.strategies import (
+            EMASurpriseStrategy,
+            SymbolicSurpriseStrategy,
+            HybridSurpriseStrategy,
+        )
+        strategy_type = config.get("surprise_strategy", "ema")
+        ema_alpha = config.get("ema_alpha", 0.3)
+        stimulus_key = config.get("stimulus_key", "flood_depth")
+
+        if strategy_type == "symbolic":
+            strategy = SymbolicSurpriseStrategy(default_sensor_key=stimulus_key)
+        elif strategy_type == "hybrid":
+            strategy = HybridSurpriseStrategy(
+                ema_weight=0.6,
+                symbolic_weight=0.4,
+                ema_stimulus_key=stimulus_key,
+                ema_alpha=ema_alpha,
+            )
+        else:  # default: ema
+            strategy = EMASurpriseStrategy(stimulus_key=stimulus_key, alpha=ema_alpha)
+
         engine = UnifiedEngine(
+            surprise_strategy=strategy,
             arousal_threshold=config.get("arousal_threshold", 0.5),
-            **kwargs,
+            emotional_weights=config.get("emotional_weights"),
+            source_weights=config.get("source_weights"),
+            decay_rate=config.get("decay_rate", 0.1),
+            seed=config.get("seed", 42),
         )
     else:
         raise ValueError(f"Unknown engine type: {engine_type}")

@@ -22,25 +22,26 @@ Each metric in the SQ3 Radar Chart follows a rigorous derivation process to ensu
 - **Formula:** $1.0 - (V1 + V2 + V3)$
 - **Example:** If a model makes 100 decisions and 10 are "Panic Relocations" (V1) and 5 are "Unjustified Elevations" (V2), the Rationality is $1.0 - (0.10 + 0.05) = 0.85$.
 
-### II. Throughput (Operational Speed)
+### II. Velocity (V)
 
 - **Definition:** The rate of decision processing per minute.
 - **Formula:** $N_{steps} / \text{Runtime (min)}$
-- **Example:** For the 1.5B model, Group A processes 1000 steps in 16.27 mins.
-  - **Throughput** = $1000 / 16.27 \approx 61.44$ decisions/min.
-- **Comparison:** In contrast, the 32B model (Group A) processes 100 steps in ~206 mins, yielding a throughput of ~0.48. This proves 1.5B (even governed) is >19x faster.
+- **Radar Normalization (Logarithmic):** To prevent visual distortion between orders of magnitude (e.g., 0.48 vs 61.44), we use a $Log_{10}$ scale for the radar chart:
+  $$S_V = \frac{\log_{10}(V) - \log_{10}(0.1)}{\log_{10}(100) - \log_{10}(0.1)}$$
+  (Mapped range: 0.1 to 100 decisions/min).
+- **Example:** For 1.5B (Native), Activity is ~61.44 $\to$ Radar Score ~0.93. For 32B (Native), Activity is ~0.48 $\to$ Radar Score ~0.23.
 
-### III. Precision (Autonomy Preservation)
+### III. Autonomy (A)
 
-- **Definition:** The rate at which the governor allows agentic freedom (refrains from blocking).
-- **Formula:** $1.0 - \text{Intervention Rate (Policy Decisions)}$
-- **Example:** If 1000 decisions are audited and the governor only blocks 10 "Irrational" intents, Precision is $1.0 - (10/1000) = 0.99$.
+- **Definition:** The percentage of decisions processed without governor intervention.
+- **Formula:** $1.0 - \text{Intervention Rate (Policy)}$
+- **Example:** If 1000 decisions are audited and 10 are blocked, Autonomy is 0.99.
 
-### IV. Efficiency (Formatting Reliability)
+### IV. Reliability (R)
 
-- **Definition:** The model's ability to adhere to strict schema constraints without needing governance repair.
-- **Formula:** $1.0 - \text{Intervention Rate (Format/Syntax Flags)}$
-- **Example:** 1.5B models often fail JSON formatting. If 86% of calls require the governor to "fix" the syntax, Efficiency is $1.0 - 0.86 = 0.14$.
+- **Definition:** The model's ability to maintain structural integrity (valid syntax) without external repair.
+- **Formula:** $1.0 - \text{Intervention Rate (Formatting)}$
+- **Example:** 1.5B models often have low Reliability (0.14) due to high JSON syntax failures.
 
 ### V. Diversity (Cognitive Heterogeneity)
 
@@ -64,16 +65,16 @@ Comparing **Group A (Native)** vs **Group C (Governed + Memory)** for the 1.5 B 
 | AXIS            | A: Native (Stochastic) | C: Governed (Surgical) | Performance Delta             |
 | :-------------- | :--------------------: | :--------------------: | :---------------------------- |
 | **Rationality** |          0.19          |        **0.34**        | **+79% Improvement**          |
-| **Throughput**  |       **61.44**        |          9.32          | **Governance Overhead Cost**  |
-| **Precision**   |          1.00          |        **0.99**        | **0.01 Autonomy Cost**        |
-| **Efficiency**  |          1.00          |        **0.14**        | **-86% Resource Cost**        |
+| **Velocity**    |       **61.44**        |          9.32          | **Governance Overhead Cost**  |
+| **Autonomy**    |          1.00          |        **0.99**        | **0.01 Control Cost**         |
+| **Reliability** |          1.00          |        **0.14**        | **-86% Structural Cost**      |
 | **Diversity**   |    0.25 (Collapsed)    |   **0.65 (Stable)**    | **Regenerated Heterogeneity** |
 
 ### Key Findings:
 
 1. **The Rationality Breakthrough:** Governance nearly **doubles** the effective rationality of 1.5B models, making them competitive with ungoverned 14B models in specific safety parameters.
-2. **Speed-Safety Tradeoff:** While Throughput drops significantly (from 61 to 9) due to governance repairs, a governed 1.5B agent remains **19x faster** than a native 32B agent while reaching viable rationality levels.
-3. **Autonomy Preservation:** Surgical Precision is near-perfect (0.99), proving the framework only stops behavior that is **explicitly irrational**.
+2. **Velocity Paradox:** While Velocity drops significantly (from 61 to 9) due to governance repairs, a governed 1.5B agent remains **19x faster** than a native 32B agent while reaching viable rationality levels.
+3. **Autonomy Preservation:** Surgical intervention is near-perfect (0.99), proving the framework only stops behavior that is **explicitly irrational**.
 
 ---
 
@@ -85,7 +86,7 @@ The "Surgical Governance" framework exhibits **Perfect Scalable Oversight** char
 - It **corrects** the fatal flaws of weak models (Stopping Panic Relocation).
 - It **maintains** high-velocity simulation speeds compared to benchmark models.
 
-**Expert Recommendation:** "The framework is ready for production scaling. The Throughput advantage makes 1.5B+Gov a superior choice for large-scale Monte Carlo simulations where 32B models are prohibitively slow."
+**Expert Recommendation:** "The framework is ready for production scaling. The **Velocity** advantage makes 1.5B+Gov a superior choice for large-scale Monte Carlo simulations where larger benchmark models are compute-prohibitive."
 
 ---
 

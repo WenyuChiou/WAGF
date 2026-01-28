@@ -41,10 +41,10 @@ In the unconstrained Group A, we observe a distinct **Model-Scale Hallucination 
 
 #### **Tier 2: Benchmark Models (14B - 32B) - "Sophisticated Sophistry"**
 
-- **Over-Rationalization (Risk Distantiation)**:
-  - _Case-03 (Llama-3-70B)_: Large models occasionally use stochastic logic to justify inaction: _"Given the 100-year return period of catastrophic flooding, this 2.0m depth is statistically likely to be a transient outlier. I will maintain liquidity (Do Nothing) to optimize multi-year ROI."_ (Rationalizing a dangerous failure to adapt).
-- **Persona Drift**:
-  - _Case-04 (Qwen-2-72B)_: The agent stops acting as a "homeowner" and hallucinates a role as a "Government Consultant," proposing urban drainage systems instead of individual protection.
+- **Sophisticated Sophistry (Rationalized Inertia)**:
+  - _Case-03 (DeepSeek-R1-32B, Agent 56, Year 9)_: During a catastrophic flood year, the agent perceives a "significant threat" yet rationalizes inaction: _"The homeowner is confident... They weigh the lower cost of insurance against distrust... and the immediate **ease of doing nothing**."_ This demonstrates how large models use the vocabulary of rational choice theory ("weighing costs") to justify a failure to adapt under stress.
+- **Persona Drift (Narrative Detachment)**:
+  - _Case-04 (DeepSeek-R1-32B, Agent 76, Year 9)_: The model ceases to speak as "I" and describes itself in the third person: _"**The homeowner feels** moderately threatened... as elevated homes didn't prevent damage in Year 9."_ This shift to a "summary assistant" mode indicates a breakdown in persona adherence when faced with personal property damage.
 
 ### 3.2 Quantitative Results
 

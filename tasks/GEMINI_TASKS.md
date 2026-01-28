@@ -3,10 +3,11 @@
 > **Date**: 2026-01-28
 > **Priority**: HIGH
 > **Context**: SA → MA Architecture Unification
+> **Status**: ⚠️ REASSIGNED TO CODEX - See `CODEX_TASKS.md` for C3 and C4
 
 ---
 
-## Task-G1: Extract Memory Templates to Broker
+## ~~Task-G1: Extract Memory Templates to Broker~~ → **REASSIGNED TO CODEX AS C3**
 
 ### Goal
 Move MA memory templates to broker for SA/MA reuse.
@@ -221,7 +222,7 @@ python -c "from examples.multi_agent.memory.templates import MemoryTemplateProvi
 
 ---
 
-## Task-G2: Add Parse Confidence Scoring
+## ~~Task-G2: Add Parse Confidence Scoring~~ → **REASSIGNED TO CODEX AS C4**
 
 ### Goal
 Add parsing quality metrics to SkillProposal for audit trail.

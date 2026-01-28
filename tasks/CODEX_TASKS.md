@@ -273,9 +273,278 @@ python -m pytest tests/test_memory_factory.py -v
 
 ---
 
+## Task-C3: Extract Memory Templates to Broker (Originally G1)
+
+### Goal
+Move MA memory templates to broker for SA/MA reuse.
+
+### Files
+- **Source**: `examples/multi_agent/memory/templates.py` (378 lines)
+- **Target**: `broker/components/prompt_templates/memory_templates.py` (NEW)
+
+### Reference Files (READ THESE FIRST)
+```
+examples/multi_agent/memory/templates.py         # Current templates
+examples/multi_agent/generate_agents.py          # How templates are used
+```
+
+### Requirements
+
+1. **Create directory structure**:
+```
+broker/components/prompt_templates/
+├── __init__.py
+└── memory_templates.py
+```
+
+2. **Create MemoryTemplateProvider class**:
+```python
+"""
+Memory template generation for agent initialization.
+Moved from examples/multi_agent/memory/templates.py for SA/MA reuse.
+"""
+from typing import Dict, Any, List
+from dataclasses import dataclass
+
+@dataclass
+class MemoryTemplate:
+    """Generated memory with metadata."""
+    content: str
+    category: str  # flood_event, insurance_claim, etc.
+    emotion: str = "neutral"  # major, minor, neutral
+    source: str = "personal"  # personal, neighbor, community
+
+class MemoryTemplateProvider:
+    """
+    Provides memory templates for different domains.
+
+    Categories:
+    - flood_event: Direct flood experience
+    - insurance_claim: Insurance interactions
+    - social_interaction: Neighbor discussions
+    - government_notice: Government communications
+    - adaptation_action: Past adaptation decisions
+    - risk_awareness: Flood zone awareness
+    """
+
+    @staticmethod
+    def flood_experience(profile: Dict[str, Any]) -> MemoryTemplate:
+        """Generate flood experience memory from survey data."""
+        if profile.get("flood_experience", False):
+            freq = profile.get("flood_frequency", 1)
+            recent = profile.get("recent_flood_text", "recently")
+            content = f"I experienced flooding {freq} time(s). Last flood was {recent}."
+            return MemoryTemplate(
+                content=content,
+                category="flood_event",
+                emotion="major",
+                source="personal"
+            )
+        return MemoryTemplate(
+            content="I have not experienced significant flooding.",
+            category="flood_event",
+            emotion="neutral",
+            source="personal"
+        )
+
+    @staticmethod
+    def insurance_interaction(profile: Dict[str, Any]) -> MemoryTemplate:
+        """Generate insurance memory from survey data."""
+        ins_type = profile.get("insurance_type", "none")
+        if ins_type and ins_type.lower() != "none":
+            content = f"I have {ins_type} flood insurance coverage."
+            emotion = "minor"
+        else:
+            content = "I do not currently have flood insurance."
+            emotion = "neutral"
+        return MemoryTemplate(
+            content=content,
+            category="insurance_claim",
+            emotion=emotion,
+            source="personal"
+        )
+
+    @classmethod
+    def generate_all(cls, profile: Dict[str, Any]) -> List[MemoryTemplate]:
+        """Generate all 6 memory templates for an agent profile."""
+        return [
+            cls.flood_experience(profile),
+            cls.insurance_interaction(profile),
+            # Add remaining 4 methods...
+        ]
+```
+
+3. **Update original file with deprecation**:
+```python
+# examples/multi_agent/memory/templates.py
+import warnings
+warnings.warn(
+    "Import from broker.components.prompt_templates.memory_templates instead",
+    DeprecationWarning,
+    stacklevel=2
+)
+from broker.components.prompt_templates.memory_templates import (
+    MemoryTemplateProvider,
+    MemoryTemplate,
+)
+```
+
+4. **Create __init__.py**:
+```python
+# broker/components/prompt_templates/__init__.py
+from .memory_templates import MemoryTemplateProvider, MemoryTemplate
+
+__all__ = ["MemoryTemplateProvider", "MemoryTemplate"]
+```
+
+### Acceptance Criteria
+- [ ] `broker/components/prompt_templates/` directory created
+- [ ] `MemoryTemplateProvider` class implemented with all 6 categories
+- [ ] MA experiment imports work
+- [ ] Backward compatibility maintained
+
+### Verification Commands
+```bash
+# Test import from broker
+python -c "from broker.components.prompt_templates import MemoryTemplateProvider; print('OK')"
+
+# Test backward compatibility
+python -c "from examples.multi_agent.memory.templates import MemoryTemplateProvider; print('OK')"
+```
+
+---
+
+## Task-C4: Add Parse Confidence Scoring (Originally G2)
+
+### Goal
+Add parsing quality metrics to SkillProposal for audit trail.
+
+### Target File
+`broker/utils/model_adapter.py` (NOT broker/adapters/)
+
+### Reference Files (READ THESE FIRST)
+```
+broker/utils/model_adapter.py       # Main adapter (lines 209-688)
+broker/interfaces/skill_types.py    # SkillProposal definition
+broker/components/audit_writer.py   # How traces are written
+```
+
+### Current State
+`parse_layer` field ALREADY EXISTS in SkillProposal. Need to ADD:
+- `parse_confidence: float`
+- `construct_completeness: float`
+
+### Requirements
+
+1. **Update SkillProposal** (`broker/interfaces/skill_types.py`):
+```python
+@dataclass
+class SkillProposal:
+    # ... existing fields ...
+    parse_layer: str = ""
+    parse_confidence: float = 0.0      # NEW: 0.0-1.0
+    construct_completeness: float = 0.0  # NEW: 0.0-1.0
+```
+
+2. **Add confidence scoring in parse_output** (`broker/utils/model_adapter.py`):
+
+After each successful parse layer, set confidence:
+```python
+# After JSON extraction succeeds (around line 295):
+parse_confidence = 0.95
+
+# After keyword extraction succeeds (around line 487):
+parse_confidence = 0.70
+
+# After digit extraction succeeds (around line 494):
+parse_confidence = 0.50
+
+# Fallback (around line 587):
+parse_confidence = 0.20
+```
+
+3. **Calculate construct completeness** (before returning SkillProposal):
+```python
+# Required constructs from config
+required_constructs = ["TP_LABEL", "CP_LABEL", "decision"]
+found = sum(1 for c in required_constructs if c in reasoning or c.lower() in str(skill_name))
+construct_completeness = found / len(required_constructs)
+```
+
+4. **Update SkillProposal creation** (around line 685):
+```python
+return SkillProposal(
+    skill_name=skill_name,
+    reasoning=reasoning,
+    raw_output=raw_output,
+    parsing_warnings=parsing_warnings,
+    parse_layer=parse_layer,
+    parse_confidence=parse_confidence,        # NEW
+    construct_completeness=construct_completeness,  # NEW
+)
+```
+
+### Test File
+`tests/test_parse_confidence.py`
+
+```python
+import pytest
+from broker.utils.model_adapter import UnifiedAdapter
+
+def test_json_parse_confidence():
+    adapter = UnifiedAdapter(agent_type="household")
+    raw_output = '<<<DECISION_START>>>{"decision": 2, "threat_appraisal": "H", "coping_appraisal": "M"}<<<DECISION_END>>>'
+    context = {"agent_id": "test", "agent_type": "household"}
+
+    result = adapter.parse_output(raw_output, context)
+
+    assert result is not None
+    assert result.parse_confidence >= 0.9
+    assert result.parse_layer == "enclosure+json"
+
+def test_construct_completeness():
+    adapter = UnifiedAdapter(agent_type="household")
+    raw_output = '<<<DECISION_START>>>{"decision": 2}<<<DECISION_END>>>'
+    context = {"agent_id": "test", "agent_type": "household"}
+
+    result = adapter.parse_output(raw_output, context)
+
+    # Only decision found, missing TP_LABEL and CP_LABEL
+    assert result.construct_completeness < 1.0
+```
+
+### Acceptance Criteria
+- [ ] `parse_confidence` field added to SkillProposal
+- [ ] `construct_completeness` field added to SkillProposal
+- [ ] Confidence scores vary by parse method
+- [ ] Existing tests pass
+- [ ] New tests pass
+
+### Verification Commands
+```bash
+# Run unit tests
+python -m pytest tests/test_parse_confidence.py -v
+
+# Check existing tests still pass
+python -m pytest tests/ -v --ignore=tests/integration
+```
+
+---
+
 ## Important Notes
 
 1. **Do NOT modify** files in `examples/single_agent/` - experiments may be running
-2. **Prefer adding new files** over modifying existing ones
+2. **Correct path**: `broker/utils/model_adapter.py` (NOT broker/adapters/)
 3. **Run tests** before committing
 4. **Check imports** work from both SA and MA directories
+
+---
+
+## Task Status
+
+| Task | Status | Notes |
+|------|--------|-------|
+| C1: Config Schema | ✅ DONE | 4 tests pass |
+| C2: Memory Factory | ✅ DONE | 8 tests pass |
+| C3: Memory Templates | ❌ TODO | Extract to broker |
+| C4: Parse Confidence | ❌ TODO | Add confidence scoring |
