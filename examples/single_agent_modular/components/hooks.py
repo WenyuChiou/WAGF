@@ -26,7 +26,7 @@ class FloodHooks:
     Lifecycle hooks for flood adaptation experiment.
 
     Manages:
-    - pre_year: Flood events, memories, social observation
+    - pre_year: Flood events, memories, social observation, observable state computation
     - post_step: State changes, decision logging
     - post_year: Trust updates, reflection, logging
     """
@@ -36,7 +36,8 @@ class FloodHooks:
         sim,
         runner,
         reflection_engine=None,
-        output_dir=None
+        output_dir=None,
+        obs_manager=None,
     ):
         self.sim = sim
         self.runner = runner
@@ -44,9 +45,14 @@ class FloodHooks:
         self.logs = []
         self.yearly_decisions = {}
         self.output_dir = Path(output_dir) if output_dir else Path(".")
+        self.obs_manager = obs_manager  # ObservableStateManager for cross-agent observation
 
     def pre_year(self, year: int, env, agents: Dict[str, Any]):
-        """Pre-year hook: determine flood, add memories."""
+        """Pre-year hook: determine flood, add memories, compute observables."""
+        # Compute observable metrics at start of year
+        if self.obs_manager:
+            self.obs_manager.compute(agents, year)
+
         # Advance simulation
         self.sim.advance_year()
         flood_event = self.sim.flood_event

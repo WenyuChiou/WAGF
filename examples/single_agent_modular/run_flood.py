@@ -18,6 +18,11 @@ from broker.core.experiment import ExperimentBuilder
 from broker.components.social_graph import NeighborhoodGraph
 from broker.components.interaction_hub import InteractionHub
 from broker.components.skill_registry import SkillRegistry
+from broker.components.observable_state import (
+    ObservableStateManager,
+    create_flood_observables,
+)
+from broker.components.context_providers import ObservableStateProvider
 from broker.utils.llm_utils import create_legacy_invoke as create_llm_invoke
 from broker.utils.agent_config import GovernanceAuditor
 
@@ -95,6 +100,11 @@ def main():
     hub = InteractionHub(graph)
     hub.memory_engine = memory_engine
 
+    # Setup observable state manager for cross-agent observation
+    obs_manager = ObservableStateManager()
+    obs_manager.register_many(create_flood_observables())
+    obs_manager.set_neighbor_graph(graph)
+
     ctx_builder = FloodContextBuilder(  # Edit components/context_builder.py
         agents=agents,
         hub=hub,
@@ -104,6 +114,10 @@ def main():
         yaml_path=str(config_path),
         memory_top_k=args.window_size
     )
+
+    # Add observable state provider for cross-agent observation
+    if hasattr(ctx_builder, 'providers'):
+        ctx_builder.providers.append(ObservableStateProvider(obs_manager))
 
     # Output directory
     if args.output:
@@ -132,7 +146,7 @@ def main():
     runner = builder.build()
 
     # Inject hooks (PLUGGABLE: edit components/hooks.py)
-    hooks = FloodHooks(sim, runner, output_dir=output_dir)
+    hooks = FloodHooks(sim, runner, output_dir=output_dir, obs_manager=obs_manager)
     runner.hooks = {
         "pre_year": hooks.pre_year,
         "post_step": hooks.post_step,
