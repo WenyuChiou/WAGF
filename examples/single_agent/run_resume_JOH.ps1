@@ -13,17 +13,23 @@ $RunPlan = @(
 
 $SAPath = "examples/single_agent"
 
-foreach ($Item in $RunPlan) {
+:outer foreach ($Item in $RunPlan) {
     foreach ($Group in $Item.Groups) {
         $ModelTag = $Item.Tag
         $ModelName = $Item.Name
         $OutputDir = "$SAPath/results/JOH_FINAL/$ModelName/$Group/Run_1"
         
-        Write-Host ">>> PROCESSING: $ModelName | $Group <<<" -ForegroundColor Yellow
+        Write-Host ">>> CHECKING: $ModelName | $Group <<<" -ForegroundColor Yellow
         
+        # 0. SMART RESUME: Skip if simulation_log.csv exists
+        if (Test-Path "$OutputDir\simulation_log.csv") {
+            Write-Host "  [SKIPPING] $ModelName $Group already completed (found simulation_log.csv)." -ForegroundColor Gray
+            continue
+        }
+
         # 1. Clean partially completed data if it exists
         if (Test-Path $OutputDir) {
-            Write-Host "  [Cleaning] Deleting $OutputDir to ensure a clean resume..."
+            Write-Host "  [Cleaning] Deleting partial data in $OutputDir..."
             Remove-Item -Path $OutputDir -Recurse -Force -ErrorAction SilentlyContinue
         }
         New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
@@ -33,7 +39,7 @@ foreach ($Item in $RunPlan) {
         $LogFile = "$OutputDir\execution.log"
         
         # 3. Clean Run (Strict, No Priority)
-        Write-Host "  > Executing $ModelName ($Group)..."
+        Write-Host "  > Executing $ModelName ($Group)..." -ForegroundColor Cyan
         $cmd = "cmd /c python $SAPath/run_flood.py --model $ModelTag --years 10 --agents 100 --workers 1 --memory-engine $MemEngine --governance-mode strict --initial-agents `"$SAPath/agent_initial_profiles.csv`" --output $OutputDir --seed 401 --num-ctx 8192 --num-predict 1536 2>&1"
         
         Invoke-Expression "$cmd | Tee-Object -FilePath `"$LogFile`""
@@ -42,7 +48,7 @@ foreach ($Item in $RunPlan) {
             Write-Host "  [SUCCESS] $ModelName $Group Finished." -ForegroundColor Green
         } else {
              Write-Host "  [FAILURE] $ModelName $Group Failed." -ForegroundColor Red
-             break # Stop the script on error to avoid cascaded failures
+             break outer # Stop the ENTIRE marathon on error
         }
     }
 }

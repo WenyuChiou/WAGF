@@ -973,7 +973,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     auditor.print_summary()
     
     # 8. Generate Plot
-    plot_adaptation_results(csv_path, output_dir)
+    # plot_adaptation_results(csv_path, output_dir)
 
 if __name__ == "__main__":
     import argparse

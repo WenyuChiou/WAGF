@@ -1,10 +1,11 @@
-"Adaptive Retrieval Engine - Dynamic weight adjustment based on arousal.
+"""
+Adaptive Retrieval Engine - Dynamic weight adjustment based on arousal.
 
 Implements System 1/2 aware retrieval that adjusts weights dynamically
 based on the current cognitive state (arousal level).
 
 Reference: Task-040 Memory Module Optimization
-"
+"""
 
 from typing import Dict, List, Optional, Any, TYPE_CHECKING
 import time
