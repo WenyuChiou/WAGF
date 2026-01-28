@@ -10,14 +10,13 @@ if ($DryRun) {
     Write-Host ">>> DRY RUN MODE ENABLED (Runs=1) <<<" -ForegroundColor Yellow
 }
 
-$SmallModels = @("llama3.2:3b", "gemma3:4b")
-$LargeModels = @() # Disabled for efficiency
+$SmallModels = @("deepseek-r1:8b", "llama3.2:3b", "gemma3:4b")
+$LargeModels = @() 
 $Scenarios = @("panic", "veteran", "goldfish", "format")
 $BaseSeed = 42
 
-Write-Host "--- Stress Test Marathon: Parallel & Sequential Execution ---" -ForegroundColor Cyan
-Write-Host "Small Models (Parallel): $($SmallModels -join ', ')"
-Write-Host "Large Models (Sequential): $($LargeModels -join ', ')"
+Write-Host "--- Stress Test Marathon: Parallel & Sequential Execution (Base: Group C) ---" -ForegroundColor Cyan
+Write-Host "Priority Models (Parallel): $($SmallModels -join ', ')"
 Write-Host "Configuration: $Agents Agents, $Years Years, $Runs Runs per Scenario"
 Write-Host ""
 
@@ -39,8 +38,9 @@ $StressBlock = {
             # Ensure directory exists
             New-Item -ItemType Directory -Force $OutputPath | Out-Null
             
-            # Run Stress Test
-            python -u run_flood.py --model $Model --years $Years --agents $Agents --memory-engine humancentric --governance-mode strict --output $OutputPath --workers 4 --stress-test $Scenario --seed $CurrentSeed --memory-ranking-mode legacy
+            # Run Stress Test with Group C Baseline (Memory + Governance + Priority Schema)
+            # Workers set to 4 for throughput
+            python -u run_flood.py --model $Model --years $Years --agents $Agents --memory-engine humancentric --use-priority-schema --governance-mode strict --output $OutputPath --workers 4 --stress-test $Scenario --seed $CurrentSeed --memory-ranking-mode legacy
         }
     }
 }

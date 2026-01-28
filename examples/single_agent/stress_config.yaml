@@ -1,0 +1,47 @@
+# Stress Testing Configuration (Base: Group C - Governed + Memory + Schema)
+# Scenario definitions for deepseek-r1 stress cycles
+
+scenarios:
+  panic:
+    description: "High environmental pressure (80% flood probability)"
+    overrides:
+      flood_probability: 0.8
+      base_depth_m: 2.5
+      governance_mode: "strict"
+      use_priority_schema: true
+      memory_engine: "humancentric"
+
+  veteran:
+    description: "Cognitive fatigue (Repetitive stimulus over 20 years)"
+    overrides:
+      years: 20
+      flood_probability: 0.2
+      governance_mode: "strict"
+      use_priority_schema: true
+      memory_engine: "humancentric"
+      memory_window: 10
+
+  goldfish:
+    description: "Memory pressure (Long gap between major events)"
+    overrides:
+      years: 15
+      flood_years: [1, 15]
+      governance_mode: "strict"
+      use_priority_schema: true
+      memory_engine: "humancentric"
+      memory_window: 5
+
+  format:
+    description: "Syntactic stress (Low temperature + format constraints)"
+    overrides:
+      temperature: 0.0
+      governance_mode: "strict"
+      use_priority_schema: true
+      memory_engine: "humancentric"
+      enforce_json: true
+
+baseline:
+  model: "deepseek-r1:8b"
+  group: "Group_C"
+  agents: 100
+  runs: 5
