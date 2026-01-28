@@ -80,20 +80,35 @@ df_entropy = pd.DataFrame(all_results)
 # Save Raw Data
 df_entropy.to_csv(OUTPUT_DIR / "yearly_entropy_data.csv", index=False)
 
-# --- PLOTTING ---
-plt.figure(figsize=(14, 8))
-sns.lineplot(data=df_entropy, x='Year', y='Entropy', hue='Model', style='Group', markers=True, dashes=False)
+# --- PLOTTING (2x2 Grid) ---
+fig, axes = plt.subplots(2, 2, figsize=(16, 12), sharex=True, sharey=True)
+axes = axes.flatten()
 
-plt.title("SQ2: Decision Entropy Evolution (Heterogeneity Profile)")
-plt.ylabel("Shannon Entropy (Bits)")
-plt.xlabel("Simulation Year")
-plt.ylim(0, 2.1)  # Max entropy for 4 categories is log2(4) = 2
-plt.grid(True, linestyle='--', alpha=0.6)
-plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+for i, model in enumerate(models):
+    ax = axes[i]
+    model_data = df_entropy[df_entropy['Model'] == model]
+    
+    if model_data.empty:
+        ax.text(0.5, 0.5, f"No data for {model}", ha='center', va='center')
+        ax.set_title(f"Model: {model} (No Data)")
+        continue
+        
+    sns.lineplot(data=model_data, x='Year', y='Entropy', hue='Group', 
+                 marker='o', ax=ax, palette="viridis", linewidth=2.5)
+    
+    ax.set_title(f"Model Scale: {model.split('_')[-1].upper()}", fontsize=14, fontweight='bold')
+    ax.set_ylabel("Shannon Entropy (Bits)" if i % 2 == 0 else "")
+    ax.set_xlabel("Year" if i >= 2 else "")
+    ax.set_ylim(0, 2.1)
+    ax.grid(True, linestyle='--', alpha=0.5)
+    ax.legend(title="Governance Group", loc='lower left')
+
+plt.suptitle("SQ2: Decision Entropy Evolution (2x2 Scale Comparison)", fontsize=18, fontweight='bold', y=1.02)
 plt.tight_layout()
 
-plt.savefig(OUTPUT_DIR / "entropy_evolution_trend.png")
-print(f"Plots and data saved to {OUTPUT_DIR}")
+plt.savefig(OUTPUT_DIR / "entropy_evolution_trend_2x2.png", dpi=300, bbox_inches='tight')
+plt.savefig(OUTPUT_DIR / "entropy_evolution_trend.png", dpi=150) # Maintain original path for summary compatibility
+print(f"2x2 Plots and data saved to {OUTPUT_DIR}")
 
 # --- PIVOT TABLE FOR SUMMARY ---
 pivot = df_entropy.pivot_table(index=['Model', 'Group'], columns='Year', values='Entropy')
