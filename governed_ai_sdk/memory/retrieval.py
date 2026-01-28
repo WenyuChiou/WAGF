@@ -1,11 +1,10 @@
-"""
-Adaptive Retrieval Engine - Dynamic weight adjustment based on arousal.
+"Adaptive Retrieval Engine - Dynamic weight adjustment based on arousal.
 
 Implements System 1/2 aware retrieval that adjusts weights dynamically
 based on the current cognitive state (arousal level).
 
 Reference: Task-040 Memory Module Optimization
-"""
+"
 
 from typing import Dict, List, Optional, Any, TYPE_CHECKING
 import time
@@ -45,14 +44,17 @@ class AdaptiveRetrievalEngine:
         embedding_provider: Optional provider for generating text embeddings.
 
     Example:
-        >>> engine = AdaptiveRetrievalEngine(embedding_provider=SentenceTransformerProvider())
-        >>> memories = engine.retrieve(
-        ...     store=memory_store,
-        ...     agent_id="agent_1",
-        ...     top_k=5,
-        ...     arousal=0.8,  # High arousal -> importance-biased
-        ...     query="What about flood damage?"
-        ... )
+        >>> # Assuming SentenceTransformerProvider is available and imported
+        >>> # from governed_ai_sdk.memory.embeddings import SentenceTransformerProvider
+        >>> # provider = SentenceTransformerProvider()
+        >>> # engine = AdaptiveRetrievalEngine(embedding_provider=provider)
+        >>> # memories = engine.retrieve(
+        >>> #     store=memory_store,
+        >>> #     agent_id="agent_1",
+        >>> #     top_k=5,
+        >>> #     arousal=0.8,  # High arousal -> importance-biased
+        >>> #     query="What about flood damage?"
+        >>> # )
     """
 
     def __init__(
@@ -86,10 +88,9 @@ class AdaptiveRetrievalEngine:
             "semantic": 0.1, # New weight for semantic in System 2
         }
         
-        # Ensure semantic weight is considered if present in weights dicts
-        self.base_weights.setdefault("semantic", 0.0)
-        self.system1_weights.setdefault("semantic", 0.0)
-        self.system2_weights.setdefault("semantic", 0.0)
+        # Ensure semantic weight key exists in all weight dictionaries, defaulting to 0 if absent
+        for weights_dict in [self.base_weights, self.system1_weights, self.system2_weights]:
+            weights_dict.setdefault("semantic", 0.0)
 
         # Store embedding provider
         self.embedding_provider = embedding_provider
@@ -117,8 +118,8 @@ class AdaptiveRetrievalEngine:
         age = current_time - item.timestamp
         # Decay over 1 hour to ~0.37, 3 hours to ~0.05
         decay_factor = 1.0 / 3600  # per second
-        score = 2.71828 ** (-age * decay_factor) # Using math.e for exp
-        return max(0.0, min(1.0, score))
+        score = np.exp(-age * decay_factor) # Using np.exp for consistency with numpy
+        return max(0.0, min(1.0, float(score))) # Ensure float output and clamp to [0, 1]
 
     def _compute_contextual_boost(
         self,
@@ -144,6 +145,41 @@ class AdaptiveRetrievalEngine:
                 boost += boosters[tag]
 
         return min(1.0, boost)
+
+    def _interpolate_weights(
+        self,
+        arousal: float,
+        threshold: float
+    ) -> Dict[str, float]:
+        """
+        Interpolate between System 1 and System 2 weights.
+
+        Uses smooth interpolation based on distance from threshold.
+
+        Args:
+            arousal: Current arousal level [0-1]
+            threshold: Arousal threshold for System 2 activation
+
+        Returns:
+            Interpolated weight dict
+        """
+        # Define transition factor 't' based on arousal level relative to threshold
+        # t=0 means pure System 1, t=1 means pure System 2
+        if arousal <= threshold * 0.5:
+            t = 0.0
+        elif arousal >= threshold:
+            t = 1.0
+        else:
+            # Linear interpolation within the transition zone
+            t = (arousal - threshold * 0.5) / (threshold * 0.5)
+
+        weights = {}
+        # Interpolate each weight dimension
+        for key in self.base_weights: # Ensure all base keys are covered
+            w1 = self.system1_weights.get(key, self.base_weights[key])
+            w2 = self.system2_weights.get(key, self.base_weights[key])
+            weights[key] = w1 * (1 - t) + w2 * t
+        return weights
 
     def _compute_semantic_score(self, embedding1: np.ndarray, embedding2: np.ndarray) -> float:
         """
@@ -173,10 +209,7 @@ class AdaptiveRetrievalEngine:
 
         similarity = dot_product / (norm1 * norm2)
         # Cosine similarity can range from -1 to 1. For retrieval, we often map it to [0, 1].
-        # If embeddings are normalized, similarity is dot product.
-        # Assuming embeddings are not necessarily normalized, adjust range if needed.
-        # For simplicity here, we'll clamp to [0, 1] assuming embeddings are non-negative or
-        # we are interested in positive similarity.
+        # Clamping to [0, 1] assumes embeddings are non-negative or we're interested in positive similarity.
         return max(0.0, min(1.0, float(similarity)))
 
     def retrieve(
@@ -250,6 +283,7 @@ class AdaptiveRetrievalEngine:
             # Assume item.embedding is in a format compatible with np.ndarray or convertible
             if query_embedding is not None and hasattr(item, 'embedding') and item.embedding is not None:
                 try:
+                    # Ensure item.embedding is a numpy array for calculation
                     item_embedding_np = np.array(item.embedding)
                     semantic_score = self._compute_semantic_score(query_embedding, item_embedding_np)
                 except Exception as e:
@@ -263,6 +297,8 @@ class AdaptiveRetrievalEngine:
                 weights["context"] * context_score +
                 weights.get("semantic", 0.0) * semantic_score # Added semantic score with weight
             )
+            # Normalization might be needed if weights sum > 1.0, or normalize scores independently.
+            # For now, assume weights are balanced or user intends raw weighted sum.
 
             scored_items.append({
                 "item": item,
