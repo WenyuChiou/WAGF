@@ -33,6 +33,7 @@ from .strategies import (
 )
 from .store import UnifiedMemoryStore
 from .retrieval import AdaptiveRetrievalEngine
+from .config import GlobalMemoryConfig, DomainMemoryConfig, FloodDomainConfig
 
 __all__ = [
     # Main engine
@@ -46,4 +47,8 @@ __all__ = [
     # Store & Retrieval
     "UnifiedMemoryStore",
     "AdaptiveRetrievalEngine",
+    # Config
+    "GlobalMemoryConfig",
+    "DomainMemoryConfig",
+    "FloodDomainConfig",
 ]
