@@ -1,6 +1,6 @@
 # Technical Note: Surgical Governance Architectures for Stabilizing Small Language Models in Hydro-Social Simulations
 
-> **Version**: 6.0 (Scientific Manuscript Edition)
+> **Version**: 7.0 (Refined Scientific Edition)
 > **Date**: January 2026
 > **Authors**: [Author Names]
 
@@ -14,27 +14,27 @@ As Large Language Model (LLM) agents are increasingly deployed in complex social
 
 The integration of Large Language Models (LLMs) into Agent-Based Modeling (ABM) has catalyzed a paradigm shift in socio-hydrology, enabling simulations of human adaptation that transcend the limitations of static, rule-based agents. In these environments, LLM agents act as autonomous decision-makers, navigating complex trade-offs between flood insurance, property elevation, and relocation. However, the adoption of efficient Small Language Models (SLMs) is currently hindered by significant behavioral instability. Research suggests that models with lower parameter counts often lack the "Executive Function" necessary for long-term policy alignment, leading to stochastic reasoning and a fundamental deficit in decisional consistency.
 
-### ❓ SQ1: The Rationality Gap & Unjustified Panic
+### ❓ SQ1: Rationality and Violation Suppression
 
-The first primary challenge is the "Rationality Gap," where synthesized perceived threat fails to justify the resultant high-cost actions. In flood scenarios, SLMs frequently exhibit "Unjustified Panic"—a systemic behavioral misalignment where low-risk stimuli trigger extreme survival responses like relocation. This phenomenon invalidates the predictive utility of simulations by producing disproportionate and irrational migration patterns. This motivates our first research question:
+The first primary challenge is the "Rationality Gap," where the logical link between environmental stimuli and agentic response is broken. In flood scenarios, SLMs frequently exhibit "Unjustified Panic"—a systemic behavioral misalignment where low-risk stimuli trigger extreme survival responses like relocation. We measure this via **Rule Violation Rates**, specifically tracking how often agents attempt high-cost actions without sufficient perceived threat or coping justification. This motivates our first research question:
 
-> **SQ1: To what extent can an external governance layer mitigate "unjustified panic" and behavioral misalignment in resource-constrained LLM agents during social simulations?**
+> **SQ1: To what extent can an external governance layer mitigate "unjustified panic" and improve the decision rationality of resource-constrained LLM agents?**
 
-### ❓ SQ2: Cognitive Collapse & Heterogeneity Dispersion
+### ❓ SQ2: Controlled Diversity and Entropy Preservation
 
-Beyond individual decision-making, population-level dynamics suffer from "Cognitive Collapse" or "Mode Collapse." Over extended temporal horizons, ungoverned SLM populations tend to converge into repetitive, low-entropy behavioral monocultures, abandoning the heterogeneity required for valid social modeling. As decisional entropy ($H$) decays, the simulation loses its ability to represent diverse stakeholder responses, effectively "dying" cognitively after only a few years. This leads to our second inquiry:
+Beyond individual rationality, we must ensure that the application of control does not inadvertently stifle the emergent behavioral diversity required for social realism. There is a risk that governance could force all agents into a singular "compliant" state, causing "Cognitive Collapse." Efficient simulation requires a balance: enforcing safety rules while preserving high decisional entropy ($H$) across the population. This "Controlled Diversity" ensures that agents remain heterogeneous stakeholders rather than uniform automatons. This leads to our second inquiry:
 
-> **SQ2: How does the application of rule-based constraints (Surgical Governance) influence the cognitive lifespan and decisional entropy of agent populations over extended temporal horizons?**
+> **SQ2: How can rule-based constraints (Surgical Governance) be applied to maintain agentic heterogeneity and prevent mode collapse over extended temporal horizons?**
 
-### ❓ SQ3: The Precision-Efficiency Trade-off
+### ❓ SQ3: Framework Effectiveness & Holistic Performance
 
-Finally, the implementation of oversight mechanisms introduces a trade-off between safety and performance. Traditional "heavy-handed" governance can inadvertently suppress agentic autonomy, leading to operational stalling or "hallucinated compliance." To maintain scientific validity, a governance framework must be "surgical"—intervening only when explicit safety norms are violated while otherwise remaining silent to preserve emergent agent diversity. This trade-off between scale, surgical precision, and operational overhead is the focus of our third inquiry:
+Finally, we evaluate the Framework as a whole. A successful solution must not only correct errors but do so with "Surgical Precision"—intervening only when necessary while otherwise allowing the model's latent reasoning to flourish. We investigate the synergy between model scale, formatting stability, and rule compliance to determine if the Framework effectively bridges the intelligence gap between small and large models without burdensome overhead. This holistic assessment is the focus of our third inquiry:
 
-> **SQ3: What is the relationship between model scale, surgical precision, and operational efficiency within the Governed Broker Framework, and can governed SLMs achieve performance parity with benchmark large models?**
+> **SQ3: Can the Governed Broker Framework serve as a viable end-to-end solution for deploying SLMs in scientific simulations with performance parity to benchmark large models?**
 
 ### The Solution: The Governed Broker Framework
 
-To address these challenges, we propose the **Governed Broker Framework**, a multi-layered middleware architecture designed to serve as a "Cognitive Prosthetic" for LLM agents. By enforcing a strict "Decision-Action Separation," the framework intercepts agentic intents, audits them against symbolic socio-safe rules (e.g., Protection Motivation Theory thresholds), and provides reflective feedback to correct irrational trajectories. This technical note evaluates the framework's effectiveness across the DeepSeek R1 model family, demonstrating that "Surgical Governance" can bridge the rationality gap and enable the use of efficient SLMs as rigorous scientific instruments.
+To address these challenges, we propose the **Governed Broker Framework**, a multi-layered middleware architecture designed to serve as a "Cognitive Prosthetic" for LLM agents. By enforcing a strict "Decision-Action Separation," the framework intercepts agentic intents, audits them against symbolic socio-safe rules (e.g., Protection Motivation Theory thresholds), and provides reflective feedback to correct irrational trajectories. This technical note evaluates the framework's effectiveness across the DeepSeek R1 model family, demonstrating that "Surgical Governance" can bridge the rationality gap and enable the use of SLMs as rigorous scientific instruments.
 
 ---
 
@@ -42,21 +42,13 @@ To address these challenges, we propose the **Governed Broker Framework**, a mul
 
 To quantify the "Surgical Gain" of our framework, we employ a 5-axis metric model vetted against contemporary AI safety literature:
 
-| Metric          | Definition                                                    | Academic Mapping                    |
-| :-------------- | :------------------------------------------------------------ | :---------------------------------- |
-| **Rationality** | Proportion of agent decisions that align with safety norms.   | Omnibus Rationality (Wang et al.)   |
-| **Stability**   | Resistance to "Panic Relocation" under low-threat stimuli.    | Decision Persistance (VeriLA, 2025) |
-| **Precision**   | The frequency of "silent" governance (Autonomy Preservation). | Minimum Necessary Oversight (Zhao)  |
-| **Efficiency**  | The operational cost and formatting reliability of the model. | Operational Overhead Protocols      |
-| **Diversity**   | Normalized Shannon Entropy ($H$) of decision distributions.   | Cognitive Heterogeneity (2024)      |
-
-### Experimental Design: The Three Archetypes
-
-We compare three distinct architectural states to isolate the impact of governance:
-
-- **Group A (Native)**: Ungoverned agents (Stochastic Baseline).
-- **Group B (Governed)**: Agents under constant rule-governance (Surgical Filter).
-- **Group C (Governed + Memory)**: Governed agents with reflective history (The "Reflective Sage" model).
+| Metric          | Definition                                                     | Academic Mapping                    |
+| :-------------- | :------------------------------------------------------------- | :---------------------------------- |
+| **Rationality** | Inverse of the Rule Violation Rate (V1+V2+V3).                 | Omnibus Rationality (Wang et al.)   |
+| **Stability**   | Decisional persistence and resistance to panic under pressure. | Decision Persistance (VeriLA, 2025) |
+| **Precision**   | Frequency of governance "silence" (Autonomy preservation).     | Minimum Necessary Oversight (Zhao)  |
+| **Efficiency**  | Success rate of syntactic and formatting requirements.         | Operational Overhead Protocols      |
+| **Diversity**   | Normalized Shannon Entropy ($H$) of decision distributions.    | Cognitive Heterogeneity (2024)      |
 
 ---
 
@@ -64,15 +56,19 @@ We compare three distinct architectural states to isolate the impact of governan
 
 ### 3.1 Mitigating Unjustified Panic (SQ1)
 
-Our results demonstrate that while ungoverned 1.5B models exhibit a Panic Rate of ~41% in low-threat conditions, the Governed Broker reduces this to **<1%**. The framework intercepts irrational relocation intents and redirects agents toward calibrated adaptations like insurance, effectively emulating the behavior of 14B benchmark models.
+Our results demonstrate that while ungoverned 1.5B models exhibit a Panic Rate of ~41% in low-threat conditions, the Governed Broker reduces this to **<1%**. By directly monitoring **Rule Violation Rates**, we see that the framework effectively filters intents that bypass logical appraisal steps, redirecting agents toward calibrated adaptations like insurance.
 
-### 3.2 Extending Cognitive Lifespan (SQ2)
+### 3.2 Maintaining Controlled Diversity (SQ2)
 
-Governance acts as a mathematical regularizer for behavioral diversity. Native 1.5B models typically suffer entropy collapse by Year 4 ($H \to 0$), whereas governed agents maintain a stable entropy plateau ($H \approx 1.5$) throughout a 10-year horizon. This stabilization allows SLMs to maintain the agentic heterogeneity required for valid socio-hydrological simulations.
+A key finding is that governance does not lead to behavioral monoculture. Native 1.5B models typically suffer entropy collapse by Year 4 ($H \to 0$) as they all converge on panic flight. In contrast, governed agents maintain a stable entropy plateau ($H \approx 1.5$) throughout a 10-year horizon. This proves that governance acts as a "Sanity Firewall," preserving individual stakeholder differences by preventing the "panic-induced convergence" that plagues unconstrained small models.
 
-### 3.3 The Surgical Gain (SQ3)
+### 3.3 Holistic Framework Performance (SQ3)
 
-We identify a "Surgical Gain" where governed SLMs achieve near-perfect precision (0.99), proving that the framework preserves autonomy while enforcing safety. Although 1.5B models pay a high "Efficiency" tax to maintain formatting, the resulting behavior is statistically indistinguishable from ungoverned 32B models in specific rationality axes, validating the "Cognitive Equalizer" hypothesis.
+The Governed Broker Framework achieves "Surgical Gain" by doubling the effective rationality of 1.5B models while maintaining 0.99 precision. This suggests that the framework is a viable holistic solution: it allows cheap, small models to perform at the level of 14B or 32B models in specialized reasoning tasks, assuming the system can handle the syntactic formatting overhead of smaller endpoints.
+
+### 3.4 Future Outlook: Stress Testing Resilience
+
+To ensure the framework's robustness beyond standard conditions, future work will focus on **"Stress Marathon"** protocols. By subjecting agents to extreme environments—such as "Panic" scenarios (extreme flood depth) or "Veteran" scenarios (fatigue over 20+ years)—we aim to verify if the "Rationality Buffer" provided by the Governed Broker remains intact under adversarial pressure. These tests will specifically measure the "Failure-to-Repair" rate and "Hallucination under Pressure" metrics to define the final safety boundaries of the system.
 
 ---
 
