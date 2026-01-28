@@ -12,7 +12,10 @@ The credibility of Large Language Model (LLM) agents in policy-making simulation
 
 _To what extent can an external governance layer mitigate behavioral hallucinations and improve the decision rationality of resource-constrained LLM agents during social simulations?_
 
-In flood resilience simulations, this is measured via **Rule Violation Rates**, specifically tracking how often agents attempt high-cost actions (like Relocation) due to **Syntactic Hallucinations** (structure failure) or **Semantic Hallucinations** (reasoning detachment). This misalignment invalidates the predictive utility of SLMs unless a corrective mechanism is provided.
+In flood resilience simulations, we track two primary quantitative indicators:
+
+1.  **Rule Violation Rate (RVR)**: The percentage of agent intents that violate predefined safety rules (e.g., $V1$: Relocating when $T < High$).
+2.  **Hallucination Rate ($R_{H}$)**: The frequency of syntactic failures (structure corruption) or semantic detachment (nonsensical reasoning).
 
 ## 2. Theoretical Framework & Methodology
 
@@ -25,7 +28,15 @@ We map agentic reasoning to the dual-process model of PMT (**Maddux & Rogers, 19
 
 ## 3. Results: The Governance Correction
 
-The disparity between control and intervention groups confirmed that SLMs fail to weigh the high cost of relocation against low-probability risks in their native state.
+### 3.1 Hallucination Evidence in Group A (Baselines)
+
+In the unconstrained Group A (1.5B), we observed systematic hallucinations that decoupled agent actions from environmental data:
+
+- **Syntactic Hallucination (Scale Regurgitation)**: Agents frequently failed to output the required categorical labels, instead regurgitating the entire prompt or dictionary of options inside the JSON key.
+- **Semantic Hallucination (Logic Detachment)**: Agents argued they were in "imminent danger" while correctly logging a water depth of 0.1m and having $20,000 in savings, leading to an irrational "Panic Relocation" intent.
+- **Ghosting**: The model produced empty strings or incomplete JSON fragments under moderate reasoning load, resulting in state-machine stalls.
+
+### 3.2 Quantitative Results
 
 - **Group A (1.5B Baseline)**: Exhibited a "Hair-Trigger" response, relocations occurred in 41% of low-threat steps.
 - **Group B (1.5B Governed)**: The Panic Rate dropped to **<1%**. The governance layer successfully intercepted "Relocate" intents, prompting a reflective pause that redirected agents toward insurance.
