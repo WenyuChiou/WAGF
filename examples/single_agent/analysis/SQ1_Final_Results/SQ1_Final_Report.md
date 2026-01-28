@@ -6,7 +6,11 @@ Agent-Based Modeling (ABM) facilitates the study of complex social dynamics, yet
 
 ## 1. Introduction: The SQ1 Problem
 
-The credibility of Large Language Model (LLM) agents in policy-making simulations depends on their **"Verisimilitude of Reaction"**—the requirement that agentic responses remain proportionate to environmental stimuli. We identify the **"SQ1 Problem"** as a fundamental **Behavioral Misalignment** observed in Small Language Models (SLMs). While high-capacity models (e.g., Llama-3-70B) demonstrate calibrated risk assessment, quantized SLMs often suffer from **Contextual Anxiety**, where syntactic noise triggers severe behavioral output (e.g., relocation) even when objective threat levels are marginal.
+The credibility of Large Language Model (LLM) agents in policy-making simulations depends on their **"Verisimilitude of Reaction"**—the requirement that agentic responses remain proportionate to environmental stimuli. We identify the **"SQ1 Problem"** as a fundamental **Behavioral Misalignment** observed in Small Language Models (SLMs).
+
+### ❓ Research Question (SQ1)
+
+_To what extent can an external governance layer mitigate "unjustified panic" and behavioral misalignment in resource-constrained LLM agents during social simulations?_
 
 In flood resilience simulations, this manifests as **"Unjustified Panic"**—a systemic "Rationality Gap" where the agent chooses the most disruptive and expensive adaptation (Relocation) for low-threshold events that should logically be handled via insurance or elevation. This misalignment invalidates the predictive utility of SLMs in socio-economic modeling unless a corrective mechanism is provided.
 

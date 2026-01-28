@@ -1,10 +1,12 @@
 # SQ3: Surgical Governance & Scalable Oversight
 
-_Does governance impose an unacceptable burden on agentic performance?_
-
 ## 1. Scientific Problem: The Oversight Paradox
 
 As LLM agents are deployed in critical social simulations, governance becomes essential for safety. However, traditional "heavy-handed" oversight can suppress **Agentic Autonomy** and lead to **Operational Stalling**.
+
+### ❓ Research Question (SQ3)
+
+_What is the relationship between model scale, surgical precision, and operational efficiency within the Governed Broker Framework, and can governed SLMs achieve performance parity with benchmark large models?_
 
 SQ3 investigates whether our **Surgical Governance** framework can achieve high safety (Rationality) with low overhead (Surgical Precision), while preserving the emergent "Diversity of Thought" required for accurate social simulations.
 
