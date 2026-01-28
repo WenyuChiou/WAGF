@@ -38,6 +38,7 @@ class FloodHooks:
         reflection_engine=None,
         output_dir=None,
         obs_manager=None,
+        event_manager=None,
     ):
         self.sim = sim
         self.runner = runner
@@ -46,9 +47,14 @@ class FloodHooks:
         self.yearly_decisions = {}
         self.output_dir = Path(output_dir) if output_dir else Path(".")
         self.obs_manager = obs_manager  # ObservableStateManager for cross-agent observation
+        self.event_manager = event_manager  # EnvironmentEventManager for flood events
 
     def pre_year(self, year: int, env, agents: Dict[str, Any]):
         """Pre-year hook: determine flood, add memories, compute observables."""
+        # Generate environment events at start of year
+        if self.event_manager:
+            self.event_manager.generate_all(year)
+
         # Compute observable metrics at start of year
         if self.obs_manager:
             self.obs_manager.compute(agents, year)

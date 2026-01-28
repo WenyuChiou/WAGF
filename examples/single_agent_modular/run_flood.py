@@ -22,7 +22,12 @@ from broker.components.observable_state import (
     ObservableStateManager,
     create_flood_observables,
 )
-from broker.components.context_providers import ObservableStateProvider
+from broker.components.context_providers import (
+    ObservableStateProvider,
+    EnvironmentEventProvider,
+)
+from broker.components.event_manager import EnvironmentEventManager
+from broker.components.event_generators.flood import FloodEventGenerator, FloodConfig
 from broker.utils.llm_utils import create_legacy_invoke as create_llm_invoke
 from broker.utils.agent_config import GovernanceAuditor
 
@@ -105,6 +110,14 @@ def main():
     obs_manager.register_many(create_flood_observables())
     obs_manager.set_neighbor_graph(graph)
 
+    # Setup environment event manager for flood events
+    event_manager = EnvironmentEventManager()
+    flood_generator = FloodEventGenerator(FloodConfig(
+        mode="fixed",
+        fixed_years=flood_years,
+    ))
+    event_manager.register("flood", flood_generator)
+
     ctx_builder = FloodContextBuilder(  # Edit components/context_builder.py
         agents=agents,
         hub=hub,
@@ -115,9 +128,10 @@ def main():
         memory_top_k=args.window_size
     )
 
-    # Add observable state provider for cross-agent observation
+    # Add providers for cross-agent observation and environment events
     if hasattr(ctx_builder, 'providers'):
         ctx_builder.providers.append(ObservableStateProvider(obs_manager))
+        ctx_builder.providers.append(EnvironmentEventProvider(event_manager))
 
     # Output directory
     if args.output:
@@ -146,7 +160,7 @@ def main():
     runner = builder.build()
 
     # Inject hooks (PLUGGABLE: edit components/hooks.py)
-    hooks = FloodHooks(sim, runner, output_dir=output_dir, obs_manager=obs_manager)
+    hooks = FloodHooks(sim, runner, output_dir=output_dir, obs_manager=obs_manager, event_manager=event_manager)
     runner.hooks = {
         "pre_year": hooks.pre_year,
         "post_step": hooks.post_step,
