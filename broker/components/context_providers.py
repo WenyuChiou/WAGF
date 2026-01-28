@@ -44,9 +44,16 @@ class AttributeProvider(ContextProvider):
             return
 
         state = context.setdefault("state", {})
-        for k, v in agent.__dict__.items():
-            if not k.startswith("_") and isinstance(v, (str, int, float, bool)) and k not in state:
-                state[k] = v
+
+        # Handle both dict and object agents
+        if isinstance(agent, dict):
+            for k, v in agent.items():
+                if not k.startswith("_") and isinstance(v, (str, int, float, bool)) and k not in state:
+                    state[k] = v
+        else:
+            for k, v in agent.__dict__.items():
+                if not k.startswith("_") and isinstance(v, (str, int, float, bool)) and k not in state:
+                    state[k] = v
 
         if hasattr(agent, "get_observable_state"):
             state.update(agent.get_observable_state())
@@ -257,6 +264,82 @@ class NarrativeProvider(ContextProvider):
                 context["history_summary"] = str(hist)
 
 
+class ObservableStateProvider(ContextProvider):
+    """Injects observable state metrics into agent context.
+
+    Provides cross-agent observation: agents can see metrics computed from
+    other agents' states (e.g., "45% of neighbors have insurance").
+
+    Adds `observables` dict to context with:
+    - Community-level metrics (all agents see same values)
+    - Neighborhood-level metrics (agent-specific based on neighbors)
+    - Type-level metrics (agent's type group)
+
+    Usage:
+        from broker.components.observable_state import ObservableStateManager
+        from broker.components.context_providers import ObservableStateProvider
+
+        manager = ObservableStateManager()
+        manager.register_many(create_flood_observables())
+        provider = ObservableStateProvider(manager)
+
+        # Add to context builder
+        ctx_builder.providers.append(provider)
+    """
+
+    def __init__(self, state_manager: "ObservableStateManager"):
+        """Initialize with an ObservableStateManager.
+
+        Args:
+            state_manager: Manager that computes and caches observables
+        """
+        self.state_manager = state_manager
+
+    def provide(self, agent_id: str, agents: Dict[str, Any], context: Dict[str, Any], **kwargs):
+        """Inject observable values into agent context.
+
+        Args:
+            agent_id: Current agent's ID
+            agents: All agents in simulation
+            context: Context dict to populate
+            **kwargs: Additional context (unused)
+        """
+        if not self.state_manager.snapshot:
+            return
+
+        observables = context.setdefault("observables", {})
+        snapshot = self.state_manager.snapshot
+
+        # Community-level metrics (same for all agents)
+        for name, value in snapshot.community.items():
+            observables[name] = value
+
+        # Neighborhood-level metrics (agent-specific)
+        if agent_id in snapshot.by_neighborhood:
+            for name, value in snapshot.by_neighborhood[agent_id].items():
+                observables[f"my_{name}"] = value  # Prefix with "my_" for clarity
+
+        # Type-level metrics (agent's type group)
+        agent = agents.get(agent_id)
+        if agent:
+            agent_type = getattr(agent, 'agent_type', 'default')
+            if isinstance(agent, dict):
+                agent_type = agent.get('agent_type', 'default')
+            for name, by_type in snapshot.by_type.items():
+                if agent_type in by_type:
+                    observables[f"type_{name}"] = by_type[agent_type]
+
+        # Spatial-level metrics (agent's region)
+        if agent:
+            region = getattr(agent, 'region', None) or getattr(agent, 'tract_id', None)
+            if isinstance(agent, dict):
+                region = agent.get('region') or agent.get('tract_id')
+            if region:
+                for name, by_region in snapshot.by_region.items():
+                    if region in by_region:
+                        observables[f"region_{name}"] = by_region[region]
+
+
 __all__ = [
     "ContextProvider",
     "SystemPromptProvider",
@@ -269,4 +352,5 @@ __all__ = [
     "InstitutionalProvider",
     "DynamicStateProvider",
     "NarrativeProvider",
+    "ObservableStateProvider",  # Task-041: Cross-agent observation
 ]
