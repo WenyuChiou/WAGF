@@ -1,0 +1,102 @@
+import pandas as pd
+import numpy as np
+import os
+from pathlib import Path
+import matplotlib.pyplot as plt
+import seaborn as sns
+from scipy.stats import entropy
+
+# --- CONFIGURATION ---
+BASE_DIR = Path(r"c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\single_agent\results\JOH_FINAL")
+models = ["deepseek_r1_1_5b", "deepseek_r1_8b", "deepseek_r1_14b", "deepseek_r1_32b"]
+groups = ["Group_A", "Group_B", "Group_C"]
+OUTPUT_DIR = Path(r"c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\single_agent\analysis\SQ2_Final_Results")
+
+def normalize_decision(d):
+    d = str(d).lower()
+    if 'reloc' in d: return 'relocate'
+    if 'elev' in d: return 'elevate'
+    if 'insur' in d: return 'insurance'
+    return 'do_nothing'
+
+def calculate_shannon_entropy(series):
+    # Get proportions of each category
+    pk = series.value_counts(normalize=True).values
+    # Calculate Shannon Entropy in bits (base 2)
+    return entropy(pk, base=2)
+
+def analyze_cohort_entropy(model, group):
+    csv_path = BASE_DIR / model / group / "Run_1" / "simulation_log.csv"
+    if not csv_path.exists():
+        return None
+    
+    try:
+        df = pd.read_csv(csv_path)
+        df.columns = [c.lower() for c in df.columns]
+        dec_col = next((c for c in df.columns if 'yearly_decision' in c or 'decision' in c or 'skill' in c), None)
+        
+        if not dec_col: return None
+        
+        # Filter for active steps only if needed, but for diversity we want the snapshot of all agents in that year
+        # Actually, if they relocated, they are effectively out of the "diversity pool" for that year's decision.
+        # So we only calculate entropy for agents who haven't relocated in PREVIOUS years.
+        
+        results = []
+        for year in range(0, int(df['year'].max()) + 1):
+            year_data = df[df['year'] == year]
+            if year_data.empty: continue
+            
+            # Normalize decisions
+            norm_decs = year_data[dec_col].apply(normalize_decision)
+            
+            # Calculate Entropy
+            h_val = calculate_shannon_entropy(norm_decs)
+            
+            # Count population size (to detect extinction/mode-collapse context)
+            pop_size = len(year_data)
+            
+            results.append({
+                "Year": year,
+                "Model": model,
+                "Group": group,
+                "Entropy": h_val,
+                "Population": pop_size
+            })
+        return results
+    except Exception as e:
+        print(f"Error {model}/{group}: {e}")
+        return None
+
+# --- EXECUTION ---
+all_results = []
+for model in models:
+    for group in groups:
+        res = analyze_cohort_entropy(model, group)
+        if res:
+            all_results.extend(res)
+
+df_entropy = pd.DataFrame(all_results)
+
+# Save Raw Data
+df_entropy.to_csv(OUTPUT_DIR / "yearly_entropy_data.csv", index=False)
+
+# --- PLOTTING ---
+plt.figure(figsize=(14, 8))
+sns.lineplot(data=df_entropy, x='Year', y='Entropy', hue='Model', style='Group', markers=True, dashes=False)
+
+plt.title("SQ2: Decision Entropy Evolution (Heterogeneity Profile)")
+plt.ylabel("Shannon Entropy (Bits)")
+plt.xlabel("Simulation Year")
+plt.ylim(0, 2.1)  # Max entropy for 4 categories is log2(4) = 2
+plt.grid(True, linestyle='--', alpha=0.6)
+plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.tight_layout()
+
+plt.savefig(OUTPUT_DIR / "entropy_evolution_trend.png")
+print(f"Plots and data saved to {OUTPUT_DIR}")
+
+# --- PIVOT TABLE FOR SUMMARY ---
+pivot = df_entropy.pivot_table(index=['Model', 'Group'], columns='Year', values='Entropy')
+print("\n=== SQ2: YEARLY ENTROPY (BITS) ===")
+print(pivot.round(3))
+pivot.to_csv(OUTPUT_DIR / "entropy_pivot_summary.csv")
