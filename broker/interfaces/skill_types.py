@@ -38,6 +38,8 @@ class SkillProposal:
     raw_output: str = ""
     parsing_warnings: List[str] = field(default_factory=list)
     parse_layer: str = ""        # Which parsing method succeeded (enclosure/json/regex/digit/default)
+    parse_confidence: float = 0.0  # Parse confidence [0.0-1.0]
+    construct_completeness: float = 0.0  # Construct coverage [0.0-1.0]
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -48,7 +50,9 @@ class SkillProposal:
             "confidence": self.confidence,
             "raw_output": self.raw_output,
             "parsing_warnings": self.parsing_warnings,
-            "parse_layer": self.parse_layer
+            "parse_layer": self.parse_layer,
+            "parse_confidence": self.parse_confidence,
+            "construct_completeness": self.construct_completeness,
         }
 
 
