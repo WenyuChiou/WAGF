@@ -62,4 +62,4 @@ _\*Year 8 is the terminal point for 1.5B Group A as the entire population reloca
 
 Governance does not just block bad actions (SQ1); it acts as an **Entropy Shield** that prevents the simulation from decaying into a trivial, single-state outcome. This proves that rule-based systems are not "restrictive" in the negative sense, but rather "foundational" in the sense that they enable the continued existence of agent agency and community heterogeneity.
 
-![Entropy Trend Visualization](file:///c:/Users/wenyu/Desktop/Lehigh/governed_broker_framework/examples/single_agent/analysis/SQ2_Final_Results/entropy_evolution_trend.png)
+![Entropy Trend Visualization (2x2)](file:///c:/Users/wenyu/Desktop/Lehigh/governed_broker_framework/examples/single_agent/analysis/SQ2_Final_Results/entropy_evolution_trend_2x2.png)
