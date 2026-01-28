@@ -191,16 +191,20 @@ class UnifiedCognitiveEngine:
         surprise_strategy: Optional["SurpriseStrategy"] = None,
         store: Optional["UnifiedMemoryStore"] = None,
         retrieval_engine: Optional["AdaptiveRetrievalEngine"] = None,
-        arousal_threshold: float = 0.5,
+        arousal_threshold: Optional[float] = None,
         emotional_weights: Optional[Dict[str, float]] = None,
         source_weights: Optional[Dict[str, float]] = None,
-        decay_rate: float = 0.1,
+        decay_rate: Optional[float] = None,
         auto_consolidate: bool = True,
         seed: Optional[int] = None,
+        global_config: Optional["GlobalMemoryConfig"] = None,
+        domain_config: Optional["DomainMemoryConfig"] = None,
     ):
         # Import here to avoid circular dependency
         from .store import UnifiedMemoryStore
         from .retrieval import AdaptiveRetrievalEngine
+        from .config import GlobalMemoryConfig, DomainMemoryConfig
+        from .strategies import EMASurpriseStrategy, SymbolicSurpriseStrategy
 
         # Core components (lazy-initialized if not provided)
         self._strategy = surprise_strategy
@@ -208,7 +212,14 @@ class UnifiedCognitiveEngine:
         self._retrieval = retrieval_engine or AdaptiveRetrievalEngine()
 
         # Configuration
-        self.arousal_threshold = arousal_threshold
+        self.global_config = global_config or GlobalMemoryConfig()
+        self.domain_config = domain_config or DomainMemoryConfig()
+
+        self.arousal_threshold = (
+            arousal_threshold
+            if arousal_threshold is not None
+            else self.global_config.arousal_threshold
+        )
         self.emotional_weights = emotional_weights or {
             "major": 1.0,
             "minor": 0.5,
@@ -219,8 +230,24 @@ class UnifiedCognitiveEngine:
             "social": 0.7,
             "policy": 0.5
         }
-        self.decay_rate = decay_rate
+        self.decay_rate = (
+            decay_rate
+            if decay_rate is not None
+            else self.global_config.decay_rate
+        )
         self.auto_consolidate = auto_consolidate
+
+        # Default strategy selection from config (if not provided)
+        if self._strategy is None:
+            if self.domain_config.sensory_cortex:
+                self._strategy = SymbolicSurpriseStrategy(
+                    sensors=self.domain_config.sensory_cortex
+                )
+            elif self.domain_config.stimulus_key:
+                self._strategy = EMASurpriseStrategy(
+                    stimulus_key=self.domain_config.stimulus_key,
+                    alpha=self.global_config.ema_alpha,
+                )
 
         # State tracking
         self.current_system = "SYSTEM_1"
@@ -241,6 +268,11 @@ class UnifiedCognitiveEngine:
     def longterm(self) -> Dict[str, List[UnifiedMemoryItem]]:
         """Access long-term memory store."""
         return self._store.longterm
+
+    @property
+    def surprise_strategy(self) -> Optional["SurpriseStrategy"]:
+        """Access current surprise strategy."""
+        return self._strategy
 
     def add_memory(
         self,
