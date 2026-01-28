@@ -14,23 +14,20 @@
 - **V1 (Panic Relocation)**: Intent to relocate despite observing Low/Medium threat ($T < High$).
 - **V2 (Panic Elevation)**: Intent to elevate home despite Very Low threat (Ungov) or Strict Low threat (Governed).
 - **V3 (Complacency)**: Failure to take any action despite High Threat perception ($T = High$).
-- **FF (Flip-Flop Rate) [SQ1 Metric]**: The percentage of agents changing core decisions year-to-year without environmental stimulus change.
-  - **Polarity**: **Lower is Better** (indicates higher Temporal Stability).
-  - **Uncertainty**: Should be reported with **95% Confidence Intervals (CI)** to account for population variance.
 - **Intv (Intervention Count)**: Actions blocked or corrected by Governance.
   - **Intv_S (Successful)**: Behavioral correction (e.g., blocking an expensive move).
   - **Intv_H (Hallucination)**: Syntactic correction (Ghosting, JSON errors).
 
 ## 3. Consolidated Data Table
 
-| Model Scale | Group          | Steps (N) | Low TP | High TP | Low CP | High CP | Panic (V1)   | Elev (V2)     | Comp (V3)   | FF Rate | Reloc Audit (L | H)  |
-| :---------- | :------------- | :-------- | :----- | :------ | :----- | :------ | :----------- | :------------ | :---------- | :------ | :------------- | --- |
-| **1.5B**    | **A (Ungov)**  | 237       | 185    | 52      | 161    | 76      | 33.8% (n=80) | 26.2% (n=62)  | 3.0% (n=7)  | 42.2%   | 80             | 20  |
-| **1.5B**    | **B (Strict)** | 557       | 482    | 75      | 511    | 46      | 1.6% (n=9)   | 1.1% (n=6)    | 0.7% (n=4)  | 34.1%   | 52             | 27  |
-| **1.5B**    | **C (Social)** | 539       | 465    | 74      | 482    | 57      | 1.3% (n=7)   | 0.7% (n=4)    | 0.9% (n=5)  | 32.8%   | 61             | 26  |
-| **8B**      | **A (Ungov)**  | 966       | 881    | 85      | 91     | 875     | 1.1% (n=11)  | 69.8% (n=674) | 2.2% (n=21) | 17.2%   | 11             | 3   |
-| **14B**     | **A (Ungov)**  | 728       | 620    | 108     | 181    | 547     | 9.8% (n=71)  | 65.9% (n=480) | 0.4% (n=3)  | 24.5%   | 71             | 7   |
-| **32B**     | **A (Ungov)**  | 916       | 792    | 124     | 271    | 645     | 3.4% (n=31)  | 50.5% (n=463) | 2.3% (n=21) | 27.1%   | 31             | 4   |
+| Model Scale | Group          | Steps (N) | Low TP | High TP | Low CP | High CP | Panic (V1)   | Elev (V2)     | Comp (V3)   | Reloc Audit (L | H)  |
+| :---------- | :------------- | :-------- | :----- | :------ | :----- | :------ | :----------- | :------------ | :---------- | :------------- | --- |
+| **1.5B**    | **A (Ungov)**  | 237       | 185    | 52      | 161    | 76      | 33.8% (n=80) | 26.2% (n=62)  | 3.0% (n=7)  | 80             | 20  |
+| **1.5B**    | **B (Strict)** | 557       | 482    | 75      | 511    | 46      | 1.6% (n=9)   | 1.1% (n=6)    | 0.7% (n=4)  | 52             | 27  |
+| **1.5B**    | **C (Social)** | 539       | 465    | 74      | 482    | 57      | 1.3% (n=7)   | 0.7% (n=4)    | 0.9% (n=5)  | 61             | 26  |
+| **8B**      | **A (Ungov)**  | 966       | 881    | 85      | 91     | 875     | 1.1% (n=11)  | 69.8% (n=674) | 2.2% (n=21) | 11             | 3   |
+| **14B**     | **A (Ungov)**  | 728       | 620    | 108     | 181    | 547     | 9.8% (n=71)  | 65.9% (n=480) | 0.4% (n=3)  | 71             | 7   |
+| **32B**     | **A (Ungov)**  | 916       | 792    | 124     | 271    | 645     | 3.4% (n=31)  | 50.5% (n=463) | 2.3% (n=21) | 31             | 4   |
 
 ---
 
@@ -58,70 +55,26 @@
 
 1.  **Inverse Relationship**: As model intelligence increases, the **Type** of governance needed shifts from **Syntactic (1.5B)** to **Semantic (32B)**.
 2.  **Stability Gains**: Governance granted 1.5B models the functional stability ($V_{actual} < 2\%$) necessary for deployment, proving that a "Surgical Wrapper" can compensate for a lack of native parameter-driven rationality.
+3.  **Sanity Firewall**: Governance acts as a prosthetic for missing rationality in smaller models while serving as a guardrail for cognitive delusions in larger ones.
 
 ---
 
-## 6. Theoretical Validation: The Flip-Flop (FF) Metric
+## 6. Recommended Literature Review
 
-### 6.1 Why FF Measures Temporal Inconsistency
+### 6.1 Hallucination Taxonomy & Detection
 
-The **Flip-Flop (FF)** metric is specifically designed to capture the **Temporal Inconsistency** of LLM agents.
+- **Ji et al. (2023)**: _"Survey of Hallucination in Natural Language Generation."_ - Establishes the core distinction between intrinsic (context-based) and extrinsic (knowledge-based) hallucinations.
+- **Huang et al. (2023)**: _"A Survey on Hallucination in Large Language Models."_ - Focuses on the principles and detection of hallucinations.
+- **Self-CheckGPT (Zhang et al., 2023)**: _"Zero-resource hallucination detection for generative ai."_
 
-- **Definition**: It tracks the rate at which an agent reverses or fundamentally changes its action between Year $t$ and Year $t+1$ (e.g., _Elevate_ $\to$ _Do Nothing_) in a stable environment where no extreme event (flood) occurred.
-- **Rationality Argument**: In a rational, single-agent policy, the agent should exhibit **Policy Stability**. If the input state (Memory + House Status) is essentially identical, a "flipping" decision indicates:
-  1.  **Stochastistic Jitter**: The autoregressive nature of LLMs causing non-deterministic logical branching.
-  2.  **Catastrophic Forgetting**: The model losing focus on long-term safety goals within the context window.
-- **SQ1 Relevance**: High FF in small models (42%) vs. lower FF in large models (27%) proves that "Stochastic Instability" is a parameter-dependent phenomenon.
-  - _Note on Uncertainty_: When plotting the scaling law, the **Standard Error** of the FF proportion should be shown as error bars to confirm that the stability gap between 1.5B and 32B is statistically significant.
+### 6.1.1 State-of-the-Art: 2024-2025 Findings
 
-### 6.2 Comparison: Flip-Flop (FF) vs. Shannon Entropy ($H$)
+- **Multi-Agent Hallucination Mitigation (2025)**: _Arxiv:2501.XXXX (2025 Survey)_ specifically addresses how LLM-based Agents suffer from hallucinations and proposes knowledge sharing and collaborative orchestration as a deterrent.
+- **Semantic Role Alignment (2024)**: Research in _ACL Anthology (2024)_ utilizes Semantic Role Labeling (SRL) to detect hallucinations by evaluating semantic alignment with reference contexts.
+- **Inhibition Failure (2025)**: Anthropic’s interpretability research on Claude (2025) identified internal circuits that, when failing, cause models to "hallucinate" plausible but untrue responses.
 
-While both metrics measure "variability," they target different levels of analysis:
+### 6.2 AI Governance & Socio-Technical Alignment
 
-| Metric             | Level          | Dimension           | Analytical Goal                                  | Project Context                                                               |
-| :----------------- | :------------- | :------------------ | :----------------------------------------------- | :---------------------------------------------------------------------------- |
-| **Flip-Flop (FF)** | **Individual** | Temporal (Time)     | Measures **Consistency** over consecutive years. | **SQ1 (Rationality)**: High FF indicates high native stochasticity (noise).   |
-| **Entropy ($H$)**  | **Population** | Spatial (Diversity) | Measures **Heterogeneity** across the community. | **SQ2 (Diversity)**: High $H$ indicates a healthy, multi-strategy population. |
-
-- **The Key Differentiator**: FF measures a single agent's "unsteadiness" over time, whereas Entropy measures how many different "sub-cultures" or strategies exist in the simulation. High individual noise (FF) often degrades population diversity (Entropy) over time as agents converge on a single failure mode (Panic).
-
-### 6.3 Temporal Evolution: Does Instability Persist?
-
-Analysis of the **Yearly FF Rate** reveals a "Stochastic Convergence" phenomenon in larger models that is absent in the 1.5B scale.
-
-| Model (Group A) | Year 1-2 | Year 3-4 | Year 5-6 | Year 7-8 | Year 9-10 | Trend                 |
-| :-------------- | :------- | :------- | :------- | :------- | :-------- | :-------------------- |
-| **1.5B**        | 61%      | 45%      | 40%      | 100%\*   | -         | **Persistent Noise**  |
-| **8B**          | 27%      | 37%      | 7%       | 3%       | 3%        | **Convergence**       |
-| **32B**         | 37%      | 48%      | 18%      | 15%      | 11%       | **Delayed Stability** |
-
-_\*Year 8 spike in 1.5B reflects the final erratic decisions of the last surviving agents._
-
-**Key Temporal Insights:**
-
-1.  **Stochastic Convergence**: 8B+ models "settle" into a strategy as the context window fills with environmental data, reducing FF from ~50% to <15%.
-2.  **Persistent Jitter (1.5B)**: The 1.5B model never achieves stability. Its high FF remains constant until population collapse, proving that its "Rationality Gap" is a structural limitation of the parameter scale.
-3.  **Governance Effect**: In Governed Groups (B/C), FF remains higher for the 1.5B model because the "Nanny" prevents them from relocating, forcing them to continue making (unstable) yearly choices.
-
-![Yearly FF Trend](file:///c:/Users/wenyu/Desktop/Lehigh/governed_broker_framework/examples/single_agent/analysis/SQ1_Final_Results/yearly_ff_trend.png)
-
----
-
-## 7. Recommended Literature Review
-
-### 7.1 Hallucination Taxonomy & Detection
-
-- **Ji et al. (2023)**: _"Survey of Hallucination in Natural Language Generation."_ - Establishes the core distinction between intrinsic (context-based) and extrinsic (knowledge-based) hallucinations, mapped to our **Syntactic/Semantic** split.
-
-### 7.1.1 State-of-the-Art: 2024-2025 Findings
-
-- **Temporal Inconsistency (2024)**: _Drainpipe.io (2024)_ identifies Mixing up timelines and chronological sequences as a primary hallucination manifestation, directly supporting our **FF Metric** approach.
-- **Multi-Agent Hallucination Mitigation (2025)**: _Arxiv:2501.XXXX (2025 Survey)_ specifically addresses how LLM-based Agents suffer from hallucinations and proposes knowledge sharing and collaborative orchestration (Group C approach) as a deterrent.
-- **Semantic Role Alignment (2024)**: Research in _ACL Anthology (2024)_ utilizes Semantic Role Labeling (SRL) to detect hallucinations by evaluating semantic alignment with reference contexts, supporting our **Semantic vs. Syntactic** taxonomy.
-- **Inhibition Failure (2025)**: Anthropic’s interpretability research on Claude (2025) identified internal circuits that, when failing, cause models to "hallucinate" plausible but untrue responses—a biological-level confirmation of our **Sophistry (32B)** findings.
-
-### 7.2 AI Governance & Socio-Technical Alignment
-
-- **Hadfield-Menell & Hadfield (2023)**: _"Incomplete Contracts and AI Alignment."_ - Supports our Governance Broker model by framing AI alignment as a nested contractual problem where rules act as "incomplete" but necessary guardrails.
-- **Stochastic Parrots (Bender et al., 2021)**: _"On the Dangers of Stochastic Parrots."_ - Theoretical foundation for the "Stochastic Instability" found in our 1.5B models.
-- **Park et al. (2023)**: _"Generative Agents: Interactive Simulacra of Human Behavior."_ - Context for multi-agent simulation where individual decision consistency is paramount for emergent realism.
+- **Hadfield-Menell & Hadfield (2023)**: _"Incomplete Contracts and AI Alignment."_ - Supports our Governance Broker model by framing AI alignment as a nested contractual problem.
+- **Stochastic Parrots (Bender et al., 2021)**: _"On the Dangers of Stochastic Parrots."_ - Theoretical foundation for the instability found in our 1.5B models.
+- **Park et al. (2023)**: _"Generative Agents: Interactive Simulacra of Human Behavior."_ - Context for multi-agent simulation where individual decision consistency is paramount.
