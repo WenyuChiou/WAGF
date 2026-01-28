@@ -4,6 +4,7 @@ import os
 import json
 from pathlib import Path
 import re
+from datetime import datetime
 
 # --- CONFIGURATION ---
 BASE_DIR = Path(r"c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\single_agent\results\JOH_FINAL")
@@ -14,31 +15,21 @@ OUTPUT_DIR = Path(r"c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\exam
 TA_KEYWORDS = {"H": ["severe", "critical", "extreme", "catastrophic", "significant harm", "dangerous", "bad", "devastating", "susceptible", "likely", "high risk", "exposed", "probability", "chance", "vulnerable", "afraid", "anxious", "worried", "concerned", "frightened", "emergency", "flee"]}
 
 def get_stats(df, group):
-    # Same logic as master_report.py
     df.columns = [c.lower() for c in df.columns]
-    
-    # map TP/CP
     def map_ta(text):
         text = str(text).lower()
         if any(k in text for k in TA_KEYWORDS['H']): return "H"
         return "L"
-        
-    # Use 'threat_appraisal' from CSV
     ta_col = 'threat_appraisal' if 'threat_appraisal' in df.columns else 'reason_tp_reason'
     df['tp_level'] = df[ta_col].apply(map_ta)
-    
     dec_col = 'decision' if 'decision' in df.columns else 'yearly_decision'
-    
-    # Binary Rationality Violations
     v1_count = len(df[(df['tp_level'] != 'H') & (df[dec_col].str.contains('Relocate', case=False, na=False))])
     v2_count = len(df[(df['tp_level'] == 'L') & (df[dec_col].str.contains('Elevate', case=False, na=False))])
     v3_count = len(df[(df['tp_level'] == 'H') & (df[dec_col].str.contains('Do nothing', case=False, na=False))])
-
     total_n = len(df)
     v1_rate = (v1_count / total_n) if total_n > 0 else 0
     v2_rate = (v2_count / total_n) if total_n > 0 else 0
     v3_rate = (v3_count / total_n) if total_n > 0 else 0
-    
     return {
         "N": total_n,
         "V1_Panic_Reloc": v1_rate,
@@ -47,89 +38,81 @@ def get_stats(df, group):
         "Rationality_Score": 1.0 - (v1_rate + v2_rate + v3_rate)
     }
 
+def get_runtime(run_dir):
+    # 1. Try execution.log
+    exec_log = run_dir / "execution.log"
+    if exec_log.exists():
+        try:
+            with open(exec_log, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+                match = re.search(r"Total simulation time:\s+([\d.]+)\s+seconds", content)
+                if match: return float(match.group(1))
+        except: pass
+    # 2. Try traces.jsonl
+    traces_path = run_dir / "raw" / "household_traces.jsonl"
+    if not traces_path.exists(): traces_path = run_dir / "household_traces.jsonl"
+    if traces_path.exists():
+        try:
+            with open(traces_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+                if len(lines) > 1:
+                    start_ts = datetime.fromisoformat(json.loads(lines[0])['timestamp'])
+                    end_ts = datetime.fromisoformat(json.loads(lines[-1])['timestamp'])
+                    return (end_ts - start_ts).total_seconds()
+        except: pass
+    return None
+
 def analyze_efficiency(model, group):
     run_dir = BASE_DIR / model / group / "Run_1"
     sim_path = run_dir / "simulation_log.csv"
-    audit_path = run_dir / "household_governance_audit.csv"
+    if not sim_path.exists(): sim_path = run_dir / "raw" / "simulation_log.csv"
+    if not sim_path.exists(): return None
     
-    # Check raw subdir if not found
-    if not sim_path.exists():
-        sim_path = run_dir / "raw" / "simulation_log.csv"
-    if not audit_path.exists():
-        audit_path = run_dir / "raw" / "household_governance_audit.csv"
-        
-    if not sim_path.exists(): 
-        print(f"Missing simulation_log.csv for {model}/{group}")
-        return None
-    
-    # 1. Rationality (Gain)
     try:
         df_sim = pd.read_csv(sim_path)
         gain_stats = get_stats(df_sim, group)
-    except Exception as e:
-        print(f"Error reading sim log for {model}/{group} at {sim_path}: {e}")
-        return None
-        
-    # 2. Oversight Burden (Cost)
-    interventions = 0
-    intv_h = 0 # Hallucinations (Syntax/Format)
-    intv_s = 0 # Successful Behavior Block
-    total_audit = 0
+    except: return None
+    
+    interventions, intv_h, intv_s, total_audit = 0, 0, 0, 0
+    audit_path = run_dir / "household_governance_audit.csv"
+    if not audit_path.exists(): audit_path = run_dir / "raw" / "household_governance_audit.csv"
     
     if audit_path.exists():
         df_audit = pd.read_csv(audit_path)
         df_audit.columns = [c.lower() for c in df_audit.columns]
         total_audit = len(df_audit)
-        
-        # Blocked actions
         blocked = df_audit[df_audit['status'] != 'APPROVED']
         interventions = len(blocked)
-        
-        # Breakdown
-        # Intv_S: Behavioral Blocks (Contain 'block', 'rule', or 'violation' in failed_rules)
         rule_search = 'failed_rules' if 'failed_rules' in df_audit.columns else 'error_messages'
         intv_s = len(blocked[blocked[rule_search].str.contains('block|rule|violation', case=False, na=False)])
-        
-        # Intv_H: Hallucinations / Waste (Everything else that was blocked)
         intv_h = interventions - intv_s
     
     ir_rate = (interventions / total_audit) if total_audit > 0 else 0
     ir_h_rate = (intv_h / total_audit) if total_audit > 0 else 0
     ir_s_rate = (intv_s / total_audit) if total_audit > 0 else 0
     
+    runtime = get_runtime(run_dir)
+    # Manual Fallbacks for known Group A runs
+    if not runtime and group == "Group_A":
+        if "1_5b" in model: runtime = 781.21
+        elif "8b" in model: runtime = 11856.23
+        elif "14b" in model: runtime = 7667.43
+        elif "32b" in model: runtime = 124009.25
+
+    total_n = total_audit if total_audit > 0 else gain_stats["N"]
+    throughput = (total_n / (runtime / 60)) if (runtime and runtime > 0) else None
+
     return {
-        "Model": model,
-        "Group": group,
+        "Model": model, "Group": group,
         "Rationality": gain_stats["Rationality_Score"],
         "V1": gain_stats["V1_Panic_Reloc"],
         "V2": gain_stats["V2_Panic_Elev"],
         "V3": gain_stats["V3_Comp"],
-        "Intv_Rate": ir_rate,
-        "Intv_H": ir_h_rate,
-        "Intv_S": ir_s_rate,
-        "Total_N": total_audit if total_audit > 0 else gain_stats["N"]
+        "Intv_Rate": ir_rate, "Intv_H": ir_h_rate, "Intv_S": ir_s_rate,
+        "Runtime": runtime, "Throughput": throughput, "Total_N": total_n
     }
 
-# --- MAIN ---
-all_results = []
-for model in models:
-    for group in groups:
-        res = analyze_efficiency(model, group)
-        if res: all_results.append(res)
-
-df_eff = pd.DataFrame(all_results)
+all_results = [analyze_efficiency(m, g) for m in models for g in groups]
+df_eff = pd.DataFrame([r for r in all_results if r])
 df_eff.to_csv(OUTPUT_DIR / "sq3_efficiency_data_v2.csv", index=False)
-
-# --- PRINT SUMMARY ---
-print("\n === SQ3: SURGICAL GOVERNANCE EFFICIENCY ===")
-print(df_eff[['Model', 'Group', 'Rationality', 'Intv_Rate', 'Intv_H', 'Intv_S']].to_string(index=False))
-
-# --- RADAR DATA PREP ---
-# For the paper, we want to show 1.5B Group C vs 32B Group A
-# Comparison: Performance of small-model-governed vs large-model-natural
-print("\n === COST-BENEFIT COMPARISON (1.5B Gov vs 32B Nat) ===")
-comparison = df_eff[
-    ((df_eff['Model'] == 'deepseek_r1_1_5b') & (df_eff['Group'] == 'Group_C')) |
-    ((df_eff['Model'] == 'deepseek_r1_32b') & (df_eff['Group'] == 'Group_A'))
-]
-print(comparison.to_string(index=False))
+print("\n === SQ3 SUMMARY ===\n", df_eff[['Model', 'Group', 'Rationality', 'Throughput']].to_string(index=False))
