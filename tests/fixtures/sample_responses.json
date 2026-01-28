@@ -1,0 +1,39 @@
+{
+  "valid_responses": {
+    "json_with_delimiters": "<<<DECISION_START>>>{\"decision\": 1, \"threat_appraisal\": {\"label\": \"H\", \"reason\": \"High flood risk\"}, \"coping_appraisal\": {\"label\": \"M\", \"reason\": \"Moderate resources\"}}<<<DECISION_END>>>",
+    "json_numeric_string": "{\"decision\": \"2\", \"threat_appraisal\": {\"label\": \"VH\"}}",
+    "json_all_appraisals": "{\"decision\": 1, \"threat_appraisal\": {\"label\": \"VH\", \"reason\": \"Very high\"}, \"coping_appraisal\": {\"label\": \"M\", \"reason\": \"Moderate\"}}",
+    "naked_digit": "buy_insurance\n\n1",
+    "qwen3_think": "<think>Analysis...</think>{\"decision\": 1}",
+    "uppercase_keys": "{\"DECISION\": 1, \"THREAT_APPRAISAL\": {\"LABEL\": \"H\"}}"
+  },
+  "invalid_responses": {
+    "keyword_only": "I choose to elevate my house because the risk is high.",
+    "no_decision": "{\"threat_appraisal\": {\"label\": \"H\"}}",
+    "malformed_json": "{decision: 1}",
+    "empty": ""
+  },
+  "appraisal_labels": {
+    "valid": ["VL", "L", "M", "H", "VH"],
+    "numeric_ranges": {
+      "VL": [0.0, 0.2],
+      "L": [0.2, 0.4],
+      "M": [0.4, 0.6],
+      "H": [0.6, 0.8],
+      "VH": [0.8, 1.0]
+    }
+  },
+  "skill_mappings": {
+    "non_elevated": {
+      "1": "buy_insurance",
+      "2": "elevate_house",
+      "3": "relocate",
+      "4": "do_nothing"
+    },
+    "elevated": {
+      "1": "buy_insurance",
+      "2": "relocate",
+      "3": "do_nothing"
+    }
+  }
+}
