@@ -1,5 +1,19 @@
+﻿import warnings
+
+warnings.warn(
+    "Import from broker.components.prompt_templates.memory_templates instead",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+from broker.components.prompt_templates.memory_templates import (
+    MemoryTemplateProvider,
+    MemoryTemplate,
+)
+
 from dataclasses import dataclass
 from typing import List
+
 
 @dataclass
 class Memory:
@@ -14,6 +28,7 @@ class Memory:
 # ============================================================================
 # MEMORY TEMPLATES
 # ============================================================================
+
 
 def generate_flood_experience_memory(
     flood_experience: bool,
@@ -373,6 +388,3 @@ def generate_flood_zone_memory(
         category="risk_awareness",
         importance=round(importance, 2)
     )
-
-
-# ============================================================================
