@@ -14,7 +14,9 @@
 - **V1 (Panic Relocation)**: Intent to relocate despite observing Low/Medium threat ($T < High$).
 - **V2 (Panic Elevation)**: Intent to elevate home despite Very Low threat (Ungov) or Strict Low threat (Governed).
 - **V3 (Complacency)**: Failure to take any action despite High Threat perception ($T = High$).
-- **FF (Flip-Flop Rate) [SQ1 Metric]**: The percentage of agents changing core decisions year-to-year without environmental stimulus change. This measures **Temporal Inconsistency**, a hallmark of SQ1 instability.
+- **FF (Flip-Flop Rate) [SQ1 Metric]**: The percentage of agents changing core decisions year-to-year without environmental stimulus change.
+  - **Polarity**: **Lower is Better** (indicates higher Temporal Stability).
+  - **Uncertainty**: Should be reported with **95% Confidence Intervals (CI)** to account for population variance.
 - **Intv (Intervention Count)**: Actions blocked or corrected by Governance.
   - **Intv_S (Successful)**: Behavioral correction (e.g., blocking an expensive move).
   - **Intv_H (Hallucination)**: Syntactic correction (Ghosting, JSON errors).
@@ -69,7 +71,8 @@ The **Flip-Flop (FF)** metric is specifically designed to capture the **Temporal
 - **Rationality Argument**: In a rational, single-agent policy, the agent should exhibit **Policy Stability**. If the input state (Memory + House Status) is essentially identical, a "flipping" decision indicates:
   1.  **Stochastistic Jitter**: The autoregressive nature of LLMs causing non-deterministic logical branching.
   2.  **Catastrophic Forgetting**: The model losing focus on long-term safety goals within the context window.
-- **SQ1 Relevance**: High FF in small models (42%) vs. lower FF in large models (27%) proves that "Stochastic Instability" is a parameter-dependent phenomenon, making it the primary metric for SQ1's investigation into LLM reliability.
+- **SQ1 Relevance**: High FF in small models (42%) vs. lower FF in large models (27%) proves that "Stochastic Instability" is a parameter-dependent phenomenon.
+  - _Note on Uncertainty_: When plotting the scaling law, the **Standard Error** of the FF proportion should be shown as error bars to confirm that the stability gap between 1.5B and 32B is statistically significant.
 
 ### 6.2 Comparison: Flip-Flop (FF) vs. Shannon Entropy ($H$)
 
