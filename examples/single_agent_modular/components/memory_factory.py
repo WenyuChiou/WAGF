@@ -7,6 +7,14 @@ PLUGGABLE: To add a new memory system:
 3. Register any SDK scorers if needed
 
 No other files need to change.
+
+Supported engines:
+- window: Simple sliding window (v1 baseline)
+- importance: Keyword-based importance scoring
+- humancentric: Emotion × Source weighting (v2, deprecated)
+- hierarchical: Core/Episodic/Semantic tiers
+- universal: EMA surprise engine (v3)
+- unified: New v5 unified cognitive engine (recommended)
 """
 from typing import Dict, Any, Optional
 from broker.components.memory_engine import (
@@ -15,6 +23,14 @@ from broker.components.memory_engine import (
     HumanCentricMemoryEngine,
     HierarchicalMemoryEngine,
     create_memory_engine as broker_create_engine
+)
+
+# v5 Unified Memory imports
+from governed_ai_sdk.memory import (
+    UnifiedCognitiveEngine,
+    EMASurpriseStrategy,
+    SymbolicSurpriseStrategy,
+    HybridSurpriseStrategy,
 )
 
 
@@ -143,6 +159,38 @@ def create_memory_engine(
             seed=42
         )
         print(f" Using UniversalCognitiveEngine (v3 Surprise Engine, window={window_size})")
+
+    elif engine_type == "unified":
+        # v5 Unified Cognitive Engine - recommended for new experiments
+        strategy_type = final_mem_cfg.get("surprise_strategy", "ema")
+        arousal_threshold = final_mem_cfg.get("arousal_threshold", 0.5)
+        ema_alpha = final_mem_cfg.get("ema_alpha", 0.3)
+
+        # Create appropriate surprise strategy
+        if strategy_type == "symbolic":
+            strategy = SymbolicSurpriseStrategy(default_sensor_key="flood_depth")
+        elif strategy_type == "hybrid":
+            strategy = HybridSurpriseStrategy(
+                ema_weight=0.6,
+                symbolic_weight=0.4,
+                ema_stimulus_key="flood_depth",
+                ema_alpha=ema_alpha
+            )
+        else:  # default: ema
+            strategy = EMASurpriseStrategy(
+                stimulus_key="flood_depth",
+                alpha=ema_alpha
+            )
+
+        engine = UnifiedCognitiveEngine(
+            surprise_strategy=strategy,
+            arousal_threshold=arousal_threshold,
+            emotional_weights=final_mem_cfg.get("emotional_weights"),
+            source_weights=final_mem_cfg.get("source_weights"),
+            decay_rate=global_mem.get('decay_rate', 0.1),
+            seed=42
+        )
+        print(f" Using UnifiedCognitiveEngine (v5, strategy={strategy_type}, threshold={arousal_threshold})")
 
     else:
         # Default fallback
