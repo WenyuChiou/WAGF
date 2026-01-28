@@ -12,6 +12,9 @@ models = ["deepseek_r1_1_5b", "deepseek_r1_8b", "deepseek_r1_14b", "deepseek_r1_
 groups = ["Group_A", "Group_B", "Group_C"]
 OUTPUT_DIR = Path(r"c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\single_agent\analysis\SQ2_Final_Results")
 
+plt.rcParams['font.family'] = 'serif'
+sns.set_theme(style="whitegrid", context="paper")
+
 def normalize_decision(d):
     d = str(d).lower()
     if 'reloc' in d: return 'relocate'
@@ -94,20 +97,21 @@ for i, model in enumerate(models):
         continue
         
     sns.lineplot(data=model_data, x='Year', y='Entropy', hue='Group', 
-                 marker='o', ax=ax, palette="viridis", linewidth=2.5)
+                 style='Group', markers=True, dashes=False,
+                 ax=ax, palette="Dark2", linewidth=2)
     
     ax.set_title(f"Model Scale: {model.split('_')[-1].upper()}", fontsize=14, fontweight='bold')
     ax.set_ylabel("Shannon Entropy (Bits)" if i % 2 == 0 else "")
     ax.set_xlabel("Year" if i >= 2 else "")
-    ax.set_ylim(0, 2.1)
-    ax.grid(True, linestyle='--', alpha=0.5)
-    ax.legend(title="Governance Group", loc='lower left')
+    ax.set_ylim(0, 2.3)
+    ax.grid(True, linestyle='--', alpha=0.3)
+    ax.legend(title="Governance Group", loc='lower left', prop={'size': 8})
 
-plt.suptitle("SQ2: Decision Entropy Evolution (2x2 Scale Comparison)", fontsize=18, fontweight='bold', y=1.02)
+plt.suptitle("Assessment of Decision Entropy Evolution Across Model Scales", fontsize=18, fontweight='bold', y=1.02)
 plt.tight_layout()
 
-plt.savefig(OUTPUT_DIR / "entropy_evolution_trend_2x2.png", dpi=300, bbox_inches='tight')
-plt.savefig(OUTPUT_DIR / "entropy_evolution_trend.png", dpi=150) # Maintain original path for summary compatibility
+plt.savefig(OUTPUT_DIR / "entropy_evolution_trend_2x2.png", dpi=600, bbox_inches='tight')
+plt.savefig(OUTPUT_DIR / "entropy_evolution_trend.png", dpi=300) 
 print(f"2x2 Plots and data saved to {OUTPUT_DIR}")
 
 # --- PIVOT TABLE FOR SUMMARY ---
