@@ -7,7 +7,8 @@ import random
 import pandas as pd
 from pathlib import Path
 from typing import Dict, Any, List, Optional
-from broker.components.context_builder import FloodContextBuilder # Assuming FloodContextBuilder is needed for agent state extraction
+
+from .simulation import classify_adaptation_state
 
 # Research Constants
 RANDOM_MEMORY_RECALL_CHANCE = 0.2
@@ -46,6 +47,8 @@ class FloodHooks:
 
     def pre_year(self, year: int, env, agents: Dict[str, Any]):
         """Pre-year hook: determine flood, add memories."""
+        # Advance simulation
+        self.sim.advance_year()
         flood_event = self.sim.flood_event
 
         # Calculate global stats
@@ -61,14 +64,14 @@ class FloodHooks:
 
             flooded = False
             if flood_event:
-                if not agent.elevated:
-                    if random.random() < agent.flood_threshold:
+                if not getattr(agent, 'elevated', False):
+                    if random.random() < getattr(agent, 'flood_threshold', 0.3):
                         flooded = True
                         mem = f"Year {year}: Got flooded with $10,000 damage on my house."
                     else:
                         mem = f"Year {year}: A flood occurred, but my house was spared damage."
                 else:
-                    if random.random() < agent.flood_threshold:
+                    if random.random() < getattr(agent, 'flood_threshold', 0.3):
                         flooded = True
                         mem = f"Year {year}: Despite elevation, the flood was severe enough to cause damage."
                     else:
@@ -86,7 +89,7 @@ class FloodHooks:
             # Social observation
             num_others = len(self.sim.agents) - 1
             if num_others > 0:
-                elev_pct = round(((total_elevated - (1 if agent.elevated else 0)) / num_others) * 100)
+                elev_pct = round(((total_elevated - (1 if getattr(agent, 'elevated', False) else 0)) / num_others) * 100)
                 reloc_pct = round((total_relocated / num_others) * 100)
                 yearly_memories.append(
                     f"Year {year}: I observe {elev_pct}% of neighbors elevated and {reloc_pct}% relocated."
@@ -98,7 +101,8 @@ class FloodHooks:
 
             # Add consolidated memory
             consolidated_mem = " | ".join(yearly_memories)
-            self.runner.memory_engine.add_memory(agent.id, consolidated_mem)
+            if hasattr(self.runner, 'memory_engine') and self.runner.memory_engine:
+                self.runner.memory_engine.add_memory(agent.id, consolidated_mem)
 
     def post_step(self, agent, result):
         """Post-step hook: log decision, apply state changes."""
@@ -130,8 +134,8 @@ class FloodHooks:
             agent.apply_delta(result.state_changes)
 
         # Update flood threshold on elevation
-        if result.approved_skill and result.approved_skill.skill_name == "elevate_house":
-            agent.flood_threshold = max(0.001, round(agent.flood_threshold * 0.2, 2))
+        if result and result.approved_skill and result.approved_skill.skill_name == "elevate_house":
+            agent.flood_threshold = max(0.001, round(getattr(agent, 'flood_threshold', 0.3) * 0.2, 2))
 
     def post_year(self, year: int, agents: Dict[str, Any]):
         """Post-year hook: update trust, reflection, logging."""
@@ -162,8 +166,10 @@ class FloodHooks:
                 agent.trust_in_neighbors = max(0.0, min(1.0, trust_nb))
 
             # Log entry
-            mem_items = self.runner.memory_engine.retrieve(agent, top_k=5)
-            mem_str = " | ".join(mem_items)
+            mem_items = []
+            if hasattr(self.runner, 'memory_engine') and self.runner.memory_engine:
+                mem_items = self.runner.memory_engine.retrieve(agent, top_k=5)
+            mem_str = " | ".join(mem_items) if mem_items else ""
 
             decision_data = self.yearly_decisions.get((agent.id, year), {})
             yearly_decision = decision_data.get("skill") if isinstance(decision_data, dict) else decision_data
@@ -189,14 +195,15 @@ class FloodHooks:
 
         # Print stats
         df_year = pd.DataFrame([l for l in self.logs if l['year'] == year])
-        stats = df_year['cumulative_state'].value_counts()
-        categories = [
-            "Do Nothing", "Only Flood Insurance", "Only House Elevation",
-            "Both Flood Insurance and House Elevation", "Relocate"
-        ]
-        stats_str = " | ".join([f"{cat}: {stats.get(cat, 0)}" for cat in categories])
-        print(f"[Year {year}] Stats: {stats_str}")
-        print(f"[Year {year}] Avg Trust: Ins={df_year['trust_insurance'].mean():.3f}, Nb={df_year['trust_neighbors'].mean():.3f}")
+        if not df_year.empty:
+            stats = df_year['cumulative_state'].value_counts()
+            categories = [
+                "Do Nothing", "Only Flood Insurance", "Only House Elevation",
+                "Both Flood Insurance and House Elevation", "Relocate"
+            ]
+            stats_str = " | ".join([f"{cat}: {stats.get(cat, 0)}" for cat in categories])
+            print(f"[Year {year}] Stats: {stats_str}")
+            print(f"[Year {year}] Avg Trust: Ins={df_year['trust_insurance'].mean():.3f}, Nb={df_year['trust_neighbors'].mean():.3f}")
 
         # Batch reflection (if enabled)
         if self.reflection_engine and self.reflection_engine.should_reflect("any", year):
@@ -204,6 +211,9 @@ class FloodHooks:
 
     def _run_batch_reflection(self, year: int):
         """Run batch reflection for all agents."""
+        if not hasattr(self.runner, 'broker') or not self.runner.broker:
+            return
+
         refl_cfg = self.runner.broker.config.get_reflection_config()
         batch_size = refl_cfg.get("batch_size", 10)
 
@@ -211,9 +221,10 @@ class FloodHooks:
         for agent_id, agent in self.sim.agents.items():
             if getattr(agent, "relocated", False):
                 continue
-            memories = self.runner.memory_engine.retrieve(agent, top_k=10)
-            if memories:
-                candidates.append({"agent_id": agent_id, "memories": memories})
+            if hasattr(self.runner, 'memory_engine') and self.runner.memory_engine:
+                memories = self.runner.memory_engine.retrieve(agent, top_k=10)
+                if memories:
+                    candidates.append({"agent_id": agent_id, "memories": memories})
 
         if not candidates:
             return
@@ -231,7 +242,7 @@ class FloodHooks:
                 response_text = raw_res[0] if isinstance(raw_res, tuple) else raw_res
 
                 insights = self.reflection_engine.parse_batch_reflection_response(response_text, batch_ids, year)
-                for agent_id, insight in insights:
+                for agent_id, insight in insights.items():
                     if insight:
                         self.reflection_engine.store_insight(agent_id, insight)
                         self.runner.memory_engine.add_memory(

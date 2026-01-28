@@ -1,7 +1,5 @@
-"""
+﻿"""
 Visualization for Flood Adaptation Experiments.
-
-Generate plots to visualize simulation results.
 """
 import pandas as pd
 import matplotlib.pyplot as plt
