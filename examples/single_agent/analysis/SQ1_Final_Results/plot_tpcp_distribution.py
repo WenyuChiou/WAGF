@@ -10,6 +10,9 @@ MODELS = ["deepseek_r1_1_5b", "deepseek_r1_8b", "deepseek_r1_14b"]
 GROUPS = ["Group_A", "Group_B", "Group_C"]
 LABEL_ORDER = ["VH", "H", "M", "L", "VL"]
 
+plt.rcParams['font.family'] = 'serif'
+sns.set_theme(style="white", context="paper")
+
 # --- Semantic Keywords (Same as master_report.py) ---
 TA_KEYWORDS = {
     "H": ["flood", "storm", "damage", "warning", "danger", "threat", "risky", "exposed", "vulnerable", "imminent", "severe", "property loss", "high risk"],
@@ -151,25 +154,26 @@ cp_props['Probability'] = cp_props['Count'] / cp_props['Total']
 # Let's modify the plot to Facet by "Group".
 
 plt.clf()
-fig = plt.figure(figsize=(12, 10))
 
 # TP Plot
 g_tp = sns.catplot(
     data=tp_props, x='Label', y='Probability', hue='Model', col='Group',
-    kind='bar', order=LABEL_ORDER, palette='Reds', height=4, aspect=1
+    kind='bar', order=LABEL_ORDER, palette='Greys', height=4, aspect=1,
+    edgecolor='black', linewidth=1
 )
-g_tp.fig.suptitle('Threat Appraisal Distribution by Group', y=1.02)
+g_tp.fig.suptitle('Distribution of Threat Appraisal (TP) Probability Across Conditions', y=1.05, fontsize=14, fontweight='bold')
 g_tp.set(ylim=(0, 1.0))
-g_tp.savefig("examples/single_agent/analysis/tp_distribution_all.png")
+g_tp.savefig(r"c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\single_agent\analysis\SQ1_Final_Results\tp_distribution_all.png", dpi=600)
 
 # CP Plot
 g_cp = sns.catplot(
     data=cp_props, x='Label', y='Probability', hue='Model', col='Group',
-    kind='bar', order=LABEL_ORDER, palette='Blues', height=4, aspect=1
+    kind='bar', order=LABEL_ORDER, palette='Greys', height=4, aspect=1,
+    edgecolor='black', linewidth=1
 )
-g_cp.fig.suptitle('Coping Appraisal Distribution by Group', y=1.02)
+g_cp.fig.suptitle('Distribution of Coping Appraisal (CP) Probability Across Conditions', y=1.05, fontsize=14, fontweight='bold')
 g_cp.set(ylim=(0, 1.0))
-g_cp.savefig("examples/single_agent/analysis/cp_distribution_all.png")
+g_cp.savefig(r"c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\single_agent\analysis\SQ1_Final_Results\cp_distribution_all.png", dpi=600)
 
 print("Plots saved: examples/single_agent/analysis/tp_distribution_all.png, examples/single_agent/analysis/cp_distribution_all.png")
 
