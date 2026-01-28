@@ -40,15 +40,15 @@ To address these challenges, we propose the **Governed Broker Framework**, a mul
 
 ## 2. Methodology & Metric Framework
 
-To quantify the "Surgical Gain" of our framework, we employ a 5-axis metric model vetted against contemporary AI safety literature:
+To quantify the efficiency gain and safety of our framework, we employ a 5-axis metric model. The inclusion of these metrics addresses the trade-off between strict safety and agentic autonomy:
 
-| Metric          | Definition                                                     | Academic Mapping                    |
-| :-------------- | :------------------------------------------------------------- | :---------------------------------- |
-| **Rationality** | Inverse of the Rule Violation Rate (V1+V2+V3).                 | Omnibus Rationality (Wang et al.)   |
-| **Stability**   | Decisional persistence and resistance to panic under pressure. | Decision Persistance (VeriLA, 2025) |
-| **Precision**   | Frequency of governance "silence" (Autonomy preservation).     | Minimum Necessary Oversight (Zhao)  |
-| **Efficiency**  | Success rate of syntactic and formatting requirements.         | Operational Overhead Protocols      |
-| **Diversity**   | Normalized Shannon Entropy ($H$) of decision distributions.    | Cognitive Heterogeneity (2024)      |
+| Metric          | Operational Definition                                   | Scientific Significance              |
+| :-------------- | :------------------------------------------------------- | :----------------------------------- |
+| **Rationality** | Percent of steps without rule violations ($V1, V2, V3$). | Safety Integrity (Wang et al., 2025) |
+| **Stability**   | Inverse of "Panic Relocation" intent frequency.          | Decisional Persistence               |
+| **Precision**   | Governance pass-through rate (Passive Oversight).        | Minimum Necessary Oversight          |
+| **Efficiency**  | Formatting success rate (Syntactic reliability).         | Operational Sustainability           |
+| **Diversity**   | Population-level Shannon Entropy ($H$) of action states. | Agentic Heterogeneity                |
 
 ---
 
