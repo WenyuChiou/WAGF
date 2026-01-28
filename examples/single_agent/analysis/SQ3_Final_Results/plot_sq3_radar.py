@@ -36,8 +36,9 @@ def load_and_prep_data():
     entropy_map = {}
     if ENTROPY_CSV.exists():
         df_ent = pd.read_csv(ENTROPY_CSV)
-        df_max_year = df_ent.sort_values('Year').groupby(['Model', 'Group']).last().reset_index()
-        for _, row in df_max_year.iterrows():
+        # Calculate Temporal Average of Entropy for all years where population > 0
+        df_mean = df_ent.groupby(['Model', 'Group'])['Shannon_Entropy'].mean().reset_index()
+        for _, row in df_mean.iterrows():
             norm_h = row['Shannon_Entropy'] / 2.0
             entropy_map[(row['Model'], row['Group'])] = min(1.0, norm_h)
 
