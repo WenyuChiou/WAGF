@@ -12,7 +12,7 @@ The democratization of large-scale social simulations necessitates the use of ef
 
 _How can rule-based constraints (Surgical Governance) be applied to maintain agentic heterogeneity and prevent mode collapse over extended temporal horizons?_
 
-In our flood adaptation experiments, native 1.5B agents consistently succumbed to "Panic Relocation," abandoning their habitat en masse. This "Panic Monoculture" is a form of mode collapse. This paper evaluates whether external constraints can maintain **Controlled Diversity**—preserving the Decisional Entropy ($H$) required for valid social modeling.
+In our flood adaptation experiments, native 1.5B agents consistently succumbed to **Behavioral Hallucinations**, abandoning their habitat en masse. This "Panic Monoculture" is a form of mode collapse. This paper evaluates whether external constraints can maintain **Controlled Diversity**—preserving the Decisional Entropy ($H$) required for valid social modeling.
 
 ## 2. Methodology: Cognitive Lifespan Analysis
 

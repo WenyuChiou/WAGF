@@ -4,15 +4,15 @@
 
 Agent-Based Modeling (ABM) facilitates the study of complex social dynamics, yet the deployment of Small Language Models (SLMs) in these simulations is often hindered by "hallucinated urgency"—a tendency toward disproportionate responses to low-risk stimuli. This study investigates the "Rationality Gap" in 1.5B parameter models, grounding our analysis in **Protection Motivation Theory (PMT; Rogers, 1975)**. We define "Behavioral Misalignment" as the decision to relocate when perceived threat is non-critical. Our results demonstrate that while ungoverned SLMs exhibit a Panic Rate of ~40% under low-threat conditions, the implementation of a **Governed Broker Framework** reduces this rate to near-zero ($p < 0.01$). This oversight mechanism effectively enables SLMs to emulate the threat-response logic of 14B benchmark models, providing a scalable solution for high-fidelity social simulations on efficient hardware.
 
-## 1. Introduction: Rationality and Violation Suppression
+## 1. Introduction: Rationality and Hallucination Suppression
 
-The credibility of Large Language Model (LLM) agents in policy-making simulations depends on their **"Verisimilitude of Reaction"**—the requirement that agentic responses remain proportionate to environmental stimuli. We identify the **"SQ1 Problem"** as a fundamental **Rationality Gap** where the logical link between stimuli and response is broken in Small Language Models (SLMs).
+The credibility of Large Language Model (LLM) agents in policy-making simulations depends on their **"Verisimilitude of Reaction"**—the requirement that agentic responses remain proportionate to environmental stimuli. We identify the **"SQ1 Problem"** as a fundamental **Rationality Gap** often manifesting as **Hallucinations** (Huang et al., 2023), where the logical link between stimuli and response is broken in Small Language Models (SLMs).
 
 ### ❓ Research Question (SQ1)
 
-_To what extent can an external governance layer mitigate "unjustified panic" and improve the decision rationality of resource-constrained LLM agents during social simulations?_
+_To what extent can an external governance layer mitigate behavioral hallucinations and improve the decision rationality of resource-constrained LLM agents during social simulations?_
 
-In flood resilience simulations, this is measured via **Rule Violation Rates**, specifically tracking how often agents attempt high-cost actions (like Relocation) without sufficient perceived threat or coping justification. This misalignment invalidates the predictive utility of SLMs unless a corrective mechanism is provided.
+In flood resilience simulations, this is measured via **Rule Violation Rates**, specifically tracking how often agents attempt high-cost actions (like Relocation) due to **Syntactic Hallucinations** (structure failure) or **Semantic Hallucinations** (reasoning detachment). This misalignment invalidates the predictive utility of SLMs unless a corrective mechanism is provided.
 
 ## 2. Theoretical Framework & Methodology
 

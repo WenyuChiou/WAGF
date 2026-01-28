@@ -6,7 +6,7 @@
 
 ## Abstract
 
-As Large Language Model (LLM) agents are increasingly deployed in complex social simulations, a critical tension emerges between model scale and behavioral reliability. This technical note investigates the "Rationality Gap" and "Cognitive Collapse" prevalent in Small Language Models (SLMs) and introduces the **Governed Broker Framework** as a restorative architecture. By subjecting model tiers (1.5B–32B) to rule-based surgical interventions, we demonstrate that structural governance can serve as a "Cognitive Equalizer," allowing resource-efficient 1.5B models to achieve the decisional stability and heterogeneity typically reserved for much larger counterparts. Our results show that governed SLMs not only suppress "unjustified panic" but also sustain a 10-year cognitive lifespan, providing a scalable path for high-fidelity agent-based modeling.
+As Large Language Model (LLM) agents are increasingly deployed in complex social simulations, a critical tension emerges between model scale and behavioral reliability. This technical note investigates the "Rationality Gap" and **"Cognitive and Behavioral Hallucinations"** prevalent in Small Language Models (SLMs) and introduces the **Governed Broker Framework** as a restorative architecture. By subjecting model tiers (1.5B–32B) to rule-based surgical interventions, we demonstrate that structural governance can serve as a "Cognitive Equalizer," allowing resource-efficient 1.5B models to achieve the decisional stability and heterogeneity typically reserved for much larger counterparts. Our results show that governed SLMs not only suppress **hallucinated risk responses** but also sustain a 10-year cognitive lifespan, providing a scalable path for high-fidelity agent-based modeling.
 
 ---
 
@@ -14,11 +14,11 @@ As Large Language Model (LLM) agents are increasingly deployed in complex social
 
 The integration of Large Language Models (LLMs) into Agent-Based Modeling (ABM) has catalyzed a paradigm shift in socio-hydrology, enabling simulations of human adaptation that transcend the limitations of static, rule-based agents. In these environments, LLM agents act as autonomous decision-makers, navigating complex trade-offs between flood insurance, property elevation, and relocation. However, the adoption of efficient Small Language Models (SLMs) is currently hindered by significant behavioral instability. Research suggests that models with lower parameter counts often lack the "Executive Function" necessary for long-term policy alignment, leading to stochastic reasoning and a fundamental deficit in decisional consistency.
 
-### ❓ SQ1: Rationality and Violation Suppression
+### ❓ SQ1: Rationality and Hallucination Suppression
 
-The first primary challenge is the "Rationality Gap," where the logical link between environmental stimuli and agentic response is broken. In flood scenarios, SLMs frequently exhibit "Unjustified Panic"—a systemic behavioral misalignment where low-risk stimuli trigger extreme survival responses like relocation. We measure this via **Rule Violation Rates**, specifically tracking how often agents attempt high-cost actions without sufficient perceived threat or coping justification. This motivates our first research question:
+The first primary challenge is the "Rationality Gap," often manifesting as **Hallucinations** (Huang et al., 2023)—where the model generates reasoning that is logically detached from environmental stimuli. In flood scenarios, SLMs exhibit **"Behavioral Hallucinations"**: we classify these into **Syntactic Hallucinations** (structure failure/ghosting) and **Semantic/Cognitive Hallucinations** (e.g., reasoning that 0.1m depth requires total relocation). These hallucinations invalidate the predictive utility of simulations unless a corrective mechanism is provided. This motivates our first research question:
 
-> **SQ1: To what extent can an external governance layer mitigate "unjustified panic" and improve the decision rationality of resource-constrained LLM agents?**
+> **SQ1: To what extent can an external governance layer mitigate behavioral hallucinations and improve the decision rationality of resource-constrained LLM agents?**
 
 ### ❓ SQ2: Controlled Diversity and Entropy Preservation
 
