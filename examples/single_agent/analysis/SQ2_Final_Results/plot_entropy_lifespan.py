@@ -4,9 +4,8 @@ import matplotlib.pyplot as plt
 import os
 
 # Set style for Publication Quality
-sns.set_theme(style="whitegrid")
-sns.set_context("talk") # Larger fonts for presentation/papers
-plt.rcParams['font.family'] = 'DejaVu Sans'
+plt.rcParams['font.family'] = 'serif'
+sns.set_theme(style="whitegrid", context="paper")
 
 def plot_lifespan():
     # Input is now local in this folder, but we use relative path from root for safety
@@ -34,15 +33,15 @@ def plot_lifespan():
         y="Shannon_Entropy",
         hue="Group",
         col="Model",
-        col_wrap=2,  # 2x2 grid
+        col_wrap=2,
         kind="line",
-        palette=palette,
+        palette="Dark2",
         style="Group",
         markers=True,
         dashes=False,
-        linewidth=3, # Thicker lines
-        height=5,    # Larger charts
-        aspect=1.4
+        linewidth=2.5,
+        height=4,
+        aspect=1.2
     )
     
     # Beautify
@@ -61,8 +60,8 @@ def plot_lifespan():
         ax.text(1.2, 1.05, "Viability Threshold", color='gray', fontsize=12, alpha=0.8)
     
     output_model = "lifespan_by_model.png"
-    g.savefig(output_model, dpi=300, bbox_inches='tight')
-    print(f"Chart saved to {output_model}")
+    g.savefig(output_model, dpi=600, bbox_inches='tight')
+    print(f"Academic Chart saved to {output_model}")
     
     # --- PLOT 2: FACET BY GROUP (The "Scaling Law" View) ---
     # Shows how Models (1.5B vs 14B) differ within the same condition.
@@ -82,12 +81,12 @@ def plot_lifespan():
         col="Group",
         col_wrap=3,
         kind="line",
-        palette=model_palette,
+        palette="crest",
         style="Model",
         markers=True, 
         dashes=False,
-        linewidth=3,
-        height=5, 
+        linewidth=2.5,
+        height=4, 
         aspect=1.1
     )
 
@@ -102,8 +101,8 @@ def plot_lifespan():
         ax.axhline(y=1.0, color='gray', linestyle=':', linewidth=1.5, alpha=0.8)
         
     output_group = "lifespan_by_group.png"
-    h.savefig(output_group, dpi=300, bbox_inches='tight')
-    print(f"Chart saved to {output_group}")
+    h.savefig(output_group, dpi=600, bbox_inches='tight')
+    print(f"Academic Chart saved to {output_group}")
 
 if __name__ == "__main__":
     plot_lifespan()
