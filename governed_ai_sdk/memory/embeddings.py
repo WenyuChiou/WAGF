@@ -52,12 +52,14 @@ class SentenceTransformerProvider:
 
     def embed(self, texts: List[str]) -> List[np.ndarray]:
         """
-        Generumes embeddings for a list of texts using the SentenceTransformer model.
+        Generates embeddings for a list of texts using the SentenceTransformer model.
         """
         if not texts:
             return []
         # Ensure model is loaded before encoding
-        return self.model.encode(texts, convert_to_numpy=True).tolist() # Return as list of lists
+        # The SentenceTransformer.encode method returns numpy arrays.
+        # Convert to list of lists as per expected return type List[np.ndarray].
+        return self.model.encode(texts, convert_to_numpy=True).tolist() 
 
 class MockEmbeddingProvider:
     """
