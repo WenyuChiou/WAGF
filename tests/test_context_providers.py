@@ -1,12 +1,21 @@
 """Tests for context providers."""
 import pytest
-from broker.components.context_providers import ObservableStateProvider
+from broker.components.context_providers import (
+    ObservableStateProvider,
+    EnvironmentEventProvider,
+)
 from broker.components.observable_state import (
     ObservableStateManager,
     create_flood_observables,
     create_rate_metric,
 )
 from broker.interfaces.observable_state import ObservableScope
+from broker.interfaces.event_generator import (
+    EnvironmentEvent,
+    EventSeverity,
+    EventScope,
+)
+from broker.components.event_manager import EnvironmentEventManager
 
 
 class TestObservableStateProvider:
@@ -136,3 +145,148 @@ class TestObservableStateProvider:
         # Neighborhood: a1's neighbor is a2 (no insurance, has elevation)
         assert obs["my_neighbor_insurance_rate"] == 0.0
         assert obs["my_neighbor_elevation_rate"] == 1.0
+
+
+class MockEventGenerator:
+    """Mock generator for testing."""
+
+    def __init__(self, domain: str = "mock", events: list = None, freq: str = "per_year"):
+        self._domain = domain
+        self._events = events or []
+        self._update_frequency = freq
+
+    @property
+    def domain(self):
+        return self._domain
+
+    @property
+    def update_frequency(self):
+        return self._update_frequency
+
+    def generate(self, year, step=0, context=None):
+        return self._events
+
+    def configure(self, **kwargs):
+        pass
+
+
+class TestEnvironmentEventProvider:
+    """Test EnvironmentEventProvider context injection."""
+
+    def test_provides_global_events(self):
+        """Global events are injected into context."""
+        manager = EnvironmentEventManager()
+
+        events = [
+            EnvironmentEvent(
+                event_type="flood",
+                severity=EventSeverity.SEVERE,
+                scope=EventScope.GLOBAL,
+                description="Severe flooding",
+                data={"intensity": 0.7},
+                domain="flood",
+            )
+        ]
+        manager.register("flood", MockEventGenerator(events=events))
+        manager.generate_all(year=1)
+
+        provider = EnvironmentEventProvider(manager)
+        agents = {"a1": type('A', (), {'location': 'T001'})()}
+        context = {}
+        provider.provide("a1", agents, context)
+
+        assert "events" in context
+        assert len(context["events"]) == 1
+        assert context["events"][0]["type"] == "flood"
+        assert context["events"][0]["severity"] == "severe"
+        assert context["events"][0]["data"]["intensity"] == 0.7
+
+    def test_filters_regional_events_by_location(self):
+        """Regional events only affect agents in that location."""
+        manager = EnvironmentEventManager()
+
+        events = [
+            EnvironmentEvent(
+                event_type="regional_flood",
+                severity=EventSeverity.MODERATE,
+                scope=EventScope.REGIONAL,
+                description="Regional flooding",
+                location="T001",
+                domain="flood",
+            )
+        ]
+        manager.register("flood", MockEventGenerator(events=events))
+        manager.generate_all(year=1)
+
+        provider = EnvironmentEventProvider(manager)
+
+        # Agent in T001 should see the event
+        agents_t001 = {"a1": type('A', (), {'location': 'T001'})()}
+        context_t001 = {}
+        provider.provide("a1", agents_t001, context_t001)
+        assert len(context_t001["events"]) == 1
+
+        # Agent in T002 should not see the event
+        agents_t002 = {"a2": type('A', (), {'location': 'T002'})()}
+        context_t002 = {}
+        provider.provide("a2", agents_t002, context_t002)
+        assert len(context_t002["events"]) == 0
+
+    def test_handles_dict_agents(self):
+        """Works with dict-based agents."""
+        manager = EnvironmentEventManager()
+
+        events = [
+            EnvironmentEvent(
+                event_type="test",
+                severity=EventSeverity.INFO,
+                scope=EventScope.GLOBAL,
+                description="Test event",
+                domain="test",
+            )
+        ]
+        manager.register("test", MockEventGenerator(events=events))
+        manager.generate_all(year=1)
+
+        provider = EnvironmentEventProvider(manager)
+        agents = {"a1": {"location": "T001", "name": "Agent 1"}}
+        context = {}
+        provider.provide("a1", agents, context)
+
+        assert "events" in context
+        assert len(context["events"]) == 1
+
+    def test_no_events_when_none_generated(self):
+        """Empty events list when no events match."""
+        manager = EnvironmentEventManager()
+        manager.register("empty", MockEventGenerator(events=[]))
+        manager.generate_all(year=1)
+
+        provider = EnvironmentEventProvider(manager)
+        agents = {"a1": type('A', (), {})()}
+        context = {}
+        provider.provide("a1", agents, context)
+
+        assert "events" in context
+        assert len(context["events"]) == 0
+
+    def test_missing_agent_returns_early(self):
+        """If agent not found, no events added."""
+        manager = EnvironmentEventManager()
+        events = [
+            EnvironmentEvent(
+                event_type="test",
+                severity=EventSeverity.INFO,
+                scope=EventScope.GLOBAL,
+                description="Test",
+                domain="test",
+            )
+        ]
+        manager.register("test", MockEventGenerator(events=events))
+        manager.generate_all(year=1)
+
+        provider = EnvironmentEventProvider(manager)
+        context = {}
+        provider.provide("nonexistent", {}, context)
+
+        assert "events" not in context

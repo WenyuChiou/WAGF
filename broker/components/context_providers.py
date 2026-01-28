@@ -12,6 +12,7 @@ from .interaction_hub import InteractionHub
 if TYPE_CHECKING:
     from governed_ai_sdk.v1_prototype.social import SocialObserver
     from governed_ai_sdk.v1_prototype.observation import EnvironmentObserver
+    from broker.components.event_manager import EnvironmentEventManager
 
 logger = setup_logger(__name__)
 
@@ -340,6 +341,77 @@ class ObservableStateProvider(ContextProvider):
                         observables[f"region_{name}"] = by_region[region]
 
 
+class EnvironmentEventProvider(ContextProvider):
+    """Injects environment events into agent context.
+
+    Provides discrete environment events (e.g., flood, market crash) to agents.
+    Events are filtered by agent location and relevance (GLOBAL, REGIONAL, LOCAL, AGENT scope).
+
+    Adds `events` list to context with event details:
+    - type: Event type identifier (e.g., "flood", "no_flood")
+    - severity: Impact level (info, minor, moderate, severe, critical)
+    - description: Human-readable description
+    - data: Event-specific payload (e.g., intensity, year)
+
+    Usage:
+        from broker.components.event_manager import EnvironmentEventManager
+        from broker.components.event_generators.flood import FloodEventGenerator
+        from broker.components.context_providers import EnvironmentEventProvider
+
+        event_manager = EnvironmentEventManager()
+        event_manager.register("flood", FloodEventGenerator())
+        provider = EnvironmentEventProvider(event_manager)
+
+        # Add to context builder
+        ctx_builder.providers.append(provider)
+
+        # In pre_year hook:
+        event_manager.generate_all(year)
+    """
+
+    def __init__(self, event_manager: "EnvironmentEventManager"):
+        """Initialize with an EnvironmentEventManager.
+
+        Args:
+            event_manager: Manager that orchestrates event generators
+        """
+        self.event_manager = event_manager
+
+    def provide(self, agent_id: str, agents: Dict[str, Any], context: Dict[str, Any], **kwargs):
+        """Inject relevant events into agent context.
+
+        Args:
+            agent_id: Current agent's ID
+            agents: All agents in simulation
+            context: Context dict to populate
+            **kwargs: Additional context (unused)
+        """
+        agent = agents.get(agent_id)
+        if not agent:
+            return
+
+        # Get agent location for spatial filtering
+        if isinstance(agent, dict):
+            location = agent.get('location') or agent.get('tract_id')
+        else:
+            location = getattr(agent, 'location', None) or getattr(agent, 'tract_id', None)
+
+        # Get relevant events filtered by agent location
+        events = self.event_manager.get_events_for_agent(agent_id, location)
+
+        # Inject into context
+        context["events"] = [
+            {
+                "type": e.event_type,
+                "severity": e.severity.value,
+                "description": e.description,
+                "data": e.data,
+                "domain": e.domain,
+            }
+            for e in events
+        ]
+
+
 __all__ = [
     "ContextProvider",
     "SystemPromptProvider",
@@ -353,4 +425,5 @@ __all__ = [
     "DynamicStateProvider",
     "NarrativeProvider",
     "ObservableStateProvider",  # Task-041: Cross-agent observation
+    "EnvironmentEventProvider",  # Task-042: Environment events
 ]
