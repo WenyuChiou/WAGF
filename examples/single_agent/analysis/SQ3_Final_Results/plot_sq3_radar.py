@@ -1,13 +1,12 @@
 import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 from math import pi
 from pathlib import Path
 
-# --- CONFIG ---
+# --- CONFIGURATION ---
 CSV_PATH = Path(r"c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\single_agent\analysis\SQ3_Final_Results\sq3_efficiency_data_v2.csv")
 OUTPUT_PATH = Path(r"c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\single_agent\analysis\SQ3_Final_Results\cost_benefit_radar.png")
-
 ENTROPY_CSV = Path(r"c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\single_agent\analysis\SQ2_Final_Results\yearly_entropy_audited.csv")
 
 def load_and_prep_data():
@@ -60,8 +59,6 @@ def make_radar_chart(df, output_path):
     plt.yticks([0.2, 0.4, 0.6, 0.8, 1.0], ["0.2", "0.4", "0.6", "0.8", "1.0"], color="grey", size=8)
     plt.ylim(0, 1.1)
     
-    # Plot a few key groups to keep it readable, or all if preferred
-    # Here we plot everything available in the CSV
     for i, (_, row) in enumerate(df.iterrows()):
         values = [row[c] for c in categories]
         values += values[:1]
@@ -75,5 +72,5 @@ def make_radar_chart(df, output_path):
     print(f"Updated radar chart saved to {output_path}")
 
 if __name__ == "__main__":
-    df_plot = load_and_prep_data()
-    make_radar_chart(df_plot, OUTPUT_PATH)
+    df = load_and_prep_data()
+    make_radar_chart(df, OUTPUT_PATH)
