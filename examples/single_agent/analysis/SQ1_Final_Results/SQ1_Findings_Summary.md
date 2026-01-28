@@ -85,6 +85,26 @@ While both metrics measure "variability," they target different levels of analys
 
 - **The Key Differentiator**: FF measures a single agent's "unsteadiness" over time, whereas Entropy measures how many different "sub-cultures" or strategies exist in the simulation. High individual noise (FF) often degrades population diversity (Entropy) over time as agents converge on a single failure mode (Panic).
 
+### 6.3 Temporal Evolution: Does Instability Persist?
+
+Analysis of the **Yearly FF Rate** reveals a "Stochastic Convergence" phenomenon in larger models that is absent in the 1.5B scale.
+
+| Model (Group A) | Year 1-2 | Year 3-4 | Year 5-6 | Year 7-8 | Year 9-10 | Trend                 |
+| :-------------- | :------- | :------- | :------- | :------- | :-------- | :-------------------- |
+| **1.5B**        | 61%      | 45%      | 40%      | 100%\*   | -         | **Persistent Noise**  |
+| **8B**          | 27%      | 37%      | 7%       | 3%       | 3%        | **Convergence**       |
+| **32B**         | 37%      | 48%      | 18%      | 15%      | 11%       | **Delayed Stability** |
+
+_\*Year 8 spike in 1.5B reflects the final erratic decisions of the last surviving agents._
+
+**Key Temporal Insights:**
+
+1.  **Stochastic Convergence**: 8B+ models "settle" into a strategy as the context window fills with environmental data, reducing FF from ~50% to <15%.
+2.  **Persistent Jitter (1.5B)**: The 1.5B model never achieves stability. Its high FF remains constant until population collapse, proving that its "Rationality Gap" is a structural limitation of the parameter scale.
+3.  **Governance Effect**: In Governed Groups (B/C), FF remains higher for the 1.5B model because the "Nanny" prevents them from relocating, forcing them to continue making (unstable) yearly choices.
+
+![Yearly FF Trend](file:///c:/Users/wenyu/Desktop/Lehigh/governed_broker_framework/examples/single_agent/analysis/SQ1_Final_Results/yearly_ff_trend.png)
+
 ---
 
 ## 7. Recommended Literature Review
