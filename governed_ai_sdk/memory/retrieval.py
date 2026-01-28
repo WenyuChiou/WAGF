@@ -9,10 +9,14 @@ Reference: Task-040 Memory Module Optimization
 
 from typing import Dict, List, Optional, Any, TYPE_CHECKING
 import time
+import numpy as np # Explicitly import numpy
 
 if TYPE_CHECKING:
     from .store import UnifiedMemoryStore
     from .unified_engine import UnifiedMemoryItem
+    # Assume EmbeddingProvider protocol is defined elsewhere or imported if needed here.
+    # For this modification, we'll rely on the protocol definition being accessible.
+    from governed_ai_sdk.memory.embeddings import EmbeddingProvider
 
 
 class AdaptiveRetrievalEngine:
@@ -28,22 +32,26 @@ class AdaptiveRetrievalEngine:
     - Contextual boosting via tag matching
     - Working/Long-term memory fusion
     - Full scoring trace for explainability
+    - Embedding-based semantic similarity
 
     Args:
         base_weights: Default retrieval weights
             - recency: Weight for time-based recency [0-1]
             - importance: Weight for importance score [0-1]
             - context: Weight for contextual boosting [0-1]
+            - semantic: Weight for semantic similarity [0-1] (New)
         system1_weights: Weights for low-arousal (routine) mode
         system2_weights: Weights for high-arousal (crisis) mode
+        embedding_provider: Optional provider for generating text embeddings.
 
     Example:
-        >>> engine = AdaptiveRetrievalEngine()
+        >>> engine = AdaptiveRetrievalEngine(embedding_provider=SentenceTransformerProvider())
         >>> memories = engine.retrieve(
         ...     store=memory_store,
         ...     agent_id="agent_1",
         ...     top_k=5,
-        ...     arousal=0.8  # High arousal -> importance-biased
+        ...     arousal=0.8,  # High arousal -> importance-biased
+        ...     query="What about flood damage?"
         ... )
     """
 
@@ -52,12 +60,14 @@ class AdaptiveRetrievalEngine:
         base_weights: Optional[Dict[str, float]] = None,
         system1_weights: Optional[Dict[str, float]] = None,
         system2_weights: Optional[Dict[str, float]] = None,
+        embedding_provider: Optional["EmbeddingProvider"] = None # Added parameter
     ):
         # Default base weights (balanced)
         self.base_weights = base_weights or {
             "recency": 0.3,
             "importance": 0.5,
             "context": 0.2,
+            "semantic": 0.0 # Default semantic weight to 0 if not provided
         }
 
         # System 1: Recency-focused (routine, automatic)
@@ -65,6 +75,7 @@ class AdaptiveRetrievalEngine:
             "recency": 0.6,
             "importance": 0.3,
             "context": 0.1,
+            "semantic": 0.0,
         }
 
         # System 2: Importance-focused (crisis, deliberate)
@@ -72,7 +83,16 @@ class AdaptiveRetrievalEngine:
             "recency": 0.2,
             "importance": 0.6,
             "context": 0.2,
+            "semantic": 0.1, # New weight for semantic in System 2
         }
+        
+        # Ensure semantic weight is considered if present in weights dicts
+        self.base_weights.setdefault("semantic", 0.0)
+        self.system1_weights.setdefault("semantic", 0.0)
+        self.system2_weights.setdefault("semantic", 0.0)
+
+        # Store embedding provider
+        self.embedding_provider = embedding_provider
 
         # Trace data
         self._last_trace: Optional[Dict[str, Any]] = None
@@ -97,7 +117,7 @@ class AdaptiveRetrievalEngine:
         age = current_time - item.timestamp
         # Decay over 1 hour to ~0.37, 3 hours to ~0.05
         decay_factor = 1.0 / 3600  # per second
-        score = 2.71828 ** (-age * decay_factor)
+        score = 2.71828 ** (-age * decay_factor) # Using math.e for exp
         return max(0.0, min(1.0, score))
 
     def _compute_contextual_boost(
@@ -125,38 +145,39 @@ class AdaptiveRetrievalEngine:
 
         return min(1.0, boost)
 
-    def _interpolate_weights(
-        self,
-        arousal: float,
-        threshold: float
-    ) -> Dict[str, float]:
+    def _compute_semantic_score(self, embedding1: np.ndarray, embedding2: np.ndarray) -> float:
         """
-        Interpolate between System 1 and System 2 weights.
-
-        Uses smooth interpolation based on distance from threshold.
+        Computes cosine similarity between two embeddings.
 
         Args:
-            arousal: Current arousal level [0-1]
-            threshold: Arousal threshold for System 2 activation
+            embedding1: First embedding (numpy array)
+            embedding2: Second embedding (numpy array)
 
         Returns:
-            Interpolated weight dict
+            Cosine similarity score [0-1], or 0.0 if computation is not possible.
         """
-        if arousal <= threshold * 0.5:
-            # Deep System 1: use pure System 1 weights
-            return self.system1_weights.copy()
-        elif arousal >= threshold:
-            # System 2: use pure System 2 weights
-            return self.system2_weights.copy()
-        else:
-            # Transition zone: interpolate
-            t = (arousal - threshold * 0.5) / (threshold * 0.5)  # [0, 1]
-            weights = {}
-            for key in self.base_weights:
-                w1 = self.system1_weights.get(key, self.base_weights[key])
-                w2 = self.system2_weights.get(key, self.base_weights[key])
-                weights[key] = w1 * (1 - t) + w2 * t
-            return weights
+        if embedding1 is None or embedding2 is None or embedding1.shape != embedding2.shape:
+            return 0.0  # Cannot compute similarity if embeddings are missing or mismatched
+
+        # Ensure numpy arrays for calculation
+        emb1 = np.array(embedding1)
+        emb2 = np.array(embedding2)
+
+        # Cosine similarity formula
+        dot_product = np.dot(emb1, emb2)
+        norm1 = np.linalg.norm(emb1)
+        norm2 = np.linalg.norm(emb2)
+
+        if norm1 == 0 or norm2 == 0:
+            return 0.0  # Avoid division by zero
+
+        similarity = dot_product / (norm1 * norm2)
+        # Cosine similarity can range from -1 to 1. For retrieval, we often map it to [0, 1].
+        # If embeddings are normalized, similarity is dot product.
+        # Assuming embeddings are not necessarily normalized, adjust range if needed.
+        # For simplicity here, we'll clamp to [0, 1] assuming embeddings are non-negative or
+        # we are interested in positive similarity.
+        return max(0.0, min(1.0, float(similarity)))
 
     def retrieve(
         self,
@@ -167,9 +188,10 @@ class AdaptiveRetrievalEngine:
         arousal_threshold: float = 0.5,
         contextual_boosters: Optional[Dict[str, float]] = None,
         include_scoring: bool = False,
+        query: Optional[str] = None, # Query text for semantic search
     ) -> List["UnifiedMemoryItem"]:
         """
-        Retrieve memories with adaptive weight adjustment.
+        Retrieve memories with adaptive weight adjustment, incorporating semantic similarity.
 
         Args:
             store: UnifiedMemoryStore instance
@@ -179,6 +201,7 @@ class AdaptiveRetrievalEngine:
             arousal_threshold: Threshold for System 2 activation
             contextual_boosters: Tag-based score boosters
             include_scoring: Include scoring details in trace
+            query: The text query for semantic similarity search.
 
         Returns:
             List of top-k UnifiedMemoryItem objects
@@ -204,17 +227,41 @@ class AdaptiveRetrievalEngine:
         current_time = time.time()
         scored_items = []
 
+        # Embed query if provided and provider exists
+        query_embedding = None
+        if query and self.embedding_provider:
+            try:
+                # Assume embed returns List[List[float]] or List[np.ndarray]
+                query_embedding_list = self.embedding_provider.embed([query])
+                if query_embedding_list:
+                    query_embedding = np.array(query_embedding_list[0]) # Convert to numpy array
+            except Exception as e:
+                print(f"Warning: Failed to embed query '{query[:30]}...': {e}")
+                # Continue without semantic score if embedding fails
+
         # Score each item
         for item in all_items:
             recency_score = self._compute_recency_score(item, current_time)
             importance_score = item.importance
             context_score = self._compute_contextual_boost(item, contextual_boosters)
 
+            semantic_score = 0.0
+            # Check if item has embedding and provider/query embedding is available
+            # Assume item.embedding is in a format compatible with np.ndarray or convertible
+            if query_embedding is not None and hasattr(item, 'embedding') and item.embedding is not None:
+                try:
+                    item_embedding_np = np.array(item.embedding)
+                    semantic_score = self._compute_semantic_score(query_embedding, item_embedding_np)
+                except Exception as e:
+                    print(f"Warning: Failed to compute semantic score for item {item.id}: {e}")
+                    semantic_score = 0.0 # Default to 0 if computation fails
+
             # Weighted combination
             final_score = (
                 weights["recency"] * recency_score +
                 weights["importance"] * importance_score +
-                weights["context"] * context_score
+                weights["context"] * context_score +
+                weights.get("semantic", 0.0) * semantic_score # Added semantic score with weight
             )
 
             scored_items.append({
@@ -223,6 +270,7 @@ class AdaptiveRetrievalEngine:
                 "recency": recency_score,
                 "importance": importance_score,
                 "context": context_score,
+                "semantic": semantic_score # Store semantic score for trace
             })
 
         # Sort by score descending
@@ -250,6 +298,7 @@ class AdaptiveRetrievalEngine:
                     "recency": s["recency"],
                     "importance": s["importance"],
                     "context": s["context"],
+                    "semantic": s["semantic"], # Include semantic score in trace details
                 }
                 for s in top_items
             ]
@@ -272,15 +321,23 @@ class AdaptiveRetrievalEngine:
             f"Weights: R={t['weights']['recency']:.2f}, "
             f"I={t['weights']['importance']:.2f}, "
             f"C={t['weights']['context']:.2f}",
-            f"Scored: {t['items_scored']}, Returned: {t['items_returned']}",
         ]
+        if 'semantic' in t['weights'] and t['weights']['semantic'] > 0:
+            lines[-1] += f", S={t['weights']['semantic']:.2f}"
+
+        lines.append(f"Scored: {t['items_scored']}, Returned: {t['items_returned']}")
 
         if "scoring_details" in t:
             lines.append("Top items:")
             for i, s in enumerate(t["scoring_details"]):
+                recency_info = f"R={s['recency']:.2f}"
+                importance_info = f"I={s['importance']:.2f}"
+                context_info = f"C={s['context']:.2f}"
+                semantic_info = f"S={s['semantic']:.2f}" if s['semantic'] > 0 else ""
+                
                 lines.append(
                     f"  #{i+1} [{s['final']:.2f}] \"{s['content']}\" "
-                    f"(R={s['recency']:.2f}, I={s['importance']:.2f})"
+                    f"({recency_info}, {importance_info}, {context_info}{', '+semantic_info if semantic_info else ''})"
                 )
 
         return "\n".join(lines)
