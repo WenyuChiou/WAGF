@@ -4,15 +4,15 @@
 
 Agent-Based Modeling (ABM) powered by Large Language Models (LLMs) represents a paradigm shift in social simulation, yet it is susceptible to "Mode Collapse"—a phenomenon where stochastic agents converge into repetitive, irrational behaviors (**Rogers et al., 2023**). This study investigates whether a **Surgical Governance** framework can serve as a "Cognitive Prosthetic," preventing this collapse in resource-constrained models (1.5B). By analyzing the "Cognitive Lifespan"—operationalized via the **Shannon Entropy ($H$)** of agent decisions—we demonstrate that governance extends the functional duration of simulations from 4 years to over 10 years. This stabilization provides a path toward using efficient Small Language Models (SLMs) to achieve behavioral heterogeneity comparable to 14B benchmark models.
 
-## 1. Introduction: The Monoculture Risk
+## 1. Introduction: Controlled Diversity and Entropy Preservation
 
-The democratization of large-scale social simulations necessitates the use of efficient SLMs. However, these models exhibit a fundamental **Rationality Gap** (**Wang et al., 2025**): models below 10B parameters frequently lack the "Executive Function" required for long-term policy alignment under threat.
+The democratization of large-scale social simulations necessitates the use of efficient SLMs. However, these models exhibit a fundamental **Rationality Gap** (**Wang et al., 2025**): models below 10B parameters frequently lack the "Executive Function" required for long-term policy alignment. We must ensure that the application of control does not stifle the emergent diversity required for realism.
 
 ### ❓ Research Question (SQ2)
 
-_How does the application of rule-based constraints (Surgical Governance) influence the cognitive lifespan and decisional entropy of agent populations over extended temporal horizons?_
+_How can rule-based constraints (Surgical Governance) be applied to maintain agentic heterogeneity and prevent mode collapse over extended temporal horizons?_
 
-In our flood adaptation experiments, native 1.5B agents consistently succumbed to "Panic Relocation," abandoning their habitat en masse regardless of actual risk. This leads to a "Lazy" or "Panic" monoculture. This paper evaluates the **Governed Broker Framework**, asking whether external constraints can sustain the cognitive diversity required for valid agent-based simulations.
+In our flood adaptation experiments, native 1.5B agents consistently succumbed to "Panic Relocation," abandoning their habitat en masse. This "Panic Monoculture" is a form of mode collapse. This paper evaluates whether external constraints can maintain **Controlled Diversity**—preserving the Decisional Entropy ($H$) required for valid social modeling.
 
 ## 2. Methodology: Cognitive Lifespan Analysis
 
