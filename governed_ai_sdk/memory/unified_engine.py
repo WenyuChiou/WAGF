@@ -16,6 +16,7 @@ from typing import Dict, Any, List, Optional, Union
 from datetime import datetime
 import time
 import logging
+import numpy as np # Ensure numpy is imported
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,7 @@ class UnifiedMemoryItem:
     - Importance scoring with emotion/source weights (from v2)
     - Surprise metrics for System 1/2 switching (from v3/v4)
     - Flexible metadata for domain-specific extensions
+    - Embedding vector for semantic search (New)
 
     Attributes:
         content: The actual memory content (text)
@@ -44,6 +46,7 @@ class UnifiedMemoryItem:
         year: Simulation year (for temporal filtering)
         tags: List of semantic tags for retrieval boosting
         metadata: Additional domain-specific data
+        embedding: Optional numpy array for semantic representation (New field)
     """
     content: str
     timestamp: float = field(default_factory=time.time)
@@ -62,6 +65,9 @@ class UnifiedMemoryItem:
     year: int = 0
     tags: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
+
+    # Embedding (New field)
+    embedding: Optional[np.ndarray] = field(default=None) # Added optional embedding field
 
     # Computed importance (can be updated by decay)
     _current_importance: Optional[float] = field(default=None, repr=False)
@@ -113,7 +119,7 @@ class UnifiedMemoryItem:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
-        return {
+        data = {
             "content": self.content,
             "timestamp": self.timestamp,
             "emotion": self.emotion,
@@ -127,6 +133,10 @@ class UnifiedMemoryItem:
             "metadata": self.metadata,
             "importance": self.importance,
         }
+        # Convert numpy embedding to list for JSON serialization if it exists
+        if self.embedding is not None:
+            data["embedding"] = selfF.embedding.tolist()
+        return data
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "UnifiedMemoryItem":
@@ -146,6 +156,17 @@ class UnifiedMemoryItem:
         )
         if "importance" in data:
             item._current_importance = data["importance"]
+        
+        # Load embedding if available and convert back to numpy array
+        if "embedding" in data and data["embedding"] is not None:
+            try:
+                item.embedding = np.array(data["embedding"])
+            except Exception as e:
+                logger.error(f"Failed to convert embedding to numpy array: {e}")
+                item.embedding = None # Ensure it's None if conversion fails
+        else:
+            item.embedding = None
+
         return item
 
 
@@ -329,6 +350,7 @@ class UnifiedCognitiveEngine:
             year=year,
             tags=tags,
             metadata=meta,
+            # embedding is optional and defaults to None
         )
 
         # Compute final importance
@@ -391,7 +413,7 @@ class UnifiedCognitiveEngine:
 
         Args:
             agent: Agent object or agent_id string
-            query: Optional semantic query (for future embedding support)
+            query: Optional semantic query (for embedding-based retrieval)
             top_k: Number of memories to retrieve
             world_state: Current environment state for surprise calculation
             contextual_boosters: Tag-based score boosters
@@ -421,6 +443,7 @@ class UnifiedCognitiveEngine:
         )
 
         # Delegate to retrieval engine
+        # Pass query text, provider will embed it if available
         items = self._retrieval.retrieve(
             store=self._store,
             agent_id=agent_id,
@@ -428,6 +451,7 @@ class UnifiedCognitiveEngine:
             arousal=arousal,
             arousal_threshold=self.arousal_threshold,
             contextual_boosters=contextual_boosters,
+            query=query, # Pass query to retrieval
         )
 
         return [item.content for item in items]
@@ -465,6 +489,7 @@ class UnifiedCognitiveEngine:
             top_k=top_k,
             arousal=arousal,
             arousal_threshold=self.arousal_threshold,
+            **kwargs # Pass through other kwargs like query, contextual_boosters etc.
         )
 
     def clear(self, agent_id: str) -> None:
