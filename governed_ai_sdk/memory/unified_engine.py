@@ -406,9 +406,10 @@ class UnifiedCognitiveEngine:
             agent_id = str(getattr(agent, 'id', getattr(agent, 'unique_id', 'unknown')))
 
         # Compute surprise if strategy and world_state available
+        # Use update() to adapt expectations over time (normalization)
         arousal = 0.0
         if self._strategy and world_state:
-            self.last_surprise = self._strategy.get_surprise(world_state)
+            self.last_surprise = self._strategy.update(world_state)
             arousal = self.last_surprise
 
         # Determine system

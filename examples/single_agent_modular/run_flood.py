@@ -40,7 +40,7 @@ def main():
     parser.add_argument("--agents", type=int, default=100)
     parser.add_argument("--output", type=str, default=None)
     parser.add_argument("--memory-engine", type=str, default="window",
-                        choices=["window", "importance", "humancentric", "hierarchical", "universal"])
+                        choices=["window", "importance", "humancentric", "hierarchical", "universal", "unified"])
     parser.add_argument("--window-size", type=int, default=5)
     parser.add_argument("--governance-mode", type=str, default="strict",
                         choices=["strict", "relaxed", "disabled"])
