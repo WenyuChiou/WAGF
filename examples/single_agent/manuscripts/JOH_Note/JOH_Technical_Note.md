@@ -62,6 +62,9 @@ Our results demonstrate that while ungoverned 1.5B models exhibit a Panic Rate o
 
 A key finding is that governance does not lead to behavioral monoculture. Native 1.5B models typically suffer entropy collapse by Year 4 ($H \to 0$) as they all converge on panic flight. In contrast, governed agents maintain a stable entropy plateau ($H \approx 1.5$) throughout a 10-year horizon. This proves that governance acts as a "Sanity Firewall," preserving individual stakeholder differences by preventing the "panic-induced convergence" that plagues unconstrained small models.
 
+![Balance of Creativity and Alignment](file:///C:/Users/wenyu/.gemini/antigravity/brain/174a04b7-b8fb-48c1-b3d5-8f321c21ab80/creativity_alignment_prism_revised_1769610859249.png)
+_Figure 1: Conceptual visualization of the 'Balance of Creativity and Alignment'. The Governed Broker acts as a corrective lens, filtering hallucinations while preserving the broad spectrum of agentic diversity and creativity._
+
 ### 3.3 Holistic Framework Performance (SQ3)
 
 The Governed Broker Framework achieves "Surgical Gain" by doubling the effective rationality of 1.5B models while maintaining 0.99 precision. This suggests that the framework is a viable holistic solution: it allows cheap, small models to perform at the level of 14B or 32B models in specialized reasoning tasks, assuming the system can handle the syntactic formatting overhead of smaller endpoints.
