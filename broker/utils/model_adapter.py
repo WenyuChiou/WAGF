@@ -228,6 +228,13 @@ class UnifiedAdapter(ModelAdapter):
 
         # Track which parsing method succeeded (enclosure/json/keyword/digit/default)
         parse_layer = ""
+        parse_confidence = 0.0
+        construct_completeness = 0.0
+        parse_metadata = {
+            "parse_layer": "",
+            "parse_confidence": 0.0,
+            "construct_completeness": 0.0,
+        }
 
         # Phase 15: Early return for empty output
         if not raw_output:
@@ -678,13 +685,46 @@ class UnifiedAdapter(ModelAdapter):
                     logger.debug(f" [Adapter:Normalize] {skill_name} -> {normalized}")
                 skill_name = normalized
 
+        # 9. Parse metadata (confidence + construct completeness)
+        base_layer = "fallback"
+        if "json" in parse_layer:
+            base_layer = "json"
+            parse_confidence = 0.95
+        elif "keyword" in parse_layer:
+            base_layer = "keyword"
+            parse_confidence = 0.70
+        elif "digit" in parse_layer:
+            base_layer = "digit"
+            parse_confidence = 0.50
+        elif parse_layer == "default":
+            base_layer = "fallback"
+            parse_confidence = 0.20
+
+        required_constructs = ["TP_LABEL", "CP_LABEL", "decision"]
+        found = 0
+        for construct in required_constructs:
+            if construct in reasoning:
+                found += 1
+                continue
+            if construct == "decision" and skill_name:
+                found += 1
+                continue
+        construct_completeness = found / len(required_constructs)
+
+        parse_metadata["parse_layer"] = base_layer
+        parse_metadata["parse_confidence"] = parse_confidence
+        parse_metadata["construct_completeness"] = construct_completeness
+        reasoning["_parse_metadata"] = parse_metadata
+
         return SkillProposal(
             agent_id=agent_id,
             skill_name=skill_name,
             reasoning=reasoning,
             raw_output=raw_output,
             parsing_warnings=parsing_warnings,
-            parse_layer=parse_layer
+            parse_layer=parse_layer,
+            parse_confidence=parse_confidence,
+            construct_completeness=construct_completeness,
         )
         
     def _audit_demographic_grounding(self, reasoning: Dict, context: Dict, parsing_cfg: Dict = None) -> Dict:
