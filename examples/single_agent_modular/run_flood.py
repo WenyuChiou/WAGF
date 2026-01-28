@@ -21,13 +21,16 @@ from broker.components.skill_registry import SkillRegistry
 from broker.utils.llm_utils import create_legacy_invoke as create_llm_invoke
 from broker.utils.agent_config import GovernanceAuditor
 
-# Local modular components
-from components.simulation import ResearchSimulation
-from components.memory_factory import create_memory_engine
-from components.context_builder import FloodContextBuilder
-from components.hooks import FloodHooks
-from agents.loader import load_agents_from_csv, load_agents_from_survey
-from analysis.plotting import plot_adaptation_results
+# Add local path for modular components
+sys.path.insert(0, str(Path(__file__).parent))
+
+# Local modular components (use full path to avoid conflict with top-level agents/)
+from examples.single_agent_modular.components.simulation import ResearchSimulation
+from examples.single_agent_modular.components.memory_factory import create_memory_engine
+from examples.single_agent_modular.components.context_builder import FloodContextBuilder
+from examples.single_agent_modular.components.hooks import FloodHooks
+from examples.single_agent_modular.agents.loader import load_agents_from_csv, load_agents_from_survey
+from examples.single_agent_modular.analysis.plotting import plot_adaptation_results
 
 
 def main():
