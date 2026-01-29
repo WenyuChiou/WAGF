@@ -1,10 +1,11 @@
 from typing import Dict, Any, Optional
 
-from governed_ai_sdk.agents import BaseAgent
+from cognitive_governance.agents import BaseAgent
 from broker import MemoryEngine
 from examples.multi_agent.environment.hazard import HazardModule, VulnerabilityModule, YearMapping
 from components.media_channels import MediaHub
 from orchestration.disaster_sim import depth_to_qualitative_description
+from broker.components.memory_bridge import MemoryBridge # Added import
 
 
 class MultiAgentHooks:
@@ -16,6 +17,9 @@ class MultiAgentHooks:
         media_hub: Optional[MediaHub] = None,
         per_agent_depth: bool = False,
         year_mapping: Optional[YearMapping] = None,
+        # NEW parameters:
+        game_master: Optional[Any] = None,       # GameMaster instance
+        message_pool: Optional[Any] = None,      # MessagePool instance
     ):
         self.env = environment
         self.memory_engine = memory_engine
@@ -25,6 +29,11 @@ class MultiAgentHooks:
         self.per_agent_depth = per_agent_depth
         self.year_mapping = year_mapping or YearMapping()
         self.agent_flood_depths: Dict[str, float] = {}
+
+        # NEW: Initialize game_master, message_pool, and memory_bridge
+        self.game_master = game_master
+        self.message_pool = message_pool
+        self._memory_bridge = MemoryBridge(memory_engine) if memory_engine else None
 
     def pre_year(self, year, env, agents):
         """Randomly determine if flood occurs and resolve pending actions."""
@@ -154,15 +163,20 @@ class MultiAgentHooks:
                     reason_key = next((k for k in result.skill_proposal.reasoning.keys() if "reason" in k.lower()), None)
                     reason = result.skill_proposal.reasoning.get(reason_key, "") if reason_key else ""
 
-                if reason:
-                    mem_engine = getattr(self, 'memory_engine', None)
-                    if mem_engine:
-                        mem_engine.add_memory(
-                            agent.id,
-                            f"I decided to {decision} because {reason}",
-                            metadata={"source": "social", "type": "reasoning"}
-                        )
-
+                                        if reason:
+                                            mem_engine = getattr(self, 'memory_engine', None)
+                                            if mem_engine:
+                                                mem_engine.add_memory(
+                                                    agent.id,
+                                                    f"I decided to {decision} because {reason}",
+                                                    metadata={"source": "social", "type": "reasoning"}
+                                                )
+                
+                        # Store GameMaster resolution as memory (if available)
+                        if self._memory_bridge and self.game_master:
+                            resolution = self.game_master.get_resolution(agent.id)
+                            if resolution:
+                                self._memory_bridge.store_resolution(resolution, year=self.env.get("year", 0))
     def post_year(self, year, agents, memory_engine):
         """Apply damage and consolidation."""
         if not self.env["flood_occurred"]:
@@ -209,6 +223,15 @@ class MultiAgentHooks:
                 f"Year {year}: We experienced {description} which caused about ${damage:,.0f} in damages.",
                 metadata={"emotion": "fear", "source": "personal", "importance": 0.8}
             )
+
+        # Store important messages as memories
+        if self._memory_bridge and self.message_pool:
+            for agent_id in agents:
+                unread = self.message_pool.get_unread(agent_id)
+                if unread:
+                    self._memory_bridge.store_unread_messages(
+                        agent_id, unread, year=year, max_store=3
+                    )
 
         if self.per_agent_depth:
             print(f" [YEAR-END] Total Community Damage: ${total_damage:,.0f} ({flooded_agents} households flooded)")
