@@ -56,8 +56,8 @@ for i, (model_id, model_name) in enumerate(models):
     df_model = df[df['Model'] == model_id].copy()
     
     # Add (a), (b), (c), (d) labels to top-left of each subplot
-    ax.text(-0.15, 1.15, subplot_ann[i], transform=ax.transAxes, 
-            fontsize=34, fontweight='bold', va='top', ha='right', family='serif')
+    # ax.text(-0.15, 1.15, subplot_ann[i], transform=ax.transAxes, 
+    #         fontsize=34, fontweight='bold', va='top', ha='right', family='serif')
     
     # We want to plot A, B, C
     for group in ['Group_A', 'Group_B', 'Group_C']:
@@ -88,8 +88,8 @@ for i, (model_id, model_name) in enumerate(models):
     
     ax.set_xticks(angles[:-1])
     # Massive font sizes for readability, added padding
-    ax.set_xticklabels(labels, size=24, fontweight='bold', family='serif')
-    ax.tick_params(axis='x', pad=35) # Push labels out
+    ax.set_xticklabels(labels, size=34, fontweight='bold', family='serif')
+    ax.tick_params(axis='x', pad=10) # Pull labels closer as requested
     
     # Scale suggested to be vertical (r-label)
     ax.set_rlabel_position(0) # North (since we rotated offset to pi/2, 0 relative to data is Top? No.)
@@ -109,8 +109,8 @@ for i, (model_id, model_name) in enumerate(models):
     ax.xaxis.grid(True, color='grey', linestyle='-', alpha=0.5)
     
     ax.set_ylim(0, 110)
-    # Move title up further to avoid Top Label overlap
-    ax.set_title(f"{model_name}", size=30, fontweight='bold', pad=60, family='serif')
+    # Move title up further to avoid Top Label overlap (Quality is closer now, but font is huge)
+    ax.set_title(f"{model_name}", size=30, fontweight='bold', pad=80, family='serif')
     
     # Adjust (a)/(b) label position to avoid Left Label (Stability)
     # Previous: -0.15, 1.15. Left label is now at 270 deg (West).
