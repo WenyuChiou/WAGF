@@ -35,10 +35,11 @@
         {
           "id": "057-C",
           "title": "Dynamic Importance Scoring",
-          "status": "ready",
+          "status": "completed",
           "assigned_to": "Codex",
           "scope": "broker/components/reflection_engine.py, examples/single_agent/run_flood.py",
           "depends_on": ["057-A"],
+          "commit": "5ed3f94",
           "note": "IMPORTANCE_PROFILES dict, compute_dynamic_importance(), SA reflection loop update"
         },
         {

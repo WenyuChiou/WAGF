@@ -19,7 +19,7 @@ Reflection outputs are homogeneous across all agents — generic prompts, no ide
 |----|-------|----------|----------|-------|
 | 057-A | Personalized Reflection Prompt | Codex | `reflection_engine.py` | 1 (parallel) ✅ |
 | 057-B | Source-Stratified Retrieval | Gemini | `humancentric_engine.py` | 1 (parallel) |
-| 057-C | Dynamic Importance Scoring | Codex | `reflection_engine.py` + `run_flood.py` | 2 (after A) |
+| 057-C | Dynamic Importance Scoring | Codex | `reflection_engine.py` + `run_flood.py` | 2 (after A) ✅ |
 | 057-D | MA Reflection Integration | Gemini | `lifecycle_hooks.py` | 3 (after all) |
 
 ### Handoff Files
@@ -42,6 +42,9 @@ Reflection outputs are homogeneous across all agents — generic prompts, no ide
 - 057-A ✅ Personalized prompts implemented + tests (`tests/test_reflection_personalization.py`)
   - Commit: `81e40ce`
   - Tests: `pytest tests/test_reflection_personalization.py -v`, `pytest tests/test_reflection_engine_v2.py -v`
+- 057-C ✅ Dynamic importance scoring + SA reflection loop update (`tests/test_dynamic_importance.py`)
+  - Commit: `5ed3f94`
+  - Tests: `pytest tests/test_dynamic_importance.py -v`, `pytest tests/test_reflection_personalization.py -v`, `pytest tests/test_reflection_engine_v2.py -v`
 
 ---
 
