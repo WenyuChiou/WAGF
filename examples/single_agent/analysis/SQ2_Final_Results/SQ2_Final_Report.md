@@ -27,7 +27,7 @@ To ensure comparability across different action spaces, we use **Normalized Shan
 
 $$H_{norm} = \frac{H}{\log_2(k)}$$
 
-Where $k=5$ (the number of possible adaptation actions). We define the **"Cognitive Lifespan"** of a simulation as the temporal window in which $H_{norm} > 0.4$ (or a significant non-collapsed state).
+Where $k=5$ (the number of possible adaptation actions). We define the **"Cognitive Lifespan"** of a simulation as the temporal window in which $H_{norm} > 0.4$. **All longitudinal figures are presented using this standardized $H_{norm}$ scale (0.0 to 1.0) for clarity.**
 
 Consistent with **"Diversity of Thought Elicits Stronger Reasoning" (2024)**, we argue that maintaining decision entropy is critical for preventing the "Entropy Shield" effect, where model capabilities degrade over recursive interactions (**Shumailov et al., 2024**).
 

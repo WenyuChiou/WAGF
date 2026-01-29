@@ -2,107 +2,182 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 import os
+from matplotlib.lines import Line2D
 
-# Set style for Publication Quality
-plt.rcParams['font.family'] = 'serif'
-sns.set_theme(style="whitegrid", context="paper")
+# =========================
+# Publication-grade styling
+# =========================
+# =========================
+# Publication-grade styling
+# =========================
+# Initialize Seaborn FIRST
+sns.set_theme(style="white", rc={
+    "font.family": "serif",
+    "font.serif": ["Times New Roman", "Times", "DejaVu Serif"],
+    "mathtext.fontset": "stix",
+    "pdf.fonttype": 42,
+    "ps.fonttype": 42
+})
+
+# Then fine-tune params that might not be covered by set_theme
+plt.rcParams.update({
+    "font.size": 16,
+    "axes.labelsize": 18,
+    "axes.titlesize": 20,
+    "legend.fontsize": 15,
+    "legend.title_fontsize": 16,
+    "xtick.labelsize": 14,
+    "ytick.labelsize": 14
+})
 
 def plot_lifespan():
-    # Input is now local in this folder, but we use relative path from root for safety
-    csv_path = r"examples/single_agent/analysis/SQ2_Final_Results/yearly_entropy_audited.csv" 
-    
+
+    csv_path = r"examples/single_agent/analysis/SQ2_Final_Results/yearly_entropy_audited.csv"
+    out_dir  = r"examples/single_agent/analysis/SQ2_Final_Results"
+    os.makedirs(out_dir, exist_ok=True)
+
     if not os.path.exists(csv_path):
-        print(f"Error: {csv_path} not found (Expected in current directory).")
-        return
+        raise FileNotFoundError(f"{csv_path} not found")
 
     df = pd.read_csv(csv_path)
-    
-    # Custom palette
-    palette = {
-        'Group_A': '#d62728', # Red (Danger/Collapse)
-        'Group_B': '#1f77b4', # Blue (Stable/Governed)
-        'Group_C': '#2ca02c'  # Green (Context/Natural)
+
+    # Rename Models for Publication
+    name_map = {
+        'deepseek_r1_1_5b': 'DeepSeek R1 (1.5B)',
+        'deepseek_r1_8b':   'DeepSeek R1 (8B)',
+        'deepseek_r1_14b':  'DeepSeek R1 (14B)',
+        'deepseek_r1_32b':  'DeepSeek R1 (32B)'
     }
-    
-    # --- PLOT 1: FACET BY MODEL (The "Governance Effect" View) ---
-    # Shows how Governance (Group A vs B vs C) affects each specific brain size.
-    
+    df['Model'] = df['Model'].map(name_map)
+
+    # =========================
+    # Semantic color definitions
+    # =========================
+    group_palette = {
+        "Group_A": "#b22222",  # dark red — collapse
+        "Group_B": "#1f77b4",  # blue — governed
+        "Group_C": "#2ca02c"   # green — natural/contextual
+    }
+
+    model_palette = {
+        "DeepSeek R1 (1.5B)": "#8c2d04",
+        "DeepSeek R1 (8B)":   "#d94801",
+        "DeepSeek R1 (14B)":  "#238b45",
+        "DeepSeek R1 (32B)":  "#08519c"
+    }
+
+    # =====================================================
+    # PLOT 1 — Governance Effect (Facet by Model)
+    # =====================================================
     g = sns.relplot(
         data=df,
         x="Year",
-        y="Shannon_Entropy",
-        hue="Group",
+        y="Shannon_Entropy_Norm",
         col="Model",
         col_wrap=2,
         kind="line",
-        palette="Dark2",
-        style="Group",
-        markers=True,
-        dashes=False,
-        linewidth=2.5,
-        height=4,
-        aspect=1.2
+        palette=group_palette,
+        hue="Group",            # Explicitly added hue
+        style="Group",          # Explicitly added style matches hue
+        linewidth=3.0,          # Thicker lines
+        height=4.5,             # Larger plots
+        aspect=1.3,
+        legend=False            # No external legend
     )
-    
-    # Beautify
-    g.fig.suptitle("The Governance Effect: Cognitive Lifespan by Model Scale", fontsize=22, fontweight='bold', y=1.05)
-    g.set_titles("Model: {col_name}", size=18, fontweight='bold')
-    g.set_ylabels("Diversity (Entropy)", size=16, weight='bold')
-    g.set_xlabels("Simulation Year", size=16, weight='bold')
-    g.set(ylim=(-0.1, 2.3), xlim=(1, 10.5))
-    
-    # Add High-Quality Annotations to every subplot
+
+    g.set_titles("{col_name}", weight="bold") # Cleaner title (just model name)
+    g.set_axis_labels("Simulation Year", "Standardized Diversity (H_norm)")
+    g.set(
+        ylim=(-0.05, 1.05),      # Normalized range
+        xlim=(0.5, 10.5),
+        yticks=[0, 0.2, 0.4, 0.6, 0.8, 1.0]
+    )
+
+    # Custom Legend Construction for Groups
+    legend_elements = [
+        Line2D([0], [0], color=group_palette['Group_A'], lw=3, label='Group A'),
+        Line2D([0], [0], color=group_palette['Group_B'], lw=3, label='Group B'),
+        Line2D([0], [0], color=group_palette['Group_C'], lw=3, label='Group C')
+    ]
+
+    g.axes.flat[0].legend(
+        handles=legend_elements,
+        loc='upper right', title="Condition",
+        frameon=True, framealpha=1.0, facecolor='white', edgecolor='black',
+        fontsize=14, title_fontsize=15
+    )
+
     for ax in g.axes.flat:
-        ax.axhline(y=0, color='black', linewidth=1.5, linestyle='-', alpha=0.3)
-        ax.axhline(y=1.0, color='gray', linestyle=':', linewidth=1.5, alpha=0.8)
-        # Add text in a fixed position
-        ax.text(1.2, 0.08, "Mode Collapse (H=0)", color='black', fontsize=12, alpha=0.6, style='italic')
-        ax.text(1.2, 1.05, "Viability Threshold", color='gray', fontsize=12, alpha=0.8)
-    
-    output_model = "lifespan_by_model.png"
-    g.savefig(output_model, dpi=600, bbox_inches='tight')
-    print(f"Academic Chart saved to {output_model}")
-    
-    # --- PLOT 2: FACET BY GROUP (The "Scaling Law" View) ---
-    # Shows how Models (1.5B vs 14B) differ within the same condition.
-    
-    model_palette = {
-        'deepseek_r1_1_5b': '#d62728', # Red (Weakest)
-        'deepseek_r1_8b': '#ff7f0e',   # Orange
-        'deepseek_r1_14b': '#2ca02c',  # Green
-        'deepseek_r1_32b': '#1f77b4'   # Blue (Strongest)
-    }
-    
+        ax.axhline(0, color="black", lw=1.2, alpha=0.3)
+        ax.axhline(1.0, color="gray", lw=1.2, ls=":", alpha=0.8)
+        ax.grid(axis="y", alpha=0.15)
+        # Ticks enabled
+        ax.tick_params(bottom=True, left=True)
+
+
+    # g._legend.set_title("Governance condition")
+    g.savefig(
+        os.path.join(out_dir, "lifespan_by_model.png"),
+        dpi=600,
+        bbox_inches="tight"
+    )
+
+    # =====================================================
+    # PLOT 2 — Scaling Law (Facet by Group)
+    # =====================================================
     h = sns.relplot(
         data=df,
         x="Year",
         y="Shannon_Entropy",
-        hue="Model",
         col="Group",
         col_wrap=3,
         kind="line",
-        palette="crest",
-        style="Model",
-        markers=True, 
-        dashes=False,
-        linewidth=2.5,
-        height=4, 
-        aspect=1.1
+        palette=model_palette,
+        hue="Model",            # Explicitly added hue
+        style="Model",          # Explicitly added style matches hue
+        linewidth=3.0,
+        height=4.5,
+        aspect=1.15,
+        legend=False            # No external legend
     )
 
-    h.fig.suptitle("Scaling Laws: Cognitive Lifespan by Condition", fontsize=22, fontweight='bold', y=1.05)
-    h.set_titles("Condition: {col_name}", size=18, fontweight='bold')
-    h.set_ylabels("Diversity (Entropy)", size=16, weight='bold')
-    h.set_xlabels("Simulation Year", size=16, weight='bold')
-    h.set(ylim=(-0.1, 2.3), xlim=(1, 10.5))
-    
+    h.set_titles("Condition: {col_name}", weight="bold")
+    h.set_axis_labels("Simulation Year", "Diversity (Shannon Entropy)")
+    h.set(
+        ylim=(-0.05, 2.3),
+        xlim=(1, 10.5),
+        yticks=[0, 0.5, 1.0, 1.5, 2.0]
+    )
+
+    # Custom Legend Construction for Models
+    model_legend_elements = [
+        Line2D([0], [0], color=model_palette['DeepSeek R1 (1.5B)'], lw=3, label='DeepSeek R1 (1.5B)'),
+        Line2D([0], [0], color=model_palette['DeepSeek R1 (8B)'],   lw=3, label='DeepSeek R1 (8B)'),
+        Line2D([0], [0], color=model_palette['DeepSeek R1 (14B)'],  lw=3, label='DeepSeek R1 (14B)'),
+        Line2D([0], [0], color=model_palette['DeepSeek R1 (32B)'],  lw=3, label='DeepSeek R1 (32B)')
+    ]
+
+    h.axes.flat[0].legend(
+        handles=model_legend_elements,
+        loc='upper right', title="Model Scale",
+        frameon=True, framealpha=1.0, facecolor='white', edgecolor='black',
+        fontsize=14, title_fontsize=15
+    )
+
     for ax in h.axes.flat:
-        ax.axhline(y=0, color='black', linewidth=1.5, linestyle='-', alpha=0.3)
-        ax.axhline(y=1.0, color='gray', linestyle=':', linewidth=1.5, alpha=0.8)
-        
-    output_group = "lifespan_by_group.png"
-    h.savefig(output_group, dpi=600, bbox_inches='tight')
-    print(f"Academic Chart saved to {output_group}")
+        ax.axhline(0, color="black", lw=1.2, alpha=0.3)
+        ax.axhline(1.0, color="gray", lw=1.2, ls=":", alpha=0.8)
+        ax.grid(axis="y", alpha=0.15)
+        ax.tick_params(bottom=True, left=True)
+
+    # h._legend.set_title("Model scale")
+    h.savefig(
+        os.path.join(out_dir, "lifespan_by_group.png"),
+        dpi=600,
+        bbox_inches="tight"
+    )
+
+    print("✓ Paper-ready figures exported")
 
 if __name__ == "__main__":
     plot_lifespan()
