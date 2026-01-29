@@ -8,9 +8,11 @@ Validators:
 - PhysicalValidator: State preconditions + Immutability
 - TypeValidator: Per-agent-type validation (skill eligibility, type rules)
 """
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, TYPE_CHECKING
 from broker.interfaces.skill_types import ValidationResult
-from broker.governance.rule_types import GovernanceRule
+
+if TYPE_CHECKING:
+    from broker.governance.rule_types import GovernanceRule
 
 from broker.validators.governance.base_validator import BaseValidator
 from broker.validators.governance.personal_validator import PersonalValidator
@@ -33,7 +35,7 @@ __all__ = [
 
 def validate_all(
     skill_name: str,
-    rules: List[GovernanceRule],
+    rules: List["GovernanceRule"],
     context: Dict[str, Any],
     agent_type: Optional[str] = None,
     registry: Optional["AgentTypeRegistry"] = None,
@@ -55,6 +57,10 @@ def validate_all(
     Returns:
         Combined list of ValidationResult from all validators
     """
+    from broker.governance.rule_types import GovernanceRule as _GovernanceRule
+    if rules and not isinstance(rules[0], _GovernanceRule):
+        raise TypeError("rules must be GovernanceRule instances")
+
     validators = [
         PersonalValidator(),
         PhysicalValidator(),

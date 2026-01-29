@@ -31,16 +31,7 @@ from .rule_types import (
     ConditionType,
     categorize_rule,
 )
-from .validators import (
-    BaseValidator,
-    PersonalValidator,
-    SocialValidator,
-    ThinkingValidator,
-    PhysicalValidator,
-    TypeValidator,
-    validate_all,
-    get_rule_breakdown,
-)
+from .type_validator import TypeValidator
 
 __all__ = [
     # Rule Types
@@ -51,13 +42,18 @@ __all__ = [
     "ConditionType",
     "categorize_rule",
     # Validators
-    "BaseValidator",
-    "PersonalValidator",
-    "SocialValidator",
-    "ThinkingValidator",
-    "PhysicalValidator",
     "TypeValidator",
-    # Convenience functions
+    # Convenience functions (lazy imports)
     "validate_all",
     "get_rule_breakdown",
 ]
+
+
+def validate_all(*args, **kwargs):
+    from broker.validators.governance import validate_all as _validate_all
+    return _validate_all(*args, **kwargs)
+
+
+def get_rule_breakdown(*args, **kwargs):
+    from broker.validators.governance import get_rule_breakdown as _get_rule_breakdown
+    return _get_rule_breakdown(*args, **kwargs)
