@@ -869,7 +869,7 @@ Please reconsider your decision. Ensure your new response addresses the violatio
 # FACTORY FUNCTION
 # =============================================================================
 
-def get_adapter(model_name: str) -> ModelAdapter:
+def get_adapter(model_name: str, config_path: str = None) -> ModelAdapter:
     """
     Get the appropriate adapter for a model.
     
@@ -879,11 +879,11 @@ def get_adapter(model_name: str) -> ModelAdapter:
     
     # DeepSeek models use <think> tags
     if 'deepseek' in model_lower:
-        return UnifiedAdapter(preprocessor=deepseek_preprocessor)
+        return UnifiedAdapter(preprocessor=deepseek_preprocessor, config_path=config_path)
     
     # All other models use standard adapter
     # (Llama, Gemma, GPT-OSS, OpenAI, Anthropic, etc.)
-    return UnifiedAdapter()
+    return UnifiedAdapter(config_path=config_path)
 
 
 

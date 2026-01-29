@@ -10,8 +10,9 @@ Tests cover:
 import pytest
 from unittest.mock import MagicMock
 
-from broker.utils.model_adapter import UnifiedAdapter, deepseek_preprocessor
+from broker.utils.model_adapter import UnifiedAdapter, deepseek_preprocessor, get_adapter
 from broker.interfaces.skill_types import SkillProposal
+from broker.utils.agent_config import AgentTypeConfig
 
 
 class TestParseLayerTracking:
@@ -64,6 +65,31 @@ class TestParseLayerTracking:
         if proposal:
             proposal_dict = proposal.to_dict()
             assert "parse_layer" in proposal_dict
+
+
+class TestAdapterConfigPath:
+    """Test get_adapter propagates config_path to AgentTypeConfig."""
+
+    def test_get_adapter_uses_config_path(self, tmp_path):
+        """Ensure adapter loads agent config from explicit path."""
+        AgentTypeConfig._instance = None
+
+        yaml_path = tmp_path / "agent_types.yaml"
+        yaml_path.write_text(
+            "\n".join([
+                "household:",
+                "  parsing:",
+                "    actions:",
+                "      - id: custom_action",
+                "        aliases: []",
+            ]),
+            encoding="utf-8",
+        )
+
+        adapter = get_adapter("mock-model", config_path=str(yaml_path))
+        actions = adapter.agent_config.get_valid_actions("household")
+
+        assert "custom_action" in actions
 
 
 class TestFallbackParsing:

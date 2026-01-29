@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from governed_ai_sdk.agents import BaseAgent
+from cognitive_governance.agents import BaseAgent
 from ..interfaces.skill_types import ApprovedSkill, SkillOutcome, SkillBrokerResult, ExecutionResult, SkillProposal
 from .skill_broker_engine import SkillBrokerEngine
 from ..components.context_builder import BaseAgentContextBuilder
@@ -537,7 +537,7 @@ class ExperimentBuilder:
         # Complex assembly logic here
         from broker import SkillRegistry
         from broker import GenericAuditWriter, AuditConfig
-        from validators import AgentValidator
+        from broker.validators.agent import AgentValidator
         from broker.components.context_builder import create_context_builder
         import os
 
@@ -620,7 +620,7 @@ class ExperimentBuilder:
         from broker.utils.model_adapter import get_adapter
         
         # PR 13.1: Inject registry skills into adapter for robust parsing via factory
-        adapter = get_adapter(self.model)
+        adapter = get_adapter(self.model, config_path=self.agent_types_path)
         adapter.agent_type = "default"
         adapter.config_path = self.agent_types_path
         
@@ -628,8 +628,15 @@ class ExperimentBuilder:
         reg_skills = set(reg.skills.keys()) if hasattr(reg, 'skills') else None
         if reg_skills:
             adapter.valid_skills = reg_skills
-            # Re-initialize alias map with new valid skills
-            adapter.alias_map = {s.lower(): s for s in reg_skills}
+            # Build alias map from YAML config (all agent types), then add registry skills
+            full_aliases = {}
+            for cfg_key in adapter.agent_config._config:
+                if cfg_key not in ("global_config", "shared", "metadata"):
+                    full_aliases.update(adapter.agent_config.get_action_alias_map(cfg_key))
+            # Ensure canonical self-mappings from registry
+            for s in reg_skills:
+                full_aliases.setdefault(s.lower(), s)
+            adapter.alias_map = full_aliases
         
         # Inject templates into ctx_builder if it supports it
         if hasattr(ctx_builder, 'prompt_templates') and self.agent_types_path:
