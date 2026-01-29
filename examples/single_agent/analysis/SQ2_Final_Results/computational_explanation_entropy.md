@@ -1,37 +1,39 @@
-# Computational Explanation: The Entropy Divergence (Year 1)
+# Computational Explanation: The Entropy Calculation Process (SQ2)
 
-_Why does adding rules mathematically increase $H$ before any learning happens?_
+_How we mathematically measure the diversity of agentic behavior across groups._
 
-## 1. The Input Vector ($X$)
+## 1. Data Collection & Normalization
 
-The Large Language Model (LLM) is a function $f(X) \rightarrow P(Y)$.
+For each model scale and experimental group (A, B, C):
 
-- **Group A Input ($X_A$):** `[System: You are an agent.] [User: Flood Level is High.]`
-- **Group B Input ($X_B$):** `[System: You are an agent. RULES: Do not relocate unless necessary. Check conditions.] [User: Flood Level is High.]`
+1. **Decision Capture**: We extract raw decision strings from `simulation_log.csv`.
+2. **Normalization**: Decisions are mapped into 5 categorical bins:
+   - `DN`: Do Nothing
+   - `FI`: Flood Insurance
+   - `HE`: House Elevation
+   - `Both HE + FI`: Combined Mitigation
+   - `RL`: Relocate (Departing)
 
-## 2. The Logit Distribution ($Z$)
+## 2. The Shannon Entropy Formula ($H$)
 
-The model produces unnormalized scores (logits) for next tokens (Actions).
+We calculate the **Shannon Entropy** to quantify the "spread" or "certainty" of agent behavior:
 
-- **In Group A:** The token "Flood" strongly attends to the token "Relocate" (Training Bias).
-  - $Z_{Relocate} \gg Z_{Others}$ (A "Spiky" distribution).
-- **In Group B:** The token "Flood" attends to "Relocate", BUT the token "RULES" attends to "Check/Wait".
-  - This **Attention Conflict** suppresses the magnitude of $Z_{Relocate}$.
-  - $Z_{Relocate} \approx Z_{Insurance} \approx Z_{Elevation}$ (A "Flatter" distribution).
+$$H = -\sum_{i=1}^{k} p_i \log_2(p_i)$$
 
-## 3. The Softmax & Entropy ($H$)
+Where:
 
-We convert Logits to Probabilities: $P_i = \frac{e^{Z_i}}{\sum e^{Z_j}}$.
+- $p_i$ is the probability (frequency) of action $i$ in the population.
+- $k=5$ (the number of possible actions).
 
-- **Group A (Spiky Logits):**
-  - $P(Relocate) = 0.8$, $P(Others) = 0.05$
-  - $H = -\sum p \log p \approx 1.85$ (Low Diversity)
+## 3. Normalization ($H_{norm}$)
 
-- **Group B (Flat Logits):**
-  - $P(Relocate) = 0.4$, $P(Insurance) = 0.3$, $P(Elevate) = 0.3$
-  - $H = - (0.4\log0.4 + 0.3\log0.3 + 0.3\log0.3) \approx 2.09$ (High Diversity)
+To ensure the metric is comparable and interpretable (0.0 to 1.0), we normalize by the maximum possible entropy ($\log_2 k$):
 
-## Conclusion
+$$H_{norm} = \frac{H}{\log_2(5)} \approx \frac{H}{2.3219}$$
 
-From a computational perspective, **Governance acts as a Regularizer**.
-It penalizes the model's over-confidence in a single "Panic Path" by introducing competing attention heads (Rules), thereby flattening the output probability distribution and increasing Shannon Entropy.
+- **$H_{norm} \approx 0$**: Collapsed behavior (everyone chooses the same action, e.g., Group A Panic).
+- **$H_{norm} \approx 1$**: Uniform distribution (maximum diversity of adaptation paths).
+
+## Conclusion: Governance as a Regularizer
+
+As seen in Year 1 data, **Governance increases $H$** by suppressing the model's training bias towards a single "Panic Path" (Relocation), thereby flattening the probability distribution and preserving agentic plurality.

@@ -28,45 +28,53 @@ df_rules = pd.read_excel(SQ1_DIR / "sq1_metrics_rules.xlsx")
 df_audit = pd.read_csv(SQ3_DIR / "technical_retry_audit_v3.csv")
 
 # 2. Merge Audited Counts
-df = df_rules.merge(df_audit[['Model', 'Group', 'Intv_S_Audit', 'Intv_P_Audit', 'Retries_Total', 'Err_Hallucination']], on=['Model', 'Group'], how='left')
+df = df_rules.merge(df_audit[['Model', 'Group', 'Steps', 'Intv_S_Audit', 'Intv_P_Audit', 'Retries_Total', 'Err_Hallucination']], on=['Model', 'Group'], how='left')
 df['Intv_S_Audit'] = df['Intv_S_Audit'].fillna(0)
 df['Intv_P_Audit'] = df['Intv_P_Audit'].fillna(0)
 df['Retries_Total'] = df['Retries_Total'].fillna(0)
 df['Err_Hallucination'] = df['Err_Hallucination'].fillna(0)
 
-# 3. Calculate Core Metrics (Outcome Mapping)
-
-# Axis 1: Quality (Scientific Rationality)
-# Rule: Framework guarantees rationality in filtered output.
+# Axis 1: Quality (Scientific Rationality - INTENT BASED)
 def calculate_quality(row):
+    # Intent = Native capacity to reason within rules.
+    # We penalize by Logic Interventions (Intv_S_Audit) for B/C,
+    # or by raw violation rates for A.
     if row['Group'] in ['Group_B', 'Group_C']:
-        return 99.5  # High-Fidelity outcome guaranteed by framework logic
-    # Native Group A: 1 - Violation Rate
-    irrational_total = row['V1_Tot'] + row['V2_Tot'] + row['V3_Tot']
-    return max(0, 100 * (1 - (irrational_total / row['N'])))
+        penalty = row['Intv_S_Audit'] / row['Steps']
+        return max(0, 100 * (1 - penalty))
+    else:
+        # Native Group A: 1 - Violation Rate
+        irrational_total = row['V1_Tot'] + row['V2_Tot'] + row['V3_Tot']
+        return max(0, 100 * (1 - (irrational_total / row['Steps'])))
 
 df['Quality'] = df.apply(calculate_quality, axis=1)
 
-# Axis 2: Safety (Policy Compliance)
-# Rule: Framework blocks all violations (Rule Brakes).
+# Axis 2: Safety (Policy Compliance - INTENT BASED)
 def calculate_safety(row):
+    # Intent = Native compliance with policy rules.
+    # Group B/C are penalized for every rule breach that needed a block.
     if row['Group'] in ['Group_B', 'Group_C']:
-        return 100.0  # Perfect compliance after enforcement
-    # Native Group A: 1 - Policy Breach Rate
-    # In our study, V1, V2, V3 are the rule violations.
-    violations = row['V1_Tot'] + row['V2_Tot'] + row['V3_Tot']
-    return max(0, 100 * (1 - (violations / row['N'])))
+        # We use Intv_S_Audit as a proxy for both logic and policy interventions if not separate.
+        # But we assume the Intv_S_Audit captures the "steering effort".
+        penalty = row['Intv_S_Audit'] / row['Steps']
+        return max(0, 100 * (1 - penalty))
+    else:
+        # Native Group A: 1 - Policy Breach Rate
+        violations = row['V1_Tot'] + row['V2_Tot'] + row['V3_Tot']
+        return max(0, 100 * (1 - (violations / row['Steps'])))
 
 df['Safety'] = df.apply(calculate_safety, axis=1)
 
-# Axis 3: Stability (Technical Outcome)
-# Rule: Framework repairs all technical failures (Parse/Label).
+# Axis 3: Stability (Technical Outcome - INTENT BASED)
 def calculate_stability(row):
-    if row['Group'] in ['Group_B', 'Group_C']:
-        return 100.0  # Perfect integrity after repair
-    # Native Group A: 1 - Hallucination/Parse Anomaly Rate
-    # Proxy: Err_Hallucination is the only direct measure we have for A's failure to format.
-    return max(0, 100 * (1 - (row['Err_Hallucination'] / row['N'])))
+    # Intent = Native ability to maintain structural integrity.
+    # Penalized by technical retries (or audit failures).
+    penalty = row['Retries_Total'] / row['Steps'] if row['Steps'] > 0 else 0
+    if row['Group'] == 'Group_A':
+        # Use native hallucinations if retries were 0
+        penalty = max(penalty, row['Err_Hallucination'] / row['Steps']) if row['Steps'] > 0 else 0
+    
+    return max(0, 100 * (1 - penalty))
 
 df['Stability'] = df.apply(calculate_stability, axis=1)
 

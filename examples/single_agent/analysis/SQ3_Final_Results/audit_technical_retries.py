@@ -50,7 +50,27 @@ def audit_log(model, group):
     total_broker_retries = count_pattern(log_path, r"\[Broker:Retry\]")
     total_llm_retries = count_pattern(log_path, r"\[LLM:Retry\]")
     
-    total_active_steps = count_pattern(log_path, "--- Executing Step")
+    # 5. Total Active Steps (N) - READ FROM CSV FOR ACCURACY
+    sim_log_path = RESULTS_DIR / model / group / "Run_1" / "simulation_log.csv"
+    if sim_log_path.exists():
+        sim_df = pd.read_csv(sim_log_path)
+        total_active_steps = len(sim_df)
+    else:
+        # Fallback to log pattern
+        if group == "Group_A":
+            total_active_steps = count_pattern(log_path, "Decision:") + count_pattern(log_path, "Skill:")
+        else:
+            total_active_steps = count_pattern(log_path, "--- Executing Step")
+
+    # 6. Adjust Hallucinations for Group A
+    # For A, we look for signs of technical instability in the raw log.
+    if group == "Group_A":
+        # In Native Group A, "TP=" appears if the model failed to follow the template
+        # or hallucinated fields.
+        p_hallucinations = count_pattern(log_path, "TP=")
+        # Check for parse errors
+        p_invalid_labels = count_pattern(log_path, "Invalid _LABEL")
+        p_missing_constructs = count_pattern(log_path, "Missing required constructs")
 
     return {
         "Model": model,
