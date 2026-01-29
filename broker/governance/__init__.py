@@ -42,6 +42,11 @@ __all__ = [
     "ConditionType",
     "categorize_rule",
     # Validators
+    "BaseValidator",
+    "PersonalValidator",
+    "SocialValidator",
+    "ThinkingValidator",
+    "PhysicalValidator",
     "TypeValidator",
     # Convenience functions (lazy imports)
     "validate_all",
@@ -57,3 +62,19 @@ def validate_all(*args, **kwargs):
 def get_rule_breakdown(*args, **kwargs):
     from broker.validators.governance import get_rule_breakdown as _get_rule_breakdown
     return _get_rule_breakdown(*args, **kwargs)
+
+
+_VALIDATOR_EXPORTS = {
+    "BaseValidator",
+    "PersonalValidator",
+    "SocialValidator",
+    "ThinkingValidator",
+    "PhysicalValidator",
+}
+
+
+def __getattr__(name):
+    if name in _VALIDATOR_EXPORTS:
+        from broker.validators import governance as _gov
+        return getattr(_gov, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
