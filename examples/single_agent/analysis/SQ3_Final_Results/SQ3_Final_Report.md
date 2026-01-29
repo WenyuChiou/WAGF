@@ -40,6 +40,12 @@ To capture the "raw cognitive effort" and the benefits of Memory (Group C), we u
 - **Formula:** $1.0 - \frac{\text{Technical Retries}}{N}$
 - **Significance:** Inverse of the "Incompetence Load"; measures technical reliability.
 
+### V. Variety (Behavioral Diversity)
+
+- **Definition:** The diversity of agent decisions within a simulation year, standardized to a 0.0-1.0 scale.
+- **Formula:** $H_{norm} = \frac{-\sum p_i \log_2 p_i}{\log_2 k}$ (where $k=5$ actions).
+- **Significance:** Measures the system's resistance to "Mode Collapse". Higher scores indicate a healthy, heterogeneous agent population.
+
 ---
 
 ## 3. Analysis: The "Surgical Gain" (ABC Comparison)
