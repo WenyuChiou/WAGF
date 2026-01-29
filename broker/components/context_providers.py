@@ -412,6 +412,91 @@ class EnvironmentEventProvider(ContextProvider):
         ]
 
 
+class PerceptionAwareProvider(ContextProvider):
+    """Applies perception filter as final step in context building.
+
+    Task-043: Agent-type aware perception transformation.
+
+    This provider MUST be added LAST to the provider chain. It transforms
+    the full context based on agent type:
+
+    - Household agents: Numerical data → qualitative descriptions
+      ("$25,000 damage" → "significant damage")
+    - Government agents: Full numerical data preserved
+    - Insurance agents: Full numerical data for policyholders
+
+    For MG (Marginalized Group) agents, community-wide observables are
+    removed, keeping only personal ("my_" prefixed) observables.
+
+    Usage:
+        from broker.components.context_providers import PerceptionAwareProvider
+        from broker.components.perception_filter import PerceptionFilterRegistry
+
+        # Use default filters
+        provider = PerceptionAwareProvider()
+
+        # Or provide custom registry
+        registry = PerceptionFilterRegistry()
+        registry.register("custom_type", CustomFilter())
+        provider = PerceptionAwareProvider(registry)
+
+        # Add LAST to context builder
+        ctx_builder.providers.append(provider)
+    """
+
+    def __init__(self, filter_registry: "PerceptionFilterRegistry" = None):
+        """Initialize with optional custom filter registry.
+
+        Args:
+            filter_registry: Registry of perception filters by agent type.
+                If None, creates default registry with household/government/insurance filters.
+        """
+        self._registry = filter_registry
+        self._initialized = False
+
+    def _ensure_registry(self):
+        """Lazy initialization of registry to avoid circular imports."""
+        if not self._initialized:
+            if self._registry is None:
+                from broker.components.perception_filter import PerceptionFilterRegistry
+                self._registry = PerceptionFilterRegistry()
+            self._initialized = True
+
+    def provide(self, agent_id: str, agents: Dict[str, Any], context: Dict[str, Any], **kwargs):
+        """Apply perception filter to transform context for agent type.
+
+        Args:
+            agent_id: Current agent's ID
+            agents: All agents in simulation
+            context: Context dict to transform (modified in place)
+            **kwargs: Additional context (unused)
+        """
+        self._ensure_registry()
+
+        agent = agents.get(agent_id)
+        if not agent:
+            return
+
+        # Determine agent type
+        if isinstance(agent, dict):
+            agent_type = agent.get('agent_type', 'household')
+        else:
+            agent_type = getattr(agent, 'agent_type', 'household')
+
+        # Apply perception filter
+        filtered = self._registry.filter_context(agent_type, context, agent)
+
+        # Replace context contents with filtered version
+        context.clear()
+        context.update(filtered)
+
+        # Add perception metadata for audit trail
+        context["_perception"] = {
+            "agent_type": agent_type,
+            "filter_applied": True,
+        }
+
+
 __all__ = [
     "ContextProvider",
     "SystemPromptProvider",
@@ -426,4 +511,5 @@ __all__ = [
     "NarrativeProvider",
     "ObservableStateProvider",  # Task-041: Cross-agent observation
     "EnvironmentEventProvider",  # Task-042: Environment events
+    "PerceptionAwareProvider",  # Task-043: Agent-type perception
 ]

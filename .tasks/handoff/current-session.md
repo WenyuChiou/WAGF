@@ -1,11 +1,57 @@
 # Current Session Handoff
 
 ## Last Updated
-2026-01-28T14:30:00Z
+2026-01-28T16:30:00Z
 
 ---
 
-## Active Task: Task-040 SA/MA Unified Architecture
+## Active Task: Task-043 Realistic Agent Perception
+
+**Status**: ✅ Complete
+**Owner**: Claude Code
+**Plan**: `C:\Users\wenyu\.claude\plans\ancient-beaming-lemur.md` (Phase 3)
+
+### Summary
+
+Implemented agent-type aware perception filters that transform context based on who is observing:
+
+| Agent Type | Sees Numbers | Sees Qualitative | Social Scope |
+|------------|--------------|------------------|--------------|
+| Household (NMG) | ❌ | ✅ "waist-deep water" | Spatial (radius=2) |
+| Household (MG) | ❌ | ✅ "waist-deep water" | Spatial (radius=1) |
+| Government | ✅ exact $ | ❌ | Global |
+| Insurance | ✅ exact $ | ❌ | Policyholders |
+
+### Tests
+- `tests/test_perception_filter.py`: 42 tests passing
+- `tests/test_social_graph_config.py`: 42 tests passing
+
+### Key Components
+
+| File | Description |
+|------|-------------|
+| `broker/interfaces/perception.py` | Protocol definitions, descriptor mappings |
+| `broker/components/perception_filter.py` | HouseholdPerceptionFilter, GovernmentPerceptionFilter, InsurancePerceptionFilter, PerceptionFilterRegistry |
+| `broker/components/social_graph_config.py` | SocialGraphSpec, agent-type social radius config |
+| `broker/components/context_providers.py` | PerceptionAwareProvider (add LAST to provider chain) |
+
+### Qualitative Transformations (Household)
+
+- `depth_ft` → "ankle/knee/waist/chest/over-head water"
+- `damage_ratio` → "minimal/minor/moderate/significant/devastating damage"
+- `neighbor_count` → "none/a few/some/many/most of your neighbors"
+- Dollar amounts and percentages are removed
+
+### MG Agent Restrictions
+
+MG (Marginalized Group) agents have limited community information access:
+- Community-wide observables (`insurance_penetration_rate`, etc.) removed
+- Personal observables (`my_` prefix) preserved
+- Smaller social network radius (1 vs 2)
+
+---
+
+## Previous Task: Task-040 SA/MA Unified Architecture
 
 **Status**: ✅ Complete
 **Owner**: Claude Code
