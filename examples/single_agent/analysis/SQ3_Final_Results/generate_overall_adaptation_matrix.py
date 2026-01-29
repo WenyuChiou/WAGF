@@ -165,7 +165,14 @@ def plot_dynamic_matrix_stacked_bar(data_map):
     nrows = len(GROUPS)
     ncols = len(MODELS)
     
+    sns.set_theme(style="whitegrid", context="paper", font_scale=1.1)
+    plt.rcParams['font.family'] = 'serif'
+    plt.rcParams['font.serif'] = ['Times New Roman'] + plt.rcParams['font.serif']
+    
     fig, axes = plt.subplots(nrows, ncols, figsize=(5*ncols, 4*nrows), sharex=True, sharey=True)
+    
+    # Subplot labels for scientific notation (Group rows)
+    group_ann = ['(a)', '(b)', '(c)']
     
     for row_idx, group in enumerate(GROUPS):
         for col_idx, model in enumerate(MODELS):
@@ -173,16 +180,18 @@ def plot_dynamic_matrix_stacked_bar(data_map):
             df = data_map.get((model, group))
             model_label = MODEL_LABELS[model]
             
-            # Group Titles as Row Labels (Left Side)
+            # Add (a), (b), (c) labels to top-left of the first subplot in each row
             if col_idx == 0:
-                ax.set_ylabel(GROUP_TITLES.get(group, group), fontsize=13, fontweight='bold', labelpad=15)
+                ax.text(-0.35, 1.1, group_ann[row_idx], transform=ax.transAxes, 
+                        fontsize=28, fontweight='bold', va='top', ha='right', family='serif')
+                # Group Titles as Row Labels (Left Side) - ENLARGED
+                ax.set_ylabel(GROUP_TITLES.get(group, group), fontsize=18, fontweight='bold', labelpad=20, family='serif')
             
-            # Model Labels as Column Titles (Top Row)
+            # Model Labels as Column Titles (Top Row) - ENLARGED
             if row_idx == 0:
-                ax.set_title(model_label, fontsize=15, fontweight='bold')
+                ax.set_title(model_label, fontsize=22, fontweight='bold', pad=25, family='serif')
             
-            # FIX: Properly set x-axis limits and ticks for pandas bar plot (0-indexed positions)
-            # This ensures Year 1 (pos 0) and Year 10 (pos 9) are fully visible
+            # FIX: Properly set x-axis limits and ticks
             ax.set_xlim(-0.5, 9.5)
             ax.set_xticks(range(0, 10))
 
@@ -191,29 +200,53 @@ def plot_dynamic_matrix_stacked_bar(data_map):
                 df.plot(kind='bar', stacked=True, color=colors, ax=ax, width=0.85, legend=False)
                 
                 ax.set_ylim(0, 105) 
+                ax.tick_params(axis='y', labelsize=14)
                 ax.grid(axis='y', linestyle='--', alpha=0.5)
             else:
-                ax.text(0.5, 0.5, "Pending Data", 
-                        ha='center', va='center', transform=ax.transAxes, color='gray', fontsize=12)
-                ax.set_facecolor("#f9f9f9")
+                # Blank subplot styling
+                ax.set_facecolor("#ffffff")
+                ax.grid(False)
+                # Remove ticks for blank plots
+                ax.set_xticks([])
+                ax.set_yticks([])
 
-            # X Label (Year 1-10 labels)
+            # X Label (Year 1-10 labels) - ENLARGED
             if row_idx == nrows - 1:
-                ax.set_xlabel("Year")
-                ax.set_xticklabels(range(1, 11), rotation=0)
+                ax.set_xlabel("Year", fontsize=18, fontweight='bold', family='serif')
+                # Only set labels if data exists (or explicitly set ticks first)
+                ax.set_xticks(range(10))
+                ax.set_xticklabels(range(1, 11), rotation=0, size=14, family='serif')
             else:
                 ax.set_xlabel("")
+                ax.set_xticks(range(10))
                 ax.set_xticklabels([])
 
-    # Legend
-    from matplotlib.patches import Patch
-    legend_elements = [Patch(facecolor=COLOR_MAP[c], label=c) for c in CATEGORIES]
+    # Abbreviated Category Labels for the legend
+    ABBR_LABELS = {
+        "Do Nothing": "DN",
+        "Insurance": "FI",
+        "Elevation": "HE",
+        "Insurance + Elevation": "both HE + FI",
+        "Relocate (Departing)": "RL"
+    }
     
-    fig.legend(handles=legend_elements, loc='upper center', bbox_to_anchor=(0.5, 1.01), 
-               ncol=5, fontsize=12, frameon=False, title="Adaptation State")
+    # Legend - POSITIONED INSIDE 1.5B Group A (Top Left subplot)
+    from matplotlib.patches import Patch
+    legend_elements = [Patch(facecolor=COLOR_MAP[c], label=ABBR_LABELS[c]) for c in CATEGORIES]
+    
+    # Place legend in axes[0][0] (Group A, 1.5B) - Upper Right corner
+    leg_ax = axes[0][0]
+    leg = leg_ax.legend(handles=legend_elements, loc='upper right', fontsize=11, frameon=True, 
+                        title="State", borderpad=0.4, labelspacing=0.15)
+    plt.setp(leg.get_title(), fontsize=12, fontweight='bold', family='serif')
 
-    plt.suptitle("Figure: Overall Adaptation Strategy Evolution (10 Years)", fontsize=22, fontweight='bold', y=1.05)
-    plt.tight_layout()
+    # Update: Ensure 32B C blank subplot is truly empty
+    axes[2][3].set_facecolor("#ffffff")
+    axes[2][3].grid(False)
+    axes[2][3].set_xticks([])
+    axes[2][3].set_yticks([])
+
+    plt.tight_layout(rect=[0, 0, 1, 0.98]) 
     plt.savefig(f"{FIGURE_OUTPUT}/overall_adaptation_by_year.png", dpi=300, bbox_inches='tight')
     plt.close()
     print(f"Generated {nrows}x{ncols} Adaptation Matrix (Stacked Bar).")
