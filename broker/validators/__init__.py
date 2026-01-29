@@ -1,19 +1,26 @@
-# broker/validators/__init__.py
 """
-Broker Validators Package - Re-exports for backward compatibility.
+Broker Validators Package - Unified exports.
 
-This module provides a unified import path within the broker namespace.
+Provides a single import path for agent and governance validators.
 """
 
-# Re-export from project-level validators (backward compatibility)
-# This allows both:
-#   from validators.agent_validator import AgentValidator
-#   from broker.validators import AgentValidator
-try:
-    from validators.agent_validator import AgentValidator, ValidationLevel
-except ImportError:
-    # Fallback for when broker is used as a standalone package
-    AgentValidator = None
-    ValidationLevel = None
+from broker.validators.agent.agent_validator import AgentValidator, ValidationLevel
+from broker.validators.agent.council import ValidatorCouncil
+from broker.validators.governance import (
+    BaseValidator,
+    PersonalValidator,
+    PhysicalValidator,
+    SocialValidator,
+    ThinkingValidator,
+)
 
-__all__ = ["AgentValidator", "ValidationLevel"]
+__all__ = [
+    "AgentValidator",
+    "ValidationLevel",
+    "ValidatorCouncil",
+    "BaseValidator",
+    "PersonalValidator",
+    "PhysicalValidator",
+    "SocialValidator",
+    "ThinkingValidator",
+]

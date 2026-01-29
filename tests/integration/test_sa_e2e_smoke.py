@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 
 from broker.utils.model_adapter import UnifiedAdapter
 from broker.components.skill_registry import SkillRegistry
-from validators.agent_validator import AgentValidator
+from broker.validators.agent.agent_validator import AgentValidator
 from broker.simulation.environment import TieredEnvironment
 from broker.interfaces.skill_types import SkillProposal, ValidationResult
 from cognitive_governance.agents import BaseAgent, AgentConfig

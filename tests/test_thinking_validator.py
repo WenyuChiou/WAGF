@@ -5,7 +5,7 @@ Task-041: Universal Prompt/Context/Governance Framework
 """
 
 import pytest
-from broker.governance.validators.thinking_validator import (
+from broker.validators.governance.thinking_validator import (
     ThinkingValidator,
     FRAMEWORK_LABEL_ORDERS,
     FRAMEWORK_CONSTRUCTS,
@@ -329,7 +329,7 @@ class TestThinkingValidatorBackwardCompatibility:
 
     def test_pmt_label_order_constant_exists(self):
         """PMT_LABEL_ORDER constant should still exist for compatibility."""
-        from broker.governance.validators.thinking_validator import PMT_LABEL_ORDER
+        from broker.validators.governance.thinking_validator import PMT_LABEL_ORDER
         assert PMT_LABEL_ORDER == {"VL": 0, "L": 1, "M": 2, "H": 3, "VH": 4}
 
     def test_category_is_thinking(self):

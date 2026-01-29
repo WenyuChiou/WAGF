@@ -12,11 +12,11 @@ from typing import List, Dict, Any, Optional
 from broker.interfaces.skill_types import ValidationResult
 from broker.governance.rule_types import GovernanceRule
 
-from broker.governance.validators.base_validator import BaseValidator
-from broker.governance.validators.personal_validator import PersonalValidator
-from broker.governance.validators.social_validator import SocialValidator
-from broker.governance.validators.thinking_validator import ThinkingValidator
-from broker.governance.validators.physical_validator import PhysicalValidator
+from broker.validators.governance.base_validator import BaseValidator
+from broker.validators.governance.personal_validator import PersonalValidator
+from broker.validators.governance.social_validator import SocialValidator
+from broker.validators.governance.thinking_validator import ThinkingValidator
+from broker.validators.governance.physical_validator import PhysicalValidator
 from broker.governance.type_validator import TypeValidator
 
 __all__ = [

@@ -8,7 +8,7 @@ Validates:
 from typing import List, Dict, Any
 from broker.interfaces.skill_types import ValidationResult
 from broker.governance.rule_types import GovernanceRule
-from broker.governance.validators.base_validator import BaseValidator
+from broker.validators.governance.base_validator import BaseValidator
 
 
 class PersonalValidator(BaseValidator):

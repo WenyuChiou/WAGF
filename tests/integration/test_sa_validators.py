@@ -17,7 +17,7 @@ import sys
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from validators.agent_validator import AgentValidator, ValidationLevel
+from broker.validators.agent.agent_validator import AgentValidator, ValidationLevel
 from broker.interfaces.skill_types import SkillProposal, ValidationResult
 
 

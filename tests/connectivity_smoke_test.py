@@ -7,13 +7,13 @@ from typing import Dict, Any
 # Add workspace to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from governed_ai_sdk.agents import BaseAgent, AgentConfig, StateParam
+from cognitive_governance.agents import BaseAgent, AgentConfig, StateParam
 from broker.components.context_builder import TieredContextBuilder, AttributeProvider, SocialProvider
 from broker.components.interaction_hub import InteractionHub
 from broker.core.governed_broker import SkillBrokerEngine
 from broker.utils.model_adapter import UnifiedAdapter
 from broker.components.audit_writer import GenericAuditWriter, AuditConfig
-from validators.agent_validator import AgentValidator
+from broker.validators.agent.agent_validator import AgentValidator
 from broker.components.social_graph import GlobalGraph
 
 def main():

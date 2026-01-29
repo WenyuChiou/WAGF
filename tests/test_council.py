@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock
-from validators.council import CouncilValidator
+from broker.validators.agent.council import CouncilValidator
 from broker.interfaces.skill_types import ValidationResult
 
 def test_unanimous_council():

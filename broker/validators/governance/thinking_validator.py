@@ -13,7 +13,7 @@ from typing import List, Dict, Any, Optional
 from broker.interfaces.skill_types import ValidationResult
 from broker.interfaces.rating_scales import RatingScaleRegistry, FrameworkType
 from broker.governance.rule_types import GovernanceRule
-from broker.governance.validators.base_validator import BaseValidator
+from broker.validators.governance.base_validator import BaseValidator
 
 
 # Framework-specific label orderings
