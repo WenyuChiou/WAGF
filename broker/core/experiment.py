@@ -290,8 +290,23 @@ class ExperimentRunner:
                     validation_errors=[],
                     retry_count=0
                 )
-                results.append((agent, result))
-                continue
+                if hasattr(self.broker, "_run_validators"):
+                    cached_proposal_obj = SkillProposal(
+                        skill_name=cached_data.get("approved_skill", {}).get("skill_name", "do_nothing"),
+                        agent_id=agent.id,
+                        reasoning=cached_data.get("skill_proposal", {}).get("reasoning", {}),
+                        agent_type=getattr(agent, 'agent_type', 'default')
+                    )
+                    val_results = self.broker._run_validators(cached_proposal_obj, context)
+                    if not all(v.valid for v in val_results):
+                        logger.warning(f"[Efficiency] Cache HIT for {agent.id} INVALIDATED by governance. Re-running.")
+                        self.efficiency.invalidate(context_hash)
+                    else:
+                        results.append((agent, result))
+                        continue
+                else:
+                    results.append((agent, result))
+                    continue
             
             result = self.broker.process_step(
                 agent_id=agent.id,
@@ -349,7 +364,21 @@ class ExperimentRunner:
                     validation_errors=[],
                     retry_count=0
                 )
-                return agent, result
+                if hasattr(self.broker, "_run_validators"):
+                    cached_proposal_obj = SkillProposal(
+                        skill_name=cached_data.get("approved_skill", {}).get("skill_name", "do_nothing"),
+                        agent_id=agent.id,
+                        reasoning=cached_data.get("skill_proposal", {}).get("reasoning", {}),
+                        agent_type=getattr(agent, 'agent_type', 'default')
+                    )
+                    val_results = self.broker._run_validators(cached_proposal_obj, context)
+                    if not all(v.valid for v in val_results):
+                        logger.warning(f"[Efficiency:Parallel] Cache HIT for {agent.id} INVALIDATED by governance. Re-running.")
+                        self.efficiency.invalidate(context_hash)
+                    else:
+                        return agent, result
+                else:
+                    return agent, result
             
             result = self.broker.process_step(
                 agent_id=agent.id,

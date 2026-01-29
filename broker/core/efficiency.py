@@ -74,6 +74,13 @@ class CognitiveCache:
         
         self._cache[context_hash] = decision
         logger.debug(f"[Efficiency:CacheStore] Hash={context_hash[:8]}...")
+
+    def invalidate(self, context_hash: str) -> bool:
+        """Remove a cached entry. Returns True if entry existed."""
+        if context_hash in self._cache:
+            del self._cache[context_hash]
+            return True
+        return False
     
     def get_stats(self) -> Dict[str, Any]:
         """Get cache statistics."""
