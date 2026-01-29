@@ -196,10 +196,18 @@ def plot_dynamic_matrix_stacked_bar(data_map):
             ax.set_xticks(range(0, 10))
 
             if df is not None and not df.empty:
+                # --- NORMALIZE TO 100% OF ACTIVE POPULATION ---
+                # This ensures the plot shows the *composition* of strategies 
+                # (Standardized view for publication)
+                row_sums = df.sum(axis=1)
+                # Avoid division by zero for totally collapsed populations
+                df_norm = df.div(row_sums.replace(0, 1), axis=0) * 100
+                
                 colors = [COLOR_MAP[c] for c in CATEGORIES]
-                df.plot(kind='bar', stacked=True, color=colors, ax=ax, width=0.85, legend=False)
+                df_norm.plot(kind='bar', stacked=True, color=colors, ax=ax, width=0.85, legend=False)
                 
                 ax.set_ylim(0, 105) 
+                ax.set_ylabel("Freq (%)" if col_idx == 0 else "", fontsize=14, family='serif')
                 ax.tick_params(axis='y', labelsize=14)
                 ax.grid(axis='y', linestyle='--', alpha=0.5)
             else:

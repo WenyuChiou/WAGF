@@ -65,25 +65,36 @@ def calculate_audited_entropy():
                 
                 if len(active_df) == 0:
                      print(f"{model:<16} | {group:<8} | {y:<4} | {'0':<5} | {0.000:<6} | -")
-                     continue
+                     print(f"{model:<16} | {group:<8} | {y:<4} | {'0':<5} | {0.000:<6} | -")
+                     # Do not continue; record 0 entropy to prevent line from cutting off.
+                     h_obs = 0.0
+                     dom_action = "Collapsed"
+                     dom_freq = 1.0
 
-                # --- CALCULATE RAW ENTROPY ---
+
+                # --- CALCULATE RAW & NORMALIZED ENTROPY ---
                 # Just the distribution of actions taken this year
                 y_dec = active_df[dec_col].apply(normalize_decision)
                 counts = y_dec.value_counts()
                 
+                # We use 5 categories (RL, HE, FI, DN, Other)
+                k = 5
+                h_max = np.log2(k)
+                
                 if len(y_dec) > 0:
                     probs = counts / len(y_dec)
                     h_obs = entropy(probs, base=2)
+                    h_norm = h_obs / h_max
                 else:
                     h_obs = 0.0
+                    h_norm = 0.0
                 
                 dom_action = counts.idxmax() if not counts.empty else "None"
                 dom_freq = probs.max() if not counts.empty else 0
                 
-                # Report Raw Entropy
+                # Report Norm Entropy
                 dom_str = f"{dom_action} ({dom_freq:.0%})"
-                print(f"{model:<16} | {group:<8} | {y:<4} | {len(active_df):<5} | {h_obs:<6.4f} | {dom_str}")
+                print(f"{model:<16} | {group:<8} | {y:<4} | {len(active_df):<5} | {h_obs:<6.4f} | {h_norm:<6.4f} | {dom_str}")
                 
                 results.append({
                     'Model': model,
@@ -91,13 +102,14 @@ def calculate_audited_entropy():
                     'Year': y,
                     'Active_Agents': len(active_df),
                     'Shannon_Entropy': round(h_obs, 4),
+                    'Shannon_Entropy_Norm': round(h_norm, 4),
                     'Dominant_Action': dom_action,
                     'Dominant_Freq': round(dom_freq, 4)
                 })
 
     # Export to CSV
     if results:
-        out_path = "examples/single_agent/analysis/yearly_entropy_audited.csv"
+        out_path = "examples/single_agent/analysis/SQ2_Final_Results/yearly_entropy_audited.csv"
         pd.DataFrame(results).to_csv(out_path, index=False)
         print(f"\n[SUCCESS] Audited data exported to {out_path}")
 
