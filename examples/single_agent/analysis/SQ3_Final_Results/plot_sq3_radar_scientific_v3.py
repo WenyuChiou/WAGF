@@ -69,7 +69,7 @@ for i, (model_id, model_name) in enumerate(models):
             min(100, (row['Speed'] / 20.0) * 100),  # Norm Speed (cap at 100 for viz)
             row['Safety'],                # 0-100
             row['Stability'],             # 0-100
-            row['Variety'] * 100          # 0-1 -> 0-100
+            row['Variety']                # Already 0-100 in CSV
         ]
         values += values[:1]
         
