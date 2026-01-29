@@ -15,8 +15,8 @@ import json
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from simulation.environment import TieredEnvironment
-from governed_ai_sdk.v1_prototype.memory.symbolic import SymbolicMemory
+from broker.simulation.environment import TieredEnvironment
+from cognitive_governance.v1_prototype.memory.symbolic import SymbolicMemory
 
 
 # ============================================================================

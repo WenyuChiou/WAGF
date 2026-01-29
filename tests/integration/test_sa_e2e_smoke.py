@@ -23,9 +23,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 from broker.utils.model_adapter import UnifiedAdapter
 from broker.components.skill_registry import SkillRegistry
 from validators.agent_validator import AgentValidator
-from simulation.environment import TieredEnvironment
+from broker.simulation.environment import TieredEnvironment
 from broker.interfaces.skill_types import SkillProposal, ValidationResult
-from governed_ai_sdk.agents import BaseAgent, AgentConfig
+from cognitive_governance.agents import BaseAgent, AgentConfig
 
 
 # Mock LLM responses for deterministic testing

@@ -2,7 +2,7 @@
 Base Simulation Engine - Minimal interface for simulation classes.
 """
 from typing import Dict, Any, List
-from simulation.environment import TieredEnvironment
+from broker.simulation.environment import TieredEnvironment
 
 class BaseSimulationEngine:
     """Base class for simulation engines."""

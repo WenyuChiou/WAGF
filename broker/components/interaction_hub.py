@@ -8,12 +8,12 @@ from typing import List, Dict, Any, Optional, TYPE_CHECKING
 import random
 from .social_graph import SocialGraph
 from .memory_engine import MemoryEngine
-from simulation.environment import TieredEnvironment
+from broker.simulation.environment import TieredEnvironment
 
 # SDK observer imports (optional, for v2 methods)
 if TYPE_CHECKING:
-    from governed_ai_sdk.v1_prototype.social import SocialObserver
-    from governed_ai_sdk.v1_prototype.observation import EnvironmentObserver
+    from cognitive_governance.v1_prototype.social import SocialObserver
+    from cognitive_governance.v1_prototype.observation import EnvironmentObserver
 
 
 class InteractionHub:
@@ -58,7 +58,7 @@ class InteractionHub:
         for attr in self.spatial_observables:
             # Count neighbors who have this attribute set to True/Positive
             count = sum(1 for nid in neighbor_ids if getattr(agents[nid], attr, False))
-            spatial_context[f"{attr}_pct"] = round((count / total) * 100)
+            spatial_context[f"{attr}_pct"] = count / total
             
         return spatial_context
 
@@ -210,7 +210,7 @@ class InteractionHub:
         for attr in observable_attrs:
             total = observable_attrs[attr]["total"]
             count = observable_attrs[attr]["count"]
-            observable_attrs[attr] = round((count / total) * 100) if total > 0 else 0
+            observable_attrs[attr] = count / total if total > 0 else 0.0
 
         return {
             "gossip": gossip,
