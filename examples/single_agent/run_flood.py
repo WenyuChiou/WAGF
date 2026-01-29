@@ -1,6 +1,9 @@
 import sys
 import yaml
 import random
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
 
 def _get_flood_ext(profile):
@@ -240,10 +243,21 @@ class ResearchSimulation:
             "current_year": self.current_year
         }
 
+    # Defensive alias map for execute_skill (safety net if adapter misses normalization)
+    _SKILL_ALIASES = {
+        "fi": "buy_insurance", "insurance": "buy_insurance",
+        "buy flood insurance": "buy_insurance", "[fi]": "buy_insurance",
+        "he": "elevate_house", "elevation": "elevate_house",
+        "elevate": "elevate_house", "[he]": "elevate_house",
+        "rl": "relocate", "move": "relocate",
+        "dn": "do_nothing", "nothing": "do_nothing", "wait": "do_nothing",
+    }
+
     def execute_skill(self, approved_skill) -> ExecutionResult:
         agent_id = approved_skill.agent_id
         agent = self.agents[agent_id]
-        skill = approved_skill.skill_name
+        skill = self._SKILL_ALIASES.get(approved_skill.skill_name.lower(),
+                                         approved_skill.skill_name)
         state_changes = {}
         
         if skill == "elevate_house":
@@ -366,7 +380,11 @@ class FinalParityHook:
             agent.apply_delta(result.state_changes)
         
         # Update flood threshold when house is elevated
-        if result.approved_skill and result.approved_skill.skill_name == "elevate_house":
+        resolved_skill = ResearchSimulation._SKILL_ALIASES.get(
+            result.approved_skill.skill_name.lower(),
+            result.approved_skill.skill_name
+        ) if result.approved_skill else None
+        if resolved_skill == "elevate_house":
             agent.flood_threshold = round(agent.flood_threshold * 0.2, 2)
             agent.flood_threshold = max(0.001, agent.flood_threshold)
 
@@ -442,49 +460,60 @@ class FinalParityHook:
         # 
         # df_year.to_csv(log_filename, mode=mode, header=header, index=False)
         
-        # --- PILLAR 2: BATCH YEAR-END REFLECTION ---
+        # --- PILLAR 2: BATCH YEAR-END REFLECTION (Personalized) ---
         if self.reflection_engine and self.reflection_engine.should_reflect("any", year):
-            # Optimized: Pull batch_size from YAML (Pillar 2)
+            from broker.components.reflection_engine import AgentReflectionContext
             refl_cfg = self.runner.broker.config.get_reflection_config()
             batch_size = refl_cfg.get("batch_size", 10)
-            
-            # 1. Collect all agents that need reflection this year
+
+            # 1. Collect candidates with identity context
             candidates = []
             for agent_id, agent in self.sim.agents.items():
                 if getattr(agent, "relocated", False):
-                    continue  # Skip relocated agents
-                memories = self.runner.memory_engine.retrieve(agent, top_k=10)
+                    continue
+                mem_engine = self.runner.memory_engine
+                if hasattr(mem_engine, 'retrieve_stratified'):
+                    memories = mem_engine.retrieve_stratified(agent_id, total_k=10)
+                else:
+                    memories = mem_engine.retrieve(agent, top_k=10)
                 if memories:
-                    candidates.append({"agent_id": agent_id, "memories": memories})
-            
+                    ctx = self.reflection_engine.extract_agent_context(agent, year)
+                    candidates.append({"agent_id": agent_id, "memories": memories, "context": ctx})
+
             if candidates:
                 print(f" [Reflection:Batch] Processing {len(candidates)} agents in batches of {batch_size}...")
                 llm_call = self.runner.get_llm_invoke("household")
-                
-                # 2. Process in batches
+
                 for i in range(0, len(candidates), batch_size):
                     batch = candidates[i:i+batch_size]
                     batch_ids = [c["agent_id"] for c in batch]
-                    prompt = self.reflection_engine.generate_batch_reflection_prompt(batch, year)
-                    
+
+                    if hasattr(self.reflection_engine, 'generate_personalized_batch_prompt'):
+                        prompt = self.reflection_engine.generate_personalized_batch_prompt(batch, year)
+                    else:
+                        prompt = self.reflection_engine.generate_batch_reflection_prompt(batch, year)
+
                     try:
                         raw_res = llm_call(prompt)
                         response_text = raw_res[0] if isinstance(raw_res, tuple) else raw_res
-                        
-                        # 3. Parse and store insights
+
                         insights = self.reflection_engine.parse_batch_reflection_response(response_text, batch_ids, year)
                         for agent_id, insight in insights.items():
                             if insight:
+                                ctx_item = next((c for c in batch if c["agent_id"] == agent_id), None)
+                                if ctx_item and ctx_item.get("context") and hasattr(self.reflection_engine, 'compute_dynamic_importance'):
+                                    dynamic_imp = self.reflection_engine.compute_dynamic_importance(ctx_item["context"])
+                                    insight.importance = dynamic_imp
+
                                 self.reflection_engine.store_insight(agent_id, insight)
-                                # Feed insight back to Memory Engine
                                 self.runner.memory_engine.add_memory(
                                     agent_id,
                                     f"Consolidated Reflection: {insight.summary}",
-                                    {"significance": 0.9, "emotion": "major", "source": "personal"}
+                                    {"significance": insight.importance, "emotion": "major", "source": "personal", "type": "reflection"}
                                 )
                     except Exception as e:
                         print(f" [Reflection:Batch:Error] Batch {i//batch_size+1} failed: {e}")
-                
+
                 print(f" [Reflection:Batch] Completed reflection for Year {year}.")
 
 # --- 5. Survey-Based Agent Initialization ---
@@ -604,6 +633,90 @@ def load_agents_from_survey(
         agents[agent.id] = agent
 
     return agents
+
+
+# --- 5b. Post-experiment Visualization ---
+def _normalize_state(state_str: str) -> str:
+    """Normalize cumulative_state to one of 5 categories for plotting."""
+    s = str(state_str).lower()
+    if "relocate" in s:
+        return "Relocate (Departing)"
+    has_ins = "insurance" in s or "buy_insurance" in s
+    has_ele = "elevation" in s or "elevate" in s
+    if ("both" in s and "insurance" in s and "elevation" in s) or (has_ins and has_ele):
+        return "Insurance + Elevation"
+    elif has_ins:
+        return "Insurance"
+    elif has_ele:
+        return "Elevation"
+    return "Do Nothing"
+
+
+def plot_adaptation_cumulative_state(csv_path: Path, output_dir: Path, agents_count: int = 100):
+    """Generate stacked bar plot of adaptation strategy evolution.
+
+    Produces adaptation_cumulative_state.png showing per-year agent
+    counts by cumulative state. Agents who relocate are subtracted
+    from subsequent years (population attrition).
+
+    Args:
+        csv_path: Path to simulation_log.csv
+        output_dir: Directory to save the plot
+        agents_count: Initial agent population (for y-axis limit)
+    """
+    try:
+        df = pd.read_csv(csv_path)
+        if df.empty:
+            return
+
+        CATEGORIES = [
+            "Do Nothing", "Insurance", "Elevation",
+            "Insurance + Elevation", "Relocate (Departing)",
+        ]
+        TAB10 = plt.get_cmap("tab10").colors
+        COLOR_MAP = {cat: TAB10[i] for i, cat in enumerate(CATEGORIES)}
+
+        state_col = "cumulative_state" if "cumulative_state" in df.columns else "decision"
+        if state_col not in df.columns:
+            return
+
+        # Handle attrition: keep relocated agents only up to their first relocation year
+        df["_state_lower"] = df[state_col].astype(str).str.lower()
+        reloc_rows = df[df["_state_lower"].str.contains("relocate")]
+        if not reloc_rows.empty:
+            first_reloc = reloc_rows.groupby("agent_id")["year"].min().reset_index()
+            first_reloc.columns = ["agent_id", "first_reloc_year"]
+            df = df.merge(first_reloc, on="agent_id", how="left")
+            df = df[df["first_reloc_year"].isna() | (df["year"] <= df["first_reloc_year"])]
+        df.drop(columns=["_state_lower"], errors="ignore", inplace=True)
+
+        years = sorted(df["year"].unique())
+        records = []
+        for y in years:
+            states = df.loc[df["year"] == y, state_col].apply(_normalize_state)
+            counts = states.value_counts()
+            records.append([counts.get(cat, 0) for cat in CATEGORIES])
+
+        df_res = pd.DataFrame(records, columns=CATEGORIES, index=years)
+
+        fig, ax = plt.subplots(figsize=(10, 6))
+        colors = [COLOR_MAP[c] for c in CATEGORIES]
+        df_res.plot(kind="bar", stacked=True, color=colors, ax=ax, width=0.85)
+
+        ax.set_title("Adaptation Strategy Evolution (Cumulative)", fontsize=14, fontweight="bold")
+        ax.set_xlabel("Year")
+        ax.set_ylabel("Population Count")
+        ax.set_ylim(0, agents_count)
+        ax.grid(axis="y", linestyle="--", alpha=0.5)
+        ax.legend(title="State", bbox_to_anchor=(1.05, 1), loc="upper left")
+
+        plt.tight_layout()
+        save_path = output_dir / "adaptation_cumulative_state.png"
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+        plt.close()
+        print(f"[Plot] Generated: {save_path}")
+    except Exception as e:
+        print(f"[Plot] Warning: Could not generate adaptation plot: {e}")
 
 
 # --- 6. Main Runner ---
@@ -967,12 +1080,13 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     csv_path = output_dir / "simulation_log.csv"
     pd.DataFrame(final_logs).to_csv(csv_path, index=False)
     print(f"--- Benchmark Complete! Results in {output_dir} ---")
-    
-    # 7. Print Governance Summary
+
+    # 7. Auto-generate adaptation cumulative state plot
+    plot_adaptation_cumulative_state(csv_path, output_dir, agents_count=agents_count)
+
+    # 8. Print Governance Summary
     auditor = GovernanceAuditor()
     auditor.print_summary()
-    
-    # 8. Plots can be generated using analysis/master_report.py
 
 if __name__ == "__main__":
     import argparse

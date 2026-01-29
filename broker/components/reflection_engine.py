@@ -63,6 +63,15 @@ REFLECTION_QUESTIONS: Dict[str, List[str]] = {
     ],
 }
 
+IMPORTANCE_PROFILES: Dict[str, float] = {
+    "first_flood": 0.95,      # First flood experience -> very memorable
+    "repeated_flood": 0.75,   # Repeated floods -> diminishing impact
+    "post_action": 0.80,      # Just took a major action (elevate/relocate)
+    "stable_year": 0.60,      # Nothing major happened
+    "denied_action": 0.85,    # Governance denial -> memorable frustration
+    "mg_agent": 0.90,         # MG agents retain reflections more (limited info)
+}
+
 
 class ReflectionEngine:
     """
@@ -243,6 +252,35 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
         lines.append("Return ONLY a JSON object mapping Agent IDs to personalized reflection strings. Each reflection should reference the agent's specific situation. No filler.")
 
         return "\n".join(lines)
+
+    def compute_dynamic_importance(
+        self,
+        context: AgentReflectionContext,
+        base_importance: float = 0.9,
+    ) -> float:
+        """Compute variable importance based on agent state.
+
+        Returns importance in [0.6, 0.95] range instead of fixed 0.9.
+        """
+        importance = base_importance
+
+        if context.flood_count == 1:
+            importance = IMPORTANCE_PROFILES["first_flood"]
+        elif context.flood_count > 2:
+            importance = IMPORTANCE_PROFILES["repeated_flood"]
+
+        if context.mg_status:
+            importance = max(importance, IMPORTANCE_PROFILES["mg_agent"])
+
+        if context.recent_decision in ("elevate_house", "relocate", "buy_insurance"):
+            importance = max(importance, IMPORTANCE_PROFILES["post_action"])
+
+        if (not context.mg_status
+                and context.flood_count == 0
+                and context.recent_decision in ("do_nothing", "")):
+            importance = min(importance, IMPORTANCE_PROFILES["stable_year"])
+
+        return round(min(1.0, max(0.0, importance)), 2)
 
     def parse_reflection_response(
         self,
