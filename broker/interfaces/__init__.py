@@ -26,6 +26,16 @@ from .rating_scales import (
     get_scale_for_framework,
     validate_rating_value,
 )
+from .perception import (
+    PerceptionMode,
+    DescriptorMapping,
+    PerceptionConfig,
+    PerceptionFilterProtocol,
+    PerceptionFilterRegistryProtocol,
+    FLOOD_DEPTH_DESCRIPTORS,
+    DAMAGE_SEVERITY_DESCRIPTORS,
+    NEIGHBOR_COUNT_DESCRIPTORS,
+)
 
 __all__ = [
     # Enrichment interfaces
@@ -46,4 +56,13 @@ __all__ = [
     "RatingScaleRegistry",
     "get_scale_for_framework",
     "validate_rating_value",
+    # Perception filters (Task-043)
+    "PerceptionMode",
+    "DescriptorMapping",
+    "PerceptionConfig",
+    "PerceptionFilterProtocol",
+    "PerceptionFilterRegistryProtocol",
+    "FLOOD_DEPTH_DESCRIPTORS",
+    "DAMAGE_SEVERITY_DESCRIPTORS",
+    "NEIGHBOR_COUNT_DESCRIPTORS",
 ]

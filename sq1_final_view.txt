@@ -1,0 +1,29 @@
+﻿
+=== JOH SCALING REPORT: VERIFICATION RULES (GLOBAL FREQUENCY - FINAL) ===
+Model Scale        Group   Steps  V1_Tot  V1_Act  V2_Tot  V2_Act  V3_Tot  V3_Act  Rules/S/P       FF        
+-------------------------------------------------------------------------------------------------------------------
+deepseek_r1_1_5b   Group_A ERROR: Err: cannot access l
+1_5b            Group_B 557   263     9       179     2       5       0       447/160/67      59.96%
+1_5b            Group_C 539   208     7       192     2       0       0       400/146/38      58.77%
+deepseek_r1_8b     Group_A ERROR: Err: cannot access l
+8b              Group_B 989   0       0       1       1       53      0       54/26/163       44.54%
+deepseek_r1_8b     Group_C ERROR: Err: Invalid file pa
+deepseek_r1_14b    Group_A ERROR: Err: cannot access l
+14b             Group_B 886   0       0       4       0       2       0       6/3/0           42.24%
+14b             Group_C 897   0       0       0       0       2       0       2/1/0           49.81%
+deepseek_r1_32b    Group_A ERROR: Err: cannot access l
+deepseek_r1_32b    Group_B ERROR: Err: Invalid file pa
+
+===================================================================================================================
+
+=== SQ1 METRIC ALIGNMENT GUIDE (BALANCE SHEET) ===
+1. VX_Tot (Total):  Gross Impulse (Rule Hits + Leaked Decisions).
+2. VX_Act (Actual): Leaked Behaviors (Failed to intervene).
+3. Rules/S/P:       [Total Intent] / [Successful Events] / [Parse Errors].
+   - Rules: V1_Tot + V2_Tot + V3_Tot (All intended violations).
+   - S: Blocked Interventions. P: Technical JSON failures.
+-------------------------------------------------------------------------------------------------------------------
+VERIFICATION FORMULA: Rules (Total Intent) = Intv (Blocked) + Act (Leaked)
+===================================================================================================================
+
+[System] Successfully exported to: examples\single_agent\analysis\SQ1_Final_Results\sq1_metrics_rules.xlsx
