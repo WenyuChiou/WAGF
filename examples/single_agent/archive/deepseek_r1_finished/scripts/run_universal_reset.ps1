@@ -39,7 +39,7 @@ foreach ($Item in $RunPlan) {
         # 3. Clean Run (No Cache, Strict, No Priority)
         Write-Host "  > Executing $ModelName ($Group)..."
         # Wrap in cmd /c to properly handle stderr redirection without triggering PowerShell NativeCommandError
-        $cmd = "cmd /c python $SAPath/run_flood.py --model $ModelTag --years 10 --agents 100 --workers 1 --memory-engine $MemEngine --governance-mode strict --no-cache --initial-agents `"$SAPath/agent_initial_profiles.csv`" --output $OutputDir --seed 401 --num-ctx 8192 --num-predict 1536 2>&1"
+        $cmd = "cmd /c python $SAPath/run_flood.py --model $ModelTag --years 10 --agents 100 --workers 1 --memory-engine $MemEngine --governance-mode strict --initial-agents `"$SAPath/agent_initial_profiles.csv`" --output $OutputDir --seed 401 --num-ctx 8192 --num-predict 1536 2>&1"
         
         Invoke-Expression "$cmd | Tee-Object -FilePath `"$LogFile`""
             

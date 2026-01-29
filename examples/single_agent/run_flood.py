@@ -505,7 +505,7 @@ def load_agents_from_survey(
     Returns dict of Agent objects compatible with the experiment runner.
     """
     from broker.modules.survey.agent_initializer import initialize_agents_from_survey
-    from agents.base_agent import BaseAgent, AgentConfig
+    from cognitive_governance.agents import BaseAgent, AgentConfig
 
     profiles, stats = initialize_agents_from_survey(
         survey_path=survey_path,
@@ -607,7 +607,7 @@ def load_agents_from_survey(
 
 
 # --- 6. Main Runner ---
-def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5, seed: Optional[int] = None, flood_mode: str = "fixed", survey_mode: bool = False, governance_mode: str = "strict", use_priority_schema: bool = False, stress_test: str = None, memory_ranking_mode: str = "legacy", initial_agents_path: str = None):
+def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5, seed: Optional[int] = None, memory_seed: int = 42, flood_mode: str = "fixed", survey_mode: bool = False, governance_mode: str = "strict", use_priority_schema: bool = False, stress_test: str = None, memory_ranking_mode: str = "legacy", initial_agents_path: str = None):
     print(f"--- Llama {agents_count}-Agent {years}-Year Benchmark (Final Parity Edition) ---")
     
     # 1. Load Registry & Prompt Template
@@ -796,7 +796,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
             W_importance=retrieval_w.get("importance", 0.5),
             W_context=retrieval_w.get("context", 0.2),
             ranking_mode=memory_ranking_mode,
-            seed=42
+            seed=memory_seed  # Configurable via --memory-seed (default=42 for experiment alignment)
         )
         print(f" Using HumanCentricMemoryEngine (emotional encoding + stochastic consolidation, window={window_size})")
     elif memory_engine_type == "hierarchical":
@@ -830,7 +830,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
             ranking_mode="dynamic",
             arousal_threshold=final_mem_cfg.get("arousal_threshold", 0.5),
             ema_alpha=final_mem_cfg.get("ema_alpha", 0.3),
-            seed=42
+            seed=memory_seed  # Configurable via --memory-seed (default=42 for experiment alignment)
         )
         print(f" Using UniversalCognitiveEngine (v3 Surprise Engine, window={window_size})")
     else:
@@ -989,6 +989,7 @@ if __name__ == "__main__":
     parser.add_argument("--window-size", type=int, default=5, help="Size of memory window (years/events) to retain")
     parser.add_argument("--flood-mode", type=str, default="fixed", choices=["fixed", "prob"], help="Flood schedule: fixed (use flood_years.csv) or prob (use FLOOD_PROBABILITY)")
     parser.add_argument("--seed", type=int, default=None, help="Random seed for reproducibility. If None, uses system time.")
+    parser.add_argument("--memory-seed", type=int, default=42, help="Random seed for memory engine consolidation/retrieval. Default=42 for experiment alignment.")
     parser.add_argument("--governance-mode", type=str, default="strict", choices=["strict", "relaxed", "disabled"], help="Governance strictness profile")
     # LLM sampling parameters (None = use Ollama default)
     parser.add_argument("--temperature", type=float, default=None, help="LLM temperature (e.g., 0.8, 1.0). None=Ollama default")
@@ -1034,10 +1035,10 @@ if __name__ == "__main__":
         memory_engine_type=args.memory_engine,
         window_size=args.window_size,
         seed=actual_seed,
+        memory_seed=args.memory_seed,
         flood_mode=args.flood_mode,
         survey_mode=args.survey_mode,
         workers=args.workers,
-
         governance_mode=args.governance_mode,
         use_priority_schema=args.use_priority_schema,
         stress_test=args.stress_test,
