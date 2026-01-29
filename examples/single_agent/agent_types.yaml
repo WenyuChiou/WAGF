@@ -370,7 +370,8 @@ household:
             conditions: [{ construct: TP_LABEL, values: ["VL", "L"] }],
             blocked_skills: ["elevate_house"],
             level: ERROR,
-            message: "Elevation blocked: Perceived threat does not justify high cost of elevation.",
+            # Template syntax: {context.TP_LABEL} will be replaced with actual value
+            message: "Elevation blocked: Your threat appraisal ({context.TP_LABEL}) is too low. Consider scenarios with threat >= M.",
           }
       identity_rules:
         - {
