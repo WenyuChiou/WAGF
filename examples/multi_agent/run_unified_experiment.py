@@ -33,8 +33,8 @@ from broker import (
     create_social_graph
 )
 from broker.components.memory_engine import create_memory_engine
-from simulation.environment import TieredEnvironment
-from governed_ai_sdk.agents import BaseAgent, AgentConfig, StateParam, Skill, PerceptionSource
+from broker.simulation.environment import TieredEnvironment
+from cognitive_governance.agents import BaseAgent, AgentConfig, StateParam, Skill, PerceptionSource
 from examples.multi_agent.environment.hazard import HazardModule, VulnerabilityModule, YearMapping
 from components.media_channels import MediaHub
 
@@ -53,7 +53,7 @@ def build_memory_engine(mem_cfg: Dict[str, Any], engine_type: str = "universal")
     scorer = None
     scorer_key = mem_cfg.get("scorer")
     if scorer_key:
-        from governed_ai_sdk.v1_prototype.memory import get_memory_scorer
+        from cognitive_governance.v1_prototype.memory import get_memory_scorer
         scorer = get_memory_scorer(scorer_key)
 
     if engine_type == "humancentric":

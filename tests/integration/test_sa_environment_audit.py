@@ -18,7 +18,7 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from simulation.environment import TieredEnvironment
+from broker.simulation.environment import TieredEnvironment
 from broker.components.audit_writer import GenericAuditWriter, AuditConfig
 
 

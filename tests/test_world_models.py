@@ -5,7 +5,7 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from simulation.environment import TieredEnvironment
+from broker.simulation.environment import TieredEnvironment
 # Mock Agent
 class MockAgent:
     def __init__(self, id, decision=None):
@@ -14,7 +14,7 @@ class MockAgent:
         self.dynamic_state = {"budget": 1000.0, "house_elevation": 0.0}
         self.last_decision = decision # For pricing model
 
-from simulation.environment import TieredEnvironment
+from broker.simulation.environment import TieredEnvironment
 from examples.multi_agent.world_models.disaster_model import DisasterModel
 # PricingModel removed as it was part of the single-agent demo cleanup
 

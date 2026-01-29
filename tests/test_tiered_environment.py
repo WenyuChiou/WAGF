@@ -5,7 +5,7 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from simulation.environment import TieredEnvironment
+from broker.simulation.environment import TieredEnvironment
 
 class TestTieredEnvironment(unittest.TestCase):
     def test_global_state(self):
