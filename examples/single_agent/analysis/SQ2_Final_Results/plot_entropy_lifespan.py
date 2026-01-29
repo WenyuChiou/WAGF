@@ -107,7 +107,16 @@ def plot_lifespan():
         fontsize=14, title_fontsize=15
     )
 
-    for ax in g.axes.flat:
+    # Subplot labels
+    subplot_labels = ['(a)', '(b)', '(c)', '(d)']
+
+    for i, ax in enumerate(g.axes.flat):
+        if i < len(subplot_labels):
+            # Place label in top-left corner (scientific standard)
+            # transform=ax.transAxes ensures it stays in relative position
+            ax.text(-0.05, 1.05, subplot_labels[i], transform=ax.transAxes,
+                    fontsize=20, fontweight='bold', va='bottom', ha='right', family='serif')
+
         ax.axhline(0, color="black", lw=1.2, alpha=0.3)
         ax.axhline(1.0, color="gray", lw=1.2, ls=":", alpha=0.8)
         ax.grid(axis="y", alpha=0.15)

@@ -31,6 +31,14 @@ Where $k=5$ (the number of possible adaptation actions). We define the **"Cognit
 
 Consistent with **"Diversity of Thought Elicits Stronger Reasoning" (2024)**, we argue that maintaining decision entropy is critical for preventing the "Entropy Shield" effect, where model capabilities degrade over recursive interactions (**Shumailov et al., 2024**).
 
+## 4. Analysis of Decision Entropy ($H_{norm}$)
+
+Figure 2 presents the longitudinal evolution of Standardized Shannon Entropy ($H_{norm}$) across all model scales, labeled (a) through (d). The results unequivocally demonstrate the protective effect of Surgical Governance:
+
+- **(a) 1.5B Scale**: Group A (Red) suffers immediate "Catastrophic Collapse," with $H_{norm}$ plummeting to 0.0 by Year 2. In stark contrast, both Governed groups (Blue/Green) maintain robust diversity ($H_{norm} > 0.8$) throughout the decade. This confirms that at small scales, governance acts as a critical **"Cognitive Prosthetic,"** artificially sustaining behavioral variety when the model's native reasoning fails.
+- **(b) 8B Scale**: We observe "Inertial Collapse" in Group A, where diversity decays slowly but steadily. Group B and C, however, maintain near-perfect entropy (~0.95), suggesting that governance effectively prevents the "echo chamber" effect of recursive interactions.
+- **(c) & (d) 14B/32B Scales**: Comparisons at larger scales reveal that while native models (Group A) improve in stability, they still exhibit lower behavioral variety than their governed counterparts. Group C, in particular, consistently achieves the highest $H_{norm}$, validating that **Human-Centric Memory** introduces necessary stochasticity that prevents mode collapse.
+
 ## 3. Results: Scaling & Stability
 
 The analysis confirms that model scale alone does not guarantee long-term diversity.
