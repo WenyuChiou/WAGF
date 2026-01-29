@@ -87,10 +87,19 @@ for i, (model_id, model_name) in enumerate(models):
     ax.set_theta_direction(-1) # Clockwise
     
     ax.set_xticks(angles[:-1])
-    # Massive font sizes for readability, added padding
-    ax.set_xticklabels(labels, size=34, fontweight='bold', family='serif')
-    ax.tick_params(axis='x', pad=10) # Pull labels closer as requested
+    # Disable default labels to allow manual placement
+    ax.set_xticklabels([])
     
+    # Manual Label Placement with Differential Radial Distance
+    # Quality (Top) & Alignment (Bottom) -> Closer (r=113)
+    # Speed (Right) & Stability (Left) -> Further (r=130) ("分開一點")
+    label_distances = [118, 140, 118, 140] # [Quality, Speed, Alignment, Stability]
+    
+    for label, angle, dist in zip(labels, angles[:-1], label_distances):
+        ax.text(angle, dist, label, 
+                size=34, fontweight='bold', family='serif', 
+                ha='center', va='center')
+
     # Scale suggested to be vertical (r-label)
     ax.set_rlabel_position(0) # North (since we rotated offset to pi/2, 0 relative to data is Top? No.)
     # Matplotlib polar coordinates:
