@@ -19,14 +19,15 @@ df = pd.read_csv(DATA_PATH)
 
 # Models to compare
 models = [
-    ('deepseek_r1_1_5b', '1.5B Scale'),
-    ('deepseek_r1_8b', '8B Scale'),
-    ('deepseek_r1_14b', '14B Scale'),
-    ('deepseek_r1_32b', '32B Scale')
+    ('deepseek_r1_1_5b', 'DeepSeek R1 (1.5B)'),
+    ('deepseek_r1_8b', 'DeepSeek R1 (8B)'),
+    ('deepseek_r1_14b', 'DeepSeek R1 (14B)'),
+    ('deepseek_r1_32b', 'DeepSeek R1 (32B)')
 ]
 
 # 2. Plotting Setup
-labels = ['Quality', 'Speed', 'Safety', 'Stability', 'Variety']
+# 4 Axes: Quality, Alignment (ex-Safety), Stability, Speed
+labels = ['Rationality', 'Speed', 'Alignment', 'Velocity']
 num_vars = len(labels)
 angles = [n / float(num_vars) * 2 * pi for n in range(num_vars)]
 angles += angles[:1]
@@ -66,10 +67,9 @@ for i, (model_id, model_name) in enumerate(models):
         
         values = [
             row['Quality'],               # 0-100
-            min(100, (row['Speed'] / 20.0) * 100),  # Norm Speed (cap at 100 for viz)
-            row['Safety'],                # 0-100
-            row['Stability'],             # 0-100
-            row['Variety']                # Already 0-100 in CSV
+            min(100, (row['Speed'] / 20.0) * 100),  # Norm Speed
+            row['Safety'],                # Now Mapping 'Safety' col to 'Alignment' axis
+            row['Stability']              # 0-100
         ]
         values += values[:1]
         
