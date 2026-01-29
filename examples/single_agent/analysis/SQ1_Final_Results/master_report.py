@@ -207,6 +207,7 @@ def get_stats(model, group):
             audit_str = f"{low_count}|{high_count}"
             intv_rules, intv_thinking_events, intv_hallucination, intv_parse_errors = 0, 0, 0, 0
             intv_v1, intv_v2, intv_v3 = 0, 0, 0
+            p_empty, p_label, p_syntax = 0, 0, 0
 
             # 1. GROUND TRUTH: Logic Blocks from Governance Summary
             summary_path = group_dir / "governance_summary.json"
@@ -221,20 +222,52 @@ def get_stats(model, group):
                         o_stats = s_data.get('outcome_stats', {})
                         intv_thinking_events = o_stats.get('retry_success', 0) + o_stats.get('retry_exhausted', 0)
                         intv_parse_errors = o_stats.get('parse_errors', 0)
+                        
+                        # Breakdown Counters (Already initialized)
                     
                     # 1.1 BACKFILL TRANSIENT PARSE ERRORS (FOR SQ1 AUDIT)
                     # If repo summary is 0 but retries exist, scan log for transient structural faults
                     exec_log_path = group_dir / "execution.log"
                     if intv_parse_errors == 0 and exec_log_path.exists():
                         try:
-                            # Use PowerShell encoding compatible read if needed, or simple utf-8/latin1 fallback
-                            with open(exec_log_path, 'r', encoding='utf-8', errors='ignore') as f:
-                                for line in f:
-                                    if "[Broker:Retry]" in line:
-                                        if "Empty/Null response" in line or "Missing required constructs" in line or "Invalid _LABEL values" in line:
-                                            intv_parse_errors += 1
-                        except Exception as e:
-                            pass # Fallback to 0 if log is locked or unreadable
+                            # Try UTF-16 first (PowerShell default), then UTF-8
+                            encodings = ['utf-16', 'utf-8']
+                            found_log = False
+                            
+                            for enc in encodings:
+                                try:
+                                    if found_log: break
+                                    with open(exec_log_path, 'r', encoding=enc, errors='ignore') as f:
+                                        # Read first line to check validity / BOM
+                                        first = f.read(2)
+                                        f.seek(0)
+                                        
+                                        # Process lines
+                                        for line in f:
+                                            # Case 1: Broker Retries
+                                            if "[Broker:Retry]" in line:
+                                                if any(k in line for k in ["Empty/Null response", "Response was empty", "returned truly empty content"]):
+                                                    p_empty += 1
+                                                elif "Invalid _LABEL values" in line:
+                                                    p_label += 1
+                                                elif any(k in line for k in ["Missing required constructs", "returned unparsable output"]):
+                                                    p_syntax += 1
+                                                    
+                                            # Case 2: Validation Criticals (Label Hallucination)
+                                            elif "[Adapter:Validation] CRITICAL" in line and "Invalid _LABEL values" in line:
+                                                p_label += 1
+                                                
+                                            # Case 3: LLM Retries (Hard Crashes)
+                                            elif "[LLM:Retry]" in line and "returned truly empty content" in line:
+                                                p_empty += 1
+                                        found_log = True
+                                        
+                                        # Update Total P if scan found anything (and overwrite default 0)
+                                        if (p_empty + p_label + p_syntax) > 0:
+                                            intv_parse_errors = p_empty + p_label + p_syntax
+                                except: continue
+                        except: pass
+
                         
                         # Rule Frequency Mapping (for breakdown)
                         r_freq = s_data.get('rule_frequency', {})
@@ -263,11 +296,27 @@ def get_stats(model, group):
                 intv_hallucination = max(0, trace_total_events - intv_thinking_events - intv_parse_errors)
             else:
                 intv_thinking_events = trace_total_events
-                intv_v1 = intv_thinking_events
+            
+            # Format Combined String (Rules/S/P)
+            intv_ok_str = f"{intv_rules}/{intv_thinking_events}/{intv_parse_errors}"
+            if intv_v1 == 0 and intv_thinking_events > 0:
+                 intv_v1 = intv_thinking_events
 
+            # Sub-components for explicit mapping
+            v1_int, v2_int, v3_int = intv_v1, intv_v2, intv_v3
+            v1_act, v2_act, v3_act = v1_count, v2_count, v3_count
+            
+            # --- VERIFICATION RULES ANALYSIS (INTENT = ACTUAL + BLOCKED) ---
+            v1_total = intv_v1 + v1_count
+            v2_total = intv_v2 + v2_count
+            v3_total = intv_v3 + v3_count
+            
+            # METRIC ALIGNMENT: Rules column must represent TOTAL INTENT (Blocked + Leaked)
+            total_intent = v1_total + v2_total + v3_total
+            
             interv_total = intv_rules + intv_parse_errors # Total Workload
             interv_success = intv_thinking_events 
-            intv_ok_str = f"{intv_rules}/{interv_success}/{intv_parse_errors}" if (intv_rules + intv_parse_errors) > 0 else "-"
+            intv_ok_str = f"{total_intent}/{interv_success}/{intv_parse_errors}" if (total_intent + intv_parse_errors) > 0 else "-"
             
             # Sub-components
             v1_int, v2_int, v3_int = intv_v1, intv_v2, intv_v3
@@ -327,6 +376,7 @@ def get_stats(model, group):
                 "V2_Tot": v2_total, "V2_Act": v2_count,
                 "V3_Tot": v3_total, "V3_Act": v3_count,
                 "Intv": intv_rules, "Intv_S": intv_thinking_events, "Intv_P": intv_parse_errors,
+                "Intv_P_Empty": p_empty, "Intv_P_Label": p_label, "Intv_P_Syntax": p_syntax,
                 "Intv_H": intv_hallucination, "Intv_OK": intv_ok_str,
                 "V1_%": round(v1_global_rate * 100, 1),
                 "V2_%": round(v2_global_rate * 100, 1),
@@ -336,7 +386,7 @@ def get_stats(model, group):
             }
         return None
     except Exception as e:
-        return {"Status": f"Err: {str(e)[:15]}"}
+        return {"Status": f"Err: {str(e)}"}
 
 models = ["deepseek_r1_1_5b", "deepseek_r1_8b", "deepseek_r1_14b", "deepseek_r1_32b"]
 groups = ["Group_A", "Group_B", "Group_C"]
@@ -347,15 +397,17 @@ h_model = "Model Scale"
 h_grp = "Group"
 h_n = "Steps"
 h_pop = "L|H TP  |  L|H CP"
-h_v1 = "Panic(V1)"
-h_v2 = "Elev(V2)"
-h_v3 = "Comp(V3)"
+h_model = "Model Scale"
+h_grp = "Group"
+h_n = "Steps"
+h_v1t, h_v1a = "V1_Tot", "V1_Act"
+h_v2t, h_v2a = "V2_Tot", "V2_Act"
+h_v3t, h_v3a = "V3_Tot", "V3_Act"
 h_intv = "Rules/S/P"
 h_ff = "FF"
-h_audit = "Reloc Audit(L|H)"
 
-print(f"{h_model:<18} {h_grp:<7} {h_n:<6} {h_pop:<25} {h_v1:<18} {h_v2:<18} {h_v3:<16} {h_intv:<15} {h_ff:<10} {h_audit:<15}")
-print("-" * 155)
+print(f"{h_model:<18} {h_grp:<7} {h_n:<6} {h_v1t:<7} {h_v1a:<7} {h_v2t:<7} {h_v2a:<7} {h_v3t:<7} {h_v3a:<7} {h_intv:<15} {h_ff:<10}")
+print("-" * 115)
 
 all_data = []
 
@@ -369,30 +421,37 @@ for m in models:
             
             if 'V1_%' not in stats: continue
 
+            # Recalculate Aligned Metrics for Display & Export
+            total_intent = stats['V1_Tot'] + stats['V2_Tot'] + stats['V3_Tot']
+            interv_success = stats['Intv_S']
+            intv_parse_errors = stats['Intv_P']
+            intv_ok_str = f"{total_intent}/{interv_success}/{intv_parse_errors}" if (total_intent + intv_parse_errors) > 0 else "-"
+
             # Print aligned table row
             m_short = m.replace("deepseek_r1_", "")
-            intv_str = stats.get('Intv_OK', stats.get('Intv_S', '-'))
-            print(f"{m_short:<15} {g:<7} {stats['N']:<5} {stats['V1_Tot']:<7} {stats['V1_Act']:<7} {stats['V2_Tot']:<7} {stats['V2_Act']:<7} {stats['V3_Tot']:<7} {stats['V3_Act']:<7} {intv_str:<15} {stats['FF']}%")
+            print(f"{m_short:<15} {g:<7} {stats['N']:<5} {stats['V1_Tot']:<7} {stats['V1_Act']:<7} {stats['V2_Tot']:<7} {stats['V2_Act']:<7} {stats['V3_Tot']:<7} {stats['V3_Act']:<7} {intv_ok_str:<15} {stats['FF']}%")
             
             # Collect for Export
+            # UPDATE STATS WITH ALIGNED METRICS BEFORE COPY
+            stats['Intv'] = total_intent       # Update Intv to match Rules column (Total Intent)
+            # S and P are already in stats, but let's ensure consistency if needed
+            stats['Intv_OK'] = intv_ok_str     # Update the combined string
+            
             row = stats.copy()
             row['Model'] = m
             row['Group'] = g
             all_data.append(row)
 
-# Print Aligned Summary
-print("\n" + "="*140)
-print(f"{'Model':<15} {'Grp':<7} {'N':<5} {'V1_Tot':<7} {'V1_Act':<7} {'V2_Tot':<7} {'V2_Act':<7} {'V3_Tot':<7} {'V3_Act':<7} {'Rules/Succ/Parse':<18} {'FF'}")
-print("-" * 140)
-
+print("\n" + "="*115)
 print("\n=== SQ1 METRIC ALIGNMENT GUIDE (BALANCE SHEET) ===")
 print("1. VX_Tot (Total):  Gross Impulse (Rule Hits + Leaked Decisions).")
 print("2. VX_Act (Actual): Leaked Behaviors (Failed to intervene).")
-print("3. Rules/S/P:       [Rule Hits] / [Successful Events] / [Parse Errors].")
-print("   - Rules: Total logical violations. S: Decisions corrected. P: Technical JSON failures.")
-print("-" * 140)
-print("VERIFICATION FORMULA: Total Rule Hits = (V1_Tot - V1_Act) + (V2_Tot - V2_Act) + (V3_Tot - V3_Act)")
-print("=" * 140)
+print("3. Rules/S/P:       [Total Intent] / [Successful Events] / [Parse Errors].")
+print("   - Rules: V1_Tot + V2_Tot + V3_Tot (All intended violations).")
+print("   - S: Blocked Interventions. P: Technical JSON failures.")
+print("-" * 115)
+print("VERIFICATION FORMULA: Rules (Total Intent) = Intv (Blocked) + Act (Leaked)")
+print("=" * 115)
 
 from pathlib import Path
 import pandas as pd

@@ -6,7 +6,7 @@ import seaborn as sns
 from pathlib import Path
 
 # --- Configuration ---
-MODELS = ["deepseek_r1_1_5b", "deepseek_r1_8b", "deepseek_r1_14b"]
+MODELS = ["deepseek_r1_1_5b", "deepseek_r1_8b", "deepseek_r1_14b", "deepseek_r1_32b"]
 GROUPS = ["Group_A", "Group_B", "Group_C"]
 LABEL_ORDER = ["VH", "H", "M", "L", "VL"]
 
