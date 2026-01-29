@@ -22,7 +22,7 @@ To capture the "raw cognitive effort" and the benefits of Memory (Group C), we u
 - **Formula:** $1.0 - \frac{\text{Logic Interventions}}{N}$ (for Governed) or $1.0 - \text{Violation Rate}$ (for Native).
 - **Significance:** Measures the "Reliability of Intentional Reasoning".
 
-### II. Speed (Decision Velocity)
+### II. Velocity (Decision Speed)
 
 - **Definition:** The rate of total cognitive workload processed per minute.
 - **Formula:** $\frac{N + \text{Retries}}{\text{Runtime (min)}}$
@@ -61,7 +61,7 @@ The 2x2 radar grid demonstrates the **"Performance Gap & Memory Gain"**:
 | **Quality**   |      56.1%       |       87.3%        |    **89.4%**     | **+33.3%**           |
 | **Alignment** |      56.1%       |       87.3%        |    **89.4%**     | **+33.3%**           |
 | **Stability** |     100.0%\*     |       83.5%        |    **87.4%**     | **Repair Overhead**  |
-| **Speed**     |    **18.20**     |       17.00        |      17.29       | **Efficiency Cost**  |
+| **Velocity**  |    **18.20**     |       17.00        |      17.29       | **Efficiency Cost**  |
 
 _\*Note: Group A stability appears high due to a lack of structured retry logging in native mode, but survival rates were lower._
 

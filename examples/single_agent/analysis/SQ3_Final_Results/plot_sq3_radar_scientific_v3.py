@@ -92,10 +92,13 @@ for i, (model_id, model_name) in enumerate(models):
     
     # Manual Label Placement with Differential Radial Distance
     # Quality (Top) & Alignment (Bottom) -> Closer (r=113)
-    # Speed (Right) & Stability (Left) -> Further (r=130) ("分開一點")
-    label_distances = [118, 140, 118, 140] # [Quality, Speed, Alignment, Stability]
+    # Velocity (Right) & Stability (Left) -> Further (r=130)
+    label_distances = [118, 140, 118, 140] # [Quality, Velocity, Alignment, Stability]
     
-    for label, angle, dist in zip(labels, angles[:-1], label_distances):
+    # Update labels list for text rendering (Speed -> Velocity)
+    display_labels = ['Quality', 'Velocity', 'Alignment', 'Stability']
+    
+    for label, angle, dist in zip(display_labels, angles[:-1], label_distances):
         ax.text(angle, dist, label, 
                 size=34, fontweight='bold', family='serif', 
                 ha='center', va='center')
