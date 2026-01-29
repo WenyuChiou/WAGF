@@ -217,14 +217,16 @@ class UnifiedAdapter(ModelAdapter):
         preprocessor = self._get_preprocessor_for_type(agent_type)
         parsing_cfg = self.agent_config.get_parsing_config(agent_type) or {}
         skill_map = self.agent_config.get_skill_map(agent_type, context)
+        # Dynamic alias map per agent_type (not self.alias_map which may be stale)
+        alias_map = self.agent_config.get_action_alias_map(agent_type)
         
         # 0. Initialize results
         skill_name = None
         reasoning = {}
         parsing_warnings = []
         # Phase 0.3: Retrieve agent-specific normalization map
-        custom_mapping = self.config.get("normalization", {})
-        proximity_window = self.config.get("proximity_window", 35)
+        custom_mapping = parsing_cfg.get("normalization", {})
+        proximity_window = parsing_cfg.get("proximity_window", 35)
 
         # Track which parsing method succeeded (enclosure/json/keyword/digit/default)
         parse_layer = ""
@@ -594,8 +596,8 @@ class UnifiedAdapter(ModelAdapter):
                 parse_layer = "default"
                 parsing_warnings.append(f"Default skill '{skill_name}' used.")
 
-        # Resolve to canonical ID via alias map
-        skill_name = self.alias_map.get(skill_name.lower(), skill_name)
+        # Resolve to canonical ID via alias map (dynamic per agent_type)
+        skill_name = alias_map.get(skill_name.lower(), skill_name)
 
         # 7. Semantic Correlation Audit (Phase 20)
         # Check both T1 and T2/T3 memory storage patterns
@@ -679,7 +681,7 @@ class UnifiedAdapter(ModelAdapter):
         # 8. Skill Name Normalization (Cross-Model Fix)
         # Convert aliases like "HE", "FI", "insurance" to canonical names
         if skill_name:
-            normalized = self.alias_map.get(skill_name.lower())
+            normalized = alias_map.get(skill_name.lower())
             if normalized:
                 if normalized != skill_name:
                     logger.debug(f" [Adapter:Normalize] {skill_name} -> {normalized}")
