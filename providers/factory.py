@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional
 import yaml
 import os
 
-from interfaces.llm_provider import LLMProvider, LLMConfig, LLMProviderRegistry
+from providers.llm_provider import LLMProvider, LLMConfig, LLMProviderRegistry
 
 
 def create_provider(config: Dict[str, Any]) -> LLMProvider:
@@ -89,7 +89,7 @@ def create_provider(config: Dict[str, Any]) -> LLMProvider:
         rpm_limit = 10 
 
     if rpm_limit or max_retries:
-        from interfaces.llm_provider import RateLimitedProvider
+        from providers.llm_provider import RateLimitedProvider
         provider = RateLimitedProvider(
             base_provider=provider,
             max_retries=max_retries,
@@ -162,7 +162,7 @@ def create_routing_provider(
     Returns:
         RoutingLLMProvider configured with routing rules
     """
-    from interfaces.llm_provider import RoutingLLMProvider, LLMConfig
+    from providers.llm_provider import RoutingLLMProvider, LLMConfig
     
     path = Path(config_path)
     with open(path, 'r', encoding='utf-8') as f:

@@ -9,7 +9,7 @@ Supports:
 from typing import Any, Dict
 import os
 
-from interfaces.llm_provider import LLMProvider, LLMConfig, LLMResponse
+from providers.llm_provider import LLMProvider, LLMConfig, LLMResponse
 
 try:
     import openai

@@ -12,7 +12,7 @@ from typing import Any, Dict, Optional
 import google.generativeai as genai
 from google.generativeai.types import GenerateContentResponse
 
-from interfaces.llm_provider import LLMProvider, LLMConfig, LLMResponse
+from providers.llm_provider import LLMProvider, LLMConfig, LLMResponse
 
 class GeminiProvider(LLMProvider):
     """

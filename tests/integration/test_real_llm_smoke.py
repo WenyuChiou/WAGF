@@ -19,7 +19,7 @@ import sys
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from interfaces.llm_provider import LLMConfig
+from providers.llm_provider import LLMConfig
 from providers.ollama import OllamaProvider
 from broker.utils.model_adapter import UnifiedAdapter
 

@@ -10,7 +10,7 @@ import asyncio
 from typing import Dict, Any, Optional, List, Callable
 import re
 
-from interfaces.llm_provider import LLMProvider, LLMResponse
+from providers.llm_provider import LLMProvider, LLMResponse
 from ..interfaces.skill_types import SkillProposal
 from .model_adapter import UnifiedAdapter
 

@@ -11,7 +11,7 @@ import asyncio
 from typing import Any, Dict
 import httpx
 
-from interfaces.llm_provider import LLMProvider, LLMConfig, LLMResponse
+from providers.llm_provider import LLMProvider, LLMConfig, LLMResponse
 
 
 class OllamaProvider(LLMProvider):

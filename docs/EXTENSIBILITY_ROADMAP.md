@@ -229,7 +229,7 @@ class ClimateMigrationDomain(SimulationDomain):
 
 ```diff
 - from broker.model_adapter import OllamaAdapter
-+ from interfaces.llm_provider import OllamaProvider
++ from providers.llm_provider import OllamaProvider
 + from broker.provider_factory import create_provider
 
 - adapter = OllamaAdapter()
