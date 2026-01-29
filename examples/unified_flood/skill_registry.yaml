@@ -1,0 +1,122 @@
+# Unified Flood Experiment - Skill Registry
+# Defines available skills for different agent types
+# Format: List of skill definitions (required by SkillRegistry.register_from_yaml)
+
+skills:
+  # Household skills
+  - skill_id: buy_insurance
+    description: "Purchase flood insurance policy"
+    eligible_agent_types: [household, household_owner, household_renter]
+    preconditions: [not_relocated]
+    implementation_mapping: "set_insurance_status"
+    allowed_state_changes: [insured]
+
+  - skill_id: buy_contents_insurance
+    description: "Purchase contents-only insurance (for renters)"
+    eligible_agent_types: [household_renter]
+    preconditions: [not_relocated]
+    implementation_mapping: "set_contents_insurance"
+    allowed_state_changes: [contents_insured]
+
+  - skill_id: elevate_house
+    description: "Elevate house above flood level"
+    eligible_agent_types: [household, household_owner]
+    preconditions: [not_elevated, not_relocated, is_owner]
+    implementation_mapping: "set_elevated_status"
+    allowed_state_changes: [elevated]
+    institutional_constraints:
+      min_savings: 10000
+      subsidy_eligible: true
+
+  - skill_id: buyout_program
+    description: "Accept government buyout offer"
+    eligible_agent_types: [household, household_owner]
+    preconditions: [not_relocated, is_owner, in_high_risk_zone]
+    implementation_mapping: "process_buyout"
+    allowed_state_changes: [relocated, bought_out]
+
+  - skill_id: relocate
+    description: "Move to a different location"
+    eligible_agent_types: [household, household_owner, household_renter]
+    preconditions: [not_relocated]
+    implementation_mapping: "set_relocated_status"
+    allowed_state_changes: [relocated]
+
+  - skill_id: do_nothing
+    description: "Take no adaptation action this period"
+    eligible_agent_types: [household, household_owner, household_renter, government, insurance]
+    preconditions: []
+    implementation_mapping: "no_action"
+    allowed_state_changes: []
+
+  # Government skills (MA only)
+  - skill_id: increase_subsidy
+    description: "Increase adaptation subsidy rate"
+    eligible_agent_types: [government]
+    preconditions: [budget_available]
+    implementation_mapping: "adjust_subsidy_rate"
+    allowed_state_changes: [subsidy_rate]
+
+  - skill_id: decrease_subsidy
+    description: "Decrease adaptation subsidy rate"
+    eligible_agent_types: [government]
+    preconditions: []
+    implementation_mapping: "adjust_subsidy_rate"
+    allowed_state_changes: [subsidy_rate]
+
+  - skill_id: launch_campaign
+    description: "Launch public awareness campaign"
+    eligible_agent_types: [government]
+    preconditions: [budget_available]
+    implementation_mapping: "launch_campaign"
+    allowed_state_changes: [awareness_level]
+
+  - skill_id: maintain_policy
+    description: "Maintain current policy settings"
+    eligible_agent_types: [government]
+    preconditions: []
+    implementation_mapping: "no_action"
+    allowed_state_changes: []
+
+  - skill_id: emergency_relief
+    description: "Provide emergency relief funding"
+    eligible_agent_types: [government]
+    preconditions: [flood_occurred, budget_available]
+    implementation_mapping: "provide_relief"
+    allowed_state_changes: [relief_distributed]
+
+  # Insurance skills (MA only)
+  - skill_id: raise_premium
+    description: "Raise insurance premiums"
+    eligible_agent_types: [insurance]
+    preconditions: []
+    implementation_mapping: "adjust_premium"
+    allowed_state_changes: [premium_rate]
+
+  - skill_id: lower_premium
+    description: "Lower insurance premiums"
+    eligible_agent_types: [insurance]
+    preconditions: [stable_loss_ratio]
+    implementation_mapping: "adjust_premium"
+    allowed_state_changes: [premium_rate]
+
+  - skill_id: expand_coverage
+    description: "Expand coverage to new areas"
+    eligible_agent_types: [insurance]
+    preconditions: [strong_solvency]
+    implementation_mapping: "expand_coverage"
+    allowed_state_changes: [coverage_area]
+
+  - skill_id: restrict_coverage
+    description: "Restrict coverage in high-risk areas"
+    eligible_agent_types: [insurance]
+    preconditions: []
+    implementation_mapping: "restrict_coverage"
+    allowed_state_changes: [coverage_area]
+
+  - skill_id: maintain_rates
+    description: "Maintain current premium rates"
+    eligible_agent_types: [insurance]
+    preconditions: []
+    implementation_mapping: "no_action"
+    allowed_state_changes: []

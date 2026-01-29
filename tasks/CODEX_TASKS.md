@@ -546,5 +546,33 @@ python -m pytest tests/ -v --ignore=tests/integration
 |------|--------|-------|
 | C1: Config Schema | ✅ DONE | 4 tests pass |
 | C2: Memory Factory | ✅ DONE | 8 tests pass |
-| C3: Memory Templates | ❌ TODO | Extract to broker |
-| C4: Parse Confidence | ❌ TODO | Add confidence scoring |
+| C3: Memory Templates | ✅ DONE | 6 categories implemented, import verified |
+| C4: Parse Confidence | ✅ DONE | 2 tests pass |
+
+**All Codex tasks complete!**
+
+---
+
+## Additional Tasks (2026-01-28)
+
+### Option C: Audit Log Enhancement ✅ DONE
+
+**Files Modified**: `broker/components/audit_writer.py`
+
+**Changes**:
+1. Added `fallback_activated` field to CSV export (True when status is FALLBACK/MODIFIED)
+2. Added `parse_layer`, `parse_confidence`, `construct_completeness` to CSV export
+3. Updated priority_keys for better column ordering
+
+### Option D: Documentation Update ✅ DONE
+
+**Files Modified**: `governed_ai_sdk/README.md`
+
+**Changes**:
+1. Added v5 Unified Memory System documentation
+2. Added architecture diagram and usage examples
+3. Added configuration via YAML section
+4. Added surprise strategies comparison table
+5. Added System 1/2 cognitive switching explanation
+6. Added memory factory integration guide
+7. Added version history table

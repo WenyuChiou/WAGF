@@ -18,14 +18,25 @@ def get_stats(df, group):
     df.columns = [c.lower() for c in df.columns]
     def map_ta(text):
         text = str(text).lower()
+        # Primary: Look for explicit labels
+        if re.search(r'\bvh\b', text): return "VH"
+        if re.search(r'\bh\b', text): return "H"
+        if re.search(r'\bl\b', text): return "L"
+        if re.search(r'\bvl\b', text): return "VL"
+        
+        # Secondary: Keywords
         if any(k in text for k in TA_KEYWORDS['H']): return "H"
         return "L"
+        
     ta_col = 'threat_appraisal' if 'threat_appraisal' in df.columns else 'reason_tp_reason'
     df['tp_level'] = df[ta_col].apply(map_ta)
     dec_col = 'decision' if 'decision' in df.columns else 'yearly_decision'
-    v1_count = len(df[(df['tp_level'] != 'H') & (df[dec_col].str.contains('Relocate', case=False, na=False))])
-    v2_count = len(df[(df['tp_level'] == 'L') & (df[dec_col].str.contains('Elevate', case=False, na=False))])
-    v3_count = len(df[(df['tp_level'] == 'H') & (df[dec_col].str.contains('Do nothing', case=False, na=False))])
+    
+    # V1/V2: Sources are non-critical labels
+    v1_count = len(df[(~df['tp_level'].isin(['H', 'VH'])) & (df[dec_col].str.contains('Relocate', case=False, na=False))])
+    v2_count = len(df[(df['tp_level'].isin(['L', 'VL'])) & (df[dec_col].str.contains('Elevate', case=False, na=False))])
+    # V3 (Complacency): Now aligned to VH ONLY as requested
+    v3_count = len(df[(df['tp_level'] == 'VH') & (df[dec_col].str.contains('Do nothing', case=False, na=False))])
     total_n = len(df)
     v1_rate = (v1_count / total_n) if total_n > 0 else 0
     v2_rate = (v2_count / total_n) if total_n > 0 else 0

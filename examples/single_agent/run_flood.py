@@ -972,8 +972,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     auditor = GovernanceAuditor()
     auditor.print_summary()
     
-    # 8. Generate Plot
-    # plot_adaptation_results(csv_path, output_dir)
+    # 8. Plots can be generated using analysis/master_report.py
 
 if __name__ == "__main__":
     import argparse

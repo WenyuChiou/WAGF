@@ -183,6 +183,7 @@ class SkillBrokerEngine:
         skill_proposal = None
         raw_output = ""
         initial_attempts = 0
+        format_retry_count = 0  # Track structural faults (format/parsing issues)
         max_initial_attempts = 2  # Retry up to 2 times for purely parsing/empty issues
         total_llm_stats = {"llm_retries": 0, "llm_success": False}
         
@@ -220,6 +221,8 @@ class SkillBrokerEngine:
                 if skill_proposal is None:
                     msg = "Response was empty or unparsable. Please output a valid JSON decision."
                     logger.warning(f" [Broker:Retry] Empty/Null response received (Attempt {initial_attempts}/{max_initial_attempts})")
+                    format_retry_count += 1
+                    self.auditor.log_parse_error()
                     prompt = self.model_adapter.format_retry_prompt(prompt, [msg])
                     continue
 
@@ -237,6 +240,8 @@ class SkillBrokerEngine:
                     
                     if missing_labels and initial_attempts <= max_initial_attempts:
                         logger.warning(f" [Broker:Retry] Missing required constructs {missing_labels} for {agent_id} ({agent_type}), attempt {initial_attempts}/{max_initial_attempts}")
+                        format_retry_count += 1
+                        self.auditor.log_parse_error()
                         # Reset proposal to None to trigger retry
                         skill_proposal = None
                         prompt = self.model_adapter.format_retry_prompt(prompt, [f"Missing required constructs: {missing_labels}. Please ensure your response follows the requested JSON format."])
@@ -253,10 +258,17 @@ class SkillBrokerEngine:
             
         if skill_proposal is None:
             self.stats["aborted"] += 1
-            self.auditor.log_parse_error()
+            self.auditor.log_parse_error()  # Terminal failure
+            if format_retry_count > 0:
+                self.auditor.log_structural_fault_terminal(format_retry_count)
             logger.error(f" [LLM:Error] Model returned unparsable output after {max_initial_attempts+1} attempts for {agent_id}.")
-            return self._create_result(SkillOutcome.ABORTED, None, None, None, ["Parse error after retries"])
-        
+            return self._create_result(SkillOutcome.ABORTED, None, None, None, ["Parse error after retries"], format_retries=format_retry_count)
+
+        # Log structural faults that were fixed by retry
+        if format_retry_count > 0:
+            self.auditor.log_structural_fault_resolved(format_retry_count)
+            logger.info(f" [Broker:StructuralFault] {format_retry_count} format issue(s) fixed by retry for {agent_id}")
+
         # ③ Skill validation
         # Standardization (Phase 9/12): Decouple domain-specific keys
         if env_context is None:
@@ -404,6 +416,7 @@ class SkillBrokerEngine:
                     errors_list = [e for v in validation_results if v and hasattr(v, 'errors') for e in v.errors]
                     logger.warning(f"[Governance:Retry] Attempt {retry_count} failed validation for {agent_id}. Errors: {errors_list}")
             else:
+                self.auditor.log_parse_error()
                 logger.warning(f"[Governance:Retry] Attempt {retry_count} produced unparsable output for {agent_id}.")
         
         if not all_valid and retry_count >= self.max_retries:
@@ -547,16 +560,18 @@ class SkillBrokerEngine:
                 "execution_result": execution_result.__dict__ if execution_result else None,
                 "outcome": outcome.value,
                 "retry_count": retry_count,
+                "format_retries": format_retry_count,  # Structural faults fixed by format retry
                 "llm_stats": total_llm_stats  # New: Pass LLM-level stats to trace
             }, all_validation_history)
-        
+
         return SkillBrokerResult(
             outcome=outcome,
             skill_proposal=skill_proposal,
             approved_skill=approved_skill,
             execution_result=execution_result,
             validation_errors=[e for v in validation_results if v and hasattr(v, 'errors') for e in v.errors],
-            retry_count=retry_count
+            retry_count=retry_count,
+            format_retries=format_retry_count
         )
     
     def _get_action_ids(self, agent_type: str) -> List[str]:
@@ -689,14 +704,15 @@ class SkillBrokerEngine:
         """Create hash of context for audit."""
         return hashlib.md5(json.dumps(context, sort_keys=True, default=str).encode()).hexdigest()[:16]
     
-    def _create_result(self, outcome, proposal, approved, execution, errors) -> SkillBrokerResult:
+    def _create_result(self, outcome, proposal, approved, execution, errors, format_retries: int = 0) -> SkillBrokerResult:
         return SkillBrokerResult(
             outcome=outcome,
             skill_proposal=proposal,
             approved_skill=approved,
             execution_result=execution,
             validation_errors=errors,
-            retry_count=0
+            retry_count=0,
+            format_retries=format_retries
         )
     
     def get_stats(self) -> Dict[str, Any]:
