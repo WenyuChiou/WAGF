@@ -5,7 +5,7 @@ Provides a single import path for agent and governance validators.
 """
 
 from broker.validators.agent.agent_validator import AgentValidator, ValidationLevel
-from broker.validators.agent.council import ValidatorCouncil
+from broker.validators.agent.council import CouncilValidator
 from broker.validators.governance import (
     BaseValidator,
     PersonalValidator,
@@ -17,7 +17,7 @@ from broker.validators.governance import (
 __all__ = [
     "AgentValidator",
     "ValidationLevel",
-    "ValidatorCouncil",
+    "CouncilValidator",
     "BaseValidator",
     "PersonalValidator",
     "PhysicalValidator",
