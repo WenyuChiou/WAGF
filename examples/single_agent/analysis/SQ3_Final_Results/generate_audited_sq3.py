@@ -93,8 +93,11 @@ df['Speed'] = df.apply(calculate_speed, axis=1)
 entropy_path = BASE_DIR / "examples" / "single_agent" / "analysis" / "SQ2_Final_Results" / "yearly_entropy_audited.csv"
 if entropy_path.exists():
     df_entropy = pd.read_csv(entropy_path)
-    df_entropy_y1 = df_entropy[df_entropy['Year'] == 1][['Model', 'Group', 'Shannon_Entropy']]
-    df_entropy_y1['Variety'] = df_entropy_y1['Shannon_Entropy'] / 2.3219 # Standardized
+    # Use Year 1 snapshot and the standardized H_norm column
+    df_entropy_y1 = df_entropy[df_entropy['Year'] == 1][['Model', 'Group', 'Shannon_Entropy_Norm']]
+    df_entropy_y1 = df_entropy_y1.rename(columns={'Shannon_Entropy_Norm': 'Variety'})
+    # Scale to 100 for radar consistency if needed (Variety is often 0-100 on radar)
+    df_entropy_y1['Variety'] = df_entropy_y1['Variety'] * 100
     df = df.merge(df_entropy_y1[['Model', 'Group', 'Variety']], on=['Model', 'Group'], how='left')
 
 # 5. Export
