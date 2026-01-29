@@ -82,14 +82,41 @@ for i, (model_id, model_name) in enumerate(models):
             labels_all.append(group_display[group])
     
     # Customize sub-plot
+    # Rotate so Quality is Top (North)
+    ax.set_theta_offset(pi / 2)
+    ax.set_theta_direction(-1) # Clockwise
+    
     ax.set_xticks(angles[:-1])
-    # Massive font sizes for readability
+    # Massive font sizes for readability, added padding
     ax.set_xticklabels(labels, size=24, fontweight='bold', family='serif')
-    ax.set_rlabel_position(0)
+    ax.tick_params(axis='x', pad=35) # Push labels out
+    
+    # Scale suggested to be vertical (r-label)
+    ax.set_rlabel_position(0) # North (since we rotated offset to pi/2, 0 relative to data is Top? No.)
+    # Matplotlib polar coordinates:
+    # After offset pi/2:
+    # 0 angle is now at Top.
+    # We want labels to be potentially vertical? 
+    # Let's put the scale at 45 degrees (North East) so it doesn't overlap Quality axis
+    ax.set_rlabel_position(45)
+    
     ax.set_yticks([20, 40, 60, 80, 100])
-    ax.set_yticklabels(["20%", "40%", "60%", "80%", "100%"], color="grey", size=16, family='serif')
+    # Make tick labels vertical-ish or just clearly background
+    ax.set_yticklabels(["20", "40", "60", "80", "100"], color="black", size=14, family='serif', fontweight='bold')
+    
+    # Grid lines style
+    ax.yaxis.grid(True, color='grey', linestyle='--', alpha=0.5)
+    ax.xaxis.grid(True, color='grey', linestyle='-', alpha=0.5)
+    
     ax.set_ylim(0, 110)
-    ax.set_title(f"{model_name}", size=30, fontweight='bold', pad=45, family='serif')
+    # Move title up further to avoid Top Label overlap
+    ax.set_title(f"{model_name}", size=30, fontweight='bold', pad=60, family='serif')
+    
+    # Adjust (a)/(b) label position to avoid Left Label (Stability)
+    # Previous: -0.15, 1.15. Left label is now at 270 deg (West).
+    # Move (a) further Top-Left
+    ax.text(-0.25, 1.25, subplot_ann[i], transform=ax.transAxes, 
+            fontsize=34, fontweight='bold', va='top', ha='right', family='serif')
 
 # 4. Final Touches
 # Unified legend at the bottom - TIGHTENED WIDTH
