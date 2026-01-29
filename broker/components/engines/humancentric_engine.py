@@ -2,7 +2,7 @@ from typing import List, Dict, Any, Optional, Tuple
 import heapq
 import logging
 
-from governed_ai_sdk.agents import BaseAgent
+from cognitive_governance.agents import BaseAgent
 from broker.components.memory_engine import MemoryEngine
 
 logger = logging.getLogger(__name__)
@@ -37,8 +37,9 @@ class HumanCentricMemoryEngine(MemoryEngine):
         W_importance: float = 0.5,
         W_context: float = 0.2,
         # Mode switch: "legacy" (v1 compatible) or "weighted" (v2)
-        ranking_mode: str = "legacy", 
-        seed: Optional[int] = None
+        ranking_mode: str = "legacy",
+        seed: Optional[int] = None,
+        forgetting_threshold: float = 0.2,    # Default threshold for forgetting
     ):
         """
         Args:
@@ -63,6 +64,7 @@ class HumanCentricMemoryEngine(MemoryEngine):
         self.consolidation_threshold = consolidation_threshold
         self.decay_rate = decay_rate
         self.ranking_mode = ranking_mode
+        self.forgetting_threshold = forgetting_threshold
         
         # Retrieval weights
         self.W_recency = W_recency
@@ -330,19 +332,137 @@ class HumanCentricMemoryEngine(MemoryEngine):
             top_k_memories = heapq.nlargest(top_k, scored_memories, key=lambda x: x[1])
             return [content for content, score in top_k_memories]
 
-    def forget(self, agent_id: str, strategy: str = "importance", threshold: float = 0.2) -> int:
+    def retrieve_stratified(
+        self,
+        agent_id: str,
+        allocation: Optional[Dict[str, int]] = None,
+        total_k: int = 10,
+        contextual_boosters: Optional[Dict[str, float]] = None,
+    ) -> List[str]:
+        """Retrieve memories with source-stratified diversity guarantee.
+
+        Instead of pure top-k by score, allocates retrieval slots by source category.
+        This ensures reflection prompts see a mix of personal experiences,
+        neighbor observations, community events, and past reflections.
+
+        Args:
+            agent_id: Agent to retrieve for
+            allocation: Dict mapping source -> max slots.
+                        Default: {"personal": 4, "neighbor": 2, "community": 2, "reflection": 1, "abstract": 1}
+            total_k: Total memories to return (cap)
+            contextual_boosters: Same as retrieve() -- optional score boosters
+
+        Returns:
+            List of memory content strings, stratified by source
+        """
+        if allocation is None:
+            allocation = {
+                "personal": 4,
+                "neighbor": 2,
+                "community": 2,
+                "reflection": 1,
+                "abstract": 1,
+            }
+
+        working = self.working.get(agent_id, [])
+        longterm = self.longterm.get(agent_id, [])
+
+        if not working and not longterm:
+            return []
+
+        # Combine all memories (same dedup logic as retrieve weighted mode)
+        max_timestamp = -1
+        if working:
+            max_timestamp = max(max_timestamp, max(m["timestamp"] for m in working))
+        if longterm:
+            max_timestamp = max(max_timestamp, max(m["timestamp"] for m in longterm))
+        current_time = max_timestamp + 1
+
+        all_memories_map = {}
+        for mem in self._apply_decay(longterm, current_time):
+            all_memories_map[mem["content"]] = mem
+        for mem in working:
+            all_memories_map[mem["content"]] = mem
+        all_memories = list(all_memories_map.values())
+
+        # Score all memories (same scoring as weighted mode)
+        scored = []
+        for mem in all_memories:
+            age = current_time - mem["timestamp"]
+            recency_score = 1.0 - (age / max(current_time, 1))
+            importance_score = mem.get("importance", mem.get("decayed_importance", 0.1))
+
+            contextual_boost = 0.0
+            if contextual_boosters:
+                for tag_key_val, boost_val in contextual_boosters.items():
+                    if ":" in tag_key_val:
+                        tag_cat, tag_val = tag_key_val.split(":", 1)
+                        if mem.get(tag_cat) == tag_val:
+                            contextual_boost = boost_val
+                            break
+
+            final_score = (recency_score * self.W_recency) + \
+                          (importance_score * self.W_importance) + \
+                          (contextual_boost * self.W_context)
+
+            scored.append((mem, final_score))
+
+        # Group by source
+        import heapq
+        source_groups: Dict[str, List] = {}
+        for mem, score in scored:
+            src = mem.get("source", "abstract")
+            # Map reflection-sourced memories
+            if mem.get("type") == "reflection" or "Consolidated Reflection" in mem.get("content", ""):
+                src = "reflection"
+            if src not in source_groups:
+                source_groups[src] = []
+            source_groups[src].append((mem["content"], score))
+
+        # Sort each group by score descending
+        for src in source_groups:
+            source_groups[src].sort(key=lambda x: -x[1])
+
+        # Allocate slots per source
+        result = []
+        remaining_slots = total_k
+
+        for src, max_slots in allocation.items():
+            available = source_groups.get(src, [])
+            take = min(max_slots, len(available), remaining_slots)
+            for content, score in available[:take]:
+                result.append(content)
+                remaining_slots -= 1
+            if remaining_slots <= 0:
+                break
+
+        # Fill remaining slots with highest-scoring memories from any source
+        if remaining_slots > 0:
+            all_sorted = sorted(scored, key=lambda x: -x[1])
+            for mem, score in all_sorted:
+                if mem["content"] not in result and remaining_slots > 0:
+                    result.append(mem["content"])
+                    remaining_slots -= 1
+
+        return result
+
+    def forget(self, agent_id: str, strategy: str = "importance", threshold: Optional[float] = None) -> int:
         """Forget memories using specified strategy.
-        
+
         Strategies:
         - 'importance': Remove memories below threshold
         - 'time': Remove oldest memories beyond capacity
         - 'emotion': Remove low-emotion memories
-        
+
         Returns: Number of memories forgotten
         """
+        # Use instance default if threshold not provided
+        if threshold is None:
+            threshold = self.forgetting_threshold
+
         if agent_id not in self.working:
             return 0
-        
+
         original_count = len(self.working[agent_id]) + len(self.longterm.get(agent_id, []))
         
         if strategy == "importance":
