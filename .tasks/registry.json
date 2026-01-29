@@ -1,7 +1,416 @@
 {
   "version": "2.0",
-  "last_updated": "2026-01-28T14:30:00Z",
+  "last_updated": "2026-01-29T23:00:00Z",
   "tasks": [
+    {
+      "id": "Task-057",
+      "title": "Reflection Optimization — Personalized Prompts + Stratified Retrieval",
+      "status": "in_progress",
+      "type": "feature",
+      "priority": "high",
+      "owner": "Codex + Gemini",
+      "reviewer": "Claude Code",
+      "created_at": "2026-01-30T06:00:00Z",
+      "plan_file": "C:\\Users\\wenyu\\.claude\\plans\\peaceful-beaming-peach.md",
+      "subtasks": [
+        {
+          "id": "057-A",
+          "title": "Personalized Reflection Prompt",
+          "status": "completed",
+          "assigned_to": "Codex",
+          "scope": "broker/components/reflection_engine.py",
+          "depends_on": [],
+          "commit": "81e40ce",
+          "note": "AgentReflectionContext dataclass, per-type questions, personalized prompt methods"
+        },
+        {
+          "id": "057-B",
+          "title": "Source-Stratified Memory Retrieval",
+          "status": "ready",
+          "assigned_to": "Gemini",
+          "scope": "broker/components/engines/humancentric_engine.py",
+          "depends_on": [],
+          "note": "retrieve_stratified() with source-category allocation slots"
+        },
+        {
+          "id": "057-C",
+          "title": "Dynamic Importance Scoring",
+          "status": "ready",
+          "assigned_to": "Codex",
+          "scope": "broker/components/reflection_engine.py, examples/single_agent/run_flood.py",
+          "depends_on": ["057-A"],
+          "note": "IMPORTANCE_PROFILES dict, compute_dynamic_importance(), SA reflection loop update"
+        },
+        {
+          "id": "057-D",
+          "title": "MA Reflection Integration",
+          "status": "ready",
+          "assigned_to": "Gemini",
+          "scope": "examples/multi_agent/orchestration/lifecycle_hooks.py",
+          "depends_on": ["057-A", "057-B", "057-C"],
+          "note": "_run_ma_reflection() with per-type batch reflection, stratified retrieval"
+        }
+      ],
+      "execution_order": {
+        "phase_1_parallel": ["057-A", "057-B"],
+        "phase_2": ["057-C"],
+        "phase_3": ["057-D"]
+      },
+      "handoff_files": [
+        "handoff/task-057a-codex.md",
+        "handoff/task-057b-gemini.md",
+        "handoff/task-057c-codex.md",
+        "handoff/task-057d-gemini.md"
+      ],
+      "note": "Fix reflection homogeneity: personalized prompts, stratified retrieval, dynamic importance, MA integration"
+    },
+    {
+      "id": "Task-060",
+      "title": "RL-ABM Multi-Agent Irrigation Experiment",
+      "status": "planning",
+      "type": "experiment",
+      "priority": "high",
+      "owner": "Claude Code + Antigravity",
+      "reviewer": "WenyuChiou",
+      "created_at": "2026-01-29T22:38:00Z",
+      "plan_file": null,
+      "source_paper": "Hung & Yang (2021) Water Resources Research",
+      "github_repo": "https://github.com/hfengwe1/RL-ABM-CRSS",
+      "subtasks": [
+        {"id": "060-1", "title": "Clone GitHub Repository", "status": "pending"},
+        {"id": "060-2", "title": "Download USBR/PRISM Data", "status": "pending"},
+        {"id": "060-3", "title": "Create IrrigationAgent Class", "status": "pending"},
+        {"id": "060-4", "title": "Implement FQL Algorithm", "status": "pending"},
+        {"id": "060-5", "title": "Create Example Folder", "status": "pending"},
+        {"id": "060-6", "title": "Define Agent Types YAML", "status": "pending"},
+        {"id": "060-7", "title": "Implement Water Signal Interfaces", "status": "pending"},
+        {"id": "060-8", "title": "Training Phase", "status": "pending"},
+        {"id": "060-9", "title": "Validation Phase", "status": "pending"},
+        {"id": "060-10", "title": "Simulation Phase (100 MC runs)", "status": "pending"},
+        {"id": "060-11", "title": "Analysis Outputs", "status": "pending"}
+      ],
+      "data_inventory": {
+        "ub_depletion": "need_acquire",
+        "lb_diversion": "need_acquire",
+        "prism_precipitation": "need_acquire",
+        "lake_mead_level": "need_acquire",
+        "calibrated_params_csv": "available"
+      },
+      "agent_count": 78,
+      "handoff_file": "handoff/task-060-rlabm-ma.md",
+      "note": "Adapt Hung 2021 RL-ABM-CRSS for Governed Broker Framework MA irrigation experiment"
+    },
+    {
+      "id": "Task-053",
+      "title": "Gemma 3 Hallucination + Diversity Experiment",
+      "status": "in_progress",
+      "type": "experiment",
+      "priority": "high",
+      "owner": "Claude Code + WenyuChiou",
+      "created_at": "2026-01-29T19:00:00Z",
+      "plan_file": "C:\\Users\\wenyu\\.claude\\plans\\ancient-beaming-lemur.md",
+      "subtasks": [
+        {
+          "id": "053-0",
+          "title": "Directory Cleanup",
+          "status": "completed",
+          "note": "Moved single_agent_modular/ and unified_flood/ to examples/archive/"
+        },
+        {
+          "id": "053-1",
+          "title": "Fix Experiment Script",
+          "status": "completed",
+          "note": "run_gemma3_experiment.ps1 rewritten with explicit Group A/B/C params"
+        },
+        {
+          "id": "053-2",
+          "title": "Ollama Environment Check",
+          "status": "completed",
+          "note": "gemma3:1b and 4b installed. 12b and 27b need ollama pull"
+        },
+        {
+          "id": "053-4",
+          "title": "Execute 12 Experiment Runs",
+          "status": "pending",
+          "assigned_to": "WenyuChiou",
+          "note": "4 models x 3 groups = 12 runs. User executes manually"
+        },
+        {
+          "id": "053-5",
+          "title": "Analysis Script",
+          "status": "completed",
+          "note": "gemma3_hallucination_diversity.py created with H1-H5 + D1-D5 charts"
+        },
+        {
+          "id": "053B",
+          "title": "Group C Test Run + Standalone Example",
+          "status": "in_progress",
+          "assigned_to": "Claude Code",
+          "priority": "HIGH",
+          "subtasks": [
+            {
+              "id": "053B-1",
+              "title": "Standalone Governed Flood Example",
+              "status": "completed",
+              "note": "examples/governed_flood/ created (run_experiment.py 479 lines, README.md, config/, data/)"
+            },
+            {
+              "id": "053B-2",
+              "title": "gemma3:1b Group C Experiment Run",
+              "status": "in_progress",
+              "note": "10yr/100-agent, seed=401, running in background"
+            }
+          ],
+          "note": "Standalone Group C showcase (examples/governed_flood/) + gemma3:1b validation run"
+        }
+      ],
+      "experiment_matrix": {
+        "models": ["gemma3:1b", "gemma3:4b", "gemma3:12b", "gemma3:27b"],
+        "groups": ["A (Original)", "B (Strict)", "C (Full Cognitive)"],
+        "total_runs": 12,
+        "seed": 401,
+        "agents": 100,
+        "years": 10
+      },
+      "note": "Gemma 3 family scaling study: hallucination rate and behavioral diversity vs parameter count"
+    },
+    {
+      "id": "Task-055",
+      "title": "Multi-Agent Bug Fixes (Stale Config Patterns)",
+      "status": "completed",
+      "type": "bugfix",
+      "priority": "medium",
+      "owner": "Codex + Claude Code",
+      "reviewer": "Claude Code",
+      "created_at": "2026-01-30T00:00:00Z",
+      "completed_at": "2026-01-30",
+      "tests_passed": 880,
+      "subtasks": [
+        {
+          "id": "055-A",
+          "title": "Fix stale self.config in parse_output()",
+          "status": "completed",
+          "assigned_to": "Codex",
+          "commit": "2b05b11",
+          "scope": "broker/utils/model_adapter.py",
+          "note": "self.config → parsing_cfg for normalization/proximity_window"
+        },
+        {
+          "id": "055-B",
+          "title": "Pass agent config path to adapters",
+          "status": "completed",
+          "assigned_to": "Codex",
+          "commit": "1667535",
+          "scope": "broker/utils/model_adapter.py",
+          "note": "get_adapter() accepts config_path, forwards to UnifiedAdapter"
+        },
+        {
+          "id": "055-C",
+          "title": "CognitiveCache governance guard + invalidate()",
+          "status": "completed",
+          "assigned_to": "Codex",
+          "commit": "80b8c55",
+          "scope": "broker/core/cognitive_cache.py",
+          "note": "Cache invalidation on governance failures"
+        }
+      ],
+      "handoff_files": [
+        "handoff/task-055a-codex.md",
+        "handoff/task-055b-codex.md",
+        "handoff/task-055c-codex.md"
+      ],
+      "note": "Three Codex-delegated bug fixes for multi-agent config propagation. Claude Code fixed indentation in 056 and resolved 11 test failures."
+    },
+    {
+      "id": "Task-056",
+      "title": "Communication Layer ↔ Memory Integration (MemoryBridge)",
+      "status": "completed",
+      "type": "feature",
+      "priority": "medium",
+      "owner": "Gemini",
+      "reviewer": "Claude Code",
+      "created_at": "2026-01-30T00:00:00Z",
+      "completed_at": "2026-01-30",
+      "commit": "81b8eb0",
+      "tests_passed": 8,
+      "subtasks": [
+        {
+          "id": "056-1",
+          "title": "MemoryBridge module",
+          "status": "completed",
+          "scope": "broker/components/memory_bridge.py",
+          "note": "150 lines: store_resolution(), store_resolutions(), store_message(), store_unread_messages()"
+        },
+        {
+          "id": "056-2",
+          "title": "MemoryBridge tests",
+          "status": "completed",
+          "scope": "tests/test_memory_bridge.py",
+          "note": "8 tests: resolution storage, message storage, source mapping"
+        },
+        {
+          "id": "056-3",
+          "title": "Lifecycle hooks integration",
+          "status": "completed",
+          "scope": "examples/multi_agent/orchestration/lifecycle_hooks.py",
+          "note": "Added game_master/message_pool params, MemoryBridge wiring in post_step/post_year"
+        }
+      ],
+      "handoff_file": "handoff/task-056-gemini.md",
+      "note": "Gemini-delegated. Bridges Communication Layer outputs (ActionResolution, AgentMessage) into MemoryEngine. Claude Code fixed indentation error in lifecycle_hooks.py."
+    },
+    {
+      "id": "Task-052",
+      "title": "MAS Five-Layer Architecture Verification",
+      "status": "completed",
+      "type": "documentation",
+      "priority": "high",
+      "owner": "Claude Code",
+      "created_at": "2026-01-29T15:00:00Z",
+      "completed_at": "2026-01-29",
+      "tests_passed": 0,
+      "plan_file": "C:\\Users\\wenyu\\.claude\\plans\\ancient-beaming-lemur.md",
+      "subtasks": [
+        {
+          "id": "052-A",
+          "title": "MAS Literature to Zotero",
+          "status": "completed",
+          "note": "14 papers added across 5 layers with module mapping notes"
+        },
+        {
+          "id": "052-B",
+          "title": "Architecture Documentation",
+          "status": "completed",
+          "note": "docs/architecture/mas-five-layers.md created"
+        },
+        {
+          "id": "052-C",
+          "title": "CHANGELOG v0.52.0",
+          "status": "completed",
+          "note": "Full entry with literature keys and gap analysis"
+        }
+      ],
+      "literature": [
+        "Park et al. (2023) arXiv:2304.03442",
+        "Packer et al. (2023) arXiv:2310.08560",
+        "Schick et al. (2023) arXiv:2302.04761",
+        "Chopra & Raskar (2024) arXiv:2401.10345",
+        "Rogers (1975) DOI:10.1080/00223980.1975.9915803",
+        "Bubeck et al. (2012) DOI:10.1111/j.1539-6924.2012.01832.x",
+        "Simon (1955) DOI:10.2307/1884852",
+        "Kaelbling et al. (1998) DOI:10.1016/S0004-3702(98)00023-X",
+        "Vezhnevets et al. (2023) arXiv:2312.03664",
+        "Gilbert (2019) ISBN:978-1526403308",
+        "Hong et al. (2023) arXiv:2308.00352",
+        "Bandura (1977) ISBN:978-0138167448",
+        "Barabasi (2016) ISBN:978-1107076266",
+        "Wooldridge (2009) ISBN:978-0470519462"
+      ],
+      "docs_folder": "docs/architecture/",
+      "note": "Comprehensive 5-layer MAS architecture mapping with 14 literature references in Zotero"
+    },
+    {
+      "id": "Task-050",
+      "title": "Memory System Optimization",
+      "status": "completed",
+      "type": "feature",
+      "priority": "high",
+      "owner": "Claude Code",
+      "created_at": "2026-01-29T00:00:00Z",
+      "completed_at": "2026-01-29",
+      "tests_passed": 102,
+      "plan_file": "C:\\Users\\wenyu\\.claude\\plans\\ancient-beaming-lemur.md",
+      "subtasks": [
+        {
+          "id": "050-A",
+          "title": "Vector DB Integration (FAISS)",
+          "status": "completed",
+          "tests_passed": 14,
+          "note": "O(log n) semantic retrieval"
+        },
+        {
+          "id": "050-B",
+          "title": "Memory Checkpoint/Resume",
+          "status": "completed",
+          "tests_passed": 15,
+          "note": "Cross-session persistence"
+        },
+        {
+          "id": "050-C",
+          "title": "Multi-dimensional Surprise",
+          "status": "completed",
+          "tests_passed": 20,
+          "note": "Multi-variable tracking"
+        },
+        {
+          "id": "050-D",
+          "title": "MemoryGraph (NetworkX)",
+          "status": "completed",
+          "tests_passed": 28,
+          "note": "Graph-based memory structure"
+        },
+        {
+          "id": "050-E",
+          "title": "Cognitive Constraints Config",
+          "status": "completed",
+          "tests_passed": 25,
+          "note": "Miller/Cowan based limits"
+        }
+      ],
+      "literature": [
+        "Miller (1956) DOI:10.1037/h0043158",
+        "Cowan (2001) DOI:10.1017/S0140525X01003922",
+        "A-MEM (2025) arXiv:2502.12110"
+      ],
+      "docs_folder": "docs/task-050-memory-optimization/",
+      "note": "Phase 1 complete: Vector DB, Checkpoint, Multi-dim Surprise, MemoryGraph, Cognitive Constraints"
+    },
+    {
+      "id": "Task-051",
+      "title": "Documentation Protocol",
+      "status": "completed",
+      "type": "process",
+      "priority": "high",
+      "owner": "Claude Code",
+      "created_at": "2026-01-29T10:00:00Z",
+      "completed_at": "2026-01-29",
+      "tests_passed": 0,
+      "plan_file": "C:\\Users\\wenyu\\.claude\\plans\\ancient-beaming-lemur.md",
+      "subtasks": [
+        {
+          "id": "051-A",
+          "title": "Task README Template",
+          "status": "completed",
+          "note": ".tasks/templates/task-readme-template.md"
+        },
+        {
+          "id": "051-B",
+          "title": "Documentation Guide",
+          "status": "completed",
+          "note": ".tasks/DOCUMENTATION_GUIDE.md"
+        },
+        {
+          "id": "051-C",
+          "title": "Validation Script",
+          "status": "completed",
+          "note": ".tasks/scripts/validate_docs.py"
+        },
+        {
+          "id": "051-D",
+          "title": "CHANGELOG Update",
+          "status": "completed",
+          "note": "v0.50.0 and v0.51.0 entries added"
+        },
+        {
+          "id": "051-E",
+          "title": "Registry Update",
+          "status": "completed",
+          "note": "Task-050/051 entries added"
+        }
+      ],
+      "docs_folder": null,
+      "note": "Systematic documentation protocol for version tracking"
+    },
     {
       "id": "Task-033",
       "title": "GovernedAI SDK v2 - Universal Framework",
@@ -119,6 +528,103 @@
       "handoff_file": "handoff/task-040.md",
       "demo_example": "examples/unified_flood/",
       "note": "All 5 subtasks complete. New unified example created demonstrating all components."
+    },
+    {
+      "id": "Task-043",
+      "title": "Realistic Agent Perception",
+      "status": "completed",
+      "type": "feature",
+      "priority": "high",
+      "owner": "Claude Code",
+      "completed_at": "2026-01-28T16:30:00Z",
+      "tests_passed": 84,
+      "note": "PerceptionFilterProtocol, SocialGraphSpec, agent-type aware context transformation",
+      "handoff_file": "handoff/current-session.md"
+    },
+    {
+      "id": "Task-045",
+      "title": "Universal Framework Improvements",
+      "status": "in_progress",
+      "type": "refactor",
+      "priority": "high",
+      "owner": "Claude Code",
+      "reviewer": "WenyuChiou",
+      "created_at": "2026-01-28T18:00:00Z",
+      "plan_file": "C:\\Users\\wenyu\\.claude\\plans\\ancient-beaming-lemur.md",
+      "subtasks": [
+        {
+          "id": "045-A",
+          "title": "SDK Rename to cognitive_governance",
+          "status": "completed",
+          "assigned_to": "Claude Code",
+          "scope": "governed_ai_sdk/ → cognitive_governance/",
+          "priority": "HIGH",
+          "completed_at": "2026-01-28",
+          "note": "Directory renamed, all imports updated, deprecation shim added"
+        },
+        {
+          "id": "045-B",
+          "title": "neighbor_pct 0-1 Normalization",
+          "status": "completed",
+          "assigned_to": "Claude Code",
+          "scope": "broker/components/interaction_hub.py",
+          "priority": "HIGH",
+          "completed_at": "2026-01-28",
+          "note": "Changed from 0-100 to 0.0-1.0 range"
+        },
+        {
+          "id": "045-C",
+          "title": "Threshold Configuration",
+          "status": "completed",
+          "assigned_to": "Claude Code",
+          "scope": "unified_engine.py, humancentric_engine.py",
+          "priority": "MEDIUM",
+          "completed_at": "2026-01-28",
+          "note": "surprise_boost_factor and forgetting_threshold now configurable"
+        },
+        {
+          "id": "045-F",
+          "title": "Seed Propagation Fix + CLI Parameter",
+          "status": "completed",
+          "assigned_to": "Claude Code",
+          "scope": "examples/single_agent/run_flood.py",
+          "priority": "HIGH",
+          "completed_at": "2026-01-28",
+          "note": "Added --memory-seed CLI param (default=42), seed=42 hardcoded for experiment alignment"
+        },
+        {
+          "id": "045-D",
+          "title": "DeepSeek Validation Experiment",
+          "status": "in_progress",
+          "assigned_to": "Claude Code",
+          "scope": "Group C validation (100 agents, 10 years)",
+          "priority": "HIGH",
+          "depends_on": ["045-A", "045-B", "045-C", "045-F"],
+          "note": "Running: Year 4/10 (40% complete)"
+        },
+        {
+          "id": "045-E",
+          "title": "Docstring Supplement",
+          "status": "pending",
+          "assigned_to": "Codex",
+          "scope": "25 modules",
+          "priority": "LOW",
+          "depends_on": ["045-G"]
+        },
+        {
+          "id": "045-G",
+          "title": "Project Folder Consolidation",
+          "status": "pending",
+          "assigned_to": "Codex",
+          "scope": "interfaces/, simulation/, validators/, broker/visualization/",
+          "priority": "HIGH",
+          "depends_on": ["045-A", "045-B", "045-C", "045-F"],
+          "handoff_file": "handoff/task-045g-consolidation.md",
+          "note": "Consolidate duplicate folders: delete broker/visualization/, move interfaces/ to providers/, move simulation/ to broker/, unify validators/"
+        }
+      ],
+      "handoff_file": "handoff/task-045.md",
+      "note": "SDK rename to cognitive_governance, parameter normalization, seed fix, folder consolidation"
     }
   ]
 }
