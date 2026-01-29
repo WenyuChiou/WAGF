@@ -15,7 +15,7 @@ from broker.utils.logging import setup_logger
 logger = setup_logger(__name__)
 
 if TYPE_CHECKING:
-    from governed_ai_sdk.v1_prototype.reflection import (
+    from cognitive_governance.v1_prototype.reflection import (
         ReflectionTemplate,
         ReflectionMemoryIntegrator,
     )
@@ -28,6 +28,40 @@ class ReflectionInsight:
     importance: float = 1.0           # Consolidated importance score (0-1)
     year_created: int = 0             # When this insight was generated
     domain_tags: List[str] = field(default_factory=list)  # e.g., ["event_type", "impact", "response"]
+
+
+@dataclass
+class AgentReflectionContext:
+    """Agent identity context for personalized reflection prompts."""
+    agent_id: str
+    agent_type: str = "household"          # household | government | insurance
+    name: str = ""                         # Display name if available
+    elevated: bool = False
+    insured: bool = False
+    flood_count: int = 0                   # Number of floods experienced
+    years_in_sim: int = 0                  # Agent age in simulation
+    mg_status: bool = False                # Marginalized group
+    recent_decision: str = ""              # Last skill chosen
+    custom_traits: Dict[str, Any] = field(default_factory=dict)
+
+
+REFLECTION_QUESTIONS: Dict[str, List[str]] = {
+    "household": [
+        "What risks feel most urgent to your family right now?",
+        "Have your neighbors' choices influenced your thinking?",
+        "What trade-offs have you faced between cost and safety?",
+    ],
+    "government": [
+        "Which communities are most vulnerable right now?",
+        "Are current subsidy and grant programs reaching those who need them?",
+        "What policy adjustments would improve equity outcomes?",
+    ],
+    "insurance": [
+        "Which risk segments are underpriced or overpriced?",
+        "How has the claims pattern changed over time?",
+        "What adjustments to premium models are needed?",
+    ],
+}
 
 
 class ReflectionEngine:
@@ -104,6 +138,111 @@ Focus on:
 
 Provide a concise summary (2-3 sentences) that captures the most important insight.
 """
+
+    @staticmethod
+    def extract_agent_context(agent, year: int = 0) -> AgentReflectionContext:
+        """Extract reflection context from an agent object."""
+        return AgentReflectionContext(
+            agent_id=getattr(agent, 'id', str(agent)),
+            agent_type=getattr(agent, 'agent_type', 'household'),
+            name=getattr(agent, 'name', ''),
+            elevated=getattr(agent, 'elevated', False),
+            insured=getattr(agent, 'insured', False),
+            flood_count=sum(1 for f in getattr(agent, 'flood_history', []) if f),
+            years_in_sim=year,
+            mg_status=getattr(agent, 'mg_status', False),
+            recent_decision=getattr(agent, 'last_decision', ''),
+            custom_traits=getattr(agent, 'custom_traits', {}),
+        )
+
+    def generate_personalized_reflection_prompt(
+        self,
+        context: AgentReflectionContext,
+        memories: List[str],
+        current_year: int
+    ) -> str:
+        """Generate a personalized reflection prompt with agent identity."""
+        if not memories:
+            return ""
+
+        memories_text = "\n".join([f"- {m}" for m in memories])
+
+        identity_lines = [f"You are {context.agent_id}"]
+        if context.name:
+            identity_lines[0] += f" ({context.name})"
+        identity_lines[0] += f", a {context.agent_type} agent in Year {current_year}."
+
+        if context.agent_type == "household":
+            status_parts = []
+            if context.elevated:
+                status_parts.append("your house is elevated")
+            if context.insured:
+                status_parts.append("you have flood insurance")
+            if context.flood_count > 0:
+                status_parts.append(f"you've been flooded {context.flood_count} time(s)")
+            if context.mg_status:
+                status_parts.append("you have limited resources")
+            if status_parts:
+                identity_lines.append(f"Current status: {', '.join(status_parts)}.")
+
+        identity_block = "\n".join(identity_lines)
+
+        questions = REFLECTION_QUESTIONS.get(context.agent_type, REFLECTION_QUESTIONS["household"])
+        q_text = "\n".join([f"- {q}" for q in questions])
+
+        return f"""{identity_block}
+
+**Your Recent Memories:**
+{memories_text}
+
+**Reflection Questions:**
+{q_text}
+
+**Task:** Based on your experiences and situation, provide a 2-3 sentence personal reflection capturing what you've learned and how it will shape your future decisions. Speak in first person.
+"""
+
+    def generate_personalized_batch_prompt(
+        self,
+        batch_data: List[Dict[str, Any]],
+        current_year: int
+    ) -> str:
+        """Generate batch prompt with per-agent identity context."""
+        if not batch_data:
+            return ""
+
+        lines = [f"### Background\nYou are a Reflection Assistant for {len(batch_data)} agents in Year {current_year}."]
+        lines.append("Instructions: Provide a personalized 2-sentence reflection for each agent based on their unique situation and memories.\n")
+
+        lines.append("### Agent Data")
+        for item in batch_data:
+            agent_id = item.get("agent_id", "Unknown")
+            ctx = item.get("context")
+            memories = item.get("memories", [])
+            mem_text = " ".join(memories) if memories else "(No memories)"
+
+            if ctx:
+                identity = f"[{ctx.agent_type}"
+                traits = []
+                if getattr(ctx, 'elevated', False):
+                    traits.append("elevated")
+                if getattr(ctx, 'insured', False):
+                    traits.append("insured")
+                if getattr(ctx, 'flood_count', 0) > 0:
+                    traits.append(f"flooded {ctx.flood_count}x")
+                if getattr(ctx, 'mg_status', False):
+                    traits.append("MG")
+                if traits:
+                    identity += f", {', '.join(traits)}"
+                identity += "]"
+            else:
+                identity = "[household]"
+
+            lines.append(f"{agent_id} {identity} Memories: {mem_text}")
+
+        lines.append("\n### Output Requirement")
+        lines.append("Return ONLY a JSON object mapping Agent IDs to personalized reflection strings. Each reflection should reference the agent's specific situation. No filler.")
+
+        return "\n".join(lines)
 
     def parse_reflection_response(
         self,
