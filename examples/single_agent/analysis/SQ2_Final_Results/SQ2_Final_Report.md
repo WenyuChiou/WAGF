@@ -19,7 +19,15 @@ In this study, we evaluate two primary quantitative indicators:
 
 ## 2. Methodology: Cognitive Lifespan Analysis
 
-We conducted a longitudinal study across four intelligence tiers (1.5B, 8B, 14B, 32B) over a simulated decade. The central metric, **Shannon Entropy ($H$)**, measures the uncertainty and diversity of agent behaviors. We define the **"Cognitive Lifespan"** of a simulation as the temporal window in which $H > 1.0$.
+We conducted a longitudinal study across four intelligence tiers (1.5B, 8B, 14B, 32B) over a simulated decade. The central metric, **Shannon Entropy ($H$)**, measures the uncertainty and diversity of agent behaviors:
+
+$$H = -\sum_{i=1}^{k} p_i \log_2(p_i)$$
+
+To ensure comparability across different action spaces, we use **Normalized Shannon Entropy ($H_{norm}$)**:
+
+$$H_{norm} = \frac{H}{\log_2(k)}$$
+
+Where $k=5$ (the number of possible adaptation actions). We define the **"Cognitive Lifespan"** of a simulation as the temporal window in which $H_{norm} > 0.4$ (or a significant non-collapsed state).
 
 Consistent with **"Diversity of Thought Elicits Stronger Reasoning" (2024)**, we argue that maintaining decision entropy is critical for preventing the "Entropy Shield" effect, where model capabilities degrade over recursive interactions (**Shumailov et al., 2024**).
 
