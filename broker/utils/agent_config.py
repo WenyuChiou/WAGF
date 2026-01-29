@@ -488,11 +488,106 @@ class AgentTypeConfig:
         cfg = self.get(agent_type)
         agent_fmt = cfg.get("response_format", {})
         shared_fmt = self._config.get("shared", {}).get("response_format", {})
-        
+
         # Merge: agent-specific overrides shared
         if agent_fmt:
             return {**shared_fmt, **agent_fmt}
         return shared_fmt
+
+    # =========================================================================
+    # Task-041: Framework-Aware Rating Scale Support
+    # =========================================================================
+
+    def get_rating_scale(self, framework: str = "pmt") -> str:
+        """
+        Get rating scale template for framework.
+
+        Priority:
+        1. shared.rating_scales.{framework}.template (if defined)
+        2. RatingScaleRegistry default
+        3. shared.rating_scale (legacy fallback)
+
+        Args:
+            framework: One of "pmt", "utility", "financial", "generic"
+
+        Returns:
+            Rating scale template string for prompt injection
+        """
+        from broker.interfaces.rating_scales import RatingScaleRegistry, FrameworkType
+
+        # 1. Try framework-specific from YAML
+        shared = self._config.get("shared", {})
+        scales = shared.get("rating_scales", {})
+        if framework.lower() in scales:
+            template = scales[framework.lower()].get("template", "")
+            if template:
+                return template
+
+        # 2. Use registry default
+        try:
+            fw = FrameworkType(framework.lower())
+            scale = RatingScaleRegistry.get(fw)
+            return scale.template
+        except (ValueError, KeyError):
+            pass
+
+        # 3. Legacy fallback
+        legacy = shared.get("rating_scale", "")
+        if legacy:
+            return legacy
+
+        # 4. Ultimate fallback to PMT
+        return RatingScaleRegistry.get(FrameworkType.PMT).template
+
+    def get_rating_scale_levels(self, framework: str = "pmt") -> List[str]:
+        """
+        Get valid rating levels for framework.
+
+        Returns:
+            List of valid levels, e.g., ["VL", "L", "M", "H", "VH"]
+        """
+        from broker.interfaces.rating_scales import RatingScaleRegistry, FrameworkType
+
+        shared = self._config.get("shared", {})
+        scales = shared.get("rating_scales", {})
+
+        if framework.lower() in scales:
+            levels = scales[framework.lower()].get("levels", [])
+            if levels:
+                return levels
+
+        try:
+            fw = FrameworkType(framework.lower())
+            scale = RatingScaleRegistry.get(fw)
+            return scale.levels
+        except (ValueError, KeyError):
+            return ["VL", "L", "M", "H", "VH"]  # PMT default
+
+    def get_framework_for_agent_type(self, agent_type: str) -> str:
+        """
+        Get psychological framework for agent type.
+
+        Returns:
+            Framework name: "pmt", "utility", "financial", or "generic"
+        """
+        cfg = self.get(agent_type)
+        return cfg.get("psychological_framework", "pmt")
+
+    def get_rating_scale_for_agent_type(self, agent_type: str) -> str:
+        """
+        Get rating scale template for an agent type's framework.
+
+        Convenience method that combines get_framework_for_agent_type
+        and get_rating_scale.
+
+        Args:
+            agent_type: The agent type (e.g., "household", "government")
+
+        Returns:
+            Rating scale template string
+        """
+        framework = self.get_framework_for_agent_type(agent_type)
+        return self.get_rating_scale(framework)
 
     @property
     def agent_types(self) -> List[str]:
@@ -655,13 +750,19 @@ class GovernanceAuditor:
     def __init__(self):
         if hasattr(self, '_initialized') and self._initialized:
             return
-        
+
         self.stats_lock = threading.Lock()
         self.rule_hits = defaultdict(int)
         self.retry_success_count = 0
         self.retry_failure_count = 0
         self.total_interventions = 0
         self.parse_errors = 0
+
+        # Structural fault tracking (format/parsing issues during retry)
+        self.structural_faults_fixed = 0      # Transient faults fixed by retry
+        self.structural_faults_terminal = 0   # Faults that exhausted retries
+        self.format_retry_attempts = 0        # Total format retry attempts
+
         self._initialized = True
 
     def log_intervention(self, rule_id: str, success: bool, is_final: bool = False):
@@ -681,6 +782,29 @@ class GovernanceAuditor:
         with self.stats_lock:
             self.parse_errors += 1
 
+    def log_format_retry(self):
+        """Record a format/parsing retry attempt (structural fault encountered)."""
+        with self.stats_lock:
+            self.format_retry_attempts += 1
+
+    def log_structural_fault_resolved(self, retry_count: int):
+        """Record structural faults that were fixed after retry.
+
+        Args:
+            retry_count: Number of format retries before success
+        """
+        with self.stats_lock:
+            self.structural_faults_fixed += retry_count
+
+    def log_structural_fault_terminal(self, retry_count: int):
+        """Record structural faults that could not be fixed (exhausted retries).
+
+        Args:
+            retry_count: Number of format retries attempted
+        """
+        with self.stats_lock:
+            self.structural_faults_terminal += retry_count
+
     def save_summary(self, output_path: Path):
         """Save aggregated statistics to JSON."""
         summary = {
@@ -690,6 +814,11 @@ class GovernanceAuditor:
                 "retry_success": self.retry_success_count,
                 "retry_exhausted": self.retry_failure_count,
                 "parse_errors": self.parse_errors
+            },
+            "structural_faults": {
+                "format_retry_attempts": self.format_retry_attempts,
+                "faults_fixed": self.structural_faults_fixed,
+                "faults_terminal": self.structural_faults_terminal
             }
         }
         with open(output_path, 'w', encoding='utf-8') as f:
@@ -705,6 +834,11 @@ class GovernanceAuditor:
         print(f"  Parsing Failures:    {self.parse_errors}")
         print(f"  Successful Retries:  {self.retry_success_count}")
         print(f"  Final Fallouts:      {self.retry_failure_count}")
+        print("-"*50)
+        print("  Structural Faults (Format Issues):")
+        print(f"  - Format Retry Attempts: {self.format_retry_attempts}")
+        print(f"  - Faults Fixed:          {self.structural_faults_fixed}")
+        print(f"  - Faults Terminal:       {self.structural_faults_terminal}")
         print("-"*50)
         print("  Top Rule Violations:")
         # Sort by frequency

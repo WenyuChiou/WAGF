@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "last_updated": "2026-01-26T10:00:00Z",
+  "last_updated": "2026-01-28T14:30:00Z",
   "tasks": [
     {
       "id": "Task-033",
@@ -32,73 +32,93 @@
       "reviewer": "WenyuChiou",
       "completed_at": "2026-01-26",
       "tests_passed": 374,
-      "subtasks": [
-        {
-          "id": "035-A",
-          "title": "Memory Scorer Integration",
-          "status": "completed",
-          "assigned_to": "Codex",
-          "scope": "broker/components/memory_engine.py"
-        },
-        {
-          "id": "035-B",
-          "title": "Reflection Template Integration",
-          "status": "completed",
-          "assigned_to": "Codex",
-          "scope": "broker/components/reflection_engine.py"
-        },
-        {
-          "id": "035-C",
-          "title": "Persistence Layer Integration",
-          "status": "completed",
-          "assigned_to": "Claude Code",
-          "scope": "broker/components/universal_memory.py",
-          "note": "Already done in Task-034"
-        },
-        {
-          "id": "035-D",
-          "title": "Configuration Loader Integration",
-          "status": "completed",
-          "assigned_to": "Claude Code",
-          "scope": "broker/utils/agent_config.py"
-        }
-      ],
       "note": "SDK MemoryScorer and ReflectionTemplate integrated into broker"
     },
     {
       "id": "Task-036",
       "title": "Multi-Agent Memory V4 Upgrade",
-      "status": "in_progress",
+      "status": "completed",
       "type": "feature",
-      "priority": "high",
       "owner": "Codex",
+      "completed_at": "2026-01-26",
+      "note": "Merged to main (commit 5af662c)"
+    },
+    {
+      "id": "Task-037",
+      "title": "SDK-Broker Architecture Separation",
+      "status": "completed",
+      "type": "refactor",
+      "owner": "Claude Code",
+      "completed_at": "2026-01-26",
+      "note": "Commit c7feecc - All 6 phases complete"
+    },
+    {
+      "id": "Task-040",
+      "title": "SA/MA Unified Architecture",
+      "status": "completed",
+      "type": "architecture",
+      "priority": "high",
+      "owner": "Claude Code + Codex + Gemini",
       "reviewer": "WenyuChiou",
-      "created_at": "2026-01-26T10:00:00Z",
+      "created_at": "2026-01-28T10:00:00Z",
+      "completed_at": "2026-01-28T14:30:00Z",
+      "tests_passed": 174,
+      "plan_file": "C:\\Users\\wenyu\\.claude\\plans\\cozy-roaming-perlis.md",
       "subtasks": [
         {
-          "id": "036-A",
-          "title": "Update Memory Configuration",
-          "status": "assigned",
-          "assigned_to": "Codex",
-          "scope": "examples/multi_agent/ma_agent_types.yaml"
+          "id": "040-A",
+          "title": "AgentTypeRegistry",
+          "status": "completed",
+          "assigned_to": "Claude Code",
+          "scope": "broker/config/agent_types/",
+          "tests_passed": 38,
+          "completed_at": "2026-01-28",
+          "note": "Core registry with inheritance support"
         },
         {
-          "id": "036-B",
-          "title": "Update Agent Initialization",
-          "status": "assigned",
+          "id": "040-B",
+          "title": "UnifiedContextBuilder",
+          "status": "completed",
           "assigned_to": "Codex",
-          "scope": "examples/multi_agent/ma_agents/household.py"
+          "scope": "broker/core/unified_context_builder.py",
+          "tests_passed": 31,
+          "completed_at": "2026-01-28",
+          "note": "SA/MA mode switching with provider selection"
         },
         {
-          "id": "036-C",
-          "title": "Integrate FloodMemoryScorer",
-          "status": "assigned",
+          "id": "040-C",
+          "title": "AgentInitializer",
+          "status": "completed",
+          "assigned_to": "Gemini",
+          "scope": "broker/core/agent_initializer.py",
+          "tests_passed": 29,
+          "completed_at": "2026-01-28",
+          "note": "Survey/CSV/Synthetic modes verified via tests/test_agent_initializer.py"
+        },
+        {
+          "id": "040-D",
+          "title": "PsychometricFramework",
+          "status": "completed",
           "assigned_to": "Codex",
-          "scope": "examples/multi_agent/run_ma_flood.py"
+          "scope": "broker/core/psychometric.py",
+          "tests_passed": 55,
+          "completed_at": "2026-01-28",
+          "note": "PMT/Utility/Financial frameworks with validation"
+        },
+        {
+          "id": "040-E",
+          "title": "TypeValidator",
+          "status": "completed",
+          "assigned_to": "Gemini",
+          "scope": "broker/governance/type_validator.py",
+          "tests_passed": 21,
+          "completed_at": "2026-01-28",
+          "note": "Type validation verified via tests/test_type_validator.py"
         }
       ],
-      "handoff_file": "handoff/task-036-codex.md",
-      "done_when": "Multi-agent examples use V4 SymbolicMemory with FloodMemoryScorer"
+      "handoff_file": "handoff/task-040.md",
+      "demo_example": "examples/unified_flood/",
+      "note": "All 5 subtasks complete. New unified example created demonstrating all components."
     }
   ]
 }

@@ -1,89 +1,133 @@
 # Current Session Handoff
 
 ## Last Updated
-2026-01-26T19:00:00Z
+2026-01-28T14:30:00Z
+
+---
+
+## Active Task: Task-040 SA/MA Unified Architecture
+
+**Status**: ✅ Complete
+**Owner**: Claude Code
+**Plan**: `C:\Users\wenyu\.claude\plans\cozy-roaming-perlis.md` (Part 14-15)
+
+### Subtask Status
+
+| ID | Title | Assigned | Status | Notes |
+|----|-------|----------|--------|-------|
+| 040-A | AgentTypeRegistry | Claude Code | ✅ Done | 38 tests pass |
+| 040-B | UnifiedContextBuilder | Codex | ✅ Done | 31 tests pass |
+| 040-C | AgentInitializer | Gemini | ✅ Done | 29 tests pass |
+| 040-D | PsychometricFramework | Codex | ✅ Done | 55 tests pass |
+| 040-E | TypeValidator | Gemini | ✅ Done | 21 tests pass |
+
+**Total Tests**: 174 tests passing
+
+### New Example Created
+
+A new unified example demonstrating all Task-040 components:
+
+```
+examples/unified_flood/
+├── run_experiment.py       # Main entry using all new components
+├── agent_types.yaml        # New unified schema (5 agent types)
+├── skill_registry.yaml     # 16 skills with eligible_agent_types
+└── README.md               # Documentation
+```
+
+### Key Components Demonstrated
+
+| Component | File | Function |
+|-----------|------|----------|
+| AgentTypeRegistry | `broker/config/agent_types/` | Load 5 agent types from YAML |
+| UnifiedContextBuilder | `broker/core/unified_context_builder.py` | Mode-based context building |
+| AgentInitializer | `broker/core/agent_initializer.py` | Synthetic/CSV/Survey modes |
+| PsychometricFramework | `broker/core/psychometric.py` | PMT/Utility/Financial |
+| TypeValidator | `broker/governance/type_validator.py` | Per-type skill validation |
+
+### Dry-Run Test Results
+
+```
+[1] Loading Agent Type Registry... ✅ 5 types loaded
+[2] Initializing agents (synthetic mode)... ✅ 100 profiles
+[3] Setting up Psychometric Framework... ✅ PMT with 3 constructs
+[4] Creating experiment components... ✅ 16 skills
+[5] Creating Unified Context Builder... ✅ 2 providers
+[6] Setting up Type Validator... ✅ Demo validation passed
+[7] Output directory... ✅ Created
+
+DRY RUN COMPLETE - Components initialized successfully
+```
+
+### Bug Fixes Applied
+
+1. `run_experiment.py:267` - Changed `_providers` to `providers`
+2. `context_providers.py:47` - Handle both dict and object agents
 
 ---
 
 ## Completed Tasks
 
-### Task-037: SDK-Broker Architecture Separation ✅ COMPLETE
+### Task-037: SDK-Broker Architecture Separation ✅
 
 **Commit**: c7feecc
+All 6 phases complete. SDK now standalone.
 
-| Phase | Description | Status |
-|-------|-------------|--------|
-| 1 | Define Protocols in SDK | ✅ Done |
-| 2 | Migrate agents/ to SDK | ✅ Done |
-| 3 | Migrate config/ to SDK | ✅ Done |
-| 4 | Update Broker imports | ✅ Done |
-| 5 | Protocol compliance | ✅ Done |
-| 6 | Update SDK public API | ✅ Done |
+### Task-036: MA Memory V4 Upgrade ✅
 
-**Files Created**:
-- `governed_ai_sdk/agents/protocols.py` - AgentProtocol, StatefulAgentProtocol
-- `governed_ai_sdk/agents/base.py` - BaseAgent, AgentConfig
-- `governed_ai_sdk/agents/loader.py` - load_agents, load_agent_configs
-- `governed_ai_sdk/simulation/protocols.py` - EnvironmentProtocol
-- `governed_ai_sdk/config/loader.py` - DomainConfigLoader
-
-**Verification**:
-- SDK tests: 374 passed
-- Broker tests: 71 passed (12 pre-existing failures)
+**Commit**: 5af662c
+Merged to main.
 
 ---
 
-### Task-036: MA Memory V4 Upgrade ✅ COMPLETE
-
-**Merged to main** (commit 5af662c)
-
----
-
-### Task-035: SDK-Broker Integration ✅ COMPLETE
-
----
-
-## Worktree Cleanup ✅ COMPLETE
-
-All merged worktrees removed:
-- task-032-phase5-6
-- task-033-phase2-scalability
-- task-033-phase5-research
-- task-035-sdk-broker
-- task-036-ma-memory-v4
-
----
-
-## Current Architecture
+## Architecture Overview
 
 ```
-governed_ai_sdk/          # Standalone SDK (pip installable)
-├── agents/               # Agent protocols + BaseAgent
-│   ├── protocols.py      # AgentProtocol, StatefulAgentProtocol
-│   ├── base.py          # BaseAgent, AgentConfig
-│   └── loader.py        # load_agents()
-├── config/              # Domain config loader
-│   └── loader.py        # DomainConfigLoader
-├── simulation/          # Environment protocols
-│   └── protocols.py     # EnvironmentProtocol
-├── v1_prototype/        # Core SDK modules
-│   ├── memory/          # SymbolicMemory, persistence
-│   └── ...
-└── domains/             # Domain packs (flood, etc.)
+broker/config/agent_types/   # Task-040 ✅
+├── base.py                  # AgentTypeDefinition
+└── registry.py              # AgentTypeRegistry
 
-broker/                  # Execution layer (depends on SDK)
-├── components/          # Memory engines, context builders
-├── core/               # SkillBrokerEngine, ExperimentRunner
-└── validators/         # Skill validators
+broker/core/                 # Task-040 ✅
+├── unified_context_builder.py  # 040-B
+├── agent_initializer.py        # 040-C
+└── psychometric.py             # 040-D
 
-agents/                  # DEPRECATED: Re-exports from SDK
-config/                  # DEPRECATED: Re-exports from SDK
+broker/governance/           # Task-040 ✅
+└── type_validator.py           # 040-E
+
+examples/unified_flood/      # NEW Demo ✅
+├── run_experiment.py
+├── agent_types.yaml
+├── skill_registry.yaml
+└── README.md
 ```
 
 ---
 
-## Next Steps
+## Usage Commands
 
-1. **Task-038**: Fix 12 pre-existing broker test failures
-2. **Task-039**: Create additional domain examples (finance, education)
-3. Documentation updates (README migration guide)
+```bash
+# Dry run (verify components)
+python examples/unified_flood/run_experiment.py --dry-run
+
+# SA mode with synthetic agents
+python examples/unified_flood/run_experiment.py --mode single_agent --agents 10 --years 5
+
+# SA mode with social features
+python examples/unified_flood/run_experiment.py --mode single_agent --enable-social --agents 20
+
+# MA mode (multi-type agents)
+python examples/unified_flood/run_experiment.py --mode multi_agent --enable-multi-type --agents 30
+```
+
+---
+
+## Test Commands
+
+```bash
+# All Task-040 tests
+pytest tests/test_agent_type_registry.py tests/test_unified_context_builder.py tests/test_agent_initializer.py tests/test_psychometric.py tests/test_type_validator.py -v
+
+# Quick verification
+pytest tests/test_agent_type_registry.py -v  # 38 tests
+```

@@ -49,7 +49,9 @@ class GenericAuditWriter:
             "agent_types": {},
             "total_traces": 0,
             "validation_errors": 0,
-            "validation_warnings": 0
+            "validation_warnings": 0,
+            "structural_faults_fixed": 0,  # Format issues fixed by retry
+            "total_format_retries": 0      # Total format retry attempts
         }
         
         # Buffer for CSV export
@@ -116,7 +118,13 @@ class GenericAuditWriter:
         decision = trace.get("decision", trace.get("approved_skill", {}).get("skill_name", "unknown"))
         decisions = self.summary["agent_types"][agent_type]["decisions"]
         decisions[decision] = decisions.get(decision, 0) + 1
-        
+
+        # Track structural faults (format retries)
+        format_retries = trace.get("format_retries", 0)
+        if format_retries > 0:
+            self.summary["total_format_retries"] += format_retries
+            self.summary["structural_faults_fixed"] += 1  # Count traces with faults fixed
+
         # Buffered JSONL write (Optimized: flush every N traces)
         file_path = self._get_file_path(agent_type)
         json_line = json.dumps(trace, ensure_ascii=False, default=str) + '\n'
@@ -196,6 +204,9 @@ class GenericAuditWriter:
             # 1.5. LLM-level retry info (for empty response tracking)
             row["llm_retries"] = t.get("llm_retries", 0)
             row["llm_success"] = t.get("llm_success", True)
+
+            # 1.6. Structural fault tracking (format/parsing issues fixed by retry)
+            row["format_retries"] = t.get("format_retries", 0)
             
             # 2. Skill Logic (Proposed vs Approved)
             skill_prop = t.get("skill_proposal") or {}
@@ -204,6 +215,15 @@ class GenericAuditWriter:
             row["final_skill"] = appr_skill.get("skill_name")
             row["parsing_warnings"] = "|".join(skill_prop.get("parsing_warnings", []) or [])
             row["raw_output"] = skill_prop.get("raw_output", t.get("raw_output", ""))
+
+            # 2.5. Parse Quality Metrics (Task-040 C4)
+            row["parse_layer"] = skill_prop.get("parse_layer", "")
+            row["parse_confidence"] = skill_prop.get("parse_confidence", 0.0)
+            row["construct_completeness"] = skill_prop.get("construct_completeness", 0.0)
+
+            # 2.6. Fallback Indicator (Task-040 C.1)
+            status = row["status"]
+            row["fallback_activated"] = status in ("FALLBACK", "fallback", "MODIFIED")
             
             # 3. Reasoning (TP/CP Appraisal + Audits)
             reasoning = skill_prop.get("reasoning", {})
@@ -231,12 +251,130 @@ class GenericAuditWriter:
                 row["failed_rules"] = ""
                 row["error_messages"] = ""
 
+            # 5. Memory Audit (E1) - Memory retrieval details
+            mem_audit = t.get("memory_audit", {})
+            if mem_audit:
+                row["mem_retrieved_count"] = mem_audit.get("retrieved_count", 0)
+                row["mem_cognitive_system"] = mem_audit.get("cognitive_system", "")
+                row["mem_surprise"] = mem_audit.get("surprise_value", 0.0)
+                row["mem_retrieval_mode"] = mem_audit.get("retrieval_mode", "")
+                # Extract top emotion/source from memories
+                memories = mem_audit.get("memories", [])
+                if memories:
+                    emotions = [m.get("emotion", "neutral") for m in memories if isinstance(m, dict)]
+                    sources = [m.get("source", "personal") for m in memories if isinstance(m, dict)]
+                    row["mem_top_emotion"] = max(set(emotions), key=emotions.count) if emotions else ""
+                    row["mem_top_source"] = max(set(sources), key=sources.count) if sources else ""
+                else:
+                    row["mem_top_emotion"] = ""
+                    row["mem_top_source"] = ""
+            else:
+                row["mem_retrieved_count"] = 0
+                row["mem_cognitive_system"] = ""
+                row["mem_surprise"] = 0.0
+                row["mem_retrieval_mode"] = ""
+                row["mem_top_emotion"] = ""
+                row["mem_top_source"] = ""
+
+            # 6. Social Audit (E2) - Social context details
+            social_audit = t.get("social_audit", {})
+            if social_audit:
+                row["social_gossip_count"] = len(social_audit.get("gossip_received", []))
+                visible = social_audit.get("visible_actions", {})
+                row["social_elevated_neighbors"] = visible.get("elevated_neighbors", 0)
+                row["social_relocated_neighbors"] = visible.get("relocated_neighbors", 0)
+                row["social_neighbor_count"] = social_audit.get("neighbor_count", 0)
+                row["social_network_density"] = social_audit.get("network_density", 0.0)
+            else:
+                row["social_gossip_count"] = 0
+                row["social_elevated_neighbors"] = 0
+                row["social_relocated_neighbors"] = 0
+                row["social_neighbor_count"] = 0
+                row["social_network_density"] = 0.0
+
+            # 7. Cognitive Audit (E3) - Cognitive state details
+            cog_audit = t.get("cognitive_audit", {})
+            if cog_audit:
+                row["cog_system_mode"] = cog_audit.get("system_mode", "")
+                row["cog_surprise_value"] = cog_audit.get("surprise", 0.0)
+                row["cog_is_novel_state"] = cog_audit.get("is_novel_state", False)
+                row["cog_margin_to_switch"] = cog_audit.get("margin_to_switch", 0.0)
+            else:
+                row["cog_system_mode"] = ""
+                row["cog_surprise_value"] = 0.0
+                row["cog_is_novel_state"] = False
+                row["cog_margin_to_switch"] = 0.0
+
+            # 8. Rule Breakdown (B.5) - Rules hit by category
+            rule_breakdown = t.get("rule_breakdown", {})
+            row["rules_personal_hit"] = rule_breakdown.get("personal", 0)
+            row["rules_social_hit"] = rule_breakdown.get("social", 0)
+            row["rules_thinking_hit"] = rule_breakdown.get("thinking", 0)
+            row["rules_physical_hit"] = rule_breakdown.get("physical", 0)
+
+            # 9. Construct Tracking (Task-041 Phase 3) - Individual construct ratings
+            # Extract from reasoning dict
+            reasoning = skill_prop.get("reasoning", {}) if isinstance(skill_prop.get("reasoning"), dict) else {}
+            # PMT constructs
+            row["construct_TP_LABEL"] = reasoning.get("TP_LABEL", "")
+            row["construct_CP_LABEL"] = reasoning.get("CP_LABEL", "")
+            row["construct_SP_LABEL"] = reasoning.get("SP_LABEL", "")
+            row["construct_PA_LABEL"] = reasoning.get("PA_LABEL", "")
+            row["construct_SC_LABEL"] = reasoning.get("SC_LABEL", "")
+            # Utility constructs
+            row["construct_BUDGET_UTIL"] = reasoning.get("BUDGET_UTIL", "")
+            row["construct_EQUITY_GAP"] = reasoning.get("EQUITY_GAP", "")
+            # Financial constructs
+            row["construct_RISK_APPETITE"] = reasoning.get("RISK_APPETITE", "")
+            row["construct_SOLVENCY_IMPACT"] = reasoning.get("SOLVENCY_IMPACT", "")
+
+            # 10. Rule Evaluation Details (Task-041 Phase 3)
+            rules_evaluated = t.get("rules_evaluated", [])
+            triggered_rules = t.get("triggered_rules", [])
+            row["rules_evaluated_count"] = len(rules_evaluated) if rules_evaluated else 0
+            row["rules_triggered"] = "|".join(triggered_rules) if triggered_rules else ""
+
+            # Condition match details (first 3 for CSV)
+            condition_results = t.get("condition_results", [])
+            for i in range(3):
+                if i < len(condition_results):
+                    cond_result = condition_results[i]
+                    row[f"condition_{i}_rule"] = cond_result.get("rule_id", "")
+                    row[f"condition_{i}_matched"] = cond_result.get("matched", False)
+                else:
+                    row[f"condition_{i}_rule"] = ""
+                    row[f"condition_{i}_matched"] = ""
+
             flat_rows.append(row)
 
         if not flat_rows: return
 
         # Ensure consistent column ordering for user
-        priority_keys = ["step_id", "year", "agent_id", "proposed_skill", "final_skill", "status", "retry_count", "validated", "failed_rules"]
+        priority_keys = [
+            # Core identity
+            "step_id", "year", "agent_id",
+            # Skill decision
+            "proposed_skill", "final_skill", "status", "fallback_activated",
+            # Governance stats
+            "retry_count", "format_retries", "validated", "failed_rules",
+            # Parse quality
+            "parse_layer", "parse_confidence", "construct_completeness",
+            # Construct ratings (Task-041 Phase 3)
+            "construct_TP_LABEL", "construct_CP_LABEL", "construct_SP_LABEL",
+            "construct_PA_LABEL", "construct_SC_LABEL",
+            "construct_BUDGET_UTIL", "construct_EQUITY_GAP",
+            "construct_RISK_APPETITE", "construct_SOLVENCY_IMPACT",
+            # Rule evaluation (Task-041 Phase 3)
+            "rules_evaluated_count", "rules_triggered",
+            # Memory audit (E1)
+            "mem_retrieved_count", "mem_cognitive_system", "mem_surprise",
+            # Social audit (E2)
+            "social_gossip_count", "social_elevated_neighbors", "social_neighbor_count",
+            # Cognitive audit (E3)
+            "cog_system_mode", "cog_surprise_value", "cog_is_novel_state",
+            # Rule breakdown (B.5)
+            "rules_personal_hit", "rules_social_hit", "rules_thinking_hit", "rules_physical_hit"
+        ]
         
         # Phase 12: Support custom priority keys from first trace if present
         if traces and "_audit_priority" in traces[0]:

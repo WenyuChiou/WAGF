@@ -85,9 +85,18 @@ def create_memory_engine(
             SymbolicSurpriseStrategy,
             HybridSurpriseStrategy,
         )
-        strategy_type = config.get("surprise_strategy", "ema")
-        ema_alpha = config.get("ema_alpha", 0.3)
-        stimulus_key = config.get("stimulus_key", "flood_depth")
+
+        # Extract memory config from nested structure if needed
+        mem_cfg = config
+        if "global_config" in config and "memory" in config.get("global_config", {}):
+            mem_cfg = config["global_config"]["memory"]
+        elif "memory" in config:
+            mem_cfg = config["memory"]
+
+        # Get strategy parameters (ignoring unsupported kwargs like window_size, ranking_mode)
+        strategy_type = mem_cfg.get("surprise_strategy", "ema")
+        ema_alpha = mem_cfg.get("ema_alpha", 0.3)
+        stimulus_key = mem_cfg.get("stimulus_key", "flood_depth")
 
         if strategy_type == "symbolic":
             strategy = SymbolicSurpriseStrategy(default_sensor_key=stimulus_key)
@@ -103,11 +112,11 @@ def create_memory_engine(
 
         engine = UnifiedEngine(
             surprise_strategy=strategy,
-            arousal_threshold=config.get("arousal_threshold", 0.5),
-            emotional_weights=config.get("emotional_weights"),
-            source_weights=config.get("source_weights"),
-            decay_rate=config.get("decay_rate", 0.1),
-            seed=config.get("seed", 42),
+            arousal_threshold=mem_cfg.get("arousal_threshold", 0.5),
+            emotional_weights=mem_cfg.get("emotional_weights"),
+            source_weights=mem_cfg.get("source_weights"),
+            decay_rate=mem_cfg.get("decay_rate", 0.1),
+            seed=mem_cfg.get("seed", kwargs.get("seed", 42)),
         )
     else:
         raise ValueError(f"Unknown engine type: {engine_type}")

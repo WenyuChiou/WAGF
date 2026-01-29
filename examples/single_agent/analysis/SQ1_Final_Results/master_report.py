@@ -180,70 +180,111 @@ def get_stats(model, group):
             n_cp_high = len(full_data[full_data['ca_level'].isin(['H', 'VH'])])
             n_cp_low = len(full_data) - n_cp_high
             
-            # 4. Verification Rules Analysis
-            # V1/V2: Sources are Low TP. 
-            # BUT for BC, "Verification Rule" targets ONLY L/VL (Strict Low).
-            if group == "Group_A":
-                v12_src = full_data[full_data['ta_level'].isin(['L', 'VL', 'M'])]
-            else:
-                # Group B/C follows "Verification Rule": Strict Low only
-                v12_src = full_data[full_data['ta_level'].isin(['L', 'VL'])]
+            # 4. Verification Rules Analysis (Transition-Based for One-Time Skills)
+            df_sorted = full_data.sort_values(['agent_id', 'year'])
+            df_sorted['relocated_prev'] = df_sorted.groupby('agent_id')['relocated'].shift(1).fillna(False)
+            df_sorted['elevated_prev'] = df_sorted.groupby('agent_id')['elevated'].shift(1).fillna(False)
             
-            v1_count = v12_src[dec_col].apply(lambda x: normalize_decision(x) == 'Relocate').sum() if len(v12_src) > 0 else 0
-            v2_count = v12_src[dec_col].apply(lambda x: normalize_decision(x) == 'Elevation').sum() if len(v12_src) > 0 else 0
+            # V1 Actual: Relocated transition under low threat
+            v1_mask = (df_sorted['relocated'] == True) & (df_sorted['relocated_prev'] == False)
+            v1_mask &= df_sorted['ta_level'].isin(['L', 'VL', 'M'] if group == "Group_A" else ['L', 'VL'])
+            v1_count = v1_mask.sum()
             
-            v3_src = full_data[full_data['ta_level'].isin(['H', 'VH'])]
+            # V2 Actual: Elevation transition under low threat
+            v2_mask = (df_sorted['elevated'] == True) & (df_sorted['elevated_prev'] == False)
+            v2_mask &= df_sorted['ta_level'].isin(['L', 'VL', 'M'] if group == "Group_A" else ['L', 'VL'])
+            v2_count = v2_mask.sum()
+            
+            # V3 Actual: "Do Nothing" under VH threat (Repeated action acceptable)
+            v3_src = full_data[full_data['ta_level'].isin(['VH'])]
             v3_count = v3_src[dec_col].apply(lambda x: normalize_decision(x) == 'DoNothing').sum() if len(v3_src) > 0 else 0
             
-            # --- Relocation Moment Consistency Analysis ---
-            reloc_moments = full_data[full_data[dec_col].apply(normalize_decision) == 'Relocate']
+            # --- Relocation Moment Consistency Analysis (Transition-Based) ---
+            reloc_moments = df_sorted[(df_sorted['relocated'] == True) & (df_sorted['relocated_prev'] == False)]
             audit = reloc_moments['ta_level'].value_counts().to_dict()
             high_count = audit.get('H',0) + audit.get('VH',0)
             low_count = sum(audit.values()) - high_count
             audit_str = f"{low_count}|{high_count}"
-            interv_total = 0
-            interv_success = 0
-            intv_hallucination = 0 # Track Ghosting/Invalid Values
-            
+            intv_rules, intv_thinking_events, intv_hallucination, intv_parse_errors = 0, 0, 0, 0
+            intv_v1, intv_v2, intv_v3 = 0, 0, 0
+
+            # 1. GROUND TRUTH: Logic Blocks from Governance Summary
+            summary_path = group_dir / "governance_summary.json"
+            if summary_path.exists():
+                try:
+                    with open(summary_path, 'r', encoding='utf-8') as sf:
+                        s_data = json.load(sf)
+                        # Intv_R = Total Thinking Rule Violations (incl. retries)
+                        intv_rules = s_data.get('total_interventions', 0)
+                        
+                        # Intv_S = Successful Thinking Events (Decisions blocked)
+                        o_stats = s_data.get('outcome_stats', {})
+                        intv_thinking_events = o_stats.get('retry_success', 0) + o_stats.get('retry_exhausted', 0)
+                        intv_parse_errors = o_stats.get('parse_errors', 0)
+                    
+                    # 1.1 BACKFILL TRANSIENT PARSE ERRORS (FOR SQ1 AUDIT)
+                    # If repo summary is 0 but retries exist, scan log for transient structural faults
+                    exec_log_path = group_dir / "execution.log"
+                    if intv_parse_errors == 0 and exec_log_path.exists():
+                        try:
+                            # Use PowerShell encoding compatible read if needed, or simple utf-8/latin1 fallback
+                            with open(exec_log_path, 'r', encoding='utf-8', errors='ignore') as f:
+                                for line in f:
+                                    if "[Broker:Retry]" in line:
+                                        if "Empty/Null response" in line or "Missing required constructs" in line or "Invalid _LABEL values" in line:
+                                            intv_parse_errors += 1
+                        except Exception as e:
+                            pass # Fallback to 0 if log is locked or unreadable
+                        
+                        # Rule Frequency Mapping (for breakdown)
+                        r_freq = s_data.get('rule_frequency', {})
+                        intv_v1 = r_freq.get('relocation_threat_low', 0)
+                        intv_v2 = r_freq.get('elevation_threat_low', 0)
+                        intv_v3 = r_freq.get('extreme_threat_block', 0) + r_freq.get('builtin_high_tp_cp_action', 0)
+                        
+                        # Cleanup
+                        captured = intv_v1 + intv_v2 + intv_v3
+                        if captured < intv_rules:
+                            intv_v1 += (intv_rules - captured)
+                except: pass
+
+            # 2. Hallucination Repairs (Residual Retries)
+            trace_total_events = 0
             if jsonl_candidates:
                 with open(jsonl_candidates[0], 'r', encoding='utf-8') as f:
                     for line in f:
                         try:
                             data = json.loads(line)
-                            # Robust Intervention Detection
-                            retry_active = data.get('retry_count', 0) > 0
-                            failed_rules = str(data.get('failed_rules', '')).lower()
-                            has_rules = failed_rules and failed_rules not in ['nan', 'none', '', '[]']
-                            
-                            # Intervention occurred if Retry > 0 OR explicit Rule Failures detected
-                            # (We prioritize Failed Rules as the source of truth for Governance)
-                            if retry_active or has_rules:
-                                parsed_error = str(data.get('parsing_warnings', '') or data.get('error_messages', '')).lower()
-                                combined_error = parsed_error + " " + failed_rules
-                                
-                                # Heuristic: it is Governance if Rules Failed OR Error is not purely syntax
-                                is_syntax = ('json' in parsed_error or 'parse' in parsed_error) and not has_rules
-                                
-                                # Ghosting / Hallucination Check (Invalid Values or Scale Regurgitation)
-                                if 'invalid label values' in combined_error or 'missing required constructs' in combined_error:
-                                    interv_total += 1
-                                    intv_hallucination += 1
-                                
-                                elif not is_syntax:
-                                    interv_total += 1
-                                    final_dec = data.get('skill_proposal', {}).get('skill_name', '')
-                                    if is_action(final_dec): interv_success += 1
-
+                            if data.get('retry_count', 0) > 0:
+                                trace_total_events += 1
                         except: continue
             
-            intv_ok_str = f"{interv_success}" if interv_total > 0 else "-"
+            if intv_thinking_events > 0:
+                intv_hallucination = max(0, trace_total_events - intv_thinking_events - intv_parse_errors)
+            else:
+                intv_thinking_events = trace_total_events
+                intv_v1 = intv_thinking_events
+
+            interv_total = intv_rules + intv_parse_errors # Total Workload
+            interv_success = intv_thinking_events 
+            intv_ok_str = f"{intv_rules}/{interv_success}/{intv_parse_errors}" if (intv_rules + intv_parse_errors) > 0 else "-"
             
-            # --- VERIFICATION RULES ANALYSIS ---
-            # Global Frequency Calculation
-            total_panic_intent = v1_count + interv_success
-            v1_global_rate = total_panic_intent / len(full_data) if len(full_data) > 0 else 0
-            v2_global_rate = v2_count / len(full_data) if len(full_data) > 0 else 0
-            v3_global_rate = v3_count / len(full_data) if len(full_data) > 0 else 0
+            # Sub-components
+            v1_int, v2_int, v3_int = intv_v1, intv_v2, intv_v3
+            
+            # --- VERIFICATION RULES ANALYSIS (INTENT = ACTUAL + BLOCKED) ---
+            v1_total = intv_v1 + v1_count
+            v2_total = intv_v2 + v2_count
+            v3_total = intv_v3 + v3_count
+            
+            # Sub-components for explicit mapping
+            v1_int, v2_int, v3_int = intv_v1, intv_v2, intv_v3
+            v1_act, v2_act, v3_act = v1_count, v2_count, v3_count
+            
+            # Global Rates (Now based on Blocked Attempts)
+            v1_global_rate = v1_total / len(full_data) if len(full_data) > 0 else 0
+            v2_global_rate = v2_total / len(full_data) if len(full_data) > 0 else 0
+            v3_global_rate = v3_total / len(full_data) if len(full_data) > 0 else 0
 
             # Flip-flops (Weighted Calculation: Total Flips / Total Active Intervals)
             total_flips = 0
@@ -279,24 +320,19 @@ def get_stats(model, group):
                 weighted_ff = 0.0
             
             return {
-                "N": len(full_data),
-                "L_TP": n_tp_low,
-                "H_TP": n_tp_high,
-                "L_CP": n_cp_low,
-                "H_CP": n_cp_high,
-                "V1_%": round(v1_global_rate * 100, 1), # Global Panic Intent
-                "V1_N": total_panic_intent,             # Count = Actual + Blocked
-                "V1_Act": v1_count,                     # Keep Actual for reference
-                "V2_%": round(v2_global_rate * 100, 1), 
-                "V2_N": v2_count,
-                "V3_%": round(v3_global_rate * 100, 1), 
-                "V3_N": v3_count,
-                "Intv": interv_total,
-                "Intv_S": interv_success,
-                "Intv_H": intv_hallucination,
+                "Status": "Done" if df['year'].max() >= 10 else f"Y{df['year'].max()}",
+                "N": len(full_data) if full_data is not None else 0,
+                "TP_Pop": f"{n_tp_low}|{n_tp_high}", "CP_Pop": f"{n_cp_low}|{n_cp_high}",
+                "V1_Tot": v1_total, "V1_Act": v1_count,
+                "V2_Tot": v2_total, "V2_Act": v2_count,
+                "V3_Tot": v3_total, "V3_Act": v3_count,
+                "Intv": intv_rules, "Intv_S": intv_thinking_events, "Intv_P": intv_parse_errors,
+                "Intv_H": intv_hallucination, "Intv_OK": intv_ok_str,
+                "V1_%": round(v1_global_rate * 100, 1),
+                "V2_%": round(v2_global_rate * 100, 1),
+                "V3_%": round(v3_global_rate * 100, 1),
                 "FF": round(weighted_ff * 100, 2),
-                "Audit_Str": audit_str,
-                "Status": "Done" if df['year'].max() >= 10 else f"Y{df['year'].max()}"
+                "Audit": audit, "Audit_Str": audit_str
             }
         return None
     except Exception as e:
@@ -314,7 +350,7 @@ h_pop = "L|H TP  |  L|H CP"
 h_v1 = "Panic(V1)"
 h_v2 = "Elev(V2)"
 h_v3 = "Comp(V3)"
-h_intv = "Intv(S|H)"
+h_intv = "Rules/S/P"
 h_ff = "FF"
 h_audit = "Reloc Audit(L|H)"
 
@@ -327,22 +363,16 @@ for m in models:
     for g in groups:
         stats = get_stats(m, g)
         if stats:
-            if "V1_% " not in stats and "Status" in stats and str(stats["Status"]).startswith("Err"):
+            if "V1_%" not in stats and "Status" in stats and str(stats["Status"]).startswith("Err"):
                 print(f"{m:<18} {g:<7} ERROR: {stats['Status']}")
                 continue
             
             if 'V1_%' not in stats: continue
 
-            # Format values
-            v1_str = f"{stats['V1_%']}% (n={stats['V1_N']})"
-            v2_str = f"{stats['V2_%']}% (n={stats['V2_N']})"
-            v3_str = f"{stats['V3_%']}% (n={stats['V3_N']})"
-            pop_str = f"{stats['L_TP']}|{stats['H_TP']} | {stats['L_CP']}|{stats['H_CP']}"
-            intv_str = f"{stats['Intv']} ({stats['Intv_S']}|{stats['Intv_H']})"
-            ff_str = f"{stats['FF']}%"
-            audit_str = stats['Audit_Str']
-            
-            print(f"{m:<18} {g:<7} {stats['N']:<8} {pop_str:<25} {v1_str:<18} {v2_str:<18} {v3_str:<18} {intv_str:<15} {ff_str:<10} {audit_str:<15}")
+            # Print aligned table row
+            m_short = m.replace("deepseek_r1_", "")
+            intv_str = stats.get('Intv_OK', stats.get('Intv_S', '-'))
+            print(f"{m_short:<15} {g:<7} {stats['N']:<5} {stats['V1_Tot']:<7} {stats['V1_Act']:<7} {stats['V2_Tot']:<7} {stats['V2_Act']:<7} {stats['V3_Tot']:<7} {stats['V3_Act']:<7} {intv_str:<15} {stats['FF']}%")
             
             # Collect for Export
             row = stats.copy()
@@ -350,20 +380,39 @@ for m in models:
             row['Group'] = g
             all_data.append(row)
 
-print("\n=== LEGEND ===")
-print("V1 (Panic Intent)  : (Actual Relocate + Blocked Intv) / Total Steps.")
-print("V2 (Panic Elevate) : Actual Elevate / Total Steps. (Side Effect)")
-print("V3 (Complacency)   : Actual Complacency / Total Steps.")
-print("Intv (S|H)         : Total Interventions (Successful Block | Hallucination/Ghosting).")
-print("FF (Flip-Flop)     : % of decisions changed vs previous year (active agents).")
-print("-" * 120)
+# Print Aligned Summary
+print("\n" + "="*140)
+print(f"{'Model':<15} {'Grp':<7} {'N':<5} {'V1_Tot':<7} {'V1_Act':<7} {'V2_Tot':<7} {'V2_Act':<7} {'V3_Tot':<7} {'V3_Act':<7} {'Rules/Succ/Parse':<18} {'FF'}")
+print("-" * 140)
+
+print("\n=== SQ1 METRIC ALIGNMENT GUIDE (BALANCE SHEET) ===")
+print("1. VX_Tot (Total):  Gross Impulse (Rule Hits + Leaked Decisions).")
+print("2. VX_Act (Actual): Leaked Behaviors (Failed to intervene).")
+print("3. Rules/S/P:       [Rule Hits] / [Successful Events] / [Parse Errors].")
+print("   - Rules: Total logical violations. S: Decisions corrected. P: Technical JSON failures.")
+print("-" * 140)
+print("VERIFICATION FORMULA: Total Rule Hits = (V1_Tot - V1_Act) + (V2_Tot - V2_Act) + (V3_Tot - V3_Act)")
+print("=" * 140)
+
+from pathlib import Path
+import pandas as pd
+
+OUTPUT_DIR = Path("examples/single_agent/analysis/SQ1_Final_Results")
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True) # Ensure directory exists
 
 # Export to Excel
 if all_data:
     try:
         df_out = pd.DataFrame(all_data)
-        out_path = "examples/single_agent/analysis/SQ1_Final_Results/sq1_metrics_rules.xlsx"
-        df_out.to_excel(out_path, index=False)
-        print(f"\n[System] Successfully exported to: {out_path}")
+        # Reorder and rename for end-user clarity
+        export_cols = [
+            'Model', 'Group', 'N', 
+            'V1_Tot', 'V1_Act', 'V2_Tot', 'V2_Act', 'V3_Tot', 'V3_Act',
+            'Intv', 'Intv_S', 'Intv_P', 'Intv_H', 'FF', 'Audit_Str'
+        ]
+        # Filter for existing columns
+        existing = [c for c in export_cols if c in df_out.columns]
+        df_out[existing].to_excel(OUTPUT_DIR / "sq1_metrics_rules.xlsx", index=False)
+        print(f"\n[System] Successfully exported to: {OUTPUT_DIR / 'sq1_metrics_rules.xlsx'}")
     except Exception as e:
-        print(f"\n[System] Excel export failed ({e}).")
+        print(f"\n[Error] Excel Export Failed: {e}")
