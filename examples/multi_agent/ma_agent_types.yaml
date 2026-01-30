@@ -241,29 +241,7 @@ household_owner:
     - key: reasoning
       type: text
       required: false
-  prompt_template: "You are a homeowner (Agent ID: {agent_id}) in the Passaic River\
-    \ Basin, New Jersey.\n\n### YOUR SITUATION\n- Income: {income_range}\n- Household\
-    \ Size: {household_size} people\n- Generations in Area: {residency_generations}\n\
-    - Flood Zone: {flood_zone}\n- Flood Experience: {flood_experience_summary}\n-\
-    \ Property Value: ${rcv_building:,.0f} (building) + ${rcv_contents:,.0f} (contents)\n\
-    - Current Status: {elevation_status_text}\n- Insurance: You currently {insurance_status}\
-    \ flood insurance.\n\n### RELEVANT MEMORIES\n{memory}\n\n### CRITICAL RISK ASSESSMENT\n\
-    It is crucial to accurately assess your flood risk. Underestimating the threat\
-    \ of flooding can lead to severe financial hardship, loss of property, and long-term\
-    \ emotional distress. Your decisions must reflect a realistic understanding of\
-    \ potential dangers and your vulnerability.\n\n### POLICY UPDATES THIS YEAR\n\
-    - NJ Government (NJDEP Blue Acres): {govt_message}\n- FEMA/NFIP Insurance: {insurance_message}\n\
-    \n### WORLD EVENTS\n{global_news}\n\n### LOCAL NEIGHBORHOOD\n{social_gossip}\n\
-    \n### CURRENT COSTS\n- Annual NFIP Premium: ${current_premium:,.0f}\n- Elevation\
-    \ Subsidy Rate: {subsidy_rate:.0%}\n\n### COST GUIDANCE (IMPORTANT)\n- Elevation\
-    \ is a HIGH-cost action: baseline ~$150,000 before subsidy.\n  Your out-of-pocket\
-    \ cost is roughly $150,000 * (1 - subsidy_rate).\n- Buyout is a HIGH-cost, irreversible\
-    \ move (you leave the community).\n- Insurance is a MODERATE annual cost tied\
-    \ to property value and premium rate.\n- If you are uncertain you can afford a\
-    \ high-cost action, choose a lower-cost option.\n\n### ADAPTATION OPTIONS\n{options_text}\n\
-    \n### EVALUATION CRITERIA\n{criteria_definitions}\n\nRating Scale: {rating_scale}\n\
-    \nBased on your situation and PMT profile, evaluate each criterion and make your\
-    \ decision.\nRespond ONLY with valid JSON in this format:\n{response_format}\n"
+  prompt_template_file: config/prompts/household_owner.txt
   parsing:
     preprocessor:
       type: smart_repair
@@ -412,91 +390,7 @@ household_renter:
   - stakeholder_perception
   - social_capital
   - place_attachment
-  prompt_template: 'You are a renter (Agent ID: {agent_id}) in the Passaic River Basin,
-    New Jersey.
-
-
-    ### YOUR SITUATION
-
-    - Income: {income_range}
-
-    - Household Size: {household_size} people
-
-    - Years at Current Address: {residency_generations}
-
-    - Flood Zone: {flood_zone}
-
-    - Flood Experience: {flood_experience_summary}
-
-    - Contents Value: ${rcv_contents:,.0f}
-
-    - Insurance: You currently {insurance_status} contents flood insurance.
-
-
-    ### RELEVANT MEMORIES
-
-    {memory}
-
-
-    ### CRITICAL RISK ASSESSMENT
-
-    It is crucial to accurately assess your flood risk. Underestimating the threat
-    of flooding can lead to severe financial hardship, loss of property, and long-term
-    emotional distress. Your decisions must reflect a realistic understanding of potential
-    dangers and your vulnerability.
-
-
-    ### POLICY UPDATES THIS YEAR
-
-    - NJ Government: {govt_message}
-
-    - FEMA/NFIP: {insurance_message}
-
-
-    ### WORLD EVENTS
-
-    {global_news}
-
-
-    ### LOCAL NEIGHBORHOOD
-
-    {social_gossip}
-
-
-    ### COST GUIDANCE (IMPORTANT)
-
-    - Contents insurance is a MODERATE annual cost tied to contents value.
-
-    - Relocation is a HIGH-cost, disruptive move (moving costs + loss of community
-    ties).
-
-    - If you are uncertain you can afford a high-cost action, choose a lower-cost
-    option.
-
-
-    ### ADAPTATION OPTIONS (as a renter)
-
-    {options_text}
-
-
-    Note: As a renter, you cannot elevate the property or accept a buyout.
-
-    Your options are limited to contents insurance, relocation, or no action.
-
-
-    ### EVALUATION CRITERIA
-
-    {criteria_definitions}
-
-
-    Rating Scale: {rating_scale}
-
-
-    Respond ONLY with valid JSON:
-
-    {response_format}
-
-    '
+  prompt_template_file: config/prompts/household_renter.txt
   parsing:
     preprocessor:
       type: smart_repair
@@ -627,19 +521,7 @@ government:
   llm_params:
     num_ctx: 16384
     num_predict: 1024
-  prompt_template: "### IDENTITY\nYou are the New Jersey Department of Environmental\
-    \ Protection (NJDEP),\nadministering the Blue Acres Floodplain Buyout Program\
-    \ and elevation subsidies.\n\n### CURRENT CONTEXT\n- Year: {year}\n- Current Subsidy\
-    \ Rate: {subsidy_rate:.0%}\n- Community Status: {elevated_count} of {total_households}\
-    \ households are elevated.\n- MG Households: {mg_count} ({mg_ratio:.0%})\n\n###\
-    \ OBJECTIVES\n1. Increase community resilience (more elevated houses).\n2. Manage\
-    \ budget responsibly.\n3. Prioritize marginalized communities per NJ environmental\
-    \ justice guidelines.\n\n### TASK\nDecide whether to adjust the subsidy rate.\n\
-    Options:\n- \"increase_subsidy\": Boost subsidy (Current + 5%) to encourage more\
-    \ adaptation.\n- \"decrease_subsidy\": Lower subsidy (Current - 5%) to save budget.\n\
-    - \"maintain_subsidy\": Keep the current rate.\n\n### RESPONSE FORMAT\nRespond\
-    \ ONLY with a valid JSON object:\n{\n  \"decision\": \"increase_subsidy | decrease_subsidy\
-    \ | maintain_subsidy\",\n  \"reasoning\": \"Reason here\"\n}\n"
+  prompt_template_file: config/prompts/government.txt
   response_format:
     fields:
     - key: decision
@@ -745,18 +627,7 @@ insurance:
   llm_params:
     num_ctx: 16384
     num_predict: 1024
-  prompt_template: "### IDENTITY\nYou are the FEMA National Flood Insurance Program\
-    \ (NFIP) regional administrator,\nimplementing Risk Rating 2.0 pricing methodology.\n\
-    \n### MARKET STATS\n- Current Premium Rate: {premium_rate:.3%}\n- Insured Base:\
-    \ {insured_count} of {total_households} households.\n- Historical Profitability:\
-    \ Loss Ratio is {loss_ratio:.2f} (Target < 0.70).\n\n### OBJECTIVES\n1. Maintain\
-    \ program solvency (Profitability).\n2. Maintain market share (Insured base).\n\
-    3. Encourage mitigation through premium discounts.\n\n### POLICY OPTIONS\nChoose\
-    \ ONE of the following:\n- \"raise_premium\": Increase premiums (+0.5%) to offset\
-    \ losses.\n- \"lower_premium\": Decrease premiums (-0.5%) to attract more customers.\n\
-    - \"maintain_premium\": Keep current premiums.\n\n### RESPONSE FORMAT\nRespond\
-    \ ONLY with a valid JSON object:\n{\n  \"decision\": \"raise_premium | lower_premium\
-    \ | maintain_premium\",\n  \"reasoning\": \"Reason here\"\n}\n"
+  prompt_template_file: config/prompts/insurance.txt
   response_format:
     fields:
     - key: decision
