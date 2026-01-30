@@ -61,11 +61,12 @@
         {
           "id": "058-E",
           "title": "Observable State Drift Metrics",
-          "status": "ready",
+          "status": "completed",
           "assigned_to": "Codex",
           "scope": "broker/components/observable_state.py (MODIFY)",
           "depends_on": ["058-C"],
           "handoff_file": "handoff/task-058e-codex.md",
+          "commit": "d9c07b2",
           "note": "create_drift_observables() factory: decision_entropy, dominant_action_pct, stagnation_rate"
         },
         {
