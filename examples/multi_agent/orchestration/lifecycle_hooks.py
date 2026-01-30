@@ -1,4 +1,5 @@
 from typing import Dict, Any, Optional
+import logging
 
 from cognitive_governance.agents import BaseAgent
 from broker import MemoryEngine
@@ -20,6 +21,7 @@ class MultiAgentHooks:
         # NEW parameters:
         game_master: Optional[Any] = None,       # GameMaster instance
         message_pool: Optional[Any] = None,      # MessagePool instance
+        drift_detector: Optional[Any] = None,
     ):
         self.env = environment
         self.memory_engine = memory_engine
@@ -40,6 +42,7 @@ class MultiAgentHooks:
         # NEW: Initialize game_master, message_pool, and memory_bridge
         self.game_master = game_master
         self.message_pool = message_pool
+        self.drift_detector = drift_detector
         self._memory_bridge = MemoryBridge(memory_engine) if memory_engine else None
 
     def pre_year(self, year, env, agents):
@@ -184,6 +187,23 @@ class MultiAgentHooks:
                 resolution = self.game_master.get_resolution(agent.id)
                 if resolution:
                     self._memory_bridge.store_resolution(resolution, year=self.env.get("year", 0))
+
+        # Drift detection (per-step)
+        if self.drift_detector:
+            decision_label = None
+            if isinstance(result, dict):
+                decision_label = result.get("skill") or result.get("decision")
+                tp_label = result.get("TP_LABEL", "")
+                cp_label = result.get("CP_LABEL", "")
+            else:
+                if getattr(result, "skill_proposal", None):
+                    decision_label = getattr(result.skill_proposal, "skill_name", None)
+                tp_label = getattr(result, "TP_LABEL", "")
+                cp_label = getattr(result, "CP_LABEL", "")
+
+            constructs = {"tp": tp_label, "cp": cp_label}
+            if decision_label:
+                self.drift_detector.record_agent_decision(agent.id, decision_label, constructs)
     def post_year(self, year, agents, memory_engine):
         """Apply damage and consolidation."""
         flood_occurred = self.env.get("flood_occurred", False)
@@ -256,6 +276,23 @@ class MultiAgentHooks:
                     if agent.agent_type in ["household_owner", "household_renter"]:
                         self._run_ma_reflection(agent.id, year, agents, self.memory_engine, flood_occurred)
         # --- End MA Reflection Integration ---
+
+        # Drift detection (population)
+        if self.drift_detector:
+            decisions = {}
+            agent_types = {}
+            for agent_id, agent in agents.items():
+                if getattr(agent, "relocated", False):
+                    continue
+                if agent.dynamic_state.get("relocated", False):
+                    continue
+                decisions[agent_id] = getattr(agent, "last_decision", "do_nothing")
+                agent_types[agent_id] = getattr(agent, "agent_type", "household")
+
+            self.drift_detector.record_population_snapshot(year, decisions, agent_types)
+            alerts = self.drift_detector.get_alerts(year)
+            for alert in alerts:
+                logging.warning(f"[Drift:{alert.category}] {alert.message}")
 
     def _run_ma_reflection(
         self,
