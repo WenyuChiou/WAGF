@@ -275,6 +275,35 @@ class MultiAgentHooks:
                 for agent in agents.values():
                     if agent.agent_type in ["household_owner", "household_renter"]:
                         self._run_ma_reflection(agent.id, year, agents, self.memory_engine, flood_occurred)
+
+                # Government/Insurance reflection (institutional trigger)
+                from broker.components.reflection_engine import ReflectionEngine, ReflectionTrigger
+                reflection_engine = ReflectionEngine()
+                for agent in agents.values():
+                    if getattr(agent, "agent_type", "") in ("government", "insurance"):
+                        base_type = "government" if "government" in agent.agent_type else "insurance"
+                        memories = (
+                            memory_engine.retrieve(agent, top_k=5)
+                            if hasattr(memory_engine, "retrieve")
+                            else []
+                        )
+                        if memories:
+                            context = ReflectionEngine.extract_agent_context(agent, year)
+                            prompt = reflection_engine.generate_personalized_reflection_prompt(
+                                context, memories, year
+                            )
+                            insight = reflection_engine.parse_reflection_response(
+                                f"As a {base_type} agent, I observe: " + "; ".join(memories[:2]),
+                                len(memories),
+                                year,
+                            )
+                            if insight:
+                                reflection_engine.store_insight(str(agent.unique_id), insight)
+                                memory_engine.add_memory(
+                                    str(agent.unique_id),
+                                    f"[Reflection Y{year}] {insight.summary}",
+                                    {"importance": insight.importance, "type": "reflection", "source": "reflection"},
+                                )
         # --- End MA Reflection Integration ---
 
         # Drift detection (population)

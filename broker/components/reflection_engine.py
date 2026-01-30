@@ -6,6 +6,7 @@ Inspired by Park et al. (2023) Generative Agents reflection architecture.
 """
 from typing import Dict, Any, List, Optional, Callable, TYPE_CHECKING
 from dataclasses import dataclass, field
+from enum import Enum
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
@@ -73,6 +74,28 @@ IMPORTANCE_PROFILES: Dict[str, float] = {
 }
 
 
+class ReflectionTrigger(Enum):
+    """Types of events that can trigger reflection."""
+    CRISIS = "crisis"
+    PERIODIC = "periodic"
+    DECISION = "decision"
+    INSTITUTIONAL = "institutional"
+
+
+@dataclass
+class ReflectionTriggerConfig:
+    """Configuration for reflection triggers."""
+    crisis: bool = True
+    periodic_interval: int = 5
+    decision_types: List[str] = field(
+        default_factory=lambda: ["elevate_house", "buyout_program", "relocate"]
+    )
+    institutional_threshold: float = 0.05
+    method: str = "hybrid"
+    batch_size: int = 10
+    importance_boost: float = 0.85
+
+
 class ReflectionEngine:
     """
     Triggers periodic cognitive consolidation for agents.
@@ -117,6 +140,64 @@ class ReflectionEngine:
         if self.reflection_interval <= 0:
             return False
         return current_year > 0 and current_year % self.reflection_interval == 0
+
+    def should_reflect_triggered(
+        self,
+        agent_id: str,
+        agent_type: str,
+        current_year: int,
+        trigger: ReflectionTrigger,
+        trigger_config: Optional[ReflectionTriggerConfig] = None,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> bool:
+        """Check if reflection should fire based on trigger type and agent type."""
+        if trigger_config is None:
+            trigger_config = ReflectionTriggerConfig()
+
+        context = context or {}
+
+        if trigger == ReflectionTrigger.CRISIS:
+            if not trigger_config.crisis:
+                return False
+            return True
+
+        if trigger == ReflectionTrigger.PERIODIC:
+            interval = trigger_config.periodic_interval
+            if interval <= 0:
+                return False
+            return current_year > 0 and current_year % interval == 0
+
+        if trigger == ReflectionTrigger.DECISION:
+            decision = context.get("decision", "")
+            return decision in trigger_config.decision_types
+
+        if trigger == ReflectionTrigger.INSTITUTIONAL:
+            if agent_type not in ("government", "insurance"):
+                return False
+            policy_change = abs(context.get("policy_change_magnitude", 0.0))
+            return policy_change > trigger_config.institutional_threshold
+
+        return False
+
+    @staticmethod
+    def load_trigger_config(config_dict: Optional[Dict[str, Any]] = None) -> ReflectionTriggerConfig:
+        """Load ReflectionTriggerConfig from a dict (typically from YAML)."""
+        if not config_dict:
+            return ReflectionTriggerConfig()
+
+        triggers = config_dict.get("triggers", config_dict)
+        return ReflectionTriggerConfig(
+            crisis=triggers.get("crisis", True),
+            periodic_interval=triggers.get("periodic_interval", 5),
+            decision_types=triggers.get(
+                "decision_types",
+                ["elevate_house", "buyout_program", "relocate"],
+            ),
+            institutional_threshold=triggers.get("institutional_threshold", 0.05),
+            method=config_dict.get("method", "hybrid"),
+            batch_size=config_dict.get("batch_size", 10),
+            importance_boost=config_dict.get("importance_boost", 0.85),
+        )
     
     def generate_reflection_prompt(
         self,

@@ -15,6 +15,14 @@ global_config:
     interval: 1               # Reflect every N years
     batch_size: 10            # Reduced from 25 to avoid LLM output truncation
     importance_boost: 0.9     # Boost emotional weight for reflected memories
+    triggers:
+      crisis: true
+      periodic_interval: 5
+      decision_types:
+        - elevate_house
+        - relocate
+      institutional_threshold: 0.05
+    method: hybrid
 
   # [Universe Physics] - LLM & System Generation Settings
   llm:

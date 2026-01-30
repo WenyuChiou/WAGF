@@ -120,6 +120,15 @@ global_config:
     interval: 1
     batch_size: 10
     importance_boost: 0.9
+    triggers:
+      crisis: true
+      periodic_interval: 5
+      decision_types:
+        - elevate_house
+        - buyout_program
+        - relocate
+      institutional_threshold: 0.05
+    method: hybrid
   llm:
     temperature: 0.1
     top_p: 0.9
