@@ -3,12 +3,28 @@ Base Validator - Abstract base class for governance validators.
 
 All category validators inherit from this class.
 Supports dynamic template interpolation in rule messages via RetryMessageFormatter.
+
+Built-in domain-specific checks are injected via ``builtin_checks`` constructor
+parameter.  Each check is a callable:
+    (skill_name: str, rules: List[GovernanceRule], context: Dict) -> List[ValidationResult]
+
+When ``builtin_checks`` is *None* (default), subclasses provide their own
+domain defaults (typically flood-domain checks for backward compatibility).
+Pass an empty list ``[]`` to disable all built-in checks.
 """
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Callable
 from broker.interfaces.skill_types import ValidationResult
 from broker.governance.rule_types import GovernanceRule
 from broker.utils.retry_formatter import RetryMessageFormatter
+
+# Type alias for domain-specific built-in check functions.
+# Each function receives (skill_name, rules, context) and returns
+# a list of ValidationResult for any violations found.
+BuiltinCheck = Callable[
+    [str, List[GovernanceRule], Dict[str, Any]],
+    List[ValidationResult],
+]
 
 
 class BaseValidator(ABC):
@@ -18,6 +34,9 @@ class BaseValidator(ABC):
     Each validator is responsible for evaluating rules in a specific category.
     Supports dynamic template interpolation in rule messages using {var.path} syntax.
 
+    Domain-specific built-in checks are injected via *builtin_checks*.
+    Subclasses that need domain defaults override ``_default_builtin_checks()``.
+
     Example YAML rule with template:
         - id: elevation_threat_low
           message: "Elevation blocked: Your TP={context.TP_LABEL} is too low."
@@ -25,6 +44,20 @@ class BaseValidator(ABC):
 
     # Shared formatter instance (lenient mode - keeps placeholders if missing)
     _message_formatter = RetryMessageFormatter(strict_mode=False)
+
+    def __init__(self, builtin_checks: Optional[List[BuiltinCheck]] = None):
+        if builtin_checks is not None:
+            self._builtin_checks = builtin_checks
+        else:
+            self._builtin_checks = self._default_builtin_checks()
+
+    def _default_builtin_checks(self) -> List[BuiltinCheck]:
+        """Return default domain-specific checks.
+
+        Subclasses override this to provide flood / irrigation / etc. defaults.
+        The base implementation returns an empty list (no built-in checks).
+        """
+        return []
 
     @property
     @abstractmethod
@@ -41,6 +74,10 @@ class BaseValidator(ABC):
         """
         Validate a skill proposal against rules.
 
+        Evaluation order:
+        1. YAML-driven rules filtered by ``self.category``
+        2. Injected ``_builtin_checks`` (domain-specific hardcoded logic)
+
         Args:
             skill_name: Proposed skill name
             rules: List of governance rules to check
@@ -51,7 +88,7 @@ class BaseValidator(ABC):
         """
         results = []
 
-        # Filter rules for this category
+        # --- 1. YAML-driven rules (domain-agnostic) ---
         category_rules = [r for r in rules if r.category == self.category]
 
         for rule in category_rules:
@@ -76,6 +113,10 @@ class BaseValidator(ABC):
                     }
                 )
                 results.append(result)
+
+        # --- 2. Domain-specific built-in checks ---
+        for check in self._builtin_checks:
+            results.extend(check(skill_name, rules, context))
 
         return results
 
