@@ -1,62 +1,33 @@
-# Current Session Handoff
+ï»¿# Current Session Handoff
 
 ## Last Updated
-2026-01-30T06:00:00Z
+2026-01-30T08:30:00Z
 
 ---
 
-## Current: Task-058 MAS Skill Architecture
+## Current: Task-059C Config Prompt Extraction
 
-**Status**: 6/6 COMPLETED (all Task-058 subtasks done)
+**Status**: in_progress
 **Branch**: `feat/memory-embedding-retrieval`
-**Tests**: 967 passed (63 new Task-058 tests)
+**Depends On**: None
 
-### Sub-task Status
+### Just Completed
 
-| Sub | Scope | Status | Agent | Notes |
-|-----|-------|--------|-------|-------|
-| 058-A | `artifacts.py` ABC + `ma_artifacts.py` | ? COMPLETE | Codex | Generic ABC + domain subclasses |
-| 058-B | `cross_agent_validator.py` + `ma_cross_validators.py` | ? COMPLETE | Codex (takeover) | `CrossValidationResult` type, `domain_rules` injection |
-| 058-C | `drift_detector.py` + `role_permissions.py` | ? COMPLETE | Codex | Shannon entropy, Jaccard stagnation |
-| 058-D | `saga_coordinator.py` + `ma_saga_definitions.py` | ? COMPLETE | Codex (takeover) | Generic coordinator + 3 flood sagas |
-| 058-E | `observable_state.py` (MODIFY) | ? COMPLETE | Codex | `create_drift_observables()` factory |
-| 058-F | Integration wiring (4 files MODIFY) | ? COMPLETE | Codex (takeover) | Handoff: `task-058f-codex.md` |
-
-### Key Architecture Decisions (This Session)
-
-1. **Generic/Domain separation**: All flood-specific code lives in `examples/multi_agent/`, broker/ is domain-agnostic
-2. **CrossValidationResult**: New type (distinct from `ValidationResult` in skill_types) with `is_valid`, `rule_id`, `level`, `message`
-3. **Naming fix**: `ma_validators.py` ¡÷ `ma_cross_validators.py` (avoids collision with existing `ma_validators/` package)
-4. **Backward-compat re-exports**: `artifacts.py` re-exports `PolicyArtifact` etc. via `try/except`
-5. **Saga integration**: Orchestrator uses `advance_sagas()` to advance all sagas (optional)
-6. **Artifact formatting**: MessageProvider formats via `[artifact_type] field=value` (generic)
-
-### File Inventory (New/Modified This Session)
-
-| File | Type | Content |
-|------|------|---------|
-| `broker/interfaces/artifacts.py` | Modified | `AgentArtifact` ABC + `ArtifactEnvelope` + `register_artifact_routing()` |
-| `broker/validators/governance/cross_agent_validator.py` | New | `CrossAgentValidator` + `CrossValidationResult` + `ValidationLevel` |
-| `broker/components/drift_detector.py` | New | `DriftDetector`, `DriftReport`, `DriftAlert` |
-| `broker/components/role_permissions.py` | New | `RoleEnforcer`, `PermissionResult` |
-| `broker/components/saga_coordinator.py` | New | `SagaCoordinator`, `SagaStep`, `SagaDefinition`, `SagaResult`, `SagaStatus` |
-| `broker/components/observable_state.py` | Modified | Added `create_drift_observables()` |
-| `examples/multi_agent/ma_artifacts.py` | New | `PolicyArtifact`, `MarketArtifact`, `HouseholdIntention` |
-| `examples/multi_agent/ma_cross_validators.py` | New | `flood_perverse_incentive_check`, `flood_budget_coherence_check` |
-| `examples/multi_agent/ma_role_config.py` | New | `FLOOD_ROLES` dict |
-| `examples/multi_agent/ma_saga_definitions.py` | New | 3 saga definitions |
-| `tests/test_cross_agent_validation.py` | New | 18 tests (generic + domain) |
-| `tests/test_drift_detector.py` | New | 16 tests |
-| `tests/test_saga_coordinator.py` | New | 15 tests |
-| `tests/test_artifacts.py` | New | 14 tests (ABC + domain + envelope) |
-| `tests/test_058_integration.py` | New | 5 integration wiring tests |
-| `tests/test_observable_state.py` | Modified | Added drift observables tests |
+- **Task-059B**: Universal engine stratified retrieval
+  - Commit: `331a8d2`
+  - Handoff updated: `handoff/task-059b-codex.md`
+  - Tests: not run in this session
 
 ---
 
 ## Pending Codex Tasks
 
-### 1. Task-045G: Folder Consolidation
+### 1. Task-059C: Config Prompt Extraction
+- **Handoff**: `.tasks/handoff/task-059c-codex.md`
+- **Scope**: move MA prompt templates into `examples/multi_agent/config/prompts/*.txt` and load via `prompt_template_file`
+- **Deps**: None
+
+### 2. Task-045G: Folder Consolidation
 - **Handoff**: `.tasks/handoff/task-045g-consolidation.md`
 - **Scope**: Move interfaces/, simulation/, validators/ to broker/
 - **Deps**: None
@@ -71,10 +42,3 @@
 | 045-E (Docstrings) | Pending | ?? |
 | 053-4 (12 experiment runs) | Pending | WenyuChiou |
 | 060 (RL-ABM Irrigation) | Planning | ?? |
-
----
-
-## Zotero
-
-- **Collection**: `Task-058-MAS-Skill-Architecture` (key: `HSDRSVQ5`)
-- **Papers**: MetaGPT (U44MWXQC), Concordia (HITVU4HK), SagaLLM (7G736VMQ), AgentSociety (KBENGEM8), Making Waves (IFZXPGHE), IWMS-LLM (UFF83URE), Hung 2021 (5I6XWJGF)

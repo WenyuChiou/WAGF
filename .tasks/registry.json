@@ -1,10 +1,10 @@
-{
+﻿{
   "version": "2.0",
-  "last_updated": "2026-01-30T04:00:00Z",
+  "last_updated": "2026-01-30T08:30:00Z",
   "tasks": [
     {
       "id": "Task-058",
-      "title": "MAS Skill Architecture — Structured Protocols, Validation, Transactions, Drift Detection",
+      "title": "MAS Skill Architecture ??Structured Protocols, Validation, Transactions, Drift Detection",
       "status": "in_progress",
       "type": "feature",
       "priority": "high",
@@ -95,19 +95,19 @@
         "handoff/task-058f-gemini.md"
       ],
       "literature": [
-        "MetaGPT (U44MWXQC) — SOPs, structured communication",
-        "Concordia (HITVU4HK) — Game Master arbitration",
-        "SagaLLM (7G736VMQ) — Transaction guarantees, rollback",
-        "AgentSociety (KBENGEM8) — Population behavior monitoring",
-        "Making Waves (IFZXPGHE) — Water resource MAS",
-        "IWMS-LLM (UFF83URE) — Water management LLM agents",
-        "Hung & Yang 2021 (5I6XWJGF) — Agent-based irrigation modeling"
+        "MetaGPT (U44MWXQC) ??SOPs, structured communication",
+        "Concordia (HITVU4HK) ??Game Master arbitration",
+        "SagaLLM (7G736VMQ) ??Transaction guarantees, rollback",
+        "AgentSociety (KBENGEM8) ??Population behavior monitoring",
+        "Making Waves (IFZXPGHE) ??Water resource MAS",
+        "IWMS-LLM (UFF83URE) ??Water management LLM agents",
+        "Hung & Yang 2021 (5I6XWJGF) ??Agent-based irrigation modeling"
       ],
       "note": "4-phase MAS extension: artifacts, cross-validation, saga transactions, drift detection. 7 new files, 5 modified files."
     },
     {
       "id": "Task-057",
-      "title": "Reflection Optimization — Personalized Prompts + Stratified Retrieval",
+      "title": "Reflection Optimization ??Personalized Prompts + Stratified Retrieval",
       "status": "completed",
       "type": "feature",
       "priority": "high",
@@ -170,7 +170,57 @@
       ],
       "note": "Fix reflection homogeneity: personalized prompts, stratified retrieval, dynamic importance, MA integration"
     },
+    },
     {
+      "id": "Task-059",
+      "title": "Prompt & Memory Engine Enhancements",
+      "status": "in_progress",
+      "type": "feature",
+      "priority": "high",
+      "owner": "Codex",
+      "created_at": "2026-01-30T08:30:00Z",
+      "subtasks": [
+        {
+          "id": "059-A",
+          "title": "Config prompt extraction planning",
+          "status": "ready",
+          "assigned_to": "Codex",
+          "handoff_file": "handoff/task-059a-codex.md"
+        },
+        {
+          "id": "059-B",
+          "title": "Universal Engine Stratified Retrieval",
+          "status": "completed",
+          "assigned_to": "Codex",
+          "scope": "broker/components/memory_engine.py, broker/components/universal_memory.py, tests/test_universal_stratified.py",
+          "handoff_file": "handoff/task-059b-codex.md",
+          "commit": "331a8d2",
+          "note": "Added retrieve_stratified() to MemoryEngine and UniversalCognitiveEngine with System 1/2 allocation"
+        },
+        {
+          "id": "059-C",
+          "title": "Config Prompt Extraction to Files",
+          "status": "in_progress",
+          "assigned_to": "Codex",
+          "scope": "broker/utils/agent_config.py, examples/multi_agent/ma_agent_types.yaml, examples/multi_agent/config/prompts/*.txt, tests/test_prompt_file_loading.py",
+          "handoff_file": "handoff/task-059c-codex.md"
+        },
+        {
+          "id": "059-D",
+          "title": "Prompt/Memory Misc Follow-ups",
+          "status": "ready",
+          "assigned_to": "Codex",
+          "handoff_file": "handoff/task-059d-codex.md"
+        }
+      ],
+      "handoff_files": [
+        "handoff/task-059a-codex.md",
+        "handoff/task-059b-codex.md",
+        "handoff/task-059c-codex.md",
+        "handoff/task-059d-codex.md"
+      ],
+      "note": "Phase 059 tasks for prompt file extraction and universal memory interfaces"
+    },    {
       "id": "Task-060",
       "title": "RL-ABM Multi-Agent Irrigation Experiment",
       "status": "planning",
@@ -299,7 +349,7 @@
           "assigned_to": "Codex",
           "commit": "2b05b11",
           "scope": "broker/utils/model_adapter.py",
-          "note": "self.config → parsing_cfg for normalization/proximity_window"
+          "note": "self.config ??parsing_cfg for normalization/proximity_window"
         },
         {
           "id": "055-B",
@@ -329,7 +379,7 @@
     },
     {
       "id": "Task-056",
-      "title": "Communication Layer ↔ Memory Integration (MemoryBridge)",
+      "title": "Communication Layer ??Memory Integration (MemoryBridge)",
       "status": "completed",
       "type": "feature",
       "priority": "medium",
@@ -663,7 +713,7 @@
           "title": "SDK Rename to cognitive_governance",
           "status": "completed",
           "assigned_to": "Claude Code",
-          "scope": "governed_ai_sdk/ → cognitive_governance/",
+          "scope": "governed_ai_sdk/ ??cognitive_governance/",
           "priority": "HIGH",
           "completed_at": "2026-01-28",
           "note": "Directory renamed, all imports updated, deprecation shim added"
@@ -734,3 +784,5 @@
     }
   ]
 }
+
+
