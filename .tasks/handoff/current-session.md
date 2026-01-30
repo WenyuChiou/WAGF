@@ -1,30 +1,30 @@
 ﻿# Current Session Handoff
 
 ## Last Updated
-2026-01-30T08:30:00Z
+2026-01-30T09:15:00Z
 
 ---
 
-## Current: Task-059C Config Prompt Extraction
+## Current: Task-059D Prompt/Memory Misc Follow-ups
 
-**Status**: in_progress
+**Status**: ready
 **Branch**: `feat/memory-embedding-retrieval`
 **Depends On**: None
 
 ### Just Completed
 
-- **Task-059B**: Universal engine stratified retrieval
-  - Commit: `331a8d2`
-  - Handoff updated: `handoff/task-059b-codex.md`
+- **Task-059C**: Config prompt extraction to files
+  - Commits: `4f0bbc2`, `50600f2`
+  - Handoff updated: `handoff/task-059c-codex.md`
   - Tests: not run in this session
 
 ---
 
 ## Pending Codex Tasks
 
-### 1. Task-059C: Config Prompt Extraction
-- **Handoff**: `.tasks/handoff/task-059c-codex.md`
-- **Scope**: move MA prompt templates into `examples/multi_agent/config/prompts/*.txt` and load via `prompt_template_file`
+### 1. Task-059D: Prompt/Memory Misc Follow-ups
+- **Handoff**: `.tasks/handoff/task-059d-codex.md`
+- **Scope**: follow-up fixes per handoff
 - **Deps**: None
 
 ### 2. Task-045G: Folder Consolidation

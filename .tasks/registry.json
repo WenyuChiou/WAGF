@@ -1,6 +1,6 @@
 ﻿{
   "version": "2.0",
-  "last_updated": "2026-01-30T08:30:00Z",
+  "last_updated": "2026-01-30T09:15:00Z",
   "tasks": [
     {
       "id": "Task-058",
@@ -200,10 +200,12 @@
         {
           "id": "059-C",
           "title": "Config Prompt Extraction to Files",
-          "status": "in_progress",
+          "status": "completed",
           "assigned_to": "Codex",
-          "scope": "broker/utils/agent_config.py, examples/multi_agent/ma_agent_types.yaml, examples/multi_agent/config/prompts/*.txt, tests/test_prompt_file_loading.py",
-          "handoff_file": "handoff/task-059c-codex.md"
+          "scope": "broker/utils/agent_config.py, examples/multi_agent/ma_agent_types.yaml, examples/multi_agent/config/prompts/*.txt, examples/governed_flood/config/agent_types.yaml, examples/governed_flood/config/prompts/household.txt, tests/test_prompt_file_loading.py",
+          "handoff_file": "handoff/task-059c-codex.md",
+          "commit": "4f0bbc2, 50600f2",
+          "note": "Extracted prompt templates to files (MA + governed_flood) and added file-based loading support"
         },
         {
           "id": "059-D",
@@ -784,5 +786,8 @@
     }
   ]
 }
+
+
+
 
 
