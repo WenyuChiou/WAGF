@@ -269,9 +269,18 @@ class MultiAgentHooks:
         for agent in agents.values():
             if agent.agent_type not in ["household_owner", "household_renter"]:
                 continue
-            fixed = agent.fixed_attributes or {}
-            sc = fixed.get("sc_score", 3.0)
-            pa = fixed.get("pa_score", 3.0)
+            fixed_attr = getattr(agent, "fixed_attributes", None)
+            fixed = fixed_attr if isinstance(fixed_attr, dict) else {}
+            sc_raw = fixed.get("sc_score", 3.0)
+            pa_raw = fixed.get("pa_score", 3.0)
+            try:
+                sc = float(sc_raw)
+            except (TypeError, ValueError):
+                sc = 3.0
+            try:
+                pa = float(pa_raw)
+            except (TypeError, ValueError):
+                pa = 3.0
             sc_norm = min(1.0, sc / 5.0)
             pa_norm = min(1.0, pa / 5.0)
             ins_factor = 1.2 if agent.dynamic_state.get("has_insurance") else 0.8
@@ -301,6 +310,8 @@ class MultiAgentHooks:
                             if hasattr(memory_engine, "retrieve")
                             else []
                         )
+                        if not isinstance(memories, list):
+                            memories = []
                         if memories:
                             context = ReflectionEngine.extract_agent_context(agent, year)
                             prompt = reflection_engine.generate_personalized_reflection_prompt(

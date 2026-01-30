@@ -45,7 +45,7 @@ class TestPromptFileLoading:
 
         yaml_content = f"""
         test_agent:
-          prompt_template_file: "{prompt_path}"
+          prompt_template_file: '{prompt_path}'
         """
         config, yaml_path = self._make_config(yaml_content)
         try:
