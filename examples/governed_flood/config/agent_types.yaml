@@ -1,0 +1,375 @@
+# =============================================================================
+# GLOBAL CONFIGURATION (Experiment-level parameters)
+# =============================================================================
+global_config:
+  # [Cognitive Biology] - Shared mental constraints (Default for all agents)
+  memory:
+    window_size: 5            # Short-term working memory capacity
+    consolidation_threshold: 0.6  # Importance score needed to consider LTM transfer
+    consolidation_probability: 0.7 # [Global Param] Probability of transfer to LTM (0.0-1.0)
+    top_k_significant: 2      # Active retrieval span
+    decay_rate: 0.1           # [Global Param] Forgetting rate (Higher = Faster forgetting)
+
+  # [Cognitive Routine] - Metacognition schedules
+  reflection:
+    interval: 1               # Reflect every N years
+    batch_size: 10            # Reduced from 25 to avoid LLM output truncation
+    importance_boost: 0.9     # Boost emotional weight for reflected memories
+
+  # [Universe Physics] - LLM & System Generation Settings
+  llm:
+    model: "command-line-override" # NOTE: Overridden by --model in run scripts
+    # temperature: 0.1          # Low for deterministic experiments (DISABLED TO MATCH BASELINE)
+    # top_p: 0.9
+    # top_k: 40
+    num_ctx: 8192            # Context window size (Optimized for local stability)
+    num_predict: 4096         # Max tokens to generate (Extended for DeepSeek R1 thinking)
+    max_retries: 2            # Infrastructure resilience
+    
+  # [System Governance] - Global Rules
+  governance:
+    max_retries: 3
+    max_reports_per_retry: 3
+
+
+# =============================================================================
+# SHARED DEFINITIONS (Reusable across agent types)
+# =============================================================================
+shared:
+  rating_scale: |
+    ### RATING SCALE (You MUST use EXACTLY one of these codes):
+    VL = Very Low | L = Low | M = Medium | H = High | VH = Very High
+
+  # Response Format Definition (for ResponseFormatBuilder)
+  response_format:
+    delimiter_start: "<<<DECISION_START>>>"
+    delimiter_end: "<<<DECISION_END>>>"
+    fields:
+      - {
+          key: "threat_appraisal",
+          type: "appraisal",
+          required: true,
+          construct: "TP_LABEL",
+          reason_hint: "One sentence summary of how threatened you feel by any remaining flood risks.",
+        }
+      - {
+          key: "coping_appraisal",
+          type: "appraisal",
+          required: true,
+          construct: "CP_LABEL",
+          reason_hint: "One sentence summary of how well you think you can cope or act.",
+        }
+      - { key: "decision", type: "choice", required: true }
+      - { key: "reasoning", type: "text", required: false }
+
+
+
+# =============================================================================
+# HOUSEHOLD AGENT TYPE
+# =============================================================================
+household:
+  description: "Household agents making adaptation decisions based on PMT"
+  llm_params:
+    # Inherits num_ctx/num_predict from global_config.llm
+    # temperature: 1.0    # Higher = more diverse, Lower = more deterministic
+    # top_p: 0.95         # Nucleus sampling threshold
+    # top_k: 50           # Top-k sampling
+
+  # Prompt Template (FINAL version aligned)
+  prompt_template_file: config/prompts/household.txt
+  # Parsing & Skill Mapping
+  parsing:
+    decision_keywords: ["decision", "choice", "action", "selected_action"]
+    default_skill: "do_nothing"
+    global_skills: ["do_nothing", "buy_insurance", "buy_contents_insurance"]
+    full_disclosure: true
+    strict_mode: true
+    preprocessor:
+      { type: "smart_repair", quote_values: ["VL", "L", "M", "H", "VH"] }
+
+    # Extraction Heuristics (Generalized)
+    proximity_window: 35
+    list_delimiters: ["/", "|", "\\"]
+
+    # Value Normalization (Experiment-specific mapping)
+    # normalization: Embedded in ModelAdapter defaults as requested
+
+    # Audit Keywords (Domain-specific keywords moved here from code)
+    audit_keywords:
+      [
+        "flood",
+        "water",
+        "damage",
+        "cost",
+        "neighbor",
+        "money",
+        "safe",
+        "protect",
+        "elevation",
+        "insurance",
+        "loss",
+      ]
+    # Context fields to extract for demographic grounding audit
+    audit_context_fields: ["narrative_persona", "flood_experience_summary"]
+    # Domain-specific stopwords (added to generic English stopwords)
+    audit_blacklist:
+      [
+        "flood",
+        "floods",
+        "flooding",
+        "risk",
+        "water",
+        "manageable",
+        "resident",
+        "household",
+      ]
+    audit_stopwords: ["flood", "floods", "flooding", "risk", "water"]
+
+    # Synonym Mapping for Construct Extraction (Domain-specific, moved from code)
+    synonyms:
+      tp:
+        [
+          "severity",
+          "vulnerability",
+          "threat",
+          "risk",
+          "danger",
+          "perceived_severity",
+          "perceived_vulnerability",
+          "consequence",
+          "impact",
+          "seriousness",
+        ]
+      cp:
+        [
+          "efficacy",
+          "self_efficacy",
+          "response_efficacy",
+          "coping",
+          "ability",
+          "effectiveness",
+          "response_cost",
+          "preparedness",
+          "capacity",
+          "suitability",
+        ]
+
+    # Baseline Skill Mapping (numeric 1-4)
+    skill_map:
+      "1": "buy_insurance"
+      "2": "elevate_house"
+      "3": "relocate"
+      "4": "do_nothing"
+
+    skill_map_elevated:
+      "1": "buy_insurance"
+      "2": "relocate"
+      "3": "do_nothing"
+
+    # Construct mappings (Robust Regex for the "M" issue)
+    constructs:
+      TP_LABEL:
+        {
+          keywords: ["threat_appraisal", "threat"],
+          regex: "(?i)\\b(VL|L|M|H|VH)\\b",
+        }
+      TP_REASON: { keywords: ["threat_appraisal", "threat"], regex: ".*" }
+      CP_LABEL:
+        {
+          keywords: ["coping_appraisal", "coping"],
+          regex: "(?i)\\b(VL|L|M|H|VH)\\b",
+        }
+      CP_REASON: { keywords: ["coping_appraisal", "coping"], regex: ".*" }
+
+  log_fields: ["threat_appraisal", "coping_appraisal"]
+
+  # Memory Configuration
+  memory:
+    # --- EXPERIMENT GROUP SETTINGS ---
+    # Group A: WindowMemoryEngine (window_size: 5)
+    # Group B: WindowMemoryEngine (window_size: 5) + Governance
+    # Group C: HumanCentricMemoryEngine (Legacy v1) + Priority Schema (Pillar 3)
+    
+    engine_type: "human_centric" # Default. Change to "universal" to enable v3 Sudden Surprise.
+    window_size: 5
+    
+    # [Group C / v1 Legacy] Stochastic Consolidation & Decay
+    # Only items with Importance >= 0.6 have a chance to enter long-term memory.
+    # Memories decay exponentially over time: e^(-decay_rate * age).
+    top_k_significant: 2 
+    
+    # [Group C / v1 Legacy] Importance Calculation
+    # Importance = Emotional Weight x Source Weight (Both 0.0 - 1.0)
+    emotion_keywords:
+      direct_impact:
+        ["flood", "flooded", "damage", "destroyed", "loss", "trauma"]
+      strategic_choice: ["decision", "grant", "relocate", "elevate", "move"]
+      efficacy_gain: ["protected", "safe", "insurance", "saved", "relief"]
+      social_feedback: ["trust", "neighbor", "judgment", "observe"]
+    emotional_weights:
+      direct_impact: 1.0
+      strategic_choice: 0.8
+      efficacy_gain: 0.6
+      social_feedback: 0.4
+      baseline_observation: 0.1
+    source_weights:
+      personal: 1.0
+      neighbor: 0.8
+      community: 0.6
+      general_knowledge: 0.4
+    source_patterns:
+      personal: ["i ", "my ", "me ", "got flooded", "my house"]
+      neighbor: ["neighbor", "others", "friend"]
+      community: ["%", "residents", "community", "everyone"]
+      
+    # [v2 Weighted Model] ONLY active if ranking_mode="weighted"
+    # Not used in current JOH Group ABC experiments.
+    retrieval_weights:
+      recency: 0.3
+      importance: 0.5
+      context: 0.2
+
+  # [v3 Surprise Engine] ONLY active if engine_type="universal"
+    # Inactive for all current JOH Groups (A, B, C).
+    arousal_threshold: 0.5  # Surprise trigger
+    ema_alpha: 0.3         # Memory adaptation speed
+
+  # Pillar 3: Priority Context Schema (DEACTIVATED for JOH v1 Experiments)
+  # priority_schema:
+  #   flood_depth: 1.0      # Physical reality (Highest)
+  #   flood_threshold: 0.9  # Physical vulnerability
+  #   savings: 0.8          # Financial Reality
+  #   income_level: 0.7     # Socio-economic Constaint
+  #   risk_tolerance: 0.5   # Psychological preference (Lower priority)
+
+  # Available Actions (mapped to Skill Registry IDs)
+  actions:
+    - id: buy_insurance
+      aliases:
+        [
+          "FI",
+          "insurance",
+          "buy_insurance",
+          "buy flood insurance",
+          "Buy flood insurance",
+          "[FI]",
+          "[insurance]",
+          "[buy_insurance]",
+          "[buy flood insurance]",
+          "[Buy flood insurance]",
+        ]
+      description: "Buy flood insurance (Lower cost, provides partial financial protection but does not reduce physical damage.)"
+    - id: elevate_house
+      aliases:
+        [
+          "HE",
+          "elevate",
+          "elevation",
+          "elevate_house",
+          "elevate house",
+          "Elevate your house",
+          "Elevate house",
+          "[HE]",
+          "[elevate]",
+          "[elevation]",
+          "[elevate_house]",
+          "[elevate house]",
+          "[Elevate your house]",
+          "[Elevate house]",
+        ]
+      description: "Elevate your house (High upfront cost but can prevent most physical damage.)"
+    - id: relocate
+      aliases:
+        [
+          "RL",
+          "move",
+          "relocate",
+          "Relocate",
+          "[RL]",
+          "[move]",
+          "[relocate]",
+          "[Relocate]",
+        ]
+      description: "Relocate (Requires leaving your neighborhood but eliminates flood risk permanently.)"
+    - id: do_nothing
+      aliases:
+        [
+          "DN",
+          "nothing",
+          "wait",
+          "do_nothing",
+          "Do nothing",
+          "Do Nothing",
+          "[DN]",
+          "[nothing]",
+          "[wait]",
+          "[do_nothing]",
+          "[Do nothing]",
+          "[Do Nothing]",
+        ]
+      description: "Do nothing (Require no financial investment or effort this year, but it might leave you exposed to future flood damage.)"
+
+  # Governance Profiles
+  governance:
+    strict:
+      thinking_rules:
+        - {
+            id: extreme_threat_block,
+            construct: TP_LABEL,
+            when_above: ["VH"],
+            blocked_skills: ["do_nothing"],
+            level: ERROR,
+          }
+        # Realism Rule: Block complex actions if self-efficacy (Coping) is too low
+        - {
+            id: low_coping_block,
+            construct: CP_LABEL,
+            conditions: [{ construct: CP_LABEL, values: ["VL"] }],
+            blocked_skills: ["elevate_house", "relocate"],
+            level: ERROR,
+            message: "Action blocked due to extremely low perceived capability (Self-efficacy).",
+          }
+        - {
+            id: relocation_threat_low,
+            conditions: [{ construct: TP_LABEL, values: ["VL", "L"] }],
+            blocked_skills: ["relocate"],
+            level: ERROR,
+            message: "Relocation blocked: Threat level is too low to justify abandoning property.",
+          }
+        - {
+            id: elevation_threat_low,
+            conditions: [{ construct: TP_LABEL, values: ["VL", "L"] }],
+            blocked_skills: ["elevate_house"],
+            level: ERROR,
+            # Template syntax: {context.TP_LABEL} will be replaced with actual value
+            message: "Elevation blocked: Your threat appraisal ({context.TP_LABEL}) is too low. Consider scenarios with threat >= M.",
+          }
+      identity_rules:
+        - {
+            id: elevation_block,
+            precondition: elevated,
+            blocked_skills: ["elevate_house"],
+            level: ERROR,
+          }
+
+    relaxed:
+      thinking_rules:
+        - {
+            construct: TP_LABEL,
+            when_above: ["H"],
+            blocked_skills: ["do_nothing"],
+            level: WARNING,
+          }
+      identity_rules:
+        - {
+            id: elevation_block,
+            precondition: elevated,
+            blocked_skills: ["elevate_house"],
+            level: WARNING,
+          }
+
+    disabled:
+      thinking_rules: []
+      identity_rules: []
+
+metadata: { version: "v22-sa-final-parity-robust" }

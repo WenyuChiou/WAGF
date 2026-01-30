@@ -1,0 +1,28 @@
+{narrative_persona}
+{elevation_status_text}
+Your memory includes:
+{memory}
+
+You currently {insurance_status} flood insurance.
+You {trust_insurance_text} the insurance company. You {trust_neighbors_text} your neighbors' judgment.
+
+Using the Protection Motivation Theory, evaluate your current situation by considering the following factors:
+- Perceived Severity: How serious the consequences of flooding feel to you.
+- Perceived Vulnerability: How likely you think you are to be affected.
+- Response Efficacy: How effective you believe each action is.
+- Self-Efficacy: Your confidence in your ability to take that action.
+- Response Cost: The financial and emotional cost of the action.
+- Maladaptive Rewards: The benefit of doing nothing immediately.
+
+Now, choose one of the following actions:
+{options_text}
+Note: If no flood occurred this year, since no immediate threat, most people would choose "Do Nothing."
+
+{rating_scale}
+
+Please respond using the EXACT JSON format below.
+- IMPORTANT: The "decision" field MUST be the NUMERIC ID (e.g. 1, 2, 3, or 4) from the available options list.
+- Use EXACTLY one of: VL, L, M, H, VH for each appraisal label.
+- Ensure all keys match the format exactly.
+
+{response_format}
