@@ -323,6 +323,59 @@ class UniversalCognitiveEngine:
 
         return result
 
+    def retrieve_stratified(
+        self,
+        agent_id: str,
+        allocation: Optional[Dict[str, int]] = None,
+        total_k: int = 10,
+        contextual_boosters: Optional[Dict[str, float]] = None,
+        world_state: Optional[Dict[str, Any]] = None,
+    ) -> List[str]:
+        """Retrieve memories with source-stratified diversity and System 1/2 switching.
+
+        Delegates to HumanCentricMemoryEngine.retrieve_stratified() with
+        System 1/2 allocation adjustment.
+        """
+        # Step 1: Compute surprise from environment
+        self.last_surprise = self._compute_surprise(world_state)
+
+        # Step 2: Determine cognitive system
+        self.current_system = self._determine_system(self.last_surprise)
+
+        # Step 3: Adjust allocation based on cognitive system
+        if allocation is None:
+            if self.current_system == "SYSTEM_1":
+                allocation = {
+                    "personal": 5,
+                    "neighbor": 2,
+                    "community": 1,
+                    "reflection": 1,
+                    "abstract": 1,
+                }
+            else:
+                allocation = {
+                    "personal": 3,
+                    "neighbor": 2,
+                    "community": 2,
+                    "reflection": 2,
+                    "abstract": 1,
+                }
+
+        logger.debug(
+            "[Cognitive] retrieve_stratified: %s (surprise=%.2f), allocation=%s",
+            self.current_system,
+            self.last_surprise,
+            allocation,
+        )
+
+        # Step 4: Delegate to base engine
+        return self._base_engine.retrieve_stratified(
+            agent_id=agent_id,
+            allocation=allocation,
+            total_k=total_k,
+            contextual_boosters=contextual_boosters,
+        )
+
     def get_cognitive_state(self) -> Dict[str, Any]:
         """
         Get current cognitive state for debugging/logging.

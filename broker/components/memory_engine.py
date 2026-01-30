@@ -55,6 +55,32 @@ class MemoryEngine(ABC):
         """Reset memory for an agent."""
         pass
 
+    def retrieve_stratified(
+        self,
+        agent_id: str,
+        allocation: Optional[Dict[str, int]] = None,
+        total_k: int = 10,
+        contextual_boosters: Optional[Dict[str, float]] = None,
+    ) -> List[str]:
+        """Retrieve memories with source-stratified diversity guarantee.
+
+        Subclasses that support stratified retrieval should override this.
+        Default raises NotImplementedError.
+
+        Args:
+            agent_id: Agent to retrieve for
+            allocation: Dict mapping source -> max slots
+            total_k: Total memories to return
+            contextual_boosters: Optional score boosters
+
+        Returns:
+            List of memory content strings, stratified by source
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not support retrieve_stratified(). "
+            "Use HumanCentricMemoryEngine or UniversalCognitiveEngine."
+        )
+
     def retrieve_with_scoring(
         self,
         agent: BaseAgent,
