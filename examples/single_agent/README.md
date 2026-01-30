@@ -144,7 +144,93 @@ We have included a specialized AI persona to help you write and review papers ba
 
 ---
 
-## 🧠 Memory Engine Modes: v1 vs v2
+## Governance Rules (v22 — Strict Profile)
+
+The `strict` governance profile enforces behavioral consistency between PMT appraisals and action choices. Rules are defined in `agent_types.yaml` under `governance.strict`.
+
+### Rule Types: ERROR vs WARNING
+
+| Level | Behavior | Effect on Agent | Recorded In |
+| :--- | :--- | :--- | :--- |
+| **ERROR** | Blocks the action and triggers retry (max 3 attempts) | Agent must choose a different action | `governance_summary.json` → `rule_frequency`, CSV → `failed_rules` |
+| **WARNING** | Allows the action through but records the observation | Agent keeps its choice, anomaly logged | `governance_summary.json` → `warnings`, CSV → `warning_rules` |
+
+### Thinking Rules (Appraisal-Based)
+
+| Rule ID | Level | Trigger Condition | Blocked Skills | Rationale |
+| :--- | :--- | :--- | :--- | :--- |
+| `extreme_threat_block` | ERROR | TP in {H, VH} | `do_nothing` | High threat perception should not lead to inaction |
+| `low_coping_block` | WARNING | CP in {VL, L} | `elevate_house`, `relocate` | Low coping agents attempting costly actions — logged as anomaly but allowed |
+| `relocation_threat_low` | ERROR | TP in {VL, L} | `relocate` | Low threat does not justify abandoning property |
+| `elevation_threat_low` | ERROR | TP in {VL, L} | `elevate_house` | Low threat does not justify expensive elevation |
+
+### Identity Rules (State-Based)
+
+| Rule ID | Level | Precondition | Blocked Skills | Rationale |
+| :--- | :--- | :--- | :--- | :--- |
+| `elevation_block` | ERROR | Agent already elevated | `elevate_house` | Physical impossibility — cannot elevate twice |
+
+### The Governance Dead Zone Problem
+
+When TP=H and CP=L, the following rules interact:
+- `extreme_threat_block` (ERROR) blocks `do_nothing`
+- `low_coping_block` (WARNING) observes but allows `elevate_house` and `relocate`
+
+In earlier versions, `low_coping_block` was ERROR level, which created a "dead zone" — agents with only `buy_insurance` as their valid action. The WARNING level change (v22) preserves agent autonomy while recording the anomaly for analysis.
+
+### Output Interpretation
+
+**`governance_summary.json`**:
+```json
+{
+    "total_interventions": 25,
+    "rule_frequency": { "extreme_threat_block": 25 },
+    "warnings": {
+        "total_warnings": 9,
+        "warning_rule_frequency": { "low_coping_block": 9 }
+    },
+    "outcome_stats": { "retry_success": 11, "retry_exhausted": 0 }
+}
+```
+
+- `total_interventions`: Number of ERROR-level blocks that triggered retries
+- `warnings.total_warnings`: Number of WARNING-level observations (action allowed)
+- `retry_success`: Agent chose a valid action on retry
+- `retry_exhausted`: Agent failed all 3 retry attempts (fallback to default)
+
+**`household_governance_audit.csv`** key columns:
+- `failed_rules`: Comma-separated ERROR rules that blocked the action
+- `warning_rules`: Comma-separated WARNING rules that observed the action
+- `warning_messages`: Human-readable warning descriptions
+
+---
+
+## Gemma 3 Experiment Configuration
+
+The JOH Benchmark uses Gemma 3 models with standardized sampling parameters:
+
+| Parameter | Value | Notes |
+| :--- | :--- | :--- |
+| `temperature` | 0.8 | Balanced creativity/consistency |
+| `top_p` | 0.9 | Nucleus sampling threshold |
+| `top_k` | 40 | Token diversity limit |
+| `num_ctx` | 8192 | Context window size |
+| `num_predict` | 1536 | Max output tokens (4096 for smoke tests) |
+| `seed` | 401 | Reproducibility seed |
+
+### Model-Specific Observations
+
+| Model | Label Range | Notes |
+| :--- | :--- | :--- |
+| `gemma3:4b` | {L, M, H} only | Never produces VL or VH labels |
+| `gemma3:12b` | {VL, L, M, H, VH} | Full range, more nuanced appraisals |
+| `gemma3:27b` | {VL, L, M, H, VH} | Best reasoning quality, full range |
+
+> **Note**: Because `gemma3:4b` never outputs VL/VH, rules triggered by VL (e.g., `low_coping_block` at CP=VL) or VH (e.g., `extreme_threat_block` at TP=VH) will not fire for this model. This is a model capability limitation, not a framework issue.
+
+---
+
+## Memory Engine Modes: v1 vs v2
 
 To ensure both historical comparability and future robustness, the `HumanCentricMemoryEngine` operates in two distinct modes:
 

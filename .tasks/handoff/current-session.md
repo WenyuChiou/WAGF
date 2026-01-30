@@ -1,38 +1,115 @@
-﻿# Current Session Handoff
+# Current Session Handoff
 
 ## Last Updated
-2026-01-30T09:45:00Z
+2026-01-30T16:00:00Z
 
 ---
 
-## Current: Task-045E Docstrings (Pending)
+## Current: Task-061 Documentation Overhaul (In Progress)
 
-**Status**: pending
+**Status**: 8/10 tasks completed, 3 delegated to Codex
 **Branch**: `feat/memory-embedding-retrieval`
-**Depends On**: 045-G (completed)
 
-### Just Completed
+### Completed This Session
 
-- **Task-045G**: Project folder consolidation
-  - Verified directories already consolidated; no code changes in this session
-  - Handoff updated: `handoff/task-045g-consolidation.md`
-  - Tests: not run in this session
+#### Task-061-0: Pre-Flight Checks
+- Confirmed branch: `feat/memory-embedding-retrieval`
+- BC re-run (b519eb8) running — 6 experiments (3 models x 2 groups)
+
+#### Task-061-1: Root README.md EN Rewrite
+- Complete rewrite with Water Resources Research (WRR) positioning
+- "Turning LLM Storytellers into Rational Actors for Hydro-Social Agent-Based Models"
+- Fixed broken image link (local Gemini cache path)
+- Added all 4 examples to Quick Start table
+- Merged Chinese-only content into English (v3.2 memory, state management, validator matrix, etc.)
+- Added `docs/framework_evolution.png` (was Chinese-only)
+- Fixed all broken documentation paths
+- Added water-domain references (Bubeck 2012, Hung & Yang 2021 WRR)
+
+#### Task-061-2: Root README_zh.md Alignment
+- Full structural alignment with English (identical sections, tables, images, references)
+- Standardized to v3.3 (was v3.0)
+
+#### Task-061-3: examples/README.md + README_zh.md
+- Learning path (governed_flood → single_agent → multi_agent → finance)
+- Directory overview with 5 examples (including archive)
+- Quick Start for all 4 active examples
+- Output structure guide
+- Model recommendations table
+- Bilingual (EN + ZH aligned)
+
+#### Task-061-4: single_agent/README.md Governance Rules v22
+- Added full governance rules section (5 rules: extreme_threat_block, low_coping_block, relocation_threat_low, elevation_threat_low, elevation_block)
+- ERROR vs WARNING explanation with output file interpretation
+- Gemma 3 experiment configuration (temperature=0.8, top_p=0.9, top_k=40)
+- Model-specific observations (gemma3:4b only produces {L, M, H})
+
+#### Task-061-8: References → Zotero
+- 5 new items added with Task-061 tags and research notes:
+  - Trope & Liberman (2010) → `8E2D2IJQ`
+  - Tversky & Kahneman (1973) → `P3FQKGIG`
+  - Ebbinghaus (1885) → `FT3KA4HD`
+  - Siegrist & Gutscher (2008) → `99747HNH`
+  - Hung & Yang (2021) → `BHJX2TS3`
+
+#### Task-061-9: Antigravity Image Prompt Specs
+- Written to `.tasks/handoff/task-061-antigravity-prompts.md`
+- 2 images specified: Memory Evolution v1/v2/v3, Example Progression
+
+#### Task-061-10: CHANGELOG + Codex Handoffs
+- CHANGELOG v0.61.0 entry added
+- 3 Codex handoff files created
+
+### Delegated to Codex
+
+| Handoff File | Task | Priority |
+|------|------|----------|
+| `task-061-codex-c5-governed-flood.md` | governed_flood README update | MEDIUM |
+| `task-061-codex-c6-multi-agent.md` | multi_agent README EN/ZH alignment | MEDIUM |
+| `task-061-codex-c7-docs-paths.md` | docs/ path fixes + module verification | MEDIUM |
 
 ---
 
-## Pending Codex Tasks
+## Background Experiments
 
-### 1. Task-045E: Docstring Supplement
-- **Handoff**: (not provided in current session)
-- **Scope**: docstrings for 25 modules
-- **Deps**: 045-G completed
+### BC Re-run (b519eb8) — Running
+- 6 experiments: gemma3:4b/12b/27b × Groups B/C
+- Fixed governance rules (v22) + sampling defaults (temp=0.8, top_p=0.9, top_k=40)
+- DO NOT interfere
+
+### Governance Changes Applied (Pre-061)
+- `extreme_threat_block`: ERROR, TP in {H, VH} blocks do_nothing
+- `low_coping_block`: WARNING (was ERROR), CP in {VL, L} observes elevate/relocate
+- WARNING tracking: governance_summary.json + CSV + JSONL
+- Temperature bug fix in `llm_utils.py`
 
 ---
 
-## Other Pending
+## Files Modified (Task-061)
+
+| File | Task |
+|------|------|
+| `README.md` | 061-1 (complete rewrite) |
+| `README_zh.md` | 061-2 (complete rewrite) |
+| `examples/README.md` | 061-3 (complete rewrite) |
+| `examples/README_zh.md` | 061-3 (complete rewrite) |
+| `examples/single_agent/README.md` | 061-4 (governance section added) |
+| `.tasks/CHANGELOG.md` | 061-10 |
+| `.tasks/handoff/current-session.md` | 061-10 |
+| `.tasks/handoff/task-061-antigravity-prompts.md` | 061-9 |
+| `.tasks/handoff/task-061-codex-c5-governed-flood.md` | 061-10 |
+| `.tasks/handoff/task-061-codex-c6-multi-agent.md` | 061-10 |
+| `.tasks/handoff/task-061-codex-c7-docs-paths.md` | 061-10 |
+
+---
+
+## Pending
 
 | Task | Status | Owner |
 |------|--------|-------|
-| 045-D (DeepSeek validation) | Interrupted | ?? |
-| 053-4 (12 experiment runs) | Pending | WenyuChiou |
-| 060 (RL-ABM Irrigation) | Planning | ?? |
+| 061-C5 (governed_flood README) | Delegated | Codex |
+| 061-C6 (multi_agent README alignment) | Delegated | Codex |
+| 061-C7 (docs/ path verification) | Delegated | Codex |
+| 059-D (Reflection Triggers) | Pending | Codex |
+| BC re-run verification (b519eb8) | Running | Background |
+| test_v3_2_full_integration mock fix | Low priority | Any |
