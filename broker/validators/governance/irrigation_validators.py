@@ -1,0 +1,324 @@
+"""
+Irrigation domain governance validators.
+
+Provides BuiltinCheck functions for the irrigation domain that enforce
+water allocation rules, compact constraints, and physical feasibility.
+These are injected into the existing validator framework via the
+``builtin_checks`` constructor parameter.
+
+Design follows the same pattern as flood-domain built-in checks
+(FLOOD_PERSONAL_CHECKS, FLOOD_PHYSICAL_CHECKS, etc.) established
+in the Phase 1 validator refactoring (commit fd861cf).
+
+References:
+    Hung, F., & Yang, Y. C. E. (2021). WRR, 57, e2020WR029262.
+    Colorado River Compact (1922) — Upper/Lower Basin allocation rules.
+"""
+
+from typing import Any, Dict, List
+
+from broker.interfaces.skill_types import ValidationResult
+from broker.governance.rule_types import GovernanceRule
+
+
+# =============================================================================
+# Individual BuiltinCheck functions
+# =============================================================================
+
+def water_right_cap_check(
+    skill_name: str,
+    rules: List[GovernanceRule],
+    context: Dict[str, Any],
+) -> List[ValidationResult]:
+    """Block demand increase if agent is at or above water right allocation.
+
+    Checks ``context["at_allocation_cap"]`` — set by IrrigationEnvironment
+    when the agent's request reaches their water right.
+    """
+    if skill_name != "increase_demand":
+        return []
+
+    at_cap = context.get("at_allocation_cap", False)
+    if not at_cap:
+        return []
+
+    water_right = context.get("water_right", "unknown")
+    return [
+        ValidationResult(
+            valid=False,
+            validator_name="IrrigationWaterRightsValidator",
+            errors=[
+                f"Demand increase blocked: agent already at water right "
+                f"cap ({water_right} acre-ft/year)."
+            ],
+            warnings=[],
+            metadata={
+                "rule_id": "water_right_cap",
+                "category": "physical",
+                "blocked_skill": skill_name,
+                "level": "ERROR",
+            },
+        )
+    ]
+
+
+def non_negative_diversion_check(
+    skill_name: str,
+    rules: List[GovernanceRule],
+    context: Dict[str, Any],
+) -> List[ValidationResult]:
+    """Ensure diversion request cannot go below zero."""
+    if skill_name != "decrease_demand":
+        return []
+
+    current_diversion = context.get("current_diversion", 0)
+    if current_diversion > 0:
+        return []
+
+    return [
+        ValidationResult(
+            valid=False,
+            validator_name="IrrigationPhysicalValidator",
+            errors=[
+                "Demand decrease blocked: current diversion is already zero."
+            ],
+            warnings=[],
+            metadata={
+                "rule_id": "non_negative_diversion",
+                "category": "physical",
+                "blocked_skill": skill_name,
+                "level": "ERROR",
+            },
+        )
+    ]
+
+
+def curtailment_awareness_check(
+    skill_name: str,
+    rules: List[GovernanceRule],
+    context: Dict[str, Any],
+) -> List[ValidationResult]:
+    """Warn when increasing demand during active curtailment."""
+    if skill_name != "increase_demand":
+        return []
+
+    curtailment = context.get("curtailment_ratio", 0)
+    if curtailment <= 0:
+        return []
+
+    shortage_tier = context.get("shortage_tier", 0)
+    return [
+        ValidationResult(
+            valid=True,  # Warning, not error
+            validator_name="IrrigationCurtailmentValidator",
+            errors=[],
+            warnings=[
+                f"Water curtailment active (Tier {shortage_tier}, "
+                f"{curtailment:.0%} reduction). Increasing demand may "
+                f"result in unmet allocation."
+            ],
+            metadata={
+                "rule_id": "curtailment_awareness",
+                "category": "physical",
+                "blocked_skill": skill_name,
+                "level": "WARNING",
+            },
+        )
+    ]
+
+
+def efficiency_already_adopted_check(
+    skill_name: str,
+    rules: List[GovernanceRule],
+    context: Dict[str, Any],
+) -> List[ValidationResult]:
+    """Block adopt_efficiency if agent already has efficient system."""
+    if skill_name != "adopt_efficiency":
+        return []
+
+    has_system = context.get("has_efficient_system", False)
+    if not has_system:
+        return []
+
+    return [
+        ValidationResult(
+            valid=False,
+            validator_name="IrrigationPhysicalValidator",
+            errors=[
+                "Technology adoption blocked: agent already uses "
+                "water-efficient irrigation system."
+            ],
+            warnings=[],
+            metadata={
+                "rule_id": "already_efficient",
+                "category": "physical",
+                "blocked_skill": skill_name,
+                "level": "ERROR",
+            },
+        )
+    ]
+
+
+def compact_allocation_check(
+    skill_name: str,
+    rules: List[GovernanceRule],
+    context: Dict[str, Any],
+) -> List[ValidationResult]:
+    """Warn when basin-wide allocation exceeds Colorado River Compact share.
+
+    This is a basin-level check — it validates that the aggregate of all
+    agent requests in a basin does not exceed the compact allocation.
+    """
+    if skill_name != "increase_demand":
+        return []
+
+    basin = context.get("basin", "lower_basin")
+    total_basin_demand = context.get("total_basin_demand", 0)
+    basin_allocation = context.get("basin_allocation", 0)
+
+    if basin_allocation <= 0 or total_basin_demand <= basin_allocation:
+        return []
+
+    overshoot_pct = (total_basin_demand - basin_allocation) / basin_allocation * 100
+    return [
+        ValidationResult(
+            valid=True,  # Warning — individual agent not blocked
+            validator_name="IrrigationCompactValidator",
+            errors=[],
+            warnings=[
+                f"Basin ({basin}) aggregate demand exceeds Colorado River "
+                f"Compact allocation by {overshoot_pct:.1f}%. "
+                f"Individual increases will face curtailment."
+            ],
+            metadata={
+                "rule_id": "compact_allocation",
+                "category": "institutional",
+                "blocked_skill": skill_name,
+                "level": "WARNING",
+            },
+        )
+    ]
+
+
+def drought_severity_check(
+    skill_name: str,
+    rules: List[GovernanceRule],
+    context: Dict[str, Any],
+) -> List[ValidationResult]:
+    """Block demand increase during severe drought conditions."""
+    if skill_name != "increase_demand":
+        return []
+
+    drought_idx = context.get("drought_index", 0)
+    if drought_idx < 0.8:
+        return []
+
+    return [
+        ValidationResult(
+            valid=False,
+            validator_name="IrrigationDroughtValidator",
+            errors=[
+                f"Demand increase blocked: drought index = {drought_idx:.2f} "
+                f"(severe). Water conservation is mandatory."
+            ],
+            warnings=[],
+            metadata={
+                "rule_id": "drought_severity",
+                "category": "physical",
+                "blocked_skill": skill_name,
+                "level": "ERROR",
+            },
+        )
+    ]
+
+
+def magnitude_cap_check(
+    skill_name: str,
+    rules: List[GovernanceRule],
+    context: Dict[str, Any],
+) -> List[ValidationResult]:
+    """Block demand increase when proposed magnitude exceeds cluster bounds."""
+    if skill_name != "increase_demand":
+        return []
+
+    magnitude = context.get("proposed_magnitude", 0)
+    cluster = context.get("cluster", "myopic_conservative")
+
+    caps = {
+        "aggressive": 30,
+        "forward_looking_conservative": 15,
+        "myopic_conservative": 10,
+    }
+    max_mag = caps.get(cluster, 10)
+
+    if abs(magnitude) > max_mag:
+        return [
+            ValidationResult(
+                valid=False,
+                validator_name="IrrigationMagnitudeValidator",
+                errors=[
+                    f"Magnitude {magnitude}% exceeds {cluster} cap ({max_mag}%)."
+                ],
+                warnings=[],
+                metadata={
+                    "rule_id": "magnitude_cap",
+                    "category": "physical",
+                    "blocked_skill": skill_name,
+                    "level": "ERROR",
+                },
+            )
+        ]
+    return []
+
+
+# =============================================================================
+# Aggregated check lists for injection into validators
+# =============================================================================
+
+IRRIGATION_PHYSICAL_CHECKS = [
+    water_right_cap_check,
+    non_negative_diversion_check,
+    efficiency_already_adopted_check,
+    drought_severity_check,
+    magnitude_cap_check,
+]
+
+IRRIGATION_SOCIAL_CHECKS = [
+    curtailment_awareness_check,
+    compact_allocation_check,
+]
+
+# Combined list for convenience
+ALL_IRRIGATION_CHECKS = IRRIGATION_PHYSICAL_CHECKS + IRRIGATION_SOCIAL_CHECKS
+
+
+# =============================================================================
+# Custom validator adapter for SkillBrokerEngine
+# =============================================================================
+
+def irrigation_governance_validator(proposal, context, skill_registry=None):
+    """Bridge irrigation builtin checks to SkillBrokerEngine custom_validators.
+
+    SkillBrokerEngine.custom_validators expects:
+        (proposal, context, skill_registry) -> List[ValidationResult]
+
+    This adapter extracts skill_name from the proposal and runs all
+    irrigation builtin checks against the flattened context (which
+    includes env_context keys like drought_index, curtailment_ratio, etc.).
+
+    Usage in ExperimentBuilder::
+
+        builder.with_custom_validators([irrigation_governance_validator])
+
+    Or directly::
+
+        broker = SkillBrokerEngine(
+            ...,
+            custom_validators=[irrigation_governance_validator],
+        )
+    """
+    skill_name = getattr(proposal, "skill_name", str(proposal))
+    results = []
+    for check in ALL_IRRIGATION_CHECKS:
+        results.extend(check(skill_name, [], context))
+    return results
