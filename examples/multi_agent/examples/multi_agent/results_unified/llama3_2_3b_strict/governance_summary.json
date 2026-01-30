@@ -1,9 +1,0 @@
-{
-    "total_interventions": 0,
-    "rule_frequency": {},
-    "outcome_stats": {
-        "retry_success": 0,
-        "retry_exhausted": 0,
-        "parse_errors": 0
-    }
-}
