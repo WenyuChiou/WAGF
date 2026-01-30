@@ -95,6 +95,33 @@ for year in range(params.years):
         memory.run_reflection(agents)
 ```
 
+## 多階段執行 (Multi-Phase Execution)
+
+在多 Agent 模擬中，扁平的 `for agent in agents` 迴圈被 `PhaseOrchestrator` (`broker/components/phase_orchestrator.py`) 取代，根據角色與依賴順序協調 Agent。
+
+### 預設階段順序
+
+| 階段 | 角色 | 說明 |
+| :--- | :--- | :--- |
+| 1. **INSTITUTIONAL** | 政府、保險 | 在家戶決策前設定政策、調整保費/補貼 |
+| 2. **HOUSEHOLD** | 家戶 Agent | 做出個人決策 (抬升、投保、遷移、不行動) |
+| 3. **RESOLUTION** | GameMaster | 偵測並解決衝突 (資源過度分配) |
+| 4. **OBSERVATION** | 全部 | 觀察結果，更新社會網絡 |
+
+### GameMaster 協調
+
+`GameMaster` (`broker/components/coordinator.py`) 管理 RESOLUTION 階段，支援可插拔策略：
+
+- **Passthrough**：接受所有提案 (單 Agent 預設)
+- **ConflictAware**：使用 `ConflictDetector` 偵測資源衝突，透過優先級或比例分配解決
+- **Custom**：用戶自定義解決邏輯
+
+### 衝突解決
+
+`ConflictDetector` (`broker/components/conflict_resolver.py`) 偵測資源過度分配（例如申請政府補助的 Agent 超過預算）。解決策略包括 `PriorityResolution` (最需要的 Agent 優先) 與 `ProportionalResolution` (按比例分配)。
+
+---
+
 ## 📝 輸入/輸出範例 (Input / Output Examples)
 
 ### 輸入：初始配置

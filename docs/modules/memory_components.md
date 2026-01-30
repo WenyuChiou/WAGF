@@ -143,6 +143,31 @@ V3 is the "controller" of the cognitive architecture. It models the **Arousal Lo
 - **[Reflection Engine (Meta-Cognition)](reflection_engine.md)**: Defines how this memory system's outputs are processed into semantic wisdom.
 - **[Simulation Engine](../modules/simulation_engine.md)**: The environment that generates the `Event` and `Observation` signals.
 
+### 5.1 Cognitive Constraints (Memory Capacity)
+
+The `CognitiveConstraints` dataclass (`cognitive_governance/memory/config/cognitive_constraints.py`) parameterizes how many memories are retrieved per arousal level, grounded in established psychology:
+
+- **System 1 (Low arousal)**: 5 recent memories (Cowan 2001: working memory holds 4±1 items)
+- **System 2 (High arousal)**: 7 recent memories (Miller 1956: 7±2 chunks)
+- **Supplemental**: +2 high-importance long-term memories regardless of arousal
+
+| Profile | System 1 | System 2 | Working Capacity | Use Case |
+| :------ | :------- | :------- | :--------------- | :------- |
+| `MILLER_STANDARD` | 5 | 7 | 10 | Recommended default |
+| `COWAN_CONSERVATIVE` | 3 | 5 | 7 | Resource-constrained |
+| `EXTENDED_CONTEXT` | 7 | 9 | 15 | Complex reasoning |
+| `MINIMAL` | 3 | 4 | 5 | Fast inference / small models |
+
+The `get_memory_count(arousal)` method interpolates between System 1 and System 2 counts based on the current arousal level, providing smooth transitions rather than a hard cutoff.
+
+### 5.2 SDK Extensions (cognitive_governance/)
+
+The following capabilities exist in the `cognitive_governance/` SDK package but are **not yet integrated** into the broker core:
+
+- **Embedding-based Retrieval** (`cognitive_governance/memory/embeddings.py`): Vector similarity search using `all-MiniLM-L6-v2` via `SentenceTransformerProvider`. Alternative to keyword/tag matching.
+- **Multi-dimensional Surprise** (`cognitive_governance/memory/strategies/multidimensional.py`): Extends scalar PE to a vector of surprise dimensions for richer arousal modeling.
+- **Memory Graph** (`cognitive_governance/memory/`): Bidirectional linking between memories for associative retrieval.
+
 ---
 
 ## 6. ⚙️ Configuration & References

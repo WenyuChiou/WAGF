@@ -145,6 +145,52 @@ thinking_rules:
 - **conditions**: Prerequisites that trigger the rule.
 - **blocked_skills**: Actions prohibited under these conditions.
 
+### ERROR vs WARNING Semantics
+
+The `level` field controls runtime behavior:
+
+| Level | `valid` | Effect | Audit Output |
+| :---- | :------ | :----- | :----------- |
+| **ERROR** | `False` | Blocks execution, triggers retry (max 3). Agent receives error message as System 2 feedback. | `errors[]` in `ValidationResult`, `total_interventions` in `governance_summary.json` |
+| **WARNING** | `True` | Allows execution, but records an observation. Useful for monitoring behavioral anomalies without blocking the agent. | `warnings[]` in `ValidationResult`, `warning_rules` column in audit CSV, `warnings.total_warnings` in `governance_summary.json` |
+
+**Implementation**: In `base_validator.py`, the `validate()` method sets `valid = not is_error`. WARNING-level rule triggers produce `ValidationResult(valid=True, warnings=[message])`, which means the skill is permitted but the observation is logged for analysis.
+
+**Design rationale**: Some rules detect conditions worth observing but not blocking. For example, `low_coping_block` (CP in {VL, L} choosing elevate/relocate) is set to WARNING because agents with low coping _may_ still rationally choose protective action — it's anomalous but not illogical. Social rules in multi-agent mode are WARNING-only by default.
+
+---
+
+## 2.5 Cross-Agent Validation (Multi-Agent)
+
+For multi-agent simulations, the `CrossAgentValidator` (`broker/validators/governance/cross_agent_validator.py`) provides pattern detection **across** agents rather than within a single agent's reasoning.
+
+### Generic Checks
+
+| Check | Rule ID | Method | Detection |
+| :---- | :------ | :----- | :-------- |
+| **Echo Chamber** | `ECHO_CHAMBER_DETECTED` | `echo_chamber_check()` | Flags when > 80% of agents chose the same skill (configurable `echo_threshold`) |
+| **Low Entropy** | `LOW_DECISION_ENTROPY` | (Same method) | Shannon entropy $H = -\sum p_i \log_2 p_i$ below threshold (default 0.5 bits) |
+| **Deadlock** | `DEADLOCK_RISK` | `deadlock_check()` | Flags when > 50% of proposals were rejected by the GameMaster |
+
+### Pluggable Domain Rules
+
+Domain-specific checks are injected via the `domain_rules` constructor parameter:
+
+```python
+validator = CrossAgentValidator(
+    echo_threshold=0.8,
+    entropy_threshold=0.5,
+    deadlock_threshold=0.5,
+    domain_rules=[perverse_incentive_check, budget_coherence_check],
+)
+```
+
+Each domain rule is a callable `(artifacts, prev_artifacts) -> Optional[CrossValidationResult]`, returning `None` if the check passes.
+
+### Validation Levels
+
+Cross-agent results use `ValidationLevel` (ERROR / WARNING / INFO). All generic checks default to WARNING — they flag patterns for researcher review but do not block individual agent actions.
+
 ---
 
 ## 3. Auditing

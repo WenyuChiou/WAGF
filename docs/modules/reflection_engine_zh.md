@@ -1,113 +1,113 @@
----
-title: Reflection Engine (åå°„å¼•æ“ - ç³»çµ± 2 æ€ç¶­)
-description: å®šç¾©ç”¨æ–¼é•·æœŸè¨˜æ†¶éŸŒæ€§çš„é€±æœŸæ€§èªçŸ¥æ•´åˆæ¨¡çµ„ (æ¡†æ¶çš„ç¬¬äºŒæ”¯æŸ±)ã€‚
----
+# ²Õ¥ó¡G¤Ï«ä¤ŞÀº¡]Meta-Cognition¡^
 
-# Reflection Engine (åå°„å¼•æ“ / ç³»çµ± 2 æ€ç¶­)
+**»y¨¥¡G [English](reflection_engine.md) | [¤¤¤å](reflection_engine_zh.md)**
 
-**Reflection Engine (åå°„å¼•æ“)** è² è²¬åŸ·è¡Œæ¡†æ¶çš„ **ç¬¬äºŒæ”¯æŸ± (Pillar 2)**ï¼š**é€±æœŸæ€§åæ€èˆ‡æ•´åˆ (Periodic Reflection & Synthesis)**ã€‚å®ƒçš„ä¸»è¦ç›®æ¨™æ˜¯å°æŠ—ã€Œé‡‘é­šæ•ˆæ‡‰ã€(è¨˜æ†¶ç¢ç‰‡åŒ–)ï¼Œé€éå°‡é›¶æ•£çš„æƒ…ç¯€è¨˜æ†¶ (Episodic Memories) ç¶œåˆç‚ºé€£è²«çš„é«˜å±¤æ¬¡ **èªç¾©è¦å‰‡ (Semantic Rules)**ã€‚
-
-æ­¤å¼•æ“çš„è¨­è¨ˆéˆæ„Ÿä¾†è‡ªäººé¡ç¡çœ æ™‚çš„è¨˜æ†¶æ•´åˆæ©Ÿåˆ¶ä»¥åŠ _Generative Agents_ (Park et al., 2023) ç ”ç©¶ã€‚å®ƒå…è¨± Agent å½¢æˆèƒ½å¤ è·¨è¶ŠçŸ­æœŸ Context Window é™åˆ¶çš„é•·æœŸç­–ç•¥ã€‚
+°O¾Ğ¨t²Î«O¦s¡uµo¥Í¤F¤°»ò¡v¡A¦Ó**¤Ï«ä¤ŞÀº**²£¥Í¡u¬°¤°»ò¡v¡C¥¦¬O¥N²zªº¤¸»{ª¾¼h¡A±N¹s´²¸gÅçÂà¤Æ¬°¥i¦æ¬}¨£¡C
 
 ---
 
-## 1. æ ¸å¿ƒè·è²¬ (Core Responsibilities)
+## 1. ¤Ï«ä¾÷¨î
 
-1.  **è§¸ç™¼åæ€ (Triggering)**ï¼šæ±ºå®š Agent ä½•æ™‚æ‡‰è©²åœä¸‹ä¾†ã€Œæ€è€ƒã€ï¼ˆä¾‹å¦‚ï¼šæ¨¡æ“¬å¹´åº¦çµæŸæˆ– Epoch çµæŸæ™‚ï¼‰ã€‚
-2.  **æç¤ºç”Ÿæˆ (Prompt Construction)**ï¼šå‹•æ…‹æ§‹å»º Promptï¼Œå°‡è¿‘æœŸçš„è¨˜æ†¶è¼¸å…¥ LLMï¼Œè¦æ±‚å…¶é€²è¡Œæ‘˜è¦èˆ‡æ¨¡å¼è­˜åˆ¥ã€‚
-3.  **æ´å¯Ÿè§£æ (Insight Parsing)**ï¼šå°‡ LLM çš„æ–‡å­—è¼¸å‡ºè½‰æ›ç‚ºçµæ§‹åŒ–çš„ `ReflectionInsight` ç‰©ä»¶ã€‚
-4.  **è¨˜æ†¶æ•´åˆ (Integration)**ï¼šå°‡é€™äº›æ´å¯Ÿä»¥äººç‚ºæé«˜çš„ã€Œé‡è¦æ€§åˆ†æ•¸ã€æ³¨å› **Memory Engine**ï¼Œç¢ºä¿å®ƒå€‘ä¸æœƒéš¨æ™‚é–“è¡°é€€ã€‚
-5.  **å¯©è¨ˆæ—¥èªŒ (Audit Logging)**ï¼šå°‡æ‰€æœ‰åæ€è¨˜éŒ„åˆ° `reflection_log.jsonl`ï¼Œç”¨æ–¼ç”Ÿæˆ **èªçŸ¥ç†±åœ– (Cognitive Heatmap)** ä»¥å¯¦ç¾å¯è§£é‡‹æ€§ AI (XAI)ã€‚
+### 1.1 ±q¸gÅç¨ì¬}¨£ªº°j°é
+
+1. **¿é¤J¡]±¡¸`°O¾Ğ¡^**¡G¡u²Ä 1 ¦~¡G¬x¤ô¡v+¡u²Ä 1 ¦~¡G§ë«O¡v  
+2. **³B²z¡]±À²z¡^**¡GLLM ¤ÀªR¨Æ¥ó»P¦æ°Êªº¦]ªG  
+3. **¿é¥X¡]»y·N¬}¨£¡^**¡G¡u¬}¨£¡G¬x¤ô´Á¶¡«OÀI¬O°]°È¦sÄòªºÃöÁä¡v
+
+### 1.2 ¨Mµ¦ vs ¤Ï«ä
+
+| ­±¦V | ¨Mµ¦ÅŞ¿è¡]System 1/2¡^ | ¤Ï«äÅŞ¿è¡]Meta¡^ |
+| :--- | :--- | :--- |
+| **°İÃD** | ¡u§Ú²{¦b¸Ó°µ¤°»ò¡H¡v | ¡u¹L¥hªº¿ï¾Ü¦n¶Ü¡H¡v |
+| **®É¶¡¤Ø«×** | ·í¤U / ªñ´Á | ¹L¥h / ªø´Á |
+| **¾÷¨î** | In-Context Learning | Â÷½u§å¦¸³B²z |
+| **¿é¥X** | ¦æ°Ê | ¬}¨£ |
+
+¨S¦³¤Ï«ä¡A¥N²z¥u¯à¡uÁo©ú¦ıÀRºA¡v¡F¦³¤Ï«ä¡A¥N²z¥i«ùÄòºt¤Æ¡C
 
 ---
 
-## 2. æ¶æ§‹èˆ‡æ•¸æ“šæµ (Architecture)
+## 2. ¤Ï«äªº²z½×®Ä¯q
 
-```mermaid
-graph TD
-    A[å¹´åº¦çµæŸè§¸ç™¼] -->|å•Ÿå‹•| B[Reflection Engine]
-    B -->|ç²å–è¿‘æœŸå›æ†¶| C[Memory Engine]
-    C -->|Top-k é‡è¦äº‹ä»¶| B
-    B -->|ç¶œåˆæç¤ºè©| D[LLM (System 2)]
-    D -->|é«˜å±¤æ¬¡æ´å¯Ÿ| E[æ´å¯Ÿè§£æå™¨]
-    E -->|çµæ§‹åŒ–è¦å‰‡| F[Memory Engine (é•·æœŸè¨˜æ†¶å€)]
-    E -->|JSON å ±å‘Š| G[reflection_log.jsonl]
+### 2.1 Âù¦^¸ô¾Ç²ß¡]Argyris & Schon¡^
 
-    style B fill:#f9f,stroke:#333
-    style D fill:#bbf,stroke:#333
+- **³æ¦^¸ô**¡G­×¥¿¦æ°Ê¥H¹F¦¨¥Ø¼Ğ  
+- **Âù¦^¸ô**¡G¤Ï«ä¥Ø¼Ğ¬O§_¦X²z¡]¨Ò¦p¬O§_À³¸Ó¾E²¾¡^
+
+### 2.2 »{ª¾¸gÀÙ¡]¦a¹Ï vs ¯u¹ê¡^
+
+- ­ì©l±¡¸`°O¾Ğ¹³¡u¯u¹ê¦a§Î¡v¡A·j´M©ù¶Q  
+- ¤Ï«ä±N¤j¶q¨Æ¥óÀ£ÁY¦¨¤Ö¼Æ³W«h¡]¡u¦a¹Ï¡v¡^
+
+### 2.3 ¾¸­µ¹LÂo
+
+¤Ï«äÃş¦ü**§C³qÂoªi¾¹**¡A©¿²¤¤@¦¸©Ê²§±`¡A©ñ¤j¤@­PÁÍ¶Õ¡C
+
+### 2.4 ¹ï·Óµ²ªG¡G¡uª÷³½¡vvs¡uµ¦²¤®a¡v
+
+| «ü¼Ğ | µL¤Ï«ä¡]¶È System 1/2¡^ | ¦³¤Ï«ä¡]Meta¡^ |
+| :--- | :--- | :--- |
+| **¤ÏÀ³¼Ò¦¡** | ¤ÏÂĞ®£·W/ÃP¾Ó | µo²{ÁÍ¶Õ«á§ïÅÜµ¦²¤ |
+| **°O¾Ğ­­¨î** | «ü¼Æ°I´î | ¬}¨£³q±` `retention=1.0` |
+| **®Ä²v** | ¨C¦~­«ºâ¨ãÅé¨Æ¥ó | ¥u¨ú¤@±ø³W«h |
+| **ª¼ÂI** | ·Å¤ôµN«Cµì®ÄÀ³ | ÁÍ¶Õ°»´ú |
+
+---
+
+## 3. ¹ê°È®×¨Ò¡G¤Ï«ä°j°é¡]Input ¡÷ Process ¡÷ Output¡^
+
+#### **1. ¿é¤J¡G¹s´²°O¾Ğ**
+
+- **Year 1**¡G¡u¬x¤ô¡A¥¼±Ä¨ú¦æ°Ê¡v¡÷ $10k ·l¥¢  
+- **Year 3**¡G¡u¬x¤ô¡A§ë«O¡v¡÷ $0 ·l¥¢  
+- **Year 4**¡G¡u¾F©~ A ©ï¤É¡A¾F©~ B ¾E²¾¡v
+
+#### **2. ³B²z¡G±À²z¾ã¦X**
+
+> ¡u¬x¤ôÀWÁc¡]Y1¡BY3¡^¡A¤£¦æ°Ê·|¾É­P·l¥¢¡F«OÀI¯à´î¤Ö·l¥¢¡A¦ı¾F©~¶}©l±Ä¨úªø´Á±¹¬I¡C¡v
+
+#### **3. ¿é¥X¡G»y·N¬}¨£**
+
+- **¬}¨£ A**¡G¡u¤£§@¬°¦b¦¹¦a°Ï°]°È­·ÀI°ª¡v  
+- **¬}¨£ B**¡G¡u«OÀI¬Oµu´Á«OÅ@¡A©ï¤É¬Oªø´Á¸Ñªk¡v
+
+---
+
+## 4. Ä²µo¦¡¤Ï«ä¡]Task-059¡^
+
+### 4.1 Ä²µoÃş«¬
+
+- **·N¥~Åå©_**¡G¶W¹LìH­ÈªºÅå©_«×Ä²µo  
+- **ªø´Á§C®Ä**¡G¦æ¬°¥¼§ïµ½«hÄ²µo  
+- **ªÀ·|º}²¾**¡G¸sÅé¦æ¬°°¾²¾Ä²µo
+
+### 4.2 °t¸m
+
+```yaml
+reflection_config:
+  trigger_mode: "event"
+  surprise_threshold: 0.6
 ```
 
+### 4.3 ²z½×°Ê¾÷
+
+Ä²µo¦¡¤Ï«ä¥iÁ×§K¨C¨BÆJ³£¤Ï«ä¡A¶È¦b¡uÃöÁäÂà§é¡v®É§ë¤J­pºâ¸ê·½¡C
+
 ---
 
-## 3. é…ç½®åƒæ•¸ (Configuration)
+## 5. ³]©w»P°Ñ¦Ò¤åÄm
 
-å¼•æ“é€šå¸¸åœ¨ `Broker` å…§éƒ¨åˆå§‹åŒ–ï¼Œä¸¦é€éä¸»æ¨¡æ“¬é…ç½®é€²è¡Œè¨­å®šï¼š
-
-```python
-reflection_engine = ReflectionEngine(
-    reflection_interval=1,         # æ¯å¹´åæ€ä¸€æ¬¡
-    max_insights_per_reflection=2, # æ¯æ¬¡å¾ªç’°æå–æœ€å¤š 2 å€‹æ´å¯Ÿ
-    insight_importance_boost=0.9,  # æ–°æ´å¯Ÿçš„é‡è¦æ€§ (0.0-1.0)ï¼Œé˜²æ­¢è¡°é€€
-    output_path="results/reflection_log.jsonl" # XAI å¯©è¨ˆè·¯å¾‘
-)
+```yaml
+reflection_config:
+  interval: 1 # ¨C¦~¤Ï«ä
+  importance_boost: 0.9 # ¬}¨£§ó¡uÂH¡v
 ```
 
-| åƒæ•¸                  | é¡å‹    | æè¿°                                                         | é»˜èªå€¼ |
-| :-------------------- | :------ | :----------------------------------------------------------- | :----- |
-| `reflection_interval` | `int`   | åæ€çš„é »ç‡ (ä»¥å¹´æˆ– Epoch ç‚ºå–®ä½)ã€‚                           | `1`    |
-| `max_insights`        | `int`   | æ¯æ¬¡åæ€ç”¢ç”Ÿçš„æœ€å¤§æ´å¯Ÿæ•¸é‡ã€‚                                 | `2`    |
-| `importance_boost`    | `float` | ç¡¬ç·¨ç¢¼çš„é‡è¦æ€§åˆ†æ•¸ã€‚é«˜æ•¸å€¼ (å¦‚ 0.9) ç¢ºä¿è©²æ´å¯Ÿèƒ½å­˜æ´»æ•¸åå¹´ã€‚ | `0.9`  |
-| `output_path`         | `str`   | ç”¨æ–¼ XAI å¯è¦–åŒ–çš„æ—¥èªŒæ–‡ä»¶è·¯å¾‘ã€‚                              | `None` |
+### °Ñ¦Ò¤åÄm
 
----
-
-## 4. æç¤ºç­–ç•¥ (Prompting Strategy)
-
-é è¨­çš„åæ€ Prompt æ˜¯ **é ˜åŸŸç„¡é—œ (Domain-Agnostic)** çš„ï¼Œä¾è³´è¨˜æ†¶æœ¬èº«çš„å…§å®¹ä¾†æä¾›ä¸Šä¸‹æ–‡ã€‚
-
-**æ¨¡æ¿ç¯„ä¾‹ (Template):**
-
-```text
-You are reflecting on your experiences from the past {interval} year(s).
-
-**Your Recent Memories:**
-{bullet_list_of_memories}
-
-**Task:** Summarize the key lessons you have learned from these experiences.
-Focus on:
-1. What patterns or trends have you noticed?
-2. What actions proved beneficial or harmful?
-3. How will this influence your future decisions?
-
-Provide a concise summary (2-3 sentences) that captures the most important insight.
-```
-
----
-
-## 5. èˆ‡è¨˜æ†¶å¼•æ“çš„æ•´åˆ
-
-åæ€çµæœ (Reflections) ä¸¦ä¸æ˜¯å­˜å„²åœ¨å–®ç¨çš„è³‡æ–™åº«ä¸­ï¼Œè€Œæ˜¯ **å­˜å›åŒä¸€å€‹ Memory Store**ï¼Œä½†å…·æœ‰ç‰¹æ®Šå±¬æ€§ï¼š
-
-1.  **é«˜é‡è¦æ€§ (High Importance)**ï¼šå®ƒå€‘ä»¥ `0.9` çš„åˆ†æ•¸é€²å…¥ç³»çµ± (ç›¸æ¯”ä¹‹ä¸‹ï¼Œæ—¥å¸¸ç‘£äº‹ç´„ç‚º `0.3`)ã€‚
-2.  **èªç¾©æ€§è³ª (Semantic Nature)**ï¼šå®ƒå€‘ä»£è¡¨ _è¦å‰‡_ (ä¾‹å¦‚ï¼šã€Œæˆ‘æ‡‰è©²è³¼è²·ä¿éšªã€)ï¼Œè€Œé _æƒ…ç¯€_ (ä¾‹å¦‚ï¼šã€Œæ˜¨å¤©æˆ‘çœ‹è¦‹æ´ªæ°´ã€)ã€‚
-3.  **æª¢ç´¢å„ªå…ˆç´š (Retrieval Priority)**ï¼šç•¶èª¿ç”¨ `retrieve()` æ™‚ï¼Œé€™äº›é«˜åˆ†é …ç›®æœƒé€é HeapQ å„ªåŒ–è‡ªç„¶åœ°æµ®ç¾åˆ°é ‚éƒ¨ (Top-k)ã€‚
-
----
-
-## 6. å¯©è¨ˆèˆ‡å¯è¦–åŒ– (XAI)
-
-å¼•æ“æœƒå¯«å…¥ `reflection_log.jsonl`ï¼Œæ¯æ¢è¨˜éŒ„åŒ…å«ï¼š
-
-```json
-{
-  "summary": "æˆ‘æ„è­˜åˆ°å–®ç´”ä¾è³´å„²è“„æ˜¯æœ‰é¢¨éšªçš„ï¼›ä¿éšªæä¾›äº†å¿…è¦çš„å®‰å…¨ç¶²ã€‚",
-  "source_memory_count": 5,
-  "importance": 0.9,
-  "year_created": 3,
-  "domain_tags": [],
-  "agent_id": "Agent_042",
-  "timestamp": "2025-01-18T12:00:00"
-}
-```
-
-æ­¤æ—¥èªŒç”¨æ–¼ç”Ÿæˆ **èªçŸ¥ç†±åœ– (Cognitive Heatmap)**ï¼Œå¯è¦–åŒ– Agent çš„æ€ç¶­å¦‚ä½•å¾ç¬¬ 1 å¹´çš„ã€Œåæ‡‰å¼ (Reactive)ã€æ¼”è®Šç‚ºç¬¬ 5 å¹´çš„ã€Œä¸»å‹•å¼ (Proactive)ã€ã€‚
+[1] Schon (1983). _The Reflective Practitioner_  
+[2] Dewey (1933). _How We Think_  
+[3] Argyris (1976). _Single-Loop and Double-Loop Models_  
+[4] Bandura (1977). _Social Learning Theory_  
+[5] Park et al. (2023). _Generative Agents_  
+[6] Kahneman (2011). _Thinking, Fast and Slow_

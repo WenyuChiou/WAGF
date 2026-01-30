@@ -95,6 +95,35 @@ for year in range(params.years):
         memory.run_reflection(agents)
 ```
 
+## Multi-Phase Execution (Multi-Agent)
+
+In multi-agent simulations, the flat `for agent in agents` loop is replaced by the `PhaseOrchestrator` (`broker/components/phase_orchestrator.py`), which coordinates agents by role and dependency order.
+
+### Default Phase Order
+
+| Phase | Role | Description |
+| :---- | :--- | :---------- |
+| 1. **INSTITUTIONAL** | Government, Insurance | Set policies, adjust premiums/subsidies before households decide |
+| 2. **HOUSEHOLD** | Household agents | Make individual decisions (elevate, insure, relocate, do_nothing) |
+| 3. **RESOLUTION** | GameMaster | Detect and resolve conflicts (resource over-allocation) |
+| 4. **OBSERVATION** | All | Observe outcomes, update social networks |
+
+Phases support configurable ordering per role: `sequential` (deterministic), `random` (shuffled), or `parallel`.
+
+### GameMaster Coordination
+
+The `GameMaster` (`broker/components/coordinator.py`) manages the RESOLUTION phase with pluggable strategies:
+
+- **Passthrough**: Accept all proposals (single-agent default)
+- **ConflictAware**: Detect resource conflicts using `ConflictDetector` and resolve via priority or proportional allocation
+- **Custom**: User-defined resolution logic
+
+### Conflict Resolution
+
+The `ConflictDetector` (`broker/components/conflict_resolver.py`) detects resource over-allocation (e.g., more agents requesting government grants than the budget allows). Resolution strategies include `PriorityResolution` (highest-need agents first) and `ProportionalResolution` (distribute proportionally).
+
+---
+
 ## 📝 Input / Output Examples
 
 ### Input: Initial Configuration

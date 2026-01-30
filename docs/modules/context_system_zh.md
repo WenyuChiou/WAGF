@@ -90,9 +90,31 @@ DO NOT include any commentary outside these tags.
 
 ---
 
-## 3. 自定義上下文 (Customization)
+## 3. 跨 Agent 訊息 (Inter-Agent Messages)
+
+在多 Agent 模擬中，第五個上下文層由 `MessagePoolProvider` (`broker/components/message_provider.py`) 注入：
+
+5.  **跨 Agent 訊息**：
+    - 將 `MessagePool` 中的未讀訊息傳遞給每個 Agent 的上下文。
+    - 訊息包括：保險費率揭露、政府政策公告、鄰居觀察。
+
+### 額外上下文提供者
+
+| 提供者 | 來源檔案 | 功能 |
+| :----- | :------- | :--- |
+| `InsuranceInfoProvider` | `context_providers.py` | 在家戶決策前注入保費率與保障細節 (Task-060) |
+| `ObservableStateProvider` | `context_providers.py` | 提供跨 Agent 觀察指標 (適應率、社區統計) |
+
+### 技能排序隨機化
+
+為防止位置偏差 (LLM 傾向偏好列表中靠前的選項)，`TieredBuilder` 可選擇性地在每個 Agent 每年隨機排列技能列表順序，由 `_shuffle_skills` 上下文旗標控制。
+
+---
+
+## 4. 自定義上下文 (Customization)
 
 若您需要修改上下文結構：
 
 1.  **修改 Template**: 編輯 `broker/utils/prompts/household_template.txt`。
 2.  **修改 Builder**: 繼承 `ContextBuilder` 並覆寫 `format_prompt` 方法。
+3.  **新增 Provider**: 實作新的 `ContextProvider` 並在 `TieredBuilder` 中註冊。

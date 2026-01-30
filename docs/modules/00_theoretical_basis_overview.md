@@ -88,6 +88,7 @@ graph TD
 | **Dual-Process / Active Inf** | **Surprise Engine (v3)** | `universal_memory.py`  | `UniversalCognitiveEngine.retrieve`        |
 | **PMT / Reasoning**           | **Thinking Validator**   | `agent_validator.py`   | `AgentValidator.validate`                  |
 | **Bounded Rationality**       | **Governance Layer**     | `governance.py`        | `GovernanceLayer.process`                  |
+| **Cognitive Constraints**     | **Memory Capacity**      | `cognitive_constraints.py` | `CognitiveConstraints.get_memory_count` (Miller 1956 / Cowan 2001) |
 | **Reflexion**                 | **Reflection Engine**    | `reflection_engine.py` | `ReflectionEngine.reflect`                 |
 | **Prompt Synthesis**          | **Context Builder**      | `context_builder.py`   | `ContextBuilder.build_prompt`              |
 

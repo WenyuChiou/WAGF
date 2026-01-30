@@ -108,9 +108,32 @@ If your application needs to score agent outputs (e.g., whether the reasoning is
 
 ---
 
-## 3. Customization
+## 3. Inter-Agent Messages (Multi-Agent Layer)
+
+In multi-agent simulations, a fifth context layer is injected by `MessagePoolProvider` (`broker/components/message_provider.py`):
+
+5.  **Inter-Agent Messages**:
+    - Delivers unread messages from the `MessagePool` to each agent's context.
+    - Messages include: insurance premium disclosures, government policy announcements, neighbor observations.
+    - _Source_: `MessagePool` → `MessageProvider` → Context injection.
+
+### Additional Context Providers
+
+| Provider | Source File | Function |
+| :------- | :--------- | :------- |
+| `InsuranceInfoProvider` | `context_providers.py` | Injects premium rates and coverage details before household decisions (Task-060) |
+| `ObservableStateProvider` | `context_providers.py` | Provides cross-agent observation metrics (adaptation rates, community statistics) |
+
+### Skill Ordering Randomization
+
+To prevent positional bias (LLMs tend to favor options listed first), the `TieredBuilder` (`broker/components/tiered_builder.py`) optionally shuffles the skill list order per-agent per-year. Controlled by the `_shuffle_skills` context flag.
+
+---
+
+## 4. Customization
 
 If you need to modify the context structure:
 
 1.  **Modify Template**: Edit `broker/utils/prompts/household_template.txt`.
 2.  **Modify Builder**: Inherit from `ContextBuilder` and override the `format_prompt` method.
+3.  **Add Provider**: Implement a new `ContextProvider` and register it in the `TieredBuilder`.

@@ -87,7 +87,46 @@ The engine generates a new, high-importance memory that persists even if the raw
 
 ---
 
-## 4. ⚙️ Configuration & References
+## 4. Trigger-Based Reflection (Task-059)
+
+Prior to v3.3, reflection was exclusively **periodic** (end-of-year consolidation). The trigger-based system adds **event-driven reflection**, allowing agents to reflect in response to significant events.
+
+### 4.1 Trigger Types
+
+The `ReflectionTrigger` enum defines four trigger types:
+
+| Trigger | When It Fires | Agent Types | Example |
+| :------ | :------------ | :---------- | :------ |
+| **CRISIS** | After a flood or disaster event | All | Agent experienced flood damage — reflects on preparedness |
+| **PERIODIC** | Every N years (configurable) | All | End-of-year consolidation (default interval: 5) |
+| **DECISION** | After major life decisions | Household | Agent chose `elevate_house` or `relocate` — reflects on the choice |
+| **INSTITUTIONAL** | When policy change magnitude exceeds threshold | Government, Insurance | Government changed subsidy rate by > 5% — reflects on policy effectiveness |
+
+### 4.2 Configuration
+
+```yaml
+reflection_triggers:
+  crisis: true                    # Enable crisis-triggered reflection
+  periodic_interval: 5            # Reflect every 5 years
+  decision_types:                 # Which decisions trigger reflection
+    - "elevate_house"
+    - "buyout_program"
+    - "relocate"
+  institutional_threshold: 0.05   # 5% policy change triggers reflection
+  method: "hybrid"                # hybrid | llm_only | rule_based
+  batch_size: 10                  # Process N agents per reflection batch
+  importance_boost: 0.85          # Importance score for generated insights
+```
+
+### 4.3 Theoretical Motivation
+
+This design maps to **Reflection-in-Action** (Schön 1983): agents reflect _during_ significant events, not just _after_ them. Crisis triggers implement the psychological observation that traumatic events force immediate cognitive re-evaluation — the agent cannot simply continue on autopilot.
+
+The INSTITUTIONAL trigger supports **Double-Loop Learning** (Argyris & Schön 1978) at the organizational level: government and insurance agents question whether their _policies_ (not just their actions) are effective.
+
+---
+
+## 5. ⚙️ Configuration & References
 
 ```yaml
 reflection_config:

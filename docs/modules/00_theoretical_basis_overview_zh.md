@@ -86,6 +86,7 @@ graph TD
 | **Dual-Process / Active Inf** | **驚奇引擎 (v3)**  | `universal_memory.py`  | `UniversalCognitiveEngine.retrieve`   |
 | **PMT / 理性推論**            | **思考驗證器**     | `agent_validator.py`   | `AgentValidator.validate`             |
 | **Bounded Rationality**       | **治理層**         | `governance.py`        | `GovernanceLayer.process`             |
+| **認知限制 (Cognitive Constraints)** | **記憶容量**  | `cognitive_constraints.py` | `CognitiveConstraints.get_memory_count` (Miller 1956 / Cowan 2001) |
 | **Reflexion**                 | **反思引擎**       | `reflection_engine.py` | `ReflectionEngine.reflect`            |
 | **Prompt 組合**               | **ContextBuilder** | `context_builder.py`   | `ContextBuilder.build_prompt`         |
 
@@ -118,14 +119,10 @@ graph TD
 - **LLM**：決定輸出 Action: `buy_insurance`。
 - **Simulator**：執行扣款，更新狀態。
 
-### 步驟 4：記憶固化 (Consolidation)
+### 步驟 4：反思與語意記憶 (Reflection / Semantic)
 
 - **Path A**："Year 5: Bought Insurance due to fear." -> 存入 Raw Log。
-
-### 步驟 5：反思 (Reflection - Night Phase)
-
-- **一年結束**。
-- **Reflection Engine (Reflexion)**：讀取日誌，LLM 總結：「我發現保險能讓我安心，即使要花錢。」
+- **一年結束**：Reflection Engine 讀取日誌，LLM 總結：「我發現保險能讓我安心，即使要花錢。」
 - **Path B**：這條「心得」被存入長期記憶，作為明年的決策依據。
 
 ---
@@ -134,7 +131,7 @@ graph TD
 
 本框架是**可移植的中介軟體**，只要修改 YAML 設定檔即可適配不同領域。
 
-### 4.1 跨領域對照表
+**跨領域對照表**
 
 | 認知層 (Layer)      | 水文學 (Current)      | 消費者行為 (Retail) | 行為財務學 (Finance)           |
 | :------------------ | :-------------------- | :------------------ | :----------------------------- |
@@ -143,6 +140,6 @@ graph TD
 | **思考規則**        | "評估威脅與應對"      | "評估CP值與口碑"    | "與參考點比較損益"             |
 | **社會訊號**        | 鄰居是否墊高          | 網紅是否推薦        | 市場恐慌指數 (FOMO)            |
 
-### 4.2 如何操作？
+**如何操作？**
 
 您只需要修改 `agent_types.yaml` 的 `emotion_keywords` 和 `thinking_rules` 即可。系統核心代碼 (**System Execution Layer**) 完全不需要更動。這一點證明了本研究貢獻在於「架構」而非單一案例。

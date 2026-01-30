@@ -1,88 +1,108 @@
-# æ ¸å¿ƒæ²»ç†æ¶æ§‹ (Governance Core)
+# ªv²z®Ö¤ß¬[ºc¡]Governance Core¡^
 
-**ğŸŒ Language: [English](governance_core.md) | [ä¸­æ–‡](governance_core_zh.md)**
+**»y¨¥¡G [English](governance_core.md) | [¤¤¤å](governance_core_zh.md)**
 
-governance core æ˜¯æ¡†æ¶çš„ã€Œç†æ€§å¼•æ“ã€ï¼Œç¢ºä¿ LLM çš„è¼¸å‡ºä¸åƒ…åƒ…æ˜¯æ–‡å­—ï¼Œè€Œæ˜¯**æœ‰æ•ˆã€å®‰å…¨ä¸”åˆé‚è¼¯çš„è¡Œå‹•**ã€‚
+Governance Core ½T«O LLM ¿é¥Xªº¨Mµ¦²Å¦X»{ª¾»P¨­¥÷³W«h¡A¬O¾ã­Ó¨t²Îªº¦w¥ş¹hªù¡C
 
 ---
 
-## 1. æŠ€èƒ½ç”Ÿå‘½é€±æœŸ (Skill Lifecycle)
+## 1. §Ş¯à¥Í©R¶g´Á¡]Skill Lifecycle¡^
 
-ä¸€å€‹æŠ€èƒ½å¾å®šç¾©åˆ°åŸ·è¡Œçš„å®Œæ•´æµç¨‹å¦‚ä¸‹ï¼š
+### Step 1¡G©w¸q¡]Definition¡^
 
-### ç¬¬ 1 æ­¥ï¼šå®šç¾© (Definition)
-
-æ‰€æœ‰çš„æŠ€èƒ½éƒ½å¿…é ˆåœ¨ `agent_types.yaml` ä¸­è¨»å†Šã€‚é€™æ˜¯å”¯ä¸€çš„çœŸç†ä¾†æºã€‚
+¦b `agent_types.yaml` ¤¤©w¸q¥i¥Î§Ş¯à»P§O¦W¡G
 
 ```yaml
 household:
-  # å…è¨±çš„å‹•ä½œåˆ—è¡¨
   actions: ["do_nothing", "buy_insurance", "elevate_house"]
-
-  # å‹•ä½œåˆ¥å (Alias) - è®“ LLM ä½¿ç”¨æ›´è‡ªç„¶çš„èªè¨€
   alias:
     "wait": "do_nothing"
     "purchase": "buy_insurance"
 ```
 
-### ç¬¬ 2 æ­¥ï¼šè§£æ (Parsing)
+### Step 2¡G¸ÑªR¡]Parsing¡^
 
-ç•¶ LLM è¼¸å‡ºå›æ‡‰å¾Œï¼Œ`UnifiedAdapter` æœƒå˜—è©¦å°‡å…¶æ˜ å°„åˆ°è¨»å†Šçš„æŠ€èƒ½ï¼š
+`UnifiedAdapter` ±N LLM ¿é¥X¸ÑªR¦¨µ²ºc¤Æ§Ş¯à¡G
 
-1.  **æ­£è¦åŒ–**: ç§»é™¤ç©ºç™½ã€è½‰å°å¯« (e.g., "Buy Insurance" -> "buy_insurance")ã€‚
-2.  **åˆ¥åæŸ¥æ‰¾**: æª¢æŸ¥æ˜¯å¦ç‚º Alias (e.g., "wait" -> "do_nothing")ã€‚
-3.  **æœªçŸ¥éæ¿¾**: å¦‚æœä¸åœ¨ `actions` åˆ—è¡¨ä¸­ï¼Œè¦–ç‚ºç„¡æ•ˆæŠ€èƒ½ (Invalid Skill)ã€‚
+1. ¼Ğ·Ç¤Æ¦r¦ê¡]¦p "Buy Insurance" ¡÷ "buy_insurance"¡^  
+2. §O¦W¹ïÀ³¡]¦p "wait" ¡÷ "do_nothing"¡^  
+3. ÅçÃÒ¬O§_¦b `actions` ²M³æ¤º
 
-### ç¬¬ 3 æ­¥ï¼šé©—è­‰ (Validation)
+### Step 3¡GÅçÃÒ¡]Validation¡^
 
-é€™æ˜¯æ ¸å¿ƒæ²»ç†æ­¥é©Ÿã€‚`AgentValidator` æœƒæ ¹æ“šå…©å±¤è¦å‰‡æª¢æŸ¥æŠ€èƒ½ææ¡ˆï¼š
+`AgentValidator` ÀË¬d»{ª¾¤@­P©Ê¡G
 
-#### Tier 1: èº«ä»½èˆ‡ç‹€æ…‹ (Identity)
+#### Tier 1¡G¨­¥÷»Pª¬ºA¡]Identity¡^
 
-æª¢æŸ¥ Agent **æ˜¯å¦æœ‰æ¬Š** åŸ·è¡Œæ­¤å‹•ä½œã€‚
+- ¨Ò¡G`savings > 5000` ¤~¯à¶R«OÀI  
 
-- _è¦å‰‡ç¯„ä¾‹_ï¼šåªæœ‰ `savings > 5000` æ‰èƒ½ `buy_insurance`ã€‚
-- _é…ç½®_ï¼šåœ¨ `agent_types.yaml` çš„ `identity_rules` å€å¡Šã€‚
+#### Tier 2¡G»{ª¾¤@­P©Ê¡]Thinking¡^
 
-#### Tier 2: èªçŸ¥ä¸€è‡´æ€§ (Thinking)
+- ¨Ò¡G`threat_appraisal` ¬°°ª®É¤£¯à `do_nothing`
 
-æª¢æŸ¥ Agent çš„ **æ¨ç†æ˜¯å¦åˆç†**ã€‚
+### 4. ±Ğ¾Ç¡G«Ø¥ß¤@±øÅŞ¿è¬ù§ô¡]Ordering ½d¨Ò¡^
 
-- _è¦å‰‡ç¯„ä¾‹_ï¼šå¦‚æœ `threat_appraisal` æ˜¯ "High"ï¼Œå‰‡ä¸æ‡‰é¸æ“‡ `do_nothing`ã€‚
-- _é…ç½®_ï¼šåœ¨ `agent_types.yaml` çš„ `thinking_rules` å€å¡Šã€‚
+#### 4.1 Step 1¡G©w¸q³W«h¡]Thinking Pattern¡^
+
+©w¸q±ø¥ó»Pªı¾×§Ş¯à¡C
+
+#### 4.2 Step 2¡G¹ê§@ Validator
+
+±N³W«hÂà¬°µ{¦¡¤ÆÀË¬d¡C
+
+#### 4.3 Step 3¡G¦b YAML µù¥U
+
+§â³W«h¥[¤J `agent_types.yaml`¡C
+
+#### 4.4 Step 4¡G½]®Ö­y¸ñ
+
+ÅçÃÒ»Pªı¾×¬ö¿ı·|¿é¥X¨ì½]®ÖÀÉ®×¡C
 
 ---
 
-## 2. é©—è­‰å™¨å®šç¾© (Validator Definition)
+## 2. ÅçÃÒ¾¹©w¸q¡]Validator Definition¡^
 
-é©—è­‰å™¨ä¸¦éç¡¬ç·¨ç¢¼ (Hardcoded)ï¼Œè€Œæ˜¯å®Œå…¨ç”± YAML é…ç½®é©…å‹•ã€‚
-
-### é©—è­‰è¦å‰‡ç¯„ä¾‹ (`agent_types.yaml`)
+### ÅçÃÒ³W«h½d¨Ò¡]`agent_types.yaml`¡^
 
 ```yaml
 thinking_rules:
   - id: "R_LOGIC_01"
     level: "WARNING"
     message: "High threat perception implies action."
-    # ç•¶ Threat ç‚º High ä¸” Coping ç‚º High æ™‚
     conditions:
       - { construct: "threat_appraisal", values: ["H", "VH"] }
       - { construct: "coping_appraisal", values: ["H", "VH"] }
-    # ç¦æ­¢åšä»€éº¼ï¼Ÿ
     blocked_skills: ["do_nothing"]
 ```
 
-- **id**: è¦å‰‡å”¯ä¸€æ¨™è­˜ç¬¦ (ç”¨æ–¼å¯©è¨ˆæ—¥èªŒ)ã€‚
-- **level**: `ERROR` (æ‹’çµ•åŸ·è¡Œ) æˆ– `WARNING` (å…è¨±ä½†è¨˜éŒ„)ã€‚
-- **conditions**: è§¸ç™¼è¦å‰‡çš„å‰ææ¢ä»¶ã€‚
-- **blocked_skills**: åœ¨æ­¤æ¢ä»¶ä¸‹è¢«ç¦æ­¢çš„å‹•ä½œã€‚
+### ERROR »P WARNING ªº¦æ¬°®t²§
+
+- **ERROR**¡Gªı¾×¦æ¬°¨Ã­n¨D­«¸Õ  
+- **WARNING**¡G«O¯d¦æ¬°¦ı°O¿ıÄµ¥Ü
 
 ---
 
-## 3. å¯©è¨ˆ (Auditing)
+## 2.5 ¸ó Agent ÅçÃÒ¡]Multi-Agent¡^
 
-æ‰€æœ‰çš„é©—è­‰çµæœéƒ½æœƒè¢«è¨˜éŒ„åœ¨ `simulation.log` èˆ‡ `audit_summary.json` ä¸­ã€‚é€™è®“æˆ‘å€‘å¯ä»¥è¿½è¹¤ï¼š
+### ³q¥ÎÀË¬d
 
-- å¤šå°‘æ¬¡ Agent è©¦åœ–é•åè¦å‰‡ï¼Ÿ
-- å“ªæ¢è¦å‰‡è¢«è§¸ç™¼æœ€å¤šæ¬¡ï¼Ÿ
-- LLM çš„ã€Œç†æ€§ç¨‹åº¦ã€ (Alignment Score)ã€‚
+- ¦^­µ«Ç¡]Echo Chamber¡^
+- ¦ºÂê­·ÀI¡]Deadlock¡^
+
+### ¥i´¡©Ş»â°ì³W«h
+
+¥H»â°ì¯S©w³W«hÂX¥RÅçÃÒ¡]¨Ò¦p¬x¤ô¹wºâ¤@­P©Ê¡B°f¦V»¤¦]¡^¡C
+
+### ÅçÃÒµ¥¯Å¡]Validation Levels¡^
+
+¨Ï¥Î²Î¤@µ¥¯Å¼Ğ°OÅçÃÒµ²ªG¡G`ERROR`¡]ªı¾×¡^¡B`WARNING`¡]Æ[¹î¡^¡B`INFO`¡]´£¥Ü¡^¡C
+
+---
+
+## 3. ½]®Ö¡]Auditing¡^
+
+ÅçÃÒµ²ªG·|¿é¥X¨ì `simulation.log` »P `audit_summary.json`¡G
+
+- Ä²µo¤F­ş¨Ç³W«h  
+- ­ş¨Ç³W«h³Qªı¾×  
+- LLM ¹ï»ô¤À¼Æµ¥«ü¼Ğ  
