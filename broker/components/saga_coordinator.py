@@ -10,7 +10,7 @@ Provides:
 - SagaCoordinator: Manages saga execution with compensatory rollback
 
 Domain-specific saga definitions (e.g. SUBSIDY_APPLICATION_SAGA) should
-live in the domain module (examples/multi_agent/ma_saga_definitions.py).
+live in the domain module (examples/multi_agent/flood/protocols/saga_definitions.py).
 
 Reference: Task-058D (Saga Transaction Coordinator)
 Literature: SagaLLM (Chang & Geng, 2025) — transaction guarantees

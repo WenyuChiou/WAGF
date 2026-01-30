@@ -29,7 +29,7 @@ if str(ROOT_DIR) not in sys.path:
 
 from broker.utils.model_adapter import UnifiedAdapter
 
-CONFIG_PATH = str(MA_DIR / "ma_agent_types.yaml")
+CONFIG_PATH = str(MA_DIR / "config" / "ma_agent_types.yaml")
 
 
 class TestHouseholdParsing(unittest.TestCase):

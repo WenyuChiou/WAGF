@@ -18,7 +18,7 @@ from __future__ import annotations
 import math
 from typing import Dict, Optional
 
-from examples.multi_agent.environment.decay_models import (
+from examples.multi_agent.flood.environment.decay_models import (
     TAU_0,
     TAU_INF,
     K_DECAY,
@@ -29,7 +29,7 @@ from examples.multi_agent.environment.decay_models import (
     MG_PARAMS,
     NMG_PARAMS,
 )
-from examples.multi_agent.environment.tp_state import TPState, TPUpdateResult
+from examples.multi_agent.flood.environment.tp_state import TPState, TPUpdateResult
 
 
 class TPDecayEngine:

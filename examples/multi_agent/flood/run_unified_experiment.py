@@ -4,7 +4,7 @@ Multi-Agent Unified Experiment Runner (v2.0)
 Uses the core 'governed_broker_framework' to orchestrate:
 - Institutional agents (Government, Insurance)
 - Household agents (MG/NMG, Owner/Renter)
-- Automated governance via ma_agent_types.yaml
+- Automated governance via config/ma_agent_types.yaml
 - Environmental impacts via lifecycle hooks
 
 Architecture:
@@ -35,8 +35,8 @@ from broker import (
 from broker.components.memory_engine import create_memory_engine
 from broker.simulation.environment import TieredEnvironment
 from cognitive_governance.agents import BaseAgent, AgentConfig, StateParam, Skill, PerceptionSource
-from examples.multi_agent.environment.hazard import HazardModule, VulnerabilityModule, YearMapping
-from examples.multi_agent.components.media_channels import MediaHub
+from examples.multi_agent.flood.environment.hazard import HazardModule, VulnerabilityModule, YearMapping
+from examples.multi_agent.flood.components.media_channels import MediaHub
 
 # Local imports from multi_agent directory
 MULTI_AGENT_DIR = Path(__file__).parent
@@ -247,7 +247,7 @@ def run_unified_experiment():
     
     # 3. Memory Engine
     from broker.utils.agent_config import AgentTypeConfig
-    agent_cfg = AgentTypeConfig.load(MULTI_AGENT_DIR / "ma_agent_types.yaml")
+    agent_cfg = AgentTypeConfig.load(MULTI_AGENT_DIR / "config" / "ma_agent_types.yaml")
     mem_cfg = agent_cfg.get_global_memory_config()
     if args.arousal_threshold is not None:
         mem_cfg["arousal_threshold"] = args.arousal_threshold
@@ -414,7 +414,7 @@ def run_unified_experiment():
                 hub=hub,
                 memory_engine=memory_engine,
                 media_hub=media_hub,
-                yaml_path=str(MULTI_AGENT_DIR / "ma_agent_types.yaml"),
+                yaml_path=str(MULTI_AGENT_DIR / "config" / "ma_agent_types.yaml"),
                 dynamic_whitelist=[
                     "govt_message",
                     "insurance_message",
@@ -431,7 +431,7 @@ def run_unified_experiment():
         )
         .with_governance(
             profile="strict", 
-            config_path=str(MULTI_AGENT_DIR / "ma_agent_types.yaml")
+            config_path=str(MULTI_AGENT_DIR / "config" / "ma_agent_types.yaml")
         )
     )
 

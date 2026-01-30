@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 def test_survey_loader_split_structure():
-    base = Path("examples/multi_agent")
+    base = Path("examples/multi_agent/flood")
     survey_dir = base / "survey"
 
     assert (survey_dir / "pmt_calculator.py").exists()

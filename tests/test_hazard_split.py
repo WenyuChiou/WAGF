@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 def test_hazard_split_structure():
-    base = Path("examples/multi_agent/environment")
+    base = Path("examples/multi_agent/flood/environment")
     assert (base / "vulnerability.py").exists()
     assert (base / "year_mapping.py").exists()
 

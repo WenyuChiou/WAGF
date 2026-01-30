@@ -10,8 +10,8 @@ from broker.components.message_pool import MessagePool
 from broker.components.phase_orchestrator import PhaseOrchestrator
 from broker.interfaces.artifacts import ArtifactEnvelope
 from broker.interfaces.coordination import ActionProposal
-from examples.multi_agent.ma_artifacts import PolicyArtifact
-from examples.multi_agent.orchestration.lifecycle_hooks import MultiAgentHooks
+from examples.multi_agent.flood.protocols.artifacts import PolicyArtifact
+from examples.multi_agent.flood.orchestration.lifecycle_hooks import MultiAgentHooks
 
 
 def _policy_artifact():

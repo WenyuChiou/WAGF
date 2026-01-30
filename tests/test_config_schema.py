@@ -24,7 +24,7 @@ def test_valid_config_loads_sa():
 
 
 def test_valid_config_loads_ma():
-    config = load_agent_config(Path("examples/multi_agent/config/agents/agent_types.yaml"))
+    config = load_agent_config(Path("examples/multi_agent/flood/config/agents/agent_types.yaml"))
     assert config.global_config.memory.window_size == 5
 
 

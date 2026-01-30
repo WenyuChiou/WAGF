@@ -1,11 +1,11 @@
 """Tests for structured artifacts (Task-058A).
 
 Tests the generic AgentArtifact ABC in broker/interfaces/artifacts.py
-and the flood-domain subclasses in examples/multi_agent/ma_artifacts.py.
+and the flood-domain subclasses in examples/multi_agent/flood/protocols/artifacts.py.
 """
 from broker.interfaces.artifacts import AgentArtifact, ArtifactEnvelope
 from broker.interfaces.coordination import MessageType
-from examples.multi_agent.ma_artifacts import (
+from examples.multi_agent.flood.protocols.artifacts import (
     PolicyArtifact,
     MarketArtifact,
     HouseholdIntention,

@@ -1,0 +1,66 @@
+# Irrigation ABM Skill Registry
+# Defines available skills for Colorado River Basin irrigation farmers.
+# Adapted from Hung & Yang (2021) RL-ABM-CRSS framework — LLM-driven version.
+
+skills:
+  - skill_id: increase_demand
+    description: "Request more water allocation for next period. Higher potential yield but risks exceeding available supply and facing curtailment penalties."
+    eligible_agent_types: ["irrigation_farmer"]
+    preconditions:
+      - "not at_allocation_cap"
+    institutional_constraints:
+      annual: true
+      magnitude_type: "percentage"
+      max_magnitude_pct: 30   # Aggressive cluster cap; tighter caps via governance
+    allowed_state_changes:
+      - request
+      - diversion
+    implementation_mapping: "env.execute_skill"
+
+  - skill_id: decrease_demand
+    description: "Request less water allocation. Lower crop yield potential but reduces curtailment risk and demonstrates cooperative basin management."
+    eligible_agent_types: ["irrigation_farmer"]
+    preconditions: []
+    institutional_constraints:
+      annual: true
+      magnitude_type: "percentage"
+      max_magnitude_pct: 30
+    allowed_state_changes:
+      - request
+      - diversion
+    implementation_mapping: "env.execute_skill"
+
+  - skill_id: adopt_efficiency
+    description: "Invest in water-efficient irrigation technology (drip, soil moisture sensors, precision scheduling). Reduces long-term water needs by 15-25%."
+    eligible_agent_types: ["irrigation_farmer"]
+    preconditions:
+      - "not has_efficient_system"
+    institutional_constraints:
+      once_only: true
+      cost_type: "one_time"
+    allowed_state_changes:
+      - has_efficient_system
+      - request
+    implementation_mapping: "env.execute_skill"
+
+  - skill_id: reduce_acreage
+    description: "Fallow some farmland to lower total water requirement. Decreases revenue but guarantees meeting reduced allocation with existing supply."
+    eligible_agent_types: ["irrigation_farmer"]
+    preconditions: []
+    institutional_constraints:
+      annual: true
+      reduction_factor: 0.75
+    allowed_state_changes:
+      - request
+      - diversion
+    implementation_mapping: "env.execute_skill"
+
+  - skill_id: maintain_demand
+    description: "Maintain current water demand level. No change to irrigation practices. Appropriate when water availability is stable and current allocation meets needs."
+    eligible_agent_types: ["irrigation_farmer"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes: []
+    implementation_mapping: "env.execute_skill"
+
+default_skill: maintain_demand

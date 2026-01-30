@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 def test_initial_memory_split_structure():
-    base = Path("examples/multi_agent")
+    base = Path("examples/multi_agent/flood")
     memory_dir = base / "memory"
 
     assert (memory_dir / "templates.py").exists()

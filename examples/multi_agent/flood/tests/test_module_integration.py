@@ -338,7 +338,7 @@ class TestVulnerabilityCalculator(unittest.TestCase):
 
     def setUp(self):
         """Import vulnerability calculator."""
-        from examples.multi_agent.environment.vulnerability import VulnerabilityCalculator
+        from examples.multi_agent.flood.environment.vulnerability import VulnerabilityCalculator
         self.calc = VulnerabilityCalculator()
         # Conversion: 1 foot = 0.3048 meters
         self.FT_TO_M = 0.3048
@@ -418,7 +418,7 @@ class TestVulnerabilityModuleMA(unittest.TestCase):
 
     def setUp(self):
         """Import MA vulnerability module."""
-        from examples.multi_agent.environment.hazard import VulnerabilityModule
+        from examples.multi_agent.flood.environment.hazard import VulnerabilityModule
         self.vuln = VulnerabilityModule(elevation_height_ft=5.0)
 
     def test_zero_depth_minimal_damage(self):
@@ -485,7 +485,7 @@ class TestHazardModuleIntegration(unittest.TestCase):
     def test_hazard_module_import(self):
         """Test that HazardModule can be imported from MA."""
         try:
-            from examples.multi_agent.environment.hazard import HazardModule
+            from examples.multi_agent.flood.environment.hazard import HazardModule
             self.assertTrue(True)
         except ImportError:
             # May not exist yet, skip
@@ -494,7 +494,7 @@ class TestHazardModuleIntegration(unittest.TestCase):
     def test_synthetic_flood_event(self):
         """Test synthetic flood event generation (no grid)."""
         try:
-            from examples.multi_agent.environment.hazard import HazardModule
+            from examples.multi_agent.flood.environment.hazard import HazardModule
             module = HazardModule(grid_dir=None)  # Synthetic mode
 
             event = module.get_flood_event(year=1)
@@ -580,7 +580,7 @@ class TestDisasterModelFlow(unittest.TestCase):
 
     def test_post_year_damage_calculation(self):
         """Test that post_year calculates and stores damage."""
-        from examples.multi_agent.environment.hazard import VulnerabilityModule
+        from examples.multi_agent.flood.environment.hazard import VulnerabilityModule
         vuln = VulnerabilityModule()
 
         # Simulate flood damage (MA uses depth_ft)
@@ -651,7 +651,7 @@ class TestMissingConstructHandling(unittest.TestCase):
         from broker.utils.model_adapter import UnifiedAdapter
 
         # Set MA config path
-        ma_config = MA_DIR / "ma_agent_types.yaml"
+        ma_config = MA_DIR / "config" / "ma_agent_types.yaml"
         os.environ["AGENT_CONFIG_PATH"] = str(ma_config)
 
         self.adapter = UnifiedAdapter(agent_type="household_owner")

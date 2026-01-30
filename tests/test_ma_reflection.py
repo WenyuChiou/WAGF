@@ -3,7 +3,7 @@ import pytest
 from unittest.mock import MagicMock, call
 
 from broker.components.engines.humancentric_engine import HumanCentricMemoryEngine
-from examples.multi_agent.orchestration.lifecycle_hooks import MultiAgentHooks
+from examples.multi_agent.flood.orchestration.lifecycle_hooks import MultiAgentHooks
 from broker.interfaces.coordination import ActionResolution, AgentMessage
 from broker.components.memory_bridge import MemoryBridge # Import MemoryBridge for context
 

@@ -13,12 +13,12 @@ from broker.validators.governance.cross_agent_validator import (
     ValidationLevel,
 )
 
-from examples.multi_agent.ma_artifacts import (
+from examples.multi_agent.flood.protocols.artifacts import (
     PolicyArtifact,
     MarketArtifact,
     HouseholdIntention,
 )
-from examples.multi_agent.ma_cross_validators import (
+from examples.multi_agent.flood.protocols.cross_validators import (
     flood_perverse_incentive_check,
     flood_budget_coherence_check,
     FLOOD_VALIDATION_RULES,

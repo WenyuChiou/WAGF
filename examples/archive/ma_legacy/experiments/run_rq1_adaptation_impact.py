@@ -38,7 +38,7 @@ ROOT_DIR = MA_DIR.parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from examples.multi_agent.experiments.rq_analysis import RQAnalyzer, TenureMetrics
+from examples.multi_agent.flood.experiments.rq_analysis import RQAnalyzer, TenureMetrics
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)

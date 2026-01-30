@@ -6,7 +6,7 @@ Provides:
 - ArtifactEnvelope: Wrapper that converts any artifact into an AgentMessage
 
 Domain-specific artifact subclasses (e.g. PolicyArtifact, MarketArtifact)
-should live in the domain module (examples/multi_agent/ma_artifacts.py),
+should live in the domain module (examples/multi_agent/flood/protocols/artifacts.py),
 NOT in this file.
 
 Reference: Task-058A (Structured Artifact Protocols)
@@ -170,7 +170,7 @@ except ImportError:
 # Some test modules import PolicyArtifact/MarketArtifact/HouseholdIntention
 # directly from broker.interfaces.artifacts. Re-export if available.
 try:
-    from examples.multi_agent.ma_artifacts import (  # type: ignore
+    from examples.multi_agent.flood.protocols.artifacts import (  # type: ignore
         PolicyArtifact,
         MarketArtifact,
         HouseholdIntention,

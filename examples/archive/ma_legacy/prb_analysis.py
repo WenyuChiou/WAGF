@@ -30,7 +30,7 @@ ROOT_DIR = CURRENT_DIR.parent.parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from examples.multi_agent.environment.prb_loader import PRBGridLoader, GridMetadata
+from examples.multi_agent.flood.environment.prb_loader import PRBGridLoader, GridMetadata
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)

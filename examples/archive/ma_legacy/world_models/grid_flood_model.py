@@ -86,7 +86,7 @@ class GridFloodModel:
         Calculates damage using FEMA-inspired curves.
         Note: FEMA curves expect depth in feet.
         """
-        from examples.multi_agent.environment.hazard import VulnerabilityModule
+        from examples.multi_agent.flood.environment.hazard import VulnerabilityModule
         
         depth_ft = self.m_to_ft(depth_m)
         vuln = VulnerabilityModule()

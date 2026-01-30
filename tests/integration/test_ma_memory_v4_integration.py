@@ -17,7 +17,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from cognitive_governance.v1_prototype.memory.symbolic import SymbolicMemory
-from examples.multi_agent.ma_agents.household import HouseholdAgent
+from examples.multi_agent.flood.ma_agents.household import HouseholdAgent
 
 
 class TestMemoryV4Initialization:

@@ -375,3 +375,170 @@ def _assign_crop_type(basin: str, rng: np.random.Generator) -> str:
     lb_crops = ["alfalfa", "cotton", "vegetables", "citrus", "dates"]
     crops = ub_crops if basin == "upper_basin" else lb_crops
     return str(rng.choice(crops))
+
+
+# ============================================================================
+# UB state-group positional mapping (from Hung & Yang 2021 ABM_CRSS_coupling.py)
+# ============================================================================
+# 9 state-groups, each covering a contiguous slice of the 58 UB agent list.
+# Agent order matches UB_ABM_Groups_and_Agents.csv expanded to Group_Slot format.
+_UB_STATE_GROUPS = ["WY", "UT1", "UT2", "UT3", "NM", "CO1", "CO2", "CO3", "AZ_UB"]
+_UB_GROUP_AGENT_COUNTS = [5, 11, 1, 2, 7, 5, 15, 9, 3]  # 58 total
+
+
+def _build_ub_agent_names(group_agt_path: str) -> List[str]:
+    """Read UB group-agent file and return agent names in Group_Slot order.
+
+    This mirrors ``Generate_Agt_Names`` from ABM_CRSS_coupling.py.
+    """
+    import csv
+
+    agents: List[str] = []
+    with open(group_agt_path, mode="r", encoding="utf-8") as f:
+        reader = csv.reader(f)
+        for row in reader:
+            if not row:
+                continue
+            group = row[0]
+            for slot in row[1:]:
+                slot = slot.strip()
+                if not slot:
+                    continue
+                agents.append(f"{group}_{slot}")
+    return agents
+
+
+def _build_ub_state_group_map(ub_agent_names: List[str]) -> Dict[str, str]:
+    """Map each UB agent name to its CSV state-group using positional slicing."""
+    mapping: Dict[str, str] = {}
+    offset = 0
+    for sg, count in zip(_UB_STATE_GROUPS, _UB_GROUP_AGENT_COUNTS):
+        for agent in ub_agent_names[offset: offset + count]:
+            mapping[agent] = sg
+        offset += count
+    return mapping
+
+
+def create_profiles_from_data(
+    params_csv_path: str,
+    crss_db_dir: str,
+    rng: Optional[np.random.Generator] = None,
+) -> List[IrrigationAgentProfile]:
+    """Create 78 individual agent profiles from paper data.
+
+    Expands the 31-agent CSV to the full 78-agent CRSS resolution:
+    - LB: 22 agents (1:1 match with CSV)
+    - UB: 58 individual CRSS slots, each inheriting its state-group's
+      FQL parameters.  Inactive agents (all-zero states) are skipped.
+
+    Args:
+        params_csv_path: Path to ALL_colorado_ABM_params_cal_1108.csv
+        crss_db_dir: Path to ref/CRSS_DB/CRSS_DB/ directory
+        rng: Random number generator for crop type and persona selection.
+
+    Returns:
+        List of ~78 IrrigationAgentProfile with real water_right values.
+    """
+    import os
+    import pandas as pd
+
+    rng = rng or np.random.default_rng()
+
+    # 1. Load FQL parameters (31 state-group-level agents)
+    params_df = pd.read_csv(params_csv_path, index_col=0)
+
+    # 2. Load discrete states for water_right extraction
+    ub_states = pd.read_csv(
+        os.path.join(crss_db_dir, "Div_States", "UB_discrete_states.csv")
+    )
+    lb_states = pd.read_csv(
+        os.path.join(crss_db_dir, "Div_States", "LB_discrete_states.csv")
+    )
+
+    # 3. Build UB agent → state-group mapping
+    ub_group_file = os.path.join(
+        crss_db_dir, "Group_Agt", "UB_ABM_Groups_and_Agents.csv"
+    )
+    ub_agent_names = _build_ub_agent_names(ub_group_file)
+    ub_sg_map = _build_ub_state_group_map(ub_agent_names)
+
+    profiles: List[IrrigationAgentProfile] = []
+
+    # --- Lower Basin agents (22, direct CSV match) ---
+    for agent_name in lb_states.columns:
+        if agent_name not in params_df.columns:
+            continue
+        col = lb_states[agent_name]
+        water_right = float(col.iloc[-1])
+        if water_right <= 0:
+            continue  # inactive
+
+        p = params_df[agent_name]
+        mu = float(p["mu"])
+        sigma = float(p["sigma"])
+        alpha = float(p["alpha"])
+        gamma_p = float(p["gamma"])
+        epsilon = float(p["epsilon"])
+        regret_val = float(p["regret"])
+        cluster = _infer_cluster(mu, sigma, alpha, regret_val)
+
+        profile = IrrigationAgentProfile(
+            agent_id=agent_name,
+            basin="lower_basin",
+            cluster=cluster,
+            mu=mu,
+            sigma=sigma,
+            alpha=alpha,
+            gamma_param=gamma_p,
+            epsilon=epsilon,
+            regret=regret_val,
+            forget=str(p.get("forget", "TRUE")).upper() == "TRUE",
+            farm_size_acres=water_right / 200.0,  # proportional to water_right
+            water_right=water_right,
+            crop_type=_assign_crop_type("lower_basin", rng),
+            years_farming=int(rng.integers(5, 40)),
+        )
+        profile.narrative_persona = build_narrative_persona(profile, rng)
+        profiles.append(profile)
+
+    # --- Upper Basin agents (58, expanded from 9 state-groups) ---
+    for agent_name in ub_states.columns:
+        col = ub_states[agent_name]
+        water_right = float(col.iloc[-1])
+        if water_right <= 0:
+            continue  # inactive
+
+        # Look up state-group for FQL params
+        state_group = ub_sg_map.get(agent_name)
+        if state_group is None or state_group not in params_df.columns:
+            continue
+
+        p = params_df[state_group]
+        mu = float(p["mu"])
+        sigma = float(p["sigma"])
+        alpha = float(p["alpha"])
+        gamma_p = float(p["gamma"])
+        epsilon = float(p["epsilon"])
+        regret_val = float(p["regret"])
+        cluster = _infer_cluster(mu, sigma, alpha, regret_val)
+
+        profile = IrrigationAgentProfile(
+            agent_id=agent_name,
+            basin="upper_basin",
+            cluster=cluster,
+            mu=mu,
+            sigma=sigma,
+            alpha=alpha,
+            gamma_param=gamma_p,
+            epsilon=epsilon,
+            regret=regret_val,
+            forget=str(p.get("forget", "TRUE")).upper() == "TRUE",
+            farm_size_acres=water_right / 200.0,
+            water_right=water_right,
+            crop_type=_assign_crop_type("upper_basin", rng),
+            years_farming=int(rng.integers(5, 40)),
+        )
+        profile.narrative_persona = build_narrative_persona(profile, rng)
+        profiles.append(profile)
+
+    return profiles

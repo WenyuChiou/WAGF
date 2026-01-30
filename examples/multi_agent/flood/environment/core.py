@@ -10,7 +10,7 @@ State mutations happen in orchestrator (run_experiment.py).
 from typing import Dict, Any, Optional
 from dataclasses import dataclass, asdict
 import numpy as np
-from examples.multi_agent.environment.hazard import VulnerabilityModule
+from examples.multi_agent.flood.environment.hazard import VulnerabilityModule
 
 
 # =============================================================================

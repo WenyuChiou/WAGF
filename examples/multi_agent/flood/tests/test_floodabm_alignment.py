@@ -21,12 +21,12 @@ class TestCSRVConstant:
 
     def test_csrv_value(self):
         """Verify CSRV = 0.57 is correctly defined."""
-        from examples.multi_agent.environment.rcv_generator import CSRV
+        from examples.multi_agent.flood.environment.rcv_generator import CSRV
         assert CSRV == 0.57, f"CSRV should be 0.57, got {CSRV}"
 
     def test_csrv_in_contents_ratio(self):
         """Verify CSRV is used in CONTENTS_RATIO_RANGES."""
-        from examples.multi_agent.environment.rcv_generator import (
+        from examples.multi_agent.flood.environment.rcv_generator import (
             CSRV,
             CONTENTS_RATIO_RANGES,
         )
@@ -37,7 +37,7 @@ class TestCSRVConstant:
 
     def test_rcv_generation_uses_fixed_csrv(self):
         """Verify RCV generation uses fixed CSRV ratio."""
-        from examples.multi_agent.environment.rcv_generator import RCVGenerator, CSRV
+        from examples.multi_agent.flood.environment.rcv_generator import RCVGenerator, CSRV
 
         gen = RCVGenerator(seed=42)
         result = gen.generate(
@@ -59,17 +59,17 @@ class TestRiskRating2Parameters:
 
     def test_r1k_structure(self):
         """Verify base rate for structure coverage."""
-        from examples.multi_agent.environment.risk_rating import R1K_STRUCTURE
+        from examples.multi_agent.flood.environment.risk_rating import R1K_STRUCTURE
         assert R1K_STRUCTURE == 3.56, f"R1K_STRUCTURE should be 3.56, got {R1K_STRUCTURE}"
 
     def test_r1k_contents(self):
         """Verify base rate for contents coverage."""
-        from examples.multi_agent.environment.risk_rating import R1K_CONTENTS
+        from examples.multi_agent.flood.environment.risk_rating import R1K_CONTENTS
         assert R1K_CONTENTS == 4.90, f"R1K_CONTENTS should be 4.90, got {R1K_CONTENTS}"
 
     def test_coverage_limits(self):
         """Verify NFIP coverage limits."""
-        from examples.multi_agent.environment.risk_rating import (
+        from examples.multi_agent.flood.environment.risk_rating import (
             LIMIT_STRUCTURE,
             LIMIT_CONTENTS,
         )
@@ -78,7 +78,7 @@ class TestRiskRating2Parameters:
 
     def test_deductibles(self):
         """Verify deductible amounts."""
-        from examples.multi_agent.environment.risk_rating import (
+        from examples.multi_agent.flood.environment.risk_rating import (
             DEDUCTIBLE_STRUCTURE,
             DEDUCTIBLE_CONTENTS,
         )
@@ -87,7 +87,7 @@ class TestRiskRating2Parameters:
 
     def test_reserve_and_fees(self):
         """Verify reserve fund factor and small fee."""
-        from examples.multi_agent.environment.risk_rating import (
+        from examples.multi_agent.flood.environment.risk_rating import (
             RESERVE_FUND_FACTOR,
             SMALL_FEE,
         )
@@ -100,27 +100,27 @@ class TestInitialUptakeRates:
 
     def test_flood_prone_owner(self):
         """Verify 25% uptake for flood-prone homeowners."""
-        from examples.multi_agent.environment.risk_rating import INITIAL_UPTAKE
+        from examples.multi_agent.flood.environment.risk_rating import INITIAL_UPTAKE
         assert INITIAL_UPTAKE["flood_prone"]["owner"] == 0.25
 
     def test_flood_prone_renter(self):
         """Verify 8% uptake for flood-prone renters."""
-        from examples.multi_agent.environment.risk_rating import INITIAL_UPTAKE
+        from examples.multi_agent.flood.environment.risk_rating import INITIAL_UPTAKE
         assert INITIAL_UPTAKE["flood_prone"]["renter"] == 0.08
 
     def test_non_flood_prone_owner(self):
         """Verify 3% uptake for non-flood-prone homeowners."""
-        from examples.multi_agent.environment.risk_rating import INITIAL_UPTAKE
+        from examples.multi_agent.flood.environment.risk_rating import INITIAL_UPTAKE
         assert INITIAL_UPTAKE["non_flood_prone"]["owner"] == 0.03
 
     def test_non_flood_prone_renter(self):
         """Verify 1% uptake for non-flood-prone renters."""
-        from examples.multi_agent.environment.risk_rating import INITIAL_UPTAKE
+        from examples.multi_agent.flood.environment.risk_rating import INITIAL_UPTAKE
         assert INITIAL_UPTAKE["non_flood_prone"]["renter"] == 0.01
 
     def test_get_initial_uptake_probability(self):
         """Test helper function."""
-        from examples.multi_agent.environment.risk_rating import (
+        from examples.multi_agent.flood.environment.risk_rating import (
             get_initial_uptake_probability,
         )
         assert get_initial_uptake_probability(True, True) == 0.25
@@ -134,35 +134,35 @@ class TestCoreConfigParameters:
 
     def test_default_deductible(self):
         """Verify default deductible is $1,000."""
-        from examples.multi_agent.environment.core import ENV_CONFIG
+        from examples.multi_agent.flood.environment.core import ENV_CONFIG
         assert ENV_CONFIG["insurance"]["default_deductible"] == 1_000
 
     def test_deductible_by_type(self):
         """Verify separate deductibles for structure and contents."""
-        from examples.multi_agent.environment.core import ENV_CONFIG
+        from examples.multi_agent.flood.environment.core import ENV_CONFIG
         assert ENV_CONFIG["insurance"]["default_deductible_structure"] == 1_000
         assert ENV_CONFIG["insurance"]["default_deductible_contents"] == 1_000
 
     def test_r1k_rates_in_config(self):
         """Verify r1k rates are in config."""
-        from examples.multi_agent.environment.core import ENV_CONFIG
+        from examples.multi_agent.flood.environment.core import ENV_CONFIG
         assert ENV_CONFIG["insurance"]["r1k_structure"] == 3.56
         assert ENV_CONFIG["insurance"]["r1k_contents"] == 4.90
 
     def test_reserve_and_fee_in_config(self):
         """Verify reserve factor and small fee in config."""
-        from examples.multi_agent.environment.core import ENV_CONFIG
+        from examples.multi_agent.flood.environment.core import ENV_CONFIG
         assert ENV_CONFIG["insurance"]["reserve_fund_factor"] == 1.15
         assert ENV_CONFIG["insurance"]["small_fee"] == 100
 
     def test_damage_threshold(self):
         """Verify damage ratio threshold (theta)."""
-        from examples.multi_agent.environment.core import ENV_CONFIG
+        from examples.multi_agent.flood.environment.core import ENV_CONFIG
         assert ENV_CONFIG["damage"]["damage_ratio_threshold"] == 0.5
 
     def test_shock_scale(self):
         """Verify shock scale (cs)."""
-        from examples.multi_agent.environment.core import ENV_CONFIG
+        from examples.multi_agent.flood.environment.core import ENV_CONFIG
         assert ENV_CONFIG["damage"]["shock_scale"] == 0.3
 
 
@@ -172,7 +172,7 @@ class TestTPDecayParameters:
 
     def test_default_parameters(self):
         """Verify default TP decay parameters."""
-        from examples.multi_agent.environment.tp_decay import (
+        from examples.multi_agent.flood.environment.tp_decay import (
             TAU_0, TAU_INF, K_DECAY, THETA, ALPHA, BETA
         )
         assert TAU_0 == 2.0, "Default tau_0 should be 2.0"
@@ -184,7 +184,7 @@ class TestTPDecayParameters:
 
     def test_mg_calibrated_parameters(self):
         """Verify MG-specific calibrated parameters."""
-        from examples.multi_agent.environment.tp_decay import MG_PARAMS
+        from examples.multi_agent.flood.environment.tp_decay import MG_PARAMS
         assert MG_PARAMS["alpha"] == 0.50
         assert MG_PARAMS["beta"] == 0.21
         assert MG_PARAMS["tau_0"] == 1.00
@@ -193,7 +193,7 @@ class TestTPDecayParameters:
 
     def test_nmg_calibrated_parameters(self):
         """Verify NMG-specific calibrated parameters."""
-        from examples.multi_agent.environment.tp_decay import NMG_PARAMS
+        from examples.multi_agent.flood.environment.tp_decay import NMG_PARAMS
         assert NMG_PARAMS["alpha"] == 0.22
         assert NMG_PARAMS["beta"] == 0.10
         assert NMG_PARAMS["tau_0"] == 2.72
@@ -207,7 +207,7 @@ class TestTPDecayCalculation:
 
     def test_half_life_evolution(self):
         """Verify half-life evolves correctly over time."""
-        from examples.multi_agent.environment.tp_decay import TPDecayEngine
+        from examples.multi_agent.flood.environment.tp_decay import TPDecayEngine
 
         engine = TPDecayEngine()
 
@@ -221,7 +221,7 @@ class TestTPDecayCalculation:
 
     def test_damage_gate_trigger(self):
         """Verify damage gate triggers when r_t > theta."""
-        from examples.multi_agent.environment.tp_decay import TPDecayEngine, TPState
+        from examples.multi_agent.flood.environment.tp_decay import TPDecayEngine, TPState
 
         engine = TPDecayEngine()
         state = TPState(tp=0.5, pa=0.5, sc=0.5, year=5)
@@ -244,7 +244,7 @@ class TestTPDecayCalculation:
 
     def test_tp_decay_without_flood(self):
         """Verify TP decays when no flood occurs."""
-        from examples.multi_agent.environment.tp_decay import TPDecayEngine, TPState
+        from examples.multi_agent.flood.environment.tp_decay import TPDecayEngine, TPState
 
         engine = TPDecayEngine()
         state = TPState(tp=0.8, pa=0.5, sc=0.5, year=0)
@@ -260,7 +260,7 @@ class TestTPDecayCalculation:
 
     def test_tp_gain_with_flood(self):
         """Verify TP can increase when flood exceeds threshold."""
-        from examples.multi_agent.environment.tp_decay import TPDecayEngine, TPState
+        from examples.multi_agent.flood.environment.tp_decay import TPDecayEngine, TPState
 
         engine = TPDecayEngine()
         state = TPState(tp=0.3, pa=0.3, sc=0.3, year=0)
@@ -281,7 +281,7 @@ class TestPremiumCalculation:
 
     def test_basic_premium_calculation(self):
         """Test basic premium calculation."""
-        from examples.multi_agent.environment.risk_rating import RiskRating2Calculator
+        from examples.multi_agent.flood.environment.risk_rating import RiskRating2Calculator
 
         calc = RiskRating2Calculator()
         result = calc.calculate_premium(
@@ -306,7 +306,7 @@ class TestPremiumCalculation:
 
     def test_elevation_discount(self):
         """Test elevation discount is 50%."""
-        from examples.multi_agent.environment.risk_rating import RiskRating2Calculator
+        from examples.multi_agent.flood.environment.risk_rating import RiskRating2Calculator
 
         calc = RiskRating2Calculator()
 
@@ -331,7 +331,7 @@ class TestPremiumCalculation:
 
     def test_zone_multipliers(self):
         """Test zone multipliers are applied correctly."""
-        from examples.multi_agent.environment.risk_rating import RiskRating2Calculator
+        from examples.multi_agent.flood.environment.risk_rating import RiskRating2Calculator
 
         calc = RiskRating2Calculator()
 

@@ -16,7 +16,7 @@ class MockAgent:
 
 from broker.simulation.environment import TieredEnvironment
 try:
-    from examples.multi_agent.world_models.disaster_model import DisasterModel
+    from examples.multi_agent.flood.world_models.disaster_model import DisasterModel
 except ModuleNotFoundError:
     try:
         from examples.archive.ma_legacy.world_models.disaster_model import DisasterModel

@@ -1,0 +1,28 @@
+{narrative_persona}
+{water_situation_text}
+Your memory includes:
+{memory}
+
+You currently {conservation_status} water conservation practices.
+You {trust_forecasts_text} climate and hydrological forecasts. You {trust_neighbors_text} neighboring farmers' water management advice.
+
+Using the following decision framework, evaluate your current water demand situation by considering:
+- Water Scarcity Threat: How serious the consequences of water shortage feel to your farm operation.
+- Drought Vulnerability: How likely you think your water supply is to be curtailed this season.
+- Action Effectiveness: How effective you believe each water management action is at protecting your livelihood.
+- Implementation Capacity: Your confidence and ability to implement changes (financial, technical, labor).
+- Adaptation Cost: The financial and operational cost of changing your irrigation practices.
+- Status Quo Benefit: The short-term benefit of maintaining your current water demand level.
+
+Now, choose one of the following water management actions:
+{options_text}
+Note: If water availability is normal and no shortage signal has been received, many farmers would choose "Maintain current demand."
+
+{rating_scale}
+
+Please respond using the EXACT JSON format below.
+- IMPORTANT: The "decision" field MUST be the NUMERIC ID (e.g. 1, 2, 3, 4, or 5) from the available options list.
+- Use EXACTLY one of: VL, L, M, H, VH for each appraisal label.
+- Ensure all keys match the format exactly.
+
+{response_format}

@@ -49,7 +49,7 @@ class ImpactEventGenerator:
     Depends on hazard events being passed in context["hazard_events"].
 
     Usage:
-        from examples.multi_agent.environment.catastrophe import CatastropheModule
+        from examples.multi_agent.flood.environment.catastrophe import CatastropheModule
 
         catastrophe = CatastropheModule()
         generator = ImpactEventGenerator(

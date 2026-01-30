@@ -11,8 +11,8 @@ Design Pattern: Dependency Injection via Protocol (PEP 544)
 
 Usage:
     # Domain-specific implementation (e.g., flood simulation)
-    from examples.multi_agent.environment.depth_sampler import DepthSampler
-    from examples.multi_agent.environment.rcv_generator import RCVGenerator
+    from examples.multi_agent.flood.environment.depth_sampler import DepthSampler
+    from examples.multi_agent.flood.environment.rcv_generator import RCVGenerator
 
     # Generic initialization with injected enrichers
     profiles, stats = initialize_agents_from_survey(

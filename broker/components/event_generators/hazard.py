@@ -47,7 +47,7 @@ class HazardEventGenerator:
     - per_agent: Individual events per agent (spatially varying depth)
 
     Usage:
-        from examples.multi_agent.environment.hazard import HazardModule
+        from examples.multi_agent.flood.environment.hazard import HazardModule
 
         hazard_module = HazardModule(grid_dir=Path("data/prb"))
         generator = HazardEventGenerator(

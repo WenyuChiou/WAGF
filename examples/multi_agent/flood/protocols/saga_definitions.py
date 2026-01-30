@@ -7,7 +7,7 @@ Defines multi-step workflows with compensatory rollback:
 - ELEVATION_GRANT_SAGA: Government approves and funds house elevation
 
 Usage:
-    from examples.multi_agent.ma_saga_definitions import FLOOD_SAGA_DEFINITIONS
+    from examples.multi_agent.flood.ma_saga_definitions import FLOOD_SAGA_DEFINITIONS
     for defn in FLOOD_SAGA_DEFINITIONS:
         coordinator.register_saga(defn)
 

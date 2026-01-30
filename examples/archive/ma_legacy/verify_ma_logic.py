@@ -18,7 +18,7 @@ try:
     from broker.utils.model_adapter import UnifiedAdapter
     from broker.simulation.environment import TieredEnvironment
     from examples.multi_agent.flood_agents import NJStateAgent, FemaNfipAgent
-    from examples.multi_agent.environment.hazard import VulnerabilityModule, HazardModule, depth_damage_building
+    from examples.multi_agent.flood.environment.hazard import VulnerabilityModule, HazardModule, depth_damage_building
     from broker.interfaces.skill_types import SkillProposal
 except ImportError as e:
     logger.error(f"Import failed: {e}")

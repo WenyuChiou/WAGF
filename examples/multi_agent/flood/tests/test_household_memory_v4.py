@@ -1,4 +1,4 @@
-from examples.multi_agent.ma_agents.household import HouseholdAgent
+from examples.multi_agent.flood.ma_agents.household import HouseholdAgent
 
 
 def test_household_init_memory_v4_symbolic():

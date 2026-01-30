@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 def test_run_unified_experiment_split_structure():
-    base = Path("examples/multi_agent")
+    base = Path("examples/multi_agent/flood")
     orchestration = base / "orchestration"
 
     assert (orchestration / "agent_factories.py").exists()

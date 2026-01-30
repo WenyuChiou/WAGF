@@ -3,9 +3,9 @@ import logging
 
 from cognitive_governance.agents import BaseAgent
 from broker import MemoryEngine
-from examples.multi_agent.environment.hazard import HazardModule, VulnerabilityModule, YearMapping
-from examples.multi_agent.components.media_channels import MediaHub
-from examples.multi_agent.orchestration.disaster_sim import depth_to_qualitative_description
+from examples.multi_agent.flood.environment.hazard import HazardModule, VulnerabilityModule, YearMapping
+from examples.multi_agent.flood.components.media_channels import MediaHub
+from examples.multi_agent.flood.orchestration.disaster_sim import depth_to_qualitative_description
 from broker.components.memory_bridge import MemoryBridge # Added import
 
 

@@ -13,8 +13,10 @@ constructor parameter on each validator.  When ``builtin_checks=None``
 (default), flood-domain checks are used for backward compatibility.
 Pass ``builtin_checks=[]`` to disable all built-in checks.
 
-Use ``validate_all(domain="flood")`` (default) or ``validate_all(domain=None)``
-for YAML-rules-only mode (no hardcoded domain logic).
+Use ``validate_all(domain=...)`` to select domain:
+- ``"flood"`` (default): Flood-domain built-in checks (backward compat)
+- ``"irrigation"``: Irrigation-domain checks (water rights, curtailment, drought)
+- ``None``: YAML rules only — no hardcoded built-in checks
 """
 from typing import List, Dict, Any, Optional, TYPE_CHECKING
 from broker.interfaces.skill_types import ValidationResult
@@ -65,8 +67,8 @@ def validate_all(
             default registry.
         domain: Domain identifier controlling built-in checks.
             - ``"flood"`` (default): Flood-domain built-in checks (backward compat)
+            - ``"irrigation"``: Irrigation-domain checks (water rights, drought, compact)
             - ``None``: YAML rules only — no hardcoded built-in checks
-            - Future: ``"irrigation"``, etc.
 
     Returns:
         Combined list of ValidationResult from all validators
@@ -75,15 +77,37 @@ def validate_all(
     if rules and not isinstance(rules[0], _GovernanceRule):
         raise TypeError("rules must be GovernanceRule instances")
 
-    # When domain is None, pass empty builtin_checks to disable all defaults
-    no_builtins: Optional[List[BuiltinCheck]] = [] if domain is None else None
-
-    validators = [
-        PersonalValidator(builtin_checks=no_builtins),
-        PhysicalValidator(builtin_checks=no_builtins),
-        ThinkingValidator(builtin_checks=no_builtins),
-        SocialValidator(builtin_checks=no_builtins),
-    ]
+    # Domain-specific builtin check injection:
+    # - "flood" (default): None → each validator uses _default_builtin_checks()
+    # - "irrigation": inject irrigation checks into physical/social, empty for others
+    # - None: empty list → YAML rules only
+    if domain == "irrigation":
+        from broker.validators.governance.irrigation_validators import (
+            IRRIGATION_PHYSICAL_CHECKS,
+            IRRIGATION_SOCIAL_CHECKS,
+        )
+        validators = [
+            PersonalValidator(builtin_checks=[]),       # No financial/cognitive checks
+            PhysicalValidator(builtin_checks=list(IRRIGATION_PHYSICAL_CHECKS)),
+            ThinkingValidator(builtin_checks=[]),       # No PMT checks
+            SocialValidator(builtin_checks=list(IRRIGATION_SOCIAL_CHECKS)),
+        ]
+    elif domain is None:
+        no_builtins: List[BuiltinCheck] = []
+        validators = [
+            PersonalValidator(builtin_checks=no_builtins),
+            PhysicalValidator(builtin_checks=no_builtins),
+            ThinkingValidator(builtin_checks=no_builtins),
+            SocialValidator(builtin_checks=no_builtins),
+        ]
+    else:
+        # "flood" or any unrecognized domain → default (flood backward compat)
+        validators = [
+            PersonalValidator(),
+            PhysicalValidator(),
+            ThinkingValidator(),
+            SocialValidator(),
+        ]
 
     all_results = []
     for validator in validators:

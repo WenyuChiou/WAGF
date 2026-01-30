@@ -10,7 +10,7 @@ from broker.utils.model_adapter import UnifiedAdapter
 def test_demographic_audit():
     print("Testing Demographic Audit Logic...\n")
     # Point to the existing config to satisfy the constructor
-    config_path = "examples/multi_agent/ma_agent_types.yaml"
+    config_path = "examples/multi_agent/flood/config/ma_agent_types.yaml"
     adapter = UnifiedAdapter(config_path=config_path)
     
     # Mock Context with qualitative anchors

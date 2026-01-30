@@ -7,7 +7,7 @@ Provides:
 
 Roles are injected via constructor (no hardcoded defaults).
 Domain-specific role configs (e.g. FLOOD_ROLES) should live in the
-domain module (examples/multi_agent/ma_role_config.py).
+domain module (examples/multi_agent/flood/protocols/role_config.py).
 
 Reference: Task-058C (Drift Detection & Social Norms)
 """

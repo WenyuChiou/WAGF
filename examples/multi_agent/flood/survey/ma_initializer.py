@@ -7,7 +7,7 @@ Wrapper around the generic broker/modules/survey components that adds:
 - MA-specific statistics
 
 Usage:
-    from examples.multi_agent.survey.ma_initializer import initialize_ma_agents_from_survey
+    from examples.multi_agent.flood.survey.ma_initializer import initialize_ma_agents_from_survey
 
     profiles, stats = initialize_ma_agents_from_survey(
         survey_path,
@@ -342,9 +342,9 @@ def initialize_ma_agents_from_survey(
         Tuple of (agent_profiles, statistics)
 
     Example:
-        from examples.multi_agent.survey.ma_initializer import initialize_ma_agents_from_survey
-        from examples.multi_agent.environment.depth_sampler import DepthSampler
-        from examples.multi_agent.environment.rcv_generator import RCVGenerator
+        from examples.multi_agent.flood.survey.ma_initializer import initialize_ma_agents_from_survey
+        from examples.multi_agent.flood.environment.depth_sampler import DepthSampler
+        from examples.multi_agent.flood.environment.rcv_generator import RCVGenerator
 
         profiles, stats = initialize_ma_agents_from_survey(
             survey_path,

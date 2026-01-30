@@ -219,7 +219,7 @@ class TestEdgeCases:
 
 class TestFloodSagas:
     def test_subsidy_saga_happy_path(self):
-        from examples.multi_agent.ma_saga_definitions import SUBSIDY_APPLICATION_SAGA
+        from examples.multi_agent.flood.protocols.saga_definitions import SUBSIDY_APPLICATION_SAGA
         c = SagaCoordinator()
         c.register_saga(SUBSIDY_APPLICATION_SAGA)
         saga_id = c.start_saga("subsidy_application", context={
@@ -235,7 +235,7 @@ class TestFloodSagas:
         assert result.context["budget_remaining"] == 45000
 
     def test_subsidy_saga_insufficient_budget(self):
-        from examples.multi_agent.ma_saga_definitions import SUBSIDY_APPLICATION_SAGA
+        from examples.multi_agent.flood.protocols.saga_definitions import SUBSIDY_APPLICATION_SAGA
         c = SagaCoordinator()
         c.register_saga(SUBSIDY_APPLICATION_SAGA)
         saga_id = c.start_saga("subsidy_application", context={
@@ -252,7 +252,7 @@ class TestFloodSagas:
         assert result.context["application_submitted"] is False
 
     def test_insurance_claim_below_deductible(self):
-        from examples.multi_agent.ma_saga_definitions import INSURANCE_CLAIM_SAGA
+        from examples.multi_agent.flood.protocols.saga_definitions import INSURANCE_CLAIM_SAGA
         c = SagaCoordinator()
         c.register_saga(INSURANCE_CLAIM_SAGA)
         saga_id = c.start_saga("insurance_claim", context={

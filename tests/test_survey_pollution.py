@@ -9,8 +9,8 @@ def test_broker_survey_no_mg_exports():
 
 
 def test_mg_classifier_import_from_examples():
-    mod = importlib.import_module("examples.multi_agent.survey.mg_classifier")
-    assert hasattr(mod, "MGClassifier"), "MGClassifier should live under examples.multi_agent.survey"
+    mod = importlib.import_module("examples.multi_agent.flood.survey.mg_classifier")
+    assert hasattr(mod, "MGClassifier"), "MGClassifier should live under examples.multi_agent.flood.survey"
 
 
 def test_agent_initializer_has_no_mg_classifier_param():

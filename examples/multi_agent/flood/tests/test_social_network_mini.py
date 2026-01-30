@@ -28,7 +28,7 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 # Import the actual SocialNetwork from the MA environment
-from examples.multi_agent.environment.social_network import SocialNetwork, create_network_from_agents
+from examples.multi_agent.flood.environment.social_network import SocialNetwork, create_network_from_agents
 
 
 @dataclass

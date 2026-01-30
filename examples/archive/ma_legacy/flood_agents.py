@@ -4,7 +4,7 @@ Flood Agents for Multi-Agent Simulation (Phase 18).
 Implements logic-driven Government and Insurance agents.
 """
 from typing import Dict, Any
-from examples.multi_agent.environment.risk_rating import RiskRating2Calculator, R1K_STRUCTURE, R1K_CONTENTS, LIMIT_STRUCTURE, LIMIT_CONTENTS
+from examples.multi_agent.flood.environment.risk_rating import RiskRating2Calculator, R1K_STRUCTURE, R1K_CONTENTS, LIMIT_STRUCTURE, LIMIT_CONTENTS
 
 class BaseInstitutionAgent:
     def __init__(self, id: str):

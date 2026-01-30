@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 def test_tp_decay_split_structure():
-    base = Path("examples/multi_agent/environment")
+    base = Path("examples/multi_agent/flood/environment")
     assert (base / "decay_models.py").exists()
     assert (base / "tp_state.py").exists()
 

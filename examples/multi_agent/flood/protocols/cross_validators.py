@@ -8,7 +8,7 @@ Each rule is a callable:
     (artifacts: Dict, prev_artifacts: Optional[Dict]) -> Optional[ValidationResult]
 
 Usage:
-    from examples.multi_agent.ma_cross_validators import FLOOD_VALIDATION_RULES
+    from examples.multi_agent.flood.ma_cross_validators import FLOOD_VALIDATION_RULES
     validator = CrossAgentValidator(domain_rules=FLOOD_VALIDATION_RULES)
 
 Reference: Task-058B (Cross-Agent Validation & Arbitration)

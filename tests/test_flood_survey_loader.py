@@ -9,12 +9,12 @@ from pathlib import Path
 # Adjust path to import packages
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from examples.multi_agent.survey.flood_survey_loader import (
+from examples.multi_agent.flood.survey.flood_survey_loader import (
     FloodSurveyRecord,
     FloodSurveyLoader,
     FLOOD_COLUMN_MAPPING
 )
-from examples.multi_agent.survey.ma_initializer import (
+from examples.multi_agent.flood.survey.ma_initializer import (
     MAAgentInitializer,
     MAAgentProfile,
     _create_flood_extension
