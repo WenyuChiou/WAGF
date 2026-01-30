@@ -14,9 +14,9 @@ def make_profile():
         income_midpoint=60000,
         housing_status="mortgage",
         house_type="single_family",
-        is_mg=False,
-        mg_score=0,
-        mg_criteria={},
+        is_classified=False,
+        classification_score=0,
+        classification_criteria={},
         has_children=False,
         has_elderly=False,
         has_vulnerable_members=False,
@@ -28,24 +28,24 @@ def test_agent_profile_has_extensions():
     assert isinstance(profile.extensions, dict)
 
 
-def test_enrich_with_hazard_populates_extensions():
+def test_enrich_with_position_populates_extensions():
     profile = make_profile()
     profile.extensions = {}
 
     class DummySampler:
-        def assign_position(self, record):
+        def assign_position(self, profile):
             return SimpleNamespace(zone_name="moderate", base_depth_m=0.5, flood_probability=0.3)
 
-    AgentInitializer().enrich_with_hazard([profile], DummySampler())
+    AgentInitializer().enrich_with_position([profile], DummySampler(), extension_key="flood")
 
     assert "flood" in profile.extensions
     flood = profile.extensions["flood"]
-    assert flood.flood_zone == "moderate"
+    assert flood.zone_name == "moderate"
     assert flood.base_depth_m == 0.5
     assert flood.flood_probability == 0.3
 
 
-def test_enrich_with_rcv_populates_extensions():
+def test_enrich_with_values_populates_extensions():
     profile = make_profile()
     profile.extensions = {}
 
@@ -53,7 +53,7 @@ def test_enrich_with_rcv_populates_extensions():
         def generate(self, **kwargs):
             return SimpleNamespace(building_rcv_usd=100.0, contents_rcv_usd=50.0)
 
-    AgentInitializer().enrich_with_rcv([profile], DummyRCV())
+    AgentInitializer().enrich_with_values([profile], DummyRCV(), extension_key="flood")
 
     assert "flood" in profile.extensions
     flood = profile.extensions["flood"]

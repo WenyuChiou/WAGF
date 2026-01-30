@@ -321,7 +321,12 @@ class UnifiedAdapter(ModelAdapter):
 
                     if isinstance(decision_val, dict):
                         decision_val = decision_val.get("choice") or decision_val.get("id") or decision_val.get("value")
-                    
+
+                    # Case 0b: List/array (small models like gemma3:1b output [2, 3, 4])
+                    # Take the first element as the primary decision
+                    if isinstance(decision_val, list) and decision_val:
+                        decision_val = decision_val[0]
+
                     if decision_val is not None:
                         # Case 1: Direct mapping (int or exact digit string)
                         if str(decision_val) in skill_map:
@@ -487,7 +492,7 @@ class UnifiedAdapter(ModelAdapter):
 
         # 4. KEYWORD SEARCH (Fallback if JSON resolution failed)
         if not skill_name:
-            kw_res = self._parse_keywords(cleaned_target, agent_type)
+            kw_res = self._parse_keywords(cleaned_target, agent_type, context)
             if kw_res:
                 skill_name = kw_res.get("skill_name")
                 # Merge keyword reasoning if json failed
@@ -799,16 +804,16 @@ class UnifiedAdapter(ModelAdapter):
             "total_anchors": list(anchors)
         }
 
-    def _parse_keywords(self, text: str, agent_type: str) -> Optional[Dict[str, Any]]:
+    def _parse_keywords(self, text: str, agent_type: str, context: Dict[str, Any] = None) -> Optional[Dict[str, Any]]:
         """
         Fallback keyword/regex based parsing.
         """
         parsing_cfg = self.agent_config.get_parsing_config(agent_type)
         if not parsing_cfg: return None
-        
+
         keywords = parsing_cfg.get("decision_keywords", ["decision:", "choice:", "selected_action:"])
         valid_skills = self.agent_config.get_valid_actions(agent_type)
-        skill_map = self.agent_config.get_skill_map(agent_type)
+        skill_map = self.agent_config.get_skill_map(agent_type, context)
         
         lines = text.split('\n')
         for line in lines:

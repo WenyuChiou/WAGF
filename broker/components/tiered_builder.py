@@ -27,8 +27,8 @@ from .neighbor_utils import get_neighbor_summary
 
 # SDK observer imports (optional, for Phase 8)
 if TYPE_CHECKING:
-    from governed_ai_sdk.v1_prototype.social import SocialObserver
-    from governed_ai_sdk.v1_prototype.observation import EnvironmentObserver
+    from cognitive_governance.v1_prototype.social import SocialObserver
+    from cognitive_governance.v1_prototype.observation import EnvironmentObserver
 
 logger = setup_logger(__name__)
 
@@ -384,16 +384,33 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         valid_choices_text = p.get("valid_choices_text", "")
 
         if not options_text and agent:
-            available_skills = agent.get_available_skills()
+            available_skills = list(agent.get_available_skills())
+
+            # Anti-positional-bias: shuffle skill ordering (Task-060B)
+            shuffle_enabled = context.get("_shuffle_skills", False)
+            if shuffle_enabled and available_skills:
+                import random as _rng
+                shuffle_seed = context.get("_shuffle_seed")
+                if shuffle_seed is not None:
+                    _rng.Random(shuffle_seed).shuffle(available_skills)
+                else:
+                    _rng.shuffle(available_skills)
+
             formatted_options = []
+            dynamic_skill_map = {}
 
             for i, skill_item in enumerate(available_skills, 1):
                 skill_id = skill_item.split(": ", 1)[0] if ": " in skill_item else skill_item
                 skill_def = self.skill_registry.get(skill_id) if self.skill_registry else None
                 desc = skill_def.description if skill_def else skill_item
                 formatted_options.append(f"{i}. {desc}")
+                dynamic_skill_map[str(i)] = skill_id
 
             options_text = "\n".join(formatted_options)
+
+            # Inject dynamic_skill_map for parser (Priority 1 in get_skill_map)
+            personal = context.setdefault("personal", {})
+            personal["dynamic_skill_map"] = dynamic_skill_map
 
             indices = [str(i + 1) for i in range(len(available_skills))]
             if len(indices) > 1:
@@ -404,6 +421,10 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         template_vars["options_text"] = options_text
         template_vars["valid_choices_text"] = valid_choices_text
         template_vars["skills_text"] = options_text
+        # Task-060A: Forward insurance cost disclosure from provider
+        template_vars["insurance_cost_text"] = p.get(
+            "insurance_cost_text", context.get("personal", {}).get("insurance_cost_text", "")
+        )
 
         try:
             from broker.components.response_format import ResponseFormatBuilder

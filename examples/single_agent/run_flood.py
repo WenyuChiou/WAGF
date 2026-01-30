@@ -58,10 +58,12 @@ PAST_EVENTS = [
 
 class FinalContextBuilder(TieredContextBuilder):
     """Subclass of TieredContextBuilder to verbalize floats and format memory into string."""
-    def __init__(self, *args, sim=None, memory_top_k: int = 5, **kwargs):
+    def __init__(self, *args, sim=None, memory_top_k: int = 5, shuffle_skills: bool = False, shuffle_seed_base: int = None, **kwargs):
         super().__init__(*args, **kwargs)
         self.sim = sim
         self.memory_top_k = memory_top_k
+        self.shuffle_skills = shuffle_skills
+        self.shuffle_seed_base = shuffle_seed_base
     
     def _verbalize_trust(self, trust_value: float, category: str = "insurance") -> str:
         if category == "insurance":
@@ -105,8 +107,16 @@ class FinalContextBuilder(TieredContextBuilder):
         # We must read from the agent object directly to ensure accurate option checks
         elevated = getattr(agent, 'elevated', False)
         has_insurance = getattr(agent, 'has_insurance', False)
-        trust_ins = getattr(agent, 'trust_in_insurance', 0.5)
-        trust_nb = getattr(agent, 'trust_in_neighbors', 0.5)
+        # Trust indicators: derive from SC/PA if available (Task-060C), else use direct values
+        sc_score = getattr(agent, 'sc_score', None)
+        if sc_score is not None:
+            sc_norm = min(1.0, sc_score / 5.0)
+            ins_factor = 1.2 if has_insurance else 0.8
+            trust_ins = min(1.0, sc_norm * ins_factor)
+            trust_nb = sc_norm
+        else:
+            trust_ins = getattr(agent, 'trust_in_insurance', 0.5)
+            trust_nb = getattr(agent, 'trust_in_neighbors', 0.5)
         
         # 3. Inject Verbalized Variables (Standardized for flattened template usage)
         personal['elevation_status_text'] = (
@@ -144,38 +154,49 @@ class FinalContextBuilder(TieredContextBuilder):
         elif isinstance(mem_val, list):
             personal['memory'] = "\n".join([f"- {m}" for m in mem_val])
         
-        # 5. Options Text Formatting (STRICT PARITY MODE)
-        # We override the dynamic registry lookup to match LLMABMPMT-Final.py exactly.
-        
-        dynamic_skill_map = {}
+        # 5. Options Text Formatting (with anti-positional-bias shuffle, Task-060B)
+        options = [
+            ("buy_insurance", "Buy flood insurance (Lower cost, provides partial financial protection but does not reduce physical damage.)"),
+            ("elevate_house", "Elevate your house (High upfront cost but can prevent most physical damage.)"),
+            ("relocate", "Relocate (Requires leaving your neighborhood but eliminates flood risk permanently.)"),
+            ("do_nothing", "Do nothing (Require no financial investment or effort this year, but it might leave you exposed to future flood damage.)"),
+        ]
         if elevated:
-             personal['options_text'] = (
-                 "1. Buy flood insurance (Lower cost, provides partial financial protection but does not reduce physical damage.)\n"
-                 "2. Relocate (Requires leaving your neighborhood but eliminates flood risk permanently.)\n"
-                 "3. Do nothing (Require no financial investment or effort this year, but it might leave you exposed to future flood damage.)"
-             )
-             personal['valid_choices_text'] = "1, 2, or 3"
-             # Map for parser: 1->buy, 2->relocate, 3->do_nothing
-             dynamic_skill_map = {
-                 "1": "buy_insurance",
-                 "2": "relocate", 
-                 "3": "do_nothing"
-             }
+            options = [o for o in options if o[0] != "elevate_house"]
+
+        # Anti-positional-bias: shuffle skill ordering (Task-060B)
+        if self.shuffle_skills and len(options) > 1:
+            if self.shuffle_seed_base is not None:
+                year = self.sim.current_year if self.sim else 0
+                seed = self.shuffle_seed_base + year * 1000 + hash(agent_id) % 997
+                random.Random(seed).shuffle(options)
+            else:
+                random.shuffle(options)
+
+        dynamic_skill_map = {}
+        formatted_lines = []
+        for i, (skill_id, desc) in enumerate(options, 1):
+            formatted_lines.append(f"{i}. {desc}")
+            dynamic_skill_map[str(i)] = skill_id
+
+        personal['options_text'] = "\n".join(formatted_lines)
+        indices = [str(i) for i in range(1, len(options) + 1)]
+        if len(indices) > 1:
+            personal['valid_choices_text'] = ", ".join(indices[:-1]) + ", or " + indices[-1]
         else:
-             personal['options_text'] = (
-                 "1. Buy flood insurance (Lower cost, provides partial financial protection but does not reduce physical damage.)\n"
-                 "2. Elevate your house (High upfront cost but can prevent most physical damage.)\n"
-                 "3. Relocate (Requires leaving your neighborhood but eliminates flood risk permanently.)\n"
-                 "4. Do nothing (Require no financial investment or effort this year, but it might leave you exposed to future flood damage.)"
-             )
-             personal['valid_choices_text'] = "1, 2, 3, or 4"
-             # Map for parser: 1->buy, 2->elevate, 3->relocate, 4->do_nothing
-             dynamic_skill_map = {
-                 "1": "buy_insurance",
-                 "2": "elevate_house",
-                 "3": "relocate",
-                 "4": "do_nothing"
-             }
+            personal['valid_choices_text'] = indices[0] if indices else ""
+
+        # 5b. Insurance cost disclosure (Task-060A)
+        env_state = kwargs.get("env_state", {})
+        premium_rate = env_state.get("premium_rate", 0.02)
+        income = getattr(agent, 'income_midpoint', 50000) or 50000
+        property_value = income * 6  # rough estimate
+        premium = premium_rate * property_value
+        pct = (premium / income * 100) if income > 0 else 0
+        personal['insurance_cost_text'] = (
+            f"An annual flood insurance premium is estimated at approximately ${premium:,.0f}, "
+            f"which represents about {pct:.1f}% of your annual income."
+        )
 
         personal['skills'] = personal['options_text'] # Alias for template compatibility
         personal['dynamic_skill_map'] = dynamic_skill_map
@@ -720,7 +741,7 @@ def plot_adaptation_cumulative_state(csv_path: Path, output_dir: Path, agents_co
 
 
 # --- 6. Main Runner ---
-def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5, seed: Optional[int] = None, memory_seed: int = 42, flood_mode: str = "fixed", survey_mode: bool = False, governance_mode: str = "strict", use_priority_schema: bool = False, stress_test: str = None, memory_ranking_mode: str = "legacy", initial_agents_path: str = None):
+def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5, seed: Optional[int] = None, memory_seed: int = 42, flood_mode: str = "fixed", survey_mode: bool = False, governance_mode: str = "strict", use_priority_schema: bool = False, stress_test: str = None, memory_ranking_mode: str = "legacy", initial_agents_path: str = None, shuffle_skills: bool = False):
     print(f"--- Llama {agents_count}-Agent {years}-Year Benchmark (Final Parity Edition) ---")
     
     # 1. Load Registry & Prompt Template
@@ -828,13 +849,15 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     graph = NeighborhoodGraph(list(agents.keys()), k=4)
     hub = InteractionHub(graph)
     ctx_builder = FinalContextBuilder(
-        agents=agents, 
-        hub=hub, 
+        agents=agents,
+        hub=hub,
         sim=sim,
         skill_registry=registry,
         prompt_templates={"household": household_template, "default": household_template},
         yaml_path=str(agent_config_path),
-        memory_top_k=window_size
+        memory_top_k=window_size,
+        shuffle_skills=shuffle_skills,
+        shuffle_seed_base=seed,
     )
 
     # Inject PrioritySchemaProvider if enabled (Separation for Group C)
@@ -1119,6 +1142,7 @@ if __name__ == "__main__":
     parser.add_argument("--num-predict", type=int, default=None, help="Ollama max tokens. Overrides YAML/AutoTune.")
     parser.add_argument("--memory-ranking-mode", type=str, default="legacy", choices=["legacy", "weighted"], help="Ranking logic for HumanCentricMemoryEngine (legacy=v1 decay, weighted=v2 unified scoring)")
     parser.add_argument("--initial-agents", type=str, default=None, help="Path to standard agent profiles CSV")
+    parser.add_argument("--shuffle-skills", action="store_true", help="Enable skill ordering randomization to reduce positional bias (Task-060B)")
     args = parser.parse_args()
 
     # Apply LLM config from command line
@@ -1157,5 +1181,6 @@ if __name__ == "__main__":
         use_priority_schema=args.use_priority_schema,
         stress_test=args.stress_test,
         memory_ranking_mode=args.memory_ranking_mode,
-        initial_agents_path=args.initial_agents
+        initial_agents_path=args.initial_agents,
+        shuffle_skills=args.shuffle_skills
     )

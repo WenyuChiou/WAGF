@@ -18,8 +18,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 # Import from SDK (correct path)
-from governed_ai_sdk.v1_prototype.memory.symbolic_core import Sensor, SignatureEngine, SymbolicContextMonitor
-from governed_ai_sdk.v1_prototype.memory.symbolic import SymbolicMemory
+from cognitive_governance.v1_prototype.memory.symbolic_core import Sensor, SignatureEngine, SymbolicContextMonitor
+from cognitive_governance.v1_prototype.memory.symbolic import SymbolicMemory
 
 
 # ============================================================================

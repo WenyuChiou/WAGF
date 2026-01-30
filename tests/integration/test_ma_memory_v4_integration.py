@@ -16,7 +16,7 @@ import sys
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from governed_ai_sdk.v1_prototype.memory.symbolic import SymbolicMemory
+from cognitive_governance.v1_prototype.memory.symbolic import SymbolicMemory
 from examples.multi_agent.ma_agents.household import HouseholdAgent
 
 

@@ -21,7 +21,7 @@ from datetime import datetime
 import logging
 
 if TYPE_CHECKING:
-    from governed_ai_sdk.v1_prototype.memory import MemoryPersistence
+    from cognitive_governance.v1_prototype.memory import MemoryPersistence
 
 logger = logging.getLogger(__name__)
 

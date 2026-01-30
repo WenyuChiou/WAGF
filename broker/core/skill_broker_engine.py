@@ -196,6 +196,12 @@ class SkillBrokerEngine:
                     raw_output, llm_stats_obj = res
                     total_llm_stats["llm_retries"] += llm_stats_obj.retries
                     total_llm_stats["llm_success"] = llm_stats_obj.success
+                    # 045-H: Log LLM-level empty content retries to auditor
+                    if hasattr(llm_stats_obj, 'empty_content_retries'):
+                        for _ in range(llm_stats_obj.empty_content_retries):
+                            self.auditor.log_empty_content_retry()
+                        if getattr(llm_stats_obj, 'empty_content_failure', False):
+                            self.auditor.log_empty_content_failure()
                 else:
                     raw_output = res
                     # Fallback to global stats if legacy
@@ -242,6 +248,7 @@ class SkillBrokerEngine:
                         logger.warning(f" [Broker:Retry] Missing required constructs {missing_labels} for {agent_id} ({agent_type}), attempt {initial_attempts}/{max_initial_attempts}")
                         format_retry_count += 1
                         self.auditor.log_parse_error()
+                        self.auditor.log_invalid_label_retry()  # 045-H: Track invalid label retries
                         # Reset proposal to None to trigger retry
                         skill_proposal = None
                         prompt = self.model_adapter.format_retry_prompt(prompt, [f"Missing required constructs: {missing_labels}. Please ensure your response follows the requested JSON format."])
@@ -320,6 +327,11 @@ class SkillBrokerEngine:
             initial_errors = [e for v in validation_results if v and hasattr(v, 'errors') for e in v.errors]
             choice_name = skill_proposal.skill_name if skill_proposal else "parsing_failed"
             logger.warning(f" [Governance:Initial] {agent_id} | Choice: '{choice_name}' | Validation FAILED | Errors: {initial_errors}")
+
+        # Log WARNING-level observations (non-blocking)
+        for v in validation_results:
+            if v.valid and hasattr(v, 'warnings') and v.warnings:
+                logger.info(f" [Governance:Warning] {agent_id} | {v.warnings[0]}")
 
         # Diagnostic summary for User
         if self.log_prompt:

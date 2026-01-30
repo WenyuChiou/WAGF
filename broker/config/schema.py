@@ -24,6 +24,8 @@ class MemoryConfig(BaseModel):
     consolidation_probability: float = Field(default=0.7, ge=0.0, le=1.0)
     top_k_significant: int = Field(default=2, ge=1)
     arousal_threshold: float = Field(default=0.5, ge=0.0, le=1.0)
+    surprise_boost_factor: float = Field(default=1.5, ge=1.0, le=3.0)
+    forgetting_threshold: float = Field(default=0.2, ge=0.0, le=1.0)
 
     class Config:
         extra = "allow"

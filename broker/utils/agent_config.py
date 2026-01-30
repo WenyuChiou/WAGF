@@ -796,6 +796,10 @@ class GovernanceAuditor:
         self.empty_content_failures = 0       # LLM returned empty after all retries exhausted
         self.invalid_label_retries = 0        # Invalid _LABEL values triggered retry
 
+        # WARNING-level rule tracking (non-blocking observations)
+        self.total_warnings = 0
+        self.warning_hits = defaultdict(int)
+
         self._initialized = True
 
     def log_intervention(self, rule_id: str, success: bool, is_final: bool = False):
@@ -809,6 +813,12 @@ class GovernanceAuditor:
                     self.retry_success_count += 1
                 else:
                     self.retry_failure_count += 1
+
+    def log_warning(self, rule_id: str):
+        """Record a WARNING-level rule hit (non-blocking observation)."""
+        with self.stats_lock:
+            self.warning_hits[rule_id] += 1
+            self.total_warnings += 1
 
     def log_parse_error(self):
         """Record a parsing failure where LLM output could not be converted to SkillProposal."""
@@ -890,6 +900,10 @@ class GovernanceAuditor:
                 "empty_content_failures": self.empty_content_failures,
                 "invalid_label_retries": self.invalid_label_retries,
                 "total_extra_llm_calls": total_extra_llm_calls
+            },
+            "warnings": {
+                "total_warnings": self.total_warnings,
+                "warning_rule_frequency": dict(self.warning_hits)
             }
         }
         with open(output_path, 'w', encoding='utf-8') as f:
@@ -924,11 +938,17 @@ class GovernanceAuditor:
         print(f"  - Invalid Label Retries:   {self.invalid_label_retries}")
         print(f"  - Total Extra LLM Calls:   {total_extra_llm_calls}")
         print("-"*50)
-        print("  Top Rule Violations:")
+        print("  Top Rule Violations (ERROR):")
         # Sort by frequency
         sorted_rules = sorted(self.rule_hits.items(), key=lambda x: x[1], reverse=True)
         for rule_id, count in sorted_rules[:5]:
             print(f"  - {rule_id}: {count} hits")
+        if self.total_warnings > 0:
+            print("-"*50)
+            print(f"  Warnings (Non-Blocking): {self.total_warnings}")
+            sorted_warnings = sorted(self.warning_hits.items(), key=lambda x: x[1], reverse=True)
+            for rule_id, count in sorted_warnings[:5]:
+                print(f"  - {rule_id}: {count} warnings")
         print("="*50 + "\n")
 
 

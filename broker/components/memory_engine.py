@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional, Tuple, TYPE_CHECKING
 
-from governed_ai_sdk.agents import BaseAgent
+from cognitive_governance.agents import BaseAgent
 
 if TYPE_CHECKING:
-    from governed_ai_sdk.v1_prototype.memory import MemoryScorer, MemoryScore
+    from cognitive_governance.v1_prototype.memory import MemoryScorer, MemoryScore
 
 class MemoryEngine(ABC):
     """
@@ -187,7 +187,7 @@ def create_memory_engine(
         MemoryEngine: The instantiated engine.
 
     Example:
-        >>> from governed_ai_sdk.v1_prototype.memory import get_memory_scorer, create_persistence
+        >>> from cognitive_governance.v1_prototype.memory import get_memory_scorer, create_persistence
         >>> scorer = get_memory_scorer("flood")
         >>> persistence = create_persistence("json", "./memory_store")
         >>> engine = create_memory_engine("universal", scorer=scorer, persistence=persistence)

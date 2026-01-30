@@ -177,9 +177,26 @@ try:
     )
 except Exception:
     # Keep imports optional to avoid hard dependency on example modules.
-    PolicyArtifact = None  # type: ignore
-    MarketArtifact = None  # type: ignore
-    HouseholdIntention = None  # type: ignore
+    class _FallbackArtifact(AgentArtifact):
+        """Fallback artifact placeholder when domain artifacts are unavailable."""
+
+        def __init__(self, **kwargs: Any) -> None:
+            agent_id = kwargs.pop("agent_id", "")
+            year = kwargs.pop("year", 0)
+            rationale = kwargs.pop("rationale", "")
+            super().__init__(agent_id=agent_id, year=year, rationale=rationale)
+            for key, value in kwargs.items():
+                setattr(self, key, value)
+
+        def artifact_type(self) -> str:
+            return self.__class__.__name__
+
+        def validate(self) -> List[str]:
+            return []
+
+    PolicyArtifact = type("PolicyArtifact", (_FallbackArtifact,), {})  # type: ignore
+    MarketArtifact = type("MarketArtifact", (_FallbackArtifact,), {})  # type: ignore
+    HouseholdIntention = type("HouseholdIntention", (_FallbackArtifact,), {})  # type: ignore
 
 
 __all__ = [

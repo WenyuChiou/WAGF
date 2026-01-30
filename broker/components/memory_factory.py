@@ -12,7 +12,7 @@ from broker.components.engines.importance_engine import ImportanceMemoryEngine
 from broker.components.engines.humancentric_engine import HumanCentricMemoryEngine
 from broker.components.engines.hierarchical_engine import HierarchicalMemoryEngine
 from broker.components.universal_memory import UniversalCognitiveEngine
-from governed_ai_sdk.memory.unified_engine import UnifiedCognitiveEngine as UnifiedEngine
+from cognitive_governance.memory.unified_engine import UnifiedCognitiveEngine as UnifiedEngine
 
 
 def _normalize_engine_type(engine_type: str) -> str:
@@ -80,7 +80,7 @@ def create_memory_engine(
         )
     elif engine_type == "unified":
         # v5 UnifiedEngine requires explicit strategy creation
-        from governed_ai_sdk.memory.strategies import (
+        from cognitive_governance.memory.strategies import (
             EMASurpriseStrategy,
             SymbolicSurpriseStrategy,
             HybridSurpriseStrategy,

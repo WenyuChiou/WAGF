@@ -100,9 +100,17 @@ class LLMStats:
     """Statistics from a single LLM invocation."""
     retries: int = 0
     success: bool = True
-    
+    # LLM-level retry tracking (045-H)
+    empty_content_retries: int = 0  # LLM returned empty content, retry triggered
+    empty_content_failure: bool = False  # Terminal: empty after all retries exhausted
+
     def to_dict(self) -> Dict:
-        return {"llm_retries": self.retries, "llm_success": self.success}
+        return {
+            "llm_retries": self.retries,
+            "llm_success": self.success,
+            "empty_content_retries": self.empty_content_retries,
+            "empty_content_failure": self.empty_content_failure
+        }
 
 
 # =============================================================================
@@ -152,13 +160,18 @@ def _invoke_ollama_direct(model: str, prompt: str, params: Dict[str, Any], verbo
     
     url = "http://localhost:11434/api/generate"
     
-    # Standardize options
+    # Standardize options — only include sampling params if explicitly set
+    # (None / missing = use Ollama model default, e.g. temperature ~0.8)
     options = {
         "num_predict": params.get("num_predict", 2048),
         "num_ctx": params.get("num_ctx", 8192 if "8b" in model.lower() or "14b" in model.lower() else 4096),
-        "temperature": params.get("temperature", 0.0),
-        "top_p": params.get("top_p", 0.9),
     }
+    if "temperature" in params:
+        options["temperature"] = params["temperature"]
+    if "top_p" in params:
+        options["top_p"] = params["top_p"]
+    if "top_k" in params:
+        options["top_k"] = params["top_k"]
     
     # Phase 47: Global Disable of Strict JSON Mode
     # User Request: "Turn it off for all" to fix DeepSeek R1 <think> tokens.
@@ -308,8 +321,9 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
                 max_llm_retries = max(max_llm_retries, 5)
                 
             llm_retries = 0
+            empty_content_retries = 0  # 045-H: Track empty content retries specifically
             current_prompt = prompt
-            
+
             # Phase 46: Qwen3 models support /no_think to disable thinking mode
             # This prevents models from outputting <think>...</think> blocks
             if "qwen3" in model.lower() or "qwen-3" in model.lower():
@@ -340,27 +354,28 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
                             _LOGGER.debug(f" [LLM:ThinkStrip] Removed thinking tokens, extracted: {repr(stripped_content[:100])}...")
                     
                     if stripped_content and stripped_content.strip():
-                        return content, LLMStats(retries=llm_retries, success=True)  # Return full content for logging
+                        return content, LLMStats(retries=llm_retries, success=True, empty_content_retries=empty_content_retries)  # Return full content for logging
                     else:
                         llm_retries += 1
+                        empty_content_retries += 1  # 045-H: Track empty content retries
                         if attempt < max_llm_retries - 1:
                             if content and not stripped_content.strip():
                                 _LOGGER.warning(f" [LLM:Retry] Model '{model}' returned ONLY thinking content. Appending 'Please continue'.")
                                 current_prompt += " \nPlease continue and output the JSON."
                             else:
                                 _LOGGER.warning(f" [LLM:Retry] Model '{model}' returned truly empty content. Retrying...")
-                                current_prompt += " " 
+                                current_prompt += " "
                         else:
                             _LOGGER.error(f" [LLM:Error] Model '{model}' returned empty content after {max_llm_retries} attempts.")
-                            return "", LLMStats(retries=llm_retries, success=False)
+                            return "", LLMStats(retries=llm_retries, success=False, empty_content_retries=empty_content_retries, empty_content_failure=True)
                 except Exception as e:
                     llm_retries += 1
                     _LOGGER.error(f" [LLM:Error] Exception during call to '{model}': {e}")
                     if attempt < max_llm_retries - 1:
                         current_prompt += " "
                         continue
-                    return "", LLMStats(retries=llm_retries, success=False)
-            return "", LLMStats(retries=llm_retries, success=False)
+                    return "", LLMStats(retries=llm_retries, success=False, empty_content_retries=empty_content_retries)
+            return "", LLMStats(retries=llm_retries, success=False, empty_content_retries=empty_content_retries)
         
         return invoke
     except ImportError:

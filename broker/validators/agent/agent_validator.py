@@ -297,6 +297,8 @@ class AgentValidator:
                     lv = ValidationLevel.ERROR if rule.level == "ERROR" else ValidationLevel.WARNING
                     if lv == ValidationLevel.ERROR:
                         self.auditor.log_intervention(rule.id, success=False, is_final=False)
+                    else:
+                        self.auditor.log_warning(rule.id)
 
                     rule_msg = f"[Rule: {rule.id}] {rule.message or f'Identity Block: {decision} restricted by {pre}'}"
                     results.append(ValidationResult(
@@ -433,6 +435,8 @@ class AgentValidator:
                     lv = ValidationLevel.ERROR if rule.level == "ERROR" else ValidationLevel.WARNING
                     if lv == ValidationLevel.ERROR:
                         self.auditor.log_intervention(rule.id, success=False, is_final=False)
+                    else:
+                        self.auditor.log_warning(rule.id)
 
                     rule_msg = f"[Rule: {rule.id}] {rule.message or f'{tier_name.capitalize()} Block: {decision} restricted by {tier_name} rules'}"
                     results.append(ValidationResult(

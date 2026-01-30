@@ -19,9 +19,9 @@ global_config:
   # [Universe Physics] - LLM & System Generation Settings
   llm:
     model: "command-line-override" # NOTE: Overridden by --model in run scripts
-    # temperature: 0.1          # Low for deterministic experiments (DISABLED TO MATCH BASELINE)
-    # top_p: 0.9
-    # top_k: 40
+    temperature: 0.8             # Ollama default (align with Group A)
+    top_p: 0.9                   # Ollama default
+    top_k: 40                    # Ollama default
     num_ctx: 8192            # Context window size (Optimized for local stability)
     num_predict: 4096         # Max tokens to generate (Extended for DeepSeek R1 thinking)
     max_retries: 2            # Infrastructure resilience
@@ -345,7 +345,7 @@ household:
         - {
             id: extreme_threat_block,
             construct: TP_LABEL,
-            when_above: ["VH"],
+            when_above: ["H", "VH"],
             blocked_skills: ["do_nothing"],
             level: ERROR,
           }
@@ -353,10 +353,10 @@ household:
         - {
             id: low_coping_block,
             construct: CP_LABEL,
-            conditions: [{ construct: CP_LABEL, values: ["VL"] }],
+            conditions: [{ construct: CP_LABEL, values: ["VL", "L"] }],
             blocked_skills: ["elevate_house", "relocate"],
-            level: ERROR,
-            message: "Action blocked due to extremely low perceived capability (Self-efficacy).",
+            level: WARNING,
+            message: "Low coping appraisal: agent perceives low self-efficacy for complex actions.",
           }
         - {
             id: relocation_threat_low,

@@ -33,8 +33,8 @@ from broker.interfaces.context_types import (
 
 if TYPE_CHECKING:
     from broker.components.skill_registry import SkillRegistry
-    from governed_ai_sdk.v1_prototype.social import SocialObserver
-    from governed_ai_sdk.v1_prototype.observation import EnvironmentObserver
+    from cognitive_governance.v1_prototype.social import SocialObserver
+    from cognitive_governance.v1_prototype.observation import EnvironmentObserver
 
 logger = logging.getLogger(__name__)
 

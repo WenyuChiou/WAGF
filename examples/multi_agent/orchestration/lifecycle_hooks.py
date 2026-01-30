@@ -265,6 +265,20 @@ class MultiAgentHooks:
             else:
                 print(f" [YEAR-END] Total Community Damage: ${total_damage:,.0f}")
 
+        # --- SC/PA Trust Re-derivation (Task-060C) ---
+        for agent in agents.values():
+            if agent.agent_type not in ["household_owner", "household_renter"]:
+                continue
+            fixed = agent.fixed_attributes or {}
+            sc = fixed.get("sc_score", 3.0)
+            pa = fixed.get("pa_score", 3.0)
+            sc_norm = min(1.0, sc / 5.0)
+            pa_norm = min(1.0, pa / 5.0)
+            ins_factor = 1.2 if agent.dynamic_state.get("has_insurance") else 0.8
+            agent.dynamic_state["trust_in_neighbors"] = round(sc_norm, 3)
+            agent.dynamic_state["trust_in_insurance"] = round(min(1.0, sc_norm * ins_factor), 3)
+            agent.dynamic_state["community_rootedness"] = round(pa_norm, 3)
+
         # --- MA Reflection Integration (Task-057D) ---
         if self._memory_bridge and self.memory_engine:
             crisis_event = self.env.get("crisis_event", flood_occurred)
@@ -305,6 +319,21 @@ class MultiAgentHooks:
                                     {"importance": insight.importance, "type": "reflection", "source": "reflection"},
                                 )
         # --- End MA Reflection Integration ---
+
+        # --- Echo Chamber Audit (Task-060E) ---
+        if self.game_master and getattr(self.game_master, 'cross_validator', None):
+            import math
+            skill_counts = {}
+            for agent in agents.values():
+                if agent.agent_type in ["household_owner", "household_renter"]:
+                    decision = agent.dynamic_state.get("last_decision", "do_nothing")
+                    skill_counts[decision] = skill_counts.get(decision, 0) + 1
+            total = sum(skill_counts.values())
+            if total > 0:
+                entropy = -sum((c / total) * math.log2(c / total) for c in skill_counts.values() if c > 0)
+                logging.info(f"[Diversity:Year{year}] Entropy: {entropy:.3f} bits, Dist: {skill_counts}")
+                self.env["decision_entropy"] = round(entropy, 3)
+                self.env["decision_distribution"] = skill_counts
 
         # Drift detection (population)
         if self.drift_detector:

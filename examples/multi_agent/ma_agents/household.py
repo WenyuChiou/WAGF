@@ -23,7 +23,7 @@ from broker.components.memory import CognitiveMemory
 from broker.utils.agent_config import AgentTypeConfig
 
 if TYPE_CHECKING:
-    from governed_ai_sdk.v1_prototype.memory import SymbolicMemory
+    from cognitive_governance.v1_prototype.memory import SymbolicMemory
 
 @dataclass
 class HouseholdAgentState:
@@ -150,7 +150,7 @@ class HouseholdAgent:
     def _init_memory_v4(self, config: dict):
         """Initialize V4 symbolic memory if configured."""
         if config.get("engine") == "symbolic":
-            from governed_ai_sdk.v1_prototype.memory.symbolic import SymbolicMemory
+            from cognitive_governance.v1_prototype.memory.symbolic import SymbolicMemory
             sensors = config.get("sensors", [])
             arousal = config.get("arousal_threshold", 0.5)
             return SymbolicMemory(sensors, arousal_threshold=arousal)

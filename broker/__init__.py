@@ -27,7 +27,7 @@ from .validators import AgentValidator
 # 4. Core (Dependent on everything above)
 from .core.skill_broker_engine import SkillBrokerEngine
 from .core.experiment import ExperimentBuilder, ExperimentRunner
-from governed_ai_sdk.agents import BaseAgent, AgentConfig
+from cognitive_governance.agents import BaseAgent, AgentConfig
 
 # Aliases
 GovernedBroker = SkillBrokerEngine

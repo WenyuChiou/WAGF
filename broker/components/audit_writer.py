@@ -89,6 +89,9 @@ class GenericAuditWriter:
             trace["validation_issues"] = []
             seen_issues = set()
 
+            trace["validation_warnings_list"] = []
+            seen_warnings = set()
+
             for r in validation_results:
                 if not r.valid:
                     self.summary["validation_errors"] += 1
@@ -100,9 +103,20 @@ class GenericAuditWriter:
                             "errors": r.errors
                         })
                         seen_issues.add(issue_key)
+                elif r.valid and hasattr(r, 'warnings') and r.warnings:
+                    self.summary["validation_warnings"] += 1
+                    warn_key = (r.metadata.get("rule_id", "Unknown"), tuple(r.warnings))
+                    if warn_key not in seen_warnings:
+                        trace["validation_warnings_list"].append({
+                            "validator": getattr(r, 'validator_name', 'Unknown'),
+                            "rule_id": r.metadata.get("rule_id", "Unknown"),
+                            "warnings": r.warnings
+                        })
+                        seen_warnings.add(warn_key)
         else:
             trace["validated"] = True
             trace["validation_issues"] = []
+            trace["validation_warnings_list"] = []
 
         
         # Update summary
@@ -250,6 +264,15 @@ class GenericAuditWriter:
             else:
                 row["failed_rules"] = ""
                 row["error_messages"] = ""
+
+            # 4b. Warning Details (Non-blocking governance observations)
+            warnings_list = t.get("validation_warnings_list", [])
+            if warnings_list:
+                row["warning_rules"] = "|".join([str(w.get('rule_id', 'Unknown')) for w in warnings_list])
+                row["warning_messages"] = "|".join(["; ".join(w.get('warnings', [])) for w in warnings_list])
+            else:
+                row["warning_rules"] = ""
+                row["warning_messages"] = ""
 
             # 5. Memory Audit (E1) - Memory retrieval details
             mem_audit = t.get("memory_audit", {})

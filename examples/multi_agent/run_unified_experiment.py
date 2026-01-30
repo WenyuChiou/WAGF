@@ -131,6 +131,13 @@ def run_unified_experiment():
                         help="Universal engine: EMA alpha for expectation tracking")
     parser.add_argument("--stimulus-key", type=str, default=None,
                         help="Universal engine: env field used for surprise computation")
+    # Task-060 MA Enhancements
+    parser.add_argument("--shuffle-skills", action="store_true",
+                        help="Enable skill ordering randomization (Task-060B)")
+    parser.add_argument("--enable-communication", action="store_true",
+                        help="Enable MessagePool + GameMaster communication layer (Task-060D)")
+    parser.add_argument("--enable-cross-validation", action="store_true",
+                        help="Enable CrossAgentValidator echo chamber detection (Task-060E)")
     args = parser.parse_args()
     
     # =============================================================================
@@ -210,6 +217,8 @@ def run_unified_experiment():
         # Generic crisis mechanism for TieredContextBuilder (Task-028)
         "crisis_event": False,
         "crisis_boosters": {},
+        # Task-060B: Skill ordering randomization
+        "_shuffle_skills": args.shuffle_skills,
     }
     tiered_env = TieredEnvironment(global_state=env_data)
 
@@ -320,7 +329,33 @@ def run_unified_experiment():
         print(f"[INFO] Media channels enabled: {', '.join(channels)}")
 
     hub = InteractionHub(graph=graph, memory_engine=memory_engine, environment=tiered_env)
-    
+
+    # 3d. Communication Layer (Task-060D)
+    message_pool = None
+    game_master = None
+    if args.enable_communication:
+        from broker.components.message_pool import MessagePool
+        from broker.components.coordinator import GameMaster, PassthroughStrategy
+        message_pool = MessagePool(social_graph=graph)
+        game_master = GameMaster(
+            strategy=PassthroughStrategy(),
+            message_pool=message_pool,
+        )
+        # Subscribe households to institutional announcements
+        for aid, agent in all_agents.items():
+            if getattr(agent, 'agent_type', '') in ["household_owner", "household_renter"]:
+                message_pool.subscribe(aid, message_types=["policy_announcement", "market_update"])
+        print("[INFO] Communication layer ENABLED: MessagePool + GameMaster")
+
+    # 3e. Cross-Agent Validation (Task-060E)
+    cross_validator = None
+    if args.enable_cross_validation:
+        from broker.validators.governance.cross_agent_validator import CrossAgentValidator
+        cross_validator = CrossAgentValidator()
+        if game_master:
+            game_master.cross_validator = cross_validator
+        print("[INFO] Cross-agent validation ENABLED (echo chamber + deadlock detection)")
+
     # 4. Hooks
     grid_years = None
     if args.grid_years:
@@ -351,6 +386,8 @@ def run_unified_experiment():
         media_hub=media_hub,
         per_agent_depth=args.per_agent_depth,
         year_mapping=year_mapping,
+        game_master=game_master,
+        message_pool=message_pool,
     )
 
     if args.per_agent_depth:

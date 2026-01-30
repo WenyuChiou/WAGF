@@ -18,10 +18,10 @@ import time
 from pathlib import Path
 from unittest.mock import MagicMock
 
-# Adjust path to import governed_ai_sdk
+# Adjust path to import cognitive_governance
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from governed_ai_sdk.memory import (
+from cognitive_governance.memory import (
     UnifiedCognitiveEngine,
     UnifiedMemoryItem,
     UnifiedMemoryStore,
@@ -30,8 +30,8 @@ from governed_ai_sdk.memory import (
     SymbolicSurpriseStrategy,
     HybridSurpriseStrategy,
 )
-from governed_ai_sdk.memory.strategies.ema import EMAPredictor
-from governed_ai_sdk.memory.strategies.symbolic import Sensor, SignatureEngine
+from cognitive_governance.memory.strategies.ema import EMAPredictor
+from cognitive_governance.memory.strategies.symbolic import Sensor, SignatureEngine
 
 
 class TestEMAPredictor(unittest.TestCase):

@@ -1,4 +1,4 @@
-from governed_ai_sdk.agents import BaseAgent, AgentConfig, StateParam, Skill, PerceptionSource
+from cognitive_governance.agents import BaseAgent, AgentConfig, StateParam, Skill, PerceptionSource
 from generate_agents import HouseholdProfile
 
 
@@ -107,7 +107,21 @@ def wrap_household(profile: HouseholdProfile) -> BaseAgent:
         "recent_flood_text": profile.recent_flood_text,
         "insurance_type": profile.insurance_type,
         "post_flood_action": profile.post_flood_action,
+        # PMT constructs (Task-060C: SC/PA as trust indicators)
+        "sc_score": profile.sc_score,
+        "pa_score": profile.pa_score,
+        "tp_score": profile.tp_score,
+        "cp_score": profile.cp_score,
+        "sp_score": profile.sp_score,
     }
+    # Derive trust indicators from SC/PA (Task-060C)
+    sc_norm = min(1.0, profile.sc_score / 5.0)
+    pa_norm = min(1.0, profile.pa_score / 5.0)
+    ins_factor = 1.2 if profile.has_insurance else 0.8
+    trust_neighbors = round(sc_norm, 3)
+    trust_insurance = round(min(1.0, sc_norm * ins_factor), 3)
+    community_rootedness = round(pa_norm, 3)
+
     agent.dynamic_state = {
         "elevated": profile.elevated,
         "has_insurance": profile.has_insurance,
@@ -118,6 +132,10 @@ def wrap_household(profile: HouseholdProfile) -> BaseAgent:
         "flood_experience_summary": (
             f"Experienced {profile.flood_frequency} flood event(s)" if profile.flood_experience else "No direct flood experience"
         ),
+        # Trust indicators derived from SC/PA (Task-060C)
+        "trust_in_neighbors": trust_neighbors,
+        "trust_in_insurance": trust_insurance,
+        "community_rootedness": community_rootedness,
     }
 
     agent.id = profile.agent_id

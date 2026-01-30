@@ -1,0 +1,147 @@
+{
+  "overall_passed": false,
+  "blocking_issues": [
+    "V2_elevated_persistence",
+    "V5_memory_state",
+    "V6_institutional_dynamics"
+  ],
+  "results": {
+    "V1_diversity": {
+      "passed": true,
+      "details": {
+        "avg_entropy": 1.514,
+        "entropy_threshold": 1.0,
+        "entropy_ok": true,
+        "avg_do_nothing_rate": 0.0,
+        "do_nothing_threshold": 0.7,
+        "do_nothing_ok": true,
+        "min_unique_decisions": 3,
+        "diversity_ok": true,
+        "yearly_distributions": {
+          "1": {
+            "elevate_house": 3,
+            "buy_insurance": 4,
+            "buy_contents_insurance": 3
+          },
+          "2": {
+            "buy_insurance": 5,
+            "elevate_house": 2,
+            "buy_contents_insurance": 3
+          },
+          "3": {
+            "elevate_house": 2,
+            "buy_insurance": 5,
+            "buy_contents_insurance": 3
+          }
+        }
+      }
+    },
+    "V2_elevated_persistence": {
+      "passed": false,
+      "violations": [
+        {
+          "agent_id": "H0001",
+          "year": 3,
+          "first_elevated_year": 1,
+          "issue": "Already elevated agent chose elevate_house"
+        },
+        {
+          "agent_id": "H0010",
+          "year": 3,
+          "first_elevated_year": 1,
+          "issue": "Already elevated agent chose elevate_house"
+        }
+      ],
+      "details": {
+        "elevated_agents": 5,
+        "violation_count": 2,
+        "note": "Verifying via decision history since state_after not in traces"
+      }
+    },
+    "V3_insurance_reset": {
+      "passed": true,
+      "violations": [],
+      "details": {
+        "agents_who_bought": 10,
+        "multi_year_buyers": 8,
+        "multi_year_details": {
+          "H0003": [
+            1,
+            2,
+            3
+          ],
+          "H0005": [
+            1,
+            3
+          ],
+          "H0007": [
+            1,
+            2,
+            3
+          ],
+          "H0008": [
+            1,
+            3
+          ],
+          "H0004": [
+            2,
+            3
+          ]
+        },
+        "note": "Insurance reset logic validated via pre_year hook in governance"
+      }
+    },
+    "V4_behavior_rationality": {
+      "passed": true,
+      "details": {
+        "high_tp_action_rate": 1.0,
+        "high_tp_total": 1,
+        "high_tp_threshold": 0.3,
+        "high_tp_ok": true,
+        "low_cp_expensive_rate": 0.188,
+        "low_cp_total": 16,
+        "low_cp_threshold": 0.2,
+        "low_cp_ok": true
+      }
+    },
+    "V5_memory_state": {
+      "passed": false,
+      "details": {
+        "total_agents_tracked": 10,
+        "violation_count": 10
+      },
+      "violations": [
+        "Agent H0001: No reflection memory with source 'reflection' found across all years.",
+        "Agent H0003: No reflection memory with source 'reflection' found across all years.",
+        "Agent H0004: No reflection memory with source 'reflection' found across all years.",
+        "Agent H0005: No reflection memory with source 'reflection' found across all years.",
+        "Agent H0007: No reflection memory with source 'reflection' found across all years.",
+        "Agent H0008: No reflection memory with source 'reflection' found across all years.",
+        "Agent H0010: No reflection memory with source 'reflection' found across all years.",
+        "Agent H0002: No reflection memory with source 'reflection' found across all years.",
+        "Agent H0006: No reflection memory with source 'reflection' found across all years.",
+        "Agent H0009: No reflection memory with source 'reflection' found across all years."
+      ]
+    },
+    "V6_institutional_dynamics": {
+      "passed": false,
+      "details": {
+        "gov_decisions": [
+          "MAINTAIN",
+          "maintain_subsidy",
+          "maintain_subsidy"
+        ],
+        "gov_unique_count": 2,
+        "gov_dynamic": true,
+        "ins_decisions": [
+          "maintain_premium",
+          "maintain_premium",
+          "maintain_premium"
+        ],
+        "ins_unique_count": 1,
+        "ins_dynamic": false,
+        "note": "Mock model returns same decision; real model should vary"
+      }
+    }
+  }
+}

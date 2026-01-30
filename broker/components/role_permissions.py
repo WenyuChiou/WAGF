@@ -1,64 +1,142 @@
-from dataclasses import dataclass
-from typing import Dict, Optional
+"""
+Generic role-based permission enforcement for multi-agent systems.
 
-FLOOD_ROLES: Dict[str, Dict] = {
-    "government": {
-        "allowed_skills": ["increase_subsidy", "decrease_subsidy", "maintain_subsidy", "outreach"],
-        "can_read_state": ["community", "type", "spatial"],
-        "can_modify": ["subsidy_rate", "mg_priority", "budget"],
-        "artifact_type": "PolicyArtifact",
-    },
-    "insurance": {
-        "allowed_skills": ["raise_premium", "lower_premium", "maintain_premium"],
-        "can_read_state": ["community", "type"],
-        "can_modify": ["premium_rate", "payout_ratio", "risk_pool"],
-        "artifact_type": "MarketArtifact",
-    },
-    "household": {
-        "allowed_skills": [
-            "buy_insurance", "buy_contents_insurance", "elevate_house",
-            "relocate", "do_nothing", "buyout_program",
-        ],
-        "can_read_state": ["neighbors", "community"],
-        "can_modify": ["elevated", "has_insurance", "relocated"],
-        "artifact_type": "HouseholdIntention",
-    },
-}
+Provides:
+- RoleEnforcer: Validates skill/state permissions per agent type
+- PermissionResult: Outcome of a permission check
+
+Roles are injected via constructor (no hardcoded defaults).
+Domain-specific role configs (e.g. FLOOD_ROLES) should live in the
+domain module (examples/multi_agent/ma_role_config.py).
+
+Reference: Task-058C (Drift Detection & Social Norms)
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional, Set
 
 
 @dataclass
 class PermissionResult:
+    """Outcome of a permission check.
+
+    Attributes:
+        allowed: Whether the action is permitted
+        reason: Explanation (especially if denied)
+        agent_type: The agent type that was checked
+        action: The skill/scope/field that was checked
+    """
     allowed: bool
-    reason: str = ""
+    reason: str
+    agent_type: str
+    action: str
 
 
 class RoleEnforcer:
-    def __init__(self, roles: Optional[Dict[str, Dict]] = None):
-        self.roles = roles or FLOOD_ROLES
+    """Validates skill and state access permissions per agent type.
 
-    def _get_role(self, agent_type: str) -> Optional[Dict]:
-        return self.roles.get(agent_type)
+    Roles dict schema:
+    {
+        "agent_type_name": {
+            "allowed_skills": ["skill1", "skill2", ...],
+            "readable_scopes": ["global", "regional", ...],
+            "writable_fields": ["field1", "field2", ...],
+        },
+        ...
+    }
 
-    def check_skill_permission(self, agent_type: str, skill: str) -> PermissionResult:
-        role = self._get_role(agent_type)
-        if not role:
-            return PermissionResult(False, f"Unknown agent_type: {agent_type}")
-        if skill in role.get("allowed_skills", []):
-            return PermissionResult(True, "")
-        return PermissionResult(False, f"Skill not allowed: {skill}")
+    Args:
+        roles: Mapping of agent_type -> permission config.
+               No default — must be provided by domain module.
+    """
 
-    def check_state_access(self, agent_type: str, scope: str) -> PermissionResult:
-        role = self._get_role(agent_type)
-        if not role:
-            return PermissionResult(False, f"Unknown agent_type: {agent_type}")
-        if scope in role.get("can_read_state", []):
-            return PermissionResult(True, "")
-        return PermissionResult(False, f"Scope not allowed: {scope}")
+    def __init__(self, roles: Dict[str, Dict[str, Any]]):
+        self.roles = roles
 
-    def check_state_mutation(self, agent_type: str, field: str) -> PermissionResult:
-        role = self._get_role(agent_type)
-        if not role:
-            return PermissionResult(False, f"Unknown agent_type: {agent_type}")
-        if field in role.get("can_modify", []):
-            return PermissionResult(True, "")
-        return PermissionResult(False, f"Field not allowed: {field}")
+    def check_skill_permission(
+        self, agent_type: str, skill: str,
+    ) -> PermissionResult:
+        """Check if an agent type is allowed to use a specific skill."""
+        role = self.roles.get(agent_type)
+        if role is None:
+            return PermissionResult(
+                allowed=False,
+                reason=f"Unknown agent type: '{agent_type}'",
+                agent_type=agent_type,
+                action=skill,
+            )
+
+        allowed_skills: List[str] = role.get("allowed_skills", [])
+        if skill in allowed_skills:
+            return PermissionResult(
+                allowed=True, reason="Skill permitted",
+                agent_type=agent_type, action=skill,
+            )
+
+        return PermissionResult(
+            allowed=False,
+            reason=f"Skill '{skill}' not in allowed list for '{agent_type}': "
+                   f"{allowed_skills}",
+            agent_type=agent_type,
+            action=skill,
+        )
+
+    def check_state_access(
+        self, agent_type: str, scope: str,
+    ) -> PermissionResult:
+        """Check if an agent type can read a specific state scope."""
+        role = self.roles.get(agent_type)
+        if role is None:
+            return PermissionResult(
+                allowed=False,
+                reason=f"Unknown agent type: '{agent_type}'",
+                agent_type=agent_type,
+                action=scope,
+            )
+
+        readable: List[str] = role.get("readable_scopes", [])
+        if scope in readable:
+            return PermissionResult(
+                allowed=True, reason="Scope readable",
+                agent_type=agent_type, action=scope,
+            )
+
+        return PermissionResult(
+            allowed=False,
+            reason=f"Scope '{scope}' not readable for '{agent_type}': {readable}",
+            agent_type=agent_type,
+            action=scope,
+        )
+
+    def check_state_mutation(
+        self, agent_type: str, field_name: str,
+    ) -> PermissionResult:
+        """Check if an agent type can write/mutate a specific state field."""
+        role = self.roles.get(agent_type)
+        if role is None:
+            return PermissionResult(
+                allowed=False,
+                reason=f"Unknown agent type: '{agent_type}'",
+                agent_type=agent_type,
+                action=field_name,
+            )
+
+        writable: List[str] = role.get("writable_fields", [])
+        if field_name in writable:
+            return PermissionResult(
+                allowed=True, reason="Field writable",
+                agent_type=agent_type, action=field_name,
+            )
+
+        return PermissionResult(
+            allowed=False,
+            reason=f"Field '{field_name}' not writable for '{agent_type}': {writable}",
+            agent_type=agent_type,
+            action=field_name,
+        )
+
+    def get_allowed_skills(self, agent_type: str) -> List[str]:
+        """Return the list of allowed skills for an agent type."""
+        role = self.roles.get(agent_type, {})
+        return list(role.get("allowed_skills", []))

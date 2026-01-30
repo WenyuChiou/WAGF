@@ -6,7 +6,7 @@ from broker.components.skill_registry import SkillRegistry
 from broker.components.context_builder import BaseAgentContextBuilder
 from broker.core.skill_broker_engine import SkillBrokerEngine
 from broker.interfaces.skill_types import SkillDefinition
-from governed_ai_sdk.agents import BaseAgent, AgentConfig
+from cognitive_governance.agents import BaseAgent, AgentConfig
 
 def test_v3_2_full_integration():
     # 1. Setup Components
@@ -27,7 +27,7 @@ def test_v3_2_full_integration():
     config = AgentConfig(name="Agent1", agent_type="household", state_params=[], objectives=[], constraints=[], skills=["buy_insurance", "elevate_house", "do_nothing"])
     agent = BaseAgent(config)
     agent.fixed_attributes = {"income_level": "High", "tract_id": "T123"}
-    agent.id = "Agent1"
+    agent._id = "Agent1"
     
     # 2. Add some episodic memory
     memory_engine.add_memory("Agent1", "I observed a small flood.")

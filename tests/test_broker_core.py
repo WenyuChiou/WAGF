@@ -28,7 +28,7 @@ class MockSimulationEngine:
 
 class MockContextBuilder:
     """Mock context builder for testing."""
-    def build(self, agent_id, env_context=None):
+    def build(self, agent_id, env_context=None, **kwargs):
         return {
             "agent_id": agent_id,
             "personal": {"memory": []},

@@ -1,9 +1,10 @@
 import pytest
 from broker.components.memory_engine import create_memory_engine
 from broker.components.universal_memory import UniversalCognitiveEngine
-from governed_ai_sdk.agents import BaseAgent
 
-class MockAgent(BaseAgent):
+
+class MockAgent:
+    """Lightweight mock agent for memory engine tests."""
     def __init__(self, agent_id="test_agent"):
         self.id = agent_id
         self.memory = []
@@ -30,7 +31,7 @@ def test_v3_integration_flow():
     # Steps 1-3: No flood.
     print("\n[Phase A] Routine (0.0m)")
     for i in range(3):
-        engine.retrieve(agent, top_k=3, world_state={"flood_depth": 0.0})
+        engine.retrieve(agent, top_k=3, world_state={"flood_depth_m": 0.0})
         # Should stay in System 1 (Legacy)
         assert engine.current_system == "SYSTEM_1"
         assert engine.last_surprise < 0.2
@@ -38,7 +39,7 @@ def test_v3_integration_flow():
     # 3. Phase B: Shock (Flood = 2.0m)
     # This is a huge deviation from expectation (0.0).
     print("\n[Phase B] Shock (2.0m)")
-    engine.retrieve(agent, top_k=3, world_state={"flood_depth": 2.0})
+    engine.retrieve(agent, top_k=3, world_state={"flood_depth_m": 2.0})
     
     # Surprise = |2.0 - 0.0| = 2.0 -> Sigmoid maps to ~0.88
     # Arousal should spike > 0.5
@@ -50,7 +51,7 @@ def test_v3_integration_flow():
     # Surprise should decrease.
     print("\n[Phase C] Adaptation (2.0m continues)")
     for i in range(5):
-        engine.retrieve(agent, top_k=3, world_state={"flood_depth": 2.0})
+        engine.retrieve(agent, top_k=3, world_state={"flood_depth_m": 2.0})
         
     # Eventually, expectation ~ 2.0, surprise ~ 0.
     # Should revert to System 1.
@@ -66,6 +67,6 @@ def test_legacy_engine_ignores_kwargs():
     agent = MockAgent()
     
     try:
-        legacy.retrieve(agent, top_k=3, world_state={"flood_depth": 5.0})
+        legacy.retrieve(agent, top_k=3, world_state={"flood_depth_m": 5.0})
     except TypeError as e:
         pytest.fail(f"Legacy engine crashed on kwargs: {e}")

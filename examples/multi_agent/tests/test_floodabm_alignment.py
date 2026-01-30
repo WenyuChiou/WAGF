@@ -166,6 +166,7 @@ class TestCoreConfigParameters:
         assert ENV_CONFIG["damage"]["shock_scale"] == 0.3
 
 
+@pytest.mark.skip(reason="tp_decay module archived to examples/archive/ma_legacy/tp_decay/")
 class TestTPDecayParameters:
     """Test TP decay formula parameters (Table S4)."""
 
@@ -200,6 +201,7 @@ class TestTPDecayParameters:
         assert NMG_PARAMS["k"] == 0.01
 
 
+@pytest.mark.skip(reason="tp_decay module archived to examples/archive/ma_legacy/tp_decay/")
 class TestTPDecayCalculation:
     """Test TP decay formula calculations."""
 
@@ -358,7 +360,7 @@ class TestYAMLConfiguration:
     def test_floodabm_parameters_section_exists(self):
         """Verify floodabm_parameters section exists in YAML."""
         import yaml
-        yaml_path = "examples/multi_agent/ma_agent_types.yaml"
+        yaml_path = "examples/multi_agent/config/parameters/floodabm_params.yaml"
 
         with open(yaml_path, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f)
@@ -368,7 +370,7 @@ class TestYAMLConfiguration:
     def test_beta_distribution_params(self):
         """Verify Beta distribution parameters are present."""
         import yaml
-        yaml_path = "examples/multi_agent/ma_agent_types.yaml"
+        yaml_path = "examples/multi_agent/config/parameters/floodabm_params.yaml"
 
         with open(yaml_path, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f)
@@ -385,7 +387,7 @@ class TestYAMLConfiguration:
     def test_tp_decay_params_in_yaml(self):
         """Verify TP decay calibrated parameters in YAML."""
         import yaml
-        yaml_path = "examples/multi_agent/ma_agent_types.yaml"
+        yaml_path = "examples/multi_agent/config/parameters/floodabm_params.yaml"
 
         with open(yaml_path, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f)
@@ -405,7 +407,7 @@ class TestYAMLConfiguration:
     def test_csrv_in_yaml(self):
         """Verify CSRV in YAML config."""
         import yaml
-        yaml_path = "examples/multi_agent/ma_agent_types.yaml"
+        yaml_path = "examples/multi_agent/config/parameters/floodabm_params.yaml"
 
         with open(yaml_path, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f)

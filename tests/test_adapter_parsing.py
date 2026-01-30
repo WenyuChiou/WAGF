@@ -8,24 +8,27 @@ Tests cover:
 - DeepSeek preprocessing
 """
 import pytest
+from pathlib import Path
 from unittest.mock import MagicMock
 
 from broker.utils.model_adapter import UnifiedAdapter, deepseek_preprocessor, get_adapter
 from broker.interfaces.skill_types import SkillProposal
 from broker.utils.agent_config import AgentTypeConfig
 
+CONFIG_PATH = str(Path("examples/single_agent/agent_types.yaml"))
+
 
 class TestParseLayerTracking:
     """Test that parse_layer is correctly tracked in SkillProposal."""
-    
+
     @pytest.fixture
     def adapter(self):
         """Create an adapter for testing."""
-        return UnifiedAdapter(agent_type="household")
+        return UnifiedAdapter(agent_type="household", config_path=CONFIG_PATH)
     
     def test_json_parse_layer(self, adapter):
         """Test JSON parsing sets parse_layer to 'json'."""
-        raw_output = '{"skill_name": "do_nothing", "reasoning": {"test": "value"}}'
+        raw_output = '<<<DECISION_START>>>{"decision": "do_nothing", "threat_appraisal": "M", "coping_appraisal": "M"}<<<DECISION_END>>>'
         context = {"agent_id": "test_agent", "agent_type": "household"}
         
         proposal = adapter.parse_output(raw_output, context)
@@ -94,10 +97,10 @@ class TestAdapterConfigPath:
 
 class TestFallbackParsing:
     """Test the multi-layer fallback parsing mechanism."""
-    
+
     @pytest.fixture
     def adapter(self):
-        return UnifiedAdapter(agent_type="household")
+        return UnifiedAdapter(agent_type="household", config_path=CONFIG_PATH)
     
     def test_empty_output_returns_none(self, adapter):
         """Test empty output returns None."""
@@ -111,7 +114,7 @@ class TestFallbackParsing:
     
     def test_valid_skill_extracted(self, adapter):
         """Test valid skill name is extracted from output."""
-        raw_output = "After careful consideration, my Final Decision: flood_insurance"
+        raw_output = "After careful consideration, my Final Decision: buy_insurance"
         context = {"agent_id": "test_agent", "agent_type": "household"}
         
         proposal = adapter.parse_output(raw_output, context)
