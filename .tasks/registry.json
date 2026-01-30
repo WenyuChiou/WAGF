@@ -28,11 +28,12 @@
         {
           "id": "058-B",
           "title": "Cross-Agent Validation & Arbitration",
-          "status": "ready",
+          "status": "completed",
           "assigned_to": "Gemini",
           "scope": "broker/validators/governance/cross_agent_validator.py (NEW), tests/test_cross_agent_validation.py (NEW)",
           "depends_on": ["058-A"],
           "handoff_file": "handoff/task-058b-gemini.md",
+          "commit": "3795065",
           "note": "CrossAgentValidator: perverse incentive, echo chamber, deadlock, budget coherence checks"
         },
         {
@@ -49,11 +50,12 @@
         {
           "id": "058-D",
           "title": "Saga Transaction Coordinator",
-          "status": "ready",
+          "status": "completed",
           "assigned_to": "Gemini",
           "scope": "broker/components/saga_coordinator.py (NEW), broker/components/saga_definitions.py (NEW), tests/test_saga_coordinator.py (NEW)",
           "depends_on": ["058-A"],
           "handoff_file": "handoff/task-058d-gemini.md",
+          "commit": "b62cc6b",
           "note": "SagaCoordinator with compensatory rollback, SUBSIDY_APPLICATION_SAGA etc."
         },
         {
