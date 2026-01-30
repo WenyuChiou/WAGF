@@ -7,7 +7,7 @@
 
 ## Current: Task-058 MAS Skill Architecture
 
-**Status**: 5/6 COMPLETED, 1 remaining (058-E)
+**Status**: 6/6 COMPLETED (all Task-058 subtasks done)
 **Branch**: `feat/memory-embedding-retrieval`
 **Tests**: 967 passed (63 new Task-058 tests)
 
@@ -19,7 +19,7 @@
 | 058-B | `cross_agent_validator.py` + `ma_cross_validators.py` | ? COMPLETE | Codex (takeover) | `CrossValidationResult` type, `domain_rules` injection |
 | 058-C | `drift_detector.py` + `role_permissions.py` | ? COMPLETE | Codex | Shannon entropy, Jaccard stagnation |
 | 058-D | `saga_coordinator.py` + `ma_saga_definitions.py` | ? COMPLETE | Codex (takeover) | Generic coordinator + 3 flood sagas |
-| 058-E | `observable_state.py` (MODIFY) | ? PENDING | Codex | `create_drift_observables()` factory |
+| 058-E | `observable_state.py` (MODIFY) | ? COMPLETE | Codex | `create_drift_observables()` factory |
 | 058-F | Integration wiring (4 files MODIFY) | ? COMPLETE | Codex (takeover) | Handoff: `task-058f-codex.md` |
 
 ### Key Architecture Decisions (This Session)
@@ -28,6 +28,8 @@
 2. **CrossValidationResult**: New type (distinct from `ValidationResult` in skill_types) with `is_valid`, `rule_id`, `level`, `message`
 3. **Naming fix**: `ma_validators.py` ¡÷ `ma_cross_validators.py` (avoids collision with existing `ma_validators/` package)
 4. **Backward-compat re-exports**: `artifacts.py` re-exports `PolicyArtifact` etc. via `try/except`
+5. **Saga integration**: Orchestrator uses `advance_sagas()` to advance all sagas (optional)
+6. **Artifact formatting**: MessageProvider formats via `[artifact_type] field=value` (generic)
 
 ### File Inventory (New/Modified This Session)
 
@@ -38,7 +40,7 @@
 | `broker/components/drift_detector.py` | New | `DriftDetector`, `DriftReport`, `DriftAlert` |
 | `broker/components/role_permissions.py` | New | `RoleEnforcer`, `PermissionResult` |
 | `broker/components/saga_coordinator.py` | New | `SagaCoordinator`, `SagaStep`, `SagaDefinition`, `SagaResult`, `SagaStatus` |
-| `broker/components/observable_state.py` | Pending | Add `create_drift_observables()` |
+| `broker/components/observable_state.py` | Modified | Added `create_drift_observables()` |
 | `examples/multi_agent/ma_artifacts.py` | New | `PolicyArtifact`, `MarketArtifact`, `HouseholdIntention` |
 | `examples/multi_agent/ma_cross_validators.py` | New | `flood_perverse_incentive_check`, `flood_budget_coherence_check` |
 | `examples/multi_agent/ma_role_config.py` | New | `FLOOD_ROLES` dict |
@@ -48,17 +50,13 @@
 | `tests/test_saga_coordinator.py` | New | 15 tests |
 | `tests/test_artifacts.py` | New | 14 tests (ABC + domain + envelope) |
 | `tests/test_058_integration.py` | New | 5 integration wiring tests |
+| `tests/test_observable_state.py` | Modified | Added drift observables tests |
 
 ---
 
 ## Pending Codex Tasks
 
-### 1. Task-058E: Observable State Drift Metrics
-- **Handoff**: `.tasks/handoff/task-058e-codex.md`
-- **Scope**: `broker/components/observable_state.py` (MODIFY)
-- **Deps**: 058-C complete
-
-### 2. Task-045G: Folder Consolidation
+### 1. Task-045G: Folder Consolidation
 - **Handoff**: `.tasks/handoff/task-045g-consolidation.md`
 - **Scope**: Move interfaces/, simulation/, validators/ to broker/
 - **Deps**: None
