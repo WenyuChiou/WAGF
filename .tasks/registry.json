@@ -45,11 +45,12 @@
         {
           "id": "057-D",
           "title": "MA Reflection Integration",
-          "status": "ready",
+          "status": "completed",
           "assigned_to": "Gemini",
           "scope": "examples/multi_agent/orchestration/lifecycle_hooks.py",
           "depends_on": ["057-A", "057-B", "057-C"],
-          "note": "_run_ma_reflection() with per-type batch reflection, stratified retrieval"
+          "commit": "7ac2314",
+          "note": "_run_ma_reflection() with per-type batch reflection, stratified retrieval; import fixes and test alignment"
         }
       ],
       "execution_order": {
