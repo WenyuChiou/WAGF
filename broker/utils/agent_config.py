@@ -18,7 +18,7 @@ from collections import defaultdict
 from broker.utils.logging import setup_logger
 
 if TYPE_CHECKING:
-    from governed_ai_sdk.v1_prototype.config import (
+    from cognitive_governance.v1_prototype.config import (
         UnifiedConfigLoader,
         ExperimentConfig,
         MemoryConfig as SDKMemoryConfig,
@@ -105,13 +105,16 @@ class AgentTypeConfig:
         try:
             with open(yaml_path, 'r', encoding='utf-8') as f:
                 self._config = yaml.safe_load(f) or {}
+            self._yaml_path = str(yaml_path)
             # logger.info(f"Loaded configuration from {yaml_path}")
         except FileNotFoundError:
             # Fallback to empty config if file missing (useful for testing)
             self._config = {}
+            self._yaml_path = None
         except Exception as e:
             logger.warning(f"Failed to load config from {yaml_path}: {e}")
             self._config = {}
+            self._yaml_path = None
     
     def get_base_type(self, agent_type: str) -> str:
         """Map a specific agent type/subtype to a base type defined in config."""
@@ -351,9 +354,34 @@ class AgentTypeConfig:
         return cfg.get("constructs", {})
     
     def get_prompt_template(self, agent_type: str) -> str:
-        """Get prompt template."""
+        """Get prompt template, supporting inline and file-based templates."""
         cfg = self.get(agent_type)
+
+        template_file = cfg.get("prompt_template_file", "")
+        if template_file:
+            resolved = self._resolve_template_path(template_file)
+            if resolved and resolved.exists():
+                try:
+                    return resolved.read_text(encoding="utf-8")
+                except Exception as e:
+                    logger.warning(f"Failed to read prompt file {resolved}: {e}")
+
         return cfg.get("prompt_template", "")
+
+    def _resolve_template_path(self, relative_path: str) -> Optional[Path]:
+        """Resolve a template file path relative to the YAML config location."""
+        if not relative_path:
+            return None
+
+        p = Path(relative_path)
+        if p.is_absolute():
+            return p
+
+        if hasattr(self, "_yaml_path") and self._yaml_path:
+            yaml_dir = Path(self._yaml_path).parent
+            return yaml_dir / relative_path
+
+        return Path.cwd() / relative_path
     
     def get_parsing_config(self, agent_type: str) -> Dict[str, Any]:
         """Get parsing configuration for model adapter, falling back to default."""
@@ -610,10 +638,10 @@ class AgentTypeConfig:
         alongside the existing agent_types.yaml system.
 
         Args:
-            loader: Instance of governed_ai_sdk.v1_prototype.config.UnifiedConfigLoader
+            loader: Instance of cognitive_governance.v1_prototype.config.UnifiedConfigLoader
 
         Example:
-            >>> from governed_ai_sdk.v1_prototype.config import UnifiedConfigLoader
+            >>> from cognitive_governance.v1_prototype.config import UnifiedConfigLoader
             >>> loader = UnifiedConfigLoader()
             >>> AgentTypeConfig.set_sdk_loader(loader)
         """
@@ -636,7 +664,7 @@ class AgentTypeConfig:
         """
         if cls._sdk_loader is None:
             try:
-                from governed_ai_sdk.v1_prototype.config import UnifiedConfigLoader
+                from cognitive_governance.v1_prototype.config import UnifiedConfigLoader
                 cls._sdk_loader = UnifiedConfigLoader()
             except ImportError:
                 logger.warning("SDK not available, cannot load experiment config")
@@ -763,6 +791,11 @@ class GovernanceAuditor:
         self.structural_faults_terminal = 0   # Faults that exhausted retries
         self.format_retry_attempts = 0        # Total format retry attempts
 
+        # LLM-level retry tracking (these also count toward total LLM calls)
+        self.empty_content_retries = 0        # LLM returned empty content, retry triggered
+        self.empty_content_failures = 0       # LLM returned empty after all retries exhausted
+        self.invalid_label_retries = 0        # Invalid _LABEL values triggered retry
+
         self._initialized = True
 
     def log_intervention(self, rule_id: str, success: bool, is_final: bool = False):
@@ -805,8 +838,40 @@ class GovernanceAuditor:
         with self.stats_lock:
             self.structural_faults_terminal += retry_count
 
+    def log_empty_content_retry(self):
+        """Record LLM returned empty content, triggering retry.
+
+        This counts as an additional LLM call that returned no usable output.
+        """
+        with self.stats_lock:
+            self.empty_content_retries += 1
+
+    def log_empty_content_failure(self):
+        """Record LLM returned empty content after all retries exhausted.
+
+        This is a terminal failure where no valid output was obtained.
+        """
+        with self.stats_lock:
+            self.empty_content_failures += 1
+
+    def log_invalid_label_retry(self):
+        """Record Invalid _LABEL value triggered retry.
+
+        This occurs when TP_LABEL or CP_LABEL contains invalid values like
+        'VL/L/M/H/VH' instead of a single valid label.
+        """
+        with self.stats_lock:
+            self.invalid_label_retries += 1
+
     def save_summary(self, output_path: Path):
         """Save aggregated statistics to JSON."""
+        # Calculate total extra LLM calls from retries
+        total_extra_llm_calls = (
+            self.empty_content_retries +
+            self.invalid_label_retries +
+            self.format_retry_attempts
+        )
+
         summary = {
             "total_interventions": self.total_interventions,
             "rule_frequency": dict(self.rule_hits),
@@ -819,6 +884,12 @@ class GovernanceAuditor:
                 "format_retry_attempts": self.format_retry_attempts,
                 "faults_fixed": self.structural_faults_fixed,
                 "faults_terminal": self.structural_faults_terminal
+            },
+            "llm_level_retries": {
+                "empty_content_retries": self.empty_content_retries,
+                "empty_content_failures": self.empty_content_failures,
+                "invalid_label_retries": self.invalid_label_retries,
+                "total_extra_llm_calls": total_extra_llm_calls
             }
         }
         with open(output_path, 'w', encoding='utf-8') as f:
@@ -827,6 +898,13 @@ class GovernanceAuditor:
 
     def print_summary(self):
         """Print a human-readable summary to console."""
+        # Calculate total extra LLM calls
+        total_extra_llm_calls = (
+            self.empty_content_retries +
+            self.invalid_label_retries +
+            self.format_retry_attempts
+        )
+
         print("\n" + "="*50)
         print("  GOVERNANCE AUDIT SUMMARY")
         print("="*50)
@@ -839,6 +917,12 @@ class GovernanceAuditor:
         print(f"  - Format Retry Attempts: {self.format_retry_attempts}")
         print(f"  - Faults Fixed:          {self.structural_faults_fixed}")
         print(f"  - Faults Terminal:       {self.structural_faults_terminal}")
+        print("-"*50)
+        print("  LLM-Level Retries (Extra LLM Calls):")
+        print(f"  - Empty Content Retries:   {self.empty_content_retries}")
+        print(f"  - Empty Content Failures:  {self.empty_content_failures}")
+        print(f"  - Invalid Label Retries:   {self.invalid_label_retries}")
+        print(f"  - Total Extra LLM Calls:   {total_extra_llm_calls}")
         print("-"*50)
         print("  Top Rule Violations:")
         # Sort by frequency
