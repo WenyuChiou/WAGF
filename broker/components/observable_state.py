@@ -278,8 +278,54 @@ def create_flood_observables() -> List[ObservableMetric]:
     ]
 
 
+def create_drift_observables(drift_detector=None) -> Dict[str, Callable]:
+    """Factory for drift-related observable metrics.
+
+    Returns a dict of callables (agents, env) -> float:
+    - decision_entropy
+    - dominant_action_pct
+    - stagnation_rate
+    """
+
+    def _entropy_compute(agents, env) -> float:
+        if drift_detector and drift_detector.population_snapshots:
+            latest = drift_detector.population_snapshots[-1]
+            dist = latest.get("distribution", {})
+            from broker.components.drift_detector import DriftDetector
+            return DriftDetector.compute_shannon_entropy(dist)
+        return 0.0
+
+    def _dominant_pct_compute(agents, env) -> float:
+        if drift_detector and drift_detector.population_snapshots:
+            latest = drift_detector.population_snapshots[-1]
+            dist = latest.get("distribution", {})
+            total = sum(dist.values())
+            if total > 0:
+                return max(dist.values()) / total
+        return 0.0
+
+    def _stagnation_compute(agents, env) -> float:
+        if drift_detector:
+            total = len(drift_detector.decision_history)
+            if total == 0:
+                return 0.0
+            stagnant = sum(
+                1 for aid in drift_detector.decision_history
+                if drift_detector.compute_jaccard_similarity(aid) > drift_detector.jaccard_threshold
+            )
+            return stagnant / total
+        return 0.0
+
+    return {
+        "decision_entropy": _entropy_compute,
+        "dominant_action_pct": _dominant_pct_compute,
+        "stagnation_rate": _stagnation_compute,
+    }
+
+
 __all__ = [
     "ObservableStateManager",
     "create_rate_metric",
     "create_flood_observables",
+    "create_drift_observables",
 ]

@@ -176,3 +176,21 @@ class TestMetricFactories:
         assert snapshot.community["adaptation_rate"] == 1.0
         # Relocation: 1 out of 3 -> 33.33%
         assert abs(snapshot.community["relocation_rate"] - 1/3) < 0.01
+
+
+class TestDriftObservables:
+    """Test drift observables factory."""
+
+    def test_create_drift_observables_returns_three_metrics(self):
+        from broker.components.observable_state import create_drift_observables
+
+        metrics = create_drift_observables()
+        assert "decision_entropy" in metrics
+        assert "dominant_action_pct" in metrics
+        assert "stagnation_rate" in metrics
+
+    def test_entropy_metric_without_detector_returns_zero(self):
+        from broker.components.observable_state import create_drift_observables
+
+        metrics = create_drift_observables(None)
+        assert metrics["decision_entropy"]([], {}) == 0.0
