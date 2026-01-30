@@ -13,29 +13,50 @@ Standalone example demonstrating **Group C (Full Cognitive Governance)** — the
 ## Quick Start
 
 ```bash
-# Full experiment (default: gemma3:1b, 10 years, 100 agents)
+# Full experiment (default: gemma3:4b, 10 years, 100 agents)
 python run_experiment.py
 
 # Smaller test run
-python run_experiment.py --model gemma3:1b --years 2 --agents 10
+python run_experiment.py --model gemma3:4b --years 2 --agents 10
 
 # Custom model and output
 python run_experiment.py --model gemma3:4b --years 10 --agents 100 --output results/my_run
 ```
 
+## Governance Rules (v22, Strict Profile)
+
+This demo uses the strict governance profile to block cognitively inconsistent actions and log warnings.
+
+| Rule | Severity | Description |
+|------|----------|-------------|
+| `extreme_threat_block` | ERROR | TP in {H, VH} blocks `do_nothing` |
+| `low_coping_block` | WARNING | CP in {VL, L} observes `elevate`/`relocate` |
+| `relocation_threat_low` | ERROR | TP in {VL, L} blocks `relocate` |
+| `elevation_threat_low` | ERROR | TP in {VL, L} blocks `elevate` |
+| `elevation_block` | ERROR | Already-elevated agent cannot re-elevate |
+
 ## Output Files
 
 ```
 results/
-├── simulation_log.csv               # Decision log (agents × years)
-├── household_governance_audit.csv    # Governance validation trace
-├── reflection_log.jsonl              # Year-end reflection insights
-├── reproducibility_manifest.json     # Seed, model, config snapshot
-├── config_snapshot.yaml              # Actual YAML used for this run
-├── governance_summary.json           # Validation statistics
-└── raw/
-    └── household_traces.jsonl        # Full LLM interaction traces
+  simulation_log.csv               # Decision log (agents x years)
+  household_governance_audit.csv    # Governance validation trace
+  reflection_log.jsonl              # Year-end reflection insights
+  reproducibility_manifest.json     # Seed, model, config snapshot
+  config_snapshot.yaml              # Actual YAML used for this run
+  governance_summary.json           # Validation statistics
+  raw/
+    household_traces.jsonl          # Full LLM interaction traces
 ```
+
+### Output Interpretation Guide
+
+| File | Description |
+|------|-------------|
+| `governance_summary.json` | `total_interventions` = ERROR blocks, `warnings.total_warnings` = WARNING observations, `retry_success` = agent corrected on retry |
+| `household_governance_audit.csv` | Per-agent audit trail. Key columns: `failed_rules`, `warning_rules`, `warning_messages` |
+| `audit_summary.json` | Parse quality: `validation_errors` (structural parse failures), `validation_warnings` (governance warnings) |
+| `config_snapshot.yaml` | Full experiment config for reproducibility |
 
 ## Difference from `single_agent/run_flood.py`
 
@@ -52,7 +73,7 @@ results/
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--model` | `gemma3:1b` | Ollama model name |
+| `--model` | `gemma3:4b` | Ollama model name |
 | `--years` | `10` | Simulation years |
 | `--agents` | `100` | Number of household agents |
 | `--workers` | `1` | Parallel LLM workers |

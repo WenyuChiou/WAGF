@@ -107,9 +107,15 @@
 
 | Task | Status | Owner |
 |------|--------|-------|
-| 061-C5 (governed_flood README) | Delegated | Codex |
-| 061-C6 (multi_agent README alignment) | Delegated | Codex |
-| 061-C7 (docs/ path verification) | Delegated | Codex |
+| 061-C5 (governed_flood README) | Done | Codex |
+| 061-C6 (multi_agent README alignment) | Done | Codex |
+| 061-C7 (docs/ path verification) | Done | Codex |
 | 059-D (Reflection Triggers) | Pending | Codex |
 | BC re-run verification (b519eb8) | Running | Background |
 | test_v3_2_full_integration mock fix | Low priority | Any |
+
+## C7 Findings (Docs Verification)
+
+- Root README link targets exist: `docs/architecture/skill_architecture.md`, `docs/guides/customization_guide.md`, `docs/guides/experiment_design_guide.md`, `docs/guides/agent_assembly.md`, `docs/guides/agent_assembly_zh.md`.
+- Version references updated: `docs/architecture/architecture.md` headings `v3.0` → `v3.3`.
+- Module EN/ZH section counts now aligned across all 7 pairs (00_theoretical_basis_overview, memory_components, reflection_engine, governance_core, context_system, simulation_engine, skill_registry).

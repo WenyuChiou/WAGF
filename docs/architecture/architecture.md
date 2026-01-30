@@ -176,7 +176,7 @@ The framework separates concerns into three distinct layers with strict data flo
 
 ---
 
-## v3.0 Visualization
+## v3.3 Visualization
 
 ![Governed Broker Framework v17 Definitive Architecture](/C:/Users/wenyu/.gemini/antigravity/brain/f2b36be6-b9c6-4a3f-8a0e-010648b12f8f/unified_architecture_v17_python_definitive.png)
 
@@ -249,7 +249,7 @@ graph TD
 
 ---
 
-## v3.0 Generalization
+## v3.3 Generalization
 
 The Phase 9 refactoring introduced a strictly decoupled information flow:
 

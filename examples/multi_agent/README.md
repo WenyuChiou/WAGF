@@ -47,9 +47,9 @@ We test three distinct configurations to isolate the effects of **Social Interac
 
 | Scenario             | Memory Engine   | Social Gossip | Description                                                                                                                             |
 | :------------------- | :-------------- | :------------ | :-------------------------------------------------------------------------------------------------------------------------------------- |
-| **1. Isolated**      | Window (Size=1) | ❌ Disabled   | **Baseline Control**. Agents act independently with minimal memory context.                                                             |
-| **2. Window**        | Window (Size=3) | ✅ Enabled    | **Social Standard**. Agents share reasoning ("Why I elevated") and valid social proof enters their memory stream.                       |
-| **3. Human-Centric** | Human-Centric   | ✅ Enabled    | **Advanced Cognitive**. Uses Importance/Recency/Relevance scoring to retain critical memories (e.g., past floods) despite social noise. |
+| **1. Isolated**      | Window (Size=1) | ??Disabled   | **Baseline Control**. Agents act independently with minimal memory context.                                                             |
+| **2. Window**        | Window (Size=3) | ??Enabled    | **Social Standard**. Agents share reasoning ("Why I elevated") and valid social proof enters their memory stream.                       |
+| **3. Human-Centric** | Human-Centric   | ??Enabled    | **Advanced Cognitive**. Uses Importance/Recency/Relevance scoring to retain critical memories (e.g., past floods) despite social noise. |
 
 ## Key Features
 
@@ -84,7 +84,25 @@ python examples/multi_agent/hazard/prb_analysis.py --data-dir "C:\path\to\PRB" -
 python examples/multi_agent/hazard/prb_visualize.py --data-dir "C:\path\to\PRB" --output plots/
 ```
 
+### 5. Task-060 Enhancements
+
+- **Insurance premium disclosure**: Insurance agents disclose premium rates to households.
+- **Skill ordering randomization**: Action options are shuffled per-agent per-year to avoid primacy bias.
+- **SC/PA trust indicators**: Self-confidence and protective action trust scores are visible in context.
+- **Communication layer**: Inter-agent message passing via `MessagePool` and `MessageProvider`.
+- **Echo chamber detection**: `DriftDetector` monitors action stagnation via Shannon entropy and Jaccard similarity.
+
 ## How to Run
+
+### Quick Start
+
+```powershell
+# Basic multi-agent experiment
+python examples/multi_agent/run_unified_experiment.py --model gemma3:4b
+
+# With social dynamics enabled
+python examples/multi_agent/run_unified_experiment.py --model gemma3:4b --enable-social
+```
 
 Use the provided PowerShell script to run the full benchmark across all models and scenarios:
 
@@ -104,10 +122,10 @@ Results are saved to `examples/multi_agent/results_benchmark/`:
 
 ```
 results_benchmark/
-├── llama3_2_3b_isolated/
-├── llama3_2_3b_window/
-├── llama3_2_3b_humancentric/
-...
+  llama3_2_3b_isolated/
+  llama3_2_3b_window/
+  llama3_2_3b_humancentric/
+  ...
 ```
 
 Each folder contains:
