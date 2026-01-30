@@ -38,11 +38,12 @@
         {
           "id": "058-C",
           "title": "Drift Detection & Social Norms",
-          "status": "ready",
+          "status": "completed",
           "assigned_to": "Codex",
           "scope": "broker/components/drift_detector.py (NEW), broker/components/role_permissions.py (NEW), tests/test_drift_detector.py (NEW)",
           "depends_on": [],
           "handoff_file": "handoff/task-058c-codex.md",
+          "commit": "f40b6bb",
           "note": "DriftDetector (Shannon entropy, Jaccard similarity), RoleEnforcer (FLOOD_ROLES)"
         },
         {
