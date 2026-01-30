@@ -79,23 +79,10 @@ class MessagePoolProvider:
         for msg in messages:
             if msg.data and msg.data.get("artifact_type"):
                 atype = msg.data["artifact_type"]
-                if atype == "PolicyArtifact":
-                    lines.append(
-                        f"[GOV] Policy Update: subsidy_rate={msg.data.get('subsidy_rate')}, "
-                        f"mg_priority={msg.data.get('mg_priority')}"
-                    )
-                elif atype == "MarketArtifact":
-                    lines.append(
-                        f"[INS] Market Update: premium_rate={msg.data.get('premium_rate')}, "
-                        f"solvency={msg.data.get('solvency_ratio')}"
-                    )
-                elif atype == "HouseholdIntention":
-                    lines.append(
-                        f"[HH] {msg.data.get('agent_id')} intends: {msg.data.get('chosen_skill')} "
-                        f"(TP={msg.data.get('tp_level')}, CP={msg.data.get('cp_level')})"
-                    )
-                else:
-                    lines.append(msg.content)
+                skip_keys = {"artifact_type", "agent_id", "year", "rationale"}
+                fields = {k: v for k, v in msg.data.items() if k not in skip_keys}
+                summary = ", ".join(f"{k}={v}" for k, v in fields.items())
+                lines.append(f"[{atype}] {summary}".strip())
             else:
                 lines.append(msg.content)
         return lines

@@ -65,13 +65,13 @@ class TestGameMasterArtifacts:
 
 
 class TestPhaseOrchestratorSaga:
-    def test_saga_timeout_check_called(self):
+    def test_saga_advance_called(self):
         saga = MagicMock()
-        saga.check_timeouts.return_value = []
+        saga.advance_all.return_value = []
         orchestrator = PhaseOrchestrator(saga_coordinator=saga)
 
-        orchestrator.get_execution_plan({}, current_step=5)
-        saga.check_timeouts.assert_called_once_with(5)
+        orchestrator.advance_sagas(current_step=5)
+        saga.advance_all.assert_called_once()
 
 
 class TestLifecycleHooksDrift:

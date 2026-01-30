@@ -114,20 +114,26 @@ class PhaseOrchestrator:
         """
         plan: List[Tuple[ExecutionPhase, List[str]]] = []
 
-        if self.saga_coordinator:
-            timed_out = self.saga_coordinator.check_timeouts(current_step)
-            if timed_out:
-                logger.warning(
-                    "[Saga] %d sagas timed out at step %d",
-                    len(timed_out), current_step,
-                )
-
         for pc in self._topological_order():
             agent_ids = self._select_agents(pc, agents)
             agent_ids = self._apply_ordering(agent_ids, pc.ordering)
             plan.append((pc.phase, agent_ids))
 
         return plan
+
+    def advance_sagas(self, current_step: int = 0) -> None:
+        """Advance all active sagas at phase boundaries."""
+        if not self.saga_coordinator:
+            return
+        completed = self.saga_coordinator.advance_all(current_step=current_step)
+        for result in completed:
+            if result and result.status.value in ("rolled_back", "failed"):
+                logger.warning(
+                    "[Saga] %s %s: %s",
+                    result.saga_name,
+                    result.status.value,
+                    result.error,
+                )
 
     def get_phase_agents(
         self,
