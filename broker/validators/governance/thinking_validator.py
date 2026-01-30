@@ -8,12 +8,18 @@ Validates:
 - Utility framework consistency (budget/equity)
 - Financial framework consistency (risk/solvency)
 - Reasoning coherence (action matches appraisal)
+
+The YAML-driven condition engine (_validate_yaml_rules, _evaluate_conditions,
+_evaluate_single_condition) is fully domain-agnostic.  Framework-specific
+built-in checks (_validate_pmt, _validate_utility, _validate_financial) are
+registered as ``builtin_checks`` and default to flood/MA domain.  Pass
+``builtin_checks=[]`` to use YAML rules only, or supply domain-specific checks.
 """
 from typing import List, Dict, Any, Optional
 from broker.interfaces.skill_types import ValidationResult
 from broker.interfaces.rating_scales import RatingScaleRegistry, FrameworkType
 from broker.governance.rule_types import GovernanceRule
-from broker.validators.governance.base_validator import BaseValidator
+from broker.validators.governance.base_validator import BaseValidator, BuiltinCheck
 
 
 # Framework-specific label orderings
@@ -57,6 +63,11 @@ class ThinkingValidator(BaseValidator):
     - Utility: Budget/Equity construct validation
     - Financial: Risk/Solvency construct validation
 
+    The YAML-driven condition engine is fully generic and works with any
+    framework.  Framework-specific built-in checks are registered via
+    ``builtin_checks``.  Defaults provide PMT/Utility/Financial checks
+    for flood and multi-agent domains.
+
     Examples (PMT):
     - High TP + High CP should not result in do_nothing
     - Low TP should not justify extreme measures (relocate, elevate)
@@ -71,21 +82,63 @@ class ThinkingValidator(BaseValidator):
     - High solvency concern should trigger defensive actions
     """
 
-    def __init__(self, framework: str = "pmt"):
+    def __init__(
+        self,
+        framework: str = "pmt",
+        builtin_checks: Optional[List[BuiltinCheck]] = None,
+    ):
         """
         Initialize ThinkingValidator with a specific framework.
 
         Args:
             framework: Psychological framework ("pmt", "utility", "financial")
+            builtin_checks: Domain-specific checks.  None = flood/MA defaults.
         """
-        super().__init__()
         self.framework = framework.lower()
         self._label_order = FRAMEWORK_LABEL_ORDERS.get(self.framework, PMT_LABEL_ORDER)
         self._constructs = FRAMEWORK_CONSTRUCTS.get(self.framework, FRAMEWORK_CONSTRUCTS["pmt"])
+        super().__init__(builtin_checks=builtin_checks)
 
     @property
     def category(self) -> str:
         return "thinking"
+
+    def _default_builtin_checks(self) -> List[BuiltinCheck]:
+        """Flood/MA domain defaults: PMT + Utility + Financial framework checks.
+
+        These are instance-bound closures so they can access ``self`` for
+        label normalization and rule deduplication helpers.
+        """
+        return [
+            self._builtin_pmt_check,
+            self._builtin_utility_check,
+            self._builtin_financial_check,
+        ]
+
+    # Wrappers that conform to BuiltinCheck signature (skill, rules, ctx)
+    def _builtin_pmt_check(
+        self, skill_name: str, rules: List[GovernanceRule], context: Dict[str, Any]
+    ) -> List[ValidationResult]:
+        framework = context.get("framework", self.framework)
+        if framework != "pmt":
+            return []
+        return self._validate_pmt(skill_name, rules, context)
+
+    def _builtin_utility_check(
+        self, skill_name: str, rules: List[GovernanceRule], context: Dict[str, Any]
+    ) -> List[ValidationResult]:
+        framework = context.get("framework", self.framework)
+        if framework != "utility":
+            return []
+        return self._validate_utility(skill_name, rules, context)
+
+    def _builtin_financial_check(
+        self, skill_name: str, rules: List[GovernanceRule], context: Dict[str, Any]
+    ) -> List[ValidationResult]:
+        framework = context.get("framework", self.framework)
+        if framework != "financial":
+            return []
+        return self._validate_financial(skill_name, rules, context)
 
     def validate(
         self,
@@ -96,6 +149,11 @@ class ThinkingValidator(BaseValidator):
         """
         Validate thinking rules with framework-specific consistency checks.
 
+        Evaluation order:
+        1. YAML-driven rules (via base class — domain-agnostic)
+        2. YAML-driven multi-condition rules (Task-041 Phase 3 — domain-agnostic)
+        3. Domain-specific built-in checks (injected or defaults)
+
         Args:
             skill_name: Proposed skill name
             rules: List of governance rules
@@ -104,21 +162,12 @@ class ThinkingValidator(BaseValidator):
         Returns:
             List of ValidationResult objects
         """
+        # Step 1 + 3: Base class handles YAML rules + builtin_checks
         results = super().validate(skill_name, rules, context)
 
-        # Determine framework from context or use default
+        # Step 2: YAML multi-condition rules (always runs, domain-agnostic)
         framework = context.get("framework", self.framework)
-
-        # Task-041 Phase 3: Process YAML-driven rules with multi-condition support
         results.extend(self._validate_yaml_rules(skill_name, rules, context, framework))
-
-        # Dispatch to framework-specific built-in validation
-        if framework == "pmt":
-            results.extend(self._validate_pmt(skill_name, rules, context))
-        elif framework == "utility":
-            results.extend(self._validate_utility(skill_name, rules, context))
-        elif framework == "financial":
-            results.extend(self._validate_financial(skill_name, rules, context))
 
         return results
 

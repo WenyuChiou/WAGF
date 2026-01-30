@@ -7,6 +7,14 @@ Validators:
 - ThinkingValidator: PMT constructs + Reasoning coherence
 - PhysicalValidator: State preconditions + Immutability
 - TypeValidator: Per-agent-type validation (skill eligibility, type rules)
+
+Domain-specific built-in checks are injected via ``builtin_checks``
+constructor parameter on each validator.  When ``builtin_checks=None``
+(default), flood-domain checks are used for backward compatibility.
+Pass ``builtin_checks=[]`` to disable all built-in checks.
+
+Use ``validate_all(domain="flood")`` (default) or ``validate_all(domain=None)``
+for YAML-rules-only mode (no hardcoded domain logic).
 """
 from typing import List, Dict, Any, Optional, TYPE_CHECKING
 from broker.interfaces.skill_types import ValidationResult
@@ -14,7 +22,7 @@ from broker.interfaces.skill_types import ValidationResult
 if TYPE_CHECKING:
     from broker.governance.rule_types import GovernanceRule
 
-from broker.validators.governance.base_validator import BaseValidator
+from broker.validators.governance.base_validator import BaseValidator, BuiltinCheck
 from broker.validators.governance.personal_validator import PersonalValidator
 from broker.validators.governance.social_validator import SocialValidator
 from broker.validators.governance.thinking_validator import ThinkingValidator
@@ -23,6 +31,7 @@ from broker.governance.type_validator import TypeValidator
 
 __all__ = [
     "BaseValidator",
+    "BuiltinCheck",
     "PersonalValidator",
     "SocialValidator",
     "ThinkingValidator",
@@ -39,6 +48,7 @@ def validate_all(
     context: Dict[str, Any],
     agent_type: Optional[str] = None,
     registry: Optional["AgentTypeRegistry"] = None,
+    domain: Optional[str] = "flood",
 ) -> List[ValidationResult]:
     """
     Run all validators against a skill proposal.
@@ -53,6 +63,10 @@ def validate_all(
         registry: Optional AgentTypeRegistry instance for type validation.
             If agent_type is provided but registry is None, uses the
             default registry.
+        domain: Domain identifier controlling built-in checks.
+            - ``"flood"`` (default): Flood-domain built-in checks (backward compat)
+            - ``None``: YAML rules only — no hardcoded built-in checks
+            - Future: ``"irrigation"``, etc.
 
     Returns:
         Combined list of ValidationResult from all validators
@@ -61,11 +75,14 @@ def validate_all(
     if rules and not isinstance(rules[0], _GovernanceRule):
         raise TypeError("rules must be GovernanceRule instances")
 
+    # When domain is None, pass empty builtin_checks to disable all defaults
+    no_builtins: Optional[List[BuiltinCheck]] = [] if domain is None else None
+
     validators = [
-        PersonalValidator(),
-        PhysicalValidator(),
-        ThinkingValidator(),
-        SocialValidator(),
+        PersonalValidator(builtin_checks=no_builtins),
+        PhysicalValidator(builtin_checks=no_builtins),
+        ThinkingValidator(builtin_checks=no_builtins),
+        SocialValidator(builtin_checks=no_builtins),
     ]
 
     all_results = []
