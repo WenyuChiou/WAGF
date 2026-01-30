@@ -71,11 +71,12 @@
         {
           "id": "058-F",
           "title": "Integration Wiring",
-          "status": "ready",
+          "status": "completed",
           "assigned_to": "Gemini",
           "scope": "coordinator.py, message_provider.py, phase_orchestrator.py, lifecycle_hooks.py (MODIFY)",
           "depends_on": ["058-A", "058-B", "058-C", "058-D"],
           "handoff_file": "handoff/task-058f-gemini.md",
+          "commit": "9599f68",
           "note": "Wire artifacts, cross-validation, saga timeouts, drift detection into existing components"
         }
       ],
