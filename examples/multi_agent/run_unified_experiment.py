@@ -36,7 +36,7 @@ from broker.components.memory_engine import create_memory_engine
 from broker.simulation.environment import TieredEnvironment
 from cognitive_governance.agents import BaseAgent, AgentConfig, StateParam, Skill, PerceptionSource
 from examples.multi_agent.environment.hazard import HazardModule, VulnerabilityModule, YearMapping
-from components.media_channels import MediaHub
+from examples.multi_agent.components.media_channels import MediaHub
 
 # Local imports from multi_agent directory
 MULTI_AGENT_DIR = Path(__file__).parent

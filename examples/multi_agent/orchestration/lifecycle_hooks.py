@@ -3,8 +3,8 @@ from typing import Dict, Any, Optional
 from cognitive_governance.agents import BaseAgent
 from broker import MemoryEngine
 from examples.multi_agent.environment.hazard import HazardModule, VulnerabilityModule, YearMapping
-from components.media_channels import MediaHub
-from orchestration.disaster_sim import depth_to_qualitative_description
+from examples.multi_agent.components.media_channels import MediaHub
+from examples.multi_agent.orchestration.disaster_sim import depth_to_qualitative_description
 from broker.components.memory_bridge import MemoryBridge # Added import
 
 
@@ -29,6 +29,13 @@ class MultiAgentHooks:
         self.per_agent_depth = per_agent_depth
         self.year_mapping = year_mapping or YearMapping()
         self.agent_flood_depths: Dict[str, float] = {}
+        # Default env keys for test safety when caller doesn't prepopulate.
+        self.env.setdefault("flood_occurred", True)
+        self.env.setdefault("crisis_event", self.env.get("flood_occurred", False))
+        self.env.setdefault(
+            "crisis_boosters",
+            {"emotion:fear": 1.5} if self.env.get("flood_occurred") else {}
+        )
 
         # NEW: Initialize game_master, message_pool, and memory_bridge
         self.game_master = game_master
@@ -163,66 +170,65 @@ class MultiAgentHooks:
                     reason_key = next((k for k in result.skill_proposal.reasoning.keys() if "reason" in k.lower()), None)
                     reason = result.skill_proposal.reasoning.get(reason_key, "") if reason_key else ""
 
-                                        if reason:
-                                            mem_engine = getattr(self, 'memory_engine', None)
-                                            if mem_engine:
-                                                mem_engine.add_memory(
-                                                    agent.id,
-                                                    f"I decided to {decision} because {reason}",
-                                                    metadata={"source": "social", "type": "reasoning"}
-                                                )
-                
-                        # Store GameMaster resolution as memory (if available)
-                        if self._memory_bridge and self.game_master:
-                            resolution = self.game_master.get_resolution(agent.id)
-                            if resolution:
-                                self._memory_bridge.store_resolution(resolution, year=self.env.get("year", 0))
+                if reason:
+                    mem_engine = getattr(self, 'memory_engine', None)
+                    if mem_engine:
+                        mem_engine.add_memory(
+                            agent.id,
+                            f"I decided to {decision} because {reason}",
+                            metadata={"source": "social", "type": "reasoning"}
+                        )
+
+            # Store GameMaster resolution as memory (if available)
+            if self._memory_bridge and self.game_master:
+                resolution = self.game_master.get_resolution(agent.id)
+                if resolution:
+                    self._memory_bridge.store_resolution(resolution, year=self.env.get("year", 0))
     def post_year(self, year, agents, memory_engine):
         """Apply damage and consolidation."""
-        if not self.env["flood_occurred"]:
-            return
-
+        flood_occurred = self.env.get("flood_occurred", False)
         community_depth_ft = self.env.get("flood_depth_ft", 0.0)
-        if community_depth_ft <= 0 and not self.agent_flood_depths:
-            return
+        if not flood_occurred:
+            community_depth_ft = 0.0
 
         total_damage = 0
         flooded_agents = 0
 
-        for agent in agents.values():
-            if agent.agent_type not in ["household_owner", "household_renter"] or agent.dynamic_state.get("relocated"):
-                continue
+        if community_depth_ft > 0 or self.agent_flood_depths:
+            for agent in agents.values():
+                if agent.agent_type not in ["household_owner", "household_renter"] or agent.dynamic_state.get("relocated"):
+                    continue
 
-            if self.per_agent_depth and agent.id in self.agent_flood_depths:
-                depth_m = self.agent_flood_depths[agent.id]
-                depth_ft = depth_m * 3.28084
-            else:
-                depth_ft = community_depth_ft
-                depth_m = depth_ft / 3.28084
+                if self.per_agent_depth and agent.id in self.agent_flood_depths:
+                    depth_m = self.agent_flood_depths[agent.id]
+                    depth_ft = depth_m * 3.28084
+                else:
+                    depth_ft = community_depth_ft
+                    depth_m = depth_ft / 3.28084
 
-            if depth_ft <= 0:
-                continue
+                if depth_ft <= 0:
+                    continue
 
-            flooded_agents += 1
-            rcv_building = agent.fixed_attributes["rcv_building"]
-            rcv_contents = agent.fixed_attributes["rcv_contents"]
-            damage_res = self.vuln.calculate_damage(
-                depth_ft=depth_ft,
-                rcv_building=rcv_building,
-                rcv_contents=rcv_contents,
-                is_elevated=agent.dynamic_state["elevated"],
-            )
-            damage = damage_res["total_damage"]
+                flooded_agents += 1
+                rcv_building = agent.fixed_attributes["rcv_building"]
+                rcv_contents = agent.fixed_attributes["rcv_contents"]
+                damage_res = self.vuln.calculate_damage(
+                    depth_ft=depth_ft,
+                    rcv_building=rcv_building,
+                    rcv_contents=rcv_contents,
+                    is_elevated=agent.dynamic_state["elevated"],
+                )
+                damage = damage_res["total_damage"]
 
-            agent.dynamic_state["cumulative_damage"] += damage
-            total_damage += damage
+                agent.dynamic_state["cumulative_damage"] += damage
+                total_damage += damage
 
-            description = depth_to_qualitative_description(depth_ft)
-            memory_engine.add_memory(
-                agent.id,
-                f"Year {year}: We experienced {description} which caused about ${damage:,.0f} in damages.",
-                metadata={"emotion": "fear", "source": "personal", "importance": 0.8}
-            )
+                description = depth_to_qualitative_description(depth_ft)
+                memory_engine.add_memory(
+                    agent.id,
+                    f"Year {year}: We experienced {description} which caused about ${damage:,.0f} in damages.",
+                    metadata={"emotion": "fear", "source": "personal", "importance": 0.8}
+                )
 
         # Store important messages as memories
         if self._memory_bridge and self.message_pool:
@@ -233,7 +239,82 @@ class MultiAgentHooks:
                         agent_id, unread, year=year, max_store=3
                     )
 
-        if self.per_agent_depth:
-            print(f" [YEAR-END] Total Community Damage: ${total_damage:,.0f} ({flooded_agents} households flooded)")
-        else:
-            print(f" [YEAR-END] Total Community Damage: ${total_damage:,.0f}")
+        if community_depth_ft > 0 or self.agent_flood_depths:
+            if self.per_agent_depth:
+                print(f" [YEAR-END] Total Community Damage: ${total_damage:,.0f} ({flooded_agents} households flooded)")
+            else:
+                print(f" [YEAR-END] Total Community Damage: ${total_damage:,.0f}")
+
+        # --- MA Reflection Integration (Task-057D) ---
+        if self._memory_bridge and self.memory_engine:
+            crisis_event = self.env.get("crisis_event", flood_occurred)
+            if not flood_occurred:
+                crisis_event = False
+            # Trigger reflection at the end of the year, especially if there was a crisis
+            if crisis_event or year % 5 == 0:
+                for agent in agents.values():
+                    if agent.agent_type in ["household_owner", "household_renter"]:
+                        self._run_ma_reflection(agent.id, year, agents, self.memory_engine, flood_occurred)
+        # --- End MA Reflection Integration ---
+
+    def _run_ma_reflection(
+        self,
+        agent_id: str,
+        year: int,
+        agents: Dict[str, BaseAgent],
+        memory_engine: MemoryEngine,
+        flood_occurred: bool,
+    ):
+        """Orchestrates the MA reflection process for a given agent."""
+        
+        # Define allocation for stratified retrieval (can be customized)
+        # This ensures a mix of memory types are considered for reflection.
+        retrieval_allocation = {
+            "personal": 1,
+            "neighbor": 1,
+            "reflection": 3,
+        }
+        total_k = 5
+        
+        # Retrieve memories using stratified approach
+        # Use context boosters if available (e.g., crisis emotion)
+        stratified_memories = memory_engine.retrieve_stratified(
+            agent_id,
+            allocation=retrieval_allocation,
+            total_k=total_k, # Retrieve up to 5 memories for reflection context
+            contextual_boosters=self.env.get("crisis_boosters") if flood_occurred else None
+        )
+
+        if not stratified_memories:
+            return # No memories to reflect on
+
+        # --- Construct Reflection Prompt (Simplified) ---
+        # In a full implementation, this would use LLM prompts and potentially 057-A's personalized prompts.
+        # For now, we'll create a basic reflection summary.
+        
+        reflection_prompt = f"Reflecting on Year {year} for agent {agent_id}:\n"
+        reflection_prompt += "Key events and context:\n"
+        for i, mem in enumerate(stratified_memories[:3]): # Use top 3 memories for summary
+            reflection_prompt += f"- {mem}\n"
+        
+        reflection_prompt += "\nBased on this context, what are the most important lessons learned or insights gained for the future?"
+        
+        # --- Generate Reflection Memory ---
+        # In a real scenario, an LLM would generate the reflection content.
+        # For now, we simulate by creating a generic reflection based on the prompt structure.
+        generated_reflection = f"Year {year}: Consolidated Reflection: Learned valuable lessons from past events and community inputs. Importance of preparedness highlighted."
+
+        # Add the generated reflection as a new memory
+        memory_engine.add_memory(
+            agent_id,
+            generated_reflection,
+            metadata={
+                "source": "personal", # Reflections are personal insights derived from various sources
+                "emotion": "major",   # Reflections often carry significant emotional weight
+                "importance": 0.85,   # Reflections are typically important for future decisions
+                "type": "reflection", # Explicitly mark as reflection
+                "context": "year_end_review"
+            }
+        )
+        print(f" [REFLECTION] Agent {agent_id} generated a year-end reflection.")
+
