@@ -136,7 +136,9 @@ class ResponseFormatBuilder:
 
             elif ftype == "choice":
                 # Emphasize numeric ID to guide model away from string labels
-                lines.append(f'  "{key}": [Numeric ID: {valid_choices_text}]{comma}')
+                # P2 fix: removed square brackets that misled small models (gemma3:1b)
+                # into outputting JSON arrays instead of a single integer
+                lines.append(f'  "{key}": "<Numeric ID, choose ONE from: {valid_choices_text}>"{comma}')
 
             elif ftype == "numeric":
                 # Support numeric fields with range (for utility/financial frameworks)

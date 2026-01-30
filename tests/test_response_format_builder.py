@@ -191,7 +191,7 @@ class TestResponseFormatBuilderBasics:
         }
         builder = ResponseFormatBuilder(config)
         result = builder.build("1 or 2")
-        assert "[Numeric ID: 1 or 2]" in result
+        assert "Numeric ID, choose ONE from: 1 or 2" in result
 
     def test_custom_delimiters(self):
         """Custom delimiters should be used."""
