@@ -51,12 +51,12 @@ python examples/single_agent/run_flood.py --model gemma3:4b --years 10 --agents 
 
 ### 4. Explore More
 
-| Example | Complexity | Description | Link |
-| :--- | :--- | :--- | :--- |
-| **Governed Flood** | Beginner | Standalone Group C demo with full governance | [Go](examples/governed_flood/) |
-| **Single Agent** | Intermediate | JOH Benchmark: Groups A/B/C ablation study | [Go](examples/single_agent/) |
-| **Multi-Agent** | Advanced | Social dynamics, insurance market, government policy | [Go](examples/multi_agent/) |
-| **Finance** | Extension | Cross-domain demonstration (portfolio decisions) | [Go](examples/finance/) |
+| Example            | Complexity   | Description                                          | Link                           |
+| :----------------- | :----------- | :--------------------------------------------------- | :----------------------------- |
+| **Governed Flood** | Beginner     | Standalone Group C demo with full governance         | [Go](examples/governed_flood/) |
+| **Single Agent**   | Intermediate | JOH Benchmark: Groups A/B/C ablation study           | [Go](examples/single_agent/)   |
+| **Multi-Agent**    | Advanced     | Social dynamics, insurance market, government policy | [Go](examples/multi_agent/)    |
+| **Finance**        | Extension    | Cross-domain demonstration (portfolio decisions)     | [Go](examples/finance/)        |
 
 ---
 
@@ -101,13 +101,13 @@ The framework is organized into five conceptual chapters, each with bilingual do
 
 LLM-driven ABMs face five recurring problems that this framework solves:
 
-| Challenge | Problem Description | Framework Solution | Component |
-| :--- | :--- | :--- | :--- |
-| **Hallucination** | LLM generates invalid actions (e.g., "build a wall") | **Strict Registry**: Only registered `skill_id`s are accepted | `SkillRegistry` |
-| **Context Limit** | Cannot dump entire history into prompt | **Salience Memory**: Retrieves only top-k relevant past events | `MemoryEngine` |
-| **Inconsistency** | Decisions contradict reasoning (Logical Drift) | **Thinking Validators**: Checks logical coherence between TP/CP and Choice | `SkillBrokerEngine` |
-| **Opaque Decisions** | "Why did agent X do Y?" is lost | **Structured Trace**: Logs Input, Reasoning, Validation, and Outcome | `AuditWriter` |
-| **Unsafe Mutation** | LLM output breaks simulation state | **Sandboxed Execution**: Validated skills are executed by engine, not LLM | `SimulationEngine` |
+| Challenge            | Problem Description                                  | Framework Solution                                                         | Component           |
+| :------------------- | :--------------------------------------------------- | :------------------------------------------------------------------------- | :------------------ |
+| **Hallucination**    | LLM generates invalid actions (e.g., "build a wall") | **Strict Registry**: Only registered `skill_id`s are accepted              | `SkillRegistry`     |
+| **Context Limit**    | Cannot dump entire history into prompt               | **Salience Memory**: Retrieves only top-k relevant past events             | `MemoryEngine`      |
+| **Inconsistency**    | Decisions contradict reasoning (Logical Drift)       | **Thinking Validators**: Checks logical coherence between TP/CP and Choice | `SkillBrokerEngine` |
+| **Opaque Decisions** | "Why did agent X do Y?" is lost                      | **Structured Trace**: Logs Input, Reasoning, Validation, and Outcome       | `AuditWriter`       |
+| **Unsafe Mutation**  | LLM output breaks simulation state                   | **Sandboxed Execution**: Validated skills are executed by engine, not LLM  | `SimulationEngine`  |
 
 ---
 
@@ -121,12 +121,12 @@ The framework utilizes a layered middleware approach that unifies single-agent i
 
 The framework implements a **Stacking Blocks** architecture. You can build agents of varying cognitive complexity by stacking different modules onto the base Execution Engine:
 
-| Stack Level | Cognitive Block | Function | Effect |
-| :--- | :--- | :--- | :--- |
-| **Base** | **Execution Engine** | _The Body_ | Can execute actions but has no memory or rationality. |
-| **+ Level 1** | **Context Lens** | _The Eyes_ | Adds bounded perception (Window Memory). Prevents context overflow. |
-| **+ Level 2** | **Memory Engine** | _The Hippocampus_ | Adds **Universal Cognitive Engine (v3)**. Includes Surprise-driven System 1/2 switching and trauma recall. |
-| **+ Level 3** | **Skill Broker** | _The Superego_ | Adds **Governance**. Enforces "Thinking Rules" to ensure decisions match beliefs (Rationality). |
+| Stack Level   | Cognitive Block      | Function          | Effect                                                                                                     |
+| :------------ | :------------------- | :---------------- | :--------------------------------------------------------------------------------------------------------- |
+| **Base**      | **Execution Engine** | _The Body_        | Can execute actions but has no memory or rationality.                                                      |
+| **+ Level 1** | **Context Lens**     | _The Eyes_        | Adds bounded perception (Window Memory). Prevents context overflow.                                        |
+| **+ Level 2** | **Memory Engine**    | _The Hippocampus_ | Adds **Universal Cognitive Engine (v3)**. Includes Surprise-driven System 1/2 switching and trauma recall. |
+| **+ Level 3** | **Skill Broker**     | _The Superego_    | Adds **Governance**. Enforces "Thinking Rules" to ensure decisions match beliefs (Rationality).            |
 
 > **Why this matters for research**: This design enables controlled ablation studies. Run a Level 1 Agent (Group A — baseline) vs. Level 3 Agent (Group C — full cognitive) to isolate exactly _which_ cognitive component resolves a specific behavioral bias.
 
@@ -134,7 +134,7 @@ The framework implements a **Stacking Blocks** architecture. You can build agent
 
 ### Framework Evolution
 
-![Framework Evolution](docs/framework_evolution.png)
+![Framework Evolution](docs/memory_evolution_v1_v2_v3.png)
 
 The memory and governance architecture has evolved through three phases:
 
@@ -149,19 +149,19 @@ The memory and governance architecture has evolved through three phases:
 
 ### Provider Layer & Adapter
 
-| Component | File | Description |
-| :--- | :--- | :--- |
+| Component          | File               | Description                                                                                         |
+| :----------------- | :----------------- | :-------------------------------------------------------------------------------------------------- |
 | **UnifiedAdapter** | `model_adapter.py` | Smart parsing: handles model-specific quirks (e.g., DeepSeek `<think>` tags, Llama JSON formatting) |
-| **LLM Utils** | `llm_utils.py` | Centralized LLM calls with robust error handling and verbosity control |
-| **OllamaProvider** | `ollama.py` | Default local inference provider |
+| **LLM Utils**      | `llm_utils.py`     | Centralized LLM calls with robust error handling and verbosity control                              |
+| **OllamaProvider** | `ollama.py`        | Default local inference provider                                                                    |
 
 ### Validator Layer
 
 Governance rules are organized into a 2x2 matrix:
 
-| Dimension | **Strict (Block & Retry)** | **Heuristic (Warn & Log)** |
-| :--- | :--- | :--- |
-| **Physical / Identity Rules** | _Impossible actions_ (e.g., elevate an already-elevated house) | _Suspicious states_ (e.g., wealthy agent choosing "Do Nothing") |
+| Dimension                          | **Strict (Block & Retry)**                                       | **Heuristic (Warn & Log)**                                        |
+| :--------------------------------- | :--------------------------------------------------------------- | :---------------------------------------------------------------- |
+| **Physical / Identity Rules**      | _Impossible actions_ (e.g., elevate an already-elevated house)   | _Suspicious states_ (e.g., wealthy agent choosing "Do Nothing")   |
 | **Psychological / Thinking Rules** | _Logical fallacies_ (e.g., High threat + Low cost -> Do Nothing) | _Behavioral anomalies_ (e.g., extreme anxiety but delayed action) |
 
 **Implementation**: Identity Rules check current state (from `StateManager`). Thinking Rules check internal consistency of LLM reasoning (from `SkillProposal`).
@@ -229,10 +229,10 @@ The **Human-Centric Memory Engine** (v3.3) solves the "Goldfish Effect" by prior
 
 ### Tiered Memory Roadmap (v4 Target)
 
-| Tier | Component | Function (Theory) |
-| :--- | :--- | :--- |
-| **1** | **Working Memory** | **Sensory Buffer**. Immediate context (last 5 years). |
-| **2** | **Episodic Summary** | **Hippocampus**. Long-term storage of "Significant" events (Phase 1/2 logic). |
+| Tier  | Component             | Function (Theory)                                                                       |
+| :---- | :-------------------- | :-------------------------------------------------------------------------------------- |
+| **1** | **Working Memory**    | **Sensory Buffer**. Immediate context (last 5 years).                                   |
+| **2** | **Episodic Summary**  | **Hippocampus**. Long-term storage of "Significant" events (Phase 1/2 logic).           |
 | **3** | **Semantic Insights** | **Neocortex**. Abstracted "Rules" derived from reflection (e.g., "Insurance is vital"). |
 
 **[Read the full Memory & Reflection Specification](docs/modules/memory_components.md)**
@@ -243,12 +243,12 @@ The **Human-Centric Memory Engine** (v3.3) solves the "Goldfish Effect" by prior
 
 ### State Ownership (Multi-Agent)
 
-| State Type | Examples | Scope | Read | Write |
-| :--- | :--- | :--- | :--- | :--- |
-| **Individual** | `memory`, `elevated`, `has_insurance` | Agent-private | Self only | Self only |
-| **Social** | `neighbor_actions`, `last_decisions` | Observable neighbors | Neighbors | System |
-| **Shared** | `flood_occurred`, `year` | All agents | All | System |
-| **Institutional** | `subsidy_rate`, `policy_mode` | All agents | All | Government only |
+| State Type        | Examples                              | Scope                | Read      | Write           |
+| :---------------- | :------------------------------------ | :------------------- | :-------- | :-------------- |
+| **Individual**    | `memory`, `elevated`, `has_insurance` | Agent-private        | Self only | Self only       |
+| **Social**        | `neighbor_actions`, `last_decisions`  | Observable neighbors | Neighbors | System          |
+| **Shared**        | `flood_occurred`, `year`              | All agents           | All       | System          |
+| **Institutional** | `subsidy_rate`, `policy_mode`         | All agents           | All       | Government only |
 
 > **Key point**: `memory` is **Individual** — each agent has its own memory, never shared.
 
@@ -256,14 +256,14 @@ The **Human-Centric Memory Engine** (v3.3) solves the "Goldfish Effect" by prior
 
 ## Validation Pipeline
 
-| Stage | Validator | Check |
-| :--- | :--- | :--- |
-| 1 | Admissibility | Does the skill exist? Is the agent eligible? |
-| 2 | Feasibility | Are preconditions met? (e.g., not already elevated) |
-| 3 | Constraints | One-time or annual limits? |
-| 4 | Effect Safety | Is the state change valid? |
-| 5 | PMT Consistency | Does reasoning match the decision? |
-| 6 | Uncertainty | Is the response confident? |
+| Stage | Validator       | Check                                               |
+| :---- | :-------------- | :-------------------------------------------------- |
+| 1     | Admissibility   | Does the skill exist? Is the agent eligible?        |
+| 2     | Feasibility     | Are preconditions met? (e.g., not already elevated) |
+| 3     | Constraints     | One-time or annual limits?                          |
+| 4     | Effect Safety   | Is the state change valid?                          |
+| 5     | PMT Consistency | Does reasoning match the decision?                  |
+| 6     | Uncertainty     | Is the response confident?                          |
 
 ---
 
@@ -281,21 +281,21 @@ parsing:
 
 memory_config:
   emotional_weights:
-    critical: 1.0   # Flood damage, trauma
-    major: 0.9      # Important life decisions
-    positive: 0.8   # Successful adaptation
-    routine: 0.1    # Daily noise
+    critical: 1.0 # Flood damage, trauma
+    major: 0.9 # Important life decisions
+    positive: 0.8 # Successful adaptation
+    routine: 0.1 # Daily noise
 
   source_weights:
-    personal: 1.0   # Direct experience "I saw..."
-    neighbor: 0.7   # "My neighbor did..."
-    community: 0.5  # "The news said..."
+    personal: 1.0 # Direct experience "I saw..."
+    neighbor: 0.7 # "My neighbor did..."
+    community: 0.5 # "The news said..."
 
   # Context Priority Weights
   priority_schema:
-    flood_depth: 1.0     # Highest: physical reality
-    savings: 0.8         # Financial reality
-    risk_tolerance: 0.5  # Psychological factor
+    flood_depth: 1.0 # Highest: physical reality
+    savings: 0.8 # Financial reality
+    risk_tolerance: 0.5 # Psychological factor
 ```
 
 ---
@@ -304,29 +304,29 @@ memory_config:
 
 The framework has been validated through the **JOH Benchmark** (Journal of Hydrology), a three-group ablation study that isolates the contribution of each cognitive component:
 
-| Group | Memory Engine | Governance | Purpose |
-| :--- | :--- | :--- | :--- |
-| **A (Baseline)** | None | Disabled | Raw LLM output — no memory, no validation |
-| **B (Governed)** | Window | Strict | Governance effect isolation — memory-less but rational |
-| **C (Full Cognitive)** | HumanCentric + Priority | Strict | Complete system with emotional salience and trauma recall |
+| Group                  | Memory Engine           | Governance | Purpose                                                   |
+| :--------------------- | :---------------------- | :--------- | :-------------------------------------------------------- |
+| **A (Baseline)**       | None                    | Disabled   | Raw LLM output — no memory, no validation                 |
+| **B (Governed)**       | Window                  | Strict     | Governance effect isolation — memory-less but rational    |
+| **C (Full Cognitive)** | HumanCentric + Priority | Strict     | Complete system with emotional salience and trauma recall |
 
 ### Single-Agent vs. Multi-Agent Comparison
 
-| Dimension | Single-Agent | Multi-Agent |
-| :--- | :--- | :--- |
-| State | Individual only | Individual + Social + Shared + Institutional |
-| Agent types | 1 (household) | N (household, government, insurance) |
-| Observability | Self only | Self + neighbors + community statistics |
-| Context | Direct | Context Builder + Social Module |
-| Use case | Baseline ABM | Policy simulation with social dynamics |
+| Dimension     | Single-Agent    | Multi-Agent                                  |
+| :------------ | :-------------- | :------------------------------------------- |
+| State         | Individual only | Individual + Social + Shared + Institutional |
+| Agent types   | 1 (household)   | N (household, government, insurance)         |
+| Observability | Self only       | Self + neighbors + community statistics      |
+| Context       | Direct          | Context Builder + Social Module              |
+| Use case      | Baseline ABM    | Policy simulation with social dynamics       |
 
 ### Validated Models (v3.3)
 
-| Model Family | Variants | Use Case |
-| :--- | :--- | :--- |
-| **Google Gemma** | 3-4B, 3-12B, 3-27B | Primary benchmark models (JOH Paper) |
-| **Meta Llama** | 3.2-3B-Instruct | Lightweight edge agents |
-| **DeepSeek** | R1-Distill-Llama-8B | High-Reasoning (CoT) tasks |
+| Model Family     | Variants            | Use Case                             |
+| :--------------- | :------------------ | :----------------------------------- |
+| **Google Gemma** | 3-4B, 3-12B, 3-27B  | Primary benchmark models (JOH Paper) |
+| **Meta Llama**   | 3.2-3B-Instruct     | Lightweight edge agents              |
+| **DeepSeek**     | R1-Distill-Llama-8B | High-Reasoning (CoT) tasks           |
 
 **[Full experimental details](examples/single_agent/)**
 
@@ -353,17 +353,20 @@ The framework has been validated through the **JOH Benchmark** (Journal of Hydro
 The architecture is grounded in and contributes to the following literature:
 
 ### Behavioral Theory
+
 1. **Rogers, R. W.** (1983). Cognitive and physiological processes in fear appeals and attitude change: A revised theory of protection motivation. _Social Psychophysiology_.
 2. **Trope, Y., & Liberman, N.** (2010). Construal-level theory of psychological distance. _Psychological Review_, 117(2), 440.
 3. **Tversky, A., & Kahneman, D.** (1973). Availability: A heuristic for judging frequency and probability. _Cognitive Psychology_, 5(2), 207-232.
 4. **Ebbinghaus, H.** (1885). _Memory: A Contribution to Experimental Psychology_. (The Forgetting Curve basis).
 
 ### Flood Risk & Adaptation
+
 5. **Siegrist, M., & Gutscher, H.** (2008). Natural hazards and motivation for self-protection: Memory matters. _Risk Analysis_, 28(3), 771-778.
 6. **Bubeck, P., Botzen, W. J. W., & Aerts, J. C. J. H.** (2012). A review of risk perceptions and other factors that influence flood mitigation behavior. _Risk Analysis_, 32(9), 1481-1495.
 7. **Hung, C.-L. J., & Yang, Y. C. E.** (2021). Assessing adaptive irrigation impacts on water scarcity in nonstationary environments. _Water Resources Research_, 57(7), e2020WR028946.
 
 ### LLM Agents & Architecture
+
 8. **Park, J. S., ... & Bernstein, M. S.** (2023). Generative Agents: Interactive Simulacra of Human Behavior. _ACM CHI_.
 
 ---

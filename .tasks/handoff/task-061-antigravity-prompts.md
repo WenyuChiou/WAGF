@@ -17,19 +17,22 @@
 A horizontal 3-panel comparison showing the evolution of the memory architecture:
 
 **Panel 1 — v1 (Window Memory)**
+
 - Title: "v1: Availability Heuristic"
 - Visual: A simple sliding window of 5 boxes (representing years), with the most recent highlighted
 - Key concept: "Recent events only — recency bias"
 - Label: "Group A/B Baseline"
 
 **Panel 2 — v2 (Weighted Retrieval)**
+
 - Title: "v2: Context-Dependent Memory"
 - Visual: Same 5 boxes but with varying sizes/colors based on importance score
-- Formula: S = W_rec * R + W_imp * I + W_ctx * C
+- Formula: S = W_rec _ R + W_imp _ I + W_ctx \* C
 - Key concept: "Importance-weighted retrieval"
 - Label: "Modular SkillBrokerEngine"
 
 **Panel 3 — v3 (Surprise Engine)**
+
 - Title: "v3: Dual-Process & Active Inference"
 - Visual: Two pathways (System 1 and System 2) branching from a "Prediction Error" node
   - Low PE → System 1 (routine, decay-dominant)
@@ -57,13 +60,14 @@ governed_flood  →  single_agent  →  multi_agent  →  finance
 ```
 
 Each box shows:
+
 - Example name
 - Complexity level
 - Key components added at this level:
   - governed_flood: Governance + HumanCentric Memory
   - single_agent: + Groups A/B/C ablation, stress tests, survey mode
   - multi_agent: + Social network, insurance market, government policy
-  - finance: + Cross-domain skills, portfolio decisions
+  - finance: + Financial resilience (Catastrophe bonds, flood-resilient investment)
 
 **Style**: Simple boxes connected by arrows, with a "complexity gradient" from light blue (beginner) to dark blue (extension).
 **Dimensions**: Wide format (1000x300), high DPI (300+)
