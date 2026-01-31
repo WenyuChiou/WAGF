@@ -156,19 +156,46 @@ Agents & 100 households $\times$ 10 yr & 78 districts $\times$ 42 yr \\
 % H_norm = H / log2(k), k = number of possible actions
 
 % 3.2 Hallucination Rate
-% R_H = hallucinated decisions / total decisions
-% Hallucination = physically impossible given prior state
-%   (e.g., elevate already-elevated home)
+We define \emph{behavioral hallucination} as an action $a_t$ proposed by an
+LLM agent that violates physical or institutional constraints given the
+agent's state $s_{t-1}$ at the previous timestep.  Formally, let
+$\mathcal{A}(s_{t-1})$ denote the set of feasible actions given state
+$s_{t-1}$.  An action is a behavioral hallucination if $a_t \notin
+\mathcal{A}(s_{t-1})$.  This differs from textual hallucination
+\citep{ji2023survey} in that the output may be linguistically coherent but
+physically impossible---for example, an agent proposing to elevate an
+already-elevated home or to adopt irrigation efficiency technology it already
+owns.  The hallucination rate is
+\begin{equation}
+R_H = \frac{n_{\text{hall}}}{n_{\text{total}}}
+\label{eq:rh}
+\end{equation}
+where $n_{\text{hall}}$ counts decisions satisfying $a_t \notin \mathcal{A}(s_{t-1})$
+over the evaluation window (years~2--$T$; year~1 is excluded because no prior
+state exists).
 
 % 3.3 Effective Behavioral Entropy (EBE)
-% EBE = H_norm × (1 - R_H)
-% Range [0,1]: 0 = no diversity or all hallucinated, 1 = perfect diversity
-% Novel contribution: single metric capturing both hallucination and diversity
-
+The Effective Behavioral Entropy (EBE) combines normalized Shannon entropy
+\citep{shannon1948mathematical} with the hallucination penalty:
 \begin{equation}
 \text{EBE} = H_{\text{norm}} \times (1 - R_H) = \frac{H}{\log_2 k} \times \left(1 - \frac{n_{\text{hall}}}{n_{\text{total}}}\right)
 \label{eq:ebe}
 \end{equation}
+where $k$ is the number of available actions and $H = -\sum_{i=1}^{k} p_i
+\log_2 p_i$ is the Shannon entropy of the observed action distribution.  EBE
+ranges from 0 (no diversity or entirely hallucinated) to 1 (maximum diversity
+with zero hallucination).  Unlike raw entropy, EBE penalizes apparent
+diversity that arises from physically impossible actions
+\citep{jost2006entropy}.
+
+When computing corrected entropy, hallucinated actions are replaced with the
+agent's default action (\texttt{DoNothing} for flood, \texttt{maintain\_demand}
+for irrigation).  This conservative replacement reflects the counterfactual
+that a governed agent would have been blocked and forced to re-decide.  We
+acknowledge this choice inflates the default-action count; alternative
+approaches such as redistributing hallucination probability across valid
+actions would yield different $H_{\text{corr}}$ values.  We report both raw
+and corrected entropy to enable comparison (Figure~2).
 
 % ===========================================================================
 % 4. CASE STUDY 1: FLOOD ADAPTATION (~800 words, ~1.6 PU)
@@ -259,10 +286,21 @@ Agents & 100 households $\times$ 10 yr & 78 districts $\times$ 42 yr \\
 %            + 4 figures + 1 table = ~13 PU total (within limit)
 % ===========================================================================
 
-\section*{Open Research}
-The SAGE framework, all experiment configurations, simulation logs, and
-analysis scripts are available at [GitHub URL] under the MIT License.
-Simulation data are archived at [Zenodo DOI].
+\section*{Data Availability Statement}
+Simulation logs, agent configurations, and analysis scripts are archived at
+[Zenodo DOI] and available at [GitHub URL] under the MIT License.  The CRSS
+precipitation projections are from the U.S.\ Bureau of Reclamation
+\citep{usbr2012colorado}.  All raw LLM traces (JSONL format) and governance
+audit logs are included in the archive to support independent verification.
+
+\section*{Conflict of Interest}
+The authors declare no conflicts of interest relevant to this study.
+
+\section*{Author Contributions}
+\textbf{Wen-Yu Chen}: Conceptualization, Methodology, Software, Validation,
+Formal analysis, Investigation, Writing -- Original Draft, Visualization.
+\textbf{[Second Author]}: Supervision, Writing -- Review \& Editing, Funding
+acquisition.
 
 \acknowledgments
 This work was supported by [funding source].
