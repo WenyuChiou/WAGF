@@ -32,7 +32,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from cognitive_governance.agents import BaseAgent, AgentConfig
-from cognitive_governance.simulation.irrigation_env import (
+from examples.irrigation_abm.irrigation_env import (
     IrrigationEnvironment,
     WaterSystemConfig,
 )
@@ -53,7 +53,7 @@ from broker.components.context_builder import TieredContextBuilder
 from broker.interfaces.skill_types import ExecutionResult
 from broker.utils.llm_utils import create_legacy_invoke as create_llm_invoke
 from broker.utils.agent_config import GovernanceAuditor
-from broker.validators.governance.irrigation_validators import (
+from examples.irrigation_abm.validators.irrigation_validators import (
     irrigation_governance_validator,
 )
 
@@ -113,7 +113,7 @@ def _create_synthetic_profiles(
     seed: int = 42,
 ) -> List[IrrigationAgentProfile]:
     """Create synthetic agent profiles with balanced cluster distribution."""
-    from cognitive_governance.learning.fql import (
+    from examples.irrigation_abm.learning.fql import (
         CLUSTER_AGGRESSIVE,
         CLUSTER_FORWARD_LOOKING,
         CLUSTER_MYOPIC,

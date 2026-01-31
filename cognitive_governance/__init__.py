@@ -1,23 +1,21 @@
 """
-GovernedAI SDK - Universal Cognitive Governance Middleware
+Cognitive Governance SDK — cognitive governance middleware for LLM-driven
+agent-based models of coupled human-water systems.
 
-Provides "Cognitive Governance" (Identity & Thinking Rules) to ANY agent framework
-(LangChain, CrewAI, AutoGen, etc.)
+Provides agent protocols, configuration loaders, environment protocols,
+and memory engines for governing LLM agent behavior in water-domain
+simulations (flood risk adaptation, irrigation water management).
 
-Task-037: SDK-Broker Architecture Separation
-- Added agents module (BaseAgent, AgentConfig, AgentProtocol)
-- Added config module (DomainConfigLoader)
-- Added simulation module (EnvironmentProtocol)
+Domain-specific implementations (environments, validators, learning
+algorithms) reside in their respective example directories:
+  - examples/irrigation_abm/  — Irrigation water management (CRSS)
+  - examples/multi_agent/flood/ — Multi-agent flood adaptation
+  - examples/single_agent/     — Single-agent flood adaptation
 
 Usage:
-    # Agents
-    from cognitive_governance.agents import BaseAgent, AgentConfig, AgentProtocol
-
-    # Config
-    from cognitive_governance.config import DomainConfigLoader, load_domain
-
-    # Simulation
+    from cognitive_governance.agents import BaseAgent, AgentConfig
     from cognitive_governance.simulation import EnvironmentProtocol
+    from cognitive_governance.memory import UnifiedCognitiveEngine
 """
 
 __version__ = "0.30.0"

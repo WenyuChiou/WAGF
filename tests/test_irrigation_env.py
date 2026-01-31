@@ -5,11 +5,11 @@ Tests for the Irrigation Environment and Governance Validators.
 import numpy as np
 import pytest
 
-from cognitive_governance.simulation.irrigation_env import (
+from examples.irrigation_abm.irrigation_env import (
     IrrigationEnvironment,
     WaterSystemConfig,
 )
-from broker.validators.governance.irrigation_validators import (
+from examples.irrigation_abm.validators.irrigation_validators import (
     water_right_cap_check,
     non_negative_diversion_check,
     curtailment_awareness_check,
