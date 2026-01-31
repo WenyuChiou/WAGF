@@ -266,8 +266,8 @@ class IrrigationLifecycleHooks:
                 "diversion": agent_state.get("diversion", 0),
                 "water_right": agent_state.get("water_right", 0),
                 "curtailment_ratio": agent_state.get("curtailment_ratio", 0),
-                "drought_index": self.env._drought_index,
-                "shortage_tier": self.env._shortage_tier,
+                "drought_index": self.env.global_state.get("drought_index", 0),
+                "shortage_tier": self.env.institutions.get("colorado_compact", {}).get("shortage_tier", 0),
                 "has_efficient_system": agent_state.get("has_efficient_system", False),
                 "memory": mem_str,
             })
@@ -281,7 +281,8 @@ class IrrigationLifecycleHooks:
         from collections import Counter
         counts = Counter(decisions)
         summary = " | ".join(f"{k}: {v}" for k, v in counts.most_common())
-        print(f"[Year {year}] {summary} (drought={self.env._drought_index:.2f})")
+        drought = self.env.global_state.get("drought_index", 0)
+        print(f"[Year {year}] {summary} (drought={drought:.2f})")
 
         # Batch year-end reflection
         if self.reflection_engine and self.reflection_engine.should_reflect("any", year):
@@ -383,6 +384,13 @@ def main():
     config = WaterSystemConfig(seed=seed)
     env = IrrigationEnvironment(config)
     env.initialize_from_profiles(profiles)
+
+    # Load real CRSS precipitation projections when available
+    if args.real:
+        precip_csv = ref_dir / "CRSS_DB" / "CRSS_DB" / "HistoricalData" / "PrismWinterPrecip_ST_NOAA_Future.csv"
+        if precip_csv.exists():
+            env.load_crss_precipitation(str(precip_csv))
+            print(f"[Data] Loaded real CRSS precipitation projections (2017-2060)")
 
     # --- Convert profiles → BaseAgent instances ---
     agents = _profiles_to_agents(profiles)
