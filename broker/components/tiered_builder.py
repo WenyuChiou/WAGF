@@ -251,19 +251,23 @@ class TieredContextBuilder(BaseAgentContextBuilder):
             DynamicStateProvider(dynamic_whitelist),
             AttributeProvider(),
             MemoryProvider(memory_engine),
-            # Phase 8: Pass SDK observer to SocialProvider if available
-            SocialProvider(hub, observer=social_observer),
             NarrativeProvider(),
         ]
 
-        if getattr(hub, "environment", None):
-            providers.append(InstitutionalProvider(hub.environment))
+        # Only add social/institutional providers when hub is available
+        # (irrigation domain runs without InteractionHub)
+        if hub is not None:
+            # Phase 8: Pass SDK observer to SocialProvider if available
+            providers.append(SocialProvider(hub, observer=social_observer))
 
-        # Phase 8: Add EnvironmentObservationProvider if SDK observer provided
-        if environment_observer and getattr(hub, "environment", None):
-            providers.append(
-                EnvironmentObservationProvider(environment_observer, hub.environment)
-            )
+            if getattr(hub, "environment", None):
+                providers.append(InstitutionalProvider(hub.environment))
+
+            # Phase 8: Add EnvironmentObservationProvider if SDK observer provided
+            if environment_observer and getattr(hub, "environment", None):
+                providers.append(
+                    EnvironmentObservationProvider(environment_observer, hub.environment)
+                )
 
         super().__init__(
             agents=agents,
@@ -283,13 +287,23 @@ class TieredContextBuilder(BaseAgentContextBuilder):
 
     def build(self, agent_id: str, **kwargs) -> Dict[str, Any]:
         agent = self.agents.get(agent_id)
-        context = self.hub.build_tiered_context(agent_id, self.agents, self.global_news)
+
+        if self.hub is not None:
+            context = self.hub.build_tiered_context(agent_id, self.agents, self.global_news)
+        else:
+            # Fallback context when no InteractionHub (e.g., irrigation domain)
+            context = {
+                "personal": {"id": agent_id, "memory": []},
+                "local": {"spatial": {}, "social": [], "visible_actions": []},
+                "global": self.global_news or [],
+                "institutional": {},
+            }
 
         context["agent_id"] = agent_id
         context["agent_type"] = getattr(agent, "agent_type", "default") if agent else "default"
 
         env_context = kwargs.get("env_context", {})
-        if (not env_context) and getattr(self.hub, "environment", None):
+        if (not env_context) and self.hub is not None and getattr(self.hub, "environment", None):
             env_context = self.hub.environment.global_state
 
         env_context = env_context or kwargs.get("env_context", {})
