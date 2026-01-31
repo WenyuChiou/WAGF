@@ -1,3 +1,11 @@
+"""Governed Broker Framework — cognitive governance middleware for LLM-driven
+agent-based models of human-water interactions.
+
+Provides skill-based governance, memory engines, and reflection capabilities
+for coupled human-water simulations including flood risk adaptation and
+irrigation water management.
+"""
+
 # 1. Base Interfaces (No dependencies)
 from .interfaces.skill_types import (
     SkillProposal, SkillDefinition, ApprovedSkill, 

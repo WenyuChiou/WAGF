@@ -1,2 +1,2 @@
-"""Shared modules for domain-agnostic components."""
+"""Shared modules for extensible framework components."""
 
