@@ -1,8 +1,8 @@
 """
 SAGE Paper -- Figure 4: Irrigation Demand Management Results
 =============================================================
-Colorado River Basin case study -- 78 irrigation districts, 23 of 42 years
-(preliminary; production run exp_2824 in progress).
+Colorado River Basin case study -- 78 irrigation districts, 42 years
+(post-fix production run v4: persona + memory pipeline corrected).
 
 Single-panel figure showing demand trajectories by behavioral cluster:
   - Aggressive (n=67)
@@ -14,7 +14,7 @@ Y-axis: demand as % of initial water right (year-0 = 80% utilization).
 X-axis: simulation year (2019 + year offset).
 
 Data source:
-  examples/irrigation_abm/results/production_4b_42yr_v2/raw/
+  examples/irrigation_abm/results/production_4b_42yr_v4/raw/
       irrigation_farmer_traces.jsonl
 
 Cluster definitions from Hung & Yang (2021), mapped through:
@@ -45,7 +45,7 @@ REPO_ROOT = SCRIPT_DIR.parents[3]  # governed_broker_framework/
 TRACE_FILE = (
     REPO_ROOT
     / "examples" / "irrigation_abm" / "results"
-    / "production_4b_42yr_v2" / "raw" / "irrigation_farmer_traces.jsonl"
+    / "production_4b_42yr_v4" / "raw" / "irrigation_farmer_traces.jsonl"
 )
 
 # ---------- style (consistent with fig3) ----------
@@ -164,7 +164,9 @@ def compute_cluster_trajectories(records, agent_meta):
                     pct = (req / agent_meta[aid]["initial_demand"]) * 100.0
                     pcts.append(pct)
 
-            if len(pcts) >= 1:
+            # Only include years where all (or nearly all) agents reported
+            # This avoids biased means from partially-completed years
+            if len(pcts) >= max(2, int(np.ceil(n_agents * 0.9))):
                 valid_years.append(yr)
                 yearly_means.append(np.mean(pcts))
                 yearly_stds.append(np.std(pcts, ddof=1) if len(pcts) > 1 else 0.0)
@@ -236,13 +238,18 @@ def main():
             color=color, alpha=0.10, zorder=2,
         )
 
-        # Mean line -- skip marker at synthetic year 0
+        # Mean line -- plot full line, then overlay markers for years 1+
         ax.plot(
             cal, d["mean_pct"],
             color=color, linewidth=1.5, linestyle=ls,
-            marker=marker, markersize=2.8, markeredgewidth=0.4,
-            markeredgecolor="white", markevery=lambda pos, total: pos > 0,
             label=label, zorder=3,
+        )
+        # Markers only on actual simulation years (skip synthetic year 0)
+        ax.plot(
+            cal[1:], d["mean_pct"][1:],
+            color=color, linewidth=0, linestyle="none",
+            marker=marker, markersize=2.8, markeredgewidth=0.4,
+            markeredgecolor="white", zorder=4,
         )
 
     # ---- Drought severity context ----
@@ -251,9 +258,14 @@ def main():
                alpha=0.15, zorder=0)
 
     # ---- Preliminary annotation ----
+    # Use the actual number of complete years (max of valid years across clusters)
+    n_complete = max(
+        len(traj[c]["years"]) - 1  # subtract synthetic year 0
+        for c in traj
+    )
     ax.text(
         0.97, 0.03,
-        f"Preliminary ({max_year}/42 yr)",
+        f"Preliminary ({n_complete}/42 yr)",
         transform=ax.transAxes,
         fontsize=6, ha="right", va="bottom",
         color="gray", fontstyle="italic",
@@ -262,13 +274,17 @@ def main():
     )
 
     # ---- Formatting ----
+    # Use the last complete year (from trajectory data, not raw records)
+    last_complete_yr = max(
+        int(traj[c]["years"][-1]) for c in traj
+    )
     ax.set_xlabel("Year")
     ax.set_ylabel("Water Demand (% of Initial Allocation)")
-    ax.set_xlim(SIM_START - 0.3, SIM_START + max_year + 1.5)
+    ax.set_xlim(SIM_START - 0.3, SIM_START + last_complete_yr + 1.5)
     ax.set_ylim(0, 115)
 
     # X ticks every 4 years
-    xtick_years = list(range(SIM_START, SIM_START + max_year + 1, 4))
+    xtick_years = list(range(SIM_START, SIM_START + last_complete_yr + 1, 4))
     ax.set_xticks(xtick_years)
     ax.tick_params(axis="x", rotation=45)
 
