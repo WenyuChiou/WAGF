@@ -1,0 +1,52 @@
+# Minimal Agent Types — SAGE Hello World
+global_config:
+  memory:
+    window_size: 3
+  llm:
+    num_ctx: 4096
+    num_predict: 1024
+    max_retries: 2
+  governance:
+    max_retries: 2
+    max_reports_per_retry: 2
+
+shared:
+  rating_scale: |
+    ### RATING SCALE:
+    VL = Very Low | L = Low | M = Medium | H = High | VH = Very High
+
+  response_format:
+    delimiter_start: "<<<DECISION_START>>>"
+    delimiter_end: "<<<DECISION_END>>>"
+    fields:
+      - { key: "threat_appraisal", type: "appraisal", required: true,
+          construct: "TP_LABEL",
+          reason_hint: "How threatened do you feel?" }
+      - { key: "coping_appraisal", type: "appraisal", required: true,
+          construct: "CP_LABEL",
+          reason_hint: "How well can you cope?" }
+      - { key: "decision", type: "decision", required: true }
+
+agent_types:
+  simple_agent:
+    prompt_template: |
+      You are a resident deciding how to prepare for a potential hazard.
+      Your current situation: {situation}
+
+      Choose one action:
+      1. take_action — Spend resources to protect yourself
+      2. do_nothing — Wait and see
+
+      {response_format}
+    governance:
+      profile: strict
+      rules:
+        - rule_id: already_protected
+          description: "Cannot take_action if already protected"
+          conditions:
+            - construct: "protected"
+              operator: "eq"
+              value: true
+          action: "block"
+          fallback_skill: "do_nothing"
+          message: "Already protected — no need to act again."
