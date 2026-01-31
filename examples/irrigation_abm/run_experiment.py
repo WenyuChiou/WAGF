@@ -202,6 +202,10 @@ class IrrigationLifecycleHooks:
             agent_state = self.env.get_agent_state(aid)
             agent.at_allocation_cap = agent_state.get("at_allocation_cap", False)
             agent.has_efficient_system = agent_state.get("has_efficient_system", False)
+            # Also sync to custom_attributes so AttributeProvider sees updated values
+            if hasattr(agent, "custom_attributes"):
+                agent.custom_attributes["at_allocation_cap"] = agent.at_allocation_cap
+                agent.custom_attributes["has_efficient_system"] = agent.has_efficient_system
 
             # Inject regret feedback from last year's outcome into memory
             if year > 1:

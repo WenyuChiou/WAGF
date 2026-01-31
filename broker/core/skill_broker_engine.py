@@ -285,6 +285,7 @@ class SkillBrokerEngine:
             "agent_state": context,
             "agent_type": agent_type,
             "env_state": env_context, # The "New Standard" source of truth
+            **context.get("state", {}),  # Flatten agent state for custom validators
             **env_context             # Flat injection for legacy validator lookups
         }
         
@@ -655,11 +656,6 @@ class SkillBrokerEngine:
                 results.extend(custom_results)
             else: # Assume single ValidationResult if not list
                 results.append(custom_results)
-        
-        # print(f"DEBUG: _run_validators: Total validation results: {len(results)}")
-        if results:
-            for i, r in enumerate(results):
-                print(f"  - Result {i}: valid={r.valid}, validator='{r.validator_name}', errors={r.errors}")
         
         return results
 
