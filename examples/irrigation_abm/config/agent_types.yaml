@@ -72,17 +72,17 @@ shared:
     delimiter_end: "<<<DECISION_END>>>"
     fields:
       - {
-          key: "water_threat_appraisal",
+          key: "water_scarcity_assessment",
           type: "appraisal",
           required: true,
-          construct: "WTA_LABEL",
-          reason_hint: "One sentence on how threatened your water supply feels.",
+          construct: "WSA_LABEL",
+          reason_hint: "One sentence on how scarce your water supply feels.",
         }
       - {
-          key: "water_coping_appraisal",
+          key: "adaptive_capacity_assessment",
           type: "appraisal",
           required: true,
-          construct: "WCA_LABEL",
+          construct: "ACA_LABEL",
           reason_hint: "One sentence on how well you can adapt your water use.",
         }
       - { key: "decision", type: "choice", required: true }
@@ -140,9 +140,9 @@ irrigation_farmer:
     audit_stopwords: ["water", "irrigation", "farm", "crop"]
 
     synonyms:
-      wta:
+      wsa:
         [
-          "water_threat",
+          "water_scarcity",
           "drought_risk",
           "scarcity",
           "shortage",
@@ -150,7 +150,7 @@ irrigation_farmer:
           "supply_risk",
           "curtailment_risk",
         ]
-      wca:
+      aca:
         [
           "adaptation_ability",
           "coping",
@@ -168,20 +168,20 @@ irrigation_farmer:
       "5": "maintain_demand"
 
     constructs:
-      WTA_LABEL:
+      WSA_LABEL:
         {
-          keywords: ["water_threat_appraisal", "water_threat"],
+          keywords: ["water_scarcity_assessment", "water_scarcity"],
           regex: "(?i)\\b(VL|L|M|H|VH)\\b",
         }
-      WTA_REASON: { keywords: ["water_threat_appraisal", "water_threat"], regex: ".*" }
-      WCA_LABEL:
+      WSA_REASON: { keywords: ["water_scarcity_assessment", "water_scarcity"], regex: ".*" }
+      ACA_LABEL:
         {
-          keywords: ["water_coping_appraisal", "water_coping"],
+          keywords: ["adaptive_capacity_assessment", "adaptive_capacity"],
           regex: "(?i)\\b(VL|L|M|H|VH)\\b",
         }
-      WCA_REASON: { keywords: ["water_coping_appraisal", "water_coping"], regex: ".*" }
+      ACA_REASON: { keywords: ["adaptive_capacity_assessment", "adaptive_capacity"], regex: ".*" }
 
-  log_fields: ["water_threat_appraisal", "water_coping_appraisal"]
+  log_fields: ["water_scarcity_assessment", "adaptive_capacity_assessment"]
 
   # ---------------------------------------------------------------------------
   # Memory Configuration
@@ -321,13 +321,13 @@ irrigation_farmer:
   # ---------------------------------------------------------------------------
   governance:
     # Strict governance: enforces water allocation rules + behavioral
-    # consistency checks analogous to flood PMT governance.
+    # consistency checks analogous to flood dual-appraisal governance.
     strict:
       thinking_rules:
         # R1: High water threat → cannot maintain status quo
         - {
             id: high_threat_no_maintain,
-            construct: WTA_LABEL,
+            construct: WSA_LABEL,
             when_above: ["VH"],
             blocked_skills: ["maintain_demand"],
             level: ERROR,
@@ -336,8 +336,8 @@ irrigation_farmer:
         # R2: Low coping → cannot adopt expensive measures
         - {
             id: low_coping_block_expensive,
-            construct: WCA_LABEL,
-            conditions: [{ construct: WCA_LABEL, values: ["VL"] }],
+            construct: ACA_LABEL,
+            conditions: [{ construct: ACA_LABEL, values: ["VL"] }],
             blocked_skills: ["adopt_efficiency"],
             level: ERROR,
             message: "Adoption of new technology blocked: Very Low perceived implementation capacity.",
@@ -345,18 +345,18 @@ irrigation_farmer:
         # R3: Low threat → cannot justify demand increase
         - {
             id: low_threat_no_increase,
-            conditions: [{ construct: WTA_LABEL, values: ["VL", "L"] }],
+            conditions: [{ construct: WSA_LABEL, values: ["VL", "L"] }],
             blocked_skills: ["increase_demand"],
             level: ERROR,
-            message: "Demand increase blocked: Water threat ({context.WTA_LABEL}) is low — no justification for requesting additional allocation.",
+            message: "Demand increase blocked: Water scarcity ({context.WSA_LABEL}) is low — no justification for requesting additional allocation.",
           }
         # R4: High threat + high coping → should not increase demand
         - {
             id: high_threat_high_cope_no_increase,
             conditions:
               [
-                { construct: WTA_LABEL, values: ["H", "VH"] },
-                { construct: WCA_LABEL, values: ["H", "VH"] },
+                { construct: WSA_LABEL, values: ["H", "VH"] },
+                { construct: ACA_LABEL, values: ["H", "VH"] },
               ],
             blocked_skills: ["increase_demand"],
             level: WARNING,
@@ -385,7 +385,7 @@ irrigation_farmer:
       thinking_rules:
         - {
             id: high_threat_warn_maintain,
-            construct: WTA_LABEL,
+            construct: WSA_LABEL,
             when_above: ["H"],
             blocked_skills: ["maintain_demand"],
             level: WARNING,

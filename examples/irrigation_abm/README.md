@@ -47,9 +47,9 @@ Three k-means clusters from Hung & Yang (2021) Section 4.1, mapped from FQL para
 
 | Rule | Severity | Trigger |
 |------|----------|---------|
-| `high_threat_no_maintain` | ERROR | WTA=VH blocks `maintain_demand` |
-| `low_coping_block_expensive` | ERROR | WCA=VL blocks `adopt_efficiency` |
-| `low_threat_no_increase` | ERROR | WTA in {VL,L} blocks `increase_demand` |
+| `high_threat_no_maintain` | ERROR | WSA=VH blocks `maintain_demand` |
+| `low_coping_block_expensive` | ERROR | ACA=VL blocks `adopt_efficiency` |
+| `low_threat_no_increase` | ERROR | WSA in {VL,L} blocks `increase_demand` |
 | `water_right_cap` | ERROR | At allocation cap blocks `increase_demand` |
 | `already_efficient` | ERROR | Has efficient system blocks `adopt_efficiency` |
 

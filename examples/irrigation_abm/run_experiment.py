@@ -231,12 +231,14 @@ class IrrigationLifecycleHooks:
 
         if result and result.skill_proposal and result.skill_proposal.reasoning:
             r = result.skill_proposal.reasoning
-            appraisals["wta_label"] = next(
-                (r[k] for k in ["WTA_LABEL", "water_threat_appraisal", "water_threat"] if k in r),
+            appraisals["wsa_label"] = next(
+                (r[k] for k in ["WSA_LABEL", "water_scarcity_assessment", "water_scarcity",
+                                "WTA_LABEL", "water_threat_appraisal", "water_threat"] if k in r),
                 "N/A",
             )
-            appraisals["wca_label"] = next(
-                (r[k] for k in ["WCA_LABEL", "water_coping_appraisal", "water_coping"] if k in r),
+            appraisals["aca_label"] = next(
+                (r[k] for k in ["ACA_LABEL", "adaptive_capacity_assessment", "adaptive_capacity",
+                                "WCA_LABEL", "water_coping_appraisal", "water_coping"] if k in r),
                 "N/A",
             )
 
