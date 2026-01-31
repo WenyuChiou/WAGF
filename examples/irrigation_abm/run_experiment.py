@@ -218,7 +218,10 @@ class IrrigationLifecycleHooks:
 
     # -- post_step: record each agent's decision --
     def post_step(self, agent, result):
-        year = self.env.current_year
+        # Use the runner's internal year counter (1-based), not env.current_year
+        # which is the simulation year (e.g. 2020). The post_year hook receives
+        # the same 1-based step counter from ExperimentRunner.
+        year = getattr(self.runner, '_current_year', self.env.current_year)
         skill_name = None
         appraisals = {}
 
