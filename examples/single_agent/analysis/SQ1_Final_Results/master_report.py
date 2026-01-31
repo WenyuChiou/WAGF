@@ -85,29 +85,18 @@ def get_stats(model, group):
     ]
     jsonl_candidates = [p for p in jsonl_candidates if p.exists()]
     
-    # if not csv: 
-    #     print(f"   [Warning] No simulation_log.csv found in {group_dir}")
-    #     return None
+    # Discount if not found
+    if not csv: 
+        return {"Status": "Missing Log"}
 
-    # print(f"   [File Check] {model}/{group} -> {csv}")
-    
     try:
         df = pd.read_csv(csv)
         df.columns = [c.lower() for c in df.columns]
-        # print(f"   [Year Check] Max Year: {df['year'].max()}")
         num_agents = df['agent_id'].nunique()
         
         # 2. High-Fidelity Appraisal Extraction
         appraisals = []
         if jsonl_candidates:
-            # DEBUG: Verify Data Integrity (Proposed Edit)
-            # try:
-            #     with open(jsonl_candidates[0], 'r', encoding='utf-8') as f:
-            #         jsonl_count = sum(1 for _ in f)
-            #     print(f"   [Data Audit] {model}/{group}: CSV rows={len(df)}, JSONL lines={jsonl_count} (Delta={jsonl_count - len(df)})")
-            # except:
-            #     pass
-
             # Group B/C: Use Traces for all years
             with open(jsonl_candidates[0], 'r', encoding='utf-8') as f:
                 for line in f:
@@ -136,16 +125,17 @@ def get_stats(model, group):
                             appraisals.append({'agent_id': data.get('agent_id'), 'year': year, 'ta': ta, 'ca': ca})
                     except: continue
         else:
-            # Group A: Use Direct Appraisal columns or Reasoning for all years
-            reason_col = next((c for c in df.columns if 'reasoning' in c), None)
-            cols_to_check = ['threat_appraisal', 'coping_appraisal', reason_col, 'memory']
-            
-            for idx, row in df.iterrows():
-                text_ta = " ".join([str(row.get(c, "")) for c in ['threat_appraisal', reason_col, 'memory'] if c in df.columns])
-                text_ca = " ".join([str(row.get(c, "")) for c in ['coping_appraisal', reason_col, 'memory'] if c in df.columns])
-                appraisals.append({'agent_id': row['agent_id'], 'year': row['year'], 'ta': text_ta, 'ca': text_ca})
+             # Group A: Use Direct Appraisal columns or Reasoning for all years
+             reason_col = next((c for c in df.columns if 'reasoning' in c), None)
+             cols_to_check = ['threat_appraisal', 'coping_appraisal', reason_col, 'memory']
+             
+             for idx, row in df.iterrows():
+                 text_ta = " ".join([str(row.get(c, "")) for c in ['threat_appraisal', reason_col, 'memory'] if c in df.columns])
+                 text_ca = " ".join([str(row.get(c, "")) for c in ['coping_appraisal', reason_col, 'memory'] if c in df.columns])
+                 appraisals.append({'agent_id': row['agent_id'], 'year': row['year'], 'ta': text_ta, 'ca': text_ca})
 
         # 3. Behavioral Stats & Alignment
+        
         dec_col = next((c for c in ['decision', 'yearly_decision'] if c in df.columns), None)
         if dec_col:
             def is_action(d):
@@ -170,8 +160,6 @@ def get_stats(model, group):
                  full_data = full_data[~full_data[dec_col].astype(str).str.lower().str.contains('already relocated|relocated', regex=True) | 
                                        (full_data[dec_col].astype(str).str.lower() == 'relocate')]
             
-            # Binary Classification: High vs Low (Everything else is Low)
-
             # Binary Classification: High vs Low (Everything else is Low)
             # High = H, VH. Low = M, L, VL. (Satisfies L+H=N)
             n_tp_high = len(full_data[full_data['ta_level'].isin(['H', 'VH'])])
@@ -284,13 +272,15 @@ def get_stats(model, group):
             # 2. Hallucination Repairs (Residual Retries)
             trace_total_events = 0
             if jsonl_candidates:
-                with open(jsonl_candidates[0], 'r', encoding='utf-8') as f:
-                    for line in f:
-                        try:
-                            data = json.loads(line)
-                            if data.get('retry_count', 0) > 0:
-                                trace_total_events += 1
-                        except: continue
+                try:
+                    with open(jsonl_candidates[0], 'r', encoding='utf-8') as f:
+                        for line in f:
+                            try:
+                                data = json.loads(line)
+                                if data.get('retry_count', 0) > 0:
+                                    trace_total_events += 1
+                            except: continue
+                except: pass
             
             if intv_thinking_events > 0:
                 intv_hallucination = max(0, trace_total_events - intv_thinking_events - intv_parse_errors)
@@ -388,7 +378,7 @@ def get_stats(model, group):
     except Exception as e:
         return {"Status": f"Err: {str(e)}"}
 
-models = ["deepseek_r1_1_5b", "deepseek_r1_8b", "deepseek_r1_14b", "deepseek_r1_32b"]
+models = ["gemma3_4b", "gemma3_12b", "gemma3_27b"]
 groups = ["Group_A", "Group_B", "Group_C"]
 
 print("\n=== JOH SCALING REPORT: VERIFICATION RULES (GLOBAL FREQUENCY - FINAL) ===")
@@ -406,41 +396,51 @@ h_v3t, h_v3a = "V3_Tot", "V3_Act"
 h_intv = "Rules/S/P"
 h_ff = "FF"
 
-print(f"{h_model:<18} {h_grp:<7} {h_n:<6} {h_v1t:<7} {h_v1a:<7} {h_v2t:<7} {h_v2a:<7} {h_v3t:<7} {h_v3a:<7} {h_intv:<15} {h_ff:<10}")
-print("-" * 115)
+print("\n" + "="*115)
+with open('gemma_master_report_output.txt', 'w') as f_out:
+    header = f"{h_model:<18} {h_grp:<7} {h_n:<6} {h_v1t:<7} {h_v1a:<7} {h_v2t:<7} {h_v2a:<7} {h_v3t:<7} {h_v3a:<7} {h_intv:<15} {h_ff:<10}"
+    print(header)
+    f_out.write(header + "\n")
+    print("-" * 115)
+    f_out.write("-" * 115 + "\n")
+    
+    all_data = []
 
-all_data = []
+    for m in models:
+        for g in groups:
+            stats = get_stats(m, g)
 
-for m in models:
-    for g in groups:
-        stats = get_stats(m, g)
-        if stats:
-            if "V1_%" not in stats and "Status" in stats and str(stats["Status"]).startswith("Err"):
-                print(f"{m:<18} {g:<7} ERROR: {stats['Status']}")
-                continue
-            
-            if 'V1_%' not in stats: continue
+            if stats:
+                if "V1_%" not in stats and "Status" in stats and str(stats["Status"]).startswith("Err"):
+                    msg = f"{m:<18} {g:<7} ERROR: {stats['Status']}"
+                    print(msg)
+                    f_out.write(msg + "\n")
+                    continue
+                
+                if 'V1_%' not in stats: continue
 
-            # Recalculate Aligned Metrics for Display & Export
-            total_intent = stats['V1_Tot'] + stats['V2_Tot'] + stats['V3_Tot']
-            interv_success = stats['Intv_S']
-            intv_parse_errors = stats['Intv_P']
-            intv_ok_str = f"{total_intent}/{interv_success}/{intv_parse_errors}" if (total_intent + intv_parse_errors) > 0 else "-"
+                # Recalculate Aligned Metrics for Display & Export
+                total_intent = stats['V1_Tot'] + stats['V2_Tot'] + stats['V3_Tot']
+                interv_success = stats['Intv_S']
+                intv_parse_errors = stats['Intv_P']
+                intv_ok_str = f"{total_intent}/{interv_success}/{intv_parse_errors}" if (total_intent + intv_parse_errors) > 0 else "-"
 
-            # Print aligned table row
-            m_short = m.replace("deepseek_r1_", "")
-            print(f"{m_short:<15} {g:<7} {stats['N']:<5} {stats['V1_Tot']:<7} {stats['V1_Act']:<7} {stats['V2_Tot']:<7} {stats['V2_Act']:<7} {stats['V3_Tot']:<7} {stats['V3_Act']:<7} {intv_ok_str:<15} {stats['FF']}%")
-            
-            # Collect for Export
-            # UPDATE STATS WITH ALIGNED METRICS BEFORE COPY
-            stats['Intv'] = total_intent       # Update Intv to match Rules column (Total Intent)
-            # S and P are already in stats, but let's ensure consistency if needed
-            stats['Intv_OK'] = intv_ok_str     # Update the combined string
-            
-            row = stats.copy()
-            row['Model'] = m
-            row['Group'] = g
-            all_data.append(row)
+                # Print aligned table row
+                m_short = m.replace("gemma3_", "")
+                row_str = f"{m_short:<15} {g:<7} {stats['N']:<5} {stats['V1_Tot']:<7} {stats['V1_Act']:<7} {stats['V2_Tot']:<7} {stats['V2_Act']:<7} {stats['V3_Tot']:<7} {stats['V3_Act']:<7} {intv_ok_str:<15} {stats['FF']}%"
+                print(row_str)
+                f_out.write(row_str + "\n")
+                
+                # Collect for Export
+                # UPDATE STATS WITH ALIGNED METRICS BEFORE COPY
+                stats['Intv'] = total_intent       # Update Intv to match Rules column (Total Intent)
+                # S and P are already in stats, but let's ensure consistency if needed
+                stats['Intv_OK'] = intv_ok_str     # Update the combined string
+                
+                row = stats.copy()
+                row['Model'] = m
+                row['Group'] = g
+                all_data.append(row)
 
 print("\n" + "="*115)
 print("\n=== SQ1 METRIC ALIGNMENT GUIDE (BALANCE SHEET) ===")

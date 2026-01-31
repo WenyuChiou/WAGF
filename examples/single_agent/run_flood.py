@@ -753,7 +753,15 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     agent_config_path = base_path / "agent_types.yaml"
     with open(agent_config_path, 'r', encoding='utf-8') as f:
         agent_cfg_data = yaml.safe_load(f)
-        household_template = agent_cfg_data.get('household', {}).get('prompt_template', '')
+        household_cfg = agent_cfg_data.get('household', {})
+        # Load prompt from external file if specified, otherwise fallback to inline
+        prompt_file = household_cfg.get('prompt_template_file', '')
+        if prompt_file:
+            prompt_path = base_path / prompt_file
+            with open(prompt_path, 'r', encoding='utf-8') as pf:
+                household_template = pf.read()
+        else:
+            household_template = household_cfg.get('prompt_template', '')
         global_cfg = agent_cfg_data.get('global_config', {}) # Load global config for shared params
 
     # 2. Load Profiles (Survey Mode or CSV Mode)

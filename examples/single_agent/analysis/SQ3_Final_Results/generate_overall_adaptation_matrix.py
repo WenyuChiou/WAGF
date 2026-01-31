@@ -15,12 +15,11 @@ from pathlib import Path
 RESULTS_DIR = Path(__file__).parent.parent.parent / "results" / "JOH_FINAL"
 
 # Filter to only DeepSeek series as requested
-MODELS = ["deepseek_r1_1_5b", "deepseek_r1_8b", "deepseek_r1_14b", "deepseek_r1_32b"]
+MODELS = ["gemma3_4b", "gemma3_12b", "gemma3_27b"]
 MODEL_LABELS = {
-    "deepseek_r1_1_5b": "1.5B (DeepSeek)",
-    "deepseek_r1_8b": "8B (DeepSeek)",
-    "deepseek_r1_14b": "14B (DeepSeek)",
-    "deepseek_r1_32b": "32B (DeepSeek)"
+    "gemma3_4b": "4B (Gemma)",
+    "gemma3_12b": "12B (Gemma)",
+    "gemma3_27b": "27B (Gemma)",
 }
 GROUPS = ["Group_A", "Group_B", "Group_C"]
 GROUP_TITLES = {
@@ -240,11 +239,7 @@ def plot_dynamic_matrix_stacked_bar(data_map):
                         title="State", borderpad=0.4, labelspacing=0.15)
     plt.setp(leg.get_title(), fontsize=12, fontweight='bold', family='serif')
 
-    # Update: Ensure 32B C blank subplot is truly empty
-    axes[2][3].set_facecolor("#ffffff")
-    axes[2][3].grid(False)
-    axes[2][3].set_xticks([])
-    axes[2][3].set_yticks([])
+    # Subplots are already styled as blank in the main loop if df is None
 
     plt.tight_layout(rect=[0, 0, 1, 0.98]) 
     plt.savefig(f"{FIGURE_OUTPUT}/overall_adaptation_by_year.png", dpi=300, bbox_inches='tight')

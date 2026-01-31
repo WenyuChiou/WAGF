@@ -69,3 +69,13 @@ gemma3_27b,Group_A,7,100,0.9699,0.4177,DoNothing,0.75
 gemma3_27b,Group_A,8,100,0.9255,0.3986,DoNothing,0.76
 gemma3_27b,Group_A,9,100,1.6245,0.6996,DoNothing,0.42
 gemma3_27b,Group_A,10,100,0.9699,0.4177,DoNothing,0.75
+gemma3_27b,Group_B,1,100,0.4999,0.2153,DoNothing,0.89
+gemma3_27b,Group_B,2,100,0.1944,0.0837,DoNothing,0.97
+gemma3_27b,Group_B,3,100,0.1414,0.0609,Insurance,0.98
+gemma3_27b,Group_B,4,100,0.8932,0.3847,Insurance,0.69
+gemma3_27b,Group_B,5,100,0.8724,0.3757,Insurance,0.81
+gemma3_27b,Group_B,6,100,0.7971,0.3433,Insurance,0.82
+gemma3_27b,Group_B,7,100,1.0541,0.4540,DoNothing,0.64
+gemma3_27b,Group_B,8,100,0.7580,0.3264,DoNothing,0.81
+gemma3_27b,Group_B,9,100,1.3764,0.5928,Insurance,0.58
+gemma3_27b,Group_B,10,100,1.4987,0.6454,DoNothing,0.43
