@@ -78,6 +78,9 @@ config/providers.yaml
 # Personal Developer Notes (Brain Backup)
 doc/dev_notes_gemini/
 
+# Task Management (local session tracking)
+.tasks/
+
 # External References (Nested Repos)
 ref/openskills/
 ref/openskills
