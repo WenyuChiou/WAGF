@@ -307,6 +307,12 @@ class TieredContextBuilder(BaseAgentContextBuilder):
             env_context = self.hub.environment.global_state
 
         env_context = env_context or kwargs.get("env_context", {})
+
+        # Store env_context in the returned dict so CognitiveCache hash
+        # captures year-to-year environment changes (domain-agnostic).
+        if env_context:
+            context["environment_context"] = env_context
+
         contextual_boosters_for_memory = {}
 
         if env_context.get("crisis_event") or env_context.get("crisis_boosters"):
