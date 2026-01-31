@@ -404,19 +404,7 @@ def main():
     # --- Convert profiles → BaseAgent instances ---
     agents = _profiles_to_agents(profiles)
 
-    # --- Context builder ---
-    ctx_builder = TieredContextBuilder(
-        agents=agents,
-        hub=None,  # No social graph for irrigation
-        skill_registry=registry,
-        prompt_templates={
-            "irrigation_farmer": prompt_template,
-            "default": prompt_template,
-        },
-        yaml_path=str(agent_config_path),
-    )
-
-    # --- Memory engine (Pillar 2) ---
+    # --- Memory engine (Pillar 2) --- must be created before ctx_builder
     irr_cfg = cfg_data.get("irrigation_farmer", {})
     irr_mem = irr_cfg.get("memory", {})
     gm = global_cfg.get("memory", {})
@@ -437,6 +425,19 @@ def main():
         seed=args.memory_seed,
     )
     print(f"[Pillar 2] HumanCentricMemoryEngine (window={args.window_size})")
+
+    # --- Context builder ---
+    ctx_builder = TieredContextBuilder(
+        agents=agents,
+        hub=None,  # No social graph for irrigation
+        skill_registry=registry,
+        prompt_templates={
+            "irrigation_farmer": prompt_template,
+            "default": prompt_template,
+        },
+        yaml_path=str(agent_config_path),
+        memory_engine=memory_engine,
+    )
 
     # --- Output ---
     output_dir = Path(args.output) if args.output else base / "results"
@@ -477,11 +478,11 @@ def main():
 
     # --- Inject lifecycle hooks ---
     hooks = IrrigationLifecycleHooks(env, runner, profiles, reflection_engine, output_dir)
-    runner.hooks = {
+    runner.hooks.update({
         "pre_year": hooks.pre_year,
         "post_step": hooks.post_step,
         "post_year": hooks.post_year,
-    }
+    })
 
     # --- Run ---
     n_real = "real" if args.real else "synthetic"

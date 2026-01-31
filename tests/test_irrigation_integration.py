@@ -146,3 +146,72 @@ def test_execute_skill_maintain_demand():
     state = env.get_agent_state("TestAgent")
     # Initial request = 80_000; no change
     assert state["request"] == 80_000.0
+
+
+# ---------------------------------------------------------------------------
+# Context pipeline integration: Fix 1A + 1B + 1C
+# ---------------------------------------------------------------------------
+def test_irrigation_context_pipeline_no_n_a():
+    """Full pipeline: irrigation agent attributes + memory reach the prompt (no [N/A])."""
+    from broker.components.tiered_builder import TieredContextBuilder
+    from broker.components.engines.window_engine import WindowMemoryEngine
+
+    class _Agent:
+        def __init__(self):
+            self.id = "TestFarmer"
+            self.agent_type = "irrigation_farmer"
+            self.custom_attributes = {
+                "narrative_persona": "You are TestFarmer, a cautious farmer.",
+                "basin": "upper_basin",
+                "cluster": "forward_looking_conservative",
+                "water_right": 100000.0,
+            }
+            self.narrative_persona = "You are TestFarmer, a cautious farmer."
+            self.basin = "upper_basin"
+            self.water_situation_text = "Severe drought. Lake Mead at 1050 ft."
+            self.conservation_status = "practice"
+            self.trust_forecasts_text = "moderately trust"
+            self.trust_neighbors_text = "generally trust"
+            self.has_efficient_system = False
+            self.at_allocation_cap = False
+            self.water_right = 100000.0
+            self.cluster = "forward_looking_conservative"
+            self.dynamic_state = {}
+
+        def get_available_skills(self):
+            return []
+
+    agent = _Agent()
+
+    # Memory engine with one memory
+    mem_engine = WindowMemoryEngine(window_size=5)
+    mem_engine.add_memory("TestFarmer", "Year 1: Decided to adopt efficiency. Shortfall: 5%.")
+
+    template = (
+        "{narrative_persona}\n{water_situation_text}\n"
+        "Your memory includes:\n{memory}\n\n"
+        "You currently {conservation_status} water conservation practices.\n"
+        "You {trust_forecasts_text} climate forecasts. "
+        "You {trust_neighbors_text} neighboring farmers."
+    )
+
+    builder = TieredContextBuilder(
+        agents={"TestFarmer": agent},
+        hub=None,
+        memory_engine=mem_engine,
+        prompt_templates={"irrigation_farmer": template, "default": template},
+    )
+
+    ctx = builder.build("TestFarmer")
+    prompt = builder.format_prompt(ctx)
+
+    # Verify NO [N/A] placeholders
+    assert "[N/A]" not in prompt, f"Found [N/A] in prompt:\n{prompt[:500]}"
+
+    # Verify key content is present
+    assert "You are TestFarmer, a cautious farmer." in prompt
+    assert "Severe drought" in prompt
+    assert "Year 1: Decided to adopt efficiency" in prompt
+    assert "practice" in prompt
+    assert "moderately trust" in prompt
+    assert "generally trust" in prompt

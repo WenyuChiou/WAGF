@@ -292,8 +292,33 @@ class TieredContextBuilder(BaseAgentContextBuilder):
             context = self.hub.build_tiered_context(agent_id, self.agents, self.global_news)
         else:
             # Fallback context when no InteractionHub (e.g., irrigation domain)
+            # Mirror InteractionHub.build_tiered_context() attribute gathering
+            personal = {"id": agent_id, "memory": []}
+
+            if agent:
+                # Base layer: custom_attributes (CSV/profile data)
+                if hasattr(agent, "custom_attributes") and isinstance(agent.custom_attributes, dict):
+                    personal.update(agent.custom_attributes)
+
+                # Overlay: bare scalar attributes (runtime updates override static)
+                for k, v in agent.__dict__.items():
+                    if k == "agent_type":
+                        continue
+                    if not k.startswith("_") and isinstance(v, (str, int, float, bool)) and k not in ("memory", "id"):
+                        personal[k] = v
+
+                # Dynamic state overlay
+                if hasattr(agent, "dynamic_state") and isinstance(agent.dynamic_state, dict):
+                    for k, v in agent.dynamic_state.items():
+                        if isinstance(v, (str, int, float, bool)):
+                            personal[k] = v
+
+                # Adaptation status
+                if hasattr(agent, "get_adaptation_status"):
+                    personal["status"] = agent.get_adaptation_status()
+
             context = {
-                "personal": {"id": agent_id, "memory": []},
+                "personal": personal,
                 "local": {"spatial": {}, "social": [], "visible_actions": []},
                 "global": self.global_news or [],
                 "institutional": {},
@@ -325,6 +350,11 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         for provider in self.providers:
             provider.provide(agent_id, self.agents, context, **kwargs)
 
+        # MemoryProvider writes to context["memory"] (top-level).
+        # Merge into context["personal"]["memory"] so format_prompt() can find it.
+        if "memory" in context and context["memory"]:
+            context.setdefault("personal", {})["memory"] = context["memory"]
+
         if self.media_hub:
             year = env_context.get("year", 1)
             media_context = self.media_hub.get_media_context(agent_id, year)
@@ -353,6 +383,29 @@ class TieredContextBuilder(BaseAgentContextBuilder):
             if isinstance(v, (str, int, float, bool)):
                 template_vars[k] = v
                 template_vars[f"p_{k}"] = v
+
+        # Format memory (list or dict) into template-ready string
+        memory_val = p.get("memory", [])
+        if isinstance(memory_val, dict) and "episodic" in memory_val:
+            lines = []
+            core = memory_val.get("core", {})
+            semantic = memory_val.get("semantic", [])
+            episodic = memory_val.get("episodic", [])
+            if core:
+                lines.append("CORE: " + " ".join(f"{k}={v}" for k, v in core.items()))
+            if semantic:
+                lines.append("HISTORIC:")
+                lines.extend(f"  - {m}" for m in semantic)
+            if episodic:
+                lines.append("RECENT:")
+                lines.extend(f"  - {m}" for m in episodic)
+            template_vars["memory"] = "\n".join(lines) if lines else "No memories yet."
+        elif isinstance(memory_val, list):
+            template_vars["memory"] = "\n".join(f"- {m}" for m in memory_val) if memory_val else "No memories yet."
+        elif memory_val:
+            template_vars["memory"] = str(memory_val)
+        else:
+            template_vars["memory"] = "No memories yet."
 
         if isinstance(p.get("status"), dict):
             for k, v in p["status"].items():

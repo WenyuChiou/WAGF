@@ -620,7 +620,12 @@ class ExperimentBuilder:
         )
         if hasattr(ctx_builder, 'memory_engine'):
             ctx_builder.memory_engine = mem_engine
-        
+            # Also update MemoryProvider instances in the provider pipeline
+            from broker.components.context_providers import MemoryProvider as _MemProv
+            for provider in getattr(ctx_builder, 'providers', []):
+                if isinstance(provider, _MemProv) and provider.engine is None:
+                    provider.engine = mem_engine
+
         if hasattr(ctx_builder, 'semantic_thresholds'):
             ctx_builder.semantic_thresholds = getattr(self, 'semantic_thresholds', (0.3, 0.7))
         
