@@ -16,7 +16,7 @@ Using the following decision framework, evaluate your current water demand situa
 
 Now, choose one of the following water management actions:
 {options_text}
-Note: If water availability is normal and no shortage signal has been received, many farmers would choose "Maintain current demand."
+Your decision should reflect your farming philosophy and risk tolerance. Consider how your unique situation — your financial position, your planning horizon, and your past experiences — shapes your response.
 
 {rating_scale}
 
