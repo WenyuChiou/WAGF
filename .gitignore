@@ -86,5 +86,8 @@ ref/openskills/
 ref/openskills
 ref/RL-ABM-CRSS/
 
+# Node
+node_modules/
+
 # Windows Reserved Names
 nul
