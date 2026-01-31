@@ -507,10 +507,18 @@ class ExperimentBuilder:
         return self
 
     def with_hooks(self, hooks: List[Callable]):
-        """Register a list of pre_year hooks for simplicity."""
-        for hook in hooks:
-            # For now, default to pre_year if just a list
-            self.hooks["pre_year"] = hook 
+        """Register a list of pre_year hooks for simplicity.
+
+        If multiple hooks are provided, they are composed into a single
+        callable that invokes each in order.
+        """
+        if len(hooks) == 1:
+            self.hooks["pre_year"] = hooks[0]
+        elif len(hooks) > 1:
+            def composed_hook(*args, **kwargs):
+                for h in hooks:
+                    h(*args, **kwargs)
+            self.hooks["pre_year"] = composed_hook
         return self
 
     def with_hook(self, hook: Callable):

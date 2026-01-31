@@ -168,6 +168,10 @@ def compact_allocation_check(
 
     This is a basin-level check — it validates that the aggregate of all
     agent requests in a basin does not exceed the compact allocation.
+
+    Note: Requires ``total_basin_demand`` and ``basin_allocation`` in context.
+    Currently a placeholder — the environment does not yet inject aggregate
+    basin statistics into the per-agent validation context.
     """
     if skill_name != "increase_demand":
         return []
@@ -237,7 +241,12 @@ def magnitude_cap_check(
     rules: List[GovernanceRule],
     context: Dict[str, Any],
 ) -> List[ValidationResult]:
-    """Block demand increase when proposed magnitude exceeds cluster bounds."""
+    """Block demand increase when proposed magnitude exceeds cluster bounds.
+
+    Note: Requires ``proposed_magnitude`` in context. Currently a placeholder
+    — the LLM selects a skill name but does not propose a magnitude.
+    The environment applies a fixed 10% default (see ``irrigation_env.py``).
+    """
     if skill_name != "increase_demand":
         return []
 

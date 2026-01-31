@@ -47,14 +47,9 @@ class HumanCentricMemoryEngine(MemoryEngine):
             top_k_significant: Number of historical events
             ranking_mode: "legacy" (v1) or "weighted" (v2)
         """
-        import warnings
-        warnings.warn(
-            "HumanCentricMemoryEngine is deprecated in favor of UniversalCognitiveEngine (v3). "
-            "v1 behavior can be emulated by setting arousal_threshold=99.0 in UniversalCognitiveEngine. "
-            "v2 behavior can be emulated by setting arousal_threshold=0.0.",
-            DeprecationWarning,
-            stacklevel=2
-        )
+        # Note: HumanCentricMemoryEngine is superseded by UniversalCognitiveEngine (v3)
+        # but remains the production engine for the irrigation ABM case study.
+        # v1 behavior: arousal_threshold=99.0; v2 behavior: arousal_threshold=0.0
         import random
         self.rng = random.Random(seed)
         

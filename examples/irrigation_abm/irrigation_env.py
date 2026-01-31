@@ -413,6 +413,9 @@ class IrrigationEnvironment:
         wr = agent["water_right"]
         current = agent["request"]
         meta = getattr(approved_skill, "metadata", {}) or {}
+        # Default 10% magnitude for all clusters. The LLM selects which skill
+        # to execute but does not specify magnitude — future work could let
+        # the LLM propose a magnitude and validate it via magnitude_cap_check.
         magnitude_pct = meta.get("magnitude_pct", 10)
         change = wr * (magnitude_pct / 100.0)
 

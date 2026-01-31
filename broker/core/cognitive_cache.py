@@ -54,15 +54,17 @@ class CognitiveCache:
         Returns:
             A hex string representing the context hash.
         """
-        # Extract key components for hashing
+        # Extract key components for hashing (domain-agnostic)
         hash_components = {
             "agent_id": context.get("agent_id"),
-            "elevated": context.get("personal", {}).get("elevated"),
-            "has_insurance": context.get("personal", {}).get("has_insurance"),
-            "flood_event": context.get("environment_context", {}).get("flood_event"),
-            "grant_available": context.get("environment_context", {}).get("grant_available"),
+            "personal": hashlib.md5(
+                json.dumps(context.get("personal", {}), sort_keys=True, default=str).encode()
+            ).hexdigest()[:8],
+            "env": hashlib.md5(
+                json.dumps(context.get("environment_context", {}), sort_keys=True, default=str).encode()
+            ).hexdigest()[:8],
             "memory_hash": hashlib.md5(
-                json.dumps(context.get("memory", []), sort_keys=True).encode()
+                json.dumps(context.get("memory", []), sort_keys=True, default=str).encode()
             ).hexdigest()[:8],
         }
         

@@ -334,34 +334,6 @@ class SkillBrokerEngine:
             if v.valid and hasattr(v, 'warnings') and v.warnings:
                 logger.info(f" [Governance:Warning] {agent_id} | {v.warnings[0]}")
 
-        # Diagnostic summary for User
-        if self.log_prompt:
-            reasoning = skill_proposal.reasoning or {}
-            label_parts = []
-
-            # Dynamic Label Extraction from reasoning
-            # Try to get labels (config-driven)
-            if self.config:
-                log_fields = self.config.get_log_fields(agent_type)
-                for field_name in log_fields:
-                    val = None
-                    # Try various casing and suffix variants
-                    for variants in [field_name, field_name.upper(), f"{field_name}_LABEL", field_name.capitalize(), field_name.lower()]:
-                        if variants in reasoning:
-                            val = reasoning[variants]
-                            break
-                    if val:
-                        label_parts.append(f"{field_name}: {val}")
-
-            # Legacy Fallback for Strategy/Confidence if not in log_fields
-            if not any("Strategy" in p for p in label_parts) and "Strategy" in reasoning:
-                label_parts.append(f"Strategy: {reasoning['Strategy']}")
-            if not any("Confidence" in p for p in label_parts) and "Confidence" in reasoning:
-                label_parts.append(f"Confidence: {reasoning['Confidence']}")
-
-            # Determine governance summary (Moved to end for consolidated reporting)
-            pass
-
         # Retry loop
         retry_count = 0
         while not all_valid and retry_count < self.max_retries:
@@ -489,8 +461,7 @@ class SkillBrokerEngine:
                 self.stats["approved"] += 1
         else:
             # RETRY EXHAUSTION: Return the model's desired behavior but with REJECTED status
-            # As requested: "返回原本的行為才對 但是驗證的狀態要是Fail之類的"
-            # We use the fallout skill determined above
+            # Soft governance: the action proceeds but is marked REJECTED for audit
             is_generic_fallback = (skill_proposal is None or skill_proposal.parse_layer == "default")
             
             # Re-fetch fallout skill if needed or use local var if I can restructure
