@@ -20,7 +20,11 @@ The **Governed Broker Framework** addresses the fundamental **Logic-Action Gap**
 
 This framework provides an architectural **Governance Layer** that validates agent reasoning against physical constraints and behavioral theories (e.g., Protection Motivation Theory) in real time. It is designed for **flood risk adaptation research** and other hydro-social modeling contexts where reproducibility, auditability, and long-horizon consistency are essential.
 
-**Target domains**: nonstationary flood risk, household adaptation behavior, community resilience, water resource policy evaluation.
+**Target domains**: nonstationary flood risk adaptation, irrigation water management, household adaptation behavior, community resilience, water resource policy evaluation.
+
+**Validated case studies**:
+- **Flood Household Adaptation**: 100 PMT-based agents, 10-year simulation with Gemma 3 (4B/12B/27B)
+- **Irrigation Water Management**: 78 CRSS agents from the Upper Colorado River Basin
 
 ---
 
@@ -267,9 +271,9 @@ The **Human-Centric Memory Engine** (v3.3) solves the "Goldfish Effect" by prior
 
 ---
 
-## Domain-Neutral Configuration (v3.3)
+## Configuration-Driven Extension (v3.3)
 
-All domain-specific logic is centralized in `agent_types.yaml`. The framework is agnostic to the simulation domain:
+All domain-specific logic is centralized in YAML configuration files. New water sub-domains (e.g., groundwater management, drought response) can be added by defining skill registries, validators, and agent configurations — without modifying the core broker:
 
 ```yaml
 # agent_types.yaml - Parsing & Memory Configuration
