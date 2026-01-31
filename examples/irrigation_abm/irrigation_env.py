@@ -117,6 +117,9 @@ class IrrigationEnvironment:
         self._precip_history: List[float] = []
         self._mead_history: List[float] = [1081.46, 1082.52]  # 2017, 2018
 
+        # Real CRSS precipitation data (None = use synthetic)
+        self._crss_precip: Optional[Any] = None  # pandas DataFrame when loaded
+
     # -----------------------------------------------------------------
     # Initialization
     # -----------------------------------------------------------------
@@ -205,6 +208,27 @@ class IrrigationEnvironment:
                 "has_efficient_system": False,
                 "cluster": "unknown",
             }
+
+    def load_crss_precipitation(self, csv_path: str) -> None:
+        """Load real CRSS/PRISM winter precipitation projections.
+
+        Loads the PrismWinterPrecip_ST_NOAA_Future.csv file which contains
+        annual winter precipitation (inches) for 9 state-groups from
+        2017-2060.  Values are converted to mm and stored for use by
+        ``_generate_precipitation()``.
+
+        Columns: WY, UT1, UT2, UT3, NM, CO1, CO2, CO3, AZ
+        Upper Basin average: WY, UT1-3, CO1-3
+        Lower Basin average: NM, AZ
+
+        Args:
+            csv_path: Path to PrismWinterPrecip_ST_NOAA_Future.csv
+        """
+        import pandas as pd
+
+        df = pd.read_csv(csv_path, index_col=0)
+        # Convert inches to mm (1 inch = 25.4 mm)
+        self._crss_precip = df * 25.4
 
     # -----------------------------------------------------------------
     # TieredEnvironmentProtocol interface
@@ -437,11 +461,20 @@ class IrrigationEnvironment:
     # -----------------------------------------------------------------
 
     def _generate_precipitation(self) -> float:
-        """Generate annual winter precipitation (mm) with climate trend.
+        """Generate annual winter precipitation (mm).
 
-        Uses a downward trend with stochastic variability to simulate
-        drier-than-normal conditions per Hung & Yang (2021) scenario.
+        When real CRSS data is loaded, returns the Upper Basin average
+        (WY, UT1-3, CO1-3) for the current simulation year.  Falls back
+        to synthetic drying trend when no real data is available.
         """
+        if self._crss_precip is not None:
+            ub_cols = ["WY", "UT1", "UT2", "UT3", "CO1", "CO2", "CO3"]
+            if self._current_year in self._crss_precip.index:
+                precip = float(self._crss_precip.loc[self._current_year, ub_cols].mean())
+                self._precip_history.append(precip)
+                return precip
+
+        # Synthetic fallback: downward trend per Hung & Yang (2021) scenario
         base = 250.0  # Historical average (mm)
         trend = -0.5 * self._year_index  # Drying trend
         noise = self.rng.normal(0, 30)
