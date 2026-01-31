@@ -82,7 +82,7 @@ def validate_all(
     # - "irrigation": inject irrigation checks into physical/social, empty for others
     # - None: empty list → YAML rules only
     if domain == "irrigation":
-        from broker.validators.governance.irrigation_validators import (
+        from examples.irrigation_abm.validators.irrigation_validators import (
             IRRIGATION_PHYSICAL_CHECKS,
             IRRIGATION_SOCIAL_CHECKS,
         )

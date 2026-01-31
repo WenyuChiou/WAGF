@@ -3,7 +3,7 @@ import json
 
 from types import SimpleNamespace
 
-from cognitive_governance.simulation.irrigation_env import (
+from examples.irrigation_abm.irrigation_env import (
     IrrigationEnvironment,
     WaterSystemConfig,
 )
