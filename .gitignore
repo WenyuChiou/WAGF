@@ -84,6 +84,7 @@ doc/dev_notes_gemini/
 # External References (Nested Repos)
 ref/openskills/
 ref/openskills
+ref/RL-ABM-CRSS/
 
 # Windows Reserved Names
 nul
