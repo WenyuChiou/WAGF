@@ -2,21 +2,23 @@
 
 ## Overview
 
-The Governed Broker Framework is a domain-agnostic platform for building LLM-powered agent simulations with governance, memory, and reflection capabilities.
+The Governed Broker Framework is a cognitive governance middleware for LLM-driven agent-based models of human-water interactions. It provides skill-based governance, memory, and reflection capabilities designed for coupled human-water simulations — including flood risk adaptation, irrigation water management, and water resource policy evaluation.
 
-**Version**: v0.29+ (Task-029 MA Pollution Remediation Complete)
+The framework's extensible architecture allows new water sub-domains to be added through configuration (YAML skill registries + domain validators) without modifying the core broker.
+
+**Version**: v0.30+
 
 ---
 
 ## Core Design Principles
 
-### 1. Domain-Agnostic Core
+### 1. Extensible Water-Domain Core
 
-The `broker/` directory contains **only generic components** that can be reused across any simulation domain:
+The `broker/` directory contains **reusable components** designed for coupled human-water ABMs, extensible to new water sub-domains:
 
-- No hardcoded domain concepts (flood, household, MG, etc.)
-- Domain-specific logic lives in `examples/<domain>/`
-- Configuration-driven behavior via YAML files
+- Core governance pipeline (skill proposal → validation → execution) is domain-independent
+- Water sub-domain logic (flood adaptation, irrigation management) lives in `examples/<domain>/`
+- Configuration-driven behavior via YAML skill registries and validator definitions
 
 ### 2. Protocol-Based Dependency Injection
 
@@ -56,7 +58,7 @@ profile.extensions["trading"] = TradingPreferences(...)
 ## Directory Structure
 
 ```
-broker/                          # Generic framework (domain-agnostic)
+broker/                          # Core governance middleware
 ├── components/                  # Core components
 │   ├── audit_writer.py         # Trace logging
 │   ├── context_builder.py      # LLM prompt construction
@@ -96,7 +98,7 @@ examples/                        # Domain-specific implementations
 
 ---
 
-## Domain-Agnostic Design Patterns (v0.29+)
+## Extensible Design Patterns (v0.30+)
 
 ### 1. Protocol-Based Dependency Injection
 
@@ -331,19 +333,18 @@ Key changes:
 
 ## Future Development
 
-### Adding a New Domain
+### Adding a New Water Sub-Domain
 
-1. Create `examples/<new_domain>/` directory
-2. Implement domain-specific survey loader (extends SurveyRecord)
-3. Implement enrichers satisfying PositionEnricher/ValueEnricher protocols
-4. Create domain-specific agent_types.yaml
-5. Use broker/ components with your enrichers
+1. Create `examples/<new_water_domain>/` directory
+2. Define skill registry YAML (e.g., `skill_registry.yaml` with domain-specific actions)
+3. Implement domain validators (physical constraints, behavioral rules)
+4. Implement domain environment (state transitions, feedback mechanisms)
+5. Create domain-specific `agent_types.yaml` with prompt templates
+6. Use broker/ components (ExperimentBuilder, SkillBrokerEngine, memory engines)
 
-### v0.30 Planned Changes
-
-- Remove deprecated `include_hazard`/`include_rcv` parameters
-- Remove backward compatibility aliases if no longer needed
-- Consider renaming Protocol fields to even more generic names
+**Current water domains**:
+- `examples/single_agent/` — Flood household adaptation (100 agents, PMT-based decisions)
+- `examples/multi_agent/irrigation_abm/` — Irrigation water management (78 CRSS agents)
 
 ---
 
