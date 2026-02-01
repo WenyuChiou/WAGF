@@ -19,8 +19,14 @@ import matplotlib
 matplotlib.use("Agg")
 import numpy as np
 import pandas as pd
+pd.set_option('future.no_silent_downcasting', True)
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
+
+# PostHocValidator for unified R_H
+sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+from broker.validators.posthoc import KeywordClassifier, ThinkingRulePostHoc
+from broker.validators.posthoc.unified_rh import _compute_physical_hallucinations
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -82,8 +88,13 @@ def normalize_decision(raw: str) -> str:
 
 
 def get_decision_column(df, group, model):
-    """Determine which column holds the decision string."""
-    if "raw_llm_decision" in df.columns and group == "Group_A" and "gemma" in model:
+    """Determine which column holds the decision string.
+
+    Group A baselines (all models) use LLMABMPMT-Final.py which produces
+    'raw_llm_decision'.  Groups B/C use run_flood.py which produces
+    'yearly_decision'.
+    """
+    if "raw_llm_decision" in df.columns and group == "Group_A":
         return "raw_llm_decision"
     return "yearly_decision"
 
@@ -91,35 +102,45 @@ def get_decision_column(df, group, model):
 # ---------------------------------------------------------------------------
 # Hallucination rate  R_H
 # ---------------------------------------------------------------------------
-def compute_hallucination_rate(df: pd.DataFrame, dec_col: str) -> float:
-    """R_H = redundant/impossible decisions / total active decisions."""
-    halluc = 0
-    total = 0
-    for agent_id in df["agent_id"].unique():
-        agent = df[df["agent_id"] == agent_id].sort_values("year").reset_index(drop=True)
-        for i in range(len(agent)):
-            raw = str(agent.loc[i, dec_col]).strip().lower()
-            if raw == "nan" or raw == "relocated":
-                continue
-            total += 1
-            if i == 0:
-                elev_prior = (agent.loc[i, "elevated"] == True) and ("elevat" not in raw)
-                ins_prior = (agent.loc[i, "has_insurance"] == True) and ("insur" not in raw)
-                reloc_prior = (agent.loc[i, "relocated"] == True) and ("relocat" not in raw)
-            else:
-                elev_prior = agent.loc[i - 1, "elevated"] == True
-                ins_prior = agent.loc[i - 1, "has_insurance"] == True
-                reloc_prior = agent.loc[i - 1, "relocated"] == True
-            is_halluc = False
-            if "elevat" in raw and elev_prior:
-                is_halluc = True
-            if "insur" in raw and ins_prior:
-                is_halluc = True
-            if "relocat" in raw and reloc_prior:
-                is_halluc = True
-            if is_halluc:
-                halluc += 1
-    return halluc / total if total > 0 else 0.0
+def compute_hallucination_rate(df: pd.DataFrame, dec_col: str, group: str = "B") -> float:
+    """R_H = (physical + thinking) / N_active, using PostHocValidator.
+
+    Insurance renewal excluded. Thinking violations (V1/V2/V3) included.
+    """
+    classifier = KeywordClassifier()
+    rule_checker = ThinkingRulePostHoc()
+
+    df = df.sort_values(["agent_id", "year"]).copy()
+    ta_col = "threat_appraisal" if "threat_appraisal" in df.columns else None
+    ca_col = "coping_appraisal" if "coping_appraisal" in df.columns else None
+    if ta_col and ca_col:
+        df = classifier.classify_dataframe(df, ta_col, ca_col)
+    else:
+        df["ta_level"] = "M"
+        df["ca_level"] = "M"
+
+    # Physical hallucinations
+    phys_mask = _compute_physical_hallucinations(df)
+
+    # Active mask
+    df["prev_relocated"] = (
+        df.groupby("agent_id")["relocated"].shift(1).fillna(False).infer_objects(copy=False)
+    )
+    active_mask = ~df["prev_relocated"] & (df["year"] >= 2)
+    df_active = df[active_mask]
+    n_active = len(df_active)
+    if n_active == 0:
+        return 0.0
+
+    n_phys = int(phys_mask.reindex(df_active.index, fill_value=False).sum())
+
+    # Thinking violations
+    think_results = rule_checker.apply(
+        df_active, group=group, decision_col=dec_col, ta_level_col="ta_level"
+    )
+    n_think = rule_checker.total_violations(think_results)
+
+    return (n_phys + n_think) / n_active if n_active > 0 else 0.0
 
 
 def compute_normalized_entropy(df: pd.DataFrame, dec_col: str) -> float:
@@ -154,7 +175,8 @@ for model in ALL_MODELS:
             continue
         df = pd.read_csv(csv_path, encoding="utf-8-sig")
         dec_col = get_decision_column(df, group, model)
-        R_H = compute_hallucination_rate(df, dec_col)
+        group_letter = group.replace("Group_", "")
+        R_H = compute_hallucination_rate(df, dec_col, group=group_letter)
         H_norm = compute_normalized_entropy(df, dec_col)
         EBE = H_norm * (1.0 - R_H)
         results[(model, group)] = {"R_H": R_H, "H_norm": H_norm, "EBE": EBE}

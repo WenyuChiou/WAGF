@@ -1,15 +1,17 @@
 """
-SAGE Paper — Corrected Entropy & EBE Analysis
-===============================================
-Computes hallucination-corrected Shannon entropy for the flood ABM experiment.
+SAGE Paper — Corrected Entropy & EBE Analysis (v2)
+===================================================
+Computes hallucination-corrected Shannon entropy for the flood ABM experiment
+using the PostHocValidator framework for unified hallucination detection.
 
-Key finding: Group A (ungoverned) Gemma3 4B has 33% hallucination rate.
-When corrected, its apparent diversity (H_norm ~ 0.5-0.7) drops to near-zero,
-while governed groups (B, C) maintain genuine diversity (H_norm 0.17-0.80).
+Methodology changes from v1:
+  - Insurance renewal EXCLUDED from R_H (annual renewable policy, not hallucination)
+  - Thinking violations (V1/V2/V3) INCLUDED in R_H via KeywordClassifier
+  - R_H = (physical + thinking) / N_active
 
 Metrics:
   H_norm   = H / log2(k),  k=5 actions, range [0,1]
-  R_H      = hallucinated decisions / total decisions
+  R_H      = (physical_hallucinations + thinking_violations) / N_active
   EBE      = H_norm * (1 - R_H)   "Effective Behavioral Entropy"
 
 Outputs:
@@ -27,6 +29,12 @@ from collections import Counter
 from pathlib import Path
 
 import pandas as pd
+pd.set_option('future.no_silent_downcasting', True)
+
+# PostHocValidator components
+sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+from broker.validators.posthoc import KeywordClassifier, ThinkingRulePostHoc
+from broker.validators.posthoc.unified_rh import _compute_physical_hallucinations
 
 # ---------- configuration ----------
 BASE = Path(__file__).resolve().parents[2]  # examples/single_agent
@@ -93,93 +101,106 @@ def analyse_group(group: str, sim_path: Path) -> pd.DataFrame:
         raise KeyError(f"No decision column found in {sim_path}")
 
     df["decision_norm"] = df[dec_col].apply(norm_fn)
+    group_letter = group.replace("Group_", "")
 
-    # Detect state columns
+    # --- Classify appraisals for thinking-rule checks ---
+    classifier = KeywordClassifier()
+    rule_checker = ThinkingRulePostHoc()
+
+    ta_col = "threat_appraisal" if "threat_appraisal" in df.columns else None
+    ca_col = "coping_appraisal" if "coping_appraisal" in df.columns else None
+    if ta_col and ca_col:
+        df = classifier.classify_dataframe(df, ta_col, ca_col)
+    else:
+        df["ta_level"] = "M"
+        df["ca_level"] = "M"
+
+    # --- Physical hallucination mask (re-elevation + post-relocation) ---
+    # NOTE: Insurance renewal excluded — annual renewable, not hallucination
     has_elevated = "elevated" in df.columns
-    has_insurance = "has_insurance" in df.columns
     has_relocated = "relocated" in df.columns
+    if has_elevated and has_relocated:
+        phys_mask = _compute_physical_hallucinations(df)
+    else:
+        phys_mask = pd.Series(False, index=df.index)
+
+    # --- Active agent tracking ---
+    df_sorted = df.sort_values(["agent_id", "year"]).copy()
+    if has_relocated:
+        df_sorted["prev_relocated"] = (
+            df_sorted.groupby("agent_id")["relocated"]
+            .shift(1).fillna(False).infer_objects(copy=False)
+        )
+    else:
+        df_sorted["prev_relocated"] = False
 
     rows = []
     for yr in sorted(df["year"].unique()):
-        yr_df = df[df["year"] == yr].copy()
-        n = len(yr_df)
+        yr_all = df[df["year"] == yr].copy()
+        n = len(yr_all)
 
         # --- raw entropy ---
-        raw_counts = Counter(yr_df["decision_norm"])
+        raw_counts = Counter(yr_all["decision_norm"])
         raw_hnorm = shannon_entropy_norm(raw_counts, n)
 
-        # --- hallucination detection (prior-year state) ---
-        hall_count = 0
-        corrected = yr_df["decision_norm"].tolist()
+        # --- active agents (not previously relocated) ---
+        yr_sorted = df_sorted[df_sorted["year"] == yr]
+        yr_active = yr_sorted[~yr_sorted["prev_relocated"]]
+        n_active = len(yr_active)
 
-        if yr > 1 and (has_elevated or has_insurance or has_relocated):
-            prev_yr = df[df["year"] == yr - 1]
-            for idx_i, (_, row) in enumerate(yr_df.iterrows()):
-                agent = row["agent_id"]
-                decision = row["decision_norm"]
-                prev = prev_yr[prev_yr["agent_id"] == agent]
-                if prev.empty:
-                    continue
-                prev = prev.iloc[0]
+        if yr < 2 or n_active == 0:
+            dominant = raw_counts.most_common(1)[0] if raw_counts else ("None", 0)
+            rows.append({
+                "Model": "gemma3_4b", "Group": group, "Year": int(yr),
+                "N": n, "N_Active": n_active if n_active > 0 else n,
+                "Raw_H_norm": round(raw_hnorm, 4),
+                "Corrected_H_norm": round(raw_hnorm, 4),
+                "Hallucination_Count": 0, "Hallucination_Rate": 0.0,
+                "Physical_Hall": 0, "Thinking_Hall": 0,
+                "EBE": round(raw_hnorm, 4),
+                "Raw_Dominant": dominant[0],
+                "Raw_Dominant_Freq": round(dominant[1] / n, 4) if n else 0,
+                "Corrected_Dominant": dominant[0],
+                "Corrected_Dominant_Freq": round(dominant[1] / n, 4) if n else 0,
+            })
+            continue
 
-                is_hall = False
-                if has_elevated and prev["elevated"] and decision == "Elevation":
-                    is_hall = True
-                if has_insurance and prev["has_insurance"] and decision == "Insurance":
-                    is_hall = True
-                if has_elevated and has_insurance:
-                    # "Both" when already have both
-                    if prev["elevated"] and prev["has_insurance"] and decision == "Both":
-                        is_hall = True
-                    # "Both" when already elevated (insurance part valid, elevation not)
-                    elif prev["elevated"] and decision == "Both":
-                        is_hall = True
-                    # "Both" when already insured (elevation part valid, insurance not)
-                    elif prev["has_insurance"] and decision == "Both":
-                        is_hall = True
-                if has_relocated and prev.get("relocated", False):
-                    is_hall = True
+        # --- physical hallucinations this year ---
+        yr_phys = int(phys_mask.reindex(yr_active.index, fill_value=False).sum())
 
-                if is_hall:
-                    # For B/C: "relocated" is a STATUS marker, not a decision.
-                    # Don't count status markers as hallucinations.
-                    if decision == "Relocated":
-                        # Agent already relocated; this row is just a status.
-                        # Exclude from active population (don't count in entropy).
-                        corrected[idx_i] = "__EXCLUDED__"
-                    else:
-                        hall_count += 1
-                        corrected[idx_i] = "DoNothing"
+        # --- thinking violations this year (V1/V2/V3) ---
+        yr_think_results = rule_checker.apply(
+            yr_active, group=group_letter,
+            decision_col=dec_col, ta_level_col="ta_level"
+        )
+        yr_think = rule_checker.total_violations(yr_think_results)
 
-        # --- corrected entropy (excluding relocated status markers) ---
-        active_corrected = [d for d in corrected if d != "__EXCLUDED__"]
-        n_active = len(active_corrected)
-        corr_counts = Counter(active_corrected)
-        corr_hnorm = shannon_entropy_norm(corr_counts, n_active)
+        yr_hall = yr_phys + yr_think
+        yr_rh = yr_hall / n_active if n_active > 0 else 0.0
 
-        # --- rates (hallucination rate based on active agents only) ---
-        r_h = hall_count / n_active if n_active > 0 else 0.0
-        ebe = raw_hnorm * (1.0 - r_h)
+        # --- active-only entropy ---
+        active_decisions = yr_active[dec_col].apply(norm_fn).tolist()
+        active_counts = Counter(active_decisions)
+        corr_hnorm = shannon_entropy_norm(active_counts, n_active)
 
-        # --- dominant action ---
+        ebe = raw_hnorm * (1.0 - yr_rh)
+
         dominant = raw_counts.most_common(1)[0] if raw_counts else ("None", 0)
-        corr_dominant = corr_counts.most_common(1)[0] if corr_counts else ("None", 0)
+        corr_dominant = active_counts.most_common(1)[0] if active_counts else ("None", 0)
 
         rows.append({
-            "Model": "gemma3_4b",
-            "Group": group,
-            "Year": int(yr),
-            "N": n,
-            "N_Active": n_active,
+            "Model": "gemma3_4b", "Group": group, "Year": int(yr),
+            "N": n, "N_Active": n_active,
             "Raw_H_norm": round(raw_hnorm, 4),
             "Corrected_H_norm": round(corr_hnorm, 4),
-            "Hallucination_Count": hall_count,
-            "Hallucination_Rate": round(r_h, 4),
+            "Hallucination_Count": yr_hall,
+            "Hallucination_Rate": round(yr_rh, 4),
+            "Physical_Hall": yr_phys, "Thinking_Hall": yr_think,
             "EBE": round(ebe, 4),
             "Raw_Dominant": dominant[0],
             "Raw_Dominant_Freq": round(dominant[1] / n, 4) if n else 0,
             "Corrected_Dominant": corr_dominant[0],
-            "Corrected_Dominant_Freq": round(corr_dominant[1] / n, 4) if n else 0,
+            "Corrected_Dominant_Freq": round(corr_dominant[1] / n_active, 4) if n_active else 0,
         })
 
     return pd.DataFrame(rows)
@@ -212,6 +233,7 @@ def main():
     # ---------- summary ----------
     print("\n" + "=" * 72)
     print("SAGE Paper — Corrected Entropy Summary (Gemma3 4B)")
+    print("  R_H = physical + thinking (insurance renewal excluded)")
     print("=" * 72)
 
     for group in ["Group_A", "Group_B", "Group_C"]:
@@ -222,18 +244,22 @@ def main():
         mean_corr = g["Corrected_H_norm"].mean()
         mean_rh = g["Hallucination_Rate"].mean()
         mean_ebe = g["EBE"].mean()
+        total_phys = int(g["Physical_Hall"].sum())
+        total_think = int(g["Thinking_Hall"].sum())
         print(f"\n{group}:")
         print(f"  Mean Raw H_norm      = {mean_raw:.4f}")
         print(f"  Mean Corrected H_norm= {mean_corr:.4f}")
         print(f"  Mean Hallucination   = {mean_rh:.1%}")
         print(f"  Mean EBE             = {mean_ebe:.4f}")
+        print(f"  Breakdown: Physical={total_phys}, Thinking={total_think}")
         print(f"  Year-by-year:")
         for _, r in g.iterrows():
             hall_str = f" Hall={r['Hallucination_Rate']:.0%}" if r["Hallucination_Rate"] > 0 else ""
+            detail = f" (P={int(r['Physical_Hall'])},T={int(r['Thinking_Hall'])})" if r["Hallucination_Count"] > 0 else ""
             print(
                 f"    Y{r['Year']:2d}: Raw={r['Raw_H_norm']:.3f}  "
                 f"Corr={r['Corrected_H_norm']:.3f}  "
-                f"EBE={r['EBE']:.3f}{hall_str}"
+                f"EBE={r['EBE']:.3f}{hall_str}{detail}"
             )
 
     # ---------- key comparison ----------
@@ -244,7 +270,8 @@ def main():
         g = result[result["Group"] == group]
         if g.empty:
             continue
-        print(f"  {group}: EBE = {g['EBE'].mean():.4f}")
+        rh_mean = g["Hallucination_Rate"].mean()
+        print(f"  {group}: EBE = {g['EBE'].mean():.4f}  R_H = {rh_mean:.1%}")
     print()
 
 

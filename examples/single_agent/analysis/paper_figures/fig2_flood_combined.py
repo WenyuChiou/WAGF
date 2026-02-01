@@ -20,6 +20,12 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
+pd.set_option('future.no_silent_downcasting', True)
+
+# PostHocValidator for unified R_H
+sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+from broker.validators.posthoc import KeywordClassifier, ThinkingRulePostHoc
+from broker.validators.posthoc.unified_rh import _compute_physical_hallucinations
 
 # ── Paths ──
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -91,47 +97,46 @@ def protective_adoption(df, g):
 
 
 def hallucination_rate(df, g):
-    """R_H = redundant/impossible decisions / total active decisions."""
-    hall, active = 0, 0
-    if g == "A":
-        agent_state = {}
-        for _, row in df.sort_values(["agent_id", "year"]).iterrows():
-            aid = row["agent_id"]
-            raw = str(row.get("raw_llm_decision", "")).lower()
-            if aid not in agent_state:
-                agent_state[aid] = {"elevated": False, "insured": False, "relocated": False}
-            s = agent_state[aid]
-            if s["relocated"]: continue
-            active += 1
-            is_hall = False
-            if "elevat" in raw and s["elevated"]: is_hall = True
-            elif "insur" in raw and s["insured"]: is_hall = True
-            elif "both" in raw and (s["elevated"] or s["insured"]): is_hall = True
-            if is_hall: hall += 1
-            if "elevat" in raw: s["elevated"] = True
-            if "insur" in raw: s["insured"] = True
-            if "both" in raw: s["elevated"] = s["insured"] = True
-            if "relocat" in raw: s["relocated"] = True
+    """R_H = (physical + thinking) / N_active, using PostHocValidator.
+
+    Insurance renewal excluded. Thinking violations (V1/V2/V3) included.
+    """
+    classifier = KeywordClassifier()
+    rule_checker = ThinkingRulePostHoc()
+
+    dec_col = "decision" if "decision" in df.columns else "yearly_decision"
+    ta_col = "threat_appraisal" if "threat_appraisal" in df.columns else None
+    ca_col = "coping_appraisal" if "coping_appraisal" in df.columns else None
+
+    df = df.sort_values(["agent_id", "year"]).copy()
+    if ta_col and ca_col:
+        df = classifier.classify_dataframe(df, ta_col, ca_col)
     else:
-        years = sorted(df["year"].unique())
-        active += len(df[df["year"] == years[0]])
-        for yr in years[1:]:
-            ydf = df[df["year"] == yr]
-            prev = df[df["year"] == yr - 1]
-            for _, row in ydf.iterrows():
-                aid = row["agent_id"]
-                dec = str(row["yearly_decision"]).lower()
-                p = prev[prev["agent_id"] == aid]
-                if p.empty: continue
-                p = p.iloc[0]
-                if p.get("relocated", False): continue
-                active += 1
-                is_hall = False
-                if "elevat" in dec and p["elevated"]: is_hall = True
-                if "insur" in dec and p["has_insurance"]: is_hall = True
-                if "both" in dec and (p["elevated"] or p["has_insurance"]): is_hall = True
-                if is_hall: hall += 1
-    return hall / active * 100 if active > 0 else 0.0
+        df["ta_level"] = "M"
+        df["ca_level"] = "M"
+
+    # Physical hallucinations (re-elevation + post-relocation; insurance renewal excluded)
+    phys_mask = _compute_physical_hallucinations(df)
+
+    # Active mask (not previously relocated, year >= 2)
+    df["prev_relocated"] = (
+        df.groupby("agent_id")["relocated"].shift(1).fillna(False).infer_objects(copy=False)
+    )
+    active_mask = ~df["prev_relocated"] & (df["year"] >= 2)
+    df_active = df[active_mask]
+    n_active = len(df_active)
+    if n_active == 0:
+        return 0.0
+
+    n_phys = int(phys_mask.reindex(df_active.index, fill_value=False).sum())
+
+    # Thinking violations (V1/V2/V3)
+    think_results = rule_checker.apply(
+        df_active, group=g, decision_col=dec_col, ta_level_col="ta_level"
+    )
+    n_think = rule_checker.total_violations(think_results)
+
+    return (n_phys + n_think) / n_active * 100
 
 
 # ── Compute ──
