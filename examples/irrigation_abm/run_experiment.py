@@ -99,6 +99,7 @@ def _profiles_to_agents(
             "years_farming": p.years_farming,
             "has_efficient_system": p.has_efficient_system,
             "at_allocation_cap": False,
+            "below_minimum_utilisation": False,
         }
         agent.custom_attributes = attrs
         for k, v in attrs.items():
@@ -206,10 +207,12 @@ class IrrigationLifecycleHooks:
             agent_state = self.env.get_agent_state(aid)
             agent.at_allocation_cap = agent_state.get("at_allocation_cap", False)
             agent.has_efficient_system = agent_state.get("has_efficient_system", False)
+            agent.below_minimum_utilisation = agent_state.get("below_minimum_utilisation", False)
             # Also sync to custom_attributes so AttributeProvider sees updated values
             if hasattr(agent, "custom_attributes"):
                 agent.custom_attributes["at_allocation_cap"] = agent.at_allocation_cap
                 agent.custom_attributes["has_efficient_system"] = agent.has_efficient_system
+                agent.custom_attributes["below_minimum_utilisation"] = agent.below_minimum_utilisation
 
             # Inject regret feedback from last year's outcome into memory
             if year > 1:
@@ -282,6 +285,11 @@ class IrrigationLifecycleHooks:
                 "drought_index": self.env.global_state.get("drought_index", 0),
                 "shortage_tier": self.env.institutions.get("colorado_compact", {}).get("shortage_tier", 0),
                 "has_efficient_system": agent_state.get("has_efficient_system", False),
+                "below_minimum_utilisation": agent_state.get("below_minimum_utilisation", False),
+                "utilisation_pct": (
+                    agent_state.get("request", 0) / agent_state.get("water_right", 1) * 100
+                    if agent_state.get("water_right", 0) > 0 else 0
+                ),
                 "memory": mem_str,
             })
 

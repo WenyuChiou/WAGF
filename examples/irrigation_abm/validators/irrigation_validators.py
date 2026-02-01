@@ -236,6 +236,50 @@ def drought_severity_check(
     ]
 
 
+def minimum_utilisation_check(
+    skill_name: str,
+    rules: List[GovernanceRule],
+    context: Dict[str, Any],
+) -> List[ValidationResult]:
+    """Block demand reduction when agent is already at minimum utilisation floor.
+
+    Prevents "economic hallucination" — the LLM choosing to further reduce
+    demand when utilisation is already at or below 10% of water right.
+    This catches cases where the identity rule retry was exhausted.
+
+    Checks ``context["below_minimum_utilisation"]`` — set by
+    IrrigationEnvironment.update_agent_request() when request < water_right * 0.10.
+    """
+    if skill_name not in ("decrease_demand", "reduce_acreage"):
+        return []
+
+    below_min = context.get("below_minimum_utilisation", False)
+    if not below_min:
+        return []
+
+    water_right = context.get("water_right", "unknown")
+    request = context.get("request", 0)
+    util_pct = (request / water_right * 100) if isinstance(water_right, (int, float)) and water_right > 0 else 0
+    return [
+        ValidationResult(
+            valid=False,
+            validator_name="IrrigationMinimumUtilisationValidator",
+            errors=[
+                f"Demand reduction blocked: agent at {util_pct:.1f}% utilisation "
+                f"(floor = 10% of {water_right} AF water right). "
+                f"Further reduction constitutes economic hallucination."
+            ],
+            warnings=[],
+            metadata={
+                "rule_id": "minimum_utilisation_floor",
+                "category": "physical",
+                "blocked_skill": skill_name,
+                "level": "ERROR",
+            },
+        )
+    ]
+
+
 def magnitude_cap_check(
     skill_name: str,
     rules: List[GovernanceRule],
@@ -288,6 +332,7 @@ IRRIGATION_PHYSICAL_CHECKS = [
     water_right_cap_check,
     non_negative_diversion_check,
     efficiency_already_adopted_check,
+    minimum_utilisation_check,
     drought_severity_check,
     magnitude_cap_check,
 ]
