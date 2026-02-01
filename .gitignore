@@ -97,6 +97,14 @@ cognitive_governance/v1_prototype/
 ref/ABM_draft_*.docx
 ref/ABM_SM_*.docx
 
+# Paper artifacts — edit locally, store on Zenodo/OSF for archival
+paper/*.docx
+paper/figures/
+paper/SI/
+paper/scripts/
+examples/single_agent/analysis/paper_figures/*.png
+examples/single_agent/analysis/paper_figures/*.pdf
+
 # Raw LLM Traces (large, regenerable)
 **/raw/*_traces.jsonl
 tests/smoke_results/
