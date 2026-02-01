@@ -159,13 +159,13 @@ household_owner:
     num_predict: 2048
   response_format:
     fields:
+      - { key: "reasoning", type: "text", required: false }
       - { key: "threat_perception", type: "appraisal", required: true, construct: "TP_LABEL" }
       - { key: "coping_perception", type: "appraisal", required: true, construct: "CP_LABEL" }
       - { key: "stakeholder_perception", type: "appraisal", required: true, construct: "SP_LABEL" }
       - { key: "social_capital", type: "appraisal", required: true, construct: "SC_LABEL" }
       - { key: "place_attachment", type: "appraisal", required: true, construct: "PA_LABEL" }
       - { key: "decision", type: "choice", required: true }
-      - { key: "reasoning", type: "text", required: false }
   prompt_template: |
     You are a homeowner (Agent ID: {agent_id}) in the Passaic River Basin, New Jersey.
 
@@ -253,13 +253,13 @@ household_renter:
     num_predict: 2048
   response_format:
     fields:
+      - { key: "reasoning", type: "text", required: false }
       - { key: "threat_perception", type: "appraisal", required: true, construct: "TP_LABEL" }
       - { key: "coping_perception", type: "appraisal", required: true, construct: "CP_LABEL" }
       - { key: "stakeholder_perception", type: "appraisal", required: true, construct: "SP_LABEL" }
       - { key: "social_capital", type: "appraisal", required: true, construct: "SC_LABEL" }
       - { key: "place_attachment", type: "appraisal", required: true, construct: "PA_LABEL" }
       - { key: "decision", type: "choice", required: true }
-      - { key: "reasoning", type: "text", required: false }
   log_fields: ["threat_perception", "coping_perception", "stakeholder_perception", "social_capital", "place_attachment"]
 
   prompt_template: |
@@ -370,7 +370,7 @@ nj_government:
   response_format:
     fields:
       - { key: "decision", type: "choice", required: true }
-      - { key: "reasoning", type: "text", required: true }
+      - { key: "reasoning", type: "text", required: false }
   parsing:
     decision_keywords: ["decision", "choice"]
     default_skill: "maintain_subsidy"
@@ -425,7 +425,7 @@ government:
   response_format:
     fields:
       - { key: "decision", type: "choice", required: true }
-      - { key: "reasoning", type: "text", required: true }
+      - { key: "reasoning", type: "text", required: false }
   parsing:
     decision_keywords: ["decision", "choice"]
     default_skill: "maintain_subsidy"
@@ -486,7 +486,7 @@ fema_nfip:
   response_format:
     fields:
       - { key: "decision", type: "choice", required: true }
-      - { key: "reasoning", type: "text", required: true }
+      - { key: "reasoning", type: "text", required: false }
   parsing:
     decision_keywords: ["decision", "choice"]
     default_skill: "maintain_premium"
@@ -539,7 +539,7 @@ insurance:
   response_format:
     fields:
       - { key: "decision", type: "choice", required: true }
-      - { key: "reasoning", type: "text", required: true }
+      - { key: "reasoning", type: "text", required: false }
   parsing:
     decision_keywords: ["decision", "choice"]
     default_skill: "maintain_premium"

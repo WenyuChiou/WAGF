@@ -71,6 +71,7 @@ shared:
     delimiter_start: "<<<DECISION_START>>>"
     delimiter_end: "<<<DECISION_END>>>"
     fields:
+      - { key: "reasoning", type: "text", required: false }
       - {
           key: "water_scarcity_assessment",
           type: "appraisal",
@@ -86,7 +87,6 @@ shared:
           reason_hint: "One sentence on how well you can adapt your water use.",
         }
       - { key: "decision", type: "choice", required: true }
-      - { key: "reasoning", type: "text", required: false }
 
 # =============================================================================
 # IRRIGATION FARMER AGENT TYPE

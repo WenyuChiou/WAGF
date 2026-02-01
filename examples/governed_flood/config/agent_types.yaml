@@ -53,6 +53,7 @@ shared:
     delimiter_start: "<<<DECISION_START>>>"
     delimiter_end: "<<<DECISION_END>>>"
     fields:
+      - { key: "reasoning", type: "text", required: false }
       - {
           key: "threat_appraisal",
           type: "appraisal",
