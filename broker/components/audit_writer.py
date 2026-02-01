@@ -143,8 +143,13 @@ class GenericAuditWriter:
             self.summary["structural_faults_fixed"] += 1  # Count traces with faults fixed
 
         # Buffered JSONL write (Optimized: flush every N traces)
+        # Truncate raw_output in JSONL to reduce file size; CSV retains full version
         file_path = self._get_file_path(agent_type)
-        json_line = json.dumps(trace, ensure_ascii=False, default=str) + '\n'
+        jsonl_trace = trace
+        raw = trace.get('raw_output')
+        if isinstance(raw, str) and len(raw) > 500:
+            jsonl_trace = {**trace, 'raw_output': raw[:500] + '...[truncated]'}
+        json_line = json.dumps(jsonl_trace, ensure_ascii=False, default=str) + '\n'
         
         if agent_type not in self._jsonl_buffer:
             self._jsonl_buffer[agent_type] = []
