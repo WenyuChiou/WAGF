@@ -164,10 +164,12 @@ class IrrigationEnvironment:
         """
         for p in profiles:
             wr = getattr(p, "water_right", 100_000.0)
+            _actual = getattr(p, "actual_2018_diversion", None)
+            _init_div = _actual if _actual is not None else wr * 0.8
             self._agents[p.agent_id] = {
                 "basin": p.basin,
-                "diversion": wr * 0.8,  # 80% utilisation baseline
-                "request": wr * 0.8,
+                "diversion": _init_div,
+                "request": _init_div,
                 "water_right": wr,
                 "curtailment_ratio": 0.0,
                 "at_allocation_cap": False,

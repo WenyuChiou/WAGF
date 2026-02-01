@@ -46,6 +46,7 @@ class IrrigationAgentProfile:
     crop_type: str = "mixed"  # alfalfa, cotton, vegetables, mixed
     years_farming: int = 20
     has_efficient_system: bool = False
+    actual_2018_diversion: Optional[float] = None  # Historical 2018 diversion (acre-ft)
 
     # Narrative (generated)
     narrative_persona: str = ""
@@ -559,6 +560,27 @@ def create_profiles_from_data(
     ub_agent_names = _build_ub_agent_names(ub_group_file)
     ub_sg_map = _build_ub_state_group_map(ub_agent_names)
 
+    # 4. Load historical 2018 actual diversions (Hung & Yang 2021 baseline)
+    lb_hist_path = os.path.join(crss_db_dir, "HistoricalData", "LB_historical_annual_diversion.csv")
+    ub_hist_path = os.path.join(crss_db_dir, "HistoricalData", "UB_historical_annual_depletion.csv")
+    lb_2018, ub_2018 = None, None
+    if os.path.isfile(lb_hist_path):
+        lb_hist = pd.read_csv(lb_hist_path, index_col=0)
+        lb_2018 = lb_hist.loc[2018] if 2018 in lb_hist.index else None
+    if os.path.isfile(ub_hist_path):
+        ub_hist = pd.read_csv(ub_hist_path, index_col=0)
+        ub_2018 = ub_hist.loc[2018] * 1000 if 2018 in ub_hist.index else None  # thousands AF → AF
+
+    # Pre-compute UB state-group water_right totals for proportional split
+    ub_group_wr_totals: Dict[str, float] = {}
+    for _name in ub_states.columns:
+        _wr = float(ub_states[_name].iloc[-1])
+        if _wr <= 0:
+            continue
+        _sg = ub_sg_map.get(_name)
+        if _sg:
+            ub_group_wr_totals[_sg] = ub_group_wr_totals.get(_sg, 0) + _wr
+
     profiles: List[IrrigationAgentProfile] = []
 
     # --- Lower Basin agents (22, direct CSV match) ---
@@ -595,6 +617,8 @@ def create_profiles_from_data(
             crop_type=_assign_crop_type("lower_basin", rng),
             years_farming=int(rng.integers(5, 40)),
         )
+        if lb_2018 is not None and agent_name in lb_2018.index:
+            profile.actual_2018_diversion = float(lb_2018[agent_name])
         profile.narrative_persona = build_narrative_persona(profile, rng)
         profiles.append(profile)
 
@@ -635,6 +659,10 @@ def create_profiles_from_data(
             crop_type=_assign_crop_type("upper_basin", rng),
             years_farming=int(rng.integers(5, 40)),
         )
+        if ub_2018 is not None and state_group in ub_2018.index:
+            group_total = ub_group_wr_totals.get(state_group, 1)
+            if group_total > 0:
+                profile.actual_2018_diversion = float(ub_2018[state_group]) * (water_right / group_total)
         profile.narrative_persona = build_narrative_persona(profile, rng)
         profiles.append(profile)
 
