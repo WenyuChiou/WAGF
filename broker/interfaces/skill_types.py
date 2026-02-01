@@ -40,7 +40,9 @@ class SkillProposal:
     parse_layer: str = ""        # Which parsing method succeeded (enclosure/json/regex/digit/default)
     parse_confidence: float = 0.0  # Parse confidence [0.0-1.0]
     construct_completeness: float = 0.0  # Construct coverage [0.0-1.0]
-    
+    magnitude_pct: Optional[float] = None         # LLM-proposed magnitude (0-100%)
+    magnitude_fallback: bool = False               # True if magnitude from cluster default after failed retries
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "skill_name": self.skill_name,
@@ -53,6 +55,8 @@ class SkillProposal:
             "parse_layer": self.parse_layer,
             "parse_confidence": self.parse_confidence,
             "construct_completeness": self.construct_completeness,
+            "magnitude_pct": self.magnitude_pct,
+            "magnitude_fallback": self.magnitude_fallback,
         }
 
 
@@ -167,7 +171,8 @@ class SkillBrokerResult:
             "approved_skill": {
                 "skill_name": self.approved_skill.skill_name,
                 "status": self.approved_skill.approval_status,
-                "mapping": self.approved_skill.execution_mapping
+                "mapping": self.approved_skill.execution_mapping,
+                "parameters": self.approved_skill.parameters,
             } if self.approved_skill else None,
             "execution_result": self.execution_result.to_dict() if self.execution_result else None,
             "validation_errors": self.validation_errors,

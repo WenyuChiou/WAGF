@@ -289,9 +289,8 @@ def magnitude_cap_check(
 ) -> List[ValidationResult]:
     """Block demand increase when proposed magnitude exceeds cluster bounds.
 
-    Note: Requires ``proposed_magnitude`` in context. Currently a placeholder
-    — the LLM selects a skill name but does not propose a magnitude.
-    The environment applies a fixed 10% default (see ``irrigation_env.py``).
+    Requires ``proposed_magnitude`` in context (injected by broker engine
+    when ``SkillProposal.magnitude_pct`` is not None).
     """
     if skill_name != "increase_demand":
         return []

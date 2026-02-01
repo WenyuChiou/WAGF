@@ -285,6 +285,7 @@ class UnifiedAdapter(ModelAdapter):
         cleaned_target = preprocessor(target_content)
         
         # 3. ATTEMPT JSON PARSING
+        _magnitude_pct = None  # Optional magnitude for Group D experiments
         found_json = False
         try:
             json_text = cleaned_target.strip()
@@ -352,6 +353,20 @@ class UnifiedAdapter(ModelAdapter):
                                         skill_name = canonical
                                         break
                 
+                # Extract magnitude (optional, for irrigation Group D)
+                magnitude_raw = data_lowered.get("magnitude") or data_lowered.get("magnitude_pct")
+                if magnitude_raw is not None:
+                    try:
+                        _mag = float(magnitude_raw)
+                        if _mag < 0:
+                            parsing_warnings.append(f"Negative magnitude {_mag}% ignored")
+                        else:
+                            _magnitude_pct = min(_mag, 100.0)
+                            if _mag > 100:
+                                parsing_warnings.append(f"Magnitude {_mag}% clamped to 100%")
+                    except (ValueError, TypeError):
+                        parsing_warnings.append(f"Non-numeric magnitude: {magnitude_raw}")
+
                 # RECOVERY: If JSON parsed but no decision found, look for "Naked Digit" after the JSON block
                 if not skill_name:
                     after_json = cleaned_target[cleaned_target.rfind("}")+1:].strip()
@@ -732,6 +747,7 @@ class UnifiedAdapter(ModelAdapter):
             parse_layer=parse_layer,
             parse_confidence=parse_confidence,
             construct_completeness=construct_completeness,
+            magnitude_pct=_magnitude_pct,
         )
         
     def _audit_demographic_grounding(self, reasoning: Dict, context: Dict, parsing_cfg: Dict = None) -> Dict:

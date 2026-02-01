@@ -172,12 +172,14 @@ class IrrigationLifecycleHooks:
         profiles: List[IrrigationAgentProfile],
         reflection_engine: Optional[ReflectionEngine],
         output_dir: Path,
+        with_magnitude: bool = False,
     ):
         self.env = env
         self.runner = runner
         self.profiles = {p.agent_id: p for p in profiles}
         self.reflection_engine = reflection_engine
         self.output_dir = output_dir
+        self.with_magnitude = with_magnitude
         self.logs: List[Dict] = []
         self.yearly_decisions: Dict = {}
 
@@ -202,6 +204,21 @@ class IrrigationLifecycleHooks:
             agent.aca_hint = build_aca_hint(profile.cluster)
             agent.trust_forecasts_text = trust["trust_forecasts_text"]
             agent.trust_neighbors_text = trust["trust_neighbors_text"]
+
+            # Magnitude instruction (Group D experiment)
+            if self.with_magnitude:
+                _mag_caps = {
+                    "aggressive": 30,
+                    "forward_looking_conservative": 15,
+                    "myopic_conservative": 10,
+                }
+                _max_mag = _mag_caps.get(profile.cluster, 30)
+                agent.magnitude_instruction = (
+                    f"- In addition to your decision, specify the magnitude of change as a percentage (1-{_max_mag}%). "
+                    'Add a "magnitude_pct" field (numeric) to your JSON response.'
+                )
+            else:
+                agent.magnitude_instruction = ""
 
             # Sync physical state flags from environment → agent
             agent_state = self.env.get_agent_state(aid)
@@ -251,6 +268,10 @@ class IrrigationLifecycleHooks:
 
         if result and result.approved_skill:
             skill_name = result.approved_skill.skill_name
+            # Extract magnitude from ApprovedSkill parameters
+            params = result.approved_skill.parameters or {}
+            appraisals["magnitude_pct"] = params.get("magnitude_pct")
+            appraisals["magnitude_fallback"] = params.get("magnitude_fallback", False)
 
         self.yearly_decisions[(agent.id, year)] = {
             "skill": skill_name,
@@ -290,6 +311,8 @@ class IrrigationLifecycleHooks:
                     agent_state.get("request", 0) / agent_state.get("water_right", 1) * 100
                     if agent_state.get("water_right", 0) > 0 else 0
                 ),
+                "magnitude_pct": appr.get("magnitude_pct"),
+                "magnitude_fallback": appr.get("magnitude_fallback", False),
                 "memory": mem_str,
             })
 
@@ -536,7 +559,8 @@ def main():
     print(f"[Pillar 2] ReflectionEngine (interval={reflection_engine.reflection_interval}, adapter=IrrigationAdapter)")
 
     # --- Inject lifecycle hooks ---
-    hooks = IrrigationLifecycleHooks(env, runner, profiles, reflection_engine, output_dir)
+    hooks = IrrigationLifecycleHooks(env, runner, profiles, reflection_engine, output_dir,
+                                     with_magnitude=args.with_magnitude)
     runner.hooks.update({
         "pre_year": hooks.pre_year,
         "post_step": hooks.post_step,
@@ -580,6 +604,8 @@ def parse_args():
     p.add_argument("--num-predict", type=int, default=None)
     p.add_argument("--rebalance-clusters", action="store_true",
                    help="Rebalance cluster assignment so each cluster has ≥15%% of agents")
+    p.add_argument("--with-magnitude", action="store_true",
+                   help="Enable LLM magnitude output (Group D experiment)")
     return p.parse_args()
 
 

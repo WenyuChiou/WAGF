@@ -411,7 +411,7 @@ class IrrigationEnvironment:
 
         Args:
             approved_skill: An ``ApprovedSkill`` instance with
-                ``.skill_name``, ``.agent_id``, and ``.metadata``.
+                ``.skill_name``, ``.agent_id``, and ``.parameters``.
 
         Returns:
             ExecutionResult with success status and state changes.

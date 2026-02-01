@@ -284,11 +284,15 @@ class SkillBrokerEngine:
         validation_context = {
             "agent_state": context,
             "agent_type": agent_type,
-            "env_state": env_context, # The "New Standard" source of truth
+            "env_state": env_context,  # The "New Standard" source of truth
             **context.get("state", {}),  # Flatten agent state for custom validators
             **env_context             # Flat injection for legacy validator lookups
         }
-        
+
+        # Inject proposed magnitude into validation context (activates magnitude_cap_check)
+        if skill_proposal and skill_proposal.magnitude_pct is not None:
+            validation_context["proposed_magnitude"] = skill_proposal.magnitude_pct
+
         validation_results = self._run_validators(skill_proposal, validation_context)
         all_validation_history = list(validation_results)
         all_valid = all(v.valid for v in validation_results)
@@ -435,6 +439,13 @@ class SkillBrokerEngine:
 
         
         # ④ Create ApprovedSkill or use fallback
+        # Build parameters dict from SkillProposal magnitude
+        # Only include magnitude fields when magnitude_pct was actually provided
+        _params = {}
+        if skill_proposal and skill_proposal.magnitude_pct is not None:
+            _params["magnitude_pct"] = skill_proposal.magnitude_pct
+            _params["magnitude_fallback"] = skill_proposal.magnitude_fallback
+
         if all_valid:
             approved_skill = ApprovedSkill(
                 skill_name=skill_proposal.skill_name,
@@ -442,7 +453,7 @@ class SkillBrokerEngine:
                 approval_status="APPROVED",
                 validation_results=validation_results,
                 execution_mapping=self.skill_registry.get_execution_mapping(skill_proposal.skill_name) or "",
-                parameters={}
+                parameters=_params,
             )
             outcome = SkillOutcome.RETRY_SUCCESS if retry_count > 0 else SkillOutcome.APPROVED
             if retry_count > 0:
@@ -463,6 +474,14 @@ class SkillBrokerEngine:
             # RETRY EXHAUSTION: Return the model's desired behavior but with REJECTED status
             # Soft governance: the action proceeds but is marked REJECTED for audit
             is_generic_fallback = (skill_proposal is None or skill_proposal.parse_layer == "default")
+
+            # Mark magnitude fallback: retries exhausted, clear LLM magnitude
+            # so execute_skill will use cluster defaults instead
+            if skill_proposal and skill_proposal.magnitude_pct is not None:
+                skill_proposal.magnitude_fallback = True
+                skill_proposal.magnitude_pct = None
+                # Rebuild _params after clearing magnitude
+                _params = {"magnitude_fallback": True}
             
             # Re-fetch fallout skill if needed or use local var if I can restructure
             fallout_skill = skill_proposal.skill_name if not is_generic_fallback else self.config.get_parsing_config(agent_type).get("default_skill", self.skill_registry.get_default_skill())
@@ -473,7 +492,7 @@ class SkillBrokerEngine:
                 approval_status="REJECTED" if not is_generic_fallback else "REJECTED_FALLBACK",
                 validation_results=validation_results,
                 execution_mapping=self.skill_registry.get_execution_mapping(fallout_skill) or "",
-                parameters={}
+                parameters=_params,
             )
             outcome = SkillOutcome.REJECTED if not is_generic_fallback else SkillOutcome.UNCERTAIN
             
