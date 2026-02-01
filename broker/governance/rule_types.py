@@ -18,6 +18,7 @@ class RuleCategory(str, Enum):
     SOCIAL = "social"        # Neighbor influence + Community norms
     THINKING = "thinking"    # PMT constructs + Reasoning coherence
     PHYSICAL = "physical"    # State preconditions + Immutability
+    SEMANTIC = "semantic"    # Reasoning grounding + Factual consistency
 
 
 class RuleLevel(str, Enum):

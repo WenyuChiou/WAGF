@@ -6,6 +6,7 @@ Validators:
 - SocialValidator: Neighbor influence + Community norms (WARNING only)
 - ThinkingValidator: PMT constructs + Reasoning coherence
 - PhysicalValidator: State preconditions + Immutability
+- SemanticGroundingValidator: Reasoning grounding + Factual consistency
 - TypeValidator: Per-agent-type validation (skill eligibility, type rules)
 
 Domain-specific built-in checks are injected via ``builtin_checks``
@@ -29,6 +30,7 @@ from broker.validators.governance.personal_validator import PersonalValidator
 from broker.validators.governance.social_validator import SocialValidator
 from broker.validators.governance.thinking_validator import ThinkingValidator
 from broker.validators.governance.physical_validator import PhysicalValidator
+from broker.validators.governance.semantic_validator import SemanticGroundingValidator
 from broker.governance.type_validator import TypeValidator
 
 __all__ = [
@@ -38,6 +40,7 @@ __all__ = [
     "SocialValidator",
     "ThinkingValidator",
     "PhysicalValidator",
+    "SemanticGroundingValidator",
     "TypeValidator",
     "validate_all",
     "get_rule_breakdown",
@@ -91,6 +94,7 @@ def validate_all(
             PhysicalValidator(builtin_checks=list(IRRIGATION_PHYSICAL_CHECKS)),
             ThinkingValidator(builtin_checks=[]),       # No PMT checks
             SocialValidator(builtin_checks=list(IRRIGATION_SOCIAL_CHECKS)),
+            SemanticGroundingValidator(builtin_checks=[]),  # YAML rules only
         ]
     elif domain is None:
         no_builtins: List[BuiltinCheck] = []
@@ -99,6 +103,7 @@ def validate_all(
             PhysicalValidator(builtin_checks=no_builtins),
             ThinkingValidator(builtin_checks=no_builtins),
             SocialValidator(builtin_checks=no_builtins),
+            SemanticGroundingValidator(builtin_checks=no_builtins),
         ]
     else:
         # "flood" or any unrecognized domain → default (flood backward compat)
@@ -107,6 +112,7 @@ def validate_all(
             PhysicalValidator(),
             ThinkingValidator(),
             SocialValidator(),
+            SemanticGroundingValidator(),
         ]
 
     all_results = []
@@ -137,7 +143,8 @@ def get_rule_breakdown(results: List[ValidationResult]) -> Dict[str, int]:
         "personal": 0,
         "social": 0,
         "thinking": 0,
-        "physical": 0
+        "physical": 0,
+        "semantic": 0,
     }
 
     for r in results:
