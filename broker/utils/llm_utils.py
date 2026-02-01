@@ -202,8 +202,14 @@ def _invoke_ollama_direct(model: str, prompt: str, params: Dict[str, Any], verbo
         else:
             _LOGGER.error(f" [LLM:Direct] Model '{model}' HTTP Error {response.status_code}: {response.text}")
             return "", LLMStats(retries=0, success=False)
+    except requests.exceptions.Timeout:
+        _LOGGER.error(f" [LLM:Direct] Model '{model}' timed out after {timeout}s. Consider increasing timeout for this model.")
+        return "", LLMStats(retries=0, success=False)
+    except requests.exceptions.ConnectionError:
+        _LOGGER.error(f" [LLM:Direct] Model '{model}' connection refused. Is Ollama running at {url}?")
+        return "", LLMStats(retries=0, success=False)
     except Exception as e:
-        _LOGGER.error(f" [LLM:Direct] Model '{model}' Request Exception: {e}")
+        _LOGGER.error(f" [LLM:Direct] Model '{model}' unexpected error: {type(e).__name__}: {e}")
         return "", LLMStats(retries=0, success=False)
 
 
@@ -368,9 +374,16 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
                         else:
                             _LOGGER.error(f" [LLM:Error] Model '{model}' returned empty content after {max_llm_retries} attempts.")
                             return "", LLMStats(retries=llm_retries, success=False, empty_content_retries=empty_content_retries, empty_content_failure=True)
+                except (ConnectionError, OSError) as e:
+                    llm_retries += 1
+                    _LOGGER.error(f" [LLM:Error] Connection to Ollama failed for '{model}': {e}")
+                    if attempt < max_llm_retries - 1:
+                        current_prompt += " "
+                        continue
+                    return "", LLMStats(retries=llm_retries, success=False, empty_content_retries=empty_content_retries)
                 except Exception as e:
                     llm_retries += 1
-                    _LOGGER.error(f" [LLM:Error] Exception during call to '{model}': {e}")
+                    _LOGGER.error(f" [LLM:Error] {type(e).__name__} during call to '{model}': {e}")
                     if attempt < max_llm_retries - 1:
                         current_prompt += " "
                         continue
@@ -419,8 +432,11 @@ def create_provider_invoke(config: Dict[str, Any], verbose: bool = False) -> LLM
                 _LOGGER.debug(f" [LLM:Output] Raw Content: {repr(response.content[:200])}...")
                 
             return response.content, stats
+        except (ConnectionError, OSError) as e:
+            _LOGGER.error(f" [LLM:Error] {provider.provider_name} connection failed: {e}")
+            return "", LLMStats(retries=0, success=False)
         except Exception as e:
-            _LOGGER.error(f" [LLM:Error] {provider.provider_name} call failed: {e}")
+            _LOGGER.error(f" [LLM:Error] {provider.provider_name} {type(e).__name__}: {e}")
             return "", LLMStats(retries=0, success=False)
             
     return invoke
