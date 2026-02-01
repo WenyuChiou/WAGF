@@ -10,6 +10,15 @@ Design follows the same pattern as flood-domain built-in checks
 (FLOOD_PERSONAL_CHECKS, FLOOD_PHYSICAL_CHECKS, etc.) established
 in the Phase 1 validator refactoring (commit fd861cf).
 
+Architecture note:
+    The standard ThinkingValidator, PersonalValidator, and SemanticValidator
+    are intentionally left empty (no builtin_checks) for the irrigation
+    domain. All irrigation governance is routed through ``custom_validators``
+    via the ``irrigation_governance_validator`` bridge at the bottom of this
+    module. This is by design — the irrigation domain uses numeric-decision
+    output (1-5) validated by output_schema and custom checks, rather than
+    PMT-based construct validation used by the flood domain.
+
 References:
     Hung, F., & Yang, Y. C. E. (2021). WRR, 57, e2020WR029262.
     Colorado River Compact (1922) — Upper/Lower Basin allocation rules.
