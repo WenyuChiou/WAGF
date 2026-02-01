@@ -30,7 +30,7 @@ class TestReflectionTriggerConfig:
         cfg = ReflectionTriggerConfig()
         assert cfg.crisis is True
         assert cfg.periodic_interval == 5
-        assert "elevate_house" in cfg.decision_types
+        assert cfg.decision_types == []  # domain-agnostic default
         assert cfg.institutional_threshold == 0.05
 
     def test_load_from_dict(self):
@@ -96,15 +96,21 @@ class TestShouldReflectTriggered:
         )
 
     def test_decision_trigger(self):
+        flood_cfg = ReflectionTriggerConfig(
+            decision_types=["elevate_house", "buyout_program", "relocate"]
+        )
         ctx = {"decision": "elevate_house"}
         assert self.engine.should_reflect_triggered(
-            "a1", "household", 3, ReflectionTrigger.DECISION, self.config, ctx
+            "a1", "household", 3, ReflectionTrigger.DECISION, flood_cfg, ctx
         )
 
     def test_decision_trigger_not_listed(self):
+        flood_cfg = ReflectionTriggerConfig(
+            decision_types=["elevate_house", "buyout_program", "relocate"]
+        )
         ctx = {"decision": "buy_insurance"}
         assert not self.engine.should_reflect_triggered(
-            "a1", "household", 3, ReflectionTrigger.DECISION, self.config, ctx
+            "a1", "household", 3, ReflectionTrigger.DECISION, flood_cfg, ctx
         )
 
     def test_institutional_trigger_government(self):

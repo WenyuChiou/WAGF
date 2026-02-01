@@ -34,13 +34,17 @@ class ReflectionInsight:
 
 @dataclass
 class AgentReflectionContext:
-    """Agent identity context for personalized reflection prompts."""
+    """Agent identity context for personalized reflection prompts.
+
+    Domain-specific fields (elevated, insured, flood_count) are kept
+    for backward compatibility.  New domains should use custom_traits.
+    """
     agent_id: str
     agent_type: str = "household"          # household | government | insurance
     name: str = ""                         # Display name if available
-    elevated: bool = False
-    insured: bool = False
-    flood_count: int = 0                   # Number of floods experienced
+    elevated: bool = False                 # flood-domain backward compat
+    insured: bool = False                  # flood-domain backward compat
+    flood_count: int = 0                   # flood-domain backward compat
     years_in_sim: int = 0                  # Agent age in simulation
     mg_status: bool = False                # Marginalized group
     recent_decision: str = ""              # Last skill chosen
@@ -65,6 +69,9 @@ REFLECTION_QUESTIONS: Dict[str, List[str]] = {
     ],
 }
 
+# Legacy flood-domain importance profiles — used by compute_dynamic_importance
+# fallback when no DomainReflectionAdapter is set.  New domains should use
+# FloodAdapter or IrrigationAdapter instead.
 IMPORTANCE_PROFILES: Dict[str, float] = {
     "first_flood": 0.95,      # First flood experience -> very memorable
     "repeated_flood": 0.75,   # Repeated floods -> diminishing impact
@@ -88,9 +95,7 @@ class ReflectionTriggerConfig:
     """Configuration for reflection triggers."""
     crisis: bool = True
     periodic_interval: int = 5
-    decision_types: List[str] = field(
-        default_factory=lambda: ["elevate_house", "buyout_program", "relocate"]
-    )
+    decision_types: List[str] = field(default_factory=list)
     institutional_threshold: float = 0.05
     method: str = "hybrid"
     batch_size: int = 10
@@ -192,10 +197,7 @@ class ReflectionEngine:
         return ReflectionTriggerConfig(
             crisis=triggers.get("crisis", True),
             periodic_interval=triggers.get("periodic_interval", 5),
-            decision_types=triggers.get(
-                "decision_types",
-                ["elevate_house", "buyout_program", "relocate"],
-            ),
+            decision_types=triggers.get("decision_types", []),
             institutional_threshold=triggers.get("institutional_threshold", 0.05),
             method=config_dict.get("method", "hybrid"),
             batch_size=config_dict.get("batch_size", 10),
