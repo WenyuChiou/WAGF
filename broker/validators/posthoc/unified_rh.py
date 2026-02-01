@@ -1,6 +1,11 @@
 """
 Unified hallucination rate (R_H) computation across groups.
 
+**Current implementation**: Designed for **FLOOD domain** (PMT: TP/CP).
+For **irrigation domain** (WSA/ACA), the thinking rules (V1/V2/V3) would
+need domain-specific counterparts; physical hallucination detection is
+domain-agnostic (state-transition based).
+
 Provides a single entry point for computing the hallucination rate using
 consistent methodology regardless of data source:
 
@@ -13,6 +18,10 @@ Where:
     physical  = re-elevation + post-relocation actions (from state transitions)
     thinking  = V1 + V2 + V3 violations (from classified constructs)
     N_active  = agent-year pairs where agent has not yet relocated
+
+Domain Mapping:
+    Flood:      ta_col="threat_appraisal", ca_col="coping_appraisal" (PMT)
+    Irrigation: ta_col="water_scarcity_assessment", ca_col="adaptive_capacity_assessment" (WSA/ACA)
 """
 
 from typing import Dict, Optional, Tuple

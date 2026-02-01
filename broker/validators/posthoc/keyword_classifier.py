@@ -1,15 +1,30 @@
 """
-Keyword-based PMT construct classifier for post-hoc trace analysis.
+Keyword-based construct classifier for post-hoc trace analysis.
 
-Extracts Threat Perception (TP) and Coping Perception (CP) labels from
-free-text appraisals using a two-tier strategy:
+**FLOOD DOMAIN (PMT)**: Default keyword dictionaries extract Threat
+Perception (TP) and Coping Perception (CP) labels from flood household
+adaptation traces using Protection Motivation Theory terminology.
+
+**IRRIGATION DOMAIN (WSA/ACA)**: For irrigation traces, supply custom
+keyword dictionaries via ``ta_keywords`` and ``ca_keywords`` constructor
+parameters, or use Tier 1 only (explicit label regex) which is
+domain-agnostic.
+
+Two-tier strategy:
 
     Tier 1 — Explicit label regex: ``VH``, ``H``, ``M``, ``L``, ``VL``
-    Tier 2 — PMT keyword matching from curated dictionaries
+             (domain-agnostic — works for any structured label output)
+    Tier 2 — Keyword matching from curated dictionaries
+             (default dictionaries are PMT/flood-specific)
 
 This formalizes the SQ1 analysis methodology (``master_report.py``) into
 a reusable module.  Tier 1 catches structured labels emitted by governed
 pipelines (Groups B/C); Tier 2 handles unstructured narratives (Group A).
+
+Domain Mapping:
+    Flood:      TP (Threat Perception) / CP (Coping Perception)   — PMT
+    Irrigation: WSA (Water Scarcity Assessment) / ACA (Adaptive
+                Capacity Assessment) — Dual Appraisal Framework
 
 References:
     Rogers, R. W. (1975). A protection motivation theory of fear appeals
@@ -22,7 +37,8 @@ import re
 from typing import Dict, List, Optional
 
 
-# PMT keyword dictionaries — curated from literature review
+# PMT keyword dictionaries — curated from literature review (FLOOD DOMAIN)
+# For irrigation domain (WSA/ACA), override via KeywordClassifier constructor.
 TA_KEYWORDS: Dict[str, List[str]] = {
     "H": [
         # Perceived Severity (Rogers, 1975; Maddux & Rogers, 1983)
@@ -55,14 +71,20 @@ CA_KEYWORDS: Dict[str, List[str]] = {
 
 
 class KeywordClassifier:
-    """Two-tier PMT construct classifier.
+    """Two-tier construct classifier (default: PMT/flood; extensible to other domains).
+
+    Default keyword dictionaries are tuned for **flood domain PMT** constructs
+    (TP/CP).  For **irrigation domain** (WSA/ACA) or other domains, supply
+    custom keyword dictionaries or rely on Tier 1 (label regex) only.
 
     Parameters
     ----------
     ta_keywords : dict, optional
         Override threat-appraisal keyword dict (default: ``TA_KEYWORDS``).
+        For irrigation: supply WSA-specific keywords.
     ca_keywords : dict, optional
         Override coping-appraisal keyword dict (default: ``CA_KEYWORDS``).
+        For irrigation: supply ACA-specific keywords.
     """
 
     def __init__(
