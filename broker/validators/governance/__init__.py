@@ -116,7 +116,7 @@ def validate_all(
         validators = [
             PersonalValidator(builtin_checks=list(FLOOD_PERSONAL_CHECKS)),
             PhysicalValidator(builtin_checks=list(FLOOD_PHYSICAL_CHECKS)),
-            ThinkingValidator(),
+            ThinkingValidator(extreme_actions={"relocate", "elevate_house"}),
             SocialValidator(builtin_checks=list(FLOOD_SOCIAL_CHECKS)),
             SemanticGroundingValidator(builtin_checks=list(FLOOD_SEMANTIC_CHECKS)),
         ]

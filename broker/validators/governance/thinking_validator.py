@@ -86,6 +86,7 @@ class ThinkingValidator(BaseValidator):
         self,
         framework: str = "pmt",
         builtin_checks: Optional[List[BuiltinCheck]] = None,
+        extreme_actions: Optional[set] = None,
     ):
         """
         Initialize ThinkingValidator with a specific framework.
@@ -93,10 +94,14 @@ class ThinkingValidator(BaseValidator):
         Args:
             framework: Psychological framework ("pmt", "utility", "financial")
             builtin_checks: Domain-specific checks.  None = flood/MA defaults.
+            extreme_actions: Domain-specific actions blocked when threat
+                perception is low.  Empty by default (domain-agnostic).
+                Flood domain passes ``{"relocate", "elevate_house"}``.
         """
         self.framework = framework.lower()
         self._label_order = FRAMEWORK_LABEL_ORDERS.get(self.framework, PMT_LABEL_ORDER)
         self._constructs = FRAMEWORK_CONSTRUCTS.get(self.framework, FRAMEWORK_CONSTRUCTS["pmt"])
+        self._extreme_actions = extreme_actions or set()
         super().__init__(builtin_checks=builtin_checks)
 
     @property
@@ -413,9 +418,8 @@ class ThinkingValidator(BaseValidator):
                 ))
 
         # Built-in: Low TP should not justify extreme measures
-        if tp_label in ("VL", "L"):
-            extreme_actions = {"relocate", "elevate_house"}
-            if skill_name in extreme_actions:
+        if tp_label in ("VL", "L") and self._extreme_actions:
+            if skill_name in self._extreme_actions:
                 if not self._has_rule_for(rules, "low_tp_blocks"):
                     results.append(ValidationResult(
                         valid=False,

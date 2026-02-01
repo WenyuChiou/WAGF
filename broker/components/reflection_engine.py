@@ -236,7 +236,12 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
 
     @staticmethod
     def extract_agent_context(agent, year: int = 0) -> AgentReflectionContext:
-        """Extract reflection context from an agent object."""
+        """Extract reflection context from an agent object.
+
+        Flood-domain backward compatibility: hardcoded fields (elevated,
+        insured, flood_count) are retained for existing experiments.
+        New domains should use ``custom_traits`` for domain-specific data.
+        """
         return AgentReflectionContext(
             agent_id=getattr(agent, 'id', str(agent)),
             agent_type=getattr(agent, 'agent_type', 'household'),
@@ -256,7 +261,13 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
         memories: List[str],
         current_year: int
     ) -> str:
-        """Generate a personalized reflection prompt with agent identity."""
+        """Generate a personalized reflection prompt with agent identity.
+
+        Flood-domain backward compatibility: household status lines
+        (elevated, insured, flood_count) are retained for existing
+        experiments.  New domains should override this method or use
+        a DomainReflectionAdapter to build domain-specific prompts.
+        """
         if not memories:
             return ""
 

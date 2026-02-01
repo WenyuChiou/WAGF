@@ -17,7 +17,10 @@ class TestThinkingValidatorPMT:
     """Test PMT framework validation (backward compatible)."""
 
     def setup_method(self):
-        self.validator = ThinkingValidator(framework="pmt")
+        self.validator = ThinkingValidator(
+            framework="pmt",
+            extreme_actions={"relocate", "elevate_house"},
+        )
 
     def test_high_tp_high_cp_do_nothing_fails(self):
         """High TP + High CP should not allow do_nothing."""

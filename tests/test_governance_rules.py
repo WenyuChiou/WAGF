@@ -219,7 +219,7 @@ class TestThinkingValidator:
 
     def test_low_tp_blocks_extreme_action(self):
         """Low TP should not justify extreme measures."""
-        validator = ThinkingValidator()
+        validator = ThinkingValidator(extreme_actions={"relocate", "elevate_house"})
         context = {"reasoning": {"TP_LABEL": "L", "CP_LABEL": "M"}}
 
         results = validator.validate("relocate", [], context)
