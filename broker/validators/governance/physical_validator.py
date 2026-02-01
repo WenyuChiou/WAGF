@@ -9,6 +9,13 @@ Validates:
 Domain-specific built-in checks (e.g. flood elevation/relocation state) are
 injected via ``builtin_checks``.  When *None*, flood-domain defaults are
 used for backward compatibility.
+
+Design note — insurance renewal:
+    ``buy_insurance`` is deliberately NOT checked for "already insured".
+    Insurance is an annual renewable action (expires each year if not
+    renewed).  Unlike elevation and relocation (irreversible one-time
+    actions), insurance renewal is expected rational behavior.  See
+    ``ResearchSimulation.execute_skill()`` for annual expiry logic.
 """
 from typing import List, Dict, Any, Optional
 from broker.interfaces.skill_types import ValidationResult
@@ -40,6 +47,7 @@ def flood_already_elevated(
             "rule_id": "builtin_already_elevated",
             "category": "physical",
             "subcategory": "state",
+            "hallucination_type": "physical",
             "current_state": "elevated"
         }
     )]
@@ -68,6 +76,7 @@ def flood_already_relocated(
             "rule_id": "builtin_already_relocated",
             "category": "physical",
             "subcategory": "state",
+            "hallucination_type": "physical",
             "current_state": "relocated"
         }
     )]

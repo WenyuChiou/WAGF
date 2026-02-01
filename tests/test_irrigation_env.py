@@ -275,8 +275,8 @@ class TestIrrigationValidators:
         assert not results[0].valid
 
     def test_aggregated_check_list_length(self):
-        assert len(IRRIGATION_PHYSICAL_CHECKS) == 5
-        assert len(ALL_IRRIGATION_CHECKS) == 7
+        assert len(IRRIGATION_PHYSICAL_CHECKS) == 6
+        assert len(ALL_IRRIGATION_CHECKS) == 8
 
     def test_all_checks_callable(self):
         for check in ALL_IRRIGATION_CHECKS:

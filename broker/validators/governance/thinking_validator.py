@@ -388,6 +388,7 @@ class ThinkingValidator(BaseValidator):
                         "category": "thinking",
                         "subcategory": "pmt",
                         "framework": "pmt",
+                        "hallucination_type": "thinking",
                         "tp_label": tp_label,
                         "cp_label": cp_label
                     }
@@ -406,6 +407,7 @@ class ThinkingValidator(BaseValidator):
                         "category": "thinking",
                         "subcategory": "pmt",
                         "framework": "pmt",
+                        "hallucination_type": "thinking",
                         "tp_label": tp_label
                     }
                 ))
@@ -425,6 +427,7 @@ class ThinkingValidator(BaseValidator):
                             "category": "thinking",
                             "subcategory": "pmt",
                             "framework": "pmt",
+                            "hallucination_type": "thinking",
                             "tp_label": tp_label,
                             "blocked_action": skill_name
                         }

@@ -153,6 +153,7 @@ def efficiency_already_adopted_check(
                 "rule_id": "already_efficient",
                 "category": "physical",
                 "blocked_skill": skill_name,
+                "hallucination_type": "physical",
                 "level": "ERROR",
             },
         )
@@ -274,6 +275,7 @@ def minimum_utilisation_check(
                 "rule_id": "minimum_utilisation_floor",
                 "category": "physical",
                 "blocked_skill": skill_name,
+                "hallucination_type": "economic",
                 "level": "ERROR",
             },
         )
