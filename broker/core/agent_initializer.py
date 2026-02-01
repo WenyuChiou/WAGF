@@ -2,11 +2,14 @@
 Unified Agent Initializer for SA/MA experiments.
 
 Provides a single entry point for initializing agents from various data sources:
-- survey: Load from Excel/CSV with PMT scores (TP, CP, SP, SC, PA)
+- survey: Load from Excel/CSV with psychological scores
 - csv: Simple CSV with basic attributes
 - synthetic: Generate test agents programmatically
 
-Design follows the plan in Part 14.4 for SA/MA unified architecture.
+AgentProfile contains generic fields plus flood-domain fields for backward
+compatibility.  New domains should use the ``extensions`` dict for
+domain-specific data.  See ``examples/governed_flood/`` for flood-specific
+usage and ``examples/irrigation_abm/`` for irrigation examples.
 
 Usage:
     from broker.core.agent_initializer import initialize_agents
@@ -98,7 +101,11 @@ class AgentProfile:
     Unified agent profile for SA/MA experiments.
 
     This is a consolidated profile structure that supports both simple CSV
-    initialization and full survey-based PMT scores.
+    initialization and full survey-based PMT/psychological scores.
+
+    Domain-specific fields (flood_zone, elevated, etc.) are kept for
+    backward compatibility with existing experiments.  New domains should
+    use the ``extensions`` dict instead.
     """
 
     # --- Identity ---
@@ -125,21 +132,21 @@ class AgentProfile:
     has_vehicle: bool = True
     housing_cost_burden: bool = False
 
-    # --- PMT Constructs (1-5 scale) ---
+    # --- Psychological Constructs (1-5 scale, framework-level) ---
     tp_score: float = 3.0  # Threat Perception
     cp_score: float = 3.0  # Coping Perception
     sp_score: float = 3.0  # Stakeholder Perception
     sc_score: float = 3.0  # Social Capital
     pa_score: float = 3.0  # Place Attachment
 
-    # --- Flood Experience (domain-specific) ---
+    # --- Domain-specific fields (flood, kept for backward compat) ---
     flood_experience: bool = False
     flood_frequency: int = 0
     sfha_awareness: bool = False
     flood_zone: str = "MEDIUM"  # HIGH, MEDIUM, LOW
     flood_depth: float = 0.0
 
-    # --- Dynamic State (initial) ---
+    # --- Dynamic State (initial, flood-domain) ---
     elevated: bool = False
     has_insurance: bool = False
     relocated: bool = False
@@ -155,10 +162,10 @@ class AgentProfile:
     rcv_building: float = 0.0  # Replacement cost - building ($)
     rcv_contents: float = 0.0  # Replacement cost - contents ($)
 
-    # --- Extensions (for domain-specific data) ---
+    # --- Extensions (for domain-specific data — preferred for new domains) ---
     extensions: Dict[str, Any] = field(default_factory=dict)
 
-    # --- Narrative metadata ---
+    # --- Narrative metadata (flood-domain) ---
     recent_flood_text: str = ""
     insurance_type: str = ""
     post_flood_action: str = ""
@@ -534,34 +541,17 @@ def generate_initial_memories(
 
 
 def _generate_fallback_memories(profile: AgentProfile) -> List[Dict[str, Any]]:
-    """Generate minimal fallback memories when no provider is available."""
-    memories = []
+    """Generate minimal fallback memories when no provider is available.
 
-    # Basic flood awareness memory
-    if profile.flood_experience:
-        memories.append({
-            "content": f"I have experienced flooding at my home in the past.",
-            "category": "flood_event",
-            "emotion": "major",
-            "source": "personal",
-        })
-    else:
-        memories.append({
-            "content": f"I live in a {profile.flood_zone.lower()} flood risk area.",
-            "category": "risk_awareness",
-            "emotion": "neutral",
-            "source": "community",
-        })
-
-    # Insurance memory
-    if profile.has_insurance:
-        memories.append({
-            "content": "I currently have flood insurance coverage.",
-            "category": "insurance_claim",
-            "emotion": "minor",
-            "source": "personal",
-        })
-
+    Returns a single generic memory based on available profile data.
+    Domain-specific memory generation should be handled by a MemoryEnricher.
+    """
+    memories = [{
+        "content": f"I am a {profile.tenure.lower()} in my community.",
+        "category": "identity",
+        "emotion": "neutral",
+        "source": "personal",
+    }]
     return memories
 
 
@@ -667,7 +657,7 @@ def initialize_agents(
             for profile in profiles:
                 position = enricher.assign_position(profile)
                 profile.extensions["position"] = position
-                # Also update grid coordinates if available
+                # Populate flood-domain fields for backward compat
                 if hasattr(position, "zone_name"):
                     profile.flood_zone = position.zone_name
                 if hasattr(position, "base_depth_m"):
@@ -682,7 +672,6 @@ def initialize_agents(
                     family_size=profile.family_size,
                 )
                 profile.extensions["values"] = values
-                # Also update RCV fields if available
                 if hasattr(values, "building_rcv_usd"):
                     profile.rcv_building = values.building_rcv_usd
                 if hasattr(values, "contents_rcv_usd"):
@@ -711,7 +700,11 @@ def initialize_agents(
 
 
 def _calculate_stats(profiles: List[AgentProfile]) -> Dict[str, Any]:
-    """Calculate statistics about the loaded profiles."""
+    """Calculate statistics about the loaded profiles.
+
+    Returns generic demographic stats.  Domain-specific stats (flood zone
+    distribution, PMT averages, etc.) should be computed by calling code.
+    """
     if not profiles:
         return {
             "total_agents": 0,
@@ -726,22 +719,6 @@ def _calculate_stats(profiles: List[AgentProfile]) -> Dict[str, Any]:
     mg_count = sum(1 for p in profiles if p.is_mg)
     total = len(profiles)
 
-    # Calculate PMT score averages
-    pmt_stats = {
-        "tp_mean": np.mean([p.tp_score for p in profiles]),
-        "cp_mean": np.mean([p.cp_score for p in profiles]),
-        "sp_mean": np.mean([p.sp_score for p in profiles]),
-        "sc_mean": np.mean([p.sc_score for p in profiles]),
-        "pa_mean": np.mean([p.pa_score for p in profiles]),
-    }
-
-    # Flood zone distribution
-    zone_dist = {}
-    for zone in ["HIGH", "MEDIUM", "LOW"]:
-        zone_dist[f"zone_{zone.lower()}"] = sum(
-            1 for p in profiles if p.flood_zone.upper() == zone
-        )
-
     return {
         "total_agents": total,
         "owner_count": owner_count,
@@ -750,10 +727,6 @@ def _calculate_stats(profiles: List[AgentProfile]) -> Dict[str, Any]:
         "mg_ratio": mg_count / total if total > 0 else 0.0,
         "owner_ratio": owner_count / total if total > 0 else 0.0,
         "avg_income": np.mean([p.income for p in profiles]),
-        "flood_experienced_count": sum(1 for p in profiles if p.flood_experience),
-        "insured_count": sum(1 for p in profiles if p.has_insurance),
-        **pmt_stats,
-        **zone_dist,
     }
 
 
