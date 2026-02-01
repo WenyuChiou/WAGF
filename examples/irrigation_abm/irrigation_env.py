@@ -23,6 +23,10 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
+# Minimum utilisation floor: agents cannot reduce demand below this fraction
+# of their water right.  Prevents "economic hallucination" spiral to zero.
+MIN_UTIL = 0.10
+
 
 @dataclass
 class WaterSystemConfig:
@@ -144,6 +148,7 @@ class IrrigationEnvironment:
                 "curtailment_ratio": 0.0,
                 "at_allocation_cap": False,
                 "has_efficient_system": False,
+                "below_minimum_utilisation": False,
                 "cluster": "unknown",
             }
 
@@ -167,6 +172,7 @@ class IrrigationEnvironment:
                 "curtailment_ratio": 0.0,
                 "at_allocation_cap": False,
                 "has_efficient_system": getattr(p, "has_efficient_system", False),
+                "below_minimum_utilisation": False,
                 "cluster": p.cluster,
             }
 
@@ -194,6 +200,7 @@ class IrrigationEnvironment:
                 "curtailment_ratio": 0.0,
                 "at_allocation_cap": False,
                 "has_efficient_system": False,
+                "below_minimum_utilisation": False,
                 "cluster": "unknown",
             }
         for i in range(n_lb):
@@ -206,6 +213,7 @@ class IrrigationEnvironment:
                 "curtailment_ratio": 0.0,
                 "at_allocation_cap": False,
                 "has_efficient_system": False,
+                "below_minimum_utilisation": False,
                 "cluster": "unknown",
             }
 
@@ -354,6 +362,7 @@ class IrrigationEnvironment:
             "curtailment_ratio": agent.get("curtailment_ratio", 0),
             "at_allocation_cap": agent.get("at_allocation_cap", False),
             "has_efficient_system": agent.get("has_efficient_system", False),
+            "below_minimum_utilisation": agent.get("below_minimum_utilisation", False),
             "cluster": agent.get("cluster", "unknown"),
             # Basin signals
             "precipitation": basin.get("precipitation", 0),
@@ -384,6 +393,9 @@ class IrrigationEnvironment:
         new_request = max(0.0, min(new_request, agent["water_right"]))
         agent["request"] = new_request
         agent["at_allocation_cap"] = new_request >= agent["water_right"] * 0.99
+        agent["below_minimum_utilisation"] = (
+            new_request < agent["water_right"] * MIN_UTIL
+        )
 
         # Actual diversion = request * (1 - curtailment_ratio)
         curtailment = agent.get("curtailment_ratio", 0.0)
@@ -413,10 +425,17 @@ class IrrigationEnvironment:
         wr = agent["water_right"]
         current = agent["request"]
         meta = getattr(approved_skill, "metadata", {}) or {}
-        # Default 10% magnitude for all clusters. The LLM selects which skill
-        # to execute but does not specify magnitude — future work could let
-        # the LLM propose a magnitude and validate it via magnitude_cap_check.
-        magnitude_pct = meta.get("magnitude_pct", 10)
+        # Cluster-varying magnitude derived from FQL mu centroids
+        # (Hung & Yang 2021): aggressive ~0.36 → 20%, forward-looking ~0.20 → 10%,
+        # myopic ~0.16 → 5%.  Metadata override still supported.
+        _CLUSTER_MAGNITUDE = {
+            "aggressive": 20,
+            "forward_looking_conservative": 10,
+            "myopic_conservative": 5,
+        }
+        cluster = agent.get("cluster", "myopic_conservative")
+        default_mag = _CLUSTER_MAGNITUDE.get(cluster, 10)
+        magnitude_pct = meta.get("magnitude_pct", default_mag)
         change = wr * (magnitude_pct / 100.0)
 
         state_changes: Dict[str, Any] = {}
@@ -427,7 +446,11 @@ class IrrigationEnvironment:
             state_changes["request"] = new_req
 
         elif skill == "decrease_demand":
-            new_req = max(current - change, 0.0)
+            floor = wr * MIN_UTIL
+            utilisation = current / wr if wr > 0 else 1.0
+            # P1: diminishing returns as utilisation approaches floor
+            taper = max(0.0, (utilisation - MIN_UTIL) / (1.0 - MIN_UTIL))
+            new_req = max(current - change * taper, floor)
             self.update_agent_request(aid, new_req)
             state_changes["request"] = new_req
 
@@ -437,13 +460,18 @@ class IrrigationEnvironment:
                     success=False, error="Already using efficient system."
                 )
             agent["has_efficient_system"] = True
-            new_req = max(current * 0.80, 0.0)
+            new_req = max(current * 0.80, wr * MIN_UTIL)
             self.update_agent_request(aid, new_req)
             state_changes["has_efficient_system"] = True
             state_changes["request"] = new_req
 
         elif skill == "reduce_acreage":
-            new_req = max(current * 0.75, 0.0)
+            floor = wr * MIN_UTIL
+            utilisation = current / wr if wr > 0 else 1.0
+            # P1: diminishing returns — taper toward no-op near floor
+            taper = max(0.0, (utilisation - MIN_UTIL) / (1.0 - MIN_UTIL))
+            effective_ratio = 1.0 - (0.25 * taper)  # 0.75 at full, 1.0 at floor
+            new_req = max(current * effective_ratio, floor)
             self.update_agent_request(aid, new_req)
             state_changes["request"] = new_req
 
