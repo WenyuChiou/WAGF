@@ -170,7 +170,7 @@ class UnifiedAdapter(ModelAdapter):
         """Get preprocessor for a specific agent type."""
         try:
             is_identity = (self._preprocessor.__name__ == "<lambda>" and self._preprocessor("") == "")
-        except:
+        except (AttributeError, TypeError):
             is_identity = False
             
         if not is_identity:
@@ -260,7 +260,7 @@ class UnifiedAdapter(ModelAdapter):
             d_start, d_end = rfb.get_delimiters()
             # Use non-greedy match to handle multiple blocks if present
             dynamic_pattern = rf"{re.escape(d_start)}\s*(.*?)\s*{re.escape(d_end)}"
-        except:
+        except (ImportError, AttributeError, Exception):
             dynamic_pattern = None
 
         patterns = [
