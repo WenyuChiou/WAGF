@@ -256,104 +256,20 @@ class SkillBrokerEngine:
             if v.valid and hasattr(v, 'warnings') and v.warnings:
                 logger.info(f" [Governance:Warning] {agent_id} | {v.warnings[0]}")
 
-        # Retry loop
-        retry_count = 0
-        while not all_valid and retry_count < self.max_retries:
-            retry_count += 1
-            
-            # Build InterventionReports for explainable governance
-            intervention_reports = []
-            for v in validation_results:
-                if v and hasattr(v, 'errors') and v.errors:
-                    for error_msg in v.errors:
-                        report = InterventionReport(
-                            rule_id=v.metadata.get("rules_hit", ["unknown_rule"])[0] if v.metadata.get("rules_hit") else "unknown_rule",
-                            blocked_skill=skill_proposal.skill_name if skill_proposal else "unknown",
-                            violation_summary=error_msg,
-                            suggested_correction=v.metadata.get("suggestion"),
-                            severity="ERROR" if not v.valid else "WARNING",
-                            domain_context=v.metadata
-                        )
-                        intervention_reports.append(report)
-            
-            # Fall back to raw error strings if no reports were built
-            # If skill_proposal is None (parse failure), add a specific format violation report
-            if not skill_proposal:
-                errors_to_send = [InterventionReport(
-                    rule_id="format_violation",
-                    blocked_skill="parsing",
-                    violation_summary="LLM output failed to match required delimiter or JSON structure.",
-                    suggested_correction="Ensure your response follows the specified format including all required fields within the delimiters.",
-                    severity="ERROR"
-                )]
-            else:
-                errors_to_send = intervention_reports if intervention_reports else [e for v in validation_results if v and hasattr(v, 'errors') for e in v.errors]
-            
-            retry_prompt = self.model_adapter.format_retry_prompt(prompt, errors_to_send, max_reports=self.max_reports)
-            res = llm_invoke(retry_prompt)
-            
-            # Use same logic to handle tuple vs str for retry call
-            if isinstance(res, tuple):
-                raw_output, llm_stats_obj = res
-                # Accumulate stats
-                total_llm_stats["llm_retries"] += llm_stats_obj.retries
-                total_llm_stats["llm_success"] = llm_stats_obj.success
-            else:
-                raw_output = res
-                from ..utils.llm_utils import get_llm_stats
-                stats = get_llm_stats()
-                total_llm_stats["llm_retries"] += stats.get("current_retries", 0)
-                total_llm_stats["llm_success"] = stats.get("current_success", True)
-            
-            skill_proposal = self.model_adapter.parse_output(raw_output, {
-                **context,
-                "agent_id": agent_id,
-                "agent_type": agent_type,
-                "retry_attempt": retry_count,
-                "current_year": env_context.get("current_year") if env_context else "?"
-            })
-            
-            if skill_proposal:
-                validation_results = self._run_validators(skill_proposal, validation_context)
-                all_validation_history.extend(validation_results)
-                all_valid = all(v.valid for v in validation_results)
-                if not all_valid:
-                    errors_list = [e for v in validation_results if v and hasattr(v, 'errors') for e in v.errors]
-                    logger.warning(f"[Governance:Retry] Attempt {retry_count} failed validation for {agent_id}. Errors: {errors_list}")
-            else:
-                self.auditor.log_parse_error()
-                logger.warning(f"[Governance:Retry] Attempt {retry_count} produced unparsable output for {agent_id}.")
-        
-        if not all_valid and retry_count >= self.max_retries:
-             # Building diagnostic info for Fallout
-             errors = [e for v in validation_results if v and hasattr(v, 'errors') for e in v.errors]
-             logger.error(f"[Governance:Fallout] CRITICAL: Max retries ({self.max_retries}) reached for {agent_id}.")
-             final_choice = skill_proposal.skill_name if skill_proposal else "Unknown"
-             logger.error(f"  - Final Choice Rejected: '{final_choice}'")
-             logger.error(f"  - Blocked By: {errors}")
-             
-             # Show reasoning/ratings for diagnosis
-             ratings = []
-             if skill_proposal and skill_proposal.reasoning:
-                 for k, v in skill_proposal.reasoning.items():
-                     if "_LABEL" in k: ratings.append(f"{k}={v}")
-             if ratings: logger.error(f"  - Ratings: {' | '.join(ratings)}")
-             
-             # Phase 32: Audit Reasoning for Grounding (only if proposal exists)
-             if skill_proposal:
-                 reason_keys = [k for k in skill_proposal.reasoning.keys() if "_REASON" in k.upper() or "REASON" in k.upper()]
-                 if reason_keys:
-                     reason_text = skill_proposal.reasoning.get(reason_keys[0], "")
-                     if isinstance(reason_text, dict): 
-                         reason_text = reason_text.get("reason", str(reason_text))
-                     logger.error(f"  - Agent Motivation: {reason_text}")
-             
-             # Determine fallout action: prefer original choice if parsed, otherwise default
-             fallout_skill = skill_proposal.skill_name if (skill_proposal and skill_proposal.parse_layer != "default") else self.skill_registry.get_default_skill()
-             
-             logger.error(f"  - Action: Proceeding with '{fallout_skill}' (Result: REJECTED)")
+        # Governance retry loop
+        skill_proposal, raw_output, validation_results, all_validation_history, all_valid, retry_count = (
+            self._governance_retry_loop(
+                all_valid=all_valid, skill_proposal=skill_proposal,
+                validation_results=validation_results,
+                all_validation_history=all_validation_history,
+                validation_context=validation_context,
+                prompt=prompt, llm_invoke=llm_invoke, context=context,
+                agent_id=agent_id, agent_type=agent_type,
+                env_context=env_context, raw_output=raw_output,
+                total_llm_stats=total_llm_stats,
+            )
+        )
 
-        
         # ④ Create ApprovedSkill or use fallback
         approved_skill, outcome = self._build_approved_skill(
             all_valid=all_valid, skill_proposal=skill_proposal,
@@ -479,6 +395,121 @@ class SkillBrokerEngine:
                 prompt = self.model_adapter.format_retry_prompt(prompt, [str(e)])
 
         return skill_proposal, raw_output, format_retry_count, total_llm_stats
+
+    def _governance_retry_loop(
+        self, *, all_valid: bool, skill_proposal, validation_results: List,
+        all_validation_history: List, validation_context: Dict,
+        prompt: str, llm_invoke: Callable, context: Dict,
+        agent_id: str, agent_type: str, env_context: Optional[Dict],
+        raw_output: str, total_llm_stats: Dict,
+    ):
+        """Run governance validation retry loop.
+
+        Re-invokes LLM with intervention reports when validation fails,
+        up to self.max_retries attempts. Logs fallout diagnostics on
+        exhaustion.
+
+        Returns (skill_proposal, raw_output, validation_results,
+                 all_validation_history, all_valid, retry_count).
+        Mutates total_llm_stats in-place.
+        """
+        retry_count = 0
+        while not all_valid and retry_count < self.max_retries:
+            retry_count += 1
+
+            # Build InterventionReports for explainable governance
+            intervention_reports = []
+            for v in validation_results:
+                if v and hasattr(v, 'errors') and v.errors:
+                    for error_msg in v.errors:
+                        report = InterventionReport(
+                            rule_id=v.metadata.get("rules_hit", ["unknown_rule"])[0] if v.metadata.get("rules_hit") else "unknown_rule",
+                            blocked_skill=skill_proposal.skill_name if skill_proposal else "unknown",
+                            violation_summary=error_msg,
+                            suggested_correction=v.metadata.get("suggestion"),
+                            severity="ERROR" if not v.valid else "WARNING",
+                            domain_context=v.metadata,
+                        )
+                        intervention_reports.append(report)
+
+            if not skill_proposal:
+                errors_to_send = [InterventionReport(
+                    rule_id="format_violation",
+                    blocked_skill="parsing",
+                    violation_summary="LLM output failed to match required delimiter or JSON structure.",
+                    suggested_correction="Ensure your response follows the specified format including all required fields within the delimiters.",
+                    severity="ERROR",
+                )]
+            else:
+                errors_to_send = intervention_reports if intervention_reports else [
+                    e for v in validation_results if v and hasattr(v, 'errors') for e in v.errors
+                ]
+
+            retry_prompt = self.model_adapter.format_retry_prompt(prompt, errors_to_send, max_reports=self.max_reports)
+            res = llm_invoke(retry_prompt)
+
+            if isinstance(res, tuple):
+                raw_output, llm_stats_obj = res
+                total_llm_stats["llm_retries"] += llm_stats_obj.retries
+                total_llm_stats["llm_success"] = llm_stats_obj.success
+            else:
+                raw_output = res
+                from ..utils.llm_utils import get_llm_stats
+                stats = get_llm_stats()
+                total_llm_stats["llm_retries"] += stats.get("current_retries", 0)
+                total_llm_stats["llm_success"] = stats.get("current_success", True)
+
+            skill_proposal = self.model_adapter.parse_output(raw_output, {
+                **context,
+                "agent_id": agent_id,
+                "agent_type": agent_type,
+                "retry_attempt": retry_count,
+                "current_year": env_context.get("current_year") if env_context else "?",
+            })
+
+            if skill_proposal:
+                validation_results = self._run_validators(skill_proposal, validation_context)
+                all_validation_history.extend(validation_results)
+                all_valid = all(v.valid for v in validation_results)
+                if not all_valid:
+                    errors_list = [e for v in validation_results if v and hasattr(v, 'errors') for e in v.errors]
+                    logger.warning(f"[Governance:Retry] Attempt {retry_count} failed validation for {agent_id}. Errors: {errors_list}")
+            else:
+                self.auditor.log_parse_error()
+                logger.warning(f"[Governance:Retry] Attempt {retry_count} produced unparsable output for {agent_id}.")
+
+        # Fallout diagnostics on exhaustion
+        if not all_valid and retry_count >= self.max_retries:
+            errors = [e for v in validation_results if v and hasattr(v, 'errors') for e in v.errors]
+            logger.error(f"[Governance:Fallout] CRITICAL: Max retries ({self.max_retries}) reached for {agent_id}.")
+            final_choice = skill_proposal.skill_name if skill_proposal else "Unknown"
+            logger.error(f"  - Final Choice Rejected: '{final_choice}'")
+            logger.error(f"  - Blocked By: {errors}")
+
+            ratings = []
+            if skill_proposal and skill_proposal.reasoning:
+                for k, v in skill_proposal.reasoning.items():
+                    if "_LABEL" in k:
+                        ratings.append(f"{k}={v}")
+            if ratings:
+                logger.error(f"  - Ratings: {' | '.join(ratings)}")
+
+            if skill_proposal:
+                reason_keys = [k for k in skill_proposal.reasoning.keys() if "_REASON" in k.upper() or "REASON" in k.upper()]
+                if reason_keys:
+                    reason_text = skill_proposal.reasoning.get(reason_keys[0], "")
+                    if isinstance(reason_text, dict):
+                        reason_text = reason_text.get("reason", str(reason_text))
+                    logger.error(f"  - Agent Motivation: {reason_text}")
+
+            fallout_skill = (
+                skill_proposal.skill_name
+                if (skill_proposal and skill_proposal.parse_layer != "default")
+                else self.skill_registry.get_default_skill()
+            )
+            logger.error(f"  - Action: Proceeding with '{fallout_skill}' (Result: REJECTED)")
+
+        return skill_proposal, raw_output, validation_results, all_validation_history, all_valid, retry_count
 
     def _write_audit_trace(
         self, *, agent_type: str, context: Dict, run_id: str,
