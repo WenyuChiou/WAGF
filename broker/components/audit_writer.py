@@ -97,11 +97,14 @@ class GenericAuditWriter:
                     self.summary["validation_errors"] += 1
                     issue_key = (r.metadata.get("rule_id", "Unknown"), tuple(r.errors))
                     if issue_key not in seen_issues:
-                        trace["validation_issues"].append({
+                        issue = {
                             "validator": getattr(r, 'validator_name', 'Unknown'),
                             "rule_id": r.metadata.get("rule_id", "Unknown"),
                             "errors": r.errors
-                        })
+                        }
+                        if r.metadata.get("hallucination_type"):
+                            issue["hallucination_type"] = r.metadata["hallucination_type"]
+                        trace["validation_issues"].append(issue)
                         seen_issues.add(issue_key)
                 elif r.valid and hasattr(r, 'warnings') and r.warnings:
                     self.summary["validation_warnings"] += 1
@@ -334,6 +337,11 @@ class GenericAuditWriter:
             row["rules_social_hit"] = rule_breakdown.get("social", 0)
             row["rules_thinking_hit"] = rule_breakdown.get("thinking", 0)
             row["rules_physical_hit"] = rule_breakdown.get("physical", 0)
+            row["rules_semantic_hit"] = rule_breakdown.get("semantic", 0)
+
+            # 8b. Hallucination type from validation issues
+            hall_types = [i.get("hallucination_type") for i in issues if i.get("hallucination_type")]
+            row["hallucination_types"] = "|".join(hall_types) if hall_types else ""
 
             # 9. Construct Tracking (Task-041 Phase 3) - Individual construct ratings
             # Extract from reasoning dict
@@ -396,7 +404,8 @@ class GenericAuditWriter:
             # Cognitive audit (E3)
             "cog_system_mode", "cog_surprise_value", "cog_is_novel_state",
             # Rule breakdown (B.5)
-            "rules_personal_hit", "rules_social_hit", "rules_thinking_hit", "rules_physical_hit"
+            "rules_personal_hit", "rules_social_hit", "rules_thinking_hit", "rules_physical_hit",
+            "rules_semantic_hit", "hallucination_types"
         ]
         
         # Phase 12: Support custom priority keys from first trace if present
