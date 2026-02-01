@@ -380,6 +380,14 @@ irrigation_farmer:
             level: ERROR,
             message: "Already using water-efficient irrigation system.",
           }
+        # Economic hallucination guard: prevent demand reduction below 10% utilisation
+        - {
+            id: minimum_utilisation_floor,
+            precondition: below_minimum_utilisation,
+            blocked_skills: ["decrease_demand", "reduce_acreage"],
+            level: ERROR,
+            message: "Cannot further reduce demand — already at minimum utilisation floor (10% of water right).",
+          }
 
     relaxed:
       thinking_rules:
