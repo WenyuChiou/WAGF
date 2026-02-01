@@ -1,14 +1,14 @@
-"""Domain-specific reflection adapters.
+"""Domain-specific reflection adapters — backward-compat re-exports.
 
-Each adapter implements the DomainReflectionAdapter protocol and provides
-domain-tuned importance profiles, emotional keywords, and retrieval weights.
+Canonical locations:
+    FloodAdapter      → examples.governed_flood.adapters.flood_adapter
+    IrrigationAdapter → examples.irrigation_abm.adapters.irrigation_adapter
 
-Available adapters:
-    FloodAdapter        — flood-risk household decisions
-    IrrigationAdapter   — water-resource irrigation decisions
+The DomainReflectionAdapter protocol lives in
+``broker.components.domain_adapters`` (framework-level interface).
 """
 
-from broker.components.adapters.flood_adapter import FloodAdapter
-from broker.components.adapters.irrigation_adapter import IrrigationAdapter
+from examples.governed_flood.adapters.flood_adapter import FloodAdapter
+from examples.irrigation_abm.adapters.irrigation_adapter import IrrigationAdapter
 
 __all__ = ["FloodAdapter", "IrrigationAdapter"]

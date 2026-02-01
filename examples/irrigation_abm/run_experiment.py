@@ -50,7 +50,7 @@ from examples.irrigation_abm.irrigation_personas import (
 from broker.core.experiment import ExperimentBuilder
 from broker.components.memory_engine import HumanCentricMemoryEngine
 from broker.components.reflection_engine import ReflectionEngine
-from broker.components.adapters.irrigation_adapter import IrrigationAdapter
+from examples.irrigation_abm.adapters.irrigation_adapter import IrrigationAdapter
 from broker.components.skill_registry import SkillRegistry
 from broker.components.context_builder import TieredContextBuilder
 from broker.interfaces.skill_types import ExecutionResult

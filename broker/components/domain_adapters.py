@@ -15,7 +15,7 @@ Architecture:
 
 Usage:
     from broker.components.domain_adapters import DomainReflectionAdapter
-    from broker.components.adapters.flood_adapter import FloodAdapter
+    from examples.governed_flood.adapters import FloodAdapter
 
     adapter = FloodAdapter()
     engine = ReflectionEngine(adapter=adapter)

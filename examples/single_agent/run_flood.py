@@ -1081,7 +1081,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     reflection_engine = None
     if memory_engine_type == "humancentric":
         from broker.components.reflection_engine import ReflectionEngine
-        from broker.components.adapters.flood_adapter import FloodAdapter
+        from examples.governed_flood.adapters.flood_adapter import FloodAdapter
         # Load configurable weights/intervals from YAML (Pillar 2)
         refl_cfg = agent_cfg_data.get('shared', {}).get('reflection_config', {})
         reflection_engine = ReflectionEngine(
