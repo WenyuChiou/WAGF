@@ -20,12 +20,11 @@ import hashlib
 import json
 
 from ..interfaces.skill_types import (
-    SkillProposal, SkillDefinition, ApprovedSkill, 
+    SkillProposal, SkillDefinition, ApprovedSkill, InterventionReport,
     ExecutionResult, SkillBrokerResult, SkillOutcome, ValidationResult
 )
 from ..components.skill_registry import SkillRegistry
 from ..utils.model_adapter import ModelAdapter
-from .governed_broker import SkillBrokerEngine as _LegacyBroker # For structural reference if needed
 from ..validators import AgentValidator
 from ..components.memory_engine import MemoryEngine
 from ..components.context_builder import ContextBuilder, BaseAgentContextBuilder
@@ -344,7 +343,6 @@ class SkillBrokerEngine:
             retry_count += 1
             
             # Build InterventionReports for explainable governance
-            from ..interfaces.skill_types import InterventionReport
             intervention_reports = []
             for v in validation_results:
                 if v and hasattr(v, 'errors') and v.errors:
@@ -362,7 +360,6 @@ class SkillBrokerEngine:
             # Fall back to raw error strings if no reports were built
             # If skill_proposal is None (parse failure), add a specific format violation report
             if not skill_proposal:
-                from ..interfaces.skill_types import InterventionReport
                 errors_to_send = [InterventionReport(
                     rule_id="format_violation",
                     blocked_skill="parsing",
@@ -598,9 +595,6 @@ class SkillBrokerEngine:
         return [s for s in skills if s not in blocked]
 
     def _inject_filtered_skills(self, context: Dict[str, Any], agent_type: str) -> None:
-        base_type = self.config.get_base_type(agent_type) if hasattr(self.config, "get_base_type") else agent_type
-        if base_type == "household":
-            return
         state = context.get("state", {})
         action_ids = self._get_action_ids(agent_type)
         if not action_ids:
