@@ -25,69 +25,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-
-class EMAPredictor:
-    """
-    Exponential Moving Average predictor for environmental state tracking.
-
-    Formula: E_t = (alpha * R_t) + ((1 - alpha) * E_{t-1})
-
-    Where:
-    - E_t = Current expectation
-    - R_t = Current reality (observed value)
-    - alpha = Smoothing factor (higher = faster adaptation)
-
-    Args:
-        alpha: Smoothing factor [0-1]. Higher values = faster adaptation to new data.
-               0.1 = High inertia (slow adaptation)
-               0.5 = Balanced
-               0.9 = Fast adaptation (almost immediate)
-        initial_value: Starting expectation value
-    """
-
-    def __init__(self, alpha: float = 0.3, initial_value: float = 0.0):
-        if not 0.0 <= alpha <= 1.0:
-            raise ValueError(f"alpha must be in [0, 1], got {alpha}")
-        self.alpha = alpha
-        self.expectation = initial_value
-        self._initialized = False
-
-    def update(self, reality: float) -> float:
-        """
-        Update expectation based on observed reality.
-
-        Args:
-            reality: The observed value from the environment
-
-        Returns:
-            The updated expectation value
-        """
-        if not self._initialized:
-            # First observation: set expectation directly
-            self.expectation = reality * self.alpha
-            self._initialized = True
-        else:
-            # Standard EMA update
-            self.expectation = (self.alpha * reality) + ((1 - self.alpha) * self.expectation)
-        return self.expectation
-
-    def predict(self) -> float:
-        """Return current expectation (prediction for next observation)."""
-        return self.expectation
-
-    def surprise(self, reality: float) -> float:
-        """
-        Calculate surprise (prediction error) given an observation.
-
-        Surprise = |Reality - Expectation|
-
-        Args:
-            reality: The observed value
-
-        Returns:
-            Absolute prediction error (non-negative)
-        """
-        return abs(reality - self.expectation)
+# Canonical EMAPredictor — single source of truth in strategies/ema.py
+from cognitive_governance.memory.strategies.ema import EMAPredictor
 
 
 class UniversalCognitiveEngine:
