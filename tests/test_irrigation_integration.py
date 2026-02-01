@@ -33,7 +33,7 @@ def test_execute_skill_increase_demand():
         approval_status="APPROVED",
         execution_mapping="env.execute_skill",
     )
-    skill.metadata = {"magnitude_pct": 15}
+    skill.parameters = {"magnitude_pct": 15}
     result = env.execute_skill(skill)
     assert result.success
     state = env.get_agent_state("TestAgent")
@@ -50,12 +50,14 @@ def test_execute_skill_decrease_demand():
         approval_status="APPROVED",
         execution_mapping="env.execute_skill",
     )
-    skill.metadata = {"magnitude_pct": 10}
+    skill.parameters = {"magnitude_pct": 10}
     result = env.execute_skill(skill)
     assert result.success
     state = env.get_agent_state("TestAgent")
-    # Initial request = 80_000; decrease by 10% of 100_000 = 10_000
-    assert state["request"] == 70_000.0
+    # Initial request = 80_000; change = 10% of 100_000 = 10_000
+    # P1 taper: utilisation=0.8, taper=(0.8-0.1)/(1-0.1)=7/9
+    # new_req = 80_000 - 10_000 * 7/9 ≈ 72_222.22
+    assert abs(state["request"] - (80_000 - 10_000 * 7 / 9)) < 0.01
 
 
 def test_build_regret_feedback_formats_shortfall():
@@ -140,7 +142,7 @@ def test_execute_skill_maintain_demand():
         approval_status="APPROVED",
         execution_mapping="env.execute_skill",
     )
-    skill.metadata = {}
+    skill.parameters = {}
     result = env.execute_skill(skill)
     assert result.success
     state = env.get_agent_state("TestAgent")

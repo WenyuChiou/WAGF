@@ -424,7 +424,7 @@ class IrrigationEnvironment:
 
         wr = agent["water_right"]
         current = agent["request"]
-        meta = getattr(approved_skill, "metadata", {}) or {}
+        meta = getattr(approved_skill, "parameters", {}) or {}
         # Cluster-varying magnitude derived from FQL mu centroids
         # (Hung & Yang 2021): aggressive ~0.36 → 20%, forward-looking ~0.20 → 10%,
         # myopic ~0.16 → 5%.  Metadata override still supported.
