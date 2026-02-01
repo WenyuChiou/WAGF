@@ -86,6 +86,21 @@ ref/openskills/
 ref/openskills
 ref/RL-ABM-CRSS/
 
+# Legacy / Prototype Code
+cognitive_governance/v1_prototype/
+
+# Backup & Temp Files
+*.bak
+~$*
+
+# Old Paper Drafts (archived externally)
+ref/ABM_draft_*.docx
+ref/ABM_SM_*.docx
+
+# Raw LLM Traces (large, regenerable)
+**/raw/*_traces.jsonl
+tests/smoke_results/
+
 # Node
 node_modules/
 
