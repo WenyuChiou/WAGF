@@ -8,79 +8,15 @@ Validates:
 - Neighbor adaptation pressure (herd behavior observation)
 - Community norm deviations (outlier detection)
 
-Domain-specific built-in checks (e.g. flood neighbor elevation %) are
-injected via ``builtin_checks``.  When *None*, flood-domain defaults are
-used for backward compatibility.
+Domain-specific built-in checks are injected via ``builtin_checks``.
+Default is empty (domain-agnostic).  Flood-domain checks live in
+``examples/governed_flood/validators/flood_validators.py``.
 """
 from typing import List, Dict, Any, Optional
 from broker.interfaces.skill_types import ValidationResult
 from broker.governance.rule_types import GovernanceRule
 from broker.validators.governance.base_validator import BaseValidator, BuiltinCheck
 
-
-# ---------------------------------------------------------------------------
-# Flood-domain built-in checks
-# ---------------------------------------------------------------------------
-
-def flood_majority_deviation(
-    skill_name: str,
-    rules: List[GovernanceRule],
-    context: Dict[str, Any],
-) -> List[ValidationResult]:
-    """Warn if agent deviates from majority neighbor adaptation (flood domain).
-
-    Fires when > 50% neighbors have elevated but agent chooses do_nothing.
-    Always WARNING (valid=True).
-    """
-    if skill_name != "do_nothing":
-        return []
-    social_context = context.get("social_context", {})
-    elevated_pct = social_context.get("elevated_neighbor_pct", 0)
-    if elevated_pct <= 0.5:
-        return []
-    return [ValidationResult(
-        valid=True,
-        validator_name="SocialValidator",
-        errors=[],
-        warnings=[f"Social observation: {elevated_pct*100:.0f}% of neighbors have elevated"],
-        metadata={
-            "rule_id": "builtin_majority_deviation",
-            "category": "social",
-            "subcategory": "neighbor",
-            "elevated_neighbor_pct": elevated_pct,
-            "level": "WARNING"
-        }
-    )]
-
-
-# Registry of flood-domain checks for this category
-FLOOD_SOCIAL_CHECKS: List[BuiltinCheck] = [flood_majority_deviation]
-
-
-# ---------------------------------------------------------------------------
-# Shared utility
-# ---------------------------------------------------------------------------
-
-def calculate_social_pressure(social_context: Dict[str, Any]) -> float:
-    """Calculate social pressure score (0-1) based on neighbor actions.
-
-    This helper is domain-agnostic: callers supply the relevant keys.
-    For flood domain, uses ``elevated_neighbors`` and ``relocated_neighbors``.
-    """
-    elevated = social_context.get("elevated_neighbors", 0)
-    relocated = social_context.get("relocated_neighbors", 0)
-    total = social_context.get("neighbor_count", 1)
-
-    if total == 0:
-        return 0.0
-
-    # Weighted: relocation counts more than elevation
-    return min(1.0, (elevated + relocated * 1.5) / total)
-
-
-# ---------------------------------------------------------------------------
-# Validator class
-# ---------------------------------------------------------------------------
 
 class SocialValidator(BaseValidator):
     """
@@ -89,16 +25,16 @@ class SocialValidator(BaseValidator):
     IMPORTANT: This validator only produces WARNINGs, never ERRORs.
     Social pressure is logged for audit but does not block decisions.
 
-    Built-in checks default to flood domain (majority deviation).
-    Pass ``builtin_checks=[]`` to disable, or supply domain-specific checks.
+    Pass domain-specific ``builtin_checks`` for flood, irrigation, etc.
+    Default is empty (YAML rules only).
     """
 
     def __init__(self, builtin_checks: Optional[List[BuiltinCheck]] = None):
         super().__init__(builtin_checks=builtin_checks)
 
     def _default_builtin_checks(self) -> List[BuiltinCheck]:
-        """Flood-domain defaults for backward compatibility."""
-        return list(FLOOD_SOCIAL_CHECKS)
+        """Empty — domain checks injected via validate_all(domain=...)."""
+        return []
 
     @property
     def category(self) -> str:
@@ -144,7 +80,6 @@ class SocialValidator(BaseValidator):
                         "subcategory": rule.subcategory,
                         "skill_proposed": skill_name,
                         "level": "WARNING",  # Force WARNING level
-                        "social_pressure": calculate_social_pressure(social_context)
                     }
                 ))
 

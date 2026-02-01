@@ -10,9 +10,10 @@ Validators:
 - TypeValidator: Per-agent-type validation (skill eligibility, type rules)
 
 Domain-specific built-in checks are injected via ``builtin_checks``
-constructor parameter on each validator.  When ``builtin_checks=None``
-(default), flood-domain checks are used for backward compatibility.
-Pass ``builtin_checks=[]`` to disable all built-in checks.
+constructor parameter on each validator.  Default is empty (domain-agnostic).
+Domain checks live in their respective example directories:
+- Flood: ``examples/governed_flood/validators/flood_validators.py``
+- Irrigation: ``examples/irrigation_abm/validators/irrigation_validators.py``
 
 Use ``validate_all(domain=...)`` to select domain:
 - ``"flood"`` (default): Flood-domain built-in checks (backward compat)
@@ -81,8 +82,8 @@ def validate_all(
         raise TypeError("rules must be GovernanceRule instances")
 
     # Domain-specific builtin check injection:
-    # - "flood" (default): None → each validator uses _default_builtin_checks()
-    # - "irrigation": inject irrigation checks into physical/social, empty for others
+    # - "flood" (default): inject flood checks from examples/governed_flood/
+    # - "irrigation": inject irrigation checks from examples/irrigation_abm/
     # - None: empty list → YAML rules only
     if domain == "irrigation":
         from examples.irrigation_abm.validators.irrigation_validators import (
@@ -105,14 +106,29 @@ def validate_all(
             SocialValidator(builtin_checks=no_builtins),
             SemanticGroundingValidator(builtin_checks=no_builtins),
         ]
-    else:
-        # "flood" or any unrecognized domain → default (flood backward compat)
+    elif domain == "flood":
+        from examples.governed_flood.validators.flood_validators import (
+            FLOOD_PHYSICAL_CHECKS,
+            FLOOD_PERSONAL_CHECKS,
+            FLOOD_SOCIAL_CHECKS,
+            FLOOD_SEMANTIC_CHECKS,
+        )
         validators = [
-            PersonalValidator(),
-            PhysicalValidator(),
+            PersonalValidator(builtin_checks=list(FLOOD_PERSONAL_CHECKS)),
+            PhysicalValidator(builtin_checks=list(FLOOD_PHYSICAL_CHECKS)),
             ThinkingValidator(),
-            SocialValidator(),
-            SemanticGroundingValidator(),
+            SocialValidator(builtin_checks=list(FLOOD_SOCIAL_CHECKS)),
+            SemanticGroundingValidator(builtin_checks=list(FLOOD_SEMANTIC_CHECKS)),
+        ]
+    else:
+        # Unrecognized domain → YAML rules only (no built-in checks)
+        no_builtins_fallback: List[BuiltinCheck] = []
+        validators = [
+            PersonalValidator(builtin_checks=no_builtins_fallback),
+            PhysicalValidator(builtin_checks=no_builtins_fallback),
+            ThinkingValidator(builtin_checks=no_builtins_fallback),
+            SocialValidator(builtin_checks=no_builtins_fallback),
+            SemanticGroundingValidator(builtin_checks=no_builtins_fallback),
         ]
 
     all_results = []

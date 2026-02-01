@@ -18,6 +18,10 @@ from broker.governance import (
     ThinkingValidator,
     PhysicalValidator,
 )
+from examples.governed_flood.validators.flood_validators import (
+    FLOOD_PHYSICAL_CHECKS,
+    FLOOD_SOCIAL_CHECKS,
+)
 
 
 class TestRuleCondition:
@@ -154,11 +158,11 @@ class TestGovernanceRule:
 
 
 class TestPhysicalValidator:
-    """Test PhysicalValidator for state preconditions."""
+    """Test PhysicalValidator for state preconditions (flood domain)."""
 
     def test_already_elevated_blocked(self):
         """Cannot elevate if already elevated."""
-        validator = PhysicalValidator()
+        validator = PhysicalValidator(builtin_checks=list(FLOOD_PHYSICAL_CHECKS))
         context = {"state": {"elevated": True}}
 
         results = validator.validate("elevate_house", [], context)
@@ -168,7 +172,7 @@ class TestPhysicalValidator:
 
     def test_already_relocated_blocked(self):
         """Cannot do meaningful actions after relocation."""
-        validator = PhysicalValidator()
+        validator = PhysicalValidator(builtin_checks=list(FLOOD_PHYSICAL_CHECKS))
         context = {"state": {"relocated": True}}
 
         results = validator.validate("relocate", [], context)
@@ -177,7 +181,7 @@ class TestPhysicalValidator:
 
     def test_renter_restriction(self):
         """Renters cannot elevate or buyout."""
-        validator = PhysicalValidator()
+        validator = PhysicalValidator(builtin_checks=list(FLOOD_PHYSICAL_CHECKS))
         context = {"state": {"tenure": "renter"}}
 
         results = validator.validate("elevate_house", [], context)
@@ -187,7 +191,7 @@ class TestPhysicalValidator:
 
     def test_owner_can_elevate(self):
         """Owners can elevate if not already elevated."""
-        validator = PhysicalValidator()
+        validator = PhysicalValidator(builtin_checks=list(FLOOD_PHYSICAL_CHECKS))
         context = {"state": {"tenure": "Owner", "elevated": False}}
 
         results = validator.validate("elevate_house", [], context)
@@ -227,7 +231,7 @@ class TestSocialValidator:
 
     def test_social_rules_never_block(self):
         """Social validator should only produce warnings, not errors."""
-        validator = SocialValidator()
+        validator = SocialValidator(builtin_checks=list(FLOOD_SOCIAL_CHECKS))
         context = {
             "reasoning": {},
             "state": {},
