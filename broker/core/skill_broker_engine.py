@@ -411,7 +411,7 @@ class SkillBrokerEngine:
 
         Returns (skill_proposal, raw_output, validation_results,
                  all_validation_history, all_valid, retry_count).
-        Mutates total_llm_stats in-place.
+        Mutates total_llm_stats and all_validation_history in-place.
         """
         retry_count = 0
         while not all_valid and retry_count < self.max_retries:
@@ -494,7 +494,7 @@ class SkillBrokerEngine:
             if ratings:
                 logger.error(f"  - Ratings: {' | '.join(ratings)}")
 
-            if skill_proposal:
+            if skill_proposal and skill_proposal.reasoning:
                 reason_keys = [k for k in skill_proposal.reasoning.keys() if "_REASON" in k.upper() or "REASON" in k.upper()]
                 if reason_keys:
                     reason_text = skill_proposal.reasoning.get(reason_keys[0], "")
@@ -578,7 +578,7 @@ class SkillBrokerEngine:
             _params["magnitude_pct"] = skill_proposal.magnitude_pct
             _params["magnitude_fallback"] = skill_proposal.magnitude_fallback
 
-        if all_valid:
+        if all_valid and skill_proposal:
             approved_skill = ApprovedSkill(
                 skill_name=skill_proposal.skill_name,
                 agent_id=agent_id,
@@ -591,7 +591,7 @@ class SkillBrokerEngine:
             if retry_count > 0:
                 self.stats["retry_success"] += 1
                 ratings = []
-                for k, v in skill_proposal.reasoning.items():
+                for k, v in (skill_proposal.reasoning or {}).items():
                     if "_LABEL" in k:
                         ratings.append(f"{k}={v}")
                 rating_str = f" | {' | '.join(ratings)}" if ratings else ""
