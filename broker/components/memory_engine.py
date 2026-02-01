@@ -167,47 +167,5 @@ from broker.components.engines.humancentric_engine import HumanCentricMemoryEngi
 from broker.components.engines.hierarchical_engine import HierarchicalMemoryEngine
 from broker.components.memory_seeding import seed_memory_from_agents
 
-
-def create_memory_engine(
-    engine_type: str = "universal",
-    scorer: Optional["MemoryScorer"] = None,
-    persistence: Optional[Any] = None,
-    **kwargs
-) -> MemoryEngine:
-    """
-    Factory function for creating memory engines.
-
-    Args:
-        engine_type (str): "window" | "importance" | "humancentric" | "universal"
-        scorer: Optional SDK MemoryScorer for domain-aware retrieval (Task-034)
-        persistence: Optional SDK MemoryPersistence for save/load (Task-034)
-        **kwargs: Arguments passed to the engine constructor.
-
-    Returns:
-        MemoryEngine: The instantiated engine.
-
-    Example:
-        >>> from cognitive_governance.v1_prototype.memory import get_memory_scorer, create_persistence
-        >>> scorer = get_memory_scorer("flood")
-        >>> persistence = create_persistence("json", "./memory_store")
-        >>> engine = create_memory_engine("universal", scorer=scorer, persistence=persistence)
-    """
-    engine_type = engine_type.lower()
-
-    if engine_type == "window":
-        engine = WindowMemoryEngine(**kwargs)
-    elif engine_type == "importance":
-        engine = ImportanceMemoryEngine(**kwargs)
-    elif engine_type == "humancentric":
-        engine = HumanCentricMemoryEngine(**kwargs)
-    elif engine_type == "universal":
-        from broker.components.universal_memory import UniversalCognitiveEngine
-        engine = UniversalCognitiveEngine(persistence=persistence, **kwargs)
-    else:
-        raise ValueError(f"Unknown memory engine type: {engine_type}")
-
-    # Attach scorer if provided (Task-034)
-    if scorer is not None:
-        engine.scorer = scorer
-
-    return engine
+# Factory consolidated in memory_factory.py — re-export for backward compat
+from broker.components.memory_factory import create_memory_engine

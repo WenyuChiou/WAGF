@@ -36,12 +36,14 @@ def create_memory_engine(
                      "hierarchical", "universal", "unified"
         config: Engine-specific configuration dict
         scorer: Optional memory scorer
-        **kwargs: Additional engine parameters
+        **kwargs: Additional engine parameters (merged into config for
+                  backward compatibility with the legacy create_memory_engine API)
 
     Returns:
         Configured MemoryEngine instance
     """
-    config = config or {}
+    config = {**(config or {}), **kwargs}
+    kwargs = {}  # consumed — avoid passing duplicates to constructors
     engine_type = _normalize_engine_type(engine_type)
 
     if engine_type == "window":
@@ -76,7 +78,6 @@ def create_memory_engine(
             consolidation_threshold=config.get("consolidation_threshold", 0.6),
             decay_rate=config.get("decay_rate", 0.1),
             ranking_mode=config.get("ranking_mode", "weighted"),
-            **kwargs,
         )
     elif engine_type == "unified":
         # v5 UnifiedEngine requires explicit strategy creation
@@ -116,7 +117,7 @@ def create_memory_engine(
             emotional_weights=mem_cfg.get("emotional_weights"),
             source_weights=mem_cfg.get("source_weights"),
             decay_rate=mem_cfg.get("decay_rate", 0.1),
-            seed=mem_cfg.get("seed", kwargs.get("seed", 42)),
+            seed=mem_cfg.get("seed", config.get("seed", 42)),
         )
     else:
         raise ValueError(f"Unknown engine type: {engine_type}")
