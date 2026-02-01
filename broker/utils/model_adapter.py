@@ -773,6 +773,10 @@ class UnifiedAdapter(ModelAdapter):
         context_fields = parsing_cfg.get("audit_context_fields", default_fields)
         sources = {field: context.get(field, "") for field in context_fields}
 
+        # Short-circuit: skip keyword extraction if all sources are empty/N/A
+        if not any(v and v != "[N/A]" for v in sources.values()):
+            return {"score": 0.0, "details": "No anchors found in context"}
+
         # 2. Extract Keywords (Simple stopword filtering)
         # Generic English stopwords - domain-specific stopwords should be in config
         default_blacklist = {"you", "are", "a", "the", "in", "of", "to", "and", "with", "this", "that", "have", "from", "for", "on", "is", "it", "be", "as", "at", "by"}
