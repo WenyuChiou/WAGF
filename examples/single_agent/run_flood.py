@@ -379,11 +379,11 @@ class FinalParityHook:
         if result and result.skill_proposal and result.skill_proposal.reasoning:
             reasoning = result.skill_proposal.reasoning
             # Extract appraisals following config-driven logic or common variants
-            for key in ["threat_appraisal", "THREAT_APPRAISAL_LABEL", "threat"]:
+            for key in ["TP_LABEL", "threat_appraisal", "THREAT_APPRAISAL_LABEL", "threat"]:
                 if key in reasoning:
                     appraisals["threat_appraisal"] = reasoning[key]
                     break
-            for key in ["coping_appraisal", "COPING_APPRAISAL_LABEL", "coping"]:
+            for key in ["CP_LABEL", "coping_appraisal", "COPING_APPRAISAL_LABEL", "coping"]:
                 if key in reasoning:
                     appraisals["coping_appraisal"] = reasoning[key]
                     break

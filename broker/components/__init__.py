@@ -49,7 +49,12 @@ from .event_manager import (
     EnvironmentEventManager,
 )
 
+# Domain adapter exports
+from .domain_adapters import DomainReflectionAdapter
+
 __all__ = [
+    # Domain adapters
+    "DomainReflectionAdapter",
     # Perception (Task-043)
     "HouseholdPerceptionFilter",
     "GovernmentPerceptionFilter",

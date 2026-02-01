@@ -68,7 +68,9 @@ _CLUSTER_PERSONAS = {
             "cutting back sharply when you detect shortages ahead. You would rather "
             "overshoot your water request and face a small penalty than be too "
             "cautious and miss a productive season. Your neighbors consider you "
-            "aggressive but effective."
+            "aggressive but effective. "
+            "With your large operation and established water rights, you feel "
+            "confident in your ability to adapt your water use when needed."
         ),
         (
             "You are {agent_id}, an action-oriented farmer managing {farm_size} "
@@ -78,7 +80,9 @@ _CLUSTER_PERSONAS = {
             "patterns and river conditions. Your philosophy: it's better to request "
             "too much water and have some returned than to request too little and "
             "watch your crops suffer. You aren't particularly worried about unmet "
-            "demand penalties — you focus on maximising your yield."
+            "demand penalties — you focus on maximising your yield. "
+            "Your sizeable water allocation and operational flexibility give you "
+            "strong capacity to adapt to changing conditions."
         ),
     ],
     "forward_looking_conservative": [
@@ -91,7 +95,9 @@ _CLUSTER_PERSONAS = {
             "term. The thought of facing a water shortage deeply concerns you; "
             "you would rather use a little less water than risk a curtailment "
             "penalty. You read climate forecasts carefully and consult with "
-            "neighboring farmers before making decisions."
+            "neighboring farmers before making decisions. "
+            "Your careful planning and willingness to invest in efficient systems "
+            "give you moderate-to-good ability to adapt your water use."
         ),
         (
             "You are {agent_id}, managing {farm_size} acres of {crop_type} in the "
@@ -101,7 +107,9 @@ _CLUSTER_PERSONAS = {
             "experience. You are willing to experiment with new approaches but "
             "always in small, measured steps. Running short of water is your "
             "worst-case scenario; you hate the idea of crops suffering from "
-            "inadequate irrigation. You keep detailed records and plan ahead."
+            "inadequate irrigation. You keep detailed records and plan ahead. "
+            "Your proactive planning and openness to efficiency improvements "
+            "provide you reasonable capacity to adapt when conditions change."
         ),
     ],
     "myopic_conservative": [
@@ -114,7 +122,9 @@ _CLUSTER_PERSONAS = {
             "water demand from year to year. You are sceptical of forecasts and "
             "new technologies. You rarely try completely new strategies, preferring "
             "to rely on your own accumulated knowledge and the patterns you've "
-            "observed over decades of farming."
+            "observed over decades of farming. "
+            "Your smaller operation and limited technology investment constrain "
+            "your options for adapting water use if conditions deteriorate."
         ),
         (
             "You are {agent_id}, managing {farm_size} acres of {crop_type} in the "
@@ -124,7 +134,9 @@ _CLUSTER_PERSONAS = {
             "adjust your demand only slightly each year — steady as she goes. "
             "You're moderately concerned about water shortages but believe that "
             "staying the course has served you well so far. New ideas need to "
-            "prove themselves elsewhere before you'll try them on your farm."
+            "prove themselves elsewhere before you'll try them on your farm. "
+            "Your reliance on traditional methods and limited resources make it "
+            "harder for you to adapt your water practices under pressure."
         ),
     ],
 }
@@ -226,6 +238,30 @@ def build_conservation_status(profile: IrrigationAgentProfile) -> str:
     if profile.has_efficient_system:
         return "already use"
     return "have not yet adopted"
+
+
+def build_aca_hint(cluster: str) -> str:
+    """Return adaptive-capacity anchoring text per cluster.
+
+    Provides an explicit cue so the LLM's ACA appraisal reflects
+    the cluster's actual implementation capacity, improving construct
+    discrimination across clusters.
+    """
+    _ACA_HINTS = {
+        "aggressive": (
+            "strong — you have the financial resources and operational "
+            "flexibility to adapt your water use quickly when needed"
+        ),
+        "forward_looking_conservative": (
+            "moderate — you plan carefully and can make measured "
+            "adjustments, though large changes require significant effort"
+        ),
+        "myopic_conservative": (
+            "limited — your smaller operation and reliance on traditional "
+            "methods constrain what you can realistically change"
+        ),
+    }
+    return _ACA_HINTS.get(cluster, _ACA_HINTS["myopic_conservative"])
 
 
 def build_trust_text(cluster: str) -> Dict[str, str]:
@@ -367,6 +403,67 @@ def _infer_cluster(mu: float, sigma: float, alpha: float, regret: float) -> str:
             best_cluster = name
 
     return best_cluster
+
+
+def rebalance_clusters(
+    profiles: List[IrrigationAgentProfile],
+    min_pct: float = 0.15,
+    rng: Optional[np.random.Generator] = None,
+) -> List[IrrigationAgentProfile]:
+    """Rebalance cluster assignments so minority clusters meet *min_pct*.
+
+    Uses each agent's FQL-parameter distance to all three centroids.
+    Agents closest to a minority centroid (but currently assigned elsewhere)
+    are reassigned until the minimum is met.  Persona text is regenerated
+    to match the new cluster.
+
+    Args:
+        profiles: List of profiles with initial cluster assignments.
+        min_pct: Minimum fraction per cluster (default 15% ≈ 12/78).
+        rng: Random number generator for persona re-selection.
+
+    Returns:
+        The same list, mutated in place, with updated clusters and personas.
+    """
+    rng = rng or np.random.default_rng()
+    centroids = {
+        "aggressive": np.array([0.36, 1.22, 0.62, 0.78]),
+        "forward_looking_conservative": np.array([0.20, 0.60, 0.85, 2.22]),
+        "myopic_conservative": np.array([0.16, 0.87, 0.67, 1.54]),
+    }
+    n = len(profiles)
+    min_count = max(1, int(n * min_pct))
+
+    # Compute distance of each profile to every centroid
+    dists = {}
+    for i, p in enumerate(profiles):
+        pt = np.array([p.mu, p.sigma, p.alpha, p.regret])
+        dists[i] = {c: float(np.linalg.norm(pt - v)) for c, v in centroids.items()}
+
+    from collections import Counter
+    counts = Counter(p.cluster for p in profiles)
+
+    for target_cluster in ["forward_looking_conservative", "myopic_conservative"]:
+        deficit = min_count - counts.get(target_cluster, 0)
+        if deficit <= 0:
+            continue
+
+        # Rank aggressive agents by their distance to target centroid (ascending)
+        candidates = [
+            (i, dists[i][target_cluster])
+            for i, p in enumerate(profiles)
+            if p.cluster == "aggressive"
+        ]
+        candidates.sort(key=lambda x: x[1])
+
+        for idx, _ in candidates[:deficit]:
+            old = profiles[idx].cluster
+            profiles[idx].cluster = target_cluster
+            profiles[idx].narrative_persona = build_narrative_persona(profiles[idx], rng)
+            counts[old] -= 1
+            counts[target_cluster] += 1
+
+    return profiles
 
 
 def _assign_crop_type(basin: str, rng: np.random.Generator) -> str:

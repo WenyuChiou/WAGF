@@ -12,6 +12,7 @@ from datetime import datetime
 from pathlib import Path
 
 from broker.utils.logging import setup_logger
+from broker.components.domain_adapters import DomainReflectionAdapter
 
 logger = setup_logger(__name__)
 
@@ -114,6 +115,7 @@ class ReflectionEngine:
         llm_client=None,
         template: Optional["ReflectionTemplate"] = None,
         integrator: Optional["ReflectionMemoryIntegrator"] = None,
+        adapter: Optional[DomainReflectionAdapter] = None,
     ):
         self.reflection_interval = reflection_interval
         self.max_insights = max_insights_per_reflection
@@ -123,6 +125,7 @@ class ReflectionEngine:
         self.llm_client = llm_client
         self.template = template
         self.integrator = integrator
+        self.adapter = adapter
         
         # Initialize log file if path provided
         if self.output_path:
@@ -336,29 +339,55 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
 
     def compute_dynamic_importance(
         self,
-        context: AgentReflectionContext,
+        context,
         base_importance: float = 0.9,
     ) -> float:
         """Compute variable importance based on agent state.
 
-        Returns importance in [0.6, 0.95] range instead of fixed 0.9.
+        If a DomainReflectionAdapter is attached, delegates to it.
+        Otherwise falls back to the legacy flood-specific logic for
+        backward compatibility.
+
+        Args:
+            context: AgentReflectionContext dataclass **or** plain dict.
+            base_importance: Default importance when no rule matches.
+
+        Returns:
+            Importance score in [0.0, 1.0].
         """
+        # --- Adapter path (domain-agnostic) ---
+        if self.adapter is not None:
+            # Convert dataclass to dict if needed
+            if hasattr(context, "__dataclass_fields__"):
+                from dataclasses import asdict
+                ctx_dict = asdict(context)
+            elif isinstance(context, dict):
+                ctx_dict = context
+            else:
+                ctx_dict = {"context": context}
+            return self.adapter.compute_importance(ctx_dict, base_importance)
+
+        # --- Legacy fallback (flood-specific, backward compatible) ---
         importance = base_importance
 
-        if context.flood_count == 1:
+        flood_count = getattr(context, "flood_count", 0) if not isinstance(context, dict) else context.get("flood_count", 0)
+        mg_status = getattr(context, "mg_status", False) if not isinstance(context, dict) else context.get("mg_status", False)
+        recent_decision = getattr(context, "recent_decision", "") if not isinstance(context, dict) else context.get("recent_decision", "")
+
+        if flood_count == 1:
             importance = IMPORTANCE_PROFILES["first_flood"]
-        elif context.flood_count > 2:
+        elif flood_count > 2:
             importance = IMPORTANCE_PROFILES["repeated_flood"]
 
-        if context.mg_status:
+        if mg_status:
             importance = max(importance, IMPORTANCE_PROFILES["mg_agent"])
 
-        if context.recent_decision in ("elevate_house", "relocate", "buy_insurance"):
+        if recent_decision in ("elevate_house", "relocate", "buy_insurance"):
             importance = max(importance, IMPORTANCE_PROFILES["post_action"])
 
-        if (not context.mg_status
-                and context.flood_count == 0
-                and context.recent_decision in ("do_nothing", "")):
+        if (not mg_status
+                and flood_count == 0
+                and recent_decision in ("do_nothing", "")):
             importance = min(importance, IMPORTANCE_PROFILES["stable_year"])
 
         return round(min(1.0, max(0.0, importance)), 2)
@@ -367,21 +396,31 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
         self,
         raw_response: str,
         source_memory_count: int,
-        current_year: int
+        current_year: int,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Optional[ReflectionInsight]:
-        """Parse LLM response into a ReflectionInsight."""
+        """Parse LLM response into a ReflectionInsight.
+
+        If an adapter is attached and *context* is provided, the importance
+        score is computed dynamically instead of using the static boost.
+        """
         if not raw_response or len(raw_response.strip()) < 10:
             return None
-        
+
         # Clean and truncate if needed
         summary = raw_response.strip()[:500]
-        
+
+        # Dynamic importance via adapter when context is available
+        importance = self.importance_boost
+        if self.adapter is not None and context is not None:
+            importance = self.adapter.compute_importance(context, self.importance_boost)
+
         return ReflectionInsight(
             summary=summary,
             source_memory_count=source_memory_count,
-            importance=self.importance_boost,
+            importance=importance,
             year_created=current_year,
-            domain_tags=[]  # Could be enhanced with keyword extraction
+            domain_tags=[]
         )
 
     def _call_llm(self, prompt: str) -> str:
@@ -561,12 +600,21 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
         
         return results
 
-    def _create_insight(self, text: str, year: int) -> ReflectionInsight:
-        """Helper to create a standard insight object."""
+    def _create_insight(
+        self, text: str, year: int, context: Optional[Dict[str, Any]] = None
+    ) -> ReflectionInsight:
+        """Helper to create a standard insight object.
+
+        Uses adapter-based importance when context is provided.
+        """
+        importance = self.importance_boost
+        if self.adapter is not None and context is not None:
+            importance = self.adapter.compute_importance(context, self.importance_boost)
+
         return ReflectionInsight(
             summary=text.strip()[:500],
             source_memory_count=0,
-            importance=self.importance_boost,
+            importance=importance,
             year_created=year,
             domain_tags=[]
         )

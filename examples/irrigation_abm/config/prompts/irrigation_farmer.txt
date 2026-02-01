@@ -4,6 +4,7 @@ Your memory includes:
 {memory}
 
 You currently {conservation_status} water conservation practices.
+Your ability to implement changes to your water management is {aca_hint}.
 You {trust_forecasts_text} climate and hydrological forecasts. You {trust_neighbors_text} neighboring farmers' water management advice.
 
 Using the following decision framework, evaluate your current water demand situation by considering:

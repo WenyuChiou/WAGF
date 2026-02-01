@@ -41,13 +41,16 @@ from examples.irrigation_abm.irrigation_personas import (
     build_narrative_persona,
     build_water_situation_text,
     build_conservation_status,
+    build_aca_hint,
     build_trust_text,
     build_regret_feedback,
     create_profiles_from_csv,
+    rebalance_clusters,
 )
 from broker.core.experiment import ExperimentBuilder
 from broker.components.memory_engine import HumanCentricMemoryEngine
 from broker.components.reflection_engine import ReflectionEngine
+from broker.components.adapters.irrigation_adapter import IrrigationAdapter
 from broker.components.skill_registry import SkillRegistry
 from broker.components.context_builder import TieredContextBuilder
 from broker.interfaces.skill_types import ExecutionResult
@@ -195,6 +198,7 @@ class IrrigationLifecycleHooks:
 
             agent.water_situation_text = water_situation
             agent.conservation_status = conservation
+            agent.aca_hint = build_aca_hint(profile.cluster)
             agent.trust_forecasts_text = trust["trust_forecasts_text"]
             agent.trust_neighbors_text = trust["trust_neighbors_text"]
 
@@ -232,13 +236,13 @@ class IrrigationLifecycleHooks:
         if result and result.skill_proposal and result.skill_proposal.reasoning:
             r = result.skill_proposal.reasoning
             appraisals["wsa_label"] = next(
-                (r[k] for k in ["WSA_LABEL", "water_scarcity_assessment", "water_scarcity",
-                                "WTA_LABEL", "water_threat_appraisal", "water_threat"] if k in r),
+                (r[k] for k in ["WSA_LABEL", "water_scarcity_assessment",
+                                "water_scarcity"] if k in r),
                 "N/A",
             )
             appraisals["aca_label"] = next(
-                (r[k] for k in ["ACA_LABEL", "adaptive_capacity_assessment", "adaptive_capacity",
-                                "WCA_LABEL", "water_coping_appraisal", "water_coping"] if k in r),
+                (r[k] for k in ["ACA_LABEL", "adaptive_capacity_assessment",
+                                "adaptive_capacity"] if k in r),
                 "N/A",
             )
 
@@ -269,8 +273,8 @@ class IrrigationLifecycleHooks:
                 "cluster": profile.cluster if profile else "unknown",
                 "basin": profile.basin if profile else "unknown",
                 "yearly_decision": skill or "N/A",
-                "wta_label": appr.get("wta_label", "N/A"),
-                "wca_label": appr.get("wca_label", "N/A"),
+                "wsa_label": appr.get("wsa_label", "N/A"),
+                "aca_label": appr.get("aca_label", "N/A"),
                 "request": agent_state.get("request", 0),
                 "diversion": agent_state.get("diversion", 0),
                 "water_right": agent_state.get("water_right", 0),
@@ -306,7 +310,22 @@ class IrrigationLifecycleHooks:
                 continue
             mems = self.runner.memory_engine.retrieve(agent, top_k=10)
             if mems:
-                candidates.append({"agent_id": aid, "memories": mems})
+                # Build domain context for adapter-based importance scoring
+                attrs = getattr(agent, "custom_attributes", {})
+                agent_ctx = {
+                    "water_right_pct": attrs.get("water_right", 0.5),
+                    "supply_ratio": self.env.get_supply_ratio() if hasattr(self.env, "get_supply_ratio") else 1.0,
+                    "years_farming": attrs.get("years_farming", 0),
+                    "has_efficient_system": attrs.get("has_efficient_system", False),
+                    "recent_decision": attrs.get("last_decision", ""),
+                    "drought_count": attrs.get("drought_count", 0),
+                    "cluster": attrs.get("cluster", ""),
+                }
+                candidates.append({
+                    "agent_id": aid,
+                    "memories": mems,
+                    "context": agent_ctx,
+                })
 
         if not candidates:
             return
@@ -325,11 +344,30 @@ class IrrigationLifecycleHooks:
                 )
                 for aid, insight in insights.items():
                     if insight:
+                        # Use adapter for dynamic importance instead of hardcoded 0.9
+                        ctx_item = next((c for c in batch if c["agent_id"] == aid), None)
+                        if ctx_item and ctx_item.get("context") and self.reflection_engine.adapter:
+                            dynamic_imp = self.reflection_engine.compute_dynamic_importance(
+                                ctx_item["context"]
+                            )
+                            insight.importance = dynamic_imp
+
                         self.reflection_engine.store_insight(aid, insight)
+                        emotion = "major"
+                        if self.reflection_engine.adapter and ctx_item and ctx_item.get("context"):
+                            decision = ctx_item["context"].get("recent_decision", "")
+                            emotion = self.reflection_engine.adapter.classify_emotion(
+                                decision, ctx_item["context"]
+                            )
                         self.runner.memory_engine.add_memory(
                             aid,
                             f"Consolidated Reflection: {insight.summary}",
-                            {"significance": 0.9, "emotion": "major", "source": "personal"},
+                            {
+                                "significance": insight.importance,
+                                "emotion": emotion,
+                                "source": "personal",
+                                "type": "reflection",
+                            },
                         )
             except Exception as e:
                 print(f"  [Reflection:Error] Batch {i // batch_size + 1}: {e}")
@@ -389,6 +427,14 @@ def main():
         profiles = _create_synthetic_profiles(args.agents, seed)
         print(f"[Data] Created {len(profiles)} synthetic agents")
 
+    # --- Optional cluster rebalancing ---
+    if args.rebalance_clusters:
+        from collections import Counter
+        before = Counter(p.cluster for p in profiles)
+        rebalance_clusters(profiles, min_pct=0.15, rng=np.random.default_rng(seed))
+        after = Counter(p.cluster for p in profiles)
+        print(f"[Rebalance] Clusters: {dict(before)} → {dict(after)}")
+
     # --- Create environment and initialize ---
     config = WaterSystemConfig(seed=seed)
     env = IrrigationEnvironment(config)
@@ -410,6 +456,10 @@ def main():
     gm = global_cfg.get("memory", {})
     rw = irr_mem.get("retrieval_weights", {})
 
+    # --- Domain adapter (literature-informed reflection + memory) ---
+    irrigation_adapter = IrrigationAdapter()
+    adapter_rw = irrigation_adapter.retrieval_weights
+
     memory_engine = HumanCentricMemoryEngine(
         window_size=args.window_size,
         top_k_significant=gm.get("top_k_significant", 2),
@@ -418,13 +468,13 @@ def main():
         decay_rate=gm.get("decay_rate", 0.1),
         emotional_weights=irr_mem.get("emotional_weights"),
         source_weights=irr_mem.get("source_weights"),
-        W_recency=rw.get("recency", 0.3),
-        W_importance=rw.get("importance", 0.5),
-        W_context=rw.get("context", 0.2),
-        ranking_mode="legacy",
+        W_recency=rw.get("recency", adapter_rw.get("W_recency", 0.3)),
+        W_importance=rw.get("importance", adapter_rw.get("W_importance", 0.4)),
+        W_context=rw.get("context", adapter_rw.get("W_context", 0.3)),
+        ranking_mode=irr_mem.get("ranking_mode", "weighted"),
         seed=args.memory_seed,
     )
-    print(f"[Pillar 2] HumanCentricMemoryEngine (window={args.window_size})")
+    print(f"[Pillar 2] HumanCentricMemoryEngine (window={args.window_size}, mode={memory_engine.ranking_mode})")
 
     # --- Context builder ---
     ctx_builder = TieredContextBuilder(
@@ -473,8 +523,9 @@ def main():
         max_insights_per_reflection=2,
         insight_importance_boost=refl_cfg.get("importance_boost", 0.9),
         output_path=str(output_dir / "reflection_log.jsonl"),
+        adapter=irrigation_adapter,
     )
-    print(f"[Pillar 2] ReflectionEngine (interval={reflection_engine.reflection_interval})")
+    print(f"[Pillar 2] ReflectionEngine (interval={reflection_engine.reflection_interval}, adapter=IrrigationAdapter)")
 
     # --- Inject lifecycle hooks ---
     hooks = IrrigationLifecycleHooks(env, runner, profiles, reflection_engine, output_dir)
@@ -519,6 +570,8 @@ def parse_args():
     p.add_argument("--output", type=str, default=None)
     p.add_argument("--num-ctx", type=int, default=None)
     p.add_argument("--num-predict", type=int, default=None)
+    p.add_argument("--rebalance-clusters", action="store_true",
+                   help="Rebalance cluster assignment so each cluster has ≥15%% of agents")
     return p.parse_args()
 
 
