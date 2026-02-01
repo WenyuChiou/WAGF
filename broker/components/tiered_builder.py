@@ -92,6 +92,29 @@ class BaseAgentContextBuilder(ContextBuilder):
     def _get_neighbor_summary(self, agent_id: str) -> List[Dict[str, Any]]:
         return get_neighbor_summary(self.agents, agent_id)
 
+    @staticmethod
+    def _format_memory(memory_val) -> str:
+        """Format memory (list, dict with episodic/semantic/core, or scalar) into a prompt string."""
+        if isinstance(memory_val, dict) and "episodic" in memory_val:
+            lines = []
+            core = memory_val.get("core", {})
+            semantic = memory_val.get("semantic", [])
+            episodic = memory_val.get("episodic", [])
+            if core:
+                lines.append("CORE: " + " ".join(f"{k}={v}" for k, v in core.items()))
+            if semantic:
+                lines.append("HISTORIC:")
+                lines.extend(f"  - {m}" for m in semantic)
+            if episodic:
+                lines.append("RECENT:")
+                lines.extend(f"  - {m}" for m in episodic)
+            return "\n".join(lines) if lines else "No memories yet."
+        elif isinstance(memory_val, list):
+            return "\n".join(f"- {m}" for m in memory_val) if memory_val else "No memories yet."
+        elif memory_val:
+            return str(memory_val)
+        return "No memories yet."
+
     def format_prompt(self, context: Dict[str, Any]) -> str:
         agent_type = context.get("agent_type", "default")
         template = self.prompt_templates.get(agent_type, DEFAULT_PROMPT_TEMPLATE)
@@ -108,25 +131,7 @@ class BaseAgentContextBuilder(ContextBuilder):
             skills_str = ", ".join(context.get("available_skills", []))
 
         memory_val = context.get("memory", [])
-        if isinstance(memory_val, dict) and "episodic" in memory_val:
-            core = memory_val.get("core", {})
-            episodic = memory_val.get("episodic", [])
-            semantic = memory_val.get("semantic", [])
-            lines = []
-            if core:
-                core_str = " ".join([f"{k}={v}" for k, v in core.items()])
-                lines.append(f"CORE: {core_str}")
-            if semantic:
-                lines.append("HISTORIC:")
-                lines.extend([f"  - {m}" for m in semantic])
-            if episodic:
-                lines.append("RECENT:")
-                lines.extend([f"  - {m}" for m in episodic])
-            memory_str = "\n".join(lines) if lines else "No memory available"
-        elif isinstance(memory_val, list):
-            memory_str = "\n".join(f"- {m}" for m in memory_val) if memory_val else "No memory available"
-        else:
-            memory_str = str(memory_val)
+        memory_str = self._format_memory(memory_val)
 
         template_vars = {
             "agent_name": context.get("agent_name", "Agent"),
@@ -386,26 +391,7 @@ class TieredContextBuilder(BaseAgentContextBuilder):
 
         # Format memory (list or dict) into template-ready string
         memory_val = p.get("memory", [])
-        if isinstance(memory_val, dict) and "episodic" in memory_val:
-            lines = []
-            core = memory_val.get("core", {})
-            semantic = memory_val.get("semantic", [])
-            episodic = memory_val.get("episodic", [])
-            if core:
-                lines.append("CORE: " + " ".join(f"{k}={v}" for k, v in core.items()))
-            if semantic:
-                lines.append("HISTORIC:")
-                lines.extend(f"  - {m}" for m in semantic)
-            if episodic:
-                lines.append("RECENT:")
-                lines.extend(f"  - {m}" for m in episodic)
-            template_vars["memory"] = "\n".join(lines) if lines else "No memories yet."
-        elif isinstance(memory_val, list):
-            template_vars["memory"] = "\n".join(f"- {m}" for m in memory_val) if memory_val else "No memories yet."
-        elif memory_val:
-            template_vars["memory"] = str(memory_val)
-        else:
-            template_vars["memory"] = "No memories yet."
+        template_vars["memory"] = self._format_memory(memory_val)
 
         if isinstance(p.get("status"), dict):
             for k, v in p["status"].items():
