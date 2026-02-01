@@ -178,99 +178,18 @@ class SkillBrokerEngine:
         
         # ② LLM output → ModelAdapter → SkillProposal (with retry for empty/failed parse)
         prompt = self.context_builder.format_prompt(context)
-        
-        skill_proposal = None
-        raw_output = ""
-        initial_attempts = 0
-        format_retry_count = 0  # Track structural faults (format/parsing issues)
-        max_initial_attempts = 2  # Retry up to 2 times for purely parsing/empty issues
-        total_llm_stats = {"llm_retries": 0, "llm_success": False}
-        
-        while initial_attempts <= max_initial_attempts and not skill_proposal:
-            initial_attempts += 1
-            try:
-                res = llm_invoke(prompt)
-                # Handle both legacy (str) and new (content, stats) returns
-                if isinstance(res, tuple):
-                    raw_output, llm_stats_obj = res
-                    total_llm_stats["llm_retries"] += llm_stats_obj.retries
-                    total_llm_stats["llm_success"] = llm_stats_obj.success
-                    # 045-H: Log LLM-level empty content retries to auditor
-                    if hasattr(llm_stats_obj, 'empty_content_retries'):
-                        for _ in range(llm_stats_obj.empty_content_retries):
-                            self.auditor.log_empty_content_retry()
-                        if getattr(llm_stats_obj, 'empty_content_failure', False):
-                            self.auditor.log_empty_content_failure()
-                else:
-                    raw_output = res
-                    # Fallback to global stats if legacy
-                    from ..utils.llm_utils import get_llm_stats
-                    stats = get_llm_stats()
-                    total_llm_stats["llm_retries"] += stats.get("current_retries", 0)
-                    total_llm_stats["llm_success"] = stats.get("current_success", True)
-                
-                # If the llm_invoke returned a SkillProposal, use it directly.
-                if isinstance(raw_output, SkillProposal):
-                    skill_proposal = raw_output
-                else:
-                    # Pass full context for audit access
-                    skill_proposal = self.model_adapter.parse_output(raw_output, {
-                        "agent_id": agent_id,
-                        "agent_type": agent_type,
-                        "retry_attempt": initial_attempts - 1,
-                        "current_year": env_context.get("current_year") if env_context else "?",
-                        **context
-                    })
-                
-                # Phase 33: Explicit handling for Empty/Null responses
-                if skill_proposal is None:
-                    msg = "Response was empty or unparsable. Please output a valid JSON decision."
-                    logger.warning(f" [Broker:Retry] Empty/Null response received (Attempt {initial_attempts}/{max_initial_attempts})")
-                    format_retry_count += 1
-                    self.auditor.log_parse_error()
-                    prompt = self.model_adapter.format_retry_prompt(prompt, [msg])
-                    continue
+        skill_proposal, raw_output, format_retry_count, total_llm_stats = (
+            self._invoke_llm_with_retries(prompt, llm_invoke, context, agent_id, agent_type, env_context)
+        )
 
-                # Check for missing critical LABEL constructs - trigger retry if missing
-                if skill_proposal and skill_proposal.reasoning:
-                    reasoning = skill_proposal.reasoning
-                    
-                    # Generalized: Get required constructs from parsing config
-                    # Filter for those that have '_LABEL' in them as they are usually critical
-                    # but check if they are actually defined for this agent type
-                    parsing_cfg = self.config.get(agent_type).get("parsing", {})
-                    required_constructs = [k for k in parsing_cfg.get("constructs", {}).keys() if "_LABEL" in k]
-                    
-                    missing_labels = [m for m in required_constructs if m not in reasoning]
-                    
-                    if missing_labels and initial_attempts <= max_initial_attempts:
-                        logger.warning(f" [Broker:Retry] Missing required constructs {missing_labels} for {agent_id} ({agent_type}), attempt {initial_attempts}/{max_initial_attempts}")
-                        format_retry_count += 1
-                        self.auditor.log_parse_error()
-                        self.auditor.log_invalid_label_retry()  # 045-H: Track invalid label retries
-                        # Reset proposal to None to trigger retry
-                        skill_proposal = None
-                        prompt = self.model_adapter.format_retry_prompt(prompt, [f"Missing required constructs: {missing_labels}. Please ensure your response follows the requested JSON format."])
-                        continue
-
-                        
-            except Exception as e:
-                if initial_attempts > max_initial_attempts:
-                    logger.error(f" [Broker:Error] Failed to parse LLM output after {max_initial_attempts} attempts: {e}")
-                    raise
-                logger.warning(f" [Broker:Retry] Parsing failed ({initial_attempts}/{max_initial_attempts}): {e}")
-                # Build retry prompt
-                prompt = self.model_adapter.format_retry_prompt(prompt, [str(e)])
-            
         if skill_proposal is None:
             self.stats["aborted"] += 1
-            self.auditor.log_parse_error()  # Terminal failure
+            self.auditor.log_parse_error()
             if format_retry_count > 0:
                 self.auditor.log_structural_fault_terminal(format_retry_count)
-            logger.error(f" [LLM:Error] Model returned unparsable output after {max_initial_attempts+1} attempts for {agent_id}.")
+            logger.error(f" [LLM:Error] Model returned unparsable output after retries for {agent_id}.")
             return self._create_result(SkillOutcome.ABORTED, None, None, None, ["Parse error after retries"], format_retries=format_retry_count)
 
-        # Log structural faults that were fixed by retry
         if format_retry_count > 0:
             self.auditor.log_structural_fault_resolved(format_retry_count)
             logger.info(f" [Broker:StructuralFault] {format_retry_count} format issue(s) fixed by retry for {agent_id}")
@@ -574,6 +493,84 @@ class SkillBrokerEngine:
             format_retries=format_retry_count
         )
     
+    def _invoke_llm_with_retries(
+        self, prompt: str, llm_invoke: Callable, context: Dict,
+        agent_id: str, agent_type: str, env_context: Optional[Dict]
+    ):
+        """Invoke LLM with format/parse retry loop.
+
+        Returns (skill_proposal, raw_output, format_retry_count, total_llm_stats).
+        """
+        skill_proposal = None
+        raw_output = ""
+        initial_attempts = 0
+        format_retry_count = 0
+        max_initial_attempts = 2
+        total_llm_stats = {"llm_retries": 0, "llm_success": False}
+
+        while initial_attempts <= max_initial_attempts and not skill_proposal:
+            initial_attempts += 1
+            try:
+                res = llm_invoke(prompt)
+                if isinstance(res, tuple):
+                    raw_output, llm_stats_obj = res
+                    total_llm_stats["llm_retries"] += llm_stats_obj.retries
+                    total_llm_stats["llm_success"] = llm_stats_obj.success
+                    if hasattr(llm_stats_obj, 'empty_content_retries'):
+                        for _ in range(llm_stats_obj.empty_content_retries):
+                            self.auditor.log_empty_content_retry()
+                        if getattr(llm_stats_obj, 'empty_content_failure', False):
+                            self.auditor.log_empty_content_failure()
+                else:
+                    raw_output = res
+                    from ..utils.llm_utils import get_llm_stats
+                    stats = get_llm_stats()
+                    total_llm_stats["llm_retries"] += stats.get("current_retries", 0)
+                    total_llm_stats["llm_success"] = stats.get("current_success", True)
+
+                if isinstance(raw_output, SkillProposal):
+                    skill_proposal = raw_output
+                else:
+                    skill_proposal = self.model_adapter.parse_output(raw_output, {
+                        "agent_id": agent_id,
+                        "agent_type": agent_type,
+                        "retry_attempt": initial_attempts - 1,
+                        "current_year": env_context.get("current_year") if env_context else "?",
+                        **context
+                    })
+
+                if skill_proposal is None:
+                    msg = "Response was empty or unparsable. Please output a valid JSON decision."
+                    logger.warning(f" [Broker:Retry] Empty/Null response received (Attempt {initial_attempts}/{max_initial_attempts})")
+                    format_retry_count += 1
+                    self.auditor.log_parse_error()
+                    prompt = self.model_adapter.format_retry_prompt(prompt, [msg])
+                    continue
+
+                if skill_proposal and skill_proposal.reasoning:
+                    reasoning = skill_proposal.reasoning
+                    parsing_cfg = self.config.get(agent_type).get("parsing", {})
+                    required_constructs = [k for k in parsing_cfg.get("constructs", {}).keys() if "_LABEL" in k]
+                    missing_labels = [m for m in required_constructs if m not in reasoning]
+
+                    if missing_labels and initial_attempts <= max_initial_attempts:
+                        logger.warning(f" [Broker:Retry] Missing required constructs {missing_labels} for {agent_id} ({agent_type}), attempt {initial_attempts}/{max_initial_attempts}")
+                        format_retry_count += 1
+                        self.auditor.log_parse_error()
+                        self.auditor.log_invalid_label_retry()
+                        skill_proposal = None
+                        prompt = self.model_adapter.format_retry_prompt(prompt, [f"Missing required constructs: {missing_labels}. Please ensure your response follows the requested JSON format."])
+                        continue
+
+            except Exception as e:
+                if initial_attempts > max_initial_attempts:
+                    logger.error(f" [Broker:Error] Failed to parse LLM output after {max_initial_attempts} attempts: {e}")
+                    raise
+                logger.warning(f" [Broker:Retry] Parsing failed ({initial_attempts}/{max_initial_attempts}): {e}")
+                prompt = self.model_adapter.format_retry_prompt(prompt, [str(e)])
+
+        return skill_proposal, raw_output, format_retry_count, total_llm_stats
+
     def _get_action_ids(self, agent_type: str) -> List[str]:
         base_type = self.config.get_base_type(agent_type) if hasattr(self.config, "get_base_type") else agent_type
         cfg = self.config.get(base_type) if self.config else {}
