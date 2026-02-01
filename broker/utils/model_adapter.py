@@ -14,6 +14,9 @@ from typing import Dict, Any, Optional, List, Callable
 import re
 import json
 
+# Pre-compiled regex patterns for hot-path operations
+_THINK_TAG_RE = re.compile(r'<think>.*?</think>', re.DOTALL)
+
 from ..interfaces.skill_types import SkillProposal
 from ..utils.logging import logger
 from .preprocessors import GenericRegexPreprocessor, SmartRepairPreprocessor, get_preprocessor
@@ -245,7 +248,7 @@ class UnifiedAdapter(ModelAdapter):
         # Phase 46: Strip Qwen3 thinking tokens before parsing
         # Qwen3 models wrap reasoning in <think>...</think> tags
         import re
-        raw_output = re.sub(r'<think>.*?</think>', '', raw_output, flags=re.DOTALL).strip()
+        raw_output = _THINK_TAG_RE.sub('', raw_output).strip()
         if not raw_output:
             return None  # Only thinking tokens, no actual response
 
