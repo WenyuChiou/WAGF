@@ -47,7 +47,10 @@ class SkillRegistry:
                 preconditions=skill_data.get('preconditions', []),
                 institutional_constraints=skill_data.get('institutional_constraints', {}),
                 allowed_state_changes=skill_data.get('allowed_state_changes', []),
-                implementation_mapping=skill_data.get('implementation_mapping', '')
+                implementation_mapping=skill_data.get('implementation_mapping', ''),
+                output_schema=skill_data.get('output_schema', {}),
+                conflicts_with=skill_data.get('conflicts_with', []),
+                depends_on=skill_data.get('depends_on', []),
             )
             self.register(skill)
     
@@ -68,10 +71,6 @@ class SkillRegistry:
         if skill_id in self.skills:
             self._default_skill = skill_id
     
-    def list_skills(self) -> List[str]:
-        """List all registered skill IDs."""
-        return list(self.skills.keys())
-
     def check_eligibility(self, skill_id: str, agent_type: str) -> ValidationResult:
         """Check if an agent type is eligible to use a skill."""
         skill = self.get(skill_id)
@@ -131,8 +130,86 @@ class SkillRegistry:
         """Get the allowed state changes for a skill."""
         skill = self.get(skill_id)
         return skill.allowed_state_changes if skill else []
-    
+
     def list_skills(self) -> List[str]:
         """List all registered skill IDs."""
         return list(self.skills.keys())
+
+    def get_magnitude_bounds(self, skill_id: str) -> Optional[Dict[str, Any]]:
+        """Get magnitude constraints from institutional_constraints."""
+        skill = self.get(skill_id)
+        if not skill:
+            return None
+        ic = skill.institutional_constraints
+        if "magnitude_type" not in ic:
+            return None
+        return {
+            "magnitude_type": ic["magnitude_type"],
+            "max_magnitude_pct": ic.get("max_magnitude_pct"),
+        }
+
+    def validate_output_schema(self, skill_id: str, output: Dict[str, Any]) -> ValidationResult:
+        """Validate LLM output against JSON Schema-style output_schema.
+
+        Supports type checking (number, string, integer), range validation
+        (minimum/maximum), and enum constraints per the JSON Schema standard.
+        """
+        skill = self.get(skill_id)
+        if not skill or not skill.output_schema:
+            return ValidationResult(valid=True, validator_name="SkillRegistry.output_schema")
+
+        errors: List[str] = []
+        properties = skill.output_schema.get("properties", skill.output_schema)
+        required_fields = skill.output_schema.get("required", [])
+
+        for field_name in required_fields:
+            if field_name not in output:
+                errors.append(f"Required field '{field_name}' missing for skill '{skill_id}'")
+
+        for field_name, field_spec in properties.items():
+            if field_name not in output or not isinstance(field_spec, dict):
+                continue
+            value = output[field_name]
+            expected_type = field_spec.get("type")
+
+            if expected_type == "number" and not isinstance(value, (int, float)):
+                errors.append(f"Field '{field_name}': expected number, got {type(value).__name__}")
+                continue
+            if expected_type == "string" and not isinstance(value, str):
+                errors.append(f"Field '{field_name}': expected string, got {type(value).__name__}")
+                continue
+            if expected_type == "integer" and not isinstance(value, int):
+                errors.append(f"Field '{field_name}': expected integer, got {type(value).__name__}")
+                continue
+
+            if isinstance(value, (int, float)):
+                if "minimum" in field_spec and value < field_spec["minimum"]:
+                    errors.append(f"Field '{field_name}': {value} < minimum {field_spec['minimum']}")
+                if "maximum" in field_spec and value > field_spec["maximum"]:
+                    errors.append(f"Field '{field_name}': {value} > maximum {field_spec['maximum']}")
+
+            if "enum" in field_spec and value not in field_spec["enum"]:
+                errors.append(f"Field '{field_name}': '{value}' not in allowed values {field_spec['enum']}")
+
+        return ValidationResult(
+            valid=len(errors) == 0,
+            validator_name="SkillRegistry.output_schema",
+            errors=errors,
+        )
+
+    def check_composite_conflicts(self, skill_ids: List[str]) -> ValidationResult:
+        """Check for mutual exclusivity conflicts between proposed skills."""
+        errors: List[str] = []
+        for i, sid in enumerate(skill_ids):
+            skill = self.get(sid)
+            if not skill:
+                continue
+            for other_sid in skill_ids[i + 1:]:
+                if other_sid in skill.conflicts_with:
+                    errors.append(f"Skills '{sid}' and '{other_sid}' are mutually exclusive")
+        return ValidationResult(
+            valid=len(errors) == 0,
+            validator_name="SkillRegistry.composite_conflicts",
+            errors=errors,
+        )
 

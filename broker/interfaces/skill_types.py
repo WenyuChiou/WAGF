@@ -71,6 +71,9 @@ class SkillDefinition:
     institutional_constraints: Dict[str, Any]  # Domain-specific rules
     allowed_state_changes: List[str]       # Fields this skill can modify
     implementation_mapping: str            # Maps to simulation command
+    output_schema: Dict[str, Any] = field(default_factory=dict)   # JSON Schema for expected LLM output
+    conflicts_with: List[str] = field(default_factory=list)        # Mutually exclusive skills
+    depends_on: List[str] = field(default_factory=list)            # Prerequisite skills (for composite)
 
 
 @dataclass

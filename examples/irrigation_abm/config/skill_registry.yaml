@@ -16,6 +16,13 @@ skills:
       - request
       - diversion
     implementation_mapping: "env.execute_skill"
+    output_schema:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: integer, enum: [1, 2, 3, 4, 5] }
+        magnitude_pct: { type: number, minimum: 1, maximum: 30 }
+    conflicts_with: [decrease_demand]
 
   - skill_id: decrease_demand
     description: "Request less water allocation. Lower crop yield potential but reduces curtailment risk and demonstrates cooperative basin management."
@@ -29,6 +36,13 @@ skills:
       - request
       - diversion
     implementation_mapping: "env.execute_skill"
+    output_schema:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: integer, enum: [1, 2, 3, 4, 5] }
+        magnitude_pct: { type: number, minimum: 1, maximum: 30 }
+    conflicts_with: [increase_demand]
 
   - skill_id: adopt_efficiency
     description: "Invest in water-efficient irrigation technology (drip, soil moisture sensors, precision scheduling). Reduces long-term water needs by 15-25%."
@@ -42,6 +56,12 @@ skills:
       - has_efficient_system
       - request
     implementation_mapping: "env.execute_skill"
+    output_schema:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: integer, enum: [1, 2, 3, 4, 5] }
+    conflicts_with: [reduce_acreage]
 
   - skill_id: reduce_acreage
     description: "Fallow some farmland to lower total water requirement. Decreases revenue but guarantees meeting reduced allocation with existing supply."
@@ -54,6 +74,12 @@ skills:
       - request
       - diversion
     implementation_mapping: "env.execute_skill"
+    output_schema:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: integer, enum: [1, 2, 3, 4, 5] }
+    conflicts_with: [adopt_efficiency]
 
   - skill_id: maintain_demand
     description: "Maintain current water demand level. No change to irrigation practices. Appropriate when water availability is stable and current allocation meets needs."
@@ -62,5 +88,11 @@ skills:
     institutional_constraints: {}
     allowed_state_changes: []
     implementation_mapping: "env.execute_skill"
+    output_schema:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: integer, enum: [1, 2, 3, 4, 5] }
+    conflicts_with: []
 
 default_skill: maintain_demand
