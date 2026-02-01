@@ -440,48 +440,19 @@ class SkillBrokerEngine:
         
         # ⑥ Audit trace
         if self.audit_writer:
-            # Robust agent_type extraction (Tiered or Flat)
-            agent_type_final = agent_type
-            if "personal" in context and isinstance(context["personal"], dict):
-                agent_type_final = context["personal"].get("agent_type", agent_type_final)
-            elif "agent_type" in context:
-                agent_type_final = context.get("agent_type", agent_type_final)
-            
-            # Extract audit priority fields from config
-            log_fields = self.config.get_log_fields(agent_type_final)
-            audit_priority = [f"reason_{f.lower()}" for f in log_fields]
-
-            self.audit_writer.write_trace(agent_type_final, {
-                "run_id": run_id,
-                "step_id": step_id,
-                "timestamp": timestamp,
-                "year": env_context.get("current_year"),
-                "seed": seed,
-                "agent_id": agent_id,
-                "validated": all_valid,
-                "_audit_priority": audit_priority, # Dynamically determined from config
-
-                "input": prompt,
-                "raw_output": raw_output,
-                "context_hash": context_hash,
-
-                "memory_pre": memory_pre,
-                "memory_post": memory_post,
-                "environment_context": env_context or {},
-                "state_before": context.get("state", {}),
-                "state_after": self._merge_state_after(context.get("state", {}), execution_result),
-                "skill_proposal": skill_proposal.to_dict() if skill_proposal else None,
-                "approved_skill": {
-                    "skill_name": approved_skill.skill_name,
-                    "status": approved_skill.approval_status,
-                    "mapping": approved_skill.execution_mapping
-                } if approved_skill else None,
-                "execution_result": execution_result.__dict__ if execution_result else None,
-                "outcome": outcome.value,
-                "retry_count": retry_count,
-                "format_retries": format_retry_count,  # Structural faults fixed by format retry
-                "llm_stats": total_llm_stats  # New: Pass LLM-level stats to trace
-            }, all_validation_history)
+            self._write_audit_trace(
+                agent_type=agent_type, context=context,
+                run_id=run_id, step_id=step_id, timestamp=timestamp,
+                env_context=env_context, seed=seed, agent_id=agent_id,
+                all_valid=all_valid, prompt=prompt, raw_output=raw_output,
+                context_hash=context_hash, memory_pre=memory_pre,
+                memory_post=memory_post, skill_proposal=skill_proposal,
+                approved_skill=approved_skill, execution_result=execution_result,
+                outcome=outcome, retry_count=retry_count,
+                format_retry_count=format_retry_count,
+                total_llm_stats=total_llm_stats,
+                all_validation_history=all_validation_history,
+            )
 
         return SkillBrokerResult(
             outcome=outcome,
@@ -570,6 +541,58 @@ class SkillBrokerEngine:
                 prompt = self.model_adapter.format_retry_prompt(prompt, [str(e)])
 
         return skill_proposal, raw_output, format_retry_count, total_llm_stats
+
+    def _write_audit_trace(
+        self, *, agent_type: str, context: Dict, run_id: str,
+        step_id: str, timestamp: str, env_context: Optional[Dict],
+        seed: Any, agent_id: str, all_valid: bool, prompt: str,
+        raw_output: str, context_hash: str, memory_pre: list,
+        memory_post: list, skill_proposal, approved_skill,
+        execution_result, outcome: SkillOutcome, retry_count: int,
+        format_retry_count: int, total_llm_stats: Dict,
+        all_validation_history: List,
+    ) -> None:
+        """Write full audit trace to audit_writer."""
+        # Robust agent_type extraction (Tiered or Flat)
+        agent_type_final = agent_type
+        if "personal" in context and isinstance(context["personal"], dict):
+            agent_type_final = context["personal"].get("agent_type", agent_type_final)
+        elif "agent_type" in context:
+            agent_type_final = context.get("agent_type", agent_type_final)
+
+        # Extract audit priority fields from config
+        log_fields = self.config.get_log_fields(agent_type_final)
+        audit_priority = [f"reason_{f.lower()}" for f in log_fields]
+
+        self.audit_writer.write_trace(agent_type_final, {
+            "run_id": run_id,
+            "step_id": step_id,
+            "timestamp": timestamp,
+            "year": env_context.get("current_year") if env_context else None,
+            "seed": seed,
+            "agent_id": agent_id,
+            "validated": all_valid,
+            "_audit_priority": audit_priority,
+            "input": prompt,
+            "raw_output": raw_output,
+            "context_hash": context_hash,
+            "memory_pre": memory_pre,
+            "memory_post": memory_post,
+            "environment_context": env_context or {},
+            "state_before": context.get("state", {}),
+            "state_after": self._merge_state_after(context.get("state", {}), execution_result),
+            "skill_proposal": skill_proposal.to_dict() if skill_proposal else None,
+            "approved_skill": {
+                "skill_name": approved_skill.skill_name,
+                "status": approved_skill.approval_status,
+                "mapping": approved_skill.execution_mapping,
+            } if approved_skill else None,
+            "execution_result": execution_result.__dict__ if execution_result else None,
+            "outcome": outcome.value,
+            "retry_count": retry_count,
+            "format_retries": format_retry_count,
+            "llm_stats": total_llm_stats,
+        }, all_validation_history)
 
     def _get_action_ids(self, agent_type: str) -> List[str]:
         base_type = self.config.get_base_type(agent_type) if hasattr(self.config, "get_base_type") else agent_type
