@@ -4,16 +4,14 @@ LLM-driven reproduction of the Colorado River Basin irrigation ABM from Hung & Y
 
 ## Dual-Appraisal Framework (WSA / ACA)
 
-Irrigation agents use a **dual-appraisal** framework — **not** Protection Motivation Theory (PMT). While structurally similar to PMT's threat/coping dimensions, the irrigation framework differs in three key ways:
+Irrigation agents use a **dual-appraisal** framework adapted from the FQL behavioral model in Hung & Yang (2021). Each year, agents assess two independent dimensions before choosing an action:
 
-| Dimension | PMT (Flood Domain) | Dual-Appraisal (Irrigation Domain) |
-|-----------|--------------------|------------------------------------|
-| **Threat construct** | Threat Appraisal (TP) — perceived severity × vulnerability of discrete flood event | Water Scarcity Assessment (WSA) — chronic, season-level water supply threat |
-| **Coping construct** | Coping Appraisal (CP) — threat-specific response efficacy × self-efficacy - cost | Adaptive Capacity Assessment (ACA) — general seasonal ability to adapt practices |
-| **Interaction** | Multiplicative: PM = TA × CA (PMT prediction) | Independent: WSA and ACA assessed separately, rules may condition on one or both |
-| **Decision type** | One-time protective action (elevate, insure, relocate) | Annual demand adjustment (continuous optimization) |
+| Dimension | Construct | Description |
+|-----------|-----------|-------------|
+| **Threat** | Water Scarcity Assessment (WSA) | Chronic, season-level water supply threat based on drought index, curtailment, and shortage tier |
+| **Capacity** | Adaptive Capacity Assessment (ACA) | General seasonal ability to adapt practices based on farm resources and technology status |
 
-**Why not PMT?** PMT was designed for acute, binary health threats (Rogers, 1975). Irrigation demand management is a chronic, continuous optimization problem where agents face multi-year drought trends, institutional constraints (water rights, compacts), and strategic investment decisions (efficiency adoption). The dual-appraisal framework is adapted from the FQL behavioral model in Hung & Yang (2021), preserving the threat/capacity structure while removing PMT-specific assumptions.
+The two dimensions are assessed **independently** — governance rules may condition on one or both, but there is no multiplicative interaction. This reflects the continuous, multi-year nature of irrigation demand management (unlike acute, binary threat domains).
 
 **Rating scale**: Both WSA and ACA use a 5-level ordinal scale: VL (Very Low), L (Low), M (Medium), H (High), VH (Very High).
 
@@ -53,9 +51,9 @@ Three k-means clusters from Hung & Yang (2021) Section 4.1, mapped from FQL para
 | Skill | Description | Constraints |
 |-------|-------------|-------------|
 | `increase_demand` | Request more water allocation | Blocked at allocation cap |
-| `decrease_demand` | Request less allocation | Always available |
+| `decrease_demand` | Request less allocation | Blocked at minimum utilisation floor |
 | `adopt_efficiency` | Invest in drip/precision irrigation | One-time only |
-| `reduce_acreage` | Fallow farmland to lower requirement | Always available |
+| `reduce_acreage` | Fallow farmland to lower requirement | Blocked at minimum utilisation floor |
 | `maintain_demand` | No change to practices | Default action |
 
 ## Governance Rules — Three Rule Types
@@ -69,6 +67,7 @@ Identity rules enforce **physical impossibilities** — actions that violate con
 |---------|-------------|---------------|-----------|
 | `water_right_cap` | `at_allocation_cap` | `increase_demand` | Cannot request water beyond legal right allocation |
 | `already_efficient` | `has_efficient_system` | `adopt_efficiency` | Cannot adopt technology already in use |
+| `minimum_utilisation_floor` | `below_minimum_utilisation` | `decrease_demand`, `reduce_acreage` | Cannot reduce demand below 10% of water right (economic hallucination guard) |
 
 Identity rules use **state-based preconditions** (boolean flags from the simulation engine). They fire regardless of the agent's appraisal — even if the LLM "wants" to increase demand, physical law prevents exceeding the water right.
 
@@ -82,7 +81,7 @@ Thinking rules enforce **appraisal-consistent behavior** — ensuring that the a
 | `low_threat_no_increase` | WSA | WSA ∈ {VL, L} | `increase_demand` | ERROR | If water is abundant, requesting more allocation is unjustified |
 | `high_threat_high_cope_no_increase` | WSA + ACA | WSA ∈ {H, VH} AND ACA ∈ {H, VH} | `increase_demand` | WARNING | High threat + high capacity → should conserve, not consume more |
 
-Thinking rules differ from PMT's multiplicative prediction (PM = TA × CA). Instead, they enforce **independent consistency checks**: each appraisal dimension independently constrains the action space. Rule R4 is the only rule that conditions on both WSA and ACA jointly, and it issues a WARNING (not ERROR), allowing the agent to override if its reasoning is compelling.
+Thinking rules enforce **independent consistency checks**: each appraisal dimension independently constrains the action space. Rule R4 is the only rule that conditions on both WSA and ACA jointly, and it issues a WARNING (not ERROR), allowing the agent to override if its reasoning is compelling.
 
 ### Semantic Rules (Grounding Validation)
 Semantic rules validate that the agent's **reasoning content** is grounded in simulation reality. The SAGE framework includes a `SemanticGroundingValidator` (`broker/validators/governance/semantic_validator.py`) that checks for:
@@ -132,6 +131,20 @@ irrigation_abm/
   learning/
     fql.py                   # Reference FQL algorithm (not used by LLM runner)
 ```
+
+## Economic Hallucination
+
+v4 experiments revealed a novel LLM failure mode: **economic hallucination** — actions that are physically feasible but operationally absurd given quantitative context.
+
+Forward-looking conservative (FLC) agents repeatedly chose `reduce_acreage` (demand *= 0.75) despite their context showing 0% utilisation. Persona anchoring ("cautious farmer") overwhelmed numerical awareness, compounding demand to zero over ~30 years.
+
+**Three-layer defense (v6)**:
+1. **MIN_UTIL floor (P0)**: `execute_skill` enforces `max(new_request, water_right * 0.10)` across all reduction skills
+2. **Diminishing returns (P1)**: Taper = `(utilisation - 0.10) / 0.90` — reductions shrink smoothly as utilisation approaches 10%
+3. **Governance identity rule**: `minimum_utilisation_floor` precondition blocks `decrease_demand`/`reduce_acreage` when `below_minimum_utilisation == True`
+4. **Builtin validator**: `minimum_utilisation_check()` in `irrigation_validators.py` as final safety net
+
+This extends the hallucination taxonomy beyond physical impossibility (flood domain: re-elevating an already-elevated house) to economic/operational absurdity. The same governance architecture catches both failure modes.
 
 ## Reference
 
