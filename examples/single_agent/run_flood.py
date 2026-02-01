@@ -374,26 +374,44 @@ class FinalParityHook:
     def post_step(self, agent, result):
         year = self.sim.current_year
         skill_name = None
+        proposed_skill = None
         appraisals = {}
-        
-        if result and result.skill_proposal and result.skill_proposal.reasoning:
-            reasoning = result.skill_proposal.reasoning
-            # Extract appraisals following config-driven logic or common variants
-            for key in ["TP_LABEL", "threat_appraisal", "THREAT_APPRAISAL_LABEL", "threat"]:
-                if key in reasoning:
-                    appraisals["threat_appraisal"] = reasoning[key]
-                    break
-            for key in ["CP_LABEL", "coping_appraisal", "COPING_APPRAISAL_LABEL", "coping"]:
-                if key in reasoning:
-                    appraisals["coping_appraisal"] = reasoning[key]
-                    break
-        
+        failed_rules = []
+        hallucination_types = []
+
+        if result and result.skill_proposal:
+            proposed_skill = result.skill_proposal.skill_name
+            if result.skill_proposal.reasoning:
+                reasoning = result.skill_proposal.reasoning
+                # Extract appraisals following config-driven logic or common variants
+                for key in ["TP_LABEL", "threat_appraisal", "THREAT_APPRAISAL_LABEL", "threat"]:
+                    if key in reasoning:
+                        appraisals["threat_appraisal"] = reasoning[key]
+                        break
+                for key in ["CP_LABEL", "coping_appraisal", "COPING_APPRAISAL_LABEL", "coping"]:
+                    if key in reasoning:
+                        appraisals["coping_appraisal"] = reasoning[key]
+                        break
+
         if result and result.approved_skill:
             skill_name = result.approved_skill.skill_name
-            
+            # Extract failed rules and hallucination types from validation results
+            for vr in getattr(result.approved_skill, 'validation_results', []):
+                if not vr.valid:
+                    rule_id = vr.metadata.get("rule_id", "unknown")
+                    failed_rules.append(rule_id)
+                    ht = vr.metadata.get("hallucination_type")
+                    if ht:
+                        hallucination_types.append(ht)
+
         self.yearly_decisions[(agent.id, year)] = {
             "skill": skill_name,
-            "appraisals": appraisals
+            "proposed_skill": proposed_skill,
+            "appraisals": appraisals,
+            "governance_intervention": proposed_skill != skill_name if proposed_skill and skill_name else False,
+            "failed_rules": failed_rules,
+            "hallucination_types": hallucination_types,
+            "retry_count": getattr(result, 'retry_count', 0) if result else 0,
         }
         
         # Apply state_changes using canonical BaseAgent method
@@ -440,9 +458,19 @@ class FinalParityHook:
             if isinstance(decision_data, dict):
                 yearly_decision = decision_data.get("skill")
                 appraisals = decision_data.get("appraisals", {})
+                proposed_skill = decision_data.get("proposed_skill")
+                governance_intervention = decision_data.get("governance_intervention", False)
+                failed_rules = decision_data.get("failed_rules", [])
+                hallucination_types = decision_data.get("hallucination_types", [])
+                retry_count = decision_data.get("retry_count", 0)
             else:
                 yearly_decision = decision_data
                 appraisals = {}
+                proposed_skill = None
+                governance_intervention = False
+                failed_rules = []
+                hallucination_types = []
+                retry_count = 0
 
             if yearly_decision is None and getattr(agent, "relocated", False):
                 yearly_decision = "relocated"
@@ -450,6 +478,11 @@ class FinalParityHook:
             self.logs.append({
                 "agent_id": agent.id, "year": year, "cumulative_state": classify_adaptation_state(agent),
                 "yearly_decision": yearly_decision if yearly_decision else "N/A",
+                "proposed_skill": proposed_skill if proposed_skill else "N/A",
+                "governance_intervention": governance_intervention,
+                "failed_rules": "|".join(failed_rules) if failed_rules else "",
+                "hallucination_types": "|".join(hallucination_types) if hallucination_types else "",
+                "retry_count": retry_count,
                 "threat_appraisal": appraisals.get("threat_appraisal", "N/A"),
                 "coping_appraisal": appraisals.get("coping_appraisal", "N/A"),
                 "elevated": getattr(agent, 'elevated', False), "has_insurance": getattr(agent, 'has_insurance', False),
