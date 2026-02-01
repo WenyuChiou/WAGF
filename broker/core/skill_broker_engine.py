@@ -631,22 +631,48 @@ class SkillBrokerEngine:
     def _run_validators(self, proposal: SkillProposal, context: Dict) -> List[ValidationResult]:
         """Run all validators on the skill proposal."""
         results = []
-        # print(f"DEBUG: _run_validators: Running {len(self.validators)} standard validators and {len(self.custom_validators)} custom validators.")
         for validator in self.validators:
             result = validator.validate(proposal, context, self.skill_registry)
             if isinstance(result, list):
                 results.extend(result)
             else:
                 results.append(result)
-        
+
         # Run custom validators
         for custom_validator_func in self.custom_validators:
             custom_results = custom_validator_func(proposal, context, self.skill_registry)
             if isinstance(custom_results, list):
                 results.extend(custom_results)
-            else: # Assume single ValidationResult if not list
+            else:
                 results.append(custom_results)
-        
+
+        # Registry-level: validate LLM output against skill's output_schema
+        if (proposal and proposal.skill_name and self.skill_registry
+                and self.skill_registry.exists(proposal.skill_name)):
+            output_fields = {}
+            if proposal.magnitude_pct is not None:
+                output_fields["magnitude_pct"] = proposal.magnitude_pct
+            # Reverse-lookup: find which numbered option maps to this skill_name
+            # so the 'decision' field expected by output_schema is populated.
+            agent_ctx = context.get("agent_state", {})
+            personal = agent_ctx.get("personal", {}) if isinstance(agent_ctx, dict) else {}
+            skill_map = personal.get("dynamic_skill_map", {})
+            for num_str, sid in skill_map.items():
+                if sid == proposal.skill_name:
+                    try:
+                        output_fields["decision"] = int(num_str)
+                    except (ValueError, TypeError):
+                        output_fields["decision"] = num_str
+                    break
+            schema_result = self.skill_registry.validate_output_schema(
+                proposal.skill_name, output_fields
+            )
+            if schema_result:
+                if not schema_result.valid:
+                    schema_result.metadata["rules_hit"] = ["output_schema_violation"]
+                    logger.debug(f"[OutputSchema] {proposal.skill_name}: {schema_result.errors}")
+                results.append(schema_result)
+
         return results
 
     def _merge_state_after(self, state_before: Dict[str, Any], execution_result: Optional[ExecutionResult]) -> Dict[str, Any]:
