@@ -218,12 +218,28 @@ class PMTFramework(PsychologicalFramework):
 
     Key coherence rules:
     - High TP + High CP should not result in do_nothing
-    - Low TP should not justify extreme actions (relocate, elevate)
+    - Low TP should not justify extreme actions
     - VH TP requires protective action
 
     Optional constructs:
     - Stakeholder Perception (SP): Trust in external actors
+
+    Domain-specific skill names (extreme_actions, complex_actions,
+    expected_skill_map) are configurable via constructor. Defaults
+    are flood-domain for backward compatibility.
     """
+
+    def __init__(
+        self,
+        extreme_actions: Optional[set] = None,
+        complex_actions: Optional[set] = None,
+    ):
+        self._extreme_actions = extreme_actions or {
+            "relocate", "elevate_house", "buyout_program"
+        }
+        self._complex_actions = complex_actions or {
+            "elevate_house", "relocate", "buyout_program"
+        }
 
     @property
     def name(self) -> str:
@@ -236,13 +252,13 @@ class PMTFramework(PsychologicalFramework):
                 name="Threat Perception",
                 values=["VL", "L", "M", "H", "VH"],
                 required=True,
-                description="Perceived threat level from flood risk"
+                description="Perceived severity and vulnerability to threat"
             ),
             "CP_LABEL": ConstructDef(
                 name="Coping Perception",
                 values=["VL", "L", "M", "H", "VH"],
                 required=True,
-                description="Perceived ability to cope with flood risk"
+                description="Perceived ability to cope with threat"
             ),
             "SP_LABEL": ConstructDef(
                 name="Stakeholder Perception",
@@ -345,15 +361,13 @@ class PMTFramework(PsychologicalFramework):
 
         # Rule 3: Low TP should not justify extreme measures
         if tp in ("VL", "L"):
-            extreme_actions = {"relocate", "elevate_house", "buyout_program"}
-            if proposed_skill in extreme_actions:
+            if proposed_skill in self._extreme_actions:
                 errors.append(f"Low threat ({tp}) does not justify extreme measure: {proposed_skill}")
                 violations.append("low_tp_blocks_extreme_action")
 
         # Rule 4: Low CP limits complex actions
         if cp == "VL":
-            complex_actions = {"elevate_house", "relocate", "buyout_program"}
-            if proposed_skill in complex_actions:
+            if proposed_skill in self._complex_actions:
                 warnings.append(f"Very low coping may limit ability to execute: {proposed_skill}")
 
         return ValidationResult(
@@ -432,7 +446,7 @@ class PMTFramework(PsychologicalFramework):
 
         # Low TP blocks extreme measures
         if tp in ("VL", "L"):
-            blocked.extend(["relocate", "elevate_house"])
+            blocked.extend(self._extreme_actions)
 
         return list(set(blocked))  # Remove duplicates
 
