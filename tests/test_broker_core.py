@@ -363,5 +363,145 @@ class TestOutputSchemaValidation:
         assert isinstance(results, list)
 
 
+class TestPreconditionValidation:
+    """Test that check_preconditions is called in _run_validators."""
+
+    @pytest.fixture
+    def broker_with_preconditions(self):
+        """Create broker with skills that have preconditions."""
+        from broker.interfaces.skill_types import SkillDefinition
+        registry = SkillRegistry()
+        registry.register(SkillDefinition(
+            skill_id="elevate_house",
+            description="Raise foundation",
+            eligible_agent_types=["*"],
+            preconditions=["not elevated"],
+            institutional_constraints={},
+            allowed_state_changes=["elevated"],
+            implementation_mapping="sim.elevate",
+        ))
+        registry.register(SkillDefinition(
+            skill_id="adopt_efficiency",
+            description="Invest in efficient irrigation",
+            eligible_agent_types=["*"],
+            preconditions=["not has_efficient_system"],
+            institutional_constraints={},
+            allowed_state_changes=["has_efficient_system"],
+            implementation_mapping="env.execute_skill",
+        ))
+        registry.register(SkillDefinition(
+            skill_id="do_nothing",
+            description="Default",
+            eligible_agent_types=["*"],
+            preconditions=[],
+            institutional_constraints={},
+            allowed_state_changes=[],
+            implementation_mapping="do_nothing",
+        ))
+
+        mock_config = MagicMock()
+        mock_config.get_log_fields.return_value = []
+
+        return SkillBrokerEngine(
+            skill_registry=registry,
+            model_adapter=MagicMock(),
+            validators=[],
+            simulation_engine=MockSimulationEngine(),
+            context_builder=MockContextBuilder(),
+            config=mock_config,
+            max_retries=0,
+        )
+
+    def test_violated_precondition_blocks_skill(self, broker_with_preconditions):
+        """'not elevated' precondition fails when elevated=True."""
+        from broker.interfaces.skill_types import SkillProposal
+        proposal = SkillProposal(
+            skill_name="elevate_house",
+            agent_id="test",
+            reasoning={},
+        )
+        context = {
+            "agent_state": {"state": {"elevated": True}, "personal": {}},
+        }
+        results = broker_with_preconditions._run_validators(proposal, context)
+        precond = [r for r in results if r.validator_name == "SkillRegistry.preconditions"]
+        assert len(precond) == 1
+        assert not precond[0].valid
+        assert any("elevated" in e for e in precond[0].errors)
+
+    def test_satisfied_precondition_passes(self, broker_with_preconditions):
+        """'not elevated' precondition passes when elevated=False."""
+        from broker.interfaces.skill_types import SkillProposal
+        proposal = SkillProposal(
+            skill_name="elevate_house",
+            agent_id="test",
+            reasoning={},
+        )
+        context = {
+            "agent_state": {"state": {"elevated": False}, "personal": {}},
+        }
+        results = broker_with_preconditions._run_validators(proposal, context)
+        precond = [r for r in results if r.validator_name == "SkillRegistry.preconditions"]
+        assert len(precond) == 1
+        assert precond[0].valid
+
+    def test_no_preconditions_passes(self, broker_with_preconditions):
+        """Skill with empty preconditions → valid=True."""
+        from broker.interfaces.skill_types import SkillProposal
+        proposal = SkillProposal(
+            skill_name="do_nothing",
+            agent_id="test",
+            reasoning={},
+        )
+        context = {"agent_state": {"state": {}, "personal": {}}}
+        results = broker_with_preconditions._run_validators(proposal, context)
+        precond = [r for r in results if r.validator_name == "SkillRegistry.preconditions"]
+        assert len(precond) == 1
+        assert precond[0].valid
+
+    def test_irrigation_precondition_at_allocation_cap(self, broker_with_preconditions):
+        """'not at_allocation_cap' blocks increase when at cap."""
+        from broker.interfaces.skill_types import SkillProposal
+        # Register irrigation skill inline
+        from broker.interfaces.skill_types import SkillDefinition
+        broker_with_preconditions.skill_registry.register(SkillDefinition(
+            skill_id="increase_demand",
+            description="Request more water",
+            eligible_agent_types=["*"],
+            preconditions=["not at_allocation_cap"],
+            institutional_constraints={},
+            allowed_state_changes=["request"],
+            implementation_mapping="env.execute_skill",
+        ))
+        proposal = SkillProposal(
+            skill_name="increase_demand",
+            agent_id="test",
+            reasoning={},
+        )
+        context = {
+            "agent_state": {"state": {"at_allocation_cap": True}, "personal": {}},
+        }
+        results = broker_with_preconditions._run_validators(proposal, context)
+        precond = [r for r in results if r.validator_name == "SkillRegistry.preconditions"]
+        assert len(precond) == 1
+        assert not precond[0].valid
+
+    def test_missing_state_field_defaults_false(self, broker_with_preconditions):
+        """Missing state field defaults to False → 'not elevated' passes."""
+        from broker.interfaces.skill_types import SkillProposal
+        proposal = SkillProposal(
+            skill_name="elevate_house",
+            agent_id="test",
+            reasoning={},
+        )
+        context = {
+            "agent_state": {"state": {}, "personal": {}},  # No 'elevated' key
+        }
+        results = broker_with_preconditions._run_validators(proposal, context)
+        precond = [r for r in results if r.validator_name == "SkillRegistry.preconditions"]
+        assert len(precond) == 1
+        assert precond[0].valid  # 'not elevated': elevated defaults to False → passes
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

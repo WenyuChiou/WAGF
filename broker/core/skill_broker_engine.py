@@ -673,6 +673,20 @@ class SkillBrokerEngine:
                     logger.debug(f"[OutputSchema] {proposal.skill_name}: {schema_result.errors}")
                 results.append(schema_result)
 
+        # Registry-level: check YAML preconditions against agent state
+        if (proposal and proposal.skill_name and self.skill_registry
+                and self.skill_registry.exists(proposal.skill_name)):
+            agent_ctx = context.get("agent_state", {})
+            state = agent_ctx.get("state", {}) if isinstance(agent_ctx, dict) else {}
+            precond_result = self.skill_registry.check_preconditions(
+                proposal.skill_name, state
+            )
+            if precond_result:
+                if not precond_result.valid:
+                    precond_result.metadata["rules_hit"] = ["precondition_violation"]
+                    logger.debug(f"[Precondition] {proposal.skill_name}: {precond_result.errors}")
+                results.append(precond_result)
+
         return results
 
     def _merge_state_after(self, state_before: Dict[str, Any], execution_result: Optional[ExecutionResult]) -> Dict[str, Any]:
