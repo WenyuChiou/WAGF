@@ -1,22 +1,50 @@
 """
-Figure 4: SAGE-Governed Demand vs CRSS Baseline (Hung & Yang 2021 style)
+Figure 4: SAGE-Governed Demand vs CRSS Baseline (WRR Technical Note)
+================================================================
 Panel (a): Upper Basin aggregate demand
 Panel (b): Lower Basin aggregate demand
 Panel (c): Demand by behavioral cluster (% of initial)
+
+Data: production_4b_42yr_v6 (P0+P1 economic hallucination fix)
+CRSS reference: ref/CRSS_DB/CRSS_DB/
+
+AGU/WRR: 300 DPI, serif, Okabe-Ito palette, 7.0 x 8.5 inches
 """
-import pathlib, pandas as pd, numpy as np, matplotlib.pyplot as plt, re
+import pathlib, sys, re
+import matplotlib
+matplotlib.use("Agg")
+import pandas as pd, numpy as np, matplotlib.pyplot as plt
 
 ROOT = pathlib.Path(__file__).resolve().parents[4]
 CRSS_DIR = ROOT / "ref" / "CRSS_DB" / "CRSS_DB"
 WG_DIR = CRSS_DIR / "Within_Group_Div"
 LB_DIR = CRSS_DIR / "LB_Baseline_DB"
 
-# --- Pick best available simulation log ---
-V5_LOG = ROOT / "examples" / "irrigation_abm" / "results" / "v5_rebalanced" / "simulation_log.csv"
-V4_LOG = ROOT / "examples" / "irrigation_abm" / "results" / "production_4b_42yr_v4" / "simulation_log.csv"
-SIM_LOG = V5_LOG if V5_LOG.exists() else V4_LOG
+# --- v6 simulation log (P0+P1 fix) ---
+SIM_LOG = ROOT / "examples" / "irrigation_abm" / "results" / "production_4b_42yr_v6" / "simulation_log.csv"
+if not SIM_LOG.exists():
+    print(f"ERROR: {SIM_LOG} not found. Run v6 production first.")
+    sys.exit(1)
 
 YEAR_OFFSET = 2018  # simulation year 1 = calendar year 2019
+
+# ── WRR Style ──
+plt.rcParams.update({
+    "font.family": "serif",
+    "font.serif": ["Times New Roman", "DejaVu Serif"],
+    "font.size": 9,
+    "axes.labelsize": 10,
+    "axes.titlesize": 10,
+    "legend.fontsize": 8,
+    "xtick.labelsize": 8,
+    "ytick.labelsize": 8,
+    "figure.dpi": 300,
+    "savefig.dpi": 300,
+    "savefig.bbox": "tight",
+    "axes.linewidth": 0.6,
+    "xtick.major.width": 0.5,
+    "ytick.major.width": 0.5,
+})
 
 # ── 1. Load CRSS Upper Basin baseline (Annual_*_Div_req.csv) ──
 STATE_GROUPS = ["AZ", "CO1", "CO2", "CO3", "NM", "UT1", "UT2", "UT3", "WY"]
@@ -188,80 +216,101 @@ for cluster in sim["cluster"].unique():
 
 cluster_df = pd.DataFrame(cluster_data)
 
-# ── 6. Plot ──
+# ── 6. Plot (WRR: Okabe-Ito, serif, 300 DPI) ──
+# Okabe-Ito palette
+C_AGG = "#D55E00"   # vermillion (aggressive)
+C_FLC = "#0072B2"   # blue (forward-looking conservative)
+C_MYO = "#009E73"   # teal (myopic conservative)
+C_CRSS = "#555555"  # dark gray (CRSS baseline)
+C_SAGE = "#0072B2"  # blue (SAGE governed)
+
 CLUSTER_LABELS = {
-    "aggressive": "Aggressive",
-    "forward_looking_conservative": "Forward-Looking\nConservative",
-    "myopic_conservative": "Myopic\nConservative",
+    "aggressive": "Aggressive (n=67)",
+    "forward_looking_conservative": "FLC (n=5)",
+    "myopic_conservative": "Myopic (n=6)",
 }
 CLUSTER_COLORS = {
-    "aggressive": "#d62728",
-    "forward_looking_conservative": "#1f77b4",
-    "myopic_conservative": "#2ca02c",
+    "aggressive": C_AGG,
+    "forward_looking_conservative": C_FLC,
+    "myopic_conservative": C_MYO,
+}
+CLUSTER_MARKERS = {
+    "aggressive": "o",
+    "forward_looking_conservative": "s",
+    "myopic_conservative": "^",
 }
 
-fig, axes = plt.subplots(3, 1, figsize=(8, 10), dpi=150)
-fig.subplots_adjust(hspace=0.35)
+fig, axes = plt.subplots(3, 1, figsize=(7.0, 8.5), constrained_layout=True)
 
 # Panel (a): Upper Basin
 ax = axes[0]
 if not ub_compare.empty:
     ax.plot(ub_compare["calendar_year"], ub_compare["crss_demand"] / 1e6,
-            color="#1a3a5c", linewidth=2.2, label="CRSS Baseline", zorder=3)
+            color=C_CRSS, lw=1.8, ls="--", label="CRSS Baseline", zorder=3)
     ax.plot(ub_compare["calendar_year"], ub_compare["sage_demand"] / 1e6,
-            color="#2196F3", linewidth=2.2, label="SAGE Governed", zorder=3)
+            color=C_SAGE, lw=1.8, label="SAGE Governed (v6)", zorder=3)
     ax.fill_between(ub_compare["calendar_year"],
                     ub_compare["crss_demand"] / 1e6,
                     ub_compare["sage_demand"] / 1e6,
-                    alpha=0.15, color="#2196F3")
-ax.set_ylabel("Demand (million acre-ft/yr)", fontsize=10)
-ax.set_title("(a) Upper Basin Aggregate Demand", fontsize=11, fontweight="bold", loc="left")
-ax.legend(fontsize=9, framealpha=0.9)
-ax.grid(True, alpha=0.3)
+                    alpha=0.10, color=C_SAGE)
+ax.set_ylabel("Demand (million AF/yr)")
+ax.set_title("(a) Upper Basin Aggregate Demand", fontweight="bold", loc="left", fontsize=9)
+ax.legend(framealpha=0.9, edgecolor="none")
+ax.grid(True, alpha=0.2)
 ax.set_xlim(2019, 2019 + max_years - 1)
 
 # Panel (b): Lower Basin
 ax = axes[1]
 if not lb_compare.empty:
     ax.plot(lb_compare["calendar_year"], lb_compare["crss_demand"] / 1e6,
-            color="#1a3a5c", linewidth=2.2, label="CRSS Baseline", zorder=3)
+            color=C_CRSS, lw=1.8, ls="--", label="CRSS Baseline", zorder=3)
     ax.plot(lb_compare["calendar_year"], lb_compare["sage_demand"] / 1e6,
-            color="#2196F3", linewidth=2.2, label="SAGE Governed", zorder=3)
+            color=C_SAGE, lw=1.8, label="SAGE Governed (v6)", zorder=3)
     ax.fill_between(lb_compare["calendar_year"],
                     lb_compare["crss_demand"] / 1e6,
                     lb_compare["sage_demand"] / 1e6,
-                    alpha=0.15, color="#2196F3")
-ax.set_ylabel("Demand (million acre-ft/yr)", fontsize=10)
-ax.set_title("(b) Lower Basin Aggregate Demand", fontsize=11, fontweight="bold", loc="left")
-ax.legend(fontsize=9, framealpha=0.9)
-ax.grid(True, alpha=0.3)
+                    alpha=0.10, color=C_SAGE)
+ax.set_ylabel("Demand (million AF/yr)")
+ax.set_title("(b) Lower Basin Aggregate Demand", fontweight="bold", loc="left", fontsize=9)
+ax.legend(framealpha=0.9, edgecolor="none")
+ax.grid(True, alpha=0.2)
 ax.set_xlim(2019, 2019 + max_years - 1)
 
 # Panel (c): Cluster trajectories
 ax = axes[2]
-ax.axhline(100, color="gray", linestyle="--", linewidth=1.2, label="CRSS Baseline (100%)", zorder=1)
+ax.axhline(100, color="gray", ls="--", lw=0.8, alpha=0.5, label="Initial allocation (100%)", zorder=1)
+
+# 10% floor line
+ax.axhline(10, color=C_FLC, ls=":", lw=0.8, alpha=0.6, label="MIN_UTIL floor (10%)", zorder=1)
+
 for cluster in ["aggressive", "forward_looking_conservative", "myopic_conservative"]:
     cdf = cluster_df[cluster_df["cluster"] == cluster]
     if cdf.empty:
         continue
     label = CLUSTER_LABELS.get(cluster, cluster)
     color = CLUSTER_COLORS.get(cluster, "gray")
-    ax.plot(cdf["calendar_year"], cdf["pct_mean"], color=color, linewidth=2, label=label, zorder=3)
+    mkr = CLUSTER_MARKERS.get(cluster, "o")
+    ax.plot(cdf["calendar_year"], cdf["pct_mean"], color=color, lw=1.8,
+            marker=mkr, ms=3, markevery=3, label=label, zorder=3)
     ax.fill_between(cdf["calendar_year"],
                     cdf["pct_mean"] - cdf["pct_std"],
                     cdf["pct_mean"] + cdf["pct_std"],
-                    alpha=0.12, color=color)
-ax.set_ylabel("Demand (% of initial allocation)", fontsize=10)
-ax.set_xlabel("Year", fontsize=10)
-ax.set_title("(c) Demand by Behavioral Cluster", fontsize=11, fontweight="bold", loc="left")
-ax.legend(fontsize=8, framealpha=0.9, ncol=2)
-ax.grid(True, alpha=0.3)
+                    alpha=0.10, color=color)
+
+ax.set_ylabel("Demand (% of initial allocation)")
+ax.set_xlabel("Calendar Year")
+ax.set_title("(c) Demand by Behavioral Cluster", fontweight="bold", loc="left", fontsize=9)
+ax.legend(framealpha=0.9, edgecolor="none", ncol=2, fontsize=7)
+ax.grid(True, alpha=0.2)
 ax.set_xlim(2019, 2019 + max_years - 1)
+ax.set_ylim(-5, 130)
 
 out_dir = pathlib.Path(__file__).parent
-fig.savefig(out_dir / "fig4_crss_comparison.png", bbox_inches="tight", dpi=200)
+fig.savefig(out_dir / "fig4_crss_comparison.png")
+fig.savefig(out_dir / "fig4_crss_comparison.pdf")
 plt.close()
 print(f"\nSaved: {out_dir / 'fig4_crss_comparison.png'}")
+print(f"Saved: {out_dir / 'fig4_crss_comparison.pdf'}")
 
 # Summary statistics
 if not ub_compare.empty:
@@ -270,3 +319,12 @@ if not ub_compare.empty:
 if not lb_compare.empty:
     lb_delta = (lb_compare["sage_demand"].sum() - lb_compare["crss_demand"].sum()) / lb_compare["crss_demand"].sum() * 100
     print(f"LB total demand delta: {lb_delta:+.1f}% (SAGE vs CRSS)")
+
+# Cluster final values
+print("\n--- Cluster Demand at Year 42 (% of initial) ---")
+for cluster in ["aggressive", "forward_looking_conservative", "myopic_conservative"]:
+    cdf = cluster_df[cluster_df["cluster"] == cluster]
+    if not cdf.empty:
+        final = cdf[cdf["year"] == max_years]
+        if not final.empty:
+            print(f"  {cluster}: {final['pct_mean'].values[0]:.1f}% +/- {final['pct_std'].values[0]:.1f}%")
