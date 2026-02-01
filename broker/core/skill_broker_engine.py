@@ -355,74 +355,12 @@ class SkillBrokerEngine:
 
         
         # ④ Create ApprovedSkill or use fallback
-        # Build parameters dict from SkillProposal magnitude
-        # Only include magnitude fields when magnitude_pct was actually provided
-        _params = {}
-        if skill_proposal and skill_proposal.magnitude_pct is not None:
-            _params["magnitude_pct"] = skill_proposal.magnitude_pct
-            _params["magnitude_fallback"] = skill_proposal.magnitude_fallback
-
-        if all_valid:
-            approved_skill = ApprovedSkill(
-                skill_name=skill_proposal.skill_name,
-                agent_id=agent_id,
-                approval_status="APPROVED",
-                validation_results=validation_results,
-                execution_mapping=self.skill_registry.get_execution_mapping(skill_proposal.skill_name) or "",
-                parameters=_params,
-            )
-            outcome = SkillOutcome.RETRY_SUCCESS if retry_count > 0 else SkillOutcome.APPROVED
-            if retry_count > 0:
-                self.stats["retry_success"] += 1
-                # Final Success Log with Ratings
-                ratings = []
-                for k, v in skill_proposal.reasoning.items():
-                    if "_LABEL" in k: ratings.append(f"{k}={v}")
-                rating_str = f" | {' | '.join(ratings)}" if ratings else ""
-                logger.warning(f" [Governance:Success] {agent_id} | Fixed after {retry_count} retries | Choice: '{skill_proposal.skill_name}'{rating_str}")
-                
-                # Log final success for initially hit rules
-                for rule_id in initial_rule_ids:
-                    self.auditor.log_intervention(rule_id, success=True, is_final=True)
-            else:
-                self.stats["approved"] += 1
-        else:
-            # RETRY EXHAUSTION: Return the model's desired behavior but with REJECTED status
-            # Soft governance: the action proceeds but is marked REJECTED for audit
-            is_generic_fallback = (skill_proposal is None or skill_proposal.parse_layer == "default")
-
-            # Mark magnitude fallback: retries exhausted, clear LLM magnitude
-            # so execute_skill will use cluster defaults instead
-            if skill_proposal and skill_proposal.magnitude_pct is not None:
-                skill_proposal.magnitude_fallback = True
-                skill_proposal.magnitude_pct = None
-                # Rebuild _params after clearing magnitude
-                _params = {"magnitude_fallback": True}
-            
-            # Re-fetch fallout skill if needed or use local var if I can restructure
-            fallout_skill = skill_proposal.skill_name if not is_generic_fallback else self.config.get_parsing_config(agent_type).get("default_skill", self.skill_registry.get_default_skill())
-            
-            approved_skill = ApprovedSkill(
-                skill_name=fallout_skill,
-                agent_id=agent_id,
-                approval_status="REJECTED" if not is_generic_fallback else "REJECTED_FALLBACK",
-                validation_results=validation_results,
-                execution_mapping=self.skill_registry.get_execution_mapping(fallout_skill) or "",
-                parameters=_params,
-            )
-            outcome = SkillOutcome.REJECTED if not is_generic_fallback else SkillOutcome.UNCERTAIN
-            
-            if is_generic_fallback:
-                logger.error(f" [Governance:Exhausted] {agent_id} | Parsing failed. Forcing fallback: '{fallout_skill}'")
-            else:
-                logger.error(f" [Governance:Exhausted] {agent_id} | Retries failed. Proceeding with REJECTED choice: '{fallout_skill}'")
-
-
-            self.stats["rejected"] += 1
-            # Log final failure for the rules that caused fallout
-            for v in validation_results:
-                for rule_id in v.metadata.get("rules_hit", []):
-                    self.auditor.log_intervention(rule_id, success=False, is_final=True)
+        approved_skill, outcome = self._build_approved_skill(
+            all_valid=all_valid, skill_proposal=skill_proposal,
+            agent_id=agent_id, agent_type=agent_type,
+            retry_count=retry_count, validation_results=validation_results,
+            initial_rule_ids=initial_rule_ids,
+        )
         
         # FINAL STEP SUMMARY (Console)
         if retry_count > 0:
@@ -593,6 +531,84 @@ class SkillBrokerEngine:
             "format_retries": format_retry_count,
             "llm_stats": total_llm_stats,
         }, all_validation_history)
+
+    def _build_approved_skill(
+        self, *, all_valid: bool, skill_proposal, agent_id: str,
+        agent_type: str, retry_count: int, validation_results: List,
+        initial_rule_ids: set,
+    ):
+        """Build ApprovedSkill for both approved and rejected paths.
+
+        Returns (approved_skill, outcome). May mutate skill_proposal on
+        the rejection path (clears magnitude_pct, sets magnitude_fallback).
+        """
+        _params = {}
+        if skill_proposal and skill_proposal.magnitude_pct is not None:
+            _params["magnitude_pct"] = skill_proposal.magnitude_pct
+            _params["magnitude_fallback"] = skill_proposal.magnitude_fallback
+
+        if all_valid:
+            approved_skill = ApprovedSkill(
+                skill_name=skill_proposal.skill_name,
+                agent_id=agent_id,
+                approval_status="APPROVED",
+                validation_results=validation_results,
+                execution_mapping=self.skill_registry.get_execution_mapping(skill_proposal.skill_name) or "",
+                parameters=_params,
+            )
+            outcome = SkillOutcome.RETRY_SUCCESS if retry_count > 0 else SkillOutcome.APPROVED
+            if retry_count > 0:
+                self.stats["retry_success"] += 1
+                ratings = []
+                for k, v in skill_proposal.reasoning.items():
+                    if "_LABEL" in k:
+                        ratings.append(f"{k}={v}")
+                rating_str = f" | {' | '.join(ratings)}" if ratings else ""
+                logger.warning(
+                    f" [Governance:Success] {agent_id} | Fixed after {retry_count} retries"
+                    f" | Choice: '{skill_proposal.skill_name}'{rating_str}"
+                )
+                for rule_id in initial_rule_ids:
+                    self.auditor.log_intervention(rule_id, success=True, is_final=True)
+            else:
+                self.stats["approved"] += 1
+        else:
+            # RETRY EXHAUSTION: proceed with REJECTED status for audit
+            is_generic_fallback = (skill_proposal is None or skill_proposal.parse_layer == "default")
+
+            if skill_proposal and skill_proposal.magnitude_pct is not None:
+                skill_proposal.magnitude_fallback = True
+                skill_proposal.magnitude_pct = None
+                _params = {"magnitude_fallback": True}
+
+            fallout_skill = (
+                skill_proposal.skill_name if not is_generic_fallback
+                else self.config.get_parsing_config(agent_type).get(
+                    "default_skill", self.skill_registry.get_default_skill()
+                )
+            )
+
+            approved_skill = ApprovedSkill(
+                skill_name=fallout_skill,
+                agent_id=agent_id,
+                approval_status="REJECTED" if not is_generic_fallback else "REJECTED_FALLBACK",
+                validation_results=validation_results,
+                execution_mapping=self.skill_registry.get_execution_mapping(fallout_skill) or "",
+                parameters=_params,
+            )
+            outcome = SkillOutcome.REJECTED if not is_generic_fallback else SkillOutcome.UNCERTAIN
+
+            if is_generic_fallback:
+                logger.error(f" [Governance:Exhausted] {agent_id} | Parsing failed. Forcing fallback: '{fallout_skill}'")
+            else:
+                logger.error(f" [Governance:Exhausted] {agent_id} | Retries failed. Proceeding with REJECTED choice: '{fallout_skill}'")
+
+            self.stats["rejected"] += 1
+            for v in validation_results:
+                for rule_id in v.metadata.get("rules_hit", []):
+                    self.auditor.log_intervention(rule_id, success=False, is_final=True)
+
+        return approved_skill, outcome
 
     def _get_action_ids(self, agent_type: str) -> List[str]:
         base_type = self.config.get_base_type(agent_type) if hasattr(self.config, "get_base_type") else agent_type
