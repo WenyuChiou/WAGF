@@ -18,12 +18,12 @@
 
 The **Governed Broker Framework** addresses the fundamental **Logic-Action Gap** in Large Language Model (LLM) agents: while LLMs produce fluent natural-language reasoning, they exhibit stochastic instability, hallucinations, and memory erosion across long-horizon simulations — problems that undermine the scientific validity of LLM-driven agent-based models (ABMs).
 
-This framework provides an architectural **Governance Layer** that validates agent reasoning against physical constraints and behavioral theories (e.g., Protection Motivation Theory) in real time. It is designed for **flood risk adaptation research** and other hydro-social modeling contexts where reproducibility, auditability, and long-horizon consistency are essential.
+This framework provides an architectural **Governance Layer** that validates agent reasoning against physical constraints and behavioral theories (e.g., Protection Motivation Theory, PMT) in real time. It is designed for **flood risk adaptation research** and other hydro-social modeling contexts where reproducibility, auditability, and long-horizon consistency are essential.
 
 **Target domains**: nonstationary flood risk adaptation, irrigation water management, household adaptation behavior, community resilience, water resource policy evaluation.
 
 **Validated case studies**:
-- **Flood Household Adaptation**: 100 PMT-based agents, 10-year simulation with Gemma 3 (4B/12B/27B)
+- **Flood Household Adaptation**: 100 agents using PMT (Protection Motivation Theory), 10-year simulation with Gemma 3 (4B/12B/27B)
 - **Irrigation Water Management**: 78 CRSS agents from the Upper Colorado River Basin
 
 ---
@@ -130,7 +130,7 @@ The framework implements a **Stacking Blocks** architecture. You can build agent
 | :------------ | :------------------- | :---------------- | :--------------------------------------------------------------------------------------------------------- |
 | **Base**      | **Execution Engine** | _The Body_        | Can execute actions but has no memory or rationality.                                                      |
 | **+ Level 1** | **Context Lens**     | _The Eyes_        | Adds bounded perception (Window Memory). Prevents context overflow.                                        |
-| **+ Level 2** | **Memory Engine**    | _The Hippocampus_ | Adds **Universal Cognitive Engine (v3)**. Includes Surprise-driven System 1/2 switching and trauma recall. |
+| **+ Level 2** | **Memory Engine**    | _The Hippocampus_ | Adds **HumanCentric Memory Engine**. Emotional salience encoding (importance = emotion × source) with stochastic consolidation and decay. |
 | **+ Level 3** | **Skill Broker**     | _The Superego_    | Adds **Governance**. Enforces "Thinking Rules" to ensure decisions match beliefs (Rationality).            |
 
 > **Why this matters for research**: This design enables controlled ablation studies. Run a Level 1 Agent (Group A — baseline) vs. Level 3 Agent (Group C — full cognitive) to isolate exactly _which_ cognitive component resolves a specific behavioral bias.
@@ -145,10 +145,12 @@ The memory and governance architecture has evolved through three phases:
 
 - **v1 (Legacy)**: [Availability Heuristic] — Monolithic scripts with basic Window Memory. (Group A/B Baseline).
 - **v2 (Weighted)**: [Context-Dependent Memory] — Modular `SkillBrokerEngine` with **Weighted Retrieval** ($S = W_{rec}R + W_{imp}I + W_{ctx}C$).
-- **v3 (Current)**: [Dual-Process & Active Inference] — **Universal Cognitive Architecture (The Surprise Engine)**.
-  - **Dynamic Switching**: Flips between System 1 (Routine) and System 2 (Rational Focus) based on Prediction Error ($PE$).
-  - **State-Mind Coupling**: Expectation ($E$) and Reality ($R$) drive the arousal loop.
-  - **Explainable Audit**: Provides a full logic trace of "Why the agent remembered/selected this action."
+- **v3 (Current)**: [Emotion-Weighted Memory Architecture] — Introduces multiple memory engines. Production experiments use **HumanCentricMemoryEngine** in basic ranking mode.
+  - **Importance = Emotion × Source**: Keyword-classified emotional weight (critical/major/positive/shift/routine) multiplied by source proximity (personal > neighbor > community > abstract).
+  - **Stochastic Consolidation**: High-importance memories have probabilistic transfer to long-term storage ($P = 0.7$ when importance $> 0.6$).
+  - **Exponential Decay**: $I(t) = I_0 \cdot e^{-\lambda t}$ applied to long-term memories.
+  - **Retrieval (basic ranking mode)**: Recent `window_size` working memories + top-K significant long-term memories ranked by `decayed_importance`. No weighted scoring ($W_{rec}, W_{imp}, W_{ctx}$).
+  - *Note*: A weighted retrieval mode ($S = W_{rec} R + W_{imp} I + W_{ctx} C$) and a more advanced `UnifiedCognitiveEngine` with EMA-based surprise detection and System 1/2 switching exist but are **not used** in the WRR experiments.
 
 **[Deep Dive: Memory Priority & Retrieval Math](docs/modules/memory_components.md)**
 
@@ -322,7 +324,7 @@ We explicitly engineer the prompt context to counteract known LLM limitations:
 ### 2. The Logic-Action Validator & Explainable Feedback Loop
 
 - **Challenge**: The "Logic-Action Gap." Small LLMs often output a reasoning string that classifies a threat as "Very High" (VH) but then select "Do Nothing" due to syntax confusion or reward bias.
-- **Solution**: The **SkillBrokerEngine** implements a **Recursive Feedback Loop**:
+- **Solution**: The **SkillBrokerEngine** implements a **Recursive Feedback Loop** (see [Skill System Pipeline](#pipeline-flow) for the full 6-stage implementation):
   1. **Detection**: Validators scan the parsed response. If `TP=VH` but `Action=Do Nothing`, an `InterventionReport` is generated.
   2. **Injection**: The framework extracts the specific violation and injects it into a **Retry Prompt**.
   3. **Instruction**: The LLM is told: _"Your previous response was rejected due to logical inconsistency. Here is why: [Violation]. Please reconsider."_
@@ -334,23 +336,63 @@ We explicitly engineer the prompt context to counteract known LLM limitations:
 
 ![Human-Centric Memory System](docs/human_centric_memory_diagram.png)
 
-The **Human-Centric Memory Engine** (v3.3) solves the "Goldfish Effect" by prioritizing memories based on **Emotional Salience** rather than just recency. It includes a **Reflection Engine** that consolidates yearly experiences into long-term insights.
+### Available Memory Engines
 
-### Key Features
+The framework provides four memory engines of increasing cognitive complexity. Each experiment chooses ONE engine via the `--memory-engine` CLI flag:
 
-1. **Priority-Driven Retrieval**: The Context Builder dynamically injects memories based on the retrieval score $S = (W_{rec} \cdot S_{rec}) + (W_{imp} \cdot S_{imp}) + (W_{ctx} \cdot S_{ctx})$. This ensures that even distant trauma (High Importance) or situationally-relevant facts (High Context) are pushed to the LLM's working memory.
-2. **Reflection Loop**: Yearly consolidation of events into generalized "Insights" (assigned maximum weight $I = 10.0$ to resist decay).
-3. **Domain-Specific Reflection**: Reflection prompts now accept configurable guidance questions from `agent_types.yaml` (`global_config.reflection.questions`), enabling domain-tailored consolidation.
-4. **Action-Outcome Feedback**: Agents receive combined action + outcome memories (e.g., "Year 3: You chose to increase demand (by 15%). You requested 120,000 AF and received 95,000 AF."), enabling causal learning through reflection.
-5. **Bounded Context**: Filters thousands of logs into a concise, token-efficient prompt, prioritizing accuracy over volume.
+- Use **WindowMemoryEngine** for baseline comparisons (no importance weighting — fair comparison with traditional ABMs)
+- Use **HumanCentricMemoryEngine** for experiments requiring emotional salience and trauma modeling (validated in WRR benchmark)
+- **ImportanceMemoryEngine** is a lightweight alternative that adds importance scoring without consolidation
+- **UnifiedCognitiveEngine** is available for advanced research (surprise detection, System 1/2 switching) but not validated in WRR
 
-### Tiered Memory Roadmap (v4 Target)
+| Engine | CLI Flag | Complexity | Used In | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| **WindowMemoryEngine** | `--memory-engine window` | Minimal | Flood Group B | FIFO sliding window. Keeps last N memories, no importance scoring. |
+| **ImportanceMemoryEngine** | `--memory-engine importance` | Low | — | Adds keyword-based importance scoring to window retrieval. |
+| **HumanCentricMemoryEngine** | `--memory-engine humancentric` | Medium | **Flood Group C, Irrigation** | Emotion × source importance, stochastic consolidation, exponential decay. Two ranking modes (see below). |
+| **UnifiedCognitiveEngine** | `--memory-engine universal` | High | — (available, not used in WRR) | Adds EMA-based surprise detection and System 1/2 switching on top of HumanCentric features. |
 
-| Tier  | Component             | Function (Theory)                                                                       |
-| :---- | :-------------------- | :-------------------------------------------------------------------------------------- |
-| **1** | **Working Memory**    | **Sensory Buffer**. Immediate context (last 5 years).                                   |
-| **2** | **Episodic Summary**  | **Hippocampus**. Long-term storage of "Significant" events (Phase 1/2 logic).           |
-| **3** | **Semantic Insights** | **Neocortex**. Abstracted "Rules" derived from reflection (e.g., "Insurance is vital"). |
+### HumanCentricMemoryEngine — Detail (used in all WRR experiments)
+
+This is the production memory engine for all governed experiments (flood Group C + irrigation). It supports two ranking modes:
+
+- **Basic ranking mode** (`--memory-ranking-mode legacy`, the default): Validated in all WRR experiments. Uses simple recency + decayed importance for retrieval without contextual adjustments. Recommended for reproducibility and baseline comparisons.
+- **Weighted mode** (`--memory-ranking-mode weighted`): Experimental. Adds contextual boosters (e.g., flood events increase relevance of flood-related memories). Not used in WRR experiments.
+
+**Encoding** (`add_memory`):
+1. Classify emotion type by keyword matching → `emotion_weight` (critical=1.0, major=0.9, positive=0.8, shift=0.7, observation=0.4, routine=0.1)
+2. Classify source proximity by keyword matching → `source_weight` (personal=1.0, neighbor=0.7, community=0.5, abstract=0.3)
+3. Compute `importance = emotion_weight × source_weight`
+4. If importance > `consolidation_threshold` (0.6), probabilistically transfer to long-term memory (P=0.7)
+
+**Retrieval** (basic ranking mode — used in WRR experiments):
+1. Return the most recent `window_size` (5) working memories
+2. Apply exponential decay to long-term memories: $I(t) = I_0 \cdot e^{-\lambda t}$
+3. Select top-K (2) long-term memories by `decayed_importance`
+4. Return: `[top-K significant] + [recent N]`
+5. No weighted scoring ($W_{rec}, W_{imp}, W_{ctx}$). Contextual boosters are **ignored** in basic ranking mode.
+
+**Retrieval** (weighted mode — available but NOT used in WRR):
+- Computes $S = W_{rec} \cdot R + W_{imp} \cdot I + W_{ctx} \cdot C$ (recency 0.3, importance 0.5, context 0.2)
+- Contextual boosters actively adjust relevance scores
+- Activated via `--memory-ranking-mode weighted`
+
+### Reflection Engine
+
+The `ReflectionEngine` (`broker/components/reflection_engine.py`) runs at configurable intervals (default: every year) to consolidate episodic memories into generalized insights. It is automatically invoked by the experiment runner at year-end when using `HumanCentricMemoryEngine` or `UnifiedCognitiveEngine`. Each reflection adds one LLM call per agent per interval.
+
+1. **Batch Consolidation**: Collects recent memories and prompts the LLM to synthesize lessons learned.
+2. **Domain-Specific Guidance**: Reflection questions are loaded from `agent_types.yaml` (`global_config.reflection.questions`), enabling domain-tailored consolidation (e.g., flood trauma vs irrigation strategy).
+3. **Action-Outcome Feedback**: Agents receive combined action + outcome memories (e.g., "Year 3: You chose to increase demand (by 15%). You requested 120,000 AF and received 95,000 AF."), enabling causal learning.
+4. **Insight Storage**: Generated insights are stored with elevated importance scores ($I = 0.9$) to resist decay.
+
+### Memory Tier Structure
+
+| Tier  | Component             | Function                                                                       |
+| :---- | :-------------------- | :----------------------------------------------------------------------------- |
+| **1** | **Working Memory**    | Immediate context (last `window_size` years). Always included in retrieval.    |
+| **2** | **Long-Term Memory**  | Consolidated significant events. Subject to exponential decay.                 |
+| **3** | **Reflection Insights** | Abstracted lessons from reflection (e.g., "Insurance is vital"). High importance to resist decay. |
 
 **[Read the full Memory & Reflection Specification](docs/modules/memory_components.md)**
 
@@ -484,7 +526,7 @@ Source: `examples/irrigation_abm/validators/irrigation_validators.py`
 | **Renewable Actions** | Insurance (annual expiry) | Demand adjustment (annual) |
 | **Physical Checks** | 3 built-in checks | 6 built-in checks |
 | **Social Checks** | 1 WARNING (majority deviation) | 2 WARNINGs (curtailment, compact) |
-| **Semantic Checks** | 3 (social proof, temporal, state) | YAML-only (no built-in) |
+| **Semantic Checks** | 3 (social proof, temporal, state) | None active (agents operate independently; no social network to ground against) |
 | **Hallucination Types** | Physical, Thinking, Semantic | Physical, Thinking, Economic |
 
 ### Extending to a New Domain (擴展至新領域)
@@ -578,9 +620,122 @@ memory_config:
 
 ---
 
-## Skill System Enhancements (v3.4)
+## Skill System
 
-### JSON Schema Output Validation
+The Skill System is the framework's **action ontology** — it defines what agents can do, how they propose actions, and how proposals are validated before execution. Every agent decision flows through a 6-stage pipeline managed by the `SkillBrokerEngine`.
+
+### Core Concepts
+
+| Concept | Component | Description |
+| :--- | :--- | :--- |
+| **SkillDefinition** | `skill_registry.yaml` | YAML entry defining a skill: `skill_id`, `description`, `preconditions`, `institutional_constraints`, `implementation_mapping`, `output_schema` |
+| **SkillRegistry** | `broker/components/skill_registry.py` | Central registry loaded from YAML. Provides eligibility checks, precondition enforcement, output schema validation, and magnitude bounds. |
+| **SkillProposal** | `broker/interfaces/skill_types.py` | Parsed LLM output before validation. Contains: `skill_name`, `reasoning` (construct labels), `magnitude_pct`, `parse_layer`, `confidence`. |
+| **ApprovedSkill** | `broker/interfaces/skill_types.py` | Post-validation result. Contains: `skill_name`, `approval_status` (APPROVED/REJECTED/REJECTED_FALLBACK), `execution_mapping`, `parameters`. |
+| **SkillBrokerEngine** | `broker/core/skill_broker_engine.py` | Main orchestrator. Implements the 6-stage pipeline: context → LLM → parse → validate → approve → execute. |
+
+### Pipeline Flow
+
+```
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│ ① Context    │────►│ ② LLM Call   │────►│ ③ Parse      │────►│ ④ Validate   │────►│ ⑤ Approve    │────►│ ⑥ Execute    │
+│   Builder    │     │   + Prompt   │     │   Output     │     │   Pipeline   │     │   / Reject   │     │   + Audit    │
+└──────────────┘     └──────────────┘     └──────────────┘     └──────┬───────┘     └──────────────┘     └──────────────┘
+                                                                      │ ERROR?
+                                                                      ▼
+                                                               Retry Loop (max 3)
+                                                               with feedback prompt
+```
+
+| Stage | Component | What Happens |
+| :--- | :--- | :--- |
+| **① Context** | `ContextBuilder` | Build bounded perception: agent state, memory retrieval, filtered skill list, environmental signals |
+| **② LLM** | `llm_invoke()` | Call language model with structured prompt (persona + context + response format) |
+| **③ Parse** | `ModelAdapter` | Multi-layer defensive parsing: enclosure → JSON repair → keyword regex → digit extraction → fallback. Extracts `SkillProposal` with construct labels and optional `magnitude_pct`. Up to 2 **format retries** (separate from governance retries — for structural parse failures only). |
+| **④ Validate** | `_run_validators()` | Run 5-category governance validators (Physical → Thinking → Personal → Social → Semantic; see [Validator Layer](#validator-layer-governance-rule-engine) for details) + registry checks (eligibility, preconditions, output schema). ERROR triggers up to 3 **governance retries** with human-readable feedback injected into the retry prompt. |
+| **⑤ Approve** | `_build_approved_skill()` | Create `ApprovedSkill` with status, execution mapping, and parameters. On rejection after max retries: fallback to `default_skill`. |
+| **⑥ Execute** | `SimulationEngine` | Execute approved skill in sandboxed simulation. Write full audit trace (prompt, output, validation history, outcome). |
+
+### Response Format & Prompt Engineering
+
+The **ResponseFormatBuilder** (`broker/components/response_format.py`) converts YAML `response_format.fields` into structured prompt instructions. The field ordering in YAML directly controls the order of fields in the LLM prompt.
+
+**YAML Configuration** (from `agent_types.yaml`):
+```yaml
+shared:
+  response_format:
+    delimiter_start: "<<<DECISION_START>>>"
+    delimiter_end: "<<<DECISION_END>>>"
+    fields:
+      - { key: "reasoning", type: "text", required: false }
+      - { key: "threat_appraisal", type: "appraisal", required: true, construct: "TP_LABEL" }
+      - { key: "coping_appraisal", type: "appraisal", required: true, construct: "CP_LABEL" }
+      - { key: "decision", type: "choice", required: true }
+      - { key: "magnitude_pct", type: "numeric", min: 1, max: 30, required: false }
+```
+
+**Field Types**:
+
+| Type | YAML Example | Generated Prompt Output |
+| :--- | :--- | :--- |
+| `text` | `{ key: "reasoning", type: "text" }` | `"reasoning": "..."` |
+| `appraisal` | `{ key: "threat_appraisal", type: "appraisal", construct: "TP_LABEL" }` | `"threat_appraisal": {"label": "VL/L/M/H/VH", "reason": "..."}` |
+| `choice` | `{ key: "decision", type: "choice" }` | `"decision": "<Numeric ID, choose ONE from: 1, 2, or 3>"` |
+| `numeric` | `{ key: "magnitude_pct", type: "numeric", min: 1, max: 30 }` | `"magnitude_pct": [Numeric: 1–30]` |
+
+**Example LLM Response** (what the model actually outputs):
+```json
+<<<DECISION_START>>>
+{
+  "reasoning": "Flood depth reached 4 feet last year. My savings are limited.",
+  "threat_appraisal": {"label": "H", "reason": "Severe flood risk based on recent damage"},
+  "coping_appraisal": {"label": "L", "reason": "Cannot afford elevation costs"},
+  "decision": 2
+}
+<<<DECISION_END>>>
+```
+
+**Reasoning Before Rating**: All WRR experiment configs place the `reasoning` field **first** in the field list. Because LLMs generate tokens autoregressively (left to right), this forces the model to articulate its reasoning before committing to appraisal labels and action choices — improving generation quality. This is a config-level feature, not a module-level change; any experiment can reorder fields in YAML.
+
+**`required: true` vs `required: false`**: Required fields trigger parse errors and format retries if missing. Optional fields (e.g., `magnitude_pct`, `reasoning`) are silently skipped — the system uses persona defaults or empty values as fallback.
+
+### Skill Registry Configuration
+
+Skills are defined in domain-specific `skill_registry.yaml` files:
+
+```yaml
+skills:
+  - skill_id: elevate_house
+    description: "Elevate your house (High upfront cost, permanent protection...)"
+    eligible_agent_types: ["*"]
+    preconditions: ["not elevated"]
+    institutional_constraints:
+      once_only: true
+      cost_type: "one_time"
+    allowed_state_changes: [elevated]
+    implementation_mapping: "sim.elevate"
+    output_schema:
+      type: object
+      properties:
+        decision: { type: integer }
+    conflicts_with: [relocate]
+
+default_skill: do_nothing
+```
+
+| Field | Purpose |
+| :--- | :--- |
+| `skill_id` | Unique identifier used in governance rules and parsing |
+| `eligible_agent_types` | Which agent types can use this skill (`"*"` = all) |
+| `preconditions` | State conditions that must be met (checked by `check_preconditions()`) |
+| `institutional_constraints` | Domain rules: `once_only`, `annual`, `magnitude_type`, `max_magnitude_pct` |
+| `output_schema` | JSON Schema for post-parse validation via `validate_output_schema()` |
+| `conflicts_with` | Mutually exclusive skills (for future composite execution) |
+| `implementation_mapping` | Simulation command to execute (e.g., `"sim.elevate"`) |
+
+### Enhancements (v3.4)
+
+#### JSON Schema Output Validation
 
 Skills can now define a `output_schema` in their YAML registry using JSON Schema standard syntax. The `SkillRegistry.validate_output_schema()` method supports type checking (`number`, `string`, `integer`), range validation (`minimum`/`maximum`), and `enum` constraints.
 
@@ -596,7 +751,7 @@ Skills can now define a `output_schema` in their YAML registry using JSON Schema
   conflicts_with: [decrease_demand]
 ```
 
-### Composite Skill Declarations
+#### Composite Skill Declarations
 
 Skills declare mutual exclusivity (`conflicts_with`) and dependency ordering (`depends_on`) for future composite skill execution (C4). The registry provides `check_composite_conflicts()` to validate skill combinations before execution.
 
@@ -605,7 +760,7 @@ Skills declare mutual exclusivity (`conflicts_with`) and dependency ordering (`d
 | `conflicts_with` | Mutually exclusive skills | `increase_demand` ↔ `decrease_demand` |
 | `depends_on` | Prerequisite ordering | `adopt_efficiency` → then `decrease_demand` |
 
-### Magnitude Output (Schema-Driven)
+#### Magnitude Output (Schema-Driven)
 
 LLM agents can propose a **magnitude of change** (e.g., "decrease demand by 15%") in addition to the discrete skill choice. Magnitude is defined as a formal `numeric` field in `response_format.fields` within `agent_types.yaml`, making it available to any domain. Disable with `--no-magnitude` to reduce prompt context size.
 
@@ -618,7 +773,7 @@ LLM agents can propose a **magnitude of change** (e.g., "decrease demand by 15%"
 | **Fallback** | LLM output → persona default → hardcoded 10; `magnitude_fallback` logged |
 | **Opt-out** | `--no-magnitude` strips the field from schema at startup (reduces prompt tokens) |
 
-### Per-Agent 2018 Baseline (Irrigation)
+#### Per-Agent 2018 Baseline (Irrigation)
 
 Irrigation agents now initialize from **actual 2018 historical diversions** (aligning with Hung & Yang, 2021) rather than a uniform `water_right × 0.8`:
 
@@ -629,7 +784,7 @@ Irrigation agents now initialize from **actual 2018 historical diversions** (ali
 
 Synthetic profiles (no CRSS data) fall back to `water_right × 0.8`.
 
-### Skill System Architecture Status
+#### Skill System Architecture Status
 
 > **Skill System Validation Pipeline Status:**
 >
@@ -644,7 +799,7 @@ Synthetic profiles (no CRSS data) fall back to `water_right × 0.8`.
 
 ## Experimental Validation & Benchmarks
 
-The framework has been validated through the **WRR Benchmark** (Water Resources Research), a three-group ablation study that isolates the contribution of each cognitive component:
+The framework has been validated through the **WRR Benchmark** (*Water Resources Research*), a three-group ablation study that isolates the contribution of each cognitive component:
 
 | Group                  | Memory Engine           | Governance | Purpose                                                   |
 | :--------------------- | :---------------------- | :--------- | :-------------------------------------------------------- |

@@ -230,38 +230,27 @@ The JOH Benchmark uses Gemma 3 models with standardized sampling parameters:
 
 ---
 
-## Memory Engine Modes: v1 vs v2
+## Memory Engine Ranking Modes
 
-To ensure both historical comparability and future robustness, the `HumanCentricMemoryEngine` operates in two distinct modes:
+The `HumanCentricMemoryEngine` operates in two distinct ranking modes. All WRR experiments use the basic ranking mode:
 
-| Feature               | **v1 (Legacy)**                                                   | **v2 (Weighted)**                                                                   |
+| Feature               | **Basic Ranking Mode** (`--memory-ranking-mode legacy`)            | **Weighted Mode** (`--memory-ranking-mode weighted`)                                |
 | :-------------------- | :---------------------------------------------------------------- | :---------------------------------------------------------------------------------- |
-| **Target Group**      | **Group C** (ABC Experiment)                                      | **Stress Tests**                                                                    |
+| **Target Group**      | **Group C** (WRR Experiment — validated)                           | **Stress Tests** (experimental)                                                     |
 | **Scoring Logic**     | **Multiplicative Decay**<br>`Score = Importance * (Decay ^ Time)` | **Additive Weighted Score**<br>`Score = 0.3*Recency + 0.5*Importance + 0.2*Context` |
 | **Context Awareness** | **Ignored** (Static retrieval)                                    | **Active** (Boosts memory relevance during floods)                                  |
 | **Objective**         | Strict parity with original baseline experiments.                 | Enhanced responsiveness and dynamic adaptation.                                     |
 
 ---
 
-## 🚀 Roadmap: v3 Integrated Model (Proposed)
+## Advanced Memory: UnifiedCognitiveEngine (Available, Not Used in WRR)
 
-We are actively designing a **v3 Hybrid Model** to merge the stability of v1 with the intelligence of v2.
+A more advanced `UnifiedCognitiveEngine` (`cognitive_governance/memory/unified_engine.py`) exists in the framework with EMA-based surprise detection and System 1/2 switching. It merges the stability of v1 (legacy) with the intelligence of v2 (weighted) via dynamic arousal:
 
-**Core Concept:**
-Instead of a hard toggle, v3 will use a **Dynamic Weighting Mechanism**:
+1. **System 1 (Baseline)**: Behaves like v1 (decay-dominant) when environmental surprise is low.
+2. **System 2 (Crisis)**: Shifts to v2 (context-dominant) when arousal exceeds a threshold.
 
-1.  **Baseline State**: Behaves like v1 (Decay-dominant) when environmental stress is low.
-2.  **Crisis State**: Shifts to v2 (Context-dominant) when `threat_appraisal` exceeds a threshold.
-
-**Proposed Architecture:**
-
-```python
-# v3 Concept
-dynamic_context_weight = sigmoid(current_threat_level) * max_context_weight
-final_score = (1 - dynamic_context_weight) * decay_score + (dynamic_context_weight) * context_score
-```
-
-This ensures agents are "calm" during peace but "alert" during disaster, mimicking human cognitive arousal.
+This engine is **available but not used** in any WRR experiment. All current experiments use `HumanCentricMemoryEngine` in legacy ranking mode (importance = emotion × source, no weighted scoring).
 
 ---
 

@@ -20,8 +20,8 @@ The two dimensions are assessed **independently** — governance rules may condi
 | Pillar | Name | Configuration | Effect |
 |--------|------|---------------|--------|
 | 1 | **Strict Governance** | Water rights, curtailment caps, efficiency checks | Blocks physically impossible or redundant actions |
-| 2 | **Cognitive Memory** | `HumanCentricMemoryEngine` + year-end reflection | Emotional encoding of droughts and outcomes |
-| 3 | **Priority Schema** | Water situation enters context before preferences | Physical reality anchors LLM reasoning |
+| 2 | **Cognitive Memory** | `HumanCentricMemoryEngine` (basic ranking mode) + year-end reflection | Emotional encoding (importance = emotion × source) of droughts and outcomes |
+| 3 | **Reflection Loop** | Year-end consolidation with domain-specific guidance questions | Agents reflect on demand strategy effectiveness and form long-term insights |
 
 ## Recent Enhancements (v7 — Group D)
 

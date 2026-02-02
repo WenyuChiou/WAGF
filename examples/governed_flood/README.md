@@ -7,8 +7,10 @@ Standalone example demonstrating **Group C (Full Cognitive Governance)** — the
 | Pillar | Name | Configuration | Effect |
 |--------|------|---------------|--------|
 | 1 | **Strict Governance** | `governance_mode: strict` + PMT thinking/identity rules | Blocks cognitively inconsistent decisions |
-| 2 | **Cognitive Memory** | `HumanCentricMemoryEngine` + `ReflectionEngine` | Emotional encoding + year-end consolidation |
-| 3 | **Priority Schema** | `use_priority_schema: true` | Physical reality enters context before preferences |
+| 2 | **Cognitive Memory** | `HumanCentricMemoryEngine` (basic ranking mode) + `ReflectionEngine` | Emotional encoding (importance = emotion × source) + year-end consolidation |
+| 3 | **Reflection Loop** | Year-end memory consolidation with domain-specific questions | Agents reflect on experiences and form long-term insights |
+
+> **Note**: Priority schema (`use_priority_schema`) is available in the framework but **not enabled** in this demo. See `config/agent_types.yaml` lines 250-255 for the commented configuration.
 
 ## Recent Enhancements
 
