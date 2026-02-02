@@ -280,9 +280,63 @@ class SkillBrokerEngine:
         if retry_count > 0:
              pass # Already logged success above
         
+        # ④b Multi-skill: validate + build secondary (if enabled)
+        secondary_proposal = None
+        secondary_approved = None
+        secondary_execution = None
+        composite_errors = []
+        ms_cfg = self.config.get_multi_skill_config(agent_type) if self.config else {}
+        if ms_cfg and skill_proposal and all_valid:
+            sec_skill = skill_proposal.reasoning.get("_secondary_skill_name")
+            sec_mag = skill_proposal.reasoning.get("_secondary_magnitude_pct")
+            if sec_skill:
+                secondary_proposal = SkillProposal(
+                    skill_name=sec_skill,
+                    agent_id=agent_id,
+                    reasoning={"_source": "secondary"},
+                    magnitude_pct=sec_mag,
+                )
+                # Composite conflict check
+                comp_result = self.skill_registry.check_composite_conflicts(
+                    [skill_proposal.skill_name, sec_skill]
+                )
+                if not comp_result.valid:
+                    composite_errors.extend(comp_result.errors)
+                    logger.warning(f" [Multi-Skill] {agent_id} | Composite conflict: {comp_result.errors}")
+                    secondary_proposal = None  # Drop conflicting secondary
+                elif sec_skill == skill_proposal.skill_name:
+                    composite_errors.append(f"Primary and secondary are the same: '{sec_skill}'")
+                    secondary_proposal = None
+                else:
+                    # Validate secondary individually
+                    sec_validation = self._run_validators(
+                        secondary_proposal, validation_context, agent_type
+                    )
+                    sec_valid = all(v.valid for v in sec_validation if v)
+                    if sec_valid:
+                        sec_params = {}
+                        if sec_mag is not None:
+                            sec_params["magnitude_pct"] = sec_mag
+                        secondary_approved = ApprovedSkill(
+                            skill_name=sec_skill,
+                            agent_id=agent_id,
+                            approval_status="APPROVED",
+                            validation_results=sec_validation,
+                            execution_mapping=self.skill_registry.get_execution_mapping(sec_skill) or "",
+                            parameters=sec_params,
+                        )
+                    else:
+                        sec_errs = [e for v in sec_validation if v for e in v.errors]
+                        composite_errors.extend(sec_errs)
+                        logger.warning(f" [Multi-Skill] {agent_id} | Secondary '{sec_skill}' failed: {sec_errs}")
+                        secondary_proposal = None
+
         # ⑤ Execution (simulation engine ONLY — skip if REJECTED)
         if self.simulation_engine and outcome not in (SkillOutcome.REJECTED, SkillOutcome.UNCERTAIN):
             execution_result = self.simulation_engine.execute_skill(approved_skill)
+            # ⑤b Sequential secondary execution
+            if secondary_approved and execution_result.success:
+                secondary_execution = self.simulation_engine.execute_skill(secondary_approved)
         elif outcome in (SkillOutcome.REJECTED, SkillOutcome.UNCERTAIN):
             # REJECTED: do not execute — record non-success with empty state changes
             execution_result = ExecutionResult(success=False, state_changes={})
@@ -292,7 +346,7 @@ class SkillBrokerEngine:
                 success=True,
                 state_changes={}
             )
-        
+
         # Capture memory state after execution (before experiment-layer updates)
         memory_post = self._get_memory_snapshot(agent_id)
 
@@ -319,7 +373,11 @@ class SkillBrokerEngine:
             execution_result=execution_result,
             validation_errors=[e for v in validation_results if v and hasattr(v, 'errors') for e in v.errors],
             retry_count=retry_count,
-            format_retries=format_retry_count
+            format_retries=format_retry_count,
+            secondary_proposal=secondary_proposal,
+            secondary_approved=secondary_approved,
+            secondary_execution=secondary_execution,
+            composite_validation_errors=composite_errors,
         )
     
     def _invoke_llm_with_retries(

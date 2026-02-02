@@ -13,6 +13,7 @@ skills:
     allowed_state_changes:
       - has_insurance
     implementation_mapping: "sim.buy_insurance"
+    conflicts_with: []  # Can pair with elevation
 
   - skill_id: elevate_house
     description: "Elevate your house (High upfront cost but can prevent most physical damage)"
@@ -26,6 +27,7 @@ skills:
     allowed_state_changes:
       - elevated
     implementation_mapping: "sim.elevate"
+    conflicts_with: [relocate]  # Cannot elevate and relocate in same step
 
   - skill_id: relocate
     description: "Relocate (Requires leaving your neighborhood but eliminates flood risk permanently)"
@@ -39,6 +41,7 @@ skills:
     allowed_state_changes:
       - relocated
     implementation_mapping: "sim.relocate"
+    conflicts_with: [elevate_house, buy_insurance]  # Relocating negates other actions
 
   - skill_id: do_nothing
     description: "Do nothing (Require no financial investment or effort this year, but it might leave you exposed to future flood damage)"
@@ -47,5 +50,6 @@ skills:
     institutional_constraints: {}
     allowed_state_changes: []
     implementation_mapping: "sim.noop"
+    conflicts_with: []
 
 default_skill: do_nothing

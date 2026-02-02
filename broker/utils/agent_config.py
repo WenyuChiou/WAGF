@@ -555,6 +555,25 @@ class AgentTypeConfig:
         
         return numeric_fields
 
+    def get_multi_skill_config(self, agent_type: str) -> Dict[str, Any]:
+        """
+        Get multi-skill configuration for an agent type.
+
+        Returns the multi_skill config dict if enabled, empty dict otherwise.
+        Config lives under agent_type in agent_types.yaml:
+            household:
+              multi_skill:
+                enabled: true
+                max_skills: 2
+                secondary_field: "secondary_decision"
+                secondary_magnitude_field: "secondary_magnitude_pct"
+        """
+        cfg = self.get(agent_type)
+        ms = cfg.get("multi_skill", {})
+        if not ms.get("enabled", False):
+            return {}
+        return ms
+
     # =========================================================================
     # Task-041: Framework-Aware Rating Scale Support
     # =========================================================================

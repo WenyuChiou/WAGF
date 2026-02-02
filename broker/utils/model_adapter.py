@@ -778,6 +778,50 @@ class UnifiedAdapter(ModelAdapter):
         parse_metadata["parse_layer"] = base_layer
         parse_metadata["parse_confidence"] = parse_confidence
         parse_metadata["construct_completeness"] = construct_completeness
+
+        # ── Multi-skill: extract secondary_decision if multi_skill enabled ──
+        _secondary_skill_name = None
+        _secondary_magnitude_pct = None
+        ms_cfg = self.agent_config.get_multi_skill_config(agent_type)
+        if ms_cfg:
+            sec_field = ms_cfg.get("secondary_field", "secondary_decision")
+            sec_mag_field = ms_cfg.get("secondary_magnitude_field", "secondary_magnitude_pct")
+            sec_val = data_lowered.get(sec_field.lower()) if data_lowered else None
+
+            # Regex fallback for secondary
+            if sec_val is None and raw_output:
+                sec_pattern = rf'"{sec_field}"\s*:\s*"?(\d+)"?'
+                sec_match = re.search(sec_pattern, raw_output, re.IGNORECASE)
+                if sec_match:
+                    sec_val = sec_match.group(1)
+
+            if sec_val is not None:
+                sec_id = None
+                if isinstance(sec_val, (int, float)):
+                    sec_id = str(int(sec_val))
+                elif isinstance(sec_val, str):
+                    sec_digit = re.search(r'(\d+)', sec_val)
+                    if sec_digit:
+                        sec_id = sec_digit.group(1)
+
+                # 0 means "no secondary action"
+                if sec_id and sec_id != "0" and sec_id in skill_map:
+                    _secondary_skill_name = skill_map[sec_id]
+
+                    # Extract secondary magnitude
+                    sec_mag_raw = data_lowered.get(sec_mag_field.lower()) if data_lowered else None
+                    if sec_mag_raw is not None:
+                        try:
+                            _secondary_magnitude_pct = float(re.search(r'(\d+)', str(sec_mag_raw)).group(1))
+                        except (AttributeError, ValueError, TypeError):
+                            pass
+
+        # Store secondary in reasoning for broker engine to access
+        if _secondary_skill_name:
+            reasoning["_secondary_skill_name"] = _secondary_skill_name
+            if _secondary_magnitude_pct is not None:
+                reasoning["_secondary_magnitude_pct"] = _secondary_magnitude_pct
+
         reasoning["_parse_metadata"] = parse_metadata
 
         return SkillProposal(
