@@ -203,16 +203,25 @@ class IrrigationLifecycleHooks:
             agent.trust_forecasts_text = trust["trust_forecasts_text"]
             agent.trust_neighbors_text = trust["trust_neighbors_text"]
 
-            # Sync physical state flags from environment → agent
+            # Sync ALL validator-relevant fields from environment → agent
+            # These flow through custom_attributes → context["state"] → validation_context
             agent_state = self.env.get_agent_state(aid)
-            agent.at_allocation_cap = agent_state.get("at_allocation_cap", False)
-            agent.has_efficient_system = agent_state.get("has_efficient_system", False)
-            agent.below_minimum_utilisation = agent_state.get("below_minimum_utilisation", False)
-            # Also sync to custom_attributes so AttributeProvider sees updated values
+            validator_fields = {
+                "at_allocation_cap": agent_state.get("at_allocation_cap", False),
+                "has_efficient_system": agent_state.get("has_efficient_system", False),
+                "below_minimum_utilisation": agent_state.get("below_minimum_utilisation", False),
+                "water_right": ctx.get("water_right", 0),
+                "current_diversion": ctx.get("current_diversion", 0),
+                "current_request": ctx.get("current_request", 0),
+                "curtailment_ratio": ctx.get("curtailment_ratio", 0),
+                "shortage_tier": ctx.get("shortage_tier", 0),
+                "cluster": ctx.get("cluster", "unknown"),
+                "basin": ctx.get("basin", "unknown"),
+            }
+            for key, value in validator_fields.items():
+                setattr(agent, key, value)
             if hasattr(agent, "custom_attributes"):
-                agent.custom_attributes["at_allocation_cap"] = agent.at_allocation_cap
-                agent.custom_attributes["has_efficient_system"] = agent.has_efficient_system
-                agent.custom_attributes["below_minimum_utilisation"] = agent.below_minimum_utilisation
+                agent.custom_attributes.update(validator_fields)
 
             # Inject combined action + outcome feedback from last year
             if year > 1:
