@@ -19,6 +19,14 @@ global_config:
       - "What risks feel most urgent to your family right now?"
       - "Have your neighbors' choices influenced your thinking?"
       - "What trade-offs have you faced between cost and safety?"
+    triggers:
+      crisis: true                    # Triggered by severe flood event
+      periodic_interval: 5            # Every 5 years
+      decision_types:
+        - elevate_house
+        - relocate
+      institutional_threshold: 0.05   # Policy change > 5%
+    method: hybrid
 
   # [Universe Physics] - LLM & System Generation Settings
   llm:
