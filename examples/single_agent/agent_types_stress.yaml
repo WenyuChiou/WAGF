@@ -15,6 +15,10 @@ global_config:
     interval: 1               # Reflect every N years
     batch_size: 10            # Reduced from 25 to avoid LLM output truncation
     importance_boost: 0.9     # Boost emotional weight for reflected memories
+    questions:
+      - "What risks feel most urgent to your family right now?"
+      - "Have your neighbors' choices influenced your thinking?"
+      - "What trade-offs have you faced between cost and safety?"
 
   # [Universe Physics] - LLM & System Generation Settings
   llm:

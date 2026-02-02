@@ -51,6 +51,10 @@ class AgentReflectionContext:
     custom_traits: Dict[str, Any] = field(default_factory=dict)
 
 
+# DEPRECATED: Hardcoded reflection questions per agent type.
+# New domains should define questions in their agent_types.yaml under
+# global_config.reflection.questions, which are passed to
+# generate_batch_reflection_prompt(reflection_questions=...).
 REFLECTION_QUESTIONS: Dict[str, List[str]] = {
     "household": [
         "What risks feel most urgent to your family right now?",
@@ -511,17 +515,31 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
     def generate_batch_reflection_prompt(
         self,
         batch_data: List[Dict[str, Any]],
-        current_year: int
+        current_year: int,
+        reflection_questions: Optional[List[str]] = None,
     ) -> str:
         """
         Generate a prompt for batch reflection across multiple agents.
         Optimized for smaller models like Llama 3.2.
+
+        Args:
+            batch_data: Per-agent dicts with agent_id, memories, and optional context.
+            current_year: Current simulation year.
+            reflection_questions: Optional domain-specific guidance questions
+                from YAML config (global_config.reflection.questions).
         """
         if not batch_data:
             return ""
-        
+
         lines = [f"### Background\nYou are a Reflection Assistant for {len(batch_data)} agents in a simulation (Year {current_year})."]
-        lines.append("Instructions: Summarize each agent's memories into a 2-sentence 'Lesson Learned'.\n")
+        lines.append("Instructions: Summarize each agent's memories into a 2-sentence 'Lesson Learned'.")
+
+        if reflection_questions:
+            lines.append("Focus your reflections on:")
+            for q in reflection_questions:
+                lines.append(f"  - {q}")
+
+        lines.append("")
 
         lines.append("### Task Data to Process")
         for item in batch_data:

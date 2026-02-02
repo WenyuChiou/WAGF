@@ -284,7 +284,9 @@ class LifecycleHooks:
         for i in range(0, len(candidates), batch_size):
             batch = candidates[i : i + batch_size]
             batch_ids = [c["agent_id"] for c in batch]
-            prompt = self.reflection_engine.generate_batch_reflection_prompt(batch, year)
+            prompt = self.reflection_engine.generate_batch_reflection_prompt(
+                batch, year, reflection_questions=cfg.get("questions", [])
+            )
             try:
                 raw = llm_call(prompt)
                 text = raw[0] if isinstance(raw, tuple) else raw

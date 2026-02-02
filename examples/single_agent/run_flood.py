@@ -545,7 +545,9 @@ class FinalParityHook:
                     if hasattr(self.reflection_engine, 'generate_personalized_batch_prompt'):
                         prompt = self.reflection_engine.generate_personalized_batch_prompt(batch, year)
                     else:
-                        prompt = self.reflection_engine.generate_batch_reflection_prompt(batch, year)
+                        prompt = self.reflection_engine.generate_batch_reflection_prompt(
+                            batch, year, reflection_questions=refl_cfg.get("questions", [])
+                        )
 
                     try:
                         raw_res = llm_call(prompt)

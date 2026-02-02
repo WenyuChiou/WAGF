@@ -26,6 +26,10 @@ global_config:
     interval: 1
     batch_size: 10
     importance_boost: 0.9
+    questions:
+      - "Was your water demand strategy effective given the supply conditions?"
+      - "Did the magnitude of your demand change match the outcome?"
+      - "What patterns do you notice between your actions and supply shortfalls?"
     triggers:
       crisis: true                    # Triggered by severe water curtailment
       periodic_interval: 5            # Every 5 years
