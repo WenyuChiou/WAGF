@@ -93,8 +93,8 @@ shared:
           reason_hint: "One sentence on how well you can adapt your water use.",
         }
       # Decision comes AFTER reasoning and appraisals
-      - { key: "decision", type: "choice", required: true, description: "Enter the numeric ID (1-5) of your chosen action." }
-      - { key: "magnitude_pct", type: "numeric", min: 1, max: 30, required: false, description: "Enter 1-30 representing the percentage change for your decision." }
+      - { key: "decision", type: "choice", required: true }
+      - { key: "magnitude_pct", type: "numeric", min: 1, max: 30, unit: "%", required: false }
 
 # =============================================================================
 # IRRIGATION FARMER AGENT TYPE
