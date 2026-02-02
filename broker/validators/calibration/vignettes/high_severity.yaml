@@ -1,0 +1,63 @@
+# =============================================================================
+# HIGH-SEVERITY FLOOD VIGNETTE
+# =============================================================================
+# Standardized psychometric probe for C&V Level 3 cognitive validation.
+# Adapted from Grothmann & Reusswig (2006) high-flood-risk scenarios.
+#
+# Expected PMT response:
+#   TP: H or VH (high perceived threat)
+#   CP: varies by persona (depends on resources/self-efficacy)
+#   Action: protective (elevate, insure, or relocate)
+# =============================================================================
+
+vignette:
+  id: high_severity_flood
+  severity: high
+  description: >
+    A severe flood scenario with significant property damage,
+    designed to elicit high threat perception across all personas.
+
+  # Contextual scenario presented to the agent
+  scenario: |
+    A major flood has struck your community. The water level reached
+    4.5 feet above ground floor in your neighborhood. Several homes
+    nearby have been severely damaged, with estimated repair costs of
+    $85,000 on average. Emergency services were overwhelmed, and some
+    families had to be evacuated by boat.
+
+    Your home sustained moderate water damage to the first floor.
+    Your insurance company estimates repair costs at $42,000, but your
+    current deductible is $15,000. Three of your neighbors have decided
+    to elevate their homes. The local government announced a new
+    subsidy program covering 30% of elevation costs.
+
+    Weather forecasts indicate that due to climate change, the
+    probability of similar flooding in the next 10 years is estimated
+    at 65%.
+
+  # Agent state overrides for this vignette
+  state_overrides:
+    flood_depth_ft: 4.5
+    damage_cost: 42000
+    deductible: 15000
+    subsidy_rate: 0.30
+    flood_probability_10yr: 0.65
+    neighbors_elevated: 3
+    prior_flood_count: 1
+    year: 5
+
+  # Expected response ranges by PMT construct
+  expected_responses:
+    TP_LABEL:
+      expected: ["H", "VH"]
+      acceptable: ["M", "H", "VH"]
+      incoherent: ["VL", "L"]
+    CP_LABEL:
+      # CP varies more by persona
+      expected: ["M", "H"]
+      acceptable: ["L", "M", "H", "VH"]
+      incoherent: []
+    decision:
+      expected: ["elevate_house", "buy_insurance", "relocate"]
+      acceptable: ["elevate_house", "buy_insurance", "relocate", "buyout_program"]
+      incoherent: ["do_nothing"]
