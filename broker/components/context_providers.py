@@ -67,7 +67,9 @@ class AttributeProvider(ContextProvider):
                 {k: v for k, v in agent.dynamic_state.items() if isinstance(v, (str, int, float, bool))}
             )
         if hasattr(agent, "custom_attributes"):
-            state.update(agent.custom_attributes)
+            for k, v in agent.custom_attributes.items():
+                if k not in state:
+                    state[k] = v
 
         if hasattr(agent, "get_available_skills"):
             context["available_skills"] = agent.get_available_skills()
