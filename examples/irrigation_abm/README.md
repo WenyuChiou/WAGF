@@ -23,6 +23,14 @@ The two dimensions are assessed **independently** — governance rules may condi
 | 2 | **Cognitive Memory** | `HumanCentricMemoryEngine` + year-end reflection | Emotional encoding of droughts and outcomes |
 | 3 | **Priority Schema** | Water situation enters context before preferences | Physical reality anchors LLM reasoning |
 
+## Recent Enhancements (v7 — Group D)
+
+| Feature | Description |
+|---------|-------------|
+| **Schema-Driven Magnitude** | `magnitude_pct` is a formal `numeric` field in `response_format.fields`. Per-persona defaults: aggressive=20%, FLC=10%, myopic=5%. Opt-out via `--no-magnitude`. |
+| **Action-Outcome Feedback** | Agents receive combined "You chose X → outcome Y" memories each year, enabling causal learning through reflection. |
+| **Configurable Reflection** | Domain-specific reflection guidance questions defined in `agent_types.yaml` under `global_config.reflection.questions`. |
+
 ## Quick Start
 
 ```bash
@@ -33,8 +41,22 @@ python run_experiment.py --model gemma3:4b --years 5 --agents 5
 python run_experiment.py --model gemma3:4b --years 10 --agents 10 --seed 42
 
 # Production (78 real CRSS agents, 42 years — requires ref/CRSS_DB data)
-python run_experiment.py --model gemma3:4b --years 42 --real --seed 42
+python run_experiment.py --model gemma3:4b --years 42 --real --seed 42 --num-ctx 8192 --num-predict 4096
 ```
+
+## CLI Arguments
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--model` | `gemma3:4b` | Ollama model name |
+| `--years` | `5` | Simulation years |
+| `--agents` | `5` | Number of agents (synthetic mode) |
+| `--real` | disabled | Use 78 real CRSS agents instead of synthetic |
+| `--seed` | random | Random seed for reproducibility |
+| `--no-magnitude` | disabled | Disable schema-driven magnitude_pct field |
+| `--num-ctx` | auto | Ollama context window override |
+| `--num-predict` | auto | Ollama max tokens override |
+| `--output` | auto | Output directory |
 
 ## Behavioral Clusters
 

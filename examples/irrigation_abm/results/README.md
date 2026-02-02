@@ -37,10 +37,7 @@ than governance ablation.
 
 | Directory | Version | Description |
 |-----------|---------|-------------|
-| `pre_fix/` | v2, v3 | Early runs before governance/context pipeline fixes (archival) |
-| `post_fix_validation/` | — | 10-agent validation confirming pipeline fixes |
-| `production_4b_42yr_v4/` | **v4** | Full 78-agent, 42-year production run (current paper data) |
-| `v5_rebalanced/` | v5 | Cluster-rebalanced run with per-cluster magnitude (in progress) |
+| `production_4b_42yr_v6/` | **v6** | Full 78-agent, 42-year with P0+P1 fix + action feedback + configurable reflection |
 
 ## CRSS Baseline Comparison
 
@@ -71,16 +68,6 @@ to 0 AF via 30 consecutive `reduce_acreage` decisions.
 This finding extends the hallucination taxonomy beyond physical impossibility (flood domain)
 to economic/operational absurdity, demonstrating that the same governance architecture
 catches qualitatively different failure modes.
-
-## Directory Layout
-
-| Directory | Version | Description |
-|-----------|---------|-------------|
-| `pre_fix/` | v2, v3 | Early runs before governance/context pipeline fixes (archival) |
-| `post_fix_validation/` | -- | 10-agent validation confirming pipeline fixes |
-| `production_4b_42yr_v4/` | **v4** | Full 78-agent, 42-year production run (economic hallucination discovered) |
-| `v5_rebalanced/` | v5 | Cluster-rebalanced run (abandoned -- rebalancing masks root cause) |
-| `production_4b_42yr_v6/` | **v6** | Full 78-agent, 42-year with P0+P1 fix (pending) |
 
 ## Reproduction
 

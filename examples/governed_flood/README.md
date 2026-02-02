@@ -10,6 +10,14 @@ Standalone example demonstrating **Group C (Full Cognitive Governance)** — the
 | 2 | **Cognitive Memory** | `HumanCentricMemoryEngine` + `ReflectionEngine` | Emotional encoding + year-end consolidation |
 | 3 | **Priority Schema** | `use_priority_schema: true` | Physical reality enters context before preferences |
 
+## Recent Enhancements
+
+| Feature | Description |
+|---------|-------------|
+| **Action-Outcome Feedback** | Agents see "Year N: You chose to [skill]" in memory, enabling reflection on past decisions. |
+| **Configurable Reflection** | Reflection guidance questions now defined in `agent_types.yaml` (`global_config.reflection.questions`) instead of hardcoded. |
+| **Reasoning-Before-Rating** | Response format places `reasoning` field first, improving autoregressive generation quality for appraisal labels. |
+
 ## Quick Start
 
 ```bash

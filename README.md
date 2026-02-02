@@ -55,12 +55,13 @@ python examples/single_agent/run_flood.py --model gemma3:4b --years 10 --agents 
 
 ### 4. Explore More
 
-| Example            | Complexity   | Description                                          | Link                           |
-| :----------------- | :----------- | :--------------------------------------------------- | :----------------------------- |
-| **Governed Flood** | Beginner     | Standalone Group C demo with full governance         | [Go](examples/governed_flood/) |
-| **Single Agent**   | Intermediate | JOH Benchmark: Groups A/B/C ablation study           | [Go](examples/single_agent/)   |
-| **Multi-Agent**    | Advanced     | Social dynamics, insurance market, government policy | [Go](examples/multi_agent/)    |
-| **Finance**        | Extension    | Cross-domain demonstration (portfolio decisions)     | [Go](examples/finance/)        |
+| Example            | Complexity   | Description                                                   | Link                           |
+| :----------------- | :----------- | :------------------------------------------------------------ | :----------------------------- |
+| **Governed Flood** | Beginner     | Standalone Group C demo with full governance                  | [Go](examples/governed_flood/) |
+| **Single Agent**   | Intermediate | JOH Benchmark: Groups A/B/C ablation study                    | [Go](examples/single_agent/)   |
+| **Irrigation ABM** | Intermediate | Colorado River Basin water demand (Hung & Yang, 2021)        | [Go](examples/irrigation_abm/) |
+| **Multi-Agent**    | Advanced     | Social dynamics, insurance market, government policy          | [Go](examples/multi_agent/)    |
+| **Finance**        | Extension    | Cross-domain demonstration (portfolio decisions)              | [Go](examples/finance/)        |
 
 ---
 
@@ -339,7 +340,9 @@ The **Human-Centric Memory Engine** (v3.3) solves the "Goldfish Effect" by prior
 
 1. **Priority-Driven Retrieval**: The Context Builder dynamically injects memories based on the retrieval score $S = (W_{rec} \cdot S_{rec}) + (W_{imp} \cdot S_{imp}) + (W_{ctx} \cdot S_{ctx})$. This ensures that even distant trauma (High Importance) or situationally-relevant facts (High Context) are pushed to the LLM's working memory.
 2. **Reflection Loop**: Yearly consolidation of events into generalized "Insights" (assigned maximum weight $I = 10.0$ to resist decay).
-3. **Bounded Context**: Filters thousands of logs into a concise, token-efficient prompt, prioritizing accuracy over volume.
+3. **Domain-Specific Reflection**: Reflection prompts now accept configurable guidance questions from `agent_types.yaml` (`global_config.reflection.questions`), enabling domain-tailored consolidation.
+4. **Action-Outcome Feedback**: Agents receive combined action + outcome memories (e.g., "Year 3: You chose to increase demand (by 15%). You requested 120,000 AF and received 95,000 AF."), enabling causal learning through reflection.
+5. **Bounded Context**: Filters thousands of logs into a concise, token-efficient prompt, prioritizing accuracy over volume.
 
 ### Tiered Memory Roadmap (v4 Target)
 
@@ -678,8 +681,8 @@ The framework has been validated through the **JOH Benchmark** (Journal of Hydro
 | Gemma 3-12B | ✓ | ✓ | ✓ |
 | Gemma 3-27B | ✓ | ✓ | ✓ |
 | Ministral 3B | ✓ | ✓ | ✓ |
-| Ministral 8B | ✓ | ✓ | In Progress |
-| Ministral 14B | ✓ | Pending | Pending |
+| Ministral 8B | ✓ | Re-running (reflection changes) | Re-running (reflection + action feedback) |
+| Ministral 14B | ✓ | Re-running (reflection changes) | Re-running (reflection + action feedback) |
 
 **[Full experimental details](examples/single_agent/)**
 
@@ -714,7 +717,7 @@ The `SkillBrokerEngine` is used by **both** SA and MA experiments. MA support wo
 | Memory + Reflection | ✓ | ✓ | Per-agent memory, batch reflection |
 | Output Schema validation | ✓ | ✓ | JSON Schema defined per skill |
 | Communication protocol | N/A | Partial | Broadcast via `env` state; no negotiation |
-| Domain adapters | Flood, Irrigation | Flood | Extensible via `DomainReflectionAdapter` |
+| Domain adapters | Flood, Irrigation | Flood, Irrigation | Extensible via `DomainReflectionAdapter` |
 
 ### MA Execution Model
 
