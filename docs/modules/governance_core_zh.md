@@ -178,6 +178,40 @@ validator = CrossAgentValidator(
 
 ---
 
+## 2.7 領域驗證器（BuiltinCheck 模式）
+
+除了 YAML 驅動的 thinking 和 identity 規則外，每個領域都使用 `BuiltinCheck` 模式實現 **自定義驗證器函數**。這些函數提供需要程式化邏輯的檢查（如算術比較、跨欄位驗證）：
+
+```python
+from broker.validators.governance.base_validator import ValidationResult
+
+def my_physical_check(skill_name, rules, context):
+    """超出物理容量時阻止增加。"""
+    if skill_name != "increase_demand":
+        return []
+    if not context.get("at_cap", False):
+        return []
+    return [ValidationResult(
+        valid=False,
+        validator_name="DomainPhysicalValidator",
+        errors=["已達到最大容量，無法增加。"],
+        warnings=[],
+        metadata={"rule_id": "capacity_cap_check", "level": "ERROR"},
+    )]
+```
+
+驗證器分為 **5 大類別**：
+
+| 類別 | 範圍 | 範例 |
+|------|------|------|
+| **Physical** | 狀態不可能性 | 不能重複高架、不能超過水權 |
+| **Personal** | 資源約束 | 儲蓄不足以支付高架費用 |
+| **Social** | 社區規範 | 多數鄰居已適應但代理未行動 |
+| **Semantic** | 推理一致性 | 引用不存在的鄰居、引用未發生的事件 |
+| **Thinking** | 評估一致性 | YAML 規則驅動（構念標籤 → 被阻止的技能） |
+
+領域驗證器通過 `ExperimentBuilder.with_custom_validators()` 注入，在 identity 和 thinking 規則之後評估。參見 `examples/governed_flood/validators/flood_validators.py`（8 個檢查）和 `examples/irrigation_abm/validators/irrigation_validators.py`（8 個檢查）。
+
 ## 3. 稽核
 
 所有驗證結果記錄在 `simulation.log` 和 `audit_summary.json` 中。可追蹤：

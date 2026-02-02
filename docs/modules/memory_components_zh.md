@@ -6,6 +6,12 @@
 
 ---
 
+## WRR 驗證配置
+
+在所有 WRR（Water Resources Research）實驗中，**HumanCentricMemoryEngine** 的 **基本排名模式** 是經過驗證的配置。此引擎結合近期窗口緩衝區（5 條最新記憶）與 top-k 檢索（2 條最高衰減重要性記憶），使用 `importance = emotional_weight * source_weight` 評分。每個實驗的 `agent_types.yaml` 中定義了領域特定的情感關鍵字和來源模式。
+
+以下記憶演化路線圖描述了完整架構，包括可用但未在 WRR 驗證實驗中使用的實驗性引擎（v3/v4）。
+
 ## 記憶演化與路線圖
 
 本系統是建立在認知科學基礎上的 **通用認知架構**，以三個階段逐步深化檢索能力。

@@ -120,7 +120,34 @@ skills:
 
 ---
 
-## 6. 整合範例
+## 6. 幅度邊界與輸出架構
+
+對於需要量化參數的技能（如灌溉中的百分比需求變化），技能註冊表支援 **幅度邊界** 和 **輸出架構驗證**：
+
+```yaml
+skills:
+  - skill_id: increase_demand
+    institutional_constraints:
+      magnitude_type: "percentage"
+      max_magnitude_pct: 30            # 治理上限
+      magnitude_default: 10            # LLM 省略時的後備值
+    output_schema:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: integer, enum: [1, 2, 3, 4, 5] }
+        magnitude_pct: { type: number, minimum: 1, maximum: 30 }
+```
+
+幅度在管線中的流程：
+1. LLM 輸出 `magnitude_pct` 作為 `response_format` 中的 `numeric` 欄位
+2. `parse_output()` 將其提取到 `SkillProposal.magnitude_pct`
+3. 驗證器檢查叢集特定上限（如激進=30%、保守=15%）
+4. `ApprovedSkill.parameters["magnitude_pct"]` 攜帶驗證後的值到執行層
+
+當 LLM 輸出 0% 或完全省略欄位時，會套用每個角色的預設值。
+
+## 7. 整合範例
 
 在 **Broker** 中，流程如下所示：
 

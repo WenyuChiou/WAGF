@@ -6,7 +6,13 @@ The **Memory and Retrieval System** is the cognitive bridge between an agent's p
 
 ---
 
-## 🏛️ Memory Evolution & Roadmap
+## WRR-Validated Configuration
+
+For all WRR (Water Resources Research) experiments, the **HumanCentricMemoryEngine** in **basic ranking mode** is the validated configuration. This engine combines a recent-window buffer (5 most recent memories) with top-k retrieval (2 highest by decayed importance), using `importance = emotional_weight * source_weight` scoring. See `agent_types.yaml` in each experiment for domain-specific emotion keywords and source patterns.
+
+The memory evolution roadmap below describes the full architecture including experimental engines (v3/v4) that are available but not used in WRR validation experiments.
+
+## Memory Evolution & Roadmap
 
 The system is a **Universal Cognitive Architecture** grounded in established cognitive science, evolving across three specific phases of retrieval depth.
 

@@ -120,7 +120,34 @@ Roles are injected by domain modules (e.g., flood simulation defines household/g
 
 ---
 
-## 6. Integration Example
+## 6. Magnitude Bounds & Output Schema
+
+For skills that require quantitative parameters (e.g., percentage demand change in irrigation), the skill registry supports **magnitude bounds** and **output schema validation**:
+
+```yaml
+skills:
+  - skill_id: increase_demand
+    institutional_constraints:
+      magnitude_type: "percentage"
+      max_magnitude_pct: 30            # Governance cap
+      magnitude_default: 10            # Fallback when LLM omits value
+    output_schema:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: integer, enum: [1, 2, 3, 4, 5] }
+        magnitude_pct: { type: number, minimum: 1, maximum: 30 }
+```
+
+The magnitude flows through the pipeline:
+1. LLM outputs `magnitude_pct` as a `numeric` field in `response_format`
+2. `parse_output()` extracts it into `SkillProposal.magnitude_pct`
+3. Validators check against cluster-specific caps (e.g., aggressive=30%, conservative=15%)
+4. `ApprovedSkill.parameters["magnitude_pct"]` carries the validated value to execution
+
+Per-persona defaults are applied when the LLM outputs 0% or omits the field entirely.
+
+## 7. Integration Example
 
 In the **Broker**, the flow looks like this:
 

@@ -20,23 +20,20 @@ The `ContextBuilder` transforms raw data into a narrative structure understandab
       $$S(m) = (W_{rec} \cdot S_{rec}) + (W_{imp} \cdot S_{imp}) + (W_{ctx} \cdot S_{ctx})$$
       This allows high-importance (trauma) or situationally-relevant (tag-matched) memories to bypass simple recency decay.
 
-    **Note**: You can configure the `priority_schema` weights directly in `agent_types.yaml`.
+    **Note**: The `priority_schema` is an optional configuration in `agent_types.yaml`. It is **not used** in the WRR validation experiments, which rely on the `HumanCentricMemoryEngine` basic ranking mode (window + top-k by decayed importance) for memory retrieval. The priority schema is available for advanced experiments that need weighted multi-factor retrieval.
 
-    ````yaml
-    household:
-      priority_schema:
-        flood_depth: 1.0 # Physical reality (Highest)
-        savings: 0.8 # Financial Reality
     ```yaml
+    # Optional — not used in WRR experiments
     household:
       priority_schema:
-        flood_depth: 1.0 # Physical reality (Highest)
-        savings: 0.8 # Financial Reality
-    ````
+        flood_depth: 1.0      # Physical reality (Highest)
+        savings: 0.8          # Financial Reality
+        risk_tolerance: 0.5   # Psychological factor
+    ```
 
     #### Theoretical Basis: Why Prioritize?
 
-    This prioritization is not arbitrary; it implements **Arousal-Biased Competition (ABC) Theory** (Mather & Sutherland, 2011). In high-stress environments, cognitive processing resources are scarce (Simon's Bounded Rationality). The "Priority Schema" mimics the brain's mechanism of amplifying "High Arousal" signals (like flood depth) while suppressing "Low Arousal" noise (like routine preferences), ensuring agents focus on survival-critical data during key decision windows.
+    This prioritization implements **Arousal-Biased Competition (ABC) Theory** (Mather & Sutherland, 2011). In high-stress environments, cognitive processing resources are scarce (Simon's Bounded Rationality). The "Priority Schema" mimics the brain's mechanism of amplifying "High Arousal" signals (like flood depth) while suppressing "Low Arousal" noise (like routine preferences). For WRR experiments, this effect is achieved through the emotion-weighted importance scoring in the HumanCentric memory engine instead.
 
 3.  **Immediate Perception**:
     - Specific values for the current year (water level, neighbor actions, policy changes).

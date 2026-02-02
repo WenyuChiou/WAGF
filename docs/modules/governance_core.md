@@ -193,6 +193,40 @@ Cross-agent results use `ValidationLevel` (ERROR / WARNING / INFO). All generic 
 
 ---
 
+## 2.7 Domain Validators (BuiltinCheck Pattern)
+
+Beyond YAML-driven thinking and identity rules, each domain implements **custom validator functions** using the `BuiltinCheck` pattern. These provide checks that require programmatic logic (e.g., arithmetic comparisons, cross-field validation):
+
+```python
+from broker.validators.governance.base_validator import ValidationResult
+
+def my_physical_check(skill_name, rules, context):
+    """Block increase when at physical capacity."""
+    if skill_name != "increase_demand":
+        return []
+    if not context.get("at_cap", False):
+        return []
+    return [ValidationResult(
+        valid=False,
+        validator_name="DomainPhysicalValidator",
+        errors=["Cannot increase — already at maximum capacity."],
+        warnings=[],
+        metadata={"rule_id": "capacity_cap_check", "level": "ERROR"},
+    )]
+```
+
+Validators are organized into **5 categories**:
+
+| Category | Scope | Examples |
+|----------|-------|---------|
+| **Physical** | State impossibility | Cannot elevate twice, cannot exceed water right |
+| **Personal** | Resource constraints | Savings insufficient for elevation cost |
+| **Social** | Community norms | Majority of neighbors adapted but agent did not |
+| **Semantic** | Reasoning grounding | Cites nonexistent neighbors, references events that did not occur |
+| **Thinking** | Appraisal coherence | YAML-driven rules (construct label → blocked skills) |
+
+Domain validators are injected via `ExperimentBuilder.with_custom_validators()` and evaluated after identity and thinking rules. See `examples/governed_flood/validators/flood_validators.py` (8 checks) and `examples/irrigation_abm/validators/irrigation_validators.py` (8 checks) for reference implementations.
+
 ## 3. Auditing
 
 All validation results are logged in `simulation.log` and `audit_summary.json`. This allows us to track:

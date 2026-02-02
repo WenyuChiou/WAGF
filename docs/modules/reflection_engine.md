@@ -126,13 +126,34 @@ The INSTITUTIONAL trigger supports **Double-Loop Learning** (Argyris & Schön 19
 
 ---
 
-## 5. ⚙️ Configuration & References
+## 5. WRR Experiment Configuration
+
+In the validated WRR experiments, reflection uses a simplified interval-based trigger (every year) with domain-specific guidance questions defined in `agent_types.yaml`:
 
 ```yaml
-reflection_config:
-  interval: 1 # Reflect every year
-  importance_boost: 0.9 # Insights are "Sticky"
+global_config:
+  reflection:
+    interval: 1                       # Reflect every year
+    batch_size: 10                    # Agents per reflection batch
+    importance_boost: 0.9             # Insights are high-importance
+    method: hybrid
+    questions:                        # Domain-specific guidance
+      - "Was your strategy effective given the conditions?"
+      - "What patterns do you notice between your actions and outcomes?"
+      - "How should you adjust your approach going forward?"
 ```
+
+### Action-Outcome Feedback
+
+Each year, agents receive combined memories connecting their decisions to consequences:
+
+> "Year 5: You chose to decrease_demand by 15%. Outcome: Supply was adequate, utilisation dropped to 65%."
+
+This feedback is injected via the `pre_year` lifecycle hook and enables causal learning through the reflection loop. The combination of guidance questions + action-outcome feedback allows agents to correlate specific action magnitudes with supply outcomes across years.
+
+### Configurable Guidance Questions
+
+Reflection questions are no longer hardcoded — they are defined per-domain in `agent_types.yaml` under `global_config.reflection.questions`. The flood domain uses PMT-aligned questions about risk, neighbor influence, and cost-safety trade-offs. The irrigation domain uses questions about demand strategy effectiveness and magnitude calibration.
 
 ### References
 

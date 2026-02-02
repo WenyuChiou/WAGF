@@ -112,13 +112,34 @@ INSTITUTIONAL 觸發支援組織層級的**雙迴路學習**（Argyris & Schon 1
 
 ---
 
-## 5. 設定與參考文獻
+## 5. WRR 實驗配置
+
+在經過驗證的 WRR 實驗中，反思使用簡化的基於間隔的觸發器（每年），並在 `agent_types.yaml` 中定義領域特定的引導問題：
 
 ```yaml
-reflection_config:
-  interval: 1 # 每年反思
-  importance_boost: 0.9 # 洞見「持久性」
+global_config:
+  reflection:
+    interval: 1                       # 每年反思一次
+    batch_size: 10                    # 每批代理人數
+    importance_boost: 0.9             # 洞見為高重要性
+    method: hybrid
+    questions:                        # 領域特定引導
+      - "你的策略在當前條件下是否有效？"
+      - "你的行動與結果之間有什麼模式？"
+      - "你應該如何調整未來的做法？"
 ```
+
+### 行動-結果回饋
+
+每年代理人會收到結合記憶，將決策與結果連結：
+
+> "第 5 年：你選擇了 decrease_demand 15%。結果：供水充足，利用率降至 65%。"
+
+此回饋通過 `pre_year` 生命週期掛鈎注入，並通過反思循環實現因果學習。引導問題 + 行動-結果回饋的結合讓代理人能夠跨年份關聯特定行動幅度與供應結果。
+
+### 可配置引導問題
+
+反思問題不再硬編碼 — 它們在 `agent_types.yaml` 的 `global_config.reflection.questions` 中按領域定義。洪水領域使用與 PMT 對齊的風險、鄰居影響和成本-安全權衡問題。灌溉領域使用需求策略有效性和幅度校準問題。
 
 ### 參考文獻
 
