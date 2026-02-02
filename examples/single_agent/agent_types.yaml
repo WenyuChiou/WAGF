@@ -200,7 +200,7 @@ household:
       CP_REASON: { keywords: ["coping_appraisal", "coping"], regex: ".*" }
 
   multi_skill:
-    enabled: true
+    enabled: false
     max_skills: 2
     execution_order: "sequential"
     secondary_field: "secondary_decision"
