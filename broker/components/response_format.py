@@ -144,7 +144,8 @@ class ResponseFormatBuilder:
                 # Support numeric fields with range (for utility/financial frameworks)
                 min_val = field.get("min", 0.0)
                 max_val = field.get("max", 1.0)
-                lines.append(f'  "{key}": [Numeric: {min_val}-{max_val}]{comma}')
+                desc = field.get("description", f"Numeric: {min_val}-{max_val}")
+                lines.append(f'  "{key}": "{desc}"{comma}')
 
             else:  # text
                 lines.append(f'  "{key}": "..."{comma}')

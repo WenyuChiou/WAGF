@@ -26,6 +26,7 @@ global_config:
     interval: 1
     batch_size: 10
     importance_boost: 0.9
+    persona_instruction: "Summarize each agent's memories into a 2-sentence 'Lesson Learned'. Speak in the FIRST PERSON (e.g., 'I realized...') and maintain the agent's role."
     questions:
       - "Was your water demand strategy effective given the supply conditions?"
       - "Did the magnitude of your demand change match the outcome?"
@@ -91,7 +92,7 @@ shared:
           reason_hint: "One sentence on how well you can adapt your water use.",
         }
       - { key: "decision", type: "choice", required: true }
-      - { key: "magnitude_pct", type: "numeric", min: 1, max: 30, required: false }
+      - { key: "magnitude_pct", type: "numeric", min: 1, max: 30, required: false, description: "Enter 1-30 representing the percentage change for your decision." }
 
 # =============================================================================
 # IRRIGATION FARMER AGENT TYPE
