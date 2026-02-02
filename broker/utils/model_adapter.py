@@ -366,34 +366,46 @@ class UnifiedAdapter(ModelAdapter):
                                         skill_name = canonical
                                         break
                 
-                # Extract magnitude (optional, for any domain with magnitude-aware skills)
-                magnitude_raw = data_lowered.get("magnitude") or data_lowered.get("magnitude_pct")
-                if magnitude_raw is not None:
-                    try:
-                        # 1. Direct float attempt
-                        _mag = float(magnitude_raw)
-                        _magnitude_pct = _mag
-                    except (ValueError, TypeError):
-                        # 2. Regex fallback (handles echoed templates like "[Numeric: 15]")
-                        if isinstance(magnitude_raw, str):
-                            digit_match = re.search(r'(\d+)', magnitude_raw)
-                            if digit_match:
-                                _magnitude_pct = float(digit_match.group(1))
-                            else:
-                                parsing_warnings.append(f"Non-numeric magnitude: {magnitude_raw}")
-                                _magnitude_pct = None
-                        else:
-                            _magnitude_pct = None
-
-                    if _magnitude_pct is not None:
-                        if _magnitude_pct < 0:
-                            parsing_warnings.append(f"Negative magnitude {_magnitude_pct}% ignored")
-                            _magnitude_pct = None
-                        else:
-                            _mag_val = min(_magnitude_pct, 100.0)
-                            if _magnitude_pct > 100:
-                                parsing_warnings.append(f"Magnitude {_magnitude_pct}% clamped to 100%")
-                            _magnitude_pct = _mag_val
+                # Extract numeric fields (dynamic, config-driven)
+                # For backward compatibility, we still expose _magnitude_pct as the primary numeric value
+                numeric_fields = self.agent_config.get_numeric_fields(agent_type)
+                _extracted_numerics = {}  # Will store all extracted numeric values
+                
+                if numeric_fields:
+                    for nf in numeric_fields:
+                        key = nf.get("key")
+                        if not key:
+                            continue
+                        
+                        # Try to get from JSON with case-insensitive lookup
+                        raw_val = data_lowered.get(key.lower())
+                        if raw_val is None:
+                            continue
+                        
+                        # Parse the value
+                        parsed_val = self._parse_numeric_value(raw_val, nf, parsing_warnings)
+                        if parsed_val is not None:
+                            _extracted_numerics[key] = parsed_val
+                    
+                    # For backward compatibility: expose first numeric as _magnitude_pct
+                    # Priority: magnitude_pct > magnitude > first defined numeric field
+                    if "magnitude_pct" in _extracted_numerics:
+                        _magnitude_pct = _extracted_numerics["magnitude_pct"]
+                    elif "magnitude" in _extracted_numerics:
+                        _magnitude_pct = _extracted_numerics["magnitude"]
+                    elif _extracted_numerics:
+                        _magnitude_pct = list(_extracted_numerics.values())[0]
+                else:
+                    # Legacy fallback: hardcoded magnitude/magnitude_pct lookup
+                    magnitude_raw = data_lowered.get("magnitude") or data_lowered.get("magnitude_pct")
+                    if magnitude_raw is not None:
+                        try:
+                            _magnitude_pct = float(magnitude_raw)
+                        except (ValueError, TypeError):
+                            if isinstance(magnitude_raw, str):
+                                digit_match = re.search(r'(\d+)', magnitude_raw)
+                                if digit_match:
+                                    _magnitude_pct = float(digit_match.group(1))
 
                 # RECOVERY: If JSON parsed but no decision found, look for "Naked Digit" after the JSON block
                 if not skill_name:
@@ -780,6 +792,66 @@ class UnifiedAdapter(ModelAdapter):
             magnitude_pct=_magnitude_pct,
         )
         
+    def _parse_numeric_value(
+        self, 
+        raw_val: Any, 
+        field_config: Dict[str, Any], 
+        warnings: List[str]
+    ) -> Optional[float]:
+        """
+        Parse a numeric value from LLM output with config-driven validation.
+        
+        Args:
+            raw_val: Raw value from JSON (could be int, float, or string)
+            field_config: Numeric field config with min/max/unit/sign constraints
+            warnings: List to append parsing warnings
+            
+        Returns:
+            Parsed and validated float value, or None if invalid
+        """
+        key = field_config.get("key", "numeric")
+        min_val = field_config.get("min")
+        max_val = field_config.get("max")
+        sign = field_config.get("sign", "positive_only")
+        
+        # 1. Try direct float conversion
+        try:
+            parsed = float(raw_val)
+        except (ValueError, TypeError):
+            # 2. Try regex extraction from string (handles echoed placeholders)
+            if isinstance(raw_val, str):
+                # Handle negative numbers if sign allows
+                if sign == "both" or sign == "negative_only":
+                    match = re.search(r'([+-]?\d+(?:\.\d+)?)', raw_val)
+                else:
+                    match = re.search(r'(\d+(?:\.\d+)?)', raw_val)
+                
+                if match:
+                    parsed = float(match.group(1))
+                else:
+                    warnings.append(f"Could not parse numeric value for '{key}': {raw_val}")
+                    return None
+            else:
+                return None
+        
+        # 3. Apply sign validation
+        if sign == "positive_only" and parsed < 0:
+            warnings.append(f"Negative value for '{key}' ({parsed}) ignored - expected positive")
+            return None
+        elif sign == "negative_only" and parsed > 0:
+            warnings.append(f"Positive value for '{key}' ({parsed}) ignored - expected negative")
+            return None
+        
+        # 4. Apply range clamping
+        if min_val is not None and parsed < min_val:
+            warnings.append(f"Value for '{key}' ({parsed}) below min ({min_val}), clamped")
+            parsed = min_val
+        if max_val is not None and parsed > max_val:
+            warnings.append(f"Value for '{key}' ({parsed}) above max ({max_val}), clamped")
+            parsed = max_val
+        
+        return parsed
+
     def _audit_demographic_grounding(self, reasoning: Dict, context: Dict, parsing_cfg: Dict = None) -> Dict:
         """
         Audit if the LLM cites the qualitative demographic anchors provided in context.
@@ -868,10 +940,19 @@ class UnifiedAdapter(ModelAdapter):
         found_skill = None
         found_mag = None
         
-        # 0. PRE-AUDIT: Look for magnitude in the text (e.g., "magnitude: 20")
-        mag_match = re.search(r'(?:magnitude|pct|percent|amount)\b\s*[:=]?\s*(\d+)', text.lower())
-        if mag_match:
-            found_mag = float(mag_match.group(1))
+        # 0. PRE-AUDIT: Look for numeric fields in the text (dynamic, config-driven)
+        numeric_fields = self.agent_config.get_numeric_fields(agent_type)
+        numeric_keys = [nf.get("key", "") for nf in numeric_fields] if numeric_fields else []
+        
+        # Build regex pattern from configured numeric field keys, plus legacy fallbacks
+        search_keys = numeric_keys + ["magnitude", "pct", "percent", "amount"]
+        unique_keys = list(set([k for k in search_keys if k]))  # dedupe
+        
+        if unique_keys:
+            pattern = r'(?:' + '|'.join(re.escape(k) for k in unique_keys) + r')\b\s*[:=]?\s*([+-]?\d+(?:\.\d+)?)'
+            mag_match = re.search(pattern, text.lower())
+            if mag_match:
+                found_mag = float(mag_match.group(1))
 
         # 1. DECISION LINE SEARCH
         lines = text.split('\n')

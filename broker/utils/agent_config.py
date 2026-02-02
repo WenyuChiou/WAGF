@@ -522,6 +522,39 @@ class AgentTypeConfig:
             return {**shared_fmt, **agent_fmt}
         return shared_fmt
 
+    def get_numeric_fields(self, agent_type: str) -> List[Dict[str, Any]]:
+        """
+        Get all numeric field definitions from response_format.
+        
+        Returns a list of field configs that have type="numeric", each containing:
+        - key: The field key (e.g., "magnitude_pct", "elevation_change")
+        - min/max: Optional range constraints
+        - unit: Optional unit (e.g., "%", "meters")
+        - sign: Optional sign constraint ("positive_only", "negative_only", "both")
+        
+        This allows ModelAdapter to dynamically extract any numeric field,
+        not just hardcoded "magnitude_pct".
+        
+        Returns:
+            List of numeric field definitions, empty if none defined
+        """
+        response_fmt = self.get_response_format(agent_type)
+        fields = response_fmt.get("fields", [])
+        
+        numeric_fields = []
+        for field in fields:
+            if field.get("type") == "numeric":
+                numeric_fields.append({
+                    "key": field.get("key"),
+                    "min": field.get("min"),
+                    "max": field.get("max"),
+                    "unit": field.get("unit", ""),
+                    "sign": field.get("sign", "positive_only"),
+                    "required": field.get("required", False),
+                })
+        
+        return numeric_fields
+
     # =========================================================================
     # Task-041: Framework-Aware Rating Scale Support
     # =========================================================================
