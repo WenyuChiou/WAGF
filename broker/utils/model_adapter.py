@@ -723,7 +723,7 @@ class UnifiedAdapter(ModelAdapter):
             base_layer = "fallback"
             parse_confidence = 0.20
 
-        required_constructs = ["TP_LABEL", "CP_LABEL", "decision"]
+        required_constructs = [k for k in constructs_cfg if "_LABEL" in k] + ["decision"]
         found = 0
         for construct in required_constructs:
             if construct in reasoning:
