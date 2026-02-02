@@ -76,7 +76,8 @@ shared:
     delimiter_start: "<<<DECISION_START>>>"
     delimiter_end: "<<<DECISION_END>>>"
     fields:
-      - { key: "reasoning", type: "text", required: false }
+      # Chain-of-Thought: Reasoning FIRST, then decision
+      - { key: "reasoning", type: "text", required: true, description: "Explain your thought process in 2-3 sentences BEFORE making a decision." }
       - {
           key: "water_scarcity_assessment",
           type: "appraisal",
@@ -91,7 +92,8 @@ shared:
           construct: "ACA_LABEL",
           reason_hint: "One sentence on how well you can adapt your water use.",
         }
-      - { key: "decision", type: "choice", required: true }
+      # Decision comes AFTER reasoning and appraisals
+      - { key: "decision", type: "choice", required: true, description: "Enter the numeric ID (1-5) of your chosen action." }
       - { key: "magnitude_pct", type: "numeric", min: 1, max: 30, required: false, description: "Enter 1-30 representing the percentage change for your decision." }
 
 # =============================================================================
