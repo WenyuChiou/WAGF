@@ -44,13 +44,13 @@ Launch a 10-agent flood adaptation demo with governance and human-centric memory
 python examples/governed_flood/run_experiment.py --model gemma3:4b --years 3 --agents 10
 ```
 
-### 3. Run the Full Benchmark (JOH Paper)
+### 3. Run the Full Benchmark (WRR Paper)
 
 Replicate the three-group ablation study (100 agents, 10 years):
 
 ```bash
 python examples/single_agent/run_flood.py --model gemma3:4b --years 10 --agents 100 \
-    --memory-engine humancentric --governance-mode strict --use-priority-schema
+    --memory-engine humancentric --governance-mode strict
 ```
 
 ### 4. Explore More
@@ -631,28 +631,26 @@ Synthetic profiles (no CRSS data) fall back to `water_right × 0.8`.
 
 ### Skill System Architecture Status
 
-> **Implemented but not yet wired into runtime pipeline (準備好但尚未接入執行管線):**
+> **Skill System Validation Pipeline Status:**
 >
 > | Method | Purpose | Status |
 > | :--- | :--- | :--- |
-> | `validate_output_schema()` | JSON Schema validation for LLM output | Schema ready, integration pending |
-> | `check_preconditions()` | YAML precondition enforcement | Defined, validation via PhysicalValidator |
-> | `get_magnitude_bounds()` | Extract magnitude constraints from registry | Defined, validation via custom validators |
+> | `validate_output_schema()` | JSON Schema validation for LLM output | ✅ Wired into `_run_validators()` (commit `f384814`) |
+> | `check_preconditions()` | YAML precondition enforcement | ✅ Wired into `_run_validators()` (commit `08cdb3a`) |
+> | `get_magnitude_bounds()` | Extract magnitude constraints from registry | ✅ Used by schema-driven magnitude pipeline |
 > | `check_composite_conflicts()` | Mutual exclusivity checking | Awaiting C4 composite skill execution |
->
-> These methods will be integrated into `SkillBrokerEngine.process_step()` in a future pipeline refactor to consolidate all validation into a single orchestrated sequence.
 
 ---
 
 ## Experimental Validation & Benchmarks
 
-The framework has been validated through the **JOH Benchmark** (Journal of Hydrology), a three-group ablation study that isolates the contribution of each cognitive component:
+The framework has been validated through the **WRR Benchmark** (Water Resources Research), a three-group ablation study that isolates the contribution of each cognitive component:
 
 | Group                  | Memory Engine           | Governance | Purpose                                                   |
 | :--------------------- | :---------------------- | :--------- | :-------------------------------------------------------- |
 | **A (Baseline)**       | None                    | Disabled   | Raw LLM output — no memory, no validation                 |
 | **B (Governed)**       | Window                  | Strict     | Governance effect isolation — memory-less but rational    |
-| **C (Full Cognitive)** | HumanCentric + Priority | Strict     | Complete system with emotional salience and trauma recall |
+| **C (Full Cognitive)** | HumanCentric            | Strict     | Complete system with emotional salience and trauma recall |
 
 ### Single-Agent vs. Multi-Agent Comparison
 
@@ -673,16 +671,18 @@ The framework has been validated through the **JOH Benchmark** (Journal of Hydro
 | **Meta Llama**    | 3.2-3B-Instruct      | Lightweight edge agents              |
 | **DeepSeek**      | R1-Distill-Llama-8B  | High-Reasoning (CoT) tasks           |
 
-### Flood Experiment Status (JOH Benchmark)
+### Flood Experiment Status (WRR Benchmark)
+
+All B/C groups re-running with v7 code (action-outcome feedback, configurable reflection, reasoning-first ordering).
 
 | Model | Group A (Ungoverned) | Group B (Governed+Window) | Group C (Governed+HumanCentric) |
 | :--- | :---: | :---: | :---: |
-| Gemma 3-4B | ✓ | ✓ | ✓ |
-| Gemma 3-12B | ✓ | ✓ | ✓ |
-| Gemma 3-27B | ✓ | ✓ | ✓ |
-| Ministral 3B | ✓ | ✓ | ✓ |
-| Ministral 8B | ✓ | Re-running (reflection changes) | Re-running (reflection + action feedback) |
-| Ministral 14B | ✓ | Re-running (reflection changes) | Re-running (reflection + action feedback) |
+| Gemma 3-4B | ✓ | Re-running (v7) | Re-running (v7) |
+| Gemma 3-12B | ✓ | Re-running (v7) | Re-running (v7) |
+| Gemma 3-27B | ✓ | Re-running (v7) | Re-running (v7) |
+| Ministral 3B | ✓ | Re-running (v7) | Re-running (v7) |
+| Ministral 8B | ✓ | Re-running (v7) | Re-running (v7) |
+| Ministral 14B | ✓ | Re-running (v7) | Re-running (v7) |
 
 **[Full experimental details](examples/single_agent/)**
 
