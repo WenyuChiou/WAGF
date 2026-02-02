@@ -366,7 +366,15 @@ class FinalParityHook:
             # Stochastic recall (baseline order)
             if random.random() < RANDOM_MEMORY_RECALL_CHANCE:
                 yearly_memories.append(f"Suddenly recalled: '{random.choice(PAST_EVENTS)}'.")
-            
+
+            # Action feedback from last year's decision
+            if year > 1:
+                action_ctx = getattr(agent, '_last_action_context', None)
+                if action_ctx and action_ctx.get("skill_name"):
+                    skill = action_ctx["skill_name"].replace("_", " ")
+                    act_year = action_ctx.get("year", year - 1)
+                    yearly_memories.append(f"Year {act_year}: You chose to {skill}.")
+
             # Consolidate and Add ONCE to preserve window history
             consolidated_mem = " | ".join(yearly_memories)
             self.runner.memory_engine.add_memory(agent.id, consolidated_mem)
