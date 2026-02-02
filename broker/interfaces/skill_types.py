@@ -217,16 +217,18 @@ class SkillBrokerResult:
             "retry_count": self.retry_count,
             "format_retries": self.format_retries
         }
-        if self.secondary_proposal:
-            d["secondary_proposal"] = self.secondary_proposal.to_dict()
-        if self.secondary_approved:
+        # Include ALL secondary fields when any is populated (consistent audit trace)
+        has_secondary = any([
+            self.secondary_proposal, self.secondary_approved,
+            self.secondary_execution, self.composite_validation_errors,
+        ])
+        if has_secondary:
+            d["secondary_proposal"] = self.secondary_proposal.to_dict() if self.secondary_proposal else None
             d["secondary_approved"] = {
                 "skill_name": self.secondary_approved.skill_name,
                 "status": self.secondary_approved.approval_status,
                 "parameters": self.secondary_approved.parameters,
-            }
-        if self.secondary_execution:
-            d["secondary_execution"] = self.secondary_execution.to_dict()
-        if self.composite_validation_errors:
+            } if self.secondary_approved else None
+            d["secondary_execution"] = self.secondary_execution.to_dict() if self.secondary_execution else None
             d["composite_validation_errors"] = self.composite_validation_errors
         return d

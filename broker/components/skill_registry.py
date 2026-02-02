@@ -207,12 +207,22 @@ class SkillRegistry:
     def check_composite_conflicts(self, skill_ids: List[str]) -> ValidationResult:
         """Check for mutual exclusivity conflicts between proposed skills."""
         errors: List[str] = []
+        # Validate all skill IDs exist in registry first
+        for sid in skill_ids:
+            if not self.get(sid):
+                errors.append(f"Skill '{sid}' not found in registry")
+        if errors:
+            return ValidationResult(
+                valid=False,
+                validator_name="SkillRegistry.composite_conflicts",
+                errors=errors,
+            )
+        # Check pairwise conflicts
         for i, sid in enumerate(skill_ids):
             skill = self.get(sid)
-            if not skill:
-                continue
             for other_sid in skill_ids[i + 1:]:
-                if other_sid in skill.conflicts_with:
+                other_skill = self.get(other_sid)
+                if other_sid in skill.conflicts_with or sid in other_skill.conflicts_with:
                     errors.append(f"Skills '{sid}' and '{other_sid}' are mutually exclusive")
         return ValidationResult(
             valid=len(errors) == 0,

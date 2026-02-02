@@ -808,11 +808,25 @@ class UnifiedAdapter(ModelAdapter):
                 if sec_id and sec_id != "0" and sec_id in skill_map:
                     _secondary_skill_name = skill_map[sec_id]
 
-                    # Extract secondary magnitude
+                    # Extract secondary magnitude with bounds validation
                     sec_mag_raw = data_lowered.get(sec_mag_field.lower()) if data_lowered else None
                     if sec_mag_raw is not None:
                         try:
-                            _secondary_magnitude_pct = float(re.search(r'(\d+)', str(sec_mag_raw)).group(1))
+                            mag_val = float(re.search(r'(\d+)', str(sec_mag_raw)).group(1))
+                            # Look up bounds from response_format numeric field definition
+                            mag_min, mag_max = 1, 100  # safe defaults
+                            for nf in self.agent_config.get_numeric_fields(agent_type):
+                                if nf["key"] == sec_mag_field:
+                                    mag_min = nf.get("min") or mag_min
+                                    mag_max = nf.get("max") or mag_max
+                                    break
+                            if mag_min <= mag_val <= mag_max:
+                                _secondary_magnitude_pct = mag_val
+                            else:
+                                logger.warning(
+                                    f" [Multi-Skill] {agent_id} | Secondary magnitude "
+                                    f"{mag_val}% out of bounds [{mag_min}, {mag_max}], ignoring"
+                                )
                         except (AttributeError, ValueError, TypeError):
                             pass
 
