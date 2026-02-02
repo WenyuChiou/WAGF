@@ -57,7 +57,8 @@ shared:
     delimiter_start: "<<<DECISION_START>>>"
     delimiter_end: "<<<DECISION_END>>>"
     fields:
-      - { key: "reasoning", type: "text", required: false }
+      # Chain-of-Thought: Reasoning and appraisals FIRST, decision LAST
+      - { key: "reasoning", type: "text", required: true, description: "Explain your thought process in 2-3 sentences." }
       - {
           key: "threat_appraisal",
           type: "appraisal",
@@ -72,7 +73,7 @@ shared:
           construct: "CP_LABEL",
           reason_hint: "One sentence summary of how well you think you can cope or act.",
         }
-      - { key: "decision", type: "choice", required: true }
+      - { key: "decision", type: "choice", required: true, description: "Enter the numeric ID (1-4) of your chosen action." }
 
 
 

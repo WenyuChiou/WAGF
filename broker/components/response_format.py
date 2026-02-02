@@ -119,6 +119,7 @@ class ResponseFormatBuilder:
             ftype = field.get("type", "text")
             is_last = (i == len(fields) - 1)
             comma = "" if is_last else ","
+            desc = field.get("description", "")
 
             if ftype == "appraisal":
                 # Use custom reason hint if provided
@@ -138,22 +139,86 @@ class ResponseFormatBuilder:
                 # Emphasize numeric ID to guide model away from string labels
                 # P2 fix: removed square brackets that misled small models (gemma3:1b)
                 # into outputting JSON arrays instead of a single integer
-                lines.append(f'  "{key}": "<Numeric ID, choose ONE from: {valid_choices_text}>"{comma}')
+                placeholder = desc if desc else f"Numeric ID, choose ONE from: {valid_choices_text}"
+                lines.append(f'  "{key}": "<{placeholder}>"{comma}')
 
             elif ftype == "numeric":
-                # Support numeric fields with range (for utility/financial frameworks)
-                min_val = field.get("min", 0.0)
-                max_val = field.get("max", 1.0)
-                desc = field.get("description", f"Numeric: {min_val}-{max_val}")
-                lines.append(f'  "{key}": "{desc}"{comma}')
+                # Flexible numeric fields with unit, sign, and range support
+                placeholder = self._build_numeric_placeholder(field)
+                lines.append(f'  "{key}": "{placeholder}"{comma}')
 
-            else:  # text
+            elif ftype == "text":
+                placeholder = desc if desc else "..."
+                lines.append(f'  "{key}": "{placeholder}"{comma}')
+
+            else:  # fallback for unknown types
                 lines.append(f'  "{key}": "..."{comma}')
 
         lines.append("}")
         lines.append(delimiter_end)
 
         return "\n".join(lines)
+
+    def _build_numeric_placeholder(self, field: Dict[str, Any]) -> str:
+        """
+        Build a flexible placeholder string for numeric fields.
+        
+        Supports:
+            - min/max: Range constraints (e.g., 1-30)
+            - unit: Unit of measurement (e.g., "meters", "percent", "%")
+            - sign: Allowed signs ("positive_only", "negative_only", "both")
+            - description: Custom description to override auto-generated text
+        
+        Examples in YAML:
+            # Simple percentage
+            - { key: "magnitude_pct", type: "numeric", min: 1, max: 30, unit: "%" }
+            # → "Enter a number: 1-30%"
+            
+            # Meters with sign
+            - { key: "elevation_change", type: "numeric", min: 0, max: 5, unit: "meters", sign: "both" }
+            # → "Enter a number: +/- 0-5 meters"
+            
+            # Custom description overrides everything
+            - { key: "budget", type: "numeric", description: "Your budget in USD (1000-50000)" }
+            # → "Your budget in USD (1000-50000)"
+        """
+        # 1. If explicit description is provided, use it directly
+        desc = field.get("description")
+        if desc:
+            return desc
+        
+        # 2. Build auto-generated placeholder
+        min_val = field.get("min")
+        max_val = field.get("max")
+        unit = field.get("unit", "")
+        sign = field.get("sign", "positive_only")  # positive_only, negative_only, both
+        
+        # Build range string
+        if min_val is not None and max_val is not None:
+            range_str = f"{min_val}-{max_val}"
+        elif min_val is not None:
+            range_str = f">={min_val}"
+        elif max_val is not None:
+            range_str = f"<={max_val}"
+        else:
+            range_str = ""
+        
+        # Build sign prefix
+        if sign == "both":
+            sign_prefix = "+/- "
+        elif sign == "negative_only":
+            sign_prefix = "- "
+        else:  # positive_only
+            sign_prefix = ""
+        
+        # Build unit suffix
+        unit_suffix = f" {unit}" if unit and unit not in ("%", "°", "°C", "°F") else unit
+        
+        # Compose final placeholder
+        if range_str:
+            return f"Enter a number: {sign_prefix}{range_str}{unit_suffix}"
+        else:
+            return f"Enter a number{unit_suffix}"
 
     def get_required_fields(self) -> List[str]:
         """Get list of required field keys for validation."""
