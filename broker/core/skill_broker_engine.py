@@ -174,8 +174,6 @@ class SkillBrokerEngine:
         else:
             memory_pre = list(raw_mem).copy() if raw_mem else []
         
-        memory_post = self._get_memory_snapshot(agent_id)
-        
         # ② LLM output → ModelAdapter → SkillProposal (with retry for empty/failed parse)
         prompt = self.context_builder.format_prompt(context)
         skill_proposal, raw_output, format_retry_count, total_llm_stats = (
@@ -282,9 +280,12 @@ class SkillBrokerEngine:
         if retry_count > 0:
              pass # Already logged success above
         
-        # ⑤ Execution (simulation engine ONLY)
-        if self.simulation_engine:
+        # ⑤ Execution (simulation engine ONLY — skip if REJECTED)
+        if self.simulation_engine and outcome not in (SkillOutcome.REJECTED, SkillOutcome.UNCERTAIN):
             execution_result = self.simulation_engine.execute_skill(approved_skill)
+        elif outcome in (SkillOutcome.REJECTED, SkillOutcome.UNCERTAIN):
+            # REJECTED: do not execute — record non-success with empty state changes
+            execution_result = ExecutionResult(success=False, state_changes={})
         else:
             # Standalone mode: Default to pseudo-execution
             execution_result = ExecutionResult(
@@ -292,6 +293,9 @@ class SkillBrokerEngine:
                 state_changes={}
             )
         
+        # Capture memory state after execution (before experiment-layer updates)
+        memory_post = self._get_memory_snapshot(agent_id)
+
         # ⑥ Audit trace
         if self.audit_writer:
             self._write_audit_trace(
@@ -533,6 +537,17 @@ class SkillBrokerEngine:
         log_fields = self.config.get_log_fields(agent_type_final)
         audit_priority = [f"reason_{f.lower()}" for f in log_fields]
 
+        # Build memory_audit from pre-retrieval data for audit CSV
+        memory_audit = {
+            "retrieved_count": len(memory_pre),
+            "memories": [
+                {"content": m, "emotion": "neutral", "source": "personal"}
+                if isinstance(m, str) else m
+                for m in memory_pre
+            ],
+            "retrieval_mode": "humancentric" if memory_pre else "",
+        }
+
         self.audit_writer.write_trace(agent_type_final, {
             "run_id": run_id,
             "step_id": step_id,
@@ -547,6 +562,7 @@ class SkillBrokerEngine:
             "context_hash": context_hash,
             "memory_pre": memory_pre,
             "memory_post": memory_post,
+            "memory_audit": memory_audit,
             "environment_context": env_context or {},
             "state_before": context.get("state", {}),
             "state_after": self._merge_state_after(context.get("state", {}), execution_result),

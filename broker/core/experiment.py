@@ -143,6 +143,11 @@ class ExperimentRunner:
             
             # Apply results and trigger post-step hooks
             for agent, result in results:
+                if result.outcome in (SkillOutcome.REJECTED, SkillOutcome.UNCERTAIN):
+                    # REJECTED: no state change, no memory — only audit trace
+                    if "post_step" in self.hooks:
+                        self.hooks["post_step"](agent, result)
+                    continue
                 if result.execution_result and result.execution_result.success:
                     self._apply_state_changes(agent, result)
                 if "post_step" in self.hooks:
