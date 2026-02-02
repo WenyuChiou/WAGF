@@ -137,6 +137,107 @@ class TemporalReport:
 # Temporal Coherence Validator
 # ---------------------------------------------------------------------------
 
+class ActionStabilityValidator:
+    """Construct-free temporal validation using action-level entropy.
+
+    For ABMs without ordinal constructs, this measures year-over-year
+    stability of action choices at the agent level.  Detects:
+
+    - Erratic switching: agent changes action every year without reason
+    - Lock-in: agent never changes despite changing conditions
+    - Population stability: per-year action entropy trend
+
+    Parameters
+    ----------
+    decision_col : str
+        Column containing the chosen action.
+    """
+
+    def __init__(self, decision_col: str = "yearly_decision"):
+        self._decision_col = decision_col
+
+    def compute(
+        self,
+        df: pd.DataFrame,
+        start_year: int = 1,
+    ) -> Dict[str, Any]:
+        """Compute action stability metrics.
+
+        Parameters
+        ----------
+        df : DataFrame
+            Must have agent_id, year, and decision column.
+        start_year : int
+            First year to include.
+
+        Returns
+        -------
+        dict
+            switch_rate: Fraction of agent-year transitions that changed.
+            lock_in_rate: Fraction of agents that never changed.
+            entropy_by_year: Per-year Shannon entropy of action distribution.
+            agent_switch_rates: Per-agent switch rate.
+        """
+        df = df[df["year"] >= start_year].sort_values(
+            ["agent_id", "year"]
+        ).copy()
+
+        if df.empty or self._decision_col not in df.columns:
+            return {
+                "switch_rate": 0.0,
+                "lock_in_rate": 0.0,
+                "entropy_by_year": {},
+                "agent_switch_rates": {},
+            }
+
+        total_transitions = 0
+        total_switches = 0
+        agent_switches: Dict[str, float] = {}
+
+        for agent_id, agent_df in df.groupby("agent_id"):
+            decisions = agent_df[self._decision_col].tolist()
+            if len(decisions) < 2:
+                agent_switches[str(agent_id)] = 0.0
+                continue
+
+            n_trans = len(decisions) - 1
+            n_switch = sum(
+                1 for i in range(1, len(decisions))
+                if decisions[i] != decisions[i - 1]
+            )
+            total_transitions += n_trans
+            total_switches += n_switch
+            agent_switches[str(agent_id)] = (
+                n_switch / n_trans if n_trans > 0 else 0.0
+            )
+
+        switch_rate = (
+            total_switches / total_transitions
+            if total_transitions > 0 else 0.0
+        )
+        lock_in_rate = (
+            sum(1 for r in agent_switches.values() if r == 0.0)
+            / len(agent_switches) if agent_switches else 0.0
+        )
+
+        # Per-year entropy
+        entropy_by_year: Dict[int, float] = {}
+        for year, year_df in df.groupby("year"):
+            counts = year_df[self._decision_col].value_counts(normalize=True)
+            probs = counts.values
+            entropy = float(-sum(
+                p * np.log2(p) for p in probs if p > 0
+            ))
+            entropy_by_year[int(year)] = round(entropy, 4)
+
+        return {
+            "switch_rate": round(switch_rate, 4),
+            "lock_in_rate": round(lock_in_rate, 4),
+            "entropy_by_year": entropy_by_year,
+            "agent_switch_rates": agent_switches,
+        }
+
+
 class TemporalCoherenceValidator:
     """Validate temporal consistency of psychological construct transitions.
 

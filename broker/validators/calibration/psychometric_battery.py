@@ -89,16 +89,20 @@ class Vignette:
 class ProbeResponse:
     """Single response from an agent to a vignette probe.
 
+    Supports both construct-rich mode (PMT with tp_label/cp_label)
+    and construct-free mode (decision-only or generic constructs).
+
     Attributes:
         vignette_id: Which vignette was presented.
         archetype: Agent archetype (e.g., "risk_averse_homeowner").
         replicate: Replicate number (1-30).
-        tp_label: Reported Threat Perception.
-        cp_label: Reported Coping Perception.
+        tp_label: Reported Threat Perception (PMT shorthand).
+        cp_label: Reported Coping Perception (PMT shorthand).
         decision: Chosen action.
         reasoning: Full reasoning text.
         governed: Whether SAGE governance was active.
         raw_response: Full LLM response text.
+        construct_labels: Generic construct label dict for non-PMT use.
     """
     vignette_id: str
     archetype: str
@@ -109,6 +113,14 @@ class ProbeResponse:
     reasoning: str = ""
     governed: bool = False
     raw_response: str = ""
+    construct_labels: Dict[str, str] = field(default_factory=dict)
+
+    def __post_init__(self):
+        # Sync tp_label/cp_label into construct_labels for uniform access
+        if self.tp_label and "TP_LABEL" not in self.construct_labels:
+            self.construct_labels["TP_LABEL"] = self.tp_label
+        if self.cp_label and "CP_LABEL" not in self.construct_labels:
+            self.construct_labels["CP_LABEL"] = self.cp_label
 
     @property
     def tp_ordinal(self) -> int:
@@ -119,6 +131,28 @@ class ProbeResponse:
     def cp_ordinal(self) -> int:
         """Convert CP label to ordinal (1-5)."""
         return LABEL_TO_ORDINAL.get(self.cp_label.upper(), 3)
+
+    def get_ordinal(
+        self,
+        construct: str,
+        label_map: Optional[Dict[str, int]] = None,
+    ) -> int:
+        """Get ordinal value for any construct.
+
+        Parameters
+        ----------
+        construct : str
+            Construct name (e.g., "TP_LABEL", "WSA_LABEL").
+        label_map : dict, optional
+            Custom label→ordinal mapping.  Default: LABEL_TO_ORDINAL.
+
+        Returns
+        -------
+        int
+        """
+        lmap = label_map or LABEL_TO_ORDINAL
+        label = self.construct_labels.get(construct, "")
+        return lmap.get(label.upper(), 0) if label else 0
 
 
 @dataclass
@@ -733,6 +767,162 @@ class PsychometricBattery:
             n_coherent / n if n > 0 else 0.0,
             n_incoherent / n if n > 0 else 0.0,
         )
+
+    # ------------------------------------------------------------------
+    # Construct-free cognitive metrics
+    # ------------------------------------------------------------------
+
+    def compute_decision_icc(
+        self,
+        vignette_id: Optional[str] = None,
+        governed: Optional[bool] = None,
+        action_ordinal_map: Optional[Dict[str, int]] = None,
+    ) -> ICCResult:
+        """Compute ICC on decision choices (construct-free).
+
+        Maps action names to ordinal values (e.g., by aggressiveness)
+        and computes ICC across replicates per archetype.
+
+        Parameters
+        ----------
+        vignette_id : str, optional
+            Filter to specific vignette.
+        governed : bool, optional
+            Filter to governed or ungoverned.
+        action_ordinal_map : dict, optional
+            Custom action→ordinal mapping.  If not provided, actions
+            are mapped alphabetically (1, 2, 3, ...).
+
+        Returns
+        -------
+        ICCResult
+        """
+        df = self.responses_to_dataframe()
+        if df.empty:
+            return ICCResult(construct="decision", icc_value=0.0)
+
+        if vignette_id:
+            df = df[df["vignette_id"] == vignette_id]
+        if governed is not None:
+            df = df[df["governed"] == governed]
+
+        if "decision" not in df.columns or df.empty:
+            return ICCResult(construct="decision", icc_value=0.0)
+
+        # Build ordinal mapping
+        if action_ordinal_map is None:
+            unique_actions = sorted(df["decision"].dropna().unique())
+            action_ordinal_map = {
+                a: i + 1 for i, a in enumerate(unique_actions)
+            }
+
+        # Map decisions to ordinals
+        df = df.copy()
+        df["decision_ordinal"] = df["decision"].map(
+            lambda x: action_ordinal_map.get(x, 0)
+        )
+
+        # Build rating matrix: archetypes x replicates
+        archetypes = sorted(df["archetype"].unique())
+        max_rep = int(df["replicate"].max()) if not df.empty else 0
+
+        matrix = np.full((len(archetypes), max_rep), np.nan)
+        for i, arch in enumerate(archetypes):
+            arch_df = df[df["archetype"] == arch].sort_values("replicate")
+            for _, row in arch_df.iterrows():
+                rep = int(row["replicate"]) - 1
+                if 0 <= rep < max_rep:
+                    matrix[i, rep] = row["decision_ordinal"]
+
+        valid_cols = ~np.any(np.isnan(matrix), axis=0)
+        matrix = matrix[:, valid_cols]
+
+        if matrix.shape[0] < 2 or matrix.shape[1] < 2:
+            return ICCResult(
+                construct="decision", icc_value=0.0,
+                n_subjects=matrix.shape[0], n_raters=matrix.shape[1],
+            )
+
+        return compute_icc_2_1(matrix, construct_name="decision")
+
+    def compute_reasoning_consistency(
+        self,
+        vignette_id: Optional[str] = None,
+        governed: Optional[bool] = None,
+    ) -> Dict[str, Any]:
+        """Compute reasoning consistency across replicates (keyword overlap).
+
+        For each archetype-vignette pair, measures how similar the
+        reasoning text is across replicates using Jaccard keyword overlap.
+
+        Parameters
+        ----------
+        vignette_id : str, optional
+            Filter to specific vignette.
+        governed : bool, optional
+            Filter to governed or ungoverned.
+
+        Returns
+        -------
+        dict
+            mean_consistency: Average pairwise Jaccard similarity.
+            per_archetype: Per-archetype mean consistency.
+            n_pairs: Total pairs compared.
+        """
+        responses = [r for r in self._responses if r.reasoning]
+        if vignette_id:
+            responses = [r for r in responses if r.vignette_id == vignette_id]
+        if governed is not None:
+            responses = [r for r in responses if r.governed == governed]
+
+        if not responses:
+            return {
+                "mean_consistency": 0.0,
+                "per_archetype": {},
+                "n_pairs": 0,
+            }
+
+        # Group by (vignette, archetype)
+        from collections import defaultdict
+        groups: Dict[Tuple[str, str], List[str]] = defaultdict(list)
+        for r in responses:
+            groups[(r.vignette_id, r.archetype)].append(r.reasoning)
+
+        all_similarities: List[float] = []
+        per_archetype: Dict[str, List[float]] = defaultdict(list)
+
+        for (vid, arch), texts in groups.items():
+            if len(texts) < 2:
+                continue
+
+            # Keyword extraction (simple word-level)
+            token_sets = [
+                set(t.lower().split()) for t in texts
+            ]
+
+            # Pairwise Jaccard
+            for i in range(len(token_sets)):
+                for j in range(i + 1, len(token_sets)):
+                    intersection = len(token_sets[i] & token_sets[j])
+                    union = len(token_sets[i] | token_sets[j])
+                    sim = intersection / union if union > 0 else 0.0
+                    all_similarities.append(sim)
+                    per_archetype[arch].append(sim)
+
+        mean_consistency = (
+            float(np.mean(all_similarities)) if all_similarities else 0.0
+        )
+
+        archetype_means = {
+            arch: round(float(np.mean(sims)), 4)
+            for arch, sims in per_archetype.items()
+        }
+
+        return {
+            "mean_consistency": round(mean_consistency, 4),
+            "per_archetype": archetype_means,
+            "n_pairs": len(all_similarities),
+        }
 
     # ------------------------------------------------------------------
     # Full report

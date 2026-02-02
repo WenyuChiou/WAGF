@@ -8,15 +8,22 @@ Runs all three levels of the Calibration & Validation framework:
     Level 3 (COGNITIVE): PsychometricBattery → ICC, Cronbach, Fleiss
 
 The runner can operate in two modes:
-    1. Post-hoc mode: Analyze existing simulation trace CSVs (Levels 1-2)
-    2. Active mode: Run psychometric probes via LLM (Level 3)
 
-Usage:
-    runner = CVRunner(
-        trace_path="results/Group_B/Run_1/simulation_log.csv",
-        framework="pmt",
-    )
-    report = runner.run_posthoc()  # Levels 1-2 only (no LLM calls)
+    1. **Explicit mode** (original API): specify framework, columns, etc.
+    2. **Auto-detect mode**: pass ``agent_types.yaml`` config and/or a
+       DataFrame and the :class:`ValidationRouter` figures out which
+       validators apply.
+
+Usage (explicit)::
+
+    runner = CVRunner(framework="pmt", group="B", start_year=2)
+    report = runner.run_posthoc()
+
+Usage (auto-detect)::
+
+    runner = CVRunner.from_config(config=cfg, df=trace_df)
+    plan = runner.plan           # inspect what will run
+    report = runner.run_posthoc()
 
 Part of SAGE C&V Framework (feature/calibration-validation).
 """
@@ -33,18 +40,26 @@ import pandas as pd
 from broker.validators.calibration.micro_validator import (
     MicroValidator,
     MicroReport,
+    BRCResult,
 )
 from broker.validators.calibration.distribution_matcher import (
     DistributionMatcher,
     MacroReport,
 )
 from broker.validators.calibration.temporal_coherence import (
+    ActionStabilityValidator,
     TemporalCoherenceValidator,
     TemporalReport,
 )
 from broker.validators.calibration.psychometric_battery import (
     PsychometricBattery,
     BatteryReport,
+)
+from broker.validators.calibration.validation_router import (
+    FeatureProfile,
+    ValidationPlan,
+    ValidationRouter,
+    ValidatorType,
 )
 from broker.validators.posthoc.unified_rh import compute_hallucination_rate
 
@@ -66,18 +81,27 @@ class CVReport:
         metadata: Run metadata (group, model, seed, etc.).
     """
     micro: Optional[MicroReport] = None
+    brc: Optional[BRCResult] = None
     macro: Optional[MacroReport] = None
     temporal: Optional[TemporalReport] = None
+    action_stability: Optional[Dict[str, Any]] = None
     rh_metrics: Dict[str, Any] = field(default_factory=dict)
     cognitive: Optional[BatteryReport] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
+    validation_plan: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         d: Dict[str, Any] = {"metadata": self.metadata}
+        if self.validation_plan:
+            d["validation_plan"] = self.validation_plan
         if self.micro:
             d["level1_micro"] = self.micro.to_dict()
+        if self.brc:
+            d["level2_brc"] = self.brc.to_dict()
         if self.temporal:
             d["level1_temporal"] = self.temporal.to_dict()
+        if self.action_stability:
+            d["level1_action_stability"] = self.action_stability
         if self.rh_metrics:
             d["level1_rh"] = {
                 k: v for k, v in self.rh_metrics.items()
@@ -103,6 +127,8 @@ class CVReport:
             s["EGS"] = round(self.micro.egs, 3)
         if self.temporal:
             s["TCS"] = round(self.temporal.overall_tcs, 3)
+        if self.brc:
+            s["BRC"] = round(self.brc.brc, 3)
         if self.rh_metrics:
             s["R_H"] = round(self.rh_metrics.get("rh", 0), 3)
             s["EBE"] = round(self.rh_metrics.get("ebe", 0), 3)
@@ -120,6 +146,19 @@ class CVReport:
 
 class CVRunner:
     """Three-level C&V orchestrator.
+
+    Supports two construction modes:
+
+    **Explicit mode** (original API) — caller specifies framework,
+    column names, and group manually::
+
+        runner = CVRunner(framework="pmt", ta_col="threat_appraisal", ...)
+
+    **Auto-detect mode** — pass an ``agent_types.yaml`` config dict and
+    the :class:`ValidationRouter` decision tree determines which
+    validators are applicable::
+
+        runner = CVRunner.from_config(config=cfg, df=trace_df)
 
     Parameters
     ----------
@@ -174,9 +213,91 @@ class CVRunner:
         )
         self._macro = DistributionMatcher()
         self._temporal = TemporalCoherenceValidator()
+        self._action_stability = ActionStabilityValidator(
+            decision_col=decision_col,
+        )
         self._battery = PsychometricBattery()
 
         self._df: Optional[pd.DataFrame] = None
+        self._plan: Optional[ValidationPlan] = None
+        self._profile: Optional[FeatureProfile] = None
+        self._config: Optional[Dict[str, Any]] = None
+
+    @classmethod
+    def from_config(
+        cls,
+        config: Optional[Dict[str, Any]] = None,
+        df: Optional[pd.DataFrame] = None,
+        trace_path: Optional[str | Path] = None,
+        group: str = "B",
+        start_year: int = 2,
+        reference_data: Optional[Dict[str, Any]] = None,
+    ) -> CVRunner:
+        """Create a CVRunner using automatic feature detection.
+
+        The :class:`ValidationRouter` inspects the config and data to
+        build a :class:`FeatureProfile`, then generates a
+        :class:`ValidationPlan` selecting appropriate validators.
+
+        Parameters
+        ----------
+        config : dict, optional
+            Agent type configuration (from ``agent_types.yaml``).
+        df : DataFrame, optional
+            Pre-loaded simulation trace.
+        trace_path : str or Path, optional
+            Path to CSV (loaded lazily if df not provided).
+        group : str
+            Experiment group label.
+        start_year : int
+            First year to include.
+        reference_data : dict, optional
+            Empirical reference data for macro calibration.
+
+        Returns
+        -------
+        CVRunner
+        """
+        profile = ValidationRouter.detect_features(
+            config=config, df=df, reference_data=reference_data,
+        )
+
+        # Build runner with detected settings
+        runner = cls(
+            trace_path=trace_path,
+            framework=profile.framework_name or "pmt",
+            ta_col=profile.construct_cols.get(
+                "TP_LABEL",
+                profile.construct_cols.get("WSA_LABEL", "threat_appraisal"),
+            ),
+            ca_col=profile.construct_cols.get(
+                "CP_LABEL",
+                profile.construct_cols.get("ACA_LABEL", "coping_appraisal"),
+            ),
+            decision_col=profile.decision_col or "yearly_decision",
+            reasoning_col=profile.reasoning_col or "reasoning",
+            group=group,
+            start_year=start_year,
+            reference_data=reference_data,
+        )
+
+        runner._config = config
+        runner._profile = profile
+        runner._plan = ValidationRouter.plan(profile)
+        if df is not None:
+            runner._df = df
+
+        return runner
+
+    @property
+    def plan(self) -> Optional[ValidationPlan]:
+        """The auto-detected validation plan (None if explicit mode)."""
+        return self._plan
+
+    @property
+    def profile(self) -> Optional[FeatureProfile]:
+        """The detected feature profile (None if explicit mode)."""
+        return self._profile
 
     # ------------------------------------------------------------------
     # Data loading
@@ -240,6 +361,24 @@ class CVRunner:
             start_year=self._start_year,
         )
 
+    def run_brc(
+        self, df: Optional[pd.DataFrame] = None,
+    ) -> BRCResult:
+        """Run BRC (Behavioral Reference Concordance)."""
+        data = df if df is not None else self.df
+        return self._micro.compute_brc(
+            data, start_year=self._start_year,
+        )
+
+    def run_action_stability(
+        self, df: Optional[pd.DataFrame] = None,
+    ) -> Dict[str, Any]:
+        """Run action stability analysis (construct-free temporal)."""
+        data = df if df is not None else self.df
+        return self._action_stability.compute(
+            data, start_year=self._start_year,
+        )
+
     # ------------------------------------------------------------------
     # Level 2: MACRO
     # ------------------------------------------------------------------
@@ -264,6 +403,10 @@ class CVRunner:
     ) -> CVReport:
         """Run post-hoc analysis (Levels 1-2, zero LLM calls).
 
+        When constructed via :meth:`from_config`, uses the
+        :class:`ValidationPlan` to decide which validators to run.
+        Otherwise falls back to explicit level selection.
+
         Parameters
         ----------
         df : DataFrame, optional
@@ -286,15 +429,74 @@ class CVRunner:
             "n_years": data["year"].nunique() if "year" in data.columns else 0,
         })
 
-        if 1 in run_levels:
+        # If auto-detect mode, attach the plan summary
+        if self._plan:
+            report.validation_plan = self._plan.summary()
+
+        # Use plan-aware routing when available
+        if self._plan and 1 in run_levels:
+            self._run_level1_planned(data, report)
+        elif 1 in run_levels:
             report.micro = self.run_micro(data)
             report.temporal = self.run_temporal(data)
             report.rh_metrics = self.run_rh(data)
 
-        if 2 in run_levels:
+        if self._plan and 2 in run_levels:
+            self._run_level2_planned(data, report)
+        elif 2 in run_levels:
             report.macro = self.run_macro(data)
 
         return report
+
+    def _run_level1_planned(
+        self,
+        data: pd.DataFrame,
+        report: CVReport,
+    ) -> None:
+        """Execute Level 1 validators according to the plan."""
+        if not self._plan:
+            return
+
+        planned_types = {v.type for v in self._plan.level1_micro}
+
+        # --- CORE: CACR (M1) ---
+        if ValidatorType.CACR in planned_types:
+            report.micro = self.run_micro(data)
+
+        # --- CORE: RH (M2) ---
+        if ValidatorType.RH in planned_types:
+            try:
+                report.rh_metrics = self.run_rh(data)
+            except (KeyError, ValueError):
+                # R_H requires specific columns (elevated, etc.) that
+                # may not exist in all datasets
+                pass
+
+        # --- OPTIONAL: Temporal diagnostics ---
+        if ValidatorType.TCS in planned_types:
+            report.temporal = self.run_temporal(data)
+
+        if ValidatorType.ACTION_STABILITY in planned_types:
+            report.action_stability = self.run_action_stability(data)
+
+    def _run_level2_planned(
+        self,
+        data: pd.DataFrame,
+        report: CVReport,
+    ) -> None:
+        """Execute Level 2 validators according to the plan."""
+        if not self._plan:
+            return
+
+        planned_types = {v.type for v in self._plan.level2_macro}
+
+        # --- CORE: BRC (M3) ---
+        if ValidatorType.BRC in planned_types:
+            report.brc = self.run_brc(data)
+
+        # --- OPTIONAL: Distribution matching ---
+        if ValidatorType.DISTRIBUTION_MATCH in planned_types:
+            report.macro = self.run_macro(data)
 
     # ------------------------------------------------------------------
     # Batch comparison

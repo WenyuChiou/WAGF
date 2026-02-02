@@ -4,11 +4,16 @@ Calibration & Validation (C&V) Framework for SAGE.
 Three-level validation architecture:
 
     Level 1 — MICRO:  Individual agent reasoning validation
-                       (CACR, EGS, TCS)
+                       (CACR, EGS, TCS, Action Stability)
     Level 2 — MACRO:  Population-level calibration
                        (KS, Wasserstein, chi-sq, PEBA, MA-EBE)
     Level 3 — COGNITIVE: Psychological construct fidelity
                        (psychometric battery, ICC, social amplification)
+
+Validation routing:
+    The :class:`ValidationRouter` auto-detects available features from
+    ``agent_types.yaml`` config and/or simulation DataFrames, then
+    selects appropriate validators via a decision-tree.
 
 References:
     Grimm et al. (2005) Pattern-oriented modelling — multi-level validation
@@ -21,6 +26,7 @@ Part of SAGE C&V Framework (feature/calibration-validation).
 
 from broker.validators.calibration.micro_validator import (
     MicroValidator,
+    BRCResult,
     CACRResult,
     EGSResult,
     TCSResult,
@@ -33,15 +39,24 @@ from broker.validators.calibration.distribution_matcher import (
     MacroReport,
 )
 from broker.validators.calibration.temporal_coherence import (
+    ActionStabilityValidator,
     TemporalCoherenceValidator,
     TransitionMatrix,
     TemporalReport,
     AgentTCSResult,
 )
+from broker.validators.calibration.validation_router import (
+    FeatureProfile,
+    ValidationPlan,
+    ValidationRouter,
+    ValidatorSpec,
+    ValidatorType,
+)
 
 __all__ = [
     # Level 1 — MICRO
     "MicroValidator",
+    "BRCResult",
     "CACRResult",
     "EGSResult",
     "TCSResult",
@@ -51,9 +66,16 @@ __all__ = [
     "DistributionTestResult",
     "PEBAFeatures",
     "MacroReport",
-    # TCS (shared between Level 1 and Level 3)
+    # TCS + Action Stability
+    "ActionStabilityValidator",
     "TemporalCoherenceValidator",
     "TransitionMatrix",
     "TemporalReport",
     "AgentTCSResult",
+    # Validation Router
+    "FeatureProfile",
+    "ValidationPlan",
+    "ValidationRouter",
+    "ValidatorSpec",
+    "ValidatorType",
 ]

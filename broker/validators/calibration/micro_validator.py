@@ -103,6 +103,34 @@ class TCSResult:
 
 
 @dataclass
+class BRCResult:
+    """Behavioral Reference Concordance result.
+
+    Attributes:
+        brc: Overall BRC (fraction of observations concordant with
+            the traditional ABM's expected action set).
+        concordant: Number of concordant observations.
+        total: Total observations evaluated.
+        brc_by_year: Per-year BRC values.
+        brc_by_agent_type: Per-agent-type BRC (for MA).
+    """
+    brc: float
+    concordant: int = 0
+    total: int = 0
+    brc_by_year: Dict[int, float] = field(default_factory=dict)
+    brc_by_agent_type: Dict[str, float] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "brc": self.brc,
+            "concordant": self.concordant,
+            "total": self.total,
+            "brc_by_year": self.brc_by_year,
+            "brc_by_agent_type": self.brc_by_agent_type,
+        }
+
+
+@dataclass
 class MicroReport:
     """Aggregated Level-1 micro validation report.
 
@@ -110,6 +138,7 @@ class MicroReport:
         cacr: Overall CACR (fraction coherent).
         cacr_by_year: Per-year CACR values.
         cacr_by_agent_type: Per-agent-type CACR (for MA).
+        brc: Behavioral Reference Concordance result.
         egs: Overall EGS (mean evidence grounding score).
         egs_by_year: Per-year EGS values.
         tcs: Overall TCS (fraction of agents with no impossible transitions).
@@ -120,6 +149,7 @@ class MicroReport:
     cacr: float
     cacr_by_year: Dict[int, float] = field(default_factory=dict)
     cacr_by_agent_type: Dict[str, float] = field(default_factory=dict)
+    brc: Optional[BRCResult] = None
     egs: float = 0.0
     egs_by_year: Dict[int, float] = field(default_factory=dict)
     tcs: float = 0.0
@@ -129,7 +159,7 @@ class MicroReport:
 
     def to_dict(self) -> Dict[str, Any]:
         """Serialize to dictionary for reporting."""
-        return {
+        d = {
             "cacr": self.cacr,
             "cacr_by_year": self.cacr_by_year,
             "cacr_by_agent_type": self.cacr_by_agent_type,
@@ -138,6 +168,9 @@ class MicroReport:
             "tcs": self.tcs,
             "n_observations": self.n_observations,
         }
+        if self.brc:
+            d["brc"] = self.brc.to_dict()
+        return d
 
 
 # ---------------------------------------------------------------------------
@@ -329,6 +362,102 @@ class MicroValidator:
             appraisals["CP_LABEL"] = str(row.get("ca_level", "M"))
 
         return appraisals
+
+    # ------------------------------------------------------------------
+    # BRC: Behavioral Reference Concordance
+    # ------------------------------------------------------------------
+
+    def compute_brc(
+        self,
+        df: pd.DataFrame,
+        start_year: int = 2,
+        agent_type_col: Optional[str] = None,
+    ) -> BRCResult:
+        """Compute Behavioral Reference Concordance.
+
+        BRC measures the fraction of agent-year observations where the
+        LLM's chosen action is in the expected action set predicted by
+        the traditional ABM's calibrated model (e.g.,
+        ``PMTFramework.get_expected_behavior()``).
+
+        This provides a per-observation L2 metric that works at any
+        sample size, unlike distributional tests (KS, chi²) which
+        require N >= 200 for adequate statistical power.
+
+        Parameters
+        ----------
+        df : DataFrame
+            Simulation log with agent_id, year, ta/ca columns, and
+            decision column.
+        start_year : int
+            First year to include (default 2).
+        agent_type_col : str, optional
+            Column for agent-type decomposition.
+
+        Returns
+        -------
+        BRCResult
+            With brc, concordant, total, and per-year/type breakdowns.
+        """
+        df = df[df["year"] >= start_year].copy()
+
+        # Ensure we have label columns
+        if "ta_level" not in df.columns:
+            if self._ta_col in df.columns and self._ca_col in df.columns:
+                df = self._classifier.classify_dataframe(
+                    df, self._ta_col, self._ca_col
+                )
+            else:
+                return BRCResult(brc=0.0)
+
+        concordant = 0
+        total = 0
+        year_conc: Dict[int, int] = {}
+        year_tot: Dict[int, int] = {}
+        type_conc: Dict[str, int] = {}
+        type_tot: Dict[str, int] = {}
+
+        for _, row in df.iterrows():
+            appraisals = self._extract_appraisals(row)
+            expected = self._framework.get_expected_behavior(appraisals)
+            actual = str(row.get(self._decision_col, "")).strip().lower()
+            yr = int(row["year"])
+
+            is_concordant = actual in expected
+            if is_concordant:
+                concordant += 1
+            total += 1
+
+            # Per-year tracking
+            year_conc[yr] = year_conc.get(yr, 0) + (1 if is_concordant else 0)
+            year_tot[yr] = year_tot.get(yr, 0) + 1
+
+            # Per-agent-type tracking
+            if agent_type_col and agent_type_col in row.index:
+                atype = str(row[agent_type_col])
+                type_conc[atype] = type_conc.get(atype, 0) + (
+                    1 if is_concordant else 0
+                )
+                type_tot[atype] = type_tot.get(atype, 0) + 1
+
+        brc_by_year = {
+            yr: year_conc[yr] / year_tot[yr]
+            for yr in sorted(year_tot)
+            if year_tot[yr] > 0
+        }
+        brc_by_type = {
+            atype: type_conc[atype] / type_tot[atype]
+            for atype in sorted(type_tot)
+            if type_tot[atype] > 0
+        }
+
+        return BRCResult(
+            brc=round(concordant / total, 4) if total > 0 else 0.0,
+            concordant=concordant,
+            total=total,
+            brc_by_year=brc_by_year,
+            brc_by_agent_type=brc_by_type,
+        )
 
     # ------------------------------------------------------------------
     # EGS: Evidence Grounding Score
