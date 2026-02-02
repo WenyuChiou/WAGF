@@ -19,10 +19,13 @@ Now, choose one of the following water management actions:
 {options_text}
 Your decision should reflect your farming philosophy and risk tolerance. Consider how your unique situation — your financial position, your planning horizon, and your past experiences — shapes your response.
 
+If your choice involves changing your water demand, you must also specify the "magnitude_pct" – the percentage increase or decrease relative to your current demand.
+
 {rating_scale}
 
 Please respond using the EXACT JSON format below.
-- IMPORTANT: The "decision" field MUST be the NUMERIC ID (e.g. 1, 2, 3, 4, or 5) from the available options list.
+- IMPORTANT: The "decision" field MUST be the NUMERIC ID (e.g. 1, 2, 3, or 4) from the available options list.
+- IMPORTANT: "magnitude_pct" must be a number between 1 and 30. Do NOT echo placeholder text like "[Numeric: 1-30]".
 - Use EXACTLY one of: VL, L, M, H, VH for each appraisal label.
 - Ensure all keys match the format exactly.
 {response_format}
