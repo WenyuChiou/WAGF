@@ -98,10 +98,7 @@ ref/ABM_draft_*.docx
 ref/ABM_SM_*.docx
 
 # Paper artifacts — edit locally, store on Zenodo/OSF for archival
-paper/*.docx
-paper/figures/
-paper/SI/
-paper/scripts/
+paper/
 examples/single_agent/analysis/paper_figures/*.png
 examples/single_agent/analysis/paper_figures/*.pdf
 
@@ -114,3 +111,17 @@ node_modules/
 
 # Windows Reserved Names
 nul
+
+# Git hooks (local scripts)
+hooks/
+
+# AI Agents & IDE Metadata
+.agents/
+.claude/
+.codex/
+.cursor/
+.opencode/
+.zencoder/
+.zenflow/
+.worktrees/
+.tasks/
