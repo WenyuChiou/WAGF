@@ -12,6 +12,7 @@ skills:
       annual: true
       magnitude_type: "percentage"
       max_magnitude_pct: 30   # Aggressive cluster cap; tighter caps via governance
+      magnitude_default: 10   # Global fallback when persona default unavailable
     allowed_state_changes:
       - request
       - diversion
@@ -32,6 +33,7 @@ skills:
       annual: true
       magnitude_type: "percentage"
       max_magnitude_pct: 30
+      magnitude_default: 10
     allowed_state_changes:
       - request
       - diversion

@@ -172,14 +172,12 @@ class IrrigationLifecycleHooks:
         profiles: List[IrrigationAgentProfile],
         reflection_engine: Optional[ReflectionEngine],
         output_dir: Path,
-        with_magnitude: bool = False,
     ):
         self.env = env
         self.runner = runner
         self.profiles = {p.agent_id: p for p in profiles}
         self.reflection_engine = reflection_engine
         self.output_dir = output_dir
-        self.with_magnitude = with_magnitude
         self.logs: List[Dict] = []
         self.yearly_decisions: Dict = {}
 
@@ -204,21 +202,6 @@ class IrrigationLifecycleHooks:
             agent.aca_hint = build_aca_hint(profile.cluster)
             agent.trust_forecasts_text = trust["trust_forecasts_text"]
             agent.trust_neighbors_text = trust["trust_neighbors_text"]
-
-            # Magnitude instruction (Group D experiment)
-            if self.with_magnitude:
-                _mag_caps = {
-                    "aggressive": 30,
-                    "forward_looking_conservative": 15,
-                    "myopic_conservative": 10,
-                }
-                _max_mag = _mag_caps.get(profile.cluster, 30)
-                agent.magnitude_instruction = (
-                    f"- In addition to your decision, specify the magnitude of change as a percentage (1-{_max_mag}%). "
-                    'Add a "magnitude_pct" field (numeric) to your JSON response.'
-                )
-            else:
-                agent.magnitude_instruction = ""
 
             # Sync physical state flags from environment → agent
             agent_state = self.env.get_agent_state(aid)
@@ -432,6 +415,14 @@ def main():
         cfg_data = yaml.safe_load(f)
     global_cfg = cfg_data.get("global_config", {})
 
+    # --- Optional: strip magnitude_pct from schema to reduce context size ---
+    if args.no_magnitude:
+        shared_fields = cfg_data.get("shared", {}).get("response_format", {}).get("fields", [])
+        cfg_data["shared"]["response_format"]["fields"] = [
+            f for f in shared_fields if f.get("key") != "magnitude_pct"
+        ]
+        print("[Config] magnitude_pct field removed from response schema (--no-magnitude)")
+
     # --- Load prompt template ---
     prompt_template_path = config_dir / "prompts" / "irrigation_farmer.txt"
     prompt_template = prompt_template_path.read_text(encoding="utf-8")
@@ -465,6 +456,12 @@ def main():
         rebalance_clusters(profiles, min_pct=0.15, rng=np.random.default_rng(seed))
         after = Counter(p.cluster for p in profiles)
         print(f"[Rebalance] Clusters: {dict(before)} → {dict(after)}")
+
+    # --- Set persona-specific magnitude defaults from config ---
+    personas_cfg = cfg_data.get("personas", {})
+    for p in profiles:
+        persona = personas_cfg.get(p.cluster, {})
+        p.magnitude_default = persona.get("magnitude_default", 10) or 10
 
     # --- Create environment and initialize ---
     config = WaterSystemConfig(seed=seed)
@@ -559,8 +556,7 @@ def main():
     print(f"[Pillar 2] ReflectionEngine (interval={reflection_engine.reflection_interval}, adapter=IrrigationAdapter)")
 
     # --- Inject lifecycle hooks ---
-    hooks = IrrigationLifecycleHooks(env, runner, profiles, reflection_engine, output_dir,
-                                     with_magnitude=args.with_magnitude)
+    hooks = IrrigationLifecycleHooks(env, runner, profiles, reflection_engine, output_dir)
     runner.hooks.update({
         "pre_year": hooks.pre_year,
         "post_step": hooks.post_step,
@@ -604,8 +600,8 @@ def parse_args():
     p.add_argument("--num-predict", type=int, default=None)
     p.add_argument("--rebalance-clusters", action="store_true",
                    help="Rebalance cluster assignment so each cluster has ≥15%% of agents")
-    p.add_argument("--with-magnitude", action="store_true",
-                   help="Enable LLM magnitude output (Group D experiment)")
+    p.add_argument("--no-magnitude", action="store_true",
+                   help="Disable magnitude_pct output (reduces context size)")
     return p.parse_args()
 
 

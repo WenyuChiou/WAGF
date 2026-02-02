@@ -87,6 +87,7 @@ shared:
           reason_hint: "One sentence on how well you can adapt your water use.",
         }
       - { key: "decision", type: "choice", required: true }
+      - { key: "magnitude_pct", type: "numeric", min: 1, max: 30, required: false }
 
 # =============================================================================
 # IRRIGATION FARMER AGENT TYPE
@@ -429,6 +430,7 @@ irrigation_farmer:
 
 personas:
   aggressive:
+    magnitude_default: 20
     description: >
       You are an assertive, action-oriented farmer who responds quickly
       and decisively to water supply signals. You are not afraid to
@@ -446,6 +448,7 @@ personas:
       regret: 0.78
 
   forward_looking_conservative:
+    magnitude_default: 10
     description: >
       You are a cautious but forward-thinking farmer. You prefer small,
       measured adjustments to your water demand rather than bold swings.
@@ -463,6 +466,7 @@ personas:
       regret: 2.22
 
   myopic_conservative:
+    magnitude_default: 5
     description: >
       You are a tradition-oriented farmer who relies heavily on past
       experience and established practices. You make only modest changes
