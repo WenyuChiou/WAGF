@@ -42,7 +42,7 @@ class ConstructDefinition:
     Definition of a psychological construct.
 
     Constructs are the measurable dimensions of an agent's cognitive state.
-    For PMT: TP_LABEL (Threat Perception), CP_LABEL (Coping Perception), etc.
+    Examples: TP_LABEL (PMT), WSA_LABEL (dual-appraisal), BUDGET_UTIL (utility).
     """
     name: str                          # Human-readable name
     key: str                           # Internal key (e.g., "TP_LABEL")
@@ -199,10 +199,10 @@ class AgentTypeDefinition:
     configuration needed for context building, validation, and behavior.
 
     Examples:
-        - household_owner: PMT framework, can elevate/relocate
-        - household_renter: PMT framework, limited to insurance
+        - household: PMT framework, protective actions (domain-specific)
+        - irrigation_farmer: Dual-appraisal framework, demand management
         - government: Utility framework, policy decisions
-        - insurance: Financial framework, claim processing
+        - insurance: Financial framework, risk management
     """
     type_id: str                                    # Unique identifier
     category: AgentCategory                         # household, institutional, etc.

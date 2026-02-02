@@ -10,14 +10,14 @@ Usage:
 
     formatter = RetryMessageFormatter()
     result = formatter.format(
-        "Your TP={context.TP_LABEL} is too low",
-        {"context": {"TP_LABEL": "VL"}}
+        "Your THREAT={context.THREAT_LABEL} is too low",
+        {"context": {"THREAT_LABEL": "VL"}}
     )
-    # result: "Your TP=VL is too low"
+    # result: "Your THREAT=VL is too low"
 
 Supported Variables:
-    - {context.TP_LABEL}: Current threat appraisal value
-    - {context.CP_LABEL}: Current coping appraisal value
+    - {context.<CONSTRUCT>}: Any construct label from the agent's framework
+      (e.g., TP_LABEL, WSA_LABEL, BUDGET_UTIL — depends on domain config)
     - {context.decision}: Proposed decision/skill
     - {context.agent_id}: Agent identifier
     - {rule.id}: Rule identifier that triggered
@@ -43,10 +43,10 @@ class RetryMessageFormatter:
     Example:
         >>> formatter = RetryMessageFormatter()
         >>> formatter.format(
-        ...     "Elevation blocked: TP={context.TP_LABEL}",
-        ...     {"context": {"TP_LABEL": "VL"}}
+        ...     "Action blocked: THREAT={context.THREAT_LABEL}",
+        ...     {"context": {"THREAT_LABEL": "VL"}}
         ... )
-        'Elevation blocked: TP=VL'
+        'Action blocked: THREAT=VL'
     """
 
     # Pattern matches {var} or {var.path} or {var.path.nested}
@@ -68,7 +68,7 @@ class RetryMessageFormatter:
 
         Args:
             template: Message template with {var.path} placeholders.
-                     Example: "Your TP={context.TP_LABEL} is too low."
+                     Example: "Your THREAT={context.THREAT_LABEL} is too low."
             context: Dictionary containing variable values.
                     Nested access is supported via dot notation.
 
@@ -82,9 +82,9 @@ class RetryMessageFormatter:
             >>> formatter = RetryMessageFormatter()
             >>> formatter.format(
             ...     "Rule {rule.id} blocked {context.decision}",
-            ...     {"rule": {"id": "test_rule"}, "context": {"decision": "elevate"}}
+            ...     {"rule": {"id": "test_rule"}, "context": {"decision": "some_action"}}
             ... )
-            'Rule test_rule blocked elevate'
+            'Rule test_rule blocked some_action'
         """
         if not template:
             return template
@@ -156,11 +156,11 @@ class RetryMessageFormatter:
         Example:
             >>> formatter = RetryMessageFormatter()
             >>> formatter.format_with_defaults(
-            ...     "TP={context.TP_LABEL}",
+            ...     "THREAT={context.THREAT_LABEL}",
             ...     {"context": {}},
-            ...     {"context": {"TP_LABEL": "N/A"}}
+            ...     {"context": {"THREAT_LABEL": "N/A"}}
             ... )
-            'TP=N/A'
+            'THREAT=N/A'
         """
         # Merge defaults with context (context takes priority)
         merged = self._deep_merge(defaults or {}, context)

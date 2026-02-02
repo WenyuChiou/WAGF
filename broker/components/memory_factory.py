@@ -97,7 +97,9 @@ def create_memory_engine(
         # Get strategy parameters (ignoring unsupported kwargs like window_size, ranking_mode)
         strategy_type = mem_cfg.get("surprise_strategy", "ema")
         ema_alpha = mem_cfg.get("ema_alpha", 0.3)
-        stimulus_key = mem_cfg.get("stimulus_key", "flood_depth")
+        # Domain-specific stimulus key — configured in agent_types.yaml
+        # (e.g., "flood_depth" for flood, "drought_index" for irrigation)
+        stimulus_key = mem_cfg.get("stimulus_key")
 
         if strategy_type == "symbolic":
             strategy = SymbolicSurpriseStrategy(default_sensor_key=stimulus_key)

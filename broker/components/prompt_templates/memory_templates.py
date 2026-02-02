@@ -1,5 +1,11 @@
 ﻿"""
-Memory template generation for agent initialization.
+Memory template generation for agent initialization (flood domain).
+
+Generates seed memories from survey-derived agent profiles for flood
+adaptation experiments.  Domain-specific to the flood/household use case.
+For new domains, create a parallel template provider following the same
+MemoryTemplate dataclass structure.
+
 Moved from examples/multi_agent/memory/templates.py for SA/MA reuse.
 """
 from dataclasses import dataclass
@@ -17,7 +23,10 @@ class MemoryTemplate:
 
 class MemoryTemplateProvider:
     """
-    Provides memory templates for different domains.
+    Provides seed memory templates for the flood adaptation domain.
+
+    Generates first-person memories from survey-derived agent profiles.
+    New domains should create a parallel provider class.
 
     Categories:
     - flood_event: Direct flood experience
