@@ -290,6 +290,18 @@ class UnifiedAdapter(ModelAdapter):
         found_json = False
         try:
             json_text = cleaned_target.strip()
+            
+            # 3a. Strip markdown code blocks if present (common in Gemma/Llama responses)
+            if "```" in json_text:
+                # Prioritize json block but fallback to any block
+                json_block_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', json_text, re.DOTALL)
+                if json_block_match:
+                    json_text = json_block_match.group(1)
+                else:
+                    # If it's just opening ```json or similar, strip markers
+                    json_text = re.sub(r'```(?:json)?', '', json_text)
+                    json_text = json_text.replace('```', '')
+
             if "{" in json_text:
                 json_text = json_text[json_text.find("{"):json_text.rfind("}")+1]
             
@@ -526,6 +538,8 @@ class UnifiedAdapter(ModelAdapter):
             kw_res = self._parse_keywords(cleaned_target, agent_type, context)
             if kw_res:
                 skill_name = kw_res.get("skill_name")
+                if _magnitude_pct is None:
+                    _magnitude_pct = kw_res.get("magnitude_pct")
                 # Merge keyword reasoning if json failed
                 if not reasoning.get("strategy"):
                     reasoning.update(kw_res.get("reasoning", {}))
@@ -851,6 +865,15 @@ class UnifiedAdapter(ModelAdapter):
         valid_skills = self.agent_config.get_valid_actions(agent_type)
         skill_map = self.agent_config.get_skill_map(agent_type, context)
         
+        found_skill = None
+        found_mag = None
+        
+        # 0. PRE-AUDIT: Look for magnitude in the text (e.g., "magnitude: 20")
+        mag_match = re.search(r'(?:magnitude|pct|percent|amount)\b\s*[:=]?\s*(\d+)', text.lower())
+        if mag_match:
+            found_mag = float(mag_match.group(1))
+
+        # 1. DECISION LINE SEARCH
         lines = text.split('\n')
         for line in lines:
             line_lower = line.strip().lower()
@@ -863,11 +886,11 @@ class UnifiedAdapter(ModelAdapter):
                         # 1a. Try Digit in keyword line
                         digit_match = re.search(r'(\d)', raw_val)
                         if digit_match and digit_match.group(1) in skill_map:
-                            return {"skill_name": skill_map[digit_match.group(1)], "reasoning": {}}
+                            return {"skill_name": skill_map[digit_match.group(1)], "magnitude_pct": found_mag, "reasoning": {}}
                         # 1b. Try exact skill name match in this line
                         for s in valid_skills:
                             if re.search(rf"\b{re.escape(s.lower())}\b", raw_val):
-                                return {"skill_name": s, "reasoning": {}}
+                                return {"skill_name": s, "magnitude_pct": found_mag, "reasoning": {}}
 
         # 2. GLOBAL FUZZY SEARCH (Fallback if no decision line found)
         # Search for any mention of a skill ID or skill name in the entire text
@@ -885,7 +908,7 @@ class UnifiedAdapter(ModelAdapter):
             if matches:
                 last_digit = matches[-1].group(1)
                 if last_digit in skill_map:
-                    return {"skill_name": skill_map[last_digit], "reasoning": {"parse_mode": "fuzzy_regex"}}
+                    return {"skill_name": skill_map[last_digit], "magnitude_pct": found_mag, "reasoning": {"parse_mode": "fuzzy_regex"}}
 
         # 2b. Look for unique skill names
         found_skills = []
@@ -897,7 +920,11 @@ class UnifiedAdapter(ModelAdapter):
                     break
         
         if len(set(found_skills)) == 1:
-            return {"skill_name": found_skills[0], "reasoning": {"parse_mode": "fuzzy_name"}}
+            return {"skill_name": found_skills[0], "magnitude_pct": found_mag, "reasoning": {"parse_mode": "fuzzy_name"}}
+
+        # If we found magnitude but no skill, we still return just magnitude in case it helps
+        if found_mag:
+            return {"skill_name": None, "magnitude_pct": found_mag, "reasoning": {}}
 
         return None
 
