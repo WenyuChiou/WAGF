@@ -95,6 +95,8 @@ shared:
       # Decision comes AFTER reasoning and appraisals
       - { key: "decision", type: "choice", required: true }
       - { key: "magnitude_pct", type: "numeric", min: 1, max: 30, unit: "%", required: false }
+      - { key: "secondary_decision", type: "secondary_choice", required: false }
+      - { key: "secondary_magnitude_pct", type: "numeric", min: 1, max: 30, unit: "%", required: false }
 
 # =============================================================================
 # IRRIGATION FARMER AGENT TYPE
@@ -323,6 +325,16 @@ irrigation_farmer:
         Maintain current water demand level (No change to irrigation
         practices. Appropriate when water availability is stable and
         current allocation meets needs.)
+
+  # ---------------------------------------------------------------------------
+  # Multi-skill Configuration
+  # ---------------------------------------------------------------------------
+  multi_skill:
+    enabled: false
+    max_skills: 2
+    execution_order: "sequential"
+    secondary_field: "secondary_decision"
+    secondary_magnitude_field: "secondary_magnitude_pct"
 
   # ---------------------------------------------------------------------------
   # Governance Profiles — derived from FQL parameter constraints

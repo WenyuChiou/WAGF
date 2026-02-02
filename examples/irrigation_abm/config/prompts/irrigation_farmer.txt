@@ -19,6 +19,13 @@ Now, choose one of the following water management actions:
 {options_text}
 Your decision should reflect your farming philosophy and risk tolerance.
 
+### MULTI-ACTION OPTION
+You may OPTIONALLY choose a SECOND action in addition to your primary action.
+- "decision" is your MAIN action this year.
+- "secondary_decision" is an OPTIONAL additional action (set to 0 for none).
+- You CANNOT choose the same action twice.
+- Each action can have its own magnitude.
+
 {rating_scale}
 
 Please respond using the EXACT JSON format below.
