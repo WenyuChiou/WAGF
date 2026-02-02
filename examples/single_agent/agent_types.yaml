@@ -74,6 +74,9 @@ shared:
           reason_hint: "One sentence summary of how well you think you can cope or act.",
         }
       - { key: "decision", type: "choice", required: true, description: "Enter the numeric ID (1-4) of your chosen action." }
+      - { key: "magnitude_pct", type: "numeric", min: 1, max: 30, unit: "%", required: false }
+      - { key: "secondary_decision", type: "secondary_choice", required: false }
+      - { key: "secondary_magnitude_pct", type: "numeric", min: 1, max: 30, unit: "%", required: false }
 
 
 
@@ -195,6 +198,13 @@ household:
           regex: "(?i)\\b(VL|L|M|H|VH)\\b",
         }
       CP_REASON: { keywords: ["coping_appraisal", "coping"], regex: ".*" }
+
+  multi_skill:
+    enabled: true
+    max_skills: 2
+    execution_order: "sequential"
+    secondary_field: "secondary_decision"
+    secondary_magnitude_field: "secondary_magnitude_pct"
 
   log_fields: ["threat_appraisal", "coping_appraisal"]
 
