@@ -165,23 +165,18 @@ The memory and governance architecture has evolved through three phases:
 
 ### Validator Layer (Governance Rule Engine)
 
-> **Architecture Overview / 架構概覽**
+> **Architecture Overview**
 >
 > The validator layer is the core governance mechanism of the framework. Every skill proposal
 > passes through a pipeline of five category validators before execution. Each validator
 > produces `ValidationResult` objects with two severity levels: **ERROR** (blocks the action
 > and triggers a retry loop, max 3 attempts) or **WARNING** (logs the observation but
 > preserves agent autonomy).
->
-> 驗證層是框架的核心治理機制。每個技能提案在執行前都會通過五類驗證器組成的流水線。
-> 每個驗證器產生 `ValidationResult` 物件，包含兩個嚴重級別：**ERROR**（阻止操作並觸發
-> 重試循環，最多 3 次）或 **WARNING**（僅記錄觀測但保留智能體自主性）。
 
 ```
 broker/validators/governance/
 │
 ├── base_validator.py            # Abstract base: YAML rules + BuiltinCheck injection
-│                                  (抽象基類：YAML 規則 + 領域檢查注入)
 │
 ├── physical_validator.py        # Category: "physical"
 │   ├── flood_already_elevated       BuiltinCheck   ERROR
@@ -212,7 +207,6 @@ broker/validators/governance/
 BaseValidator (ABC)                    # broker/validators/governance/base_validator.py
 │   validate(skill_name, rules, ctx)   → List[ValidationResult]
 │   _default_builtin_checks()          → List[BuiltinCheck]        # Override per domain
-│   _format_rule_message()             # {context.TP_LABEL} template interpolation
 │
 ├── PhysicalValidator                  # State preconditions + irreversible action guards
 │                                        物理驗證器：狀態前置條件 + 不可逆操作守衛
@@ -226,19 +220,21 @@ BaseValidator (ABC)                    # broker/validators/governance/base_valid
                                          語義接地驗證器：推理文本 vs 模擬事實
 ```
 
-#### Design Philosophy (設計哲學)
+```
+
+#### Design Philosophy
 
 | Principle                       | Description                                                                                                                                | Rationale                                                                                                                                                                                          |
 | :------------------------------ | :----------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **ERROR vs WARNING**            | ERROR (`valid=False`) triggers retry loop (max 3). WARNING (`valid=True`) logs but does not block.                                         | Prevents "Governance Dead Zone" — preserves agent autonomy while maintaining observability. 防止「治理死區」——保留智能體自主性並維持可觀測性。                                                     |
-| **Insurance Renewal Exclusion** | `buy_insurance` when already insured is NOT flagged as hallucination.                                                                      | Insurance expires annually (`has_insurance` reset each year). Unlike elevation/relocation (irreversible), renewal is rational behavior. 保險每年過期（`has_insurance` 每年重置），續保是理性行為。 |
-| **Domain-Agnostic Core**        | `BaseValidator` + `BuiltinCheck` pattern. Domain checks are pluggable functions: `(skill_name, rules, context) -> List[ValidationResult]`. | YAML-driven condition engine is fully generic. Domain-specific logic is injected, not hardcoded. YAML 驅動的條件引擎完全通用，領域邏輯通過注入而非硬編碼實現。                                     |
+| **ERROR vs WARNING**            | ERROR (`valid=False`) triggers retry loop (max 3). WARNING (`valid=True`) logs but does not block.                                         | Prevents "Governance Dead Zone" — preserves agent autonomy while maintaining observability. |
+| **Insurance Renewal Exclusion** | `buy_insurance` when already insured is NOT flagged as hallucination.                                                                      | Insurance expires annually (`has_insurance` reset each year). Unlike elevation/relocation (irreversible), renewal is rational behavior. |
+| **Domain-Agnostic Core**        | `BaseValidator` + `BuiltinCheck` pattern. Domain checks are pluggable functions: `(skill_name, rules, context) -> List[ValidationResult]`. | YAML-driven condition engine is fully generic. Domain-specific logic is injected, not hardcoded. |
 | **Dual Evaluation Path**        | 1) YAML-driven rules filtered by `self.category`; 2) Injected `_builtin_checks` (hardcoded domain logic).                                  | YAML rules support rapid prototyping; built-in checks provide compile-time safety for critical invariants.                                                                                         |
 | **Template Interpolation**      | Rule messages support `{context.TP_LABEL}`, `{rule.id}` via `RetryMessageFormatter`.                                                       | Retry prompts contain the exact violation reason, enabling the LLM to self-correct.                                                                                                                |
 
-#### Validator Category Details (各類驗證器詳解)
+#### Validator Category Details
 
-**1. PhysicalValidator** — State Preconditions (物理驗證器 — 狀態前置條件)
+**1. PhysicalValidator** — State Preconditions
 
 Guards against actions that contradict irreversible simulation state. These represent the most unambiguous hallucination type: the agent proposes an action that is physically impossible given the current world state.
 
@@ -248,7 +244,7 @@ Guards against actions that contradict irreversible simulation state. These repr
 | `already_relocated`  | Any property action when `state.relocated=True`          | ERROR | Physical           |
 | `renter_restriction` | `elevate_house` or `buyout` when `state.tenure="renter"` | ERROR | Physical           |
 
-**2. ThinkingValidator** — Construct-Action Consistency (思維驗證器 — 構念-行為一致性)
+**2. ThinkingValidator** — Construct-Action Consistency
 
 Enforces coherence between the agent's self-reported psychological appraisals and the action it proposes. Supports three psychological frameworks (PMT, Utility, Financial) via the `framework` constructor parameter. The multi-condition YAML engine (`_validate_yaml_rules`) uses AND-logic across conditions and is fully domain-agnostic.
 
@@ -258,7 +254,7 @@ Enforces coherence between the agent's self-reported psychological appraisals an
 | `extreme_threat` | TP = VH                         | `do_nothing`                | ERROR |
 | `low_tp_extreme` | TP in {VL, L}                   | `relocate`, `elevate_house` | ERROR |
 
-**3. PersonalValidator** — Financial & Cognitive Constraints (個人驗證器 — 財務與認知約束)
+**3. PersonalValidator** — Financial & Cognitive Constraints
 
 Validates that the agent has the economic capacity to execute a proposed action. Prevents the LLM from ignoring budget constraints entirely.
 
@@ -266,15 +262,15 @@ Validates that the agent has the economic capacity to execute a proposed action.
 | :------------------------ | :------------------------------------------------------------------- | :---- |
 | `elevation_affordability` | `elevate_house` when `savings < elevation_cost * (1 - subsidy_rate)` | ERROR |
 
-**4. SocialValidator** — Neighbor Influence Observation (社會驗證器 — 鄰居影響觀測)
+**4. SocialValidator** — Neighbor Influence Observation
 
-Social rules are **WARNING only** by design. They log social pressure signals for the audit trail but never block decisions. This reflects the theoretical position that social influence is an input to decision-making, not a constraint on it (社會影響是決策輸入而非約束).
+Social rules are **WARNING only** by design. They log social pressure signals for the audit trail but never block decisions. This reflects the theoretical position that social influence is an input to decision-making, not a constraint on it.
 
 | Check                | Trigger                                        | Level   |
 | :------------------- | :--------------------------------------------- | :------ |
 | `majority_deviation` | `do_nothing` when >50% neighbors have elevated | WARNING |
 
-**5. SemanticGroundingValidator** — Reasoning vs Ground Truth (語義接地驗證器 — 推理文本 vs 事實)
+**5. SemanticGroundingValidator** — Reasoning vs Ground Truth
 
 Detects hallucinations where the agent's free-text reasoning contradicts observable simulation state. This is the most nuanced validator category, as it performs NLP-level pattern matching against structured ground truth.
 
@@ -419,35 +415,37 @@ The `ReflectionEngine` (`broker/components/reflection_engine.py`) runs at config
 
 ## Validation Pipeline & Domain Configurations
 
-### Runtime Validation Sequence (運行時驗證流水線)
+### Runtime Validation Sequence
 
 When the `SkillBrokerEngine` receives a parsed `SkillProposal`, it executes the following ordered pipeline. The function `validate_all(skill_name, rules, context, domain=...)` orchestrates all five category validators.
 
 ```
-SkillProposal  ─────────────────────────────────────────────────────────────►  Execute
-     │                                                                          ▲
-     │   ┌─────────────┐   ┌─────────────┐   ┌─────────────┐                   │
-     ├──►│  Physical    │──►│  Thinking   │──►│  Personal   │───┐               │
-     │   │ (state pre-  │   │ (construct- │   │ (financial  │   │               │
-     │   │  conditions) │   │  action     │   │  capacity)  │   │               │
-     │   └─────────────┘   │  coherence) │   └─────────────┘   │               │
-     │                     └─────────────┘                     │               │
-     │   ┌─────────────┐   ┌─────────────────┐                │               │
-     └──►│  Social      │──►│  Semantic        │───────────────┘               │
-         │ (neighbor    │   │  Grounding       │                               │
-         │  influence)  │   │ (text vs truth)  │                               │
-         └─────────────┘   └─────────────────┘                               │
-                                    │                                          │
-                                    ▼                                          │
-                          Any ERROR? ──YES──► RetryLoop (max 3) ──► Re-parse ─┘
-                              │
-                             NO
-                              │
-                              ▼
-                         Pass (execute skill)
-```
 
-### Hallucination Taxonomy (幻覺分類體系)
+SkillProposal ─────────────────────────────────────────────────────────────► Execute
+│ ▲
+│ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ │
+├──►│ Physical │──►│ Thinking │──►│ Personal │─┐ │
+│ │ (state pre- │ │ (construct- │ │ (financial │ │ │
+│ │ conditions) │ │ action │ │ capacity) │ │ │
+│ └─────────────┘ │ coherence) │ └─────────────┘ │ │
+│ └─────────────┘ │ │
+│ ┌─────────────┐ ┌─────────────────┐ │ │
+└──►│ Social │──►│ Semantic │───────────────┘ │
+│ (neighbor │ │ Grounding │ │
+│ influence) │ │ (text vs truth) │ │
+└─────────────┘ └─────────────────┘ │
+│ │
+▼ │
+Any ERROR? ──YES──► RetryLoop (max 3) ──► Re-parse ─┘
+│
+NO
+│
+▼
+Pass (execute skill)
+
+````
+
+### Hallucination Taxonomy
 
 The framework defines four hallucination types, each detected by a different validator category. This taxonomy is used both at runtime (governance) and in post-hoc analysis (paper metrics).
 
@@ -458,7 +456,7 @@ The framework defines four hallucination types, each detected by a different val
 | **Economic** | Operationally absurd resource decision  | `PhysicalValidator` (irrigation) | Reduce demand below 10% utilisation floor        |
 | **Semantic** | Reasoning text contradicts ground truth | `SemanticGroundingValidator`     | Cites "neighbors" when agent has 0 neighbors     |
 
-### Domain Validator Configurations (領域驗證器配置)
+### Domain Validator Configurations
 
 The `validate_all()` function accepts a `domain` parameter that controls which `BuiltinCheck` functions are injected into each validator. The YAML-driven condition engine always runs regardless of domain.
 
@@ -471,7 +469,7 @@ validate_all(skill_name, rules, context, domain="irrigation")
 
 # YAML rules only (no hardcoded built-in checks)
 validate_all(skill_name, rules, context, domain=None)
-```
+````
 
 #### Flood Domain Validators (洪水領域驗證器)
 
