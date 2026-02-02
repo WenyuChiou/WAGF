@@ -328,7 +328,16 @@ def main():
     agent_config_path = config_dir / "agent_types.yaml"
     with open(agent_config_path, "r", encoding="utf-8") as f:
         cfg_data = yaml.safe_load(f)
-    household_template = cfg_data.get("household", {}).get("prompt_template", "")
+    # Load prompt from external file if specified, otherwise fallback to inline
+    hh_cfg_raw = cfg_data.get("household", {})
+    prompt_file = hh_cfg_raw.get("prompt_template_file", "")
+    if prompt_file:
+        # Resolve relative to the YAML's directory (config_dir)
+        prompt_path = config_dir / prompt_file if not Path(prompt_file).is_absolute() else Path(prompt_file)
+        with open(prompt_path, "r", encoding="utf-8") as pf:
+            household_template = pf.read()
+    else:
+        household_template = hh_cfg_raw.get("prompt_template", "")
     global_cfg = cfg_data.get("global_config", {})
 
     # --- Load skill registry ---

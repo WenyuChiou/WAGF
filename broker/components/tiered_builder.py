@@ -651,6 +651,8 @@ def load_prompt_templates(yaml_path: str = None) -> Dict[str, str]:
     if yaml_path is None:
         yaml_path = Path(__file__).parent / "prompt_templates.yaml"
 
+    yaml_dir = Path(yaml_path).parent
+
     try:
         with open(yaml_path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
@@ -660,6 +662,15 @@ def load_prompt_templates(yaml_path: str = None) -> Dict[str, str]:
             if isinstance(value, dict):
                 if "prompt_template" in value:
                     templates[key] = value["prompt_template"]
+                elif "prompt_template_file" in value:
+                    # Load template from external file (relative to YAML dir)
+                    file_ref = value["prompt_template_file"]
+                    file_path = yaml_dir / file_ref if not Path(file_ref).is_absolute() else Path(file_ref)
+                    try:
+                        with open(file_path, "r", encoding="utf-8") as tf:
+                            templates[key] = tf.read()
+                    except FileNotFoundError:
+                        logger.warning(f"[PromptLoader] Template file not found: {file_path}")
                 elif "template" in value:
                     templates[key] = value["template"]
             elif isinstance(value, str):

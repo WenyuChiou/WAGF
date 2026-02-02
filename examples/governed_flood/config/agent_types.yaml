@@ -88,7 +88,7 @@ household:
     # top_k: 50           # Top-k sampling
 
   # Prompt Template (FINAL version aligned)
-  prompt_template_file: config/prompts/household.txt
+  prompt_template_file: prompts/household.txt
   # Parsing & Skill Mapping
   parsing:
     decision_keywords: ["decision", "choice", "action", "selected_action"]
