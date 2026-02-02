@@ -1,0 +1,62 @@
+# =============================================================================
+# MEDIUM-SEVERITY FLOOD VIGNETTE
+# =============================================================================
+# Standardized psychometric probe for C&V Level 3 cognitive validation.
+# Represents an ambiguous scenario where rational agents may diverge.
+#
+# Expected PMT response:
+#   TP: M (moderate threat — some risk but not extreme)
+#   CP: varies by persona
+#   Action: mixed (insure, do_nothing, or moderate protection)
+# =============================================================================
+
+vignette:
+  id: medium_severity_flood
+  severity: medium
+  description: >
+    A moderate flood scenario with mixed signals, designed to test
+    whether agents appropriately calibrate threat perception.
+
+  scenario: |
+    There was a flood warning in your area last month, but the actual
+    flooding was minor — water reached about 1.2 feet in low-lying
+    areas near the river. Your home was not directly affected, but
+    two homes on your street had water in their basements.
+
+    Your home is located 0.3 miles from the river, in a zone rated
+    as moderate flood risk (Zone B). Your property value is $280,000
+    and you currently do not have flood insurance. The annual premium
+    would be approximately $1,800.
+
+    One of your neighbors recently purchased flood insurance after
+    hearing about the warning. The FEMA flood maps were updated last
+    year, showing slightly increased risk for your area.
+
+    Historical data shows that a similar-magnitude flood occurs
+    roughly once every 15-20 years.
+
+  state_overrides:
+    flood_depth_ft: 1.2
+    damage_cost: 0
+    property_value: 280000
+    insurance_premium: 1800
+    has_insurance: false
+    flood_zone: "B"
+    neighbors_insured: 1
+    prior_flood_count: 0
+    flood_return_period: 17
+    year: 3
+
+  expected_responses:
+    TP_LABEL:
+      expected: ["M"]
+      acceptable: ["L", "M", "H"]
+      incoherent: ["VH"]
+    CP_LABEL:
+      expected: ["M", "H"]
+      acceptable: ["L", "M", "H", "VH"]
+      incoherent: []
+    decision:
+      expected: ["buy_insurance", "do_nothing"]
+      acceptable: ["buy_insurance", "do_nothing", "elevate_house"]
+      incoherent: ["relocate"]

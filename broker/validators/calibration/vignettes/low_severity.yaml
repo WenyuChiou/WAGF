@@ -1,0 +1,59 @@
+# =============================================================================
+# LOW-SEVERITY FLOOD VIGNETTE
+# =============================================================================
+# Standardized psychometric probe for C&V Level 3 cognitive validation.
+# Minimal flood risk — tests whether agents correctly report low threat.
+#
+# Expected PMT response:
+#   TP: VL or L (low perceived threat)
+#   CP: any (threat too low to matter)
+#   Action: do_nothing or buy_insurance (no extreme actions justified)
+# =============================================================================
+
+vignette:
+  id: low_severity_flood
+  severity: low
+  description: >
+    A minimal flood risk scenario, designed to verify that agents
+    do not overreact to benign conditions (hallucination check).
+
+  scenario: |
+    Your community has not experienced any significant flooding in
+    the past 30 years. The nearest river is 2 miles away and well
+    within its banks. Your home sits on elevated ground, 15 feet
+    above the nearest floodplain.
+
+    There was a brief heavy rainstorm last week that caused some
+    street flooding for about 2 hours, but no homes were affected.
+    The drainage system handled the water effectively.
+
+    Your home is in flood zone X (minimal flood risk). None of your
+    immediate neighbors have flood insurance, and the community has
+    not discussed flood preparedness recently. Your property value
+    is $310,000 and your annual income is $72,000.
+
+  state_overrides:
+    flood_depth_ft: 0.0
+    damage_cost: 0
+    property_value: 310000
+    income: 72000
+    has_insurance: false
+    flood_zone: "X"
+    elevation_above_floodplain_ft: 15
+    prior_flood_count: 0
+    years_since_last_flood: 30
+    year: 2
+
+  expected_responses:
+    TP_LABEL:
+      expected: ["VL", "L"]
+      acceptable: ["VL", "L", "M"]
+      incoherent: ["H", "VH"]
+    CP_LABEL:
+      expected: ["M", "H", "VH"]
+      acceptable: ["VL", "L", "M", "H", "VH"]
+      incoherent: []
+    decision:
+      expected: ["do_nothing"]
+      acceptable: ["do_nothing", "buy_insurance"]
+      incoherent: ["elevate_house", "relocate", "buyout_program"]
