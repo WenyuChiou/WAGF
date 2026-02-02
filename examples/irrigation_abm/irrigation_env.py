@@ -176,6 +176,7 @@ class IrrigationEnvironment:
                 "has_efficient_system": getattr(p, "has_efficient_system", False),
                 "below_minimum_utilisation": False,
                 "cluster": p.cluster,
+                "magnitude_default": getattr(p, "magnitude_default", 10),
             }
 
     def initialize_synthetic(
@@ -427,17 +428,10 @@ class IrrigationEnvironment:
         wr = agent["water_right"]
         current = agent["request"]
         meta = getattr(approved_skill, "parameters", {}) or {}
-        # Cluster-varying magnitude derived from FQL mu centroids
-        # (Hung & Yang 2021): aggressive ~0.36 → 20%, forward-looking ~0.20 → 10%,
-        # myopic ~0.16 → 5%.  Metadata override still supported.
-        _CLUSTER_MAGNITUDE = {
-            "aggressive": 20,
-            "forward_looking_conservative": 10,
-            "myopic_conservative": 5,
-        }
-        cluster = agent.get("cluster", "myopic_conservative")
-        default_mag = _CLUSTER_MAGNITUDE.get(cluster, 10)
-        magnitude_pct = meta.get("magnitude_pct", default_mag)
+        # Magnitude: LLM output → persona default → hardcoded 10
+        magnitude_pct = meta.get("magnitude_pct")
+        if magnitude_pct is None or not isinstance(magnitude_pct, (int, float)):
+            magnitude_pct = agent.get("magnitude_default", 10) or 10
         change = wr * (magnitude_pct / 100.0)
 
         state_changes: Dict[str, Any] = {}

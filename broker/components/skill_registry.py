@@ -148,6 +148,13 @@ class SkillRegistry:
             "max_magnitude_pct": ic.get("max_magnitude_pct"),
         }
 
+    def get_magnitude_default(self, skill_id: str) -> Optional[float]:
+        """Get fallback magnitude from institutional_constraints."""
+        skill = self.get(skill_id)
+        if not skill:
+            return None
+        return skill.institutional_constraints.get("magnitude_default")
+
     def validate_output_schema(self, skill_id: str, output: Dict[str, Any]) -> ValidationResult:
         """Validate LLM output against JSON Schema-style output_schema.
 

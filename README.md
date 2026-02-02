@@ -115,7 +115,7 @@ LLM-driven ABMs face five recurring problems that this framework solves:
 
 ---
 
-## Unified Architecture (v3.3)
+## Unified Architecture (v3.4)
 
 The framework utilizes a layered middleware approach that unifies single-agent isolated reasoning with multi-agent social simulations.
 
@@ -542,7 +542,7 @@ elif domain == "groundwater":
 
 ---
 
-## Configuration-Driven Extension (v3.3)
+## Configuration-Driven Extension (v3.4)
 
 All domain-specific logic is centralized in YAML configuration files. New water sub-domains (e.g., groundwater management, drought response) can be added by defining skill registries, validators, and agent configurations — without modifying the core broker:
 
@@ -575,6 +575,72 @@ memory_config:
 
 ---
 
+## Skill System Enhancements (v3.4)
+
+### JSON Schema Output Validation
+
+Skills can now define a `output_schema` in their YAML registry using JSON Schema standard syntax. The `SkillRegistry.validate_output_schema()` method supports type checking (`number`, `string`, `integer`), range validation (`minimum`/`maximum`), and `enum` constraints.
+
+```yaml
+# Example: irrigation skill with magnitude constraint
+- skill_id: increase_demand
+  output_schema:
+    type: object
+    required: [decision]
+    properties:
+      decision: { type: integer, enum: [1, 2, 3, 4, 5] }
+      magnitude_pct: { type: number, minimum: 1, maximum: 30 }
+  conflicts_with: [decrease_demand]
+```
+
+### Composite Skill Declarations
+
+Skills declare mutual exclusivity (`conflicts_with`) and dependency ordering (`depends_on`) for future composite skill execution (C4). The registry provides `check_composite_conflicts()` to validate skill combinations before execution.
+
+| Declaration | Purpose | Example |
+| :--- | :--- | :--- |
+| `conflicts_with` | Mutually exclusive skills | `increase_demand` ↔ `decrease_demand` |
+| `depends_on` | Prerequisite ordering | `adopt_efficiency` → then `decrease_demand` |
+
+### Magnitude Output (Schema-Driven)
+
+LLM agents can propose a **magnitude of change** (e.g., "decrease demand by 15%") in addition to the discrete skill choice. Magnitude is defined as a formal `numeric` field in `response_format.fields` within `agent_types.yaml`, making it available to any domain. Disable with `--no-magnitude` to reduce prompt context size.
+
+| Component | Behavior |
+| :--- | :--- |
+| **Schema** | `magnitude_pct` defined as `type: "numeric"` field in `shared.response_format.fields` |
+| **Defaults** | Per-persona defaults in `agent_types.yaml` (`aggressive: 20`, `FLC: 10`, `myopic: 5`) |
+| **Parsing** | `model_adapter.py` extracts `magnitude_pct` from JSON; negative values rejected, >100% clamped |
+| **Governance** | `magnitude_cap_check()` enforces per-cluster bounds via custom validator |
+| **Fallback** | LLM output → persona default → hardcoded 10; `magnitude_fallback` logged |
+| **Opt-out** | `--no-magnitude` strips the field from schema at startup (reduces prompt tokens) |
+
+### Per-Agent 2018 Baseline (Irrigation)
+
+Irrigation agents now initialize from **actual 2018 historical diversions** (aligning with Hung & Yang, 2021) rather than a uniform `water_right × 0.8`:
+
+| Basin | Source | Unit | Method |
+| :--- | :--- | :--- | :--- |
+| **Lower Basin** (22 agents) | `LB_historical_annual_diversion.csv` | acre-ft | Direct match by agent name |
+| **Upper Basin** (56 agents) | `UB_historical_annual_depletion.csv` | thousands AF → AF | Proportional split by `water_right` within state group |
+
+Synthetic profiles (no CRSS data) fall back to `water_right × 0.8`.
+
+### Skill System Architecture Status
+
+> **Implemented but not yet wired into runtime pipeline (準備好但尚未接入執行管線):**
+>
+> | Method | Purpose | Status |
+> | :--- | :--- | :--- |
+> | `validate_output_schema()` | JSON Schema validation for LLM output | Schema ready, integration pending |
+> | `check_preconditions()` | YAML precondition enforcement | Defined, validation via PhysicalValidator |
+> | `get_magnitude_bounds()` | Extract magnitude constraints from registry | Defined, validation via custom validators |
+> | `check_composite_conflicts()` | Mutual exclusivity checking | Awaiting C4 composite skill execution |
+>
+> These methods will be integrated into `SkillBrokerEngine.process_step()` in a future pipeline refactor to consolidate all validation into a single orchestrated sequence.
+
+---
+
 ## Experimental Validation & Benchmarks
 
 The framework has been validated through the **JOH Benchmark** (Journal of Hydrology), a three-group ablation study that isolates the contribution of each cognitive component:
@@ -595,13 +661,25 @@ The framework has been validated through the **JOH Benchmark** (Journal of Hydro
 | Context       | Direct          | Context Builder + Social Module              |
 | Use case      | Baseline ABM    | Policy simulation with social dynamics       |
 
-### Validated Models (v3.3)
+### Validated Models (v3.4)
 
-| Model Family     | Variants            | Use Case                             |
-| :--------------- | :------------------ | :----------------------------------- |
-| **Google Gemma** | 3-4B, 3-12B, 3-27B  | Primary benchmark models (JOH Paper) |
-| **Meta Llama**   | 3.2-3B-Instruct     | Lightweight edge agents              |
-| **DeepSeek**     | R1-Distill-Llama-8B | High-Reasoning (CoT) tasks           |
+| Model Family      | Variants             | Use Case                             |
+| :---------------- | :------------------- | :----------------------------------- |
+| **Google Gemma**  | 3-4B, 3-12B, 3-27B  | Primary benchmark models (JOH Paper) |
+| **Mistral**       | Ministral 3B/8B/14B  | Cross-family generalization study    |
+| **Meta Llama**    | 3.2-3B-Instruct      | Lightweight edge agents              |
+| **DeepSeek**      | R1-Distill-Llama-8B  | High-Reasoning (CoT) tasks           |
+
+### Flood Experiment Status (JOH Benchmark)
+
+| Model | Group A (Ungoverned) | Group B (Governed+Window) | Group C (Governed+HumanCentric) |
+| :--- | :---: | :---: | :---: |
+| Gemma 3-4B | ✓ | ✓ | ✓ |
+| Gemma 3-12B | ✓ | ✓ | ✓ |
+| Gemma 3-27B | ✓ | ✓ | ✓ |
+| Ministral 3B | ✓ | ✓ | ✓ |
+| Ministral 8B | ✓ | ✓ | In Progress |
+| Ministral 14B | ✓ | Pending | Pending |
 
 **[Full experimental details](examples/single_agent/)**
 
@@ -620,6 +698,43 @@ The framework has been validated through the **JOH Benchmark** (Journal of Hydro
 **Challenge**: When governance rules create a narrow "action funnel" (e.g., TP=H blocks "Do Nothing", CP=L blocks "Elevate" and "Relocate"), agents may have only one valid action remaining, removing meaningful choice.
 
 **Insight**: We distinguish between **ERROR** rules (block the action and trigger retry) and **WARNING** rules (allow the action but record the observation in the audit trail). This preserves agent autonomy while maintaining scientific observability.
+
+---
+
+## Single-Agent vs Multi-Agent Compatibility (SA/MA 適配性)
+
+The `SkillBrokerEngine` is used by **both** SA and MA experiments. MA support works via lifecycle hooks and domain-agnostic context injection:
+
+| Capability | SA | MA | Notes |
+| :--- | :---: | :---: | :--- |
+| Basic skill execution | ✓ | ✓ | Same broker pipeline |
+| Single-agent validation | ✓ | ✓ | 5-category validator pipeline |
+| Cross-agent constraints | N/A | ⚠ | Implemented via hooks, not broker audit |
+| Lifecycle hooks | ✓ | ✓ | `pre_year`, `post_step`, `post_year` |
+| Memory + Reflection | ✓ | ✓ | Per-agent memory, batch reflection |
+| Output Schema validation | ✓ | ✓ | JSON Schema defined per skill |
+| Communication protocol | N/A | Partial | Broadcast via `env` state; no negotiation |
+| Domain adapters | Flood, Irrigation | Flood | Extensible via `DomainReflectionAdapter` |
+
+### MA Execution Model
+
+```
+Institutional agents (Government, Insurance) → execute first
+    ├─ Update env["subsidy_rate"], env["premium_rate"]
+    └─ Broadcast via post_step hooks
+                    ↓
+Household agents (N parallel) → see institutional decisions in context
+    ├─ SkillBrokerEngine validates per-agent
+    └─ State changes applied individually
+                    ↓
+Post-year aggregation → damage calculation, reflection batch
+```
+
+### Known Limitations for MA
+
+1. **No cross-agent validation** in broker — inter-agent constraints enforced via hooks (not auditable as governance)
+2. **Non-PMT reasoning** (Government/Finance agents) requires domain-specific validator configs
+3. **No negotiation protocol** — only broadcast communication via environment state
 
 ---
 

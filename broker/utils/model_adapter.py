@@ -356,7 +356,7 @@ class UnifiedAdapter(ModelAdapter):
                                         skill_name = canonical
                                         break
                 
-                # Extract magnitude (optional, for irrigation Group D)
+                # Extract magnitude (optional, for any domain with magnitude-aware skills)
                 magnitude_raw = data_lowered.get("magnitude") or data_lowered.get("magnitude_pct")
                 if magnitude_raw is not None:
                     try:

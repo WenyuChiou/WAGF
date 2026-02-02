@@ -47,6 +47,7 @@ class IrrigationAgentProfile:
     years_farming: int = 20
     has_efficient_system: bool = False
     actual_2018_diversion: Optional[float] = None  # Historical 2018 diversion (acre-ft)
+    magnitude_default: float = 10.0  # Persona-specific default magnitude (%)
 
     # Narrative (generated)
     narrative_persona: str = ""

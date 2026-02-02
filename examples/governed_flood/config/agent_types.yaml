@@ -69,7 +69,6 @@ shared:
           reason_hint: "One sentence summary of how well you think you can cope or act.",
         }
       - { key: "decision", type: "choice", required: true }
-      - { key: "reasoning", type: "text", required: false }
 
 
 
