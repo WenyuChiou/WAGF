@@ -158,6 +158,35 @@ class InterventionReport:
 
 
 @dataclass
+class MultiSkillProposal:
+    """
+    Container for multi-skill proposals (Primary + optional Secondary).
+
+    When multi_skill is disabled in config, only primary is populated.
+    When enabled, secondary holds the optional second skill proposal.
+    """
+    primary: SkillProposal
+    secondary: Optional[SkillProposal] = None
+
+    @property
+    def is_composite(self) -> bool:
+        return self.secondary is not None
+
+    @property
+    def skill_names(self) -> List[str]:
+        names = [self.primary.skill_name]
+        if self.secondary:
+            names.append(self.secondary.skill_name)
+        return names
+
+    def to_dict(self) -> Dict[str, Any]:
+        result = {"primary": self.primary.to_dict()}
+        if self.secondary:
+            result["secondary"] = self.secondary.to_dict()
+        return result
+
+
+@dataclass
 class SkillBrokerResult:
     """Complete result from skill broker processing."""
     outcome: SkillOutcome
@@ -167,9 +196,14 @@ class SkillBrokerResult:
     validation_errors: List[str] = field(default_factory=list)
     retry_count: int = 0
     format_retries: int = 0  # Structural faults (format/parsing issues) fixed by retry
+    # Multi-skill fields (only populated when multi_skill.enabled=true)
+    secondary_proposal: Optional[SkillProposal] = None
+    secondary_approved: Optional[ApprovedSkill] = None
+    secondary_execution: Optional[ExecutionResult] = None
+    composite_validation_errors: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        d = {
             "outcome": self.outcome.value if self.outcome else "ABORTED",
             "skill_proposal": self.skill_proposal.to_dict() if self.skill_proposal else None,
             "approved_skill": {
@@ -183,3 +217,16 @@ class SkillBrokerResult:
             "retry_count": self.retry_count,
             "format_retries": self.format_retries
         }
+        if self.secondary_proposal:
+            d["secondary_proposal"] = self.secondary_proposal.to_dict()
+        if self.secondary_approved:
+            d["secondary_approved"] = {
+                "skill_name": self.secondary_approved.skill_name,
+                "status": self.secondary_approved.approval_status,
+                "parameters": self.secondary_approved.parameters,
+            }
+        if self.secondary_execution:
+            d["secondary_execution"] = self.secondary_execution.to_dict()
+        if self.composite_validation_errors:
+            d["composite_validation_errors"] = self.composite_validation_errors
+        return d

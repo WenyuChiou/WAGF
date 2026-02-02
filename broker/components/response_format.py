@@ -142,6 +142,11 @@ class ResponseFormatBuilder:
                 placeholder = desc if desc else f"Numeric ID, choose ONE from: {valid_choices_text}"
                 lines.append(f'  "{key}": "<{placeholder}>"{comma}')
 
+            elif ftype == "secondary_choice":
+                # Multi-skill: optional secondary action (only rendered when multi_skill.enabled)
+                placeholder = desc if desc else f"OPTIONAL: Numeric ID from: {valid_choices_text}, or 0 for none"
+                lines.append(f'  "{key}": "<{placeholder}>"{comma}')
+
             elif ftype == "numeric":
                 # Flexible numeric fields with unit, sign, and range support
                 placeholder = self._build_numeric_placeholder(field)
