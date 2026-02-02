@@ -391,6 +391,11 @@ class BaseAgent:
         for key, value in state_changes.items():
             if hasattr(self, key):
                 setattr(self, key, value)
+                # Sync custom_attributes to prevent stale base layer in context builds.
+                # Without this, context providers reading custom_attributes would see
+                # the original CSV/init value instead of the updated runtime value.
+                if hasattr(self, "custom_attributes") and key in self.custom_attributes:
+                    self.custom_attributes[key] = value
             else:
                 # Store in dynamic_state for new attributes
                 self.dynamic_state[key] = value
