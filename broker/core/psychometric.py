@@ -224,9 +224,9 @@ class PMTFramework(PsychologicalFramework):
     Optional constructs:
     - Stakeholder Perception (SP): Trust in external actors
 
-    Domain-specific skill names (extreme_actions, complex_actions,
-    expected_skill_map) are configurable via constructor. Defaults
-    are flood-domain for backward compatibility.
+    Domain-specific skill names (extreme_actions, complex_actions)
+    are configurable via constructor.  Defaults are provided for
+    backward compatibility; new domains should override via arguments.
     """
 
     def __init__(

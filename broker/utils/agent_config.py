@@ -867,7 +867,7 @@ class GovernanceAuditor:
     def log_invalid_label_retry(self):
         """Record Invalid _LABEL value triggered retry.
 
-        This occurs when TP_LABEL or CP_LABEL contains invalid values like
+        This occurs when a construct label field contains invalid values like
         'VL/L/M/H/VH' instead of a single valid label.
         """
         with self.stats_lock:

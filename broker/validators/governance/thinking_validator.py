@@ -1,19 +1,21 @@
 """
 Thinking Validator - Multi-framework construct validation and reasoning coherence.
 
-Task-041: Universal Prompt/Context/Governance Framework
+Validates that an agent's chosen action is logically consistent with its
+self-reported behavioral appraisals.  Supports multiple psychological
+frameworks registered in FRAMEWORK_CONSTRUCTS:
 
-Validates:
-- PMT label consistency (TP/CP combinations)
-- Utility framework consistency (budget/equity)
-- Financial framework consistency (risk/solvency)
-- Reasoning coherence (action matches appraisal)
+- PMT (Protection Motivation Theory): threat/coping appraisal — flood domain
+- WSA/ACA (Dual Appraisal): water scarcity/adaptive capacity — irrigation domain
+- Utility: budget/equity assessment — government agents
+- Financial: risk/solvency assessment — insurance agents
 
 The YAML-driven condition engine (_validate_yaml_rules, _evaluate_conditions,
 _evaluate_single_condition) is fully domain-agnostic.  Framework-specific
 built-in checks (_validate_pmt, _validate_utility, _validate_financial) are
-registered as ``builtin_checks`` and default to flood/MA domain.  Pass
-``builtin_checks=[]`` to use YAML rules only, or supply domain-specific checks.
+registered as ``builtin_checks`` and default to PMT/Utility/Financial checks.
+Pass ``builtin_checks=[]`` to use YAML rules only, or supply domain-specific
+checks for new frameworks.
 """
 from typing import List, Dict, Any, Optional
 from broker.interfaces.skill_types import ValidationResult
@@ -22,22 +24,39 @@ from broker.governance.rule_types import GovernanceRule
 from broker.validators.governance.base_validator import BaseValidator, BuiltinCheck
 
 
-# Framework-specific label orderings
+# ──────────────────────────────────────────────────────────────────────
+# Registered Behavioral Science Frameworks
+# ──────────────────────────────────────────────────────────────────────
+# Each framework defines its ordinal rating scale and construct field
+# names.  New water-domain frameworks (e.g., groundwater stress/capacity)
+# can be added here or injected at runtime via the constructor.
+# ──────────────────────────────────────────────────────────────────────
+
+# Ordinal label orderings per framework (lowest → highest)
 FRAMEWORK_LABEL_ORDERS = {
-    "pmt": {"VL": 0, "L": 1, "M": 2, "H": 3, "VH": 4},
-    "utility": {"L": 0, "M": 1, "H": 2},
-    "financial": {"C": 0, "M": 1, "A": 2},  # Conservative, Moderate, Aggressive
+    "pmt": {"VL": 0, "L": 1, "M": 2, "H": 3, "VH": 4},          # 5-level: flood domain
+    "dual_appraisal": {"VL": 0, "L": 1, "M": 2, "H": 3, "VH": 4},  # 5-level: irrigation domain
+    "utility": {"L": 0, "M": 1, "H": 2},                          # 3-level: government agents
+    "financial": {"C": 0, "M": 1, "A": 2},                        # Conservative/Moderate/Aggressive
 }
 
-# PMT label ordering for backward compatibility
-PMT_LABEL_ORDER = FRAMEWORK_LABEL_ORDERS["pmt"]
+# Default label ordering (5-level VL–VH scale, used when framework is unknown)
+DEFAULT_LABEL_ORDER = FRAMEWORK_LABEL_ORDERS["pmt"]
 
-# Framework-specific construct mappings
+# Backward-compatibility alias (external code may import this name)
+PMT_LABEL_ORDER = DEFAULT_LABEL_ORDER
+
+# Construct field name mappings per framework
 FRAMEWORK_CONSTRUCTS = {
     "pmt": {
-        "primary": "TP_LABEL",      # Threat Perception
+        "primary": "TP_LABEL",      # Threat Perception (Rogers, 1983)
         "secondary": "CP_LABEL",    # Coping Perception
         "all": ["TP_LABEL", "CP_LABEL", "SP_LABEL", "SC_LABEL", "PA_LABEL"],
+    },
+    "dual_appraisal": {
+        "primary": "WSA_LABEL",     # Water Scarcity Assessment (Hung & Yang, 2021)
+        "secondary": "ACA_LABEL",   # Adaptive Capacity Assessment
+        "all": ["WSA_LABEL", "ACA_LABEL"],
     },
     "utility": {
         "primary": "BUDGET_UTIL",   # Budget Utility
@@ -93,13 +112,14 @@ class ThinkingValidator(BaseValidator):
 
         Args:
             framework: Psychological framework ("pmt", "utility", "financial")
-            builtin_checks: Domain-specific checks.  None = flood/MA defaults.
+            builtin_checks: Domain-specific checks.  None = built-in defaults
+                (PMT + Utility + Financial).  Pass ``[]`` for YAML-only.
             extreme_actions: Domain-specific actions blocked when threat
                 perception is low.  Empty by default (domain-agnostic).
-                Flood domain passes ``{"relocate", "elevate_house"}``.
+                Configured per domain in ``agent_types.yaml``.
         """
         self.framework = framework.lower()
-        self._label_order = FRAMEWORK_LABEL_ORDERS.get(self.framework, PMT_LABEL_ORDER)
+        self._label_order = FRAMEWORK_LABEL_ORDERS.get(self.framework, DEFAULT_LABEL_ORDER)
         self._constructs = FRAMEWORK_CONSTRUCTS.get(self.framework, FRAMEWORK_CONSTRUCTS["pmt"])
         self._extreme_actions = extreme_actions or set()
         super().__init__(builtin_checks=builtin_checks)
@@ -109,10 +129,11 @@ class ThinkingValidator(BaseValidator):
         return "thinking"
 
     def _default_builtin_checks(self) -> List[BuiltinCheck]:
-        """Flood/MA domain defaults: PMT + Utility + Financial framework checks.
+        """Default built-in framework checks: PMT + Utility + Financial.
 
         These are instance-bound closures so they can access ``self`` for
-        label normalization and rule deduplication helpers.
+        label normalization and rule deduplication helpers.  Pass
+        ``builtin_checks=[]`` to disable defaults and rely on YAML rules only.
         """
         return [
             self._builtin_pmt_check,
@@ -583,7 +604,7 @@ class ThinkingValidator(BaseValidator):
                 "AGGRESSIVE": "A", "AGG": "A", "HIGH": "A"
             }
         else:
-            # Generic fallback to PMT
+            # Generic fallback (5-level VL–VH scale)
             mappings = {
                 "VERY LOW": "VL", "LOW": "L", "MEDIUM": "M",
                 "HIGH": "H", "VERY HIGH": "VH"
@@ -608,7 +629,7 @@ class ThinkingValidator(BaseValidator):
             -1 if label1 < label2, 0 if equal, 1 if label1 > label2
         """
         fw = framework or self.framework
-        label_order = FRAMEWORK_LABEL_ORDERS.get(fw, PMT_LABEL_ORDER)
+        label_order = FRAMEWORK_LABEL_ORDERS.get(fw, DEFAULT_LABEL_ORDER)
         default_order = len(label_order) // 2  # Default to middle
 
         order1 = label_order.get(label1, default_order)
@@ -636,7 +657,7 @@ class ThinkingValidator(BaseValidator):
             return scale.levels
         except Exception:
             # Fallback to hardcoded
-            label_order = FRAMEWORK_LABEL_ORDERS.get(fw, PMT_LABEL_ORDER)
+            label_order = FRAMEWORK_LABEL_ORDERS.get(fw, DEFAULT_LABEL_ORDER)
             return list(label_order.keys())
 
     def validate_label_value(self, label: str, framework: str = None) -> bool:

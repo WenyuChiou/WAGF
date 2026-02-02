@@ -100,7 +100,7 @@ class ConstructDefinition(BaseModel):
 
     Task-041 Phase 3: Universal Construct & Governance Framework
     """
-    id: str = Field(..., description="Construct ID (e.g., TP_LABEL, CP_LABEL)")
+    id: str = Field(..., description="Construct ID (e.g., TP_LABEL, WSA_LABEL, BUDGET_UTIL)")
     name: str = Field(..., description="Human-readable name (e.g., 'Threat Perception')")
     description: Optional[str] = Field(default=None, description="Detailed description")
     scale: str = Field(default="pmt", description="Rating scale to use (pmt/utility/financial)")
@@ -117,11 +117,11 @@ class FrameworkConstructs(BaseModel):
     """
     required: List[ConstructDefinition] = Field(
         default_factory=list,
-        description="Required constructs (e.g., TP_LABEL, CP_LABEL for SA)"
+        description="Required constructs (e.g., TP_LABEL/CP_LABEL for PMT, WSA_LABEL/ACA_LABEL for dual-appraisal)"
     )
     optional: List[ConstructDefinition] = Field(
         default_factory=list,
-        description="Optional constructs (e.g., SP_LABEL, PA_LABEL, SC_LABEL for MA)"
+        description="Optional constructs (e.g., SP_LABEL for PMT, ADOPTION_RATE for utility)"
     )
 
     class Config:
@@ -151,11 +151,11 @@ class RuleCondition(BaseModel):
     """
     construct: Optional[str] = Field(
         default=None,
-        description="Construct to check (e.g., TP_LABEL, CP_LABEL)"
+        description="Construct to check (e.g., TP_LABEL, WSA_LABEL, BUDGET_UTIL)"
     )
     variable: Optional[str] = Field(
         default=None,
-        description="Non-construct variable (e.g., savings, income)"
+        description="Non-construct variable (e.g., savings, income, water_right)"
     )
     operator: Literal["in", "not_in", "==", "!=", "<", ">", "<=", ">="] = Field(
         default="in",

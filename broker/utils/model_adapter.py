@@ -23,11 +23,9 @@ from .preprocessors import GenericRegexPreprocessor, SmartRepairPreprocessor, ge
 from .adapters.deepseek import deepseek_preprocessor
 
 # Universal framework-level normalization defaults
-# (Domain-independent mappings only)
-# Universal framework-level normalization defaults
-# (Domain-independent mappings only)
+# (Domain-independent ordinal scale and boolean mappings)
 FRAMEWORK_NORMALIZATION_MAP = {
-    # PMT Scale (Threat/Coping Perception) - Embedded per User Request
+    # 5-level ordinal scale (VL–VH, used by PMT and dual-appraisal frameworks)
     "very low": "VL", "verylow": "VL", "v low": "VL", "v.low": "VL",
     "low": "L",
     "medium": "M", "med": "M", "moderate": "M", "mid": "M", "middle": "M",

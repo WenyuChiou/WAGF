@@ -2,13 +2,16 @@
 Governance Rule Types - Core type definitions for extensible rule system.
 
 This module defines the fundamental types for the governance rule system:
-- RuleCategory: personal, social, thinking, physical
+- RuleCategory: personal, social, thinking, physical, semantic
 - RuleLevel: ERROR (blocking) or WARNING (logging only)
 - RuleCondition: Single condition to check
 - GovernanceRule: Complete rule definition
+
+Domain-agnostic: all domain-specific behavior (construct names, skill IDs,
+state fields) is injected via YAML configuration.
 """
 from dataclasses import dataclass, field
-from typing import List, Any, Optional, Literal
+from typing import Dict, List, Any, Optional, Literal
 from enum import Enum
 
 
@@ -16,7 +19,7 @@ class RuleCategory(str, Enum):
     """Categories of governance rules."""
     PERSONAL = "personal"    # Financial + Cognitive constraints
     SOCIAL = "social"        # Neighbor influence + Community norms
-    THINKING = "thinking"    # PMT constructs + Reasoning coherence
+    THINKING = "thinking"    # Behavioral constructs + Reasoning coherence
     PHYSICAL = "physical"    # State preconditions + Immutability
     SEMANTIC = "semantic"    # Reasoning grounding + Factual consistency
 
@@ -29,10 +32,10 @@ class RuleLevel(str, Enum):
 
 class ConditionType(str, Enum):
     """Types of conditions that can be evaluated."""
-    CONSTRUCT = "construct"      # PMT label comparison (TP_LABEL, CP_LABEL)
-    PRECONDITION = "precondition"  # Boolean state check (elevated, relocated)
-    EXPRESSION = "expression"    # Mathematical expression (savings > cost)
-    SOCIAL = "social"            # Social context check (neighbor_pct > 0.5)
+    CONSTRUCT = "construct"      # Behavioral construct label comparison (e.g., THREAT_LABEL, CAPACITY_LABEL)
+    PRECONDITION = "precondition"  # Boolean state check (e.g., at_capacity, adopted_technology)
+    EXPRESSION = "expression"    # Mathematical expression (e.g., budget > threshold)
+    SOCIAL = "social"            # Social context check (e.g., adoption_rate > 0.5)
 
 
 @dataclass
@@ -40,14 +43,14 @@ class RuleCondition:
     """
     Single condition to evaluate for a rule.
 
-    Examples:
-    - construct: {type: "construct", field: "TP_LABEL", operator: "in", values: ["H", "VH"]}
-    - precondition: {type: "precondition", field: "elevated", operator: "==", values: [True]}
-    - expression: {type: "expression", field: "savings", operator: ">=", values: [50000]}
-    - social: {type: "social", field: "elevated_neighbor_pct", operator: ">", values: [0.6]}
+    Examples (domain-agnostic):
+    - construct: {type: "construct", field: "THREAT_LABEL", operator: "in", values: ["H", "VH"]}
+    - precondition: {type: "precondition", field: "at_capacity", operator: "==", values: [True]}
+    - expression: {type: "expression", field: "budget", operator: ">=", values: [50000]}
+    - social: {type: "social", field: "adoption_rate", operator: ">", values: [0.6]}
     """
     type: str  # construct, precondition, expression, social
-    field: str  # Field name to check (TP_LABEL, elevated, savings, etc.)
+    field: str  # Field name to check (configured per domain in agent_types.yaml)
     operator: str = "in"  # in, ==, !=, >, <, >=, <=
     values: List[Any] = field(default_factory=list)
 
@@ -129,10 +132,10 @@ class GovernanceRule:
     """
     Complete governance rule definition.
 
-    Examples:
-    - Thinking rule: Block do_nothing if TP is Very High
-    - Physical rule: Block elevate_house if already elevated
-    - Social rule: Warn if most neighbors have adapted but agent hasn't
+    Examples (domain-agnostic):
+    - Thinking rule: Block inaction skill when threat construct is Very High
+    - Physical rule: Block skill when irreversible state precondition is True
+    - Social rule: Warn if majority of peers have adapted but agent hasn't
     """
     id: str                                    # Unique identifier
     category: str                              # personal, social, thinking, physical
@@ -185,7 +188,7 @@ class GovernanceRule:
         return False
 
     def _normalize_label(self, label: str) -> str:
-        """Normalize PMT labels to standard format."""
+        """Normalize construct labels to standard format (VL/L/M/H/VH)."""
         if not label:
             return ""
         label = str(label).upper().strip()
@@ -246,11 +249,24 @@ class GovernanceRule:
         )
 
 
-def categorize_rule(rule: GovernanceRule) -> str:
+def categorize_rule(
+    rule: GovernanceRule,
+    construct_hints: Optional[Dict[str, str]] = None,
+) -> str:
     """
     Categorize a rule for audit breakdown.
 
-    Returns one of: personal, social, thinking, physical
+    Args:
+        rule: The governance rule to categorize.
+        construct_hints: Optional mapping from field names to categories.
+            Allows domain-specific construct-to-category resolution without
+            hardcoding field names.  Example::
+
+                {"WSA_LABEL": "thinking", "ACA_LABEL": "thinking",
+                 "budget": "personal", "adoption_rate": "social"}
+
+    Returns:
+        One of: personal, social, thinking, physical, semantic
     """
     if rule.category:
         return rule.category
@@ -258,11 +274,24 @@ def categorize_rule(rule: GovernanceRule) -> str:
     # Infer from rule structure
     if rule.precondition:
         return "physical"
-    if rule.construct in ("TP_LABEL", "CP_LABEL"):
+
+    # Check domain-specific construct hints first
+    if construct_hints:
+        if rule.construct and rule.construct in construct_hints:
+            return construct_hints[rule.construct]
+        for cond in rule.conditions:
+            if cond.field in construct_hints:
+                return construct_hints[cond.field]
+
+    # Default heuristics (cover common behavioral science frameworks)
+    _THINKING_CONSTRUCTS = {"TP_LABEL", "CP_LABEL", "WSA_LABEL", "ACA_LABEL",
+                            "BUDGET_UTIL", "EQUITY_GAP", "RISK_APPETITE", "SOLVENCY_IMPACT"}
+    _PERSONAL_FIELDS = {"savings", "income", "cost", "budget", "water_right"}
+    if rule.construct in _THINKING_CONSTRUCTS:
         return "thinking"
     if any(c.type == "social" for c in rule.conditions):
         return "social"
-    if any(c.field in ("savings", "income", "cost") for c in rule.conditions):
+    if any(c.field in _PERSONAL_FIELDS for c in rule.conditions):
         return "personal"
 
     return "thinking"  # Default

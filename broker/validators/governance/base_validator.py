@@ -9,8 +9,8 @@ parameter.  Each check is a callable:
     (skill_name: str, rules: List[GovernanceRule], context: Dict) -> List[ValidationResult]
 
 When ``builtin_checks`` is *None* (default), subclasses provide their own
-domain defaults (typically flood-domain checks for backward compatibility).
-Pass an empty list ``[]`` to disable all built-in checks.
+domain defaults via ``_default_builtin_checks()``.
+Pass an empty list ``[]`` to disable all built-in checks and rely on YAML rules only.
 """
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional, Callable
@@ -38,8 +38,8 @@ class BaseValidator(ABC):
     Subclasses that need domain defaults override ``_default_builtin_checks()``.
 
     Example YAML rule with template:
-        - id: elevation_threat_low
-          message: "Elevation blocked: Your TP={context.TP_LABEL} is too low."
+        - id: high_threat_no_maintain
+          message: "Action blocked: Your THREAT={context.THREAT_LABEL} requires action."
     """
 
     # Shared formatter instance (lenient mode - keeps placeholders if missing)
@@ -130,8 +130,7 @@ class BaseValidator(ABC):
         Format rule message with dynamic variable interpolation.
 
         Supports {var.path} syntax for template variables:
-            - {context.TP_LABEL}: Current threat appraisal
-            - {context.CP_LABEL}: Current coping appraisal
+            - {context.<CONSTRUCT>}: Any construct label (e.g., TP_LABEL, WSA_LABEL)
             - {context.decision}: Proposed decision
             - {rule.id}: Rule identifier
             - {rule.blocked_skills}: List of blocked skills
