@@ -212,6 +212,57 @@ def my_physical_check(skill_name, rules, context):
 
 領域驗證器通過 `ExperimentBuilder.with_custom_validators()` 注入，在 identity 和 thinking 規則之後評估。參見 `examples/governed_flood/validators/flood_validators.py`（8 個檢查）和 `examples/irrigation_abm/validators/irrigation_validators.py`（8 個檢查）。
 
+## 2.9 多技能複合驗證（Multi-Skill Composite Validation）
+
+當 **Multi-Skill** 開關啟用時（`multi_skill.enabled: true`），Broker Engine 在標準 6 階段治理流程中新增兩個額外階段：
+
+### Phase ④b：複合驗證（主要技能批准後）
+
+主要技能通過個別驗證（identity rules、thinking rules、domain validators）後，引擎檢查是否有**次要技能**被提出。若有：
+
+1. **個別驗證** — 次要技能經過與主要技能相同的驗證管線（資格、前置條件、thinking rules、identity rules）。
+2. **複合衝突檢查** — `SkillRegistry.check_composite_conflicts()` 驗證該配對不互斥（見 [Skill Registry § 8](skill_registry_zh.md#8-複合衝突偵測multi-skill)）。
+3. **重複拒絕** — 主要與次要不能是相同技能。
+
+若複合驗證失敗，系統產生 `InterventionReport` 解釋哪個技能被阻擋及原因，然後觸發完整重試（主要和次要都重新生成）。在用盡最大重試次數後，次要技能被靜默丟棄，僅執行主要技能（**優雅降級**）。
+
+### Phase ⑤b：循序次要執行
+
+技能按嚴格順序執行：**先主要，後次要**。主要技能的 `state_changes` 在次要技能執行前先套用到 Agent。這確保：
+
+- 次要技能的前置條件根據更新後的狀態評估。
+- 因主要技能觸發的 identity rules（例如 `elevation_block`）被尊重。
+- 無平行狀態變更衝突。
+
+### 類型系統支援
+
+`SkillBrokerResult` 資料類別攜帶可選的次要欄位：
+
+| 欄位 | 類型 | 預設值 |
+|------|------|--------|
+| `secondary_proposal` | `Optional[SkillProposal]` | `None` |
+| `secondary_approved` | `Optional[ApprovedSkill]` | `None` |
+| `secondary_execution` | `Optional[ExecutionResult]` | `None` |
+| `composite_validation_errors` | `List[str]` | `[]` |
+
+當 `multi_skill.enabled: false`（預設）時，所有次要欄位保持 `None`，`to_dict()` 排除它們——現有稽核輸出零改變。
+
+### 配置
+
+```yaml
+household:
+  multi_skill:
+    enabled: false              # 預設關閉
+    max_skills: 2
+    execution_order: "sequential"
+    secondary_field: "secondary_decision"
+    secondary_magnitude_field: "secondary_magnitude_pct"
+```
+
+`ResponseFormatBuilder` 在配置包含 `type: "secondary_choice"` 欄位時，有條件地在 LLM 提示模板中渲染 `secondary_choice` 欄位類型。該欄位標記為 OPTIONAL，使無法產生它的小型 LLM 仍能正常運作。
+
+---
+
 ## 3. 稽核
 
 所有驗證結果記錄在 `simulation.log` 和 `audit_summary.json` 中。可追蹤：

@@ -166,3 +166,53 @@ if not registry.check_preconditions(intent, agent.state).valid:
 func_name = registry.get_execution_mapping(intent)
 simulation_engine.call(func_name, agent)
 ```
+
+---
+
+## 8. 複合衝突偵測（Multi-Skill）
+
+當 **Multi-Skill** 功能啟用時（`agent_types.yaml` 中 `multi_skill.enabled: true`），Agent 可在單一決策步驟中提出兩個技能——**主要 (primary)** 行動和可選的 **次要 (secondary)** 行動。Skill Registry 提供衝突偵測以確保兩個技能相容。
+
+### 8.1 `conflicts_with` 欄位
+
+每個 `SkillDefinition` 包含可選的 `conflicts_with` 列表，宣告哪些技能**互斥**：
+
+```yaml
+skills:
+  - skill_id: "elevate_house"
+    conflicts_with: ["relocate"]       # 不能同時加高並搬遷
+  - skill_id: "buy_insurance"
+    conflicts_with: []                 # 可與任何其他技能配對
+  - skill_id: "relocate"
+    conflicts_with: ["elevate_house", "buy_insurance"]
+```
+
+衝突關係是**方向性的但雙向檢查**——只要任一技能的 `conflicts_with` 列出另一個技能，該配對即被視為互斥。
+
+### 8.2 `check_composite_conflicts(skill_names)`
+
+```python
+result = registry.check_composite_conflicts(["elevate_house", "relocate"])
+# result.valid == False
+# result.errors == ["Skills 'elevate_house' and 'relocate' are mutually exclusive"]
+```
+
+- **輸入**：技能 ID 列表（通常為 2 個，對應 primary + secondary）。
+- **返回**：`ValidationResult`，無衝突時 `valid=True`，有衝突時 `valid=False` 並附描述性錯誤訊息。
+- **邏輯**：對每一對 `(A, B)`，檢查 `A` 是否在 `B.conflicts_with` 中，或 `B` 是否在 `A.conflicts_with` 中。
+
+### 8.3 開關與後向相容
+
+Multi-skill 功能由 `agent_types.yaml` 中每種 Agent 類型的開關控制：
+
+```yaml
+household:
+  multi_skill:
+    enabled: false              # 預設：關閉 — 零行為改變
+    max_skills: 2
+    execution_order: "sequential"
+    secondary_field: "secondary_decision"
+    secondary_magnitude_field: "secondary_magnitude_pct"
+```
+
+當 `enabled: false`（預設值）時，複合衝突偵測永遠不會被呼叫。所有現有的單一技能工作流程不受影響。`AgentTypeConfig` 上的 `get_multi_skill_config(agent_type)` 方法在停用時返回空字典。

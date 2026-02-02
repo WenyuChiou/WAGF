@@ -227,6 +227,57 @@ Validators are organized into **5 categories**:
 
 Domain validators are injected via `ExperimentBuilder.with_custom_validators()` and evaluated after identity and thinking rules. See `examples/governed_flood/validators/flood_validators.py` (8 checks) and `examples/irrigation_abm/validators/irrigation_validators.py` (8 checks) for reference implementations.
 
+## 2.9 Multi-Skill Composite Validation
+
+When the **Multi-Skill** toggle is enabled (`multi_skill.enabled: true`), the Broker Engine adds two additional phases to the standard 6-phase governance flow:
+
+### Phase ④b: Composite Validation (after primary approval)
+
+After the primary skill passes individual validation (identity rules, thinking rules, domain validators), the engine checks whether a **secondary skill** was proposed. If so:
+
+1. **Individual validation** — The secondary skill goes through the same validation pipeline as the primary (eligibility, preconditions, thinking rules, identity rules).
+2. **Composite conflict check** — `SkillRegistry.check_composite_conflicts()` verifies the pair is not mutually exclusive (see [Skill Registry § 8](skill_registry.md#8-composite-conflict-detection-multi-skill)).
+3. **Duplicate rejection** — Primary and secondary cannot be the same skill.
+
+If composite validation fails, the system generates an `InterventionReport` explaining which skill was blocked and why, then triggers a full retry (both primary and secondary). After exhausting max retries, the secondary is silently dropped and only the primary executes (**graceful degradation**).
+
+### Phase ⑤b: Sequential Secondary Execution
+
+Skills execute in strict order: **primary first, then secondary**. The primary skill's `state_changes` are applied to the agent before the secondary skill executes. This ensures:
+
+- The secondary skill's preconditions are evaluated against updated state.
+- Identity rules (e.g., `elevation_block`) activated by the primary are respected.
+- No parallel state mutation conflicts.
+
+### Type System Support
+
+The `SkillBrokerResult` dataclass carries optional secondary fields:
+
+| Field | Type | Default |
+|-------|------|---------|
+| `secondary_proposal` | `Optional[SkillProposal]` | `None` |
+| `secondary_approved` | `Optional[ApprovedSkill]` | `None` |
+| `secondary_execution` | `Optional[ExecutionResult]` | `None` |
+| `composite_validation_errors` | `List[str]` | `[]` |
+
+When `multi_skill.enabled: false` (default), all secondary fields remain `None` and `to_dict()` excludes them — zero change to existing audit output.
+
+### Configuration
+
+```yaml
+household:
+  multi_skill:
+    enabled: false              # Default OFF
+    max_skills: 2
+    execution_order: "sequential"
+    secondary_field: "secondary_decision"
+    secondary_magnitude_field: "secondary_magnitude_pct"
+```
+
+The `ResponseFormatBuilder` conditionally renders a `secondary_choice` field type in the LLM prompt template when the config includes a field with `type: "secondary_choice"`. The field is marked OPTIONAL so small LLMs that cannot produce it still function normally.
+
+---
+
 ## 3. Auditing
 
 All validation results are logged in `simulation.log` and `audit_summary.json`. This allows us to track:

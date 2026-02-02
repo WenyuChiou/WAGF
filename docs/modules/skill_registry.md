@@ -166,3 +166,53 @@ if not registry.check_preconditions(intent, agent.state).valid:
 func_name = registry.get_execution_mapping(intent)
 simulation_engine.call(func_name, agent)
 ```
+
+---
+
+## 8. Composite Conflict Detection (Multi-Skill)
+
+When the **Multi-Skill** feature is enabled (`multi_skill.enabled: true` in `agent_types.yaml`), an agent may propose two skills in a single decision step — a **primary** and an optional **secondary** action. The Skill Registry provides conflict detection to ensure the two skills are compatible.
+
+### 8.1 `conflicts_with` Field
+
+Each `SkillDefinition` includes an optional `conflicts_with` list declaring which other skills are **mutually exclusive**:
+
+```yaml
+skills:
+  - skill_id: "elevate_house"
+    conflicts_with: ["relocate"]       # Cannot elevate AND relocate
+  - skill_id: "buy_insurance"
+    conflicts_with: []                 # Compatible with any other skill
+  - skill_id: "relocate"
+    conflicts_with: ["elevate_house", "buy_insurance"]
+```
+
+Conflict relationships are **directional but checked bidirectionally** — if either skill lists the other in its `conflicts_with`, the pair is considered mutually exclusive.
+
+### 8.2 `check_composite_conflicts(skill_names)`
+
+```python
+result = registry.check_composite_conflicts(["elevate_house", "relocate"])
+# result.valid == False
+# result.errors == ["Skills 'elevate_house' and 'relocate' are mutually exclusive"]
+```
+
+- **Input**: A list of skill IDs (typically 2 for primary + secondary).
+- **Returns**: `ValidationResult` with `valid=True` if no conflicts, or `valid=False` with descriptive error messages.
+- **Logic**: For every pair `(A, B)`, checks if `A` appears in `B.conflicts_with` or `B` appears in `A.conflicts_with`.
+
+### 8.3 Toggle & Backward Compatibility
+
+The multi-skill feature is controlled by a per-agent-type toggle in `agent_types.yaml`:
+
+```yaml
+household:
+  multi_skill:
+    enabled: false              # Default: OFF — zero behavior change
+    max_skills: 2
+    execution_order: "sequential"
+    secondary_field: "secondary_decision"
+    secondary_magnitude_field: "secondary_magnitude_pct"
+```
+
+When `enabled: false` (the default), composite conflict detection is never invoked. All existing single-skill workflows remain unaffected. The `get_multi_skill_config(agent_type)` method on `AgentTypeConfig` returns an empty dict when disabled.
