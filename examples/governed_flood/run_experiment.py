@@ -176,6 +176,14 @@ class LifecycleHooks:
             if random.random() < RANDOM_MEMORY_RECALL_CHANCE:
                 parts.append(f"Suddenly recalled: '{random.choice(PAST_EVENTS)}'.")
 
+            # Action feedback from last year's decision
+            if year > 1:
+                action_ctx = getattr(agent, '_last_action_context', None)
+                if action_ctx and action_ctx.get("skill_name"):
+                    skill = action_ctx["skill_name"].replace("_", " ")
+                    act_year = action_ctx.get("year", year - 1)
+                    parts.append(f"Year {act_year}: You chose to {skill}.")
+
             self.runner.memory_engine.add_memory(agent.id, " | ".join(parts))
 
     # -- post_step: record each agent's decision --

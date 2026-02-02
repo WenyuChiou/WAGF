@@ -210,27 +210,34 @@ class ExperimentRunner:
         self.broker.auditor.save_summary(summary_path)
 
     def _apply_state_changes(self, agent: BaseAgent, result: Any):
-        """Update agent attributes and memory from execution results."""
+        """Update agent attributes and memory from execution results.
+
+        Also stores action context on agent._last_action_context for
+        deferred feedback by domain pre_year hooks.
+        """
         # 1. Update State Flags using canonical method
         if result.execution_result and result.execution_result.state_changes:
             agent.apply_delta(result.execution_result.state_changes)
-        
-        # 2. Update Memory via Engine
+
+        # 2. Store action context for deferred feedback by domain pre_year hooks
+        action_ctx = {
+            "skill_name": result.approved_skill.skill_name,
+            "year": getattr(self, '_current_year', 0),
+        }
+        params = result.approved_skill.parameters or {}
+        if params.get("magnitude_pct") is not None:
+            action_ctx["magnitude_pct"] = params["magnitude_pct"]
+            action_ctx["magnitude_fallback"] = params.get("magnitude_fallback", False)
+        if result.execution_result and result.execution_result.action_context:
+            action_ctx.update(result.execution_result.action_context)
+        agent._last_action_context = action_ctx
+
+        # 3. Legacy immediate memory (kept for backward compat; filtered by
+        #    DecisionFilteredMemoryEngine in baseline parity experiments)
         action_desc = result.approved_skill.skill_name.replace("_", " ").capitalize()
-        
-        # Enhance memory description with outcome/context if available
-        # Example: "Year 5: Decided to Choose Action X (Success)"
         timestamp_prefix = f"Year {self._current_year}: " if hasattr(self, '_current_year') else ""
         memory_content = f"{timestamp_prefix}Decided to: {action_desc}"
-        
-        if result.execution_result and getattr(result.execution_result, 'metadata', None):
-            meta = result.execution_result.metadata
-            # Generic metadata summary (if available)
-            numeric_meta = {k: v for k, v in meta.items() if isinstance(v, (int, float))}
-            if numeric_meta:
-                meta_str = ", ".join([f"{k}: {v:.2f}" for k, v in numeric_meta.items()])
-                memory_content += f" ({meta_str})"
-        
+
         if hasattr(self.memory_engine, 'add_memory_for_agent'):
             self.memory_engine.add_memory_for_agent(agent, memory_content)
         else:

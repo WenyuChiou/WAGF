@@ -43,7 +43,7 @@ from examples.irrigation_abm.irrigation_personas import (
     build_conservation_status,
     build_aca_hint,
     build_trust_text,
-    build_regret_feedback,
+    build_action_outcome_feedback,
     create_profiles_from_csv,
     rebalance_clusters,
 )
@@ -214,11 +214,13 @@ class IrrigationLifecycleHooks:
                 agent.custom_attributes["has_efficient_system"] = agent.has_efficient_system
                 agent.custom_attributes["below_minimum_utilisation"] = agent.below_minimum_utilisation
 
-            # Inject regret feedback from last year's outcome into memory
+            # Inject combined action + outcome feedback from last year
             if year > 1:
                 prev_request = agent_state.get("request", 0)
                 prev_diversion = agent_state.get("diversion", 0)
-                feedback = build_regret_feedback(
+                action_ctx = getattr(agent, '_last_action_context', None)
+                feedback = build_action_outcome_feedback(
+                    action_ctx=action_ctx,
                     year=year - 1,
                     request=prev_request,
                     diversion=prev_diversion,

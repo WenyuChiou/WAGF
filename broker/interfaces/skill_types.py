@@ -120,13 +120,17 @@ class ExecutionResult:
     success: bool
     state_changes: Dict[str, Any] = field(default_factory=dict)
     error: Optional[str] = None
-    
+    action_context: Dict[str, Any] = field(default_factory=dict)
+
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        d = {
             "success": self.success,
             "state_changes": self.state_changes,
-            "error": self.error
+            "error": self.error,
         }
+        if self.action_context:
+            d["action_context"] = self.action_context
+        return d
 
 
 @dataclass

@@ -313,6 +313,49 @@ def build_regret_feedback(
     )
 
 
+def build_action_outcome_feedback(
+    action_ctx: Optional[Dict[str, Any]],
+    year: int,
+    request: float,
+    diversion: float,
+    drought_index: float,
+    preceding_factor: int,
+) -> str:
+    """Build combined action + outcome feedback for memory.
+
+    Extends build_regret_feedback by prepending the agent's action choice
+    (and magnitude if applicable) so the agent can form causal links
+    between decisions and outcomes during reflection.
+    """
+    # Outcome portion (same logic as build_regret_feedback)
+    gap = max(0.0, request - diversion)
+    gap_pct = (gap / request * 100.0) if request > 0 else 0.0
+    precip_text = "above" if preceding_factor else "below"
+
+    if gap > 0:
+        shortfall = f"Shortfall: {gap:,.0f} acre-ft ({gap_pct:.0f}% unmet)."
+    else:
+        shortfall = "Demand fully met."
+
+    outcome = (
+        f"You requested {request:,.0f} acre-ft and received "
+        f"{diversion:,.0f} acre-ft. {shortfall} "
+        f"Drought index: {drought_index:.2f}. Precipitation was {precip_text} last year."
+    )
+
+    # Action portion (from _last_action_context stored by framework)
+    if action_ctx and action_ctx.get("skill_name"):
+        skill = action_ctx["skill_name"].replace("_", " ")
+        parts = [f"Year {year}: You chose to {skill}"]
+        mag = action_ctx.get("magnitude_pct")
+        if mag is not None:
+            parts.append(f"(by {mag:.0f}%)")
+        return " ".join(parts) + ". " + outcome
+
+    # Fallback: outcome-only (year 1 or missing context)
+    return f"Year {year}: {outcome}"
+
+
 # ============================================================================
 # Factory: create profiles from calibrated parameters CSV
 # ============================================================================
