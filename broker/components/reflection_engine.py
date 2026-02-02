@@ -526,6 +526,7 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
         batch_data: List[Dict[str, Any]],
         current_year: int,
         reflection_questions: Optional[List[str]] = None,
+        persona_instruction: Optional[str] = None,
     ) -> str:
         """
         Generate a prompt for batch reflection across multiple agents.
@@ -536,12 +537,18 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
             current_year: Current simulation year.
             reflection_questions: Optional domain-specific guidance questions
                 from YAML config (global_config.reflection.questions).
+            persona_instruction: Optional instruction to enforce a specific persona
+                viewpoint (e.g., "Speak in first person as the agent").
         """
         if not batch_data:
             return ""
 
         lines = [f"### Background\nYou are a Reflection Assistant for {len(batch_data)} agents in a simulation (Year {current_year})."]
-        lines.append("Instructions: Summarize each agent's memories into a 2-sentence 'Lesson Learned'.")
+        
+        if persona_instruction:
+            lines.append(f"Instructions: {persona_instruction}")
+        else:
+            lines.append("Instructions: Summarize each agent's memories into a 2-sentence 'Lesson Learned'.")
 
         if reflection_questions:
             lines.append("Focus your reflections on:")

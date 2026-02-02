@@ -361,7 +361,10 @@ class IrrigationLifecycleHooks:
             batch = candidates[i: i + batch_size]
             batch_ids = [c["agent_id"] for c in batch]
             prompt = self.reflection_engine.generate_batch_reflection_prompt(
-                batch, year, reflection_questions=cfg.get("questions", [])
+                batch,
+                year,
+                reflection_questions=cfg.get("questions", []),
+                persona_instruction=cfg.get("persona_instruction")
             )
             try:
                 raw = llm_call(prompt)
@@ -590,7 +593,15 @@ def main():
 
     # Save simulation log
     if hooks.logs:
-        pd.DataFrame(hooks.logs).to_csv(output_dir / "simulation_log.csv", index=False)
+        # Sanitize text for CSV compatibility
+        sanitized_logs = []
+        for log in hooks.logs:
+            sanitized_log = {
+                k: (v.replace('\n', ' ').replace('\r', ' ').strip() if isinstance(v, str) else v)
+                for k, v in log.items()
+            }
+            sanitized_logs.append(sanitized_log)
+        pd.DataFrame(sanitized_logs).to_csv(output_dir / "simulation_log.csv", index=False)
 
     GovernanceAuditor().print_summary()
     print(f"--- Complete! Results in {output_dir} ---")

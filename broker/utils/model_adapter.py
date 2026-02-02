@@ -358,15 +358,30 @@ class UnifiedAdapter(ModelAdapter):
                 magnitude_raw = data_lowered.get("magnitude") or data_lowered.get("magnitude_pct")
                 if magnitude_raw is not None:
                     try:
+                        # 1. Direct float attempt
                         _mag = float(magnitude_raw)
-                        if _mag < 0:
-                            parsing_warnings.append(f"Negative magnitude {_mag}% ignored")
-                        else:
-                            _magnitude_pct = min(_mag, 100.0)
-                            if _mag > 100:
-                                parsing_warnings.append(f"Magnitude {_mag}% clamped to 100%")
+                        _magnitude_pct = _mag
                     except (ValueError, TypeError):
-                        parsing_warnings.append(f"Non-numeric magnitude: {magnitude_raw}")
+                        # 2. Regex fallback (handles echoed templates like "[Numeric: 15]")
+                        if isinstance(magnitude_raw, str):
+                            digit_match = re.search(r'(\d+)', magnitude_raw)
+                            if digit_match:
+                                _magnitude_pct = float(digit_match.group(1))
+                            else:
+                                parsing_warnings.append(f"Non-numeric magnitude: {magnitude_raw}")
+                                _magnitude_pct = None
+                        else:
+                            _magnitude_pct = None
+
+                    if _magnitude_pct is not None:
+                        if _magnitude_pct < 0:
+                            parsing_warnings.append(f"Negative magnitude {_magnitude_pct}% ignored")
+                            _magnitude_pct = None
+                        else:
+                            _mag_val = min(_magnitude_pct, 100.0)
+                            if _magnitude_pct > 100:
+                                parsing_warnings.append(f"Magnitude {_magnitude_pct}% clamped to 100%")
+                            _magnitude_pct = _mag_val
 
                 # RECOVERY: If JSON parsed but no decision found, look for "Naked Digit" after the JSON block
                 if not skill_name:
@@ -832,24 +847,58 @@ class UnifiedAdapter(ModelAdapter):
         parsing_cfg = self.agent_config.get_parsing_config(agent_type)
         if not parsing_cfg: return None
 
-        keywords = parsing_cfg.get("decision_keywords", ["decision:", "choice:", "selected_action:"])
+        decision_keywords = parsing_cfg.get("decision_keywords", ["decision", "choice", "action", "selected_action"])
         valid_skills = self.agent_config.get_valid_actions(agent_type)
         skill_map = self.agent_config.get_skill_map(agent_type, context)
         
         lines = text.split('\n')
         for line in lines:
             line_lower = line.strip().lower()
-            for kw in keywords:
-                if kw.lower() in line_lower:
-                    raw_val = line_lower.split(kw.lower())[1].strip()
-                    # 1. Try Digit in keyword line
-                    digit_match = re.search(r'(\d)', raw_val)
-                    if digit_match and digit_match.group(1) in skill_map:
-                        return {"skill_name": skill_map[digit_match.group(1)], "reasoning": {}}
-                    # 2. Try mapping
-                    for s in valid_skills:
-                        if s.lower() in raw_val:
-                            return {"skill_name": s, "reasoning": {}}
+            for kw in decision_keywords:
+                # Look for kw followed by punctuation or space
+                if re.search(rf"\b{re.escape(kw.lower())}\b", line_lower):
+                    split_parts = re.split(rf"\b{re.escape(kw.lower())}\b", line_lower, maxsplit=1)
+                    if len(split_parts) > 1:
+                        raw_val = split_parts[1].strip()
+                        # 1a. Try Digit in keyword line
+                        digit_match = re.search(r'(\d)', raw_val)
+                        if digit_match and digit_match.group(1) in skill_map:
+                            return {"skill_name": skill_map[digit_match.group(1)], "reasoning": {}}
+                        # 1b. Try exact skill name match in this line
+                        for s in valid_skills:
+                            if re.search(rf"\b{re.escape(s.lower())}\b", raw_val):
+                                return {"skill_name": s, "reasoning": {}}
+
+        # 2. GLOBAL FUZZY SEARCH (Fallback if no decision line found)
+        # Search for any mention of a skill ID or skill name in the entire text
+        text_lower = text.lower()
+        
+        # 2a. Look for "I choose X", "Plan: X", etc. anywhere
+        choice_patterns = [
+            r"i (?:choose|select|decide on|will use) (?:choice|option|skill)?\s*[:]?\s*(\d)\b",
+            r"selected (?:choice|option|skill)\s*[:]?\s*(\d)\b",
+            r"\bchoice\s*(\d)\b",
+            r"\bskill\s*(\d)\b"
+        ]
+        for pattern in choice_patterns:
+            matches = list(re.finditer(pattern, text_lower))
+            if matches:
+                last_digit = matches[-1].group(1)
+                if last_digit in skill_map:
+                    return {"skill_name": skill_map[last_digit], "reasoning": {"parse_mode": "fuzzy_regex"}}
+
+        # 2b. Look for unique skill names
+        found_skills = []
+        for s in valid_skills:
+            s_variants = [s.lower(), s.lower().replace("_", " ")]
+            for variant in s_variants:
+                if rf"\b{re.escape(variant)}\b" in text_lower:
+                    found_skills.append(s)
+                    break
+        
+        if len(set(found_skills)) == 1:
+            return {"skill_name": found_skills[0], "reasoning": {"parse_mode": "fuzzy_name"}}
+
         return None
 
     

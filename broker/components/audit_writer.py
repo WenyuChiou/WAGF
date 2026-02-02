@@ -204,6 +204,15 @@ class GenericAuditWriter:
                 else:
                     time.sleep(1.0)
 
+    @staticmethod
+    def sanitize_text(val: Any) -> Any:
+        """Sanitize text for CSV compatibility (remove newlines and problematic characters)."""
+        if not isinstance(val, str):
+            return val
+        # Replace newlines with spaces and escaped commas/quotes if needed
+        # Standard CSV writers handle commas/quotes with quoting, but newlines often break row parsing in simple viewers
+        return val.replace('\n', ' ').replace('\r', ' ').strip()
+
     def _export_csv(self, agent_type: str, traces: List[Dict[str, Any]]):
         """Export buffered traces to flat CSV with deep governance fields."""
         self.output_dir.mkdir(parents=True, exist_ok=True)
@@ -212,6 +221,8 @@ class GenericAuditWriter:
 
         flat_rows = []
         for t in traces:
+            # [Previous row building logic remains the same...]
+            # ... abbreviated for clarify in replacement ...
             # 1. Base identity and timing
             row = {
                 "step_id": t.get("step_id"),
@@ -381,7 +392,9 @@ class GenericAuditWriter:
                     row[f"condition_{i}_rule"] = ""
                     row[f"condition_{i}_matched"] = ""
 
-            flat_rows.append(row)
+            # Sanitize all values in row
+            sanitized_row = {k: self.sanitize_text(v) for k, v in row.items()}
+            flat_rows.append(sanitized_row)
 
         if not flat_rows: return
 
@@ -425,7 +438,7 @@ class GenericAuditWriter:
         fieldnames = priority_keys + [k for k in sorted(list(all_keys)) if k not in priority_keys]
         
         with open(csv_path, 'w', newline='', encoding='utf-8-sig') as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction='ignore')
+            writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction='ignore', quoting=csv.QUOTE_ALL)
             writer.writeheader()
             writer.writerows(flat_rows)
 
