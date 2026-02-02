@@ -59,7 +59,7 @@ class GenericAuditWriter:
         
         # Buffer for JSONL writes (Performance Optimization)
         self._jsonl_buffer: Dict[str, List[str]] = {}
-        self._jsonl_buffer_size = 50  # Batch writes for I/O efficiency; finalize() flushes remainder
+        self._jsonl_buffer_size = 1  # Flush every trace for real-time observability
     
     def _get_file_path(self, agent_type: str) -> Path:
         """Get or create file path for agent type (JSONL traces in raw/ subdir)."""
