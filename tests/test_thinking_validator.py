@@ -42,10 +42,20 @@ class TestThinkingValidatorPMT:
         # Should not have the high_tp_cp_action error
         assert all(r.valid for r in results)
 
-    def test_vh_threat_do_nothing_fails(self):
-        """VH threat should not allow do_nothing."""
+    def test_vh_threat_low_cp_do_nothing_allowed(self):
+        """VH threat + low CP allows do_nothing (fatalism/resource constraint)."""
         context = {
             "reasoning": {"TP_LABEL": "VH", "CP_LABEL": "L"},
+            "framework": "pmt"
+        }
+        results = self.validator.validate("do_nothing", [], context)
+        # Should NOT block: risk perception paradox — high threat but cannot cope
+        assert all(r.valid for r in results)
+
+    def test_vh_threat_adequate_cp_do_nothing_fails(self):
+        """VH threat + adequate CP should not allow do_nothing."""
+        context = {
+            "reasoning": {"TP_LABEL": "VH", "CP_LABEL": "H"},
             "framework": "pmt"
         }
         results = self.validator.validate("do_nothing", [], context)

@@ -29,9 +29,9 @@ FLOOD_ROLES = {
     },
     "insurance": {
         "allowed_skills": [
-            "raise_premium",
-            "lower_premium",
-            "adjust_payout",
+            "improve_crs",
+            "reduce_crs",
+            "maintain_crs",
             "assess_risk",
             "issue_policy",
         ],

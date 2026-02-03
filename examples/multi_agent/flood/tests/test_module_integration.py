@@ -549,17 +549,19 @@ class TestDisasterModelFlow(unittest.TestCase):
         self.assertIn("Subsidy", self.env["govt_message"])
 
     def test_insurance_decision_updates_env(self):
-        """Test that insurance decision updates premium_rate."""
-        # Simulate post_step for insurance
-        decision = "raise_premium"
-        current = self.env["premium_rate"]
+        """Test that CRS decision updates crs_discount and premium_rate."""
+        # Simulate post_step for insurance (CRS mechanism)
+        self.env["crs_discount"] = 0.0
+        self.env["base_premium_rate"] = self.env["premium_rate"]
+        decision = "improve_crs"
 
-        if decision == "raise_premium":
-            self.env["premium_rate"] = min(0.15, current + 0.005)
-            self.env["insurance_message"] = "Premium rates increased"
+        if decision == "improve_crs":
+            self.env["crs_discount"] = min(0.45, self.env["crs_discount"] + 0.05)
+            self.env["premium_rate"] = self.env["base_premium_rate"] * (1 - self.env["crs_discount"])
+            self.env["insurance_message"] = "CRS class improved — community discount now 5%"
 
-        self.assertEqual(self.env["premium_rate"], 0.045)
-        self.assertIn("Premium", self.env["insurance_message"])
+        self.assertAlmostEqual(self.env["crs_discount"], 0.05)
+        self.assertIn("CRS", self.env["insurance_message"])
 
     def test_household_context_contains_updated_policies(self):
         """Test that household sees updated policy values."""

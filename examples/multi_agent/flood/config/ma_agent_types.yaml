@@ -130,7 +130,7 @@ global_config:
       institutional_threshold: 0.05
     method: hybrid
   llm:
-    temperature: 0.1
+    temperature: 0.7  # Harmonized with ICC probing (was 0.1)
     top_p: 0.9
     top_k: 40
     max_retries: 2
@@ -222,6 +222,14 @@ household_owner:
   llm_params:
     num_ctx: 16384
     num_predict: 2048
+  multi_skill:
+    enabled: true
+    max_skills: 2
+    execution_order: sequential
+    secondary_field: secondary_decision
+    conflicts:
+      elevate_house: [buyout_program]
+      buyout_program: [elevate_house, buy_insurance]
   response_format:
     fields:
     - key: threat_perception
@@ -247,6 +255,20 @@ household_owner:
     - key: decision
       type: choice
       required: true
+    - key: elevation_feet
+      type: numeric
+      min: 3
+      max: 8
+      unit: feet
+      required: false
+      description: "If elevating, how many feet above BFE? (3, 5, or 8)"
+    - key: insurance_coverage
+      type: choice
+      required: false
+      description: "If buying insurance: 1=Structure+Contents, 2=Contents-only"
+    - key: secondary_decision
+      type: secondary_choice
+      required: false
     - key: reasoning
       type: text
       required: false
@@ -365,6 +387,13 @@ household_renter:
   llm_params:
     num_ctx: 16384
     num_predict: 2048
+  multi_skill:
+    enabled: true
+    max_skills: 2
+    execution_order: sequential
+    secondary_field: secondary_decision
+    conflicts:
+      relocate: [buy_contents_insurance]
   response_format:
     fields:
     - key: threat_perception
@@ -390,6 +419,13 @@ household_renter:
     - key: decision
       type: choice
       required: true
+    - key: relocation_destination
+      type: choice
+      required: false
+      description: "If relocating: 1=Within PRB, 2=Out of basin"
+    - key: secondary_decision
+      type: secondary_choice
+      required: false
     - key: reasoning
       type: text
       required: false
@@ -567,30 +603,37 @@ government:
       - '3'
       - '[3]'
 fema_nfip:
-  description: Federal Emergency Management Agency - National Flood Insurance Program
+  description: FEMA NFIP — Community Rating System (CRS) Administrator
   llm_params:
     num_ctx: 16384
     num_predict: 1024
   prompt_template: "### IDENTITY\nYou are the FEMA National Flood Insurance Program\
-    \ (NFIP) regional administrator\nfor the Passaic River Basin, implementing Risk\
-    \ Rating 2.0 pricing methodology.\n\n### PROGRAM BACKGROUND\nThe NFIP provides\
-    \ federally-backed flood insurance to property owners in\nparticipating communities.\
-    \ Risk Rating 2.0 (effective 2021) calculates\nindividual property rates based\
-    \ on flood risk, replacement cost, and distance\nto water sources.\n\n### MARKET\
-    \ STATISTICS\n- Current Average Premium Rate: {premium_rate:.3%} of coverage value\n\
-    - Insured Households: {insured_count} of {total_households}\n- Program Loss Ratio:\
-    \ {loss_ratio:.2f} (Target: 0.60-0.80)\n- Community Rating System (CRS) Discount:\
-    \ {crs_discount:.0%}\n- Recent Claims: {recent_claims} in past year\n\n### POLICY\
-    \ OPTIONS\nChoose ONE of the following:\n- \"raise_premium\": Increase rates by\
-    \ 0.5% per Risk Rating 2.0 actuarial guidelines\n- \"lower_premium\": Reduce rates\
-    \ by 0.5% to improve affordability and take-up\n- \"maintain_premium\": Keep current\
-    \ premium structure\n\n### OBJECTIVES\n1. Maintain program solvency while ensuring\
-    \ affordability\n2. Encourage risk reduction through premium discounts for mitigation\n\
-    3. Support community resilience per FEMA's Building Resilient Infrastructure initiative\n\
-    4. Balance actuarial soundness with social equity considerations\n\n### RESPONSE\
-    \ FORMAT\nRespond ONLY with a valid JSON object:\n{\n  \"decision\": \"raise_premium\
-    \ | lower_premium | maintain_premium\",\n  \"reasoning\": \"Your policy rationale\
-    \ here\"\n}\n"
+    \ (NFIP) Community Rating System (CRS)\nadministrator for the Passaic River Basin\
+    \ communities.\n\n### PROGRAM BACKGROUND\nThe NFIP provides federally-backed flood\
+    \ insurance. Premiums are set nationally\nunder Risk Rating 2.0 (effective 2021)\
+    \ based on individual property risk factors.\nYou CANNOT set premiums directly —\
+    \ they are determined by federal actuarial\nmethodology. However, you manage the\
+    \ Community Rating System (CRS), which\nprovides premium discounts (5-45%) to policyholders\
+    \ in communities that\nimplement floodplain management activities exceeding minimum\
+    \ NFIP requirements.\n\n### CRS CLASS SYSTEM\nCRS classes range from Class 10 (no\
+    \ discount) to Class 1 (45% discount).\nEach class improvement requires documented\
+    \ community mitigation activities:\n- Public information, mapping, regulatory measures\n\
+    - Flood damage reduction, warning systems\n- Current CRS Class discount: {crs_discount:.0%}\n\
+    \n### MARKET STATISTICS\n- Base Average Premium Rate (Risk Rating 2.0): {premium_rate:.3%}\
+    \ of coverage\n- Effective Rate After CRS Discount: {effective_rate:.3%}\n- Insured\
+    \ Households: {insured_count} of {total_households}\n- Program Loss Ratio: {loss_ratio:.2f}\
+    \ (Target: 0.60-0.80)\n- Recent Claims: {recent_claims} in past year\n- Community\
+    \ Mitigation Score: {mitigation_score}/100\n\n### POLICY OPTIONS\nChoose ONE of\
+    \ the following:\n- \"improve_crs\": Increase CRS discount by 5% (invest in community\
+    \ mitigation → lower premiums)\n- \"reduce_crs\": Reduce CRS discount by 5% (scale\
+    \ back mitigation efforts due to budget)\n- \"maintain_crs\": Keep current CRS class\
+    \ and discount level\n\n### OBJECTIVES\n1. Encourage community-level flood risk\
+    \ reduction through CRS incentives\n2. Support affordable insurance access through\
+    \ earned premium discounts\n3. Balance CRS investment costs against premium savings\
+    \ for residents\n4. Prioritize mitigation activities that reduce losses for vulnerable\
+    \ populations\n\n### RESPONSE FORMAT\nRespond ONLY with a valid JSON object:\n{\n\
+    \  \"decision\": \"improve_crs | reduce_crs | maintain_crs\",\n  \"reasoning\":\
+    \ \"Your policy rationale here\"\n}\n"
   response_format:
     fields:
     - key: decision
@@ -603,36 +646,36 @@ fema_nfip:
     decision_keywords:
     - decision
     - choice
-    default_skill: maintain_premium
+    default_skill: maintain_crs
     strict_mode: false
     preprocessor:
       type: smart_repair
     actions:
-    - id: raise_premium
+    - id: improve_crs
       aliases:
-      - RAISE
-      - raise
-      - RAISE_PREMIUM
+      - IMPROVE
+      - improve
+      - IMPROVE_CRS
       - '1'
       - '[1]'
-      description: Raise NFIP premium rate by 0.5%
-    - id: lower_premium
+      description: Improve CRS class — increase community discount by 5%
+    - id: reduce_crs
       aliases:
-      - LOWER
-      - lower
-      - LOWER_PREMIUM
+      - REDUCE
+      - reduce
+      - REDUCE_CRS
       - '2'
       - '[2]'
-      description: Lower NFIP premium rate by 0.5%
-    - id: maintain_premium
+      description: Reduce CRS class — decrease community discount by 5%
+    - id: maintain_crs
       aliases:
       - MAINTAIN
       - maintain
       - '3'
       - '[3]'
-      description: Maintain current NFIP premium rate
+      description: Maintain current CRS class and discount
 insurance:
-  description: Regional Insurance Marketer (alias for fema_nfip).
+  description: Regional CRS Administrator (alias for fema_nfip).
   llm_params:
     num_ctx: 16384
     num_predict: 1024
@@ -649,24 +692,24 @@ insurance:
     decision_keywords:
     - decision
     - choice
-    default_skill: maintain_premium
+    default_skill: maintain_crs
     strict_mode: false
     preprocessor:
       type: smart_repair
     actions:
-    - id: raise_premium
+    - id: improve_crs
       aliases:
-      - RAISE
-      - raise
+      - IMPROVE
+      - improve
       - '1'
       - '[1]'
-    - id: lower_premium
+    - id: reduce_crs
       aliases:
-      - LOWER
-      - lower
+      - REDUCE
+      - reduce
       - '2'
       - '[2]'
-    - id: maintain_premium
+    - id: maintain_crs
       aliases:
       - MAINTAIN
       - maintain
@@ -750,10 +793,30 @@ governance:
           values:
           - VH
           - H
+        - construct: CP_LABEL
+          values:
+          - M
+          - H
+          - VH
         blocked_skills:
         - do_nothing
         level: ERROR
-        message: Inaction is irrational given your high threat perception.
+        message: With high threat AND adequate coping capacity, inaction is not justified.
+      - id: owner_fatalism_allowed
+        construct: TP_LABEL
+        conditions:
+        - construct: TP_LABEL
+          values:
+          - VH
+          - H
+        - construct: CP_LABEL
+          values:
+          - VL
+          - L
+        blocked_skills:
+        - do_nothing
+        level: WARNING
+        message: High threat with low coping — inaction may reflect resource constraints or fatalism.
       - id: owner_complex_action_low_coping
         construct: CP_LABEL
         conditions:
@@ -783,10 +846,30 @@ governance:
           values:
           - VH
           - H
+        - construct: CP_LABEL
+          values:
+          - M
+          - H
+          - VH
         blocked_skills:
         - do_nothing
         level: ERROR
-        message: Inaction is irrational given your high threat perception.
+        message: With high threat AND adequate coping capacity, inaction is not justified.
+      - id: renter_fatalism_allowed
+        construct: TP_LABEL
+        conditions:
+        - construct: TP_LABEL
+          values:
+          - VH
+          - H
+        - construct: CP_LABEL
+          values:
+          - VL
+          - L
+        blocked_skills:
+        - do_nothing
+        level: WARNING
+        message: High threat with low coping — inaction may reflect resource constraints or fatalism.
       - id: renter_complex_action_low_coping
         construct: CP_LABEL
         conditions:

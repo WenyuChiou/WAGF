@@ -58,10 +58,24 @@ class MultiAgentHooks:
             if pending and completion_year and year >= completion_year:
                 if pending == "elevation":
                     agent.dynamic_state["elevated"] = True
-                    print(f" [LIFECYCLE] {agent.id} elevation COMPLETE.")
+                    elev_ft = agent.dynamic_state.get("elevation_feet", 5)
+                    agent.dynamic_state["elevation_status_text"] = f"Your house is elevated {elev_ft} feet above BFE."
+                    # Track elevation cost (subsidized)
+                    elev_cost_base = {3: 45000, 5: 80000, 8: 150000}
+                    base_cost = elev_cost_base.get(elev_ft, 80000)
+                    subsidy = self.env.get("subsidy_rate", 0.5)
+                    oop_cost = base_cost * (1 - subsidy)
+                    agent.dynamic_state["elevation_cost_paid"] = oop_cost
+                    agent.dynamic_state["cumulative_oop"] = agent.dynamic_state.get("cumulative_oop", 0) + oop_cost
+                    print(f" [LIFECYCLE] {agent.id} elevation COMPLETE ({elev_ft}ft above BFE, cost=${oop_cost:,.0f}).")
                 elif pending == "buyout":
                     agent.dynamic_state["relocated"] = True
-                    print(f" [LIFECYCLE] {agent.id} buyout FINALIZED (left community).")
+                    # Track buyout payment received
+                    fixed = getattr(agent, "fixed_attributes", None) or {}
+                    rcv_b = fixed.get("rcv_building", 0)
+                    buyout_amount = rcv_b * 0.75
+                    agent.dynamic_state["buyout_received"] = buyout_amount
+                    print(f" [LIFECYCLE] {agent.id} buyout FINALIZED (received ${buyout_amount:,.0f}).")
                 agent.dynamic_state["pending_action"] = None
                 agent.dynamic_state["action_completion_year"] = None
 
@@ -125,6 +139,18 @@ class MultiAgentHooks:
         self.env["elevated_count"] = sum(1 for a in households if a.dynamic_state.get("elevated"))
         self.env["insured_count"] = sum(1 for a in households if a.dynamic_state.get("has_insurance"))
 
+        # Institutional metrics: MG/NMG adaptation breakdown (for government prompt)
+        mg_agents = [a for a in households if getattr(a, 'fixed_attributes', {}).get("mg")]
+        nmg_agents = [a for a in households if not getattr(a, 'fixed_attributes', {}).get("mg")]
+        mg_elevated = sum(1 for a in mg_agents if a.dynamic_state.get("elevated"))
+        nmg_elevated = sum(1 for a in nmg_agents if a.dynamic_state.get("elevated"))
+        mg_insured = sum(1 for a in mg_agents if a.dynamic_state.get("has_insurance"))
+        nmg_insured = sum(1 for a in nmg_agents if a.dynamic_state.get("has_insurance"))
+        self.env["mg_elevated_count"] = mg_elevated
+        self.env["nmg_elevated_count"] = nmg_elevated
+        self.env["mg_insured_count"] = mg_insured
+        self.env["nmg_insured_count"] = nmg_insured
+
     def post_step(self, agent, result):
         """Update global vars if institutional agent acted."""
         if result.outcome.name != "SUCCESS":
@@ -134,6 +160,7 @@ class MultiAgentHooks:
 
         if agent.agent_type == "government":
             current = self.env["subsidy_rate"]
+            current_year = self.env.get("year", 1)
             if decision == "increase_subsidy":
                 self.env["subsidy_rate"] = min(0.95, current + 0.05)
                 self.env["govt_message"] = "The government has INCREASED the adaptation subsidy to support your safety."
@@ -142,36 +169,115 @@ class MultiAgentHooks:
                 self.env["govt_message"] = "The government has DECREASED the subsidy due to budget constraints."
             else:
                 self.env["govt_message"] = "The government is MAINTAINING the current subsidy rate."
+            # Store institutional memory
+            if self.memory_engine:
+                self.memory_engine.add_memory(
+                    agent.id,
+                    (f"Year {current_year}: Set subsidy rate to {self.env['subsidy_rate']:.0%} "
+                     f"(was {current:.0%}). Elevated: {self.env.get('elevated_count', '?')}/{self.env.get('total_households', '?')}."),
+                    metadata={"source": "personal", "importance": 0.6, "category": "policy_decision"}
+                )
 
         elif agent.agent_type == "insurance":
-            current = self.env["premium_rate"]
-            if decision == "raise_premium":
-                self.env["premium_rate"] = min(0.15, current + 0.005)
-                self.env["insurance_message"] = "Insurance premiums have been RAISED to ensure program solvency."
-            elif decision == "lower_premium":
-                self.env["premium_rate"] = max(0.01, current - 0.005)
-                self.env["insurance_message"] = "Insurance premiums have been LOWERED due to favorable market conditions."
+            current_crs = self.env.get("crs_discount", 0.0)
+            current_year = self.env.get("year", 1)
+            if decision == "improve_crs":
+                self.env["crs_discount"] = min(0.45, current_crs + 0.05)
+                self.env["insurance_message"] = (
+                    f"CRS class improved — community discount now {self.env['crs_discount']:.0%}. "
+                    "Residents benefit from lower premiums."
+                )
+            elif decision == "reduce_crs":
+                self.env["crs_discount"] = max(0.0, current_crs - 0.05)
+                self.env["insurance_message"] = (
+                    f"CRS class reduced — community discount now {self.env['crs_discount']:.0%}. "
+                    "Budget constraints limit mitigation investment."
+                )
             else:
-                self.env["insurance_message"] = "Insurance premiums remain UNCHANGED for now."
+                self.env["insurance_message"] = (
+                    f"CRS class maintained at {current_crs:.0%} discount."
+                )
+            # Update effective premium rate: base_rate * (1 - crs_discount)
+            # Preserve base_premium_rate on first use to avoid compounding
+            if "base_premium_rate" not in self.env:
+                self.env["base_premium_rate"] = self.env.get("premium_rate", 0.02)
+            self.env["premium_rate"] = self.env["base_premium_rate"] * (1 - self.env["crs_discount"])
+            # Store institutional memory
+            if self.memory_engine:
+                loss_ratio = self.env.get("loss_ratio", 0.0)
+                self.memory_engine.add_memory(
+                    agent.id,
+                    (f"Year {current_year}: CRS discount set to {self.env['crs_discount']:.0%} "
+                     f"(was {current_crs:.0%}). Effective premium: {self.env['premium_rate']:.3%}. "
+                     f"Loss ratio: {loss_ratio:.2f}. "
+                     f"Insured: {self.env.get('insured_count', '?')}/{self.env.get('total_households', '?')}."),
+                    metadata={"source": "personal", "importance": 0.6, "category": "policy_decision"}
+                )
 
         elif agent.agent_type in ["household_owner", "household_renter"]:
             current_year = self.env.get("year", 1)
+            reasoning = result.skill_proposal.reasoning if result.skill_proposal else {}
 
             if decision in ["buy_insurance", "buy_contents_insurance"]:
                 agent.dynamic_state["has_insurance"] = True
+                # Sub-option: insurance coverage type (1=Structure+Contents, 2=Contents-only)
+                coverage = reasoning.get("insurance_coverage")
+                if coverage is not None:
+                    try:
+                        coverage_val = int(float(str(coverage)))
+                    except (ValueError, TypeError):
+                        coverage_val = 1
+                    agent.dynamic_state["insurance_coverage"] = coverage_val
+                    if coverage_val == 2:
+                        agent.dynamic_state["insurance_status"] = "have contents-only"
+                    else:
+                        agent.dynamic_state["insurance_status"] = "have structure+contents"
+                else:
+                    agent.dynamic_state["insurance_coverage"] = 1 if decision == "buy_insurance" else 2
+
             elif decision == "elevate_house":
+                # Sub-option: elevation_feet (3, 5, or 8 feet above BFE)
+                elev_feet = reasoning.get("elevation_feet")
+                if elev_feet is not None:
+                    try:
+                        elev_feet = int(float(str(elev_feet)))
+                    except (ValueError, TypeError):
+                        elev_feet = 5
+                    elev_feet = max(3, min(8, elev_feet))
+                else:
+                    elev_feet = 5  # Default to 5 feet
+                agent.dynamic_state["elevation_feet"] = elev_feet
                 agent.dynamic_state["pending_action"] = "elevation"
                 agent.dynamic_state["action_completion_year"] = current_year + 1
-                print(f" [LIFECYCLE] {agent.id} started elevation (completes Year {current_year + 1})")
+                print(f" [LIFECYCLE] {agent.id} started {elev_feet}ft elevation (completes Year {current_year + 1})")
+
+            elif decision == "buyout_program":
                 agent.dynamic_state["pending_action"] = "buyout"
                 agent.dynamic_state["action_completion_year"] = current_year + 2
                 print(f" [LIFECYCLE] {agent.id} applied for buyout (finalizes Year {current_year + 2})")
 
-            if result.skill_proposal and result.skill_proposal.reasoning:
-                reason = result.skill_proposal.reasoning.get("reasoning", "")
+            elif decision == "relocate":
+                # Sub-option: relocation_destination (1=Within PRB, 2=Out of basin)
+                dest = reasoning.get("relocation_destination")
+                if dest is not None:
+                    try:
+                        dest_val = int(float(str(dest)))
+                    except (ValueError, TypeError):
+                        dest_val = 1
+                else:
+                    dest_val = 1
+                agent.dynamic_state["relocated"] = True
+                agent.dynamic_state["relocation_destination"] = "within_prb" if dest_val == 1 else "out_of_basin"
+                print(f" [LIFECYCLE] {agent.id} relocated ({'within PRB' if dest_val == 1 else 'out of basin'})")
+
+            # Store last decision for tracking
+            agent.dynamic_state["last_decision"] = decision
+
+            if reasoning:
+                reason = reasoning.get("reasoning", "")
                 if not reason:
-                    reason_key = next((k for k in result.skill_proposal.reasoning.keys() if "reason" in k.lower()), None)
-                    reason = result.skill_proposal.reasoning.get(reason_key, "") if reason_key else ""
+                    reason_key = next((k for k in reasoning.keys() if "reason" in k.lower()), None)
+                    reason = reasoning.get(reason_key, "") if reason_key else ""
 
                 if reason:
                     mem_engine = getattr(self, 'memory_engine', None)
@@ -179,7 +285,8 @@ class MultiAgentHooks:
                         mem_engine.add_memory(
                             agent.id,
                             f"I decided to {decision} because {reason}",
-                            metadata={"source": "social", "type": "reasoning"}
+                            metadata={"source": "personal", "type": "reasoning",
+                                      "category": "decision_reasoning"}
                         )
 
             # Store GameMaster resolution as memory (if available)
@@ -232,23 +339,76 @@ class MultiAgentHooks:
                 flooded_agents += 1
                 rcv_building = agent.fixed_attributes["rcv_building"]
                 rcv_contents = agent.fixed_attributes["rcv_contents"]
+                agent_elev_ft = agent.dynamic_state.get("elevation_feet") if agent.dynamic_state.get("elevated") else None
                 damage_res = self.vuln.calculate_damage(
                     depth_ft=depth_ft,
                     rcv_building=rcv_building,
                     rcv_contents=rcv_contents,
                     is_elevated=agent.dynamic_state["elevated"],
+                    elevation_height_ft=agent_elev_ft,
                 )
                 damage = damage_res["total_damage"]
 
                 agent.dynamic_state["cumulative_damage"] += damage
                 total_damage += damage
 
+                # Track flood history for memory-mediated TP (Paper 3)
+                agent.dynamic_state["flood_count"] = agent.dynamic_state.get("flood_count", 0) + 1
+                agent.dynamic_state["years_since_flood"] = 0
+
                 description = depth_to_qualitative_description(depth_ft)
+                cum_damage = agent.dynamic_state["cumulative_damage"]
+                flood_count = agent.dynamic_state["flood_count"]
                 memory_engine.add_memory(
                     agent.id,
-                    f"Year {year}: We experienced {description} which caused about ${damage:,.0f} in damages.",
-                    metadata={"emotion": "fear", "source": "personal", "importance": 0.8}
+                    (
+                        f"Year {year}: We experienced {description} which caused about "
+                        f"${damage:,.0f} in damages. This is my {flood_count} flood event. "
+                        f"My total cumulative damage is now ${cum_damage:,.0f}."
+                    ),
+                    metadata={"emotion": "fear", "source": "personal", "importance": 0.8,
+                              "category": "flood_experience"}
                 )
+
+        # --- Memory-mediated TP: Track years_since_flood and add absence memories ---
+        for agent in agents.values():
+            if agent.agent_type not in ["household_owner", "household_renter"]:
+                continue
+            if agent.dynamic_state.get("relocated"):
+                continue
+
+            was_flooded = (
+                (self.per_agent_depth and agent.id in self.agent_flood_depths
+                 and self.agent_flood_depths[agent.id] > 0)
+                or (not self.per_agent_depth and community_depth_ft > 0)
+            )
+
+            if not was_flooded:
+                # Increment years_since_flood for agents that were NOT flooded
+                prev = agent.dynamic_state.get("years_since_flood", 0)
+                agent.dynamic_state["years_since_flood"] = prev + 1
+                yrs = agent.dynamic_state["years_since_flood"]
+
+                # Add no-flood memory (low importance — naturally decays)
+                # This is the memory-mediated replacement for parametric TP decay:
+                # the LLM sees "X years without flooding" and can lower TP naturally.
+                if memory_engine:
+                    if yrs <= 3:
+                        importance = 0.3
+                    elif yrs <= 6:
+                        importance = 0.2
+                    else:
+                        importance = 0.15
+
+                    memory_engine.add_memory(
+                        agent.id,
+                        (
+                            f"Year {year}: No flooding occurred in my area this year. "
+                            f"It has been {yrs} year{'s' if yrs != 1 else ''} since my last flood."
+                        ),
+                        metadata={"emotion": "neutral", "source": "personal",
+                                  "importance": importance, "category": "flood_experience"}
+                    )
 
         # Store important messages as memories
         if self._memory_bridge and self.message_pool:
@@ -264,6 +424,58 @@ class MultiAgentHooks:
                 print(f" [YEAR-END] Total Community Damage: ${total_damage:,.0f} ({flooded_agents} households flooded)")
             else:
                 print(f" [YEAR-END] Total Community Damage: ${total_damage:,.0f}")
+
+        # --- Insurance loss_ratio computation (Paper 3: institutional feedback) ---
+        premium_rate = self.env.get("premium_rate", 0.02)
+        total_premiums = 0.0
+        total_claims = 0.0
+        for agent in agents.values():
+            if agent.agent_type not in ["household_owner", "household_renter"]:
+                continue
+            if not agent.dynamic_state.get("has_insurance"):
+                continue
+            fixed = getattr(agent, "fixed_attributes", None) or {}
+            rcv_b = fixed.get("rcv_building", 0)
+            rcv_c = fixed.get("rcv_contents", 0)
+            total_premiums += premium_rate * (rcv_b + rcv_c)
+
+        # Claims = insured damage (capped by coverage limits, minus deductible)
+        if community_depth_ft > 0 or self.agent_flood_depths:
+            for agent in agents.values():
+                if agent.agent_type not in ["household_owner", "household_renter"]:
+                    continue
+                if not agent.dynamic_state.get("has_insurance"):
+                    continue
+                if agent.dynamic_state.get("relocated"):
+                    continue
+                if self.per_agent_depth and agent.id in self.agent_flood_depths:
+                    d_ft = self.agent_flood_depths[agent.id] * 3.28084
+                else:
+                    d_ft = community_depth_ft
+                if d_ft <= 0:
+                    continue
+                fixed = getattr(agent, "fixed_attributes", None) or {}
+                agent_elev_ft = agent.dynamic_state.get("elevation_feet") if agent.dynamic_state.get("elevated") else None
+                dmg_res = self.vuln.calculate_damage(
+                    depth_ft=d_ft,
+                    rcv_building=fixed.get("rcv_building", 0),
+                    rcv_contents=fixed.get("rcv_contents", 0),
+                    is_elevated=agent.dynamic_state.get("elevated", False),
+                    elevation_height_ft=agent_elev_ft,
+                )
+                raw_claim = dmg_res["total_damage"]
+                deductible = 1000.0
+                coverage_limit = 250000.0 + 100000.0  # structure + contents
+                claim = min(max(0, raw_claim - deductible), coverage_limit)
+                total_claims += claim
+                # Track out-of-pocket costs for agent
+                oop = max(0, raw_claim - claim)
+                agent.dynamic_state["cumulative_oop"] = agent.dynamic_state.get("cumulative_oop", 0) + oop
+
+        loss_ratio = (total_claims / total_premiums) if total_premiums > 0 else 0.0
+        self.env["loss_ratio"] = round(loss_ratio, 3)
+        self.env["total_claims"] = round(total_claims, 2)
+        self.env["total_premiums"] = round(total_premiums, 2)
 
         # --- SC/PA Trust Re-derivation (Task-060C) ---
         for agent in agents.values():

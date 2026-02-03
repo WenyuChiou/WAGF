@@ -420,13 +420,16 @@ class ThinkingValidator(BaseValidator):
                     }
                 ))
 
-        # Built-in: VH threat requires action
-        if tp_label == "VH" and skill_name == "do_nothing":
+        # Built-in: VH threat + adequate coping requires action
+        # Allow do_nothing when TP=VH but CP=VL/L (fatalism / resource constraint)
+        # This reflects the empirically documented "risk perception paradox"
+        # (Wachinger et al. 2013; Bubeck et al. 2012)
+        if tp_label == "VH" and cp_label in ("M", "H", "VH") and skill_name == "do_nothing":
             if not self._has_rule_for(rules, "extreme_threat"):
                 results.append(ValidationResult(
                     valid=False,
                     validator_name="ThinkingValidator",
-                    errors=["Very High threat perception requires protective action"],
+                    errors=["Very High threat with adequate coping requires protective action"],
                     warnings=[],
                     metadata={
                         "rule_id": "builtin_extreme_threat_action",
@@ -434,7 +437,8 @@ class ThinkingValidator(BaseValidator):
                         "subcategory": "pmt",
                         "framework": "pmt",
                         "hallucination_type": "thinking",
-                        "tp_label": tp_label
+                        "tp_label": tp_label,
+                        "cp_label": cp_label
                     }
                 ))
 
