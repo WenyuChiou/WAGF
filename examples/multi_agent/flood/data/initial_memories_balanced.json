@@ -1,0 +1,3802 @@
+{
+  "H0001": [
+    {
+      "content": "I experienced flooding at my home 1 to 5 years ago. The damage was significant and caused financial stress. This experience stays with me when I think about flood risks.",
+      "category": "flood_experience",
+      "importance": 0.8,
+      "source": "survey"
+    },
+    {
+      "content": "I have Private flood insurance flood insurance for my property.",
+      "category": "insurance_history",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have mixed feelings about government flood assistance programs.",
+      "category": "government_trust",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I know this area floods regularly.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0002": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though Iam aware my area is in a flood zone.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I have NFIP flood insurance for my property.",
+      "category": "insurance_history",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. Past experience has shown they are slow to respond to communities like mine.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I am a homeowner here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I know this area floods regularly.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0003": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. Past experience has shown they are slow to respond to communities like mine.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I am a homeowner here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My area has moderate flood risk. Some nearby areas flood but my specific location has been mostly safe.",
+      "category": "flood_zone",
+      "importance": 0.5,
+      "source": "survey"
+    }
+  ],
+  "H0004": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. Past experience has shown they are slow to respond to communities like mine.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "This community is my home. My family has been here for 2 generations. I cannot imagine living anywhere else.",
+      "category": "place_attachment",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I recently learned this is a Special Flood Hazard Area.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0005": [
+    {
+      "content": "I experienced flooding at my home 1 to 5 years ago. The damage was significant and caused financial stress. This experience stays with me when I think about flood risks.",
+      "category": "flood_experience",
+      "importance": 0.8,
+      "source": "survey"
+    },
+    {
+      "content": "I have Private flood insurance flood insurance for my property.",
+      "category": "insurance_history",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I mostly keep to myself and don't interact much with neighbors.",
+      "category": "social_connections",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. Past experience has shown they are slow to respond to communities like mine.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I know this area floods regularly.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0006": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I trust that government programs like Blue Acres and FEMA can help people recover from floods.",
+      "category": "government_trust",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I recently learned this is a Special Flood Hazard Area.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0007": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I have Private flood insurance flood insurance for my property.",
+      "category": "insurance_history",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I mostly keep to myself and don't interact much with neighbors.",
+      "category": "social_connections",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. Past experience has shown they are slow to respond to communities like mine.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I am a homeowner here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My area has moderate flood risk. Some nearby areas flood but my specific location has been mostly safe.",
+      "category": "flood_zone",
+      "importance": 0.5,
+      "source": "survey"
+    }
+  ],
+  "H0008": [
+    {
+      "content": "I experienced flooding at my home Less than 1 year ago. The damage was significant and caused financial stress. This experience stays with me when I think about flood risks.",
+      "category": "flood_experience",
+      "importance": 0.8,
+      "source": "survey"
+    },
+    {
+      "content": "I have NFIP flood insurance for my property.",
+      "category": "insurance_history",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have mixed feelings about government flood assistance programs.",
+      "category": "government_trust",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I know this area floods regularly.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0009": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. Past experience has shown they are slow to respond to communities like mine.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I recently learned this is a Special Flood Hazard Area.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0010": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though Iam aware my area is in a flood zone.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. Past experience has shown they are slow to respond to communities like mine.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I know this area floods regularly.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0011": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though Iam aware my area is in a flood zone.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have strong connections with my neighbors. We look out for each other and share information about community matters.",
+      "category": "social_connections",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. Past experience has shown they are slow to respond to communities like mine.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I am a homeowner here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I know this area floods regularly.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0012": [
+    {
+      "content": "I experienced flooding at my home 1 to 5 years ago. The damage was significant and caused financial stress. This experience stays with me when I think about flood risks.",
+      "category": "flood_experience",
+      "importance": 0.8,
+      "source": "survey"
+    },
+    {
+      "content": "I have Private flood insurance flood insurance for my property.",
+      "category": "insurance_history",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I mostly keep to myself and don't interact much with neighbors.",
+      "category": "social_connections",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. Past experience has shown they are slow to respond to communities like mine.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I am a homeowner here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I recently learned this is a Special Flood Hazard Area.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0013": [
+    {
+      "content": "I experienced flooding at my home 1 to 5 years ago. The damage was significant and caused financial stress. This experience stays with me when I think about flood risks.",
+      "category": "flood_experience",
+      "importance": 0.8,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. Past experience has shown they are slow to respond to communities like mine.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I am a homeowner here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I recently learned this is a Special Flood Hazard Area.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0014": [
+    {
+      "content": "I experienced flooding at my home 1 to 5 years ago. The damage was significant and caused financial stress. This experience stays with me when I think about flood risks.",
+      "category": "flood_experience",
+      "importance": 0.8,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have mixed feelings about government flood assistance programs.",
+      "category": "government_trust",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 2 generations. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I know this area floods regularly.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0015": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. Past experience has shown they are slow to respond to communities like mine.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I am a homeowner here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My area has moderate flood risk. Some nearby areas flood but my specific location has been mostly safe.",
+      "category": "flood_zone",
+      "importance": 0.5,
+      "source": "survey"
+    }
+  ],
+  "H0016": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. Past experience has shown they are slow to respond to communities like mine.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I recently learned this is a Special Flood Hazard Area.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0017": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have strong connections with my neighbors. We look out for each other and share information about community matters.",
+      "category": "social_connections",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I have mixed feelings about government flood assistance programs.",
+      "category": "government_trust",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I am a homeowner here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a low-risk area for flooding.",
+      "category": "flood_zone",
+      "importance": 0.3,
+      "source": "survey"
+    }
+  ],
+  "H0018": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I mostly keep to myself and don't interact much with neighbors.",
+      "category": "social_connections",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. Past experience has shown they are slow to respond to communities like mine.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I am a homeowner here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I recently learned this is a Special Flood Hazard Area.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0019": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. Past experience has shown they are slow to respond to communities like mine.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I am a homeowner here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I recently learned this is a Special Flood Hazard Area.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0020": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though Iam aware my area is in a flood zone.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have mixed feelings about government flood assistance programs.",
+      "category": "government_trust",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I know this area floods regularly.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0021": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have strong connections with my neighbors. We look out for each other and share information about community matters.",
+      "category": "social_connections",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. Past experience has shown they are slow to respond to communities like mine.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I am a homeowner here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My area has moderate flood risk. Some nearby areas flood but my specific location has been mostly safe.",
+      "category": "flood_zone",
+      "importance": 0.5,
+      "source": "survey"
+    }
+  ],
+  "H0022": [
+    {
+      "content": "I experienced flooding at my home 1 to 5 years ago. The damage was significant and caused financial stress. This experience stays with me when I think about flood risks.",
+      "category": "flood_experience",
+      "importance": 0.8,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have strong connections with my neighbors. We look out for each other and share information about community matters.",
+      "category": "social_connections",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I trust that government programs like Blue Acres and FEMA can help people recover from floods.",
+      "category": "government_trust",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "This community is my home. My family has been here for 2 generations. I cannot imagine living anywhere else.",
+      "category": "place_attachment",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I recently learned this is a Special Flood Hazard Area.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0023": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I have Private flood insurance flood insurance for my property.",
+      "category": "insurance_history",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. Past experience has shown they are slow to respond to communities like mine.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I recently learned this is a Special Flood Hazard Area.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0024": [
+    {
+      "content": "I experienced flooding at my home 1 to 5 years ago. The damage was significant and caused financial stress. This experience stays with me when I think about flood risks.",
+      "category": "flood_experience",
+      "importance": 0.8,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I mostly keep to myself and don't interact much with neighbors.",
+      "category": "social_connections",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. Past experience has shown they are slow to respond to communities like mine.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I am a homeowner here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I recently learned this is a Special Flood Hazard Area.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0025": [
+    {
+      "content": "I experienced flooding at my home 1 to 5 years ago. The damage was significant and caused financial stress. This experience stays with me when I think about flood risks.",
+      "category": "flood_experience",
+      "importance": 0.8,
+      "source": "survey"
+    },
+    {
+      "content": "I have NFIP flood insurance for my property.",
+      "category": "insurance_history",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have mixed feelings about government flood assistance programs.",
+      "category": "government_trust",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 3 generations. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I know this area floods regularly.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0026": [
+    {
+      "content": "I experienced flooding at my home Less than 1 year ago. The damage was significant and caused financial stress. This experience stays with me when I think about flood risks.",
+      "category": "flood_experience",
+      "importance": 0.8,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. Past experience has shown they are slow to respond to communities like mine.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I am a renter here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My area has moderate flood risk. Some nearby areas flood but my specific location has been mostly safe.",
+      "category": "flood_zone",
+      "importance": 0.5,
+      "source": "survey"
+    }
+  ],
+  "H0027": [
+    {
+      "content": "I experienced flooding at my home 1 to 5 years ago. The damage was significant and caused financial stress. This experience stays with me when I think about flood risks.",
+      "category": "flood_experience",
+      "importance": 0.8,
+      "source": "survey"
+    },
+    {
+      "content": "I have Private flood insurance flood insurance for my property.",
+      "category": "insurance_history",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I have strong connections with my neighbors. We look out for each other and share information about community matters.",
+      "category": "social_connections",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I trust that government programs like Blue Acres and FEMA can help people recover from floods.",
+      "category": "government_trust",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I know this area floods regularly.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0028": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I mostly keep to myself and don't interact much with neighbors.",
+      "category": "social_connections",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. Past experience has shown they are slow to respond to communities like mine.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I am a renter here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I recently learned this is a Special Flood Hazard Area.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0029": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though Iam aware my area is in a flood zone.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I mostly keep to myself and don't interact much with neighbors.",
+      "category": "social_connections",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. Past experience has shown they are slow to respond to communities like mine.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I am a renter here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I know this area floods regularly.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0030": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I trust that government programs like Blue Acres and FEMA can help people recover from floods.",
+      "category": "government_trust",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I recently learned this is a Special Flood Hazard Area.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0031": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I mostly keep to myself and don't interact much with neighbors.",
+      "category": "social_connections",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "I have mixed feelings about government flood assistance programs.",
+      "category": "government_trust",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I am a renter here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I recently learned this is a Special Flood Hazard Area.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0032": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though Iam aware my area is in a flood zone.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have strong connections with my neighbors. We look out for each other and share information about community matters.",
+      "category": "social_connections",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I have mixed feelings about government flood assistance programs.",
+      "category": "government_trust",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a low-risk area for flooding.",
+      "category": "flood_zone",
+      "importance": 0.3,
+      "source": "survey"
+    }
+  ],
+  "H0033": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have mixed feelings about government flood assistance programs.",
+      "category": "government_trust",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I recently learned this is a Special Flood Hazard Area.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0034": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though Iam aware my area is in a flood zone.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I mostly keep to myself and don't interact much with neighbors.",
+      "category": "social_connections",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. Past experience has shown they are slow to respond to communities like mine.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I am a renter here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My area has moderate flood risk. Some nearby areas flood but my specific location has been mostly safe.",
+      "category": "flood_zone",
+      "importance": 0.5,
+      "source": "survey"
+    }
+  ],
+  "H0035": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though Iam aware my area is in a flood zone.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. Past experience has shown they are slow to respond to communities like mine.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I am a renter here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a low-risk area for flooding.",
+      "category": "flood_zone",
+      "importance": 0.3,
+      "source": "survey"
+    }
+  ],
+  "H0036": [
+    {
+      "content": "I experienced flooding at my home 1 to 5 years ago. The damage was significant and caused financial stress. This experience stays with me when I think about flood risks.",
+      "category": "flood_experience",
+      "importance": 0.8,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have strong connections with my neighbors. We look out for each other and share information about community matters.",
+      "category": "social_connections",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I trust that government programs like Blue Acres and FEMA can help people recover from floods.",
+      "category": "government_trust",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I recently learned this is a Special Flood Hazard Area.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0037": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though Iam aware my area is in a flood zone.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I have Private flood insurance flood insurance for my property.",
+      "category": "insurance_history",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have mixed feelings about government flood assistance programs.",
+      "category": "government_trust",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I am a renter here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I know this area floods regularly.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0038": [
+    {
+      "content": "I experienced flooding at my home More than 10 years ago. The damage was significant and caused financial stress. This experience stays with me when I think about flood risks.",
+      "category": "flood_experience",
+      "importance": 0.8,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I mostly keep to myself and don't interact much with neighbors.",
+      "category": "social_connections",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "I have mixed feelings about government flood assistance programs.",
+      "category": "government_trust",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I am a renter here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I recently learned this is a Special Flood Hazard Area.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0039": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have mixed feelings about government flood assistance programs.",
+      "category": "government_trust",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I am a renter here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a low-risk area for flooding.",
+      "category": "flood_zone",
+      "importance": 0.3,
+      "source": "survey"
+    }
+  ],
+  "H0040": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. Past experience has shown they are slow to respond to communities like mine.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I recently learned this is a Special Flood Hazard Area.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0041": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. Past experience has shown they are slow to respond to communities like mine.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I am a renter here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a low-risk area for flooding.",
+      "category": "flood_zone",
+      "importance": 0.3,
+      "source": "survey"
+    }
+  ],
+  "H0042": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have strong connections with my neighbors. We look out for each other and share information about community matters.",
+      "category": "social_connections",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. Past experience has shown they are slow to respond to communities like mine.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My area has moderate flood risk. Some nearby areas flood but my specific location has been mostly safe.",
+      "category": "flood_zone",
+      "importance": 0.5,
+      "source": "survey"
+    }
+  ],
+  "H0043": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I mostly keep to myself and don't interact much with neighbors.",
+      "category": "social_connections",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "I have mixed feelings about government flood assistance programs.",
+      "category": "government_trust",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I am a renter here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I recently learned this is a Special Flood Hazard Area.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0044": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though Iam aware my area is in a flood zone.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have mixed feelings about government flood assistance programs.",
+      "category": "government_trust",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a low-risk area for flooding.",
+      "category": "flood_zone",
+      "importance": 0.3,
+      "source": "survey"
+    }
+  ],
+  "H0045": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I trust that government programs like Blue Acres and FEMA can help people recover from floods.",
+      "category": "government_trust",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My area has moderate flood risk. Some nearby areas flood but my specific location has been mostly safe.",
+      "category": "flood_zone",
+      "importance": 0.5,
+      "source": "survey"
+    }
+  ],
+  "H0046": [
+    {
+      "content": "I experienced flooding at my home 1 to 5 years ago. The damage was significant and caused financial stress. This experience stays with me when I think about flood risks.",
+      "category": "flood_experience",
+      "importance": 0.8,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. Past experience has shown they are slow to respond to communities like mine.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I am a renter here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My area has moderate flood risk. Some nearby areas flood but my specific location has been mostly safe.",
+      "category": "flood_zone",
+      "importance": 0.5,
+      "source": "survey"
+    }
+  ],
+  "H0047": [
+    {
+      "content": "I experienced flooding at my home 1 to 5 years ago. The damage was significant and caused financial stress. This experience stays with me when I think about flood risks.",
+      "category": "flood_experience",
+      "importance": 0.8,
+      "source": "survey"
+    },
+    {
+      "content": "I have NFIP flood insurance for my property.",
+      "category": "insurance_history",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I trust that government programs like Blue Acres and FEMA can help people recover from floods.",
+      "category": "government_trust",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 3 generations. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I recently learned this is a Special Flood Hazard Area.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0048": [
+    {
+      "content": "I experienced flooding at my home 1 to 5 years ago. The damage was significant and caused financial stress. This experience stays with me when I think about flood risks.",
+      "category": "flood_experience",
+      "importance": 0.8,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have mixed feelings about government flood assistance programs.",
+      "category": "government_trust",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 5 generations. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I recently learned this is a Special Flood Hazard Area.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0049": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though Iam aware my area is in a flood zone.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. The premiums seem expensive relative to my income.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I trust that government programs like Blue Acres and FEMA can help people recover from floods.",
+      "category": "government_trust",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I am a renter here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I know this area floods regularly.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0050": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though Iam aware my area is in a flood zone.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I have NFIP flood insurance for my property.",
+      "category": "insurance_history",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I have strong connections with my neighbors. We look out for each other and share information about community matters.",
+      "category": "social_connections",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I trust that government programs like Blue Acres and FEMA can help people recover from floods.",
+      "category": "government_trust",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "This community is my home. My family has been here for 1 generation. I cannot imagine living anywhere else.",
+      "category": "place_attachment",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I know this area floods regularly.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0051": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though Iam aware my area is in a flood zone.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. The process seems bureaucratic and unreliable.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I am a homeowner here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a low-risk area for flooding.",
+      "category": "flood_zone",
+      "importance": 0.3,
+      "source": "survey"
+    }
+  ],
+  "H0052": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have mixed feelings about government flood assistance programs.",
+      "category": "government_trust",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I am a homeowner here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My area has moderate flood risk. Some nearby areas flood but my specific location has been mostly safe.",
+      "category": "flood_zone",
+      "importance": 0.5,
+      "source": "survey"
+    }
+  ],
+  "H0053": [
+    {
+      "content": "I experienced flooding at my home 1 to 5 years ago. I managed to recover, though it was disruptive. This experience stays with me when I think about flood risks.",
+      "category": "flood_experience",
+      "importance": 0.8,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have strong connections with my neighbors. We look out for each other and share information about community matters.",
+      "category": "social_connections",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I have mixed feelings about government flood assistance programs.",
+      "category": "government_trust",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 2 generations. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I recently learned this is a Special Flood Hazard Area.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0054": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I have Private flood insurance flood insurance for my property.",
+      "category": "insurance_history",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I have strong connections with my neighbors. We look out for each other and share information about community matters.",
+      "category": "social_connections",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I have mixed feelings about government flood assistance programs.",
+      "category": "government_trust",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I recently learned this is a Special Flood Hazard Area.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0055": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I have Private flood insurance flood insurance for my property.",
+      "category": "insurance_history",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. The process seems bureaucratic and unreliable.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I am a homeowner here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a low-risk area for flooding.",
+      "category": "flood_zone",
+      "importance": 0.3,
+      "source": "survey"
+    }
+  ],
+  "H0056": [
+    {
+      "content": "I experienced flooding at my home 5.0. I managed to recover, though it was disruptive. This experience stays with me when I think about flood risks.",
+      "category": "flood_experience",
+      "importance": 0.8,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have strong connections with my neighbors. We look out for each other and share information about community matters.",
+      "category": "social_connections",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I trust that government programs like Blue Acres and FEMA can help people recover from floods.",
+      "category": "government_trust",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I am a homeowner here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a low-risk area for flooding.",
+      "category": "flood_zone",
+      "importance": 0.3,
+      "source": "survey"
+    }
+  ],
+  "H0057": [
+    {
+      "content": "I experienced flooding at my home More than 10 years ago. I managed to recover, though it was disruptive. This experience stays with me when I think about flood risks.",
+      "category": "flood_experience",
+      "importance": 0.8,
+      "source": "survey"
+    },
+    {
+      "content": "I have NFIP flood insurance for my property.",
+      "category": "insurance_history",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. The process seems bureaucratic and unreliable.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I know this area floods regularly.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0058": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though Iam aware my area is in a flood zone.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. The process seems bureaucratic and unreliable.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I am a homeowner here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I know this area floods regularly.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0059": [
+    {
+      "content": "I experienced flooding at my home 1 to 5 years ago. I managed to recover, though it was disruptive. This experience stays with me when I think about flood risks.",
+      "category": "flood_experience",
+      "importance": 0.8,
+      "source": "survey"
+    },
+    {
+      "content": "I have Private flood insurance flood insurance for my property.",
+      "category": "insurance_history",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I have strong connections with my neighbors. We look out for each other and share information about community matters.",
+      "category": "social_connections",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I have mixed feelings about government flood assistance programs.",
+      "category": "government_trust",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I recently learned this is a Special Flood Hazard Area.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0060": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have mixed feelings about government flood assistance programs.",
+      "category": "government_trust",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I recently learned this is a Special Flood Hazard Area.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0061": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I have Private flood insurance flood insurance for my property.",
+      "category": "insurance_history",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I have strong connections with my neighbors. We look out for each other and share information about community matters.",
+      "category": "social_connections",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I have mixed feelings about government flood assistance programs.",
+      "category": "government_trust",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 3 generations. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a low-risk area for flooding.",
+      "category": "flood_zone",
+      "importance": 0.3,
+      "source": "survey"
+    }
+  ],
+  "H0062": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though Iam aware my area is in a flood zone.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I have NFIP flood insurance for my property.",
+      "category": "insurance_history",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have mixed feelings about government flood assistance programs.",
+      "category": "government_trust",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I know this area floods regularly.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0063": [
+    {
+      "content": "I experienced flooding at my home 1 to 5 years ago. I managed to recover, though it was disruptive. This experience stays with me when I think about flood risks.",
+      "category": "flood_experience",
+      "importance": 0.8,
+      "source": "survey"
+    },
+    {
+      "content": "I have Private flood insurance flood insurance for my property.",
+      "category": "insurance_history",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have mixed feelings about government flood assistance programs.",
+      "category": "government_trust",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My area has moderate flood risk. Some nearby areas flood but my specific location has been mostly safe.",
+      "category": "flood_zone",
+      "importance": 0.5,
+      "source": "survey"
+    }
+  ],
+  "H0064": [
+    {
+      "content": "I experienced flooding at my home More than 10 years ago. I managed to recover, though it was disruptive. This experience stays with me when I think about flood risks.",
+      "category": "flood_experience",
+      "importance": 0.8,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have mixed feelings about government flood assistance programs.",
+      "category": "government_trust",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a low-risk area for flooding.",
+      "category": "flood_zone",
+      "importance": 0.3,
+      "source": "survey"
+    }
+  ],
+  "H0065": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. The process seems bureaucratic and unreliable.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I am a homeowner here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a low-risk area for flooding.",
+      "category": "flood_zone",
+      "importance": 0.3,
+      "source": "survey"
+    }
+  ],
+  "H0066": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though Iam aware my area is in a flood zone.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. The process seems bureaucratic and unreliable.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I am a homeowner here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My area has moderate flood risk. Some nearby areas flood but my specific location has been mostly safe.",
+      "category": "flood_zone",
+      "importance": 0.5,
+      "source": "survey"
+    }
+  ],
+  "H0067": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I have Private flood insurance flood insurance for my property.",
+      "category": "insurance_history",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I mostly keep to myself and don't interact much with neighbors.",
+      "category": "social_connections",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "I trust that government programs like Blue Acres and FEMA can help people recover from floods.",
+      "category": "government_trust",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I am a homeowner here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My area has moderate flood risk. Some nearby areas flood but my specific location has been mostly safe.",
+      "category": "flood_zone",
+      "importance": 0.5,
+      "source": "survey"
+    }
+  ],
+  "H0068": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. The process seems bureaucratic and unreliable.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My area has moderate flood risk. Some nearby areas flood but my specific location has been mostly safe.",
+      "category": "flood_zone",
+      "importance": 0.5,
+      "source": "survey"
+    }
+  ],
+  "H0069": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have strong connections with my neighbors. We look out for each other and share information about community matters.",
+      "category": "social_connections",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I have mixed feelings about government flood assistance programs.",
+      "category": "government_trust",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My area has moderate flood risk. Some nearby areas flood but my specific location has been mostly safe.",
+      "category": "flood_zone",
+      "importance": 0.5,
+      "source": "survey"
+    }
+  ],
+  "H0070": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. The process seems bureaucratic and unreliable.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My area has moderate flood risk. Some nearby areas flood but my specific location has been mostly safe.",
+      "category": "flood_zone",
+      "importance": 0.5,
+      "source": "survey"
+    }
+  ],
+  "H0071": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. The process seems bureaucratic and unreliable.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "This community is my home. My family has been here for 1 generation. I cannot imagine living anywhere else.",
+      "category": "place_attachment",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I recently learned this is a Special Flood Hazard Area.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0072": [
+    {
+      "content": "I experienced flooding at my home More than 10 years ago. I managed to recover, though it was disruptive. This experience stays with me when I think about flood risks.",
+      "category": "flood_experience",
+      "importance": 0.8,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. The process seems bureaucratic and unreliable.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I am a homeowner here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I know this area floods regularly.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0073": [
+    {
+      "content": "I experienced flooding at my home 1 to 5 years ago. I managed to recover, though it was disruptive. This experience stays with me when I think about flood risks.",
+      "category": "flood_experience",
+      "importance": 0.8,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have mixed feelings about government flood assistance programs.",
+      "category": "government_trust",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My area has moderate flood risk. Some nearby areas flood but my specific location has been mostly safe.",
+      "category": "flood_zone",
+      "importance": 0.5,
+      "source": "survey"
+    }
+  ],
+  "H0074": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though Iam aware my area is in a flood zone.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I mostly keep to myself and don't interact much with neighbors.",
+      "category": "social_connections",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. The process seems bureaucratic and unreliable.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I am a homeowner here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I know this area floods regularly.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0075": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I have Private flood insurance flood insurance for my property.",
+      "category": "insurance_history",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I trust that government programs like Blue Acres and FEMA can help people recover from floods.",
+      "category": "government_trust",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "This community is my home. My family has been here for 1 generation. I cannot imagine living anywhere else.",
+      "category": "place_attachment",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I recently learned this is a Special Flood Hazard Area.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0076": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have mixed feelings about government flood assistance programs.",
+      "category": "government_trust",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I recently learned this is a Special Flood Hazard Area.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0077": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. The process seems bureaucratic and unreliable.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I am a renter here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My area has moderate flood risk. Some nearby areas flood but my specific location has been mostly safe.",
+      "category": "flood_zone",
+      "importance": 0.5,
+      "source": "survey"
+    }
+  ],
+  "H0078": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though Iam aware my area is in a flood zone.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I have Private flood insurance flood insurance for my property.",
+      "category": "insurance_history",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I trust that government programs like Blue Acres and FEMA can help people recover from floods.",
+      "category": "government_trust",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My area has moderate flood risk. Some nearby areas flood but my specific location has been mostly safe.",
+      "category": "flood_zone",
+      "importance": 0.5,
+      "source": "survey"
+    }
+  ],
+  "H0079": [
+    {
+      "content": "I experienced flooding at my home 1 to 5 years ago. I managed to recover, though it was disruptive. This experience stays with me when I think about flood risks.",
+      "category": "flood_experience",
+      "importance": 0.8,
+      "source": "survey"
+    },
+    {
+      "content": "I have NFIP flood insurance for my property.",
+      "category": "insurance_history",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I have strong connections with my neighbors. We look out for each other and share information about community matters.",
+      "category": "social_connections",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I trust that government programs like Blue Acres and FEMA can help people recover from floods.",
+      "category": "government_trust",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "This community is my home. My family has been here for 1 generation. I cannot imagine living anywhere else.",
+      "category": "place_attachment",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a low-risk area for flooding.",
+      "category": "flood_zone",
+      "importance": 0.3,
+      "source": "survey"
+    }
+  ],
+  "H0080": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though Iam aware my area is in a flood zone.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have strong connections with my neighbors. We look out for each other and share information about community matters.",
+      "category": "social_connections",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. The process seems bureaucratic and unreliable.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "This community is my home. My family has been here for 1 generation. I cannot imagine living anywhere else.",
+      "category": "place_attachment",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a low-risk area for flooding.",
+      "category": "flood_zone",
+      "importance": 0.3,
+      "source": "survey"
+    }
+  ],
+  "H0081": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I mostly keep to myself and don't interact much with neighbors.",
+      "category": "social_connections",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. The process seems bureaucratic and unreliable.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I am a renter here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My area has moderate flood risk. Some nearby areas flood but my specific location has been mostly safe.",
+      "category": "flood_zone",
+      "importance": 0.5,
+      "source": "survey"
+    }
+  ],
+  "H0082": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have mixed feelings about government flood assistance programs.",
+      "category": "government_trust",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a low-risk area for flooding.",
+      "category": "flood_zone",
+      "importance": 0.3,
+      "source": "survey"
+    }
+  ],
+  "H0083": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have strong connections with my neighbors. We look out for each other and share information about community matters.",
+      "category": "social_connections",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I trust that government programs like Blue Acres and FEMA can help people recover from floods.",
+      "category": "government_trust",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "This community is my home. My family has been here for 1 generation. I cannot imagine living anywhere else.",
+      "category": "place_attachment",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I recently learned this is a Special Flood Hazard Area.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0084": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I have Private flood insurance flood insurance for my property.",
+      "category": "insurance_history",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. The process seems bureaucratic and unreliable.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I am a renter here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a low-risk area for flooding.",
+      "category": "flood_zone",
+      "importance": 0.3,
+      "source": "survey"
+    }
+  ],
+  "H0085": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though Iam aware my area is in a flood zone.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. The process seems bureaucratic and unreliable.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 2 generations. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I know this area floods regularly.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0086": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though Iam aware my area is in a flood zone.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I have Private flood insurance flood insurance for my property.",
+      "category": "insurance_history",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I mostly keep to myself and don't interact much with neighbors.",
+      "category": "social_connections",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. The process seems bureaucratic and unreliable.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I am a renter here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a low-risk area for flooding.",
+      "category": "flood_zone",
+      "importance": 0.3,
+      "source": "survey"
+    }
+  ],
+  "H0087": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though Iam aware my area is in a flood zone.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I trust that government programs like Blue Acres and FEMA can help people recover from floods.",
+      "category": "government_trust",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I know this area floods regularly.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0088": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have strong connections with my neighbors. We look out for each other and share information about community matters.",
+      "category": "social_connections",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. The process seems bureaucratic and unreliable.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "This community is my home. My family has been here for 3 generations. I cannot imagine living anywhere else.",
+      "category": "place_attachment",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "My area has moderate flood risk. Some nearby areas flood but my specific location has been mostly safe.",
+      "category": "flood_zone",
+      "importance": 0.5,
+      "source": "survey"
+    }
+  ],
+  "H0089": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have strong connections with my neighbors. We look out for each other and share information about community matters.",
+      "category": "social_connections",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I have mixed feelings about government flood assistance programs.",
+      "category": "government_trust",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I recently learned this is a Special Flood Hazard Area.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0090": [
+    {
+      "content": "I experienced flooding at my home 1 to 5 years ago. I managed to recover, though it was disruptive. This experience stays with me when I think about flood risks.",
+      "category": "flood_experience",
+      "importance": 0.8,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have strong connections with my neighbors. We look out for each other and share information about community matters.",
+      "category": "social_connections",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. The process seems bureaucratic and unreliable.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 2 generations. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I recently learned this is a Special Flood Hazard Area.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0091": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I mostly keep to myself and don't interact much with neighbors.",
+      "category": "social_connections",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. The process seems bureaucratic and unreliable.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I recently learned this is a Special Flood Hazard Area.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0092": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. The process seems bureaucratic and unreliable.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My area has moderate flood risk. Some nearby areas flood but my specific location has been mostly safe.",
+      "category": "flood_zone",
+      "importance": 0.5,
+      "source": "survey"
+    }
+  ],
+  "H0093": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I have Private flood insurance flood insurance for my property.",
+      "category": "insurance_history",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I have strong connections with my neighbors. We look out for each other and share information about community matters.",
+      "category": "social_connections",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. The process seems bureaucratic and unreliable.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I am a renter here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My area has moderate flood risk. Some nearby areas flood but my specific location has been mostly safe.",
+      "category": "flood_zone",
+      "importance": 0.5,
+      "source": "survey"
+    }
+  ],
+  "H0094": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though Iam aware my area is in a flood zone.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. The process seems bureaucratic and unreliable.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I am a renter here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a low-risk area for flooding.",
+      "category": "flood_zone",
+      "importance": 0.3,
+      "source": "survey"
+    }
+  ],
+  "H0095": [
+    {
+      "content": "I experienced flooding at my home 1 to 5 years ago. I managed to recover, though it was disruptive. This experience stays with me when I think about flood risks.",
+      "category": "flood_experience",
+      "importance": 0.8,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. The process seems bureaucratic and unreliable.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a low-risk area for flooding.",
+      "category": "flood_zone",
+      "importance": 0.3,
+      "source": "survey"
+    }
+  ],
+  "H0096": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I trust that government programs like Blue Acres and FEMA can help people recover from floods.",
+      "category": "government_trust",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I am a renter here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a high-risk flood zone. I recently learned this is a Special Flood Hazard Area.",
+      "category": "flood_zone",
+      "importance": 0.7,
+      "source": "survey"
+    }
+  ],
+  "H0097": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. The process seems bureaucratic and unreliable.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a low-risk area for flooding.",
+      "category": "flood_zone",
+      "importance": 0.3,
+      "source": "survey"
+    }
+  ],
+  "H0098": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though I am not sure about my flood risk.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I know some of my neighbors and we occasionally talk about local issues.",
+      "category": "social_connections",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. The process seems bureaucratic and unreliable.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My area has moderate flood risk. Some nearby areas flood but my specific location has been mostly safe.",
+      "category": "flood_zone",
+      "importance": 0.5,
+      "source": "survey"
+    }
+  ],
+  "H0099": [
+    {
+      "content": "I experienced flooding at my home Less than 1 year ago. I managed to recover, though it was disruptive. This experience stays with me when I think about flood risks.",
+      "category": "flood_experience",
+      "importance": 0.8,
+      "source": "survey"
+    },
+    {
+      "content": "I have Private flood insurance flood insurance for my property.",
+      "category": "insurance_history",
+      "importance": 0.6,
+      "source": "survey"
+    },
+    {
+      "content": "I have strong connections with my neighbors. We look out for each other and share information about community matters.",
+      "category": "social_connections",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I have mixed feelings about government flood assistance programs.",
+      "category": "government_trust",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I have been living here for 1 generation. I feel comfortable but could see moving if necessary.",
+      "category": "place_attachment",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "My property is in a low-risk area for flooding.",
+      "category": "flood_zone",
+      "importance": 0.3,
+      "source": "survey"
+    }
+  ],
+  "H0100": [
+    {
+      "content": "I have not personally experienced flooding at my current home, though Iam aware my area is in a flood zone.",
+      "category": "flood_experience",
+      "importance": 0.3,
+      "source": "survey"
+    },
+    {
+      "content": "I do not currently have flood insurance. I have been considering whether it is worth the cost.",
+      "category": "insurance_history",
+      "importance": 0.5,
+      "source": "survey"
+    },
+    {
+      "content": "I mostly keep to myself and don't interact much with neighbors.",
+      "category": "social_connections",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "I don't have much faith in government flood programs. The process seems bureaucratic and unreliable.",
+      "category": "government_trust",
+      "importance": 0.7,
+      "source": "survey"
+    },
+    {
+      "content": "I am a renter here but don't feel strongly tied to this specific location.",
+      "category": "place_attachment",
+      "importance": 0.4,
+      "source": "survey"
+    },
+    {
+      "content": "My area has moderate flood risk. Some nearby areas flood but my specific location has been mostly safe.",
+      "category": "flood_zone",
+      "importance": 0.5,
+      "source": "survey"
+    }
+  ]
+}
