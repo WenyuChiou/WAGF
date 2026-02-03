@@ -215,8 +215,11 @@ class ValidationRouter:
         "financial_3level": {"C": 0, "M": 1, "A": 2},
     }
 
-    # Known construct → possible column names in DataFrame
-    KNOWN_CONSTRUCT_COLS: Dict[str, List[str]] = {
+    # Default construct → column-name candidates for DataFrame auto-detection.
+    # This serves as a fallback when no agent config is provided.
+    # When config IS available, _build_construct_cols_from_config() supplements
+    # this with any additional constructs defined in parsing.constructs.
+    _DEFAULT_CONSTRUCT_COLS: Dict[str, List[str]] = {
         "TP_LABEL": ["ta_level", "threat_appraisal", "threat_perception"],
         "CP_LABEL": ["ca_level", "coping_appraisal", "coping_perception"],
         "WSA_LABEL": ["wsa_level", "water_scarcity_assessment"],
@@ -229,6 +232,37 @@ class ValidationRouter:
         "LOSS_RATIO": ["loss_ratio"],
         "SOLVENCY": ["solvency"],
     }
+
+    # Active construct columns (initialized from defaults, extended by config)
+    KNOWN_CONSTRUCT_COLS: Dict[str, List[str]] = dict(_DEFAULT_CONSTRUCT_COLS)
+
+    @classmethod
+    def _build_construct_cols_from_config(
+        cls, config: Dict[str, Any],
+    ) -> Dict[str, List[str]]:
+        """Build construct column mappings from agent_types.yaml config.
+
+        Supplements the default mapping with any constructs defined in
+        ``parsing.constructs`` for each agent type.  Returns the merged dict.
+        """
+        cols = dict(cls._DEFAULT_CONSTRUCT_COLS)
+        reserved_keys = {
+            "global_config", "shared", "governance",
+            "rating_scale", "response_format",
+        }
+        for key, value in config.items():
+            if key in reserved_keys or not isinstance(value, dict):
+                continue
+            constructs = value.get("parsing", {}).get("constructs", {})
+            if not isinstance(constructs, dict):
+                continue
+            for cname in constructs:
+                if cname not in cols:
+                    # Derive column candidates from construct name
+                    lower = cname.lower()
+                    base = lower.replace("_label", "").replace("_util", "")
+                    cols[cname] = [lower, base]
+        return cols
 
     # ---------------------------------------------------------------
     # Feature detection
@@ -280,6 +314,9 @@ class ValidationRouter:
         profile: FeatureProfile,
     ) -> None:
         """Detect features from agent_types.yaml config dict."""
+
+        # Extend KNOWN_CONSTRUCT_COLS with any config-defined constructs
+        cls.KNOWN_CONSTRUCT_COLS = cls._build_construct_cols_from_config(config)
 
         # ----------------------------------------------------------
         # Walk all top-level keys looking for agent type definitions

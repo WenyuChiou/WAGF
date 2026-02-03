@@ -233,6 +233,7 @@ class PMTFramework(PsychologicalFramework):
         self,
         extreme_actions: Optional[set] = None,
         complex_actions: Optional[set] = None,
+        expected_behavior_map: Optional[Dict[str, List[str]]] = None,
     ):
         self._extreme_actions = extreme_actions or {
             "relocate", "elevate_house", "buyout_program"
@@ -240,6 +241,7 @@ class PMTFramework(PsychologicalFramework):
         self._complex_actions = complex_actions or {
             "elevate_house", "relocate", "buyout_program"
         }
+        self._expected_behavior_map = expected_behavior_map
 
     @property
     def name(self) -> str:
@@ -382,14 +384,37 @@ class PMTFramework(PsychologicalFramework):
             }
         )
 
+    # Default expected-behavior map keyed by ``"TP_CP"`` pair.
+    # Kept for backward compatibility; callers may override via
+    # ``expected_behavior_map`` constructor argument.
+    _DEFAULT_BEHAVIOR_MAP: Dict[str, List[str]] = {
+        "H_H":  ["elevate_house", "buy_insurance", "buyout_program", "relocate"],
+        "VH_H": ["elevate_house", "buy_insurance", "buyout_program", "relocate"],
+        "H_VH": ["elevate_house", "buy_insurance", "buyout_program", "relocate"],
+        "VH_VH": ["elevate_house", "buy_insurance", "buyout_program", "relocate"],
+        "H_VL": ["buy_insurance", "buyout_program"],
+        "H_L":  ["buy_insurance", "buyout_program"],
+        "H_M":  ["buy_insurance", "buyout_program"],
+        "VH_VL": ["buy_insurance", "buyout_program"],
+        "VH_L": ["buy_insurance", "buyout_program"],
+        "VH_M": ["buy_insurance", "buyout_program"],
+        "M_VL": ["buy_insurance", "do_nothing"],
+        "M_L":  ["buy_insurance", "do_nothing"],
+        "M_M":  ["buy_insurance", "do_nothing"],
+        "M_H":  ["buy_insurance", "do_nothing"],
+        "M_VH": ["buy_insurance", "do_nothing"],
+    }
+    # Anything not listed (VL_*, L_*) falls through to the default below.
+    _DEFAULT_FALLBACK = ["do_nothing", "buy_insurance"]
+
     def get_expected_behavior(self, appraisals: Dict[str, str]) -> List[str]:
         """
         Return expected skills given PMT appraisals.
 
-        Based on threat and coping levels, determines expected behaviors:
-        - High TP + High CP: Active protection (elevate, insurance, relocate)
-        - High TP + Low CP: Basic protection or seek help (insurance)
-        - Low TP + Any CP: Status quo acceptable (do_nothing, insurance)
+        If an ``expected_behavior_map`` was provided at construction time it
+        is used exclusively; otherwise the built-in default map applies.
+
+        The map is keyed by ``"TP_CP"`` strings (e.g. ``"H_VH"``).
 
         Args:
             appraisals: Dictionary with TP_LABEL, CP_LABEL
@@ -400,25 +425,12 @@ class PMTFramework(PsychologicalFramework):
         tp = self._normalize_label(appraisals.get("TP_LABEL", "M"))
         cp = self._normalize_label(appraisals.get("CP_LABEL", "M"))
 
-        expected = []
+        key = f"{tp}_{cp}"
 
-        # High threat + High coping: Active protection measures
-        if tp in ("H", "VH") and cp in ("H", "VH"):
-            expected = ["elevate_house", "buy_insurance", "buyout_program", "relocate"]
+        if self._expected_behavior_map is not None:
+            return list(self._expected_behavior_map.get(key, []))
 
-        # High threat + Medium/Low coping: Seek external help
-        elif tp in ("H", "VH") and cp in ("VL", "L", "M"):
-            expected = ["buy_insurance", "buyout_program"]
-
-        # Medium threat: Moderate protection
-        elif tp == "M":
-            expected = ["buy_insurance", "do_nothing"]
-
-        # Low threat: Status quo is acceptable
-        else:  # tp in ("VL", "L")
-            expected = ["do_nothing", "buy_insurance"]
-
-        return expected
+        return list(self._DEFAULT_BEHAVIOR_MAP.get(key, self._DEFAULT_FALLBACK))
 
     def get_blocked_skills(self, appraisals: Dict[str, str]) -> List[str]:
         """

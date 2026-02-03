@@ -81,11 +81,20 @@ def incoherent_df():
 
 @pytest.fixture
 def validator():
-    """Default PMT micro validator."""
+    """Default PMT micro validator with flood-domain keywords for EGS."""
     return MicroValidator(
         framework="pmt",
         ta_col="threat_appraisal",
         ca_col="coping_appraisal",
+        context_keywords=[
+            "flood depth", "flood level", "water level", "inundation",
+            "income", "savings", "mortgage", "property value",
+            "elevation cost", "insurance premium", "deductible",
+            "neighbor", "community", "FEMA", "NFIP",
+            "previous flood", "flood experience", "prior experience",
+            "year", "annual", "decade",
+            "damage", "loss", "recovery",
+        ],
     )
 
 

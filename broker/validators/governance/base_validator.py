@@ -146,15 +146,15 @@ class BaseValidator(ABC):
         if not rule.message:
             return f"[Rule: {rule.id}] Validation failed for skill: {skill_name}"
 
-        # Build template context for interpolation
+        # Build template context for interpolation — domain-agnostic.
+        # All construct keys (e.g., TP_LABEL, CP_LABEL, WSA_LABEL) are
+        # populated from reasoning dict directly; no hardcoded fallbacks.
         reasoning = context.get("reasoning", {})
         template_context = {
             "context": {
-                "TP_LABEL": reasoning.get("TP_LABEL", reasoning.get("threat_appraisal", "N/A")),
-                "CP_LABEL": reasoning.get("CP_LABEL", reasoning.get("coping_appraisal", "N/A")),
                 "decision": skill_name,
                 "agent_id": context.get("agent_id", "unknown"),
-                **reasoning  # Include all reasoning fields
+                **reasoning  # Include all reasoning fields (construct labels, etc.)
             },
             "rule": {
                 "id": rule.id,
@@ -175,13 +175,11 @@ class BaseValidator(ABC):
         """
         base_msg = rule.get_intervention_message()
 
-        # Try template interpolation first
+        # Try template interpolation first — domain-agnostic
         reasoning = context.get("reasoning", {})
         template_context = {
             "context": {
-                "TP_LABEL": reasoning.get("TP_LABEL", reasoning.get("threat_appraisal", "N/A")),
-                "CP_LABEL": reasoning.get("CP_LABEL", reasoning.get("coping_appraisal", "N/A")),
-                **reasoning
+                **reasoning  # All construct labels available via {context.KEY}
             },
             "rule": {"id": rule.id}
         }

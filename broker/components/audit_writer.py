@@ -366,21 +366,13 @@ class GenericAuditWriter:
             hall_types = [i.get("hallucination_type") for i in issues if i.get("hallucination_type")]
             row["hallucination_types"] = "|".join(hall_types) if hall_types else ""
 
-            # 9. Construct Tracking (Task-041 Phase 3) - Individual construct ratings
-            # Extract from reasoning dict
+            # 9. Construct Tracking — dynamic extraction from reasoning dict.
+            # Captures any key matching known construct suffixes, regardless of domain.
             reasoning = skill_prop.get("reasoning", {}) if isinstance(skill_prop.get("reasoning"), dict) else {}
-            # PMT constructs
-            row["construct_TP_LABEL"] = reasoning.get("TP_LABEL", "")
-            row["construct_CP_LABEL"] = reasoning.get("CP_LABEL", "")
-            row["construct_SP_LABEL"] = reasoning.get("SP_LABEL", "")
-            row["construct_PA_LABEL"] = reasoning.get("PA_LABEL", "")
-            row["construct_SC_LABEL"] = reasoning.get("SC_LABEL", "")
-            # Utility constructs
-            row["construct_BUDGET_UTIL"] = reasoning.get("BUDGET_UTIL", "")
-            row["construct_EQUITY_GAP"] = reasoning.get("EQUITY_GAP", "")
-            # Financial constructs
-            row["construct_RISK_APPETITE"] = reasoning.get("RISK_APPETITE", "")
-            row["construct_SOLVENCY_IMPACT"] = reasoning.get("SOLVENCY_IMPACT", "")
+            _CONSTRUCT_SUFFIXES = ("_LABEL", "_UTIL", "_GAP", "_IMPACT", "_APPETITE")
+            for key, val in reasoning.items():
+                if any(key.endswith(suffix) for suffix in _CONSTRUCT_SUFFIXES):
+                    row[f"construct_{key}"] = val
 
             # 10. Rule Evaluation Details (Task-041 Phase 3)
             rules_evaluated = t.get("rules_evaluated", [])
@@ -406,6 +398,10 @@ class GenericAuditWriter:
         if not flat_rows: return
 
         # Ensure consistent column ordering for user
+        # Collect construct columns dynamically from data (sorted for determinism)
+        all_keys_set = set().union(*(d.keys() for d in flat_rows))
+        construct_cols = sorted(k for k in all_keys_set if k.startswith("construct_"))
+
         priority_keys = [
             # Core identity
             "step_id", "year", "agent_id",
@@ -415,11 +411,8 @@ class GenericAuditWriter:
             "retry_count", "format_retries", "validated", "failed_rules",
             # Parse quality
             "parse_layer", "parse_confidence", "construct_completeness",
-            # Construct ratings (Task-041 Phase 3)
-            "construct_TP_LABEL", "construct_CP_LABEL", "construct_SP_LABEL",
-            "construct_PA_LABEL", "construct_SC_LABEL",
-            "construct_BUDGET_UTIL", "construct_EQUITY_GAP",
-            "construct_RISK_APPETITE", "construct_SOLVENCY_IMPACT",
+            # Construct ratings — dynamically discovered
+            *construct_cols,
             # Rule evaluation (Task-041 Phase 3)
             "rules_evaluated_count", "rules_triggered",
             # Memory audit (E1)
@@ -440,9 +433,8 @@ class GenericAuditWriter:
                 # Put custom ones after the absolute core (step, agent) but before others
                 priority_keys = ["step_id", "agent_id"] + custom_priority + [k for k in priority_keys if k not in ["step_id", "agent_id"] + custom_priority]
 
-        all_keys = set().union(*(d.keys() for d in flat_rows))
         # Sort keys to keep priority ones first
-        fieldnames = priority_keys + [k for k in sorted(list(all_keys)) if k not in priority_keys]
+        fieldnames = priority_keys + [k for k in sorted(list(all_keys_set)) if k not in priority_keys]
         
         with open(csv_path, 'w', newline='', encoding='utf-8-sig') as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction='ignore', quoting=csv.QUOTE_ALL)

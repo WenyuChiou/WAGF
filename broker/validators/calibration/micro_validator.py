@@ -202,26 +202,6 @@ class MicroValidator:
         Default: flood-domain keywords.
     """
 
-    # Default context keywords for flood domain EGS
-    DEFAULT_FLOOD_KEYWORDS: List[str] = [
-        "flood depth", "flood level", "water level", "inundation",
-        "income", "savings", "mortgage", "property value",
-        "elevation cost", "insurance premium", "deductible",
-        "neighbor", "community", "FEMA", "NFIP",
-        "previous flood", "flood experience", "prior experience",
-        "year", "annual", "decade",
-        "damage", "loss", "recovery",
-    ]
-
-    DEFAULT_IRRIGATION_KEYWORDS: List[str] = [
-        "water supply", "allocation", "curtailment", "shortage",
-        "drought", "streamflow", "reservoir", "lake mead", "lake powell",
-        "compact", "water right", "acre-feet",
-        "crop", "yield", "acreage", "irrigation efficiency",
-        "neighbor", "upstream", "downstream", "basin",
-        "price", "revenue", "cost", "subsidy",
-    ]
-
     def __init__(
         self,
         framework: str | PsychologicalFramework = "pmt",
@@ -240,7 +220,9 @@ class MicroValidator:
         self._ta_col = ta_col
         self._ca_col = ca_col
         self._decision_col = decision_col
-        self._context_keywords = context_keywords or self.DEFAULT_FLOOD_KEYWORDS
+        # Callers should pass domain-specific keywords explicitly.
+        # An empty list disables EGS keyword matching.
+        self._context_keywords = context_keywords if context_keywords is not None else []
 
     # ------------------------------------------------------------------
     # CACR: Construct-Action Coherence Rate

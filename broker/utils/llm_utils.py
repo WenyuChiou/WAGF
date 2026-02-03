@@ -50,6 +50,19 @@ class LLMConfig:
     # Retry settings (Phase 40: Configurable)
     max_retries: int = 2
 
+    # Timeout settings — configurable instead of hardcoded model-name checks
+    timeout: int = 120                   # Default timeout (seconds) for standard models
+    timeout_large_model: int = 600       # Extended timeout for large/slow models
+    large_model_patterns: tuple = ("27b", "30b", "32b", "70b")  # Patterns that trigger extended timeout
+
+    # Model-specific quirks — configurable instead of hardcoded if-chains
+    # Keys are substring patterns matched against model name (case-insensitive).
+    # Supported quirk fields: min_retries, append_suffix, strip_think_tags
+    model_quirks: Dict[str, Dict[str, Any]] = field(default_factory=lambda: {
+        "deepseek": {"min_retries": 5},
+        "qwen3": {"append_suffix": "/no_think", "strip_think_tags": True},
+    })
+
     def to_ollama_params(self) -> Dict[str, Any]:
         """Convert config to Ollama parameter dict, excluding None values."""
         params = {
@@ -65,6 +78,25 @@ class LLMConfig:
             params["top_k"] = self.top_k
         return params
 
+    def get_timeout(self, model: str) -> int:
+        """Return appropriate timeout based on model name patterns."""
+        model_lower = model.lower()
+        if any(p in model_lower for p in self.large_model_patterns):
+            return self.timeout_large_model
+        return self.timeout
+
+    def apply_model_quirks(self, model: str, prompt: str, max_retries: int) -> tuple:
+        """Apply model-specific quirks and return (modified_prompt, modified_max_retries)."""
+        model_lower = model.lower()
+        for pattern, quirks in self.model_quirks.items():
+            if pattern in model_lower:
+                if "min_retries" in quirks:
+                    max_retries = max(max_retries, quirks["min_retries"])
+                suffix = quirks.get("append_suffix", "")
+                if suffix and suffix not in prompt:
+                    prompt = prompt + "\n" + suffix
+        return prompt, max_retries
+
 
 # Global instance - modify this to change default behavior
 from broker.utils.agent_config import load_agent_config
@@ -76,18 +108,37 @@ def _load_global_config() -> LLMConfig:
     try:
         # Load agent_types.yaml via helper
         config = load_agent_config()
-        
+
         # Access global_config.llm using .get("global_config")
         # Note: AgentTypeConfig.get() works for any top-level key
         global_llm = config.get("global_config").get("llm", {})
-        
+
+        # Load model quirks from config, falling back to defaults
+        quirks_raw = global_llm.get("model_quirks")
+        quirks = (
+            {k: dict(v) for k, v in quirks_raw.items()}
+            if quirks_raw
+            else {
+                "deepseek": {"min_retries": 5},
+                "qwen3": {"append_suffix": "/no_think", "strip_think_tags": True},
+            }
+        )
+
+        # Load large model patterns from config, falling back to defaults
+        patterns_raw = global_llm.get("large_model_patterns")
+        patterns = tuple(patterns_raw) if patterns_raw else ("27b", "30b", "32b", "70b")
+
         return LLMConfig(
-            temperature=global_llm.get("temperature"), 
+            temperature=global_llm.get("temperature"),
             top_p=global_llm.get("top_p"),
             top_k=global_llm.get("top_k"),
             num_ctx=global_llm.get("num_ctx", 16384),
             num_predict=global_llm.get("num_predict", 2048),
-            max_retries=global_llm.get("max_retries", 2)
+            max_retries=global_llm.get("max_retries", 2),
+            timeout=global_llm.get("timeout", 120),
+            timeout_large_model=global_llm.get("timeout_large_model", 600),
+            large_model_patterns=patterns,
+            model_quirks=quirks,
         )
     except Exception as e:
         _LOGGER.warning(f"Could not load global LLM config: {e}. Using defaults.")
@@ -197,11 +248,8 @@ def _invoke_ollama_direct(model: str, prompt: str, params: Dict[str, Any], verbo
     }
     
     try:
-        # Increase timeout for 30B/32B models AND all DeepSeek R1 models (known to be slow)
-        if any(x in model.lower() for x in ["27b", "30b", "32b", "70b", "deepseek"]):
-            timeout = 600 # Extended to 10 minutes for DeepSeek R1 Thinking
-        else:
-            timeout = 120
+        # Config-driven timeout: large/slow models get extended timeout
+        timeout = LLM_CONFIG.get_timeout(model)
         response = requests.post(url, json=data, timeout=timeout)
         
         if response.status_code == 200:
@@ -274,43 +322,22 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
             return create_provider_invoke(config, verbose=verbose)
 
 
-    # Simple Mock for testing if model starts with 'mock'
-    # This mock is domain-agnostic and returns a generic decision format
+    # Domain-agnostic mock for testing — returns minimal JSON that
+    # ModelAdapter can parse.  No PMT-specific constructs here; the
+    # governance retry loop and ResponseFormatBuilder handle the rest.
     if model.lower().startswith("mock"):
+        import json as _json
         def mock_invoke(prompt: str) -> Tuple[str, LLMStats]:
             import re
             stats = LLMStats(retries=0, success=True)
 
-            # Extract available options from prompt (e.g., "1. Action A", "2. Action B")
-            # This makes the mock work with any experiment's options
+            # Extract the first numbered option from prompt (works for any domain)
             option_pattern = r'(\d+)\.\s+\w+'
             options = re.findall(option_pattern, prompt)
+            decision_id = int(options[0]) if options else 1
 
-            # Default to option "1" if options found, otherwise "1"
-            decision_id = options[0] if options else "1"
-
-            # Generic appraisal levels based on prompt keywords
-            # These keywords are domain-agnostic
-            threat_level = "M"  # Medium as default
-            coping_level = "M"
-            if any(word in prompt.lower() for word in ["severe", "danger", "critical", "damage", "loss"]):
-                threat_level = "H"
-            if any(word in prompt.lower() for word in ["safe", "secure", "protected", "capable"]):
-                coping_level = "H"
-
-            content = f"""<<<DECISION_START>>>
-{{
-  "threat_appraisal": {{
-    "label": "{threat_level}",
-    "reason": "Mock assessment of threat level."
-  }},
-  "coping_appraisal": {{
-    "label": "{coping_level}",
-    "reason": "Mock assessment of coping ability."
-  }},
-  "decision": {decision_id}
-}}
-<<<DECISION_END>>>"""
+            # Return minimal valid JSON — no domain-specific construct names
+            content = _json.dumps({"decision": decision_id})
             return content, stats
         return mock_invoke
     
@@ -344,20 +371,15 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
             
             # Phase 40: Use global or override retry limit
             max_llm_retries = overrides.get("max_retries", LLM_CONFIG.max_retries) if overrides else LLM_CONFIG.max_retries
-            
-            # Phase 48: Increase retries for unstable DeepSeek models
-            if "deepseek" in model.lower():
-                max_llm_retries = max(max_llm_retries, 5)
-                
+
+            # Apply config-driven model quirks (replaces hardcoded DeepSeek/Qwen3 logic)
+            current_prompt = prompt
+            current_prompt, max_llm_retries = LLM_CONFIG.apply_model_quirks(
+                model, current_prompt, max_llm_retries,
+            )
+
             llm_retries = 0
             empty_content_retries = 0  # 045-H: Track empty content retries specifically
-            current_prompt = prompt
-
-            # Phase 46: Qwen3 models support /no_think to disable thinking mode
-            # This prevents models from outputting <think>...</think> blocks
-            if "qwen3" in model.lower() or "qwen-3" in model.lower():
-                if "/no_think" not in current_prompt and "/think" not in current_prompt:
-                    current_prompt = current_prompt + "\n/no_think"
             
             for attempt in range(max_llm_retries):
                 try:
@@ -416,10 +438,10 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
         return invoke
     except ImportError:
         _LOGGER.warning("langchain-ollama not found. Falling back to mock LLM.")
-        return lambda p: ("Final Decision: do_nothing", LLMStats())
+        return lambda p: ('{"decision": 1}', LLMStats())
     except Exception as e:
         _LOGGER.warning(f"Falling back to mock LLM due to: {e}")
-        return lambda p: ("Final Decision: do_nothing", LLMStats())
+        return lambda p: ('{"decision": 1}', LLMStats())
 
 
 def create_provider_invoke(config: Dict[str, Any], verbose: bool = False) -> LLMInvokeFunc:

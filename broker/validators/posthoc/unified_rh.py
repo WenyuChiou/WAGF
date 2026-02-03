@@ -1,10 +1,9 @@
 """
 Unified hallucination rate (R_H) computation across groups.
 
-**Current implementation**: Designed for **FLOOD domain** (PMT: TP/CP).
-For **irrigation domain** (WSA/ACA), the thinking rules (V1/V2/V3) would
-need domain-specific counterparts; physical hallucination detection is
-domain-agnostic (state-transition based).
+Domain-agnostic R_H computation.  Callers specify column names and
+irreversible-state mappings via parameters so this module works for
+any domain (flood, irrigation, etc.).
 
 Provides a single entry point for computing the hallucination rate using
 consistent methodology regardless of data source:
@@ -15,13 +14,12 @@ consistent methodology regardless of data source:
 The formula:  R_H = (physical + thinking) / N_active
 
 Where:
-    physical  = re-elevation + post-relocation actions (from state transitions)
+    physical  = irreversible-state violations (from state transitions)
     thinking  = V1 + V2 + V3 violations (from classified constructs)
-    N_active  = agent-year pairs where agent has not yet relocated
+    N_active  = agent-year pairs where agent has not yet exited
 
-Domain Mapping:
-    Flood:      ta_col="threat_appraisal", ca_col="coping_appraisal" (PMT)
-    Irrigation: ta_col="water_scarcity_assessment", ca_col="adaptive_capacity_assessment" (WSA/ACA)
+Column names and irreversible states are parameterized; callers
+supply domain-appropriate values.
 """
 
 from typing import Dict, Optional, Tuple
@@ -33,34 +31,60 @@ from broker.validators.posthoc.keyword_classifier import KeywordClassifier
 from broker.validators.posthoc.thinking_rule_posthoc import ThinkingRulePostHoc
 
 
-def _compute_physical_hallucinations(df: pd.DataFrame) -> pd.Series:
+def _compute_physical_hallucinations(
+    df: pd.DataFrame,
+    irreversible_states: Optional[Dict[str, Optional[str]]] = None,
+    exit_state_col: str = "relocated",
+) -> pd.Series:
     """Detect physical hallucinations from state transitions.
 
     Returns boolean mask where True = physical hallucination.
-    Checks:
-    - Re-elevation (already elevated, chose elevate again)
-    - Post-relocation action (already relocated, chose any property action)
+
+    Parameters
+    ----------
+    df : DataFrame
+        Must have agent_id, year, a decision column, and state columns
+        named by *irreversible_states* keys.
+    irreversible_states : dict, optional
+        Maps state column name → action substring pattern.
+        An agent who already has ``state_col == True`` and whose decision
+        contains the pattern is flagged as a physical hallucination.
+        Use ``None`` as the pattern value to flag *any* active decision
+        after the state becomes True (e.g. post-relocation).
+        Default: ``{"elevated": "elevat", "relocated": None}``.
+    exit_state_col : str
+        Column marking the permanent exit state (agent leaves simulation).
+        Default: ``"relocated"``.
 
     Insurance renewal is excluded (annual renewable, not hallucination).
     """
+    if irreversible_states is None:
+        irreversible_states = {"elevated": "elevat", "relocated": None}
+
     df_s = df.sort_values(["agent_id", "year"]).copy()
-    df_s["prev_elevated"] = df_s.groupby("agent_id")["elevated"].shift(1).fillna(False).infer_objects(copy=False)
-    df_s["prev_relocated"] = df_s.groupby("agent_id")["relocated"].shift(1).fillna(False).infer_objects(copy=False)
 
     dec_col = "yearly_decision"
     if dec_col not in df_s.columns:
         dec_col = "decision"
 
     action = df_s[dec_col].astype(str).str.lower()
+    hallucination_mask = pd.Series(False, index=df_s.index)
 
-    # Re-elevation: chose elevate when already elevated
-    re_elevation = df_s["prev_elevated"] & action.str.contains("elevat", na=False)
+    for state_col, action_pattern in irreversible_states.items():
+        if state_col not in df_s.columns:
+            continue
+        prev_state = df_s.groupby("agent_id")[state_col].shift(1).fillna(False).infer_objects(copy=False)
+        if action_pattern is not None:
+            # Repeated action on an already-achieved irreversible state
+            hallucination_mask = hallucination_mask | (
+                prev_state & action.str.contains(action_pattern, na=False)
+            )
+        else:
+            # Any active decision after exit (e.g. post-relocation)
+            is_active = ~action.isin([state_col, "n/a", "nan", "none", ""])
+            hallucination_mask = hallucination_mask | (prev_state & is_active)
 
-    # Post-relocation: agent acts after relocating (excluding "relocated" status marker)
-    is_active_decision = ~action.isin(["relocated", "n/a", "nan", "none", ""])
-    post_relocation = df_s["prev_relocated"] & is_active_decision
-
-    return re_elevation | post_relocation
+    return hallucination_mask
 
 
 def compute_hallucination_rate(
@@ -72,14 +96,17 @@ def compute_hallucination_rate(
     start_year: int = 2,
     classifier: Optional[KeywordClassifier] = None,
     rule_checker: Optional[ThinkingRulePostHoc] = None,
+    irreversible_states: Optional[Dict[str, Optional[str]]] = None,
+    exit_state_col: str = "relocated",
 ) -> Dict[str, object]:
     """Compute unified R_H for a simulation DataFrame.
 
     Parameters
     ----------
     df : DataFrame
-        Simulation log with columns: agent_id, year, yearly_decision,
-        elevated, relocated, has_insurance, and appraisal columns.
+        Simulation log with columns: agent_id, year, a decision column,
+        state columns named by *irreversible_states* keys, and appraisal
+        columns.
     group : str
         ``"A"``, ``"B"``, or ``"C"`` — affects keyword threshold.
     ta_col, ca_col : str
@@ -92,6 +119,12 @@ def compute_hallucination_rate(
         Custom classifier (default: standard PMT keywords).
     rule_checker : ThinkingRulePostHoc, optional
         Custom rule checker (default: standard V1/V2/V3).
+    irreversible_states : dict, optional
+        Passed to ``_compute_physical_hallucinations``.
+        Default: ``{"elevated": "elevat", "relocated": None}``.
+    exit_state_col : str
+        Column marking permanent exit state used to filter active
+        observations.  Default: ``"relocated"``.
 
     Returns
     -------
@@ -122,9 +155,9 @@ def compute_hallucination_rate(
         df["ta_level"] = "M"
         df["ca_level"] = "M"
 
-    # Identify active observations (not yet relocated)
-    df["prev_relocated"] = df.groupby("agent_id")["relocated"].shift(1).fillna(False).infer_objects(copy=False)
-    active_mask = ~df["prev_relocated"] & (df["year"] >= start_year)
+    # Identify active observations (not yet exited)
+    prev_exit = df.groupby("agent_id")[exit_state_col].shift(1).fillna(False).infer_objects(copy=False)
+    active_mask = ~prev_exit & (df["year"] >= start_year)
     df_active = df[active_mask].copy()
 
     n_active = len(df_active)
@@ -137,7 +170,9 @@ def compute_hallucination_rate(
         }
 
     # Physical hallucinations
-    phys_mask = _compute_physical_hallucinations(df)
+    phys_mask = _compute_physical_hallucinations(
+        df, irreversible_states=irreversible_states, exit_state_col=exit_state_col,
+    )
     phys_active = phys_mask.reindex(df_active.index, fill_value=False)
     n_physical = int(phys_active.sum())
 
