@@ -89,6 +89,22 @@ FLOOD_BENCHMARKS: List[Benchmark] = [
         source="Choi et al. (2024); Collins et al. (2018)",
         description="Difference in adaptation rates between non-marginalized and marginalized groups",
     ),
+    Benchmark(
+        name="Repetitive Loss Uninsured Rate",
+        metric="rl_uninsured_rate",
+        rate_low=0.15,
+        rate_high=0.40,
+        source="FEMA RL statistics; Kousky & Michel-Kerjan (2010)",
+        description="Fraction of repetitive-loss properties without active NFIP coverage",
+    ),
+    Benchmark(
+        name="Insurance Annual Lapse Rate",
+        metric="insurance_lapse_rate",
+        rate_low=0.05,
+        rate_high=0.15,
+        source="Gallagher (2014, AER); Michel-Kerjan et al. (2012)",
+        description="Annual rate of NFIP policy non-renewal",
+    ),
 ]
 
 
@@ -153,6 +169,44 @@ def compute_aggregate_rates(
         # Approximate from overall do_nothing rate (less precise)
         action = df[decision_col].str.lower()
         rates["do_nothing_rate_postflood"] = (action == "do_nothing").mean()
+
+    # Repetitive loss uninsured rate
+    # Agents flooded 2+ times who are NOT insured at last year
+    if "insured" in last_df.columns and "flood_count" in df.columns:
+        last_with_floods = last_df.merge(
+            df.groupby("agent_id")["year"].count().rename("obs_count"),
+            left_on="agent_id", right_index=True, how="left",
+        )
+        # Use flood_depth or decision history to count floods
+        if "flood_depth_ft" in df.columns:
+            flood_counts = df[df["flood_depth_ft"] > 0].groupby("agent_id").size()
+            last_with_floods["n_floods"] = last_with_floods["agent_id"].map(flood_counts).fillna(0)
+        else:
+            last_with_floods["n_floods"] = 0
+
+        rl_agents = last_with_floods[last_with_floods["n_floods"] >= 2]
+        if len(rl_agents) > 0:
+            rates["rl_uninsured_rate"] = (~rl_agents["insured"].astype(bool)).mean()
+
+    # Insurance lapse rate (annual non-renewal)
+    # Count agents who were insured in year N but not in year N+1
+    if "insured" in df.columns and df["year"].nunique() > 1:
+        years_sorted = sorted(df["year"].unique())
+        lapse_events = 0
+        insured_years = 0
+        for i in range(len(years_sorted) - 1):
+            y1 = df[df["year"] == years_sorted[i]]
+            y2 = df[df["year"] == years_sorted[i + 1]]
+            merged = y1[["agent_id", "insured"]].merge(
+                y2[["agent_id", "insured"]], on="agent_id", suffixes=("_prev", "_next"),
+            )
+            was_insured = merged["insured_prev"].astype(bool)
+            now_insured = merged["insured_next"].astype(bool)
+            lapse_events += int((was_insured & ~now_insured).sum())
+            insured_years += int(was_insured.sum())
+
+        if insured_years > 0:
+            rates["insurance_lapse_rate"] = lapse_events / insured_years
 
     # MG-NMG adaptation gap
     if "mg_status" in last_df.columns:
@@ -284,3 +338,36 @@ def compare_with_benchmarks(
     )
 
     return report
+
+
+def compute_epi(
+    df: pd.DataFrame,
+    benchmarks: Optional[List[Benchmark]] = None,
+    decision_col: str = "yearly_decision",
+    tolerance: float = 0.3,
+) -> float:
+    """Compute Empirical Plausibility Index (EPI).
+
+    EPI = fraction of evaluated benchmarks where the simulated aggregate rate
+    falls within the empirical range (with tolerance).
+
+    Threshold: EPI >= 0.60 for L2 macro validation pass.
+
+    Parameters
+    ----------
+    df : DataFrame
+        CVRunner-compatible simulation trace.
+    benchmarks : list of Benchmark, optional
+        Defaults to FLOOD_BENCHMARKS.
+    decision_col : str
+        Decision column name.
+    tolerance : float
+        Tolerance factor for range check.
+
+    Returns
+    -------
+    float
+        EPI score in [0, 1].
+    """
+    report = compare_with_benchmarks(df, benchmarks, decision_col, tolerance)
+    return report.plausibility_score

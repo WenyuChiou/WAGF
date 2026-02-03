@@ -1,0 +1,69 @@
+# Paper 3: Traditional ABM Baseline Configuration
+# SCC paper replication — serves as comparison baseline (NOT a separate RQ)
+# Parametric TP decay, rule-based decisions, exogenous institutions
+
+experiment:
+  name: paper3_baseline
+  description: "Traditional ABM replication (SCC paper) — parametric TP decay, rule-based, exogenous"
+  seeds: [42, 123, 456, 789, 1024]
+
+model:
+  name: "none"  # No LLM — rule-based decisions
+
+simulation:
+  years: 13
+  agents: 400
+  mode: survey
+
+# Same balanced 4-cell design for comparability (100 per cell)
+agent_composition:
+  balanced: true
+  cells:
+    MG_owner: 100
+    MG_renter: 100
+    NMG_owner: 100
+    NMG_renter: 100
+
+# Parametric TP decay (SCC paper parameters)
+memory:
+  engine: parametric  # TPDecayEngine with SCC parameters
+  tp_decay:
+    MG:
+      alpha: 20.71
+      beta: -0.64
+      tau_0: 21.35
+      tau_inf: 32.19
+      k: 0.10
+    NMG:
+      alpha: 32.68
+      beta: -0.88
+      tau_0: 28.73
+      tau_inf: 50.10
+      k: 0.08
+
+# Same hazard data
+hazard:
+  grid_dir: "examples/multi_agent/flood/input/PRB"
+  per_agent_depth: true
+
+# Exogenous institutions (fixed parameters)
+institutions:
+  government:
+    enabled: false  # Fixed subsidy
+    initial_subsidy: 0.50
+  insurance:
+    enabled: false  # Fixed premium
+    initial_premium: 0.02
+
+# No social channels (traditional ABM uses aggregate % only)
+social:
+  gossip: false
+  news_media: false
+  social_media: false
+
+governance:
+  profile: disabled
+
+output:
+  base_dir: "examples/multi_agent/flood/paper3/results/baseline"
+  per_seed_dir: true

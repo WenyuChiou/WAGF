@@ -1,0 +1,150 @@
+# Paper 3: Supplementary Information Ablation Configurations
+# Each ablation modifies ONE feature from the primary experiment
+# Run with: python paper3/run_paper3.py --config paper3/configs/si_ablations.yaml --ablation <name>
+#
+# Ablations use 200 agents (50/cell) to save compute unless noted otherwise.
+# Primary experiment uses 400 agents (100/cell).
+
+ablations:
+
+  # SI-1: Memory ablation — does RQ1 intra-group variance collapse without importance weighting?
+  si1_window_memory:
+    description: "Window memory engine (no importance weighting, no emotional salience)"
+    base: primary_experiment
+    override:
+      simulation:
+        agents: 200
+      agent_composition:
+        cells: {MG_owner: 50, MG_renter: 50, NMG_owner: 50, NMG_renter: 50}
+      memory:
+        engine: window
+        importance_decay: null
+        emotional_weighting: false
+    seeds: [42, 123, 456]
+
+  # SI-2: Institutional ablation — does RQ2 protection gap behave differently without feedback?
+  si2_exogenous_institutions:
+    description: "Fixed exogenous subsidy/premium (no LLM-driven institutional agents)"
+    base: primary_experiment
+    override:
+      simulation:
+        agents: 200
+      agent_composition:
+        cells: {MG_owner: 50, MG_renter: 50, NMG_owner: 50, NMG_renter: 50}
+      institutions:
+        government:
+          llm_driven: false
+        insurance:
+          llm_driven: false
+    seeds: [42, 123, 456]
+
+  # SI-3a: No gossip
+  si3a_no_gossip:
+    description: "All social channels except gossip"
+    base: primary_experiment
+    override:
+      simulation:
+        agents: 200
+      agent_composition:
+        cells: {MG_owner: 50, MG_renter: 50, NMG_owner: 50, NMG_renter: 50}
+      social:
+        gossip: false
+    seeds: [42, 123, 456]
+
+  # SI-3b: No social media
+  si3b_no_social_media:
+    description: "All social channels except social media"
+    base: primary_experiment
+    override:
+      simulation:
+        agents: 200
+      agent_composition:
+        cells: {MG_owner: 50, MG_renter: 50, NMG_owner: 50, NMG_renter: 50}
+      social:
+        social_media: false
+    seeds: [42, 123, 456]
+
+  # SI-3c: No social channels at all
+  si3c_isolated:
+    description: "No social channels — isolated agents"
+    base: primary_experiment
+    override:
+      simulation:
+        agents: 200
+      agent_composition:
+        cells: {MG_owner: 50, MG_renter: 50, NMG_owner: 50, NMG_renter: 50}
+      social:
+        gossip: false
+        news_media: false
+        social_media: false
+    seeds: [42, 123, 456]
+
+  # SI-4: LLM model sensitivity
+  si4_gemma_12b:
+    description: "Gemma 3 12B (larger model)"
+    base: primary_experiment
+    override:
+      simulation:
+        agents: 200
+      agent_composition:
+        cells: {MG_owner: 50, MG_renter: 50, NMG_owner: 50, NMG_renter: 50}
+      model:
+        name: "gemma3:12b"
+    seeds: [42, 123, 456]
+
+  si4_mistral:
+    description: "Mistral 8B (different model family)"
+    base: primary_experiment
+    override:
+      simulation:
+        agents: 200
+      agent_composition:
+        cells: {MG_owner: 50, MG_renter: 50, NMG_owner: 50, NMG_renter: 50}
+      model:
+        name: "mistral:latest"
+    seeds: [42, 123, 456]
+
+  # SI-7: Governance OFF — can LLM naturally follow PMT without enforcement? (CRITICAL M5)
+  si7_no_governance:
+    description: "Governance disabled — tests whether LLM naturally follows PMT"
+    base: primary_experiment
+    override:
+      simulation:
+        agents: 200
+      agent_composition:
+        cells: {MG_owner: 50, MG_renter: 50, NMG_owner: 50, NMG_renter: 50}
+      governance:
+        profile: disabled
+    seeds: [42, 123, 456]
+
+  # SI-8: PRB-proportional demographics (MINOR — realistic composition)
+  si8_prb_proportional:
+    description: "Realistic PRB demographics (not balanced) — external validity check"
+    base: primary_experiment
+    override:
+      simulation:
+        agents: 400
+      agent_composition:
+        balanced: false
+        cells:
+          MG_owner: 80     # ~20%
+          MG_renter: 80     # ~20%
+          NMG_owner: 160    # ~40%
+          NMG_renter: 80    # ~20%
+    seeds: [42]
+
+  # SI-9: Climate non-stationarity — 1.2x depth scaling for last 4 years (MAJOR M21)
+  # NOTE: climate_scaling support must be implemented in HazardModule/VulnerabilityCalculator
+  # before this ablation can run. See Phase C implementation backlog.
+  si9_climate_scaling:
+    description: "Near-future climate intensification (1.2x flood depth for years 10-13)"
+    base: primary_experiment
+    override:
+      simulation:
+        agents: 400  # Keep full size for climate impact comparison
+      hazard:
+        climate_scaling:
+          enabled: true
+          start_year: 10
+          depth_multiplier: 1.2
+    seeds: [42, 123, 456]

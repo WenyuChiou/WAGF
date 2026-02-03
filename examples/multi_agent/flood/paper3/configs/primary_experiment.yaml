@@ -1,0 +1,75 @@
+# Paper 3: Primary Experiment Configuration
+# Full-featured LLM-ABM — answers RQ1, RQ2, RQ3 simultaneously
+# Run with: python paper3/run_paper3.py --config paper3/configs/primary_experiment.yaml
+
+experiment:
+  name: paper3_primary
+  description: "Full-featured LLM-ABM with all modules active (memory, institutions, social)"
+  seeds: [42, 123, 456, 789, 1024, 2048, 3072, 4096, 5120, 6144]
+
+model:
+  name: "gemma3:4b"  # Local Ollama model
+
+simulation:
+  years: 13
+  agents: 400
+  mode: survey  # Initialize from NJ flood survey
+
+# Balanced 4-cell design (100 per cell) — scaled up per C4 review
+# 400 agents provides adequate power for Cox PH, panel regression, Moran's I
+agent_composition:
+  balanced: true
+  cells:
+    MG_owner: 100
+    MG_renter: 100
+    NMG_owner: 100
+    NMG_renter: 100
+  flood_prone_pct:
+    MG: 0.70
+    NMG: 0.50
+
+# Memory engine
+memory:
+  engine: universal
+  importance_decay: 0.1
+  emotional_weighting: true
+  source_weighting: true
+
+# Hazard data
+hazard:
+  grid_dir: "examples/multi_agent/flood/input/PRB"
+  per_agent_depth: true
+  neighbor_mode: spatial
+  neighbor_radius: 3.0
+
+# Institutional agents (LLM-driven)
+institutions:
+  government:
+    enabled: true
+    llm_driven: true
+    initial_subsidy: 0.50
+  insurance:
+    enabled: true
+    llm_driven: true
+    initial_premium: 0.02
+
+# Social channels
+social:
+  gossip: true
+  news_media: true
+  social_media: true
+  news_delay: 1
+
+# Governance
+governance:
+  profile: strict
+  financial_constraints: true
+  cross_validation: true
+  communication: true
+
+# Output
+output:
+  base_dir: "examples/multi_agent/flood/paper3/results"
+  per_seed_dir: true
+  save_reasoning_traces: true
+  save_memory_snapshots: true
