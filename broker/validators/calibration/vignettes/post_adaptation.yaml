@@ -1,0 +1,63 @@
+# =============================================================================
+# POST-ADAPTATION VIGNETTE (CRITICAL C9)
+# =============================================================================
+# Edge-case: Agent already elevated + insured, faces another moderate flood.
+# Tests state awareness — agent should recognize existing protections.
+#
+# Expected PMT response:
+#   TP: M (moderate threat, mitigated by elevation)
+#   CP: H or VH (already adapted, high coping capacity)
+#   Action: do_nothing (already well-protected) — NOT re-elevate
+# =============================================================================
+
+vignette:
+  id: post_adaptation
+  severity: medium
+  description: >
+    A scenario for already-adapted agents. The agent has elevated their home
+    and maintains flood insurance. They face a moderate flood that tests
+    whether the model correctly accounts for existing protections.
+
+  scenario: |
+    A moderate flood has reached your neighborhood, with water levels
+    at 3 feet above ground in the streets. However, your home was
+    elevated 5 feet above Base Flood Elevation two years ago, and the
+    water level is well below your first floor.
+
+    You have active NFIP flood insurance (structure + contents).
+    Your premium is $1,200/year with a $1,000 deductible.
+
+    Your elevated home sustained no damage from this event. Your
+    insurance remains active. Your neighbors who did not elevate
+    experienced $30,000-$50,000 in damage.
+
+    The government has maintained the current subsidy rate at 50%
+    for elevation costs, and the CRS discount in your community
+    provides a 15% premium reduction.
+
+  state_overrides:
+    flood_depth_ft: 3.0
+    damage_cost: 0
+    deductible: 1000
+    subsidy_rate: 0.50
+    flood_probability_10yr: 0.45
+    neighbors_elevated: 2
+    prior_flood_count: 3
+    year: 9
+
+  expected_responses:
+    TP_LABEL:
+      # Threat is real but mitigated by existing protections
+      expected: ["M", "H"]
+      acceptable: ["L", "M", "H"]
+      incoherent: ["VH"]
+    CP_LABEL:
+      # High coping — already elevated and insured
+      expected: ["H", "VH"]
+      acceptable: ["M", "H", "VH"]
+      incoherent: ["VL"]
+    decision:
+      # Already protected — maintaining status quo is appropriate
+      expected: ["do_nothing"]
+      acceptable: ["do_nothing", "buy_insurance"]
+      incoherent: ["elevate_house", "buyout_program", "relocate"]

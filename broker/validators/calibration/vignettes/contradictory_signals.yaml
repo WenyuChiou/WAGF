@@ -1,0 +1,63 @@
+# =============================================================================
+# CONTRADICTORY SIGNALS VIGNETTE (CRITICAL C9)
+# =============================================================================
+# Edge-case: FEMA map revision says low risk, but agent just experienced flooding.
+# Tests cognitive dissonance handling — can the LLM reconcile conflicting info?
+#
+# Expected PMT response:
+#   TP: M to H (personal experience should outweigh map revision)
+#   CP: varies by persona
+#   Action: protective action preferred (experience > official map)
+# =============================================================================
+
+vignette:
+  id: contradictory_signals
+  severity: medium
+  description: >
+    A cognitive dissonance scenario where official risk assessments conflict
+    with personal experience. FEMA has reclassified the zone as low-risk,
+    but the agent recently experienced significant flooding.
+
+  scenario: |
+    Six months ago, your home experienced 2 feet of flooding that caused
+    $18,000 in damage. You are still dealing with repairs.
+
+    However, FEMA has just released updated flood maps for your area.
+    Your property has been reclassified from Zone AE (high risk, Special
+    Flood Hazard Area) to Zone X (moderate-to-low risk). This means:
+    - Flood insurance is no longer required by your mortgage lender
+    - Your annual premium would drop by 60% if you maintain coverage
+    - Neighbors are celebrating the reclassification
+
+    Local hydrologists have criticized the new maps, arguing they
+    underestimate flood risk due to urbanization and climate change.
+    Your personal experience of recent flooding seems to contradict
+    the new risk classification.
+
+    Three neighbors have already cancelled their flood insurance
+    based on the new maps.
+
+  state_overrides:
+    flood_depth_ft: 2.0
+    damage_cost: 18000
+    deductible: 2000
+    subsidy_rate: 0.50
+    flood_probability_10yr: 0.30
+    neighbors_elevated: 1
+    prior_flood_count: 1
+    year: 4
+
+  expected_responses:
+    TP_LABEL:
+      # Personal experience should weigh more than map revision
+      expected: ["M", "H"]
+      acceptable: ["M", "H", "VH"]
+      incoherent: ["VL"]
+    CP_LABEL:
+      expected: ["M", "H"]
+      acceptable: ["L", "M", "H", "VH"]
+      incoherent: []
+    decision:
+      expected: ["buy_insurance", "elevate_house"]
+      acceptable: ["buy_insurance", "buy_contents_insurance", "elevate_house", "do_nothing"]
+      incoherent: []

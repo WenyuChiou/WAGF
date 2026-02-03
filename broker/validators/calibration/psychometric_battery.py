@@ -240,6 +240,68 @@ class VignetteReport:
 
 
 @dataclass
+class EffectSizeResult:
+    """Between-archetype effect size (eta-squared).
+
+    Measures how much variance in construct ratings is explained by
+    archetype identity (between-group variance / total variance).
+
+    Attributes:
+        construct: Construct name ("tp" or "cp").
+        eta_squared: Eta-squared value (0-1, target >= 0.25).
+        ss_between: Sum of squares between archetypes.
+        ss_total: Total sum of squares.
+        f_value: F-statistic from one-way ANOVA.
+        p_value: p-value of F-test.
+    """
+    construct: str
+    eta_squared: float
+    ss_between: float = 0.0
+    ss_total: float = 0.0
+    f_value: float = 0.0
+    p_value: float = 1.0
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "construct": self.construct,
+            "eta_squared": round(self.eta_squared, 4),
+            "ss_between": round(self.ss_between, 2),
+            "ss_total": round(self.ss_total, 2),
+            "f_value": round(self.f_value, 3),
+            "p_value": round(self.p_value, 6),
+        }
+
+
+@dataclass
+class ConvergentValidityResult:
+    """Convergent validity — correlation between construct and external criterion.
+
+    For flood domain: TP ordinal should correlate with vignette severity.
+
+    Attributes:
+        construct: Construct name.
+        criterion: External criterion name.
+        spearman_rho: Spearman rank correlation.
+        p_value: p-value of the correlation.
+        n_observations: Number of observations.
+    """
+    construct: str
+    criterion: str
+    spearman_rho: float
+    p_value: float = 1.0
+    n_observations: int = 0
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "construct": self.construct,
+            "criterion": self.criterion,
+            "spearman_rho": round(self.spearman_rho, 4),
+            "p_value": round(self.p_value, 6),
+            "n_observations": self.n_observations,
+        }
+
+
+@dataclass
 class BatteryReport:
     """Complete psychometric battery report.
 
@@ -250,6 +312,10 @@ class BatteryReport:
         consistency: Internal consistency (Cronbach's alpha).
         governance_effect: Paired comparison results (governed vs not).
         n_total_probes: Total LLM calls made.
+        tp_effect_size: Eta-squared for TP between archetypes.
+        cp_effect_size: Eta-squared for CP between archetypes.
+        convergent_validity: TP vs vignette severity correlation.
+        tp_cp_discriminant: TP-CP inter-construct correlation.
     """
     vignette_reports: List[VignetteReport] = field(default_factory=list)
     overall_tp_icc: Optional[ICCResult] = None
@@ -257,6 +323,10 @@ class BatteryReport:
     consistency: Optional[ConsistencyResult] = None
     governance_effect: Dict[str, Any] = field(default_factory=dict)
     n_total_probes: int = 0
+    tp_effect_size: Optional[EffectSizeResult] = None
+    cp_effect_size: Optional[EffectSizeResult] = None
+    convergent_validity: Optional[ConvergentValidityResult] = None
+    tp_cp_discriminant: float = 0.0
 
     def to_dict(self) -> Dict[str, Any]:
         d: Dict[str, Any] = {
@@ -271,6 +341,13 @@ class BatteryReport:
             d["consistency"] = self.consistency.to_dict()
         if self.governance_effect:
             d["governance_effect"] = self.governance_effect
+        if self.tp_effect_size:
+            d["tp_effect_size"] = self.tp_effect_size.to_dict()
+        if self.cp_effect_size:
+            d["cp_effect_size"] = self.cp_effect_size.to_dict()
+        if self.convergent_validity:
+            d["convergent_validity"] = self.convergent_validity.to_dict()
+        d["tp_cp_discriminant_r"] = round(self.tp_cp_discriminant, 4)
         return d
 
 
@@ -591,12 +668,12 @@ class PsychometricBattery:
             df = df[df["governed"] == governed]
 
         ordinal_col = f"{construct}_ordinal"
-        if ordinal_col not in df.columns:
+        if ordinal_col not in df.columns or df.empty:
             return ICCResult(construct=construct, icc_value=0.0)
 
         # Build rating matrix: archetypes (subjects) x replicates (raters)
         archetypes = sorted(df["archetype"].unique())
-        max_rep = df["replicate"].max()
+        max_rep = int(df["replicate"].max())
 
         # Pivot to matrix form
         matrix = np.full((len(archetypes), max_rep), np.nan)
@@ -925,6 +1002,190 @@ class PsychometricBattery:
         }
 
     # ------------------------------------------------------------------
+    # Effect size and validity (R3-D)
+    # ------------------------------------------------------------------
+
+    def compute_effect_size(
+        self,
+        construct: str = "tp",
+        governed: Optional[bool] = None,
+    ) -> EffectSizeResult:
+        """Compute eta-squared (between-archetype effect size).
+
+        Eta-squared = SS_between / SS_total from one-way ANOVA where
+        groups are archetypes and the DV is construct ordinal rating.
+
+        Target: eta² >= 0.25 (archetypes produce meaningfully different behaviors).
+
+        Parameters
+        ----------
+        construct : str
+            "tp" or "cp".
+        governed : bool, optional
+            Filter to governed or ungoverned.
+
+        Returns
+        -------
+        EffectSizeResult
+        """
+        df = self.responses_to_dataframe()
+        if df.empty:
+            return EffectSizeResult(construct=construct, eta_squared=0.0)
+
+        if governed is not None:
+            df = df[df["governed"] == governed]
+
+        ordinal_col = f"{construct}_ordinal"
+        if ordinal_col not in df.columns or df.empty:
+            return EffectSizeResult(construct=construct, eta_squared=0.0)
+
+        # Group by archetype
+        groups = [g[ordinal_col].values for _, g in df.groupby("archetype")]
+        groups = [g for g in groups if len(g) > 0]
+
+        if len(groups) < 2:
+            return EffectSizeResult(construct=construct, eta_squared=0.0)
+
+        # One-way ANOVA components
+        all_vals = np.concatenate(groups)
+        grand_mean = np.mean(all_vals)
+        n_total = len(all_vals)
+
+        ss_total = np.sum((all_vals - grand_mean) ** 2)
+        ss_between = sum(len(g) * (np.mean(g) - grand_mean) ** 2 for g in groups)
+        ss_within = ss_total - ss_between
+
+        k = len(groups)  # number of groups
+        df_between = k - 1
+        df_within = n_total - k
+
+        if df_within <= 0 or ss_within <= 0:
+            eta_sq = 1.0 if ss_between > 0 else 0.0
+            return EffectSizeResult(
+                construct=construct, eta_squared=eta_sq,
+                ss_between=float(ss_between), ss_total=float(ss_total),
+            )
+
+        ms_between = ss_between / df_between
+        ms_within = ss_within / df_within
+        f_val = ms_between / ms_within
+
+        # p-value
+        try:
+            from scipy import stats as sp_stats
+            p_val = 1 - sp_stats.f.cdf(f_val, df_between, df_within)
+        except ImportError:
+            p_val = 1.0
+
+        eta_sq = ss_between / ss_total if ss_total > 0 else 0.0
+
+        return EffectSizeResult(
+            construct=construct,
+            eta_squared=float(eta_sq),
+            ss_between=float(ss_between),
+            ss_total=float(ss_total),
+            f_value=float(f_val),
+            p_value=float(p_val),
+        )
+
+    def compute_convergent_validity(
+        self,
+        governed: Optional[bool] = None,
+    ) -> ConvergentValidityResult:
+        """Compute convergent validity: TP ordinal vs vignette severity.
+
+        Vignette severity is mapped to ordinal: low=1, medium=2, high=3,
+        extreme=4. TP should correlate positively with severity.
+
+        Target: Spearman rho >= 0.3.
+
+        Parameters
+        ----------
+        governed : bool, optional
+            Filter to governed or ungoverned.
+
+        Returns
+        -------
+        ConvergentValidityResult
+        """
+        severity_ordinal = {"low": 1, "medium": 2, "high": 3, "extreme": 4}
+
+        df = self.responses_to_dataframe()
+        if df.empty:
+            return ConvergentValidityResult(
+                construct="tp", criterion="vignette_severity",
+                spearman_rho=0.0,
+            )
+
+        if governed is not None:
+            df = df[df["governed"] == governed]
+
+        # Map vignette_id to severity via loaded vignettes
+        vig_severity = {}
+        for vid, vig in self._vignettes.items():
+            vig_severity[vid] = severity_ordinal.get(vig.severity, 2)
+
+        df = df.copy()
+        df["severity_ordinal"] = df["vignette_id"].map(vig_severity)
+        df = df.dropna(subset=["severity_ordinal", "tp_ordinal"])
+
+        if len(df) < 3:
+            return ConvergentValidityResult(
+                construct="tp", criterion="vignette_severity",
+                spearman_rho=0.0, n_observations=len(df),
+            )
+
+        try:
+            from scipy import stats as sp_stats
+            rho, p_val = sp_stats.spearmanr(
+                df["severity_ordinal"].values,
+                df["tp_ordinal"].values,
+            )
+        except ImportError:
+            # Fallback: Pearson correlation
+            rho = float(np.corrcoef(
+                df["severity_ordinal"].values,
+                df["tp_ordinal"].values,
+            )[0, 1])
+            p_val = 1.0
+
+        return ConvergentValidityResult(
+            construct="tp",
+            criterion="vignette_severity",
+            spearman_rho=float(rho) if not np.isnan(rho) else 0.0,
+            p_value=float(p_val) if not np.isnan(p_val) else 1.0,
+            n_observations=len(df),
+        )
+
+    def compute_discriminant(
+        self,
+        governed: Optional[bool] = None,
+    ) -> float:
+        """Compute TP-CP discriminant correlation.
+
+        If TP and CP correlate too highly (r > 0.8), the constructs are
+        not being discriminated by the LLM.
+
+        Returns Pearson r between TP and CP ordinals.
+        """
+        df = self.responses_to_dataframe()
+        if df.empty:
+            return 0.0
+
+        if governed is not None:
+            df = df[df["governed"] == governed]
+
+        tp = df["tp_ordinal"].values.astype(float)
+        cp = df["cp_ordinal"].values.astype(float)
+
+        if len(tp) < 3:
+            return 0.0
+
+        corr = np.corrcoef(tp, cp)
+        r = float(corr[0, 1]) if not np.isnan(corr[0, 1]) else 0.0
+        return r
+
+    # ------------------------------------------------------------------
     # Full report
     # ------------------------------------------------------------------
 
@@ -949,8 +1210,16 @@ class PsychometricBattery:
             if governed is None or r.governed == governed
         ])
 
-        # Per-vignette reports
+        # Per-vignette reports (only vignettes with at least 1 response)
         for vid, vignette in self.vignettes.items():
+            n_resp = len([
+                r for r in self._responses
+                if r.vignette_id == vid
+                and (governed is None or r.governed == governed)
+            ])
+            if n_resp == 0:
+                continue
+
             tp_icc = self.compute_icc(vignette_id=vid, construct="tp",
                                       governed=governed)
             cp_icc = self.compute_icc(vignette_id=vid, construct="cp",
@@ -963,11 +1232,7 @@ class PsychometricBattery:
             report.vignette_reports.append(VignetteReport(
                 vignette_id=vid,
                 severity=vignette.severity,
-                n_responses=len([
-                    r for r in self._responses
-                    if r.vignette_id == vid
-                    and (governed is None or r.governed == governed)
-                ]),
+                n_responses=n_resp,
                 tp_icc=tp_icc,
                 cp_icc=cp_icc,
                 decision_agreement=agreement,
@@ -985,6 +1250,22 @@ class PsychometricBattery:
 
         # Internal consistency
         report.consistency = self.compute_consistency(governed=governed)
+
+        # Effect size (eta-squared) — R3-D
+        report.tp_effect_size = self.compute_effect_size(
+            construct="tp", governed=governed
+        )
+        report.cp_effect_size = self.compute_effect_size(
+            construct="cp", governed=governed
+        )
+
+        # Convergent validity — R3-D
+        report.convergent_validity = self.compute_convergent_validity(
+            governed=governed
+        )
+
+        # TP-CP discriminant — R3-D
+        report.tp_cp_discriminant = self.compute_discriminant(governed=governed)
 
         return report
 

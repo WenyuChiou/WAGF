@@ -354,6 +354,27 @@ def run_icc_probing(
     if report.consistency:
         print(f"  Cronbach's alpha: {report.consistency.alpha:.3f}")
 
+    # Effect size (eta-squared)
+    if report.tp_effect_size:
+        eta_tp = report.tp_effect_size.eta_squared
+        print(f"  TP η²: {eta_tp:.3f} "
+              f"{'PASS' if eta_tp >= 0.25 else 'FAIL'} (target >= 0.25)")
+    if report.cp_effect_size:
+        eta_cp = report.cp_effect_size.eta_squared
+        print(f"  CP η²: {eta_cp:.3f}")
+
+    # Convergent validity
+    if report.convergent_validity:
+        cv = report.convergent_validity
+        print(f"  Convergent validity (TP vs severity): ρ={cv.spearman_rho:.3f}, "
+              f"p={cv.p_value:.4f} (n={cv.n_observations})")
+
+    # TP-CP discriminant
+    if report.tp_cp_discriminant != 0.0:
+        disc = report.tp_cp_discriminant
+        warn = " WARNING: constructs not discriminated" if abs(disc) > 0.8 else ""
+        print(f"  TP-CP discriminant r: {disc:.3f}{warn}")
+
     for vr in report.vignette_reports:
         print(f"\n  Vignette: {vr.vignette_id} ({vr.severity})")
         print(f"    Responses: {vr.n_responses}")
@@ -456,11 +477,20 @@ def run_posthoc(
         if isinstance(v, float):
             print(f"  {k}: {v:.3f}")
 
-    # Run empirical benchmark comparison
-    print("\nRunning empirical benchmark comparison...")
+    # Rename BRC → GCR (Governance Concordance Rate) in output
+    if report.brc is not None:
+        brc_val = report.brc.brc if hasattr(report.brc, 'brc') else report.brc
+        print(f"\n  GCR (Governance Concordance Rate): {brc_val:.3f} "
+              f"(internal PMT concordance, target >= 0.90)")
+
+    # Run empirical benchmark comparison → EPI (primary L2 metric)
+    print("\nRunning EPI (Empirical Plausibility Index)...")
     bench_report = compare_with_benchmarks(df)
-    print(f"  Plausibility score: {bench_report.plausibility_score:.1%} "
-          f"({bench_report.n_within_range}/{bench_report.n_total} benchmarks within range)")
+    epi = bench_report.plausibility_score
+    epi_pass = epi >= 0.60
+    print(f"  EPI: {epi:.1%} "
+          f"({bench_report.n_within_range}/{bench_report.n_total} benchmarks within range) "
+          f"{'PASS' if epi_pass else 'FAIL'} (threshold >= 0.60)")
 
     for comp in bench_report.comparisons:
         status = "OK" if comp.within_range else "OUT"
