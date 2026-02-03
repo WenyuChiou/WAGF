@@ -30,8 +30,19 @@ import numpy as np
 import pandas as pd
 import yaml
 
-# Ensure project root is on sys.path
-PROJECT_ROOT = Path(__file__).resolve().parents[4]
+# Ensure project root is on sys.path (find by marker directory)
+def _find_project_root() -> Path:
+    """Walk upward from this file to find the directory containing ``broker/``."""
+    current = Path(__file__).resolve().parent
+    for _ in range(10):
+        if (current / "broker").is_dir():
+            return current
+        current = current.parent
+    # Fallback to fixed depth
+    return Path(__file__).resolve().parents[4]
+
+
+PROJECT_ROOT = _find_project_root()
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -131,6 +142,7 @@ def parse_probe_response(raw: str) -> Dict[str, str]:
     """Parse LLM response into structured fields.
 
     Handles both clean JSON and JSON embedded in markdown/text.
+    Uses balanced-brace extraction to support nested JSON objects.
     """
     # Try direct JSON parse first
     try:
@@ -146,15 +158,31 @@ def parse_probe_response(raw: str) -> Dict[str, str]:
         except json.JSONDecodeError:
             pass
 
-    # Extract first { ... } block
-    match = re.search(r"\{[^{}]*\}", raw, re.DOTALL)
-    if match:
+    # Extract first balanced { ... } block (handles nested braces)
+    json_str = _extract_balanced_braces(raw)
+    if json_str:
         try:
-            return json.loads(match.group(0))
+            return json.loads(json_str)
         except json.JSONDecodeError:
             pass
 
     return {}
+
+
+def _extract_balanced_braces(text: str) -> Optional[str]:
+    """Extract the first balanced ``{...}`` substring from *text*."""
+    start = text.find("{")
+    if start == -1:
+        return None
+    depth = 0
+    for i in range(start, len(text)):
+        if text[i] == "{":
+            depth += 1
+        elif text[i] == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : i + 1]
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -416,8 +444,10 @@ def run_posthoc(
     if report.brc is None:
         try:
             report.brc = runner.run_brc(df=df)
-        except Exception as e:
-            print(f"  BRC computation failed: {e}")
+        except (KeyError, ValueError) as e:
+            print(f"  BRC computation failed (data issue): {e}")
+        except AttributeError as e:
+            print(f"  BRC computation failed (missing framework method): {e}")
 
     # Print summary
     print("\n=== Post-Hoc C&V Results ===")
