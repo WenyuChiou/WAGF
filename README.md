@@ -24,7 +24,8 @@ This framework provides an architectural **Governance Layer** that validates age
 
 **Validated case studies**:
 
-- **Flood Household Adaptation**: 100 agents using PMT (Protection Motivation Theory), 10-year simulation with Gemma 3 (4B/12B/27B)
+- **Flood Household Adaptation (SA)**: 100 agents using PMT (Protection Motivation Theory), 10-year simulation with Gemma 3 (4B/12B/27B)
+- **Flood Multi-Agent (MA)**: 400 agents (balanced 4-cell design: MG/NMG × Owner/Renter) with institutional agents (Government, Insurance), 13-year PRB simulation
 - **Irrigation Water Management**: 78 CRSS agents from the Upper Colorado River Basin
 
 ---
@@ -117,9 +118,9 @@ LLM-driven ABMs face five recurring problems that this framework solves:
 
 ---
 
-## Unified Architecture (v3.4)
+## Unified Architecture (v3.5)
 
-The framework utilizes a layered middleware approach that unifies single-agent isolated reasoning with multi-agent social simulations.
+The framework utilizes a layered middleware approach that unifies single-agent isolated reasoning with multi-agent social simulations. As of v3.5, all broker-level modules are **fully domain-agnostic** — construct names, action vocabularies, LLM timeouts, and validation keywords are loaded from YAML configuration rather than hardcoded.
 
 ![Unified Architecture v3.3](docs/architecture.png)
 
@@ -157,11 +158,13 @@ The memory and governance architecture has evolved through three phases:
 
 ### Provider Layer & Adapter
 
-| Component          | File               | Description                                                                                         |
-| :----------------- | :----------------- | :-------------------------------------------------------------------------------------------------- |
-| **UnifiedAdapter** | `model_adapter.py` | Smart parsing: handles model-specific quirks (e.g., DeepSeek `<think>` tags, Llama JSON formatting) |
-| **LLM Utils**      | `llm_utils.py`     | Centralized LLM calls with robust error handling and verbosity control                              |
-| **OllamaProvider** | `ollama.py`        | Default local inference provider                                                                    |
+| Component                      | File                    | Description                                                                                                       |
+| :----------------------------- | :---------------------- | :---------------------------------------------------------------------------------------------------------------- |
+| **UnifiedAdapter**             | `model_adapter.py`      | Smart parsing: handles model-specific quirks (e.g., DeepSeek `<think>` tags, Llama JSON formatting)               |
+| **LLM Utils**                  | `llm_utils.py`          | Config-driven LLM calls: timeout, model quirks, and mock responses loaded from YAML (v3.5)                        |
+| **OllamaProvider**             | `ollama.py`             | Default local inference provider                                                                                  |
+| **FinancialCostProvider**      | `context_providers.py`  | Pre-decision financial cost disclosure (elevation, buyout, insurance costs) injected into agent context            |
+| **PerceptionAwareProvider**    | `context_providers.py`  | Agent-type-aware perception filter (households see qualitative; institutions see quantitative). Must be last in chain |
 
 ### Validator Layer (Governance Rule Engine)
 
@@ -589,9 +592,25 @@ elif domain == "groundwater":
 
 ---
 
-## Configuration-Driven Extension (v3.4)
+## Configuration-Driven Extension (v3.5)
 
-All domain-specific logic is centralized in YAML configuration files. New water sub-domains (e.g., groundwater management, drought response) can be added by defining skill registries, validators, and agent configurations — without modifying the core broker:
+All domain-specific logic is centralized in YAML configuration files. New water sub-domains (e.g., groundwater management, drought response) can be added by defining skill registries, validators, and agent configurations — without modifying the core broker.
+
+### Domain-Agnostic Refactoring (v3.5)
+
+As of v3.5, the `broker/` layer contains **zero hardcoded domain-specific values**. The following modules were refactored to read all configuration from YAML:
+
+| Module | Before (v3.4) | After (v3.5) | Config Source |
+| :--- | :--- | :--- | :--- |
+| **LLM Utils** | Hardcoded timeout (120s/600s) by model name pattern; hardcoded DeepSeek/Qwen3 quirks; hardcoded PMT mock response | `LLMConfig` reads `global_config.llm.timeout`, `model_quirks`, `large_model_patterns` from YAML | `agent_types.yaml` |
+| **Validators** | Hardcoded `TP_LABEL`/`CP_LABEL` fallbacks; hardcoded flood/irrigation keyword lists | Template context built dynamically from `reasoning` dict keys; keywords injected via constructor | `agent_types.yaml` |
+| **Audit Writer** | 9 named construct columns (`TP_LABEL`, `CP_LABEL`, etc.) | Dynamic extraction of all `_LABEL`/`_UTIL`/`_GAP`/`_IMPACT` keys from reasoning | Agent output |
+| **Post-hoc R_H** | Hardcoded `elevated`/`relocated` column names | Parameterized `irreversible_states` dict passed by caller | Caller config |
+| **Psychometric** | Hardcoded action names (`elevate_house`, `relocate`) | `expected_behavior_map` and `extreme_actions` passed via constructor | Caller config |
+
+**Backward compatibility**: All modules retain sensible defaults. Existing experiments (flood, irrigation) work without any config changes — the defaults match the previous hardcoded values.
+
+### YAML Configuration Examples
 
 ```yaml
 # agent_types.yaml - Parsing & Memory Configuration
@@ -601,23 +620,30 @@ parsing:
     tp: ["severity", "vulnerability", "threat", "risk"]
     cp: ["efficacy", "self_efficacy", "coping", "ability"]
 
+# LLM configuration (v3.5 — previously hardcoded)
+global_config:
+  llm:
+    timeout: 120
+    timeout_large_model: 600
+    large_model_patterns: ["27b", "30b", "32b", "70b"]
+    model_quirks:
+      deepseek:
+        min_retries: 5
+      qwen3:
+        append_suffix: "/no_think"
+        strip_think_tags: true
+
 memory_config:
   emotional_weights:
     critical: 1.0 # Flood damage, trauma
-    major: 0.9 # Important life decisions
+    major: 0.9    # Important life decisions
     positive: 0.8 # Successful adaptation
-    routine: 0.1 # Daily noise
+    routine: 0.1  # Daily noise
 
   source_weights:
     personal: 1.0 # Direct experience "I saw..."
     neighbor: 0.7 # "My neighbor did..."
     community: 0.5 # "The news said..."
-
-  # Context Priority Weights
-  priority_schema:
-    flood_depth: 1.0 # Highest: physical reality
-    savings: 0.8 # Financial reality
-    risk_tolerance: 0.5 # Psychological factor
 ```
 
 ---
@@ -761,7 +787,7 @@ default_skill: do_nothing
 | `conflicts_with`            | Mutually exclusive skills (for future composite execution)                 |
 | `implementation_mapping`    | Simulation command to execute (e.g., `"sim.elevate"`)                      |
 
-### Enhancements (v3.4)
+### Enhancements (v3.4/v3.5)
 
 #### JSON Schema Output Validation
 
@@ -903,16 +929,32 @@ The `SkillBrokerEngine` is used by **both** SA and MA experiments. MA support wo
 
 ### MA Execution Model
 
+The framework supports **phased execution** via `ExperimentBuilder.with_phase_order()` (v3.5). Agent type groups execute sequentially so that institutional decisions are visible to household agents within the same year.
+
 ```
-Institutional agents (Government, Insurance) → execute first
-    ├─ Update env["subsidy_rate"], env["premium_rate"]
+Phase 1: Government agents → execute first
+    ├─ Update env["subsidy_rate"], subsidy decisions
     └─ Broadcast via post_step hooks
                     ↓
-Household agents (N parallel) → see institutional decisions in context
+Phase 2: Insurance agents → execute second
+    ├─ Update env["premium_rate"], CRS discount
+    └─ Broadcast via post_step hooks
+                    ↓
+Phase 3: Household agents (N sequential) → see institutional decisions in context
     ├─ SkillBrokerEngine validates per-agent
+    ├─ PerceptionAwareProvider filters context by agent type
     └─ State changes applied individually
                     ↓
 Post-year aggregation → damage calculation, reflection batch
+```
+
+```python
+# Phase order configuration (SAGA 3-tier)
+builder.with_phase_order([
+    ["government"],                           # Phase 1
+    ["insurance"],                            # Phase 2
+    ["household_owner", "household_renter"],  # Phase 3
+])
 ```
 
 ### Known Limitations for MA
