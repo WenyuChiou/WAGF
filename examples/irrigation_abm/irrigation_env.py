@@ -62,14 +62,15 @@ class WaterSystemConfig:
     mead_shortage_tier3: float = 1025.0
 
     # Lake Mead simplified mass balance coupling parameters
-    # Storage(t+1) = Storage(t) + Inflow - UB_div - LB_div - Losses
+    # Storage(t+1) = Storage(t) + PowellRelease + LB_trib - LB_div - Mexico - Evap - Muni
     mead_initial_elevation: float = 1081.46   # Dec 2018 observed (ft)
-    evaporation_maf: float = 0.8              # Reservoir evaporation (MAF/yr)
+    evaporation_maf: float = 0.8              # Reservoir evaporation at ref storage (MAF/yr)
     mexico_treaty_maf: float = 1.5            # Treaty delivery to Mexico (MAF/yr)
-    lb_municipal_maf: float = 1.5             # LB non-agricultural demand (MAF/yr)
+    lb_municipal_maf: float = 4.5             # LB non-ag: M&I + tribal + system losses (MAF/yr)
     lb_tributary_maf: float = 1.0             # LB tributary inflow (MAF/yr)
     natural_flow_base_maf: float = 12.0       # Natural flow at avg precip (MAF/yr)
     precip_baseline_mm: float = 100.0         # CRSS avg UB winter precip (mm)
+    min_powell_release_maf: float = 7.0       # Min Powell release, USBR DCP floor (MAF/yr)
 
     # Number of Monte Carlo runs
     n_monte_carlo: int = 100
@@ -87,10 +88,14 @@ class IrrigationEnvironment:
     annual resolution without requiring the full RiverWare installation.
 
     Mass balance:
-        Storage(t+1) = Storage(t) + PowellRelease + LB_trib
-                       - LB_diversions - Mexico - Evap - Municipal
+        UB_effective  = min(UB_diversions, NaturalFlow - MinPowellRelease)
+        PowellRelease = NaturalFlow - UB_effective   (≥ MinPowellRelease)
+        Storage(t+1)  = Storage(t) + PowellRelease + LB_trib
+                        - LB_diversions - Mexico(DCP) - Evap(storage) - Municipal
 
-    where PowellRelease = NaturalFlow(precip) - UB_diversions.
+    Powell minimum release (7.0 MAF) follows USBR DCP operating rules.
+    Evaporation scales with reservoir surface area.  Mexico deliveries
+    are reduced under Minute 323 DCP shortage tiers.
 
     Usage::
 
@@ -381,6 +386,10 @@ class IrrigationEnvironment:
         # Apply curtailment to agents based on shortage tier
         self._apply_curtailment()
 
+        # Enforce Powell minimum release: pro-rata reduce UB diversions
+        # when aggregate UB demand exceeds available supply
+        self._apply_powell_constraint()
+
         return self._global.copy()
 
     def get_agent_context(self, agent_id: str) -> Dict[str, Any]:
@@ -562,10 +571,15 @@ class IrrigationEnvironment:
         Couples agent demand back to reservoir elevation, mirroring the
         core physics of CRSS/RiverWare at annual resolution:
 
-            PowellRelease = NaturalFlow(precip) − UB_diversions
+            UB_effective  = min(UB_diversions, NaturalFlow − MinPowellRelease)
+            PowellRelease = NaturalFlow − UB_effective   (≥ MinPowellRelease)
             Mead_inflow   = PowellRelease + LB_tributaries
-            Mead_outflow  = LB_diversions + Mexico + Evap + Municipal
+            Mead_outflow  = LB_diversions + Mexico(DCP) + Evap(storage) + Municipal
             Storage(t+1)  = Storage(t) + Mead_inflow − Mead_outflow
+
+        Powell minimum release follows USBR DCP operating rules (7.0 MAF
+        floor).  Evaporation scales with reservoir surface area (storage
+        proxy).  Mexico deliveries are reduced under Minute 323 DCP tiers.
 
         Agent diversions are from the *previous* year's decisions, which
         is physically correct (withdrawals during year t determine storage
@@ -578,12 +592,14 @@ class IrrigationEnvironment:
         natural_flow = cfg.natural_flow_base_maf * (precip / cfg.precip_baseline_mm)
         natural_flow = max(6.0, min(20.0, natural_flow))
 
-        # --- Upper Basin diversions reduce Powell release ---
+        # --- Upper Basin diversions (constrained by Powell min release) ---
         ub_div_maf = sum(
             a["diversion"] for a in self._agents.values()
             if a["basin"] == "upper_basin"
         ) / 1e6
-        powell_release = max(0.0, natural_flow - ub_div_maf)
+        ub_available = max(0.0, natural_flow - cfg.min_powell_release_maf)
+        ub_div_effective = min(ub_div_maf, ub_available)
+        powell_release = natural_flow - ub_div_effective
         mead_inflow = powell_release + cfg.lb_tributary_maf
 
         # --- Lake Mead outflow ---
@@ -591,11 +607,28 @@ class IrrigationEnvironment:
             a["diversion"] for a in self._agents.values()
             if a["basin"] == "lower_basin"
         ) / 1e6
-        mead_outflow = (lb_div_maf + cfg.mexico_treaty_maf
-                        + cfg.evaporation_maf + cfg.lb_municipal_maf)
+        prev_storage = self._mead_storage[-1]
+
+        # Evaporation scales with surface area (storage fraction proxy)
+        storage_frac = prev_storage / 13.0  # 13 MAF ≈ 1100 ft reference
+        evap_actual = cfg.evaporation_maf * max(0.15, min(1.5, storage_frac))
+
+        # Mexico DCP reductions (Minute 323 tiered reductions)
+        prev_elev = self._storage_to_elevation(prev_storage)
+        if prev_elev < 1025:
+            mexico = cfg.mexico_treaty_maf - 0.275
+        elif prev_elev < 1050:
+            mexico = cfg.mexico_treaty_maf - 0.104
+        elif prev_elev < 1075:
+            mexico = cfg.mexico_treaty_maf - 0.080
+        elif prev_elev < 1090:
+            mexico = cfg.mexico_treaty_maf - 0.041
+        else:
+            mexico = cfg.mexico_treaty_maf
+
+        mead_outflow = lb_div_maf + mexico + evap_actual + cfg.lb_municipal_maf
 
         # --- Mass balance ---
-        prev_storage = self._mead_storage[-1]
         new_storage = prev_storage + mead_inflow - mead_outflow
         new_storage = max(2.0, min(26.1, new_storage))  # Dead pool to full pool
         self._mead_storage.append(new_storage)
@@ -665,6 +698,32 @@ class IrrigationEnvironment:
             agent["curtailment_ratio"] = ratio
             # Update actual diversion
             agent["diversion"] = agent["request"] * (1.0 - ratio)
+
+    def _apply_powell_constraint(self) -> None:
+        """Reduce UB diversions when they exceed Powell release capacity.
+
+        USBR operating rules require a minimum annual release from Glen
+        Canyon Dam (Powell) to Lake Mead.  When Upper Basin diversions
+        would reduce Powell release below this floor, UB agent diversions
+        are pro-rata scaled down so that the physical flow constraint is
+        satisfied.  This provides feedback to UB agents: their reported
+        diversion is lower than requested, signalling supply scarcity.
+        """
+        cfg = self.config
+        precip = (self._precip_history[-1]
+                  if self._precip_history else cfg.precip_baseline_mm)
+        natural_flow = cfg.natural_flow_base_maf * (precip / cfg.precip_baseline_mm)
+        natural_flow = max(6.0, min(20.0, natural_flow))
+
+        ub_agents = [a for a in self._agents.values()
+                     if a["basin"] == "upper_basin"]
+        ub_div_total = sum(a["diversion"] for a in ub_agents)
+        ub_available_af = max(0.0, natural_flow - cfg.min_powell_release_maf) * 1e6
+
+        if ub_div_total > ub_available_af and ub_div_total > 0:
+            scale = ub_available_af / ub_div_total
+            for a in ub_agents:
+                a["diversion"] *= scale
 
     # -----------------------------------------------------------------
     # Utility

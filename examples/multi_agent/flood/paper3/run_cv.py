@@ -46,6 +46,11 @@ PROJECT_ROOT = _find_project_root()
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+# Also add the multi-agent flood dir so ``paper3`` is importable
+FLOOD_DIR = Path(__file__).resolve().parent.parent
+if str(FLOOD_DIR) not in sys.path:
+    sys.path.insert(0, str(FLOOD_DIR))
+
 from broker.validators.calibration.cv_runner import CVRunner, CVReport
 from broker.validators.calibration.psychometric_battery import (
     PsychometricBattery,
@@ -68,11 +73,11 @@ DEFAULT_REPLICATES = 30
 
 # PMT response format template (matches ma_agent_types.yaml household format)
 RESPONSE_FORMAT_HINT = """\
-Respond ONLY with valid JSON in this exact format:
+Respond ONLY with valid JSON. Pick exactly ONE value for each label.
 {
-  "TP_LABEL": "VL | L | M | H | VH",
-  "CP_LABEL": "VL | L | M | H | VH",
-  "decision": "your chosen action",
+  "TP_LABEL": "VL or L or M or H or VH",
+  "CP_LABEL": "VL or L or M or H or VH",
+  "decision": "your chosen action name",
   "reasoning": "Brief explanation of your decision"
 }"""
 
@@ -119,15 +124,16 @@ def create_probe_invoke(
             "model": model,
             "prompt": prompt,
             "stream": False,
-            "format": None,
+            "format": "json",
+            "keep_alive": "120m",
             "options": {
                 "temperature": temperature,
-                "num_predict": 512,
+                "num_predict": 256,
                 "num_ctx": 4096,
             },
         }
         try:
-            resp = requests.post(url, json=data, timeout=120)
+            resp = requests.post(url, json=data, timeout=90)
             if resp.status_code == 200:
                 content = resp.json().get("response", "")
                 return content, True
@@ -312,10 +318,13 @@ def run_icc_probing(
 
                 parsed = parse_probe_response(raw)
 
-                # Extract construct labels
-                tp = parsed.get("TP_LABEL", parsed.get("tp_label", "M")).upper()
-                cp = parsed.get("CP_LABEL", parsed.get("cp_label", "M")).upper()
-                decision = parsed.get("decision", "do_nothing").lower().strip()
+                # Extract construct labels (clean multi-value like "H | VH")
+                tp_raw = parsed.get("TP_LABEL", parsed.get("tp_label", "M"))
+                cp_raw = parsed.get("CP_LABEL", parsed.get("cp_label", "M"))
+                tp = tp_raw.split("|")[0].split("/")[0].strip().upper()
+                cp = cp_raw.split("|")[0].split("/")[0].strip().upper()
+                # Clean decision (remove leading numbers like "1. ")
+                decision = re.sub(r"^\d+\.\s*", "", str(parsed.get("decision", "do_nothing"))).lower().strip()
                 reasoning = parsed.get("reasoning", "")
 
                 response = ProbeResponse(

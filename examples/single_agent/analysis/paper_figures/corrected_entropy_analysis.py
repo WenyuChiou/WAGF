@@ -134,6 +134,24 @@ def analyse_group(group: str, sim_path: Path) -> pd.DataFrame:
     else:
         df_sorted["prev_relocated"] = False
 
+    # --- Pre-compute thinking violations on FULL time series ---
+    # ThinkingRulePostHoc uses shift(1) to detect state transitions, so it
+    # must receive the complete multi-year DataFrame, not single-year slices.
+    active_mask = (~df_sorted["prev_relocated"]) & (df_sorted["year"] >= 2)
+    df_active_all = df_sorted[active_mask]
+    if len(df_active_all) > 0:
+        think_results_all = rule_checker.apply(
+            df_active_all, group=group_letter,
+            decision_col=dec_col, ta_level_col="ta_level"
+        )
+        # Build a boolean Series (True = thinking violation) aligned to df_active_all index
+        think_violation_mask = pd.Series(False, index=df_active_all.index)
+        for r in think_results_all:
+            if r.mask is not None and len(r.mask) > 0:
+                think_violation_mask.loc[r.mask.index[r.mask]] = True
+    else:
+        think_violation_mask = pd.Series(False, index=df_sorted.index)
+
     rows = []
     for yr in sorted(df["year"].unique()):
         yr_all = df[df["year"] == yr].copy()
@@ -168,12 +186,8 @@ def analyse_group(group: str, sim_path: Path) -> pd.DataFrame:
         # --- physical hallucinations this year ---
         yr_phys = int(phys_mask.reindex(yr_active.index, fill_value=False).sum())
 
-        # --- thinking violations this year (V1/V2/V3) ---
-        yr_think_results = rule_checker.apply(
-            yr_active, group=group_letter,
-            decision_col=dec_col, ta_level_col="ta_level"
-        )
-        yr_think = rule_checker.total_violations(yr_think_results)
+        # --- thinking violations this year (from pre-computed full-series mask) ---
+        yr_think = int(think_violation_mask.reindex(yr_active.index, fill_value=False).sum())
 
         yr_hall = yr_phys + yr_think
         yr_rh = yr_hall / n_active if n_active > 0 else 0.0
