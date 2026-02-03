@@ -208,12 +208,15 @@ def run_unified_experiment():
     env_data = {
         "subsidy_rate": args.initial_subsidy,
         "premium_rate": args.initial_premium,
+        "base_premium_rate": args.initial_premium,  # Immutable base for CRS calc
+        "crs_discount": 0.0,  # CRS class discount (0-45%), Class 10 default
         "flood_occurred": False,
         "flood_depth_m": 0.0,
         "flood_depth_ft": 0.0,
         "year": 1,
         "govt_message": "The government is monitoring the situation.",
         "insurance_message": "Insurance rates are stable.",
+        "loss_ratio": 0.0,  # Updated in post_year from claims/premiums
         # Generic crisis mechanism for TieredContextBuilder (Task-028)
         "crisis_event": False,
         "crisis_boosters": {},
@@ -424,15 +427,26 @@ def run_unified_experiment():
                     "loss_ratio",
                     "flood_depth_m",
                     "flood_depth_ft",
+                    "mg_count",
+                    "mg_ratio",
+                    "mg_elevated_count",
+                    "nmg_elevated_count",
+                    "mg_insured_count",
+                    "nmg_insured_count",
                 ], # Phase 2 PR2: Allow institutional influence
                 prompt_templates={}, # Loaded from YAML via with_governance
                 enable_financial_constraints=args.enable_financial_constraints
             )
         )
         .with_governance(
-            profile="strict", 
+            profile="strict",
             config_path=str(MULTI_AGENT_DIR / "config" / "ma_agent_types.yaml")
         )
+        .with_phase_order([
+            ["government"],                           # Phase 1: NJDEP decides subsidy
+            ["insurance"],                            # Phase 2: FEMA/NFIP decides premium
+            ["household_owner", "household_renter"],  # Phase 3: Households decide adaptation
+        ])
     )
 
     if args.enable_custom_affordability:

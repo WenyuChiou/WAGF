@@ -38,15 +38,15 @@ def create_insurance_agent() -> BaseAgent:
         objectives=[],
         constraints=[],
         skills=[
-            Skill("raise_premium", "Increase premiums", "premium_rate", "increase"),
-            Skill("lower_premium", "Decrease premiums", "premium_rate", "decrease"),
-            Skill("maintain_premium", "Keep current rate", None, "none")
+            Skill("improve_crs", "Improve CRS class discount", "crs_discount", "increase"),
+            Skill("reduce_crs", "Reduce CRS class discount", "crs_discount", "decrease"),
+            Skill("maintain_crs", "Keep current CRS class", None, "none")
         ],
         perception=[
             PerceptionSource("environment", "env", ["year", "flood_occurred"])
         ],
         role_description=(
-            "You represent FEMA/NFIP. Your goal is to maintain program solvency (RR 2.0)."
+            "You manage the FEMA/NFIP Community Rating System (CRS) for community premium discounts."
         )
     )
     return BaseAgent(config)
@@ -61,6 +61,23 @@ def pmt_score_to_rating(score: float) -> str:
     if score >= 2.0:
         return "Low"
     return "Very Low"
+
+
+def _income_to_range(income: float) -> str:
+    """Convert numeric income to descriptive range for prompts."""
+    if income < 25000:
+        return "Less than $25,000"
+    if income < 35000:
+        return "$25,000 - $34,999"
+    if income < 50000:
+        return "$35,000 - $49,999"
+    if income < 75000:
+        return "$50,000 - $74,999"
+    if income < 100000:
+        return "$75,000 - $99,999"
+    if income < 150000:
+        return "$100,000 - $149,999"
+    return "$150,000+"
 
 
 def wrap_household(profile: HouseholdProfile) -> BaseAgent:
@@ -136,6 +153,13 @@ def wrap_household(profile: HouseholdProfile) -> BaseAgent:
         "trust_in_neighbors": trust_neighbors,
         "trust_in_insurance": trust_insurance,
         "community_rootedness": community_rootedness,
+        # Flood history tracking (Paper 3: memory-mediated TP)
+        "flood_count": profile.flood_frequency if profile.flood_experience else 0,
+        "years_since_flood": 0 if profile.flood_experience else 99,
+        "cumulative_oop": 0.0,
+        # Prompt-friendly derived fields
+        "income_range": _income_to_range(profile.income),
+        "residency_generations": f"{profile.generations} generation{'s' if profile.generations != 1 else ''}",
     }
 
     agent.id = profile.agent_id

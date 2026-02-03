@@ -134,23 +134,31 @@ class TestPolicyBroadcast(unittest.TestCase):
 
         self.assertEqual(self.env["subsidy_rate"], 0.45)
 
-    def test_insurance_raise_premium_updates_env(self):
-        """Test that insurance 'raise_premium' updates premium_rate."""
-        decision = "raise_premium"
+    def test_insurance_improve_crs_updates_env(self):
+        """Test that insurance 'improve_crs' increases CRS discount."""
+        self.env["crs_discount"] = 0.10
+        self.env["base_premium_rate"] = 0.02
+        decision = "improve_crs"
 
-        if decision == "raise_premium":
-            self.env["premium_rate"] = min(0.15, self.env["premium_rate"] + 0.005)
+        if decision == "improve_crs":
+            self.env["crs_discount"] = min(0.45, self.env["crs_discount"] + 0.05)
+            self.env["premium_rate"] = self.env["base_premium_rate"] * (1 - self.env["crs_discount"])
 
-        self.assertAlmostEqual(self.env["premium_rate"], 0.025, places=3)
+        self.assertAlmostEqual(self.env["crs_discount"], 0.15, places=2)
+        self.assertAlmostEqual(self.env["premium_rate"], 0.017, places=3)
 
-    def test_insurance_lower_premium_updates_env(self):
-        """Test that insurance 'lower_premium' updates premium_rate."""
-        decision = "lower_premium"
+    def test_insurance_reduce_crs_updates_env(self):
+        """Test that insurance 'reduce_crs' decreases CRS discount."""
+        self.env["crs_discount"] = 0.10
+        self.env["base_premium_rate"] = 0.02
+        decision = "reduce_crs"
 
-        if decision == "lower_premium":
-            self.env["premium_rate"] = max(0.01, self.env["premium_rate"] - 0.005)
+        if decision == "reduce_crs":
+            self.env["crs_discount"] = max(0.0, self.env["crs_discount"] - 0.05)
+            self.env["premium_rate"] = self.env["base_premium_rate"] * (1 - self.env["crs_discount"])
 
-        self.assertAlmostEqual(self.env["premium_rate"], 0.015, places=3)
+        self.assertAlmostEqual(self.env["crs_discount"], 0.05, places=2)
+        self.assertAlmostEqual(self.env["premium_rate"], 0.019, places=3)
 
     def test_subsidy_rate_bounds(self):
         """Test that subsidy_rate stays within bounds (20%-95%)."""
@@ -171,16 +179,24 @@ class TestPolicyBroadcast(unittest.TestCase):
 
         self.assertEqual(self.env["subsidy_rate"], 0.20)  # Floor
 
-    def test_premium_rate_bounds(self):
-        """Test that premium_rate stays within bounds (1%-15%)."""
-        self.env["premium_rate"] = 0.15
+    def test_crs_discount_bounds(self):
+        """Test that crs_discount stays within bounds (0%-45%)."""
+        self.env["crs_discount"] = 0.45
 
         # Try to increase beyond max
-        decision = "raise_premium"
-        if decision == "raise_premium":
-            self.env["premium_rate"] = min(0.15, self.env["premium_rate"] + 0.005)
+        decision = "improve_crs"
+        if decision == "improve_crs":
+            self.env["crs_discount"] = min(0.45, self.env["crs_discount"] + 0.05)
 
-        self.assertEqual(self.env["premium_rate"], 0.15)  # Capped
+        self.assertEqual(self.env["crs_discount"], 0.45)  # Capped at Class 1
+
+        # Try to decrease below min
+        self.env["crs_discount"] = 0.0
+        decision = "reduce_crs"
+        if decision == "reduce_crs":
+            self.env["crs_discount"] = max(0.0, self.env["crs_discount"] - 0.05)
+
+        self.assertEqual(self.env["crs_discount"], 0.0)  # Floor at Class 10
 
 
 class TestHouseholdPolicyObservation(unittest.TestCase):
@@ -420,10 +436,13 @@ class TestFullInteractionFlow(unittest.TestCase):
         if gov_decision == "increase_subsidy":
             env["subsidy_rate"] = min(0.95, env["subsidy_rate"] + 0.05)
 
-        # 5. Phase 2: Insurance acts (mock decision)
-        ins_decision = "raise_premium"
-        if ins_decision == "raise_premium":
-            env["premium_rate"] = min(0.15, env["premium_rate"] + 0.005)
+        # 5. Phase 2: Insurance acts (mock CRS decision)
+        env.setdefault("crs_discount", 0.0)
+        env.setdefault("base_premium_rate", env.get("premium_rate", 0.02))
+        ins_decision = "improve_crs"
+        if ins_decision == "improve_crs":
+            env["crs_discount"] = min(0.45, env["crs_discount"] + 0.05)
+            env["premium_rate"] = env["base_premium_rate"] * (1 - env["crs_discount"])
 
         # 6. Phase 3: Households observe and act
         for hh in households:
@@ -436,11 +455,12 @@ class TestFullInteractionFlow(unittest.TestCase):
 
             # Verify household sees updated policy
             self.assertEqual(context["subsidy_rate"], 0.55)  # Updated
-            self.assertEqual(context["premium_rate"], 0.025)  # Updated
+            # CRS improve: effective = 0.02 * (1 - 0.05) = 0.019
+            self.assertAlmostEqual(context["premium_rate"], 0.019, places=3)
 
         # 7. Verify final state
         self.assertEqual(env["subsidy_rate"], 0.55)
-        self.assertAlmostEqual(env["premium_rate"], 0.025, places=3)
+        self.assertAlmostEqual(env["premium_rate"], 0.019, places=3)
         self.assertTrue(env["flood_occurred"])
 
 

@@ -61,6 +61,7 @@ class ThinkingRulePostHoc:
         group: str = "B",
         decision_col: str = "yearly_decision",
         ta_level_col: str = "ta_level",
+        ca_level_col: str = "ca_level",
     ) -> List[RuleResult]:
         """Apply all verification rules.
 
@@ -118,13 +119,27 @@ class ThinkingRulePostHoc:
             mask=v2_mask,
         ))
 
-        # V3: Do-nothing under extreme threat
+        # V3: Do-nothing under extreme threat WITH adequate coping
+        # Allows do_nothing when TP=VH but CP=VL/L (fatalism / resource constraint)
+        # Reflects the "risk perception paradox" (Wachinger et al. 2013; Bubeck et al. 2012)
+        adequate_coping = {"M", "H", "VH"}
+
         def _is_do_nothing(d):
             d_str = str(d).lower()
             return any(x in d_str for x in ["do nothing", "do_nothing", "nothing", "no action"])
 
         v3_extreme = df_sorted[df_sorted[ta_level_col].isin(self.extreme_tp)]
-        if len(v3_extreme) > 0:
+        if len(v3_extreme) > 0 and ca_level_col in df_sorted.columns:
+            # Only flag as hallucination when coping is adequate (M/H/VH)
+            v3_with_coping = v3_extreme[v3_extreme[ca_level_col].isin(adequate_coping)]
+            if len(v3_with_coping) > 0:
+                v3_mask_local = v3_with_coping[decision_col].apply(_is_do_nothing)
+                v3_count = int(v3_mask_local.sum())
+            else:
+                v3_count = 0
+                v3_mask_local = pd.Series(dtype=bool)
+        elif len(v3_extreme) > 0:
+            # Fallback: no ca_level column, use original behavior
             v3_mask_local = v3_extreme[decision_col].apply(_is_do_nothing)
             v3_count = int(v3_mask_local.sum())
         else:
@@ -133,7 +148,7 @@ class ThinkingRulePostHoc:
 
         results.append(RuleResult(
             rule_id="V3_extreme_threat_block",
-            description="Do-nothing under VH threat perception",
+            description="Do-nothing under VH threat + adequate coping (M/H/VH CP)",
             count=v3_count,
             mask=v3_mask_local,
         ))

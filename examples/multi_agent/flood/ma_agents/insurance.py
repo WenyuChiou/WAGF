@@ -1,11 +1,11 @@
 """
-Insurance Agent (Exp3)
+Insurance / CRS Agent (Exp3)
 
 The Insurance Agent works in Phase 1 (Institutional Decisions).
 Responsibility:
-- Manage risk pool and solvency
-- Set premium rates based on Loss Ratio
-- (Future) Send risk alerts and offering discounts
+- Manage Community Rating System (CRS) class for premium discounts
+- Monitor risk pool and solvency
+- Premiums are set federally via Risk Rating 2.0; CRS discount is local
 """
 
 from dataclasses import dataclass, field
@@ -74,39 +74,45 @@ class InsuranceAgent:
                 "elevated": getattr(agent, "elevated", False),
                 "claim_count": getattr(agent, "claim_count", 0),
             },
-            community_crs=getattr(self, "community_crs_rate", 0.0),
+            community_crs=getattr(self, "crs_discount", 0.0),
         )
 
     def decide_strategy(self, year: int) -> str:
         """
-        Phase 1 Decision: Adjust premiums or coverage.
+        Phase 1 Decision: Adjust CRS class (community discount).
+
+        Premiums are set federally via Risk Rating 2.0. This agent manages
+        the Community Rating System (CRS) discount, which ranges from 0%
+        (Class 10) to 45% (Class 1) in 5% increments.
         """
         loss_ratio = self.state.loss_ratio
-        decision = "maintain_premium"
-        reasoning = "Loss ratio within acceptable range"
-        
+        decision = "maintain_crs"
+        reasoning = "CRS class appropriate for current conditions"
+
+        crs_discount = getattr(self, "crs_discount", 0.0)
+
         # Simple Rules (to be replaced/augmented by LLM)
-        if loss_ratio > self.params.get("loss_ratio_threshold_high", 0.80):
-            decision = "raise_premium"
-            reasoning = f"Loss ratio {loss_ratio:.2f} is too high (>0.8)"
-        elif loss_ratio < self.params.get("loss_ratio_threshold_low", 0.30) and self.state.uptake_rate < self.params.get("uptake_threshold_low", 0.40):
-            decision = "lower_premium"
-            reasoning = f"Loss ratio {loss_ratio:.2f} low, trying to increase uptake"
-            
+        if loss_ratio < self.params.get("loss_ratio_threshold_low", 0.30) and self.state.uptake_rate < self.params.get("uptake_threshold_low", 0.40):
+            decision = "improve_crs"
+            reasoning = f"Loss ratio {loss_ratio:.2f} low, improving CRS to attract uptake"
+        elif loss_ratio > self.params.get("loss_ratio_threshold_high", 0.80):
+            decision = "reduce_crs"
+            reasoning = f"Loss ratio {loss_ratio:.2f} too high, scaling back CRS investment"
+
         # Execute Decision
-        if decision == "raise_premium":
-            self.state.premium_rate *= self.params.get("rate_adj_raise", 1.10)
-        elif decision == "lower_premium":
-            self.state.premium_rate *= self.params.get("rate_adj_lower", 0.95)
-            
+        if decision == "improve_crs":
+            self.crs_discount = min(0.45, crs_discount + 0.05)
+        elif decision == "reduce_crs":
+            self.crs_discount = max(0.0, crs_discount - 0.05)
+
         # Log Decision
         self.memory.add_episodic(
-            f"Year {year} Decision: {decision} ({reasoning}). New Rate: {self.state.premium_rate:.2%}",
-            importance=0.7 if decision != "maintain_premium" else 0.2,
+            f"Year {year} Decision: {decision} ({reasoning}). CRS discount: {self.crs_discount:.0%}",
+            importance=0.7 if decision != "maintain_crs" else 0.2,
             year=year,
-            tags=["strategy", "pricing"]
+            tags=["strategy", "crs"]
         )
-        
+
         return decision
 
     @property
@@ -182,7 +188,7 @@ class InsuranceAgent:
         }
 
     def get_available_skills(self) -> List[str]:
-        return ["RAISE", "LOWER", "MAINTAIN"]
+        return ["IMPROVE", "REDUCE", "MAINTAIN"]
     
     def observe(self, environment: Dict[str, float], agents: Dict[str, Any]) -> Dict[str, float]:
         """Observe environment."""

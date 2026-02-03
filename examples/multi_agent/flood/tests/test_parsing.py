@@ -248,11 +248,11 @@ class TestInstitutionalParsing(unittest.TestCase):
             self.assertEqual(proposal.skill_name, expected_skill)
 
     def test_insurance_decision_numeric(self):
-        """Test insurance decisions using numeric codes."""
+        """Test insurance (CRS) decisions using numeric codes."""
         test_cases = [
-            ("1", "raise_premium"),
-            ("2", "lower_premium"),
-            ("3", "maintain_premium"),
+            ("1", "improve_crs"),
+            ("2", "reduce_crs"),
+            ("3", "maintain_crs"),
         ]
 
         for code, expected_skill in test_cases:
@@ -267,14 +267,14 @@ class TestInstitutionalParsing(unittest.TestCase):
             self.assertEqual(proposal.skill_name, expected_skill)
 
     def test_insurance_decision_text(self):
-        """Test insurance decisions using text aliases."""
+        """Test insurance (CRS) decisions using text aliases."""
         test_cases = [
-            ("RAISE", "raise_premium"),
-            ("raise", "raise_premium"),
-            ("[1]", "raise_premium"),
-            ("LOWER", "lower_premium"),
-            ("lower", "lower_premium"),
-            ("MAINTAIN", "maintain_premium"),
+            ("IMPROVE", "improve_crs"),
+            ("improve", "improve_crs"),
+            ("[1]", "improve_crs"),
+            ("REDUCE", "reduce_crs"),
+            ("reduce", "reduce_crs"),
+            ("MAINTAIN", "maintain_crs"),
         ]
 
         for alias, expected_skill in test_cases:

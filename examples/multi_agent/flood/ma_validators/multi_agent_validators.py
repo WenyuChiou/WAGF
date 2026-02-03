@@ -178,16 +178,20 @@ class InsuranceValidator:
         errors = []
         warnings = []
         
-        premium_rate = state.get("premium_rate", 0.05)
+        crs_discount = state.get("crs_discount", 0.0)
         loss_ratio = state.get("loss_ratio", 0.5)
-        
-        # Cannot lower premium if loss ratio > 100%
-        if decision == "lower_premium" and loss_ratio > 1.0:
-            errors.append("Cannot lower premium when loss ratio exceeds 100%")
-        
-        # Cannot raise premium above 15%
-        if decision == "raise_premium" and premium_rate >= 0.15:
-            warnings.append("Premium rate at regulatory maximum (15%)")
+
+        # Cannot improve CRS if already at maximum (45%)
+        if decision == "improve_crs" and crs_discount >= 0.45:
+            warnings.append("CRS discount at maximum (45%, Class 1)")
+
+        # Cannot reduce CRS below 0%
+        if decision == "reduce_crs" and crs_discount <= 0.0:
+            warnings.append("CRS discount already at minimum (0%, Class 10)")
+
+        # Should not improve CRS when loss ratio is very high
+        if decision == "improve_crs" and loss_ratio > 1.0:
+            errors.append("Cannot invest in CRS improvement when loss ratio exceeds 100%")
         
         return ValidationResult(valid=len(errors) == 0, errors=errors, warnings=warnings)
 

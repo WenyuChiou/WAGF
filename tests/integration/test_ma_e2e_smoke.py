@@ -204,9 +204,9 @@ class TestMAE2ESmoke:
             "insurance": MockMAActor(
                 "insurance", "insurance",
                 decisions={
-                    1: {"action": "maintain_premium", "rate": 0.02},
-                    2: {"action": "increase_premium", "rate": 0.025},
-                    3: {"action": "maintain_premium", "rate": 0.025}
+                    1: {"action": "maintain_crs", "rate": 0.0},
+                    2: {"action": "improve_crs", "rate": 0.05},
+                    3: {"action": "maintain_crs", "rate": 0.05}
                 }
             ),
             "h1": MockMAActor(
