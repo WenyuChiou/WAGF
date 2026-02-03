@@ -100,8 +100,8 @@ class UnifiedMemoryItem:
             Weighted importance score [0-1]
         """
         e_weights = emotional_weights or {
-            "major": 1.0,
-            "minor": 0.5,
+            "major": 1.2,   # Threat/fear events weighted higher
+            "minor": 0.8,   # Positive/hope events
             "neutral": 0.3
         }
         s_weights = source_weights or {
@@ -135,7 +135,7 @@ class UnifiedMemoryItem:
         }
         # Convert numpy embedding to list for JSON serialization if it exists
         if self.embedding is not None:
-            data["embedding"] = selfF.embedding.tolist()
+            data["embedding"] = self.embedding.tolist()
         return data
 
     @classmethod
@@ -243,8 +243,8 @@ class UnifiedCognitiveEngine:
             else self.global_config.arousal_threshold
         )
         self.emotional_weights = emotional_weights or {
-            "major": 1.0,
-            "minor": 0.5,
+            "major": 1.2,   # Threat/fear events weighted higher (per plan R3-E)
+            "minor": 0.8,   # Positive/hope events
             "neutral": 0.3
         }
         self.source_weights = source_weights or {

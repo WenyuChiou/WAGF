@@ -22,6 +22,8 @@ from broker.validators.calibration.psychometric_battery import (
     ConsistencyResult,
     VignetteReport,
     BatteryReport,
+    EffectSizeResult,
+    ConvergentValidityResult,
     compute_icc_2_1,
     compute_cronbach_alpha,
     compute_fleiss_kappa,
@@ -99,9 +101,9 @@ class TestVignetteLoading:
     """Tests for vignette YAML loading."""
 
     def test_load_vignettes(self, battery):
-        """Should load 3 vignettes from default directory."""
+        """Should load all vignettes from default directory (3 core + 3 edge-case)."""
         vignettes = battery.load_vignettes()
-        assert len(vignettes) == 3
+        assert len(vignettes) >= 3  # At least 3 core vignettes
         ids = {v.id for v in vignettes}
         assert "high_severity_flood" in ids
         assert "medium_severity_flood" in ids
@@ -112,7 +114,7 @@ class TestVignetteLoading:
         battery.load_vignettes()
         for vid, v in battery.vignettes.items():
             assert v.id
-            assert v.severity in ("high", "medium", "low")
+            assert v.severity in ("high", "medium", "low", "extreme")
             assert v.scenario
             assert v.state_overrides
             assert v.expected_responses
@@ -385,3 +387,161 @@ class TestBatteryReport:
         assert "tp_icc_ungoverned" in effect
         assert effect["n_governed"] > 0
         assert effect["n_ungoverned"] > 0
+
+    def test_full_report_includes_r3d_fields(self, battery, sample_responses):
+        """Report should include R3-D fields: effect size, convergent, discriminant."""
+        battery.load_vignettes()
+        battery.add_responses(sample_responses)
+        report = battery.compute_full_report()
+        assert report.tp_effect_size is not None
+        assert report.cp_effect_size is not None
+        assert report.convergent_validity is not None
+        assert isinstance(report.tp_cp_discriminant, float)
+        d = report.to_dict()
+        assert "tp_effect_size" in d
+        assert "tp_cp_discriminant_r" in d
+
+
+# ---------------------------------------------------------------------------
+# R3-D: Effect size, convergent validity, discriminant
+# ---------------------------------------------------------------------------
+
+class TestEffectSize:
+    """Tests for eta-squared between-archetype effect size."""
+
+    def test_effect_size_basic(self, battery, sample_responses):
+        """Effect size should be computable from sample responses."""
+        battery.add_responses(sample_responses)
+        result = battery.compute_effect_size(construct="tp")
+        assert isinstance(result, EffectSizeResult)
+        assert 0.0 <= result.eta_squared <= 1.0
+        assert result.construct == "tp"
+
+    def test_effect_size_cp(self, battery, sample_responses):
+        """Effect size for CP construct."""
+        battery.add_responses(sample_responses)
+        result = battery.compute_effect_size(construct="cp")
+        assert isinstance(result, EffectSizeResult)
+        assert 0.0 <= result.eta_squared <= 1.0
+
+    def test_effect_size_with_variation(self, battery):
+        """Different archetypes with different TP -> positive eta-squared."""
+        responses = []
+        for rep in range(1, 6):
+            # Archetype A: always VH TP
+            responses.append(ProbeResponse(
+                vignette_id="v1", archetype="high_risk", replicate=rep,
+                tp_label="VH", cp_label="H",
+            ))
+            # Archetype B: always L TP
+            responses.append(ProbeResponse(
+                vignette_id="v1", archetype="low_risk", replicate=rep,
+                tp_label="L", cp_label="M",
+            ))
+        battery.add_responses(responses)
+        result = battery.compute_effect_size(construct="tp")
+        # Large between-group difference -> high eta-squared
+        assert result.eta_squared > 0.5
+
+    def test_effect_size_no_variation(self, battery):
+        """Identical archetypes -> eta-squared = 0."""
+        responses = []
+        for arch in ["a", "b", "c"]:
+            for rep in range(1, 4):
+                responses.append(ProbeResponse(
+                    vignette_id="v1", archetype=arch, replicate=rep,
+                    tp_label="M", cp_label="M",
+                ))
+        battery.add_responses(responses)
+        result = battery.compute_effect_size(construct="tp")
+        assert result.eta_squared == pytest.approx(0.0, abs=0.01)
+
+    def test_effect_size_empty(self, battery):
+        """Empty responses -> eta-squared = 0."""
+        result = battery.compute_effect_size(construct="tp")
+        assert result.eta_squared == 0.0
+
+    def test_effect_size_to_dict(self, battery, sample_responses):
+        """EffectSizeResult serialization."""
+        battery.add_responses(sample_responses)
+        result = battery.compute_effect_size(construct="tp")
+        d = result.to_dict()
+        assert "eta_squared" in d
+        assert "construct" in d
+
+
+class TestConvergentValidity:
+    """Tests for TP vs vignette severity correlation."""
+
+    def test_convergent_basic(self, battery, sample_responses):
+        """Convergent validity should be computable."""
+        battery.load_vignettes()
+        battery.add_responses(sample_responses)
+        result = battery.compute_convergent_validity()
+        assert isinstance(result, ConvergentValidityResult)
+        assert -1.0 <= result.spearman_rho <= 1.0
+        assert result.n_observations > 0
+
+    def test_convergent_positive_correlation(self, battery):
+        """Higher severity -> higher TP should produce positive rho."""
+        battery.load_vignettes()
+        responses = []
+        for rep in range(1, 6):
+            responses.append(ProbeResponse(
+                vignette_id="high_severity_flood", archetype="a",
+                replicate=rep, tp_label="VH", cp_label="H",
+            ))
+            responses.append(ProbeResponse(
+                vignette_id="low_severity_flood", archetype="a",
+                replicate=rep, tp_label="L", cp_label="H",
+            ))
+        battery.add_responses(responses)
+        result = battery.compute_convergent_validity()
+        assert result.spearman_rho > 0.3  # Positive correlation
+
+    def test_convergent_empty(self, battery):
+        """Empty responses -> rho = 0."""
+        battery.load_vignettes()
+        result = battery.compute_convergent_validity()
+        assert result.spearman_rho == 0.0
+
+    def test_convergent_to_dict(self, battery, sample_responses):
+        """ConvergentValidityResult serialization."""
+        battery.load_vignettes()
+        battery.add_responses(sample_responses)
+        result = battery.compute_convergent_validity()
+        d = result.to_dict()
+        assert "spearman_rho" in d
+        assert "n_observations" in d
+
+
+class TestDiscriminant:
+    """Tests for TP-CP discriminant correlation."""
+
+    def test_discriminant_basic(self, battery, sample_responses):
+        """Discriminant should return a correlation value."""
+        battery.add_responses(sample_responses)
+        r = battery.compute_discriminant()
+        assert isinstance(r, float)
+        assert -1.0 <= r <= 1.0
+
+    def test_discriminant_independent_constructs(self, battery):
+        """TP and CP varying independently -> low correlation."""
+        responses = []
+        tp_labels = ["VL", "L", "M", "H", "VH"]
+        cp_labels = ["VH", "M", "VL", "H", "L"]  # Not ordered with TP
+        for i in range(5):
+            for rep in range(1, 4):
+                responses.append(ProbeResponse(
+                    vignette_id="v1", archetype=f"arch_{i}",
+                    replicate=rep,
+                    tp_label=tp_labels[i], cp_label=cp_labels[i],
+                ))
+        battery.add_responses(responses)
+        r = battery.compute_discriminant()
+        assert abs(r) < 0.8  # Should not be highly correlated
+
+    def test_discriminant_empty(self, battery):
+        """Empty responses -> r = 0."""
+        r = battery.compute_discriminant()
+        assert r == 0.0

@@ -1,0 +1,61 @@
+# =============================================================================
+# EXTREME COMPOUND VIGNETTE (CRITICAL C9)
+# =============================================================================
+# Edge-case: Catastrophic flood + budget-exhausted government + lapsed insurance.
+# Tests model at distribution boundary — stress test for OOD robustness.
+#
+# Expected PMT response:
+#   TP: VH (extreme threat)
+#   CP: VL or L (no resources, no institutional support)
+#   Action: varies — fatalism (do_nothing) is acceptable given low CP
+# =============================================================================
+
+vignette:
+  id: extreme_compound
+  severity: extreme
+  description: >
+    A catastrophic multi-stressor scenario combining an unprecedented flood,
+    exhausted government budgets, and lapsed insurance coverage. Designed to
+    test agent behavior at the extremes of the input distribution.
+
+  scenario: |
+    An unprecedented flood has devastated your community. The water level
+    reached 8 feet above ground floor — the highest on record. Your entire
+    first floor is destroyed, with estimated repair costs exceeding $120,000.
+    Emergency services have declared the area a federal disaster zone.
+
+    Your flood insurance policy lapsed 6 months ago due to missed payments.
+    You are not covered for this event.
+
+    The NJ government has announced that the Blue Acres buyout program
+    budget is fully exhausted for this fiscal year — no new buyout offers
+    will be made. The FEMA Individual Assistance program is overwhelmed
+    with applications and processing times exceed 6 months.
+
+    Three of your neighbors have already left permanently. The remaining
+    neighbors are uncertain about staying. Property values in your area
+    have dropped 40% since the flood.
+
+  state_overrides:
+    flood_depth_ft: 8.0
+    damage_cost: 120000
+    deductible: 0
+    subsidy_rate: 0.0
+    flood_probability_10yr: 0.80
+    neighbors_elevated: 0
+    prior_flood_count: 3
+    year: 8
+
+  expected_responses:
+    TP_LABEL:
+      expected: ["VH"]
+      acceptable: ["H", "VH"]
+      incoherent: ["VL", "L", "M"]
+    CP_LABEL:
+      expected: ["VL", "L"]
+      acceptable: ["VL", "L", "M"]
+      incoherent: ["VH"]
+    decision:
+      expected: ["relocate", "buyout_program"]
+      acceptable: ["relocate", "buyout_program", "buy_insurance", "buy_contents_insurance", "do_nothing"]
+      incoherent: ["elevate_house"]

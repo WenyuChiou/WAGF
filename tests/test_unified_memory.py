@@ -653,26 +653,28 @@ class TestUnifiedMemoryItem(unittest.TestCase):
     """Test memory item data structure."""
 
     def test_importance_computation(self):
-        """Importance = base * emotion_factor * source_factor."""
+        """Importance = base * emotion_factor * source_factor, clamped [0,1]."""
         item = UnifiedMemoryItem(
             content="Test",
             base_importance=1.0,
-            emotion="major",  # weight: 1.0
+            emotion="major",  # weight: 1.2 (clamped to 1.0)
             source="personal"  # weight: 1.0
         )
 
         computed = item.compute_importance()
+        # 1.0 * 1.2 * 1.0 = 1.2, clamped to 1.0
         self.assertAlmostEqual(computed, 1.0)
 
         # Lower weights
         item2 = UnifiedMemoryItem(
             content="Test",
             base_importance=1.0,
-            emotion="minor",  # weight: 0.5
+            emotion="minor",  # weight: 0.8
             source="social"  # weight: 0.7
         )
         computed2 = item2.compute_importance()
-        self.assertAlmostEqual(computed2, 0.35, places=2)
+        # 1.0 * 0.8 * 0.7 = 0.56
+        self.assertAlmostEqual(computed2, 0.56, places=2)
 
     def test_serialization_roundtrip(self):
         """Item should serialize and deserialize correctly."""
