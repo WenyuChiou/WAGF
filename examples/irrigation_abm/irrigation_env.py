@@ -8,9 +8,16 @@ irrigation experiment.  Provides:
 - Basin-level state (Upper Basin precipitation, Lower Basin lake level)
 - Agent-level water allocation and diversion history
 - Preceding factor computation (binary signal from water level changes)
+- Simplified Lake Mead mass balance coupling (demand → storage → elevation)
 
-The environment does NOT couple to RiverWare/CRSS.  Instead it provides a
-standalone water availability model suitable for LLM-driven agent experiments.
+The environment uses a surrogate mass balance model for Lake Mead that
+mirrors the core physics of CRSS/RiverWare at annual resolution:
+    Storage(t+1) = Storage(t) + PowellRelease + Tributaries
+                   − LB_diversions − Mexico − Evaporation − Municipal
+
+This couples agent demand decisions back to reservoir elevation, creating
+the feedback loop where collective over-extraction triggers shortage tiers
+and curtailment.
 
 References:
     Hung, F., & Yang, Y. C. E. (2021). WRR, 57, e2020WR029262.
@@ -54,6 +61,16 @@ class WaterSystemConfig:
     mead_shortage_tier2: float = 1050.0
     mead_shortage_tier3: float = 1025.0
 
+    # Lake Mead simplified mass balance coupling parameters
+    # Storage(t+1) = Storage(t) + Inflow - UB_div - LB_div - Losses
+    mead_initial_elevation: float = 1081.46   # Dec 2018 observed (ft)
+    evaporation_maf: float = 0.8              # Reservoir evaporation (MAF/yr)
+    mexico_treaty_maf: float = 1.5            # Treaty delivery to Mexico (MAF/yr)
+    lb_municipal_maf: float = 1.5             # LB non-agricultural demand (MAF/yr)
+    lb_tributary_maf: float = 1.0             # LB tributary inflow (MAF/yr)
+    natural_flow_base_maf: float = 12.0       # Natural flow at avg precip (MAF/yr)
+    precip_baseline_mm: float = 250.0         # Historical avg UB winter precip (mm)
+
     # Number of Monte Carlo runs
     n_monte_carlo: int = 100
 
@@ -64,9 +81,16 @@ class WaterSystemConfig:
 class IrrigationEnvironment:
     """Water system environment for irrigation ABM experiments.
 
-    Provides a simplified water availability model that generates
-    annual water signals for LLM-driven agent decision-making.
-    Does NOT require RiverWare/CRSS coupling.
+    Provides a water availability model with simplified Lake Mead mass
+    balance coupling that feeds agent demand decisions back to reservoir
+    elevation.  This mirrors the core physics of CRSS/RiverWare at
+    annual resolution without requiring the full RiverWare installation.
+
+    Mass balance:
+        Storage(t+1) = Storage(t) + PowellRelease + LB_trib
+                       - LB_diversions - Mexico - Evap - Municipal
+
+    where PowellRelease = NaturalFlow(precip) - UB_diversions.
 
     Usage::
 
@@ -81,6 +105,14 @@ class IrrigationEnvironment:
         context = env.get_agent_context("MohaveValleyIDD")
         # → dict with water signals for LLM prompt injection
     """
+
+    # Lake Mead elevation–storage relationship (USBR data)
+    _STORAGE_MAF = np.array(
+        [2.0, 3.6, 5.8, 8.0, 9.5, 11.0, 13.0, 17.5, 23.3, 26.1]
+    )
+    _ELEVATION_FT = np.array(
+        [895.0, 950.0, 1000.0, 1025.0, 1050.0, 1075.0, 1100.0, 1150.0, 1200.0, 1220.0]
+    )
 
     def __init__(self, config: Optional[WaterSystemConfig] = None):
         self.config = config or WaterSystemConfig()
@@ -120,6 +152,13 @@ class IrrigationEnvironment:
         # History for preceding factor computation
         self._precip_history: List[float] = []
         self._mead_history: List[float] = [1081.46, 1082.52]  # 2017, 2018
+
+        # Mass balance storage tracking (MAF)
+        _init_elev = self.config.mead_initial_elevation
+        _init_storage = float(np.interp(
+            _init_elev, self._ELEVATION_FT, self._STORAGE_MAF
+        ))
+        self._mead_storage: List[float] = [_init_storage]
 
         # Real CRSS precipitation data (None = use synthetic)
         self._crss_precip: Optional[Any] = None  # pandas DataFrame when loaded
@@ -509,18 +548,60 @@ class IrrigationEnvironment:
         self._precip_history.append(precip)
         return precip
 
-    def _generate_lake_mead_level(self) -> float:
-        """Generate Lake Mead water level (ft above sea level).
+    def _storage_to_elevation(self, storage_maf: float) -> float:
+        """Convert Lake Mead storage (MAF) to elevation (ft) via USBR curve."""
+        return float(np.interp(storage_maf, self._STORAGE_MAF, self._ELEVATION_FT))
 
-        Simulates declining trend with stochastic variability.
+    def _elevation_to_storage(self, elevation_ft: float) -> float:
+        """Convert Lake Mead elevation (ft) to storage (MAF) via USBR curve."""
+        return float(np.interp(elevation_ft, self._ELEVATION_FT, self._STORAGE_MAF))
+
+    def _generate_lake_mead_level(self) -> float:
+        """Generate Lake Mead level via simplified mass balance.
+
+        Couples agent demand back to reservoir elevation, mirroring the
+        core physics of CRSS/RiverWare at annual resolution:
+
+            PowellRelease = NaturalFlow(precip) − UB_diversions
+            Mead_inflow   = PowellRelease + LB_tributaries
+            Mead_outflow  = LB_diversions + Mexico + Evap + Municipal
+            Storage(t+1)  = Storage(t) + Mead_inflow − Mead_outflow
+
+        Agent diversions are from the *previous* year's decisions, which
+        is physically correct (withdrawals during year t determine storage
+        at the start of year t+1).
         """
-        if self._mead_history:
-            prev = self._mead_history[-1]
-        else:
-            prev = 1080.0
-        trend = -1.5  # Declining trend (ft/year)
-        noise = self.rng.normal(0, 8)
-        level = max(900.0, min(1220.0, prev + trend + noise))
+        cfg = self.config
+
+        # --- Inflow: natural flow scaled by precipitation ---
+        precip = self._precip_history[-1] if self._precip_history else cfg.precip_baseline_mm
+        natural_flow = cfg.natural_flow_base_maf * (precip / cfg.precip_baseline_mm)
+        natural_flow = max(6.0, min(20.0, natural_flow))
+
+        # --- Upper Basin diversions reduce Powell release ---
+        ub_div_maf = sum(
+            a["diversion"] for a in self._agents.values()
+            if a["basin"] == "upper_basin"
+        ) / 1e6
+        powell_release = max(0.0, natural_flow - ub_div_maf)
+        mead_inflow = powell_release + cfg.lb_tributary_maf
+
+        # --- Lake Mead outflow ---
+        lb_div_maf = sum(
+            a["diversion"] for a in self._agents.values()
+            if a["basin"] == "lower_basin"
+        ) / 1e6
+        mead_outflow = (lb_div_maf + cfg.mexico_treaty_maf
+                        + cfg.evaporation_maf + cfg.lb_municipal_maf)
+
+        # --- Mass balance ---
+        prev_storage = self._mead_storage[-1]
+        new_storage = prev_storage + mead_inflow - mead_outflow
+        new_storage = max(2.0, min(26.1, new_storage))  # Dead pool to full pool
+        self._mead_storage.append(new_storage)
+
+        # --- Convert to elevation ---
+        level = self._storage_to_elevation(new_storage)
         self._mead_history.append(level)
         return level
 
