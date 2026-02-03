@@ -1,0 +1,7 @@
+{
+  "model": "gemma3:4b",
+  "seed": 42,
+  "num_years": 2,
+  "governance_profile": "strict",
+  "agent_types_config": "C:\\Users\\wenyu\\Desktop\\Lehigh\\governed_broker_framework\\examples\\irrigation_abm\\config\\agent_types.yaml"
+}

@@ -1,0 +1,476 @@
+global_config:
+  memory:
+    window_size: 5
+    consolidation_threshold: 0.6
+    consolidation_probability: 0.7
+    top_k_significant: 2
+    decay_rate: 0.1
+  reflection:
+    interval: 1
+    batch_size: 10
+    importance_boost: 0.9
+    persona_instruction: Summarize each agent's memories into a 2-sentence 'Lesson
+      Learned'. Speak in the FIRST PERSON (e.g., 'I realized...') and maintain the
+      agent's role.
+    questions:
+    - Was your water demand strategy effective given the supply conditions?
+    - Did the magnitude of your demand change match the outcome?
+    - What patterns do you notice between your actions and supply shortfalls?
+    triggers:
+      crisis: true
+      periodic_interval: 5
+      decision_types:
+      - increase_demand
+      - decrease_demand
+      - adopt_efficiency
+      institutional_threshold: 0.05
+    method: hybrid
+  llm:
+    model: gemma3:4b
+    num_ctx: 8192
+    num_predict: 4096
+    max_retries: 2
+  governance:
+    max_retries: 3
+    max_reports_per_retry: 3
+    domain: irrigation
+  water_system:
+    total_compact_allocation: 16500000
+    upper_basin_share: 7500000
+    lower_basin_share: 7500000
+    mexico_share: 1500000
+    simulation_start: 2019
+    simulation_end: 2060
+    historical_start: 1971
+    historical_end: 2018
+    monte_carlo_runs: 100
+shared:
+  rating_scale: '### RATING SCALE (You MUST use EXACTLY one of these codes):
+
+    VL = Very Low | L = Low | M = Medium | H = High | VH = Very High
+
+    '
+  response_format:
+    delimiter_start: <<<DECISION_START>>>
+    delimiter_end: <<<DECISION_END>>>
+    fields:
+    - key: reasoning
+      type: text
+      required: false
+    - key: water_scarcity_assessment
+      type: appraisal
+      required: true
+      construct: WSA_LABEL
+      reason_hint: One sentence on how scarce your water supply feels.
+    - key: adaptive_capacity_assessment
+      type: appraisal
+      required: true
+      construct: ACA_LABEL
+      reason_hint: One sentence on how well you can adapt your water use.
+    - key: decision
+      type: choice
+      required: true
+    - key: magnitude_pct
+      type: numeric
+      min: 1
+      max: 30
+      required: false
+      description: Enter 1-30 representing the percentage change for your decision.
+irrigation_farmer:
+  description: 'Agricultural water user in the Colorado River Basin making annual
+    irrigation demand decisions.  Three behavioral clusters from Hung & Yang (2021):
+    Aggressive, Forward-looking Conservative, Myopic Conservative. LLM reasoning replaces
+    Q-learning; governance rules enforce water allocation constraints equivalent to
+    FQL parameter bounds.
+
+    '
+  prompt_template_file: config/prompts/irrigation_farmer.txt
+  parsing:
+    decision_keywords:
+    - decision
+    - choice
+    - action
+    - selected_action
+    default_skill: maintain_demand
+    global_skills:
+    - maintain_demand
+    full_disclosure: true
+    strict_mode: true
+    preprocessor:
+      type: smart_repair
+      quote_values:
+      - VL
+      - L
+      - M
+      - H
+      - VH
+    proximity_window: 35
+    list_delimiters:
+    - /
+    - '|'
+    - \
+    audit_keywords:
+    - water
+    - irrigation
+    - drought
+    - supply
+    - demand
+    - crop
+    - river
+    - allocation
+    - shortage
+    - curtailment
+    - conservation
+    - efficiency
+    audit_context_fields:
+    - narrative_persona
+    - water_situation_summary
+    audit_blacklist:
+    - water
+    - irrigation
+    - farm
+    - farmer
+    - crop
+    - agriculture
+    audit_stopwords:
+    - water
+    - irrigation
+    - farm
+    - crop
+    synonyms:
+      wsa:
+      - water_scarcity
+      - drought_risk
+      - scarcity
+      - shortage
+      - vulnerability
+      - supply_risk
+      - curtailment_risk
+      aca:
+      - adaptation_ability
+      - coping
+      - resilience
+      - flexibility
+      - efficiency_capability
+      - conservation_capacity
+    skill_map:
+      '1': increase_demand
+      '2': decrease_demand
+      '3': adopt_efficiency
+      '4': reduce_acreage
+      '5': maintain_demand
+    constructs:
+      WSA_LABEL:
+        keywords:
+        - water_scarcity_assessment
+        - water_scarcity
+        regex: (?i)\b(VL|L|M|H|VH)\b
+      WSA_REASON:
+        keywords:
+        - water_scarcity_assessment
+        - water_scarcity
+        regex: .*
+      ACA_LABEL:
+        keywords:
+        - adaptive_capacity_assessment
+        - adaptive_capacity
+        regex: (?i)\b(VL|L|M|H|VH)\b
+      ACA_REASON:
+        keywords:
+        - adaptive_capacity_assessment
+        - adaptive_capacity
+        regex: .*
+  log_fields:
+  - water_scarcity_assessment
+  - adaptive_capacity_assessment
+  memory:
+    engine_type: human_centric
+    window_size: 5
+    top_k_significant: 2
+    emotion_keywords:
+      water_crisis:
+      - curtailment
+      - shortage
+      - drought
+      - dry
+      - depleted
+      - crisis
+      strategic_choice:
+      - decision
+      - increase
+      - decrease
+      - efficiency
+      - conservation
+      positive_outcome:
+      - sufficient
+      - surplus
+      - saved
+      - adequate
+      - improved
+      social_feedback:
+      - neighbor
+      - upstream
+      - downstream
+      - compact
+      - agreement
+    emotional_weights:
+      water_crisis: 1.0
+      strategic_choice: 0.8
+      positive_outcome: 0.6
+      social_feedback: 0.4
+      baseline_observation: 0.1
+    source_weights:
+      personal: 1.0
+      neighbor: 0.8
+      basin: 0.6
+      policy: 0.4
+    source_patterns:
+      personal:
+      - 'i '
+      - 'my '
+      - 'me '
+      - my farm
+      - my water
+      neighbor:
+      - neighbor
+      - upstream
+      - downstream
+      - adjacent
+      basin:
+      - basin
+      - compact
+      - allocation
+      - bureau
+      policy:
+      - regulation
+      - policy
+      - mandate
+      - restriction
+    retrieval_weights:
+      recency: 0.3
+      importance: 0.5
+      context: 0.2
+    arousal_threshold: 0.5
+    ema_alpha: 0.3
+  actions:
+  - id: increase_demand
+    aliases:
+    - ID
+    - increase
+    - increase_demand
+    - request more water
+    - increase irrigation
+    - '[ID]'
+    - '[increase]'
+    - '[increase_demand]'
+    description: 'Increase water demand request (Request more water allocation for
+      next period. Higher potential yield but risks exceeding available supply and
+      facing curtailment penalties.)
+
+      '
+  - id: decrease_demand
+    aliases:
+    - DD
+    - decrease
+    - decrease_demand
+    - reduce water use
+    - conserve water
+    - '[DD]'
+    - '[decrease]'
+    - '[decrease_demand]'
+    description: 'Decrease water demand request (Request less water allocation. Lower
+      crop yield potential but reduces curtailment risk and demonstrates cooperative
+      basin management.)
+
+      '
+  - id: adopt_efficiency
+    aliases:
+    - AE
+    - efficiency
+    - adopt_efficiency
+    - improve efficiency
+    - drip irrigation
+    - '[AE]'
+    - '[efficiency]'
+    - '[adopt_efficiency]'
+    description: 'Adopt water-efficient irrigation technology (Invest in drip irrigation,
+      soil moisture sensors, or precision scheduling. High upfront cost but reduces
+      long-term water needs by 15-25%.)
+
+      '
+  - id: reduce_acreage
+    aliases:
+    - RA
+    - reduce
+    - reduce_acreage
+    - fallow land
+    - reduce irrigated area
+    - '[RA]'
+    - '[reduce]'
+    - '[reduce_acreage]'
+    description: 'Reduce irrigated acreage (Fallow some farmland to lower total water
+      requirement. Decreases revenue but guarantees meeting reduced allocation with
+      existing supply.)
+
+      '
+  - id: maintain_demand
+    aliases:
+    - MD
+    - maintain
+    - maintain_demand
+    - status quo
+    - no change
+    - do nothing
+    - '[MD]'
+    - '[maintain]'
+    - '[maintain_demand]'
+    description: 'Maintain current water demand level (No change to irrigation practices.
+      Appropriate when water availability is stable and current allocation meets needs.)
+
+      '
+  governance:
+    strict:
+      thinking_rules:
+      - id: high_threat_no_maintain
+        construct: WSA_LABEL
+        when_above:
+        - VH
+        blocked_skills:
+        - maintain_demand
+        level: ERROR
+        message: Water threat is Very High — maintaining current demand is not a viable
+          strategy. You must adapt.
+      - id: low_coping_block_expensive
+        construct: ACA_LABEL
+        conditions:
+        - construct: ACA_LABEL
+          values:
+          - VL
+        blocked_skills:
+        - adopt_efficiency
+        level: ERROR
+        message: 'Adoption of new technology blocked: Very Low perceived implementation
+          capacity.'
+      - id: low_threat_no_increase
+        conditions:
+        - construct: WSA_LABEL
+          values:
+          - VL
+          - L
+        blocked_skills:
+        - increase_demand
+        level: ERROR
+        message: 'Demand increase blocked: Water scarcity ({context.WSA_LABEL}) is
+          low — no justification for requesting additional allocation.'
+      - id: high_threat_high_cope_no_increase
+        conditions:
+        - construct: WSA_LABEL
+          values:
+          - H
+          - VH
+        - construct: ACA_LABEL
+          values:
+          - H
+          - VH
+        blocked_skills:
+        - increase_demand
+        level: WARNING
+        message: 'Consider conservation: High threat and high coping ability suggest
+          decreasing demand or adopting efficiency rather than increasing.'
+      identity_rules:
+      - id: water_right_cap
+        precondition: at_allocation_cap
+        blocked_skills:
+        - increase_demand
+        level: ERROR
+        message: Cannot increase demand — already at maximum water right allocation.
+      - id: already_efficient
+        precondition: has_efficient_system
+        blocked_skills:
+        - adopt_efficiency
+        level: ERROR
+        message: Already using water-efficient irrigation system.
+      - id: minimum_utilisation_floor
+        precondition: below_minimum_utilisation
+        blocked_skills:
+        - decrease_demand
+        - reduce_acreage
+        level: ERROR
+        message: Cannot further reduce demand — already at minimum utilisation floor
+          (10% of water right).
+    relaxed:
+      thinking_rules:
+      - id: high_threat_warn_maintain
+        construct: WSA_LABEL
+        when_above:
+        - H
+        blocked_skills:
+        - maintain_demand
+        level: WARNING
+        message: Water threat is High — consider adapting demand.
+      identity_rules:
+      - id: water_right_cap
+        precondition: at_allocation_cap
+        blocked_skills:
+        - increase_demand
+        level: WARNING
+    disabled:
+      thinking_rules: []
+      identity_rules: []
+personas:
+  aggressive:
+    magnitude_default: 20
+    description: 'You are an assertive, action-oriented farmer who responds quickly
+      and decisively to water supply signals. You are not afraid to make large changes
+      to your water demand request — both up and down — when conditions shift. You
+      have a relatively low sensitivity to unmet demand penalties; you''d rather take
+      bold action and occasionally overshoot than be cautious and miss opportunities.
+      You update your views moderately fast but trust your instincts.
+
+      '
+    fql_reference:
+      mu: 0.36
+      sigma: 1.22
+      alpha: 0.62
+      gamma: 0.77
+      epsilon: 0.16
+      regret: 0.78
+  forward_looking_conservative:
+    magnitude_default: 10
+    description: 'You are a cautious but forward-thinking farmer. You prefer small,
+      measured adjustments to your water demand rather than bold swings. You learn
+      quickly from experience and weigh future consequences heavily. You are highly
+      sensitive to unmet demand — the thought of running short of water causes you
+      significant concern. You are moderately willing to explore new strategies, but
+      you analyze carefully before acting.
+
+      '
+    fql_reference:
+      mu: 0.2
+      sigma: 0.6
+      alpha: 0.85
+      gamma: 0.78
+      epsilon: 0.19
+      regret: 2.22
+  myopic_conservative:
+    magnitude_default: 5
+    description: 'You are a tradition-oriented farmer who relies heavily on past experience
+      and established practices. You make only modest changes to your water demand
+      and prefer the status quo. You update your views slowly, discount future outcomes,
+      and rarely explore unfamiliar strategies. You have moderate sensitivity to unmet
+      demand but generally believe that sticking to proven practices is the safest
+      approach.
+
+      '
+    fql_reference:
+      mu: 0.16
+      sigma: 0.87
+      alpha: 0.67
+      gamma: 0.64
+      epsilon: 0.09
+      regret: 1.54
+metadata:
+  version: v1-irrigation-hung2021-llm
+  actual_model: gemma3:4b
+  seed: 42
+  governance_profile: strict
