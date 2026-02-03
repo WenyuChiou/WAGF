@@ -231,6 +231,12 @@ class ResponseFormatBuilder:
         fields = fmt.get("fields", [])
         return [f["key"] for f in fields if f.get("required", False)]
 
+    def get_field_types(self) -> Dict[str, str]:
+        """Get mapping of field key to field type (e.g. 'appraisal', 'text', 'numeric')."""
+        fmt = self.config.get("response_format", self.shared.get("response_format", {}))
+        fields = fmt.get("fields", [])
+        return {f["key"]: f.get("type", "text") for f in fields}
+
     def get_construct_mapping(self) -> Dict[str, str]:
         """
         Map response field keys to construct names for validation.

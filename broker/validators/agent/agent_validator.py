@@ -115,6 +115,7 @@ class AgentValidator:
             agent_config = self.config.get(base_type)
             rfb = ResponseFormatBuilder(agent_config, shared_config)
             required_fields = rfb.get_required_fields()
+            field_types = rfb.get_field_types()
 
             # Map required fields to reasoning keys
             missing = []
@@ -123,6 +124,10 @@ class AgentValidator:
                     # Decision is valid if we have a skill_name extracted
                     if not decision:
                         missing.append(field)
+                    continue
+
+                # Text fields are free-text output, not structured construct keys
+                if field_types.get(field, "text") == "text":
                     continue
 
                 if field not in reasoning:

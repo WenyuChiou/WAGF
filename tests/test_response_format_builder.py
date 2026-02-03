@@ -79,7 +79,7 @@ class TestResponseFormatBuilderFramework:
         }
         builder = ResponseFormatBuilder(config, framework="financial")
         result = builder.build()
-        assert "[Numeric: 0.0-1.0]" in result
+        assert "Enter a number: 0.0-1.0" in result
 
     def test_numeric_field_default_range(self):
         """Numeric field should have default range 0-1."""
@@ -92,7 +92,7 @@ class TestResponseFormatBuilderFramework:
         }
         builder = ResponseFormatBuilder(config)
         result = builder.build()
-        assert "[Numeric: 0.0-1.0]" in result
+        assert "Enter a number" in result
 
     def test_per_field_scale_override(self):
         """Field can override framework scale."""
