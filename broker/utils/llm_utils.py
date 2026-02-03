@@ -103,14 +103,25 @@ class LLMStats:
     # LLM-level retry tracking (045-H)
     empty_content_retries: int = 0  # LLM returned empty content, retry triggered
     empty_content_failure: bool = False  # Terminal: empty after all retries exhausted
+    # R5-C: Token monitoring
+    prompt_tokens: int = 0   # Prompt token count from Ollama (prompt_eval_count)
+    response_tokens: int = 0  # Response token count from Ollama (eval_count)
+    num_ctx: int = 0          # Context window size used for this call
+    context_utilization: float = 0.0  # prompt_tokens / num_ctx
 
     def to_dict(self) -> Dict:
-        return {
+        d = {
             "llm_retries": self.retries,
             "llm_success": self.success,
             "empty_content_retries": self.empty_content_retries,
-            "empty_content_failure": self.empty_content_failure
+            "empty_content_failure": self.empty_content_failure,
         }
+        if self.prompt_tokens > 0:
+            d["prompt_tokens"] = self.prompt_tokens
+            d["response_tokens"] = self.response_tokens
+            d["num_ctx"] = self.num_ctx
+            d["context_utilization"] = round(self.context_utilization, 4)
+        return d
 
 
 # =============================================================================
@@ -198,7 +209,19 @@ def _invoke_ollama_direct(model: str, prompt: str, params: Dict[str, Any], verbo
             content = result.get('response', '')
             if verbose:
                 _LOGGER.debug(f" [LLM:Direct] Model '{model}' responded successfully ({len(content)} chars).")
-            return content, LLMStats(retries=0, success=True)
+            # R5-C: Extract token counts from Ollama response
+            prompt_tokens = result.get('prompt_eval_count', 0) or 0
+            response_tokens = result.get('eval_count', 0) or 0
+            ctx = options.get("num_ctx", 4096)
+            ctx_util = prompt_tokens / ctx if ctx > 0 and prompt_tokens > 0 else 0.0
+            stats = LLMStats(
+                retries=0, success=True,
+                prompt_tokens=prompt_tokens,
+                response_tokens=response_tokens,
+                num_ctx=ctx,
+                context_utilization=ctx_util,
+            )
+            return content, stats
         else:
             _LOGGER.error(f" [LLM:Direct] Model '{model}' HTTP Error {response.status_code}: {response.text}")
             return "", LLMStats(retries=0, success=False)
