@@ -71,6 +71,7 @@ class WaterSystemConfig:
     natural_flow_base_maf: float = 12.0       # Natural flow at avg precip (MAF/yr)
     precip_baseline_mm: float = 100.0         # CRSS avg UB winter precip (mm)
     min_powell_release_maf: float = 7.0       # Min Powell release, USBR DCP floor (MAF/yr)
+    ub_infrastructure_cap_maf: float = 5.0   # UB infrastructure-limited ceiling (MAF/yr)
 
     # Number of Monte Carlo runs
     n_monte_carlo: int = 100
@@ -88,14 +89,14 @@ class IrrigationEnvironment:
     annual resolution without requiring the full RiverWare installation.
 
     Mass balance:
-        UB_effective  = min(UB_diversions, NaturalFlow - MinPowellRelease)
+        UB_effective  = min(UB_div, NF - MinPowellRelease, UB_InfraCap)
         PowellRelease = NaturalFlow - UB_effective   (≥ MinPowellRelease)
         Storage(t+1)  = Storage(t) + PowellRelease + LB_trib
                         - LB_diversions - Mexico(DCP) - Evap(storage) - Municipal
 
-    Powell minimum release (7.0 MAF) follows USBR DCP operating rules.
-    Evaporation scales with reservoir surface area.  Mexico deliveries
-    are reduced under Minute 323 DCP shortage tiers.
+    Constraints: Powell min release 7.0 MAF (USBR DCP), UB infrastructure
+    ceiling 5.0 MAF (historical capacity), NF clamped [6, 17] MAF.
+    Evaporation scales with surface area; Mexico follows Minute 323.
 
     Usage::
 
@@ -480,16 +481,18 @@ class IrrigationEnvironment:
         magnitude_pct = meta.get("magnitude_pct")
         if magnitude_pct is None or not isinstance(magnitude_pct, (int, float)):
             magnitude_pct = agent.get("magnitude_default", 10) or 10
-        change = wr * (magnitude_pct / 100.0)
-
         state_changes: Dict[str, Any] = {}
 
         if skill == "increase_demand":
+            # M1: scale increase by current usage, not paper water_right.
+            # Farmers expand from existing operations, not legal ceiling.
+            change = current * (magnitude_pct / 100.0)
             new_req = min(current + change, wr)
             self.update_agent_request(aid, new_req)
             state_changes["request"] = new_req
 
         elif skill == "decrease_demand":
+            change = wr * (magnitude_pct / 100.0)
             floor = wr * MIN_UTIL
             utilisation = current / wr if wr > 0 else 1.0
             # P1: diminishing returns as utilisation approaches floor
@@ -571,15 +574,16 @@ class IrrigationEnvironment:
         Couples agent demand back to reservoir elevation, mirroring the
         core physics of CRSS/RiverWare at annual resolution:
 
-            UB_effective  = min(UB_diversions, NaturalFlow − MinPowellRelease)
+            UB_effective  = min(UB_div, NF − MinPowellRelease, UB_InfraCap)
             PowellRelease = NaturalFlow − UB_effective   (≥ MinPowellRelease)
             Mead_inflow   = PowellRelease + LB_tributaries
             Mead_outflow  = LB_diversions + Mexico(DCP) + Evap(storage) + Municipal
             Storage(t+1)  = Storage(t) + Mead_inflow − Mead_outflow
 
-        Powell minimum release follows USBR DCP operating rules (7.0 MAF
-        floor).  Evaporation scales with reservoir surface area (storage
-        proxy).  Mexico deliveries are reduced under Minute 323 DCP tiers.
+        Constraints: Powell minimum release 7.0 MAF (USBR DCP floor),
+        UB infrastructure ceiling 5.0 MAF (historical depletion capacity),
+        NF clamped to [6, 17] MAF (operational release range).
+        Evaporation scales with surface area; Mexico follows Minute 323.
 
         Agent diversions are from the *previous* year's decisions, which
         is physically correct (withdrawals during year t determine storage
@@ -590,15 +594,16 @@ class IrrigationEnvironment:
         # --- Inflow: natural flow scaled by precipitation ---
         precip = self._precip_history[-1] if self._precip_history else cfg.precip_baseline_mm
         natural_flow = cfg.natural_flow_base_maf * (precip / cfg.precip_baseline_mm)
-        natural_flow = max(6.0, min(20.0, natural_flow))
+        natural_flow = max(6.0, min(17.0, natural_flow))  # M3: 17 MAF ops ceiling
 
         # --- Upper Basin diversions (constrained by Powell min release) ---
         ub_div_maf = sum(
             a["diversion"] for a in self._agents.values()
             if a["basin"] == "upper_basin"
         ) / 1e6
-        ub_available = max(0.0, natural_flow - cfg.min_powell_release_maf)
-        ub_div_effective = min(ub_div_maf, ub_available)
+        ub_flow_cap = max(0.0, natural_flow - cfg.min_powell_release_maf)
+        ub_infra_cap = cfg.ub_infrastructure_cap_maf
+        ub_div_effective = min(ub_div_maf, ub_flow_cap, ub_infra_cap)
         powell_release = natural_flow - ub_div_effective
         mead_inflow = powell_release + cfg.lb_tributary_maf
 
@@ -702,26 +707,31 @@ class IrrigationEnvironment:
     def _apply_powell_constraint(self) -> None:
         """Reduce UB diversions when they exceed Powell release capacity.
 
-        USBR operating rules require a minimum annual release from Glen
-        Canyon Dam (Powell) to Lake Mead.  When Upper Basin diversions
-        would reduce Powell release below this floor, UB agent diversions
-        are pro-rata scaled down so that the physical flow constraint is
-        satisfied.  This provides feedback to UB agents: their reported
-        diversion is lower than requested, signalling supply scarcity.
+        Two physical constraints applied (whichever is stricter):
+        1. Powell minimum release (7.0 MAF) — USBR DCP operating rules
+        2. UB infrastructure ceiling (5.0 MAF) — historical depletion
+           capacity; UB has never exceeded ~3 MAF (2018 peak).
+
+        UB agent diversions are pro-rata scaled down so the binding
+        constraint is satisfied.
         """
         cfg = self.config
         precip = (self._precip_history[-1]
                   if self._precip_history else cfg.precip_baseline_mm)
         natural_flow = cfg.natural_flow_base_maf * (precip / cfg.precip_baseline_mm)
-        natural_flow = max(6.0, min(20.0, natural_flow))
+        natural_flow = max(6.0, min(17.0, natural_flow))
 
         ub_agents = [a for a in self._agents.values()
                      if a["basin"] == "upper_basin"]
         ub_div_total = sum(a["diversion"] for a in ub_agents)
-        ub_available_af = max(0.0, natural_flow - cfg.min_powell_release_maf) * 1e6
 
-        if ub_div_total > ub_available_af and ub_div_total > 0:
-            scale = ub_available_af / ub_div_total
+        # Binding constraint: min of flow-based and infrastructure caps
+        ub_flow_cap_af = max(0.0, natural_flow - cfg.min_powell_release_maf) * 1e6
+        ub_infra_cap_af = cfg.ub_infrastructure_cap_maf * 1e6
+        ub_effective_cap = min(ub_flow_cap_af, ub_infra_cap_af)
+
+        if ub_div_total > ub_effective_cap and ub_div_total > 0:
+            scale = ub_effective_cap / ub_div_total
             for a in ub_agents:
                 a["diversion"] *= scale
 
