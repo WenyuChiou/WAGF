@@ -403,6 +403,16 @@ class SkillBrokerEngine:
                     raw_output, llm_stats_obj = res
                     total_llm_stats["llm_retries"] += llm_stats_obj.retries
                     total_llm_stats["llm_success"] = llm_stats_obj.success
+                    # R5-C: Accumulate token counts across retries
+                    if getattr(llm_stats_obj, 'prompt_tokens', 0) > 0:
+                        total_llm_stats["prompt_tokens"] = total_llm_stats.get("prompt_tokens", 0) + llm_stats_obj.prompt_tokens
+                        total_llm_stats["response_tokens"] = total_llm_stats.get("response_tokens", 0) + llm_stats_obj.response_tokens
+                        total_llm_stats["num_ctx"] = llm_stats_obj.num_ctx
+                        # Keep the highest context utilization across calls
+                        total_llm_stats["context_utilization"] = max(
+                            total_llm_stats.get("context_utilization", 0.0),
+                            round(llm_stats_obj.context_utilization, 4),
+                        )
                     if hasattr(llm_stats_obj, 'empty_content_retries'):
                         for _ in range(llm_stats_obj.empty_content_retries):
                             self.auditor.log_empty_content_retry()
@@ -514,6 +524,15 @@ class SkillBrokerEngine:
                 raw_output, llm_stats_obj = res
                 total_llm_stats["llm_retries"] += llm_stats_obj.retries
                 total_llm_stats["llm_success"] = llm_stats_obj.success
+                # R5-C: Accumulate token counts across governance retries
+                if getattr(llm_stats_obj, 'prompt_tokens', 0) > 0:
+                    total_llm_stats["prompt_tokens"] = total_llm_stats.get("prompt_tokens", 0) + llm_stats_obj.prompt_tokens
+                    total_llm_stats["response_tokens"] = total_llm_stats.get("response_tokens", 0) + llm_stats_obj.response_tokens
+                    total_llm_stats["num_ctx"] = llm_stats_obj.num_ctx
+                    total_llm_stats["context_utilization"] = max(
+                        total_llm_stats.get("context_utilization", 0.0),
+                        round(llm_stats_obj.context_utilization, 4),
+                    )
             else:
                 raw_output = res
                 from ..utils.llm_utils import get_llm_stats

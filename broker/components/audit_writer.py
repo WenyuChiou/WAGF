@@ -235,8 +235,15 @@ class GenericAuditWriter:
             }
             
             # 1.5. LLM-level retry info (for empty response tracking)
-            row["llm_retries"] = t.get("llm_retries", 0)
-            row["llm_success"] = t.get("llm_success", True)
+            llm_stats = t.get("llm_stats") or {}
+            row["llm_retries"] = llm_stats.get("llm_retries", t.get("llm_retries", 0))
+            row["llm_success"] = llm_stats.get("llm_success", t.get("llm_success", True))
+
+            # 1.5b. R5-C: Token monitoring
+            row["prompt_tokens"] = llm_stats.get("prompt_tokens", 0)
+            row["response_tokens"] = llm_stats.get("response_tokens", 0)
+            row["num_ctx"] = llm_stats.get("num_ctx", 0)
+            row["context_utilization"] = llm_stats.get("context_utilization", 0.0)
 
             # 1.6. Structural fault tracking (format/parsing issues fixed by retry)
             row["format_retries"] = t.get("format_retries", 0)

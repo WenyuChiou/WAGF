@@ -509,6 +509,78 @@ def run_posthoc(
         output_dir / "benchmark_comparison.csv", index=False
     )
 
+    # R5-B: Convergent validity — TP ordinal vs objective flood risk
+    print("\nRunning convergent validity (TP vs objective risk)...")
+    convergent_validity = {}
+    try:
+        from scipy import stats as sp_stats
+
+        tp_col = "ta_level" if "ta_level" in df.columns else "threat_appraisal"
+        tp_ordinal_map = {"VL": 1, "L": 2, "M": 3, "H": 4, "VH": 5}
+
+        cv_df = df.copy()
+        cv_df["tp_ordinal"] = cv_df[tp_col].map(tp_ordinal_map)
+
+        # TP vs flood_depth_ft
+        depth_col = None
+        for col in ["flood_depth_ft", "flood_depth", "depth_ft"]:
+            if col in cv_df.columns:
+                depth_col = col
+                break
+
+        if depth_col and cv_df["tp_ordinal"].notna().sum() >= 5:
+            valid = cv_df.dropna(subset=["tp_ordinal", depth_col])
+            if len(valid) >= 5:
+                rho_depth, p_depth = sp_stats.spearmanr(
+                    valid["tp_ordinal"].values, valid[depth_col].values
+                )
+                convergent_validity["tp_vs_flood_depth"] = {
+                    "spearman_rho": round(float(rho_depth), 4),
+                    "p_value": round(float(p_depth), 6),
+                    "n": int(len(valid)),
+                    "column": depth_col,
+                }
+                print(f"  TP vs flood_depth: rho={rho_depth:.3f}, p={p_depth:.4f}")
+            else:
+                print("  TP vs flood_depth: insufficient data")
+        else:
+            print("  TP vs flood_depth: column not found or insufficient data")
+
+        # TP vs cumulative_damage (if available)
+        damage_col = None
+        for col in ["cumulative_damage", "damage_cost", "total_damage"]:
+            if col in cv_df.columns:
+                damage_col = col
+                break
+
+        if damage_col and cv_df["tp_ordinal"].notna().sum() >= 5:
+            valid = cv_df.dropna(subset=["tp_ordinal", damage_col])
+            if len(valid) >= 5:
+                rho_dmg, p_dmg = sp_stats.spearmanr(
+                    valid["tp_ordinal"].values, valid[damage_col].values
+                )
+                convergent_validity["tp_vs_cumulative_damage"] = {
+                    "spearman_rho": round(float(rho_dmg), 4),
+                    "p_value": round(float(p_dmg), 6),
+                    "n": int(len(valid)),
+                    "column": damage_col,
+                }
+                print(f"  TP vs {damage_col}: rho={rho_dmg:.3f}, p={p_dmg:.4f}")
+    except ImportError:
+        print("  scipy not available — skipping convergent validity")
+    except Exception as e:
+        print(f"  Convergent validity failed: {e}")
+
+    # Save convergent validity results to JSON alongside other reports
+    if convergent_validity:
+        cv_path = output_dir / "convergent_validity.json"
+        try:
+            with open(cv_path, "w", encoding="utf-8") as f:
+                json.dump(convergent_validity, f, indent=2)
+            print(f"  Convergent validity saved to: {cv_path}")
+        except IOError as e:
+            print(f"  WARNING: Failed to save convergent validity: {e}")
+
     print(f"\nReports saved to: {output_dir}")
     return report
 
