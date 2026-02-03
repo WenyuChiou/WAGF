@@ -628,7 +628,9 @@ class IrrigationEnvironment:
     def _compute_drought_index(self, precip: float, mead_level: float) -> float:
         """Compute composite drought severity index [0, 1]."""
         # Precipitation component (lower = more drought)
-        precip_norm = max(0.0, min(1.0, 1.0 - precip / 350.0))
+        # Divisor = 2× baseline so average precip → 0.5 (moderate)
+        precip_ref = 2.0 * self.config.precip_baseline_mm
+        precip_norm = max(0.0, min(1.0, 1.0 - precip / precip_ref))
 
         # Lake Mead component (lower level = more drought)
         mead_norm = max(0.0, min(1.0, 1.0 - (mead_level - 900) / 320.0))
