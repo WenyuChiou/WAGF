@@ -332,7 +332,16 @@ class InteractionHub:
             if not k.startswith('_') and isinstance(v, (str, int, float, bool)) and k not in ["memory", "id"]:
                 personal[k] = v
 
-        # 2. Include dynamic_state contents (Task 015 fix: ensure dynamic attributes are visible)
+        # 2a. Include fixed_attributes (demographics, RCV, flood zone, PMT scores)
+        # These must be in `personal` for prompt template variables like
+        # {rcv_building}, {income}, {flood_zone} to resolve correctly.
+        if hasattr(agent, 'fixed_attributes') and isinstance(agent.fixed_attributes, dict):
+            for k, v in agent.fixed_attributes.items():
+                if isinstance(v, (str, int, float, bool)):
+                    personal[k] = v
+
+        # 2b. Include dynamic_state contents (Task 015 fix: ensure dynamic attributes are visible)
+        # Dynamic state overwrites fixed_attributes when keys collide (intentional).
         if hasattr(agent, 'dynamic_state') and isinstance(agent.dynamic_state, dict):
             for k, v in agent.dynamic_state.items():
                 if isinstance(v, (str, int, float, bool)):

@@ -10,11 +10,17 @@ You are a homeowner (Agent ID: {agent_id}) in the Passaic River Basin, New Jerse
 - Current Status: {elevation_status_text}
 - Insurance: You currently {insurance_status} flood insurance.
 
+### YOUR FLOOD HISTORY
+- Total flood events experienced: {flood_count}
+- Years since last flood: {years_since_flood}
+- Cumulative damage to date: ${cumulative_damage:,.0f}
+- Cumulative out-of-pocket costs: ${cumulative_oop:,.0f}
+
 ### RELEVANT MEMORIES
 {memory}
 
 ### CRITICAL RISK ASSESSMENT
-It is crucial to accurately assess your flood risk. Underestimating the threat of flooding can lead to severe financial hardship, loss of property, and long-term emotional distress. Your decisions must reflect a realistic understanding of potential dangers and your vulnerability.
+It is crucial to accurately assess your flood risk based on your personal flood history, memories, and current situation. Consider how recent or distant your flood experiences are — threat perceptions naturally evolve with time and new experiences. Your decisions must reflect a realistic understanding of potential dangers and your vulnerability.
 
 ### POLICY UPDATES THIS YEAR
 - NJ Government (NJDEP Blue Acres): {govt_message}
@@ -26,25 +32,37 @@ It is crucial to accurately assess your flood risk. Underestimating the threat o
 ### LOCAL NEIGHBORHOOD
 {social_gossip}
 
-### CURRENT COSTS
-- Annual NFIP Premium: ${current_premium:,.0f}
+### FINANCIAL DETAILS (YOUR SPECIFIC COSTS)
+- Annual NFIP Premium: ${current_premium:,.0f}/year
 - Elevation Subsidy Rate: {subsidy_rate:.0%}
-
-### COST GUIDANCE (IMPORTANT)
-- Elevation is a HIGH-cost action: baseline ~$150,000 before subsidy.
-  Your out-of-pocket cost is roughly $150,000 * (1 - subsidy_rate).
-- Buyout is a HIGH-cost, irreversible move (you leave the community).
-- Insurance is a MODERATE annual cost tied to property value and premium rate.
-- If you are uncertain you can afford a high-cost action, choose a lower-cost option.
+- Elevation Cost Estimates (before subsidy):
+  * 3 feet above BFE: ~$45,000 (your cost after subsidy: ~${elevation_cost_3ft:,.0f})
+  * 5 feet above BFE: ~$80,000 (your cost after subsidy: ~${elevation_cost_5ft:,.0f})
+  * 8 feet above BFE: ~$150,000 (your cost after subsidy: ~${elevation_cost_8ft:,.0f})
+- Blue Acres Buyout Offer: ~${buyout_offer:,.0f} (based on property value)
+- NFIP Deductible: $1,000 (structure) / $1,000 (contents)
+- NFIP Coverage Limits: $250,000 (structure) / $100,000 (contents)
+{insurance_cost_text}
 
 ### ADAPTATION OPTIONS
 {options_text}
+
+**Sub-options** (include in your response if applicable):
+- If choosing INSURANCE: specify coverage type (1=Structure+Contents, 2=Contents-only)
+- If choosing ELEVATION: specify feet above Base Flood Elevation (3, 5, or 8 feet)
+- If choosing BUYOUT: this is irreversible (you leave the community permanently)
+
+**Secondary Action** (OPTIONAL):
+You may propose ONE additional action this year if budget allows.
+For example: elevate AND buy insurance, or buy insurance AND do nothing else.
+Set "secondary_decision" to 0 if you only want one action.
+Note: You cannot combine elevation with buyout.
 
 ### EVALUATION CRITERIA
 {criteria_definitions}
 
 Rating Scale: {rating_scale}
 
-Based on your situation and PMT profile, evaluate each criterion and make your decision.
+Based on your situation, memories, financial constraints, and PMT profile, evaluate each criterion and make your decision.
 Respond ONLY with valid JSON in this format:
 {response_format}

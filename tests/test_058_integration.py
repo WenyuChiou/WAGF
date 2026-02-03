@@ -85,7 +85,8 @@ class TestLifecycleHooksDrift:
         agent = SimpleNamespace(
             id="H_001",
             agent_type="household_owner",
-            dynamic_state={"elevated": False, "relocated": False, "cumulative_damage": 0},
+            dynamic_state={"elevated": False, "relocated": False, "cumulative_damage": 0,
+                           "years_since_flood": 0},
             fixed_attributes={"rcv_building": 1000.0, "rcv_contents": 500.0},
             last_decision="buy_insurance",
         )

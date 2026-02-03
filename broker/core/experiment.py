@@ -30,6 +30,7 @@ class ExperimentConfig:
     seed: int = 42
     verbose: bool = False
     workers: int = 1  # Number of parallel workers for LLM calls (1=sequential)
+    phase_order: Optional[List[List[str]]] = None  # Agent type groups for phased execution
 
 class ExperimentRunner:
     """Engine that runs the simulation loop."""
@@ -131,27 +132,36 @@ class ExperimentRunner:
             
             # Filter only active agents (Generic approach)
             active_agents = [
-                a for a in self.agents.values() 
+                a for a in self.agents.values()
                 if getattr(a, 'is_active', True)
             ]
-            
-            # Parallel vs Sequential Execution (PR: Multiprocessing Core)
-            if self.config.workers > 1:
-                results = self._run_agents_parallel(active_agents, run_id, llm_invoke, env)
+
+            # Partition agents into phases (if phase_order configured)
+            if self.config.phase_order:
+                agent_phases = self._partition_by_phase(active_agents)
             else:
-                results = self._run_agents_sequential(active_agents, run_id, llm_invoke, env)
-            
-            # Apply results and trigger post-step hooks
-            for agent, result in results:
-                if result.outcome in (SkillOutcome.REJECTED, SkillOutcome.UNCERTAIN):
-                    # REJECTED: no state change, no memory — only audit trace
+                agent_phases = [active_agents]  # Single phase (backward compatible)
+
+            # Execute each phase sequentially, agents within phase sequential or parallel
+            for phase_agents in agent_phases:
+                if not phase_agents:
+                    continue
+                if self.config.workers > 1:
+                    results = self._run_agents_parallel(phase_agents, run_id, llm_invoke, env)
+                else:
+                    results = self._run_agents_sequential(phase_agents, run_id, llm_invoke, env)
+
+                # Apply results and trigger post-step hooks
+                for agent, result in results:
+                    if result.outcome in (SkillOutcome.REJECTED, SkillOutcome.UNCERTAIN):
+                        # REJECTED: no state change, no memory — only audit trace
+                        if "post_step" in self.hooks:
+                            self.hooks["post_step"](agent, result)
+                        continue
+                    if result.execution_result and result.execution_result.success:
+                        self._apply_state_changes(agent, result)
                     if "post_step" in self.hooks:
                         self.hooks["post_step"](agent, result)
-                    continue
-                if result.execution_result and result.execution_result.success:
-                    self._apply_state_changes(agent, result)
-                if "post_step" in self.hooks:
-                    self.hooks["post_step"](agent, result)
             
             # --- Lifecycle Hook: Post-Step-End / Post-Year ---
             # Dual trigger for generic compatibility
@@ -247,6 +257,33 @@ class ExperimentRunner:
             self.memory_engine.add_memory_for_agent(agent, memory_content)
         else:
             self.memory_engine.add_memory(agent.id, memory_content)
+
+    def _partition_by_phase(self, agents: List) -> List[List]:
+        """Partition agents into ordered phases based on config.phase_order.
+
+        Each entry in phase_order is a list of agent_type strings.
+        Agents whose type matches a phase are grouped together.
+        Any agents not matching any phase are appended at the end.
+        """
+        phase_order = self.config.phase_order or []
+        phases: List[List] = [[] for _ in phase_order]
+        unmatched = []
+
+        type_to_phase = {}
+        for idx, type_group in enumerate(phase_order):
+            for atype in type_group:
+                type_to_phase[atype] = idx
+
+        for agent in agents:
+            atype = getattr(agent, 'agent_type', 'default')
+            if atype in type_to_phase:
+                phases[type_to_phase[atype]].append(agent)
+            else:
+                unmatched.append(agent)
+
+        if unmatched:
+            phases.append(unmatched)
+        return phases
 
     def _finalize_step(self, step: int):
         """Unified finalization logic per cycle."""
@@ -444,6 +481,7 @@ class ExperimentBuilder:
         self.custom_validators = [] # New: custom validator functions
         self._auto_tune = False  # PR: Adaptive Performance Module
         self._exact_output = False # New: bypass model subfolder
+        self._phase_order = None  # Agent type groups for phased execution
 
     def with_workers(self, workers: int = 4):
         """Set number of parallel workers for LLM calls. 1=sequential (default)."""
@@ -536,6 +574,16 @@ class ExperimentBuilder:
     def with_hook(self, hook: Callable):
         """Register a single pre_year hook."""
         self.hooks["pre_year"] = hook
+        return self
+
+    def with_phase_order(self, phases: List[List[str]]):
+        """Set explicit phase ordering for multi-agent execution.
+
+        Each phase is a list of agent_type strings that execute together.
+        Phases run sequentially; agents within a phase run per the worker config.
+        Example: [["government"], ["insurance"], ["household_owner", "household_renter"]]
+        """
+        self._phase_order = phases
         return self
 
     def with_governance(self, profile: str, config_path: str):
@@ -741,7 +789,8 @@ class ExperimentBuilder:
             output_dir=final_output_path,  # Use the same unified path
             seed=self.seed,
             verbose=self.verbose,
-            workers=self.workers  # PR: Multiprocessing Core
+            workers=self.workers,  # PR: Multiprocessing Core
+            phase_order=getattr(self, '_phase_order', None),
         )
         
         runner = ExperimentRunner(

@@ -545,6 +545,83 @@ class InsuranceInfoProvider(ContextProvider):
         personal["insurance_affordability"] = cost_info.get("affordability_level", "unknown")
 
 
+class FinancialCostProvider(ContextProvider):
+    """Pre-decision financial cost disclosure for all adaptation options.
+
+    Injects per-agent elevation costs, buyout offers, and other financial
+    details into agent context. Uses agent RCV, subsidy rate, and foundation
+    type to compute personalized cost estimates.
+
+    Reference: Paper 3 Section 3.3 (Financial information in prompt)
+    """
+
+    # Baseline elevation costs by feet (pre-subsidy, average US)
+    ELEVATION_COST_BASE = {
+        3: 45000,
+        5: 80000,
+        8: 150000,
+    }
+
+    # Buyout offer as fraction of pre-flood RCV
+    BUYOUT_OFFER_FRACTION = 0.75
+
+    def __init__(self, subsidy_rate_fn: Optional[Callable] = None):
+        """Initialize with optional dynamic subsidy rate function.
+
+        Args:
+            subsidy_rate_fn: Optional callable() -> float returning current
+                subsidy rate. If None, reads from env_context.
+        """
+        self.subsidy_rate_fn = subsidy_rate_fn
+
+    def provide(self, agent_id, agents, context, **kwargs):
+        agent = agents.get(agent_id)
+        if not agent:
+            return
+
+        env_context = kwargs.get("env_context", {})
+        if not env_context:
+            env_context = context.get("env_state", {})
+
+        personal = context.setdefault("personal", {})
+
+        # Get subsidy rate
+        if self.subsidy_rate_fn:
+            subsidy_rate = self.subsidy_rate_fn()
+        else:
+            subsidy_rate = env_context.get("subsidy_rate", 0.5)
+
+        # Get agent's RCV (replacement cost value) from fixed_attributes or direct attribute
+        fixed = getattr(agent, "fixed_attributes", {}) or {}
+        rcv_building = fixed.get("rcv_building", 0)
+        if not rcv_building:
+            if hasattr(agent, "rcv_building"):
+                rcv_building = agent.rcv_building
+            elif isinstance(agent, dict):
+                rcv_building = agent.get("rcv_building", 0)
+
+        rcv_contents = fixed.get("rcv_contents", 0)
+        income = fixed.get("income", 50000)
+        premium_rate = env_context.get("premium_rate", 0.02)
+
+        # Elevation costs (after subsidy)
+        for feet, base_cost in self.ELEVATION_COST_BASE.items():
+            after_subsidy = base_cost * (1 - subsidy_rate)
+            personal[f"elevation_cost_{feet}ft"] = after_subsidy
+
+        # Buyout offer
+        buyout_offer = rcv_building * self.BUYOUT_OFFER_FRACTION
+        personal["buyout_offer"] = buyout_offer
+
+        # Per-agent insurance premium estimate
+        property_value = rcv_building + rcv_contents
+        current_premium = premium_rate * property_value
+        personal["current_premium"] = current_premium
+
+        # Subsidy rate (ensure it's in context for template)
+        personal["subsidy_rate"] = subsidy_rate
+
+
 __all__ = [
     "ContextProvider",
     "SystemPromptProvider",
@@ -561,4 +638,5 @@ __all__ = [
     "EnvironmentEventProvider",  # Task-042: Environment events
     "PerceptionAwareProvider",  # Task-043: Agent-type perception
     "InsuranceInfoProvider",  # Task-060A: Insurance premium disclosure
+    "FinancialCostProvider",  # Paper 3: Per-agent financial cost disclosure
 ]

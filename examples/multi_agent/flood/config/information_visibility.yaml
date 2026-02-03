@@ -1,0 +1,109 @@
+# Paper 3: Information Visibility Architecture
+# Defines what each agent type can observe at each decision point.
+# Used by PerceptionAwareProvider to filter context.
+#
+# Design: "Mixed: Neighbors + News" model
+# - Households see neighbors directly + delayed aggregates via news media
+# - Government sees real-time MG/NMG adaptation rates + budget
+# - Insurance sees real-time claims, loss ratio, uptake, CRS
+
+visibility:
+  household_owner:
+    personal:
+      - own_flood_damage_history     # Full personal history
+      - own_income_bracket           # Own income only
+      - own_rcv                      # Own property value
+      - own_insurance_status         # Own insurance status
+      - own_elevation_status         # Own elevation status
+      - current_premium              # Own premium amount
+      - current_subsidy_rate         # Public: current subsidy rate
+      - elevation_costs              # Per-agent cost estimates
+      - buyout_offer                 # Per-agent buyout value
+    social:
+      - neighbor_adaptation_status   # 5 neighbors' elevated/insured/relocated
+      - neighbor_gossip              # Filtered reasoning from neighbors
+      - social_media_posts           # Sampled (max 3), reliability 0.4-0.8
+    institutional:
+      - news_media_reports           # Delayed 1yr, community-wide stats
+      - government_announcements     # Current subsidy rate, policy changes
+      - insurance_announcements      # Current premium rate, policy changes
+    not_visible:
+      - community_wide_adaptation_rates_realtime  # Only via news (delayed)
+      - other_agent_income           # Private
+      - other_agent_rcv              # Private
+      - loss_ratio                   # Insurance internal
+      - government_budget            # Government internal
+      - mg_gap_statistics            # Government internal
+
+  household_renter:
+    personal:
+      - own_flood_damage_history
+      - own_income_bracket
+      - own_contents_value
+      - own_insurance_status
+      - current_premium
+    social:
+      - neighbor_adaptation_status
+      - neighbor_gossip
+      - social_media_posts
+    institutional:
+      - news_media_reports
+      - government_announcements
+      - insurance_announcements
+    not_visible:
+      - community_wide_adaptation_rates_realtime
+      - other_agent_income
+      - loss_ratio
+      - government_budget
+
+  nj_government:
+    personal:
+      - budget_details               # Full budget
+      - subsidy_rate_history          # Historical subsidy decisions
+    community:
+      - mg_adaptation_rate_realtime   # MG group adoption rate (real-time)
+      - nmg_adaptation_rate_realtime  # NMG group adoption rate (real-time)
+      - mg_nmg_gap_statistics         # Protection gap metrics
+      - aggregate_damage_reports      # Community flood damage
+      - buyout_applications_pending   # Blue Acres queue
+    institutional:
+      - news_media_reports            # Yes, can see news
+      - insurance_announcements       # Current premium rate
+    not_visible:
+      - individual_agent_income       # Cannot see per-household income
+      - individual_agent_decisions    # Cannot see individual choices
+      - loss_ratio                    # Insurance internal
+
+  fema_nfip:
+    personal:
+      - loss_ratio                    # Full actuarial data
+      - claims_history_detail         # Full claims detail
+      - premium_rate_history          # Historical premium decisions
+      - crs_discount                  # CRS discount level
+    community:
+      - insured_count_realtime        # Per-policyholder data
+      - aggregate_adaptation_rates    # Aggregate only (not MG/NMG split)
+      - solvency_metrics              # Program financial health
+    institutional:
+      - news_media_reports            # Yes, can see news
+      - government_announcements      # Current subsidy rate
+    not_visible:
+      - mg_nmg_gap_statistics         # Cannot see MG/NMG breakdown
+      - individual_agent_income       # Privacy (only per-policyholder RCV)
+      - government_budget             # Government internal
+
+# News media configuration
+news_media:
+  delay_years: 1                     # Reports community stats 1 year delayed
+  reliability: 0.9                   # High reliability
+  content:
+    - community_adaptation_rate      # % of households with any adaptation
+    - recent_flood_summary           # Flood event narrative
+    - policy_changes                 # Government/insurance announcements
+
+# Social media configuration
+social_media:
+  delay_years: 0                     # Immediate
+  reliability_range: [0.4, 0.8]      # Variable reliability
+  exaggeration_factor: 0.3           # 30% exaggeration tendency
+  max_posts_visible: 3               # Max posts per agent per year

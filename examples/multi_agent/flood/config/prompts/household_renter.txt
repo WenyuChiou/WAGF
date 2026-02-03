@@ -9,11 +9,16 @@ You are a renter (Agent ID: {agent_id}) in the Passaic River Basin, New Jersey.
 - Contents Value: ${rcv_contents:,.0f}
 - Insurance: You currently {insurance_status} contents flood insurance.
 
+### YOUR FLOOD HISTORY
+- Total flood events experienced: {flood_count}
+- Years since last flood: {years_since_flood}
+- Cumulative damage to date: ${cumulative_damage:,.0f}
+
 ### RELEVANT MEMORIES
 {memory}
 
 ### CRITICAL RISK ASSESSMENT
-It is crucial to accurately assess your flood risk. Underestimating the threat of flooding can lead to severe financial hardship, loss of property, and long-term emotional distress. Your decisions must reflect a realistic understanding of potential dangers and your vulnerability.
+It is crucial to accurately assess your flood risk based on your personal flood history, memories, and current situation. Consider how recent or distant your flood experiences are — threat perceptions naturally evolve with time and new experiences. Your decisions must reflect a realistic understanding of potential dangers and your vulnerability.
 
 ### POLICY UPDATES THIS YEAR
 - NJ Government: {govt_message}
@@ -25,10 +30,14 @@ It is crucial to accurately assess your flood risk. Underestimating the threat o
 ### LOCAL NEIGHBORHOOD
 {social_gossip}
 
-### COST GUIDANCE (IMPORTANT)
-- Contents insurance is a MODERATE annual cost tied to contents value.
-- Relocation is a HIGH-cost, disruptive move (moving costs + loss of community ties).
-- If you are uncertain you can afford a high-cost action, choose a lower-cost option.
+### FINANCIAL DETAILS (YOUR SPECIFIC COSTS)
+- Annual Contents Insurance Premium: ${current_premium:,.0f}/year
+- NFIP Contents Coverage Limit: $100,000
+- NFIP Contents Deductible: $1,000
+- Estimated Relocation Costs:
+  * Within PRB (local move): ~$5,000-$10,000
+  * Out of Basin: ~$15,000-$25,000 (plus loss of community ties)
+{insurance_cost_text}
 
 ### ADAPTATION OPTIONS (as a renter)
 {options_text}
@@ -36,10 +45,19 @@ It is crucial to accurately assess your flood risk. Underestimating the threat o
 Note: As a renter, you cannot elevate the property or accept a buyout.
 Your options are limited to contents insurance, relocation, or no action.
 
+**Sub-options** (include in your response if applicable):
+- If choosing RELOCATION: specify destination (1=Within PRB, 2=Out of basin)
+
+**Secondary Action** (OPTIONAL):
+You may propose ONE additional action this year.
+For example: buy contents insurance AND relocate.
+Set "secondary_decision" to 0 if you only want one action.
+
 ### EVALUATION CRITERIA
 {criteria_definitions}
 
 Rating Scale: {rating_scale}
 
+Based on your situation, memories, financial constraints, and PMT profile, evaluate each criterion and make your decision.
 Respond ONLY with valid JSON:
 {response_format}

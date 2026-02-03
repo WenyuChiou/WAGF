@@ -24,14 +24,15 @@ from typing import Dict, List, Any, Optional
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from broker import (
-    ExperimentBuilder, 
-    MemoryEngine, 
-    WindowMemoryEngine, 
+    ExperimentBuilder,
+    MemoryEngine,
+    WindowMemoryEngine,
     HumanCentricMemoryEngine,
     TieredContextBuilder,
     InteractionHub,
     create_social_graph
 )
+from broker.components.context_providers import PerceptionAwareProvider
 from broker.components.memory_engine import create_memory_engine
 from broker.simulation.environment import TieredEnvironment
 from cognitive_governance.agents import BaseAgent, AgentConfig, StateParam, Skill, PerceptionSource
@@ -46,6 +47,29 @@ from initial_memory import generate_all_memories, get_agent_memories_text
 from orchestration.agent_factories import create_government_agent, create_insurance_agent, wrap_household
 from orchestration.lifecycle_hooks import MultiAgentHooks
 import json
+
+
+def _load_profiles_from_csv(csv_path: str) -> List[HouseholdProfile]:
+    """Load HouseholdProfile objects from a CSV file (e.g. balanced agent output)."""
+    from dataclasses import fields as dc_fields
+    df = pd.read_csv(csv_path)
+    profiles = []
+    field_names = {f.name for f in dc_fields(HouseholdProfile)}
+    for _, row in df.iterrows():
+        kwargs = {}
+        for col in df.columns:
+            if col in field_names:
+                val = row[col]
+                # Handle pandas NaN → sensible defaults
+                if pd.isna(val):
+                    continue
+                # Boolean columns saved as True/False strings
+                field_type = next(f.type for f in dc_fields(HouseholdProfile) if f.name == col)
+                if field_type == 'bool' or field_type is bool:
+                    val = str(val).lower() in ('true', '1', 'yes')
+                kwargs[col] = val
+        profiles.append(HouseholdProfile(**kwargs))
+    return profiles
 
 
 def build_memory_engine(mem_cfg: Dict[str, Any], engine_type: str = "universal") -> MemoryEngine:
@@ -102,8 +126,12 @@ def run_unified_experiment():
     parser.add_argument("--initial-premium", type=float, default=0.02, help="Initial insurance premium rate (SQ3)")
     parser.add_argument("--grid-dir", type=str, default=None, help="Path to PRB ASCII grid directory")
     parser.add_argument("--grid-years", type=str, default=None, help="Comma-separated PRB years to load (e.g. 2011,2012,2023)")
-    parser.add_argument("--mode", type=str, choices=["survey", "random"], default="survey",
-                        help="Agent initialization mode: survey (from questionnaire) or random (synthetic)")
+    parser.add_argument("--mode", type=str, choices=["survey", "random", "balanced"], default="survey",
+                        help="Agent initialization mode: survey (from questionnaire), random (synthetic), or balanced (4-cell from prepare_balanced_agents)")
+    parser.add_argument("--agent-profiles", type=str, default=None,
+                        help="Path to pre-generated agent profiles CSV (balanced mode)")
+    parser.add_argument("--initial-memories-file", type=str, default=None,
+                        help="Path to pre-generated initial memories JSON (balanced mode)")
     parser.add_argument("--load-initial-memories", action="store_true", default=True,
                         help="Load initial memories from initial_memories.json (survey mode)")
     parser.add_argument("--enable-custom-affordability", action="store_true",
@@ -138,7 +166,14 @@ def run_unified_experiment():
                         help="Enable MessagePool + GameMaster communication layer (Task-060D)")
     parser.add_argument("--enable-cross-validation", action="store_true",
                         help="Enable CrossAgentValidator echo chamber detection (Task-060E)")
+    parser.add_argument("--seed", type=int, default=None,
+                        help="Random seed for reproducibility")
     args = parser.parse_args()
+
+    # Set random seed for reproducibility
+    if args.seed is not None:
+        random.seed(args.seed)
+        print(f"[INFO] Random seed set to {args.seed}")
     
     # =============================================================================
     # CUSTOM VALIDATOR FUNCTIONS (Application-Specific)
@@ -234,6 +269,19 @@ def run_unified_experiment():
     if args.mode == "survey":
         print("[INFO] Loading agents from survey data...")
         profiles = load_survey_agents()
+    elif args.mode == "balanced":
+        if not args.agent_profiles:
+            # Default path: paper3/output/agent_profiles_balanced.csv
+            default_profiles = MULTI_AGENT_DIR / "paper3" / "output" / "agent_profiles_balanced.csv"
+            if default_profiles.exists():
+                args.agent_profiles = str(default_profiles)
+            else:
+                print("[ERROR] Balanced mode requires --agent-profiles path or default file at paper3/output/agent_profiles_balanced.csv")
+                print("[INFO] Run: python paper3/prepare_balanced_agents.py first")
+                sys.exit(1)
+        print(f"[INFO] Loading balanced agents from {args.agent_profiles}")
+        profiles = _load_profiles_from_csv(args.agent_profiles)
+        print(f"[INFO] Loaded {len(profiles)} balanced agent profiles")
     else:
         print(f"[INFO] Generating {args.agents} random agents...")
         profiles = generate_agents_random(n_agents=args.agents)
@@ -261,30 +309,43 @@ def run_unified_experiment():
 
     memory_engine = build_memory_engine(mem_cfg, args.memory_engine)
 
-    # 3a. Load initial memories (survey mode)
-    if args.mode == "survey" and args.load_initial_memories:
-        initial_memories_path = MULTI_AGENT_DIR / "data" / "initial_memories.json"
-        if initial_memories_path.exists():
-            print(f"[INFO] Loading initial memories from {initial_memories_path}")
-            with open(initial_memories_path, 'r', encoding='utf-8') as f:
-                initial_memories = json.load(f)
-            # Inject initial memories into memory engine
-            for agent_id, memories in initial_memories.items():
-                if agent_id in all_agents:
-                    for mem in memories:
-                        memory_engine.add_memory(
-                            agent_id,
-                            mem["content"],
-                            metadata={
-                                "category": mem.get("category", "general"),
-                                "importance": mem.get("importance", 0.5),
-                                "source": mem.get("source", "survey"),
-                                "year": 0  # Initial memories are pre-simulation
-                            }
-                        )
-            print(f"[INFO] Loaded initial memories for {len(initial_memories)} agents")
+    # 3a. Load initial memories (survey or balanced mode)
+    initial_memories_path = None
+    if args.mode == "balanced":
+        if args.initial_memories_file:
+            initial_memories_path = Path(args.initial_memories_file)
         else:
-            print(f"[WARN] Initial memories file not found: {initial_memories_path}")
+            # Default path for balanced mode
+            default_mem = MULTI_AGENT_DIR / "paper3" / "output" / "initial_memories_balanced.json"
+            if default_mem.exists():
+                initial_memories_path = default_mem
+    elif args.mode == "survey" and args.load_initial_memories:
+        initial_memories_path = MULTI_AGENT_DIR / "data" / "initial_memories.json"
+
+    if initial_memories_path and initial_memories_path.exists():
+        print(f"[INFO] Loading initial memories from {initial_memories_path}")
+        with open(initial_memories_path, 'r', encoding='utf-8') as f:
+            initial_memories = json.load(f)
+        # Inject initial memories into memory engine
+        for agent_id, memories in initial_memories.items():
+            if agent_id in all_agents:
+                for mem in memories:
+                    memory_engine.add_memory(
+                        agent_id,
+                        mem["content"],
+                        metadata={
+                            "category": mem.get("category", "general"),
+                            "importance": mem.get("importance", 0.5),
+                            "source": mem.get("source", "survey"),
+                            "year": 0  # Initial memories are pre-simulation
+                        }
+                    )
+        print(f"[INFO] Loaded initial memories for {len(initial_memories)} agents")
+    elif initial_memories_path:
+        print(f"[WARN] Initial memories file not found: {initial_memories_path}")
+        if args.mode == "balanced":
+            print("[INFO] Run: python paper3/prepare_balanced_agents.py first")
+        else:
             print("[INFO] Run initial_memory.py to generate initial memories")
 
     # 3b. Social & Interaction Hub
@@ -322,7 +383,7 @@ def run_unified_experiment():
             enable_news=args.enable_news_media,
             enable_social=args.enable_social_media,
             news_delay=args.news_delay,
-            seed=42
+            seed=args.seed if args.seed is not None else 42
         )
         channels = []
         if args.enable_news_media:
@@ -435,7 +496,8 @@ def run_unified_experiment():
                     "nmg_insured_count",
                 ], # Phase 2 PR2: Allow institutional influence
                 prompt_templates={}, # Loaded from YAML via with_governance
-                enable_financial_constraints=args.enable_financial_constraints
+                enable_financial_constraints=args.enable_financial_constraints,
+                extend_providers=[PerceptionAwareProvider()],  # LAST: perception filter
             )
         )
         .with_governance(

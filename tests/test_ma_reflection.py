@@ -37,7 +37,8 @@ def mock_hooks(mock_memory_engine, mock_game_master, mock_message_pool):
     # Mock environment and other required parameters
     mock_env = {"year": 5}
     mock_agents = {
-        "H_001": MagicMock(id="H_001", agent_type="household_owner", dynamic_state={}),
+        "H_001": MagicMock(id="H_001", agent_type="household_owner",
+                           dynamic_state={"years_since_flood": 0, "relocated": False}),
         "GOV_001": MagicMock(id="GOV_001", agent_type="government", dynamic_state={}),
     }
     
@@ -78,12 +79,19 @@ class TestMAReflectionIntegration:
         # Verify that retrieve_stratified was called
         mem_engine.retrieve_stratified.assert_called_once()
         
-        # Verify that add_memory was called to store the reflection
-        # We expect one reflection memory to be added
-        # The exact content might vary based on prompt generation, focus on type and source
-        mem_engine.add_memory.assert_called_once()
-        call_args, call_kwargs = mem_engine.add_memory.call_args
-        
+        # Verify add_memory was called:
+        #   1) no-flood memory (since community_depth_ft=0, agent not actually flooded)
+        #   2) reflection memory
+        assert mem_engine.add_memory.call_count >= 1
+        # Find the reflection call (has "type": "reflection" in metadata)
+        reflection_calls = [
+            c for c in mem_engine.add_memory.call_args_list
+            if c.kwargs.get("metadata", {}).get("type") == "reflection"
+               or (len(c.args) > 1 and "Consolidated Reflection" in str(c.args[1]))
+        ]
+        assert len(reflection_calls) == 1, f"Expected 1 reflection call, got {len(reflection_calls)}"
+        call_args, call_kwargs = reflection_calls[0]
+
         added_memory_content = call_args[1]
         added_memory_metadata = call_kwargs["metadata"]
 
@@ -115,10 +123,16 @@ class TestMAReflectionIntegration:
     def test_reflection_logic_skips_if_no_flood(self, mock_hooks, mock_memory_engine):
         hooks, mem_engine, gm, mp, agents = mock_hooks
         hooks.env["flood_occurred"] = False # Ensure no flood
-        
+
         hooks.post_year(year=8, agents=agents, memory_engine=mem_engine)
-        
-        # Reflection should not be triggered if no flood occurred
+
+        # Reflection should not be triggered if no flood occurred (and year 8 % 5 != 0)
         mem_engine.retrieve_stratified.assert_not_called()
-        mem_engine.add_memory.assert_not_called()
+        # No-flood memories ARE expected (memory-mediated TP decline),
+        # but no reflection memories should be added.
+        reflection_calls = [
+            c for c in mem_engine.add_memory.call_args_list
+            if c.kwargs.get("metadata", {}).get("type") == "reflection"
+        ]
+        assert len(reflection_calls) == 0, "No reflection should be triggered without flood"
 
