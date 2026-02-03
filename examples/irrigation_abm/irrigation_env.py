@@ -69,7 +69,7 @@ class WaterSystemConfig:
     lb_municipal_maf: float = 1.5             # LB non-agricultural demand (MAF/yr)
     lb_tributary_maf: float = 1.0             # LB tributary inflow (MAF/yr)
     natural_flow_base_maf: float = 12.0       # Natural flow at avg precip (MAF/yr)
-    precip_baseline_mm: float = 250.0         # Historical avg UB winter precip (mm)
+    precip_baseline_mm: float = 100.0         # CRSS avg UB winter precip (mm)
 
     # Number of Monte Carlo runs
     n_monte_carlo: int = 100
@@ -540,11 +540,11 @@ class IrrigationEnvironment:
                 self._precip_history.append(precip)
                 return precip
 
-        # Synthetic fallback: downward trend per Hung & Yang (2021) scenario
-        base = 250.0  # Historical average (mm)
-        trend = -0.5 * self._year_index  # Drying trend
-        noise = self.rng.normal(0, 30)
-        precip = max(50.0, base + trend + noise)
+        # Synthetic fallback: drying trend matching CRSS winter precip range
+        base = self.config.precip_baseline_mm
+        trend = -0.2 * self._year_index  # Gradual drying
+        noise = self.rng.normal(0, 12)
+        precip = max(20.0, base + trend + noise)
         self._precip_history.append(precip)
         return precip
 
