@@ -299,6 +299,8 @@ class IrrigationLifecycleHooks:
                 "curtailment_ratio": agent_state.get("curtailment_ratio", 0),
                 "drought_index": self.env.global_state.get("drought_index", 0),
                 "shortage_tier": self.env.institutions.get("colorado_compact", {}).get("shortage_tier", 0),
+                "lake_mead_level": self.env.get_local("lower_basin", "lake_mead_level", 0),
+                "mead_storage_maf": self.env._mead_storage[-1] if self.env._mead_storage else 0,
                 "has_efficient_system": agent_state.get("has_efficient_system", False),
                 "below_minimum_utilisation": agent_state.get("below_minimum_utilisation", False),
                 "utilisation_pct": (
