@@ -47,6 +47,13 @@ INSURE_ACTIONS = {"buy_insurance", "buy_contents_insurance"}
 # Household agent types
 HOUSEHOLD_TYPES = {"household_owner", "household_renter"}
 
+# Minimum required columns in AuditWriter CSV (at least one of these must map)
+REQUIRED_SOURCE_COLUMNS = {"final_skill", "agent_id", "year"}
+
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 # ---------------------------------------------------------------------------
 # Core adapter
@@ -76,10 +83,32 @@ def load_single_audit_csv(
 
     df = pd.read_csv(path)
 
+    # Validate that critical source columns exist
+    missing = REQUIRED_SOURCE_COLUMNS - set(df.columns)
+    if missing:
+        raise ValueError(
+            f"Audit CSV {path.name} is missing required columns: {missing}. "
+            f"Available columns: {sorted(df.columns)}"
+        )
+
+    # Warn about optional but expected columns
+    for src_col in AUDIT_TO_CV_COLUMNS:
+        if src_col not in df.columns:
+            logger.warning(
+                "Expected column %r not found in %s; skipping rename",
+                src_col, path.name,
+            )
+
     # Infer agent_type from filename if not provided
     if agent_type is None:
         stem = path.stem.replace("_governance_audit", "")
         agent_type = stem
+
+    if agent_type not in HOUSEHOLD_TYPES:
+        logger.warning(
+            "Agent type %r not in known household types %s",
+            agent_type, HOUSEHOLD_TYPES,
+        )
 
     df["agent_type"] = agent_type
 
@@ -111,11 +140,13 @@ def load_single_audit_csv(
 def derive_cumulative_states(df: pd.DataFrame) -> pd.DataFrame:
     """Derive cumulative state columns (elevated, relocated, insured).
 
-    Once an agent takes an irreversible action (elevate, relocate/buyout),
-    the state flag stays True for all subsequent years.
-
-    Insurance is treated as renewable: True when purchased in current year
-    or maintained from prior year.
+    State transition rules:
+    - ``elevated``: Irreversible — once an agent elevates, stays True.
+    - ``relocated``: Irreversible — once an agent relocates/accepts buyout,
+      stays True. Also forces ``insured`` to False (no property to insure).
+    - ``insured``: Persistent with auto-renewal. Becomes True on purchase,
+      remains True in subsequent years (NFIP auto-renewal assumption).
+      Lapses if agent relocates or accepts buyout.
 
     Parameters
     ----------
@@ -129,13 +160,13 @@ def derive_cumulative_states(df: pd.DataFrame) -> pd.DataFrame:
     """
     df = df.sort_values(["agent_id", "year"]).copy()
 
-    elevated = {}
-    relocated = {}
-    insured = {}
+    elevated: Dict[str, bool] = {}
+    relocated: Dict[str, bool] = {}
+    insured: Dict[str, bool] = {}
 
-    elevated_col = []
-    relocated_col = []
-    insured_col = []
+    elevated_col: List[bool] = []
+    relocated_col: List[bool] = []
+    insured_col: List[bool] = []
 
     for _, row in df.iterrows():
         aid = row["agent_id"]
@@ -151,15 +182,14 @@ def derive_cumulative_states(df: pd.DataFrame) -> pd.DataFrame:
         if action in ELEVATE_ACTIONS:
             elevated[aid] = True
 
-        # Irreversible: relocation / buyout
+        # Irreversible: relocation / buyout — also lapses insurance
         if action in RELOCATE_ACTIONS:
             relocated[aid] = True
+            insured[aid] = False
 
-        # Renewable: insurance (active if purchased this year)
-        if action in INSURE_ACTIONS:
+        # Insurance: purchase activates; auto-renews unless relocated
+        if action in INSURE_ACTIONS and not relocated[aid]:
             insured[aid] = True
-        # If not purchasing this year, keep previous state
-        # (simple model: insurance persists unless explicitly dropped)
 
         elevated_col.append(elevated[aid])
         relocated_col.append(relocated[aid])

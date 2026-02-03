@@ -226,7 +226,7 @@ def compare_with_benchmarks(
     df: pd.DataFrame,
     benchmarks: Optional[List[Benchmark]] = None,
     decision_col: str = "yearly_decision",
-    tolerance: float = 0.5,
+    tolerance: float = 0.3,
 ) -> BenchmarkReport:
     """Compare simulation output against empirical benchmarks.
 
@@ -239,7 +239,7 @@ def compare_with_benchmarks(
     decision_col : str
         Decision column name.
     tolerance : float
-        Tolerance factor for "within range" check.
+        Tolerance factor for "within range" check (default 0.3 = 30%).
         An observed rate within [low * (1-tol), high * (1+tol)] is acceptable.
 
     Returns
