@@ -37,8 +37,9 @@ from broker.validators.calibration.psychometric_battery import (
 
 @pytest.fixture
 def battery():
-    """PsychometricBattery with default vignette directory."""
-    return PsychometricBattery()
+    """PsychometricBattery with flood-domain vignettes."""
+    vdir = Path(__file__).resolve().parents[1] / "examples" / "multi_agent" / "flood" / "paper3" / "configs" / "vignettes"
+    return PsychometricBattery(vignette_dir=vdir)
 
 
 @pytest.fixture

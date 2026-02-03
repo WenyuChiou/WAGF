@@ -38,7 +38,8 @@ import yaml
 # Constants
 # ---------------------------------------------------------------------------
 
-VIGNETTE_DIR = Path(__file__).parent / "vignettes"
+# No default vignette directory — callers must provide domain-specific vignettes.
+VIGNETTE_DIR = None
 
 # PMT label ordinal mapping for ICC computation
 LABEL_TO_ORDINAL: Dict[str, int] = {
@@ -562,7 +563,9 @@ class PsychometricBattery:
     Parameters
     ----------
     vignette_dir : Path, optional
-        Directory containing vignette YAML files.
+        Directory containing vignette YAML files.  If ``None``,
+        ``load_vignettes()`` returns an empty list.  Callers performing
+        ICC probing must provide a domain-specific vignette directory.
     """
 
     def __init__(self, vignette_dir: Optional[Path] = None):
@@ -577,6 +580,8 @@ class PsychometricBattery:
     def load_vignettes(self) -> List[Vignette]:
         """Load all vignette YAML files from the vignette directory."""
         self._vignettes.clear()
+        if self._vignette_dir is None:
+            return []
         vdir = Path(self._vignette_dir)
         if not vdir.exists():
             return []

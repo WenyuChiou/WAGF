@@ -441,7 +441,7 @@ def run_prompt_sensitivity(
     archetypes = config.get("archetypes", {})
 
     # Load vignettes — use only high severity for cost savings
-    vignette_dir = _PROJECT_ROOT / "broker" / "validators" / "calibration" / "vignettes"
+    vignette_dir = _PROJECT_ROOT / "examples" / "multi_agent" / "flood" / "paper3" / "configs" / "vignettes"
     battery = PsychometricBattery(vignette_dir=vignette_dir)
     vignettes = battery.load_vignettes()
     high_vig = [v for v in vignettes if "high" in v.id.lower()]

@@ -76,6 +76,7 @@ The framework is organized into five conceptual chapters, each with bilingual do
 - **Chapter 2 — Governance Core**: [Governance Logic & Validators](docs/modules/governance_core.md)
 - **Chapter 3 — Context & Perception**: [Context Builder](docs/modules/context_system.md) | [Simulation Engine](docs/modules/simulation_engine.md)
 - **Chapter 4 — Skill Registry**: [Action Ontology](docs/modules/skill_registry.md)
+- **Chapter 5 — Calibration & Validation**: [C&V Framework](broker/validators/calibration/README.md)
 - **Experiments**: [Benchmarks & Examples](examples/README.md)
 
 ---
@@ -847,6 +848,31 @@ Synthetic profiles (no CRSS data) fall back to `water_right × 0.8`.
 > | `check_preconditions()`       | YAML precondition enforcement               | ✅ Wired into `_run_validators()` (commit `08cdb3a`) |
 > | `get_magnitude_bounds()`      | Extract magnitude constraints from registry | ✅ Used by schema-driven magnitude pipeline          |
 > | `check_composite_conflicts()` | Mutual exclusivity checking                 | Awaiting C4 composite skill execution                |
+
+---
+
+## Post-Hoc Calibration & Validation (C&V)
+
+While the [Validator Layer](#validator-layer-governance-rule-engine) enforces coherence at **runtime** (blocking hallucinations before execution), the C&V framework evaluates simulation outputs **after** a run completes. It answers: _"Did the governed agents produce scientifically plausible behavior?"_
+
+The pipeline validates at three hierarchical levels, following Grimm et al. (2005) pattern-oriented modelling:
+
+| Level | Scope | Core Metrics | What It Tests |
+| :---- | :---- | :----------- | :------------ |
+| **L1 — MICRO** | Individual agent | **CACR** (Construct-Action Coherence Rate), **R_H** (Hallucination Rate + EBE) | Are individual decisions internally coherent with reported psychological constructs? |
+| **L2 — MACRO** | Population | **GCR** (Governance Concordance Rate), **EPI** (Empirical Plausibility Index) | Do aggregate adoption rates match empirical benchmarks (NFIP, survey data)? |
+| **L3 — COGNITIVE** | Psychometric | **ICC(2,1)** + **eta-squared** (effect size) | Does the LLM produce reliable, discriminable construct ratings across replicates? |
+
+Key design features:
+
+- **Zero LLM calls** for L1/L2 — operates entirely on audit CSV traces
+- **Config-driven routing** — the `ValidationRouter` auto-detects applicable metrics from `agent_types.yaml`
+- **Domain-agnostic** — construct names, action vocabularies, and vignettes are caller-provided
+- **Batch comparison** — `CVRunner.compare_groups()` generates metrics x treatments tables across seeds/ablations
+
+L3 (psychometric probing) uses standardized vignette scenarios with domain-specific archetypes. Callers provide vignettes and archetypes in their project directory; the statistical engine (ICC, Cronbach's alpha, Fleiss' kappa, convergent/discriminant validity) is generic.
+
+**[Full C&V documentation, API examples, and metric thresholds](broker/validators/calibration/README.md)**
 
 ---
 

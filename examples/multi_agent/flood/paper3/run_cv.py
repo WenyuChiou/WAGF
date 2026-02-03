@@ -67,7 +67,7 @@ from paper3.analysis.empirical_benchmarks import compare_with_benchmarks
 # Constants
 # ---------------------------------------------------------------------------
 
-VIGNETTE_DIR = PROJECT_ROOT / "broker" / "validators" / "calibration" / "vignettes"
+VIGNETTE_DIR = FLOOD_DIR / "paper3" / "configs" / "vignettes"
 DEFAULT_MODEL = "gemma3:4b"
 DEFAULT_REPLICATES = 30
 
@@ -292,7 +292,7 @@ def run_icc_probing(
     battery = PsychometricBattery(vignette_dir=VIGNETTE_DIR)
     vignettes = battery.load_vignettes()
     print(f"Loaded {len(vignettes)} vignettes, {len(archetypes)} archetypes")
-    print(f"Total probes: {len(vignettes)} × {len(archetypes)} × {replicates} = "
+    print(f"Total probes: {len(vignettes)} x {len(archetypes)} x {replicates} = "
           f"{len(vignettes) * len(archetypes) * replicates}")
 
     # Create LLM invoke function
@@ -313,7 +313,7 @@ def run_icc_probing(
 
                 if not success or not raw:
                     failed += 1
-                    print(f"  [{completed}/{total}] FAILED: {arch_name} × {vignette.id} rep {rep}")
+                    print(f"  [{completed}/{total}] FAILED: {arch_name} x {vignette.id} rep {rep}")
                     continue
 
                 parsed = parse_probe_response(raw)
@@ -341,8 +341,18 @@ def run_icc_probing(
                 battery.add_response(response)
 
                 if completed % 50 == 0 or completed == total:
-                    print(f"  [{completed}/{total}] {arch_name} × {vignette.id} "
+                    print(f"  [{completed}/{total}] {arch_name} x {vignette.id} "
                           f"rep {rep}: TP={tp}, CP={cp}, action={decision}")
+
+                # Incremental save every 500 calls (prevent data loss on crash)
+                if completed % 500 == 0:
+                    try:
+                        inc_df = battery.responses_to_dataframe()
+                        if not inc_df.empty:
+                            inc_path = output_dir / "icc_responses_partial.csv"
+                            inc_df.to_csv(inc_path, index=False)
+                    except Exception:
+                        pass  # Non-critical
 
     # Compute results
     print(f"\nProbing complete. {completed - failed}/{completed} successful.")
@@ -366,16 +376,16 @@ def run_icc_probing(
     # Effect size (eta-squared)
     if report.tp_effect_size:
         eta_tp = report.tp_effect_size.eta_squared
-        print(f"  TP η²: {eta_tp:.3f} "
+        print(f"  TP eta^2: {eta_tp:.3f} "
               f"{'PASS' if eta_tp >= 0.25 else 'FAIL'} (target >= 0.25)")
     if report.cp_effect_size:
         eta_cp = report.cp_effect_size.eta_squared
-        print(f"  CP η²: {eta_cp:.3f}")
+        print(f"  CP eta^2: {eta_cp:.3f}")
 
     # Convergent validity
     if report.convergent_validity:
         cv = report.convergent_validity
-        print(f"  Convergent validity (TP vs severity): ρ={cv.spearman_rho:.3f}, "
+        print(f"  Convergent validity (TP vs severity): rho={cv.spearman_rho:.3f}, "
               f"p={cv.p_value:.4f} (n={cv.n_observations})")
 
     # TP-CP discriminant
@@ -393,7 +403,7 @@ def run_icc_probing(
             print(f"    TP ICC: {vr.tp_icc.icc_value:.3f}")
         if vr.cp_icc:
             print(f"    CP ICC: {vr.cp_icc.icc_value:.3f}")
-        print(f"    Decision agreement (Fleiss' κ): {vr.decision_agreement:.3f}")
+        print(f"    Decision agreement (Fleiss' kappa): {vr.decision_agreement:.3f}")
 
     # Save report
     report_dict = report.to_dict()

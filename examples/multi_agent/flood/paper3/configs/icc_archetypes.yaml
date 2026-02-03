@@ -445,7 +445,7 @@ probing:
   replicates: 30
   governed: true
   temperature: 0.7  # Matches experiment config (harmonized per R1-D)
-  vignette_dir: "broker/validators/calibration/vignettes"
+  vignette_dir: "examples/multi_agent/flood/paper3/configs/vignettes"
   thresholds:
     icc_tp: 0.60
     icc_cp: 0.60
