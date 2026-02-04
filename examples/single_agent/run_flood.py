@@ -1173,8 +1173,9 @@ if __name__ == "__main__":
     parser.add_argument("--output", type=str, default=None)
     parser.add_argument("--verbose", action="store_true", help="Enable verbose LLM logging")
     parser.add_argument("--memory-engine", type=str, default="window",
-                        choices=["window", "importance", "humancentric", "hierarchical"],
-                        help="Memory retrieval strategy: window (sliding), importance (active retrieval), humancentric (emotional), or hierarchical (tiered)")
+                        choices=["window", "humancentric", "importance", "hierarchical"],
+                        help="Memory retrieval strategy: window (sliding) or humancentric (emotional). "
+                             "Note: importance and hierarchical are deprecated — use humancentric instead.")
     parser.add_argument("--workers", type=int, default=1, help="Number of parallel workers for LLM calls")
     parser.add_argument("--window-size", type=int, default=5, help="Size of memory window (years/events) to retain")
     parser.add_argument("--flood-mode", type=str, default="fixed", choices=["fixed", "prob"], help="Flood schedule: fixed (use flood_years.csv) or prob (use FLOOD_PROBABILITY)")

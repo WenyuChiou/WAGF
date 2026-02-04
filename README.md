@@ -63,21 +63,120 @@ python examples/single_agent/run_flood.py --model gemma3:4b --years 10 --agents 
 | **Single Agent**   | Intermediate | JOH Benchmark: Groups A/B/C ablation study            | [Go](examples/single_agent/)   |
 | **Irrigation ABM** | Intermediate | Colorado River Basin water demand (Hung & Yang, 2021) | [Go](examples/irrigation_abm/) |
 | **Multi-Agent**    | Advanced     | Social dynamics, insurance market, government policy  | [Go](examples/multi_agent/)    |
-| **Finance**        | Extension    | Cross-domain demonstration (portfolio decisions)      | [Go](examples/finance/)        |
+| **Finance**        | Extension    | Cross-domain demonstration (portfolio decisions)      | [Go](examples/archive/finance/) |
 
 ---
 
-## Module Directory (Documentation Hub)
+## Module Directory
 
-The framework is organized into five conceptual chapters, each with bilingual documentation:
+The `broker/` package contains **107 modules** in seven architectural layers.
+L1–L5 and L7 power all experiments; L6 is multi-agent only.
 
-- **Chapter 0 — Theoretical Basis**: [Overview](docs/modules/00_theoretical_basis_overview.md) | [中文](docs/modules/00_theoretical_basis_overview_zh.md)
-- **Chapter 1 — Memory & Reflection**: [Memory & Surprise Engine](docs/modules/memory_components.md) | [Reflection Engine](docs/modules/reflection_engine.md)
-- **Chapter 2 — Governance Core**: [Governance Logic & Validators](docs/modules/governance_core.md)
-- **Chapter 3 — Context & Perception**: [Context Builder](docs/modules/context_system.md) | [Simulation Engine](docs/modules/simulation_engine.md)
-- **Chapter 4 — Skill Registry**: [Action Ontology](docs/modules/skill_registry.md)
-- **Chapter 5 — Calibration & Validation**: [C&V Framework](broker/validators/calibration/README.md)
-- **Experiments**: [Benchmarks & Examples](examples/README.md)
+> File paths are relative to `broker/`. Detailed docs linked where available.
+
+### L1 — LLM Interface Layer
+
+> Constructs bounded context for the LLM, invokes the model, and parses structured responses.
+
+| Module | Path | Role |
+| :--- | :--- | :--- |
+| **TieredContextBuilder** | `components/tiered_builder.py` | CORE / HISTORIC / RECENT tiered prompt construction |
+| **ContextProviders** | `components/context_providers.py` | Pluggable context enrichment chain |
+| **FeedbackProvider** | `components/feedback_provider.py` | Config-driven metric trends & YAML assertion dashboard |
+| **PerceptionFilter** | `components/perception_filter.py` | Agent-type-aware information filtering |
+| **ResponseFormatBuilder** | `components/response_format.py` | YAML-driven response format & output parsing |
+| **Efficiency** | `core/efficiency.py` | Model-adaptive context optimization |
+
+[Context System docs](docs/modules/context_system.md) | [中文](docs/modules/context_system_zh.md)
+
+### L2 — Governance Layer
+
+> Validates proposals against physical, psychological, and semantic rules; manages skill brokering and audit.
+
+| Module | Path | Role |
+| :--- | :--- | :--- |
+| **SkillBrokerEngine** | `core/skill_broker_engine.py` | Core 6-stage pipeline (context → LLM → parse → validate → approve → execute) |
+| **SkillRegistry** | `components/skill_registry.py` | YAML-loaded action ontology with preconditions |
+| **SkillRetriever** | `components/skill_retriever.py` | RAG-based context-aware skill selection |
+| **AuditWriter** | `components/audit_writer.py` | Structured CSV audit trail |
+| **DriftDetector** | `components/drift_detector.py` | Behavioral drift detection across time steps |
+| *Governance validators* | `validators/governance/` | 5-category pipeline: Physical, Thinking, Personal, Social, Semantic |
+| *Post-hoc analysis* | `validators/posthoc/` | R_H hallucination rate & keyword classifier |
+| *Calibration & Validation* | `validators/calibration/` | C&V framework: micro, macro, psychometric |
+
+[Governance docs](docs/modules/governance_core.md) | [中文](docs/modules/governance_core_zh.md) | [C&V Framework](broker/validators/calibration/README.md)
+
+### L3 — Execution & Environment Layer
+
+> Runs experiments, manages simulation state, generates environmental events, handles agent lifecycle.
+
+| Module | Path | Role |
+| :--- | :--- | :--- |
+| **ExperimentRunner** | `core/experiment.py` | Experiment orchestrator with seed control |
+| **AgentInitializer** | `core/agent_initializer.py` | Agent construction from YAML + survey data |
+| **SimulationEngine** | `simulation/base_simulation_engine.py` | Sandboxed skill execution engine |
+| **ObservableState** | `components/observable_state.py` | Bounded agent observation interface |
+| *Event generators* | `components/event_generators/` | Domain event sources (flood, hazard, impact, policy) |
+| *Domain adapters* | `components/adapters/` | Environment bindings (flood, irrigation) |
+
+[Simulation Engine docs](docs/modules/simulation_engine.md) | [中文](docs/modules/simulation_engine_zh.md)
+
+### L4 — Memory & Retrieval Layer
+
+> Encodes, stores, consolidates, and retrieves agent memories with emotion-weighted importance and temporal decay.
+
+| Module | Path | Role |
+| :--- | :--- | :--- |
+| **MemoryEngine** | `components/memory_engine.py` | Abstract memory interface |
+| **MemoryFactory** | `components/memory_factory.py` | Engine selection from config flags |
+| *Engine implementations* | `components/engines/` | Window, Importance, HumanCentric, Hierarchical |
+| **MemoryBridge** | `components/memory_bridge.py` | v2↔v4 compatibility adapter |
+| **MemorySeeding** | `components/memory_seeding.py` | Initial memory injection from JSON profiles |
+| **SymbolicContext** | `components/symbolic_context.py` | Symbolic state signatures for memory queries |
+
+[Memory docs](docs/modules/memory_components.md) | [中文](docs/modules/memory_components_zh.md)
+
+### L5 — Reflection Layer
+
+> Periodically consolidates episodic memories into generalized insights via LLM-driven reflection.
+
+| Module | Path | Role |
+| :--- | :--- | :--- |
+| **ReflectionEngine** | `components/reflection_engine.py` | Batch reflection with domain-specific questions |
+| **DomainAdapters** | `components/domain_adapters.py` | Domain-specific reflection prompts |
+
+[Reflection docs](docs/modules/reflection_engine.md) | [中文](docs/modules/reflection_engine_zh.md)
+
+### L6 — Social & Communication Layer
+
+> *Multi-agent only.* Manages social networks, inter-agent messaging, phased execution, and conflict resolution.
+
+| Module | Path | Role |
+| :--- | :--- | :--- |
+| **SocialGraph** | `components/social_graph.py` | Network topology and neighbor queries |
+| **InteractionHub** | `components/interaction_hub.py` | Multi-tier information diffusion |
+| **PhaseOrchestrator** | `components/phase_orchestrator.py` | Ordered agent-type execution phases |
+| **SagaCoordinator** | `components/saga_coordinator.py` | Multi-step transaction coordination with rollback |
+| **ConflictResolver** | `components/conflict_resolver.py` | Inter-agent action conflict arbitration |
+| *Messaging* | `components/message_pool.py`, `message_provider.py` | Broadcast message queue and context injection |
+
+### L7 — Utilities & Infrastructure
+
+> Cross-cutting services: LLM adapters, JSON repair, configuration schema, type definitions.
+
+| Module | Path | Role |
+| :--- | :--- | :--- |
+| **LLMUtils** | `utils/llm_utils.py` | Config-driven LLM calls with timeout and model quirks |
+| **ModelAdapter** | `utils/model_adapter.py` | Multi-layer defensive parsing (JSON repair → regex → fallback) |
+| *LLM adapters* | `utils/adapters/` | Ollama, OpenAI, DeepSeek provider bindings |
+| *Config schema* | `config/schema.py`, `config/agent_types/` | YAML configuration and agent type registry |
+| *Type interfaces* | `interfaces/` | Type definitions: `skill_types`, `context_types`, `schemas`, etc. |
+
+### Theoretical Foundation & Experiments
+
+- **[Theoretical Basis](docs/modules/00_theoretical_basis_overview.md)** | [中文](docs/modules/00_theoretical_basis_overview_zh.md)
+- **[Skill Registry (Action Ontology)](docs/modules/skill_registry.md)** | [中文](docs/modules/skill_registry_zh.md)
+- **[Experiments & Benchmarks](examples/README.md)**
 
 ---
 
@@ -86,8 +185,10 @@ The framework is organized into five conceptual chapters, each with bilingual do
 ### Integration Guides (`docs/guides/`)
 
 - **[Experiment Design Guide](docs/guides/experiment_design_guide.md)**: Recipe for building new experiments.
-- **[Agent Assembly Guide](docs/guides/agent_assembly.md)**: How to stack "Cognitive Blocks" (Level 1-3).
+- **[Agent Assembly Guide](docs/guides/agent_assembly.md)**: How to stack "Cognitive Blocks" (Level 1-3). | [中文](docs/guides/agent_assembly_zh.md)
 - **[Customization Guide](docs/guides/customization_guide.md)**: Adding new skills, validators, and audit fields.
+- **[Integration Guide](docs/guides/integration_guide.md)**: Connecting external environments to the broker.
+- **[Agent Type Specification Guide](docs/guides/agent_type_specification_guide.md)**: Defining new agent types in YAML.
 
 ### Architecture Specs (`docs/architecture/`)
 
@@ -100,6 +201,8 @@ The framework is organized into five conceptual chapters, each with bilingual do
 - **[Government Agents](docs/multi_agent_specs/government_agent_spec.md)**: Subsidies, buyouts & policy logic.
 - **[Insurance Market](docs/multi_agent_specs/insurance_agent_spec.md)**: Premium calculation & risk models.
 - **[Institutional Behavior](docs/multi_agent_specs/institutional_agent_behavior_spec.md)**: Interaction protocols.
+- **[Multi-Agent Constructs](docs/multi_agent_specs/multi_agent_constructs.md)**: Cross-agent behavioral constructs.
+- **[Experiment 3 Design](docs/multi_agent_specs/exp3_multi_agent_design.md)**: Full multi-agent experiment design.
 
 ---
 
@@ -116,6 +219,7 @@ LLM-driven ABMs face five recurring problems that this framework solves:
 | **Inconsistency**    | Decisions contradict reasoning (Logical Drift)       | **Thinking Validators**: Checks logical coherence between TP/CP and Choice | `SkillBrokerEngine` |
 | **Opaque Decisions** | "Why did agent X do Y?" is lost                      | **Structured Trace**: Logs Input, Reasoning, Validation, and Outcome       | `AuditWriter`       |
 | **Unsafe Mutation**  | LLM output breaks simulation state                   | **Sandboxed Execution**: Validated skills are executed by engine, not LLM  | `SimulationEngine`  |
+| **Feedback Gap**     | Agent cannot reason about env constraints             | **Feedback Dashboard**: Config-driven metric trends & assertion injection  | `FeedbackProvider`  |
 
 ---
 
@@ -150,10 +254,11 @@ The memory and governance architecture has evolved through three phases:
 - **v2 (Weighted)**: [Context-Dependent Memory] — Modular `SkillBrokerEngine` with **Weighted Retrieval** ($S = W_{rec}R + W_{imp}I + W_{ctx}C$).
 - **v3 (Current)**: [Emotion-Weighted Memory Architecture] — Introduces multiple memory engines. Production experiments use **HumanCentricMemoryEngine** in basic ranking mode.
   - **Importance = Emotion × Source**: Keyword-classified emotional weight (critical/major/positive/shift/routine) multiplied by source proximity (personal > neighbor > community > abstract).
-  - **Stochastic Consolidation**: High-importance memories have probabilistic transfer to long-term storage ($P = 0.7$ when importance $> 0.6$).
+  - **Stochastic Consolidation**: High-importance memories have probabilistic transfer to long-term storage ($P = 0.7$ when importance $> 0.6$). Memory caps with smart eviction (working: 20, long-term: 100).
   - **Exponential Decay**: $I(t) = I_0 \cdot e^{-\lambda t}$ applied to long-term memories.
   - **Retrieval (basic ranking mode)**: Recent `window_size` working memories + top-K significant long-term memories ranked by `decayed_importance`. No weighted scoring ($W_{rec}, W_{imp}, W_{ctx}$).
-  - _Note_: A weighted retrieval mode ($S = W_{rec} R + W_{imp} I + W_{ctx} C$) and a more advanced `UnifiedCognitiveEngine` with EMA-based surprise detection and System 1/2 switching exist but are **not used** in the WRR experiments.
+  - **v2-next extensions** (available, default-off): Contextual Resonance ($W_{rel}$, overlap coefficient), Interference-Based Forgetting ($W_{int}$, retroactive suppression), and SurprisePlugin interface for Decision-Consistency Surprise (unigram/bigram action prediction). Full 5-dimensional scoring: $S = W_{rec} R + W_{imp} I + W_{ctx} C + W_{rel} Rel - W_{int} Int$.
+  - _Note_: A more advanced `UnifiedCognitiveEngine` with EMA-based surprise detection and System 1/2 switching exists but is **not used** in the WRR experiments.
 
 **[Deep Dive: Memory Priority & Retrieval Math](docs/modules/memory_components.md)**
 
@@ -222,8 +327,6 @@ BaseValidator (ABC)                    # broker/validators/governance/base_valid
 │                                        社會驗證器：鄰居影響觀測（僅警告）
 └── SemanticGroundingValidator         # Free-text reasoning vs simulation ground truth
                                          語義接地驗證器：推理文本 vs 模擬事實
-```
-
 ```
 
 #### Design Philosophy
@@ -350,7 +453,7 @@ The framework provides four memory engines of increasing cognitive complexity. E
 | :--------------------------- | :----------------------------- | :--------- | :----------------------------- | :------------------------------------------------------------------------------------------------------- |
 | **WindowMemoryEngine**       | `--memory-engine window`       | Minimal    | Flood Group B                  | FIFO sliding window. Keeps last N memories, no importance scoring.                                       |
 | **ImportanceMemoryEngine**   | `--memory-engine importance`   | Low        | —                              | Adds keyword-based importance scoring to window retrieval.                                               |
-| **HumanCentricMemoryEngine** | `--memory-engine humancentric` | Medium     | **Flood Group C, Irrigation**  | Emotion × source importance, stochastic consolidation, exponential decay. Two ranking modes (see below). |
+| **HumanCentricMemoryEngine** | `--memory-engine humancentric` | Medium     | **Flood Group C, Irrigation**  | Emotion × source importance, stochastic consolidation, exponential decay. v2-next: contextual resonance, interference forgetting, surprise plugin. |
 | **UnifiedCognitiveEngine**   | `--memory-engine universal`    | High       | — (available, not used in WRR) | Adds EMA-based surprise detection and System 1/2 switching on top of HumanCentric features.              |
 
 ### HumanCentricMemoryEngine — Detail (used in all WRR experiments)
@@ -423,7 +526,7 @@ The `ReflectionEngine` (`broker/components/reflection_engine.py`) runs at config
 
 When the `SkillBrokerEngine` receives a parsed `SkillProposal`, it executes the following ordered pipeline. The function `validate_all(skill_name, rules, context, domain=...)` orchestrates all five category validators.
 
-```
+```text
 
 SkillProposal ─────────────────────────────────────────────────────────────► Execute
 │ ▲
@@ -727,7 +830,6 @@ shared:
 | `text`      | `{ key: "reasoning", type: "text" }`                                             | `"reasoning": "..."`                                            |
 | `appraisal` | `{ key: "threat_appraisal", type: "appraisal", construct: "TP_LABEL" }`          | `"threat_appraisal": {"label": "VL/L/M/H/VH", "reason": "..."}` |
 | `choice`    | `{ key: "decision", type: "choice" }`                                            | `"decision": "<Numeric ID, choose ONE from: 1, 2, or 3>"`       |
-| `choice`    | `{ key: "decision", type: "choice" }`                                            | `"decision": "<Numeric ID, choose ONE from: 1, 2, or 3>"`       |
 | `numeric`   | `{ key: "elevation", type: "numeric", min: 0, max: 5, unit: "m", sign: "both" }` | `"elevation": "Enter a number: +/- 0-5 m"`                      |
 
 **Flexible Numeric Fields (v3.4)**:
@@ -907,16 +1009,16 @@ The framework has been validated through the **WRR Benchmark** (_Water Resources
 
 ### Flood Experiment Status (WRR Benchmark)
 
-All B/C groups re-running with v7 code (action-outcome feedback, configurable reflection, reasoning-first ordering).
+All experiments use v7 code (action-outcome feedback, configurable reflection, reasoning-first ordering).
 
 | Model         | Group A (Ungoverned) | Group B (Governed+Window) | Group C (Governed+HumanCentric) |
 | :------------ | :------------------: | :-----------------------: | :-----------------------------: |
-| Gemma 3-4B    |          ✓           |      Re-running (v7)      |         Re-running (v7)         |
-| Gemma 3-12B   |          ✓           |      Re-running (v7)      |         Re-running (v7)         |
-| Gemma 3-27B   |          ✓           |      Re-running (v7)      |         Re-running (v7)         |
-| Ministral 3B  |          ✓           |      Re-running (v7)      |         Re-running (v7)         |
-| Ministral 8B  |          ✓           |      Re-running (v7)      |         Re-running (v7)         |
-| Ministral 14B |          ✓           |      Re-running (v7)      |         Re-running (v7)         |
+| Gemma 3-4B    |          ✓           |            ✓              |               ✓                 |
+| Gemma 3-12B   |          ✓           |            ✓              |               ✓                 |
+| Gemma 3-27B   |          ✓           |         Pending           |            Pending              |
+| Ministral 3B  |          ✓           |            ✓              |               ✓                 |
+| Ministral 8B  |          ✓           |            ✓              |               ✓                 |
+| Ministral 14B |          ✓           |            ✓              |            Pending              |
 
 **[Full experimental details](examples/single_agent/)**
 
