@@ -107,7 +107,13 @@ def curtailment_awareness_check(
     rules: List[GovernanceRule],
     context: Dict[str, Any],
 ) -> List[ValidationResult]:
-    """Warn when increasing demand during active curtailment."""
+    """Warn or block demand increase during active curtailment.
+
+    P4 upgrade: Tier 2+ shortage triggers a hard BLOCK on increase_demand.
+    This mirrors USBR Drought Contingency Plan (DCP) operations where
+    Tier 2+ triggers mandatory conservation measures.
+    Tier 0-1 remains a WARNING (original behaviour).
+    """
     if skill_name != "increase_demand":
         return []
 
@@ -116,9 +122,32 @@ def curtailment_awareness_check(
         return []
 
     shortage_tier = context.get("shortage_tier", 0)
+
+    # P4: Tier 2+ → hard block (DCP mandatory conservation)
+    if shortage_tier >= 2:
+        return [
+            ValidationResult(
+                valid=False,
+                validator_name="IrrigationCurtailmentValidator",
+                errors=[
+                    f"Demand increase blocked: Tier {shortage_tier} shortage "
+                    f"({curtailment:.0%} curtailment). Conservation is mandatory "
+                    f"under DCP operations."
+                ],
+                warnings=[],
+                metadata={
+                    "rule_id": "curtailment_awareness",
+                    "category": "physical",
+                    "blocked_skill": skill_name,
+                    "level": "ERROR",
+                },
+            )
+        ]
+
+    # Tier 0-1: warning only (original behaviour)
     return [
         ValidationResult(
-            valid=True,  # Warning, not error
+            valid=True,
             validator_name="IrrigationCurtailmentValidator",
             errors=[],
             warnings=[
@@ -334,6 +363,80 @@ def magnitude_cap_check(
     return []
 
 
+def supply_gap_block_increase(
+    skill_name: str,
+    rules: List[GovernanceRule],
+    context: Dict[str, Any],
+) -> List[ValidationResult]:
+    """Block increase_demand when agent already has large unmet demand.
+
+    P3: Physical rationale — requesting more water than the system can
+    deliver cannot increase actual water received. This mirrors the
+    real-world constraint that irrigators cannot expand operations beyond
+    available supply.
+
+    Blocks when fulfilment ratio (diversion / request) < 70%.
+    Agent may still choose decrease, efficiency, acreage, or maintain.
+    """
+    if skill_name != "increase_demand":
+        return []
+
+    # Skip if Tier 2+ shortage already handled by curtailment_awareness_check
+    shortage_tier = context.get("shortage_tier", 0)
+    if shortage_tier >= 2:
+        return []  # P4 handles this case with DCP block
+
+    request = context.get("current_request", 0)
+    diversion = context.get("current_diversion", 0)
+
+    # Both zero → new agent expanding from zero baseline (Y1), allow
+    if request <= 0 and diversion <= 0:
+        return []
+
+    # Positive request but zero delivery → complete supply failure, block
+    if request > 0 and diversion <= 0:
+        return [
+            ValidationResult(
+                valid=False,
+                validator_name="IrrigationSupplyGapValidator",
+                errors=[
+                    f"Demand increase blocked: received zero water despite "
+                    f"requesting {request:,.0f} AF. System cannot deliver more."
+                ],
+                warnings=[],
+                metadata={
+                    "rule_id": "supply_gap_block_increase",
+                    "category": "physical",
+                    "blocked_skill": skill_name,
+                    "level": "ERROR",
+                },
+            )
+        ]
+
+    fulfilment = diversion / request
+    if fulfilment >= 0.70:
+        return []
+
+    unmet = request - diversion
+    return [
+        ValidationResult(
+            valid=False,
+            validator_name="IrrigationSupplyGapValidator",
+            errors=[
+                f"Demand increase blocked: only {fulfilment:.0%} of request "
+                f"fulfilled ({unmet:,.0f} AF unmet). System cannot deliver more."
+            ],
+            warnings=[],
+            metadata={
+                "rule_id": "supply_gap_block_increase",
+                "category": "physical",
+                "blocked_skill": skill_name,
+                "level": "ERROR",
+            },
+        )
+    ]
+
+
 # =============================================================================
 # Aggregated check lists for injection into validators
 # =============================================================================
@@ -345,6 +448,7 @@ IRRIGATION_PHYSICAL_CHECKS = [
     minimum_utilisation_check,
     drought_severity_check,
     magnitude_cap_check,
+    supply_gap_block_increase,
 ]
 
 IRRIGATION_SOCIAL_CHECKS = [

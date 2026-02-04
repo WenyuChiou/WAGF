@@ -232,6 +232,10 @@ def build_water_situation_text(
         f"({utilisation:.0f}% utilisation)."
     )
 
+    # NOTE: Supply-demand gap feedback is now handled by the generic
+    # FeedbackDashboardProvider via YAML assertions in agent_types.yaml.
+    # See broker/components/feedback_provider.py
+
     return "\n".join(lines)
 
 

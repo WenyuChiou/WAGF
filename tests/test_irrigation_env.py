@@ -17,6 +17,7 @@ from examples.irrigation_abm.validators.irrigation_validators import (
     drought_severity_check,
     compact_allocation_check,
     magnitude_cap_check,
+    supply_gap_block_increase,
     irrigation_governance_validator,
     IRRIGATION_PHYSICAL_CHECKS,
     ALL_IRRIGATION_CHECKS,
@@ -172,6 +173,7 @@ class TestIrrigationValidators:
         base = {
             "at_allocation_cap": False,
             "current_diversion": 80_000,
+            "current_request": 100_000,
             "water_right": 100_000,
             "curtailment_ratio": 0.0,
             "shortage_tier": 0,
@@ -209,11 +211,20 @@ class TestIrrigationValidators:
         assert len(results) == 1
         assert not results[0].valid
 
-    def test_curtailment_warns_on_increase(self):
+    def test_curtailment_blocks_tier2_increase(self):
+        """P4: Tier 2+ shortage triggers hard BLOCK on increase_demand."""
         ctx = self._make_context(curtailment_ratio=0.10, shortage_tier=2)
         results = curtailment_awareness_check("increase_demand", [], ctx)
         assert len(results) == 1
-        assert results[0].valid  # Warning only
+        assert not results[0].valid  # P4: Tier 2+ → BLOCK
+        assert len(results[0].errors) == 1
+
+    def test_curtailment_warns_tier1_increase(self):
+        """Tier 0-1 remains WARNING only (original behaviour)."""
+        ctx = self._make_context(curtailment_ratio=0.05, shortage_tier=1)
+        results = curtailment_awareness_check("increase_demand", [], ctx)
+        assert len(results) == 1
+        assert results[0].valid  # Tier 1 → WARNING
         assert len(results[0].warnings) == 1
 
     def test_curtailment_silent_when_none(self):
@@ -274,9 +285,43 @@ class TestIrrigationValidators:
         assert len(results) == 1
         assert not results[0].valid
 
+    def test_supply_gap_blocks_low_fulfilment(self):
+        """P3: Block increase when fulfilment < 70%."""
+        ctx = self._make_context(current_request=100_000, current_diversion=50_000)
+        results = supply_gap_block_increase("increase_demand", [], ctx)
+        assert len(results) == 1
+        assert not results[0].valid
+
+    def test_supply_gap_allows_high_fulfilment(self):
+        """P3: Allow increase when fulfilment >= 70%."""
+        ctx = self._make_context(current_request=100_000, current_diversion=80_000)
+        results = supply_gap_block_increase("increase_demand", [], ctx)
+        assert len(results) == 0
+
+    def test_supply_gap_allows_zero_baseline(self):
+        """P3: Allow increase from zero baseline (Y1 new agent)."""
+        ctx = self._make_context(current_request=0, current_diversion=0)
+        results = supply_gap_block_increase("increase_demand", [], ctx)
+        assert len(results) == 0
+
+    def test_supply_gap_blocks_zero_delivery(self):
+        """P3: Block increase when request > 0 but delivery = 0."""
+        ctx = self._make_context(current_request=100_000, current_diversion=0)
+        results = supply_gap_block_increase("increase_demand", [], ctx)
+        assert len(results) == 1
+        assert not results[0].valid
+
+    def test_supply_gap_skips_tier2(self):
+        """P3: Skip when Tier 2+ (P4 handles it)."""
+        ctx = self._make_context(
+            current_request=100_000, current_diversion=30_000, shortage_tier=2
+        )
+        results = supply_gap_block_increase("increase_demand", [], ctx)
+        assert len(results) == 0  # Deferred to P4
+
     def test_aggregated_check_list_length(self):
-        assert len(IRRIGATION_PHYSICAL_CHECKS) == 6
-        assert len(ALL_IRRIGATION_CHECKS) == 8
+        assert len(IRRIGATION_PHYSICAL_CHECKS) == 7  # P3 added supply_gap
+        assert len(ALL_IRRIGATION_CHECKS) == 9
 
     def test_all_checks_callable(self):
         for check in ALL_IRRIGATION_CHECKS:
@@ -360,12 +405,25 @@ class TestDomainDispatch:
         assert len(warnings) >= 1
         assert any("compact" in w.warnings[0].lower() for w in warnings)
 
-    def test_irrigation_curtailment_warning_fires(self):
-        """domain='irrigation' activates curtailment_awareness_check (social)."""
+    def test_irrigation_curtailment_blocks_tier2(self):
+        """P4: domain='irrigation' blocks increase_demand at Tier 2+ shortage."""
         from broker.validators.governance import validate_all
         ctx = {
             "curtailment_ratio": 0.15,
             "shortage_tier": 2,
+        }
+        results = validate_all("increase_demand", self._make_rules(), ctx, domain="irrigation")
+        errors = [r for r in results if not r.valid and r.errors]
+        assert len(errors) >= 1
+        assert any("curtailment" in e.errors[0].lower() or "conservation" in e.errors[0].lower()
+                    for e in errors)
+
+    def test_irrigation_curtailment_warns_tier1(self):
+        """Tier 1 shortage remains WARNING via domain dispatch."""
+        from broker.validators.governance import validate_all
+        ctx = {
+            "curtailment_ratio": 0.05,
+            "shortage_tier": 1,
         }
         results = validate_all("increase_demand", self._make_rules(), ctx, domain="irrigation")
         warnings = [r for r in results if r.valid and r.warnings]

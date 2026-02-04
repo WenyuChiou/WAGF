@@ -66,12 +66,13 @@ class WaterSystemConfig:
     mead_initial_elevation: float = 1081.46   # Dec 2018 observed (ft)
     evaporation_maf: float = 0.8              # Reservoir evaporation at ref storage (MAF/yr)
     mexico_treaty_maf: float = 1.5            # Treaty delivery to Mexico (MAF/yr)
-    lb_municipal_maf: float = 4.5             # LB non-ag: M&I + tribal + system losses (MAF/yr)
+    lb_municipal_maf: float = 5.0             # LB non-ag: M&I + tribal + CAP + system losses (MAF/yr)
     lb_tributary_maf: float = 1.0             # LB tributary inflow (MAF/yr)
     natural_flow_base_maf: float = 12.0       # Natural flow at avg precip (MAF/yr)
     precip_baseline_mm: float = 100.0         # CRSS avg UB winter precip (mm)
     min_powell_release_maf: float = 7.0       # Min Powell release, USBR DCP floor (MAF/yr)
     ub_infrastructure_cap_maf: float = 5.0   # UB infrastructure-limited ceiling (MAF/yr)
+    mead_max_storage_delta_maf: float = 3.5  # Max annual storage change (Glen Canyon buffering)
 
     # Number of Monte Carlo runs
     n_monte_carlo: int = 100
@@ -95,7 +96,8 @@ class IrrigationEnvironment:
                         - LB_diversions - Mexico(DCP) - Evap(storage) - Municipal
 
     Constraints: Powell min release 7.0 MAF (USBR DCP), UB infrastructure
-    ceiling 5.0 MAF (historical capacity), NF clamped [6, 17] MAF.
+    ceiling 5.0 MAF (historical capacity), NF clamped [6, 17] MAF,
+    annual storage change capped at ±3.5 MAF (Glen Canyon buffering).
     Evaporation scales with surface area; Mexico follows Minute 323.
 
     Usage::
@@ -475,7 +477,7 @@ class IrrigationEnvironment:
             return ExecutionResult(success=False, error=f"Unknown agent: {aid}")
 
         wr = agent["water_right"]
-        current = agent["request"]
+        current = agent.get("diversion", agent["request"])
         meta = getattr(approved_skill, "parameters", {}) or {}
         # Magnitude: LLM output → persona default → hardcoded 10
         magnitude_pct = meta.get("magnitude_pct")
@@ -484,8 +486,9 @@ class IrrigationEnvironment:
         state_changes: Dict[str, Any] = {}
 
         if skill == "increase_demand":
-            # M1: scale increase by current usage, not paper water_right.
-            # Farmers expand from existing operations, not legal ceiling.
+            # P1: scale increase by actual diversion (physical water received),
+            # not request (paper demand). Prevents unbounded request growth
+            # when Powell/infra constraints cap actual delivery.
             change = current * (magnitude_pct / 100.0)
             new_req = min(current + change, wr)
             self.update_agent_request(aid, new_req)
@@ -578,11 +581,12 @@ class IrrigationEnvironment:
             PowellRelease = NaturalFlow − UB_effective   (≥ MinPowellRelease)
             Mead_inflow   = PowellRelease + LB_tributaries
             Mead_outflow  = LB_diversions + Mexico(DCP) + Evap(storage) + Municipal
-            Storage(t+1)  = Storage(t) + Mead_inflow − Mead_outflow
+            Storage(t+1)  = Storage(t) + clamp(Mead_inflow − Mead_outflow, ±3.5)
 
         Constraints: Powell minimum release 7.0 MAF (USBR DCP floor),
         UB infrastructure ceiling 5.0 MAF (historical depletion capacity),
-        NF clamped to [6, 17] MAF (operational release range).
+        NF clamped to [6, 17] MAF (operational release range),
+        annual storage Δ capped at ±3.5 MAF (Glen Canyon Dam buffering).
         Evaporation scales with surface area; Mexico follows Minute 323.
 
         Agent diversions are from the *previous* year's decisions, which
@@ -634,8 +638,13 @@ class IrrigationEnvironment:
         mead_outflow = lb_div_maf + mexico + evap_actual + cfg.lb_municipal_maf
 
         # --- Mass balance ---
-        new_storage = prev_storage + mead_inflow - mead_outflow
-        new_storage = max(2.0, min(26.1, new_storage))  # Dead pool to full pool
+        # R1: Glen Canyon Dam buffers releases; cap annual storage change
+        unconstrained_delta = mead_inflow - mead_outflow
+        max_delta = cfg.mead_max_storage_delta_maf
+        delta = max(-max_delta, min(max_delta, unconstrained_delta))
+        new_storage = prev_storage + delta
+        # Physical bounds override operational buffering near dead-pool/full-pool
+        new_storage = max(2.0, min(26.1, new_storage))
         self._mead_storage.append(new_storage)
 
         # --- Convert to elevation ---
