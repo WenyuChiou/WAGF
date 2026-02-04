@@ -1,5 +1,6 @@
 from typing import List, Dict, Any, Optional
 import logging
+import warnings
 
 from cognitive_governance.agents import BaseAgent
 from broker.components.memory_engine import MemoryEngine
@@ -14,14 +15,25 @@ class ImportanceMemoryEngine(MemoryEngine):
     Weights and categories can be customized per domain:
     - categories: {"crisis": ["damage", "loss"], "social": ["neighbor", "friend"]}
     - weights: {"crisis": 1.0, "social": 0.5, "routine": 0.1}
+
+    .. deprecated::
+        ImportanceMemoryEngine is deprecated. Use HumanCentricMemoryEngine instead,
+        which provides emotional salience encoding, stochastic consolidation, and
+        exponential decay — a strict superset of importance-based retrieval.
     """
     def __init__(
-        self, 
-        window_size: int = 3, 
+        self,
+        window_size: int = 3,
         top_k_significant: int = 2,
         weights: Optional[Dict[str, float]] = None,
         categories: Optional[Dict[str, List[str]]] = None
     ):
+        warnings.warn(
+            "ImportanceMemoryEngine is deprecated and will be removed in a future version. "
+            "Use HumanCentricMemoryEngine (--memory-engine humancentric) instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.window_size = window_size
         self.top_k_significant = top_k_significant
         self.storage: Dict[str, List[Dict[str, Any]]] = {}

@@ -2,9 +2,14 @@
 Shared Memory Engine Factory for SA/MA.
 
 Provides a unified creation API for all supported memory engines:
-- window, importance, humancentric, hierarchical, universal, unified
+- window, humancentric (production)
+- universal, unified (advanced research)
+- importance, hierarchical (deprecated — use humancentric instead)
 """
+import logging
 from typing import Optional, Dict, Any
+
+logger = logging.getLogger(__name__)
 
 from broker.components.memory_engine import MemoryEngine
 from broker.components.engines.window_engine import WindowMemoryEngine
@@ -51,6 +56,10 @@ def create_memory_engine(
             window_size=config.get("window_size", 5),
         )
     elif engine_type == "importance":
+        logger.warning(
+            "ImportanceMemoryEngine is deprecated. "
+            "Use engine_type='humancentric' (HumanCentricMemoryEngine) instead."
+        )
         engine = ImportanceMemoryEngine(
             window_size=config.get("window_size", 5),
         )
@@ -62,6 +71,10 @@ def create_memory_engine(
             decay_rate=config.get("decay_rate", 0.1),
         )
     elif engine_type == "hierarchical":
+        logger.warning(
+            "HierarchicalMemoryEngine is deprecated. "
+            "Use engine_type='humancentric' (HumanCentricMemoryEngine) instead."
+        )
         engine = HierarchicalMemoryEngine(
             window_size=config.get("window_size", 5),
             semantic_top_k=config.get("top_k_significant", 3),
