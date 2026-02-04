@@ -47,7 +47,12 @@ class IrrigationAgentProfile:
     years_farming: int = 20
     has_efficient_system: bool = False
     actual_2018_diversion: Optional[float] = None  # Historical 2018 diversion (acre-ft)
-    magnitude_default: float = 10.0  # Persona-specific default magnitude (%)
+
+    # Magnitude parameters (v12: code-based Gaussian sampling)
+    magnitude_default: float = 10.0  # Mean of Gaussian distribution (%)
+    magnitude_sigma: float = 0.0     # Standard deviation for stochasticity
+    magnitude_min: float = 1.0       # Lower bound for clipping
+    magnitude_max: float = 30.0      # Upper bound for clipping
 
     # Narrative (generated)
     narrative_persona: str = ""

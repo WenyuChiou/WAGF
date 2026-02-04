@@ -223,7 +223,11 @@ class IrrigationEnvironment:
                 "has_efficient_system": getattr(p, "has_efficient_system", False),
                 "below_minimum_utilisation": False,
                 "cluster": p.cluster,
+                # v12: Magnitude parameters for bounded Gaussian sampling
                 "magnitude_default": getattr(p, "magnitude_default", 10),
+                "magnitude_sigma": getattr(p, "magnitude_sigma", 0.0),
+                "magnitude_min": getattr(p, "magnitude_min", 1.0),
+                "magnitude_max": getattr(p, "magnitude_max", 30.0),
             }
 
     def initialize_synthetic(
@@ -479,10 +483,30 @@ class IrrigationEnvironment:
         wr = agent["water_right"]
         current = agent.get("diversion", agent["request"])
         meta = getattr(approved_skill, "parameters", {}) or {}
-        # Magnitude: LLM output → persona default → hardcoded 10
-        magnitude_pct = meta.get("magnitude_pct")
-        if magnitude_pct is None or not isinstance(magnitude_pct, (int, float)):
-            magnitude_pct = agent.get("magnitude_default", 10) or 10
+
+        # ═══ v12 MODIFICATION: Bounded Gaussian magnitude sampling ═══
+        # Ignore LLM magnitude_pct output (use --no-magnitude flag to disable schema field)
+        # Instead, sample from persona-defined Gaussian distribution
+        #
+        # NOTE: LLM cannot generate continuous Gaussian distributions (v11 analysis showed
+        # 56.6% chose 25%, only 6-7 unique values). Code-based sampling provides true
+        # stochasticity matching Hung & Yang (2021) FQL behavior.
+
+        magnitude_default = agent.get("magnitude_default", 10) or 10
+        magnitude_sigma = agent.get("magnitude_sigma", 0.0) or 0.0
+        magnitude_min = agent.get("magnitude_min", 1.0) or 1.0
+        magnitude_max = agent.get("magnitude_max", 30.0) or 30.0
+
+        if magnitude_sigma > 0:
+            # Sample from N(magnitude_default, magnitude_sigma²)
+            noise = self.rng.normal(0, magnitude_sigma)
+            magnitude_pct = magnitude_default + noise
+            # Clip to [magnitude_min, magnitude_max] bounds
+            magnitude_pct = float(np.clip(magnitude_pct, magnitude_min, magnitude_max))
+        else:
+            # No stochasticity (sigma=0), use default value
+            magnitude_pct = magnitude_default
+
         state_changes: Dict[str, Any] = {}
 
         if skill == "increase_demand":
@@ -493,6 +517,7 @@ class IrrigationEnvironment:
             new_req = min(current + change, wr)
             self.update_agent_request(aid, new_req)
             state_changes["request"] = new_req
+            state_changes["magnitude_pct_applied"] = magnitude_pct  # Track actual sampled value
 
         elif skill == "decrease_demand":
             change = wr * (magnitude_pct / 100.0)
@@ -503,6 +528,7 @@ class IrrigationEnvironment:
             new_req = max(current - change * taper, floor)
             self.update_agent_request(aid, new_req)
             state_changes["request"] = new_req
+            state_changes["magnitude_pct_applied"] = magnitude_pct  # Track actual sampled value
 
         elif skill == "adopt_efficiency":
             if agent.get("has_efficient_system"):
