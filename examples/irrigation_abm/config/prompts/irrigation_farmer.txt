@@ -1,5 +1,6 @@
 {narrative_persona}
 {water_situation_text}
+{feedback_dashboard}
 Your memory includes:
 {memory}
 

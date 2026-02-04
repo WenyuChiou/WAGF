@@ -180,6 +180,9 @@ class IrrigationLifecycleHooks:
         self.output_dir = output_dir
         self.logs: List[Dict] = []
         self.yearly_decisions: Dict = {}
+        # Feedback dashboard (attached after construction by main())
+        self.metrics_tracker = None
+        self.feedback_config: Dict = {}
 
     # -- pre_year: inject water situation context and regret feedback --
     def pre_year(self, year: int, env_state: Dict, agents: Dict):
@@ -222,6 +225,15 @@ class IrrigationLifecycleHooks:
                 setattr(agent, key, value)
             if hasattr(agent, "custom_attributes"):
                 agent.custom_attributes.update(validator_fields)
+
+            # Record metrics for feedback dashboard (if configured).
+            # NOTE: Year 1 has no prior history → dashboard shows only
+            # assertions, not the trend table.  This is intentional.
+            if self.metrics_tracker is not None:
+                fb_metrics = {}
+                for m_cfg in self.feedback_config.get("tracked_metrics", []):
+                    fb_metrics[m_cfg["name"]] = float(ctx.get(m_cfg["source"], 0))
+                self.metrics_tracker.record(aid, year, fb_metrics)
 
             # Inject combined action + outcome feedback from last year
             if year > 1:
@@ -535,6 +547,24 @@ def main():
         memory_engine=memory_engine,
     )
 
+    # --- Feedback dashboard (config-driven env feedback for agents) ---
+    feedback_cfg = irr_cfg.get("feedback", {})
+    _metrics_tracker = None  # set below if feedback is configured
+    if feedback_cfg.get("tracked_metrics"):
+        from broker.components.feedback_provider import (
+            AgentMetricsTracker,
+            FeedbackDashboardProvider,
+        )
+        metric_names = [m["name"] for m in feedback_cfg["tracked_metrics"]]
+        _metrics_tracker = AgentMetricsTracker(
+            metric_names, window=feedback_cfg.get("trend_window", 5)
+        )
+        ctx_builder.providers.append(
+            FeedbackDashboardProvider(_metrics_tracker, feedback_cfg)
+        )
+        print(f"[Feedback] Dashboard enabled: metrics={metric_names}, "
+              f"assertions={len(feedback_cfg.get('assertions', []))}")
+
     # --- Output ---
     output_dir = Path(args.output) if args.output else base / "results"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -575,6 +605,9 @@ def main():
 
     # --- Inject lifecycle hooks ---
     hooks = IrrigationLifecycleHooks(env, runner, profiles, reflection_engine, output_dir)
+    # Attach feedback tracker so pre_year can record metrics
+    hooks.metrics_tracker = _metrics_tracker
+    hooks.feedback_config = feedback_cfg
     runner.hooks.update({
         "pre_year": hooks.pre_year,
         "post_step": hooks.post_step,

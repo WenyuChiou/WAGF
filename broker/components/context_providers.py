@@ -639,4 +639,12 @@ __all__ = [
     "PerceptionAwareProvider",  # Task-043: Agent-type perception
     "InsuranceInfoProvider",  # Task-060A: Insurance premium disclosure
     "FinancialCostProvider",  # Paper 3: Per-agent financial cost disclosure
+    "FeedbackDashboardProvider",  # Config-driven env feedback dashboard
+    "AgentMetricsTracker",  # Per-agent metrics history for trends
 ]
+
+# Re-exports from feedback_provider.
+# IMPORTANT: feedback_provider.py MUST only import ContextProvider (the base
+# class) from this module.  Importing other providers would create a circular
+# dependency.
+from .feedback_provider import FeedbackDashboardProvider, AgentMetricsTracker  # noqa: E402

@@ -237,6 +237,30 @@ irrigation_farmer:
     ema_alpha: 0.3
 
   # ---------------------------------------------------------------------------
+  # Feedback Dashboard (config-driven env feedback for LLM agents)
+  # See broker/components/feedback_provider.py
+  # ---------------------------------------------------------------------------
+  feedback:
+    trend_window: 5
+    dashboard_format: "table"       # table | summary | none
+    tracked_metrics:
+      - name: "request"
+        source: "current_request"   # key in env_context dict
+        unit: "AF"
+        format: ",.0f"
+      - name: "supply"
+        source: "current_diversion"
+        unit: "AF"
+        format: ",.0f"
+    assertions:
+      - when: "supply / request < 0.95"
+        severity: "warning"
+        message: >-
+          You requested {request_fmt} AF but only received {supply_fmt} AF
+          ({unmet_pct:.0f}% unmet). Increasing your request further will NOT
+          increase your actual water supply.
+
+  # ---------------------------------------------------------------------------
   # Available Actions
   # ---------------------------------------------------------------------------
   actions:
