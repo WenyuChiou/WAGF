@@ -1,4 +1,5 @@
 from typing import List, Dict, Any, Optional
+import warnings
 
 from cognitive_governance.agents import BaseAgent
 from broker.components.memory_engine import MemoryEngine
@@ -6,12 +7,23 @@ from broker.components.memory_engine import MemoryEngine
 class HierarchicalMemoryEngine(MemoryEngine):
     """
     Tiered memory system inspired by MemGPT.
-    
+
     1. Core Memory: Permanent identity/demographics (from fixed_attributes)
     2. Episodic Memory: Recent events (Sliding window)
     3. Semantic Memory: Consolidated patterns/summaries of history
+
+    .. deprecated::
+        HierarchicalMemoryEngine is deprecated. Use HumanCentricMemoryEngine instead,
+        which provides emotion-weighted importance, stochastic consolidation, and
+        the SurprisePlugin interface for cognitive switching.
     """
     def __init__(self, window_size: int = 5, semantic_top_k: int = 3):
+        warnings.warn(
+            "HierarchicalMemoryEngine is deprecated and will be removed in a future version. "
+            "Use HumanCentricMemoryEngine (--memory-engine humancentric) instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.window_size = window_size
         self.semantic_top_k = semantic_top_k
         self.episodic: Dict[str, List[Dict[str, Any]]] = {}

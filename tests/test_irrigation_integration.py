@@ -91,9 +91,12 @@ def test_memory_window_keeps_last_five():
 
 
 def test_hierarchical_memory_returns_semantic():
+    import warnings
     from broker.components.engines.hierarchical_engine import HierarchicalMemoryEngine
 
-    engine = HierarchicalMemoryEngine(window_size=3, semantic_top_k=2)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        engine = HierarchicalMemoryEngine(window_size=3, semantic_top_k=2)
     agent = SimpleNamespace(id="Agent_001", memory=[])
     engine.add_memory(agent.id, "routine year", {"importance": 0.2})
     engine.add_memory(agent.id, "big shortfall", {"importance": 0.9})

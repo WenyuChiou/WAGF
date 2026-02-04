@@ -1,9 +1,13 @@
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, TYPE_CHECKING
+import copy
 import heapq
 import logging
 
 from cognitive_governance.agents import BaseAgent
 from broker.components.memory_engine import MemoryEngine
+
+if TYPE_CHECKING:
+    from cognitive_governance.memory.strategies.base import SurpriseStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -14,14 +18,28 @@ class HumanCentricMemoryEngine(MemoryEngine):
     2. Source differentiation (personal > neighbor > community)
     3. Stochastic consolidation (probabilistic long-term storage)
     4. Time-weighted decay (exponential with emotion modifier)
-    
+    5. Contextual Resonance (retrieval-time query-memory relevance)
+    6. Interference-Based Forgetting (newer similar memories suppress older ones)
+
     All parameters use 0-1 scale for consistency.
-    
+
     References:
     - Park et al. (2023) Generative Agents: recency x importance x relevance
     - Chapter 8: Memory consolidation and forgetting strategies
     - Tulving (1972): Episodic vs Semantic memory distinction
+    - Anderson & Neely (1996): Retroactive interference theory
     """
+
+    # Stopwords for keyword extraction in contextual resonance
+    _STOPWORDS = frozenset({
+        "the", "a", "an", "is", "was", "are", "were", "been", "be",
+        "have", "has", "had", "do", "does", "did", "will", "would",
+        "could", "should", "may", "might", "can", "to", "of", "in",
+        "for", "on", "with", "at", "by", "from", "as", "and", "but",
+        "or", "not", "so", "if", "when", "that", "which", "this",
+        "i", "me", "my", "we", "our", "you", "your", "he", "she",
+        "it", "its", "they", "them", "their",
+    })
     
     def __init__(
         self,
@@ -36,23 +54,34 @@ class HumanCentricMemoryEngine(MemoryEngine):
         W_recency: float = 0.3,
         W_importance: float = 0.5,
         W_context: float = 0.2,
+        # v2-next: Contextual Resonance & Interference weights (0 = disabled)
+        W_relevance: float = 0.0,
+        W_interference: float = 0.0,
         # Mode switch: "legacy" (v1 compatible) or "weighted" (v2)
         ranking_mode: str = "legacy",
         seed: Optional[int] = None,
         forgetting_threshold: float = 0.2,    # Default threshold for forgetting
+        # v2-next: Memory capacity limits (0 = unlimited for backward compat)
+        max_working: int = 0,
+        max_longterm: int = 0,
+        interference_cap: float = 0.8,
+        # P1: Optional SurpriseStrategy plugin (replaces v3/v4 wrappers)
+        surprise_strategy: Optional["SurpriseStrategy"] = None,
+        arousal_threshold: float = 0.5,
     ):
         """
         Args:
             window_size: Number of recent memories always included
             top_k_significant: Number of historical events
             ranking_mode: "legacy" (v1) or "weighted" (v2)
+            max_working: Working memory capacity (0 = unlimited)
+            max_longterm: Long-term memory capacity (0 = unlimited)
+            W_relevance: Weight for query-memory relevance (0 = disabled)
+            W_interference: Weight for interference penalty (0 = disabled)
         """
-        # Note: HumanCentricMemoryEngine is superseded by UniversalCognitiveEngine (v3)
-        # but remains the production engine for the irrigation ABM case study.
-        # v1 behavior: arousal_threshold=99.0; v2 behavior: arousal_threshold=0.0
         import random
         self.rng = random.Random(seed)
-        
+
         self.window_size = window_size
         self.top_k_significant = top_k_significant
         self.consolidation_prob = consolidation_prob
@@ -60,12 +89,23 @@ class HumanCentricMemoryEngine(MemoryEngine):
         self.decay_rate = decay_rate
         self.ranking_mode = ranking_mode
         self.forgetting_threshold = forgetting_threshold
-        
+
+        # Memory capacity limits (0 = unlimited)
+        self._max_working = max_working
+        self._max_longterm = max_longterm
+        self._interference_cap = interference_cap
+
+        # P1: Optional surprise plugin (replaces v3/v4 wrappers)
+        self._surprise_strategy = surprise_strategy
+        self._arousal_threshold = arousal_threshold
+
         # Retrieval weights
         self.W_recency = W_recency
         self.W_importance = W_importance
         self.W_context = W_context
-        
+        self.W_relevance = W_relevance
+        self.W_interference = W_interference
+
         # Working memory (short-term)
         self.working: Dict[str, List[Dict[str, Any]]] = {}
         # Long-term memory (consolidated)
@@ -206,13 +246,17 @@ class HumanCentricMemoryEngine(MemoryEngine):
         }
 
         self.working[agent_id].append(memory_item)
-        
+
         # Stochastic consolidation: high importance items have chance to go to long-term
         if importance >= self.consolidation_threshold:  # Configurable threshold
             consolidate_p = self.consolidation_prob * importance
             if self.rng.random() < consolidate_p:
                 memory_item["consolidated"] = True
-                self.longterm[agent_id].append(memory_item)
+                # Deep copy to fully isolate working and longterm stores
+                self.longterm[agent_id].append(copy.deepcopy(memory_item))
+
+        # Enforce capacity limits if configured
+        self._enforce_capacity(agent_id)
     
     def _apply_decay(self, memories: List[Dict], current_time: int) -> List[Dict]:
         """Apply emotional time decay (Legacy Logic)."""
@@ -228,6 +272,115 @@ class HumanCentricMemoryEngine(MemoryEngine):
             if m["decayed_importance"] > 0.05:  # Threshold for forgetting
                 decayed.append(m)
         return decayed
+
+    # ── P2 Innovation: Contextual Resonance ──────────────────────────
+
+    def _contextual_resonance(self, query: str, memory_content: str) -> float:
+        """Compute keyword-overlap relevance between query and memory.
+
+        Uses the overlap coefficient: |A ∩ B| / min(|A|, |B|).
+        This is robust to asymmetric lengths (short query vs long memory).
+
+        Inspired by Park et al. (2023) *relevance* dimension and
+        Tulving's encoding-specificity principle.
+
+        Args:
+            query: Retrieval query or context string
+            memory_content: The memory's content text
+
+        Returns:
+            Relevance score [0-1], 1.0 = perfect keyword overlap.
+            Returns 0.0 when query is empty or no keywords match.
+        """
+        if not query or not memory_content:
+            return 0.0
+
+        query_tokens = set(query.lower().split()) - self._STOPWORDS
+        memory_tokens = set(memory_content.lower().split()) - self._STOPWORDS
+
+        if not query_tokens or not memory_tokens:
+            return 0.0
+
+        overlap = len(query_tokens & memory_tokens)
+        denominator = min(len(query_tokens), len(memory_tokens))
+        return overlap / denominator if denominator > 0 else 0.0
+
+    # ── P2 Innovation: Interference-Based Forgetting ───────────────
+
+    def _interference_penalty(
+        self, memory: Dict, newer_memories: List[Dict]
+    ) -> float:
+        """Compute retroactive interference from newer similar memories.
+
+        When a newer memory covers similar content, it partially
+        suppresses retrieval of the older memory — modelling the
+        well-established retroactive-interference effect.
+
+        Reference: Anderson & Neely (1996), Wixted (2004).
+
+        Args:
+            memory: The memory being scored
+            newer_memories: Memories with timestamp > this memory's timestamp
+
+        Returns:
+            Penalty in [0, 1]. 0 = no interference, 1 = fully suppressed.
+        """
+        if not newer_memories:
+            return 0.0
+
+        content = memory.get("content", "")
+        max_sim = 0.0
+        for newer in newer_memories:
+            sim = self._contextual_resonance(content, newer.get("content", ""))
+            if sim > max_sim:
+                max_sim = sim
+        # Scale: high similarity → high interference, capped to preserve
+        # partial retrieval of older memories (dual-process memory models).
+        # NOTE: O(n²) per retrieval — acceptable for 20-100 memories.
+        # TODO: cache tokenization if scaling beyond 500 memories.
+        return min(max_sim * self._interference_cap, self._interference_cap)
+
+    def _enforce_capacity(self, agent_id: str) -> None:
+        """Enforce working and long-term memory capacity limits.
+
+        Working memory overflow: consolidated items are removed first (they
+        are safely duplicated in long-term).  If still over capacity, the
+        oldest non-consolidated items are dropped.
+
+        Long-term memory overflow: lowest-importance items are evicted.
+
+        When both limits are 0 (the default), this method is a no-op,
+        preserving full backward compatibility.
+        """
+        # --- Working memory cap ---
+        if self._max_working > 0:
+            working = self.working.get(agent_id, [])
+            if len(working) > self._max_working:
+                # Phase 1: prefer removing consolidated items (safe in longterm)
+                consolidated = [m for m in working if m.get("consolidated")]
+                non_consolidated = [m for m in working if not m.get("consolidated")]
+
+                if len(non_consolidated) <= self._max_working:
+                    keep = self._max_working - len(non_consolidated)
+                    to_keep = (
+                        consolidated[-keep:] + non_consolidated if keep > 0
+                        else non_consolidated
+                    )
+                    # Restore temporal order after splitting by consolidation status
+                    to_keep.sort(key=lambda m: m.get("timestamp", 0))
+                    self.working[agent_id] = to_keep
+                else:
+                    # Even non-consolidated exceeds cap; keep most recent
+                    self.working[agent_id] = non_consolidated[-self._max_working:]
+
+        # --- Long-term memory cap ---
+        if self._max_longterm > 0:
+            lt = self.longterm.get(agent_id, [])
+            if len(lt) > self._max_longterm:
+                # Evict lowest-importance items (sorted copy to preserve temporal order)
+                sorted_lt = sorted(lt, key=lambda m: m.get("importance", 0))
+                overflow = len(sorted_lt) - self._max_longterm
+                self.longterm[agent_id] = sorted_lt[overflow:]
     
     def retrieve(self, agent: BaseAgent, query: Optional[str] = None, top_k: int = 5, contextual_boosters: Optional[Dict[str, float]] = None, **kwargs) -> List[str]:
         """Retrieve memories using dual mode: Legacy (v1) or Weighted (v2)."""
@@ -299,7 +452,7 @@ class HumanCentricMemoryEngine(MemoryEngine):
                 age = current_time - mem["timestamp"]
                 recency_score = 1.0 - (age / max(current_time, 1))
                 importance_score = mem.get("importance", mem.get("decayed_importance", 0.1))
-                
+
                 contextual_boost = 0.0
                 if contextual_boosters:
                     for tag_key_val, boost_val in contextual_boosters.items():
@@ -308,17 +461,34 @@ class HumanCentricMemoryEngine(MemoryEngine):
                             if mem.get(tag_cat) == tag_val:
                                 contextual_boost = boost_val
                                 break
-                
-                final_score = (recency_score * self.W_recency) + \
-                              (importance_score * self.W_importance) + \
-                              (contextual_boost * self.W_context)
+
+                # P2: Contextual Resonance — query-memory keyword relevance
+                relevance_score = 0.0
+                if self.W_relevance > 0 and query:
+                    relevance_score = self._contextual_resonance(query, mem["content"])
+
+                # P2: Interference — newer similar memories suppress older ones
+                interference = 0.0
+                if self.W_interference > 0:
+                    mem_ts = mem.get("timestamp", 0)
+                    newer = [m for m in all_memories if m.get("timestamp", 0) > mem_ts]
+                    interference = self._interference_penalty(mem, newer)
+
+                final_score = (
+                    (recency_score * self.W_recency)
+                    + (importance_score * self.W_importance)
+                    + (contextual_boost * self.W_context)
+                    + (relevance_score * self.W_relevance)
+                    - (interference * self.W_interference)
+                )
 
                 logger.debug(f"Memory: '{mem['content']}'")
                 logger.debug(f"  Timestamp: {mem['timestamp']}, Current Time: {current_time}")
                 logger.debug(f"  Emotion: {mem.get('emotion')}, Source: {mem.get('source')}")
                 logger.debug(
                     f"  Scores - Recency: {recency_score:.2f}, Importance: {importance_score:.2f}, "
-                    f"Contextual Boost: {contextual_boost:.2f}"
+                    f"Contextual Boost: {contextual_boost:.2f}, "
+                    f"Relevance: {relevance_score:.2f}, Interference: {interference:.2f}"
                 )
                 logger.debug(f"  Final Score: {final_score:.2f}")
 
@@ -396,9 +566,24 @@ class HumanCentricMemoryEngine(MemoryEngine):
                             contextual_boost = boost_val
                             break
 
-            final_score = (recency_score * self.W_recency) + \
-                          (importance_score * self.W_importance) + \
-                          (contextual_boost * self.W_context)
+            # P2: Contextual Resonance disabled — stratified retrieval
+            # prioritizes source diversity over query relevance.
+            relevance_score = 0.0
+
+            # P2: Interference — newer similar memories suppress older ones
+            interference = 0.0
+            if self.W_interference > 0:
+                mem_ts = mem.get("timestamp", 0)
+                newer = [m for m in all_memories if m.get("timestamp", 0) > mem_ts]
+                interference = self._interference_penalty(mem, newer)
+
+            final_score = (
+                (recency_score * self.W_recency)
+                + (importance_score * self.W_importance)
+                + (contextual_boost * self.W_context)
+                + (relevance_score * self.W_relevance)
+                - (interference * self.W_interference)
+            )
 
             scored.append((mem, final_score))
 
@@ -476,3 +661,59 @@ class HumanCentricMemoryEngine(MemoryEngine):
         """Clear all memories for agent."""
         self.working[agent_id] = []
         self.longterm[agent_id] = []
+
+    # ── P1: Optional Surprise Plugin Interface ─────────────────────
+
+    def observe(self, observation: Dict[str, Any]) -> float:
+        """Feed an observation to the attached surprise strategy.
+
+        This replaces the heavyweight v3/v4 wrapper pattern.  When no
+        surprise strategy is configured, returns 0.0 (no surprise).
+
+        The observation structure depends on the attached strategy:
+        - EMASurpriseStrategy: ``{"flood_depth": 2.5}``
+        - SymbolicSurpriseStrategy: multi-key numeric dict
+        - DecisionConsistencySurprise: ``{"action": "increase_demand"}``
+
+        Args:
+            observation: Strategy-specific observation dict.
+
+        Returns:
+            Surprise value [0-1]. 0.0 if no plugin attached.
+        """
+        if self._surprise_strategy is None:
+            return 0.0
+        return self._surprise_strategy.update(observation)
+
+    def get_cognitive_system(self) -> str:
+        """Determine cognitive system based on current arousal.
+
+        System 1 (routine): low surprise → fast, heuristic retrieval
+        System 2 (deliberate): high surprise → careful, weighted retrieval
+
+        Returns:
+            "SYSTEM_1" or "SYSTEM_2". Always "SYSTEM_1" if no plugin.
+        """
+        if self._surprise_strategy is None:
+            return "SYSTEM_1"
+        arousal = self._surprise_strategy.get_arousal()
+        return "SYSTEM_2" if arousal > self._arousal_threshold else "SYSTEM_1"
+
+    def reset_surprise(self) -> None:
+        """Reset surprise strategy state for a new simulation episode.
+
+        Clears internal tracking (expectations, frequency maps, etc.)
+        without affecting stored memories.  No-op if no plugin attached.
+        """
+        if self._surprise_strategy is not None:
+            self._surprise_strategy.reset()
+
+    def get_surprise_trace(self) -> Optional[Dict[str, Any]]:
+        """Get trace data from the surprise plugin for XAI.
+
+        Returns:
+            Strategy-specific trace dict, or None if no plugin.
+        """
+        if self._surprise_strategy is None:
+            return None
+        return self._surprise_strategy.get_trace()

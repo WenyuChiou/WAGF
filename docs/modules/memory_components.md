@@ -30,10 +30,11 @@ To understand how our agents "think" about the past, we follow a single event th
 
 | Feature               | Model v1: Legacy (Habit)        | Model v2: Weighted (Deliberate)      | Model v3: Universal (Switch)     | Model v4: Symbolic (Gestalt)  |
 | :-------------------- | :------------------------------ | :----------------------------------- | :------------------------------- | :---------------------------- |
-| **Retrieval Logic**   | **Saliency-Based**.             | **Unified Scoring**.                 | **Surprise-Driven Gating**.      | **Signature-Based**.          |
-| **Core Formula**      | $S(t) = I \cdot e^{-\lambda t}$ | $S = W_{rec}R + W_{imp}I + W_{ctx}C$ | $PE = \|Reality - Expectation\|$ | $S = 1 - P(Signature)$        |
-| **Design Philosophy** | **Availability Heuristic**.     | **Contextual Relevance**.            | **Active Inference**.            | **Bounded Rationality**.      |
-| **Goal**              | Remember "recent shocks".       | Remember "relevant history".         | **Habit** until **Surprise**.    | **Context** without **Cost**. |
+| **Retrieval Logic**   | **Saliency-Based**.             | **Unified Scoring** + Resonance + Interference. | **Surprise-Driven Gating**.      | **Signature-Based**.          |
+| **Core Formula**      | $S(t) = I \cdot e^{-\lambda t}$ | $S = W_rR + W_iI + W_cC + W_{rel}Rel - W_{int}Int$ | $PE = \|Reality - Expectation\|$ | $S = 1 - P(Signature)$        |
+| **Design Philosophy** | **Availability Heuristic**.     | **Contextual Relevance** + Cognitive Interference. | **Active Inference**.            | **Bounded Rationality**.      |
+| **Goal**              | Remember "recent shocks".       | Remember "relevant history"; forget superseded info. | **Habit** until **Surprise**.    | **Context** without **Cost**. |
+| **Status**            | Production (WRR)                | **Production (WRR)** — primary engine | Deprecated (use v2 + plugin)     | Deprecated (use v2 + plugin)  |
 
 #### **B. Parameter & Symbol Dictionary (Scale: 0.0 to 1.0):**
 
@@ -47,6 +48,9 @@ To understand how our agents "think" about the past, we follow a single event th
 | $W_{rec}$     | **Recency Weight**      | 0.3     | Weight of "Freshness" in the prompt.                          |
 | $W_{imp}$     | **Importance Weight**   | 0.5     | Weight of "Historical Significance" ($I$).                    |
 | $W_{ctx}$     | **Context Weight**      | 0.2     | Weight of "Situational Relevance" ($C$).                      |
+| $W_{rel}$     | **Relevance Weight**    | 0.0     | Weight for query-memory keyword overlap (P2).                 |
+| $W_{int}$     | **Interference Weight** | 0.0     | Weight for retroactive interference penalty (P2).             |
+| $\gamma$      | **Interference Cap**    | 0.8     | Max interference penalty (preserves partial retrieval).       |
 | $I_{gate}$    | **Consolidation Gate**  | 0.6     | Min. $I_{initial}$ to attempt permanent storage.              |
 | $P_{burn}$    | **Burning Probability** | 0.8     | Prob. a memory is consolidated if it passes the gate.         |
 
@@ -86,7 +90,8 @@ V1 only cares about Saliency ($I \cdot e^{-\lambda t}$).
 
 #### **Model v2: The Rational Agent (Deliberate)**
 
-V2 uses $S = (R \times 0.3) + (I \times 0.5) + (C \times 0.2)$.
+V2 uses $S = (R \times W_r) + (I \times W_i) + (C \times W_c) + (Rel \times W_{rel}) - (Int \times W_{int})$.
+With defaults $W_r{=}0.3,\; W_i{=}0.5,\; W_c{=}0.2,\; W_{rel}{=}0,\; W_{int}{=}0$ this reduces to the classic formula.
 
 1.  **Memory A (Disaster)**:
     - **Math**: $(R=0.0 \times 0.3) + (I=0.36 \times 0.5) + (C=1.0 \times 0.2) = 0.0 + 0.18 + 0.20 = \mathbf{0.38}$
@@ -99,7 +104,66 @@ V2 uses $S = (R \times 0.3) + (I \times 0.5) + (C \times 0.2)$.
 
 ---
 
+## 2b. v2-next: Cognitive Innovations (P0-P2)
+
+The v2 engine received three rounds of enhancements that make it a self-contained cognitive memory system, eliminating the need for the v3/v4 wrappers in most scenarios.
+
+### P0 — Critical Bug Fixes
+
+- **Dual-storage isolation**: Consolidated memories are now `deepcopy`'d into long-term, preventing shared-reference mutations.
+- **Memory capacity limits**: New `max_working` / `max_longterm` parameters with smart eviction (consolidated-first for working, lowest-importance for long-term). Defaults to 0 (unlimited) for backward compatibility.
+
+### P2 — Three Retrieval Innovations
+
+#### Contextual Resonance ($Rel$)
+
+When a retrieval query is provided, each memory receives a **relevance score** based on keyword overlap (overlap coefficient):
+
+$$Rel = \frac{|Q \cap M|}{\min(|Q|, |M|)}$$
+
+where $Q$ and $M$ are the keyword sets (after stopword removal) of the query and memory content respectively. Activated by setting `W_relevance > 0`.
+
+**Reference**: Park et al. (2023) *relevance* dimension; Tulving (1972) encoding-specificity principle.
+
+#### Interference-Based Forgetting ($Int$)
+
+Newer memories with similar content **retroactively suppress** older memories, modelling the well-established retroactive-interference effect:
+
+$$Int = \min(\max_{m' \in newer}(Rel(m, m')) \cdot \gamma,\; \gamma)$$
+
+where $\gamma$ is the interference cap (default 0.8). Activated by setting `W_interference > 0`.
+
+**Reference**: Anderson & Neely (1996); Wixted (2004).
+
+#### Decision-Consistency Surprise (DCS Plugin)
+
+A **domain-agnostic** surprise strategy based on the agent's own action history. Unlike EMA (requires a stimulus key) or Symbolic (requires sensor config), DCS needs **zero domain configuration**:
+
+- **Unigram mode**: $Surprise = 1 - P(action \mid history)$ with Laplace smoothing
+- **Bigram mode**: $Surprise = 1 - P(action \mid prev\_action)$ for transition-aware detection
+
+Available at `cognitive_governance.memory.strategies.DecisionConsistencySurprise`.
+
+**Reference**: Itti & Baldi (2009) Bayesian Surprise; Sun et al. (2016) KISS principle.
+
+### P1 — SurprisePlugin Interface
+
+The v2 engine now accepts an **optional** `surprise_strategy` parameter, replacing the heavyweight v3/v4 wrapper pattern (~680 lines) with 4 lightweight methods:
+
+| Method | Returns | Purpose |
+| :--- | :--- | :--- |
+| `observe(obs)` | `float` | Feed observation to plugin, get surprise [0-1] |
+| `get_cognitive_system()` | `str` | `"SYSTEM_1"` or `"SYSTEM_2"` based on arousal |
+| `reset_surprise()` | `None` | Reset plugin state for new episode |
+| `get_surprise_trace()` | `dict` | XAI trace from the plugin |
+
+When no plugin is attached, all methods return safe defaults (0.0 / SYSTEM_1 / None).
+
+---
+
 ## 3. v3: Universal Memory (The Surprise Engine)
+
+> **Deprecation notice**: v3 is superseded by v2 + SurprisePlugin (P1). Use `HumanCentricMemoryEngine(surprise_strategy=EMASurpriseStrategy(...))` instead.
 
 V3 is the "controller" of the cognitive architecture. It models the **Arousal Loop**—deciding when to act on habit (v1) and when to wake up and act rationally (v2).
 
@@ -114,6 +178,8 @@ V3 is the "controller" of the cognitive architecture. It models the **Arousal Lo
 ---
 
 ## 4. v4: The Symbolic Architecture (Symbolic Context)
+
+> **Deprecation notice**: v4 is superseded by v2 + SurprisePlugin (P1). Use `HumanCentricMemoryEngine(surprise_strategy=SymbolicSurpriseStrategy(...))` instead.
 
 ### 4.1 Motivation: Why Symbolic? (The "Goldilocks" Solution)
 
@@ -166,30 +232,49 @@ The `CognitiveConstraints` dataclass (`cognitive_governance/memory/config/cognit
 
 The `get_memory_count(arousal)` method interpolates between System 1 and System 2 counts based on the current arousal level, providing smooth transitions rather than a hard cutoff.
 
-### 5.2 SDK Extensions (cognitive_governance/)
+### 5.2 Advanced Extensions (cognitive_governance/)
 
-The following capabilities exist in the `cognitive_governance/` SDK package but are **not yet integrated** into the broker core:
+The following capabilities exist in the `cognitive_governance/` extension package:
 
-- **Embedding-based Retrieval** (`cognitive_governance/memory/embeddings.py`): Vector similarity search using `all-MiniLM-L6-v2` via `SentenceTransformerProvider`. Alternative to keyword/tag matching.
+- **Decision-Consistency Surprise** (`cognitive_governance/memory/strategies/decision_consistency.py`): Domain-agnostic action-history surprise. **Integrated** via P1 SurprisePlugin interface.
+- **EMA Surprise** (`cognitive_governance/memory/strategies/ema.py`): Scalar EMA-based surprise. **Integrated** via P1 SurprisePlugin.
+- **Symbolic Surprise** (`cognitive_governance/memory/strategies/symbolic.py`): Frequency-based state signature surprise. **Integrated** via P1 SurprisePlugin.
 - **Multi-dimensional Surprise** (`cognitive_governance/memory/strategies/multidimensional.py`): Extends scalar PE to a vector of surprise dimensions for richer arousal modeling.
+- **Embedding-based Retrieval** (`cognitive_governance/memory/embeddings.py`): Vector similarity search using `all-MiniLM-L6-v2` via `SentenceTransformerProvider`. Alternative to keyword/tag matching.
 - **Memory Graph** (`cognitive_governance/memory/`): Bidirectional linking between memories for associative retrieval.
 
 ---
 
-## 6. ⚙️ Configuration & References
+## 6. Configuration & References
 
 ```yaml
+# Recommended v2 configuration (production)
 memory_config:
-  type: "universal" # v3/v4
+  type: "humancentric"
   params:
-    arousal_threshold: 0.5
+    ranking_mode: "weighted"
     W_recency: 0.3
     W_importance: 0.5
     W_context: 0.2
+    # P2 innovations (set > 0 to enable)
+    W_relevance: 0.0        # Contextual Resonance
+    W_interference: 0.0     # Interference-Based Forgetting
+    interference_cap: 0.8
+    # Capacity limits (0 = unlimited)
+    max_working: 0
+    max_longterm: 0
+    # P1 surprise plugin (optional, configured in code)
+    # surprise_strategy: DecisionConsistencySurprise(mode="unigram")
+    # arousal_threshold: 0.5
 ```
 
 ### References
 
-[1] **Tversky & Kahneman (1973)**. _Availability Heuristic_. (Basis for Recency Bias).
-[2] **Friston (2010)**. _The free-energy principle_. (Basis for Surprise Minimization).
-[3] **Kahneman (2011)**. _Thinking, Fast and Slow_. (Dual-Process Theory).
+[1] **Tversky & Kahneman (1973)**. *Availability Heuristic*. (Basis for Recency Bias).
+[2] **Friston (2010)**. *The free-energy principle*. (Basis for Surprise Minimization).
+[3] **Kahneman (2011)**. *Thinking, Fast and Slow*. (Dual-Process Theory).
+[4] **Park et al. (2023)**. *Generative Agents*. (Recency x Importance x Relevance).
+[5] **Anderson & Neely (1996)**. *Retroactive Interference*. (Basis for Interference-Based Forgetting).
+[6] **Itti & Baldi (2009)**. *Bayesian Surprise*. (Basis for DCS plugin).
+[7] **Sun et al. (2016)**. *KISS for ABM*. (Mechanism complexity justification).
+[8] **Tulving (1972)**. *Episodic vs Semantic Memory*. (Encoding-specificity principle).

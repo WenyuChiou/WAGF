@@ -1,4 +1,5 @@
 import pytest
+import warnings
 from unittest.mock import MagicMock
 from broker.components.memory_engine import HierarchicalMemoryEngine
 from broker.components.skill_retriever import SkillRetriever
@@ -10,7 +11,9 @@ from cognitive_governance.agents import BaseAgent, AgentConfig
 
 def test_v3_2_full_integration():
     # 1. Setup Components
-    memory_engine = HierarchicalMemoryEngine(window_size=1, semantic_top_k=1)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        memory_engine = HierarchicalMemoryEngine(window_size=1, semantic_top_k=1)
     retriever = SkillRetriever(top_n=2)
     registry = SkillRegistry()
     
