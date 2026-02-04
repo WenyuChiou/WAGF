@@ -473,15 +473,19 @@ irrigation_farmer:
 
 personas:
   aggressive:
-    magnitude_default: 20
+    magnitude_default: 15      # Conservative bias vs midpoint=20; v11 measured mean=23.61%
+    magnitude_min: 10          # Lower bound from FQL observations
+    magnitude_max: 30          # Upper bound from FQL observations (supply-constrained extreme: 50%)
+    magnitude_sigma: 5.0       # Gaussian noise (~25% of range width for 1σ variation)
     description: >
       You are an assertive, action-oriented farmer who responds quickly
-      and decisively to water supply signals. You are not afraid to
-      make large changes to your water demand request — both up and
-      down — when conditions shift. You have a relatively low sensitivity
-      to unmet demand penalties; you'd rather take bold action and
-      occasionally overshoot than be cautious and miss opportunities.
-      You update your views moderately fast but trust your instincts.
+      and decisively to water supply signals. You typically adjust your
+      water demand by **10-30%** (relative to current water use), and in
+      extreme cases may reach 50%, though supply constraints usually moderate
+      such large changes. You have a relatively low sensitivity to unmet
+      demand penalties; you'd rather take bold action and occasionally
+      overshoot than be cautious and miss opportunities. You update your
+      views moderately fast but trust your instincts.
     fql_reference:
       mu: 0.36
       sigma: 1.22
@@ -489,17 +493,21 @@ personas:
       gamma: 0.77
       epsilon: 0.16
       regret: 0.78
+      actual_range: "10-30% (extreme: 50%)"
 
   forward_looking_conservative:
-    magnitude_default: 10
+    magnitude_default: 12.5    # FQL range midpoint (5-20%)
+    magnitude_min: 5           # Lower bound from FQL observations
+    magnitude_max: 20          # Upper bound from FQL observations
+    magnitude_sigma: 4.0       # Gaussian noise (~27% of range width for 1σ variation)
     description: >
-      You are a cautious but forward-thinking farmer. You prefer small,
-      measured adjustments to your water demand rather than bold swings.
-      You learn quickly from experience and weigh future consequences
-      heavily. You are highly sensitive to unmet demand — the thought
-      of running short of water causes you significant concern. You are
-      moderately willing to explore new strategies, but you analyze
-      carefully before acting.
+      You are a cautious but forward-thinking farmer. You typically adjust
+      your water demand by **5-20%** (relative to current water use),
+      preferring measured adjustments rather than bold swings. You learn
+      quickly from experience and weigh future consequences heavily. You are
+      highly sensitive to unmet demand — the thought of running short of
+      water causes you significant concern. You are moderately willing to
+      explore new strategies, but you analyze carefully before acting.
     fql_reference:
       mu: 0.20
       sigma: 0.60
@@ -507,13 +515,18 @@ personas:
       gamma: 0.78
       epsilon: 0.19
       regret: 2.22
+      actual_range: "5-20%"
 
   myopic_conservative:
-    magnitude_default: 5
+    magnitude_default: 5.5     # FQL range midpoint (1-10%)
+    magnitude_min: 1           # Lower bound from FQL observations
+    magnitude_max: 10          # Upper bound from FQL observations
+    magnitude_sigma: 2.5       # Gaussian noise (~28% of range width for 1σ variation)
     description: >
       You are a tradition-oriented farmer who relies heavily on past
-      experience and established practices. You make only modest changes
-      to your water demand and prefer the status quo. You update your
+      experience and established practices. You typically adjust your
+      water demand by **1-10%** (relative to current water use), making
+      only modest changes and preferring the status quo. You update your
       views slowly, discount future outcomes, and rarely explore
       unfamiliar strategies. You have moderate sensitivity to unmet
       demand but generally believe that sticking to proven practices
@@ -525,6 +538,7 @@ personas:
       gamma: 0.64
       epsilon: 0.09
       regret: 1.54
+      actual_range: "1-10%"
 
 
 metadata: { version: "v1-irrigation-hung2021-llm" }
