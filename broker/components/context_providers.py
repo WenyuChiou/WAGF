@@ -123,9 +123,11 @@ class MemoryProvider(ContextProvider):
 
         contextual_boosters = kwargs.get("contextual_boosters")
         env_context = kwargs.get("env_context", {})
+        query = kwargs.get("query")
 
         context["memory"] = self.engine.retrieve(
             agent,
+            query=query,
             top_k=3,
             contextual_boosters=contextual_boosters,
             world_state=env_context,

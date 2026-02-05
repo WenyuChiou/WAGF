@@ -91,6 +91,9 @@ def create_memory_engine(
             consolidation_threshold=config.get("consolidation_threshold", 0.6),
             decay_rate=config.get("decay_rate", 0.1),
             ranking_mode=config.get("ranking_mode", "weighted"),
+            emotional_weights=config.get("emotional_weights"),
+            source_weights=config.get("source_weights"),
+            seed=config.get("seed"),
         )
     elif engine_type == "unified":
         # v5 UnifiedEngine requires explicit strategy creation
