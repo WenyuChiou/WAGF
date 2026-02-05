@@ -1,9 +1,26 @@
 import pandas as pd
+import numpy as np
 import json
 import re
 import os
 import sys
 from pathlib import Path
+
+def compute_entropy(decision_counts):
+    """Compute normalized Shannon entropy (H_norm) for decision distribution.
+
+    H_norm = H / log2(K) where K is the number of decision categories (4).
+    Returns value between 0 (all same) and 1 (uniform distribution).
+    """
+    total = sum(decision_counts.values())
+    if total == 0:
+        return 0.0
+
+    probs = [c / total for c in decision_counts.values() if c > 0]
+    h = -sum(p * np.log2(p) for p in probs)
+    h_max = np.log2(4)  # 4 decision categories
+    h_norm = h / h_max if h_max > 0 else 0
+    return round(h_norm, 4)
 
 # --- Flood Years (Ground Truth for V3) ---
 # Years when actual flooding occurred in the simulation
@@ -393,6 +410,13 @@ def get_stats(model, group):
                 r_h_leaked = retry_exhausted
                 r_h = round(r_h_leaked / n_data * 100, 2) if n_data > 0 else 0
 
+            # H_norm: Normalized Shannon entropy of decision distribution
+            decision_counts = full_data[dec_col].apply(normalize_decision).value_counts().to_dict()
+            h_norm = compute_entropy(decision_counts)
+
+            # EBE: Effective Behavioral Entropy = H_norm × (1 - R_H)
+            ebe = round(h_norm * (1 - r_h / 100), 4)
+
             return {
                 "Status": "Done" if df['year'].max() >= 10 else f"Y{df['year'].max()}",
                 "N": n_data,
@@ -401,6 +425,7 @@ def get_stats(model, group):
                 "V2_Tot": v2_total, "V2_Act": v2_count,
                 "V3_Tot": v3_total, "V3_Act": v3_count,
                 "R_H": r_h, "R_H_Leaked": r_h_leaked,
+                "H_norm": h_norm, "EBE": ebe,
                 "Intv": intv_rules, "Intv_S": intv_thinking_events, "Intv_P": intv_parse_errors,
                 "Intv_P_Empty": p_empty, "Intv_P_Label": p_label, "Intv_P_Syntax": p_syntax,
                 "Intv_H": intv_hallucination, "Intv_OK": intv_ok_str,
@@ -417,19 +442,20 @@ def get_stats(model, group):
 models = ["gemma3_4b", "gemma3_12b", "gemma3_27b", "ministral3_3b", "ministral3_8b", "ministral3_14b"]
 groups = ["Group_A", "Group_B", "Group_C"]
 
-print("\n=== JOH SCALING REPORT: VERIFICATION RULES (GLOBAL FREQUENCY - FINAL) ===")
+print("\n=== JOH SCALING REPORT: R_H, H_norm, EBE (ALL MODELS) ===")
 # Headers
 h_model = "Model"
 h_grp = "Group"
 h_n = "N"
-h_v1, h_v2, h_v3 = "V1", "V2", "V3"
 h_retry = "Retry"
 h_rh = "R_H(%)"
+h_hnorm = "H_norm"
+h_ebe = "EBE"
 h_ff = "FF(%)"
 
-print("\n" + "="*100)
+print("\n" + "="*110)
 with open('gemma_master_report_output.txt', 'w') as f_out:
-    header = f"{h_model:<15} {h_grp:<10} {h_n:<6} {h_v1:<6} {h_v2:<6} {h_v3:<6} {h_retry:<8} {h_rh:<10} {h_ff:<10}"
+    header = f"{h_model:<15} {h_grp:<10} {h_n:<6} {h_retry:<8} {h_rh:<10} {h_hnorm:<10} {h_ebe:<10} {h_ff:<10}"
     print(header)
     f_out.write(header + "\n")
     print("-" * 100)
@@ -455,7 +481,7 @@ with open('gemma_master_report_output.txt', 'w') as f_out:
 
                 # Print aligned table row
                 m_short = m.replace("gemma3_", "").replace("ministral3_", "mist_")
-                row_str = f"{m_short:<15} {g:<10} {stats['N']:<6} {stats['V1_Act']:<6} {stats['V2_Act']:<6} {stats['V3_Act']:<6} {str(retry_count):<8} {stats['R_H']:<10} {stats['FF']:<10}"
+                row_str = f"{m_short:<15} {g:<10} {stats['N']:<6} {str(retry_count):<8} {stats['R_H']:<10} {stats['H_norm']:<10} {stats['EBE']:<10} {stats['FF']:<10}"
                 print(row_str)
                 f_out.write(row_str + "\n")
 
@@ -466,15 +492,19 @@ with open('gemma_master_report_output.txt', 'w') as f_out:
                 all_data.append(row)
 
 print("\n" + "="*100)
-print("\n=== R_H CALCULATION GUIDE ===")
-print("Group A: R_H = (V1 + V2 + V3) / N  [No governance, all violations leak]")
-print("  - V1: Relocate under low threat (L/VL/M)")
-print("  - V2: Elevate under low threat (L/VL/M)")
-print("  - V3: Do Nothing under VH threat OR during actual flood years")
-print("Group B/C: R_H = retry_exhausted / N  [Leaked despite governance]")
-print("-" * 100)
+print("\n=== METRIC DEFINITIONS ===")
+print("R_H (Hallucination Rate):")
+print("  Group A: R_H = (V1 + V2 + V3) / N  [No governance, all violations leak]")
+print("  Group B/C: R_H = retry_exhausted / N  [Leaked despite governance]")
+print("H_norm (Normalized Entropy):")
+print("  H_norm = H / log2(4), where H is Shannon entropy of decision distribution")
+print("  Range: 0 (all same decision) to 1 (uniform distribution)")
+print("EBE (Effective Behavioral Entropy):")
+print("  EBE = H_norm × (1 - R_H/100)")
+print("  Composite metric capturing both diversity AND logical consistency")
+print("-" * 110)
 print("Retry: Total interventions triggered by governance (Group B/C only)")
-print("=" * 100)
+print("=" * 110)
 
 from pathlib import Path
 import pandas as pd
@@ -490,7 +520,7 @@ if all_data:
         export_cols = [
             'Model', 'Group', 'N',
             'V1_Act', 'V2_Act', 'V3_Act',
-            'R_H', 'R_H_Leaked',
+            'R_H', 'H_norm', 'EBE',
             'Intv', 'Intv_S', 'Intv_P', 'FF', 'Audit_Str'
         ]
         # Filter for existing columns
