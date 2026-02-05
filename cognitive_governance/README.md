@@ -5,8 +5,8 @@ Universal Cognitive Governance Middleware for Agent Frameworks.
 ## Quick Start
 
 ```python
-from governed_ai_sdk.v1_prototype.core.engine import PolicyEngine
-from governed_ai_sdk.v1_prototype.core.policy_loader import PolicyLoader
+from cognitive_governance.v1_prototype.core.engine import PolicyEngine
+from cognitive_governance.v1_prototype.core.policy_loader import PolicyLoader
 
 # Create engine and policy
 engine = PolicyEngine()
@@ -75,8 +75,8 @@ UnifiedCognitiveEngine (v5)
 ### Usage Example
 
 ```python
-from governed_ai_sdk.memory import UnifiedCognitiveEngine
-from governed_ai_sdk.memory.strategies import (
+from cognitive_governance.memory import UnifiedCognitiveEngine
+from cognitive_governance.memory.strategies import (
     EMASurpriseStrategy,
     SymbolicSurpriseStrategy,
     HybridSurpriseStrategy,
@@ -189,8 +189,8 @@ engine = create_memory_engine(
 
 ```bash
 # SDK tests
-python governed_ai_sdk/demo_sdk_usage.py
-python -m pytest governed_ai_sdk/tests/ -v
+python cognitive_governance/demo_sdk_usage.py
+python -m pytest cognitive_governance/tests/ -v
 
 # v5 Memory tests
 python -m pytest tests/test_unified_memory.py -v
