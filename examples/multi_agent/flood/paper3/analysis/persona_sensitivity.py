@@ -31,11 +31,23 @@ import numpy as np
 import yaml
 
 # Ensure project root and paper3 parent on path
-_PROJECT_ROOT = Path(__file__).resolve().parents[4]
+def _find_project_root() -> Path:
+    current = Path(__file__).resolve().parent
+    for _ in range(10):
+        if (current / "broker").is_dir():
+            return current
+        current = current.parent
+    return Path(__file__).resolve().parents[5]
+
+_PROJECT_ROOT = _find_project_root()
 _FLOOD_ROOT = Path(__file__).resolve().parents[2]  # examples/multi_agent/flood
 for _p in [str(_PROJECT_ROOT), str(_FLOOD_ROOT)]:
     if _p not in sys.path:
         sys.path.insert(0, _p)
+
+from broker.validators.calibration.directional_validator import (  # noqa: E402
+    chi_squared_test,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -45,6 +57,7 @@ for _p in [str(_PROJECT_ROOT), str(_FLOOD_ROOT)]:
 SWAP_TESTS = {
     "income_swap": {
         "description": "Swap income between MG and NMG archetypes",
+        "expected_change": "cp_label",  # Income should primarily affect CP
         "pairs": [
             {
                 "base": "mg_owner_floodprone",
@@ -61,18 +74,37 @@ SWAP_TESTS = {
         ],
     },
     "zone_swap": {
-        "description": "Place flood-experienced agent in safe zone",
+        "description": "Place flood-experienced agent in safe zone (with consistent memory)",
+        "expected_change": "tp_label",  # Zone/experience should affect TP
         "pairs": [
             {
+                # CRITICAL FIX: Must also swap flood history and memory
+                # Otherwise LLM sees Zone X + flood trauma = still high TP
                 "base": "mg_owner_floodprone",
-                "swap_field": ("persona", "flood_zone"),
-                "swap_value": "X (minimal risk)",
-                "label": "MG_owner_in_zone_X",
+                "swap_fields": [
+                    (("persona", "flood_zone"), "X (minimal risk)"),
+                    (("persona", "flood_count"), 0),
+                    (("persona", "years_since_flood"), -1),
+                    (("persona", "cumulative_damage"), 0),
+                    (("persona", "cumulative_oop"), 0),
+                    (
+                        ("persona", "flood_experience_summary"),
+                        "No direct flood experience in this area",
+                    ),
+                ],
+                "swap_memory": (
+                    "I've lived in this house for 10 years. We're in Zone X, "
+                    "well away from the flood-prone areas. I've heard about "
+                    "flooding downtown but our neighborhood has never been "
+                    "affected. I don't think we need flood insurance here."
+                ),
+                "label": "MG_owner_in_zone_X_no_history",
             },
         ],
     },
     "history_swap": {
         "description": "Give never-flooded agent a 3-flood history",
+        "expected_change": "tp_label",  # Flood history should affect TP
         "pairs": [
             {
                 "base": "nmg_renter_safe",
@@ -123,56 +155,7 @@ def apply_swap(
     return modified
 
 
-# ---------------------------------------------------------------------------
-# Chi-squared test
-# ---------------------------------------------------------------------------
-
-def chi_squared_test(
-    dist_a: Dict[str, int],
-    dist_b: Dict[str, int],
-) -> Dict[str, Any]:
-    """Chi-squared test of independence between two decision distributions.
-
-    Returns dict with chi2 statistic, p-value, and effect size (Cramer's V).
-    """
-    try:
-        from scipy import stats
-    except ImportError:
-        raise ImportError(
-            "scipy is required for chi-squared tests. "
-            "Install with: pip install scipy"
-        ) from None
-
-    # Union of all labels
-    all_labels = sorted(set(dist_a.keys()) | set(dist_b.keys()))
-    if len(all_labels) < 2:
-        return {"chi2": 0.0, "p_value": 1.0, "cramers_v": 0.0, "df": 0}
-
-    # Build contingency table
-    observed = np.array(
-        [[int(dist_a.get(lbl, 0)) for lbl in all_labels],
-         [int(dist_b.get(lbl, 0)) for lbl in all_labels]],
-        dtype=int,
-    )
-
-    # Remove columns with all zeros
-    col_sums = observed.sum(axis=0)
-    observed = observed[:, col_sums > 0]
-
-    if observed.shape[1] < 2:
-        return {"chi2": 0.0, "p_value": 1.0, "cramers_v": 0.0, "df": 0}
-
-    chi2, p_val, df, expected = stats.chi2_contingency(observed)
-    n = observed.sum()
-    k = min(observed.shape) - 1
-    cramers_v = np.sqrt(chi2 / (n * k)) if n * k > 0 else 0.0
-
-    return {
-        "chi2": float(chi2),
-        "p_value": float(p_val),
-        "cramers_v": float(cramers_v),
-        "df": int(df),
-    }
+# chi_squared_test is imported from broker.validators.calibration.directional_validator
 
 
 def compare_distributions(
@@ -232,6 +215,7 @@ def run_persona_sensitivity(
     from paper3.run_cv import (
         build_probe_prompt,
         create_probe_invoke,
+        map_decision_to_action,
         parse_probe_response,
     )
     from broker.validators.calibration.psychometric_battery import (
@@ -296,10 +280,14 @@ def run_persona_sensitivity(
                     total_calls += 1
                     if ok_b and raw_b:
                         parsed = parse_probe_response(raw_b)
+                        atype = base_arch.get("agent_type", "household_owner")
                         base_responses.append({
                             "tp_label": parsed.get("TP_LABEL", parsed.get("tp_label", "M")).upper(),
                             "cp_label": parsed.get("CP_LABEL", parsed.get("cp_label", "M")).upper(),
-                            "decision": parsed.get("decision", "do_nothing").lower().strip(),
+                            "decision": map_decision_to_action(
+                                parsed.get("decision", "do_nothing"),
+                                agent_type=atype,
+                            ),
                         })
 
                     # Swap
@@ -307,10 +295,14 @@ def run_persona_sensitivity(
                     total_calls += 1
                     if ok_s and raw_s:
                         parsed = parse_probe_response(raw_s)
+                        atype_s = swap_arch.get("agent_type", base_arch.get("agent_type", "household_owner"))
                         swap_responses.append({
                             "tp_label": parsed.get("TP_LABEL", parsed.get("tp_label", "M")).upper(),
                             "cp_label": parsed.get("CP_LABEL", parsed.get("cp_label", "M")).upper(),
-                            "decision": parsed.get("decision", "do_nothing").lower().strip(),
+                            "decision": map_decision_to_action(
+                                parsed.get("decision", "do_nothing"),
+                                agent_type=atype_s,
+                            ),
                         })
 
             # Compare distributions
@@ -325,15 +317,27 @@ def run_persona_sensitivity(
                 }
 
                 # Summary: is persona driving behavior?
-                sig_count = sum(
-                    1 for v in comparison.values() if v.get("significant", False)
-                )
-                pair_result["persona_sensitive"] = sig_count >= 2
-                pair_result["significant_fields"] = [
+                # NEW: Use expected_change field for more nuanced evaluation
+                # - Income swap should change CP (coping perception)
+                # - Zone/history swap should change TP (threat perception)
+                expected_field = test_def.get("expected_change", None)
+                significant_fields = [
                     k for k, v in comparison.items() if v.get("significant", False)
                 ]
 
-                print(f"    Significant changes in: {pair_result['significant_fields']}")
+                if expected_field:
+                    # Pass if the expected field changed significantly
+                    pair_result["persona_sensitive"] = expected_field in significant_fields
+                    pair_result["expected_change"] = expected_field
+                    pair_result["expected_change_met"] = expected_field in significant_fields
+                else:
+                    # Fallback to old criterion: 2 out of 3 must change
+                    pair_result["persona_sensitive"] = len(significant_fields) >= 2
+
+                pair_result["significant_fields"] = significant_fields
+
+                print(f"    Significant changes in: {significant_fields}")
+                print(f"    Expected change: {expected_field} -> Met: {pair_result.get('expected_change_met', 'N/A')}")
                 print(f"    Persona sensitive: {pair_result['persona_sensitive']}")
 
                 test_results["pairs"].append(pair_result)

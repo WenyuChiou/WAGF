@@ -8,38 +8,38 @@ This is a SEPARATE validation layer from BRC (which uses PMT framework
 internal concordance). Empirical benchmarks test whether the emergent
 aggregate behavior falls within plausible real-world ranges.
 
+Uses the generic :class:`BenchmarkRegistry` from
+``broker.validators.calibration.benchmark_registry`` for benchmark
+definition, comparison, and EPI computation.  This module provides the
+**flood-domain benchmarks** and the **metric computation function**.
+
 Usage:
     from paper3.analysis.empirical_benchmarks import compare_with_benchmarks
 
     df = load_audit_for_cv("paper3/results/seed_42/")
     report = compare_with_benchmarks(df)
-    print(report.to_string())
+    print(f"EPI = {report.plausibility_score:.3f}")
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
+from broker.validators.calibration.benchmark_registry import (
+    Benchmark,
+    BenchmarkCategory,
+    BenchmarkComparison,
+    BenchmarkRegistry,
+    BenchmarkReport,
+)
+
 
 # ---------------------------------------------------------------------------
-# Empirical benchmark definitions
+# Flood-domain empirical benchmark definitions
 # ---------------------------------------------------------------------------
 
-@dataclass
-class Benchmark:
-    """A single empirical benchmark for aggregate behavior."""
-    name: str
-    metric: str
-    rate_low: float
-    rate_high: float
-    source: str
-    description: str = ""
-
-
-# NJ / US flood adaptation literature benchmarks
 FLOOD_BENCHMARKS: List[Benchmark] = [
     Benchmark(
         name="NFIP Insurance Uptake (SFHA)",
@@ -48,6 +48,8 @@ FLOOD_BENCHMARKS: List[Benchmark] = [
         rate_high=0.50,
         source="Kousky (2017); FEMA NFIP statistics",
         description="Fraction of households in Special Flood Hazard Areas with active NFIP policies",
+        category=BenchmarkCategory.AGGREGATE,
+        weight=1.0,
     ),
     Benchmark(
         name="Insurance Uptake (All Zones)",
@@ -56,6 +58,8 @@ FLOOD_BENCHMARKS: List[Benchmark] = [
         rate_high=0.40,
         source="Kousky & Michel-Kerjan (2017); Gallagher (2014)",
         description="Fraction of all households (including moderate risk) with flood insurance",
+        category=BenchmarkCategory.AGGREGATE,
+        weight=0.8,
     ),
     Benchmark(
         name="Elevation Adoption (Cumulative)",
@@ -64,6 +68,8 @@ FLOOD_BENCHMARKS: List[Benchmark] = [
         rate_high=0.12,
         source="Haer et al. (2017); de Ruig et al. (2022)",
         description="Cumulative fraction of homeowners who elevate over a ~10yr horizon",
+        category=BenchmarkCategory.AGGREGATE,
+        weight=1.0,
     ),
     Benchmark(
         name="Blue Acres Buyout Participation",
@@ -72,14 +78,18 @@ FLOOD_BENCHMARKS: List[Benchmark] = [
         rate_high=0.15,
         source="NJ DEP Blue Acres Program reports; Greer & Brokopp Binder (2017)",
         description="Fraction accepting government buyout post-major-flood (highly variable by event)",
+        category=BenchmarkCategory.AGGREGATE,
+        weight=0.8,
     ),
     Benchmark(
         name="Inaction Rate (Post-Flood)",
         metric="do_nothing_rate_postflood",
         rate_low=0.35,
         rate_high=0.65,
-        source="Grothmann & Reusswig (2006); Bubeck et al. (2012)",
+        source="Grothmann & Reusswig (2006); Brody et al. (2017)",
         description="Fraction of households taking no protective action after experiencing flooding",
+        category=BenchmarkCategory.CONDITIONAL,
+        weight=1.5,
     ),
     Benchmark(
         name="MG-NMG Adaptation Gap",
@@ -88,6 +98,8 @@ FLOOD_BENCHMARKS: List[Benchmark] = [
         rate_high=0.30,
         source="Choi et al. (2024); Collins et al. (2018)",
         description="Difference in adaptation rates between non-marginalized and marginalized groups",
+        category=BenchmarkCategory.DEMOGRAPHIC,
+        weight=2.0,
     ),
     Benchmark(
         name="Repetitive Loss Uninsured Rate",
@@ -96,6 +108,8 @@ FLOOD_BENCHMARKS: List[Benchmark] = [
         rate_high=0.40,
         source="FEMA RL statistics; Kousky & Michel-Kerjan (2010)",
         description="Fraction of repetitive-loss properties without active NFIP coverage",
+        category=BenchmarkCategory.CONDITIONAL,
+        weight=1.0,
     ),
     Benchmark(
         name="Insurance Annual Lapse Rate",
@@ -104,12 +118,21 @@ FLOOD_BENCHMARKS: List[Benchmark] = [
         rate_high=0.15,
         source="Gallagher (2014, AER); Michel-Kerjan et al. (2012)",
         description="Annual rate of NFIP policy non-renewal",
+        category=BenchmarkCategory.TEMPORAL,
+        weight=1.0,
     ),
 ]
 
 
+def _get_flood_registry(
+    benchmarks: Optional[List[Benchmark]] = None,
+) -> BenchmarkRegistry:
+    """Build a BenchmarkRegistry pre-loaded with flood benchmarks."""
+    return BenchmarkRegistry(benchmarks=benchmarks or FLOOD_BENCHMARKS)
+
+
 # ---------------------------------------------------------------------------
-# Computation
+# Metric computation (domain-specific)
 # ---------------------------------------------------------------------------
 
 def compute_aggregate_rates(
@@ -232,49 +255,9 @@ def compute_aggregate_rates(
     return rates
 
 
-@dataclass
-class BenchmarkComparison:
-    """Result of comparing one observed rate against an empirical benchmark."""
-    benchmark_name: str
-    metric: str
-    observed: float
-    expected_low: float
-    expected_high: float
-    within_range: bool
-    ratio_to_midpoint: float
-    source: str
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "benchmark": self.benchmark_name,
-            "metric": self.metric,
-            "observed": round(self.observed, 4),
-            "expected_range": f"[{self.expected_low:.2f}, {self.expected_high:.2f}]",
-            "within_range": self.within_range,
-            "ratio_to_midpoint": round(self.ratio_to_midpoint, 3),
-            "source": self.source,
-        }
-
-
-@dataclass
-class BenchmarkReport:
-    """Complete benchmark comparison report."""
-    comparisons: List[BenchmarkComparison] = field(default_factory=list)
-    n_within_range: int = 0
-    n_total: int = 0
-    plausibility_score: float = 0.0
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "n_benchmarks_evaluated": self.n_total,
-            "n_within_range": self.n_within_range,
-            "plausibility_score": round(self.plausibility_score, 3),
-            "comparisons": [c.to_dict() for c in self.comparisons],
-        }
-
-    def to_dataframe(self) -> pd.DataFrame:
-        return pd.DataFrame([c.to_dict() for c in self.comparisons])
-
+# ---------------------------------------------------------------------------
+# Comparison (delegates to BenchmarkRegistry)
+# ---------------------------------------------------------------------------
 
 def compare_with_benchmarks(
     df: pd.DataFrame,
@@ -283,6 +266,9 @@ def compare_with_benchmarks(
     tolerance: float = 0.3,
 ) -> BenchmarkReport:
     """Compare simulation output against empirical benchmarks.
+
+    Delegates to :class:`BenchmarkRegistry.compare` from the generic
+    calibration engine.
 
     Parameters
     ----------
@@ -300,44 +286,9 @@ def compare_with_benchmarks(
     -------
     BenchmarkReport
     """
-    if benchmarks is None:
-        benchmarks = FLOOD_BENCHMARKS
-
+    registry = _get_flood_registry(benchmarks)
     rates = compute_aggregate_rates(df, decision_col=decision_col)
-    report = BenchmarkReport()
-
-    for bm in benchmarks:
-        if bm.metric not in rates:
-            continue
-
-        observed = rates[bm.metric]
-        midpoint = (bm.rate_low + bm.rate_high) / 2
-        ratio = observed / midpoint if midpoint > 0 else 0.0
-
-        # Within range check (with tolerance)
-        low_bound = bm.rate_low * (1 - tolerance)
-        high_bound = bm.rate_high * (1 + tolerance)
-        within = low_bound <= observed <= high_bound
-
-        comparison = BenchmarkComparison(
-            benchmark_name=bm.name,
-            metric=bm.metric,
-            observed=observed,
-            expected_low=bm.rate_low,
-            expected_high=bm.rate_high,
-            within_range=within,
-            ratio_to_midpoint=ratio,
-            source=bm.source,
-        )
-        report.comparisons.append(comparison)
-
-    report.n_total = len(report.comparisons)
-    report.n_within_range = sum(1 for c in report.comparisons if c.within_range)
-    report.plausibility_score = (
-        report.n_within_range / report.n_total if report.n_total > 0 else 0.0
-    )
-
-    return report
+    return registry.compare(rates, tolerance=tolerance)
 
 
 def compute_epi(
@@ -348,8 +299,8 @@ def compute_epi(
 ) -> float:
     """Compute Empirical Plausibility Index (EPI).
 
-    EPI = fraction of evaluated benchmarks where the simulated aggregate rate
-    falls within the empirical range (with tolerance).
+    EPI = weighted fraction of evaluated benchmarks where the simulated
+    aggregate rate falls within the empirical range (with tolerance).
 
     Threshold: EPI >= 0.60 for L2 macro validation pass.
 

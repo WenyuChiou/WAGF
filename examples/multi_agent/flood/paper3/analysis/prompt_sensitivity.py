@@ -30,11 +30,23 @@ import numpy as np
 import yaml
 
 # Ensure project root and paper3 parent on path
-_PROJECT_ROOT = Path(__file__).resolve().parents[4]
+def _find_project_root() -> Path:
+    current = Path(__file__).resolve().parent
+    for _ in range(10):
+        if (current / "broker").is_dir():
+            return current
+        current = current.parent
+    return Path(__file__).resolve().parents[5]
+
+_PROJECT_ROOT = _find_project_root()
 _FLOOD_ROOT = Path(__file__).resolve().parents[2]  # examples/multi_agent/flood
 for _p in [str(_PROJECT_ROOT), str(_FLOOD_ROOT)]:
     if _p not in sys.path:
         sys.path.insert(0, _p)
+
+from broker.validators.calibration.directional_validator import (  # noqa: E402
+    chi_squared_test,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -68,6 +80,19 @@ Choose ONE primary action:
 1. do_nothing — Take no protective action this year
 2. relocate — Move to a different area
 3. buy_contents_insurance — Purchase contents-only flood insurance"""
+
+# Reversed numeric → action maps (numbers match reversed ordering above)
+OWNER_ACTION_MAP_REVERSED = {
+    "1": "do_nothing",
+    "2": "buyout_program",
+    "3": "elevate_house",
+    "4": "buy_insurance",
+}
+RENTER_ACTION_MAP_REVERSED = {
+    "1": "do_nothing",
+    "2": "relocate",
+    "3": "buy_contents_insurance",
+}
 
 # The "CRITICAL RISK ASSESSMENT" framing section from household_owner.txt
 RISK_ASSESSMENT_SECTION = """\
@@ -173,49 +198,7 @@ Based on the scenario, your situation, and your memories, evaluate the threat an
     return prompt
 
 
-# ---------------------------------------------------------------------------
-# Chi-squared test (reuse from persona_sensitivity)
-# ---------------------------------------------------------------------------
-
-def chi_squared_test(
-    dist_a: Dict[str, int],
-    dist_b: Dict[str, int],
-) -> Dict[str, Any]:
-    """Chi-squared test of independence between two distributions."""
-    try:
-        from scipy import stats
-    except ImportError:
-        raise ImportError(
-            "scipy is required for chi-squared tests. "
-            "Install with: pip install scipy"
-        ) from None
-
-    all_labels = sorted(set(dist_a.keys()) | set(dist_b.keys()))
-    if len(all_labels) < 2:
-        return {"chi2": 0.0, "p_value": 1.0, "cramers_v": 0.0, "df": 0}
-
-    observed = np.array(
-        [[int(dist_a.get(lbl, 0)) for lbl in all_labels],
-         [int(dist_b.get(lbl, 0)) for lbl in all_labels]],
-        dtype=int,
-    )
-    col_sums = observed.sum(axis=0)
-    observed = observed[:, col_sums > 0]
-
-    if observed.shape[1] < 2:
-        return {"chi2": 0.0, "p_value": 1.0, "cramers_v": 0.0, "df": 0}
-
-    chi2, p_val, df, _ = stats.chi2_contingency(observed)
-    n = observed.sum()
-    k = min(observed.shape) - 1
-    cramers_v = np.sqrt(chi2 / (n * k)) if n * k > 0 else 0.0
-
-    return {
-        "chi2": float(chi2),
-        "p_value": float(p_val),
-        "cramers_v": float(cramers_v),
-        "df": int(df),
-    }
+# chi_squared_test is imported from broker.validators.calibration.directional_validator
 
 
 # ---------------------------------------------------------------------------
@@ -226,19 +209,26 @@ def _run_probes(
     invoke_fn,
     prompt: str,
     replicates: int,
+    agent_type: str = "household_owner",
+    action_map: Optional[Dict[str, str]] = None,
 ) -> List[Dict[str, str]]:
     """Run replicates of a single prompt and collect parsed responses."""
-    from paper3.run_cv import parse_probe_response
+    from paper3.run_cv import parse_probe_response, map_decision_to_action
 
     responses = []
     for _ in range(replicates):
         raw, ok = invoke_fn(prompt)
         if ok and raw:
             parsed = parse_probe_response(raw)
+            decision = map_decision_to_action(
+                parsed.get("decision", "do_nothing"),
+                agent_type=agent_type,
+                action_map=action_map,
+            )
             responses.append({
                 "tp_label": parsed.get("TP_LABEL", parsed.get("tp_label", "M")).upper(),
                 "cp_label": parsed.get("CP_LABEL", parsed.get("cp_label", "M")).upper(),
-                "decision": parsed.get("decision", "do_nothing").lower().strip(),
+                "decision": decision,
             })
     return responses
 
@@ -267,11 +257,24 @@ def run_option_reordering_test(
         arch = archetypes[arch_name]
 
         for vig in vignettes:
+            atype = arch.get("agent_type", "household_owner")
             standard_prompt = build_probe_prompt_variant(arch, vig, option_order="standard")
             reversed_prompt = build_probe_prompt_variant(arch, vig, option_order="reversed")
 
-            standard_responses = _run_probes(invoke_fn, standard_prompt, replicates)
-            reversed_responses = _run_probes(invoke_fn, reversed_prompt, replicates)
+            # Use correct action map per ordering: standard uses default,
+            # reversed uses the reversed map so "1" → different action
+            reversed_map = (
+                OWNER_ACTION_MAP_REVERSED if atype == "household_owner"
+                else RENTER_ACTION_MAP_REVERSED
+            )
+            standard_responses = _run_probes(
+                invoke_fn, standard_prompt, replicates,
+                agent_type=atype, action_map=None,
+            )
+            reversed_responses = _run_probes(
+                invoke_fn, reversed_prompt, replicates,
+                agent_type=atype, action_map=reversed_map,
+            )
             total_calls += replicates * 2
 
             if standard_responses and reversed_responses:
@@ -336,11 +339,16 @@ def run_framing_test(
         arch = archetypes[arch_name]
 
         for vig in vignettes:
+            atype = arch.get("agent_type", "household_owner")
             framed_prompt = build_probe_prompt_variant(arch, vig, include_risk_framing=True)
             neutral_prompt = build_probe_prompt_variant(arch, vig, include_risk_framing=False)
 
-            framed_responses = _run_probes(invoke_fn, framed_prompt, replicates)
-            neutral_responses = _run_probes(invoke_fn, neutral_prompt, replicates)
+            framed_responses = _run_probes(
+                invoke_fn, framed_prompt, replicates, agent_type=atype,
+            )
+            neutral_responses = _run_probes(
+                invoke_fn, neutral_prompt, replicates, agent_type=atype,
+            )
             total_calls += replicates * 2
 
             if framed_responses and neutral_responses:

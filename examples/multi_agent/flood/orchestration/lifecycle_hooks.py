@@ -535,9 +535,9 @@ class MultiAgentHooks:
                                 year,
                             )
                             if insight:
-                                reflection_engine.store_insight(str(agent.unique_id), insight)
+                                reflection_engine.store_insight(str(agent.id), insight)
                                 memory_engine.add_memory(
-                                    str(agent.unique_id),
+                                    str(agent.id),
                                     f"[Reflection Y{year}] {insight.summary}",
                                     {"importance": insight.importance, "type": "reflection", "source": "reflection"},
                                 )
