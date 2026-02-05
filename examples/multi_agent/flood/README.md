@@ -1027,6 +1027,80 @@ for archetype in sample_archetypes:
 
 **Our results**: No systematic positional bias, framing effect within acceptable range → **OK**
 
+#### Why These Metrics Matter (Tutorial)
+
+Before running 52,000 LLM calls in the Primary Experiment, we must answer:
+
+> **"Is this LLM reliable? Can it produce consistent and meaningful responses?"**
+
+If the LLM gives random answers (low ICC) or can't distinguish between different personas (low eta²), the simulation results are meaningless.
+
+**The Three Questions We Answer**:
+
+| Question | Metric | What "Pass" Means |
+|----------|--------|-------------------|
+| Same persona → same response? | ICC ≥ 0.60 | 60%+ of variance is reliable |
+| Different personas → different responses? | eta² ≥ 0.25 | Personas explain 25%+ of variance |
+| Changing persona → expected behavior change? | Sensitivity ≥ 75% | 75%+ of swaps work as expected |
+
+**Key Insight: Archetypes ≠ Survey Data**
+
+This is the most common source of confusion:
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    WHY ARCHETYPES ARE MANUALLY DESIGNED                      │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  Survey Data (755 respondents)          Archetypes (15 personas)            │
+│  ─────────────────────────────          ─────────────────────────           │
+│  • Real people who answered             • Fictional representatives         │
+│    our Qualtrics survey                   designed by researchers           │
+│                                                                             │
+│  • Used for: Initializing 400           • Used for: Testing LLM             │
+│    agents in the experiment               reliability BEFORE experiment     │
+│                                                                             │
+│  • May NOT include extreme              • MUST include extreme cases        │
+│    cases (very poor, disabled)            (resilient_veteran, etc.)         │
+│                                                                             │
+│  • Distribution reflects                • Distribution maximizes            │
+│    actual NJ population                   between-archetype variance        │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**The Complete L3 Pipeline in Plain English**:
+
+1. **Load 15 Archetypes**: Each archetype is a complete "persona" with demographics, flood history, financial status, and a backstory (memory_seed).
+
+2. **Load 6 Vignettes**: Each vignette describes a flood scenario (low/medium/high severity, contradictory signals, post-adaptation).
+
+3. **Combine Them**: For each (archetype, vignette) pair, construct a prompt:
+   - "You are a [archetype description]..."
+   - "Last month, [vignette scenario]..."
+   - "Your memories: [memory_seed]..."
+
+4. **Call LLM 30 Times**: For each of the 90 combinations (15×6), call the LLM 30 times with temperature=0.7.
+
+5. **Parse Responses**: Extract TP_LABEL, CP_LABEL, decision from each response.
+
+6. **Build Data Matrix**: Organize 2,700 responses into a 90×30 matrix.
+
+7. **Compute Metrics**:
+   - **ICC**: How consistent are responses within each cell?
+   - **eta²**: How different are responses between archetypes?
+   - **Sensitivity**: Does changing persona attributes change behavior as expected?
+
+**What Our Results Mean**:
+
+- **ICC = 0.964**: When given the same (archetype, vignette), the LLM produces nearly identical TP labels 96% of the time. This is excellent—the LLM is not randomly guessing.
+
+- **eta² = 0.330**: Archetype differences explain 33% of TP variance. This means the LLM successfully distinguishes between different personas (MG vs NMG, flooded vs never-flooded, etc.).
+
+- **Persona Sensitivity = 75%**: When we swap income from MG→NMG, CP increases as expected. When we move someone to a safe zone, TP decreases. The LLM responds to persona changes in theoretically consistent ways.
+
+**Conclusion**: Gemma 3 4B is reliable enough to run the 52,000-call Primary Experiment.
+
 ---
 
 ## 13. Empirical Benchmarks
