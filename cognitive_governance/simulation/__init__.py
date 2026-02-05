@@ -2,15 +2,20 @@
 Governed AI SDK - Simulation Module.
 
 Provides environment protocols for the governed broker framework.
+
+Note: Protocols are now defined in broker/interfaces/environment_protocols.py.
+This module re-exports them for backward compatibility.
 """
-from .protocols import (
+# Canonical location: broker.interfaces.environment_protocols
+# This module re-exports for backward compatibility
+from broker.interfaces.environment_protocols import (
     EnvironmentProtocol,
     TieredEnvironmentProtocol,
     SocialEnvironmentProtocol,
 )
 
 __all__ = [
-    # Protocols
+    # Protocols (re-exported from broker.interfaces)
     "EnvironmentProtocol",
     "TieredEnvironmentProtocol",
     "SocialEnvironmentProtocol",
