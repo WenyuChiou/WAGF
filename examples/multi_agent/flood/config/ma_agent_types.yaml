@@ -137,6 +137,7 @@ global_config:
   governance:
     max_retries: 3
     max_reports_per_retry: 3
+    shuffle_options: true  # Randomize skill option order per call to mitigate positional bias
 floodabm_parameters:
   tp_distribution:
     mg:
@@ -272,7 +273,7 @@ household_owner:
     - key: reasoning
       type: text
       required: false
-  prompt_template_file: config/prompts/household_owner.txt
+  prompt_template_file: prompts/household_owner.txt
   parsing:
     preprocessor:
       type: smart_repair
@@ -435,7 +436,7 @@ household_renter:
   - stakeholder_perception
   - social_capital
   - place_attachment
-  prompt_template_file: config/prompts/household_renter.txt
+  prompt_template_file: prompts/household_renter.txt
   parsing:
     preprocessor:
       type: smart_repair
@@ -566,7 +567,7 @@ government:
   llm_params:
     num_ctx: 16384
     num_predict: 1024
-  prompt_template_file: config/prompts/government.txt
+  prompt_template_file: prompts/government.txt
   response_format:
     fields:
     - key: decision
@@ -679,7 +680,7 @@ insurance:
   llm_params:
     num_ctx: 16384
     num_predict: 1024
-  prompt_template_file: config/prompts/insurance.txt
+  prompt_template_file: prompts/insurance.txt
   response_format:
     fields:
     - key: decision

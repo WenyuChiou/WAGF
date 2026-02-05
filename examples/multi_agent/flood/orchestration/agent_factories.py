@@ -162,5 +162,5 @@ def wrap_household(profile: HouseholdProfile) -> BaseAgent:
         "residency_generations": f"{profile.generations} generation{'s' if profile.generations != 1 else ''}",
     }
 
-    agent.id = profile.agent_id
+    agent._id = profile.agent_id
     return agent

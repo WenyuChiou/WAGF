@@ -33,6 +33,7 @@ from broker import (
     create_social_graph
 )
 from broker.components.context_providers import PerceptionAwareProvider
+from broker.components.tiered_builder import load_prompt_templates
 from broker.components.memory_engine import create_memory_engine
 from broker.simulation.environment import TieredEnvironment
 from cognitive_governance.agents import BaseAgent, AgentConfig, StateParam, Skill, PerceptionSource
@@ -495,7 +496,7 @@ def run_unified_experiment():
                     "mg_insured_count",
                     "nmg_insured_count",
                 ], # Phase 2 PR2: Allow institutional influence
-                prompt_templates={}, # Loaded from YAML via with_governance
+                prompt_templates=load_prompt_templates(str(MULTI_AGENT_DIR / "config" / "ma_agent_types.yaml")),
                 enable_financial_constraints=args.enable_financial_constraints,
                 extend_providers=[PerceptionAwareProvider()],  # LAST: perception filter
             )
