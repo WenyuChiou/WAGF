@@ -625,6 +625,30 @@ LLM 回應
 - **類別**：decision_reasoning, flood_experience, adaptation_outcome
 - **衰減**：八卦重要性隨網路距離衰減
 
+### 提示詞中的資訊
+
+代理收到結構化的資訊區塊：
+
+```
+## 社會資訊
+
+### 你觀察到的
+- 鄰居 H0042 去年抬升了房屋
+- 鄰居 H0089 購買了洪水保險
+
+### 你聽到的（八卦）
+- 「我的鄰居抬升是因為去年洪水損壞了他們的地下室。
+   他們說補助讓這變得負擔得起。」（來自 H0042）
+
+### 近期新聞
+- 社區整體：35% 的家戶現在有洪水保險（從 28% 上升）
+- 政府宣布抬升補助增加 5%
+
+### 社群媒體（可靠性：變動）
+- 貼文：「又一次洪水警報！他們什麼時候要修排水系統？」（12 讚）
+- 貼文：「剛收到保險理賠，花了 3 個月但值得」（8 讚）
+```
+
 ---
 
 ## 11. 災害與深度損害模型
@@ -721,11 +745,30 @@ out_of_pocket = total_damage - payout
 | **R_H** (幻覺率) | ≤ 0.10 | 物理不可能（重複抬升等） |
 | **EBE** (有效行為熵) | > 0 | 決策是多樣還是崩塌？ |
 
+**CACR 計算**：
+
+```python
+for each (agent, year) observation:
+    if PMT_coherent(TP_label, CP_label, action):
+        coherent_count += 1
+CACR = coherent_count / total_observations
+```
+
 ### L2 宏觀指標
 
 | 指標 | 門檻 | 測試內容 |
 |------|------|----------|
 | **EPI** (經驗合理性指數) | ≥ 0.60 | 8 個基準中在經驗範圍內的比例 |
+
+**EPI 計算**：
+
+```python
+for each benchmark in 8_benchmarks:
+    observed = compute_from_audit_csv(benchmark)
+    if within_range(observed, benchmark.low, benchmark.high, tolerance=0.30):
+        score += benchmark.weight
+EPI = score / total_weight
+```
 
 ### L3 認知指標
 
@@ -883,6 +926,35 @@ paper3/results/
                 ├── household_renter_traces.jsonl  # 200 租客 × 13 年
                 ├── government_traces.jsonl        # 1 代理 × 13 年
                 └── insurance_traces.jsonl         # 1 代理 × 13 年
+```
+
+### 軌跡檔案格式 (JSONL)
+
+每行是一個 JSON 物件：
+
+```json
+{
+  "run_id": "paper3_primary_seed42",
+  "year": 3,
+  "agent_id": "H0042",
+  "agent_type": "household_owner",
+  "validated": true,
+  "input": "...(完整提示詞)...",
+  "raw_output": "...(LLM 回應)...",
+  "skill_proposal": "buy_insurance",
+  "approved_skill": "buy_insurance",
+  "TP_LABEL": "H",
+  "CP_LABEL": "M",
+  "SP_LABEL": "L",
+  "SC_LABEL": "M",
+  "PA_LABEL": "H",
+  "retry_count": 0,
+  "validation_issues": [],
+  "memory_pre": ["...", "..."],
+  "memory_post": ["...", "...", "(新決策記憶)"],
+  "state_before": {"insured": false, "elevated": false},
+  "state_after": {"insured": true, "elevated": false}
+}
 ```
 
 ---
