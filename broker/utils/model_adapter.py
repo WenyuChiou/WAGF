@@ -288,6 +288,7 @@ class UnifiedAdapter(ModelAdapter):
         # 3. ATTEMPT JSON PARSING
         _magnitude_pct = None  # Optional magnitude for Group D experiments
         found_json = False
+        data_lowered = None  # Will be set if JSON parsing succeeds
         try:
             json_text = cleaned_target.strip()
             
