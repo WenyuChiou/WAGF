@@ -652,7 +652,10 @@ class PsychometricBattery:
         Parameters
         ----------
         vignette_id : str, optional
-            Filter to specific vignette (None = all).
+            Filter to specific vignette (None = all).  When ``None`` and
+            multiple vignettes are present, subjects are compound
+            (archetype × vignette) pairs so that replicate slots do not
+            collide across vignettes.
         construct : str
             "tp" or "cp" (which construct to analyze).
         governed : bool, optional
@@ -676,15 +679,26 @@ class PsychometricBattery:
         if ordinal_col not in df.columns or df.empty:
             return ICCResult(construct=construct, icc_value=0.0)
 
-        # Build rating matrix: archetypes (subjects) x replicates (raters)
-        archetypes = sorted(df["archetype"].unique())
+        # Determine subject key: single vignette → archetype only,
+        # multiple vignettes → (archetype, vignette_id) compound key
+        # to avoid replicate-slot collisions.
+        n_vignettes = df["vignette_id"].nunique()
+        if n_vignettes > 1 and not vignette_id:
+            # Compound subjects: (archetype, vignette_id)
+            df = df.copy()
+            df["_subject"] = df["archetype"] + "|" + df["vignette_id"]
+        else:
+            df = df.copy()
+            df["_subject"] = df["archetype"]
+
+        subjects = sorted(df["_subject"].unique())
         max_rep = int(df["replicate"].max())
 
-        # Pivot to matrix form
-        matrix = np.full((len(archetypes), max_rep), np.nan)
-        for i, arch in enumerate(archetypes):
-            arch_df = df[df["archetype"] == arch].sort_values("replicate")
-            for _, row in arch_df.iterrows():
+        # Pivot to matrix form: subjects x replicates
+        matrix = np.full((len(subjects), max_rep), np.nan)
+        for i, subj in enumerate(subjects):
+            subj_df = df[df["_subject"] == subj].sort_values("replicate")
+            for _, row in subj_df.iterrows():
                 rep = int(row["replicate"]) - 1
                 if rep < max_rep:
                     matrix[i, rep] = row[ordinal_col]
