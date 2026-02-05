@@ -248,6 +248,7 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         # Phase 8: SDK observer support
         social_observer: Optional["SocialObserver"] = None,
         environment_observer: Optional["EnvironmentObserver"] = None,
+        extend_providers: List[ContextProvider] = None,
     ):
         # Phase 8: Store observers for potential use
         self.social_observer = social_observer
@@ -275,6 +276,9 @@ class TieredContextBuilder(BaseAgentContextBuilder):
                 providers.append(
                     EnvironmentObservationProvider(environment_observer, hub.environment)
                 )
+
+        if extend_providers:
+            providers.extend(extend_providers)
 
         super().__init__(
             agents=agents,

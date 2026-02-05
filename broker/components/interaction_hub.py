@@ -304,10 +304,10 @@ class InteractionHub:
             "neighbor_count": len(self.graph.get_neighbors(agent_id)),
         }
 
-    def build_tiered_context(self, agent_id: str, agents: Dict[str, Any], global_news: List[str] = None) -> Dict[str, Any]:
+    def build_tiered_context(self, agent_id: str, agents: Dict[str, Any], global_news: List[str] = None, query: Optional[str] = None) -> Dict[str, Any]:
         """Aggregate all tiers into a unified context slice."""
         agent = agents[agent_id]
-        personal_memory = self.memory_engine.retrieve(agent, top_k=3) if self.memory_engine else []
+        personal_memory = self.memory_engine.retrieve(agent, query=query, top_k=3) if self.memory_engine else []
         
         # [GENERALIZATION] Gather all non-private attributes for the personal block
         # This removes domain-specific hardcoding (like 'elevated') from the core hub.

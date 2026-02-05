@@ -766,6 +766,30 @@ class SkillBrokerEngine:
     def _inject_options_text(self, context: Dict[str, Any], skills: List[str]) -> None:
         if not skills:
             return
+        # Optionally shuffle option order to mitigate positional bias
+        # (controlled by global_config.governance.shuffle_options in YAML)
+        shuffle = False
+        if self.config:
+            try:
+                # AgentConfig wraps _config dict; also accept plain dict
+                cfg = getattr(self.config, "_config", self.config)
+                if isinstance(cfg, dict):
+                    shuffle = cfg.get("global_config", {}).get(
+                        "governance", {}
+                    ).get("shuffle_options", False)
+            except (TypeError, AttributeError):
+                pass
+        if shuffle:
+            import random as _rng_mod
+            skills = list(skills)  # Don't mutate the original
+            # Use a deterministic per-call RNG so results are reproducible
+            # but each agent/step gets a different ordering.
+            seed_material = f"{context.get('agent_id', '')}_" \
+                            f"{context.get('step_id', '')}_" \
+                            f"{context.get('year', '')}"
+            _rng = _rng_mod.Random(seed_material)
+            _rng.shuffle(skills)
+
         options = []
         dynamic_skill_map = {}
         for i, skill_id in enumerate(skills, 1):
