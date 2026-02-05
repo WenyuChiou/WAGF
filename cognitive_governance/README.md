@@ -1,6 +1,36 @@
-# GovernedAI SDK
+# Cognitive Governance SDK
 
 Universal Cognitive Governance Middleware for Agent Frameworks.
+
+## Architecture Position
+
+This package is a **companion SDK layer**, independent of the broker's 7-layer architecture:
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│  cognitive_governance/  (Companion SDK Layer)                   │
+│  ├── memory/                 → UnifiedCognitiveEngine (v5)      │
+│  │   └── strategies/         → EMA, Symbolic, Hybrid surprise   │
+│  ├── agents/                 → BaseAgent, AgentProtocol         │
+│  └── v1_prototype/           → Legacy (see DEPRECATED.md)       │
+└─────────────────────────────────────────────────────────────────┘
+                              ▲
+                              │ Used by broker L4 Memory Layer
+                              │
+┌─────────────────────────────────────────────────────────────────┐
+│  broker/  (Core 7-Layer Architecture)                           │
+│  L1 - LLM Interface    │  L5 - Reflection                       │
+│  L2 - Governance       │  L6 - Social (MA only)                 │
+│  L3 - Execution        │  L7 - Utilities                        │
+│  L4 - Memory ◄─────────┴── Uses cognitive_governance            │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Use this package for**: Memory engines (UnifiedCognitiveEngine), surprise strategies, and base agent protocols.
+
+**Use broker/ for**: Experiment runners, governance validators, context builders, and skill execution.
+
+---
 
 ## Quick Start
 
