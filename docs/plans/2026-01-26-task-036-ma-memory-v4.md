@@ -4,9 +4,9 @@
 
 **Goal:** Migrate multi-agent example memory from V2b (humancentric/CognitiveMemory) to SDK V4 SymbolicMemory with FloodMemoryScorer integration.
 
-**Architecture:** Update YAML config to use symbolic memory sensors + scorer. Add SymbolicMemory initialization path in household agent. Wire FloodMemoryScorer into multi-agent entrypoint using create_memory_engine with scorer. Keep legacy behavior when config doesn¡¦t request symbolic.
+**Architecture:** Update YAML config to use symbolic memory sensors + scorer. Add SymbolicMemory initialization path in household agent. Wire FloodMemoryScorer into multi-agent entrypoint using create_memory_engine with scorer. Keep legacy behavior when config doesnÂ¡Â¦t request symbolic.
 
-**Tech Stack:** Python 3, broker components, governed_ai_sdk v1_prototype
+**Tech Stack:** Python 3, broker components, cognitive_governance v1_prototype
 
 ---
 

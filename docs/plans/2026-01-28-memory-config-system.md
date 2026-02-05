@@ -2,11 +2,11 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Add a configuration system for governed_ai_sdk/memory with global and domain configs, and wire it into UnifiedCognitiveEngine and SymbolicSurpriseStrategy.
+**Goal:** Add a configuration system for cognitive_governance/memory with global and domain configs, and wire it into UnifiedCognitiveEngine and SymbolicSurpriseStrategy.
 
-**Architecture:** Introduce dataclass-based config objects under governed_ai_sdk/memory/config/. UnifiedCognitiveEngine accepts config objects (global + domain) and passes config-derived sensors into SymbolicSurpriseStrategy. Keep backward compatibility by allowing existing args to default to config values.
+**Architecture:** Introduce dataclass-based config objects under cognitive_governance/memory/config/. UnifiedCognitiveEngine accepts config objects (global + domain) and passes config-derived sensors into SymbolicSurpriseStrategy. Keep backward compatibility by allowing existing args to default to config values.
 
-**Tech Stack:** Python 3.10+, governed_ai_sdk, dataclasses, pytest.
+**Tech Stack:** Python 3.10+, cognitive_governance, dataclasses, pytest.
 
 ---
 
@@ -18,9 +18,9 @@
 **Step 1: Write failing tests**
 
 ```python
-from governed_ai_sdk.memory import UnifiedCognitiveEngine
-from governed_ai_sdk.memory.config import GlobalMemoryConfig, FloodDomainConfig
-from governed_ai_sdk.memory.strategies.symbolic import SymbolicSurpriseStrategy
+from cognitive_governance.memory import UnifiedCognitiveEngine
+from cognitive_governance.memory.config import GlobalMemoryConfig, FloodDomainConfig
+from cognitive_governance.memory.strategies.symbolic import SymbolicSurpriseStrategy
 
 
 def test_unified_engine_accepts_config_objects():
@@ -50,14 +50,14 @@ Expected: FAIL (config module not found / UnifiedCognitiveEngine signature misma
 ### Task 2: Implement config dataclasses
 
 **Files:**
-- Create: `governed_ai_sdk/memory/config/__init__.py`
-- Create: `governed_ai_sdk/memory/config/defaults.py`
-- Create: `governed_ai_sdk/memory/config/domain_config.py`
+- Create: `cognitive_governance/memory/config/__init__.py`
+- Create: `cognitive_governance/memory/config/defaults.py`
+- Create: `cognitive_governance/memory/config/domain_config.py`
 
 **Step 1: Implement GlobalMemoryConfig**
 
 ```python
-# governed_ai_sdk/memory/config/defaults.py
+# cognitive_governance/memory/config/defaults.py
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
 
@@ -80,7 +80,7 @@ class GlobalMemoryConfig:
 **Step 2: Implement DomainMemoryConfig**
 
 ```python
-# governed_ai_sdk/memory/config/domain_config.py
+# cognitive_governance/memory/config/domain_config.py
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
 
@@ -98,7 +98,7 @@ class FloodDomainConfig(DomainMemoryConfig):
 **Step 3: Export config objects**
 
 ```python
-# governed_ai_sdk/memory/config/__init__.py
+# cognitive_governance/memory/config/__init__.py
 from .defaults import GlobalMemoryConfig
 from .domain_config import DomainMemoryConfig, FloodDomainConfig
 
@@ -112,7 +112,7 @@ __all__ = [
 **Step 4: Commit**
 
 ```bash
-git add governed_ai_sdk/memory/config
+git add cognitive_governance/memory/config
 git commit -m "feat(memory): add config dataclasses"
 ```
 
@@ -121,7 +121,7 @@ git commit -m "feat(memory): add config dataclasses"
 ### Task 3: Wire config into UnifiedCognitiveEngine
 
 **Files:**
-- Modify: `governed_ai_sdk/memory/unified_engine.py`
+- Modify: `cognitive_governance/memory/unified_engine.py`
 
 **Step 1: Update __init__ signature**
 
@@ -143,7 +143,7 @@ When selecting SymbolicSurpriseStrategy, pass `self.domain_config.sensory_cortex
 **Step 4: Commit**
 
 ```bash
-git add governed_ai_sdk/memory/unified_engine.py
+git add cognitive_governance/memory/unified_engine.py
 git commit -m "feat(memory): accept config objects in unified engine"
 ```
 
@@ -152,7 +152,7 @@ git commit -m "feat(memory): accept config objects in unified engine"
 ### Task 4: Update SymbolicSurpriseStrategy to read sensors from config
 
 **Files:**
-- Modify: `governed_ai_sdk/memory/strategies/symbolic.py`
+- Modify: `cognitive_governance/memory/strategies/symbolic.py`
 
 **Step 1: Accept sensors in constructor**
 
@@ -162,7 +162,7 @@ If sensors not provided, fall back to existing behavior.
 **Step 2: Commit**
 
 ```bash
-git add governed_ai_sdk/memory/strategies/symbolic.py
+git add cognitive_governance/memory/strategies/symbolic.py
 git commit -m "feat(memory): configure symbolic sensors from config"
 ```
 
@@ -171,8 +171,8 @@ git commit -m "feat(memory): configure symbolic sensors from config"
 ### Task 5: Update retrieval/exports if needed
 
 **Files:**
-- Modify: `governed_ai_sdk/memory/retrieval.py` (only if it needs config access)
-- Modify: `governed_ai_sdk/memory/__init__.py` to export config symbols
+- Modify: `cognitive_governance/memory/retrieval.py` (only if it needs config access)
+- Modify: `cognitive_governance/memory/__init__.py` to export config symbols
 
 **Step 1: Export config**
 
@@ -183,7 +183,7 @@ from .config import GlobalMemoryConfig, DomainMemoryConfig, FloodDomainConfig
 **Step 2: Commit**
 
 ```bash
-git add governed_ai_sdk/memory/__init__.py governed_ai_sdk/memory/retrieval.py
+git add cognitive_governance/memory/__init__.py cognitive_governance/memory/retrieval.py
 git commit -m "feat(memory): export config types"
 ```
 
@@ -203,8 +203,8 @@ Expected: PASS
 
 ```bash
 python -c "
-from governed_ai_sdk.memory import UnifiedCognitiveEngine
-from governed_ai_sdk.memory.config import GlobalMemoryConfig, FloodDomainConfig
+from cognitive_governance.memory import UnifiedCognitiveEngine
+from cognitive_governance.memory.config import GlobalMemoryConfig, FloodDomainConfig
 
 global_cfg = GlobalMemoryConfig(arousal_threshold=0.6)
 domain_cfg = FloodDomainConfig(stimulus_key='flood_depth')

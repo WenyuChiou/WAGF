@@ -165,7 +165,7 @@ To handle the scale of millions of agents, the SDK adopts the **v4 Neuro-Symboli
 ## 3. Directory Structure (Proposed)
 
 ```
-governed_ai_sdk/
+cognitive_governance/
 ├── core/
 │   ├── wrapper.py          # The main wrapper class
 │   ├── interceptor.py      # Hooks for LangChain/CrewAI

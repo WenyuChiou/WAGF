@@ -92,9 +92,9 @@ This test suite verifies that Single-Agent (SA) and Multi-Agent (MA) flood adapt
 
 ```python
 # ✅ CORRECT: Import from SDK
-from governed_ai_sdk.agents import BaseAgent, AgentProtocol
-from governed_ai_sdk.v1_prototype.memory.symbolic import SymbolicMemory
-from governed_ai_sdk.v1_prototype.memory.symbolic_core import Sensor
+from cognitive_governance.agents import BaseAgent, AgentProtocol
+from cognitive_governance.v1_prototype.memory.symbolic import SymbolicMemory
+from cognitive_governance.v1_prototype.memory.symbolic_core import Sensor
 
 # ❌ WRONG: Import from legacy paths
 from agents.base_agent import BaseAgent  # Deprecated
@@ -285,6 +285,6 @@ When adding new tests:
 
 ## Related Documentation
 
-- [SDK README](../../governed_ai_sdk/README.md) - SDK architecture and usage
+- [SDK README](../../cognitive_governance/README.md) - SDK architecture and usage
 - [SA Case Design](../../examples/single_agent/CASE_DESIGN.md) - Single-agent experiment design
 - [MA Case Design](../../examples/multi_agent/CASE_DESIGN.md) - Multi-agent experiment design
