@@ -774,6 +774,142 @@ EPI = score / total_weight
 | **eta-squared** | ≥ 0.25 | Between-archetype effect size |
 | **Directional pass rate** | ≥ 75% | Persona/stimulus drives behavior |
 
+#### ICC(2,1) Computation
+
+**Intraclass Correlation Coefficient (Two-Way Random, Single Measures)**:
+
+```python
+# Data structure: 15 archetypes × 6 vignettes × 30 replicates = 2,700 responses
+# For each (archetype, vignette) cell: 30 repeated measurements
+
+# Convert TP/CP labels to numeric: VL=1, L=2, M=3, H=4, VH=5
+def label_to_numeric(label):
+    return {"VL": 1, "L": 2, "M": 3, "H": 4, "VH": 5}[label]
+
+# Two-way ANOVA decomposition
+# Y_ijk = μ + α_i + β_j + ε_ijk
+# where: i = archetype×vignette cell, j = replicate, k = observation
+
+MS_between = variance_between_cells      # Between (archetype×vignette) variance
+MS_within = variance_within_replicates   # Within-cell (residual) variance
+
+# ICC(2,1) formula: consistency of single rater
+ICC_21 = (MS_between - MS_within) / (MS_between + (k-1)*MS_within)
+# where k = number of replicates (30)
+
+# 95% CI via F-distribution
+F_value = MS_between / MS_within
+df_between = n_cells - 1      # 90 - 1 = 89
+df_within = n_cells * (k - 1) # 90 * 29 = 2610
+```
+
+**Interpretation thresholds** (Koo & Li, 2016):
+
+- ICC < 0.50: Poor reliability
+- 0.50 ≤ ICC < 0.75: Moderate reliability
+- 0.75 ≤ ICC < 0.90: Good reliability
+- ICC ≥ 0.90: Excellent reliability
+
+**Our results**: TP ICC = 0.964, CP ICC = 0.947 → **Excellent reliability**
+
+#### Eta-Squared (η²) Computation
+
+**Effect size measuring between-archetype variance**:
+
+```python
+# One-way ANOVA: Does archetype explain TP/CP variance?
+# Group by archetype (ignoring vignette for this test)
+
+SS_between = sum(n_i * (mean_i - grand_mean)^2)  # Between-archetype sum of squares
+SS_total = sum((Y_ij - grand_mean)^2)            # Total sum of squares
+
+eta_squared = SS_between / SS_total
+
+# Interpretation:
+# η² ≥ 0.01: Small effect
+# η² ≥ 0.06: Medium effect
+# η² ≥ 0.14: Large effect
+# η² ≥ 0.25: Very large effect (our threshold)
+```
+
+**Our results**: TP η² = 0.330, CP η² = 0.544 → **Very large effect sizes**
+
+This confirms that archetype differences (MG vs NMG, owner vs renter, flood history) drive meaningful variation in LLM outputs.
+
+#### Persona Sensitivity Test
+
+**Purpose**: Verify that changing persona attributes changes LLM behavior in expected directions.
+
+```python
+# Design: 4 swap tests, each with 2 archetypes × 10 replicates = 80 LLM calls
+
+swap_tests = {
+    "income_swap": {
+        "base": "mg_owner_floodprone",
+        "swap": {"income": "$75K-$100K"},  # MG → NMG income
+        "expected": "CP increases"          # Higher income → better coping
+    },
+    "zone_swap": {
+        "base": "mg_owner_floodprone",
+        "swap": {
+            "flood_zone": "X (minimal risk)",
+            "flood_count": 0,
+            "years_since_flood": -1,
+            "memory_seed": "I've lived here 10 years, never flooded..."
+        },
+        "expected": "TP decreases"          # Safe zone → lower threat
+    },
+    "history_swap": {
+        "base": "nmg_renter_safe",
+        "swap": {
+            "flood_count": 3,
+            "years_since_flood": 1,
+            "memory_seed": "We've been flooded 3 times..."
+        },
+        "expected": "TP increases"          # Flood history → higher threat
+    }
+}
+
+# Pass criterion: ≥75% of swap pairs show expected directional change
+pass_rate = passed_tests / total_tests
+```
+
+**Our results**: 75% (3/4 tests passed) → **Meets threshold**
+
+#### Prompt Sensitivity Test
+
+**Purpose**: Ensure LLM is not biased by superficial prompt features.
+
+```python
+# Test 1: Option Reordering (40 LLM calls)
+# Shuffle action options in prompt, check if decision changes
+
+for archetype in ["mg_owner", "nmg_renter", "vulnerable"]:
+    original_order = ["do_nothing", "buy_insurance", "elevate", ...]
+    shuffled_order = random.shuffle(original_order)
+
+    response_original = llm.generate(prompt_with(original_order))
+    response_shuffled = llm.generate(prompt_with(shuffled_order))
+
+    # FAIL if decision differs due to option position
+    positional_bias = (response_original != response_shuffled)
+
+# Test 2: Framing Effect (80 LLM calls)
+# Reframe flood probability: "10% chance" vs "1 in 10 years"
+
+for archetype in sample_archetypes:
+    neutral_frame = "Your property has a 10% annual flood probability"
+    loss_frame = "Your property floods roughly once every 10 years"
+
+    tp_neutral = llm.generate(prompt_with(neutral_frame))["TP"]
+    tp_loss = llm.generate(prompt_with(loss_frame))["TP"]
+
+    # WARNING if TP inflates >1 level with loss framing
+    framing_effect = abs(label_to_numeric(tp_loss) - label_to_numeric(tp_neutral))
+```
+
+**Our results**: No systematic positional bias, framing effect within acceptable range → **OK**
+
 ---
 
 ## 13. Empirical Benchmarks

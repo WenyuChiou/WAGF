@@ -778,6 +778,142 @@ EPI = score / total_weight
 | **eta-squared** | ≥ 0.25 | 原型間效應量 |
 | **方向通過率** | ≥ 75% | 人設/刺激驅動行為 |
 
+#### ICC(2,1) 計算方法
+
+**組內相關係數（雙向隨機，單一測量）**：
+
+```python
+# 資料結構：15 原型 × 6 情境 × 30 重複 = 2,700 回應
+# 每個 (原型, 情境) 單元：30 次重複測量
+
+# 將 TP/CP 標籤轉為數值：VL=1, L=2, M=3, H=4, VH=5
+def label_to_numeric(label):
+    return {"VL": 1, "L": 2, "M": 3, "H": 4, "VH": 5}[label]
+
+# 雙向 ANOVA 分解
+# Y_ijk = μ + α_i + β_j + ε_ijk
+# 其中：i = 原型×情境單元, j = 重複次數, k = 觀察值
+
+MS_between = variance_between_cells      # 單元間變異
+MS_within = variance_within_replicates   # 單元內（殘差）變異
+
+# ICC(2,1) 公式：單一評分者的一致性
+ICC_21 = (MS_between - MS_within) / (MS_between + (k-1)*MS_within)
+# 其中 k = 重複次數 (30)
+
+# 95% CI 透過 F 分布
+F_value = MS_between / MS_within
+df_between = n_cells - 1      # 90 - 1 = 89
+df_within = n_cells * (k - 1) # 90 * 29 = 2610
+```
+
+**解釋門檻** (Koo & Li, 2016)：
+
+- ICC < 0.50：信度差
+- 0.50 ≤ ICC < 0.75：中等信度
+- 0.75 ≤ ICC < 0.90：良好信度
+- ICC ≥ 0.90：優秀信度
+
+**我們的結果**：TP ICC = 0.964, CP ICC = 0.947 → **優秀信度**
+
+#### Eta-Squared (η²) 計算方法
+
+**測量原型間變異的效應量**：
+
+```python
+# 單向 ANOVA：原型是否解釋 TP/CP 變異？
+# 依原型分組（此測試忽略情境）
+
+SS_between = sum(n_i * (mean_i - grand_mean)^2)  # 原型間平方和
+SS_total = sum((Y_ij - grand_mean)^2)            # 總平方和
+
+eta_squared = SS_between / SS_total
+
+# 解釋：
+# η² ≥ 0.01：小效應
+# η² ≥ 0.06：中效應
+# η² ≥ 0.14：大效應
+# η² ≥ 0.25：非常大效應（我們的門檻）
+```
+
+**我們的結果**：TP η² = 0.330, CP η² = 0.544 → **非常大效應量**
+
+這確認了原型差異（MG vs NMG、屋主 vs 租客、洪災歷史）驅動 LLM 輸出的有意義變異。
+
+#### 人設敏感度測試
+
+**目的**：驗證改變人設屬性會按預期方向改變 LLM 行為。
+
+```python
+# 設計：4 個交換測試，每個 2 原型 × 10 重複 = 80 次 LLM 呼叫
+
+swap_tests = {
+    "income_swap": {
+        "base": "mg_owner_floodprone",
+        "swap": {"income": "$75K-$100K"},  # MG → NMG 收入
+        "expected": "CP 增加"               # 較高收入 → 較佳應對能力
+    },
+    "zone_swap": {
+        "base": "mg_owner_floodprone",
+        "swap": {
+            "flood_zone": "X (最小風險)",
+            "flood_count": 0,
+            "years_since_flood": -1,
+            "memory_seed": "我住這裡 10 年了，從未淹過水..."
+        },
+        "expected": "TP 減少"               # 安全區域 → 較低威脅
+    },
+    "history_swap": {
+        "base": "nmg_renter_safe",
+        "swap": {
+            "flood_count": 3,
+            "years_since_flood": 1,
+            "memory_seed": "我們已經被淹了 3 次..."
+        },
+        "expected": "TP 增加"               # 洪災歷史 → 較高威脅
+    }
+}
+
+# 通過標準：≥75% 的交換配對顯示預期方向變化
+pass_rate = passed_tests / total_tests
+```
+
+**我們的結果**：75% (3/4 測試通過) → **符合門檻**
+
+#### 提示詞敏感度測試
+
+**目的**：確保 LLM 不受表面提示詞特徵的偏差影響。
+
+```python
+# 測試 1：選項重排序 (40 次 LLM 呼叫)
+# 打亂提示詞中的行動選項，檢查決策是否改變
+
+for archetype in ["mg_owner", "nmg_renter", "vulnerable"]:
+    original_order = ["do_nothing", "buy_insurance", "elevate", ...]
+    shuffled_order = random.shuffle(original_order)
+
+    response_original = llm.generate(prompt_with(original_order))
+    response_shuffled = llm.generate(prompt_with(shuffled_order))
+
+    # 若決策因選項位置而改變則 FAIL
+    positional_bias = (response_original != response_shuffled)
+
+# 測試 2：框架效應 (80 次 LLM 呼叫)
+# 重新框架洪水機率："10% 機率" vs "每 10 年 1 次"
+
+for archetype in sample_archetypes:
+    neutral_frame = "您的房產有 10% 的年度洪水機率"
+    loss_frame = "您的房產大約每 10 年會淹一次"
+
+    tp_neutral = llm.generate(prompt_with(neutral_frame))["TP"]
+    tp_loss = llm.generate(prompt_with(loss_frame))["TP"]
+
+    # 若損失框架使 TP 膨脹 >1 級則 WARNING
+    framing_effect = abs(label_to_numeric(tp_loss) - label_to_numeric(tp_neutral))
+```
+
+**我們的結果**：無系統性位置偏差，框架效應在可接受範圍內 → **OK**
+
 ---
 
 ## 13. 經驗基準
