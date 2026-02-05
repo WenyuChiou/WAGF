@@ -1283,6 +1283,65 @@ paper3/results/
 }
 ```
 
+### 視覺化圖片
+
+Agent 空間分布與洪水疊加圖由 Paper 3 分析腳本生成：
+
+```text
+paper3/analysis/figures/
+├── agent_spatial_distribution.png       # 主圖：400 agents + 洪水深度
+├── agent_spatial_distribution.pdf       # 向量版（期刊投稿用）
+├── agent_spatial_distribution_panels.png # 4-panel 依 agent 類型分類
+├── agent_spatial_distribution_panels.pdf
+└── agent_distribution_stats.csv         # 統計表
+```
+
+**生成圖片**：
+
+```bash
+cd examples/multi_agent/flood
+python paper3/analysis/fig_agent_spatial_distribution.py
+```
+
+**選項**：
+
+```bash
+python paper3/analysis/fig_agent_spatial_distribution.py --year 2011  # 指定洪水年份
+python paper3/analysis/fig_agent_spatial_distribution.py --no-flood   # 不含洪水圖層
+```
+
+**輸出規格**：300 DPI, 10×8 inches, serif 字體（WRR 出版標準）。
+
+### 完整輸出路徑規格
+
+```text
+paper3/
+├── analysis/                              # 分析腳本
+│   ├── figures/                          # 生成的圖片
+│   │   ├── agent_spatial_distribution.png
+│   │   └── ...
+│   └── tables/                           # WRR 論文表格
+│       └── ...
+│
+└── results/                              # 實驗/驗證輸出
+    ├── cv/                               # L3 認知驗證（實驗前）
+    │   ├── icc_report.json
+    │   ├── icc_responses.csv
+    │   ├── persona_sensitivity_report.json
+    │   └── prompt_sensitivity_report.json
+    │
+    ├── validation/                       # L1/L2 驗證（實驗後）
+    │   ├── validation_report.json
+    │   ├── l1_micro_metrics.json
+    │   ├── l2_macro_metrics.json
+    │   └── benchmark_comparison.csv
+    │
+    └── paper3_primary/                   # 實驗軌跡
+        └── seed_42/...
+```
+
+> **完整路徑規格**請參閱 [paper3/OUTPUT_PATHS.md](paper3/OUTPUT_PATHS.md)。
+
 ---
 
 ## 17. 與傳統 ABM 的關鍵差異
