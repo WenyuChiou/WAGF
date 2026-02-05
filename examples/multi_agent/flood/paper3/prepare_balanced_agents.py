@@ -16,6 +16,7 @@ Usage:
 
 import argparse
 import json
+import logging
 import random
 import sys
 from pathlib import Path
@@ -33,6 +34,28 @@ from generate_agents import (
     generate_rcv,
     save_agents_to_csv,
 )
+from environment.prb_loader import PRBGridLoader
+from environment.depth_sampler import DepthCategory
+
+logger = logging.getLogger(__name__)
+
+# Default path to PRB ASCII raster directory
+DEFAULT_PRB_DIR = FLOOD_DIR / "input" / "PRB"
+
+
+def _build_cell_pools(
+    grid_loader: PRBGridLoader,
+    reference_year: int = 2021,
+) -> dict:
+    """Build cell pools from a representative year's raster.
+
+    Returns dict mapping DepthCategory enum → list of (row, col, depth_m).
+    """
+    str_pools = grid_loader.get_cells_by_depth_category(reference_year)
+    pools = {}
+    for cat in DepthCategory:
+        pools[cat] = str_pools.get(cat.value, [])
+    return pools
 
 
 def assign_flood_zones(
@@ -40,55 +63,112 @@ def assign_flood_zones(
     mg_flood_prone_pct: float = 0.70,
     nmg_flood_prone_pct: float = 0.50,
     rng: random.Random = None,
+    prb_dir: Path = None,
+    reference_year: int = 2021,
 ) -> list:
-    """Assign flood zones based on MG status (MG more likely flood-prone).
+    """Assign flood zones using real PRB raster data.
 
-    Per Paper 3 design:
-    - MG agents: ~70% in flood-prone areas (HIGH zone)
-    - NMG agents: ~50% in flood-prone areas
+    Assignment logic (combines flood experience + MG demographics):
+    1. Agents WITH flood experience AND high frequency (>=2) → deep/very_deep cells
+    2. Agents WITH flood experience, low frequency → shallow/moderate cells
+    3. Agents WITHOUT flood experience:
+       - MG: 70% in flooded cells (shallow/moderate/deep), 30% in dry
+       - NMG: 50% in flooded cells, 50% in dry
 
-    Also assigns approximate grid coordinates within PRB.
+    Grid coordinates and depths come from actual ASC raster data.
+    Lat/lon computed from the grid file's ESRI metadata.
     """
     if rng is None:
         rng = random.Random(42)
+    np_rng = np.random.default_rng(rng.randint(0, 2**31))
 
-    # PRB approximate grid dimensions (from .asc files)
-    grid_cols, grid_rows = 457, 411
+    # Load real raster data
+    if prb_dir is None:
+        prb_dir = DEFAULT_PRB_DIR
+
+    grid_loader = PRBGridLoader(grid_dir=prb_dir)
+    grid_loader.load_year(reference_year)
+    metadata = grid_loader.metadata
+
+    # Build cell pools by depth category from real raster
+    pools = _build_cell_pools(grid_loader, reference_year)
+
+    # Merge flooded-zone pools for general "flood-prone" assignment
+    flood_prone_pool = []  # shallow + moderate + deep (not extreme — too rare)
+    for cat in [DepthCategory.SHALLOW, DepthCategory.MODERATE, DepthCategory.DEEP]:
+        flood_prone_pool.extend(pools[cat])
+
+    # Deep pool for experienced agents with significant loss
+    deep_pool = []
+    for cat in [DepthCategory.DEEP, DepthCategory.VERY_DEEP, DepthCategory.EXTREME]:
+        deep_pool.extend(pools[cat])
+
+    # Shallow pool for experienced agents without major loss
+    shallow_pool = []
+    for cat in [DepthCategory.SHALLOW, DepthCategory.MODERATE]:
+        shallow_pool.extend(pools[cat])
+
+    dry_pool = pools[DepthCategory.DRY]
+
+    pool_sizes = {
+        "dry": len(dry_pool),
+        "shallow+moderate": len(shallow_pool),
+        "flood_prone (S+M+D)": len(flood_prone_pool),
+        "deep+": len(deep_pool),
+    }
+    print(f"  Cell pools from raster ({reference_year}): {pool_sizes}")
 
     for p in profiles:
         mg = p.mg if hasattr(p, "mg") else p.get("mg", False)
-        flood_prone_pct = mg_flood_prone_pct if mg else nmg_flood_prone_pct
+        has_exp = p.flood_experience if hasattr(p, "flood_experience") else p.get("flood_experience", False)
+        freq = p.flood_frequency if hasattr(p, "flood_frequency") else p.get("flood_frequency", 0)
 
-        if rng.random() < flood_prone_pct:
-            p_zone = "HIGH"
-            p_depth = round(rng.uniform(0.5, 3.0), 3)
-        elif rng.random() < 0.6:
-            p_zone = "MEDIUM"
-            p_depth = round(rng.uniform(0.1, 0.5), 3)
+        # Decide which pool to sample from
+        if has_exp and freq >= 2 and deep_pool:
+            # Significant flood experience → deep cells
+            cell = deep_pool[np_rng.integers(0, len(deep_pool))]
+        elif has_exp and shallow_pool:
+            # Some flood experience → shallow/moderate cells
+            cell = shallow_pool[np_rng.integers(0, len(shallow_pool))]
         else:
-            p_zone = "LOW"
-            p_depth = 0.0
+            # No flood experience → use MG/NMG flood-prone probability
+            flood_prone_pct = mg_flood_prone_pct if mg else nmg_flood_prone_pct
+            if np_rng.random() < flood_prone_pct and flood_prone_pool:
+                cell = flood_prone_pool[np_rng.integers(0, len(flood_prone_pool))]
+            elif dry_pool:
+                cell = dry_pool[np_rng.integers(0, len(dry_pool))]
+            else:
+                all_cells = flood_prone_pool + dry_pool
+                cell = all_cells[np_rng.integers(0, len(all_cells))]
 
-        # Assign approximate grid location
-        gx = rng.randint(0, grid_cols - 1)
-        gy = rng.randint(0, grid_rows - 1)
+        row, col, depth_m = cell
 
-        # PRB approximate lat/lon bounds
-        lon = round(-74.45 + (gx / grid_cols) * 0.25, 6)
-        lat = round(40.82 + (gy / grid_rows) * 0.15, 6)
+        # Determine zone label from depth
+        if depth_m == 0:
+            zone = "LOW"
+        elif depth_m <= 0.5:
+            zone = "MEDIUM"
+        else:
+            zone = "HIGH"
 
+        # Convert grid (row, col) to lat/lon using actual raster metadata
+        # ASC rows: row 0 = northernmost, row N-1 = southernmost
+        lat = round(metadata.yllcorner + (metadata.nrows - 1 - row) * metadata.cellsize, 6)
+        lon = round(metadata.xllcorner + col * metadata.cellsize, 6)
+
+        # Store (grid_x = col, grid_y = row per HazardModule convention)
         if hasattr(p, "flood_zone"):
-            p.flood_zone = p_zone
-            p.flood_depth = p_depth
-            p.grid_x = gx
-            p.grid_y = gy
+            p.flood_zone = zone
+            p.flood_depth = round(float(depth_m), 3)
+            p.grid_x = int(col)
+            p.grid_y = int(row)
             p.longitude = lon
             p.latitude = lat
         elif isinstance(p, dict):
-            p["flood_zone"] = p_zone
-            p["flood_depth"] = p_depth
-            p["grid_x"] = gx
-            p["grid_y"] = gy
+            p["flood_zone"] = zone
+            p["flood_depth"] = round(float(depth_m), 3)
+            p["grid_x"] = int(col)
+            p["grid_y"] = int(row)
             p["longitude"] = lon
             p["latitude"] = lat
 
@@ -304,9 +384,9 @@ def prepare_balanced_agents(
         )
         agents.append(profile)
 
-    # Step 4: Assign flood zones
-    print(f"\n[Step 4] Assigning flood zones (MG: 70% flood-prone, NMG: 50%)")
-    agents = assign_flood_zones(agents, rng=rng)
+    # Step 4: Assign flood zones from real PRB raster data
+    print(f"\n[Step 4] Assigning flood zones from PRB raster (MG: 70% flood-prone, NMG: 50%)")
+    agents = assign_flood_zones(agents, rng=rng, prb_dir=DEFAULT_PRB_DIR)
 
     # Step 5: Save agent profiles
     out_dir = Path(output_dir)
@@ -328,6 +408,13 @@ def prepare_balanced_agents(
 
     # Summary
     zones = [a.flood_zone for a in agents]
+    depths = [a.flood_depth for a in agents]
+    mg_high = sum(1 for a in agents if a.mg and a.flood_zone == "HIGH")
+    mg_total = sum(1 for a in agents if a.mg)
+    nmg_high = sum(1 for a in agents if not a.mg and a.flood_zone == "HIGH")
+    nmg_total = sum(1 for a in agents if not a.mg)
+    exp_high = sum(1 for a in agents if a.flood_experience and a.flood_zone in ("HIGH", "MEDIUM"))
+
     print(f"\n{'='*60}")
     print(f"  Paper 3 Agent Preparation Complete (seed={seed})")
     print(f"{'='*60}")
@@ -336,7 +423,16 @@ def prepare_balanced_agents(
     print(f"  MG-Renter (Cell B): {sum(1 for a in agents if a.mg and a.tenure == 'Renter')}")
     print(f"  NMG-Owner (Cell C): {sum(1 for a in agents if not a.mg and a.tenure == 'Owner')}")
     print(f"  NMG-Renter (Cell D): {sum(1 for a in agents if not a.mg and a.tenure == 'Renter')}")
-    print(f"  Flood-prone (HIGH): {zones.count('HIGH')} ({zones.count('HIGH')/len(zones)*100:.0f}%)")
+    print(f"  Spatial assignment (from real raster):")
+    print(f"    HIGH:   {zones.count('HIGH'):3d} ({zones.count('HIGH')/len(zones)*100:.0f}%)")
+    print(f"    MEDIUM: {zones.count('MEDIUM'):3d} ({zones.count('MEDIUM')/len(zones)*100:.0f}%)")
+    print(f"    LOW:    {zones.count('LOW'):3d} ({zones.count('LOW')/len(zones)*100:.0f}%)")
+    print(f"    MG in flood-prone:  {mg_high}/{mg_total} ({mg_high/max(mg_total,1)*100:.0f}%)")
+    print(f"    NMG in flood-prone: {nmg_high}/{nmg_total} ({nmg_high/max(nmg_total,1)*100:.0f}%)")
+    print(f"    Experienced agents in flooded zones: {exp_high}")
+    print(f"    Mean depth (flooded cells): {np.mean([d for d in depths if d > 0]):.2f}m" if any(d > 0 for d in depths) else "")
+    print(f"    Lat range: [{min(a.latitude for a in agents):.4f}, {max(a.latitude for a in agents):.4f}]")
+    print(f"    Lon range: [{min(a.longitude for a in agents):.4f}, {max(a.longitude for a in agents):.4f}]")
     print(f"  Files:")
     print(f"    {profiles_path}")
     print(f"    {memories_path}")
