@@ -56,10 +56,12 @@ class WaterSystemConfig:
     )
 
     # Lake Mead thresholds (feet above sea level)
+    # Stage 2 fix: Shift tiers down so 10% curtailment (Mead ~1050) = Tier 1 (warning only)
+    # Previously: 1050 = Tier 2 = BLOCKED, causing 100% increase_demand rejection
     mead_normal: float = 1100.0
-    mead_shortage_tier1: float = 1075.0
-    mead_shortage_tier2: float = 1050.0
-    mead_shortage_tier3: float = 1025.0
+    mead_shortage_tier1: float = 1050.0  # Was 1075.0 - now 1050-1075 = Tier 1 (warning)
+    mead_shortage_tier2: float = 1025.0  # Was 1050.0 - now 1025-1050 = Tier 2 (block)
+    mead_shortage_tier3: float = 1000.0  # Was 1025.0 - now <1000 = Tier 3 (severe block)
 
     # Lake Mead simplified mass balance coupling parameters
     # Storage(t+1) = Storage(t) + PowellRelease + LB_trib - LB_div - Mexico - Evap - Muni
@@ -228,6 +230,7 @@ class IrrigationEnvironment:
                 "magnitude_sigma": getattr(p, "magnitude_sigma", 0.0),
                 "magnitude_min": getattr(p, "magnitude_min", 1.0),
                 "magnitude_max": getattr(p, "magnitude_max", 30.0),
+                "exploration_rate": getattr(p, "exploration_rate", 0.0),
             }
 
     def initialize_synthetic(
@@ -244,32 +247,112 @@ class IrrigationEnvironment:
             base_water_right: Default annual allocation per agent (acre-ft).
         """
         n_ub, n_lb = basin_split
+
+        # v12: Assign cluster-based magnitude parameters with stochasticity
+        # Mix of aggressive, forward-looking, and myopic clusters (50%-30%-20%)
+        clusters = (
+            ["aggressive"] * (n_agents // 2) +
+            ["forward_looking_conservative"] * (n_agents * 3 // 10) +
+            ["myopic_conservative"] * (n_agents * 2 // 10)
+        )
+        # Pad to exact n_agents if needed
+        while len(clusters) < n_agents:
+            clusters.append("myopic_conservative")
+        # Shuffle for random assignment
+        self.rng.shuffle(clusters)
+
+        # Phase 1 + CRSS Calibration: Reduced magnitude ranges to match FQL + CRSS scaling
+        # NOTE: Triple source of truth for cluster configuration:
+        #   1. This hardcoded fallback (synthetic initialization, default behavior)
+        #   2. config/agent_types.yaml (--real flag CSV loading)
+        #   3. run_experiment.py target_dist (rebalance_to_target call)
+        # All three sources must be kept in sync manually (verified by runtime assertion)
+        cluster_configs = {
+            "aggressive": {
+                "magnitude_default": 10.0,    # Phase 1: 15.0 → 10.0 (-33%)
+                "magnitude_sigma": 3.5,        # Phase 1: 5.0 → 3.5 (-30%)
+                "magnitude_min": 5.0,          # Phase 1: 10.0 → 5.0 (wider range bottom)
+                "magnitude_max": 20.0,         # Phase 1: 30.0 → 20.0 (cap extremes)
+                "exploration_rate": 0.001,     # Phase 1: 0.01 → 0.001 (-90%)
+            },
+            "forward_looking_conservative": {
+                "magnitude_default": 7.5,      # Phase 1: 12.5 → 7.5 (-40%)
+                "magnitude_sigma": 3.0,        # Phase 1: 4.0 → 3.0 (-25%)
+                "magnitude_min": 3.0,          # Phase 1: 5.0 → 3.0
+                "magnitude_max": 15.0,         # Phase 1: 20.0 → 15.0
+                "exploration_rate": 0.001,     # Phase 1: 0.01 → 0.001 (-90%)
+            },
+            "myopic_conservative": {
+                "magnitude_default": 4.0,      # Phase 1: 5.5 → 4.0 (-27%)
+                "magnitude_sigma": 2.0,        # Phase 1: 2.5 → 2.0 (-20%)
+                "magnitude_min": 1.0,          # Unchanged
+                "magnitude_max": 8.0,          # Phase 1: 10.0 → 8.0
+                "exploration_rate": 0.0005,    # Phase 1: 0.005 → 0.0005 (-90%)
+            },
+        }
+
+        agent_index = 0
         for i in range(n_ub):
             aid = f"UB_Agent_{i:03d}"
+            cluster = clusters[agent_index] if agent_index < len(clusters) else "myopic_conservative"
+            config = cluster_configs[cluster]
+
+            # CRSS Calibration Layer: Scale water_right to match CRSS 2019-2060 aggregate demand
+            # Derivation (from per-agent trajectory analysis):
+            #   - v12 uncalibrated mean: 6.31 MAF/yr (80.87 KAF/agent × 78 agents)
+            #   - CRSS baseline target:  5.86 MAF/yr (75.10 KAF/agent × 78 agents)
+            #   - Required scaling:      75.10 / 80.87 = 0.9286 (-7.1% adjustment)
+            # Result: Brings aggregate demand from 1.077x CRSS to 1.00x CRSS
+            calibrated_wr = base_water_right * 0.9286
             self._agents[aid] = {
                 "basin": "upper_basin",
-                "diversion": base_water_right * 0.8,
-                "request": base_water_right * 0.8,
-                "water_right": base_water_right,
+                "diversion": calibrated_wr * 0.8,
+                "request": calibrated_wr * 0.8,
+                "water_right": calibrated_wr,
                 "curtailment_ratio": 0.0,
                 "at_allocation_cap": False,
                 "has_efficient_system": False,
                 "below_minimum_utilisation": False,
-                "cluster": "unknown",
+                "cluster": cluster,
+                # v12: magnitude parameters for bounded Gaussian sampling
+                "magnitude_default": config["magnitude_default"],
+                "magnitude_sigma": config["magnitude_sigma"],
+                "magnitude_min": config["magnitude_min"],
+                "magnitude_max": config["magnitude_max"],
+                "exploration_rate": config["exploration_rate"],
             }
+            agent_index += 1
+
         for i in range(n_lb):
             aid = f"LB_Agent_{i:03d}"
+            cluster = clusters[agent_index] if agent_index < len(clusters) else "myopic_conservative"
+            config = cluster_configs[cluster]
+
+            # CRSS Calibration Layer: Scale water_right to match CRSS 2019-2060 aggregate demand
+            # Derivation (from per-agent trajectory analysis):
+            #   - v12 uncalibrated mean: 6.31 MAF/yr (80.87 KAF/agent × 78 agents)
+            #   - CRSS baseline target:  5.86 MAF/yr (75.10 KAF/agent × 78 agents)
+            #   - Required scaling:      75.10 / 80.87 = 0.9286 (-7.1% adjustment)
+            # Result: Brings aggregate demand from 1.077x CRSS to 1.00x CRSS
+            calibrated_wr = base_water_right * 0.9286
             self._agents[aid] = {
                 "basin": "lower_basin",
-                "diversion": base_water_right * 0.8,
-                "request": base_water_right * 0.8,
-                "water_right": base_water_right,
+                "diversion": calibrated_wr * 0.8,
+                "request": calibrated_wr * 0.8,
+                "water_right": calibrated_wr,
                 "curtailment_ratio": 0.0,
                 "at_allocation_cap": False,
                 "has_efficient_system": False,
                 "below_minimum_utilisation": False,
-                "cluster": "unknown",
+                "cluster": cluster,
+                # v12: magnitude parameters for bounded Gaussian sampling
+                "magnitude_default": config["magnitude_default"],
+                "magnitude_sigma": config["magnitude_sigma"],
+                "magnitude_min": config["magnitude_min"],
+                "magnitude_max": config["magnitude_max"],
+                "exploration_rate": config["exploration_rate"],
             }
+            agent_index += 1
 
     def load_crss_precipitation(self, csv_path: str) -> None:
         """Load real CRSS/PRISM winter precipitation projections.
@@ -496,18 +579,32 @@ class IrrigationEnvironment:
         magnitude_sigma = agent.get("magnitude_sigma", 0.0) or 0.0
         magnitude_min = agent.get("magnitude_min", 1.0) or 1.0
         magnitude_max = agent.get("magnitude_max", 30.0) or 30.0
+        exploration_rate = agent.get("exploration_rate", 0.0) or 0.0
+
+        # ═══ ε-UNBOUNDED EXPLORATION ═══
+        # Allow occasional exploration beyond historical FQL bounds to adapt to
+        # unprecedented future conditions (e.g., climate change scenarios)
+        is_exploration = False
 
         if magnitude_sigma > 0:
-            # Sample from N(magnitude_default, magnitude_sigma²)
-            noise = self.rng.normal(0, magnitude_sigma)
-            magnitude_pct = magnitude_default + noise
-            # Clip to [magnitude_min, magnitude_max] bounds
-            magnitude_pct = float(np.clip(magnitude_pct, magnitude_min, magnitude_max))
+            if exploration_rate > 0 and self.rng.random() < exploration_rate:
+                # UNBOUNDED exploration: sample from wider distribution without hard bounds
+                # Use 2x sigma for increased variance, soft clip to prevent extreme values
+                noise = self.rng.normal(0, magnitude_sigma * 2.0)
+                magnitude_pct = magnitude_default + noise
+                magnitude_pct = float(np.clip(magnitude_pct, 0.5, 100.0))  # Soft bounds
+                is_exploration = True
+            else:
+                # BOUNDED exploitation: standard FQL range (99% of the time)
+                noise = self.rng.normal(0, magnitude_sigma)
+                magnitude_pct = magnitude_default + noise
+                magnitude_pct = float(np.clip(magnitude_pct, magnitude_min, magnitude_max))
         else:
             # No stochasticity (sigma=0), use default value
             magnitude_pct = magnitude_default
 
         state_changes: Dict[str, Any] = {}
+        state_changes["is_exploration"] = is_exploration  # Track exploration behavior
 
         if skill == "increase_demand":
             # P1: scale increase by actual diversion (physical water received),

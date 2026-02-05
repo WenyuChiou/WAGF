@@ -386,13 +386,15 @@ irrigation_farmer:
             level: ERROR,
             message: "Adoption of new technology blocked: Very Low perceived implementation capacity.",
           }
-        # R3: Low threat → cannot justify demand increase
+        # R3: Very low threat → cannot justify demand increase
+        # NOTE: Changed from ["VL", "L"] to ["VL"] only to allow moderate increase
+        # when WSA=L (farmers naturally expand when water is available)
         - {
             id: low_threat_no_increase,
-            conditions: [{ construct: WSA_LABEL, values: ["VL", "L"] }],
+            conditions: [{ construct: WSA_LABEL, values: ["VL"] }],
             blocked_skills: ["increase_demand"],
             level: ERROR,
-            message: "Demand increase blocked: Water scarcity ({context.WSA_LABEL}) is low — no justification for requesting additional allocation.",
+            message: "Demand increase blocked: Water scarcity ({context.WSA_LABEL}) is very low — no justification for requesting additional allocation.",
           }
         # R4: High threat + high coping → should not increase demand
         - {
@@ -473,19 +475,20 @@ irrigation_farmer:
 
 personas:
   aggressive:
-    magnitude_default: 15      # Conservative bias vs midpoint=20; v11 measured mean=23.61%
-    magnitude_min: 10          # Lower bound from FQL observations
-    magnitude_max: 30          # Upper bound from FQL observations (supply-constrained extreme: 50%)
-    magnitude_sigma: 5.0       # Gaussian noise (~25% of range width for 1σ variation)
+    magnitude_default: 10      # Phase 1: Reduced from 15 to lower YoY variance (diagnostic: mean was 15.3%)
+    magnitude_min: 5           # Phase 1: Reduced from 10 to allow finer control
+    magnitude_max: 20          # Phase 1: Reduced from 30 to cap extremes (was causing 19.7% YoY events)
+    magnitude_sigma: 3.5       # Phase 1: Reduced from 5.0 to tighten distribution
+    exploration_rate: 0.001    # Phase 1: Reduced from 0.01 (1%) to 0.001 (0.1%) - 10x lower noise
     description: >
       You are an assertive, action-oriented farmer who responds quickly
       and decisively to water supply signals. You typically adjust your
-      water demand by **10-30%** (relative to current water use), and in
-      extreme cases may reach 50%, though supply constraints usually moderate
-      such large changes. You have a relatively low sensitivity to unmet
-      demand penalties; you'd rather take bold action and occasionally
-      overshoot than be cautious and miss opportunities. You update your
-      views moderately fast but trust your instincts.
+      water demand by **5-20%** (relative to current water use), preferring
+      measured but confident changes rather than extreme swings. Supply
+      constraints and operational limits moderate your actions. You have
+      a relatively low sensitivity to unmet demand penalties; you'd rather
+      take bold action and occasionally overshoot than be cautious and miss
+      opportunities. You update your views moderately fast but trust your instincts.
     fql_reference:
       mu: 0.36
       sigma: 1.22
@@ -493,19 +496,20 @@ personas:
       gamma: 0.77
       epsilon: 0.16
       regret: 0.78
-      actual_range: "10-30% (extreme: 50%)"
+      actual_range: "5-20% (Phase 1 calibration)"
 
   forward_looking_conservative:
-    magnitude_default: 12.5    # FQL range midpoint (5-20%)
-    magnitude_min: 5           # Lower bound from FQL observations
-    magnitude_max: 20          # Upper bound from FQL observations
-    magnitude_sigma: 4.0       # Gaussian noise (~27% of range width for 1σ variation)
+    magnitude_default: 7.5     # Phase 1: Reduced from 12.5 (-40%) to match FQL conservative range
+    magnitude_min: 3           # Phase 1: Reduced from 5 to allow finer adjustments
+    magnitude_max: 15          # Phase 1: Reduced from 20 to cap moderate changes
+    magnitude_sigma: 3.0       # Phase 1: Reduced from 4.0 to tighten distribution
+    exploration_rate: 0.001    # Phase 1: Reduced from 0.01 (1%) to 0.001 (0.1%)
     description: >
       You are a cautious but forward-thinking farmer. You typically adjust
-      your water demand by **5-20%** (relative to current water use),
-      preferring measured adjustments rather than bold swings. You learn
-      quickly from experience and weigh future consequences heavily. You are
-      highly sensitive to unmet demand — the thought of running short of
+      your water demand by **3-15%** (relative to current water use),
+      preferring measured, gradual adjustments rather than bold swings. You
+      learn quickly from experience and weigh future consequences heavily. You
+      are highly sensitive to unmet demand — the thought of running short of
       water causes you significant concern. You are moderately willing to
       explore new strategies, but you analyze carefully before acting.
     fql_reference:
@@ -515,19 +519,20 @@ personas:
       gamma: 0.78
       epsilon: 0.19
       regret: 2.22
-      actual_range: "5-20%"
+      actual_range: "3-15% (Phase 1 calibration)"
 
   myopic_conservative:
-    magnitude_default: 5.5     # FQL range midpoint (1-10%)
-    magnitude_min: 1           # Lower bound from FQL observations
-    magnitude_max: 10          # Upper bound from FQL observations
-    magnitude_sigma: 2.5       # Gaussian noise (~28% of range width for 1σ variation)
+    magnitude_default: 4.0     # Phase 1: Reduced from 5.5 (-27%) for minimal-change philosophy
+    magnitude_min: 1           # Phase 1: Keep at 1 (preserve lower bound)
+    magnitude_max: 8           # Phase 1: Reduced from 10 to cap conservative extremes
+    magnitude_sigma: 2.0       # Phase 1: Reduced from 2.5 to tighten distribution
+    exploration_rate: 0.0005   # Phase 1: Reduced from 0.005 (0.5%) to 0.0005 (0.05%) - 10x lower
     description: >
       You are a tradition-oriented farmer who relies heavily on past
       experience and established practices. You typically adjust your
-      water demand by **1-10%** (relative to current water use), making
-      only modest changes and preferring the status quo. You update your
-      views slowly, discount future outcomes, and rarely explore
+      water demand by **1-8%** (relative to current water use), making
+      only modest, incremental changes and preferring the status quo. You
+      update your views slowly, discount future outcomes, and rarely explore
       unfamiliar strategies. You have moderate sensitivity to unmet
       demand but generally believe that sticking to proven practices
       is the safest approach.
@@ -538,7 +543,7 @@ personas:
       gamma: 0.64
       epsilon: 0.09
       regret: 1.54
-      actual_range: "1-10%"
+      actual_range: "1-8% (Phase 1 calibration)"
 
 
-metadata: { version: "v1-irrigation-hung2021-llm" }
+metadata: { version: "v13-phase1-reduced-magnitude" }

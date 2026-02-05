@@ -274,9 +274,17 @@ class IrrigationLifecycleHooks:
 
         if result and result.approved_skill:
             skill_name = result.approved_skill.skill_name
-            # Extract magnitude from ApprovedSkill parameters
+            # ═══ v12 FIX: Read magnitude from environment state_changes, not LLM params ═══
+            # The environment generates magnitude_pct using bounded Gaussian sampling.
+            # params.get("magnitude_pct") would be the LLM's discrete choice (wrong!).
+            # state_changes["magnitude_pct_applied"] is the actual value used by the environment.
+            exec_result = result.execution_result
+            state_changes = exec_result.state_changes if exec_result else {}
+            appraisals["magnitude_pct"] = state_changes.get("magnitude_pct_applied")
+            appraisals["is_exploration"] = state_changes.get("is_exploration", False)
+
+            # Keep magnitude_fallback for debugging (indicates LLM didn't provide magnitude)
             params = result.approved_skill.parameters or {}
-            appraisals["magnitude_pct"] = params.get("magnitude_pct")
             appraisals["magnitude_fallback"] = params.get("magnitude_fallback", False)
 
         self.yearly_decisions[(agent.id, year)] = {
@@ -321,6 +329,7 @@ class IrrigationLifecycleHooks:
                 ),
                 "magnitude_pct": appr.get("magnitude_pct"),
                 "magnitude_fallback": appr.get("magnitude_fallback", False),
+                "is_exploration": appr.get("is_exploration", False),  # v12: Track ε-exploration
                 "memory": mem_str,
             })
 
@@ -483,15 +492,35 @@ def main():
     if args.rebalance_clusters:
         from collections import Counter
         before = Counter(p.cluster for p in profiles)
-        rebalance_clusters(profiles, min_pct=0.15, rng=np.random.default_rng(seed))
-        after = Counter(p.cluster for p in profiles)
-        print(f"[Rebalance] Clusters: {dict(before)} → {dict(after)}")
 
-    # --- Set persona-specific magnitude defaults from config ---
+        # Phase 1 + CRSS: Target 50%-30%-20% distribution
+        from examples.irrigation_abm.irrigation_personas import rebalance_to_target
+        target_dist = {
+            "aggressive": 0.50,
+            "forward_looking_conservative": 0.30,
+            "myopic_conservative": 0.20,
+        }
+
+        # Runtime assertion: Verify target_dist matches synthetic initialization in irrigation_env.py
+        # (Lines 251-254: clusters = ["aggressive"] * (n // 2) + ["forward"] * (n * 3 // 10) + ["myopic"] * (n * 2 // 10))
+        synthetic_dist = {"aggressive": 0.50, "forward_looking_conservative": 0.30, "myopic_conservative": 0.20}
+        assert target_dist == synthetic_dist, \
+            f"target_dist {target_dist} must match synthetic initialization percentages {synthetic_dist}"
+
+        rebalance_to_target(profiles, target_dist, rng=np.random.default_rng(seed))
+
+        after = Counter(p.cluster for p in profiles)
+        print(f"[Rebalance] Clusters: {dict(before)} → {dict(after)} (target: 50%-30%-20%)")
+
+    # --- Set persona-specific magnitude parameters from config ---
     personas_cfg = cfg_data.get("personas", {})
     for p in profiles:
         persona = personas_cfg.get(p.cluster, {})
         p.magnitude_default = persona.get("magnitude_default", 10) or 10
+        p.magnitude_sigma = persona.get("magnitude_sigma", 0.0) or 0.0
+        p.magnitude_min = persona.get("magnitude_min", 1.0) or 1.0
+        p.magnitude_max = persona.get("magnitude_max", 30.0) or 30.0
+        p.exploration_rate = persona.get("exploration_rate", 0.0) or 0.0
 
     # --- Create environment and initialize ---
     config = WaterSystemConfig(seed=seed)

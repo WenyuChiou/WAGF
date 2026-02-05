@@ -25,12 +25,10 @@ You may OPTIONALLY choose a SECOND action in addition to your primary action.
 - "decision" is your MAIN action this year.
 - "secondary_decision" is an OPTIONAL additional action (set to 0 for none).
 - You CANNOT choose the same action twice.
-- Each action can have its own magnitude.
 
 {rating_scale}
 
 Please respond using the EXACT JSON format below.
 - Use EXACTLY one of: VL, L, M, H, VH for each appraisal label.
 - "decision" MUST be the NUMERIC ID (1-5) from the options list.
-- "magnitude_pct" must be a number between 1 and 30.
 {response_format}

@@ -53,6 +53,7 @@ class IrrigationAgentProfile:
     magnitude_sigma: float = 0.0     # Standard deviation for stochasticity
     magnitude_min: float = 1.0       # Lower bound for clipping
     magnitude_max: float = 30.0      # Upper bound for clipping
+    exploration_rate: float = 0.0    # ε-exploration: probability of unbounded sampling
 
     # Narrative (generated)
     narrative_persona: str = ""
@@ -518,6 +519,83 @@ def rebalance_clusters(
             counts[target_cluster] += 1
 
     return profiles
+
+
+def rebalance_to_target(
+    profiles: List[IrrigationAgentProfile],
+    target_dist: Dict[str, float],
+    rng: Optional[np.random.Generator] = None,
+) -> None:
+    """Rebalance clusters to exact target distribution (e.g., 50%-30%-20%).
+
+    Uses FQL parameter distance to reassign agents to match target percentages.
+
+    Args:
+        profiles: Agent profiles (mutated in place)
+        target_dist: {"aggressive": 0.5, "forward_looking_conservative": 0.3,
+                      "myopic_conservative": 0.2}
+        rng: Random generator
+    """
+    rng = rng or np.random.default_rng()
+    n = len(profiles)
+
+    # FQL centroids from Hung & Yang 2021
+    centroids = {
+        "aggressive": np.array([0.36, 1.22, 0.62, 0.78]),
+        "forward_looking_conservative": np.array([0.20, 0.60, 0.85, 2.22]),
+        "myopic_conservative": np.array([0.16, 0.87, 0.67, 1.54]),
+    }
+
+    # Compute FQL parameter distances
+    dists = {}
+    for i, p in enumerate(profiles):
+        pt = np.array([p.mu, p.sigma, p.alpha, p.regret])
+        dists[i] = {
+            c: float(np.linalg.norm(pt - v))
+            for c, v in centroids.items()
+        }
+
+    # Target counts with proportional rounding adjustment
+    target_counts = {c: int(n * frac) for c, frac in target_dist.items()}
+    remainder = n - sum(target_counts.values())
+    if remainder > 0:
+        # Distribute remainder based on fractional parts (largest first)
+        fractional = {c: (n * frac) - int(n * frac) for c, frac in target_dist.items()}
+        for _ in range(remainder):
+            max_cluster = max(fractional, key=fractional.get)
+            target_counts[max_cluster] += 1
+            fractional[max_cluster] = 0  # Prevent double-assignment
+
+    # Current counts
+    from collections import Counter
+    current_counts = Counter(p.cluster for p in profiles)
+
+    # Track agents already reassigned (prevents double reassignment in same pass)
+    reassigned_agents = set()
+
+    # Greedy reassignment by FQL distance
+    for target_cluster, target_count in target_counts.items():
+        deficit = target_count - current_counts.get(target_cluster, 0)
+        if deficit <= 0:
+            continue
+
+        # Find closest agents from other clusters (exclude already reassigned)
+        candidates = [
+            (i, dists[i][target_cluster])
+            for i, p in enumerate(profiles)
+            if p.cluster != target_cluster and i not in reassigned_agents
+        ]
+        candidates.sort(key=lambda x: x[1])  # Ascending by distance
+
+        # Reassign top-deficit agents
+        for idx, _ in candidates[:deficit]:
+            reassigned_agents.add(idx)  # Mark as reassigned
+            old_cluster = profiles[idx].cluster
+            profiles[idx].cluster = target_cluster
+            # Regenerate persona narrative
+            profiles[idx].narrative_persona = build_narrative_persona(profiles[idx], rng)
+            current_counts[old_cluster] -= 1
+            current_counts[target_cluster] += 1
 
 
 def _assign_crop_type(basin: str, rng: np.random.Generator) -> str:
