@@ -5,6 +5,10 @@ import os
 import sys
 from pathlib import Path
 
+# --- Flood Years (Ground Truth for V3) ---
+# Years when actual flooding occurred in the simulation
+FLOOD_YEARS = [3, 4, 9]
+
 # --- Semantic Analysis Logic ---
 # Based on Protection Motivation Theory (PMT)
 # Using broad descriptors to capture the 'essence' of high/low constructs in natural language
@@ -183,8 +187,19 @@ def get_stats(model, group):
             v2_mask &= df_sorted['ta_level'].isin(['L', 'VL', 'M'] if group == "Group_A" else ['L', 'VL'])
             v2_count = v2_mask.sum()
             
-            # V3 Actual: "Do Nothing" under VH threat (Repeated action acceptable)
-            v3_src = full_data[full_data['ta_level'].isin(['VH'])]
+            # V3 Actual: "Do Nothing" under VH threat OR during actual flood years
+            # For Group A: Use both keyword-inferred VH AND actual flood years (ground truth)
+            # This prevents underestimation when keyword analysis classifies most as "M"
+            if group == "Group_A":
+                # V3 = Do Nothing when (VH threat OR actual flood year)
+                v3_mask = (
+                    (full_data['ta_level'].isin(['VH'])) |
+                    (full_data['year'].isin(FLOOD_YEARS))
+                )
+                v3_src = full_data[v3_mask]
+            else:
+                # Group B/C: Use structured TP_LABEL only
+                v3_src = full_data[full_data['ta_level'].isin(['VH', 'H'])]
             v3_count = v3_src[dec_col].apply(lambda x: normalize_decision(x) == 'DoNothing').sum() if len(v3_src) > 0 else 0
             
             # --- Relocation Moment Consistency Analysis (Transition-Based) ---
@@ -358,13 +373,34 @@ def get_stats(model, group):
                 print(f"FF Calc Error: {e_ff}")
                 weighted_ff = 0.0
             
+            # R_H Calculation (Hallucination Rate)
+            # Group A: Actual violations (no governance to block)
+            # Group B/C: retry_exhausted (leaked despite governance)
+            n_data = len(full_data) if full_data is not None else 0
+            if group == "Group_A":
+                # R_H = (V1_Act + V2_Act + V3_Act) / N
+                r_h_leaked = v1_count + v2_count + v3_count
+                r_h = round(r_h_leaked / n_data * 100, 2) if n_data > 0 else 0
+            else:
+                # R_H = retry_exhausted / N (from governance_summary)
+                retry_exhausted = 0
+                if summary_path.exists():
+                    try:
+                        with open(summary_path, 'r', encoding='utf-8') as sf:
+                            s_data = json.load(sf)
+                            retry_exhausted = s_data.get('outcome_stats', {}).get('retry_exhausted', 0)
+                    except: pass
+                r_h_leaked = retry_exhausted
+                r_h = round(r_h_leaked / n_data * 100, 2) if n_data > 0 else 0
+
             return {
                 "Status": "Done" if df['year'].max() >= 10 else f"Y{df['year'].max()}",
-                "N": len(full_data) if full_data is not None else 0,
+                "N": n_data,
                 "TP_Pop": f"{n_tp_low}|{n_tp_high}", "CP_Pop": f"{n_cp_low}|{n_cp_high}",
                 "V1_Tot": v1_total, "V1_Act": v1_count,
                 "V2_Tot": v2_total, "V2_Act": v2_count,
                 "V3_Tot": v3_total, "V3_Act": v3_count,
+                "R_H": r_h, "R_H_Leaked": r_h_leaked,
                 "Intv": intv_rules, "Intv_S": intv_thinking_events, "Intv_P": intv_parse_errors,
                 "Intv_P_Empty": p_empty, "Intv_P_Label": p_label, "Intv_P_Syntax": p_syntax,
                 "Intv_H": intv_hallucination, "Intv_OK": intv_ok_str,
@@ -378,31 +414,26 @@ def get_stats(model, group):
     except Exception as e:
         return {"Status": f"Err: {str(e)}"}
 
-models = ["gemma3_4b", "gemma3_12b", "gemma3_27b"]
+models = ["gemma3_4b", "gemma3_12b", "gemma3_27b", "ministral3_3b", "ministral3_8b", "ministral3_14b"]
 groups = ["Group_A", "Group_B", "Group_C"]
 
 print("\n=== JOH SCALING REPORT: VERIFICATION RULES (GLOBAL FREQUENCY - FINAL) ===")
 # Headers
-h_model = "Model Scale"
+h_model = "Model"
 h_grp = "Group"
-h_n = "Steps"
-h_pop = "L|H TP  |  L|H CP"
-h_model = "Model Scale"
-h_grp = "Group"
-h_n = "Steps"
-h_v1t, h_v1a = "V1_Tot", "V1_Act"
-h_v2t, h_v2a = "V2_Tot", "V2_Act"
-h_v3t, h_v3a = "V3_Tot", "V3_Act"
-h_intv = "Rules/S/P"
-h_ff = "FF"
+h_n = "N"
+h_v1, h_v2, h_v3 = "V1", "V2", "V3"
+h_retry = "Retry"
+h_rh = "R_H(%)"
+h_ff = "FF(%)"
 
-print("\n" + "="*115)
+print("\n" + "="*100)
 with open('gemma_master_report_output.txt', 'w') as f_out:
-    header = f"{h_model:<18} {h_grp:<7} {h_n:<6} {h_v1t:<7} {h_v1a:<7} {h_v2t:<7} {h_v2a:<7} {h_v3t:<7} {h_v3a:<7} {h_intv:<15} {h_ff:<10}"
+    header = f"{h_model:<15} {h_grp:<10} {h_n:<6} {h_v1:<6} {h_v2:<6} {h_v3:<6} {h_retry:<8} {h_rh:<10} {h_ff:<10}"
     print(header)
     f_out.write(header + "\n")
-    print("-" * 115)
-    f_out.write("-" * 115 + "\n")
+    print("-" * 100)
+    f_out.write("-" * 100 + "\n")
     
     all_data = []
 
@@ -411,47 +442,39 @@ with open('gemma_master_report_output.txt', 'w') as f_out:
             stats = get_stats(m, g)
 
             if stats:
-                if "V1_%" not in stats and "Status" in stats and str(stats["Status"]).startswith("Err"):
-                    msg = f"{m:<18} {g:<7} ERROR: {stats['Status']}"
+                if "R_H" not in stats and "Status" in stats and str(stats["Status"]).startswith("Err"):
+                    msg = f"{m:<15} {g:<10} ERROR: {stats['Status']}"
                     print(msg)
                     f_out.write(msg + "\n")
                     continue
-                
-                if 'V1_%' not in stats: continue
 
-                # Recalculate Aligned Metrics for Display & Export
-                total_intent = stats['V1_Tot'] + stats['V2_Tot'] + stats['V3_Tot']
-                interv_success = stats['Intv_S']
-                intv_parse_errors = stats['Intv_P']
-                intv_ok_str = f"{total_intent}/{interv_success}/{intv_parse_errors}" if (total_intent + intv_parse_errors) > 0 else "-"
+                if 'R_H' not in stats: continue
+
+                # Get retry count (for Group B/C)
+                retry_count = stats.get('Intv', 0) if g != "Group_A" else "-"
 
                 # Print aligned table row
-                m_short = m.replace("gemma3_", "")
-                row_str = f"{m_short:<15} {g:<7} {stats['N']:<5} {stats['V1_Tot']:<7} {stats['V1_Act']:<7} {stats['V2_Tot']:<7} {stats['V2_Act']:<7} {stats['V3_Tot']:<7} {stats['V3_Act']:<7} {intv_ok_str:<15} {stats['FF']}%"
+                m_short = m.replace("gemma3_", "").replace("ministral3_", "mist_")
+                row_str = f"{m_short:<15} {g:<10} {stats['N']:<6} {stats['V1_Act']:<6} {stats['V2_Act']:<6} {stats['V3_Act']:<6} {str(retry_count):<8} {stats['R_H']:<10} {stats['FF']:<10}"
                 print(row_str)
                 f_out.write(row_str + "\n")
-                
+
                 # Collect for Export
-                # UPDATE STATS WITH ALIGNED METRICS BEFORE COPY
-                stats['Intv'] = total_intent       # Update Intv to match Rules column (Total Intent)
-                # S and P are already in stats, but let's ensure consistency if needed
-                stats['Intv_OK'] = intv_ok_str     # Update the combined string
-                
                 row = stats.copy()
                 row['Model'] = m
                 row['Group'] = g
                 all_data.append(row)
 
-print("\n" + "="*115)
-print("\n=== SQ1 METRIC ALIGNMENT GUIDE (BALANCE SHEET) ===")
-print("1. VX_Tot (Total):  Gross Impulse (Rule Hits + Leaked Decisions).")
-print("2. VX_Act (Actual): Leaked Behaviors (Failed to intervene).")
-print("3. Rules/S/P:       [Total Intent] / [Successful Events] / [Parse Errors].")
-print("   - Rules: V1_Tot + V2_Tot + V3_Tot (All intended violations).")
-print("   - S: Blocked Interventions. P: Technical JSON failures.")
-print("-" * 115)
-print("VERIFICATION FORMULA: Rules (Total Intent) = Intv (Blocked) + Act (Leaked)")
-print("=" * 115)
+print("\n" + "="*100)
+print("\n=== R_H CALCULATION GUIDE ===")
+print("Group A: R_H = (V1 + V2 + V3) / N  [No governance, all violations leak]")
+print("  - V1: Relocate under low threat (L/VL/M)")
+print("  - V2: Elevate under low threat (L/VL/M)")
+print("  - V3: Do Nothing under VH threat OR during actual flood years")
+print("Group B/C: R_H = retry_exhausted / N  [Leaked despite governance]")
+print("-" * 100)
+print("Retry: Total interventions triggered by governance (Group B/C only)")
+print("=" * 100)
 
 from pathlib import Path
 import pandas as pd
@@ -465,9 +488,10 @@ if all_data:
         df_out = pd.DataFrame(all_data)
         # Reorder and rename for end-user clarity
         export_cols = [
-            'Model', 'Group', 'N', 
-            'V1_Tot', 'V1_Act', 'V2_Tot', 'V2_Act', 'V3_Tot', 'V3_Act',
-            'Intv', 'Intv_S', 'Intv_P', 'Intv_H', 'FF', 'Audit_Str'
+            'Model', 'Group', 'N',
+            'V1_Act', 'V2_Act', 'V3_Act',
+            'R_H', 'R_H_Leaked',
+            'Intv', 'Intv_S', 'Intv_P', 'FF', 'Audit_Str'
         ]
         # Filter for existing columns
         existing = [c for c in export_cols if c in df_out.columns]
