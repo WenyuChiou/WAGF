@@ -125,3 +125,5 @@ hooks/
 .zenflow/
 .worktrees/
 .tasks/
+# MCP Configuration (local)
+.mcp.json
