@@ -735,6 +735,46 @@ out_of_pocket = total_damage - payout
 | **L2 Macro** | Aggregate plausibility | Post-hoc | No |
 | **L3 Cognitive** | LLM reliability | Pre-experiment | Yes |
 
+### Data Source Separation (Critical)
+
+The validation pipeline uses **three distinct data sources**:
+
+| Source | Used For | Volume | Type |
+|--------|----------|--------|------|
+| **Survey Data** (755 NJ households) | 400 agent initialization | 755 → 400 | Empirical → Synthetic |
+| **Archetypes** (15 personas) | ICC probing (L3) | 15 | Manually designed |
+| **LLM Probing Responses** | Psychometric computation | 2,700 | LLM-generated |
+
+**Critical distinction**:
+
+- **Archetypes are NOT sampled from survey data.** They are manually designed to span the demographic-situational space, including extreme cases (e.g., `resilient_veteran`, `vulnerable_newcomer`).
+- **L3 validation is independent of the experiment.** It uses archetypes, not survey-initialized agents.
+- **L1/L2 validation uses experiment traces (52,000 decisions).** No additional LLM calls needed.
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         DATA FLOW SEPARATION                                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  Survey (755)                              Archetypes (15)                  │
+│      │                                          │                           │
+│      ▼                                          ▼                           │
+│  BalancedSampler                          ICC Probing                       │
+│      │                                          │                           │
+│      ▼                                          ▼                           │
+│  400 Agents ──────────────────┐          2,700 LLM Responses                │
+│      │                        │                 │                           │
+│      ▼                        │                 ▼                           │
+│  Primary Experiment           │           L3 Validation                     │
+│  (52,000 decisions)           │           (ICC, eta², sensitivity)          │
+│      │                        │                                             │
+│      ▼                        │                                             │
+│  L1/L2 Validation ◄───────────┘                                             │
+│  (CACR, R_H, EPI)                                                           │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
 ### L1 Micro Metrics
 
 | Metric | Threshold | What It Tests |
@@ -773,6 +813,83 @@ EPI = score / total_weight
 | **ICC(2,1)** | ≥ 0.60 | Test-retest reliability (same persona, 30 replicates) |
 | **eta-squared** | ≥ 0.25 | Between-archetype effect size |
 | **Directional pass rate** | ≥ 75% | Persona/stimulus drives behavior |
+
+#### L3 Validation Pipeline Overview
+
+The L3 validation runs **before** the primary experiment to ensure LLM reliability:
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        L3 VALIDATION PIPELINE                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  Step 1: Load 15 Archetypes              Step 2: Load 6 Vignettes          │
+│  ┌────────────────────────┐              ┌────────────────────────┐        │
+│  │ icc_archetypes.yaml    │              │ configs/vignettes/     │        │
+│  │                        │              │                        │        │
+│  │ • mg_owner_floodprone  │              │ • low_severity.yaml    │        │
+│  │ • nmg_renter_safe      │              │ • medium_severity.yaml │        │
+│  │ • resilient_veteran    │              │ • high_severity.yaml   │        │
+│  │ • vulnerable_newcomer  │              │ • extreme_compound.yaml│        │
+│  │ • ... (11 more)        │              │ • contradictory.yaml   │        │
+│  └───────────┬────────────┘              │ • post_adaptation.yaml │        │
+│              │                           └───────────┬────────────┘        │
+│              │                                       │                     │
+│              └───────────────┬───────────────────────┘                     │
+│                              ▼                                             │
+│  Step 3: Construct Prompts ─────────────────────────────────────────────── │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │  For each (archetype, vignette) combination:                         │  │
+│  │  prompt = archetype.persona + vignette.scenario + archetype.memory   │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                              │                                             │
+│                              ▼                                             │
+│  Step 4: LLM Invocation (30 replicates each) ──────────────────────────── │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │  model: gemma3:4b, temperature: 0.7                                  │  │
+│  │  total calls: 15 × 6 × 30 = 2,700                                    │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                              │                                             │
+│                              ▼                                             │
+│  Step 5: Parse Responses ───────────────────────────────────────────────── │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │  Extract: TP_LABEL, CP_LABEL, decision, reasoning                    │  │
+│  │  Convert to ordinal: VL=1, L=2, M=3, H=4, VH=5                       │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                              │                                             │
+│                              ▼                                             │
+│  Step 6: Build Data Matrix ─────────────────────────────────────────────── │
+│  ┌──────────────────────────────────────────────────────────────────────┐  │
+│  │  Matrix shape: 90 rows (15 archetypes × 6 vignettes) × 30 columns    │  │
+│  │                                                                       │  │
+│  │                    Rep1  Rep2  Rep3  ...  Rep30                      │  │
+│  │  (mg_owner, high)    4     4     5   ...    4                        │  │
+│  │  (mg_owner, low)     2     2     1   ...    2                        │  │
+│  │  (nmg_renter, high)  4     5     4   ...    5                        │  │
+│  │  ...                                                                  │  │
+│  └──────────────────────────────────────────────────────────────────────┘  │
+│                              │                                             │
+│              ┌───────────────┼───────────────┐                             │
+│              ▼               ▼               ▼                             │
+│  ┌────────────────┐  ┌────────────────┐  ┌────────────────┐               │
+│  │   ICC(2,1)     │  │   eta²         │  │   Validity     │               │
+│  │   Shrout-Fleiss│  │   One-way ANOVA│  │   Convergent   │               │
+│  │   formula      │  │   by archetype │  │   Discriminant │               │
+│  └────────────────┘  └────────────────┘  └────────────────┘               │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Our Results** (completed):
+
+| Metric | Target | Actual | Status |
+|--------|--------|--------|--------|
+| ICC(2,1) TP | ≥ 0.60 | **0.964** | ✓ Excellent |
+| ICC(2,1) CP | ≥ 0.60 | **0.947** | ✓ Excellent |
+| eta² TP | ≥ 0.25 | **0.330** | ✓ Large effect |
+| eta² CP | ≥ 0.25 | **0.544** | ✓ Very large |
+| Persona Sensitivity | ≥ 75% | **75%** | ✓ Pass |
+| Prompt Sensitivity | No bias | **OK** | ✓ Pass |
 
 #### ICC(2,1) Computation
 
