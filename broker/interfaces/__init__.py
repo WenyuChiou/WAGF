@@ -36,6 +36,11 @@ from .perception import (
     DAMAGE_SEVERITY_DESCRIPTORS,
     NEIGHBOR_COUNT_DESCRIPTORS,
 )
+from .environment_protocols import (
+    EnvironmentProtocol,
+    TieredEnvironmentProtocol,
+    SocialEnvironmentProtocol,
+)
 
 __all__ = [
     # Enrichment interfaces
@@ -65,4 +70,8 @@ __all__ = [
     "FLOOD_DEPTH_DESCRIPTORS",
     "DAMAGE_SEVERITY_DESCRIPTORS",
     "NEIGHBOR_COUNT_DESCRIPTORS",
+    # Environment protocols (migrated from cognitive_governance)
+    "EnvironmentProtocol",
+    "TieredEnvironmentProtocol",
+    "SocialEnvironmentProtocol",
 ]
