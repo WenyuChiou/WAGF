@@ -6,7 +6,7 @@
 
 **Architecture:** Dependency Injection pattern - components are injected into the experiment runner rather than hardcoded. Each component can be swapped without modifying other files.
 
-**Tech Stack:** Python 3.10+, existing broker framework, governed_ai_sdk
+**Tech Stack:** Python 3.10+, existing broker framework, cognitive_governance
 
 **Worktree:** `.worktrees/sa-modular` (branch: `feat/sa-modular-refactor`)
 
@@ -892,7 +892,7 @@ def load_agents_from_survey(
     4. Generate RCV values
     """
     from broker.modules.survey.agent_initializer import initialize_agents_from_survey
-    from governed_ai_sdk.agents import BaseAgent, AgentConfig
+    from cognitive_governance.agents import BaseAgent, AgentConfig
 
     profiles, stats = initialize_agents_from_survey(
         survey_path=survey_path,

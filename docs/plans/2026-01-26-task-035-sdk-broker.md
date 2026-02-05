@@ -6,7 +6,7 @@
 
 **Architecture:** Add optional SDK types via TYPE_CHECKING to avoid circular imports. Extend MemoryEngine with optional scorer and a v2 retrieval method. Extend ReflectionEngine with optional template/integrator and a v2 reflection method. Preserve legacy behavior as fallback.
 
-**Tech Stack:** Python 3, broker components, governed_ai_sdk v1_prototype
+**Tech Stack:** Python 3, broker components, cognitive_governance v1_prototype
 
 ---
 

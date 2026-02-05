@@ -200,7 +200,7 @@ Your neighbors' situations:
 The MA case uses the SDK's `SymbolicMemory` for efficient state tracking:
 
 ```python
-from governed_ai_sdk.v1_prototype.memory.symbolic import SymbolicMemory
+from cognitive_governance.v1_prototype.memory.symbolic import SymbolicMemory
 
 # Initialize memory with flood sensors
 memory = SymbolicMemory(
@@ -352,7 +352,7 @@ class HouseholdAgent:
     def _init_memory_v4(self, config: dict):
         """Initialize V4 symbolic memory from SDK."""
         if config.get("engine") == "symbolic":
-            from governed_ai_sdk.v1_prototype.memory.symbolic import SymbolicMemory
+            from cognitive_governance.v1_prototype.memory.symbolic import SymbolicMemory
             return SymbolicMemory(
                 config["sensors"],
                 arousal_threshold=config.get("arousal_threshold", 0.5)
@@ -529,8 +529,8 @@ memory:
 ### Memory V4 from SDK
 
 ```python
-from governed_ai_sdk.v1_prototype.memory.symbolic import SymbolicMemory
-from governed_ai_sdk.v1_prototype.memory.symbolic_core import Sensor
+from cognitive_governance.v1_prototype.memory.symbolic import SymbolicMemory
+from cognitive_governance.v1_prototype.memory.symbolic_core import Sensor
 
 # Direct SDK usage
 memory = SymbolicMemory(sensors, arousal_threshold=0.5)
@@ -541,7 +541,7 @@ system = memory.determine_system(surprise)
 ### Agent Protocol
 
 ```python
-from governed_ai_sdk.agents import AgentProtocol
+from cognitive_governance.agents import AgentProtocol
 
 class HouseholdAgent:
     @property
@@ -563,6 +563,6 @@ assert isinstance(agent, AgentProtocol)
 
 ## Related Documentation
 
-- [SDK README](../../governed_ai_sdk/README.md) - SDK architecture
+- [SDK README](../../cognitive_governance/README.md) - SDK architecture
 - [Integration Tests](../../tests/integration/README.md) - Test coverage
 - [SA Case Design](../single_agent/CASE_DESIGN.md) - Single-agent variant
