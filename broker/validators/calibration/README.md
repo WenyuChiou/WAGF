@@ -39,7 +39,10 @@ Level 3 — COGNITIVE  Psychological construct fidelity (psychometric)
 | `micro_validator.py` | L1 | CACR, EGS, BRC computation |
 | `temporal_coherence.py` | L1 | TCS and Action Stability |
 | `distribution_matcher.py` | L2 | KS, Wasserstein, chi-squared, PEBA |
+| `benchmark_registry.py` | L2 | Domain-agnostic benchmark definition, comparison, and weighted EPI computation |
 | `psychometric_battery.py` | L3 | ICC(2,1), Cronbach's alpha, Fleiss' kappa, eta-squared, convergent/discriminant validity |
+| `directional_validator.py` | L3 | Directional sensitivity tests (chi-squared, Mann-Whitney U) and persona swap tests |
+| `calibration_protocol.py` | — | Three-stage calibration orchestrator (pilot -> sensitivity -> full) |
 | `validation_router.py` | — | Feature detection + decision-tree routing |
 | `cv_runner.py` | — | Three-level orchestrator (explicit and auto-detect modes) |
 | `__init__.py` | — | Public re-exports |
@@ -260,6 +263,92 @@ vignette:
 Vignettes are domain-specific and live in the caller's project directory,
 not in `broker/`.  The battery module itself has no default vignette
 directory — callers must provide one.
+
+### `BenchmarkRegistry` (benchmark_registry.py)
+
+Domain-agnostic empirical benchmark comparison and EPI computation:
+
+```python
+from broker.validators.calibration.benchmark_registry import (
+    BenchmarkRegistry, Benchmark, BenchmarkCategory,
+)
+
+registry = BenchmarkRegistry()
+registry.register(Benchmark(
+    name="Insurance Uptake",
+    metric="insurance_rate",
+    rate_low=0.30, rate_high=0.50,
+    source="Kousky (2017)",
+    category=BenchmarkCategory.AGGREGATE,
+    weight=1.0,
+))
+# Or load from YAML:
+registry.load_from_yaml("configs/calibration.yaml")
+
+# Compare observed metrics against benchmarks
+observed = {"insurance_rate": 0.42, "elevation_rate": 0.06}
+report = registry.compare(observed, tolerance=0.3)
+print(f"EPI = {report.plausibility_score:.3f}")
+```
+
+### `DirectionalValidator` (directional_validator.py)
+
+Generic sensitivity testing with directional probes and persona swaps:
+
+```python
+from broker.validators.calibration.directional_validator import (
+    DirectionalValidator, DirectionalTest,
+)
+
+validator = DirectionalValidator()
+validator.add_test(DirectionalTest(
+    name="flood_depth_increases_threat",
+    stimulus_field="flood_depth_ft",
+    stimulus_values={"low": "0.5 ft (minor)", "high": "6.0 ft (severe)"},
+    expected_response_field="TP_LABEL",
+    expected_direction="increase",
+    ordinal_map={"VL": 1, "L": 2, "M": 3, "H": 4, "VH": 5},
+))
+
+# Register domain-specific prompt builder and parser
+validator.register_prompt_builder(my_prompt_builder)
+validator.register_parse_fn(my_parse_fn)
+
+report = validator.run_all(invoke_fn=my_llm_invoke, replicates=10)
+print(f"Pass rate = {report.pass_rate:.0%}")
+```
+
+Also provides reusable statistical functions:
+
+```python
+from broker.validators.calibration.directional_validator import (
+    chi_squared_test, mann_whitney_u,
+)
+```
+
+### `CalibrationProtocol` (calibration_protocol.py)
+
+Three-stage calibration orchestrator with callback-based architecture:
+
+```python
+from broker.validators.calibration.calibration_protocol import (
+    CalibrationProtocol,
+)
+
+protocol = CalibrationProtocol.from_yaml("configs/calibration.yaml")
+report = protocol.run(
+    simulate_fn=my_simulation,         # (n_agents, n_years, seed) -> DataFrame
+    compute_metrics_fn=my_metrics,     # (DataFrame) -> Dict[str, float]
+    invoke_llm_fn=my_llm_invoke,       # (prompt) -> (str, bool)
+)
+report.save_json("calibration_report.json")
+
+# Inspect pilot adjustments
+for adj in report.iterations[-1].adjustments:
+    print(f"  {adj.metric}: {adj.deviation_direction} by {adj.deviation_magnitude:.2f}")
+```
+
+Stages: **Pilot** (fast EPI iteration) -> **Sensitivity** (directional + persona tests) -> **Full** (multi-seed validation). Each stage can be run independently via the `stages` parameter.
 
 ---
 

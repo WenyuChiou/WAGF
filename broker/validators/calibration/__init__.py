@@ -52,6 +52,30 @@ from broker.validators.calibration.validation_router import (
     ValidatorSpec,
     ValidatorType,
 )
+from broker.validators.calibration.benchmark_registry import (
+    Benchmark,
+    BenchmarkCategory,
+    BenchmarkComparison,
+    BenchmarkRegistry,
+    BenchmarkReport,
+)
+from broker.validators.calibration.directional_validator import (
+    DirectionalValidator,
+    DirectionalTest,
+    DirectionalTestResult,
+    DirectionalReport,
+    SwapTest,
+    chi_squared_test,
+    mann_whitney_u,
+)
+from broker.validators.calibration.calibration_protocol import (
+    CalibrationProtocol,
+    CalibrationConfig,
+    CalibrationReport,
+    CalibrationStage,
+    StageVerdict,
+    AdjustmentRecommendation,
+)
 
 __all__ = [
     # Level 1 — MICRO
@@ -78,4 +102,23 @@ __all__ = [
     "ValidationRouter",
     "ValidatorSpec",
     "ValidatorType",
+    # Calibration Protocol
+    "Benchmark",
+    "BenchmarkCategory",
+    "BenchmarkComparison",
+    "BenchmarkRegistry",
+    "BenchmarkReport",
+    "DirectionalValidator",
+    "DirectionalTest",
+    "DirectionalTestResult",
+    "DirectionalReport",
+    "SwapTest",
+    "chi_squared_test",
+    "mann_whitney_u",
+    "CalibrationProtocol",
+    "CalibrationConfig",
+    "CalibrationReport",
+    "CalibrationStage",
+    "StageVerdict",
+    "AdjustmentRecommendation",
 ]

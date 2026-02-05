@@ -31,9 +31,12 @@ Part of SAGE C&V Framework (feature/calibration-validation).
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 import pandas as pd
 
@@ -61,6 +64,10 @@ from broker.validators.calibration.validation_router import (
     ValidationRouter,
     ValidatorType,
 )
+from broker.validators.calibration.benchmark_registry import (
+    BenchmarkRegistry,
+    BenchmarkReport,
+)
 from broker.validators.posthoc.unified_rh import compute_hallucination_rate
 
 
@@ -83,6 +90,7 @@ class CVReport:
     micro: Optional[MicroReport] = None
     brc: Optional[BRCResult] = None
     macro: Optional[MacroReport] = None
+    benchmark: Optional[BenchmarkReport] = None
     temporal: Optional[TemporalReport] = None
     action_stability: Optional[Dict[str, Any]] = None
     rh_metrics: Dict[str, Any] = field(default_factory=dict)
@@ -107,6 +115,8 @@ class CVReport:
                 k: v for k, v in self.rh_metrics.items()
                 if not isinstance(v, list) or len(v) < 100
             }
+        if self.benchmark:
+            d["level2_benchmark"] = self.benchmark.to_dict()
         if self.macro:
             d["level2_macro"] = self.macro.to_dict()
         if self.cognitive:
@@ -132,6 +142,8 @@ class CVReport:
         if self.rh_metrics:
             s["R_H"] = round(self.rh_metrics.get("rh", 0), 3)
             s["EBE"] = round(self.rh_metrics.get("ebe", 0), 3)
+        if self.benchmark:
+            s["EPI"] = round(self.benchmark.plausibility_score, 3)
         if self.macro:
             s["echo_chamber"] = round(self.macro.echo_chamber_rate, 3)
         if self.cognitive and self.cognitive.overall_tp_icc:
@@ -400,6 +412,8 @@ class CVRunner:
         self,
         df: Optional[pd.DataFrame] = None,
         levels: Optional[List[int]] = None,
+        benchmark_registry: Optional[BenchmarkRegistry] = None,
+        compute_metrics_fn: Optional[Any] = None,
     ) -> CVReport:
         """Run post-hoc analysis (Levels 1-2, zero LLM calls).
 
@@ -413,6 +427,12 @@ class CVRunner:
             Override loaded DataFrame.
         levels : list[int], optional
             Which levels to run (default: [1, 2]).
+        benchmark_registry : BenchmarkRegistry, optional
+            When provided, computes EPI by comparing observed metrics
+            from ``compute_metrics_fn`` against registered benchmarks.
+        compute_metrics_fn : callable, optional
+            ``(df: DataFrame) -> Dict[str, float]``.  Required when
+            ``benchmark_registry`` is given.
 
         Returns
         -------
@@ -445,6 +465,16 @@ class CVRunner:
             self._run_level2_planned(data, report)
         elif 2 in run_levels:
             report.macro = self.run_macro(data)
+
+        # Benchmark comparison (EPI) — when registry and metric fn provided
+        if benchmark_registry is not None and compute_metrics_fn is not None:
+            try:
+                observed = compute_metrics_fn(data)
+                report.benchmark = benchmark_registry.compare(observed)
+            except (KeyError, ValueError, TypeError) as e:
+                logger.debug("Benchmark computation skipped: %s", e)
+            except Exception as e:
+                logger.warning("Benchmark computation failed: %s", e)
 
         return report
 
@@ -497,6 +527,11 @@ class CVRunner:
         # --- OPTIONAL: Distribution matching ---
         if ValidatorType.DISTRIBUTION_MATCH in planned_types:
             report.macro = self.run_macro(data)
+
+        # --- OPTIONAL: Benchmark EPI ---
+        # Note: BENCHMARK execution in planned mode is handled in
+        # run_posthoc() via the benchmark_registry parameter, not here.
+        # The plan only flags that benchmarks are available.
 
     # ------------------------------------------------------------------
     # Batch comparison

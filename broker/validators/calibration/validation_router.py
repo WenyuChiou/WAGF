@@ -67,6 +67,7 @@ class ValidatorType(str, Enum):
     ACTION_STABILITY = "action_stability"   # Construct-free temporal
     TCS = "tcs"                             # Temporal Consistency Score
     DISTRIBUTION_MATCH = "distribution_match"  # KS/Wasserstein/chi² (N >= 200)
+    BENCHMARK = "benchmark"                 # L2: Empirical benchmark (EPI)
 
 
 # ---------------------------------------------------------------------------
@@ -162,6 +163,10 @@ class FeatureProfile:
     # --- Reference data ---
     has_reference_data: bool = False
 
+    # --- Benchmark data ---
+    has_benchmarks: bool = False
+    benchmark_config_path: str = ""
+
     # --- Framework ---
     framework_name: Optional[str] = None
 
@@ -183,6 +188,7 @@ class FeatureProfile:
             "has_multi_agent_types": self.has_multi_agent_types,
             "n_agents": self.n_agents,
             "has_reference_data": self.has_reference_data,
+            "has_benchmarks": self.has_benchmarks,
             "framework_name": self.framework_name,
         }
 
@@ -724,6 +730,18 @@ class ValidationRouter:
                        else "N < 200 → report as diagnostic only")
                 ),
                 required=is_large_n,
+            ))
+
+        # --- OPTIONAL: Benchmark comparison (EPI) ---
+        if p.has_benchmarks and p.has_actions:
+            specs.append(ValidatorSpec(
+                type=ValidatorType.BENCHMARK,
+                config={
+                    "benchmark_config_path": p.benchmark_config_path,
+                    "decision_col": p.decision_col,
+                },
+                reason="Benchmark config detected → EPI plausibility check",
+                required=False,
             ))
 
         return specs
