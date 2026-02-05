@@ -1,0 +1,226 @@
+# Flood Domain Calibration Configuration
+#
+# Three-stage calibration protocol for the Passaic River Basin
+# LLM-ABM flood adaptation experiment (Paper 3 — WRR).
+#
+# Usage:
+#   from broker.validators.calibration import CalibrationProtocol
+#   protocol = CalibrationProtocol.from_yaml("configs/calibration.yaml")
+#   report = protocol.run(
+#       simulate_fn=my_simulation,
+#       compute_metrics_fn=compute_flood_metrics,
+#       invoke_llm_fn=create_probe_invoke("gemma3:4b"),
+#   )
+
+calibration:
+  framework: pmt
+  decision_col: yearly_decision
+  tolerance: 0.3
+
+  # ---------------------------------------------------------------
+  # Stage 1: Pilot (fast iteration)
+  # ---------------------------------------------------------------
+  pilot:
+    n_agents: 25
+    n_years: 3
+    n_seeds: 1
+    epi_threshold: 0.50
+    max_iterations: 5
+
+  # ---------------------------------------------------------------
+  # Stage 2: Directional Sensitivity
+  # ---------------------------------------------------------------
+  sensitivity:
+    replicates: 10
+    directional_pass_threshold: 0.75
+    temperature: 0.7
+    alpha: 0.05
+
+  # ---------------------------------------------------------------
+  # Stage 3: Full Validation
+  # ---------------------------------------------------------------
+  full:
+    n_agents: 400
+    n_years: 13
+    n_seeds: 10
+    epi_threshold: 0.60
+    cacr_threshold: 0.80
+    icc_threshold: 0.60
+
+  # ---------------------------------------------------------------
+  # Empirical Benchmarks
+  # ---------------------------------------------------------------
+  benchmarks:
+    - name: "NFIP Insurance Uptake (SFHA)"
+      metric: insurance_rate
+      rate_low: 0.30
+      rate_high: 0.50
+      source: "Kousky (2017); FEMA NFIP statistics"
+      description: "Fraction of SFHA households with active NFIP policies"
+      category: aggregate
+      weight: 1.0
+
+    - name: "Insurance Uptake (All Zones)"
+      metric: insurance_rate_all
+      rate_low: 0.15
+      rate_high: 0.40
+      source: "Kousky & Michel-Kerjan (2017); Gallagher (2014)"
+      description: "Fraction of all households with flood insurance"
+      category: aggregate
+      weight: 0.8
+
+    - name: "Elevation Adoption (Cumulative)"
+      metric: elevation_rate
+      rate_low: 0.03
+      rate_high: 0.12
+      source: "Haer et al. (2017); de Ruig et al. (2022)"
+      description: "Cumulative fraction of homeowners who elevate over ~10yr"
+      category: aggregate
+      weight: 1.0
+
+    - name: "Blue Acres Buyout Participation"
+      metric: buyout_rate
+      rate_low: 0.02
+      rate_high: 0.15
+      source: "NJ DEP Blue Acres Program reports"
+      description: "Fraction accepting government buyout post-major-flood"
+      category: aggregate
+      weight: 0.8
+
+    - name: "Inaction Rate (Post-Flood)"
+      metric: do_nothing_rate_postflood
+      rate_low: 0.35
+      rate_high: 0.65
+      source: "Grothmann & Reusswig (2006); Brody et al. (2017)"
+      description: "Fraction taking no action after experiencing flooding"
+      category: conditional
+      weight: 1.5
+
+    - name: "MG-NMG Adaptation Gap"
+      metric: mg_adaptation_gap
+      rate_low: 0.10
+      rate_high: 0.30
+      source: "Choi et al. (2024); Collins et al. (2018)"
+      description: "Difference in adaptation rates between NMG and MG groups"
+      category: demographic
+      weight: 2.0
+
+    - name: "Repetitive Loss Uninsured Rate"
+      metric: rl_uninsured_rate
+      rate_low: 0.15
+      rate_high: 0.40
+      source: "FEMA RL statistics; Kousky & Michel-Kerjan (2010)"
+      description: "Fraction of repetitive-loss properties without NFIP"
+      category: conditional
+      weight: 1.0
+
+    - name: "Insurance Annual Lapse Rate"
+      metric: insurance_lapse_rate
+      rate_low: 0.05
+      rate_high: 0.15
+      source: "Gallagher (2014, AER); Michel-Kerjan et al. (2012)"
+      description: "Annual rate of NFIP policy non-renewal"
+      category: temporal
+      weight: 1.0
+
+  # ---------------------------------------------------------------
+  # Directional Sensitivity Tests
+  # ---------------------------------------------------------------
+  directional_tests:
+    - name: flood_depth_increases_threat
+      stimulus_field: flood_depth_ft
+      stimulus_values:
+        low: "You experienced 0.5 feet of minor flooding (water barely entered the ground floor). Damage was minimal."
+        high: "You experienced 6.0 feet of severe flooding (water reached the second floor). Your home sustained $85,000 in damage."
+      expected_response_field: TP_LABEL
+      expected_direction: increase
+      construct: threat_perception
+      description: "Higher flood depth should increase threat perception"
+      ordinal_map:
+        VL: 1
+        L: 2
+        M: 3
+        H: 4
+        VH: 5
+
+    - name: high_income_increases_coping
+      stimulus_field: income_range
+      stimulus_values:
+        low: "Your household income is $15,000 - $24,999. You have very limited savings."
+        high: "Your household income is $100,000 - $149,999. You have substantial savings."
+      expected_response_field: CP_LABEL
+      expected_direction: increase
+      construct: coping_perception
+      description: "Higher income should increase coping perception"
+      ordinal_map:
+        VL: 1
+        L: 2
+        M: 3
+        H: 4
+        VH: 5
+
+    - name: neighbor_adaptation_increases_social
+      stimulus_field: neighbor_adoption_rate
+      stimulus_values:
+        low: "None of your 5 neighbors have taken any protective action against flooding."
+        high: "4 of your 5 neighbors have either elevated their homes or purchased flood insurance."
+      expected_response_field: SC_LABEL
+      expected_direction: increase
+      construct: social_capital
+      description: "Neighbor adaptation should increase social coping"
+      ordinal_map:
+        VL: 1
+        L: 2
+        M: 3
+        H: 4
+        VH: 5
+
+    - name: subsidy_increases_adaptation
+      stimulus_field: subsidy_rate
+      stimulus_values:
+        low: "No government subsidy is available for home elevation."
+        high: "The government covers 50% of elevation cost through the Blue Acres program ($40,000 subsidy)."
+      expected_response_field: decision
+      expected_direction: increase
+      description: "Subsidy availability should increase likelihood of elevation"
+      ordinal_map:
+        do_nothing: 0
+        buy_insurance: 1
+        elevate_house: 2
+        buyout_program: 3
+
+  # ---------------------------------------------------------------
+  # Persona Swap Tests
+  # ---------------------------------------------------------------
+  swap_tests:
+    - name: income_swap
+      description: "Swap income between MG and NMG — decisions should change"
+      base_persona:
+        income_range: "$25,000 - $44,999"
+        flood_zone: "AE (high risk)"
+        flood_count: 1
+      swap_fields:
+        income_range: "$75,000 - $99,999"
+      expected_effect: significant_change
+
+    - name: zone_swap
+      description: "Move flood-experienced agent to safe zone — TP should decrease"
+      base_persona:
+        flood_zone: "AE (high risk)"
+        flood_count: 2
+        cumulative_damage: "$45,000"
+      swap_fields:
+        flood_zone: "X (minimal risk)"
+      expected_effect: significant_change
+
+    - name: history_swap
+      description: "Give no-flood agent flood history — TP should increase"
+      base_persona:
+        flood_count: 0
+        cumulative_damage: "$0"
+        flood_experience_summary: "No flood experience"
+      swap_fields:
+        flood_count: 3
+        cumulative_damage: "$85,000"
+        flood_experience_summary: "Experienced 3 major floods in past 8 years"
+      expected_effect: significant_change

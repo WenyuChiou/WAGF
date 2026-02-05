@@ -19,6 +19,8 @@ simulation:
 # 400 agents provides adequate power for Cox PH, panel regression, Moran's I
 agent_composition:
   balanced: true
+  profiles_csv: "examples/multi_agent/flood/data/agent_profiles_balanced.csv"
+  memories_json: "examples/multi_agent/flood/data/initial_memories_balanced.json"
   cells:
     MG_owner: 100
     MG_renter: 100

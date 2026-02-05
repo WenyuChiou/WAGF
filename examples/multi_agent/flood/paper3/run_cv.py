@@ -102,6 +102,69 @@ Choose ONE primary action:
 2. relocate — Move to a different area
 3. do_nothing — Take no protective action this year"""
 
+# Numeric decision → action name mappings (standard ordering)
+OWNER_ACTION_MAP = {
+    "1": "buy_insurance",
+    "2": "elevate_house",
+    "3": "buyout_program",
+    "4": "do_nothing",
+}
+RENTER_ACTION_MAP = {
+    "1": "buy_contents_insurance",
+    "2": "relocate",
+    "3": "do_nothing",
+}
+
+
+def map_decision_to_action(
+    raw_decision: str,
+    agent_type: str = "household_owner",
+    action_map: Optional[Dict[str, str]] = None,
+) -> str:
+    """Map a numeric or text decision to an action name.
+
+    If the LLM returns a bare number (e.g. "1", "2"), look it up in the
+    action map for the agent type.  If it returns an action name already
+    (e.g. "buy_insurance"), pass it through unchanged.
+
+    Parameters
+    ----------
+    raw_decision : str
+        The raw decision string from LLM output.
+    agent_type : str
+        "household_owner" or "household_renter".
+    action_map : dict, optional
+        Custom number→action mapping (e.g. for reversed option ordering).
+        If None, uses standard OWNER/RENTER maps.
+    """
+    # Guard: None, missing, or non-string → fallback
+    if raw_decision is None or raw_decision == "":
+        return "do_nothing"
+
+    raw_str = str(raw_decision).strip()
+    if not raw_str:
+        return "do_nothing"
+
+    # Handle float-like numbers from JSON (e.g. 1.0 → "1")
+    try:
+        fval = float(raw_str)
+        if fval == int(fval):
+            raw_str = str(int(fval))
+    except (ValueError, OverflowError):
+        pass
+
+    # Strip leading "N. " pattern (e.g. "1. buy_insurance" → "buy_insurance")
+    cleaned = re.sub(r"^\d+\.\s*", "", raw_str).lower().strip()
+
+    # If it's a bare number, map it
+    if cleaned.isdigit():
+        if action_map is not None:
+            return action_map.get(cleaned, cleaned)
+        default_map = OWNER_ACTION_MAP if agent_type == "household_owner" else RENTER_ACTION_MAP
+        return default_map.get(cleaned, cleaned)
+
+    return cleaned
+
 
 # ---------------------------------------------------------------------------
 # LLM invocation (lightweight, for ICC probing only)
@@ -323,8 +386,11 @@ def run_icc_probing(
                 cp_raw = parsed.get("CP_LABEL", parsed.get("cp_label", "M"))
                 tp = tp_raw.split("|")[0].split("/")[0].strip().upper()
                 cp = cp_raw.split("|")[0].split("/")[0].strip().upper()
-                # Clean decision (remove leading numbers like "1. ")
-                decision = re.sub(r"^\d+\.\s*", "", str(parsed.get("decision", "do_nothing"))).lower().strip()
+                # Map decision: numeric → action name based on agent type
+                atype = arch_data.get("agent_type", "household_owner")
+                decision = map_decision_to_action(
+                    parsed.get("decision", "do_nothing"), agent_type=atype,
+                )
                 reasoning = parsed.get("reasoning", "")
 
                 response = ProbeResponse(

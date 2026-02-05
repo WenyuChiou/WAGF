@@ -11,6 +11,7 @@ Usage:
 """
 
 import argparse
+import os
 import subprocess
 import sys
 import yaml
@@ -22,7 +23,7 @@ RUNNER = MULTI_AGENT_DIR / "run_unified_experiment.py"
 
 def load_config(config_path: str) -> dict:
     """Load experiment configuration from YAML."""
-    with open(config_path) as f:
+    with open(config_path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
@@ -135,7 +136,10 @@ def run_experiment(config_path: str, seed: int, dry_run: bool = False):
         print("[DRY RUN] Skipping execution")
         return
 
-    result = subprocess.run(cmd, cwd=str(MULTI_AGENT_DIR.parent.parent.parent))
+    repo_root = str(MULTI_AGENT_DIR.parent.parent.parent)
+    env = os.environ.copy()
+    env["PYTHONPATH"] = repo_root + os.pathsep + env.get("PYTHONPATH", "")
+    result = subprocess.run(cmd, cwd=repo_root, env=env)
     if result.returncode != 0:
         print(f"[ERROR] Experiment failed with return code {result.returncode}")
     else:
