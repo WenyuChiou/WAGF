@@ -466,6 +466,144 @@ def supply_gap_block_increase(
 
 
 # =============================================================================
+# Phase C/D Pilot Validators — gated by module-level flags
+# =============================================================================
+
+# Feature flags — set by run_experiment.py based on --pilot-phase
+ENABLE_CONSECUTIVE_CAP = False
+ENABLE_ZERO_ESCAPE = False
+
+# Module-level state for consecutive increase tracking (cleared per experiment)
+_consecutive_increase_tracker: Dict[str, int] = {}
+
+MAX_CONSECUTIVE_INCREASES = 3
+ZERO_ESCAPE_FLOOR_RATIO = 0.15  # 15% of water_right
+
+
+def reset_consecutive_tracker() -> None:
+    """Reset the consecutive increase tracker. Call at experiment start."""
+    _consecutive_increase_tracker.clear()
+
+
+def update_consecutive_tracker(agent_id: str, skill_name: str) -> None:
+    """Update consecutive increase counter after a decision is finalized.
+
+    Call from post_step hook after each agent's decision.
+    """
+    if skill_name == "increase_demand":
+        _consecutive_increase_tracker[agent_id] = (
+            _consecutive_increase_tracker.get(agent_id, 0) + 1
+        )
+    else:
+        _consecutive_increase_tracker[agent_id] = 0
+
+
+def consecutive_increase_cap_check(
+    skill_name: str,
+    rules: List[GovernanceRule],
+    context: Dict[str, Any],
+) -> List[ValidationResult]:
+    """Block increase_demand if agent has increased for N consecutive years.
+
+    Prevents compound demand growth (8-11%/yr for 30+ years) that causes
+    system-wide divergence from CRSS baseline.
+
+    Exempt during genuinely wet periods (drought_index < 0.3) where
+    increased demand is physically justified.
+    """
+    if not ENABLE_CONSECUTIVE_CAP:
+        return []
+
+    if skill_name != "increase_demand":
+        return []
+
+    agent_id = context.get("agent_id", "unknown")
+    count = _consecutive_increase_tracker.get(agent_id, 0)
+
+    if count < MAX_CONSECUTIVE_INCREASES:
+        return []
+
+    # Wet-period exemption: abundant water justifies continued increase
+    drought_index = context.get("drought_index", 0.5)
+    if drought_index < 0.3:
+        return []
+
+    return [
+        ValidationResult(
+            valid=False,
+            validator_name="IrrigationConsecutiveCapValidator",
+            errors=[
+                f"Demand increase blocked: you have increased demand for "
+                f"{count} consecutive years. Sustained demand growth is not "
+                f"physically sustainable. Choose maintain_demand, "
+                f"decrease_demand, or adopt_efficiency instead."
+            ],
+            warnings=[],
+            metadata={
+                "rule_id": "consecutive_increase_cap",
+                "category": "temporal",
+                "blocked_skill": skill_name,
+                "level": "ERROR",
+                "consecutive_count": count,
+            },
+        )
+    ]
+
+
+def zero_escape_check(
+    skill_name: str,
+    rules: List[GovernanceRule],
+    context: Dict[str, Any],
+) -> List[ValidationResult]:
+    """Block maintain_demand when demand is near minimum utilisation floor.
+
+    Prevents the "maintain 0" trap where conservative agents lock into
+    near-zero demand indefinitely. Combined with the existing
+    minimum_utilisation_check (blocks decrease below 10%), this creates
+    a corridor that forces agents to either increase or adopt efficiency.
+
+    Threshold: 15% of water_right (above the 10% decrease floor).
+    """
+    if not ENABLE_ZERO_ESCAPE:
+        return []
+
+    if skill_name != "maintain_demand":
+        return []
+
+    request = context.get("current_request", 0)
+    water_right = context.get("water_right", 0)
+
+    if water_right <= 0:
+        return []
+
+    utilisation = request / water_right
+    if utilisation >= ZERO_ESCAPE_FLOOR_RATIO:
+        return []
+
+    return [
+        ValidationResult(
+            valid=False,
+            validator_name="IrrigationZeroEscapeValidator",
+            errors=[
+                f"Maintain demand blocked: your current water use is only "
+                f"{utilisation:.0%} of your water right ({request:,.0f} / "
+                f"{water_right:,.0f} AF). At this level, status quo is not "
+                f"economically viable. Choose increase_demand to seek more "
+                f"water, or adopt_efficiency to improve your operations."
+            ],
+            warnings=[],
+            metadata={
+                "rule_id": "zero_escape_floor",
+                "category": "behavioral",
+                "blocked_skill": skill_name,
+                "level": "ERROR",
+                "utilisation_pct": utilisation * 100,
+            },
+        )
+    ]
+
+
+# =============================================================================
 # Aggregated check lists for injection into validators
 # =============================================================================
 
@@ -484,8 +622,19 @@ IRRIGATION_SOCIAL_CHECKS = [
     compact_allocation_check,
 ]
 
+IRRIGATION_TEMPORAL_CHECKS = [
+    consecutive_increase_cap_check,
+]
+
+IRRIGATION_BEHAVIORAL_CHECKS = [
+    zero_escape_check,
+]
+
 # Combined list for convenience
-ALL_IRRIGATION_CHECKS = IRRIGATION_PHYSICAL_CHECKS + IRRIGATION_SOCIAL_CHECKS
+ALL_IRRIGATION_CHECKS = (
+    IRRIGATION_PHYSICAL_CHECKS + IRRIGATION_SOCIAL_CHECKS
+    + IRRIGATION_TEMPORAL_CHECKS + IRRIGATION_BEHAVIORAL_CHECKS
+)
 
 
 # =============================================================================

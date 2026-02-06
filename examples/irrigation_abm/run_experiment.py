@@ -58,7 +58,10 @@ from broker.utils.llm_utils import create_legacy_invoke as create_llm_invoke
 from broker.utils.agent_config import GovernanceAuditor
 from examples.irrigation_abm.validators.irrigation_validators import (
     irrigation_governance_validator,
+    reset_consecutive_tracker,
+    update_consecutive_tracker,
 )
+import examples.irrigation_abm.validators.irrigation_validators as irr_validators
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -210,6 +213,7 @@ class IrrigationLifecycleHooks:
             # These flow through custom_attributes → context["state"] → validation_context
             agent_state = self.env.get_agent_state(aid)
             validator_fields = {
+                "agent_id": aid,  # Phase C: needed by consecutive_increase_cap_check
                 "at_allocation_cap": agent_state.get("at_allocation_cap", False),
                 "has_efficient_system": agent_state.get("has_efficient_system", False),
                 "below_minimum_utilisation": agent_state.get("below_minimum_utilisation", False),
@@ -218,6 +222,7 @@ class IrrigationLifecycleHooks:
                 "current_request": ctx.get("current_request", 0),
                 "curtailment_ratio": ctx.get("curtailment_ratio", 0),
                 "shortage_tier": ctx.get("shortage_tier", 0),
+                "drought_index": ctx.get("drought_index", 0.5),  # Phase C: wet-period exemption
                 "cluster": ctx.get("cluster", "unknown"),
                 "basin": ctx.get("basin", "unknown"),
                 "loop_year": year,  # use "loop_year" to avoid collision with env_context["year"] (CRSS calendar year)
@@ -292,6 +297,10 @@ class IrrigationLifecycleHooks:
             "skill": skill_name,
             "appraisals": appraisals,
         }
+
+        # Update consecutive increase tracker for Phase C/D validators
+        if skill_name:
+            update_consecutive_tracker(agent.id, skill_name)
 
     # -- post_year: logging, reflection --
     def post_year(self, year: int, agents: Dict):
@@ -449,8 +458,32 @@ def main():
     if args.num_predict:
         LLM_CONFIG.num_predict = args.num_predict
 
-    # --- Load config YAML ---
-    agent_config_path = config_dir / "agent_types.yaml"
+    # --- Load config YAML (pilot phase selects config file) ---
+    pilot_phase = args.pilot_phase
+
+    # Reset module-level flags (safe for multi-run in same process)
+    irr_validators.ENABLE_CONSECUTIVE_CAP = False
+    irr_validators.ENABLE_ZERO_ESCAPE = False
+
+    if pilot_phase and pilot_phase in ("B", "C", "D"):
+        agent_config_path = config_dir / "agent_types_pilot.yaml"
+        print(f"[Pilot] Phase {pilot_phase}: using pilot config (BLOCK + retry)")
+    else:
+        agent_config_path = config_dir / "agent_types.yaml"
+        if pilot_phase == "A":
+            print("[Pilot] Phase A: baseline config (WARNING only)")
+
+    # Enable Phase C/D validators via module-level flags
+    if pilot_phase in ("C", "D"):
+        if args.workers > 1:
+            print("[Pilot] WARNING: Phase C/D consecutive tracker is not thread-safe, forcing --workers 1")
+            args.workers = 1
+        irr_validators.ENABLE_CONSECUTIVE_CAP = True
+        print("[Pilot] Phase C validator enabled: consecutive_increase_cap")
+    if pilot_phase == "D":
+        irr_validators.ENABLE_ZERO_ESCAPE = True
+        print("[Pilot] Phase D validator enabled: zero_escape")
+
     with open(agent_config_path, "r", encoding="utf-8") as f:
         cfg_data = yaml.safe_load(f)
     global_cfg = cfg_data.get("global_config", {})
@@ -644,11 +677,15 @@ def main():
         "post_year": hooks.post_year,
     })
 
+    # --- Reset pilot state ---
+    reset_consecutive_tracker()
+
     # --- Run ---
     n_real = "real" if args.real else "synthetic"
+    phase_str = f" | pilot={pilot_phase}" if pilot_phase else ""
     print(
         f"--- Irrigation ABM | {args.model} | {len(profiles)} agents ({n_real}) "
-        f"| {args.years} years | seed={seed} ---"
+        f"| {args.years} years | seed={seed}{phase_str} ---"
     )
     runner.run(llm_invoke=create_llm_invoke(args.model, verbose=False))
 
@@ -691,6 +728,9 @@ def parse_args():
                    help="Rebalance cluster assignment so each cluster has ≥15%% of agents")
     p.add_argument("--no-magnitude", action="store_true",
                    help="Disable magnitude_pct output (reduces context size)")
+    p.add_argument("--pilot-phase", type=str, default=None,
+                   choices=["A", "B", "C", "D"],
+                   help="Pilot phase: A=baseline, B=BLOCK+retry, C=+consecutive_cap, D=+zero_escape")
     return p.parse_args()
 
 
