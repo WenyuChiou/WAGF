@@ -39,10 +39,15 @@ It is crucial to accurately assess your flood risk based on your personal flood 
   * 3 feet above BFE: ~$45,000 (your cost after subsidy: ~${elevation_cost_3ft:,.0f})
   * 5 feet above BFE: ~$80,000 (your cost after subsidy: ~${elevation_cost_5ft:,.0f})
   * 8 feet above BFE: ~$150,000 (your cost after subsidy: ~${elevation_cost_8ft:,.0f})
+  * NOTE: Elevation requires 6-12 months of construction, temporary relocation, and significant disruption to daily life. Many homeowners find the process stressful and costly beyond the dollar amount.
 - Blue Acres Buyout Offer: ~${buyout_offer:,.0f} (based on property value)
+  * NOTE: Accepting a buyout means permanently leaving your home, neighborhood, and community ties. The process typically takes 1-3 years and involves considerable emotional stress.
 - NFIP Deductible: $1,000 (structure) / $1,000 (contents)
 - NFIP Coverage Limits: $250,000 (structure) / $100,000 (contents)
 {insurance_cost_text}
+
+### IMPORTANT: ADAPTATION BASE RATES
+Research shows that most homeowners (60-70%) choose to take no action in any given year, even when aware of flood risk. Inaction is a common, understandable response driven by status quo bias, financial constraints, uncertainty, and competing priorities. Only 3-12% of homeowners in flood zones ultimately elevate their homes over a decade, and fewer than 15% participate in buyout programs.
 
 ### ADAPTATION OPTIONS
 {options_text}

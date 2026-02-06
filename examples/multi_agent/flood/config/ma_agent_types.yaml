@@ -102,6 +102,8 @@ global_config:
       - subsidy
       - vulnerability
       - financial_hardship
+      - financial_barrier
+      - cost_concern
       - general
     household_nmg:
       retrieval_tags:
@@ -793,16 +795,28 @@ governance:
         - construct: TP_LABEL
           values:
           - VH
-          - H
         - construct: CP_LABEL
           values:
-          - M
           - H
           - VH
         blocked_skills:
         - do_nothing
         level: ERROR
-        message: With high threat AND adequate coping capacity, inaction is not justified.
+        message: With very high threat AND strong coping capacity, inaction is not justified.
+      - id: owner_inaction_moderate_threat
+        construct: TP_LABEL
+        conditions:
+        - construct: TP_LABEL
+          values:
+          - VH
+          - H
+        - construct: CP_LABEL
+          values:
+          - M
+        blocked_skills:
+        - do_nothing
+        level: WARNING
+        message: High threat with moderate coping — consider taking protective action, but inaction may reflect status quo bias or financial constraints.
       - id: owner_fatalism_allowed
         construct: TP_LABEL
         conditions:
@@ -846,16 +860,28 @@ governance:
         - construct: TP_LABEL
           values:
           - VH
-          - H
         - construct: CP_LABEL
           values:
-          - M
           - H
           - VH
         blocked_skills:
         - do_nothing
         level: ERROR
-        message: With high threat AND adequate coping capacity, inaction is not justified.
+        message: With very high threat AND strong coping capacity, inaction is not justified.
+      - id: renter_inaction_moderate_threat
+        construct: TP_LABEL
+        conditions:
+        - construct: TP_LABEL
+          values:
+          - VH
+          - H
+        - construct: CP_LABEL
+          values:
+          - M
+        blocked_skills:
+        - do_nothing
+        level: WARNING
+        message: High threat with moderate coping — consider taking protective action, but inaction may reflect status quo bias or financial constraints.
       - id: renter_fatalism_allowed
         construct: TP_LABEL
         conditions:

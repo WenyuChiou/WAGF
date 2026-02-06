@@ -205,16 +205,22 @@ def run_unified_experiment():
         subsidy_rate = env.get('subsidy_rate', 0.5)
         premium_rate = env.get('premium_rate', 0.02)
         property_value = fixed.get('property_value', 300000)
-        
+        is_mg = fixed.get('mg', False)
+
         decision = proposal.skill_name
+
+        # MG agents face tighter affordability thresholds (Section 22, Phase B)
+        elevation_multiplier = 1.5 if is_mg else 3.0
+        insurance_pct_cap = 0.03 if is_mg else 0.05
 
         if decision == "elevate_house":
             cost = 150_000 * (1 - subsidy_rate)
-            if cost > income * 3.0:
+            if cost > income * elevation_multiplier:
+                mg_note = " (MG: stricter threshold)" if is_mg else ""
                 results.append(ValidationResult(
                     valid=False,
                     validator_name="CustomAffordabilityValidator",
-                    errors=[f"AFFORDABILITY: Cannot afford elevation (${cost:,.0f} > 3x income ${income*3:,.0f})"],
+                    errors=[f"AFFORDABILITY: Cannot afford elevation (${cost:,.0f} > {elevation_multiplier}x income ${income*elevation_multiplier:,.0f}){mg_note}"],
                     metadata={
                         "level": ValidationLevel.ERROR,
                         "rule": "affordability",
@@ -223,13 +229,30 @@ def run_unified_experiment():
                     }
                 ))
 
-        if decision in ["buy_insurance", "buy_contents_insurance"]:
-            premium = premium_rate * property_value
-            if premium > income * 0.05:
+        if decision == "buyout_program" and is_mg:
+            # MG agents face additional barriers to buyout participation
+            # (lower savings, fewer housing options, relocation hardship)
+            if income < 35000:
                 results.append(ValidationResult(
                     valid=False,
                     validator_name="CustomAffordabilityValidator",
-                    errors=[f"AFFORDABILITY: Premium ${premium:,.0f} exceeds 5% of income ${income*0.05:,.0f})"],
+                    errors=[f"AFFORDABILITY: MG household income ${income:,.0f} too low for buyout transition costs"],
+                    metadata={
+                        "level": ValidationLevel.ERROR,
+                        "rule": "affordability",
+                        "field": "decision",
+                        "constraint": "mg_buyout_barrier"
+                    }
+                ))
+
+        if decision in ["buy_insurance", "buy_contents_insurance"]:
+            premium = premium_rate * property_value
+            if premium > income * insurance_pct_cap:
+                mg_note = " (MG: 3% cap)" if is_mg else ""
+                results.append(ValidationResult(
+                    valid=False,
+                    validator_name="CustomAffordabilityValidator",
+                    errors=[f"AFFORDABILITY: Premium ${premium:,.0f} exceeds {insurance_pct_cap:.0%} of income ${income*insurance_pct_cap:,.0f}){mg_note}"],
                     metadata={
                         "level": ValidationLevel.ERROR,
                         "rule": "affordability",

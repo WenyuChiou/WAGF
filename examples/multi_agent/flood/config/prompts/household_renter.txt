@@ -37,7 +37,11 @@ It is crucial to accurately assess your flood risk based on your personal flood 
 - Estimated Relocation Costs:
   * Within PRB (local move): ~$5,000-$10,000
   * Out of Basin: ~$15,000-$25,000 (plus loss of community ties)
+  * NOTE: Relocation involves finding new housing, breaking your lease, moving expenses, disruption to work/school, and leaving familiar neighbors and services. Most renters find the process difficult and stressful.
 {insurance_cost_text}
+
+### IMPORTANT: ADAPTATION BASE RATES
+Research shows that most renters (70-80%) choose to take no action regarding flood protection in any given year. Many renters believe the landlord's insurance covers them, have difficulty affording premiums, or plan to move soon. Fewer than 30% of renters in flood zones purchase separate flood insurance, and fewer than 10% relocate specifically due to flood risk.
 
 ### ADAPTATION OPTIONS (as a renter)
 {options_text}
