@@ -46,8 +46,14 @@ It is crucial to accurately assess your flood risk based on your personal flood 
 - NFIP Coverage Limits: $250,000 (structure) / $100,000 (contents)
 {insurance_cost_text}
 
-### IMPORTANT: ADAPTATION BASE RATES
-Research shows that most homeowners (60-70%) choose to take no action in any given year, even when aware of flood risk. Inaction is a common, understandable response driven by status quo bias, financial constraints, uncertainty, and competing priorities. Only 3-12% of homeowners in flood zones ultimately elevate their homes over a decade, and fewer than 15% participate in buyout programs.
+### IMPORTANT: DECISION CALIBRATION CONTEXT
+Consider these empirical base rates as context for your decision:
+- **do_nothing is the most common choice.** 60-70% of homeowners choose do_nothing in any given year. This reflects status quo bias, financial constraints, and competing priorities.
+- **Elevation is uncommon.** Only 3-12% of homeowners ever elevate over a full decade. Elevation is a major undertaking with significant costs and disruption.
+- **Buyout is uncommon.** Fewer than 15% participate in buyout programs. However, severely affected homeowners with repeated flooding may rationally choose buyout.
+- **If your flood zone is LOW:** Structural actions (elevation, buyout) are generally unnecessary. Prefer do_nothing or insurance.
+- **Insurance uptake is moderate.** About 30-50% of homeowners in flood zones have insurance. If you have been personally flooded or are in a HIGH flood zone, insurance is a reasonable choice.
+- **After a flood:** Many homeowners (35-65%) still choose do_nothing even after experiencing flooding — but those with severe damage and adequate resources may take action.
 
 ### ADAPTATION OPTIONS
 {options_text}

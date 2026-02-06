@@ -346,7 +346,15 @@ class ExperimentRunner:
                         reasoning=cached_data.get("skill_proposal", {}).get("reasoning", {}),
                         agent_type=getattr(agent, 'agent_type', 'default')
                     )
-                    val_results = self.broker._run_validators(cached_proposal_obj, context)
+                    # Wrap context the same way process_step() does for custom validators
+                    cache_validation_context = {
+                        "agent_state": context,
+                        "agent_type": getattr(agent, 'agent_type', 'default'),
+                        "env_state": env,
+                        **context.get("state", {}),
+                        **env
+                    }
+                    val_results = self.broker._run_validators(cached_proposal_obj, cache_validation_context)
                     if not all(v.valid for v in val_results):
                         logger.warning(f"[Efficiency] Cache HIT for {agent.id} INVALIDATED by governance. Re-running.")
                         self.efficiency.invalidate(context_hash)
@@ -420,7 +428,15 @@ class ExperimentRunner:
                         reasoning=cached_data.get("skill_proposal", {}).get("reasoning", {}),
                         agent_type=getattr(agent, 'agent_type', 'default')
                     )
-                    val_results = self.broker._run_validators(cached_proposal_obj, context)
+                    # Wrap context the same way process_step() does for custom validators
+                    cache_validation_context = {
+                        "agent_state": context,
+                        "agent_type": getattr(agent, 'agent_type', 'default'),
+                        "env_state": env,
+                        **context.get("state", {}),
+                        **env
+                    }
+                    val_results = self.broker._run_validators(cached_proposal_obj, cache_validation_context)
                     if not all(v.valid for v in val_results):
                         logger.warning(f"[Efficiency:Parallel] Cache HIT for {agent.id} INVALIDATED by governance. Re-running.")
                         self.efficiency.invalidate(context_hash)

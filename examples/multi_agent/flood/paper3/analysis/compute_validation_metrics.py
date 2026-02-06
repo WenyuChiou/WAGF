@@ -47,7 +47,7 @@ def _to_json_serializable(obj):
         return {k: _to_json_serializable(v) for k, v in obj.items()}
     elif isinstance(obj, list):
         return [_to_json_serializable(v) for v in obj]
-    elif isinstance(obj, (np.bool_, np.bool)):
+    elif isinstance(obj, (np.bool_,)):
         return bool(obj)
     elif isinstance(obj, (np.integer, np.int64, np.int32)):
         return int(obj)
@@ -552,8 +552,8 @@ def _extract_final_states_from_decisions(traces: List[Dict]) -> Dict[str, Dict]:
     (execution_result.state_changes is empty because no FloodSimulationEngine
     exists). Instead, we infer the final state from the sequence of decisions:
 
-    - Insurance: True if agent EVER chose buy_insurance/buy_contents_insurance
-      (insurance is persistent in this model — lifecycle hook only sets True)
+    - Insurance: True if agent chose buy_insurance in LAST year only
+      (insurance is annual, lapses if not renewed)
     - Elevated: True if agent EVER chose elevate/elevate_house
       (irreversible structural modification)
     - Bought out: True if agent EVER chose buyout/buyout_program (irreversible)
@@ -568,6 +568,14 @@ def _extract_final_states_from_decisions(traces: List[Dict]) -> Dict[str, Dict]:
         agent_id = trace.get("agent_id", "")
         if not agent_id:
             continue
+
+        # Skip REJECTED traces — governance blocked the action, state unchanged
+        outcome = trace.get("outcome", "")
+        if outcome in ("REJECTED", "UNCERTAIN"):
+            continue
+        if not trace.get("validated", True):
+            continue
+
         year = trace.get("year", 0)
         action = _normalize_action(_extract_action(trace))
 
@@ -575,6 +583,7 @@ def _extract_final_states_from_decisions(traces: List[Dict]) -> Dict[str, Dict]:
             agent_decisions[agent_id] = {
                 "actions": set(),
                 "max_year": year,
+                "last_action": action,
                 "last_state": dict(trace.get("state_after", {})),
             }
 
@@ -582,6 +591,7 @@ def _extract_final_states_from_decisions(traces: List[Dict]) -> Dict[str, Dict]:
         # Use strict > to ensure deterministic behavior on year ties
         if year > agent_decisions[agent_id]["max_year"]:
             agent_decisions[agent_id]["max_year"] = year
+            agent_decisions[agent_id]["last_action"] = action
             # Shallow copy is safe: state_after contains only primitive values
             agent_decisions[agent_id]["last_state"] = dict(trace.get("state_after", {}))
 
@@ -592,7 +602,11 @@ def _extract_final_states_from_decisions(traces: List[Dict]) -> Dict[str, Dict]:
         state = dict(info["last_state"])  # fallback for non-decision fields
 
         # Override decision-derived fields
-        state["has_insurance"] = "buy_insurance" in actions
+        # Insurance is ANNUAL (not irreversible) — use last year's action
+        # to determine current insurance status (lapse if not renewed)
+        last_action = info.get("last_action", "")
+        state["has_insurance"] = last_action == "buy_insurance"
+        # Structural actions are IRREVERSIBLE — use "EVER" logic
         state["elevated"] = "elevate" in actions
         state["bought_out"] = "buyout" in actions
         state["relocated"] = "relocate" in actions
@@ -703,6 +717,12 @@ def _compute_benchmark(name: str, df: pd.DataFrame, traces: List[Dict]) -> Optio
             for trace in traces:
                 aid = trace.get("agent_id", "")
                 if not aid:
+                    continue
+                # Skip REJECTED traces — governance blocked the action
+                trace_outcome = trace.get("outcome", "")
+                if trace_outcome in ("REJECTED", "UNCERTAIN"):
+                    continue
+                if not trace.get("validated", True):
                     continue
                 yr = trace.get("year", 0)
                 action = _normalize_action(_extract_action(trace))

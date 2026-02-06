@@ -148,6 +148,8 @@ def run_unified_experiment():
                         help="Connection radius in grid cells for spatial mode (default: 3 = ~90m)")
     parser.add_argument("--per-agent-depth", action="store_true",
                         help="Enable per-agent flood depth based on grid position")
+    parser.add_argument("--flood-years", type=str, default=None,
+                        help="Deterministic flood schedule: sim_year:depth_m pairs (e.g. '2:0.6,7:1.2,11:0.3')")
     parser.add_argument("--enable-news-media", action="store_true",
                         help="Enable news media channel (delayed, high reliability)")
     parser.add_argument("--enable-social-media", action="store_true",
@@ -198,20 +200,20 @@ def run_unified_experiment():
             return results # Only applies to household agents
 
         agent_data_from_builder = context.get('agent_state', {})
-        fixed = agent_data_from_builder.get('personal', {}).get('fixed_attributes', {})
+        personal = agent_data_from_builder.get('personal', {})
         env = context.get('env_state', {})
 
-        income = fixed.get('income', 50000)
+        income = personal.get('income', 50000)
         subsidy_rate = env.get('subsidy_rate', 0.5)
         premium_rate = env.get('premium_rate', 0.02)
-        property_value = fixed.get('property_value', 300000)
-        is_mg = fixed.get('mg', False)
+        property_value = personal.get('rcv_building', 300000)
+        is_mg = personal.get('mg', False)
 
         decision = proposal.skill_name
 
         # MG agents face tighter affordability thresholds (Section 22, Phase B)
         elevation_multiplier = 1.5 if is_mg else 3.0
-        insurance_pct_cap = 0.03 if is_mg else 0.05
+        insurance_pct_cap = 0.02 if is_mg else 0.05
 
         if decision == "elevate_house":
             cost = 150_000 * (1 - subsidy_rate)
@@ -246,13 +248,15 @@ def run_unified_experiment():
                 ))
 
         if decision in ["buy_insurance", "buy_contents_insurance"]:
-            premium = premium_rate * property_value
+            # Renters insure contents only; owners insure the building
+            insured_value = personal.get('rcv_contents', 50000) if proposal.agent_type == "household_renter" else property_value
+            premium = premium_rate * insured_value
             if premium > income * insurance_pct_cap:
-                mg_note = " (MG: 3% cap)" if is_mg else ""
+                mg_note = f" (MG: {insurance_pct_cap:.0%} cap)" if is_mg else ""
                 results.append(ValidationResult(
                     valid=False,
                     validator_name="CustomAffordabilityValidator",
-                    errors=[f"AFFORDABILITY: Premium ${premium:,.0f} exceeds {insurance_pct_cap:.0%} of income ${income*insurance_pct_cap:,.0f}){mg_note}"],
+                    errors=[f"AFFORDABILITY: Premium ${premium:,.0f} exceeds {insurance_pct_cap:.0%} of income (${income*insurance_pct_cap:,.0f}){mg_note}"],
                     metadata={
                         "level": ValidationLevel.ERROR,
                         "rule": "affordability",
@@ -260,6 +264,91 @@ def run_unified_experiment():
                         "constraint": "financial_affordability"
                     }
                 ))
+
+        return results
+
+    def validate_flood_zone_appropriateness(
+        proposal: SkillProposal,
+        context: Dict[str, Any],
+        skill_registry: Any
+    ) -> List[ValidationResult]:
+        """
+        Enforce empirically-grounded decision constraints based on flood zone,
+        flood experience, and agent type. Three rules:
+
+        Rule 1: LOW-zone agents without flood experience → block structural actions
+        Rule 2: Non-experienced agents (any non-LOW zone) → block structural actions
+        Rule 3: LOW-zone renters without flood experience → block insurance purchase
+        """
+        results = []
+
+        if proposal.agent_type not in ["household_owner", "household_renter"]:
+            return results
+
+        agent_data = context.get('agent_state', {})
+        personal = agent_data.get('personal', {})
+
+        decision = proposal.skill_name
+        flood_zone = personal.get('flood_zone', 'MEDIUM')
+        flood_experience = personal.get('flood_experience', False)
+        flooded_this_year = personal.get('flooded_this_year', False)
+        elevated = personal.get('elevated', False)
+
+        structural_actions = {"elevate_house", "buyout_program", "relocate"}
+
+        # Rule 1: LOW-zone agents without flood experience cannot take structural actions
+        if decision in structural_actions and flood_zone == "LOW" and not flood_experience and not flooded_this_year:
+            results.append(ValidationResult(
+                valid=False,
+                validator_name="FloodZoneAppropriatenessValidator",
+                errors=[f"ZONE_GUARD: {decision} inappropriate for LOW flood zone agent with no flood experience"],
+                metadata={
+                    "level": ValidationLevel.ERROR,
+                    "rule": "flood_zone_guard",
+                    "field": "decision",
+                    "constraint": "low_zone_no_structural"
+                }
+            ))
+
+        # Rule 2: Non-experienced agents in non-LOW zones cannot take structural actions
+        # (status quo bias: agents without personal flood experience rarely take
+        # major structural action — empirically <5% elevation rate over a decade)
+        if (decision in structural_actions
+                and not flooded_this_year
+                and not flood_experience
+                and flood_zone != "LOW"
+                and not elevated):
+            results.append(ValidationResult(
+                valid=False,
+                validator_name="FloodZoneAppropriatenessValidator",
+                errors=[f"STATUS_QUO: {decision} blocked for agents without personal flood experience"],
+                metadata={
+                    "level": ValidationLevel.ERROR,
+                    "rule": "status_quo_bias",
+                    "field": "decision",
+                    "constraint": "no_experience_structural_block"
+                }
+            ))
+
+        # Rule 3: LOW-zone renters without flood experience → block insurance
+        # (empirically, LOW-zone renters rarely purchase flood insurance;
+        # cost-benefit is unfavorable with minimal flood risk)
+        if (decision in {"buy_contents_insurance", "buy_insurance"}
+                and proposal.agent_type == "household_renter"
+                and flood_zone == "LOW"
+                and not flood_experience
+                and not flooded_this_year):
+            results.append(ValidationResult(
+                valid=False,
+                validator_name="FloodZoneAppropriatenessValidator",
+                errors=[f"ZONE_GUARD: {decision} not cost-effective for LOW flood zone renter with no flood experience"],
+                metadata={
+                    "level": ValidationLevel.ERROR,
+                    "rule": "low_zone_renter_insurance",
+                    "field": "decision",
+                    "constraint": "low_zone_no_renter_insurance"
+                }
+            ))
 
         return results
 
@@ -467,6 +556,19 @@ def run_unified_experiment():
     # Create year mapping for PRB data
     year_mapping = YearMapping(start_sim_year=1, start_prb_year=2011)
 
+    # Parse deterministic flood schedule (e.g., "2:0.6,7:1.2,11:0.3")
+    flood_schedule = {}
+    if args.flood_years:
+        for entry in args.flood_years.split(","):
+            entry = entry.strip()
+            if ":" in entry:
+                y_str, d_str = entry.split(":", 1)
+                flood_schedule[int(y_str)] = float(d_str)
+            else:
+                # Year only, use default moderate depth (0.6m ≈ 2ft)
+                flood_schedule[int(entry)] = 0.6
+        print(f"[INFO] Deterministic flood schedule: {flood_schedule}")
+
     ma_hooks = MultiAgentHooks(
         tiered_env.global_state,
         memory_engine=memory_engine,
@@ -476,6 +578,7 @@ def run_unified_experiment():
         year_mapping=year_mapping,
         game_master=game_master,
         message_pool=message_pool,
+        flood_schedule=flood_schedule,
     )
 
     if args.per_agent_depth:
@@ -536,7 +639,7 @@ def run_unified_experiment():
     )
 
     if args.enable_custom_affordability:
-        builder.with_custom_validators([validate_affordability])
+        builder.with_custom_validators([validate_affordability, validate_flood_zone_appropriateness])
     
     # 6. Execute
     runner = builder.build()
