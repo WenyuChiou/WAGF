@@ -220,6 +220,7 @@ class IrrigationLifecycleHooks:
                 "shortage_tier": ctx.get("shortage_tier", 0),
                 "cluster": ctx.get("cluster", "unknown"),
                 "basin": ctx.get("basin", "unknown"),
+                "year": year,
             }
             for key, value in validator_fields.items():
                 setattr(agent, key, value)
