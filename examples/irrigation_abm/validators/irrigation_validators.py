@@ -122,8 +122,10 @@ def curtailment_awareness_check(
         return []
 
     shortage_tier = context.get("shortage_tier", 0)
-    # year is 1-indexed from pre_year hook; default 99 skips grace period safely
-    year = context.get("year") or 99
+    # loop_year is 1-indexed from pre_year hook; default 99 skips grace period safely
+    # NOTE: key is "loop_year" (not "year") to avoid collision with env_context["year"]
+    # which carries the CRSS calendar year (e.g. 2020) and would overwrite the loop counter
+    year = context.get("loop_year") or 99
 
     # Cold-start grace period: Y1-3 Tier 2 → warning only (not hard block)
     # Stage 3 analysis showed 44% rejection in Y1-3 permanently locked agents
