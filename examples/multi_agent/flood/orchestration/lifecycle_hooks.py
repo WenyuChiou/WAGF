@@ -4,7 +4,7 @@ import logging
 from cognitive_governance.agents import BaseAgent
 from broker import MemoryEngine
 from broker.interfaces.skill_types import SkillOutcome
-from examples.multi_agent.flood.environment.hazard import HazardModule, VulnerabilityModule, YearMapping
+from examples.multi_agent.flood.environment.hazard import FloodEvent, HazardModule, VulnerabilityModule, YearMapping
 from examples.multi_agent.flood.components.media_channels import MediaHub
 from examples.multi_agent.flood.orchestration.disaster_sim import depth_to_qualitative_description
 from broker.components.memory_bridge import MemoryBridge # Added import
@@ -23,6 +23,7 @@ class MultiAgentHooks:
         game_master: Optional[Any] = None,       # GameMaster instance
         message_pool: Optional[Any] = None,      # MessagePool instance
         drift_detector: Optional[Any] = None,
+        flood_schedule: Optional[Dict[int, float]] = None,
     ):
         self.env = environment
         self.memory_engine = memory_engine
@@ -32,6 +33,9 @@ class MultiAgentHooks:
         self.per_agent_depth = per_agent_depth
         self.year_mapping = year_mapping or YearMapping()
         self.agent_flood_depths: Dict[str, float] = {}
+        # Deterministic flood schedule: {sim_year: depth_m}
+        # Overrides stochastic generation when provided (non-per-agent-depth mode)
+        self.flood_schedule = flood_schedule or {}
         # Default env keys for test safety when caller doesn't prepopulate.
         self.env.setdefault("flood_occurred", True)
         self.env.setdefault("crisis_event", self.env.get("flood_occurred", False))
@@ -115,16 +119,25 @@ class MultiAgentHooks:
             else:
                 print(f" [ENV] Year {year}: No flood events.")
         else:
-            event = self.hazard.get_flood_event(year=year)
-            self.env["flood_occurred"] = event.depth_m > 0
-            self.env["flood_depth_m"] = round(event.depth_m, 3)
-            self.env["flood_depth_ft"] = round(event.depth_ft, 3)
+            # Check deterministic flood schedule first; fall back to hazard module
+            if year in self.flood_schedule:
+                depth_m = self.flood_schedule[year]
+                depth_ft = depth_m * 3.28084
+                event = FloodEvent(year=year, depth_m=depth_m)
+            else:
+                event = self.hazard.get_flood_event(year=year)
+                depth_m = event.depth_m
+                depth_ft = event.depth_ft
+            self.env["flood_occurred"] = depth_m > 0
+            self.env["flood_depth_m"] = round(depth_m, 3)
+            self.env["flood_depth_ft"] = round(depth_ft, 3)
             self.agent_flood_depths = {}
             self.env["crisis_event"] = self.env["flood_occurred"]
             self.env["crisis_boosters"] = {"emotion:fear": 1.5} if self.env["flood_occurred"] else {}
 
             if self.env["flood_occurred"]:
-                print(f" [ENV] !!! FLOOD WARNING for Year {year} !!! depth={event.depth_m:.2f}m")
+                src = "schedule" if year in self.flood_schedule else "stochastic"
+                print(f" [ENV] !!! FLOOD WARNING for Year {year} !!! depth={depth_m:.2f}m ({src})")
             else:
                 print(f" [ENV] Year {year}: No flood events.")
 

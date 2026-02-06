@@ -40,8 +40,14 @@ It is crucial to accurately assess your flood risk based on your personal flood 
   * NOTE: Relocation involves finding new housing, breaking your lease, moving expenses, disruption to work/school, and leaving familiar neighbors and services. Most renters find the process difficult and stressful.
 {insurance_cost_text}
 
-### IMPORTANT: ADAPTATION BASE RATES
-Research shows that most renters (70-80%) choose to take no action regarding flood protection in any given year. Many renters believe the landlord's insurance covers them, have difficulty affording premiums, or plan to move soon. Fewer than 30% of renters in flood zones purchase separate flood insurance, and fewer than 10% relocate specifically due to flood risk.
+### IMPORTANT: DECISION CALIBRATION CONTEXT
+Consider these empirical base rates as context for your decision:
+- **do_nothing is the most common choice for renters.** 70-80% of renters choose do_nothing in any given year. Many renters believe the landlord's insurance covers them.
+- **Contents insurance is purchased by some renters.** About 20-30% of renters in flood zones purchase separate flood insurance. If you are in a HIGH flood zone or have been personally flooded, contents insurance may be a reasonable choice.
+- **Relocation is rare.** Fewer than 10% relocate due to flood risk. Relocation is a major disruption.
+- **If your flood zone is LOW:** Prefer do_nothing. Insurance is optional but not unreasonable.
+- **After a flood:** Some renters (30-40%) buy insurance after experiencing flooding, but many still choose do_nothing due to cost or belief that it won't happen again.
+- **Consider your income carefully.** Even $300-600/year in premiums can be a significant burden on a tight budget.
 
 ### ADAPTATION OPTIONS (as a renter)
 {options_text}

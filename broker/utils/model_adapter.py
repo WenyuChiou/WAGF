@@ -843,6 +843,7 @@ class UnifiedAdapter(ModelAdapter):
             agent_id=agent_id,
             skill_name=skill_name,
             reasoning=reasoning,
+            agent_type=agent_type,
             raw_output=raw_output,
             parsing_warnings=parsing_warnings,
             parse_layer=parse_layer,
