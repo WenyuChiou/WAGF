@@ -82,19 +82,19 @@ def build_memory_engine(mem_cfg: Dict[str, Any], engine_type: str = "universal")
         scorer = get_memory_scorer(scorer_key)
 
     if engine_type == "humancentric":
+        # Note: HumanCentricMemoryEngine doesn't support scorer parameter
         return HumanCentricMemoryEngine(
             window_size=mem_cfg.get("window_size", 3),
             top_k_significant=mem_cfg.get("top_k_significant", 2),
             consolidation_prob=mem_cfg.get("consolidation_probability", 0.7),
             decay_rate=mem_cfg.get("decay_rate", 0.1),
-            scorer=scorer,
         )
     if engine_type == "hierarchical":
+        # Note: HierarchicalMemoryEngine is deprecated and doesn't support scorer
         from broker.components.memory_engine import HierarchicalMemoryEngine
         return HierarchicalMemoryEngine(
             window_size=mem_cfg.get("window_size", 5),
             semantic_top_k=mem_cfg.get("top_k_significant", 3),
-            scorer=scorer,
         )
     if engine_type == "universal":
         return create_memory_engine(
