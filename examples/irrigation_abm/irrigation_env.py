@@ -56,12 +56,12 @@ class WaterSystemConfig:
     )
 
     # Lake Mead thresholds (feet above sea level)
-    # Stage 2 fix: Shift tiers down so 10% curtailment (Mead ~1050) = Tier 1 (warning only)
-    # Previously: 1050 = Tier 2 = BLOCKED, causing 100% increase_demand rejection
+    # Reverted to v12 values: Stage 3 analysis showed shifting tiers down doubled
+    # Tier 2 hard-block frequency (2.4%→4.8%) and collapsed Tier 1 warnings by 86%.
     mead_normal: float = 1100.0
-    mead_shortage_tier1: float = 1050.0  # Was 1075.0 - now 1050-1075 = Tier 1 (warning)
-    mead_shortage_tier2: float = 1025.0  # Was 1050.0 - now 1025-1050 = Tier 2 (block)
-    mead_shortage_tier3: float = 1000.0  # Was 1025.0 - now <1000 = Tier 3 (severe block)
+    mead_shortage_tier1: float = 1075.0  # Tier 0→1 warning threshold
+    mead_shortage_tier2: float = 1050.0  # Tier 1→2 hard-block threshold
+    mead_shortage_tier3: float = 1025.0  # Tier 2→3 severe-block threshold
 
     # Lake Mead simplified mass balance coupling parameters
     # Storage(t+1) = Storage(t) + PowellRelease + LB_trib - LB_div - Mexico - Evap - Muni
