@@ -511,20 +511,20 @@ def _extract_final_states(traces: List[Dict]) -> Dict[str, Dict]:
     return final_states
 
 
-def _get_insured_col(df: pd.DataFrame) -> str:
-    """Get the correct insured column name."""
+def _get_insured_col(df: pd.DataFrame) -> Optional[str]:
+    """Get the correct insured column name, or None if not found."""
     for col in ["final_has_insurance", "final_insured"]:
         if col in df.columns:
             return col
-    return "final_has_insurance"
+    return None
 
 
-def _get_elevated_col(df: pd.DataFrame) -> str:
-    """Get the correct elevated column name."""
+def _get_elevated_col(df: pd.DataFrame) -> Optional[str]:
+    """Get the correct elevated column name, or None if not found."""
     for col in ["final_elevated"]:
         if col in df.columns:
             return col
-    return "final_elevated"
+    return None
 
 
 def _compute_benchmark(name: str, df: pd.DataFrame, traces: List[Dict]) -> Optional[float]:
@@ -536,21 +536,23 @@ def _compute_benchmark(name: str, df: pd.DataFrame, traces: List[Dict]) -> Optio
         if name == "insurance_rate_sfha":
             # Insurance rate in high-risk zones
             high_risk = df[df["flood_zone"] == "HIGH"]
-            if len(high_risk) == 0:
+            if len(high_risk) == 0 or ins_col is None:
                 return None
-            insured = high_risk[ins_col].sum() if ins_col in high_risk.columns else 0
+            if ins_col not in high_risk.columns:
+                return None
+            insured = high_risk[ins_col].sum()
             return insured / len(high_risk)
 
         elif name == "insurance_rate_all":
             # Overall insurance rate
-            if ins_col not in df.columns:
+            if ins_col is None or ins_col not in df.columns:
                 return None
             return df[ins_col].mean()
 
         elif name == "elevation_rate":
             # Elevation rate (owners only)
             owners = df[df["tenure"] == "Owner"]
-            if len(owners) == 0 or elev_col not in owners.columns:
+            if len(owners) == 0 or elev_col is None or elev_col not in owners.columns:
                 return None
             return owners[elev_col].mean()
 
@@ -573,7 +575,7 @@ def _compute_benchmark(name: str, df: pd.DataFrame, traces: List[Dict]) -> Optio
 
         elif name == "mg_adaptation_gap":
             # Gap between MG and NMG adaptation rates
-            if ins_col not in df.columns:
+            if ins_col is None or ins_col not in df.columns:
                 return None
             mg = df[df["mg"] == True]
             nmg = df[df["mg"] == False]
@@ -586,7 +588,7 @@ def _compute_benchmark(name: str, df: pd.DataFrame, traces: List[Dict]) -> Optio
         elif name == "renter_uninsured_rate":
             # Uninsured rate among renters in flood zones
             renters_flood = df[(df["tenure"] == "Renter") & (df["flood_zone"] == "HIGH")]
-            if len(renters_flood) == 0 or ins_col not in renters_flood.columns:
+            if len(renters_flood) == 0 or ins_col is None or ins_col not in renters_flood.columns:
                 return None
             return 1.0 - renters_flood[ins_col].mean()
 
@@ -600,7 +602,8 @@ def _compute_benchmark(name: str, df: pd.DataFrame, traces: List[Dict]) -> Optio
                 # Use has_insurance field from state
                 if state_before.get("has_insurance", False):
                     insured_periods += 1
-                    if not state_after.get("has_insurance", True):
+                    # Only count lapse if explicitly False (missing = unknown, skip)
+                    if state_after.get("has_insurance") is False:
                         lapses += 1
             return lapses / insured_periods if insured_periods > 0 else None
 

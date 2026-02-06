@@ -406,7 +406,13 @@ class MicroValidator:
         """Check if agent type indicates a renter (not owner).
 
         Uses explicit matching to avoid false positives like "non_renter".
+        Handles NaN/None values safely.
         """
+        # Handle NaN/None/empty values
+        if not agent_type or pd.isna(agent_type):
+            return False
+        agent_type = str(agent_type).lower().strip()
+
         renter_patterns = [
             "renter",
             "household_renter",
