@@ -220,7 +220,7 @@ class IrrigationLifecycleHooks:
                 "shortage_tier": ctx.get("shortage_tier", 0),
                 "cluster": ctx.get("cluster", "unknown"),
                 "basin": ctx.get("basin", "unknown"),
-                "year": year,
+                "loop_year": year,  # use "loop_year" to avoid collision with env_context["year"] (CRSS calendar year)
             }
             for key, value in validator_fields.items():
                 setattr(agent, key, value)
