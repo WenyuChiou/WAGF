@@ -365,9 +365,9 @@ def magnitude_cap_check(
     cluster = context.get("cluster", "myopic_conservative")
 
     caps = {
-        "aggressive": 30,
+        "aggressive": 20,
         "forward_looking_conservative": 15,
-        "myopic_conservative": 10,
+        "myopic_conservative": 8,
     }
     max_mag = caps.get(cluster, 10)
 
