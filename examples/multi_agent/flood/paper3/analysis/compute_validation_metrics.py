@@ -41,6 +41,25 @@ import numpy as np
 import pandas as pd
 
 
+def _to_json_serializable(obj):
+    """Convert numpy/pandas types to JSON-serializable Python types."""
+    if isinstance(obj, dict):
+        return {k: _to_json_serializable(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_to_json_serializable(v) for v in obj]
+    elif isinstance(obj, (np.bool_, np.bool)):
+        return bool(obj)
+    elif isinstance(obj, (np.integer, np.int64, np.int32)):
+        return int(obj)
+    elif isinstance(obj, (np.floating, np.float64, np.float32)):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif pd.isna(obj):
+        return None
+    return obj
+
+
 # =============================================================================
 # PMT Coherence Rules
 # =============================================================================
@@ -206,6 +225,50 @@ class ValidationReport:
 
 
 # =============================================================================
+# Trace Field Extraction Helpers
+# =============================================================================
+
+def _extract_tp_label(trace: Dict) -> str:
+    """Extract TP_LABEL from nested trace structure."""
+    # Try nested path first: skill_proposal.reasoning.TP_LABEL
+    skill_proposal = trace.get("skill_proposal", {})
+    if isinstance(skill_proposal, dict):
+        reasoning = skill_proposal.get("reasoning", {})
+        if isinstance(reasoning, dict) and "TP_LABEL" in reasoning:
+            return reasoning["TP_LABEL"]
+    # Fallback to top-level
+    return trace.get("TP_LABEL", "M")
+
+
+def _extract_cp_label(trace: Dict) -> str:
+    """Extract CP_LABEL from nested trace structure."""
+    skill_proposal = trace.get("skill_proposal", {})
+    if isinstance(skill_proposal, dict):
+        reasoning = skill_proposal.get("reasoning", {})
+        if isinstance(reasoning, dict) and "CP_LABEL" in reasoning:
+            return reasoning["CP_LABEL"]
+    return trace.get("CP_LABEL", "M")
+
+
+def _extract_action(trace: Dict) -> str:
+    """Extract action/skill name from nested trace structure."""
+    # Try approved_skill.skill_name first
+    approved = trace.get("approved_skill", {})
+    if isinstance(approved, dict) and "skill_name" in approved:
+        return approved["skill_name"]
+    # Try skill_proposal.skill_name
+    proposal = trace.get("skill_proposal", {})
+    if isinstance(proposal, dict) and "skill_name" in proposal:
+        return proposal["skill_name"]
+    # Fallback to string value or do_nothing
+    if isinstance(approved, str):
+        return approved
+    if isinstance(proposal, str):
+        return proposal
+    return "do_nothing"
+
+
+# =============================================================================
 # L1 Metric Computation
 # =============================================================================
 
@@ -228,9 +291,9 @@ def compute_l1_metrics(traces: List[Dict], agent_type: str = "owner") -> L1Metri
     action_counts = Counter()
 
     for trace in traces:
-        tp = trace.get("TP_LABEL", "M")
-        cp = trace.get("CP_LABEL", "M")
-        action = trace.get("approved_skill", trace.get("skill_proposal", "do_nothing"))
+        tp = _extract_tp_label(trace)
+        cp = _extract_cp_label(trace)
+        action = _extract_action(trace)
 
         # Normalize action name
         action = _normalize_action(action)
@@ -270,15 +333,23 @@ def compute_l1_metrics(traces: List[Dict], agent_type: str = "owner") -> L1Metri
     )
 
 
-def _normalize_action(action: str) -> str:
+def _normalize_action(action) -> str:
     """Normalize action names to standard form."""
+    # Handle dict objects (edge case if extraction failed)
+    if isinstance(action, dict):
+        action = action.get("skill_name", action.get("name", "do_nothing"))
+    if not isinstance(action, str):
+        return "do_nothing"
     action = action.lower().strip()
 
     # Map variations to standard names
     mappings = {
-        "buy_insurance": ["buy_insurance", "purchase_insurance", "get_insurance", "insurance"],
-        "elevate": ["elevate", "elevate_home", "home_elevation", "raise_home"],
-        "buyout": ["buyout", "voluntary_buyout", "accept_buyout"],
+        "buy_insurance": [
+            "buy_insurance", "purchase_insurance", "get_insurance", "insurance",
+            "buy_contents_insurance", "buy_structure_insurance", "contents_insurance",
+        ],
+        "elevate": ["elevate", "elevate_home", "home_elevation", "raise_home", "elevate_house"],
+        "buyout": ["buyout", "voluntary_buyout", "accept_buyout", "buyout_program"],
         "relocate": ["relocate", "move", "relocation"],
         "retrofit": ["retrofit", "floodproof", "flood_retrofit"],
         "do_nothing": ["do_nothing", "no_action", "wait", "none"],
@@ -313,19 +384,27 @@ def _is_sensible_action(tp: str, cp: str, action: str, agent_type: str) -> bool:
 
 def _is_hallucination(trace: Dict) -> bool:
     """Check if trace contains a hallucination (physically impossible action)."""
-    action = trace.get("approved_skill", "")
+    action = _normalize_action(_extract_action(trace))
     state_before = trace.get("state_before", {})
+    if isinstance(state_before, str):
+        # Try to parse if it's a JSON string
+        try:
+            import json
+            state_before = json.loads(state_before)
+        except (json.JSONDecodeError, TypeError):
+            state_before = {}
 
     # Already elevated and trying to elevate again
     if action == "elevate" and state_before.get("elevated", False):
         return True
 
     # Already bought out but still making decisions
-    if state_before.get("bought_out", False) and action not in ["do_nothing"]:
+    if state_before.get("bought_out", False) and action and action != "do_nothing":
         return True
 
     # Renter trying to elevate
-    if "renter" in trace.get("agent_type", "") and action == "elevate":
+    agent_type = trace.get("agent_type", "")
+    if agent_type and ("renter" in agent_type.lower()) and action == "elevate":
         return True
 
     return False
@@ -432,29 +511,48 @@ def _extract_final_states(traces: List[Dict]) -> Dict[str, Dict]:
     return final_states
 
 
+def _get_insured_col(df: pd.DataFrame) -> str:
+    """Get the correct insured column name."""
+    for col in ["final_has_insurance", "final_insured"]:
+        if col in df.columns:
+            return col
+    return "final_has_insurance"
+
+
+def _get_elevated_col(df: pd.DataFrame) -> str:
+    """Get the correct elevated column name."""
+    for col in ["final_elevated"]:
+        if col in df.columns:
+            return col
+    return "final_elevated"
+
+
 def _compute_benchmark(name: str, df: pd.DataFrame, traces: List[Dict]) -> Optional[float]:
     """Compute a specific benchmark value."""
+    ins_col = _get_insured_col(df)
+    elev_col = _get_elevated_col(df)
+
     try:
         if name == "insurance_rate_sfha":
             # Insurance rate in high-risk zones
             high_risk = df[df["flood_zone"] == "HIGH"]
             if len(high_risk) == 0:
                 return None
-            insured = high_risk["final_insured"].sum() if "final_insured" in high_risk.columns else 0
+            insured = high_risk[ins_col].sum() if ins_col in high_risk.columns else 0
             return insured / len(high_risk)
 
         elif name == "insurance_rate_all":
             # Overall insurance rate
-            if "final_insured" not in df.columns:
+            if ins_col not in df.columns:
                 return None
-            return df["final_insured"].mean()
+            return df[ins_col].mean()
 
         elif name == "elevation_rate":
             # Elevation rate (owners only)
             owners = df[df["tenure"] == "Owner"]
-            if len(owners) == 0 or "final_elevated" not in owners.columns:
+            if len(owners) == 0 or elev_col not in owners.columns:
                 return None
-            return owners["final_elevated"].mean()
+            return owners[elev_col].mean()
 
         elif name == "buyout_rate":
             # Buyout/relocation rate
@@ -469,27 +567,28 @@ def _compute_benchmark(name: str, df: pd.DataFrame, traces: List[Dict]) -> Optio
             flooded_traces = [t for t in traces if t.get("flooded_this_year", False)]
             if len(flooded_traces) == 0:
                 return None
-            inaction = sum(1 for t in flooded_traces if t.get("approved_skill") == "do_nothing")
+            inaction = sum(1 for t in flooded_traces
+                          if _normalize_action(_extract_action(t)) == "do_nothing")
             return inaction / len(flooded_traces)
 
         elif name == "mg_adaptation_gap":
             # Gap between MG and NMG adaptation rates
-            if "final_insured" not in df.columns:
+            if ins_col not in df.columns:
                 return None
             mg = df[df["mg"] == True]
             nmg = df[df["mg"] == False]
             if len(mg) == 0 or len(nmg) == 0:
                 return None
-            mg_rate = mg["final_insured"].mean()
-            nmg_rate = nmg["final_insured"].mean()
+            mg_rate = mg[ins_col].mean()
+            nmg_rate = nmg[ins_col].mean()
             return abs(nmg_rate - mg_rate)
 
         elif name == "renter_uninsured_rate":
             # Uninsured rate among renters in flood zones
             renters_flood = df[(df["tenure"] == "Renter") & (df["flood_zone"] == "HIGH")]
-            if len(renters_flood) == 0 or "final_insured" not in renters_flood.columns:
+            if len(renters_flood) == 0 or ins_col not in renters_flood.columns:
                 return None
-            return 1.0 - renters_flood["final_insured"].mean()
+            return 1.0 - renters_flood[ins_col].mean()
 
         elif name == "insurance_lapse_rate":
             # Annual lapse rate (insured → uninsured transitions)
@@ -498,9 +597,10 @@ def _compute_benchmark(name: str, df: pd.DataFrame, traces: List[Dict]) -> Optio
             for trace in traces:
                 state_before = trace.get("state_before", {})
                 state_after = trace.get("state_after", {})
-                if state_before.get("insured", False):
+                # Use has_insurance field from state
+                if state_before.get("has_insurance", False):
                     insured_periods += 1
-                    if not state_after.get("insured", True):
+                    if not state_after.get("has_insurance", True):
                         lapses += 1
             return lapses / insured_periods if insured_periods > 0 else None
 
@@ -585,15 +685,15 @@ def compute_validation(
         action_distribution={**l1_owner.action_distribution, **l1_renter.action_distribution},
     )
 
-    print(f"  CACR: {l1_combined.cacr} (threshold ≥0.80)")
-    print(f"  R_H: {l1_combined.r_h} (threshold ≤0.10)")
+    print(f"  CACR: {l1_combined.cacr} (threshold >=0.80)")
+    print(f"  R_H: {l1_combined.r_h} (threshold <=0.10)")
     print(f"  EBE: {l1_combined.ebe} (threshold >0)")
 
     # Compute L2 metrics
     print("\nComputing L2 metrics...")
     l2 = compute_l2_metrics(all_traces, agent_profiles)
 
-    print(f"  EPI: {l2.epi} (threshold ≥0.60)")
+    print(f"  EPI: {l2.epi} (threshold >=0.60)")
     print(f"  Benchmarks in range: {l2.benchmarks_in_range}/{l2.total_benchmarks}")
 
     # Extract metadata
@@ -624,7 +724,7 @@ def compute_validation(
     # Save JSON report
     report_path = output_dir / "validation_report.json"
     with open(report_path, 'w', encoding='utf-8') as f:
-        json.dump({
+        json.dump(_to_json_serializable({
             "l1": asdict(l1_combined),
             "l2": asdict(l2),
             "traces_path": str(traces_dir),
@@ -633,31 +733,31 @@ def compute_validation(
             "pass_all": report.pass_all,
             "l1_pass": l1_pass,
             "l2_pass": l2_pass,
-        }, f, indent=2, ensure_ascii=False)
+        }), f, indent=2, ensure_ascii=False)
     print(f"\nSaved: {report_path}")
 
     # Save L1 details
     l1_path = output_dir / "l1_micro_metrics.json"
     with open(l1_path, 'w', encoding='utf-8') as f:
-        json.dump({
+        json.dump(_to_json_serializable({
             "combined": asdict(l1_combined),
             "owner": asdict(l1_owner),
             "renter": asdict(l1_renter),
             "thresholds": {"CACR": ">=0.80", "R_H": "<=0.10", "EBE": ">0"},
             "pass": l1_combined.passes_thresholds(),
-        }, f, indent=2, ensure_ascii=False)
+        }), f, indent=2, ensure_ascii=False)
     print(f"Saved: {l1_path}")
 
     # Save L2 details
     l2_path = output_dir / "l2_macro_metrics.json"
     with open(l2_path, 'w', encoding='utf-8') as f:
-        json.dump({
+        json.dump(_to_json_serializable({
             "epi": l2.epi,
             "benchmarks_in_range": l2.benchmarks_in_range,
             "total_benchmarks": l2.total_benchmarks,
             "benchmark_results": l2.benchmark_results,
             "pass": l2.passes_threshold(),
-        }, f, indent=2, ensure_ascii=False)
+        }), f, indent=2, ensure_ascii=False)
     print(f"Saved: {l2_path}")
 
     # Save benchmark comparison CSV
