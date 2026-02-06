@@ -663,7 +663,11 @@ def _compute_benchmark(name: str, df: pd.DataFrame, traces: List[Dict]) -> Optio
         elif name == "do_nothing_rate_postflood":
             # Inaction rate among flooded agents
             # Computed from traces directly (not merged DataFrame), no fillna needed
-            flooded_traces = [t for t in traces if t.get("flooded_this_year", False)]
+            # Check multiple locations: top-level, state_before, environment_context
+            flooded_traces = [t for t in traces if (
+                t.get("flooded_this_year", False)
+                or t.get("state_before", {}).get("flooded_this_year", False)
+            )]
             if len(flooded_traces) == 0:
                 return None
             inaction = sum(1 for t in flooded_traces

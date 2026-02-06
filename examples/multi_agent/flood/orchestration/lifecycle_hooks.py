@@ -140,6 +140,13 @@ class MultiAgentHooks:
         self.env["elevated_count"] = sum(1 for a in households if a.dynamic_state.get("elevated"))
         self.env["insured_count"] = sum(1 for a in households if a.dynamic_state.get("has_insurance"))
 
+        # Set per-agent flooded_this_year flag for trace capture (Section 22, Phase D)
+        for agent in households:
+            if self.per_agent_depth:
+                agent.dynamic_state["flooded_this_year"] = self.agent_flood_depths.get(agent.id, 0) > 0
+            else:
+                agent.dynamic_state["flooded_this_year"] = self.env.get("flood_occurred", False)
+
         # Institutional metrics: MG/NMG adaptation breakdown (for government prompt)
         mg_agents = [a for a in households if getattr(a, 'fixed_attributes', {}).get("mg")]
         nmg_agents = [a for a in households if not getattr(a, 'fixed_attributes', {}).get("mg")]
