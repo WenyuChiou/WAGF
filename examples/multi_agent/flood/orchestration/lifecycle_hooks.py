@@ -3,6 +3,7 @@ import logging
 
 from cognitive_governance.agents import BaseAgent
 from broker import MemoryEngine
+from broker.interfaces.skill_types import SkillOutcome
 from examples.multi_agent.flood.environment.hazard import HazardModule, VulnerabilityModule, YearMapping
 from examples.multi_agent.flood.components.media_channels import MediaHub
 from examples.multi_agent.flood.orchestration.disaster_sim import depth_to_qualitative_description
@@ -153,7 +154,8 @@ class MultiAgentHooks:
 
     def post_step(self, agent, result):
         """Update global vars if institutional agent acted."""
-        if result.outcome.name != "SUCCESS":
+        # Check for approved outcomes (APPROVED or RETRY_SUCCESS)
+        if result.outcome not in (SkillOutcome.APPROVED, SkillOutcome.RETRY_SUCCESS):
             return
 
         decision = result.skill_proposal.skill_name
