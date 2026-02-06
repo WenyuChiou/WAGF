@@ -30,6 +30,8 @@ from broker.validators.calibration.micro_validator import (
     CACRResult,
     EGSResult,
     TCSResult,
+    RHResult,
+    EBEResult,
     MicroReport,
 )
 from broker.validators.calibration.distribution_matcher import (
@@ -84,6 +86,8 @@ __all__ = [
     "CACRResult",
     "EGSResult",
     "TCSResult",
+    "RHResult",
+    "EBEResult",
     "MicroReport",
     # Level 2 — MACRO
     "DistributionMatcher",

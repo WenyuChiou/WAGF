@@ -28,6 +28,8 @@ Part of SAGE C&V Framework (feature/calibration-validation).
 
 from __future__ import annotations
 
+import math
+from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence
 
@@ -103,6 +105,47 @@ class TCSResult:
 
 
 @dataclass
+class RHResult:
+    """Hallucination Rate result for a single observation.
+
+    A hallucination is a physically impossible action given the agent's state,
+    e.g., elevating when already elevated, or a renter trying to elevate.
+
+    Attributes:
+        agent_id: Agent identifier.
+        year: Simulation year.
+        is_hallucination: Whether this observation contains a hallucination.
+        action: The action taken.
+        reason: Why it was classified as a hallucination (if any).
+    """
+    agent_id: str
+    year: int
+    is_hallucination: bool
+    action: str
+    reason: str = ""
+
+
+@dataclass
+class EBEResult:
+    """Experience-Belief Entropy result for action distribution.
+
+    Measures behavioral diversity: Shannon entropy of the action distribution.
+    Higher entropy indicates more diverse decision-making (not collapsed to
+    a single action).
+
+    Attributes:
+        entropy: Shannon entropy in bits.
+        normalized_entropy: Entropy / log2(n_actions), range [0, 1].
+        n_actions: Number of distinct actions in the distribution.
+        action_counts: Count of each action.
+    """
+    entropy: float
+    normalized_entropy: float
+    n_actions: int
+    action_counts: Dict[str, int] = field(default_factory=dict)
+
+
+@dataclass
 class BRCResult:
     """Behavioral Reference Concordance result.
 
@@ -142,9 +185,12 @@ class MicroReport:
         egs: Overall EGS (mean evidence grounding score).
         egs_by_year: Per-year EGS values.
         tcs: Overall TCS (fraction of agents with no impossible transitions).
+        r_h: Hallucination rate (fraction of physically impossible actions).
+        ebe: Experience-Belief Entropy result.
         n_observations: Total agent-year observations evaluated.
         cacr_results: Per-observation CACR details.
         egs_results: Per-observation EGS details.
+        rh_results: Per-observation hallucination details.
     """
     cacr: float
     cacr_by_year: Dict[int, float] = field(default_factory=dict)
@@ -153,9 +199,12 @@ class MicroReport:
     egs: float = 0.0
     egs_by_year: Dict[int, float] = field(default_factory=dict)
     tcs: float = 0.0
+    r_h: float = 0.0
+    ebe: Optional[EBEResult] = None
     n_observations: int = 0
     cacr_results: List[CACRResult] = field(default_factory=list)
     egs_results: List[EGSResult] = field(default_factory=list)
+    rh_results: List[RHResult] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         """Serialize to dictionary for reporting."""
@@ -166,10 +215,18 @@ class MicroReport:
             "egs": self.egs,
             "egs_by_year": self.egs_by_year,
             "tcs": self.tcs,
+            "r_h": self.r_h,
             "n_observations": self.n_observations,
         }
         if self.brc:
             d["brc"] = self.brc.to_dict()
+        if self.ebe:
+            d["ebe"] = {
+                "entropy": self.ebe.entropy,
+                "normalized_entropy": self.ebe.normalized_entropy,
+                "n_actions": self.ebe.n_actions,
+                "action_counts": self.ebe.action_counts,
+            }
         return d
 
 
@@ -344,6 +401,22 @@ class MicroValidator:
             appraisals["CP_LABEL"] = str(row.get("ca_level", "M"))
 
         return appraisals
+
+    def _is_renter_type(self, agent_type: str) -> bool:
+        """Check if agent type indicates a renter (not owner).
+
+        Uses explicit matching to avoid false positives like "non_renter".
+        """
+        renter_patterns = [
+            "renter",
+            "household_renter",
+            "tenant",
+        ]
+        # Exact match or pattern match at end (e.g., "mg_renter", "household_renter")
+        for pattern in renter_patterns:
+            if agent_type == pattern or agent_type.endswith(f"_{pattern}"):
+                return True
+        return False
 
     # ------------------------------------------------------------------
     # BRC: Behavioral Reference Concordance
@@ -571,8 +644,10 @@ class MicroValidator:
         context_cols: Optional[List[str]] = None,
         start_year: int = 1,
         agent_type_col: Optional[str] = None,
+        include_r_h: bool = True,
+        include_ebe: bool = True,
     ) -> MicroReport:
-        """Compute full Level-1 micro validation report (CACR + EGS).
+        """Compute full Level-1 micro validation report (CACR + EGS + R_H + EBE).
 
         Parameters
         ----------
@@ -586,11 +661,15 @@ class MicroValidator:
             First year to include.
         agent_type_col : str, optional
             Column for MA agent-type decomposition.
+        include_r_h : bool
+            Whether to compute hallucination rate.
+        include_ebe : bool
+            Whether to compute action entropy.
 
         Returns
         -------
         MicroReport
-            Complete Level-1 report with CACR and EGS.
+            Complete Level-1 report with CACR, EGS, R_H, and EBE.
         """
         report = self.compute_cacr(
             df, start_year=start_year, agent_type_col=agent_type_col
@@ -608,4 +687,181 @@ class MicroValidator:
             report.egs_by_year = egs_summary["egs_by_year"]
             report.egs_results = egs_results
 
+        # Compute R_H (Hallucination Rate)
+        if include_r_h:
+            r_h, rh_results = self.compute_r_h(
+                df,
+                agent_type_col=agent_type_col or "agent_type",
+                start_year=start_year,
+            )
+            report.r_h = r_h
+            report.rh_results = rh_results
+
+        # Compute EBE (Action Entropy)
+        if include_ebe:
+            ebe_result = self.compute_ebe(df, start_year=start_year)
+            report.ebe = ebe_result
+
         return report
+
+    # ------------------------------------------------------------------
+    # R_H: Hallucination Rate
+    # ------------------------------------------------------------------
+
+    def compute_r_h(
+        self,
+        df: pd.DataFrame,
+        decision_col: Optional[str] = None,
+        state_col: str = "state_before",
+        agent_type_col: str = "agent_type",
+        start_year: int = 1,
+    ) -> tuple[float, List[RHResult]]:
+        """Compute Hallucination Rate (R_H).
+
+        A hallucination is a physically impossible action given the agent's
+        current state. Examples:
+        - Elevating when already elevated
+        - Renter trying to elevate (only owners can elevate)
+        - Agent that was bought out making non-trivial decisions
+
+        Parameters
+        ----------
+        df : DataFrame
+            Simulation log with agent decisions and state.
+        decision_col : str, optional
+            Column with the decision. Defaults to self._decision_col.
+        state_col : str
+            Column with state dictionary (or separate columns like
+            'elevated', 'bought_out').
+        agent_type_col : str
+            Column identifying agent type (for renter check).
+        start_year : int
+            First year to include.
+
+        Returns
+        -------
+        tuple[float, list[RHResult]]
+            (r_h rate, per-observation results).
+        """
+        df = df[df["year"] >= start_year].copy()
+        decision_col = decision_col or self._decision_col
+
+        results: List[RHResult] = []
+
+        for _, row in df.iterrows():
+            action = str(row.get(decision_col, "")).strip().lower()
+            agent_id = str(row.get("agent_id", ""))
+            year = int(row.get("year", 0))
+            agent_type = str(row.get(agent_type_col, "")).strip().lower()
+
+            # Extract state - could be a dict column or separate columns
+            state = row.get(state_col, {})
+            if not isinstance(state, dict):
+                # Try to build state from individual columns
+                # Use pd.notna to handle NaN properly
+                elevated_val = row.get("elevated", False)
+                bought_out_val = row.get("bought_out", row.get("relocated", False))
+                state = {
+                    "elevated": bool(elevated_val) if pd.notna(elevated_val) else False,
+                    "bought_out": bool(bought_out_val) if pd.notna(bought_out_val) else False,
+                }
+
+            is_hallucination = False
+            reason = ""
+
+            # Check: Already elevated and trying to elevate again
+            if action == "elevate" and state.get("elevated", False):
+                is_hallucination = True
+                reason = "Already elevated, cannot elevate again"
+
+            # Check: Already bought out but still making non-trivial decisions
+            elif state.get("bought_out", False) and action and action != "do_nothing":
+                is_hallucination = True
+                reason = "Already bought out, cannot take further actions"
+
+            # Check: Renter trying to elevate (structural action)
+            # Use explicit matching for common renter type patterns
+            elif self._is_renter_type(agent_type) and action == "elevate":
+                is_hallucination = True
+                reason = "Renter cannot elevate (structural action for owners only)"
+
+            results.append(RHResult(
+                agent_id=agent_id,
+                year=year,
+                is_hallucination=is_hallucination,
+                action=action,
+                reason=reason,
+            ))
+
+        n_hallucinations = sum(1 for r in results if r.is_hallucination)
+        r_h = n_hallucinations / len(results) if results else 0.0
+
+        return r_h, results
+
+    # ------------------------------------------------------------------
+    # EBE: Experience-Belief Entropy
+    # ------------------------------------------------------------------
+
+    def compute_ebe(
+        self,
+        df: pd.DataFrame,
+        decision_col: Optional[str] = None,
+        start_year: int = 1,
+        n_possible_actions: int = 5,
+    ) -> EBEResult:
+        """Compute Experience-Belief Entropy (EBE).
+
+        EBE measures the diversity of agent decisions using Shannon entropy.
+        Higher entropy indicates more diverse decision-making, while low
+        entropy (approaching 0) indicates collapsed/deterministic behavior.
+
+        Parameters
+        ----------
+        df : DataFrame
+            Simulation log with agent decisions.
+        decision_col : str, optional
+            Column with the decision. Defaults to self._decision_col.
+        start_year : int
+            First year to include.
+        n_possible_actions : int
+            Total number of possible actions (for normalized entropy).
+            Default: 5 (do_nothing, buy_insurance, elevate, relocate, buyout).
+
+        Returns
+        -------
+        EBEResult
+            With entropy, normalized_entropy, n_actions, and action_counts.
+        """
+        df = df[df["year"] >= start_year].copy()
+        decision_col = decision_col or self._decision_col
+
+        # Count actions
+        actions = df[decision_col].str.strip().str.lower()
+        action_counts = Counter(actions)
+
+        # Compute Shannon entropy
+        total = sum(action_counts.values())
+        if total == 0:
+            return EBEResult(
+                entropy=0.0,
+                normalized_entropy=0.0,
+                n_actions=0,
+                action_counts={},
+            )
+
+        entropy = 0.0
+        for count in action_counts.values():
+            if count > 0:
+                p = count / total
+                entropy -= p * math.log2(p)
+
+        # Normalized entropy: H / log2(n_possible_actions)
+        max_entropy = math.log2(n_possible_actions) if n_possible_actions > 1 else 1.0
+        normalized_entropy = entropy / max_entropy if max_entropy > 0 else 0.0
+
+        return EBEResult(
+            entropy=entropy,
+            normalized_entropy=normalized_entropy,
+            n_actions=len(action_counts),
+            action_counts=dict(action_counts),
+        )

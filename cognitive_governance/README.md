@@ -218,9 +218,9 @@ engine = create_memory_engine(
 ## Testing
 
 ```bash
-# SDK tests
+# SDK tests (moved to tests/sdk/)
 python cognitive_governance/demo_sdk_usage.py
-python -m pytest cognitive_governance/tests/ -v
+python -m pytest tests/sdk/ -v
 
 # v5 Memory tests
 python -m pytest tests/test_unified_memory.py -v
