@@ -465,8 +465,19 @@ def compute_l2_metrics(
               f"have traces ({coverage:.1%} coverage). "
               f"Agents without traces are treated as having taken no action (fillna=False).")
 
-    # Extract final states from last year of each agent
-    final_states = _extract_final_states(traces)
+    # Extract final states using decision-based inference (not state_after,
+    # which is never updated because flood sim has no execute_skill())
+    final_states = _extract_final_states_from_decisions(traces)
+
+    # Diagnostic: decision-based inference summary
+    if final_states:
+        n_insured = sum(1 for s in final_states.values() if s.get("has_insurance"))
+        n_elevated = sum(1 for s in final_states.values() if s.get("elevated"))
+        n_buyout = sum(1 for s in final_states.values() if s.get("bought_out"))
+        n_relocated = sum(1 for s in final_states.values() if s.get("relocated"))
+        print(f"  Decision-based inference: {len(final_states)} agents")
+        print(f"    Insured: {n_insured}, Elevated: {n_elevated}, "
+              f"Bought out: {n_buyout}, Relocated: {n_relocated}")
 
     # Merge with agent profiles
     df = agent_profiles.copy()
@@ -529,6 +540,65 @@ def _extract_final_states(traces: List[Dict]) -> Dict[str, Dict]:
             state = trace.get("state_after", {})
             state["_year"] = year
             final_states[agent_id] = state
+
+    return final_states
+
+
+def _extract_final_states_from_decisions(traces: List[Dict]) -> Dict[str, Dict]:
+    """
+    Infer final state from cumulative decision traces.
+
+    The simulation engine does not populate state_after with decision outcomes
+    (execution_result.state_changes is empty because no FloodSimulationEngine
+    exists). Instead, we infer the final state from the sequence of decisions:
+
+    - Insurance: True if agent EVER chose buy_insurance/buy_contents_insurance
+      (insurance is persistent in this model — lifecycle hook only sets True)
+    - Elevated: True if agent EVER chose elevate/elevate_house
+      (irreversible structural modification)
+    - Bought out: True if agent EVER chose buyout/buyout_program (irreversible)
+    - Relocated: True if agent EVER chose relocate (irreversible)
+
+    Non-decision fields (cumulative_damage, flood_zone, etc.) are still
+    read from state_after of the latest trace as fallback.
+    """
+    agent_decisions: Dict[str, Dict] = {}
+
+    for trace in traces:
+        agent_id = trace.get("agent_id", "")
+        if not agent_id:
+            continue
+        year = trace.get("year", 0)
+        action = _normalize_action(_extract_action(trace))
+
+        if agent_id not in agent_decisions:
+            agent_decisions[agent_id] = {
+                "actions": set(),
+                "max_year": year,
+                "last_state": dict(trace.get("state_after", {})),
+            }
+
+        agent_decisions[agent_id]["actions"].add(action)
+        # Use strict > to ensure deterministic behavior on year ties
+        if year > agent_decisions[agent_id]["max_year"]:
+            agent_decisions[agent_id]["max_year"] = year
+            # Shallow copy is safe: state_after contains only primitive values
+            agent_decisions[agent_id]["last_state"] = dict(trace.get("state_after", {}))
+
+    # Build final states with decision-based overrides
+    final_states: Dict[str, Dict] = {}
+    for agent_id, info in agent_decisions.items():
+        actions = info["actions"]
+        state = dict(info["last_state"])  # fallback for non-decision fields
+
+        # Override decision-derived fields
+        state["has_insurance"] = "buy_insurance" in actions
+        state["elevated"] = "elevate" in actions
+        state["bought_out"] = "buyout" in actions
+        state["relocated"] = "relocate" in actions
+        state["_year"] = info["max_year"]
+
+        final_states[agent_id] = state
 
     return final_states
 
@@ -622,19 +692,36 @@ def _compute_benchmark(name: str, df: pd.DataFrame, traces: List[Dict]) -> Optio
             return 1.0 - renters_flood[ins_col].fillna(False).astype(float).mean()
 
         elif name == "insurance_lapse_rate":
-            # Annual lapse rate (insured → uninsured transitions)
-            # Computed from traces directly (not merged DataFrame), no fillna needed
+            # Decision-based lapse detection.
+            # Group traces by agent, sort by year, track insurance status
+            # from decisions (not state_after, which is never updated).
+            agent_traces: Dict[str, list] = {}
+            for trace in traces:
+                aid = trace.get("agent_id", "")
+                if not aid:
+                    continue
+                yr = trace.get("year", 0)
+                action = _normalize_action(_extract_action(trace))
+                agent_traces.setdefault(aid, []).append((yr, action))
+
             lapses = 0
             insured_periods = 0
-            for trace in traces:
-                state_before = trace.get("state_before", {})
-                state_after = trace.get("state_after", {})
-                # Use has_insurance field from state
-                if state_before.get("has_insurance", False):
-                    insured_periods += 1
-                    # Only count lapse if explicitly False (missing = unknown, skip)
-                    if state_after.get("has_insurance") is False:
-                        lapses += 1
+            for aid, yearly in agent_traces.items():
+                yearly.sort(key=lambda x: x[0])
+                was_insured = False
+                for yr, action in yearly:
+                    if was_insured:
+                        insured_periods += 1
+                        if action != "buy_insurance":
+                            lapses += 1
+                    if action == "buy_insurance":
+                        was_insured = True
+
+            # Note: This model has no explicit insurance lapse mechanism
+            # (lifecycle hook only sets True, never False). A "lapse" here
+            # means the agent chose a different action after previously
+            # buying insurance — it's a measure of attention shift, not
+            # policy cancellation. Document as model limitation in paper.
             return lapses / insured_periods if insured_periods > 0 else None
 
         return None
