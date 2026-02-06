@@ -479,7 +479,7 @@ personas:
     magnitude_min: 5           # Phase 1: Reduced from 10 to allow finer control
     magnitude_max: 20          # Phase 1: Reduced from 30 to cap extremes (was causing 19.7% YoY events)
     magnitude_sigma: 3.5       # Phase 1: Reduced from 5.0 to tighten distribution
-    exploration_rate: 0.001    # Phase 1: Reduced from 0.01 (1%) to 0.001 (0.1%) - 10x lower noise
+    exploration_rate: 0.02     # Stage 3 v2: 0.001→0.02 (2%) — Stage 3 had 0% exploration across 42yr
     description: >
       You are an assertive, action-oriented farmer who responds quickly
       and decisively to water supply signals. You typically adjust your
@@ -503,7 +503,7 @@ personas:
     magnitude_min: 3           # Phase 1: Reduced from 5 to allow finer adjustments
     magnitude_max: 15          # Phase 1: Reduced from 20 to cap moderate changes
     magnitude_sigma: 3.0       # Phase 1: Reduced from 4.0 to tighten distribution
-    exploration_rate: 0.001    # Phase 1: Reduced from 0.01 (1%) to 0.001 (0.1%)
+    exploration_rate: 0.02     # Stage 3 v2: 0.001→0.02 (2%) — match aggressive for behavioral diversity
     description: >
       You are a cautious but forward-thinking farmer. You typically adjust
       your water demand by **3-15%** (relative to current water use),
@@ -526,7 +526,7 @@ personas:
     magnitude_min: 1           # Phase 1: Keep at 1 (preserve lower bound)
     magnitude_max: 8           # Phase 1: Reduced from 10 to cap conservative extremes
     magnitude_sigma: 2.0       # Phase 1: Reduced from 2.5 to tighten distribution
-    exploration_rate: 0.0005   # Phase 1: Reduced from 0.005 (0.5%) to 0.0005 (0.05%) - 10x lower
+    exploration_rate: 0.02     # Stage 3 v2: 0.0005→0.02 (2%) — break behavioral archetype lock-in
     description: >
       You are a tradition-oriented farmer who relies heavily on past
       experience and established practices. You typically adjust your

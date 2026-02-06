@@ -273,21 +273,21 @@ class IrrigationEnvironment:
                 "magnitude_sigma": 3.5,        # Phase 1: 5.0 → 3.5 (-30%)
                 "magnitude_min": 5.0,          # Phase 1: 10.0 → 5.0 (wider range bottom)
                 "magnitude_max": 20.0,         # Phase 1: 30.0 → 20.0 (cap extremes)
-                "exploration_rate": 0.001,     # Phase 1: 0.01 → 0.001 (-90%)
+                "exploration_rate": 0.02,      # Stage 3 v2: 0.001 → 0.02 (2%)
             },
             "forward_looking_conservative": {
                 "magnitude_default": 7.5,      # Phase 1: 12.5 → 7.5 (-40%)
                 "magnitude_sigma": 3.0,        # Phase 1: 4.0 → 3.0 (-25%)
                 "magnitude_min": 3.0,          # Phase 1: 5.0 → 3.0
                 "magnitude_max": 15.0,         # Phase 1: 20.0 → 15.0
-                "exploration_rate": 0.001,     # Phase 1: 0.01 → 0.001 (-90%)
+                "exploration_rate": 0.02,      # Stage 3 v2: 0.001 → 0.02 (2%)
             },
             "myopic_conservative": {
                 "magnitude_default": 4.0,      # Phase 1: 5.5 → 4.0 (-27%)
                 "magnitude_sigma": 2.0,        # Phase 1: 2.5 → 2.0 (-20%)
                 "magnitude_min": 1.0,          # Unchanged
                 "magnitude_max": 8.0,          # Phase 1: 10.0 → 8.0
-                "exploration_rate": 0.0005,    # Phase 1: 0.005 → 0.0005 (-90%)
+                "exploration_rate": 0.02,      # Stage 3 v2: 0.0005 → 0.02 (2%)
             },
         }
 
