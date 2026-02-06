@@ -122,6 +122,32 @@ def curtailment_awareness_check(
         return []
 
     shortage_tier = context.get("shortage_tier", 0)
+    # year is 1-indexed from pre_year hook; default 99 skips grace period safely
+    year = context.get("year") or 99
+
+    # Cold-start grace period: Y1-3 Tier 2 → warning only (not hard block)
+    # Stage 3 analysis showed 44% rejection in Y1-3 permanently locked agents
+    # into conservative behavior via memory consolidation.
+    if year <= 3 and shortage_tier == 2:
+        return [
+            ValidationResult(
+                valid=True,
+                validator_name="IrrigationCurtailmentValidator",
+                errors=[],
+                warnings=[
+                    f"Cold-start grace period (Year {year}): Tier 2 shortage "
+                    f"({curtailment:.0%} curtailment) converted to warning. "
+                    f"Consider conservation voluntarily."
+                ],
+                metadata={
+                    "rule_id": "curtailment_awareness",
+                    "category": "physical",
+                    "blocked_skill": skill_name,
+                    "level": "WARNING",
+                    "cold_start_grace": True,
+                },
+            )
+        ]
 
     # P4: Tier 2+ → hard block (DCP mandatory conservation)
     if shortage_tier >= 2:
