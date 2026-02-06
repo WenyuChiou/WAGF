@@ -127,3 +127,10 @@ hooks/
 .tasks/
 # MCP Configuration (local)
 .mcp.json
+
+# Role Enforcement Framework (local tooling)
+roles/
+current_role.txt
+
+# Archived diagnostic scripts
+_archive/
