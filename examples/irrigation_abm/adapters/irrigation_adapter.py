@@ -32,8 +32,6 @@ class IrrigationAdapter:
         "first_shortage": 0.92,       # First water shortage — formative event
         "repeated_shortage": 0.78,    # Subsequent shortages — habituated
         "drought_year": 0.95,         # Severe drought (supply < 60%)
-        "post_efficiency": 0.82,      # After adopting efficiency measures
-        "post_reduction": 0.80,       # After reducing acreage
         "stable_year": 0.55,          # No stress, adequate water
         "at_cap": 0.70,               # At water_right cap, limited options
         "policy_change": 0.88,        # External policy/allocation change
@@ -78,12 +76,6 @@ class IrrigationAdapter:
             else:
                 importance = self.importance_profiles["repeated_shortage"]  # 0.78
 
-        # ---- Decision-based adjustment ----
-        if decision in ("adopt_efficiency", "reduce_acreage"):
-            importance = max(
-                importance, self.importance_profiles["post_efficiency"]
-            )
-
         # ---- Cap awareness ----
         if water_right >= 0.95:
             importance = max(importance, self.importance_profiles["at_cap"])
@@ -104,8 +96,6 @@ class IrrigationAdapter:
 
         if supply < 0.60:
             return "critical"
-        if decision in ("adopt_efficiency", "reduce_acreage"):
-            return "major"
         if decision == "increase_demand" and context.get("water_right_pct", 0) >= 0.9:
             return "major"  # risky increase near cap
         if decision == "maintain_demand" and supply >= 1.0:

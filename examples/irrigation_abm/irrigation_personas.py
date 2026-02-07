@@ -198,15 +198,27 @@ def build_water_situation_text(
 
     lines = [f"It is now the year {year}. You farm in the {basin_display}."]
 
-    # Drought signal
+    # Drought signal — balanced framing (positive when low, negative when high)
     if drought < 0.2:
-        lines.append("Water conditions are normal this year — no drought concerns.")
+        lines.append(
+            "Water supply conditions are favorable this year. "
+            "Precipitation is near or above normal and reservoir levels are healthy."
+        )
     elif drought < 0.5:
-        lines.append("Mild drought conditions exist — water availability is slightly below normal.")
+        lines.append(
+            "Water supply is adequate but slightly below normal. "
+            "Mild dryness has marginally reduced availability."
+        )
     elif drought < 0.8:
-        lines.append("Moderate drought conditions prevail — water supply is significantly reduced.")
+        lines.append(
+            "Water supply is tight this year. "
+            "Below-normal precipitation has significantly reduced available water."
+        )
     else:
-        lines.append("Severe drought conditions — water supply is critically low.")
+        lines.append(
+            "Water supply is critically short. "
+            "Severe drought has sharply reduced available water."
+        )
 
     # Basin-specific signal
     if basin == "upper_basin":

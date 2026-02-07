@@ -37,7 +37,6 @@ global_config:
       decision_types:
         - increase_demand
         - decrease_demand
-        - adopt_efficiency
       institutional_threshold: 0.05   # Policy change > 5%
     method: hybrid
 
@@ -76,14 +75,18 @@ shared:
     delimiter_start: "<<<DECISION_START>>>"
     delimiter_end: "<<<DECISION_END>>>"
     fields:
-      # Chain-of-Thought: Reasoning FIRST, then decision
+      # Chain-of-Thought: Reasoning FIRST, then appraisals, then decision
+      # NOTE: Keep to 4 fields only (matching flood ABM pattern).
+      # gemma3:4b collapses nested {"label","reason"} when >4 fields.
+      # magnitude_pct removed: execution uses Gaussian sampling (v12+).
+      # secondary_decision removed: multi_skill disabled.
       - { key: "reasoning", type: "text", required: true, description: "Explain your thought process in 2-3 sentences BEFORE making a decision." }
       - {
           key: "water_scarcity_assessment",
           type: "appraisal",
           required: true,
           construct: "WSA_LABEL",
-          reason_hint: "One sentence on how scarce your water supply feels.",
+          reason_hint: "One sentence on whether your water supply feels abundant, adequate, or tight.",
         }
       - {
           key: "adaptive_capacity_assessment",
@@ -94,9 +97,6 @@ shared:
         }
       # Decision comes AFTER reasoning and appraisals
       - { key: "decision", type: "choice", required: true }
-      - { key: "magnitude_pct", type: "numeric", min: 1, max: 30, unit: "%", required: false }
-      - { key: "secondary_decision", type: "secondary_choice", required: false }
-      - { key: "secondary_magnitude_pct", type: "numeric", min: 1, max: 30, unit: "%", required: false }
 
 # =============================================================================
 # IRRIGATION FARMER AGENT TYPE
@@ -173,9 +173,7 @@ irrigation_farmer:
     skill_map:
       "1": "increase_demand"
       "2": "decrease_demand"
-      "3": "adopt_efficiency"
-      "4": "reduce_acreage"
-      "5": "maintain_demand"
+      "3": "maintain_demand"
 
     constructs:
       WSA_LABEL:
@@ -298,40 +296,6 @@ irrigation_farmer:
         Lower crop yield potential but reduces curtailment risk and
         demonstrates cooperative basin management.)
 
-    - id: adopt_efficiency
-      aliases:
-        [
-          "AE",
-          "efficiency",
-          "adopt_efficiency",
-          "improve efficiency",
-          "drip irrigation",
-          "[AE]",
-          "[efficiency]",
-          "[adopt_efficiency]",
-        ]
-      description: >
-        Adopt water-efficient irrigation technology (Invest in drip
-        irrigation, soil moisture sensors, or precision scheduling.
-        High upfront cost but reduces long-term water needs by 15-25%.)
-
-    - id: reduce_acreage
-      aliases:
-        [
-          "RA",
-          "reduce",
-          "reduce_acreage",
-          "fallow land",
-          "reduce irrigated area",
-          "[RA]",
-          "[reduce]",
-          "[reduce_acreage]",
-        ]
-      description: >
-        Reduce irrigated acreage (Fallow some farmland to lower total
-        water requirement. Decreases revenue but guarantees meeting
-        reduced allocation with existing supply.)
-
     - id: maintain_demand
       aliases:
         [
@@ -377,16 +341,7 @@ irrigation_farmer:
             level: WARNING,
             message: "Water threat is Very High — maintaining current demand is suboptimal. Consider adapting.",
           }
-        # R2: Low coping → cannot adopt expensive measures
-        - {
-            id: low_coping_block_expensive,
-            construct: ACA_LABEL,
-            conditions: [{ construct: ACA_LABEL, values: ["VL"] }],
-            blocked_skills: ["adopt_efficiency"],
-            level: ERROR,
-            message: "Adoption of new technology blocked: Very Low perceived implementation capacity.",
-          }
-        # R3: Very low threat → cannot justify demand increase
+        # R2: Very low threat → cannot justify demand increase
         # NOTE: Changed from ["VL", "L"] to ["VL"] only to allow moderate increase
         # when WSA=L (farmers naturally expand when water is available)
         - {
@@ -406,7 +361,7 @@ irrigation_farmer:
               ],
             blocked_skills: ["increase_demand"],
             level: ERROR,
-            message: "Demand increase BLOCKED: Water scarcity is high and you have high adaptive capacity. You CAN adapt — choose decrease_demand (option 2), adopt_efficiency (option 3), or reduce_acreage (option 4) instead of increasing demand.",
+            message: "Demand increase BLOCKED: Water scarcity is high and you have high adaptive capacity. Valid alternatives: maintain_demand, decrease_demand.",
           }
 
       identity_rules:
@@ -418,19 +373,11 @@ irrigation_farmer:
             level: ERROR,
             message: "Cannot increase demand — already at maximum water right allocation.",
           }
-        # Physical constraint: already adopted efficiency
-        - {
-            id: already_efficient,
-            precondition: has_efficient_system,
-            blocked_skills: ["adopt_efficiency"],
-            level: ERROR,
-            message: "Already using water-efficient irrigation system.",
-          }
         # Economic hallucination guard: prevent demand reduction below 10% utilisation
         - {
             id: minimum_utilisation_floor,
             precondition: below_minimum_utilisation,
-            blocked_skills: ["decrease_demand", "reduce_acreage"],
+            blocked_skills: ["decrease_demand"],
             level: ERROR,
             message: "Cannot further reduce demand — already at minimum utilisation floor (10% of water right).",
           }
@@ -546,4 +493,4 @@ personas:
       actual_range: "1-8% (Phase 1 calibration)"
 
 
-metadata: { version: "v14-pilot-governance-upgrade" }
+metadata: { version: "v16-3skill-reduced" }

@@ -67,8 +67,7 @@ import examples.irrigation_abm.validators.irrigation_validators as irr_validator
 # Constants
 # ---------------------------------------------------------------------------
 IRRIGATION_SKILLS = [
-    "increase_demand", "decrease_demand", "adopt_efficiency",
-    "reduce_acreage", "maintain_demand",
+    "increase_demand", "decrease_demand", "maintain_demand",
 ]
 
 
@@ -465,13 +464,10 @@ def main():
     irr_validators.ENABLE_CONSECUTIVE_CAP = False
     irr_validators.ENABLE_ZERO_ESCAPE = False
 
-    if pilot_phase and pilot_phase in ("B", "C", "D"):
-        agent_config_path = config_dir / "agent_types_pilot.yaml"
-        print(f"[Pilot] Phase {pilot_phase}: using pilot config (BLOCK + retry)")
-    else:
-        agent_config_path = config_dir / "agent_types.yaml"
-        if pilot_phase == "A":
-            print("[Pilot] Phase A: baseline config (WARNING only)")
+    # Always use main config (pilot config merged into agent_types.yaml)
+    agent_config_path = config_dir / "agent_types.yaml"
+    if pilot_phase:
+        print(f"[Pilot] Phase {pilot_phase}: using main config (governance levels set in agent_types.yaml)")
 
     # Enable Phase C/D validators via module-level flags
     if pilot_phase in ("C", "D"):

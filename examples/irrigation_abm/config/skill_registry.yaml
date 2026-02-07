@@ -21,9 +21,9 @@ skills:
       type: object
       required: [decision]
       properties:
-        decision: { type: integer, enum: [1, 2, 3, 4, 5] }
+        decision: { type: integer, enum: [1, 2, 3] }
         magnitude_pct: { type: number, minimum: 1, maximum: 30 }
-    conflicts_with: [decrease_demand]
+    conflicts_with: []
 
   - skill_id: decrease_demand
     description: "Request less water allocation. Lower crop yield potential but reduces curtailment risk and demonstrates cooperative basin management."
@@ -42,46 +42,9 @@ skills:
       type: object
       required: [decision]
       properties:
-        decision: { type: integer, enum: [1, 2, 3, 4, 5] }
+        decision: { type: integer, enum: [1, 2, 3] }
         magnitude_pct: { type: number, minimum: 1, maximum: 30 }
-    conflicts_with: [increase_demand]
-
-  - skill_id: adopt_efficiency
-    description: "Invest in water-efficient irrigation technology (drip, soil moisture sensors, precision scheduling). Reduces long-term water needs by 15-25%."
-    eligible_agent_types: ["irrigation_farmer"]
-    preconditions:
-      - "not has_efficient_system"
-    institutional_constraints:
-      once_only: true
-      cost_type: "one_time"
-    allowed_state_changes:
-      - has_efficient_system
-      - request
-    implementation_mapping: "env.execute_skill"
-    output_schema:
-      type: object
-      required: [decision]
-      properties:
-        decision: { type: integer, enum: [1, 2, 3, 4, 5] }
-    conflicts_with: [reduce_acreage]
-
-  - skill_id: reduce_acreage
-    description: "Fallow some farmland to lower total water requirement. Decreases revenue but guarantees meeting reduced allocation with existing supply."
-    eligible_agent_types: ["irrigation_farmer"]
-    preconditions: []
-    institutional_constraints:
-      annual: true
-      reduction_factor: 0.75
-    allowed_state_changes:
-      - request
-      - diversion
-    implementation_mapping: "env.execute_skill"
-    output_schema:
-      type: object
-      required: [decision]
-      properties:
-        decision: { type: integer, enum: [1, 2, 3, 4, 5] }
-    conflicts_with: [adopt_efficiency]
+    conflicts_with: []
 
   - skill_id: maintain_demand
     description: "Maintain current water demand level. No change to irrigation practices. Appropriate when water availability is stable and current allocation meets needs."
@@ -94,7 +57,7 @@ skills:
       type: object
       required: [decision]
       properties:
-        decision: { type: integer, enum: [1, 2, 3, 4, 5] }
+        decision: { type: integer, enum: [1, 2, 3] }
     conflicts_with: []
 
 default_skill: maintain_demand

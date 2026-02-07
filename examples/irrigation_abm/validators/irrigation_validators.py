@@ -16,7 +16,7 @@ Architecture note:
     domain. All irrigation governance is routed through ``custom_validators``
     via the ``irrigation_governance_validator`` bridge at the bottom of this
     module. This is by design — the irrigation domain uses numeric-decision
-    output (1-5) validated by output_schema and custom checks, rather than
+    output (1-3) validated by output_schema and custom checks, rather than
     PMT-based construct validation used by the flood domain.
 
 References:
@@ -68,7 +68,7 @@ def water_right_cap_check(
                 "level": "ERROR",
                 "suggestion": (
                     "You are already at your maximum water right. "
-                    "Choose maintain_demand or adopt_efficiency instead."
+                    "Choose maintain_demand or decrease_demand instead."
                 ),
             },
         )
@@ -207,8 +207,7 @@ def curtailment_awareness_check(
                     "level": "ERROR",
                     "suggestion": (
                         f"Tier {shortage_tier} shortage requires conservation. "
-                        "Valid alternatives: maintain_demand, decrease_demand, "
-                        "adopt_efficiency, or reduce_acreage."
+                        "Valid alternatives: maintain_demand, decrease_demand."
                     ),
                 },
             )
@@ -230,43 +229,6 @@ def curtailment_awareness_check(
                 "category": "physical",
                 "blocked_skill": skill_name,
                 "level": "WARNING",
-            },
-        )
-    ]
-
-
-def efficiency_already_adopted_check(
-    skill_name: str,
-    rules: List[GovernanceRule],
-    context: Dict[str, Any],
-) -> List[ValidationResult]:
-    """Block adopt_efficiency if agent already has efficient system."""
-    if skill_name != "adopt_efficiency":
-        return []
-
-    has_system = context.get("has_efficient_system", False)
-    if not has_system:
-        return []
-
-    return [
-        ValidationResult(
-            valid=False,
-            validator_name="IrrigationPhysicalValidator",
-            errors=[
-                "Technology adoption blocked: agent already uses "
-                "water-efficient irrigation system."
-            ],
-            warnings=[],
-            metadata={
-                "rule_id": "already_efficient",
-                "category": "physical",
-                "blocked_skill": skill_name,
-                "hallucination_type": "physical",
-                "level": "ERROR",
-                "suggestion": (
-                    "You already have an efficient system. "
-                    "Choose increase_demand, decrease_demand, maintain_demand, or reduce_acreage instead."
-                ),
             },
         )
     ]
@@ -327,7 +289,7 @@ def drought_severity_check(
         return []
 
     drought_idx = context.get("drought_index", 0)
-    if drought_idx < 0.8:
+    if drought_idx < 0.7:
         return []
 
     return [
@@ -346,7 +308,7 @@ def drought_severity_check(
                 "level": "ERROR",
                 "suggestion": (
                     "Severe drought conditions. "
-                    "Valid alternatives: maintain_demand, decrease_demand, or adopt_efficiency."
+                    "Valid alternatives: maintain_demand, decrease_demand."
                 ),
             },
         )
@@ -367,7 +329,7 @@ def minimum_utilisation_check(
     Checks ``context["below_minimum_utilisation"]`` — set by
     IrrigationEnvironment.update_agent_request() when request < water_right * 0.10.
     """
-    if skill_name not in ("decrease_demand", "reduce_acreage"):
+    if skill_name != "decrease_demand":
         return []
 
     below_min = context.get("below_minimum_utilisation", False)
@@ -500,7 +462,7 @@ def supply_gap_block_increase(
                     "level": "ERROR",
                     "suggestion": (
                         "The system delivered zero water. Requesting more will not help. "
-                        "Valid alternatives: maintain_demand, decrease_demand, or adopt_efficiency."
+                        "Valid alternatives: maintain_demand, decrease_demand."
                     ),
                 },
             )
@@ -527,7 +489,7 @@ def supply_gap_block_increase(
                 "level": "ERROR",
                 "suggestion": (
                     f"Only {fulfilment:.0%} of your request was fulfilled. "
-                    "Valid alternatives: maintain_demand, decrease_demand, or adopt_efficiency."
+                    "Valid alternatives: maintain_demand, decrease_demand."
                 ),
             },
         )
@@ -615,7 +577,7 @@ def consecutive_increase_cap_check(
                 "consecutive_count": count,
                 "suggestion": (
                     f"You have increased demand {count} years in a row (max {MAX_CONSECUTIVE_INCREASES}). "
-                    "Valid alternatives: maintain_demand, decrease_demand, or adopt_efficiency."
+                    "Valid alternatives: maintain_demand, decrease_demand."
                 ),
             },
         )
@@ -641,7 +603,7 @@ def demand_floor_stabilizer(
         60% ← stability floor (blocks decrease, this validator)
        100% ← water right cap (blocks increase)
     """
-    if skill_name not in ("decrease_demand", "reduce_acreage"):
+    if skill_name != "decrease_demand":
         return []
 
     water_right = context.get("water_right", 0)
@@ -672,7 +634,7 @@ def demand_floor_stabilizer(
                 "suggestion": (
                     f"Your utilisation is {utilisation:.0%} (floor is "
                     f"{DEMAND_FLOOR_RATIO:.0%}). Valid alternatives: "
-                    "maintain_demand, increase_demand, or adopt_efficiency."
+                    "maintain_demand, increase_demand."
                 ),
             },
         )
@@ -728,7 +690,7 @@ def zero_escape_check(
                 "utilisation_pct": utilisation * 100,
                 "suggestion": (
                     f"Your water use is only {utilisation:.0%} of your right. "
-                    "Choose increase_demand to seek more water, or adopt_efficiency to improve operations."
+                    "Choose increase_demand to seek more water, or decrease_demand to adapt."
                 ),
             },
         )
@@ -742,7 +704,6 @@ def zero_escape_check(
 IRRIGATION_PHYSICAL_CHECKS = [
     water_right_cap_check,
     non_negative_diversion_check,
-    efficiency_already_adopted_check,
     minimum_utilisation_check,
     demand_floor_stabilizer,
     drought_severity_check,

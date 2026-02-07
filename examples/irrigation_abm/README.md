@@ -98,7 +98,7 @@ This experiment adapts the Fuzzy Q-Learning (FQL) agent decision model from Hung
 
 | Dimension | FQL (Hung & Yang 2021) | LLM-ABM (This Work) |
 |-----------|----------------------|----------------------|
-| **Action space** | 2 continuous actions: increase / decrease diversion | 5 discrete skills (see Available Skills below) |
+| **Action space** | 2 continuous actions: increase / decrease diversion | 3 discrete skills: increase / decrease / maintain demand |
 | **Action magnitude** | Continuous: N(mu, sigma) × bin_size via Q-table | Bounded Gaussian: persona-defined N(default, sigma) at execution time |
 | **Decision mechanism** | Epsilon-greedy Q-value ordering | LLM natural-language reasoning with governance validation |
 | **State representation** | 21-bin discretized utilisation ratio | Natural-language context (water situation, memory, feedback) |
@@ -106,17 +106,15 @@ This experiment adapts the Fuzzy Q-Learning (FQL) agent decision model from Hung
 
 ### Action Space Extension
 
-The original FQL model defines **2 actions** — increase or decrease diversion — with continuous magnitude drawn from N(mu, sigma). The Q-table shape is `(n_preceding=2, n_states=21, n_actions=2)`; expanding the action count would cause convergence-time explosion, making the 2-action space a **Q-table dimensionality constraint**, not a domain-driven design choice. LLM agents face no such constraint, so we extend to **5 discrete skills** that map to real-world irrigation management strategies:
+The original FQL model defines **2 actions** — increase or decrease diversion — with continuous magnitude drawn from N(mu, sigma). The Q-table shape is `(n_preceding=2, n_states=21, n_actions=2)`. The LLM-ABM uses **3 discrete skills** that directly map to these FQL actions plus a natural status-quo extension:
 
-| Skill | Origin | FQL Equivalent | Real-World Analog | Rationale |
-|-------|--------|---------------|-------------------|-----------|
-| `increase_demand` | Original | Action 1 (positive delta) | Expanding irrigated acreage or crop intensity | Direct mapping from FQL increase action |
-| `decrease_demand` | Original | Action 0 (negative delta) | Voluntary conservation or reduced crop intensity | Direct mapping from FQL decrease action |
-| `adopt_efficiency` | **Extended** | — | Drip irrigation, canal lining (IID), precision scheduling (USBR WaterSMART) | Irreversible technology investment; one-time -20% demand. FQL cannot represent structural technology adoption. Literature range: 15-40% |
-| `reduce_acreage` | **Extended** | Partial (extreme decrease) | Agricultural fallowing (PVID-MWD agreement, System Conservation Pilot Program) | Land-use change with fixed 25% reduction (with diminishing taper); distinct from continuous demand adjustment. PVID allows up to 35% |
-| `maintain_demand` | **Extended** | Implicit (zero-magnitude) | Status quo operations under long-term water service contracts | FQL requires nonzero action every period (Q-learning update rule); "maintain" is the most common real irrigator decision. Also serves as REJECTED fallback |
+| Skill | FQL Equivalent | Real-World Analog | Rationale |
+|-------|---------------|-------------------|-----------|
+| `increase_demand` | Action 1 (positive delta) | Expanding irrigated acreage or crop intensity | Direct mapping from FQL increase action |
+| `decrease_demand` | Action 0 (negative delta) | Voluntary conservation or reduced crop intensity | Direct mapping from FQL decrease action |
+| `maintain_demand` | Implicit (zero-magnitude) | Status quo operations under long-term water service contracts | FQL requires nonzero action every period (Q-learning update rule); "maintain" is the most common real irrigator decision. Also serves as REJECTED fallback |
 
-The extension from 2 to 5 skills serves two purposes: (1) it provides the LLM with **semantically distinct** options that map to qualitatively different irrigation management strategies; (2) it enables **governance rules** to differentially constrain action types (e.g., blocking `adopt_efficiency` when already adopted, blocking `reduce_acreage` below the demand floor).
+The 3-skill design matches the FQL 2-action structure (increase/decrease) with the natural extension of a status-quo option, enabling fair comparison between the two approaches. Governance rules differentially constrain action types (e.g., blocking `increase_demand` at allocation cap, blocking `decrease_demand` below demand floor).
 
 ### Magnitude Determination: FQL → LLM → Gaussian
 
@@ -135,8 +133,8 @@ The v12 design decouples **qualitative choice** (which skill — LLM reasoning) 
 Direct performance comparison between LLM-ABM and FQL-ABM requires acknowledging structural asymmetries:
 
 **LLM-ABM advantages:**
-- Richer action space (5 skills vs. 2 actions) with additional adaptation pathways
-- Governance guardrails (12 validators) preventing physically impossible or economically irrational decisions
+- Matching action space (3 skills vs. 2 actions + implicit maintain) with semantic labels
+- Governance guardrails (11 validators) preventing physically impossible or economically irrational decisions
 - Full environmental context in natural language (drought index, shortage tier, Lake Mead level, curtailment ratio); FQL observes only a binary preceding factor
 
 **FQL advantages:**
@@ -148,15 +146,11 @@ Direct performance comparison between LLM-ABM and FQL-ABM requires acknowledging
 
 ## Available Skills
 
-| # | Skill ID | Origin | Description | Magnitude (v12+) | Constraints |
-|---|----------|--------|-------------|-------------------|-------------|
-| 1 | `increase_demand` | Original | Request more water allocation | Gaussian N(default, sigma) per persona | Blocked at allocation cap; blocked during severe drought |
-| 2 | `decrease_demand` | Original | Request less water allocation | Gaussian N(default, sigma) per persona | Blocked at min utilisation (10%); blocked below demand floor (50%) |
-| 3 | `adopt_efficiency` | **Extended** | Invest in drip/precision irrigation | One-time: demand × 0.80 (-20%) | Once-only; blocked if already adopted; blocked if ACA = VL |
-| 4 | `reduce_acreage` | **Extended** | Fallow farmland to lower requirement | Fixed: demand × 0.75 (with taper) | Blocked at min utilisation floor (10%) |
-| 5 | `maintain_demand` | **Extended** | No change to practices | No magnitude change | Default/fallback; blocked when WSA = VH (`zero_escape_check`) |
-
-**Origin key**: *Original* = direct mapping from Hung & Yang (2021) FQL actions. ***Extended*** = new skill added for the LLM-ABM to capture irrigation strategies not representable as continuous magnitude changes.
+| # | Skill ID | Description | Magnitude (v12+) | Constraints |
+|---|----------|-------------|-------------------|-------------|
+| 1 | `increase_demand` | Request more water allocation | Gaussian N(default, sigma) per persona | Blocked at allocation cap; blocked during severe drought (>0.7) |
+| 2 | `decrease_demand` | Request less water allocation | Gaussian N(default, sigma) per persona | Blocked at min utilisation (10%); blocked below demand floor (50%) |
+| 3 | `maintain_demand` | No change to practices | No magnitude change | Default/fallback; blocked when WSA = VH (`zero_escape_check`) |
 
 > **Note on magnitude**: Since v12, the LLM's `magnitude_pct` output is **discarded** for skills 1-2. Actual magnitude is sampled from a persona-defined Bounded Gaussian (see below). The field remains in the response schema as a cognitive scaffold for improved reasoning quality.
 
@@ -229,21 +223,19 @@ When a rule triggers at **ERROR** level, the action is **rejected** and the LLM 
 | Rule ID | Precondition | Blocked Skill | Level | Rationale |
 |---------|-------------|---------------|-------|-----------|
 | `water_right_cap` | `at_allocation_cap` | `increase_demand` | ERROR | Cannot request water beyond legal right allocation |
-| `already_efficient` | `has_efficient_system` | `adopt_efficiency` | ERROR | Cannot adopt technology already in use |
-| `minimum_utilisation_floor` | `below_minimum_utilisation` | `decrease_demand`, `reduce_acreage` | ERROR | Cannot reduce demand below 10% of water right |
+| `minimum_utilisation_floor` | `below_minimum_utilisation` | `decrease_demand` | ERROR | Cannot reduce demand below 10% of water right |
 
 ### Thinking Rules (Behavioral Coherence)
 
 | Rule ID | Construct(s) | Condition | Blocked Skill | Level | Rationale |
 |---------|-------------|-----------|---------------|-------|-----------|
-| `high_threat_no_maintain` | WSA | WSA = VH | `maintain_demand` | ERROR | Very High water scarcity requires adaptive action |
-| `low_coping_block_expensive` | ACA | ACA = VL | `adopt_efficiency` | ERROR | Very Low capacity cannot justify expensive investment |
-| `low_threat_no_increase` | WSA | WSA in {VL, L} | `increase_demand` | ERROR | Low scarcity does not justify requesting more water |
-| `high_threat_high_cope_no_increase` | WSA + ACA | WSA in {H, VH} AND ACA in {H, VH} | `increase_demand` | WARNING | High threat + high capacity should conserve, not consume |
+| `high_threat_no_maintain` | WSA | WSA = VH | `maintain_demand` | WARNING | Very High water scarcity — consider adapting |
+| `low_threat_no_increase` | WSA | WSA in {VL} | `increase_demand` | ERROR | Very low scarcity does not justify requesting more water |
+| `high_threat_high_cope_no_increase` | WSA + ACA | WSA in {H, VH} AND ACA in {H, VH} | `increase_demand` | ERROR | High threat + high capacity should conserve, not consume |
 
 ### Domain Validators
 
-Custom validators in `validators/irrigation_validators.py` provide physical, social, temporal, and behavioral checks. See [Governance Enhancements (v15)](#governance-enhancements-v15) for the complete 12-validator summary.
+Custom validators in `validators/irrigation_validators.py` provide physical, social, temporal, and behavioral checks. See [Governance Enhancements (v16)](#governance-enhancements-v16) for the complete 11-validator summary.
 
 ### Semantic Rules
 
@@ -315,12 +307,12 @@ This enables causal learning — agents can correlate demand change magnitudes w
 
 v4 experiments revealed a novel LLM failure mode: **economic hallucination** — actions that are physically feasible but operationally absurd given quantitative context.
 
-Forward-looking conservative (FLC) agents repeatedly chose `reduce_acreage` (demand *= 0.75) despite their context showing 0% utilisation. Persona anchoring ("cautious farmer") overwhelmed numerical awareness, compounding demand to zero over ~30 years.
+Forward-looking conservative (FLC) agents repeatedly chose `decrease_demand` despite their context showing near-zero utilisation. Persona anchoring ("cautious farmer") overwhelmed numerical awareness, compounding demand to zero over ~30 years.
 
-**Three-layer defense (v6)**:
+**Three-layer defense (v6+)**:
 1. **MIN_UTIL floor (P0)**: `execute_skill` enforces `max(new_request, water_right * 0.10)` across all reduction skills
 2. **Diminishing returns (P1)**: Taper = `(utilisation - 0.10) / 0.90` — reductions shrink smoothly as utilisation approaches 10%
-3. **Governance identity rule**: `minimum_utilisation_floor` precondition blocks `decrease_demand`/`reduce_acreage` when `below_minimum_utilisation == True`
+3. **Governance identity rule**: `minimum_utilisation_floor` precondition blocks `decrease_demand` when `below_minimum_utilisation == True`
 4. **Builtin validator**: `minimum_utilisation_check()` in `irrigation_validators.py` as final safety net
 
 This extends the hallucination taxonomy beyond physical impossibility (flood domain: re-elevating an already-elevated house) to economic/operational absurdity.
@@ -629,7 +621,7 @@ Next year's prompt: "Your allocation is curtailed by X%"
 
 **Key advantage of our approach**: The bidirectional coupling (agent demand ↔ reservoir state) enables studying how governance rules affect collective demand trajectories — something the standard CRSS cannot do because it uses fixed exogenous demand schedules.
 
-## Governance Enhancements (v15)
+## Governance Enhancements (v16)
 
 The governance system has been iteratively calibrated through pilot experiments:
 
@@ -638,8 +630,8 @@ The governance system has been iteratively calibrated through pilot experiments:
 All ERROR-level validators now use **neutral suggestion phrasing** that lists `maintain_demand` first:
 
 ```
-Before: "Choose decrease_demand, adopt_efficiency, or reduce_acreage instead."
-After:  "Valid alternatives: maintain_demand, decrease_demand, adopt_efficiency, or reduce_acreage."
+Before: "Choose decrease_demand or adopt_efficiency instead."
+After:  "Valid alternatives: maintain_demand, decrease_demand."
 ```
 
 **Rationale**: Small LLMs (gemma3:4b) treat governance suggestions as directives. Biased suggestions caused universal decrease adoption (demand collapse to 69% of CRSS target). Neutral phrasing restored demand stability.
@@ -660,22 +652,21 @@ New validator `demand_floor_stabilizer` blocks `decrease_demand` when utilisatio
 
 REJECTED agents now execute `maintain_demand` as fallback (instead of no-op), preserving their request and recalculating diversion with current curtailment.
 
-### Complete Validator Summary (12 validators)
+### Complete Validator Summary (11 validators)
 
 | # | Validator | Blocks | Level | Category |
 |---|-----------|--------|-------|----------|
 | 1 | `water_right_cap_check` | increase (at cap) | ERROR | Physical |
 | 2 | `non_negative_diversion_check` | decrease (diversion=0) | ERROR/WARNING | Physical |
-| 3 | `efficiency_already_adopted_check` | adopt (already has) | ERROR | Physical |
-| 4 | `minimum_utilisation_check` | decrease (<10%) | ERROR | Physical |
-| 5 | `demand_floor_stabilizer` | decrease (<50%) | ERROR | Economic |
-| 6 | `drought_severity_check` | increase (drought>0.8) | ERROR | Physical |
-| 7 | `magnitude_cap_check` | increase (exceeds cap) | WARNING | Physical |
-| 8 | `supply_gap_block_increase` | increase (fulfil<70%) | ERROR | Physical |
-| 9 | `curtailment_awareness_check` | increase (Tier 2+) | ERROR | Social |
-| 10 | `compact_allocation_check` | increase (basin>Compact) | WARNING | Social |
-| 11 | `consecutive_increase_cap_check` | increase (3yr streak) | ERROR | Temporal |
-| 12 | `zero_escape_check` | maintain (<15%) | ERROR | Behavioral |
+| 3 | `minimum_utilisation_check` | decrease (<10%) | ERROR | Physical |
+| 4 | `demand_floor_stabilizer` | decrease (<50%) | ERROR | Economic |
+| 5 | `drought_severity_check` | increase (drought>0.7) | ERROR | Physical |
+| 6 | `magnitude_cap_check` | increase (exceeds cap) | WARNING | Physical |
+| 7 | `supply_gap_block_increase` | increase (fulfil<70%) | ERROR | Physical |
+| 8 | `curtailment_awareness_check` | increase (Tier 2+) | ERROR | Social |
+| 9 | `compact_allocation_check` | increase (basin>Compact) | WARNING | Social |
+| 10 | `consecutive_increase_cap_check` | increase (3yr streak) | ERROR | Temporal |
+| 11 | `zero_escape_check` | maintain (<15%) | ERROR | Behavioral |
 
 ## Colorado River Basin Parameters
 

@@ -13,15 +13,21 @@ from examples.irrigation_abm.validators.irrigation_validators import (
     water_right_cap_check,
     non_negative_diversion_check,
     curtailment_awareness_check,
-    efficiency_already_adopted_check,
     drought_severity_check,
     compact_allocation_check,
     magnitude_cap_check,
     supply_gap_block_increase,
+    minimum_utilisation_check,
+    demand_floor_stabilizer,
+    consecutive_increase_cap_check,
+    zero_escape_check,
+    reset_consecutive_tracker,
+    update_consecutive_tracker,
     irrigation_governance_validator,
     IRRIGATION_PHYSICAL_CHECKS,
     ALL_IRRIGATION_CHECKS,
 )
+import examples.irrigation_abm.validators.irrigation_validators as irr_validators
 
 
 class TestWaterSystemConfig:
@@ -266,16 +272,6 @@ class TestIrrigationValidators:
         results = curtailment_awareness_check("increase_demand", [], self._make_context())
         assert len(results) == 0
 
-    def test_efficiency_blocks_already_adopted(self):
-        ctx = self._make_context(has_efficient_system=True)
-        results = efficiency_already_adopted_check("adopt_efficiency", [], ctx)
-        assert len(results) == 1
-        assert not results[0].valid
-
-    def test_efficiency_allows_new_adoption(self):
-        results = efficiency_already_adopted_check("adopt_efficiency", [], self._make_context())
-        assert len(results) == 0
-
     def test_drought_blocks_increase_at_severe(self):
         ctx = self._make_context(drought_index=0.9)
         results = drought_severity_check("increase_demand", [], ctx)
@@ -359,8 +355,8 @@ class TestIrrigationValidators:
         assert len(results) == 0  # Deferred to P4
 
     def test_aggregated_check_list_length(self):
-        assert len(IRRIGATION_PHYSICAL_CHECKS) == 8  # P3 supply_gap + demand_floor
-        assert len(ALL_IRRIGATION_CHECKS) == 12  # +temporal +behavioral +demand_floor
+        assert len(IRRIGATION_PHYSICAL_CHECKS) == 7  # removed efficiency_already_adopted
+        assert len(ALL_IRRIGATION_CHECKS) == 11  # 7 physical + 2 social + 1 temporal + 1 behavioral
 
     def test_all_checks_callable(self):
         for check in ALL_IRRIGATION_CHECKS:
@@ -501,3 +497,362 @@ class TestIrrigationGovernanceAdapter:
         proposal = SimpleNamespace(skill_name="decrease_demand")
         results = irrigation_governance_validator(proposal, {})
         assert isinstance(results, list)
+
+
+# =====================================================================
+# Stage 1: Demand Floor Stabilizer Tests
+# =====================================================================
+
+class TestDemandFloorStabilizer:
+    """Test the demand_floor_stabilizer validator (50% floor)."""
+
+    def _make_context(self, **overrides):
+        base = {
+            "water_right": 100_000,
+            "current_request": 50_000,
+        }
+        base.update(overrides)
+        return base
+
+    def test_blocks_decrease_below_50pct(self):
+        """Utilisation 45% + decrease → ERROR."""
+        ctx = self._make_context(current_request=45_000)
+        results = demand_floor_stabilizer("decrease_demand", [], ctx)
+        assert len(results) == 1
+        assert not results[0].valid
+        assert results[0].metadata["rule_id"] == "demand_floor_stabilizer"
+
+    def test_allows_decrease_above_50pct(self):
+        """Utilisation 60% + decrease → pass."""
+        ctx = self._make_context(current_request=60_000)
+        results = demand_floor_stabilizer("decrease_demand", [], ctx)
+        assert len(results) == 0
+
+    def test_allows_decrease_at_exactly_50pct(self):
+        """Utilisation exactly 50% → pass (boundary)."""
+        ctx = self._make_context(current_request=50_000)
+        results = demand_floor_stabilizer("decrease_demand", [], ctx)
+        assert len(results) == 0
+
+    def test_ignores_non_decrease(self):
+        """Utilisation 30% + maintain → pass (only checks decrease)."""
+        ctx = self._make_context(current_request=30_000)
+        results = demand_floor_stabilizer("maintain_demand", [], ctx)
+        assert len(results) == 0
+
+    def test_ignores_increase(self):
+        """Utilisation 30% + increase → pass."""
+        ctx = self._make_context(current_request=30_000)
+        results = demand_floor_stabilizer("increase_demand", [], ctx)
+        assert len(results) == 0
+
+
+# =====================================================================
+# Stage 1: Minimum Utilisation Check Tests
+# =====================================================================
+
+class TestMinimumUtilisationCheck:
+    """Test the minimum_utilisation_check validator (10% hard floor)."""
+
+    def _make_context(self, **overrides):
+        base = {
+            "below_minimum_utilisation": False,
+            "water_right": 100_000,
+            "request": 50_000,
+        }
+        base.update(overrides)
+        return base
+
+    def test_blocks_decrease_below_10pct(self):
+        """below_minimum=True + decrease → ERROR."""
+        ctx = self._make_context(below_minimum_utilisation=True, request=8_000)
+        results = minimum_utilisation_check("decrease_demand", [], ctx)
+        assert len(results) == 1
+        assert not results[0].valid
+        assert "economic hallucination" in results[0].errors[0].lower()
+
+    def test_allows_decrease_above_floor(self):
+        """below_minimum=False + decrease → pass."""
+        ctx = self._make_context(below_minimum_utilisation=False)
+        results = minimum_utilisation_check("decrease_demand", [], ctx)
+        assert len(results) == 0
+
+    def test_allows_maintain_below_floor(self):
+        """below_minimum=True + maintain → pass (only checks decrease)."""
+        ctx = self._make_context(below_minimum_utilisation=True, request=8_000)
+        results = minimum_utilisation_check("maintain_demand", [], ctx)
+        assert len(results) == 0
+
+    def test_allows_increase_below_floor(self):
+        """below_minimum=True + increase → pass."""
+        ctx = self._make_context(below_minimum_utilisation=True, request=8_000)
+        results = minimum_utilisation_check("increase_demand", [], ctx)
+        assert len(results) == 0
+
+
+# =====================================================================
+# Stage 1: Consecutive Increase Cap Tests
+# =====================================================================
+
+class TestConsecutiveIncreaseCap:
+    """Test the consecutive_increase_cap_check validator (Phase C)."""
+
+    def _make_context(self, **overrides):
+        base = {
+            "agent_id": "test_agent",
+            "drought_index": 0.5,
+        }
+        base.update(overrides)
+        return base
+
+    def setup_method(self):
+        """Reset state before each test."""
+        reset_consecutive_tracker()
+        # Save original flag
+        self._orig_flag = irr_validators.ENABLE_CONSECUTIVE_CAP
+
+    def teardown_method(self):
+        """Restore flag after each test."""
+        irr_validators.ENABLE_CONSECUTIVE_CAP = self._orig_flag
+        reset_consecutive_tracker()
+
+    def test_blocks_4th_consecutive_increase(self):
+        """3 consecutive increases + drought>=0.3 → 4th blocked."""
+        irr_validators.ENABLE_CONSECUTIVE_CAP = True
+        # Simulate 3 prior increases
+        for _ in range(3):
+            update_consecutive_tracker("test_agent", "increase_demand")
+        ctx = self._make_context(drought_index=0.5)
+        results = consecutive_increase_cap_check("increase_demand", [], ctx)
+        assert len(results) == 1
+        assert not results[0].valid
+        assert results[0].metadata["rule_id"] == "consecutive_increase_cap"
+
+    def test_allows_3rd_increase(self):
+        """Only 2 prior increases → 3rd allowed."""
+        irr_validators.ENABLE_CONSECUTIVE_CAP = True
+        for _ in range(2):
+            update_consecutive_tracker("test_agent", "increase_demand")
+        ctx = self._make_context(drought_index=0.5)
+        results = consecutive_increase_cap_check("increase_demand", [], ctx)
+        assert len(results) == 0
+
+    def test_allows_wet_period_exemption(self):
+        """3+ increases but drought<0.3 → pass (wet period exemption)."""
+        irr_validators.ENABLE_CONSECUTIVE_CAP = True
+        for _ in range(4):
+            update_consecutive_tracker("test_agent", "increase_demand")
+        ctx = self._make_context(drought_index=0.1)
+        results = consecutive_increase_cap_check("increase_demand", [], ctx)
+        assert len(results) == 0
+
+    def test_resets_on_non_increase(self):
+        """Decrease resets counter → next increase allowed."""
+        irr_validators.ENABLE_CONSECUTIVE_CAP = True
+        for _ in range(3):
+            update_consecutive_tracker("test_agent", "increase_demand")
+        # Interrupt with a decrease
+        update_consecutive_tracker("test_agent", "decrease_demand")
+        ctx = self._make_context(drought_index=0.5)
+        results = consecutive_increase_cap_check("increase_demand", [], ctx)
+        assert len(results) == 0  # Counter reset to 0
+
+    def test_disabled_without_flag(self):
+        """ENABLE_CONSECUTIVE_CAP=False → skip entirely."""
+        irr_validators.ENABLE_CONSECUTIVE_CAP = False
+        for _ in range(5):
+            update_consecutive_tracker("test_agent", "increase_demand")
+        ctx = self._make_context(drought_index=0.9)
+        results = consecutive_increase_cap_check("increase_demand", [], ctx)
+        assert len(results) == 0
+
+    def test_ignores_non_increase_skill(self):
+        """decrease_demand → skip (only checks increase)."""
+        irr_validators.ENABLE_CONSECUTIVE_CAP = True
+        for _ in range(5):
+            update_consecutive_tracker("test_agent", "increase_demand")
+        results = consecutive_increase_cap_check("decrease_demand", [], self._make_context())
+        assert len(results) == 0
+
+
+# =====================================================================
+# Stage 1: Zero Escape Check Tests
+# =====================================================================
+
+class TestZeroEscapeCheck:
+    """Test the zero_escape_check validator (Phase D)."""
+
+    def _make_context(self, **overrides):
+        base = {
+            "current_request": 50_000,
+            "water_right": 100_000,
+        }
+        base.update(overrides)
+        return base
+
+    def setup_method(self):
+        self._orig_flag = irr_validators.ENABLE_ZERO_ESCAPE
+
+    def teardown_method(self):
+        irr_validators.ENABLE_ZERO_ESCAPE = self._orig_flag
+
+    def test_blocks_maintain_at_zero_util(self):
+        """Utilisation <15% + maintain → ERROR."""
+        irr_validators.ENABLE_ZERO_ESCAPE = True
+        ctx = self._make_context(current_request=10_000)  # 10% < 15%
+        results = zero_escape_check("maintain_demand", [], ctx)
+        assert len(results) == 1
+        assert not results[0].valid
+        assert results[0].metadata["rule_id"] == "zero_escape_floor"
+
+    def test_allows_maintain_normal_util(self):
+        """Utilisation 50% + maintain → pass."""
+        irr_validators.ENABLE_ZERO_ESCAPE = True
+        ctx = self._make_context(current_request=50_000)
+        results = zero_escape_check("maintain_demand", [], ctx)
+        assert len(results) == 0
+
+    def test_allows_maintain_at_boundary(self):
+        """Utilisation exactly 15% → pass (boundary)."""
+        irr_validators.ENABLE_ZERO_ESCAPE = True
+        ctx = self._make_context(current_request=15_000)
+        results = zero_escape_check("maintain_demand", [], ctx)
+        assert len(results) == 0
+
+    def test_disabled_without_flag(self):
+        """ENABLE_ZERO_ESCAPE=False → skip."""
+        irr_validators.ENABLE_ZERO_ESCAPE = False
+        ctx = self._make_context(current_request=5_000)  # 5% < 15%
+        results = zero_escape_check("maintain_demand", [], ctx)
+        assert len(results) == 0
+
+    def test_ignores_increase(self):
+        """increase_demand → skip."""
+        irr_validators.ENABLE_ZERO_ESCAPE = True
+        ctx = self._make_context(current_request=5_000)
+        results = zero_escape_check("increase_demand", [], ctx)
+        assert len(results) == 0
+
+    def test_ignores_decrease(self):
+        """decrease_demand → skip."""
+        irr_validators.ENABLE_ZERO_ESCAPE = True
+        ctx = self._make_context(current_request=5_000)
+        results = zero_escape_check("decrease_demand", [], ctx)
+        assert len(results) == 0
+
+
+# =====================================================================
+# Stage 1: Cold-Start Grace Period Tests
+# =====================================================================
+
+class TestColdStartGracePeriod:
+    """Test Y1-3 Tier 2 cold-start grace period in curtailment_awareness_check."""
+
+    def _make_context(self, **overrides):
+        base = {
+            "curtailment_ratio": 0.10,
+            "shortage_tier": 2,
+            "loop_year": 1,
+        }
+        base.update(overrides)
+        return base
+
+    def test_tier2_y1_grace_period(self):
+        """Year 1 + Tier 2 + increase → WARNING (grace period)."""
+        ctx = self._make_context(loop_year=1)
+        results = curtailment_awareness_check("increase_demand", [], ctx)
+        assert len(results) == 1
+        assert results[0].valid  # WARNING, not ERROR
+        assert results[0].metadata.get("cold_start_grace") is True
+
+    def test_tier2_y3_grace_period(self):
+        """Year 3 + Tier 2 → still grace period."""
+        ctx = self._make_context(loop_year=3)
+        results = curtailment_awareness_check("increase_demand", [], ctx)
+        assert len(results) == 1
+        assert results[0].valid  # WARNING
+
+    def test_tier2_y4_blocks(self):
+        """Year 4 + Tier 2 → no grace, ERROR."""
+        ctx = self._make_context(loop_year=4)
+        results = curtailment_awareness_check("increase_demand", [], ctx)
+        assert len(results) == 1
+        assert not results[0].valid  # ERROR
+
+    def test_tier3_y1_no_grace(self):
+        """Year 1 + Tier 3 → no grace (Tier 3 never exempted)."""
+        ctx = self._make_context(shortage_tier=3, curtailment_ratio=0.20, loop_year=1)
+        results = curtailment_awareness_check("increase_demand", [], ctx)
+        assert len(results) == 1
+        assert not results[0].valid  # ERROR even in Y1
+
+
+# =====================================================================
+# Stage 1: Validator Interaction (Double-Bind Prevention) Tests
+# =====================================================================
+
+class TestValidatorInteraction:
+    """Test that no validator combination creates all-skills-blocked traps."""
+
+    def _run_all_checks(self, skill_name, context):
+        """Run all 11 validators on a skill and return blocking errors."""
+        results = []
+        for check in ALL_IRRIGATION_CHECKS:
+            results.extend(check(skill_name, [], context))
+        return [r for r in results if not r.valid]
+
+    def test_low_util_decrease_blocked_but_others_open(self):
+        """Utilisation 8% → decrease blocked, but increase+maintain open."""
+        ctx = {
+            "below_minimum_utilisation": True,
+            "water_right": 100_000,
+            "request": 8_000,
+            "current_request": 8_000,
+            "current_diversion": 8_000,
+            "at_allocation_cap": False,
+            "curtailment_ratio": 0.0,
+            "shortage_tier": 0,
+            "drought_index": 0.3,
+        }
+        decrease_errors = self._run_all_checks("decrease_demand", ctx)
+        assert len(decrease_errors) >= 1  # blocked by minimum_utilisation + demand_floor
+
+        increase_errors = self._run_all_checks("increase_demand", ctx)
+        assert len(increase_errors) == 0  # open
+
+        maintain_errors = self._run_all_checks("maintain_demand", ctx)
+        assert len(maintain_errors) == 0  # open
+
+    def test_at_cap_drought_increase_blocked_but_others_open(self):
+        """At cap + severe drought → increase blocked, decrease+maintain open."""
+        ctx = {
+            "at_allocation_cap": True,
+            "water_right": 100_000,
+            "request": 100_000,
+            "current_request": 100_000,
+            "current_diversion": 80_000,
+            "below_minimum_utilisation": False,
+            "curtailment_ratio": 0.0,
+            "shortage_tier": 0,
+            "drought_index": 0.9,
+        }
+        increase_errors = self._run_all_checks("increase_demand", ctx)
+        assert len(increase_errors) >= 1  # blocked by water_right_cap + drought
+
+        decrease_errors = self._run_all_checks("decrease_demand", ctx)
+        assert len(decrease_errors) == 0  # open
+
+        maintain_errors = self._run_all_checks("maintain_demand", ctx)
+        assert len(maintain_errors) == 0  # open
+
+    def test_curtailment_zero_diversion_is_warning_not_error(self):
+        """Curtailment → diversion=0 but request>0 → WARNING (not ERROR)."""
+        ctx = {
+            "current_diversion": 0,
+            "current_request": 50_000,
+            "water_right": 100_000,
+        }
+        results = non_negative_diversion_check("decrease_demand", [], ctx)
+        assert len(results) == 1
+        assert results[0].valid  # WARNING, allowing agent to proceed
+        assert results[0].metadata["level"] == "WARNING"

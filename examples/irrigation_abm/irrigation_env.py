@@ -68,7 +68,7 @@ class WaterSystemConfig:
     mead_initial_elevation: float = 1081.46   # Dec 2018 observed (ft)
     evaporation_maf: float = 0.8              # Reservoir evaporation at ref storage (MAF/yr)
     mexico_treaty_maf: float = 1.5            # Treaty delivery to Mexico (MAF/yr)
-    lb_municipal_maf: float = 5.0             # LB non-ag: M&I + tribal + CAP + system losses (MAF/yr)
+    lb_non_ag_total_maf: float = 5.0           # LB non-ag: M&I + tribal + CAP + system losses (MAF/yr)
     lb_tributary_maf: float = 1.0             # LB tributary inflow (MAF/yr)
     natural_flow_base_maf: float = 12.0       # Natural flow at avg precip (MAF/yr)
     precip_baseline_mm: float = 100.0         # CRSS avg UB winter precip (mm)
@@ -627,27 +627,6 @@ class IrrigationEnvironment:
             state_changes["request"] = new_req
             state_changes["magnitude_pct_applied"] = magnitude_pct  # Track actual sampled value
 
-        elif skill == "adopt_efficiency":
-            if agent.get("has_efficient_system"):
-                return ExecutionResult(
-                    success=False, error="Already using efficient system."
-                )
-            agent["has_efficient_system"] = True
-            new_req = max(current * 0.80, wr * MIN_UTIL)
-            self.update_agent_request(aid, new_req)
-            state_changes["has_efficient_system"] = True
-            state_changes["request"] = new_req
-
-        elif skill == "reduce_acreage":
-            floor = wr * MIN_UTIL
-            utilisation = current / wr if wr > 0 else 1.0
-            # P1: diminishing returns — taper toward no-op near floor
-            taper = max(0.0, (utilisation - MIN_UTIL) / (1.0 - MIN_UTIL))
-            effective_ratio = 1.0 - (0.25 * taper)  # 0.75 at full, 1.0 at floor
-            new_req = max(current * effective_ratio, floor)
-            self.update_agent_request(aid, new_req)
-            state_changes["request"] = new_req
-
         elif skill == "maintain_demand":
             # Preserve existing *request* (not diversion which includes
             # curtailment). Using diversion would cause double-curtailment
@@ -761,7 +740,7 @@ class IrrigationEnvironment:
         else:
             mexico = cfg.mexico_treaty_maf
 
-        mead_outflow = lb_div_maf + mexico + evap_actual + cfg.lb_municipal_maf
+        mead_outflow = lb_div_maf + mexico + evap_actual + cfg.lb_non_ag_total_maf
 
         # --- Mass balance ---
         # R1: Glen Canyon Dam buffers releases; cap annual storage change
@@ -801,9 +780,8 @@ class IrrigationEnvironment:
     def _compute_drought_index(self, precip: float, mead_level: float) -> float:
         """Compute composite drought severity index [0, 1]."""
         # Precipitation component (lower = more drought)
-        # Divisor = 2× baseline so average precip → 0.5 (moderate)
-        precip_ref = 2.0 * self.config.precip_baseline_mm
-        precip_norm = max(0.0, min(1.0, 1.0 - precip / precip_ref))
+        # Normal precip → 0.0 (not dry), zero precip → 1.0 (max drought)
+        precip_norm = max(0.0, min(1.0, 1.0 - precip / self.config.precip_baseline_mm))
 
         # Lake Mead component (lower level = more drought)
         mead_norm = max(0.0, min(1.0, 1.0 - (mead_level - 900) / 320.0))
@@ -837,7 +815,8 @@ class IrrigationEnvironment:
         for agent in self._agents.values():
             agent["curtailment_ratio"] = ratio
             # Update actual diversion
-            agent["diversion"] = agent["request"] * (1.0 - ratio)
+            capped_request = min(agent["request"], agent["water_right"])
+            agent["diversion"] = capped_request * (1.0 - ratio)
 
     def _apply_powell_constraint(self) -> None:
         """Reduce UB diversions when they exceed Powell release capacity.
