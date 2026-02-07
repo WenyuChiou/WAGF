@@ -649,9 +649,12 @@ class IrrigationEnvironment:
             state_changes["request"] = new_req
 
         elif skill == "maintain_demand":
-            # No change — re-confirm existing request
-            self.update_agent_request(aid, current)
-            state_changes["request"] = current
+            # Preserve existing *request* (not diversion which includes
+            # curtailment). Using diversion would cause double-curtailment
+            # because update_agent_request re-applies the curtailment ratio.
+            existing_request = agent["request"]
+            self.update_agent_request(aid, existing_request)
+            state_changes["request"] = existing_request
 
         else:
             return ExecutionResult(

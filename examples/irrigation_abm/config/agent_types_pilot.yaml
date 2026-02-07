@@ -374,8 +374,8 @@ irrigation_farmer:
             construct: WSA_LABEL,
             when_above: ["VH"],
             blocked_skills: ["maintain_demand"],
-            level: ERROR,
-            message: "Water threat is Very High — maintaining current demand is not a viable strategy. You must adapt.",
+            level: WARNING,
+            message: "Water threat is Very High — maintaining current demand is suboptimal. Consider adapting.",
           }
         # R2: Low coping → cannot adopt expensive measures
         - {
