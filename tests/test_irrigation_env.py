@@ -270,20 +270,24 @@ class TestIrrigationValidators:
         results = magnitude_cap_check("increase_demand", [], ctx)
         assert len(results) == 0
 
-    def test_magnitude_cap_blocks_forward_looking(self):
+    def test_magnitude_cap_warns_forward_looking(self):
+        """v12: magnitude_cap is WARNING (not ERROR) since execute_skill uses Gaussian."""
         ctx = self._make_context(
             proposed_magnitude=25,
             cluster="forward_looking_conservative",
         )
         results = magnitude_cap_check("increase_demand", [], ctx)
         assert len(results) == 1
-        assert not results[0].valid
+        assert results[0].valid  # WARNING, not ERROR
+        assert len(results[0].warnings) == 1
 
-    def test_magnitude_cap_blocks_myopic(self):
+    def test_magnitude_cap_warns_myopic(self):
+        """v12: magnitude_cap is WARNING (not ERROR) since execute_skill uses Gaussian."""
         ctx = self._make_context(proposed_magnitude=12, cluster="myopic_conservative")
         results = magnitude_cap_check("increase_demand", [], ctx)
         assert len(results) == 1
-        assert not results[0].valid
+        assert results[0].valid  # WARNING, not ERROR
+        assert len(results[0].warnings) == 1
 
     def test_supply_gap_blocks_low_fulfilment(self):
         """P3: Block increase when fulfilment < 70%."""

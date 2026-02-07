@@ -66,6 +66,10 @@ def water_right_cap_check(
                 "category": "physical",
                 "blocked_skill": skill_name,
                 "level": "ERROR",
+                "suggestion": (
+                    "You are already at your maximum water right. "
+                    "Choose maintain_demand or adopt_efficiency instead."
+                ),
             },
         )
     ]
@@ -97,6 +101,10 @@ def non_negative_diversion_check(
                 "category": "physical",
                 "blocked_skill": skill_name,
                 "level": "ERROR",
+                "suggestion": (
+                    "Your diversion is already zero. "
+                    "Choose maintain_demand or increase_demand instead."
+                ),
             },
         )
     ]
@@ -168,6 +176,10 @@ def curtailment_awareness_check(
                     "category": "physical",
                     "blocked_skill": skill_name,
                     "level": "ERROR",
+                    "suggestion": (
+                        f"Tier {shortage_tier} shortage requires conservation. "
+                        "Choose decrease_demand, adopt_efficiency, or reduce_acreage instead."
+                    ),
                 },
             )
         ]
@@ -221,6 +233,10 @@ def efficiency_already_adopted_check(
                 "blocked_skill": skill_name,
                 "hallucination_type": "physical",
                 "level": "ERROR",
+                "suggestion": (
+                    "You already have an efficient system. "
+                    "Choose increase_demand, decrease_demand, maintain_demand, or reduce_acreage instead."
+                ),
             },
         )
     ]
@@ -298,6 +314,10 @@ def drought_severity_check(
                 "category": "physical",
                 "blocked_skill": skill_name,
                 "level": "ERROR",
+                "suggestion": (
+                    "Severe drought conditions. "
+                    "Choose decrease_demand, maintain_demand, or adopt_efficiency instead."
+                ),
             },
         )
     ]
@@ -343,6 +363,10 @@ def minimum_utilisation_check(
                 "blocked_skill": skill_name,
                 "hallucination_type": "economic",
                 "level": "ERROR",
+                "suggestion": (
+                    f"Your utilisation is already at {util_pct:.0f}% (minimum is 10%). "
+                    "Choose maintain_demand or increase_demand instead."
+                ),
             },
         )
     ]
@@ -372,19 +396,26 @@ def magnitude_cap_check(
     max_mag = caps.get(cluster, 10)
 
     if abs(magnitude) > max_mag:
+        # v12: execute_skill ignores LLM magnitude_pct and samples from
+        # Gaussian (already clipped to cluster max). So this is a WARNING
+        # (audit trail) not an ERROR (no retry needed for a value that
+        # won't be used in execution anyway).
         return [
             ValidationResult(
-                valid=False,
+                valid=True,
                 validator_name="IrrigationMagnitudeValidator",
-                errors=[
-                    f"Magnitude {magnitude}% exceeds {cluster} cap ({max_mag}%)."
+                errors=[],
+                warnings=[
+                    f"Magnitude {magnitude}% exceeds {cluster} cap ({max_mag}%). "
+                    f"Execution will use Gaussian-sampled value (capped at {max_mag}%)."
                 ],
-                warnings=[],
                 metadata={
                     "rule_id": "magnitude_cap",
                     "category": "physical",
                     "blocked_skill": skill_name,
-                    "level": "ERROR",
+                    "level": "WARNING",
+                    "proposed_magnitude": magnitude,
+                    "capped_magnitude": max_mag,
                 },
             )
         ]
@@ -437,6 +468,10 @@ def supply_gap_block_increase(
                     "category": "physical",
                     "blocked_skill": skill_name,
                     "level": "ERROR",
+                    "suggestion": (
+                        "The system delivered zero water. Requesting more will not help. "
+                        "Choose decrease_demand, maintain_demand, or adopt_efficiency instead."
+                    ),
                 },
             )
         ]
@@ -460,6 +495,10 @@ def supply_gap_block_increase(
                 "category": "physical",
                 "blocked_skill": skill_name,
                 "level": "ERROR",
+                "suggestion": (
+                    f"Only {fulfilment:.0%} of your request was fulfilled. "
+                    "Choose decrease_demand, maintain_demand, or adopt_efficiency instead."
+                ),
             },
         )
     ]
@@ -535,8 +574,7 @@ def consecutive_increase_cap_check(
             errors=[
                 f"Demand increase blocked: you have increased demand for "
                 f"{count} consecutive years. Sustained demand growth is not "
-                f"physically sustainable. Choose maintain_demand, "
-                f"decrease_demand, or adopt_efficiency instead."
+                f"physically sustainable."
             ],
             warnings=[],
             metadata={
@@ -545,6 +583,10 @@ def consecutive_increase_cap_check(
                 "blocked_skill": skill_name,
                 "level": "ERROR",
                 "consecutive_count": count,
+                "suggestion": (
+                    f"You have increased demand {count} years in a row (max {MAX_CONSECUTIVE_INCREASES}). "
+                    "Choose maintain_demand, decrease_demand, or adopt_efficiency instead."
+                ),
             },
         )
     ]
@@ -588,8 +630,7 @@ def zero_escape_check(
                 f"Maintain demand blocked: your current water use is only "
                 f"{utilisation:.0%} of your water right ({request:,.0f} / "
                 f"{water_right:,.0f} AF). At this level, status quo is not "
-                f"economically viable. Choose increase_demand to seek more "
-                f"water, or adopt_efficiency to improve your operations."
+                f"economically viable."
             ],
             warnings=[],
             metadata={
@@ -598,6 +639,10 @@ def zero_escape_check(
                 "blocked_skill": skill_name,
                 "level": "ERROR",
                 "utilisation_pct": utilisation * 100,
+                "suggestion": (
+                    f"Your water use is only {utilisation:.0%} of your right. "
+                    "Choose increase_demand to seek more water, or adopt_efficiency to improve operations."
+                ),
             },
         )
     ]

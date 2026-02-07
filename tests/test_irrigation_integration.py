@@ -129,12 +129,13 @@ def test_reflection_triggers():
 
 
 def test_governance_validate_magnitude_cap():
+    """v12: magnitude_cap is WARNING (not ERROR) since execute_skill uses Gaussian."""
     from broker.validators.governance import validate_all
 
     ctx = {"proposed_magnitude": 25, "cluster": "forward_looking_conservative"}
     results = validate_all("increase_demand", [], ctx, domain="irrigation")
-    errors = [r for r in results if not r.valid]
-    assert len(errors) >= 1
+    warnings = [r for r in results if r.valid and r.warnings]
+    assert len(warnings) >= 1
 
 
 def test_execute_skill_maintain_demand():
