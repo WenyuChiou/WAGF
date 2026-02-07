@@ -338,8 +338,18 @@ class SkillBrokerEngine:
             if secondary_approved and execution_result.success:
                 secondary_execution = self.simulation_engine.execute_skill(secondary_approved)
         elif outcome in (SkillOutcome.REJECTED, SkillOutcome.UNCERTAIN):
-            # REJECTED: do not execute — record non-success with empty state changes
-            execution_result = ExecutionResult(success=False, state_changes={})
+            # REJECTED: execute maintain_demand as fallback so the agent's
+            # request is preserved and diversion is recalculated with current
+            # curtailment (instead of a full no-op that freezes state).
+            if self.simulation_engine:
+                fallback = ApprovedSkill(
+                    skill_name="maintain_demand",
+                    agent_id=approved_skill.agent_id,
+                    approval_status="REJECTED_MAINTAIN",
+                )
+                execution_result = self.simulation_engine.execute_skill(fallback)
+            else:
+                execution_result = ExecutionResult(success=False, state_changes={})
         else:
             # Standalone mode: Default to pseudo-execution
             execution_result = ExecutionResult(
@@ -468,6 +478,24 @@ class SkillBrokerEngine:
 
         return skill_proposal, raw_output, format_retry_count, total_llm_stats
 
+    @staticmethod
+    def _extract_blocking_rule_ids(validation_results: List) -> frozenset:
+        """Extract the set of rule IDs causing validation failure.
+
+        Config-level rules store IDs in metadata["rules_hit"] (list),
+        custom validators store in metadata["rule_id"] (str).
+        Returns a frozenset for easy comparison across retry attempts.
+        """
+        rule_ids: set = set()
+        for v in validation_results:
+            if v and hasattr(v, "valid") and not v.valid:
+                meta = getattr(v, "metadata", None) or {}
+                if meta.get("rules_hit"):
+                    rule_ids.update(meta["rules_hit"])
+                elif meta.get("rule_id"):
+                    rule_ids.add(meta["rule_id"])
+        return frozenset(rule_ids)
+
     def _governance_retry_loop(
         self, *, all_valid: bool, skill_proposal, validation_results: List,
         all_validation_history: List, validation_context: Dict,
@@ -481,11 +509,17 @@ class SkillBrokerEngine:
         up to self.max_retries attempts. Logs fallout diagnostics on
         exhaustion.
 
+        Includes early-exit optimisation: if the first retry is blocked
+        by the exact same rule IDs as the initial attempt, remaining
+        retries are skipped (the blocking conditions are static and
+        won't change).
+
         Returns (skill_proposal, raw_output, validation_results,
                  all_validation_history, all_valid, retry_count).
         Mutates total_llm_stats and all_validation_history in-place.
         """
         retry_count = 0
+        prev_blocking_rules = self._extract_blocking_rule_ids(validation_results)
         while not all_valid and retry_count < self.max_retries:
             retry_count += 1
 
@@ -555,6 +589,18 @@ class SkillBrokerEngine:
                 if not all_valid:
                     errors_list = [e for v in validation_results if v and hasattr(v, 'errors') for e in v.errors]
                     logger.warning(f"[Governance:Retry] Attempt {retry_count} failed validation for {agent_id}. Errors: {errors_list}")
+
+                    # Early exit: if the same rules are blocking as last
+                    # time, further retries are futile (conditions are static).
+                    current_blocking = self._extract_blocking_rule_ids(validation_results)
+                    if current_blocking and current_blocking == prev_blocking_rules:
+                        logger.info(
+                            f"[Governance:EarlyExit] Same rules blocked retry {retry_count} "
+                            f"for {agent_id}: {sorted(current_blocking)}. "
+                            f"Skipping remaining retries."
+                        )
+                        break
+                    prev_blocking_rules = current_blocking
             else:
                 self.auditor.log_parse_error()
                 logger.warning(f"[Governance:Retry] Attempt {retry_count} produced unparsable output for {agent_id}.")

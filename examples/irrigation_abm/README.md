@@ -60,13 +60,13 @@ python run_experiment.py --model gemma3:4b --years 42 --real --seed 42 --num-ctx
 
 Three k-means clusters from Hung & Yang (2021) Section 4.1, mapped from FQL parameters to LLM personas:
 
-| Cluster | FQL mu/sigma | LLM Persona | magnitude_default | Governance Effect |
-|---------|-------------|-------------|-------------------|-------------------|
-| **Aggressive** | 0.36/1.22 | Bold, large demand swings | 20% | Low regret sensitivity |
-| **Forward-looking Conservative** | 0.20/0.60 | Cautious, future-oriented | 10% | High regret sensitivity |
-| **Myopic Conservative** | 0.16/0.87 | Tradition-oriented, slow updates | 5% | Status quo preference |
+| Cluster | FQL mu/sigma | LLM Persona | default | sigma | min | max | Exploration |
+|---------|-------------|-------------|---------|-------|-----|-----|-------------|
+| **Aggressive** | 0.36/1.22 | Bold, large demand swings | 10.0% | 3.5 | 5.0 | 20.0 | 2% |
+| **Forward-looking Conservative** | 0.20/0.60 | Cautious, future-oriented | 7.5% | 3.0 | 3.0 | 15.0 | 2% |
+| **Myopic Conservative** | 0.16/0.87 | Tradition-oriented, slow updates | 4.0% | 2.0 | 1.0 | 8.0 | 2% |
 
-Each persona receives a tailored narrative in the prompt template, with cluster-specific language for trust in forecasts, neighbor influence, and adaptation willingness.
+Each persona receives a tailored narrative in the prompt template, with cluster-specific language for trust in forecasts, neighbor influence, and adaptation willingness. Magnitude parameters are used for **Bounded Gaussian Sampling** (see below) -- the LLM does not control demand change magnitude.
 
 ## Response Format
 
@@ -92,32 +92,123 @@ magnitude_pct: 15
 | `decision` | choice | Yes | Numeric skill ID (1–5) |
 | `magnitude_pct` | numeric | No | Demand change magnitude (1–30%). Defaults to persona-specific value if omitted |
 
+## FQL → LLM-ABM Action Space Mapping
+
+This experiment adapts the Fuzzy Q-Learning (FQL) agent decision model from Hung & Yang (2021) to an LLM-driven architecture. The table below summarizes the key structural differences:
+
+| Dimension | FQL (Hung & Yang 2021) | LLM-ABM (This Work) |
+|-----------|----------------------|----------------------|
+| **Action space** | 2 continuous actions: increase / decrease diversion | 5 discrete skills (see Available Skills below) |
+| **Action magnitude** | Continuous: N(mu, sigma) × bin_size via Q-table | Bounded Gaussian: persona-defined N(default, sigma) at execution time |
+| **Decision mechanism** | Epsilon-greedy Q-value ordering | LLM natural-language reasoning with governance validation |
+| **State representation** | 21-bin discretized utilisation ratio | Natural-language context (water situation, memory, feedback) |
+| **Behavioral heterogeneity** | FQL parameter vectors (mu, sigma, alpha, gamma, epsilon, regret) | Persona narratives + Gaussian magnitude parameters calibrated from FQL clusters |
+
+### Action Space Extension
+
+The original FQL model defines **2 actions** — increase or decrease diversion — with continuous magnitude drawn from N(mu, sigma). The Q-table shape is `(n_preceding=2, n_states=21, n_actions=2)`; expanding the action count would cause convergence-time explosion, making the 2-action space a **Q-table dimensionality constraint**, not a domain-driven design choice. LLM agents face no such constraint, so we extend to **5 discrete skills** that map to real-world irrigation management strategies:
+
+| Skill | Origin | FQL Equivalent | Real-World Analog | Rationale |
+|-------|--------|---------------|-------------------|-----------|
+| `increase_demand` | Original | Action 1 (positive delta) | Expanding irrigated acreage or crop intensity | Direct mapping from FQL increase action |
+| `decrease_demand` | Original | Action 0 (negative delta) | Voluntary conservation or reduced crop intensity | Direct mapping from FQL decrease action |
+| `adopt_efficiency` | **Extended** | — | Drip irrigation, canal lining (IID), precision scheduling (USBR WaterSMART) | Irreversible technology investment; one-time -20% demand. FQL cannot represent structural technology adoption. Literature range: 15-40% |
+| `reduce_acreage` | **Extended** | Partial (extreme decrease) | Agricultural fallowing (PVID-MWD agreement, System Conservation Pilot Program) | Land-use change with fixed 25% reduction (with diminishing taper); distinct from continuous demand adjustment. PVID allows up to 35% |
+| `maintain_demand` | **Extended** | Implicit (zero-magnitude) | Status quo operations under long-term water service contracts | FQL requires nonzero action every period (Q-learning update rule); "maintain" is the most common real irrigator decision. Also serves as REJECTED fallback |
+
+The extension from 2 to 5 skills serves two purposes: (1) it provides the LLM with **semantically distinct** options that map to qualitatively different irrigation management strategies; (2) it enables **governance rules** to differentially constrain action types (e.g., blocking `adopt_efficiency` when already adopted, blocking `reduce_acreage` below the demand floor).
+
+### Magnitude Determination: FQL → LLM → Gaussian
+
+The determination of demand change magnitude evolved through three stages:
+
+| Stage | Mechanism | Result |
+|-------|-----------|--------|
+| **FQL** (Hung & Yang 2021) | N(mu, sigma) × bin_size via Q-table | Continuous, calibrated distribution |
+| **LLM v1-v11** (Schema-Driven) | LLM outputs `magnitude_pct` (1-30%) | Degenerate: 56.6% chose 25%, only 6-7 unique values |
+| **LLM v12+** (Bounded Gaussian) | Code samples from persona N(default, sigma) | Continuous stochasticity restored, matching FQL distribution |
+
+The v12 design decouples **qualitative choice** (which skill — LLM reasoning) from **quantitative magnitude** (how much — code sampling). This "hybrid agency" reflects a real-world separation: a farmer's strategic decision to invest in drip irrigation is a different cognitive process from the exact percentage of water savings achieved. See [Bounded Gaussian Magnitude Sampling](#bounded-gaussian-magnitude-sampling-v12) for implementation details.
+
+### Fair Comparison Protocol
+
+Direct performance comparison between LLM-ABM and FQL-ABM requires acknowledging structural asymmetries:
+
+**LLM-ABM advantages:**
+- Richer action space (5 skills vs. 2 actions) with additional adaptation pathways
+- Governance guardrails (12 validators) preventing physically impossible or economically irrational decisions
+- Full environmental context in natural language (drought index, shortage tier, Lake Mead level, curtailment ratio); FQL observes only a binary preceding factor
+
+**FQL advantages:**
+- Higher exploration rate (5-30% calibrated epsilon vs. 2% for LLM)
+- Mathematically exact value learning (TD(0) Q-updates vs. noisy memory retrieval + reflection)
+- Joint action-magnitude selection (Q-table directly maps state to optimal magnitude)
+
+**What we are NOT claiming**: This comparison does not claim LLM agents are "better" than FQL agents. The goal is to demonstrate that LLM reasoning can produce *scientifically plausible* water demand trajectories under governance, not to outperform a specifically calibrated RL system. Controlled comparison targets: mean demand within CRSS reference range (5.56-6.45 MAF/yr), CoV < 10%, and qualitatively similar cluster behavioral signatures.
+
 ## Available Skills
 
-| # | Skill ID | Description | Magnitude | Constraints |
-|---|----------|-------------|-----------|-------------|
-| 1 | `increase_demand` | Request more water allocation | max 30%, default 10% | Blocked at allocation cap |
-| 2 | `decrease_demand` | Request less allocation | max 30%, default 10% | Blocked at minimum utilisation floor |
-| 3 | `adopt_efficiency` | Invest in drip/precision irrigation | One-time | One-time only |
-| 4 | `reduce_acreage` | Fallow farmland to lower requirement | reduction_factor: 0.75 | Blocked at minimum utilisation floor |
-| 5 | `maintain_demand` | No change to practices | No magnitude | Default/fallback action |
+| # | Skill ID | Origin | Description | Magnitude (v12+) | Constraints |
+|---|----------|--------|-------------|-------------------|-------------|
+| 1 | `increase_demand` | Original | Request more water allocation | Gaussian N(default, sigma) per persona | Blocked at allocation cap; blocked during severe drought |
+| 2 | `decrease_demand` | Original | Request less water allocation | Gaussian N(default, sigma) per persona | Blocked at min utilisation (10%); blocked below demand floor (50%) |
+| 3 | `adopt_efficiency` | **Extended** | Invest in drip/precision irrigation | One-time: demand × 0.80 (-20%) | Once-only; blocked if already adopted; blocked if ACA = VL |
+| 4 | `reduce_acreage` | **Extended** | Fallow farmland to lower requirement | Fixed: demand × 0.75 (with taper) | Blocked at min utilisation floor (10%) |
+| 5 | `maintain_demand` | **Extended** | No change to practices | No magnitude change | Default/fallback; blocked when WSA = VH (`zero_escape_check`) |
 
-### Schema-Driven Magnitude
+**Origin key**: *Original* = direct mapping from Hung & Yang (2021) FQL actions. ***Extended*** = new skill added for the LLM-ABM to capture irrigation strategies not representable as continuous magnitude changes.
 
-`magnitude_pct` is a formal `numeric` field in `response_format.fields`. The full pipeline:
+> **Note on magnitude**: Since v12, the LLM's `magnitude_pct` output is **discarded** for skills 1-2. Actual magnitude is sampled from a persona-defined Bounded Gaussian (see below). The field remains in the response schema as a cognitive scaffold for improved reasoning quality.
+
+### Bounded Gaussian Magnitude Sampling (v12+)
+
+Since v12, the LLM's `magnitude_pct` output is **completely ignored**. Demand change magnitude is instead sampled from a persona-defined Gaussian distribution at execution time. This design choice is motivated by empirical findings:
+
+- v11 analysis showed LLMs produce degenerate magnitude distributions (56.6% chose exactly 25%, only 6-7 unique values)
+- Small LLMs cannot generate continuous distributions matching FQL behavior
+- Code-based sampling provides true stochasticity matching Hung & Yang (2021)
+
+The sampling pipeline:
 
 ```
-LLM Output → parse_output() [SkillProposal.magnitude_pct]
-  → SkillBrokerEngine [validation_context["proposed_magnitude"]]
-  → Validators check cluster-specific caps
-  → ApprovedSkill.parameters["magnitude_pct"]
-  → Environment applies demand change
+Agent persona → (default, sigma, min, max, exploration_rate)
+  → execute_skill():
+      if random() < exploration_rate (2%):
+          noise = Normal(0, sigma × 2.0)        ← unbounded exploration
+          magnitude = clip(default + noise, 0.5, 100)
+      else (98%):
+          noise = Normal(0, sigma)               ← bounded exploitation
+          magnitude = clip(default + noise, min, max)
+  → apply demand change with sampled magnitude
 ```
 
-Per-persona defaults when the LLM outputs 0% or omits the field:
-- Aggressive: 20%
-- Forward-Looking Conservative: 10%
-- Myopic Conservative: 5%
+The `magnitude_pct` field remains in the response schema as a cognitive signal (the LLM still "reasons" about how much to change), but the actual value applied comes from the Gaussian sampler. `magnitude_cap_check` is therefore set to WARNING level (not ERROR) to avoid wasting governance retries on a field the environment ignores.
+
+```mermaid
+flowchart LR
+    subgraph LLM ["LLM Output (ignored)"]
+        A["magnitude_pct: 25"]
+    end
+
+    subgraph ENV ["Environment (execute_skill)"]
+        B["Persona params:<br/>default=7.5, σ=3.0<br/>min=3.0, max=15.0"]
+        C{"ε-exploration?<br/>(2% chance)"}
+        D["N(7.5, 6.0)<br/>clip [0.5, 100]"]
+        E["N(7.5, 3.0)<br/>clip [3.0, 15.0]"]
+        F["magnitude_pct = 8.2%"]
+    end
+
+    A -.->|"discarded"| C
+    B --> C
+    C -->|"Yes (2%)"| D
+    C -->|"No (98%)"| E
+    D --> F
+    E --> F
+    F --> G["request ± change"]
+
+    style A fill:#ffcdd2,stroke:#c62828
+    style F fill:#c8e6c9,stroke:#2e7d32
+```
 
 Opt-out via `--no-magnitude` to remove the field entirely (reduces context burden for smaller models).
 
@@ -152,18 +243,7 @@ When a rule triggers at **ERROR** level, the action is **rejected** and the LLM 
 
 ### Domain Validators
 
-Custom validators in `validators/irrigation_validators.py` provide additional physical and social checks:
-
-| Category | Check | Trigger | Level |
-|----------|-------|---------|-------|
-| Physical | `water_right_cap_check` | `increase_demand` when at allocation cap | ERROR |
-| Physical | `non_negative_diversion_check` | `decrease_demand` when current diversion = 0 | ERROR |
-| Physical | `efficiency_already_adopted_check` | `adopt_efficiency` when already adopted | ERROR |
-| Physical | `minimum_utilisation_check` | `decrease_demand`/`reduce_acreage` below 10% floor | ERROR |
-| Physical | `drought_severity_check` | `increase_demand` when drought_index >= 0.8 | ERROR |
-| Physical | `magnitude_cap_check` | Magnitude exceeds cluster cap (30/15/10%) | ERROR |
-| Social | `curtailment_awareness_check` | `increase_demand` during active curtailment | WARNING |
-| Social | `compact_allocation_check` | Basin aggregate demand exceeds Compact share | WARNING |
+Custom validators in `validators/irrigation_validators.py` provide physical, social, temporal, and behavioral checks. See [Governance Enhancements (v15)](#governance-enhancements-v15) for the complete 12-validator summary.
 
 ### Semantic Rules
 
@@ -247,27 +327,69 @@ This extends the hallucination taxonomy beyond physical impossibility (flood dom
 
 ## Simulation Pipeline
 
+### Overview Flow Diagram
+
+```mermaid
+flowchart TD
+    A["<b>Initialize</b><br/>78 CRSS agents<br/>Cluster assignment<br/>Water rights & diversions"] --> B
+
+    subgraph YEAR ["For each year (1..42)"]
+        B["<b>Pre-Year Hook</b><br/>advance_year() → precip, Lake Mead,<br/>drought index, shortage tier, curtailment<br/>Inject memories + action-outcome feedback"]
+
+        B --> C["<b>Agent Decision</b><br/>(per agent, parallel)"]
+
+        subgraph AGENT ["Agent Decision Loop"]
+            C --> D["Retrieve memories<br/>(window + top-k)"]
+            D --> E["Build prompt<br/>persona + WSA/ACA + env context"]
+            E --> F["LLM call<br/>→ parse WSA, ACA, skill choice"]
+            F --> G{"Governance<br/>validation<br/>(12 validators)"}
+            G -->|APPROVED| H["Execute skill<br/>Gaussian magnitude sampling"]
+            G -->|ERROR| I{"Retry<br/>≤ 3 attempts?"}
+            I -->|Yes| J["Re-prompt with<br/>rejection reason"]
+            J --> F
+            I -->|No / EarlyExit| K["REJECTED<br/>→ maintain_demand fallback"]
+            K --> H
+        end
+
+        H --> L["<b>Post-Step Hook</b><br/>Record decision, constructs, magnitude"]
+        L --> M["<b>Post-Year Hook</b><br/>Batch reflection<br/>Memory consolidation"]
+        M --> B
+    end
+
+    M --> N["<b>Output</b><br/>simulation_log.csv<br/>governance_audit.csv<br/>governance_summary.json"]
+
+    style A fill:#e1f5fe
+    style H fill:#c8e6c9
+    style K fill:#fff9c4
+    style N fill:#f3e5f5
+```
+
+### Step-by-Step
+
 ```
 1. Initialize agents (synthetic or 78 real CRSS agents)
    - Assign behavioral cluster (aggressive/FLC/myopic)
    - Set initial water rights, diversions, efficiency status
 2. For each year (1..42):
    a. Pre-Year Hook:
-      - Update water situation (drought index, shortage tier, curtailment)
+      - advance_year(): precipitation → Lake Mead mass balance → drought index → curtailment
       - Inject basin condition memories
       - Sync physical state flags (at_cap, below_floor, has_efficient)
       - Append action-outcome feedback from prior year
    b. Agent Decision Step (per agent):
       - Retrieve memories (window + top-k significant)
       - Build dual-appraisal prompt with persona context
-      - Call LLM → parse response → extract WSA/ACA + decision + magnitude
-      - Validate against governance rules (strict profile)
-      - Approve skill or retry (up to 3 governance retries)
+      - Call LLM → parse response → extract WSA/ACA + decision
+      - Validate against governance rules (12 validators, strict profile)
+      - APPROVED → execute skill with Gaussian-sampled magnitude
+      - ERROR → retry with rejection feedback (up to 3 retries)
+      - REJECTED (after retries / EarlyExit) → execute maintain_demand fallback
    c. Skill Execution:
-      - Apply demand change (with magnitude_pct)
-      - Update state (water_right, diversion, efficiency_status)
+      - Sample magnitude from persona Gaussian N(default, sigma)
+      - Apply demand change, enforce floor/cap constraints
+      - Update state (request, diversion, efficiency_status)
    d. Post-Step Hook:
-      - Record yearly decision, appraisals, magnitude
+      - Record yearly decision, appraisals, sampled magnitude
    e. Post-Year Hook:
       - Trigger batch reflection
       - Save reflection insights to memory
@@ -322,10 +444,238 @@ irrigation_abm/
     policies/                # Domain-specific governance policies
     prompts/                 # LLM prompt templates
   validators/
-    irrigation_validators.py # 8 custom governance validators
+    irrigation_validators.py # 12 custom governance validators
   learning/
     fql.py                   # Reference FQL algorithm (not used by LLM runner)
 ```
+
+## Water System Model
+
+The irrigation environment uses a **simplified CRSS mass balance model** that captures the core physics of the Colorado River system at annual resolution. Unlike the full CRSS/RiverWare model (monthly, 3,700+ objects), our model reduces the system to a single-reservoir (Lake Mead) annual balance with agent-demand feedback.
+
+### Model Scope and Limitations
+
+This experiment does **not** replicate the full CRSS/RiverWare simulation. The Colorado River Simulation System (CRSS) is a monthly, multi-reservoir operations model with 3,700+ objects maintained by the U.S. Bureau of Reclamation, requiring a proprietary RiverWare license. Our model is a **surrogate mass balance model** at the same abstraction level as Hung & Yang (2021), which also employs a reduced-form model using CRSS database inputs rather than running the full RiverWare simulation.
+
+**What our surrogate model captures:**
+
+- **Bidirectional agent-reservoir coupling** — the core mechanism absent from standard CRSS, which uses exogenous demand schedules. Agent demand directly affects Lake Mead storage, which determines shortage tiers and curtailment, feeding back to constrain agent diversions.
+- **USBR operating rules** — shortage tiers (1075/1050/1025 ft), curtailment ratios (5%/10%/20%), and Mexico DCP reductions (Minute 323, 5 elevation tiers) follow published Drought Contingency Plan parameters.
+- **Real CRSS PRISM precipitation data** — same climate forcing dataset (2017-2060) used by the Bureau of Reclamation.
+- **Physical constraints** — Powell minimum release (7.0 MAF/yr DCP floor), Upper Basin infrastructure ceiling (5.0 MAF/yr), Glen Canyon Dam buffering (±3.5 MAF/yr), and USBR storage-elevation curves.
+
+**What our model omits (relative to full CRSS):**
+
+- Monthly temporal resolution (we use annual time steps)
+- Multi-reservoir operations (Powell, Flaming Gorge, Blue Mesa are not independently modeled)
+- Detailed hydrologic routing between nodes
+- Return flows and groundwater interactions
+- Full Long-Range Operating Criteria (LROC) logic
+- Prior appropriation doctrine (all agents face uniform curtailment)
+
+**Why this simplification is sufficient:** Our study examines how *governance rules affect collective demand adaptation trajectories* over 42 years. The critical mechanism is the agent-reservoir feedback loop, which is fully preserved in our annual mass balance model. Monthly resolution and multi-reservoir routing would add computational complexity without changing the fundamental dynamics of agent adaptation, which operates at annual decision cycles.
+
+### Design Philosophy
+
+The model preserves three critical features of the real Colorado River system:
+
+1. **Agent-Reservoir Feedback Loop**: Agent demand directly affects Lake Mead storage, which determines shortage tiers and curtailment ratios, which in turn constrain agent diversions. This bidirectional coupling is the core mechanism studied in Hung & Yang (2021).
+2. **USBR Operating Rules**: Shortage tiers, curtailment ratios, and Mexico treaty delivery reductions follow the Drought Contingency Plan (DCP) and Interim Guidelines.
+3. **Real Precipitation Data**: Winter precipitation is sourced from CRSS PRISM projections (`PrismWinterPrecip_ST_NOAA_Future.csv`), not synthetic data.
+
+### Data Sources
+
+| Data | Source | File |
+|------|--------|------|
+| Winter precipitation (2017-2060) | CRSS/PRISM NOAA projection | `ref/CRSS_DB/CRSS_DB/HistoricalData/PrismWinterPrecip_ST_NOAA_Future.csv` |
+| Agent water rights (78 agents) | CRSS annual baseline time series | `ref/CRSS_DB/CRSS_DB/annual_baseline_time_series.csv` |
+| Lake Mead storage-elevation curve | USBR area-capacity tables | Hardcoded in `irrigation_env.py` (`_STORAGE_MAF`, `_ELEVATION_FT`) |
+| Initial Lake Mead elevation | USBR observed (Dec 2018) | 1081.46 ft |
+
+### Annual Cycle
+
+Each simulation year executes in this order:
+
+```
+advance_year()
+  ├─ 1. _generate_precipitation()          ← CRSS PRISM data (UB 7-state average)
+  ├─ 2. _generate_lake_mead_level()        ← Mass balance (see below)
+  ├─ 3. _update_preceding_factors()        ← Binary: did precip/Mead rise?
+  ├─ 4. _compute_drought_index()           ← Composite severity index
+  └─ 5. _apply_curtailment()               ← Shortage tier → curtailment ratio
+```
+
+### Lake Mead Mass Balance
+
+The model computes Lake Mead elevation via a simplified annual mass balance:
+
+```
+Inflow:
+  NaturalFlow    = 12.0 MAF × (precip / 100mm)    [clamped to 6-17 MAF]
+  UB_effective   = min(UB_diversions, NF - MinPowellRelease, UB_InfraCap)
+  PowellRelease  = NaturalFlow - UB_effective       [≥ 7.0 MAF DCP floor]
+  Mead_inflow    = PowellRelease + LB_tributaries   [1.0 MAF]
+
+Outflow:
+  LB_diversions  = Σ agent_diversion (lower basin)
+  Mexico         = 1.5 MAF - DCP_reduction(tier)    [Minute 323]
+  Evaporation    = 0.8 MAF × storage_fraction       [surface area proxy]
+  Municipal      = 5.0 MAF                          [M&I + tribal + CAP + losses]
+
+Balance:
+  Δstorage       = clamp(inflow - outflow, ±3.5 MAF)  [Glen Canyon buffering]
+  Storage(t+1)   = Storage(t) + Δstorage              [bounded: 2.0-26.1 MAF]
+  Elevation      = interp(Storage, USBR_curve)
+```
+
+### Key Parameters
+
+| Parameter | Value | Source |
+|-----------|-------|--------|
+| Natural flow baseline | 12.0 MAF/yr | CRSS historical average |
+| Precipitation baseline | 100.0 mm | CRSS UB winter average |
+| Min Powell release | 7.0 MAF/yr | USBR DCP floor (2019 agreement) |
+| UB infrastructure ceiling | 5.0 MAF/yr | Historical UB depletion capacity |
+| LB tributary inflow | 1.0 MAF/yr | Virgin River + Little Colorado + Bill Williams |
+| LB municipal/M&I | 5.0 MAF/yr | CAP + Southern Nevada + MWD + system losses |
+| Mexico treaty delivery | 1.5 MAF/yr | 1944 Treaty (before DCP reductions) |
+| Reservoir evaporation | 0.8 MAF/yr | At reference storage (13.0 MAF) |
+| Max annual storage change | ±3.5 MAF | Glen Canyon Dam operational buffering |
+| Initial elevation | 1081.46 ft | USBR observed December 2018 |
+
+### Mexico DCP Reductions (Minute 323)
+
+When Lake Mead elevation drops, Mexico voluntarily reduces delivery under Minute 323:
+
+| Mead Elevation | Mexico Reduction | Effective Delivery |
+|---------------|-----------------|-------------------|
+| ≥ 1090 ft | 0 | 1.500 MAF |
+| 1075-1090 ft | 0.041 MAF | 1.459 MAF |
+| 1050-1075 ft | 0.080 MAF | 1.420 MAF |
+| 1025-1050 ft | 0.104 MAF | 1.396 MAF |
+| < 1025 ft | 0.275 MAF | 1.225 MAF |
+
+### Drought Index
+
+Composite severity index in [0, 1] combining precipitation and reservoir signals:
+
+```
+precip_norm = clamp(1.0 - precip / (2 × baseline), 0, 1)
+mead_norm   = clamp(1.0 - (mead_level - 900) / 320, 0, 1)
+drought_index = 0.5 × precip_norm + 0.5 × mead_norm
+```
+
+| Drought Index | Classification | Agent Prompt Text |
+|--------------|----------------|-------------------|
+| < 0.2 | Normal | "Water supply conditions are normal" |
+| 0.2-0.5 | Mild drought | "Mild drought conditions" |
+| 0.5-0.8 | Moderate drought | "Moderate drought — water supply is significantly reduced" |
+| > 0.8 | Severe drought | "Severe drought — water availability is critically low" |
+
+### Shortage Tier and Curtailment
+
+Based on USBR Drought Contingency Plan (DCP) operating rules:
+
+| Mead Elevation | Shortage Tier | Curtailment Ratio | Governance Effect |
+|---------------|--------------|-------------------|-------------------|
+| ≥ 1075 ft | 0 (Normal) | 0% | WARNING only |
+| 1050-1075 ft | 1 | 5% | WARNING only |
+| 1025-1050 ft | 2 | 10% | ERROR: blocks `increase_demand` |
+| < 1025 ft | 3 | 20% | ERROR: blocks `increase_demand` |
+
+Curtailment applies uniformly to all agents:
+```
+diversion = request × (1 - curtailment_ratio)
+```
+
+### Agent-Reservoir Feedback Loop
+
+```
+Agent decisions (Year t)
+    ↓
+request changes (increase/decrease/maintain)
+    ↓
+update_agent_request() → new diversions
+    ↓
+advance_year() (Year t+1)
+    ↓
+_generate_lake_mead_level()
+    ├─ UB_diversions = Σ agent.diversion (upper basin)
+    ├─ LB_diversions = Σ agent.diversion (lower basin)
+    ├─ Powell release = NF - UB_effective
+    └─ Mead storage → elevation → shortage tier → curtailment
+    ↓
+_apply_curtailment()
+    ↓
+agent.diversion = request × (1 - curtailment_ratio)
+    ↓
+Next year's prompt: "Your allocation is curtailed by X%"
+```
+
+**Implication**: When agents collectively reduce demand → Lake Mead storage recovers → shortage tier drops → curtailment decreases → agents receive more water. This self-regulating mechanism is the core dynamic that the governance system must preserve.
+
+### Comparison with Full CRSS/RiverWare
+
+| Aspect | Our Model | Full CRSS |
+|--------|-----------|-----------|
+| Temporal resolution | Annual | Monthly |
+| Spatial resolution | 2 basins (UB/LB) | 3,700+ objects |
+| Reservoir model | Single (Mead) | Powell + Mead + Flaming Gorge + ... |
+| Operating rules | Simplified DCP | Full LROC + DCP + Minute 323 |
+| Demand model | 78 LLM agents | Exogenous demand schedules |
+| Precipitation | CRSS PRISM (real) | CRSS PRISM (same source) |
+| Natural flow | Scaled by precip | Full hydrologic routing |
+| Agent feedback | Bidirectional ✓ | None (exogenous demand) |
+
+**Key advantage of our approach**: The bidirectional coupling (agent demand ↔ reservoir state) enables studying how governance rules affect collective demand trajectories — something the standard CRSS cannot do because it uses fixed exogenous demand schedules.
+
+## Governance Enhancements (v15)
+
+The governance system has been iteratively calibrated through pilot experiments:
+
+### Suggestion Bias Correction
+
+All ERROR-level validators now use **neutral suggestion phrasing** that lists `maintain_demand` first:
+
+```
+Before: "Choose decrease_demand, adopt_efficiency, or reduce_acreage instead."
+After:  "Valid alternatives: maintain_demand, decrease_demand, adopt_efficiency, or reduce_acreage."
+```
+
+**Rationale**: Small LLMs (gemma3:4b) treat governance suggestions as directives. Biased suggestions caused universal decrease adoption (demand collapse to 69% of CRSS target). Neutral phrasing restored demand stability.
+
+### Demand Floor Stabilizer
+
+New validator `demand_floor_stabilizer` blocks `decrease_demand` when utilisation < 50% of water right. Creates a demand corridor with `minimum_utilisation_check`:
+
+```
+10%  ← hard floor (minimum_utilisation_check blocks decrease)
+50%  ← stability floor (demand_floor_stabilizer blocks decrease)
+100% ← water right cap (water_right_cap_check blocks increase)
+```
+
+**Calibration parameter**: `DEMAND_FLOOR_RATIO` (default 0.50) in `irrigation_validators.py`. Calibrated via sensitivity test: 40%→CoV 9.7%, **50%→CoV 4.6%**, 60%→CoV 4.2%.
+
+### REJECTED Outcome Handling
+
+REJECTED agents now execute `maintain_demand` as fallback (instead of no-op), preserving their request and recalculating diversion with current curtailment.
+
+### Complete Validator Summary (12 validators)
+
+| # | Validator | Blocks | Level | Category |
+|---|-----------|--------|-------|----------|
+| 1 | `water_right_cap_check` | increase (at cap) | ERROR | Physical |
+| 2 | `non_negative_diversion_check` | decrease (diversion=0) | ERROR/WARNING | Physical |
+| 3 | `efficiency_already_adopted_check` | adopt (already has) | ERROR | Physical |
+| 4 | `minimum_utilisation_check` | decrease (<10%) | ERROR | Physical |
+| 5 | `demand_floor_stabilizer` | decrease (<50%) | ERROR | Economic |
+| 6 | `drought_severity_check` | increase (drought>0.8) | ERROR | Physical |
+| 7 | `magnitude_cap_check` | increase (exceeds cap) | WARNING | Physical |
+| 8 | `supply_gap_block_increase` | increase (fulfil<70%) | ERROR | Physical |
+| 9 | `curtailment_awareness_check` | increase (Tier 2+) | ERROR | Social |
+| 10 | `compact_allocation_check` | increase (basin>Compact) | WARNING | Social |
+| 11 | `consecutive_increase_cap_check` | increase (3yr streak) | ERROR | Temporal |
+| 12 | `zero_escape_check` | maintain (<15%) | ERROR | Behavioral |
 
 ## Colorado River Basin Parameters
 
@@ -335,10 +685,49 @@ irrigation_abm/
 | Upper Basin share | 7,500,000 acre-ft/year |
 | Lower Basin share | 7,500,000 acre-ft/year |
 | Mexico share | 1,500,000 acre-ft/year |
-| Simulation period | 2019–2060 |
-| Historical baseline | 1971–2018 |
+| Simulation period | 2019-2060 |
+| Historical baseline | 1971-2018 |
 | Monte Carlo runs | 100 |
+
+## Assumptions and Simplifications
+
+This section documents key modeling assumptions to support transparent scientific evaluation.
+
+### Agent Behavior
+
+- **No inter-agent communication**: Irrigation agents operate independently with no social network or information sharing. Each agent observes only basin-level signals (drought index, shortage tier) and their own allocation history.
+- **Annual decision frequency**: Agents make one demand decision per year. Sub-annual (seasonal, monthly) adjustments are not modeled.
+- **Homogeneous curtailment**: All agents within a basin face the same curtailment ratio, regardless of water right seniority. The prior appropriation doctrine is not modeled.
+- **Fixed persona**: Behavioral cluster assignment (aggressive/conservative/myopic) is fixed at initialization and does not change during the simulation. The LLM's "personality" cannot drift between clusters.
+
+### Water System
+
+- **Single-reservoir model**: Only Lake Mead is modeled explicitly. Lake Powell and upper-basin reservoirs are represented implicitly through the minimum Powell release constraint (7.0 MAF/yr).
+- **Annual resolution**: Monthly variations in demand, inflow, and operations are averaged to annual values.
+- **Static non-agricultural demand**: Municipal, industrial, and tribal water use (5.0 MAF/yr) is held constant throughout the simulation.
+- **No groundwater**: Groundwater pumping and aquifer dynamics are not modeled. All water supply comes from surface water (Colorado River system).
+
+### LLM-Specific
+
+- **Magnitude-reasoning decoupling**: The LLM reasons about magnitude (cognitive scaffold) but does not control it. Actual magnitude is Gaussian-sampled. Only action direction (which skill) affects simulation outcomes.
+- **Model-dependent behavior**: Results are specific to the LLM used (default: gemma3:4b). Different model families or sizes may produce different behavioral distributions.
+- **Governance as hard constraint**: ERROR-level governance rules cannot be overridden by the LLM. This is a design choice that prioritizes physical consistency over agent autonomy.
+
+## Data Availability
+
+| Dataset | Access | Path |
+|---------|--------|------|
+| CRSS PRISM winter precipitation (2017-2060) | Included in repository | `ref/CRSS_DB/CRSS_DB/HistoricalData/PrismWinterPrecip_ST_NOAA_Future.csv` |
+| Agent water rights (78 agents) | Included in repository | `ref/CRSS_DB/CRSS_DB/annual_baseline_time_series.csv` |
+| Historical UB depletion (2018 baseline) | Included in repository | `ref/CRSS_DB/CRSS_DB/HistoricalData/UB_historical_annual_depletion.csv` |
+| Historical LB diversion (2018 baseline) | Included in repository | `ref/CRSS_DB/CRSS_DB/HistoricalData/LB_historical_annual_diversion.csv` |
+| Lake Mead storage-elevation curve | USBR area-capacity tables | Hardcoded in `irrigation_env.py` (`_STORAGE_MAF`, `_ELEVATION_FT`) |
+| FQL calibrated parameters | Hung & Yang (2021) | Embedded in `config/agent_types.yaml` under `fql_reference` |
+
+All data required for the `--real` mode (78 CRSS agents) is included in the repository under `ref/CRSS_DB/`. Synthetic mode (`--agents N`) generates random agents and requires no external data.
+
+**Reproducibility**: All production runs use `--seed 42`. The `config_snapshot.yaml` saved in each output directory captures the complete configuration for exact replication.
 
 ## Reference
 
-Hung, F., & Yang, Y. C. E. (2021). Assessing adaptive irrigation impacts on water scarcity in nonstationary environments — A multi-agent reinforcement learning approach. *Water Resources Research*, 57, e2020WR029262. https://doi.org/10.1029/2020WR029262
+Hung, F., & Yang, Y. C. E. (2021). Assessing adaptive irrigation impacts on water scarcity in nonstationary environments -- A multi-agent reinforcement learning approach. *Water Resources Research*, 57, e2020WR029262. https://doi.org/10.1029/2020WR029262

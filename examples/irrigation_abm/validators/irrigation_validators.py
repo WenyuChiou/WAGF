@@ -80,13 +80,42 @@ def non_negative_diversion_check(
     rules: List[GovernanceRule],
     context: Dict[str, Any],
 ) -> List[ValidationResult]:
-    """Ensure diversion request cannot go below zero."""
+    """Ensure diversion request cannot go below zero.
+
+    When diversion is zero due to high curtailment (request > 0 but
+    curtailment ate all of it), issue a WARNING instead of ERROR.
+    Decreasing from zero is a harmless no-op and should not trigger
+    retry loops that create double-bind traps.
+    """
     if skill_name != "decrease_demand":
         return []
 
     current_diversion = context.get("current_diversion", 0)
     if current_diversion > 0:
         return []
+
+    # If request > 0 but diversion = 0, the shortfall is caused by
+    # curtailment / Powell constraints, not agent choice.  Decreasing
+    # is a no-op — warn, don't block.
+    current_request = context.get("current_request", 0)
+    if current_request > 0:
+        return [
+            ValidationResult(
+                valid=True,
+                validator_name="IrrigationPhysicalValidator",
+                errors=[],
+                warnings=[
+                    "Diversion is zero due to curtailment (request "
+                    f"{current_request:,.0f} AF). Decrease will be a no-op."
+                ],
+                metadata={
+                    "rule_id": "non_negative_diversion",
+                    "category": "physical",
+                    "blocked_skill": skill_name,
+                    "level": "WARNING",
+                },
+            )
+        ]
 
     return [
         ValidationResult(
@@ -178,7 +207,8 @@ def curtailment_awareness_check(
                     "level": "ERROR",
                     "suggestion": (
                         f"Tier {shortage_tier} shortage requires conservation. "
-                        "Choose decrease_demand, adopt_efficiency, or reduce_acreage instead."
+                        "Valid alternatives: maintain_demand, decrease_demand, "
+                        "adopt_efficiency, or reduce_acreage."
                     ),
                 },
             )
@@ -316,7 +346,7 @@ def drought_severity_check(
                 "level": "ERROR",
                 "suggestion": (
                     "Severe drought conditions. "
-                    "Choose decrease_demand, maintain_demand, or adopt_efficiency instead."
+                    "Valid alternatives: maintain_demand, decrease_demand, or adopt_efficiency."
                 ),
             },
         )
@@ -470,7 +500,7 @@ def supply_gap_block_increase(
                     "level": "ERROR",
                     "suggestion": (
                         "The system delivered zero water. Requesting more will not help. "
-                        "Choose decrease_demand, maintain_demand, or adopt_efficiency instead."
+                        "Valid alternatives: maintain_demand, decrease_demand, or adopt_efficiency."
                     ),
                 },
             )
@@ -497,7 +527,7 @@ def supply_gap_block_increase(
                 "level": "ERROR",
                 "suggestion": (
                     f"Only {fulfilment:.0%} of your request was fulfilled. "
-                    "Choose decrease_demand, maintain_demand, or adopt_efficiency instead."
+                    "Valid alternatives: maintain_demand, decrease_demand, or adopt_efficiency."
                 ),
             },
         )
@@ -585,7 +615,64 @@ def consecutive_increase_cap_check(
                 "consecutive_count": count,
                 "suggestion": (
                     f"You have increased demand {count} years in a row (max {MAX_CONSECUTIVE_INCREASES}). "
-                    "Choose maintain_demand, decrease_demand, or adopt_efficiency instead."
+                    "Valid alternatives: maintain_demand, decrease_demand, or adopt_efficiency."
+                ),
+            },
+        )
+    ]
+
+
+DEMAND_FLOOR_RATIO = 0.50  # 50% of water_right
+
+
+def demand_floor_stabilizer(
+    skill_name: str,
+    rules: List[GovernanceRule],
+    context: Dict[str, Any],
+) -> List[ValidationResult]:
+    """Block decrease_demand when utilisation is already below 60% of water right.
+
+    Prevents over-correction during drought: agents may decrease during
+    shortage, but not below a floor that ensures economic viability and
+    supports basin-wide CRSS demand targets (5.86 MAF).
+
+    Creates a corridor with minimum_utilisation_check (10% hard floor):
+        10% ← hard floor (blocks decrease)
+        60% ← stability floor (blocks decrease, this validator)
+       100% ← water right cap (blocks increase)
+    """
+    if skill_name not in ("decrease_demand", "reduce_acreage"):
+        return []
+
+    water_right = context.get("water_right", 0)
+    current_request = context.get("current_request", 0)
+
+    if water_right <= 0:
+        return []
+
+    utilisation = current_request / water_right
+    if utilisation >= DEMAND_FLOOR_RATIO:
+        return []
+
+    return [
+        ValidationResult(
+            valid=False,
+            validator_name="IrrigationDemandFloorValidator",
+            errors=[
+                f"Demand decrease blocked: current utilisation is {utilisation:.0%} "
+                f"of water right, already below the {DEMAND_FLOOR_RATIO:.0%} "
+                f"stability floor. Further reduction risks economic non-viability."
+            ],
+            warnings=[],
+            metadata={
+                "rule_id": "demand_floor_stabilizer",
+                "category": "economic",
+                "blocked_skill": skill_name,
+                "level": "ERROR",
+                "suggestion": (
+                    f"Your utilisation is {utilisation:.0%} (floor is "
+                    f"{DEMAND_FLOOR_RATIO:.0%}). Valid alternatives: "
+                    "maintain_demand, increase_demand, or adopt_efficiency."
                 ),
             },
         )
@@ -657,6 +744,7 @@ IRRIGATION_PHYSICAL_CHECKS = [
     non_negative_diversion_check,
     efficiency_already_adopted_check,
     minimum_utilisation_check,
+    demand_floor_stabilizer,
     drought_severity_check,
     magnitude_cap_check,
     supply_gap_block_increase,

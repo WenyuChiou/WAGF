@@ -165,6 +165,32 @@ class TestIrrigationEnvironment:
         assert compact["upper_allocation"] == 7_500_000
         assert compact["lower_allocation"] == 7_500_000
 
+    def test_maintain_demand_preserves_request_under_curtailment(self, env):
+        """maintain_demand should keep request unchanged even when curtailment
+        reduces diversion.  Previously used diversion as the new request
+        (double-curtailment bug)."""
+        from types import SimpleNamespace
+        env.advance_year()
+        aid = env.agent_ids[0]
+        agent = env._agents[aid]
+        wr = agent["water_right"]
+        # Set request to 80% of water right and apply 10% curtailment
+        target_request = wr * 0.80
+        env.update_agent_request(aid, target_request)
+        agent["curtailment_ratio"] = 0.10
+        agent["diversion"] = target_request * 0.90  # curtailed diversion
+
+        skill = SimpleNamespace(
+            skill_name="maintain_demand",
+            agent_id=aid,
+            parameters={},
+        )
+        result = env.execute_skill(skill)
+        assert result.success
+        # Request must stay at target_request, NOT drop to diversion
+        assert abs(agent["request"] - target_request) < 1.0
+        assert abs(result.state_changes["request"] - target_request) < 1.0
+
 
 class TestIrrigationValidators:
     """Test irrigation governance validators."""
@@ -205,8 +231,17 @@ class TestIrrigationValidators:
         results = non_negative_diversion_check("decrease_demand", [], self._make_context())
         assert len(results) == 0
 
-    def test_non_negative_blocks_zero(self):
-        ctx = self._make_context(current_diversion=0)
+    def test_non_negative_warns_curtailment_zero(self):
+        """Diversion=0 but request>0 (curtailment-caused) → WARNING, not ERROR."""
+        ctx = self._make_context(current_diversion=0, current_request=100_000)
+        results = non_negative_diversion_check("decrease_demand", [], ctx)
+        assert len(results) == 1
+        assert results[0].valid  # WARNING, not ERROR
+        assert len(results[0].warnings) == 1
+
+    def test_non_negative_blocks_truly_zero(self):
+        """Diversion=0 AND request=0 → still ERROR."""
+        ctx = self._make_context(current_diversion=0, current_request=0)
         results = non_negative_diversion_check("decrease_demand", [], ctx)
         assert len(results) == 1
         assert not results[0].valid
@@ -324,8 +359,8 @@ class TestIrrigationValidators:
         assert len(results) == 0  # Deferred to P4
 
     def test_aggregated_check_list_length(self):
-        assert len(IRRIGATION_PHYSICAL_CHECKS) == 7  # P3 added supply_gap
-        assert len(ALL_IRRIGATION_CHECKS) == 11  # +temporal +behavioral from pilot
+        assert len(IRRIGATION_PHYSICAL_CHECKS) == 8  # P3 supply_gap + demand_floor
+        assert len(ALL_IRRIGATION_CHECKS) == 12  # +temporal +behavioral +demand_floor
 
     def test_all_checks_callable(self):
         for check in ALL_IRRIGATION_CHECKS:
