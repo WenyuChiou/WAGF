@@ -37,8 +37,9 @@ def test_execute_skill_increase_demand():
     result = env.execute_skill(skill)
     assert result.success
     state = env.get_agent_state("TestAgent")
-    # Initial request = 100_000 * 0.8 = 80_000; increase by 15% of 100_000 = 15_000
-    assert state["request"] == 95_000.0
+    # v12: magnitude sampled from agent Gaussian (default=10, sigma=0), not LLM param.
+    # Increase based on current diversion: 80_000 * 10% = 8_000
+    assert state["request"] == 88_000.0
 
 
 def test_execute_skill_decrease_demand():
