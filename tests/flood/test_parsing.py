@@ -111,10 +111,14 @@ class TestHouseholdParsing(unittest.TestCase):
         labels = ["VL", "L", "M", "H", "VH"]
 
         for label in labels:
-            # Test uppercase
+            # Test uppercase — include all required constructs for strict mode
             raw_output = f'''
             {{
               "threat_perception": {{ "label": "{label}", "reason": "test" }},
+              "coping_perception": {{ "label": "M", "reason": "test" }},
+              "stakeholder_perception": {{ "label": "M", "reason": "test" }},
+              "social_capital": {{ "label": "M", "reason": "test" }},
+              "past_experience": {{ "label": "M", "reason": "test" }},
               "decision": "do_nothing"
             }}
             '''
@@ -128,6 +132,10 @@ class TestHouseholdParsing(unittest.TestCase):
         raw_output = '''
         {
           "threat_perception": { "label": "vh", "reason": "lowercase test" },
+          "coping_perception": { "label": "m", "reason": "test" },
+          "stakeholder_perception": { "label": "m", "reason": "test" },
+          "social_capital": { "label": "m", "reason": "test" },
+          "past_experience": { "label": "m", "reason": "test" },
           "decision": "do_nothing"
         }
         '''

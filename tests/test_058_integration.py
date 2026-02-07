@@ -11,6 +11,7 @@ from broker.components.phase_orchestrator import PhaseOrchestrator
 from broker.interfaces.artifacts import ArtifactEnvelope
 from broker.interfaces.coordination import ActionProposal
 from examples.multi_agent.flood.protocols.artifacts import PolicyArtifact
+from broker.interfaces.skill_types import SkillOutcome
 from examples.multi_agent.flood.orchestration.lifecycle_hooks import MultiAgentHooks
 
 
@@ -92,7 +93,7 @@ class TestLifecycleHooksDrift:
         )
 
         result = SimpleNamespace(
-            outcome=SimpleNamespace(name="SUCCESS"),
+            outcome=SkillOutcome.APPROVED,
             skill_proposal=SimpleNamespace(skill_name="buy_insurance", reasoning={}),
             TP_LABEL="M",
             CP_LABEL="M",

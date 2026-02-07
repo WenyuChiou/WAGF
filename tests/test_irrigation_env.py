@@ -266,7 +266,7 @@ class TestIrrigationValidators:
         assert len(results) == 0
 
     def test_magnitude_cap_allows_aggressive_within(self):
-        ctx = self._make_context(proposed_magnitude=25, cluster="aggressive")
+        ctx = self._make_context(proposed_magnitude=18, cluster="aggressive")
         results = magnitude_cap_check("increase_demand", [], ctx)
         assert len(results) == 0
 
@@ -321,7 +321,7 @@ class TestIrrigationValidators:
 
     def test_aggregated_check_list_length(self):
         assert len(IRRIGATION_PHYSICAL_CHECKS) == 7  # P3 added supply_gap
-        assert len(ALL_IRRIGATION_CHECKS) == 9
+        assert len(ALL_IRRIGATION_CHECKS) == 11  # +temporal +behavioral from pilot
 
     def test_all_checks_callable(self):
         for check in ALL_IRRIGATION_CHECKS:
