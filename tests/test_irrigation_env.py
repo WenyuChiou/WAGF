@@ -19,6 +19,7 @@ from examples.irrigation_abm.validators.irrigation_validators import (
     supply_gap_block_increase,
     minimum_utilisation_check,
     demand_floor_stabilizer,
+    demand_ceiling_stabilizer,
     consecutive_increase_cap_check,
     zero_escape_check,
     reset_consecutive_tracker,
@@ -398,8 +399,8 @@ class TestIrrigationValidators:
         assert len(results) == 0  # Deferred to P4
 
     def test_aggregated_check_list_length(self):
-        assert len(IRRIGATION_PHYSICAL_CHECKS) == 7  # removed efficiency_already_adopted
-        assert len(ALL_IRRIGATION_CHECKS) == 11  # 7 physical + 2 social + 1 temporal + 1 behavioral
+        assert len(IRRIGATION_PHYSICAL_CHECKS) == 8  # +1 demand_ceiling_stabilizer
+        assert len(ALL_IRRIGATION_CHECKS) == 12  # 8 physical + 2 social + 1 temporal + 1 behavioral
 
     def test_all_checks_callable(self):
         for check in ALL_IRRIGATION_CHECKS:
@@ -605,6 +606,60 @@ class TestDemandFloorStabilizer:
         """Utilisation 30% + increase → pass."""
         ctx = self._make_context(current_request=30_000)
         results = demand_floor_stabilizer("increase_large", [], ctx)
+        assert len(results) == 0
+
+
+# =====================================================================
+# Stage 1: Demand Ceiling Stabilizer Tests
+# =====================================================================
+
+class TestDemandCeilingStabilizer:
+    """Test the demand_ceiling_stabilizer validator (6.0 MAF ceiling)."""
+
+    def _make_context(self, **overrides):
+        base = {
+            "total_basin_demand": 5_000_000,  # 5.0 MAF (below ceiling)
+        }
+        base.update(overrides)
+        return base
+
+    def test_blocks_increase_large_above_ceiling(self):
+        """Basin demand 7.0 MAF + increase_large -> ERROR."""
+        ctx = self._make_context(total_basin_demand=7_000_000)
+        results = demand_ceiling_stabilizer("increase_large", [], ctx)
+        assert len(results) == 1
+        assert not results[0].valid
+        assert results[0].metadata["rule_id"] == "demand_ceiling_stabilizer"
+
+    def test_blocks_increase_small_above_ceiling(self):
+        """Basin demand 7.0 MAF + increase_small -> also ERROR."""
+        ctx = self._make_context(total_basin_demand=7_000_000)
+        results = demand_ceiling_stabilizer("increase_small", [], ctx)
+        assert len(results) == 1
+        assert not results[0].valid
+
+    def test_allows_increase_below_ceiling(self):
+        """Basin demand 5.0 MAF + increase -> pass."""
+        ctx = self._make_context(total_basin_demand=5_000_000)
+        results = demand_ceiling_stabilizer("increase_large", [], ctx)
+        assert len(results) == 0
+
+    def test_allows_increase_at_exactly_ceiling(self):
+        """Basin demand exactly 6.0 MAF -> pass (boundary)."""
+        ctx = self._make_context(total_basin_demand=6_000_000)
+        results = demand_ceiling_stabilizer("increase_small", [], ctx)
+        assert len(results) == 0
+
+    def test_ignores_maintain_above_ceiling(self):
+        """Basin demand 7.0 MAF + maintain -> pass (only checks increase)."""
+        ctx = self._make_context(total_basin_demand=7_000_000)
+        results = demand_ceiling_stabilizer("maintain_demand", [], ctx)
+        assert len(results) == 0
+
+    def test_ignores_decrease_above_ceiling(self):
+        """Basin demand 7.0 MAF + decrease -> pass."""
+        ctx = self._make_context(total_basin_demand=7_000_000)
+        results = demand_ceiling_stabilizer("decrease_large", [], ctx)
         assert len(results) == 0
 
 

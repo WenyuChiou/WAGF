@@ -495,6 +495,11 @@ class IrrigationEnvironment:
         # when aggregate UB demand exceeds available supply
         self._apply_powell_constraint()
 
+        # Basin-level aggregate demand for ceiling validator
+        self._global["total_basin_demand"] = sum(
+            a["request"] for a in self._agents.values()
+        )
+
         return self._global.copy()
 
     def get_agent_context(self, agent_id: str) -> Dict[str, Any]:
@@ -529,6 +534,7 @@ class IrrigationEnvironment:
             "drought_index": self._global.get("drought_index", 0),
             "total_available_water": self._global.get("total_available_water", 0),
             "shortage_tier": self._compute_shortage_tier(),
+            "total_basin_demand": self._global.get("total_basin_demand", 0),
         }
 
     def update_agent_request(
