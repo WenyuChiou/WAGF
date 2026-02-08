@@ -71,7 +71,7 @@ Do not remove existing `Run_1`.
 
 Use:
 
-- `examples/single_agent/run_flood_runs23.ps1`
+- `examples/single_agent/run_wrr_v6_flood.ps1`
 
 This script:
 - runs Group A via `ref/LLMABMPMT-Final.py`,

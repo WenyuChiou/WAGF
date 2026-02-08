@@ -46,7 +46,7 @@ For WRR A/B/C ablation, lock setup as:
 
 Latest commit date per script (from git history):
 
-- `examples/single_agent/run_flood_runs23.ps1` (2026-02-08)
+- `examples/single_agent/run_wrr_v6_flood.ps1` (2026-02-08)
 - `examples/single_agent/run_missing_BC.sh` (2026-02-03)
 - `examples/single_agent/run_flood_BC_v7.ps1` (2026-02-01)
 - `examples/single_agent/run_ministral_8b14b_BC.ps1` (2026-02-01)
@@ -62,7 +62,7 @@ Latest commit date per script (from git history):
 
 ### Recommended
 
-1. `examples/single_agent/run_flood_runs23.ps1`
+1. `examples/single_agent/run_wrr_v6_flood.ps1`
 - Purpose: Run seed replication for `Run_2` and `Run_3` without overwriting `Run_1`.
 - Output paths:
   - `examples/single_agent/results/JOH_FINAL/<model_dir>/Group_A/Run_2`
@@ -104,7 +104,7 @@ Suggested seed plan:
 
 ## Practical Execution Order
 
-1. Run `examples/single_agent/run_flood_runs23.ps1`.
+1. Run `examples/single_agent/run_wrr_v6_flood.ps1`.
 2. Verify each target folder has `simulation_log.csv`.
 3. Recompute metrics after runs complete.
 4. Update manuscript statistics to seed-aggregated values.

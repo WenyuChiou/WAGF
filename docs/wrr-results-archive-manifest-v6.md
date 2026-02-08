@@ -58,7 +58,7 @@ For seed-robust WRR v6 results, include Run_2 and Run_3 once available:
 
 Execution artifacts:
 - Test plan: `docs/wrr-run23-test-plan-v6.md`
-- Runner script: `examples/single_agent/run_flood_runs23.ps1`
+- Runner script: `examples/single_agent/run_wrr_v6_flood.ps1`
 
 A/B/C execution split in the runner:
 - Group A uses `ref/LLMABMPMT-Final.py` original baseline path.
