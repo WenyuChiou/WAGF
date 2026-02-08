@@ -1,4 +1,4 @@
-# Single-Agent Flood Experiment Script Map (v6)
+﻿# Single-Agent Flood Experiment Script Map (v6)
 
 ## Scope
 
@@ -12,7 +12,7 @@ This map summarizes the latest runnable scripts under `examples/single_agent` an
 
 ### `examples/single_agent/run_flood.py`
 
-Primary runtime entrypoint for flood experiments.
+Primary runtime entrypoint for flood experiments (used for Group B/C in WRR v6 A/B/C setup).
 
 Config files used internally:
 - Skill registry: `examples/single_agent/skill_registry.yaml`
@@ -24,7 +24,7 @@ Important CLI arguments:
 - `--governance-mode` (`strict|relaxed|disabled`)
 - `--memory-engine` (`window|humancentric|importance|hierarchical`)
 - `--window-size`
-- `--use-priority-schema` (optional switch; default is off)
+- `--use-priority-schema` (optional switch; default off)
 - `--seed`
 - `--memory-seed`
 - `--num-ctx`, `--num-predict`
@@ -35,14 +35,12 @@ Output behavior:
 - If `--output` is provided, results write exactly there.
 - If omitted, auto path is under `examples/single_agent/results/<model>_<governance_mode>/`.
 
-## Group Setup Confirmation (Requested)
+## Group Setup Confirmation
 
-For WRR A/B/C ablation, target setup is:
-- Group A: `--governance-mode disabled --memory-engine window`
-- Group B: `--governance-mode strict --memory-engine window --window-size 5`
-- Group C: `--governance-mode strict --memory-engine humancentric --window-size 5 --use-priority-schema`
-
-Confirmed: Group A should NOT enable priority schema.
+For WRR A/B/C ablation, lock setup as:
+- Group A: original baseline script `ref/LLMABMPMT-Final.py` (no priority schema path)
+- Group B: `run_flood.py --governance-mode strict --memory-engine window --window-size 5`
+- Group C: `run_flood.py --governance-mode strict --memory-engine humancentric --window-size 5 --use-priority-schema`
 
 ## Latest Script Inventory (run_* files)
 
@@ -72,7 +70,9 @@ Latest commit date per script (from git history):
   - and same for Group_B/Group_C.
 - Safety:
   - skips execution if `simulation_log.csv` already exists.
-- Group A in this script does not use priority schema.
+- Group split:
+  - A via `ref/LLMABMPMT-Final.py`
+  - B/C via `run_flood.py`
 
 2. Direct `run_flood.py` command lines (manual control)
 - Best when debugging one model/group with explicit parameters.
@@ -85,17 +85,18 @@ Latest commit date per script (from git history):
 - `run_ministral_all.ps1`, `run_ministral_8b14b_BC.ps1`, `run_flood_replicates.sh`, `run_missing_BC.sh`
   - Useful historically, but most write to `Run_1` and can conflict with current archive layout.
 - `run_ministral_groupA_baseline.ps1`
-  - Uses `ref/LLMABMPMT-Final.py` baseline path for Group A.
-  - This differs from the `run_flood.py` pipeline and should only be used if explicitly required by study design.
+  - Uses `ref/LLMABMPMT-Final.py` for Group A baseline.
+  - Keep only if this is your declared Group A definition (it now is).
 
 ## Path and Parameter Lock for Current Replication
 
 Use these fixed values for Run_2/Run_3 consistency:
 - `--years 10 --agents 100 --workers 1`
-- `--num-ctx 8192 --num-predict 1536`
+- `--num-ctx 8192 --num-predict 1536` (B/C)
 - `--initial-agents examples/single_agent/agent_initial_profiles.csv`
-- `--memory-seed` = same as `--seed`
-- Group A no priority schema
+- `--memory-seed` = same as `--seed` (B/C)
+- Group A uses baseline flood years file:
+  - `examples/single_agent/flood_years.csv`
 
 Suggested seed plan:
 - Run_2: seed `4202`

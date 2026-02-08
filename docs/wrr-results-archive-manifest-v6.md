@@ -1,4 +1,4 @@
-# WRR v6 Results Archive Manifest
+﻿# WRR v6 Results Archive Manifest
 
 This manifest records the analysis inputs, scripts, and outputs used for the flood results section (rationality and diversity) in the WRR v6 workflow.
 
@@ -59,3 +59,7 @@ For seed-robust WRR v6 results, include Run_2 and Run_3 once available:
 Execution artifacts:
 - Test plan: `docs/wrr-run23-test-plan-v6.md`
 - Runner script: `examples/single_agent/run_flood_runs23.ps1`
+
+A/B/C execution split in the runner:
+- Group A uses `ref/LLMABMPMT-Final.py` original baseline path.
+- Group B/C use `examples/single_agent/run_flood.py` governed pipeline.

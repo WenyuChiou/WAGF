@@ -1,4 +1,4 @@
-# WRR Flood Multi-Run Test Plan (Run_2 / Run_3)
+ï»¿# WRR Flood Multi-Run Test Plan (Run_2 / Run_3)
 
 ## Goal
 
@@ -29,7 +29,7 @@ Reviewed scripts under `examples/single_agent`:
 
 4. Baseline mismatch risk.
 - `run_ministral_groupA_baseline.ps1` uses legacy `ref/LLMABMPMT-Final.py`, not `run_flood.py` pipeline.
-- For WRR v6 reproducibility, avoid mixing baseline generator logic across runs unless explicitly declared.
+- For WRR v6 reproducibility, declare this split explicitly and keep it consistent across runs.
 
 5. Memory seed control is often omitted.
 - `run_flood.py` defaults `--memory-seed 42`.
@@ -41,18 +41,20 @@ Reviewed scripts under `examples/single_agent`:
   - `gemma3:4b`, `gemma3:12b`, `gemma3:27b`
   - `ministral-3:3b`, `ministral-3:8b`, `ministral-3:14b`
 - Groups:
-  - A: `--governance-mode disabled --memory-engine window`
+  - A: original baseline script `ref/LLMABMPMT-Final.py`
   - B: `--governance-mode strict --memory-engine window --window-size 5`
   - C: `--governance-mode strict --memory-engine humancentric --window-size 5 --use-priority-schema`
 - Common parameters:
-  - `--years 10 --agents 100 --workers 1`
-  - `--num-ctx 8192 --num-predict 1536`
+  - `--years 10 --agents 100`
+  - `--num-ctx 8192 --num-predict 1536` (Group B/C)
   - `--initial-agents examples/single_agent/agent_initial_profiles.csv`
+  - Group A also uses: `--flood-years-path examples/single_agent/flood_years.csv`
 - Seeds:
   - `Run_2`: `4202`
   - `Run_3`: `4203`
 - Memory seed policy:
-  - Set `--memory-seed` equal to `--seed` for each run.
+  - For Group B/C, set `--memory-seed` equal to `--seed` for each run.
+  - Group A baseline script has no `--memory-seed` argument.
 
 ## Output Convention (No Overwrite)
 
@@ -72,14 +74,15 @@ Use:
 - `examples/single_agent/run_flood_runs23.ps1`
 
 This script:
-- keeps parameters fixed across models/groups,
+- runs Group A via `ref/LLMABMPMT-Final.py`,
+- runs Group B/C via `examples/single_agent/run_flood.py`,
 - writes only to `Run_2` and `Run_3`,
 - skips a run if `simulation_log.csv` already exists (safe resume).
 
 ## Post-Run Analysis Update
 
-After Run_2/Run_3 complete, aggregate all runs (`Run_1..Run_3`) in a dedicated metrics script version (next step) and report:
+After Run_2/Run_3 complete, aggregate all runs (`Run_1..Run_3`) in a dedicated metrics script version and report:
 
-- per-model/group mean ¡Ó CI for `R_H`, `R_R`, `H_norm_k4`, `EHE_k4`
+- per-model/group mean +/- CI for `R_H`, `R_R`, `H_norm_k4`, `EHE_k4`
 - group-level paired deltas vs Group A
 - workload metrics (`retry_sum`) separately from decision-level rates
