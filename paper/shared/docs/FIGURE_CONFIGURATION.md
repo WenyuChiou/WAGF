@@ -11,7 +11,7 @@
 - **File**: `paper/figures/sage_architecture.png` (OneDrive)
 - **Status**: ✅ DONE
 - **Location**: Section 2 (WAGF Architecture)
-- **Purpose**: Illustrate Three-Pillar design (Governance + Memory + Context)
+- **Purpose**: Illustrate three governance components (Governance + Memory + Context)
 - **Note**: Convert to white background before submission
 
 ---
@@ -67,7 +67,7 @@
 - **File**: `examples/single_agent/analysis/paper_figures/cumulative_relocation.png`
 - **Status**: ✅ DONE
 - **Purpose**: Show memory-driven long-term behavioral shift (Pillar 2: Memory)
-- **Decision**: ✅ **KEEP** - Demonstrates memory pillar effectiveness
+- **Decision**: ✅ **KEEP** - Demonstrates memory component effectiveness
 
 ---
 
