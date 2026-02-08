@@ -3,7 +3,9 @@
 
 $ErrorActionPreference = "Continue"
 $BASE = "c:/Users/wenyu/Desktop/Lehigh/governed_broker_framework"
+$BASELINE_SCRIPT = "ref/LLMABMPMT-Final.py"
 $PROFILES = "examples/single_agent/agent_initial_profiles.csv"
+$FLOOD_YEARS = "examples/single_agent/flood_years.csv"
 $YEARS = 10
 $AGENTS = 100
 $WORKERS = 1
@@ -75,6 +77,42 @@ function Invoke-Run {
     }
 }
 
+function Invoke-RunGroupAOriginal {
+    param(
+        [string]$Model,
+        [string]$OutDir,
+        [int]$Seed
+    )
+
+    $csvPath = "$OutDir/simulation_log.csv"
+    if (Test-Path $csvPath) {
+        Write-Host "[SKIP] Exists: $csvPath" -ForegroundColor Yellow
+        return
+    }
+
+    New-Item -ItemType Directory -Path $OutDir -Force | Out-Null
+
+    $baseArgs = @(
+        $BASELINE_SCRIPT,
+        "--model", $Model,
+        "--years", "$YEARS",
+        "--agents", "$AGENTS",
+        "--output", $OutDir,
+        "--seed", "$Seed",
+        "--agents-path", $PROFILES,
+        "--flood-years-path", $FLOOD_YEARS
+    )
+
+    Write-Host "[RUN] python $($baseArgs -join ' ')" -ForegroundColor Cyan
+    & python @baseArgs
+
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[FAIL] $Model (Group_A original baseline) -> $OutDir" -ForegroundColor Red
+    } else {
+        Write-Host "[DONE] $Model (Group_A original baseline) -> $OutDir" -ForegroundColor Green
+    }
+}
+
 foreach ($r in $runs) {
     Write-Host "============================================" -ForegroundColor Magenta
     Write-Host "Starting $($r.name) with seed=$($r.seed)" -ForegroundColor Magenta
@@ -83,9 +121,8 @@ foreach ($r in $runs) {
     foreach ($m in $models) {
         $baseOut = "examples/single_agent/results/JOH_FINAL/$($m.dir)"
 
-        # Group A
-        Invoke-Run -Model $m.tag -OutDir "$baseOut/Group_A/$($r.name)" -Seed $r.seed `
-            -GovMode "disabled" -MemEngine "window" -UsePriority:$false
+        # Group A (original baseline script)
+        Invoke-RunGroupAOriginal -Model $m.tag -OutDir "$baseOut/Group_A/$($r.name)" -Seed $r.seed
 
         # Group B
         Invoke-Run -Model $m.tag -OutDir "$baseOut/Group_B/$($r.name)" -Seed $r.seed `
