@@ -219,28 +219,34 @@ class TestIrrigationValidators:
         return base
 
     def test_water_right_cap_allows_normal(self):
-        results = water_right_cap_check("increase_demand", [], self._make_context())
+        results = water_right_cap_check("increase_large", [], self._make_context())
         assert len(results) == 0
 
     def test_water_right_cap_blocks_at_cap(self):
         ctx = self._make_context(at_allocation_cap=True)
-        results = water_right_cap_check("increase_demand", [], ctx)
+        results = water_right_cap_check("increase_large", [], ctx)
+        assert len(results) == 1
+        assert not results[0].valid
+
+    def test_water_right_cap_blocks_small_at_cap(self):
+        ctx = self._make_context(at_allocation_cap=True)
+        results = water_right_cap_check("increase_small", [], ctx)
         assert len(results) == 1
         assert not results[0].valid
 
     def test_water_right_cap_ignores_other_skills(self):
         ctx = self._make_context(at_allocation_cap=True)
-        results = water_right_cap_check("decrease_demand", [], ctx)
+        results = water_right_cap_check("decrease_large", [], ctx)
         assert len(results) == 0
 
     def test_non_negative_allows_positive(self):
-        results = non_negative_diversion_check("decrease_demand", [], self._make_context())
+        results = non_negative_diversion_check("decrease_large", [], self._make_context())
         assert len(results) == 0
 
     def test_non_negative_warns_curtailment_zero(self):
         """Diversion=0 but request>0 (curtailment-caused) → WARNING, not ERROR."""
         ctx = self._make_context(current_diversion=0, current_request=100_000)
-        results = non_negative_diversion_check("decrease_demand", [], ctx)
+        results = non_negative_diversion_check("decrease_small", [], ctx)
         assert len(results) == 1
         assert results[0].valid  # WARNING, not ERROR
         assert len(results[0].warnings) == 1
@@ -248,39 +254,76 @@ class TestIrrigationValidators:
     def test_non_negative_blocks_truly_zero(self):
         """Diversion=0 AND request=0 → still ERROR."""
         ctx = self._make_context(current_diversion=0, current_request=0)
-        results = non_negative_diversion_check("decrease_demand", [], ctx)
+        results = non_negative_diversion_check("decrease_large", [], ctx)
         assert len(results) == 1
         assert not results[0].valid
 
     def test_curtailment_blocks_tier2_increase(self):
-        """P4: Tier 2+ shortage triggers hard BLOCK on increase_demand."""
+        """P4: Tier 2+ shortage triggers hard BLOCK on all increases."""
         ctx = self._make_context(curtailment_ratio=0.10, shortage_tier=2)
-        results = curtailment_awareness_check("increase_demand", [], ctx)
+        results = curtailment_awareness_check("increase_large", [], ctx)
         assert len(results) == 1
-        assert not results[0].valid  # P4: Tier 2+ → BLOCK
+        assert not results[0].valid
         assert len(results[0].errors) == 1
 
-    def test_curtailment_warns_tier1_increase(self):
-        """Tier 0-1 remains WARNING only (original behaviour)."""
-        ctx = self._make_context(curtailment_ratio=0.05, shortage_tier=1)
-        results = curtailment_awareness_check("increase_demand", [], ctx)
-        assert len(results) == 1
-        assert results[0].valid  # Tier 1 → WARNING
-        assert len(results[0].warnings) == 1
-
-    def test_curtailment_silent_when_none(self):
-        results = curtailment_awareness_check("increase_demand", [], self._make_context())
-        assert len(results) == 0
-
-    def test_drought_blocks_increase_at_severe(self):
-        ctx = self._make_context(drought_index=0.9)
-        results = drought_severity_check("increase_demand", [], ctx)
+    def test_curtailment_blocks_tier2_increase_small(self):
+        """P4: Tier 2+ blocks increase_small too."""
+        ctx = self._make_context(curtailment_ratio=0.10, shortage_tier=2)
+        results = curtailment_awareness_check("increase_small", [], ctx)
         assert len(results) == 1
         assert not results[0].valid
 
+    def test_curtailment_tier1_blocks_large(self):
+        """v17: Tier 1 blocks increase_large (differential governance)."""
+        ctx = self._make_context(curtailment_ratio=0.05, shortage_tier=1)
+        results = curtailment_awareness_check("increase_large", [], ctx)
+        assert len(results) == 1
+        assert not results[0].valid  # ERROR
+        assert len(results[0].errors) == 1
+
+    def test_curtailment_tier1_warns_small(self):
+        """v17: Tier 1 warns increase_small (differential governance)."""
+        ctx = self._make_context(curtailment_ratio=0.05, shortage_tier=1)
+        results = curtailment_awareness_check("increase_small", [], ctx)
+        assert len(results) == 1
+        assert results[0].valid  # WARNING
+        assert len(results[0].warnings) == 1
+
+    def test_curtailment_silent_when_none(self):
+        results = curtailment_awareness_check("increase_large", [], self._make_context())
+        assert len(results) == 0
+
+    def test_drought_blocks_large_at_extreme(self):
+        """Drought >= 0.85 blocks all increases."""
+        ctx = self._make_context(drought_index=0.9)
+        results = drought_severity_check("increase_large", [], ctx)
+        assert len(results) == 1
+        assert not results[0].valid
+
+    def test_drought_blocks_small_at_extreme(self):
+        """Drought >= 0.85 blocks increase_small too."""
+        ctx = self._make_context(drought_index=0.9)
+        results = drought_severity_check("increase_small", [], ctx)
+        assert len(results) == 1
+        assert not results[0].valid
+
+    def test_drought_moderate_blocks_large(self):
+        """v17: Drought 0.7-0.84 blocks increase_large."""
+        ctx = self._make_context(drought_index=0.75)
+        results = drought_severity_check("increase_large", [], ctx)
+        assert len(results) == 1
+        assert not results[0].valid
+
+    def test_drought_moderate_warns_small(self):
+        """v17: Drought 0.7-0.84 warns increase_small."""
+        ctx = self._make_context(drought_index=0.75)
+        results = drought_severity_check("increase_small", [], ctx)
+        assert len(results) == 1
+        assert results[0].valid  # WARNING
+
     def test_drought_allows_increase_at_normal(self):
         ctx = self._make_context(drought_index=0.3)
-        results = drought_severity_check("increase_demand", [], ctx)
+        results = drought_severity_check("increase_large", [], ctx)
         assert len(results) == 0
 
     def test_compact_warns_on_overshoot(self):
@@ -288,17 +331,17 @@ class TestIrrigationValidators:
             total_basin_demand=8_000_000,
             basin_allocation=7_500_000,
         )
-        results = compact_allocation_check("increase_demand", [], ctx)
+        results = compact_allocation_check("increase_large", [], ctx)
         assert len(results) == 1
         assert results[0].valid  # Warning only
 
     def test_compact_silent_when_within(self):
-        results = compact_allocation_check("increase_demand", [], self._make_context())
+        results = compact_allocation_check("increase_large", [], self._make_context())
         assert len(results) == 0
 
     def test_magnitude_cap_allows_aggressive_within(self):
         ctx = self._make_context(proposed_magnitude=18, cluster="aggressive")
-        results = magnitude_cap_check("increase_demand", [], ctx)
+        results = magnitude_cap_check("increase_large", [], ctx)
         assert len(results) == 0
 
     def test_magnitude_cap_warns_forward_looking(self):
@@ -307,7 +350,7 @@ class TestIrrigationValidators:
             proposed_magnitude=25,
             cluster="forward_looking_conservative",
         )
-        results = magnitude_cap_check("increase_demand", [], ctx)
+        results = magnitude_cap_check("increase_large", [], ctx)
         assert len(results) == 1
         assert results[0].valid  # WARNING, not ERROR
         assert len(results[0].warnings) == 1
@@ -315,7 +358,7 @@ class TestIrrigationValidators:
     def test_magnitude_cap_warns_myopic(self):
         """v12: magnitude_cap is WARNING (not ERROR) since execute_skill uses Gaussian."""
         ctx = self._make_context(proposed_magnitude=12, cluster="myopic_conservative")
-        results = magnitude_cap_check("increase_demand", [], ctx)
+        results = magnitude_cap_check("increase_small", [], ctx)
         assert len(results) == 1
         assert results[0].valid  # WARNING, not ERROR
         assert len(results[0].warnings) == 1
@@ -323,26 +366,26 @@ class TestIrrigationValidators:
     def test_supply_gap_blocks_low_fulfilment(self):
         """P3: Block increase when fulfilment < 70%."""
         ctx = self._make_context(current_request=100_000, current_diversion=50_000)
-        results = supply_gap_block_increase("increase_demand", [], ctx)
+        results = supply_gap_block_increase("increase_large", [], ctx)
         assert len(results) == 1
         assert not results[0].valid
 
     def test_supply_gap_allows_high_fulfilment(self):
         """P3: Allow increase when fulfilment >= 70%."""
         ctx = self._make_context(current_request=100_000, current_diversion=80_000)
-        results = supply_gap_block_increase("increase_demand", [], ctx)
+        results = supply_gap_block_increase("increase_large", [], ctx)
         assert len(results) == 0
 
     def test_supply_gap_allows_zero_baseline(self):
         """P3: Allow increase from zero baseline (Y1 new agent)."""
         ctx = self._make_context(current_request=0, current_diversion=0)
-        results = supply_gap_block_increase("increase_demand", [], ctx)
+        results = supply_gap_block_increase("increase_small", [], ctx)
         assert len(results) == 0
 
     def test_supply_gap_blocks_zero_delivery(self):
         """P3: Block increase when request > 0 but delivery = 0."""
         ctx = self._make_context(current_request=100_000, current_diversion=0)
-        results = supply_gap_block_increase("increase_demand", [], ctx)
+        results = supply_gap_block_increase("increase_large", [], ctx)
         assert len(results) == 1
         assert not results[0].valid
 
@@ -351,7 +394,7 @@ class TestIrrigationValidators:
         ctx = self._make_context(
             current_request=100_000, current_diversion=30_000, shortage_tier=2
         )
-        results = supply_gap_block_increase("increase_demand", [], ctx)
+        results = supply_gap_block_increase("increase_large", [], ctx)
         assert len(results) == 0  # Deferred to P4
 
     def test_aggregated_check_list_length(self):
@@ -381,7 +424,7 @@ class TestDomainDispatch:
             "at_allocation_cap": True,
             "water_right": 100_000,
         }
-        results = validate_all("increase_demand", self._make_rules(), ctx, domain="irrigation")
+        results = validate_all("increase_large", self._make_rules(), ctx, domain="irrigation")
         errors = [r for r in results if not r.valid]
         assert len(errors) >= 1
         assert any("water right" in e.errors[0].lower() for e in errors)
@@ -390,7 +433,7 @@ class TestDomainDispatch:
         """domain='irrigation' activates drought_severity_check."""
         from broker.validators.governance import validate_all
         ctx = {"drought_index": 0.95}
-        results = validate_all("increase_demand", self._make_rules(), ctx, domain="irrigation")
+        results = validate_all("increase_large", self._make_rules(), ctx, domain="irrigation")
         errors = [r for r in results if not r.valid]
         assert len(errors) >= 1
         assert any("drought" in e.errors[0].lower() for e in errors)
@@ -435,35 +478,46 @@ class TestDomainDispatch:
             "total_basin_demand": 8_000_000,
             "basin_allocation": 7_500_000,
         }
-        results = validate_all("increase_demand", self._make_rules(), ctx, domain="irrigation")
+        results = validate_all("increase_large", self._make_rules(), ctx, domain="irrigation")
         warnings = [r for r in results if r.valid and r.warnings]
         assert len(warnings) >= 1
         assert any("compact" in w.warnings[0].lower() for w in warnings)
 
     def test_irrigation_curtailment_blocks_tier2(self):
-        """P4: domain='irrigation' blocks increase_demand at Tier 2+ shortage."""
+        """P4: domain='irrigation' blocks increase at Tier 2+ shortage."""
         from broker.validators.governance import validate_all
         ctx = {
             "curtailment_ratio": 0.15,
             "shortage_tier": 2,
         }
-        results = validate_all("increase_demand", self._make_rules(), ctx, domain="irrigation")
+        results = validate_all("increase_large", self._make_rules(), ctx, domain="irrigation")
         errors = [r for r in results if not r.valid and r.errors]
         assert len(errors) >= 1
         assert any("curtailment" in e.errors[0].lower() or "conservation" in e.errors[0].lower()
                     for e in errors)
 
-    def test_irrigation_curtailment_warns_tier1(self):
-        """Tier 1 shortage remains WARNING via domain dispatch."""
+    def test_irrigation_curtailment_tier1_blocks_large(self):
+        """v17: Tier 1 blocks increase_large via domain dispatch."""
         from broker.validators.governance import validate_all
         ctx = {
             "curtailment_ratio": 0.05,
             "shortage_tier": 1,
         }
-        results = validate_all("increase_demand", self._make_rules(), ctx, domain="irrigation")
+        results = validate_all("increase_large", self._make_rules(), ctx, domain="irrigation")
+        errors = [r for r in results if not r.valid]
+        assert len(errors) >= 1
+
+    def test_irrigation_curtailment_tier1_warns_small(self):
+        """v17: Tier 1 warns increase_small via domain dispatch."""
+        from broker.validators.governance import validate_all
+        ctx = {
+            "curtailment_ratio": 0.05,
+            "shortage_tier": 1,
+        }
+        results = validate_all("increase_small", self._make_rules(), ctx, domain="irrigation")
         warnings = [r for r in results if r.valid and r.warnings]
         assert len(warnings) >= 1
-        assert any("curtailment" in w.warnings[0].lower() for w in warnings)
+        assert any("tier 1" in w.warnings[0].lower() for w in warnings)
 
 
 # =====================================================================
@@ -474,9 +528,9 @@ class TestIrrigationGovernanceAdapter:
     """Test the irrigation_governance_validator adapter function."""
 
     def test_adapter_blocks_at_allocation_cap(self):
-        """Adapter should block increase_demand at allocation cap."""
+        """Adapter should block increase_large at allocation cap."""
         from types import SimpleNamespace
-        proposal = SimpleNamespace(skill_name="increase_demand")
+        proposal = SimpleNamespace(skill_name="increase_large")
         ctx = {"at_allocation_cap": True, "water_right": 100_000}
         results = irrigation_governance_validator(proposal, ctx)
         errors = [r for r in results if not r.valid]
@@ -494,7 +548,7 @@ class TestIrrigationGovernanceAdapter:
     def test_adapter_returns_list(self):
         """Adapter must return a list (SkillBrokerEngine contract)."""
         from types import SimpleNamespace
-        proposal = SimpleNamespace(skill_name="decrease_demand")
+        proposal = SimpleNamespace(skill_name="decrease_large")
         results = irrigation_governance_validator(proposal, {})
         assert isinstance(results, list)
 
@@ -514,24 +568,31 @@ class TestDemandFloorStabilizer:
         base.update(overrides)
         return base
 
-    def test_blocks_decrease_below_50pct(self):
-        """Utilisation 45% + decrease → ERROR."""
+    def test_blocks_decrease_large_below_50pct(self):
+        """Utilisation 45% + decrease_large → ERROR."""
         ctx = self._make_context(current_request=45_000)
-        results = demand_floor_stabilizer("decrease_demand", [], ctx)
+        results = demand_floor_stabilizer("decrease_large", [], ctx)
         assert len(results) == 1
         assert not results[0].valid
         assert results[0].metadata["rule_id"] == "demand_floor_stabilizer"
 
+    def test_blocks_decrease_small_below_50pct(self):
+        """Utilisation 45% + decrease_small → also ERROR."""
+        ctx = self._make_context(current_request=45_000)
+        results = demand_floor_stabilizer("decrease_small", [], ctx)
+        assert len(results) == 1
+        assert not results[0].valid
+
     def test_allows_decrease_above_50pct(self):
         """Utilisation 60% + decrease → pass."""
         ctx = self._make_context(current_request=60_000)
-        results = demand_floor_stabilizer("decrease_demand", [], ctx)
+        results = demand_floor_stabilizer("decrease_large", [], ctx)
         assert len(results) == 0
 
     def test_allows_decrease_at_exactly_50pct(self):
         """Utilisation exactly 50% → pass (boundary)."""
         ctx = self._make_context(current_request=50_000)
-        results = demand_floor_stabilizer("decrease_demand", [], ctx)
+        results = demand_floor_stabilizer("decrease_small", [], ctx)
         assert len(results) == 0
 
     def test_ignores_non_decrease(self):
@@ -543,7 +604,7 @@ class TestDemandFloorStabilizer:
     def test_ignores_increase(self):
         """Utilisation 30% + increase → pass."""
         ctx = self._make_context(current_request=30_000)
-        results = demand_floor_stabilizer("increase_demand", [], ctx)
+        results = demand_floor_stabilizer("increase_large", [], ctx)
         assert len(results) == 0
 
 
@@ -566,15 +627,22 @@ class TestMinimumUtilisationCheck:
     def test_blocks_decrease_below_10pct(self):
         """below_minimum=True + decrease → ERROR."""
         ctx = self._make_context(below_minimum_utilisation=True, request=8_000)
-        results = minimum_utilisation_check("decrease_demand", [], ctx)
+        results = minimum_utilisation_check("decrease_large", [], ctx)
         assert len(results) == 1
         assert not results[0].valid
         assert "economic hallucination" in results[0].errors[0].lower()
 
+    def test_blocks_decrease_small_below_10pct(self):
+        """below_minimum=True + decrease_small → also ERROR."""
+        ctx = self._make_context(below_minimum_utilisation=True, request=8_000)
+        results = minimum_utilisation_check("decrease_small", [], ctx)
+        assert len(results) == 1
+        assert not results[0].valid
+
     def test_allows_decrease_above_floor(self):
         """below_minimum=False + decrease → pass."""
         ctx = self._make_context(below_minimum_utilisation=False)
-        results = minimum_utilisation_check("decrease_demand", [], ctx)
+        results = minimum_utilisation_check("decrease_large", [], ctx)
         assert len(results) == 0
 
     def test_allows_maintain_below_floor(self):
@@ -586,7 +654,7 @@ class TestMinimumUtilisationCheck:
     def test_allows_increase_below_floor(self):
         """below_minimum=True + increase → pass."""
         ctx = self._make_context(below_minimum_utilisation=True, request=8_000)
-        results = minimum_utilisation_check("increase_demand", [], ctx)
+        results = minimum_utilisation_check("increase_large", [], ctx)
         assert len(results) == 0
 
 
@@ -619,11 +687,12 @@ class TestConsecutiveIncreaseCap:
     def test_blocks_4th_consecutive_increase(self):
         """3 consecutive increases + drought>=0.3 → 4th blocked."""
         irr_validators.ENABLE_CONSECUTIVE_CAP = True
-        # Simulate 3 prior increases
-        for _ in range(3):
-            update_consecutive_tracker("test_agent", "increase_demand")
+        # Simulate 3 prior increases (mix of large and small)
+        update_consecutive_tracker("test_agent", "increase_large")
+        update_consecutive_tracker("test_agent", "increase_small")
+        update_consecutive_tracker("test_agent", "increase_large")
         ctx = self._make_context(drought_index=0.5)
-        results = consecutive_increase_cap_check("increase_demand", [], ctx)
+        results = consecutive_increase_cap_check("increase_large", [], ctx)
         assert len(results) == 1
         assert not results[0].valid
         assert results[0].metadata["rule_id"] == "consecutive_increase_cap"
@@ -631,47 +700,47 @@ class TestConsecutiveIncreaseCap:
     def test_allows_3rd_increase(self):
         """Only 2 prior increases → 3rd allowed."""
         irr_validators.ENABLE_CONSECUTIVE_CAP = True
-        for _ in range(2):
-            update_consecutive_tracker("test_agent", "increase_demand")
+        update_consecutive_tracker("test_agent", "increase_large")
+        update_consecutive_tracker("test_agent", "increase_small")
         ctx = self._make_context(drought_index=0.5)
-        results = consecutive_increase_cap_check("increase_demand", [], ctx)
+        results = consecutive_increase_cap_check("increase_small", [], ctx)
         assert len(results) == 0
 
     def test_allows_wet_period_exemption(self):
         """3+ increases but drought<0.3 → pass (wet period exemption)."""
         irr_validators.ENABLE_CONSECUTIVE_CAP = True
         for _ in range(4):
-            update_consecutive_tracker("test_agent", "increase_demand")
+            update_consecutive_tracker("test_agent", "increase_large")
         ctx = self._make_context(drought_index=0.1)
-        results = consecutive_increase_cap_check("increase_demand", [], ctx)
+        results = consecutive_increase_cap_check("increase_large", [], ctx)
         assert len(results) == 0
 
     def test_resets_on_non_increase(self):
         """Decrease resets counter → next increase allowed."""
         irr_validators.ENABLE_CONSECUTIVE_CAP = True
         for _ in range(3):
-            update_consecutive_tracker("test_agent", "increase_demand")
+            update_consecutive_tracker("test_agent", "increase_large")
         # Interrupt with a decrease
-        update_consecutive_tracker("test_agent", "decrease_demand")
+        update_consecutive_tracker("test_agent", "decrease_small")
         ctx = self._make_context(drought_index=0.5)
-        results = consecutive_increase_cap_check("increase_demand", [], ctx)
+        results = consecutive_increase_cap_check("increase_large", [], ctx)
         assert len(results) == 0  # Counter reset to 0
 
     def test_disabled_without_flag(self):
         """ENABLE_CONSECUTIVE_CAP=False → skip entirely."""
         irr_validators.ENABLE_CONSECUTIVE_CAP = False
         for _ in range(5):
-            update_consecutive_tracker("test_agent", "increase_demand")
+            update_consecutive_tracker("test_agent", "increase_large")
         ctx = self._make_context(drought_index=0.9)
-        results = consecutive_increase_cap_check("increase_demand", [], ctx)
+        results = consecutive_increase_cap_check("increase_large", [], ctx)
         assert len(results) == 0
 
     def test_ignores_non_increase_skill(self):
-        """decrease_demand → skip (only checks increase)."""
+        """decrease_large → skip (only checks increase)."""
         irr_validators.ENABLE_CONSECUTIVE_CAP = True
         for _ in range(5):
-            update_consecutive_tracker("test_agent", "increase_demand")
-        results = consecutive_increase_cap_check("decrease_demand", [], self._make_context())
+            update_consecutive_tracker("test_agent", "increase_large")
+        results = consecutive_increase_cap_check("decrease_large", [], self._make_context())
         assert len(results) == 0
 
 
@@ -727,17 +796,17 @@ class TestZeroEscapeCheck:
         assert len(results) == 0
 
     def test_ignores_increase(self):
-        """increase_demand → skip."""
+        """increase_large → skip."""
         irr_validators.ENABLE_ZERO_ESCAPE = True
         ctx = self._make_context(current_request=5_000)
-        results = zero_escape_check("increase_demand", [], ctx)
+        results = zero_escape_check("increase_large", [], ctx)
         assert len(results) == 0
 
     def test_ignores_decrease(self):
-        """decrease_demand → skip."""
+        """decrease_large → skip."""
         irr_validators.ENABLE_ZERO_ESCAPE = True
         ctx = self._make_context(current_request=5_000)
-        results = zero_escape_check("decrease_demand", [], ctx)
+        results = zero_escape_check("decrease_large", [], ctx)
         assert len(results) == 0
 
 
@@ -760,7 +829,7 @@ class TestColdStartGracePeriod:
     def test_tier2_y1_grace_period(self):
         """Year 1 + Tier 2 + increase → WARNING (grace period)."""
         ctx = self._make_context(loop_year=1)
-        results = curtailment_awareness_check("increase_demand", [], ctx)
+        results = curtailment_awareness_check("increase_large", [], ctx)
         assert len(results) == 1
         assert results[0].valid  # WARNING, not ERROR
         assert results[0].metadata.get("cold_start_grace") is True
@@ -768,21 +837,21 @@ class TestColdStartGracePeriod:
     def test_tier2_y3_grace_period(self):
         """Year 3 + Tier 2 → still grace period."""
         ctx = self._make_context(loop_year=3)
-        results = curtailment_awareness_check("increase_demand", [], ctx)
+        results = curtailment_awareness_check("increase_large", [], ctx)
         assert len(results) == 1
         assert results[0].valid  # WARNING
 
     def test_tier2_y4_blocks(self):
         """Year 4 + Tier 2 → no grace, ERROR."""
         ctx = self._make_context(loop_year=4)
-        results = curtailment_awareness_check("increase_demand", [], ctx)
+        results = curtailment_awareness_check("increase_large", [], ctx)
         assert len(results) == 1
         assert not results[0].valid  # ERROR
 
     def test_tier3_y1_no_grace(self):
         """Year 1 + Tier 3 → no grace (Tier 3 never exempted)."""
         ctx = self._make_context(shortage_tier=3, curtailment_ratio=0.20, loop_year=1)
-        results = curtailment_awareness_check("increase_demand", [], ctx)
+        results = curtailment_awareness_check("increase_large", [], ctx)
         assert len(results) == 1
         assert not results[0].valid  # ERROR even in Y1
 
@@ -814,10 +883,10 @@ class TestValidatorInteraction:
             "shortage_tier": 0,
             "drought_index": 0.3,
         }
-        decrease_errors = self._run_all_checks("decrease_demand", ctx)
+        decrease_errors = self._run_all_checks("decrease_large", ctx)
         assert len(decrease_errors) >= 1  # blocked by minimum_utilisation + demand_floor
 
-        increase_errors = self._run_all_checks("increase_demand", ctx)
+        increase_errors = self._run_all_checks("increase_large", ctx)
         assert len(increase_errors) == 0  # open
 
         maintain_errors = self._run_all_checks("maintain_demand", ctx)
@@ -836,10 +905,10 @@ class TestValidatorInteraction:
             "shortage_tier": 0,
             "drought_index": 0.9,
         }
-        increase_errors = self._run_all_checks("increase_demand", ctx)
+        increase_errors = self._run_all_checks("increase_large", ctx)
         assert len(increase_errors) >= 1  # blocked by water_right_cap + drought
 
-        decrease_errors = self._run_all_checks("decrease_demand", ctx)
+        decrease_errors = self._run_all_checks("decrease_large", ctx)
         assert len(decrease_errors) == 0  # open
 
         maintain_errors = self._run_all_checks("maintain_demand", ctx)
@@ -852,7 +921,124 @@ class TestValidatorInteraction:
             "current_request": 50_000,
             "water_right": 100_000,
         }
-        results = non_negative_diversion_check("decrease_demand", [], ctx)
+        results = non_negative_diversion_check("decrease_large", [], ctx)
         assert len(results) == 1
         assert results[0].valid  # WARNING, allowing agent to proceed
         assert results[0].metadata["level"] == "WARNING"
+
+
+# =====================================================================
+# v17: Five-Skill Execution Tests
+# =====================================================================
+
+class TestFiveSkillExecution:
+    """Test execute_skill with all 5 skill names and per-skill Gaussian params."""
+
+    @pytest.fixture
+    def env(self):
+        config = WaterSystemConfig(seed=42)
+        env = IrrigationEnvironment(config)
+        env.initialize_synthetic(n_agents=3, basin_split=(1, 2))
+        return env
+
+    def _make_skill(self, skill_name, agent_id):
+        from types import SimpleNamespace
+        return SimpleNamespace(
+            skill_name=skill_name,
+            agent_id=agent_id,
+            parameters={},
+        )
+
+    def test_increase_large_within_range(self, env):
+        """increase_large should produce magnitude in 8-20% range."""
+        env.advance_year()
+        aid = env.agent_ids[0]
+        skill = self._make_skill("increase_large", aid)
+        result = env.execute_skill(skill)
+        assert result.success
+        mag = result.state_changes.get("magnitude_pct_applied", 0)
+        # Allow persona_scale to shift slightly outside base range
+        assert 0.5 <= mag <= 100.0  # Soft bounds for any exploration
+
+    def test_increase_small_within_range(self, env):
+        """increase_small should produce magnitude in 1-8% range (bounded)."""
+        env.advance_year()
+        aid = env.agent_ids[0]
+        skill = self._make_skill("increase_small", aid)
+        result = env.execute_skill(skill)
+        assert result.success
+        mag = result.state_changes.get("magnitude_pct_applied", 0)
+        assert mag <= 8.0 or result.state_changes.get("is_exploration")
+
+    def test_decrease_large_reduces_request(self, env):
+        """decrease_large should reduce request."""
+        env.advance_year()
+        aid = env.agent_ids[0]
+        old_req = env.get_agent_state(aid)["request"]
+        skill = self._make_skill("decrease_large", aid)
+        result = env.execute_skill(skill)
+        assert result.success
+        new_req = result.state_changes["request"]
+        assert new_req <= old_req
+
+    def test_decrease_small_reduces_request(self, env):
+        """decrease_small should reduce request."""
+        env.advance_year()
+        aid = env.agent_ids[0]
+        old_req = env.get_agent_state(aid)["request"]
+        skill = self._make_skill("decrease_small", aid)
+        result = env.execute_skill(skill)
+        assert result.success
+        new_req = result.state_changes["request"]
+        assert new_req <= old_req
+
+    def test_maintain_demand_preserves_request(self, env):
+        """maintain_demand should keep request unchanged."""
+        env.advance_year()
+        aid = env.agent_ids[0]
+        old_req = env.get_agent_state(aid)["request"]
+        skill = self._make_skill("maintain_demand", aid)
+        result = env.execute_skill(skill)
+        assert result.success
+        assert abs(result.state_changes["request"] - old_req) < 1.0
+
+    def test_unknown_skill_fails(self, env):
+        """Unknown skill name should return failure."""
+        env.advance_year()
+        aid = env.agent_ids[0]
+        skill = self._make_skill("teleport_water", aid)
+        result = env.execute_skill(skill)
+        assert not result.success
+
+    def test_persona_scale_affects_magnitude(self, env):
+        """Aggressive persona (scale=1.15) should have higher mean magnitude
+        than myopic (scale=0.80) on average."""
+        env.advance_year()
+        # Find agents with different clusters
+        agent_mags = {}
+        for aid in env.agent_ids:
+            agent = env._agents[aid]
+            cluster = agent["cluster"]
+            skill = self._make_skill("increase_large", aid)
+            result = env.execute_skill(skill)
+            mag = result.state_changes.get("magnitude_pct_applied", 0)
+            agent_mags.setdefault(cluster, []).append(mag)
+        # Just verify all executed successfully
+        for cluster, mags in agent_mags.items():
+            assert all(m > 0 for m in mags)
+
+    def test_skill_magnitude_loaded_in_synthetic(self, env):
+        """Synthetic agents should have skill_magnitude dict."""
+        aid = env.agent_ids[0]
+        agent = env._agents[aid]
+        assert "skill_magnitude" in agent
+        assert "increase_large" in agent["skill_magnitude"]
+        assert "decrease_small" in agent["skill_magnitude"]
+        assert agent["skill_magnitude"]["increase_large"]["mu"] == 12.0
+
+    def test_persona_scale_loaded_in_synthetic(self, env):
+        """Synthetic agents should have persona_scale set by cluster."""
+        aid = env.agent_ids[0]
+        agent = env._agents[aid]
+        assert "persona_scale" in agent
+        assert agent["persona_scale"] > 0

@@ -31,6 +31,13 @@ from broker.governance.rule_types import GovernanceRule
 
 
 # =============================================================================
+# Skill group constants (v17: 5-skill model)
+# =============================================================================
+INCREASE_SKILLS = frozenset({"increase_large", "increase_small", "increase_demand"})
+DECREASE_SKILLS = frozenset({"decrease_large", "decrease_small", "decrease_demand"})
+
+
+# =============================================================================
 # Individual BuiltinCheck functions
 # =============================================================================
 
@@ -43,8 +50,10 @@ def water_right_cap_check(
 
     Checks ``context["at_allocation_cap"]`` — set by IrrigationEnvironment
     when the agent's request reaches their water right.
+
+    Tier A suggestion: None (physical impossibility — reason is self-evident).
     """
-    if skill_name != "increase_demand":
+    if skill_name not in INCREASE_SKILLS:
         return []
 
     at_cap = context.get("at_allocation_cap", False)
@@ -66,10 +75,6 @@ def water_right_cap_check(
                 "category": "physical",
                 "blocked_skill": skill_name,
                 "level": "ERROR",
-                "suggestion": (
-                    "You are already at your maximum water right. "
-                    "Choose maintain_demand or decrease_demand instead."
-                ),
             },
         )
     ]
@@ -86,8 +91,10 @@ def non_negative_diversion_check(
     curtailment ate all of it), issue a WARNING instead of ERROR.
     Decreasing from zero is a harmless no-op and should not trigger
     retry loops that create double-bind traps.
+
+    Tier A suggestion: None (physical impossibility).
     """
-    if skill_name != "decrease_demand":
+    if skill_name not in DECREASE_SKILLS:
         return []
 
     current_diversion = context.get("current_diversion", 0)
@@ -130,10 +137,6 @@ def non_negative_diversion_check(
                 "category": "physical",
                 "blocked_skill": skill_name,
                 "level": "ERROR",
-                "suggestion": (
-                    "Your diversion is already zero. "
-                    "Choose maintain_demand or increase_demand instead."
-                ),
             },
         )
     ]
@@ -146,12 +149,14 @@ def curtailment_awareness_check(
 ) -> List[ValidationResult]:
     """Warn or block demand increase during active curtailment.
 
-    P4 upgrade: Tier 2+ shortage triggers a hard BLOCK on increase_demand.
-    This mirrors USBR Drought Contingency Plan (DCP) operations where
-    Tier 2+ triggers mandatory conservation measures.
-    Tier 0-1 remains a WARNING (original behaviour).
+    v17 differential governance:
+        Tier 0:   WARNING for all increases
+        Tier 1:   BLOCK increase_large, WARN increase_small
+        Tier 2+:  BLOCK all increases (DCP mandatory conservation)
+
+    Tier B suggestion: neutral enumeration of remaining feasible skills.
     """
-    if skill_name != "increase_demand":
+    if skill_name not in INCREASE_SKILLS:
         return []
 
     curtailment = context.get("curtailment_ratio", 0)
@@ -160,13 +165,9 @@ def curtailment_awareness_check(
 
     shortage_tier = context.get("shortage_tier", 0)
     # loop_year is 1-indexed from pre_year hook; default 99 skips grace period safely
-    # NOTE: key is "loop_year" (not "year") to avoid collision with env_context["year"]
-    # which carries the CRSS calendar year (e.g. 2020) and would overwrite the loop counter
     year = context.get("loop_year") or 99
 
     # Cold-start grace period: Y1-3 Tier 2 → warning only (not hard block)
-    # Stage 3 analysis showed 44% rejection in Y1-3 permanently locked agents
-    # into conservative behavior via memory consolidation.
     if year <= 3 and shortage_tier == 2:
         return [
             ValidationResult(
@@ -188,7 +189,7 @@ def curtailment_awareness_check(
             )
         ]
 
-    # P4: Tier 2+ → hard block (DCP mandatory conservation)
+    # Tier 2+: hard block ALL increases (DCP mandatory conservation)
     if shortage_tier >= 2:
         return [
             ValidationResult(
@@ -202,18 +203,63 @@ def curtailment_awareness_check(
                 warnings=[],
                 metadata={
                     "rule_id": "curtailment_awareness",
-                    "category": "physical",
+                    "category": "institutional",
                     "blocked_skill": skill_name,
                     "level": "ERROR",
                     "suggestion": (
-                        f"Tier {shortage_tier} shortage requires conservation. "
-                        "Valid alternatives: maintain_demand, decrease_demand."
+                        f"Tier {shortage_tier} shortage blocks all increases. "
+                        "Remaining feasible: maintain_demand, decrease_small, decrease_large."
                     ),
                 },
             )
         ]
 
-    # Tier 0-1: warning only (original behaviour)
+    # Tier 1: differential — block increase_large, warn increase_small
+    if shortage_tier == 1:
+        if skill_name in ("increase_large", "increase_demand"):
+            return [
+                ValidationResult(
+                    valid=False,
+                    validator_name="IrrigationCurtailmentValidator",
+                    errors=[
+                        f"Large demand increase blocked: Tier 1 shortage "
+                        f"({curtailment:.0%} curtailment)."
+                    ],
+                    warnings=[],
+                    metadata={
+                        "rule_id": "curtailment_awareness",
+                        "category": "institutional",
+                        "blocked_skill": skill_name,
+                        "level": "ERROR",
+                        "suggestion": (
+                            "Tier 1 shortage blocks increase_large. "
+                            "Remaining feasible: increase_small, maintain_demand, "
+                            "decrease_small, decrease_large."
+                        ),
+                    },
+                )
+            ]
+        else:
+            # increase_small: warning only at Tier 1
+            return [
+                ValidationResult(
+                    valid=True,
+                    validator_name="IrrigationCurtailmentValidator",
+                    errors=[],
+                    warnings=[
+                        f"Tier 1 shortage active ({curtailment:.0%} curtailment). "
+                        f"Small increase permitted but may face unmet demand."
+                    ],
+                    metadata={
+                        "rule_id": "curtailment_awareness",
+                        "category": "institutional",
+                        "blocked_skill": skill_name,
+                        "level": "WARNING",
+                    },
+                )
+            ]
+
+    # Tier 0: warning only
     return [
         ValidationResult(
             valid=True,
@@ -226,7 +272,7 @@ def curtailment_awareness_check(
             ],
             metadata={
                 "rule_id": "curtailment_awareness",
-                "category": "physical",
+                "category": "institutional",
                 "blocked_skill": skill_name,
                 "level": "WARNING",
             },
@@ -248,7 +294,7 @@ def compact_allocation_check(
     Currently a placeholder — the environment does not yet inject aggregate
     basin statistics into the per-agent validation context.
     """
-    if skill_name != "increase_demand":
+    if skill_name not in INCREASE_SKILLS:
         return []
 
     basin = context.get("basin", "lower_basin")
@@ -284,32 +330,85 @@ def drought_severity_check(
     rules: List[GovernanceRule],
     context: Dict[str, Any],
 ) -> List[ValidationResult]:
-    """Block demand increase during severe drought conditions."""
-    if skill_name != "increase_demand":
+    """Block demand increase during drought conditions.
+
+    v17 differential governance:
+        drought 0.7-0.84:  BLOCK increase_large, WARN increase_small
+        drought >= 0.85:   BLOCK all increases
+
+    Tier B suggestion: neutral enumeration of remaining feasible skills.
+    """
+    if skill_name not in INCREASE_SKILLS:
         return []
 
     drought_idx = context.get("drought_index", 0)
     if drought_idx < 0.7:
         return []
 
+    # Extreme drought (≥ 0.85): block ALL increases
+    if drought_idx >= 0.85:
+        return [
+            ValidationResult(
+                valid=False,
+                validator_name="IrrigationDroughtValidator",
+                errors=[
+                    f"Demand increase blocked: drought index = {drought_idx:.2f} "
+                    f"(extreme). Water conservation is mandatory."
+                ],
+                warnings=[],
+                metadata={
+                    "rule_id": "drought_severity",
+                    "category": "institutional",
+                    "blocked_skill": skill_name,
+                    "level": "ERROR",
+                    "suggestion": (
+                        "Extreme drought blocks all increases. "
+                        "Remaining feasible: maintain_demand, decrease_small, decrease_large."
+                    ),
+                },
+            )
+        ]
+
+    # Moderate drought (0.7-0.84): differential treatment
+    if skill_name in ("increase_large", "increase_demand"):
+        return [
+            ValidationResult(
+                valid=False,
+                validator_name="IrrigationDroughtValidator",
+                errors=[
+                    f"Large demand increase blocked: drought index = {drought_idx:.2f} "
+                    f"(moderate-severe)."
+                ],
+                warnings=[],
+                metadata={
+                    "rule_id": "drought_severity",
+                    "category": "institutional",
+                    "blocked_skill": skill_name,
+                    "level": "ERROR",
+                    "suggestion": (
+                        "Drought conditions block increase_large. "
+                        "Remaining feasible: increase_small, maintain_demand, "
+                        "decrease_small, decrease_large."
+                    ),
+                },
+            )
+        ]
+
+    # increase_small at moderate drought: warning only
     return [
         ValidationResult(
-            valid=False,
+            valid=True,
             validator_name="IrrigationDroughtValidator",
-            errors=[
-                f"Demand increase blocked: drought index = {drought_idx:.2f} "
-                f"(severe). Water conservation is mandatory."
+            errors=[],
+            warnings=[
+                f"Drought index = {drought_idx:.2f} (moderate-severe). "
+                f"Small increase permitted but may face supply constraints."
             ],
-            warnings=[],
             metadata={
                 "rule_id": "drought_severity",
-                "category": "physical",
+                "category": "institutional",
                 "blocked_skill": skill_name,
-                "level": "ERROR",
-                "suggestion": (
-                    "Severe drought conditions. "
-                    "Valid alternatives: maintain_demand, decrease_demand."
-                ),
+                "level": "WARNING",
             },
         )
     ]
@@ -324,12 +423,10 @@ def minimum_utilisation_check(
 
     Prevents "economic hallucination" — the LLM choosing to further reduce
     demand when utilisation is already at or below 10% of water right.
-    This catches cases where the identity rule retry was exhausted.
 
-    Checks ``context["below_minimum_utilisation"]`` — set by
-    IrrigationEnvironment.update_agent_request() when request < water_right * 0.10.
+    Tier A suggestion: None (physical impossibility).
     """
-    if skill_name != "decrease_demand":
+    if skill_name not in DECREASE_SKILLS:
         return []
 
     below_min = context.get("below_minimum_utilisation", False)
@@ -355,10 +452,6 @@ def minimum_utilisation_check(
                 "blocked_skill": skill_name,
                 "hallucination_type": "economic",
                 "level": "ERROR",
-                "suggestion": (
-                    f"Your utilisation is already at {util_pct:.0f}% (minimum is 10%). "
-                    "Choose maintain_demand or increase_demand instead."
-                ),
             },
         )
     ]
@@ -374,7 +467,7 @@ def magnitude_cap_check(
     Requires ``proposed_magnitude`` in context (injected by broker engine
     when ``SkillProposal.magnitude_pct`` is not None).
     """
-    if skill_name != "increase_demand":
+    if skill_name not in INCREASE_SKILLS:
         return []
 
     magnitude = context.get("proposed_magnitude", 0)
@@ -419,17 +512,16 @@ def supply_gap_block_increase(
     rules: List[GovernanceRule],
     context: Dict[str, Any],
 ) -> List[ValidationResult]:
-    """Block increase_demand when agent already has large unmet demand.
+    """Block demand increase when agent already has large unmet demand.
 
     P3: Physical rationale — requesting more water than the system can
-    deliver cannot increase actual water received. This mirrors the
-    real-world constraint that irrigators cannot expand operations beyond
-    available supply.
+    deliver cannot increase actual water received.
 
     Blocks when fulfilment ratio (diversion / request) < 70%.
-    Agent may still choose decrease, efficiency, acreage, or maintain.
+
+    Tier B suggestion: neutral enumeration of remaining feasible skills.
     """
-    if skill_name != "increase_demand":
+    if skill_name not in INCREASE_SKILLS:
         return []
 
     # Skip if Tier 2+ shortage already handled by curtailment_awareness_check
@@ -461,8 +553,8 @@ def supply_gap_block_increase(
                     "blocked_skill": skill_name,
                     "level": "ERROR",
                     "suggestion": (
-                        "The system delivered zero water. Requesting more will not help. "
-                        "Valid alternatives: maintain_demand, decrease_demand."
+                        "Supply gap blocks all increases. "
+                        "Remaining feasible: maintain_demand, decrease_small, decrease_large."
                     ),
                 },
             )
@@ -488,8 +580,8 @@ def supply_gap_block_increase(
                 "blocked_skill": skill_name,
                 "level": "ERROR",
                 "suggestion": (
-                    f"Only {fulfilment:.0%} of your request was fulfilled. "
-                    "Valid alternatives: maintain_demand, decrease_demand."
+                    f"Supply gap ({fulfilment:.0%} fulfilled) blocks all increases. "
+                    "Remaining feasible: maintain_demand, decrease_small, decrease_large."
                 ),
             },
         )
@@ -520,8 +612,9 @@ def update_consecutive_tracker(agent_id: str, skill_name: str) -> None:
     """Update consecutive increase counter after a decision is finalized.
 
     Call from post_step hook after each agent's decision.
+    Both increase_large and increase_small count as consecutive increases.
     """
-    if skill_name == "increase_demand":
+    if skill_name in INCREASE_SKILLS:
         _consecutive_increase_tracker[agent_id] = (
             _consecutive_increase_tracker.get(agent_id, 0) + 1
         )
@@ -545,7 +638,7 @@ def consecutive_increase_cap_check(
     if not ENABLE_CONSECUTIVE_CAP:
         return []
 
-    if skill_name != "increase_demand":
+    if skill_name not in INCREASE_SKILLS:
         return []
 
     agent_id = context.get("agent_id", "unknown")
@@ -576,8 +669,8 @@ def consecutive_increase_cap_check(
                 "level": "ERROR",
                 "consecutive_count": count,
                 "suggestion": (
-                    f"You have increased demand {count} years in a row (max {MAX_CONSECUTIVE_INCREASES}). "
-                    "Valid alternatives: maintain_demand, decrease_demand."
+                    f"Consecutive increase cap ({count} years) blocks all increases. "
+                    "Remaining feasible: maintain_demand, decrease_small, decrease_large."
                 ),
             },
         )
@@ -592,18 +685,20 @@ def demand_floor_stabilizer(
     rules: List[GovernanceRule],
     context: Dict[str, Any],
 ) -> List[ValidationResult]:
-    """Block decrease_demand when utilisation is already below 60% of water right.
+    """Block demand decrease when utilisation is below stability floor.
 
     Prevents over-correction during drought: agents may decrease during
     shortage, but not below a floor that ensures economic viability and
     supports basin-wide CRSS demand targets (5.86 MAF).
 
     Creates a corridor with minimum_utilisation_check (10% hard floor):
-        10% ← hard floor (blocks decrease)
-        60% ← stability floor (blocks decrease, this validator)
+        10% ← hard floor (blocks all decrease)
+        50% ← stability floor (blocks decrease, this validator)
        100% ← water right cap (blocks increase)
+
+    Tier C suggestion: None (behavioral rule — agent decides autonomously).
     """
-    if skill_name != "decrease_demand":
+    if skill_name not in DECREASE_SKILLS:
         return []
 
     water_right = context.get("water_right", 0)
@@ -631,11 +726,6 @@ def demand_floor_stabilizer(
                 "category": "economic",
                 "blocked_skill": skill_name,
                 "level": "ERROR",
-                "suggestion": (
-                    f"Your utilisation is {utilisation:.0%} (floor is "
-                    f"{DEMAND_FLOOR_RATIO:.0%}). Valid alternatives: "
-                    "maintain_demand, increase_demand."
-                ),
             },
         )
     ]
@@ -688,10 +778,6 @@ def zero_escape_check(
                 "blocked_skill": skill_name,
                 "level": "ERROR",
                 "utilisation_pct": utilisation * 100,
-                "suggestion": (
-                    f"Your water use is only {utilisation:.0%} of your right. "
-                    "Choose increase_demand to seek more water, or decrease_demand to adapt."
-                ),
             },
         )
     ]

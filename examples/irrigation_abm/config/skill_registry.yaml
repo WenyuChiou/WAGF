@@ -1,18 +1,21 @@
 # Irrigation ABM Skill Registry
 # Defines available skills for Colorado River Basin irrigation farmers.
 # Adapted from Hung & Yang (2021) RL-ABM-CRSS framework — LLM-driven version.
+#
+# v17: Expanded from 3 to 5 skills for graduated demand adjustment.
+# Differential governance: Tier 1 blocks increase_large but allows increase_small.
 
 skills:
-  - skill_id: increase_demand
-    description: "Request more water allocation for next period. Higher potential yield but risks exceeding available supply and facing curtailment penalties."
+  - skill_id: increase_large
+    description: "Aggressively increase water demand (8-20% change). Higher yield potential but significant curtailment risk. Best when water supply is abundant."
     eligible_agent_types: ["irrigation_farmer"]
     preconditions:
       - "not at_allocation_cap"
     institutional_constraints:
       annual: true
       magnitude_type: "percentage"
-      max_magnitude_pct: 30   # Aggressive cluster cap; tighter caps via governance
-      magnitude_default: 10   # Global fallback when persona default unavailable
+      max_magnitude_pct: 20
+      magnitude_default: 12
     allowed_state_changes:
       - request
       - diversion
@@ -21,19 +24,19 @@ skills:
       type: object
       required: [decision]
       properties:
-        decision: { type: integer, enum: [1, 2, 3] }
-        magnitude_pct: { type: number, minimum: 1, maximum: 30 }
+        decision: { type: integer, enum: [1, 2, 3, 4, 5] }
     conflicts_with: []
 
-  - skill_id: decrease_demand
-    description: "Request less water allocation. Lower crop yield potential but reduces curtailment risk and demonstrates cooperative basin management."
+  - skill_id: increase_small
+    description: "Cautiously increase water demand (1-8% change). Modest growth with lower curtailment risk. Appropriate when conditions allow some expansion but uncertainty remains."
     eligible_agent_types: ["irrigation_farmer"]
-    preconditions: []
+    preconditions:
+      - "not at_allocation_cap"
     institutional_constraints:
       annual: true
       magnitude_type: "percentage"
-      max_magnitude_pct: 30
-      magnitude_default: 10
+      max_magnitude_pct: 8
+      magnitude_default: 4
     allowed_state_changes:
       - request
       - diversion
@@ -42,8 +45,7 @@ skills:
       type: object
       required: [decision]
       properties:
-        decision: { type: integer, enum: [1, 2, 3] }
-        magnitude_pct: { type: number, minimum: 1, maximum: 30 }
+        decision: { type: integer, enum: [1, 2, 3, 4, 5] }
     conflicts_with: []
 
   - skill_id: maintain_demand
@@ -57,7 +59,47 @@ skills:
       type: object
       required: [decision]
       properties:
-        decision: { type: integer, enum: [1, 2, 3] }
+        decision: { type: integer, enum: [1, 2, 3, 4, 5] }
+    conflicts_with: []
+
+  - skill_id: decrease_small
+    description: "Cautiously reduce water demand (1-8% change). Modest conservation that maintains most crop yield while reducing curtailment exposure."
+    eligible_agent_types: ["irrigation_farmer"]
+    preconditions: []
+    institutional_constraints:
+      annual: true
+      magnitude_type: "percentage"
+      max_magnitude_pct: 8
+      magnitude_default: 4
+    allowed_state_changes:
+      - request
+      - diversion
+    implementation_mapping: "env.execute_skill"
+    output_schema:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: integer, enum: [1, 2, 3, 4, 5] }
+    conflicts_with: []
+
+  - skill_id: decrease_large
+    description: "Aggressively reduce water demand (8-20% change). Significant conservation at the cost of reduced yield potential."
+    eligible_agent_types: ["irrigation_farmer"]
+    preconditions: []
+    institutional_constraints:
+      annual: true
+      magnitude_type: "percentage"
+      max_magnitude_pct: 20
+      magnitude_default: 12
+    allowed_state_changes:
+      - request
+      - diversion
+    implementation_mapping: "env.execute_skill"
+    output_schema:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: integer, enum: [1, 2, 3, 4, 5] }
     conflicts_with: []
 
 default_skill: maintain_demand

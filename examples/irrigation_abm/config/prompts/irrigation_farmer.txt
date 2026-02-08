@@ -27,6 +27,6 @@ Your decision should reflect your farming philosophy and risk tolerance.
 
 Please respond using the EXACT JSON format below.
 - Use EXACTLY one of: VL, L, M, H, VH for each appraisal label.
-- "decision" MUST be the NUMERIC ID (1-3) from the options list.
+- "decision" MUST be the NUMERIC ID (1-5) from the options list.
 - Ensure all keys match the format exactly.
 {response_format}
