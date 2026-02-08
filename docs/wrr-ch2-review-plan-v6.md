@@ -154,3 +154,25 @@ Applied in `paper/SAGE_WRR_Paper_v6.docx`:
 - Kept parser fallback details but compressed wording for technical note style.
 - Kept three governance components framing and shortened component descriptions.
 - Kept domain-instantiation paragraph configuration-first while reducing repeated claims.
+
+## Implementation Alignment Note (Post-Round 4)
+
+Runtime alignment updates landed in core modules to reduce architecture/implementation drift:
+- `broker/validators/governance/__init__.py`
+  - `validate_all()` no longer defaults to flood domain.
+  - Domain resolution now follows explicit/inferred order:
+    - function argument `domain`
+    - `context["domain"]`
+    - `context["env_state"]["domain"]`
+    - `context["agent_state"]["env_state"]["domain"]`
+    - `GOVERNANCE_DOMAIN` environment variable
+  - If unresolved, validator path falls back to YAML-only checks (no domain-specific built-ins).
+- `broker/utils/agent_config.py`
+  - `AgentTypeConfig` cache is now path-aware (per YAML path), avoiding cross-domain config leakage.
+  - `load_agent_config(..., force_reload=False)` added for explicit refresh control.
+- `broker/validators/__init__.py`
+  - Unified exports now include `TypeValidator`, `validate_all`, and `get_rule_breakdown`.
+
+Implication for manuscript framing:
+- The “domain-agnostic core + configuration-driven domain binding” claim is now stronger at implementation level.
+- Section 3 can explicitly state that domain selection is runtime-resolved rather than hardcoded by default.
