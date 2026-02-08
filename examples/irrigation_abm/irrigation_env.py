@@ -225,7 +225,10 @@ class IrrigationEnvironment:
                 "has_efficient_system": getattr(p, "has_efficient_system", False),
                 "below_minimum_utilisation": False,
                 "cluster": p.cluster,
-                # v12: Magnitude parameters for bounded Gaussian sampling
+                # v17: Skill-level magnitude params + persona scale
+                "persona_scale": getattr(p, "persona_scale", 1.0),
+                "skill_magnitude": getattr(p, "skill_magnitude", {}),
+                # v12 legacy: per-persona magnitude (fallback)
                 "magnitude_default": getattr(p, "magnitude_default", 10),
                 "magnitude_sigma": getattr(p, "magnitude_sigma", 0.0),
                 "magnitude_min": getattr(p, "magnitude_min", 1.0),
@@ -267,8 +270,17 @@ class IrrigationEnvironment:
         #   2. config/agent_types.yaml (--real flag CSV loading)
         #   3. run_experiment.py target_dist (rebalance_to_target call)
         # All three sources must be kept in sync manually (verified by runtime assertion)
+        # v17: Default skill-level Gaussian params (matches agent_types.yaml)
+        _default_skill_magnitude = {
+            "increase_large": {"mu": 12.0, "sigma": 3.0, "min": 8.0, "max": 20.0},
+            "increase_small": {"mu": 4.0, "sigma": 1.5, "min": 1.0, "max": 8.0},
+            "decrease_small": {"mu": 4.0, "sigma": 1.5, "min": 1.0, "max": 8.0},
+            "decrease_large": {"mu": 12.0, "sigma": 3.0, "min": 8.0, "max": 20.0},
+        }
+
         cluster_configs = {
             "aggressive": {
+                "persona_scale": 1.15,
                 "magnitude_default": 10.0,    # Phase 1: 15.0 → 10.0 (-33%)
                 "magnitude_sigma": 3.5,        # Phase 1: 5.0 → 3.5 (-30%)
                 "magnitude_min": 5.0,          # Phase 1: 10.0 → 5.0 (wider range bottom)
@@ -276,6 +288,7 @@ class IrrigationEnvironment:
                 "exploration_rate": 0.02,      # Stage 3 v2: 0.001 → 0.02 (2%)
             },
             "forward_looking_conservative": {
+                "persona_scale": 1.00,
                 "magnitude_default": 7.5,      # Phase 1: 12.5 → 7.5 (-40%)
                 "magnitude_sigma": 3.0,        # Phase 1: 4.0 → 3.0 (-25%)
                 "magnitude_min": 3.0,          # Phase 1: 5.0 → 3.0
@@ -283,6 +296,7 @@ class IrrigationEnvironment:
                 "exploration_rate": 0.02,      # Stage 3 v2: 0.001 → 0.02 (2%)
             },
             "myopic_conservative": {
+                "persona_scale": 0.80,
                 "magnitude_default": 4.0,      # Phase 1: 5.5 → 4.0 (-27%)
                 "magnitude_sigma": 2.0,        # Phase 1: 2.5 → 2.0 (-20%)
                 "magnitude_min": 1.0,          # Unchanged
@@ -314,7 +328,10 @@ class IrrigationEnvironment:
                 "has_efficient_system": False,
                 "below_minimum_utilisation": False,
                 "cluster": cluster,
-                # v12: magnitude parameters for bounded Gaussian sampling
+                # v17: skill-level magnitude + persona scale
+                "persona_scale": config["persona_scale"],
+                "skill_magnitude": dict(_default_skill_magnitude),
+                # v12 legacy: per-persona magnitude (fallback)
                 "magnitude_default": config["magnitude_default"],
                 "magnitude_sigma": config["magnitude_sigma"],
                 "magnitude_min": config["magnitude_min"],
@@ -329,11 +346,6 @@ class IrrigationEnvironment:
             config = cluster_configs[cluster]
 
             # CRSS Calibration Layer: Scale water_right to match CRSS 2019-2060 aggregate demand
-            # Derivation (from per-agent trajectory analysis):
-            #   - v12 uncalibrated mean: 6.31 MAF/yr (80.87 KAF/agent × 78 agents)
-            #   - CRSS baseline target:  5.86 MAF/yr (75.10 KAF/agent × 78 agents)
-            #   - Required scaling:      75.10 / 80.87 = 0.9286 (-7.1% adjustment)
-            # Result: Brings aggregate demand from 1.077x CRSS to 1.00x CRSS
             calibrated_wr = base_water_right * 0.9286
             self._agents[aid] = {
                 "basin": "lower_basin",
@@ -345,7 +357,10 @@ class IrrigationEnvironment:
                 "has_efficient_system": False,
                 "below_minimum_utilisation": False,
                 "cluster": cluster,
-                # v12: magnitude parameters for bounded Gaussian sampling
+                # v17: skill-level magnitude + persona scale
+                "persona_scale": config["persona_scale"],
+                "skill_magnitude": dict(_default_skill_magnitude),
+                # v12 legacy: per-persona magnitude (fallback)
                 "magnitude_default": config["magnitude_default"],
                 "magnitude_sigma": config["magnitude_sigma"],
                 "magnitude_min": config["magnitude_min"],
@@ -567,56 +582,81 @@ class IrrigationEnvironment:
         current = agent.get("diversion", agent["request"])
         meta = getattr(approved_skill, "parameters", {}) or {}
 
-        # ═══ v12 MODIFICATION: Bounded Gaussian magnitude sampling ═══
-        # Ignore LLM magnitude_pct output (use --no-magnitude flag to disable schema field)
-        # Instead, sample from persona-defined Gaussian distribution
+        # ═══ v17: Skill-level Gaussian magnitude sampling ═══
+        # Each skill defines its own (mu, sigma, min, max) base parameters.
+        # Persona's persona_scale multiplies mu and sigma (shifts distribution
+        # center and spread) while min/max stay fixed (define skill identity).
         #
-        # NOTE: LLM cannot generate continuous Gaussian distributions (v11 analysis showed
-        # 56.6% chose 25%, only 6-7 unique values). Code-based sampling provides true
-        # stochasticity matching Hung & Yang (2021) FQL behavior.
+        # NOTE: LLM cannot generate continuous Gaussian distributions (v11 analysis
+        # showed 56.6% chose 25%, only 6-7 unique values). Code-based sampling
+        # provides true stochasticity matching Hung & Yang (2021) FQL behavior.
 
-        magnitude_default = agent.get("magnitude_default", 10) or 10
-        magnitude_sigma = agent.get("magnitude_sigma", 0.0) or 0.0
-        magnitude_min = agent.get("magnitude_min", 1.0) or 1.0
-        magnitude_max = agent.get("magnitude_max", 30.0) or 30.0
+        persona_scale = agent.get("persona_scale", 1.0) or 1.0
+        skill_mag_all = agent.get("skill_magnitude", {}) or {}
+        skill_mag_cfg = skill_mag_all.get(skill, {})
         exploration_rate = agent.get("exploration_rate", 0.0) or 0.0
 
         # ═══ ε-UNBOUNDED EXPLORATION ═══
-        # Allow occasional exploration beyond historical FQL bounds to adapt to
-        # unprecedented future conditions (e.g., climate change scenarios)
+        magnitude_pct = 0.0
         is_exploration = False
 
-        if magnitude_sigma > 0:
-            if exploration_rate > 0 and self.rng.random() < exploration_rate:
-                # UNBOUNDED exploration: sample from wider distribution without hard bounds
-                # Use 2x sigma for increased variance, soft clip to prevent extreme values
-                noise = self.rng.normal(0, magnitude_sigma * 2.0)
-                magnitude_pct = magnitude_default + noise
-                magnitude_pct = float(np.clip(magnitude_pct, 0.5, 100.0))  # Soft bounds
-                is_exploration = True
+        if skill != "maintain_demand" and skill_mag_cfg:
+            # v17 path: per-skill Gaussian params scaled by persona
+            base_mu = skill_mag_cfg.get("mu", 10.0)
+            base_sigma = skill_mag_cfg.get("sigma", 3.0)
+            mag_min = skill_mag_cfg.get("min", 1.0)
+            mag_max = skill_mag_cfg.get("max", 20.0)
+
+            mu = base_mu * persona_scale
+            sigma = base_sigma * persona_scale
+
+            if sigma > 0:
+                if exploration_rate > 0 and self.rng.random() < exploration_rate:
+                    noise = self.rng.normal(0, sigma * 2.0)
+                    magnitude_pct = mu + noise
+                    magnitude_pct = float(np.clip(magnitude_pct, 0.5, 100.0))
+                    is_exploration = True
+                else:
+                    noise = self.rng.normal(0, sigma)
+                    magnitude_pct = mu + noise
+                    magnitude_pct = float(np.clip(magnitude_pct, mag_min, mag_max))
             else:
-                # BOUNDED exploitation: standard FQL range (99% of the time)
-                noise = self.rng.normal(0, magnitude_sigma)
-                magnitude_pct = magnitude_default + noise
-                magnitude_pct = float(np.clip(magnitude_pct, magnitude_min, magnitude_max))
-        else:
-            # No stochasticity (sigma=0), use default value
-            magnitude_pct = magnitude_default
+                magnitude_pct = mu
+
+        elif skill != "maintain_demand":
+            # Legacy fallback: per-persona params (v12 compat)
+            mag_default = agent.get("magnitude_default", 10) or 10
+            mag_sigma = agent.get("magnitude_sigma", 0.0) or 0.0
+            mag_min = agent.get("magnitude_min", 1.0) or 1.0
+            mag_max = agent.get("magnitude_max", 30.0) or 30.0
+
+            if mag_sigma > 0:
+                if exploration_rate > 0 and self.rng.random() < exploration_rate:
+                    noise = self.rng.normal(0, mag_sigma * 2.0)
+                    magnitude_pct = mag_default + noise
+                    magnitude_pct = float(np.clip(magnitude_pct, 0.5, 100.0))
+                    is_exploration = True
+                else:
+                    noise = self.rng.normal(0, mag_sigma)
+                    magnitude_pct = mag_default + noise
+                    magnitude_pct = float(np.clip(magnitude_pct, mag_min, mag_max))
+            else:
+                magnitude_pct = mag_default
 
         state_changes: Dict[str, Any] = {}
-        state_changes["is_exploration"] = is_exploration  # Track exploration behavior
+        state_changes["is_exploration"] = is_exploration
 
-        if skill == "increase_demand":
-            # P1: scale increase by actual diversion (physical water received),
+        if skill in ("increase_large", "increase_small", "increase_demand"):
+            # Scale increase by actual diversion (physical water received),
             # not request (paper demand). Prevents unbounded request growth
             # when Powell/infra constraints cap actual delivery.
             change = current * (magnitude_pct / 100.0)
             new_req = min(current + change, wr)
             self.update_agent_request(aid, new_req)
             state_changes["request"] = new_req
-            state_changes["magnitude_pct_applied"] = magnitude_pct  # Track actual sampled value
+            state_changes["magnitude_pct_applied"] = magnitude_pct
 
-        elif skill == "decrease_demand":
+        elif skill in ("decrease_large", "decrease_small", "decrease_demand"):
             change = wr * (magnitude_pct / 100.0)
             floor = wr * MIN_UTIL
             utilisation = current / wr if wr > 0 else 1.0
@@ -625,7 +665,7 @@ class IrrigationEnvironment:
             new_req = max(current - change * taper, floor)
             self.update_agent_request(aid, new_req)
             state_changes["request"] = new_req
-            state_changes["magnitude_pct_applied"] = magnitude_pct  # Track actual sampled value
+            state_changes["magnitude_pct_applied"] = magnitude_pct
 
         elif skill == "maintain_demand":
             # Preserve existing *request* (not diversion which includes

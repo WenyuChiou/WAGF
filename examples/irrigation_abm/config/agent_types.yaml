@@ -35,8 +35,10 @@ global_config:
       crisis: true                    # Triggered by severe water curtailment
       periodic_interval: 5            # Every 5 years
       decision_types:
-        - increase_demand
-        - decrease_demand
+        - increase_large
+        - increase_small
+        - decrease_small
+        - decrease_large
       institutional_threshold: 0.05   # Policy change > 5%
     method: hybrid
 
@@ -171,9 +173,11 @@ irrigation_farmer:
         ]
 
     skill_map:
-      "1": "increase_demand"
-      "2": "decrease_demand"
+      "1": "increase_large"
+      "2": "increase_small"
       "3": "maintain_demand"
+      "4": "decrease_small"
+      "5": "decrease_large"
 
     constructs:
       WSA_LABEL:
@@ -262,57 +266,41 @@ irrigation_farmer:
   # Available Actions
   # ---------------------------------------------------------------------------
   actions:
-    - id: increase_demand
-      aliases:
-        [
-          "ID",
-          "increase",
-          "increase_demand",
-          "request more water",
-          "increase irrigation",
-          "[ID]",
-          "[increase]",
-          "[increase_demand]",
-        ]
+    - id: increase_large
+      aliases: ["IL", "increase_large", "large increase", "aggressive increase",
+                "[IL]", "[increase_large]"]
       description: >
-        Increase water demand request (Request more water allocation for next
-        period. Higher potential yield but risks exceeding available supply
-        and facing curtailment penalties.)
+        Aggressively increase water demand (8-20% change). Higher yield
+        potential but significant curtailment risk.
 
-    - id: decrease_demand
-      aliases:
-        [
-          "DD",
-          "decrease",
-          "decrease_demand",
-          "reduce water use",
-          "conserve water",
-          "[DD]",
-          "[decrease]",
-          "[decrease_demand]",
-        ]
+    - id: increase_small
+      aliases: ["IS", "increase_small", "small increase", "cautious increase",
+                "modest increase", "[IS]", "[increase_small]"]
       description: >
-        Decrease water demand request (Request less water allocation.
-        Lower crop yield potential but reduces curtailment risk and
-        demonstrates cooperative basin management.)
+        Cautiously increase water demand (1-8% change). Modest growth
+        with lower curtailment risk.
 
     - id: maintain_demand
-      aliases:
-        [
-          "MD",
-          "maintain",
-          "maintain_demand",
-          "status quo",
-          "no change",
-          "do nothing",
-          "[MD]",
-          "[maintain]",
-          "[maintain_demand]",
-        ]
+      aliases: ["MD", "maintain", "maintain_demand", "status quo",
+                "no change", "do nothing", "[MD]", "[maintain]",
+                "[maintain_demand]"]
       description: >
-        Maintain current water demand level (No change to irrigation
-        practices. Appropriate when water availability is stable and
-        current allocation meets needs.)
+        Maintain current water demand level. No change to irrigation
+        practices.
+
+    - id: decrease_small
+      aliases: ["DS", "decrease_small", "small decrease", "modest conservation",
+                "cautious decrease", "[DS]", "[decrease_small]"]
+      description: >
+        Cautiously reduce water demand (1-8% change). Modest conservation
+        while maintaining most crop yield.
+
+    - id: decrease_large
+      aliases: ["DL", "decrease_large", "large decrease", "aggressive conservation",
+                "[DL]", "[decrease_large]"]
+      description: >
+        Aggressively reduce water demand (8-20% change). Significant
+        conservation at the cost of reduced yield.
 
   # ---------------------------------------------------------------------------
   # Multi-skill Configuration
@@ -348,9 +336,9 @@ irrigation_farmer:
         - {
             id: low_threat_no_increase,
             conditions: [{ construct: WSA_LABEL, values: ["VL"] }],
-            blocked_skills: ["increase_demand"],
+            blocked_skills: ["increase_large", "increase_small"],
             level: ERROR,
-            message: "Demand increase blocked: Water scarcity ({context.WSA_LABEL}) is very low — no justification for requesting additional allocation.",
+            message: "Demand increase blocked: Water scarcity is Very Low (VL) — no justification for requesting additional allocation.",
           }
         # R4: High threat + high coping → should not increase demand (BLOCK + retry)
         - {
@@ -360,9 +348,9 @@ irrigation_farmer:
                 { construct: WSA_LABEL, values: ["H", "VH"] },
                 { construct: ACA_LABEL, values: ["H", "VH"] },
               ],
-            blocked_skills: ["increase_demand"],
+            blocked_skills: ["increase_large", "increase_small"],
             level: ERROR,
-            message: "Demand increase BLOCKED: Water scarcity is high and you have high adaptive capacity. Valid alternatives: maintain_demand, decrease_demand.",
+            message: "Demand increase BLOCKED: Water scarcity is high and you have high adaptive capacity.",
           }
 
       identity_rules:
@@ -370,7 +358,7 @@ irrigation_farmer:
         - {
             id: water_right_cap,
             precondition: at_allocation_cap,
-            blocked_skills: ["increase_demand"],
+            blocked_skills: ["increase_large", "increase_small"],
             level: ERROR,
             message: "Cannot increase demand — already at maximum water right allocation.",
           }
@@ -378,7 +366,7 @@ irrigation_farmer:
         - {
             id: minimum_utilisation_floor,
             precondition: below_minimum_utilisation,
-            blocked_skills: ["decrease_demand"],
+            blocked_skills: ["decrease_large", "decrease_small"],
             level: ERROR,
             message: "Cannot further reduce demand — already at minimum utilisation floor (10% of water right).",
           }
@@ -397,7 +385,7 @@ irrigation_farmer:
         - {
             id: water_right_cap,
             precondition: at_allocation_cap,
-            blocked_skills: ["increase_demand"],
+            blocked_skills: ["increase_large", "increase_small"],
             level: WARNING,
           }
 
@@ -423,11 +411,12 @@ irrigation_farmer:
 
 personas:
   aggressive:
-    magnitude_default: 10      # Phase 1: Reduced from 15 to lower YoY variance (diagnostic: mean was 15.3%)
-    magnitude_min: 5           # Phase 1: Reduced from 10 to allow finer control
-    magnitude_max: 20          # Phase 1: Reduced from 30 to cap extremes (was causing 19.7% YoY events)
-    magnitude_sigma: 3.5       # Phase 1: Reduced from 5.0 to tighten distribution
-    exploration_rate: 0.02     # Stage 3 v2: 0.001→0.02 (2%) — Stage 3 had 0% exploration across 42yr
+    persona_scale: 1.15        # v17: Skill-level Gaussian params scaled by persona
+    magnitude_default: 10      # Legacy (v12): used as fallback if skill_magnitude missing
+    magnitude_min: 5
+    magnitude_max: 20
+    magnitude_sigma: 3.5
+    exploration_rate: 0.02
     description: >
       You are an assertive, action-oriented farmer who responds quickly
       and decisively to water supply signals. You typically adjust your
@@ -447,11 +436,12 @@ personas:
       actual_range: "5-20% (Phase 1 calibration)"
 
   forward_looking_conservative:
-    magnitude_default: 7.5     # Phase 1: Reduced from 12.5 (-40%) to match FQL conservative range
-    magnitude_min: 3           # Phase 1: Reduced from 5 to allow finer adjustments
-    magnitude_max: 15          # Phase 1: Reduced from 20 to cap moderate changes
-    magnitude_sigma: 3.0       # Phase 1: Reduced from 4.0 to tighten distribution
-    exploration_rate: 0.02     # Stage 3 v2: 0.001→0.02 (2%) — match aggressive for behavioral diversity
+    persona_scale: 1.00
+    magnitude_default: 7.5
+    magnitude_min: 3
+    magnitude_max: 15
+    magnitude_sigma: 3.0
+    exploration_rate: 0.02
     description: >
       You are a cautious but forward-thinking farmer. You typically adjust
       your water demand by **3-15%** (relative to current water use),
@@ -470,11 +460,12 @@ personas:
       actual_range: "3-15% (Phase 1 calibration)"
 
   myopic_conservative:
-    magnitude_default: 4.0     # Phase 1: Reduced from 5.5 (-27%) for minimal-change philosophy
-    magnitude_min: 1           # Phase 1: Keep at 1 (preserve lower bound)
-    magnitude_max: 8           # Phase 1: Reduced from 10 to cap conservative extremes
-    magnitude_sigma: 2.0       # Phase 1: Reduced from 2.5 to tighten distribution
-    exploration_rate: 0.02     # Stage 3 v2: 0.0005→0.02 (2%) — break behavioral archetype lock-in
+    persona_scale: 0.80
+    magnitude_default: 4.0
+    magnitude_min: 1
+    magnitude_max: 8
+    magnitude_sigma: 2.0
+    exploration_rate: 0.02
     description: >
       You are a tradition-oriented farmer who relies heavily on past
       experience and established practices. You typically adjust your
@@ -494,4 +485,31 @@ personas:
       actual_range: "1-8% (Phase 1 calibration)"
 
 
-metadata: { version: "v16-3skill-reduced" }
+# =============================================================================
+# SKILL-LEVEL GAUSSIAN MAGNITUDE PARAMETERS (v17: 5-skill model)
+# =============================================================================
+# Base parameters per skill. Persona's persona_scale multiplies these.
+# Formula: actual_param = base_param × persona_scale
+skill_magnitude:
+  increase_large:
+    mu: 12.0
+    sigma: 3.0
+    min: 8.0
+    max: 20.0
+  increase_small:
+    mu: 4.0
+    sigma: 1.5
+    min: 1.0
+    max: 8.0
+  decrease_small:
+    mu: 4.0
+    sigma: 1.5
+    min: 1.0
+    max: 8.0
+  decrease_large:
+    mu: 12.0
+    sigma: 3.0
+    min: 8.0
+    max: 20.0
+
+metadata: { version: "v17-5skill" }

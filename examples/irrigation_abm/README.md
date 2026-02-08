@@ -70,15 +70,16 @@ Each persona receives a tailored narrative in the prompt template, with cluster-
 
 ## Response Format
 
-Agent responses use the **Reasoning Before Rating** pattern — the `reasoning` field is placed first to improve autoregressive generation quality:
+Agent responses use the **Reasoning Before Rating** pattern — the `reasoning` field is placed first to improve autoregressive generation quality. The format is intentionally limited to **4 fields** (matching the flood ABM pattern) because gemma3:4b collapses nested `{"label", "reason"}` objects when more fields are present.
 
 ```
 <<<DECISION_START>>>
-reasoning: [free-text analysis of water situation]
-water_scarcity_assessment: {"WSA_LABEL": "H", "WSA_REASON": "Drought index high, Tier 2 shortage"}
-adaptive_capacity_assessment: {"ACA_LABEL": "M", "ACA_REASON": "Farm has some reserves but no drip system"}
-decision: 2
-magnitude_pct: 15
+{
+  "reasoning": "Free-text analysis of water situation...",
+  "water_scarcity_assessment": {"label": "M", "reason": "Supply is adequate with no shortage declared."},
+  "adaptive_capacity_assessment": {"label": "H", "reason": "Strong financial resources and operational flexibility."},
+  "decision": "1"
+}
 <<<DECISION_END>>>
 ```
 
@@ -86,11 +87,31 @@ magnitude_pct: 15
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `reasoning` | text | No | Free-text situational analysis |
-| `water_scarcity_assessment` | appraisal | Yes | `WSA_LABEL` (VL/L/M/H/VH) + `WSA_REASON` |
-| `adaptive_capacity_assessment` | appraisal | Yes | `ACA_LABEL` (VL/L/M/H/VH) + `ACA_REASON` |
-| `decision` | choice | Yes | Numeric skill ID (1–5) |
-| `magnitude_pct` | numeric | No | Demand change magnitude (1–30%). Defaults to persona-specific value if omitted |
+| `reasoning` | text | Yes | Free-text situational analysis (2-3 sentences) |
+| `water_scarcity_assessment` | appraisal | Yes | `WSA_LABEL` (VL/L/M/H/VH) + `WSA_REASON` (one sentence) |
+| `adaptive_capacity_assessment` | appraisal | Yes | `ACA_LABEL` (VL/L/M/H/VH) + `ACA_REASON` (one sentence) |
+| `decision` | choice | Yes | Numeric skill ID (1–3) |
+
+> **Removed fields (v18)**: `magnitude_pct`, `secondary_decision`, and `secondary_magnitude_pct` were removed from the response format. Magnitude is sampled via Bounded Gaussian at execution time (see below). Multi-skill is disabled. Reducing from 7 to 4 fields fixed WSA/ACA reason generation — gemma3:4b now reliably produces the nested `{"label", "reason"}` format.
+
+### Prompt Structure: Grouped Evaluation Dimensions
+
+The prompt template groups evaluation dimensions explicitly under the construct they map to, ensuring the LLM reasons about each dimension before assigning the label:
+
+```text
+First, assess your WATER SUPPLY situation by considering:
+- Water Supply Outlook: Is your water supply abundant, adequate, tight, or critically short?
+- Demand–Supply Balance: Is your current water request well matched to available supply?
+Then rate your water_scarcity_assessment.
+
+Next, assess your ADAPTIVE CAPACITY by considering:
+- Capacity to Adjust: How easily could you change your water demand?
+- Cost of Change: What would it cost you to adjust your irrigation practices?
+- Benefit of Current Path: What is the advantage of keeping current demand unchanged?
+Then rate your adaptive_capacity_assessment.
+```
+
+This mirrors the flood ABM's PMT-based prompt structure where evaluation dimensions (Perceived Severity, Vulnerability) are explicitly linked to the construct (threat_appraisal) they inform.
 
 ## FQL → LLM-ABM Action Space Mapping
 
@@ -152,7 +173,7 @@ Direct performance comparison between LLM-ABM and FQL-ABM requires acknowledging
 | 2 | `decrease_demand` | Request less water allocation | Gaussian N(default, sigma) per persona | Blocked at min utilisation (10%); blocked below demand floor (50%) |
 | 3 | `maintain_demand` | No change to practices | No magnitude change | Default/fallback; blocked when WSA = VH (`zero_escape_check`) |
 
-> **Note on magnitude**: Since v12, the LLM's `magnitude_pct` output is **discarded** for skills 1-2. Actual magnitude is sampled from a persona-defined Bounded Gaussian (see below). The field remains in the response schema as a cognitive scaffold for improved reasoning quality.
+> **Note on magnitude**: Since v12, demand change magnitude is sampled from a persona-defined Bounded Gaussian at execution time (see below). Since v18, the `magnitude_pct` field has been **removed from the response format entirely** — reducing the JSON schema from 7 to 4 fields fixed WSA/ACA reason generation with gemma3:4b.
 
 ### Bounded Gaussian Magnitude Sampling (v12+)
 
@@ -419,7 +440,7 @@ Both are tracked separately in `governance_summary.json`.
 
 | Feature | Description |
 |---------|-------------|
-| **Schema-Driven Magnitude** | `magnitude_pct` is a formal `numeric` field in `response_format.fields`. Per-persona defaults: aggressive=20%, FLC=10%, myopic=5%. Opt-out via `--no-magnitude`. |
+| **Bounded Gaussian Magnitude** | Since v12, magnitude is sampled from persona-defined Gaussian at execution time (not from LLM output). Since v18, `magnitude_pct` removed from response format entirely. |
 | **Action-Outcome Feedback** | Agents receive combined "You chose X → outcome Y" memories each year, enabling causal learning through reflection. |
 | **Configurable Reflection** | Domain-specific reflection guidance questions defined in `agent_types.yaml` under `global_config.reflection.questions`. |
 

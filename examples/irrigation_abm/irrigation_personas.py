@@ -48,7 +48,11 @@ class IrrigationAgentProfile:
     has_efficient_system: bool = False
     actual_2018_diversion: Optional[float] = None  # Historical 2018 diversion (acre-ft)
 
-    # Magnitude parameters (v12: code-based Gaussian sampling)
+    # v17: Persona scale + per-skill Gaussian params
+    persona_scale: float = 1.0       # Multiplier for skill-level mu/sigma
+    skill_magnitude: Dict = field(default_factory=dict)  # Per-skill {mu, sigma, min, max}
+
+    # Magnitude parameters (v12 legacy: per-persona Gaussian sampling fallback)
     magnitude_default: float = 10.0  # Mean of Gaussian distribution (%)
     magnitude_sigma: float = 0.0     # Standard deviation for stochasticity
     magnitude_min: float = 1.0       # Lower bound for clipping
