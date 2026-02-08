@@ -1,4 +1,4 @@
-# Governed Broker Framework
+# Water Agent Governance Framework
 
 <div align="center">
 
@@ -16,7 +16,7 @@
 
 > _"Turning LLM Storytellers into Rational Actors for Hydro-Social Agent-Based Models."_
 
-The **Governed Broker Framework** addresses the fundamental **Logic-Action Gap** in Large Language Model (LLM) agents: while LLMs produce fluent natural-language reasoning, they exhibit stochastic instability, hallucinations, and memory erosion across long-horizon simulations — problems that undermine the scientific validity of LLM-driven agent-based models (ABMs).
+The **Water Agent Governance Framework** addresses the fundamental **Logic-Action Gap** in Large Language Model (LLM) agents: while LLMs produce fluent natural-language reasoning, they exhibit stochastic instability, hallucinations, and memory erosion across long-horizon simulations — problems that undermine the scientific validity of LLM-driven agent-based models (ABMs).
 
 This framework provides an architectural **Governance Layer** that validates agent reasoning against physical constraints and behavioral theories (e.g., Protection Motivation Theory, PMT) in real time. It is designed for **flood risk adaptation research** and other hydro-social modeling contexts where reproducibility, auditability, and long-horizon consistency are essential.
 
@@ -64,6 +64,34 @@ python examples/single_agent/run_flood.py --model gemma3:4b --years 10 --agents 
 | **Irrigation ABM** | Intermediate | Colorado River Basin water demand (Hung & Yang, 2021) | [Go](examples/irrigation_abm/) |
 | **Multi-Agent**    | Advanced     | Social dynamics, insurance market, government policy  | [Go](examples/multi_agent/)    |
 | **Finance**        | Extension    | Cross-domain demonstration (portfolio decisions)      | [Go](examples/archive/finance/) |
+
+### 5. WRR Paper Workspace
+
+Active manuscript work is managed in `paper/` with **WAGF** naming:
+
+- Main manuscript (active): `paper/SAGE_WRR_Paper_v6.docx`
+- Submission guide and workflow: `paper/PAPER_README.md`
+- Architecture and figure specs: `paper/shared/docs/FIGURE_CONFIGURATION.md`
+
+Current convention:
+- Use **WAGF (Water Agent Governance Framework)** in all main-text paper assets.
+- Treat v5 files as historical baseline unless explicitly needed for back-reference.
+
+### 6. Zotero Write Security
+
+For Zotero write scripts, do not hardcode credentials. Use environment variables:
+
+```bash
+export ZOTERO_API_KEY="..."
+# PowerShell: $env:ZOTERO_API_KEY="..."
+
+export ZOTERO_LIBRARY_ID="..."
+# PowerShell: $env:ZOTERO_LIBRARY_ID="..."
+
+export ZOTERO_LIBRARY_TYPE="user"  # optional
+```
+
+Paper3 Zotero scripts in `examples/multi_agent/flood/paper3/scripts/` now expect env-based credentials.
 
 ---
 
@@ -445,16 +473,16 @@ We explicitly engineer the prompt context to counteract known LLM limitations:
 The framework provides four memory engines of increasing cognitive complexity. Each experiment chooses ONE engine via the `--memory-engine` CLI flag:
 
 - Use **WindowMemoryEngine** for baseline comparisons (no importance weighting — fair comparison with traditional ABMs)
-- Use **HumanCentricMemoryEngine** for experiments requiring emotional salience and trauma modeling (validated in WRR benchmark)
+- Use **HumanCentricMemoryEngine** for single-agent experiments requiring emotional salience and trauma modeling (validated in JOH/WRR single-agent benchmark)
 - **ImportanceMemoryEngine** is a lightweight alternative that adds importance scoring without consolidation
-- **UnifiedCognitiveEngine** is available for advanced research (surprise detection, System 1/2 switching) but not validated in WRR
+- Use **UnifiedCognitiveEngine** for multi-agent experiments with memory-mediated threat perception (used in Paper 3 WRR multi-agent flood simulation; emotional weights major=1.2, minor=0.8, neutral=0.3; source weights personal=1.0, social=0.7, policy=0.5)
 
 | Engine                       | CLI Flag                       | Complexity | Used In                        | Description                                                                                              |
 | :--------------------------- | :----------------------------- | :--------- | :----------------------------- | :------------------------------------------------------------------------------------------------------- |
 | **WindowMemoryEngine**       | `--memory-engine window`       | Minimal    | Flood Group B                  | FIFO sliding window. Keeps last N memories, no importance scoring.                                       |
 | **ImportanceMemoryEngine**   | `--memory-engine importance`   | Low        | —                              | Adds keyword-based importance scoring to window retrieval.                                               |
 | **HumanCentricMemoryEngine** | `--memory-engine humancentric` | Medium     | **Flood Group C, Irrigation**  | Emotion × source importance, stochastic consolidation, exponential decay. v2-next: contextual resonance, interference forgetting, surprise plugin. |
-| **UnifiedCognitiveEngine**   | `--memory-engine universal`    | High       | — (available, not used in WRR) | Adds EMA-based surprise detection and System 1/2 switching on top of HumanCentric features.              |
+| **UnifiedCognitiveEngine**   | `--memory-engine universal`    | High       | **Flood Multi-Agent (Paper 3)** | Adds EMA-based surprise detection, System 1/2 switching, and recalibrated emotional weights (major=1.2, minor=0.8) for memory-mediated TP.  |
 
 ### HumanCentricMemoryEngine — Detail (used in all WRR experiments)
 
@@ -973,6 +1001,26 @@ Key design features:
 - **Batch comparison** — `CVRunner.compare_groups()` generates metrics x treatments tables across seeds/ablations
 
 L3 (psychometric probing) uses standardized vignette scenarios with domain-specific archetypes. Callers provide vignettes and archetypes in their project directory; the statistical engine (ICC, Cronbach's alpha, Fleiss' kappa, convergent/discriminant validity) is generic.
+
+### Three-Stage Calibration Protocol
+
+Beyond post-hoc validation, the framework provides a structured **calibration protocol** that iterates from fast pilot runs to full-scale validation:
+
+| Stage | Purpose | Scale | Key Output |
+| :---- | :------ | :---- | :--------- |
+| **Pilot** | Rapid benchmark comparison, identify out-of-range metrics | 25 agents, 3 years | `AdjustmentRecommendation` list (which metrics deviate, which direction) |
+| **Sensitivity** | Verify LLM responds correctly to persona/prompt changes | LLM probing only | Directional pass rate (chi-squared, Mann-Whitney U) |
+| **Full** | Multi-seed population-level validation | 400 agents, 13 years, 10 seeds | Aggregate EPI, CACR, ICC across seeds |
+
+Core modules:
+
+| Module | Purpose |
+| :----- | :------ |
+| `BenchmarkRegistry` | Domain-agnostic empirical benchmark definition, comparison, and weighted EPI computation |
+| `DirectionalValidator` | Generic sensitivity testing -- directional probes (stimulus low/high) and persona swap tests with statistical significance |
+| `CalibrationProtocol` | Three-stage orchestrator with callback-based architecture -- callers provide `simulate_fn`, `compute_metrics_fn`, `invoke_llm_fn` |
+
+The protocol is fully config-driven via a single `calibration.yaml`. No changes to `broker/` code are needed for new domains -- callers supply benchmarks, directional tests, and metric computation functions.
 
 **[Full C&V documentation, API examples, and metric thresholds](broker/validators/calibration/README.md)**
 
