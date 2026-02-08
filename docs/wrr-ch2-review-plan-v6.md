@@ -144,3 +144,13 @@ Applied in `paper/SAGE_WRR_Paper_v6.docx`:
 
 Residual check for next round:
 - Confirm final figure numbering policy (`Figure 1` only vs architecture/pipeline split into `Figure 1` and `Figure 2`) before submission freeze.
+
+## Round 4 Landing (Conciseness + WRR Tone)
+
+Applied in `paper/SAGE_WRR_Paper_v6.docx`:
+- Tightened Section 2 prose without changing method logic.
+- Reduced promotional phrasing and shifted to neutral technical wording.
+- Kept boundary statement explicit (`proposal -> governance -> execution`) with shorter sentences.
+- Kept parser fallback details but compressed wording for technical note style.
+- Kept three governance components framing and shortened component descriptions.
+- Kept domain-instantiation paragraph configuration-first while reducing repeated claims.
