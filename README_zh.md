@@ -64,6 +64,34 @@ python examples/single_agent/run_flood.py --model gemma3:4b --years 10 --agents 
 | **Multi-Agent**    | 進階   | 社會動態、保險市場、政府政策                 | [前往](examples/multi_agent/)    |
 | **Finance**        | 延伸   | 跨領域示範（投資組合決策）                   | [前往](examples/finance/)        |
 
+### 5. WRR 論文工作區
+
+目前論文主線工作集中在 `paper/`，並採用 **WAGF** 命名：
+
+- 主稿（現行）：`paper/SAGE_WRR_Paper_v6.docx`
+- 投稿流程與版本說明：`paper/PAPER_README.md`
+- 架構圖與圖表規劃：`paper/shared/docs/FIGURE_CONFIGURATION.md`
+
+目前慣例：
+- 主文與投稿資產使用 **WAGF (Water Agent Governance Framework)** 命名。
+- v5 檔案視為歷史基準，除非需要回溯比較。
+
+### 6. Zotero 寫入安全規範
+
+Zotero 寫入腳本禁止硬編憑證，請改用環境變數：
+
+```bash
+export ZOTERO_API_KEY="..."
+# PowerShell: $env:ZOTERO_API_KEY="..."
+
+export ZOTERO_LIBRARY_ID="..."
+# PowerShell: $env:ZOTERO_LIBRARY_ID="..."
+
+export ZOTERO_LIBRARY_TYPE="user"  # 可選
+```
+
+`examples/multi_agent/flood/paper3/scripts/` 下的 Zotero 腳本已改為讀取環境變數。
+
 ---
 
 ## 模組導覽大廳（文件中心）
