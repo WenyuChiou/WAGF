@@ -122,3 +122,25 @@ After confirmation of Figure/Table numbering, apply direct rewrite to `paper/SAG
 1. `2.0/2.1` boundary + pipeline
 2. `2.2` pillar reframing
 3. `2.3` domain instantiation pointer fix
+
+## Round 3 Landing (Applied to v6)
+
+Applied in `paper/SAGE_WRR_Paper_v6.docx`:
+- Renamed `2.1` to `System Boundary and Broker Pipeline`.
+- Rewrote architecture narrative to explicit layer responsibility:
+  - LLM proposes
+  - WAGF validates/governs
+  - execution layer mutates environment state
+- Rewrote pipeline paragraph to align with figure components:
+  - Context Builder
+  - Model Adapter and Parser (with fallback parsing order)
+  - Skill Registry
+  - Validator with bounded retry feedback
+  - Action Execution handoff
+  - Auditor trace persistence
+- Renamed `2.2` to `Cross-Cutting Governance Components`.
+- Reframed three pillars as cross-cutting components (rules, memory, priority context) instead of a standalone architecture pipeline.
+- Kept `2.3 Domain Instantiation` as configuration-first transfer claim and removed table-dependent phrasing from the paragraph body.
+
+Residual check for next round:
+- Confirm final figure numbering policy (`Figure 1` only vs architecture/pipeline split into `Figure 1` and `Figure 2`) before submission freeze.
