@@ -1,6 +1,6 @@
-# Governed Broker Framework - API Reference
+# Water Agent Governance Framework - API Reference
 
-Welcome to the Governed Broker Framework API documentation.
+Welcome to the Water Agent Governance Framework API documentation.
 
 ## Quick Start
 

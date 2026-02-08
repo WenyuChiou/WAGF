@@ -5,7 +5,7 @@
 
 ## The Core Argument
 
-We are proving that **"Governed Broker Framework > Raw LLM Inference"** for ABMs.
+We are proving that **"Water Agent Governance Framework > Raw LLM Inference"** for ABMs.
 
 ---
 

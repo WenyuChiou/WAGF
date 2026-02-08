@@ -1,6 +1,6 @@
 # 洪水治理示範實驗（Governed Flood）
 
-獨立範例展示 **Group C（完整認知治理）**——Governed Broker Framework 在洪水適應 ABM 的最完整配置。
+獨立範例展示 **Group C（完整認知治理）**——Water Agent Governance Framework 在洪水適應 ABM 的最完整配置。
 
 ## 三大支柱
 

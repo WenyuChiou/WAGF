@@ -4,7 +4,7 @@
 
 ## S1. Architectural Robustness (Cross-Model Validation)
 
-While the main text focuses on the **Scaling Laws** within the Qwen 2.5 family, we previously conducted extensive validation across diverse model architectures to ensure the **Governed Broker Framework** is not overfitting to a specific model family. This section summarizes findings from **Llama 3.2** (Meta) and **Gemma 2** (Google).
+While the main text focuses on the **Scaling Laws** within the Qwen 2.5 family, we previously conducted extensive validation across diverse model architectures to ensure the **Water Agent Governance Framework** is not overfitting to a specific model family. This section summarizes findings from **Llama 3.2** (Meta) and **Gemma 2** (Google).
 
 ### S1.1 The "Brake" vs. "Compass" Effect
 

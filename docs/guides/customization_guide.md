@@ -1,4 +1,4 @@
-# 自定義指南 — Governed Broker Framework
+# 自定義指南 — Water Agent Governance Framework
 
 ## 概述
 

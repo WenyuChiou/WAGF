@@ -1,6 +1,6 @@
 # General Discussion: Synthesizing the Evidence for Governance
 
-_Does the Governed Broker Framework prove itself to be "Better"?_
+_Does the Water Agent Governance Framework prove itself to be "Better"?_
 
 ## 1. yes, It Is Better. Here is the Proof.
 
@@ -45,7 +45,7 @@ The framework is even better than medium-sized models in some aspects.
 
 ## 4. Final Verdict
 
-The Governed Broker Framework is not just a "patch"; it is a **necessary architectural component** for SLM-based Social Science.
+The Water Agent Governance Framework is not just a "patch"; it is a **necessary architectural component** for SLM-based Social Science.
 
 - Without it, simulations are **Invalid** (Mass Panic).
 - With it, simulations are **Valid, Diverse, and Cost-Effective**.

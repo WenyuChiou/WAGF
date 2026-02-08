@@ -1,7 +1,7 @@
 # Framework Integration Guide
 ## 使用者必須定義的要素
 
-本指南列出使用 Governed Broker Framework 時必須提供的所有要素。
+本指南列出使用 Water Agent Governance Framework 時必須提供的所有要素。
 
 ---
 

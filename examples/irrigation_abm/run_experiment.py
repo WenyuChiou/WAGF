@@ -2,7 +2,7 @@
 """
 Irrigation ABM Experiment Runner — Hung & Yang (2021) LLM Adaptation.
 
-Single production pipeline using the Governed Broker Framework (GBF):
+Single production pipeline using the Water Agent Governance Framework (WAGF):
   Pillar 1 — Strict Governance  (water rights, curtailment, magnitude caps)
   Pillar 2 — Cognitive Memory   (HumanCentric engine + year-end reflection)
   Pillar 3 — Priority Schema    (important attributes enter context first)
@@ -67,7 +67,8 @@ import examples.irrigation_abm.validators.irrigation_validators as irr_validator
 # Constants
 # ---------------------------------------------------------------------------
 IRRIGATION_SKILLS = [
-    "increase_demand", "decrease_demand", "maintain_demand",
+    "increase_large", "increase_small", "maintain_demand",
+    "decrease_small", "decrease_large",
 ]
 
 
@@ -544,8 +545,13 @@ def main():
 
     # --- Set persona-specific magnitude parameters from config ---
     personas_cfg = cfg_data.get("personas", {})
+    skill_mag_cfg = cfg_data.get("skill_magnitude", {})
     for p in profiles:
         persona = personas_cfg.get(p.cluster, {})
+        # v17: persona_scale + per-skill Gaussian params
+        p.persona_scale = persona.get("persona_scale", 1.0) or 1.0
+        p.skill_magnitude = dict(skill_mag_cfg)  # copy base params
+        # Legacy per-persona params (v12 fallback)
         p.magnitude_default = persona.get("magnitude_default", 10) or 10
         p.magnitude_sigma = persona.get("magnitude_sigma", 0.0) or 0.0
         p.magnitude_min = persona.get("magnitude_min", 1.0) or 1.0
@@ -707,7 +713,7 @@ def main():
 
 def parse_args():
     p = argparse.ArgumentParser(
-        description="Irrigation ABM Experiment (Hung 2021 — GBF Pipeline)"
+        description="Irrigation ABM Experiment (Hung 2021 — WAGF Pipeline)"
     )
     p.add_argument("--model", default="gemma3:1b")
     p.add_argument("--years", type=int, default=5)

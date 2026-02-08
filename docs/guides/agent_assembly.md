@@ -2,7 +2,7 @@
 
 **🌐 Language: [English](agent_assembly.md) | [中文](agent_assembly_zh.md)**
 
-The Governed Broker Framework treats cognitive capabilities as modular "blocks." This guide explains how to toggle these features to create agents of varying intelligence and governance levels, primarily for ablation studies.
+The Water Agent Governance Framework treats cognitive capabilities as modular "blocks." This guide explains how to toggle these features to create agents of varying intelligence and governance levels, primarily for ablation studies.
 
 ## 🧱 The Building Blocks
 

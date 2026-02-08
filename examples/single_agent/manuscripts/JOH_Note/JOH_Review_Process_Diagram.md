@@ -1,6 +1,6 @@
 # Scientific Review Board: Methodology Visualization
 
-This diagram illustrates the **Iterative Scientific Review Process** employed to analyze the Governed Broker Framework results (Groups A, B, C). It highlights the interaction between Data Generation, Metric Critique (Subagents), and Hypothesis Refinement.
+This diagram illustrates the **Iterative Scientific Review Process** employed to analyze the Water Agent Governance Framework results (Groups A, B, C). It highlights the interaction between Data Generation, Metric Critique (Subagents), and Hypothesis Refinement.
 
 ```mermaid
 graph TD

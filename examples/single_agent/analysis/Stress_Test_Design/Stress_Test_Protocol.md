@@ -1,6 +1,6 @@
 # Stress Test Protocol: The 4-Scenarios Design
 
-This document details the experimental design for the stress testing phase of the Governed Broker Framework, focusing on Four "Resilience Virtues."
+This document details the experimental design for the stress testing phase of the Water Agent Governance Framework, focusing on Four "Resilience Virtues."
 
 ## 1. Scenario: Panic (Environmental Extreme)
 

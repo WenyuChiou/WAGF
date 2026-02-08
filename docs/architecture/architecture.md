@@ -1,6 +1,6 @@
-# Governed Broker Framework - Architecture
+# Water Agent Governance Framework - Architecture
 
-![Governed Broker Architecture](governed_broker_architecture_v3_1.png)
+![Water Agent Governance Architecture](governed_broker_architecture_v3_1.png)
 
 ## Overview
 
@@ -29,7 +29,7 @@ The framework separates concerns into three distinct layers with strict data flo
                     │     reasoning)               │     memory, options)
                     ▼                              │
 ╔═══════════════════════════════════════════════════════════════════════════════╗
-║                          GOVERNED BROKER LAYER                                ║
+║                       WATER AGENT GOVERNANCE LAYER                             ║
 ║  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌────────────┐  ║
 ║  │   Context    │───▶│  Validation  │───▶│    Retry     │───▶│   Audit    │  ║
 ║  │   Builder    │    │   Engine     │    │   Manager    │    │   Writer   │  ║
@@ -178,7 +178,7 @@ The framework separates concerns into three distinct layers with strict data flo
 
 ## v3.3 Visualization
 
-![Governed Broker Framework v17 Definitive Architecture](/C:/Users/wenyu/.gemini/antigravity/brain/f2b36be6-b9c6-4a3f-8a0e-010648b12f8f/unified_architecture_v17_python_definitive.png)
+![Water Agent Governance Framework v17 Definitive Architecture](/C:/Users/wenyu/.gemini/antigravity/brain/f2b36be6-b9c6-4a3f-8a0e-010648b12f8f/unified_architecture_v17_python_definitive.png)
 
 Our architecture is designed for transparency and governance. Below is the **Governed Loop** diagram, which can be imported directly into tools like **Draw.io** (via `Arrange > Insert > Advanced > Mermaid`).
 

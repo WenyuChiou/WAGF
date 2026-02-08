@@ -12,7 +12,7 @@ from typing import Protocol, Dict, List, Any, Tuple, Optional, runtime_checkable
 @runtime_checkable
 class AgentProtocol(Protocol):
     """
-    Minimal interface for agents in the governed broker framework.
+    Minimal interface for agents in the water agent governance framework.
 
     This protocol defines the essential methods that any agent must implement
     to be compatible with the broker's memory, context, and execution systems.

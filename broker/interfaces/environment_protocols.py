@@ -13,7 +13,7 @@ from typing import Protocol, Dict, Any, List, Optional, runtime_checkable
 @runtime_checkable
 class EnvironmentProtocol(Protocol):
     """
-    Minimal interface for environments in the governed broker framework.
+    Minimal interface for environments in the water agent governance framework.
 
     This protocol defines the essential methods that any environment must implement
     to be compatible with the broker's context building and observation systems.

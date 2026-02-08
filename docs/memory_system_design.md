@@ -1,8 +1,8 @@
-# Governed Broker Framework: 記憶系統設計
+# Water Agent Governance Framework: 記憶系統設計
 
 ## 概述
 
-本文檔設計適用於 Governed Broker Framework 的記憶與檢索系統，基於 Hello-Agents 第八章概念。
+本文檔設計適用於 Water Agent Governance Framework 的記憶與檢索系統，基於 Hello-Agents 第八章概念。
 
 **設計原則:**
 1. 模擬人類認知記憶層次

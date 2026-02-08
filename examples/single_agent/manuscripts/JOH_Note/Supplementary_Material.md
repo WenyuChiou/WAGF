@@ -1,4 +1,4 @@
-# Supplementary Material: Governed Broker Framework ("JOH")
+# Supplementary Material: Water Agent Governance Framework ("JOH")
 
 This document contains detailed methodological notes, technical audits, and performance metrics that support the primary Technical Note.
 

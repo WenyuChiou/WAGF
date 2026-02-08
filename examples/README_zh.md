@@ -2,7 +2,7 @@
 
 **語言: [English](README.md) | [中文](README_zh.md)**
 
-此目錄包含 Governed Broker Framework 的復現腳本、實驗配置與基準測試結果。
+此目錄包含 Water Agent Governance Framework 的復現腳本、實驗配置與基準測試結果。
 
 ---
 

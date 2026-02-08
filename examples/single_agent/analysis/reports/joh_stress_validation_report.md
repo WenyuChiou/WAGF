@@ -6,7 +6,7 @@
 
 ## 1. Executive Summary
 
-This document details the validation of the _Governed Broker Framework_ through adversarial stress testing. We subjected the implementation (Llama 3.2 3B + Governance) to four distinct failure modes ("Stress Scenarios") to quantify the robustness of the "System 2" governance layer.
+This document details the validation of the _Water Agent Governance Framework_ through adversarial stress testing. We subjected the implementation (Llama 3.2 3B + Governance) to four distinct failure modes ("Stress Scenarios") to quantify the robustness of the "System 2" governance layer.
 
 **Key Finding:** The governance layer successfully neutralized catastrophic "System 1" failures. In the critical "Panic" scenario, despite a 100% impulse to relocate encoded in the agent's persona, the governed system maintained a relocation rate of **77.0% ± 9.0%**, statistically indistinguishable from the baseline (72.0%), effectively "blocking" the hallucination.
 

@@ -1,1 +1,1 @@
-"""Example applications for the Governed Broker Framework."""
+"""Example applications for the Water Agent Governance Framework."""

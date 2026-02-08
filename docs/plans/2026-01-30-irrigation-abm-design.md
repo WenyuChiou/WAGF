@@ -3,13 +3,13 @@
 > **Date**: 2026-01-30
 > **Task**: 060
 > **Branch**: `feat/memory-embedding-retrieval`
-> **Goal**: Prove GBF is domain-agnostic by applying it to irrigation water demand
+> **Goal**: Prove WAGF is domain-agnostic by applying it to irrigation water demand
 
 ---
 
 ## Research Objective
 
-Demonstrate that the Governed Broker Framework generalizes beyond flood adaptation to a different domain (irrigation water demand) without core framework changes. The experiment adapts Hung & Yang (2021) RL-ABM-CRSS — 78 agents managing Colorado River Basin water allocations — into an LLM-driven cognitive agent system using existing GBF modules.
+Demonstrate that the Water Agent Governance Framework generalizes beyond flood adaptation to a different domain (irrigation water demand) without core framework changes. The experiment adapts Hung & Yang (2021) RL-ABM-CRSS — 78 agents managing Colorado River Basin water allocations — into an LLM-driven cognitive agent system using existing WAGF modules.
 
 **Paper**: Hung, F., & Yang, Y. C. E. (2021). Assessing adaptive irrigation impacts on water scarcity in nonstationary environments — A multi-agent reinforcement learning approach. *Water Resources Research*, 57, e2020WR029262.
 
@@ -19,12 +19,12 @@ Demonstrate that the Governed Broker Framework generalizes beyond flood adaptati
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| Primary research question | GBF generalizability | Prove framework transfers to new domain |
+| Primary research question | WAGF generalizability | Prove framework transfers to new domain |
 | Information depth | Paper-faithful minimal | Same signals as Q-learning, keeps comparison fair |
 | Action mapping | Governance-bounded LLM magnitude | LLM proposes direction + %, governance clamps to cluster bounds |
 | Regret feedback | Neutral across all clusters | Factual shortfall data; persona drives behavioral differences |
-| Experiment structure | No ABC groups | Single configuration with full GBF stack (memory + reflection + governance) |
-| Validation approach | Integration test suite | Automated verification that each GBF module handles irrigation data |
+| Experiment structure | No ABC groups | Single configuration with full WAGF stack (memory + reflection + governance) |
+| Validation approach | Integration test suite | Automated verification that each WAGF module handles irrigation data |
 
 ---
 
@@ -163,9 +163,9 @@ tests/
 
 ---
 
-## GBF Component Mapping
+## WAGF Component Mapping
 
-| RL-ABM (Hung 2021) | GBF Module | Verification |
+| RL-ABM (Hung 2021) | WAGF Module | Verification |
 |---|---|---|
 | Q-function | Memory + LLM reasoning | Memory stores past outcomes; LLM reasons about them |
 | epsilon-greedy | Persona + Governance | Persona drives exploration; governance bounds it |

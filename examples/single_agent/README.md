@@ -256,7 +256,7 @@ This engine is **available but not used** in any WRR experiment. All current exp
 
 ## 🇹🇼 中文摘要 (Chinese Summary)
 
-**Governed Broker Framework** 是一個旨在解決 LLM "幻覺" 與 "不理性行為" 的認知治理架構。
+**Water Agent Governance Framework** 是一個旨在解決 LLM "幻覺" 與 "不理性行為" 的認知治理架構。
 本實驗 (Single Agent Experiment) 通過比較三組 Agent (Baseline, Window, Tiered Memory) 證明了：
 
 1.  **Context Governance** 有效抑制了隨機幻覺。

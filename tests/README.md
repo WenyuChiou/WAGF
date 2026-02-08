@@ -1,6 +1,6 @@
 # Framework Test Suite Reference
 
-This directory contains the verification suite for the Governed Broker Framework. Each test file serves a specific role in ensuring the stability, universality, and reliability of the governance middleware.
+This directory contains the verification suite for the Water Agent Governance Framework. Each test file serves a specific role in ensuring the stability, universality, and reliability of the governance middleware.
 
 ## Test Categories
 

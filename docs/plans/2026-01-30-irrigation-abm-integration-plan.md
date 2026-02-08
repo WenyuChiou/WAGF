@@ -6,7 +6,7 @@
 
 **Architecture:** Extend irrigation governance with a magnitude-cap BuiltinCheck, parse/apply `magnitude` in the irrigation experiment runner, and add a neutral regret feedback helper. Validate all pieces with a focused integration test suite that exercises memory, reflection triggers, parsing, governance, and a mocked full-loop run.
 
-**Tech Stack:** Python, pytest, GBF broker components (memory_engine, reflection_engine), irrigation ABM runner.
+**Tech Stack:** Python, pytest, WAGF broker components (memory_engine, reflection_engine), irrigation ABM runner.
 
 ---
 

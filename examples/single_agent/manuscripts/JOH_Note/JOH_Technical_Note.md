@@ -6,7 +6,7 @@
 
 ## Abstract
 
-As Large Language Model (LLM) agents are increasingly deployed in complex social simulations, a critical tension emerges between model scale and behavioral reliability. This technical note investigates the "Rationality Gap" and **"Cognitive and Behavioral Hallucinations"** prevalent in Small Language Models (SLMs) and introduces the **Governed Broker Framework** as a restorative architecture. By subjecting model tiers (1.5B–32B) to rule-based surgical interventions, we demonstrate that structural governance can serve as a "Cognitive Equalizer," allowing resource-efficient 1.5B models to achieve the decisional stability and heterogeneity typically reserved for much larger counterparts. Our results show that governed SLMs not only suppress **hallucinated risk responses** but also sustain a 10-year cognitive lifespan, providing a scalable path for high-fidelity agent-based modeling.
+As Large Language Model (LLM) agents are increasingly deployed in complex social simulations, a critical tension emerges between model scale and behavioral reliability. This technical note investigates the "Rationality Gap" and **"Cognitive and Behavioral Hallucinations"** prevalent in Small Language Models (SLMs) and introduces the **Water Agent Governance Framework** as a restorative architecture. By subjecting model tiers (1.5B–32B) to rule-based surgical interventions, we demonstrate that structural governance can serve as a "Cognitive Equalizer," allowing resource-efficient 1.5B models to achieve the decisional stability and heterogeneity typically reserved for much larger counterparts. Our results show that governed SLMs not only suppress **hallucinated risk responses** but also sustain a 10-year cognitive lifespan, providing a scalable path for high-fidelity agent-based modeling.
 
 ---
 
@@ -30,11 +30,11 @@ Beyond individual rationality, we must ensure that the application of control do
 
 Finally, we evaluate the Framework as a whole. A successful solution must not only correct errors but do so with "Surgical Precision"—intervening only when necessary while otherwise allowing the model's latent reasoning to flourish. We investigate the synergy between model scale, formatting stability, and rule compliance to determine if the Framework effectively bridges the intelligence gap between small and large models without burdensome overhead. This holistic assessment is the focus of our third inquiry:
 
-> **SQ3: Can the Governed Broker Framework serve as a viable end-to-end solution for deploying SLMs in scientific simulations with performance parity to benchmark large models?**
+> **SQ3: Can the Water Agent Governance Framework serve as a viable end-to-end solution for deploying SLMs in scientific simulations with performance parity to benchmark large models?**
 
-### The Solution: The Governed Broker Framework
+### The Solution: The Water Agent Governance Framework
 
-To address these challenges, we propose the **Governed Broker Framework**, a multi-layered middleware architecture designed to serve as a "Cognitive Prosthetic" for LLM agents. By enforcing a strict "Decision-Action Separation," the framework intercepts agentic intents, audits them against symbolic socio-safe rules (e.g., Protection Motivation Theory thresholds), and provides reflective feedback to correct irrational trajectories. This technical note evaluates the framework's effectiveness across the DeepSeek R1 model family, demonstrating that "Surgical Governance" can bridge the rationality gap and enable the use of SLMs as rigorous scientific instruments.
+To address these challenges, we propose the **Water Agent Governance Framework**, a multi-layered middleware architecture designed to serve as a "Cognitive Prosthetic" for LLM agents. By enforcing a strict "Decision-Action Separation," the framework intercepts agentic intents, audits them against symbolic socio-safe rules (e.g., Protection Motivation Theory thresholds), and provides reflective feedback to correct irrational trajectories. This technical note evaluates the framework's effectiveness across the DeepSeek R1 model family, demonstrating that "Surgical Governance" can bridge the rationality gap and enable the use of SLMs as rigorous scientific instruments.
 
 ---
 
@@ -67,7 +67,7 @@ _Figure 1: Conceptual visualization of the 'Balance of Creativity and Alignment'
 
 ### 3.3 Holistic Framework Performance (SQ3)
 
-The Governed Broker Framework achieves "Surgical Gain" by doubling the effective rationality of 1.5B models while maintaining 0.99 precision. This suggests that the framework is a viable holistic solution: it allows cheap, small models to perform at the level of 14B or 32B models in specialized reasoning tasks, assuming the system can handle the syntactic formatting overhead of smaller endpoints.
+The Water Agent Governance Framework achieves "Surgical Gain" by doubling the effective rationality of 1.5B models while maintaining 0.99 precision. This suggests that the framework is a viable holistic solution: it allows cheap, small models to perform at the level of 14B or 32B models in specialized reasoning tasks, assuming the system can handle the syntactic formatting overhead of smaller endpoints.
 
 ### 3.4 Future Outlook: Stress Testing Resilience
 
@@ -77,7 +77,7 @@ To ensure the framework's robustness beyond standard conditions, future work wil
 
 ## 4. Conclusion
 
-Surgical Governance provides a path forward for the **reasonable and reliable use of LLMs** in scientific simulation. By decoupled reasoning from execution, the Governed Broker Framework allows researchers to leverage the efficiency of Small Language Models without compromising the rationality or diversity required for high-stakes policymaking support.
+Surgical Governance provides a path forward for the **reasonable and reliable use of LLMs** in scientific simulation. By decoupled reasoning from execution, the Water Agent Governance Framework allows researchers to leverage the efficiency of Small Language Models without compromising the rationality or diversity required for high-stakes policymaking support.
 
 ---
 

@@ -22,7 +22,7 @@
 
 - **The Hook**: Hydro-social modeling needs human-like agents, but current "Generative Agents" are dangerous "Goldfish" (cite **Park et al., 2023**).
 - **The Gap**: Existing tools (e.g., AQUAH) automate the _model_, but not the _behavior_. They lack **Cognitive Governance**.
-- **Our Solution**: The **Governed Broker Framework**. An "Enhanced" architecture that injects **PMT** (cite **Rogers**) constraints into the LLM's decision loop.
+- **Our Solution**: The **Water Agent Governance Framework**. An "Enhanced" architecture that injects **PMT** (cite **Rogers**) constraints into the LLM's decision loop.
 
 ### **II. Methodology: The Framework (The Meat)**
 

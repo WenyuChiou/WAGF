@@ -1,7 +1,7 @@
 """
 Governed AI SDK - Simulation Module.
 
-Provides environment protocols for the governed broker framework.
+Provides environment protocols for the water agent governance framework.
 
 Note: Protocols are now defined in broker/interfaces/environment_protocols.py.
 This module re-exports them for backward compatibility.

@@ -2,7 +2,7 @@
 
 **Language: [English](README.md) | [中文](README_zh.md)**
 
-This directory contains reproduction scripts, experimental configurations, and benchmark results for the Governed Broker Framework.
+This directory contains reproduction scripts, experimental configurations, and benchmark results for the Water Agent Governance Framework.
 
 ---
 

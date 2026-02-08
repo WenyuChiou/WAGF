@@ -1,4 +1,4 @@
-"""Integration tests for irrigation ABM — GBF pipeline components."""
+"""Integration tests for irrigation ABM — WAGF pipeline components."""
 import json
 
 from types import SimpleNamespace

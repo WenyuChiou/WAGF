@@ -4,7 +4,7 @@
 > **Last Updated**: 2026-01-29
 > **Task Reference**: Task-052 (analysis), Task-054 (Communication Layer implementation)
 
-This document maps the Governed Broker Framework to the standard MAS (Multi-Agent Systems) five-layer architecture based on contemporary literature (Generative Agents, Concordia, AgentTorch, MetaGPT).
+This document maps the Water Agent Governance Framework to the standard MAS (Multi-Agent Systems) five-layer architecture based on contemporary literature (Generative Agents, Concordia, AgentTorch, MetaGPT).
 
 ---
 

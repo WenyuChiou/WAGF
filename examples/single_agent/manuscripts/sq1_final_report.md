@@ -1,7 +1,7 @@
 # SQ1 Final Report: Stability & Rationality (The Governance Effect)
 
 **Date**: 2026-01-25
-**Objective**: Determine the impact of the Governed Broker Framework on agentic consistency and rationality.
+**Objective**: Determine the impact of the Water Agent Governance Framework on agentic consistency and rationality.
 **Key Metric**: Global Panic Frequency (V1) - The rate at which agents attempt irrational relocation.
 
 ---

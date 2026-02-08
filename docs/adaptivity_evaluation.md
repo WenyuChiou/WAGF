@@ -1,4 +1,4 @@
-# Governed Broker Framework - Adaptivity & Flexibility 評估
+# Water Agent Governance Framework - Adaptivity & Flexibility 評估
 
 ## 概述
 評估框架對更複雜需求的適應能力。

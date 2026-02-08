@@ -1,8 +1,8 @@
-# Governed Broker Framework Architecture
+# Water Agent Governance Framework Architecture
 
 ## Overview
 
-The Governed Broker Framework is a cognitive governance middleware for LLM-driven agent-based models of human-water interactions. It provides skill-based governance, memory, and reflection capabilities designed for coupled human-water simulations — including flood risk adaptation, irrigation water management, and water resource policy evaluation.
+The Water Agent Governance Framework is a cognitive governance middleware for LLM-driven agent-based models of human-water interactions. It provides skill-based governance, memory, and reflection capabilities designed for coupled human-water simulations — including flood risk adaptation, irrigation water management, and water resource policy evaluation.
 
 The framework's extensible architecture allows new water sub-domains to be added through configuration (YAML skill registries + domain validators) without modifying the core broker.
 

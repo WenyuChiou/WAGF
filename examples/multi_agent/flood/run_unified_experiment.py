@@ -1,7 +1,7 @@
 """
 Multi-Agent Unified Experiment Runner (v2.0)
 
-Uses the core 'governed_broker_framework' to orchestrate:
+Uses the core 'water agent governance framework' to orchestrate:
 - Institutional agents (Government, Insurance)
 - Household agents (MG/NMG, Owner/Renter)
 - Automated governance via config/ma_agent_types.yaml

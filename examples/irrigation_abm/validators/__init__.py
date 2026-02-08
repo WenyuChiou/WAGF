@@ -1,4 +1,4 @@
-"""Irrigation-specific validators for the Governed Broker Framework."""
+"""Irrigation-specific validators for the Water Agent Governance Framework."""
 
 from .irrigation_validators import (
     water_right_cap_check,

@@ -1,7 +1,7 @@
 """
 Governed AI SDK - Agents Module.
 
-Provides agent protocols and base implementations for the governed broker framework.
+Provides agent protocols and base implementations for the water agent governance framework.
 
 Usage:
     # Load from user-defined YAML

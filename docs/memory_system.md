@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document explains the memory system architecture used in the Governed Broker Framework for agent-based simulations.
+This document explains the memory system architecture used in the Water Agent Governance Framework for agent-based simulations.
 
 ## Memory Engines
 

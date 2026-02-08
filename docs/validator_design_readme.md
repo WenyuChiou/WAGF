@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document describes the **literature-backed validator design** for the Governed Broker Framework, covering both **single-agent** (v2_skill_governed) and **multi-agent** (exp3) experiments.
+This document describes the **literature-backed validator design** for the Water Agent Governance Framework, covering both **single-agent** (v2_skill_governed) and **multi-agent** (exp3) experiments.
 
 All validator rules are empirically supported by peer-reviewed research (2010-2024).
 

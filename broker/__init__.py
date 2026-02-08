@@ -1,4 +1,4 @@
-"""Governed Broker Framework — cognitive governance middleware for LLM-driven
+"""Water Agent Governance Framework (WAGF) — cognitive governance middleware for LLM-driven
 agent-based models of human-water interactions.
 
 Provides skill-based governance, memory engines, and reflection capabilities

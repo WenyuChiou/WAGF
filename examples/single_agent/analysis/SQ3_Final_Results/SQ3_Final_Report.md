@@ -6,7 +6,7 @@ As LLM agents are deployed in critical social simulations, governance becomes es
 
 ### ❓ Research Question (SQ3)
 
-_Can the Governed Broker Framework serve as a viable holistic solution for deploying SLMs in scientific simulations with performance parity to benchmark large models?_
+_Can the Water Agent Governance Framework serve as a viable holistic solution for deploying SLMs in scientific simulations with performance parity to benchmark large models?_
 
 SQ3 investigates whether our **Surgical Governance** framework can achieve high policy alignment (Quality) with low overhead (Surgical Precision) and performance efficiency, providing a complete architectural bridge between small-scale models and large-scale performance.
 

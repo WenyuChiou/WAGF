@@ -1,4 +1,4 @@
-# Governed Broker Framework
+# Water Agent Governance Framework
 
 <div align="center">
 
@@ -16,7 +16,7 @@
 
 > _「將 LLM 從故事講述者轉變為水社會代理人模型中的理性行動者。」_
 
-**Governed Broker Framework** 旨在解決大型語言模型 (LLM) 代理人的根本性 **邏輯-行動差距 (Logic-Action Gap)**：LLM 雖然能生成流暢的自然語言推理，但在長跨度模擬中會出現隨機不穩定、幻覺與記憶沖蝕等問題——這些問題嚴重損害了 LLM 驅動之代理人模型 (ABMs) 的科學有效性。
+**Water Agent Governance Framework** 旨在解決大型語言模型 (LLM) 代理人的根本性 **邏輯-行動差距 (Logic-Action Gap)**：LLM 雖然能生成流暢的自然語言推理，但在長跨度模擬中會出現隨機不穩定、幻覺與記憶沖蝕等問題——這些問題嚴重損害了 LLM 驅動之代理人模型 (ABMs) 的科學有效性。
 
 本框架提供了一個架構級的 **治理層 (Governance Layer)**，負責實時驗證代理人的推理過程是否符合物理約束與行為理論（例如保護動機理論, PMT）。它專為**洪水風險適應研究**及其他水社會建模情境而設計，強調可重現性、可審計性及長跨度一致性。
 

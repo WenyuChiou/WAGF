@@ -3,7 +3,7 @@
 **Role**: Senior Domain Scientist (Socio-Hydrology)
 **Date**: 2026-01-18
 
-This document critiques the current analysis plan and proposes rigorous enhancements to elevate the scientific validity of the Governed Broker Framework.
+This document critiques the current analysis plan and proposes rigorous enhancements to elevate the scientific validity of the Water Agent Governance Framework.
 
 ---
 

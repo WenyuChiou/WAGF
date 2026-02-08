@@ -1,6 +1,6 @@
 """Broker components package.
 
-Core components for the governed broker framework:
+Core components for the water agent governance framework:
 - Context building and providers
 - Memory systems
 - Observable state management
