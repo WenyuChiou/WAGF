@@ -1,0 +1,220 @@
+# WAGF WRR Paper - Technical Reports/Methods
+
+## Framework Positioning (WRR Technical Note)
+
+### Naming Decision (Working Recommendation)
+
+- **Recommended framework name**: **WAGF**
+- **Expansion**: **Water Agent Governance Framework**
+- **Positioning sentence**: WAGF is a domain-configurable governance framework for LLM-driven agent-based modeling in human-water systems.
+
+### Why this positioning
+
+- It presents the work as a **framework-level method**, not a single-case model.
+- It keeps a clear **water-systems identity** for WRR readership.
+- It frames the core contribution as **governance for bounded rationality**, not full rational-agent enforcement.
+
+### Core argument to use in Introduction
+
+Traditional water ABMs often encode behavior through theory-based assumptions of rational adaptation. LLM agents increase behavioral realism and heterogeneity, but introduce governance risks: physically infeasible actions, economically irrational drift, and opaque decision traces. We therefore position WAGF as a governance layer between LLM agents and simulation engines. Through validator chains, skill-level action contracts, retry-with-feedback control, and audit logging, WAGF constrains agent actions to physically and institutionally feasible regions while preserving diverse, human-like adaptation. The method targets bounded rationality: agents remain behaviorally heterogeneous and occasionally non-optimal, but no longer violate core domain constraints.
+
+### Core argument to use in Discussion
+
+The key methodological shift is from unconstrained generative behavior to auditable bounded rationality. In this framing, governance does not "force optimality"; it enforces feasibility and institutional coherence while retaining meaningful variation in agent behavior. This resolves a central adoption barrier for LLM-ABM in water systems: black-box outputs can be inspected through rule triggers, rejection reasons, retry outcomes, and intervention statistics. The framework is transferable across domains because physics and institutions are defined in configuration (skills, validators, prompts), while the governance runtime remains unchanged.
+
+## Current Versions (2026-02-08)
+
+| File | Description | Status |
+|------|-------------|--------|
+| `SAGE_WRR_Paper_v6.docx` | Main manuscript (renaming pass from v5 baseline) | **LATEST** |
+| `SAGE_WRR_Paper_v5.docx` | Previous manuscript baseline | Archived baseline |
+| `SAGE_WRR_SI_Tables_v5.docx` | Supporting Information tables | **LATEST** |
+
+**Editing Tool**: Microsoft Word
+
+---
+
+## Figure & Table Configuration
+
+### Main Paper (3 Figures + 1 Table = 4 PU)
+
+WRR Technical Reports/Methods limit: **13 Publication Units (PU)** max
+
+| Item | Content | File |
+|------|---------|------|
+| **Fig 1** | WAGF Framework (multi-panel: a. Architecture + b. Governance flow) | `figures/fig1_architecture.png` |
+| **Fig 2** | Flood ABM cross-model consistency | `figures/fig2_flood_combined.png` |
+| **Fig 3** | Irrigation ABM CRSS comparison | `figures/fig4_crss_comparison.png` |
+| **Table 1** | Core metrics (6 models x 3 groups) | Embedded in Word |
+
+**PU Calculation**: 3 figures + 1 table = **4 PU**
+
+### Supporting Information
+
+| Item | Content | File |
+|------|---------|------|
+| **Table S1** | Complete 18-row multi-model data (6 models x 3 groups) | `SAGE_WRR_SI_Tables_v5.docx` |
+| **Table S2** | R_H by model size | `SAGE_WRR_SI_Tables_v5.docx` |
+| **Figure S1** | 6x3 Adaptation matrix | `flood/figures/SI_Figure_Adaptation_Matrix_6x3.png` |
+| **Figure S2** | Cumulative relocation (A=0%, B=32%, C=37%) | `flood/figures/fig_s2_relocation.png` |
+| **Figure S3** | Economic hallucination fix (v4 vs v6) | `flood/figures/fig_s3_econ_hallucination.png` |
+| **Figure S4** | Gemma3 3x3 adaptation matrix | `flood/figures/SI_Figure_Adaptation_Gemma3_3x3.png` |
+| **Figure S5** | Ministral3 3x3 adaptation matrix | `flood/figures/SI_Figure_Adaptation_Ministral3_3x3.png` |
+
+---
+
+## WRR Technical Reports/Methods Limits
+
+| Requirement | Limit |
+|-------------|-------|
+| **Total PU** | <= 13 (PU = words/500 + figures + tables) |
+| **Word count** | <= 4,500 (with 4 display items; current: ~3,320 = 10.6 PU) |
+| **Abstract** | <= 150 words |
+| **Figures + Tables** | Current: 3 fig + 1 table = 4 PU |
+| **References** | No strict limit for Technical Reports |
+
+### Image Specifications
+
+| Requirement | Specification |
+|-------------|---------------|
+| **Format** | TIFF, EPS, PDF (vector preferred); JPEG for photos |
+| **Resolution** | Line art: 1000 dpi; Color: 300-600 dpi |
+| **Size** | Single column: 8.5 cm; Double column: 17.5 cm |
+| **Font size** | >= 6 pt after scaling |
+
+### Word Document Settings
+
+- **Font**: Times New Roman 12pt
+- **Line spacing**: Double-spaced
+- **Margins**: 2.5 cm all sides
+- **Page numbers**: Centered at bottom
+- **Line numbers**: REQUIRED
+
+---
+
+## Pre-Submission Checklist
+
+- [ ] Line numbers enabled
+- [ ] Double-spaced throughout
+- [ ] All images >= 300 dpi
+- [ ] Data Availability Statement included
+- [ ] All SI items referenced in main text
+- [ ] AI Tools Disclosure statement
+- [ ] Key Points section (3 bullet points, 140 chars each)
+- [ ] Abstract <= 150 words
+- [ ] Word count <= 5,000
+
+---
+
+## Editing Workflow
+
+1. Edit the current v6 file in Word
+2. When complete, save as v7
+3. Move old version to `archive/`
+4. Update this README with new version info
+
+---
+
+## Directory Structure
+
+```
+paper/
++-- PAPER_README.md              # This file
++-- SAGE_WRR_Paper_v6.docx       # Latest main manuscript
++-- SAGE_WRR_Paper_v5.docx       # Previous main manuscript baseline
++-- SAGE_WRR_SI_Tables_v5.docx   # Latest SI tables
++-- Table2_Update_v5.docx        # Table update document
++-- references.bib               # Bibliography
++-- package.json                 # Node.js deps for JS scripts
+|
++-- figures/                     # Main submission figures ONLY
+|   +-- fig1_architecture.png        # Fig 1: WAGF architecture (shared)
+|   +-- fig2_flood_combined.pdf/png  # Fig 2: Flood cross-model (flood)
+|
++-- flood/                       # All FLOOD domain files
+|   +-- scripts/                     # Analysis & plotting scripts
+|   |   +-- fig2_flood_combined.py       # Fig 2 generator
+|   |   +-- fig3_ebe_scaling.py          # EBE cross-model scaling
+|   |   +-- corrected_entropy_analysis.py # Entropy computation
+|   |   +-- statistical_tests.py         # Bootstrap CIs, Mann-Whitney
+|   |   +-- fig_s2_relocation.py         # SI Fig S2: relocation curves
+|   |   +-- fig_s3_econ_hallucination.py # SI Fig S3: econ hallucination
+|   |   +-- si_unified_entropy.py        # SI Table S1 generator
+|   |   +-- generate_si_adaptation_matrix.py # SI adaptation matrices
+|   +-- figures/                     # Flood output figures (incl. SI)
+|   |   +-- fig3_ebe_scaling.pdf/png
+|   |   +-- fig_s2_relocation.pdf/png
+|   |   +-- fig_s3_econ_hallucination.pdf/png
+|   |   +-- SI_Figure_Adaptation_*.png
+|   +-- data/                        # Flood data CSVs
+|   |   +-- corrected_entropy_gemma3_4b.csv
+|   |   +-- flood_action_distribution.csv
+|   |   +-- statistical_tests_results.csv
+|   |   +-- si_table_s1_unified_entropy.csv
+|   +-- verification/                # Metrics cross-verification
+|   |   +-- verify_flood_metrics.py
+|   |   +-- flood_metrics_verified.csv
+|   |   +-- verification_report.md
+|   +-- analysis/                    # Deep analysis scripts
+|   |   +-- master_report.py
+|   |   +-- rh_scripts/
+|   +-- docs/                        # Flood-specific documentation
+|       +-- flood_metrics_for_section4.md
+|       +-- WRR_technical_notes_flood_v2.md
+|
++-- irrigation/                  # All IRRIGATION domain files
+|   +-- scripts/                     # Analysis & plotting scripts
+|   |   +-- fig_wrr_irrigation.py        # WRR 2-panel figure (copy)
+|   |   +-- irrigation_v2_analysis.py    # 6-panel analysis
+|   |   +-- pilot_comparison.py          # Phase comparison (copy)
+|   |   +-- README.md                    # Canonical source locations
+|   +-- figures/                     # (pending production run output)
+|   +-- data/
+|   |   +-- README.md
+|   +-- docs/
+|       +-- section5_irrigation_draft.md
+|       +-- FIGURE4_NOTES.md
+|
++-- shared/                      # Cross-domain shared files
+|   +-- scripts/
+|   |   +-- fig1_architecture.py         # Fig 1 generator
+|   |   +-- update_v5_phase2.py          # Word doc updater
+|   |   +-- create_wrr_paper.js          # JS doc generators
+|   |   +-- create_si_tables.js
+|   |   +-- create_table2_update.js
+|   +-- docs/
+|       +-- FIGURE_CONFIGURATION.md
+|       +-- v5_data_update.md
+|
++-- experiments/                 # Experiment tracking (unchanged)
++-- archive/                     # Old versions (unchanged)
+```
+
+---
+
+## Phase 2 Changes (2026-02-06)
+
+- Filled all blank R_H/EBE/H_norm placeholders in Word doc (8 paragraphs)
+- Fixed intervention rate: 11.0% → 16.1% (526/3276)
+- Completed Discussion paragraph [65] ("Third, ..." / "Fourth, ...")
+- Merged Table 1 + Table 2 into single Table 1 (R_H + H_norm + EBE + FF)
+- Corrected Table 0 cross-model values (were wildly wrong)
+- Renumbered figures: removed EBE scaling (old Fig 3), Fig 4 → Fig 3
+- Created `verification/` folder with cross-verification scripts and reports
+- Script: `scripts/update_v5_phase2.py` (33 changes applied)
+
+---
+
+## Expert Review Summary
+
+Plan reviewed by WRR format expert (2026-02-05):
+
+- Manuscript type: **Technical Reports/Methods (13 PU)**
+- Current: ~3,320 words + 4 display items = **10.6 PU** (within limit)
+- Abstract limit (150 words): **CORRECT**
+- 3 fig + 1 table = 4 PU display: **CORRECT** (merged Fig 1+2 into multi-panel)
+- Cleanup strategy: **APPROVED**
+
+---
+
+*Last updated: 2026-02-07*
