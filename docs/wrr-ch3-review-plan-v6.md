@@ -39,3 +39,22 @@ Applied in `paper/SAGE_WRR_Paper_v6.docx`:
 
 - Verify that metric scripts and manuscript use the same `n_hall` counting convention in all tables/figures.
 - Confirm notation rendering quality in final Word/PDF export (subscripts and minus signs).
+
+## Round 2 Landing (Independent Reviewer Clarification)
+
+Reviewer-style concern:
+- The previous wording could be interpreted as "all ERROR rejections = hallucination,"
+  which conflates feasibility infeasibility and rationality/coherence violations.
+
+Applied update in `paper/SAGE_WRR_Paper_v6.docx`:
+- Split error taxonomy into two rates:
+  - `R_H = n_id / n_total` for feasibility hallucination (identity-rule ERROR)
+  - `R_R = n_think / n_total` for rationality deviation (thinking-rule ERROR)
+- Kept EBE coupled to feasibility hallucination burden only:
+  - `EBE = H_norm * (1 - R_H)`
+- Updated narrative to state explicitly:
+  - infeasible behavior -> hallucination
+  - feasible but incoherent behavior -> rationality deviation
+
+Implication:
+- Metrics now align with flood single-agent governance design (`identity_rules` vs `thinking_rules`).
