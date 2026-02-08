@@ -48,3 +48,14 @@ python scripts/wrr_compute_metrics_v6.py \
 - `R_H` and `R_R` are computed at decision-level with denominator `n_active`.
 - Intervention/retry frequencies are workload metrics and are not used as `R_H`/`R_R` numerators.
 - Retry policy assumption documented for manuscript text: bounded retry up to 3 attempts, terminal action retained if exhausted.
+
+## Multi-Run Update
+
+For seed-robust WRR v6 results, include Run_2 and Run_3 once available:
+
+- `examples/single_agent/results/JOH_FINAL/*/Group_*/Run_2/simulation_log.csv`
+- `examples/single_agent/results/JOH_FINAL/*/Group_*/Run_3/simulation_log.csv`
+
+Execution artifacts:
+- Test plan: `docs/wrr-run23-test-plan-v6.md`
+- Runner script: `examples/single_agent/run_flood_runs23.ps1`
