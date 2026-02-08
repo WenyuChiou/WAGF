@@ -1,11 +1,18 @@
-# Run flood experiments for Run_2 and Run_3 (all models x groups)
-# Safe mode: skip if target run already has simulation_log.csv
+# WRR v6 canonical flood runner
+# Runs Run_2 and Run_3 for all 6 models x 3 groups.
+# Group A uses original baseline script (LLMABMPMT-Final.py).
+# Group B/C use run_flood.py governed pipeline.
+#
+# Usage:
+# powershell -ExecutionPolicy Bypass -File examples/single_agent/run_wrr_v6_flood.ps1
 
 $ErrorActionPreference = "Continue"
 $BASE = "c:/Users/wenyu/Desktop/Lehigh/governed_broker_framework"
 $BASELINE_SCRIPT = "ref/LLMABMPMT-Final.py"
+$RUNNER_SCRIPT = "examples/single_agent/run_flood.py"
 $PROFILES = "examples/single_agent/agent_initial_profiles.csv"
 $FLOOD_YEARS = "examples/single_agent/flood_years.csv"
+
 $YEARS = 10
 $AGENTS = 100
 $WORKERS = 1
@@ -28,56 +35,7 @@ $runs = @(
     @{name="Run_3"; seed=4203}
 )
 
-function Invoke-Run {
-    param(
-        [string]$Model,
-        [string]$OutDir,
-        [int]$Seed,
-        [string]$GovMode,
-        [string]$MemEngine,
-        [bool]$UsePriority
-    )
-
-    $csvPath = "$OutDir/simulation_log.csv"
-    if (Test-Path $csvPath) {
-        Write-Host "[SKIP] Exists: $csvPath" -ForegroundColor Yellow
-        return
-    }
-
-    New-Item -ItemType Directory -Path $OutDir -Force | Out-Null
-
-    $baseArgs = @(
-        "examples/single_agent/run_flood.py",
-        "--model", $Model,
-        "--years", "$YEARS",
-        "--agents", "$AGENTS",
-        "--workers", "$WORKERS",
-        "--governance-mode", $GovMode,
-        "--memory-engine", $MemEngine,
-        "--window-size", "5",
-        "--initial-agents", $PROFILES,
-        "--output", $OutDir,
-        "--seed", "$Seed",
-        "--memory-seed", "$Seed",
-        "--num-ctx", "$CTX",
-        "--num-predict", "$PRED"
-    )
-
-    if ($UsePriority) {
-        $baseArgs += "--use-priority-schema"
-    }
-
-    Write-Host "[RUN] python $($baseArgs -join ' ')" -ForegroundColor Cyan
-    & python @baseArgs
-
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "[FAIL] $Model -> $OutDir" -ForegroundColor Red
-    } else {
-        Write-Host "[DONE] $Model -> $OutDir" -ForegroundColor Green
-    }
-}
-
-function Invoke-RunGroupAOriginal {
+function Invoke-GroupA {
     param(
         [string]$Model,
         [string]$OutDir,
@@ -91,8 +49,7 @@ function Invoke-RunGroupAOriginal {
     }
 
     New-Item -ItemType Directory -Path $OutDir -Force | Out-Null
-
-    $baseArgs = @(
+    $args = @(
         $BASELINE_SCRIPT,
         "--model", $Model,
         "--years", "$YEARS",
@@ -103,13 +60,58 @@ function Invoke-RunGroupAOriginal {
         "--flood-years-path", $FLOOD_YEARS
     )
 
-    Write-Host "[RUN] python $($baseArgs -join ' ')" -ForegroundColor Cyan
-    & python @baseArgs
-
+    Write-Host "[RUN-A] python $($args -join ' ')" -ForegroundColor Cyan
+    & python @args
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "[FAIL] $Model (Group_A original baseline) -> $OutDir" -ForegroundColor Red
+        Write-Host "[FAIL-A] $Model -> $OutDir" -ForegroundColor Red
     } else {
-        Write-Host "[DONE] $Model (Group_A original baseline) -> $OutDir" -ForegroundColor Green
+        Write-Host "[DONE-A] $Model -> $OutDir" -ForegroundColor Green
+    }
+}
+
+function Invoke-GroupBC {
+    param(
+        [string]$Model,
+        [string]$OutDir,
+        [int]$Seed,
+        [string]$MemEngine,
+        [bool]$UsePriority
+    )
+
+    $csvPath = "$OutDir/simulation_log.csv"
+    if (Test-Path $csvPath) {
+        Write-Host "[SKIP] Exists: $csvPath" -ForegroundColor Yellow
+        return
+    }
+
+    New-Item -ItemType Directory -Path $OutDir -Force | Out-Null
+    $args = @(
+        $RUNNER_SCRIPT,
+        "--model", $Model,
+        "--years", "$YEARS",
+        "--agents", "$AGENTS",
+        "--workers", "$WORKERS",
+        "--governance-mode", "strict",
+        "--memory-engine", $MemEngine,
+        "--window-size", "5",
+        "--initial-agents", $PROFILES,
+        "--output", $OutDir,
+        "--seed", "$Seed",
+        "--memory-seed", "$Seed",
+        "--num-ctx", "$CTX",
+        "--num-predict", "$PRED"
+    )
+
+    if ($UsePriority) {
+        $args += "--use-priority-schema"
+    }
+
+    Write-Host "[RUN-BC] python $($args -join ' ')" -ForegroundColor Cyan
+    & python @args
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[FAIL-BC] $Model -> $OutDir" -ForegroundColor Red
+    } else {
+        Write-Host "[DONE-BC] $Model -> $OutDir" -ForegroundColor Green
     }
 }
 
@@ -121,17 +123,10 @@ foreach ($r in $runs) {
     foreach ($m in $models) {
         $baseOut = "examples/single_agent/results/JOH_FINAL/$($m.dir)"
 
-        # Group A (original baseline script)
-        Invoke-RunGroupAOriginal -Model $m.tag -OutDir "$baseOut/Group_A/$($r.name)" -Seed $r.seed
-
-        # Group B
-        Invoke-Run -Model $m.tag -OutDir "$baseOut/Group_B/$($r.name)" -Seed $r.seed `
-            -GovMode "strict" -MemEngine "window" -UsePriority:$false
-
-        # Group C
-        Invoke-Run -Model $m.tag -OutDir "$baseOut/Group_C/$($r.name)" -Seed $r.seed `
-            -GovMode "strict" -MemEngine "humancentric" -UsePriority:$true
+        Invoke-GroupA  -Model $m.tag -OutDir "$baseOut/Group_A/$($r.name)" -Seed $r.seed
+        Invoke-GroupBC -Model $m.tag -OutDir "$baseOut/Group_B/$($r.name)" -Seed $r.seed -MemEngine "window" -UsePriority:$false
+        Invoke-GroupBC -Model $m.tag -OutDir "$baseOut/Group_C/$($r.name)" -Seed $r.seed -MemEngine "humancentric" -UsePriority:$true
     }
 }
 
-Write-Host "All requested Run_2/Run_3 jobs processed." -ForegroundColor Cyan
+Write-Host "All WRR v6 Run_2/Run_3 jobs processed." -ForegroundColor Cyan
