@@ -176,3 +176,16 @@ Runtime alignment updates landed in core modules to reduce architecture/implemen
 Implication for manuscript framing:
 - The “domain-agnostic core + configuration-driven domain binding” claim is now stronger at implementation level.
 - Section 3 can explicitly state that domain selection is runtime-resolved rather than hardcoded by default.
+
+## Methods Clarification to Lock (Retry and Counting Semantics)
+
+Add explicit wording in Methods before submission freeze:
+
+- Governance uses a bounded retry policy (`max_retries = 3`) for ERROR-level validation failures.
+- If validation still fails after the retry budget is exhausted, the terminal action is retained and labeled as `retry_exhausted` in audit traces.
+- This design intentionally preserves residual bounded-irrational behavior for analysis and avoids forced full compliance through unlimited correction loops.
+
+Counting semantics:
+- `Intervention` / `Retry` counts are workload indicators at event level.
+- They are not equal to unique violating decisions, because one decision can trigger multiple retry attempts.
+- Decision-level rates (`R_H`, `R_R`) must use decision-level denominators (`n_active`) and deduplicated violating decisions.
