@@ -678,6 +678,7 @@ def consecutive_increase_cap_check(
 
 
 DEMAND_FLOOR_RATIO = 0.50  # 50% of water_right
+DEMAND_CEILING_AF = 6_000_000  # 6.0 MAF ~ 1.024x CRSS target (5.86 MAF)
 
 
 def demand_floor_stabilizer(
@@ -723,6 +724,58 @@ def demand_floor_stabilizer(
             warnings=[],
             metadata={
                 "rule_id": "demand_floor_stabilizer",
+                "category": "economic",
+                "blocked_skill": skill_name,
+                "level": "ERROR",
+            },
+        )
+    ]
+
+
+def demand_ceiling_stabilizer(
+    skill_name: str,
+    rules: List[GovernanceRule],
+    context: Dict[str, Any],
+) -> List[ValidationResult]:
+    """Block demand increase when basin-wide aggregate demand exceeds ceiling.
+
+    Prevents collective overshoot during Tier 0 (no shortage) years when
+    no other validator constrains increases.  Symmetric counterpart to
+    demand_floor_stabilizer (prevents collapse from below).
+
+    Checks total_basin_demand (sum of all agents' requests, computed in
+    advance_year()) against DEMAND_CEILING_AF (6.0 MAF).  This acts as
+    the institutional equivalent of the FQL reward function's regret
+    penalty — in RL, over-demand is penalised via reward; here, it is
+    blocked via governance.
+
+    Tier C suggestion: None (behavioral rule — agent decides autonomously).
+    """
+    if skill_name not in INCREASE_SKILLS:
+        return []
+
+    total_basin_demand = context.get("total_basin_demand", 0)
+    if total_basin_demand <= DEMAND_CEILING_AF:
+        return []
+
+    overshoot_pct = (
+        (total_basin_demand - DEMAND_CEILING_AF) / DEMAND_CEILING_AF * 100
+        if DEMAND_CEILING_AF > 0 else 0
+    )
+    return [
+        ValidationResult(
+            valid=False,
+            validator_name="IrrigationDemandCeilingValidator",
+            errors=[
+                f"Demand increase blocked: basin-wide aggregate demand "
+                f"({total_basin_demand / 1e6:.2f} MAF) exceeds the "
+                f"{DEMAND_CEILING_AF / 1e6:.1f} MAF stability ceiling "
+                f"by {overshoot_pct:.1f}%. Conservation or maintenance "
+                f"is required to stabilize basin supply-demand balance."
+            ],
+            warnings=[],
+            metadata={
+                "rule_id": "demand_ceiling_stabilizer",
                 "category": "economic",
                 "blocked_skill": skill_name,
                 "level": "ERROR",
@@ -792,6 +845,7 @@ IRRIGATION_PHYSICAL_CHECKS = [
     non_negative_diversion_check,
     minimum_utilisation_check,
     demand_floor_stabilizer,
+    demand_ceiling_stabilizer,
     drought_severity_check,
     magnitude_cap_check,
     supply_gap_block_increase,

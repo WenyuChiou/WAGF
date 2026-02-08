@@ -225,6 +225,7 @@ class IrrigationLifecycleHooks:
                 "drought_index": ctx.get("drought_index", 0.5),  # Phase C: wet-period exemption
                 "cluster": ctx.get("cluster", "unknown"),
                 "basin": ctx.get("basin", "unknown"),
+                "total_basin_demand": ctx.get("total_basin_demand", 0),
                 "loop_year": year,  # use "loop_year" to avoid collision with env_context["year"] (CRSS calendar year)
             }
             for key, value in validator_fields.items():
