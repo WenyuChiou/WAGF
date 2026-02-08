@@ -78,29 +78,38 @@ class AgentTypeConfig:
     """
     
     _instance = None
+    _instances: Dict[str, "AgentTypeConfig"] = {}
+    _lock = threading.Lock()
     _config = {}
+
+    @staticmethod
+    def _resolve_yaml_path(yaml_path: Optional[str] = None) -> str:
+        """Resolve config path deterministically for per-path cache keys."""
+        if yaml_path is not None:
+            return str(Path(yaml_path).resolve())
+
+        cwd_path = (Path.cwd() / "agent_types.yaml").resolve()
+        if cwd_path.exists():
+            return str(cwd_path)
+
+        # Fallback to package default
+        return str((Path(__file__).parent / "agent_types.yaml").resolve())
     
     @classmethod
-    def load(cls, yaml_path: str = None) -> "AgentTypeConfig":
-        """Load or return cached config."""
-        if cls._instance is None:
-            cls._instance = cls()
-            cls._instance._load_yaml(yaml_path)
-        elif yaml_path is not None:
-            # Allow reloading from an explicit path to avoid stale cached config.
-            cls._instance._load_yaml(yaml_path)
-        return cls._instance
+    def load(cls, yaml_path: Optional[str] = None, force_reload: bool = False) -> "AgentTypeConfig":
+        """Load config from a path-aware cache to avoid cross-domain leakage."""
+        resolved = cls._resolve_yaml_path(yaml_path)
+        with cls._lock:
+            if force_reload or resolved not in cls._instances:
+                inst = cls()
+                inst._load_yaml(resolved)
+                cls._instances[resolved] = inst
+            cls._instance = cls._instances[resolved]  # backward-compatible handle
+            return cls._instance
     
-    def _load_yaml(self, yaml_path: str = None):
+    def _load_yaml(self, yaml_path: Optional[str] = None):
         """Load from YAML file."""
-        if yaml_path is None:
-            # 1. Try CWD
-            cwd_path = Path.cwd() / "agent_types.yaml"
-            if cwd_path.exists():
-                yaml_path = cwd_path
-            else:
-                # 2. Fallback to package default
-                yaml_path = Path(__file__).parent / "agent_types.yaml"
+        yaml_path = self._resolve_yaml_path(yaml_path)
         
         try:
             with open(yaml_path, 'r', encoding='utf-8') as f:
@@ -1005,6 +1014,6 @@ class GovernanceAuditor:
 
 
 # Convenience function
-def load_agent_config(yaml_path: Optional[str] = None) -> AgentTypeConfig:
-    """Load agent type configuration."""
-    return AgentTypeConfig.load(yaml_path)
+def load_agent_config(yaml_path: Optional[str] = None, force_reload: bool = False) -> AgentTypeConfig:
+    """Load agent type configuration (path-aware cache, optional forced refresh)."""
+    return AgentTypeConfig.load(yaml_path, force_reload=force_reload)

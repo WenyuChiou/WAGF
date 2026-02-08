@@ -16,10 +16,11 @@ Domain checks live in their respective example directories:
 - Irrigation: ``examples/irrigation_abm/validators/irrigation_validators.py``
 
 Use ``validate_all(domain=...)`` to select domain:
-- ``"flood"`` (default): Flood-domain built-in checks (backward compat)
+- ``"flood"``: Flood-domain built-in checks
 - ``"irrigation"``: Irrigation-domain checks (water rights, curtailment, drought)
-- ``None``: YAML rules only — no hardcoded built-in checks
+- ``None``: infer from context/env; if unresolved, YAML rules only
 """
+import os
 from typing import List, Dict, Any, Optional, TYPE_CHECKING
 from broker.interfaces.skill_types import ValidationResult
 
@@ -54,7 +55,7 @@ def validate_all(
     context: Dict[str, Any],
     agent_type: Optional[str] = None,
     registry: Optional["AgentTypeRegistry"] = None,
-    domain: Optional[str] = "flood",
+    domain: Optional[str] = None,
 ) -> List[ValidationResult]:
     """
     Run all validators against a skill proposal.
@@ -70,9 +71,9 @@ def validate_all(
             If agent_type is provided but registry is None, uses the
             default registry.
         domain: Domain identifier controlling built-in checks.
-            - ``"flood"`` (default): Flood-domain built-in checks (backward compat)
+            - ``"flood"``: Flood-domain built-in checks
             - ``"irrigation"``: Irrigation-domain checks (water rights, drought, compact)
-            - ``None``: YAML rules only — no hardcoded built-in checks
+            - ``None``: infer from context/env; if unresolved, YAML rules only
 
     Returns:
         Combined list of ValidationResult from all validators
@@ -81,11 +82,19 @@ def validate_all(
     if rules and not isinstance(rules[0], _GovernanceRule):
         raise TypeError("rules must be GovernanceRule instances")
 
+    resolved_domain = (domain or "").strip().lower() or (
+        str(context.get("domain", "")).strip().lower()
+        or str(context.get("env_state", {}).get("domain", "")).strip().lower()
+        or str(context.get("agent_state", {}).get("env_state", {}).get("domain", "")).strip().lower()
+        or str(os.environ.get("GOVERNANCE_DOMAIN", "")).strip().lower()
+        or None
+    )
+
     # Domain-specific builtin check injection:
-    # - "flood" (default): inject flood checks from examples/governed_flood/
+    # - "flood": inject flood checks from examples/governed_flood/
     # - "irrigation": inject irrigation checks from examples/irrigation_abm/
-    # - None: empty list → YAML rules only
-    if domain == "irrigation":
+    # - None: empty list -> YAML rules only
+    if resolved_domain == "irrigation":
         from examples.irrigation_abm.validators.irrigation_validators import (
             IRRIGATION_PHYSICAL_CHECKS,
             IRRIGATION_SOCIAL_CHECKS,
@@ -97,7 +106,7 @@ def validate_all(
             SocialValidator(builtin_checks=list(IRRIGATION_SOCIAL_CHECKS)),
             SemanticGroundingValidator(builtin_checks=[]),  # YAML rules only
         ]
-    elif domain is None:
+    elif resolved_domain is None:
         no_builtins: List[BuiltinCheck] = []
         validators = [
             PersonalValidator(builtin_checks=no_builtins),
@@ -106,7 +115,7 @@ def validate_all(
             SocialValidator(builtin_checks=no_builtins),
             SemanticGroundingValidator(builtin_checks=no_builtins),
         ]
-    elif domain == "flood":
+    elif resolved_domain == "flood":
         from examples.governed_flood.validators.flood_validators import (
             FLOOD_PHYSICAL_CHECKS,
             FLOOD_PERSONAL_CHECKS,
