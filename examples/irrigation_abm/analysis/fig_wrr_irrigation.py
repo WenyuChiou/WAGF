@@ -35,6 +35,7 @@ YEAR_OFFSET = 2018  # simulation year 1 = calendar year 2019
 
 # ── Auto-detect best available dataset ──
 CANDIDATES = [
+    ("v20", RESULTS_BASE / "production_v20_42yr"),
     ("v18", RESULTS_BASE / "production_v18_42yr"),
     ("v15", RESULTS_BASE / "production_v15_42yr"),
     ("phase_c", RESULTS_BASE / "production_phase_c_42yr"),
