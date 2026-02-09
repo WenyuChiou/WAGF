@@ -32,6 +32,14 @@ The key methodological shift is from unconstrained generative behavior to audita
 
 **Editing Tool**: Microsoft Word
 
+## Irrigation Evidence Status (v6)
+
+- Current production evidence for Section 5.2 is based on trace logs:
+  - `examples/irrigation_abm/results/production_v19_42yr/raw/irrigation_farmer_traces.jsonl`
+  - `examples/irrigation_abm/results/production_v20_42yr/raw/irrigation_farmer_traces.jsonl`
+- Full 42-year `simulation_log.csv` exports are not yet archived for `production_v19_42yr`/`production_v20_42yr`.
+- Manuscript wording should therefore present irrigation as **transferability + governance efficacy** evidence, and avoid final CRSS trajectory-fit claims until full logs are regenerated/exported.
+
 ---
 
 ## Figure & Table Configuration
