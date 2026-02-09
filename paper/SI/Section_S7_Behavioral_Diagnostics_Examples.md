@@ -34,7 +34,7 @@ All examples are directly taken from `simulation_log.csv` in `examples/single_ag
 
 The examples were identified by replaying the same decision-level rules used in `scripts/wrr_compute_metrics_v6.py`:
 
-- `R_H`: `previous_elevated=True` and action in `{elevation, both}`.
+- `R_H`: `previous_elevated=True` and **intent action** in `{elevation, both}`.
 - `R_R`:
   - high threat + `do_nothing`,
   - low threat + `relocate`,

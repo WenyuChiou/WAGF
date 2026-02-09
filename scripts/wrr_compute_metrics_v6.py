@@ -57,6 +57,35 @@ def norm_action(row: Dict[str, str], group: str) -> Optional[str]:
     return "other"
 
 
+def intent_action(row: Dict[str, str], group: str) -> Optional[str]:
+    """
+    Parse decision intent used for feasibility/rationality diagnostics.
+
+    Important:
+    - Group A uses ``raw_llm_decision`` first, because ``decision`` is often
+      a cumulative state-like label rather than yearly intent.
+    - Group B/C use structured ``yearly_decision``.
+    """
+    if group == "Group_A":
+        raw = (row.get("raw_llm_decision") or "").strip().lower()
+        if raw:
+            if "both" in raw and "elevat" in raw:
+                return "both"
+            if "elevat" in raw:
+                return "elevation"
+            if "insur" in raw:
+                return "insurance"
+            if "relocat" in raw:
+                return "relocate"
+            if "do nothing" in raw or raw == "nothing":
+                return "do_nothing"
+        # Fallback only when raw intent is unavailable
+        return norm_action(row, group)
+
+    # Group B/C are structured and already action-intent level
+    return norm_action(row, group)
+
+
 def extract_ta_label(text: str) -> str:
     """
     Extract threat appraisal label.
@@ -174,6 +203,7 @@ def compute_all_rows(joh_final_dir: Path, runs: Iterable[str]):
             pe = prev_elev.get(agent, False)
 
             act = norm_action(r, group)
+            act_intent = intent_action(r, group)
 
             # Governance workload counters (event-level)
             if str(r.get("governance_intervention", "")).strip().lower() == "true":
@@ -193,16 +223,16 @@ def compute_all_rows(joh_final_dir: Path, runs: Iterable[str]):
                 action_counts[act] += 1
 
                 # Identity/feasibility violation: re-elevation after already elevated
-                if pe and act in ("elevation", "both"):
+                if pe and act_intent in ("elevation", "both"):
                     n_id += 1
 
                 # Thinking-rule deviations (decision-level)
                 ta = extract_ta_label(r.get("threat_appraisal", ""))
-                if ta in ("H", "VH") and act == "do_nothing":
+                if ta in ("H", "VH") and act_intent == "do_nothing":
                     n_think += 1
-                if ta in ("L", "VL") and act == "relocate":
+                if ta in ("L", "VL") and act_intent == "relocate":
                     n_think += 1
-                if ta in ("L", "VL") and act in ("elevation", "both"):
+                if ta in ("L", "VL") and act_intent in ("elevation", "both"):
                     n_think += 1
 
             prev_rel[agent] = curr_rel

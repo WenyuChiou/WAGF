@@ -1,13 +1,13 @@
 # WRR v6 Live Results Snapshot
 
-- Generated (UTC): 2026-02-09T15:48:38.382015+00:00
+- Generated (UTC): 2026-02-09T18:14:33.390406+00:00
 - Completion: 25/54 model-group-run cells
 
 ## Group Means (Available Runs)
 
 | Group | n_cases | runs | R_H | R_R | Rationality pass | H_norm_k4 | EHE_k4 | retry_rows | retry_sum |
 |---|---:|---|---:|---:|---:|---:|---:|---:|---:|
-| Group_A | 9 | Run_1,Run_2 | 38.19% | 8.08% | 91.92% | 0.567 | 0.372 | 0.00 | 0.00 |
+| Group_A | 9 | Run_1,Run_2 | 0.00% | 4.41% | 95.59% | 0.567 | 0.567 | 0.00 | 0.00 |
 | Group_B | 8 | Run_1,Run_2 | 0.02% | 0.23% | 99.77% | 0.653 | 0.653 | 69.25 | 94.62 |
 | Group_C | 8 | Run_1,Run_2 | 0.00% | 0.35% | 99.65% | 0.633 | 0.633 | 42.88 | 59.88 |
 
