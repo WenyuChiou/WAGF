@@ -16,11 +16,11 @@
 
 ### Core argument to use in Introduction
 
-Traditional water ABMs often encode behavior through theory-based assumptions of rational adaptation. LLM agents increase behavioral realism and heterogeneity, but introduce governance risks: physically infeasible actions, economically irrational drift, and opaque decision traces. We therefore position WAGF as a governance layer between LLM agents and simulation engines. Through validator chains, skill-level action contracts, retry-with-feedback control, and audit logging, WAGF constrains agent actions to physically and institutionally feasible regions while preserving diverse, human-like adaptation. The method targets bounded rationality: agents remain behaviorally heterogeneous and occasionally non-optimal, but no longer violate core domain constraints.
+Traditional water ABMs often encode behavior through theory-based assumptions of rational adaptation. LLM agents increase behavioral realism and heterogeneity, but can produce appraisal-action incoherence and unstable decision traces. We therefore position WAGF as a governance layer between LLM agents and simulation engines, with the primary objective of behavioral rationalization under bounded rationality while preserving population-level behavioral diversity. Through validator chains, skill-level action contracts, retry-with-feedback control, and audit logging, WAGF improves decision coherence without collapsing adaptive heterogeneity. Physical feasibility diagnostics (`R_H`) are retained as a safety channel, but the main reported gain is reduced rationality deviation (`R_R`) with maintained effective diversity (`EHE`).
 
 ### Core argument to use in Discussion
 
-The key methodological shift is from unconstrained generative behavior to auditable bounded rationality. In this framing, governance does not "force optimality"; it enforces feasibility and institutional coherence while retaining meaningful variation in agent behavior. This resolves a central adoption barrier for LLM-ABM in water systems: black-box outputs can be inspected through rule triggers, rejection reasons, retry outcomes, and intervention statistics. The framework is transferable across domains because physics and institutions are defined in configuration (skills, validators, prompts), while the governance runtime remains unchanged.
+The key methodological shift is from unconstrained generative behavior to auditable bounded rationality. In this framing, governance does not force optimality; it selectively suppresses coherence failures while retaining meaningful variation in agent behavior. This resolves a central adoption barrier for LLM-ABM in water systems: black-box outputs can be inspected through rule triggers, rejection reasons, retry outcomes, and intervention statistics. The framework is transferable across domains because physics, institutions, and behavioral theory slots are configuration-defined (skills, validators, prompts), while the governance runtime remains unchanged. Irrigation evidence is used primarily as transferability support, not as the main claim driver.
 
 ## Current Versions (2026-02-09)
 
@@ -73,7 +73,7 @@ WRR Technical Reports/Methods limit: **13 Publication Units (PU)** max
 | **Figure S5** | Ministral3 3x3 adaptation matrix | `flood/figures/SI_Figure_Adaptation_Ministral3_3x3.png` |
 | **Table S3** | Irrigation governance summary (v20 42yr) | `SI/Table_S3_Irrigation_Governance.md` |
 | **Section S6** | Mass balance and human-water coupling | `SI/Section_S6_Mass_Balance.md` |
-| **Section S7** | Decision-level examples: physical/identity hallucination and irrational behavior | `SI/Section_S7_Behavioral_Diagnostics_Examples.md` |
+| **Section S7** | Decision-level diagnostics: behavioral rationality deviations and feasibility edge cases | `SI/Section_S7_Behavioral_Diagnostics_Examples.md` |
 
 ---
 

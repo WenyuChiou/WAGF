@@ -1,4 +1,4 @@
-# WRR v7 Intro Patch: Theory Examples + RH/RR Clarification
+# WRR v7 Intro Patch: Rationalization + Diversity First
 
 This note provides paste-ready text to align the manuscript with current v6 metrics and theory framing.
 
@@ -12,11 +12,15 @@ with:
 
 `many water ABMs encode behavior through explicit behavioral theories and utility assumptions: flood adaptation models often operationalize Protection Motivation Theory (PMT) and related Protective Action Decision Model (PADM) constructs for appraisal-action logic, while irrigation-demand models commonly use utility- or risk-based formulations that can be interpreted through Prospect Theory under scarcity (Rogers, 1983; Lindell & Perry, 2012; Kahneman & Tversky, 1979; Hung & Yang, 2021).`
 
-## 2) Suggested RH/RR Results Wording
+## 2) Suggested Main-Claim Wording
 
-Use this wording to avoid over-claims from legacy RH definitions:
+Use this wording to center the narrative on rationalization and diversity:
 
-`Under the current strict feasibility definition (identity/precondition contradictions), R_H is near zero across most runs, indicating strong containment of physical-state violations. The dominant residual error channel is coherence deviation (R_R), not feasibility leakage. In ungoverned Group A, R_R remains materially higher than governed settings, while governance (Groups B/C) compresses R_R to near-zero in most model-run cells.`
+`The primary governance effect is behavioral rationalization with diversity retention. Across model-group runs, WAGF strongly reduces coherence deviations (R_R) relative to ungoverned baselines while maintaining effective behavioral diversity (EHE). Feasibility contradictions (R_H) are tracked as a safety diagnostic and remain near zero under the strict identity/precondition definition.`
+
+Optional transferability sentence:
+
+`The irrigation case is used as transferability evidence that the same governance runtime can preserve rationalized behavior under different domain theory slots and institutional constraints.`
 
 ## 3) Current Numeric Snapshot (from `docs/wrr_metrics_all_models_v6.csv`)
 
@@ -31,5 +35,6 @@ Use this wording to avoid over-claims from legacy RH definitions:
   - `R_R mean = 0.003494` (0.3494%)
 
 Important interpretation:
-- This RH result is strict and conservative (mostly re-elevation/re-relocation state conflicts).
-- Historical larger "hallucination" values mixed broader channels; do not directly compare without stating the metric definition.
+- `R_H` in this table is strict and conservative (state-contradiction channel).
+- The central performance axis is `R_R` reduction + `EHE` retention.
+- If older drafts used broader "hallucination" definitions, explicitly note the metric re-definition before comparing values.
