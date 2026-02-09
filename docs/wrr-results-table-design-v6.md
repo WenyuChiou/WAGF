@@ -45,9 +45,9 @@ Current values (live snapshot from available runs; currently `Run_1` + partial `
 
 | Group | R_H | R_R | Rationality pass | H_norm_k4 | EHE_k4 | %Δ EHE vs A | retry_rows | retry_sum |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Group_A | 0.3819 | 0.0808 | 0.9192 | 0.5665 | 0.3724 | baseline | 0.00 | 0.00 |
-| Group_B | 0.0002 | 0.0023 | 0.9977 | 0.6529 | 0.6528 | +75.3% | 69.25 | 94.63 |
-| Group_C | 0.0000 | 0.0035 | 0.9965 | 0.6326 | 0.6326 | +69.9% | 42.88 | 59.88 |
+| Group_A | 0.0000 | 0.0441 | 0.9559 | 0.5665 | 0.5665 | baseline | 0.00 | 0.00 |
+| Group_B | 0.0002 | 0.0023 | 0.9977 | 0.6529 | 0.6528 | +15.2% | 69.25 | 94.63 |
+| Group_C | 0.0000 | 0.0035 | 0.9965 | 0.6326 | 0.6326 | +11.7% | 42.88 | 59.88 |
 
 Computation note:
 - `%Δ EHE vs A = (EHE_group - EHE_A) / EHE_A * 100` using group means.
@@ -71,8 +71,9 @@ Source file already prepared:
 - `docs/wrr_metrics_vs_groupA_v6.csv`
 
 This supports claims like:
-- Strong reduction of feasibility violations (`R_H`) in B/C versus A.
+- Strong reduction of rationality deviation (`R_R`) in B/C versus A.
 - Positive effective-diversity gain (`EHE_k4`) in B/C versus A.
+- `R_H` differences should be interpreted cautiously because Group A feasibility diagnostics are now intent-parsed from `raw_llm_decision`.
 
 ## Figure Budget (3 figures max)
 
@@ -100,7 +101,7 @@ Detailed definitions remain in:
 ## Claim Strength and Next Requirement
 
 What current available runs can support:
-- Strong directional evidence that governance reduces invalid/irrational decisions while keeping high effective diversity.
+- Strong directional evidence that governance reduces rationality deviations (`R_R`) while keeping high effective diversity (`EHE_k4`).
 - Current matrix completion is not full (see `docs/wrr_metrics_completion_v6.csv`).
 
 What reviewers will still ask:

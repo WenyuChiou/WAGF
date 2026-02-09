@@ -51,12 +51,21 @@ Mapping columns:
 ### `R_H = n_id / n_active`
 
 - `n_id` = decision-level identity/feasibility violations.
-- Current rule used in v6 script:
-  - Re-elevation violation: previous `elevated=True` and action is `elevation` or `both`.
+- Current rules used in v6 script:
+  - Group A (ungoverned):
+    - intent action is parsed from `raw_llm_decision` (not cumulative `decision` label).
+    - Re-elevation violation: `previous_elevated=True` and intent action in `{elevation, both}`.
+  - Group B/C (governed):
+    - structured action from `yearly_decision`.
+    - Re-elevation violation: `previous_elevated=True` and action in `{elevation, both}`.
 
 Columns used:
 - `elevated`
-- normalized action (`decision` or `yearly_decision`)
+- Group A intent action: `raw_llm_decision`
+- Group B/C action: `yearly_decision`
+
+Important implementation note:
+- In Group A logs, `decision` is often cumulative/state-like and can overcount physical violations if treated as yearly intent.
 
 ## Rationality Metric
 
@@ -74,6 +83,8 @@ Rule checks (decision-level):
 
 Column used:
 - `threat_appraisal`
+- Group A action intent source for rule checks: `raw_llm_decision` (fallback to parsed `decision` only if raw field is missing)
+- Group B/C action source for rule checks: `yearly_decision`
 
 Derived:
 - `rationality_pass = 1 - R_R`
