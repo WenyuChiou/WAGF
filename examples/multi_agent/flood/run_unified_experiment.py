@@ -225,9 +225,11 @@ def run_unified_experiment():
                     errors=[f"AFFORDABILITY: Cannot afford elevation (${cost:,.0f} > {elevation_multiplier}x income ${income*elevation_multiplier:,.0f}){mg_note}"],
                     metadata={
                         "level": ValidationLevel.ERROR,
-                        "rule": "affordability",
+                        "rule_id": "affordability_elevation",
+                        "rules_hit": ["affordability_elevation"],
                         "field": "decision",
-                        "constraint": "financial_affordability"
+                        "constraint": "financial_affordability",
+                        "deterministic": True
                     }
                 ))
 
@@ -241,9 +243,11 @@ def run_unified_experiment():
                     errors=[f"AFFORDABILITY: MG household income ${income:,.0f} too low for buyout transition costs"],
                     metadata={
                         "level": ValidationLevel.ERROR,
-                        "rule": "affordability",
+                        "rule_id": "affordability_mg_buyout",
+                        "rules_hit": ["affordability_mg_buyout"],
                         "field": "decision",
-                        "constraint": "mg_buyout_barrier"
+                        "constraint": "mg_buyout_barrier",
+                        "deterministic": True
                     }
                 ))
 
@@ -259,9 +263,11 @@ def run_unified_experiment():
                     errors=[f"AFFORDABILITY: Premium ${premium:,.0f} exceeds {insurance_pct_cap:.0%} of income (${income*insurance_pct_cap:,.0f}){mg_note}"],
                     metadata={
                         "level": ValidationLevel.ERROR,
-                        "rule": "affordability",
+                        "rule_id": "affordability_insurance",
+                        "rules_hit": ["affordability_insurance"],
                         "field": "decision",
-                        "constraint": "financial_affordability"
+                        "constraint": "financial_affordability",
+                        "deterministic": True
                     }
                 ))
 
@@ -292,12 +298,17 @@ def run_unified_experiment():
         flood_zone = personal.get('flood_zone', 'MEDIUM')
         flood_experience = personal.get('flood_experience', False)
         flooded_this_year = personal.get('flooded_this_year', False)
+        flood_count = personal.get('flood_count', 0)
         elevated = personal.get('elevated', False)
+
+        # flood_experience is profile-only (never updated during sim).
+        # Use flood_count > 0 as the runtime equivalent.
+        has_flood_history = flood_experience or flood_count > 0
 
         structural_actions = {"elevate_house", "buyout_program", "relocate"}
 
         # Rule 1: LOW-zone agents without flood experience cannot take structural actions
-        if decision in structural_actions and flood_zone == "LOW" and not flood_experience and not flooded_this_year:
+        if decision in structural_actions and flood_zone == "LOW" and not has_flood_history and not flooded_this_year:
             results.append(ValidationResult(
                 valid=False,
                 validator_name="FloodZoneAppropriatenessValidator",
@@ -305,8 +316,10 @@ def run_unified_experiment():
                 metadata={
                     "level": ValidationLevel.ERROR,
                     "rule": "flood_zone_guard",
+                    "rules_hit": ["flood_zone_guard"],
                     "field": "decision",
-                    "constraint": "low_zone_no_structural"
+                    "constraint": "low_zone_no_structural",
+                    "deterministic": True
                 }
             ))
 
@@ -315,7 +328,7 @@ def run_unified_experiment():
         # major structural action — empirically <5% elevation rate over a decade)
         if (decision in structural_actions
                 and not flooded_this_year
-                and not flood_experience
+                and not has_flood_history
                 and flood_zone != "LOW"
                 and not elevated):
             results.append(ValidationResult(
@@ -325,8 +338,10 @@ def run_unified_experiment():
                 metadata={
                     "level": ValidationLevel.ERROR,
                     "rule": "status_quo_bias",
+                    "rules_hit": ["status_quo_bias"],
                     "field": "decision",
-                    "constraint": "no_experience_structural_block"
+                    "constraint": "no_experience_structural_block",
+                    "deterministic": True
                 }
             ))
 
@@ -336,7 +351,7 @@ def run_unified_experiment():
         if (decision in {"buy_contents_insurance", "buy_insurance"}
                 and proposal.agent_type == "household_renter"
                 and flood_zone == "LOW"
-                and not flood_experience
+                and not has_flood_history
                 and not flooded_this_year):
             results.append(ValidationResult(
                 valid=False,
@@ -345,8 +360,120 @@ def run_unified_experiment():
                 metadata={
                     "level": ValidationLevel.ERROR,
                     "rule": "low_zone_renter_insurance",
+                    "rules_hit": ["low_zone_renter_insurance"],
                     "field": "decision",
-                    "constraint": "low_zone_no_renter_insurance"
+                    "constraint": "low_zone_no_renter_insurance",
+                    "deterministic": True
+                }
+            ))
+
+        return results
+
+    def validate_buyout_repetitive_loss(
+        proposal: SkillProposal,
+        context: Dict[str, Any],
+        skill_registry: Any
+    ) -> List[ValidationResult]:
+        """
+        Block buyout unless agent has Repetitive Loss status (flood_count >= 2).
+
+        FEMA defines Repetitive Loss (RL) as a property with 2+ flood insurance
+        claims of $1,000+ in any 10-year period.  The Blue Acres buyout program
+        (NJ) and most FEMA HMGP buyout programs prioritize RL properties.
+
+        References:
+        - FEMA Repetitive Loss Strategy (2005)
+        - NJ Blue Acres Program eligibility criteria
+        - 44 CFR 77.2 (Repetitive Loss definition)
+        """
+        results = []
+
+        if proposal.agent_type not in ["household_owner"]:
+            return results  # Only owners can participate in buyout
+
+        if proposal.skill_name != "buyout_program":
+            return results
+
+        agent_data = context.get('agent_state', {})
+        personal = agent_data.get('personal', {})
+
+        flood_count = personal.get('flood_count', 0)
+
+        if flood_count < 2:
+            results.append(ValidationResult(
+                valid=False,
+                validator_name="BuyoutRepetitiveLossValidator",
+                errors=[
+                    f"REPETITIVE_LOSS: Buyout requires 2+ flood events "
+                    f"(current flood_count={flood_count}). "
+                    f"Consider insurance or elevation instead."
+                ],
+                metadata={
+                    "level": ValidationLevel.ERROR,
+                    "rule_id": "buyout_repetitive_loss",
+                    "rules_hit": ["buyout_repetitive_loss"],
+                    "field": "decision",
+                    "constraint": "repetitive_loss_criterion",
+                    "deterministic": True,
+                    "suggestion": "Consider insurance or elevation instead. Buyout requires 2+ flood events per FEMA/Blue Acres criteria."
+                }
+            ))
+
+        return results
+
+    def validate_elevation_justification(
+        proposal: SkillProposal,
+        context: Dict[str, Any],
+        skill_registry: Any
+    ) -> List[ValidationResult]:
+        """
+        Block elevation for LOW-zone agents unless they have experienced 2+ floods.
+
+        Elevation is a major structural investment ($50K-$150K+ after subsidy).
+        For agents in LOW flood zones, a single flood event is often treated as a
+        rare occurrence.  Requiring 2+ flood events for LOW-zone agents mirrors
+        the cost-benefit analysis: elevation is only justified when repeated
+        flooding demonstrates persistent risk despite the LOW zone classification.
+
+        Agents in HIGH or MEDIUM zones are allowed to elevate after 1+ floods
+        (handled by the existing validate_flood_zone_appropriateness rule).
+
+        References:
+        - FEMA Benefit-Cost Analysis (BCA) for HMGP mitigation grants
+        - Kousky & Michel-Kerjan (2017): flood zone =/= flood risk
+        """
+        results = []
+
+        if proposal.agent_type not in ["household_owner"]:
+            return results  # Only owners can elevate
+
+        if proposal.skill_name != "elevate_house":
+            return results
+
+        agent_data = context.get('agent_state', {})
+        personal = agent_data.get('personal', {})
+
+        flood_count = personal.get('flood_count', 0)
+        flood_zone = personal.get('flood_zone', 'MEDIUM')
+
+        # LOW-zone agents need 2+ floods to justify elevation
+        if flood_zone == "LOW" and flood_count < 2:
+            results.append(ValidationResult(
+                valid=False,
+                validator_name="ElevationJustificationValidator",
+                errors=[
+                    f"ELEVATION_JUSTIFICATION: LOW flood zone agent needs 2+ flood events "
+                    f"to justify elevation investment (current flood_count={flood_count}). "
+                    f"Consider insurance instead."
+                ],
+                metadata={
+                    "level": ValidationLevel.ERROR,
+                    "rule_id": "elevation_low_zone_justification",
+                    "rules_hit": ["elevation_low_zone_justification"],
+                    "field": "decision",
+                    "constraint": "elevation_justification",
+                    "deterministic": True,
+                    "suggestion": "Consider insurance or do_nothing. Elevation in LOW flood zone requires 2+ flood events to pass cost-benefit analysis."
                 }
             ))
 
@@ -638,9 +765,21 @@ def run_unified_experiment():
         ])
     )
 
+    # Structural action validators — always active (evidence-based constraints)
+    # These enforce: flood history requirements, zone appropriateness, and
+    # repetitive-loss eligibility for buyout (FEMA/Blue Acres policy).
+    structural_validators = [
+        validate_flood_zone_appropriateness,
+        validate_buyout_repetitive_loss,
+        validate_elevation_justification,
+    ]
+
     if args.enable_custom_affordability:
-        builder.with_custom_validators([validate_affordability, validate_flood_zone_appropriateness])
-    
+        # Add income-based affordability checks (alternative to --enable-financial-constraints)
+        structural_validators.insert(0, validate_affordability)
+
+    builder.with_custom_validators(structural_validators)
+
     # 6. Execute
     runner = builder.build()
     runner.run(runner.llm_invoke) # Use the selected llm_invoke

@@ -845,6 +845,19 @@ governance:
         level: ERROR
         message: Complex actions are blocked due to your low confidence in your ability
           to cope.
+      - id: high_pa_blocks_buyout
+        construct: PA_LABEL
+        conditions:
+        - construct: PA_LABEL
+          values:
+          - VH
+          - H
+        blocked_skills:
+        - buyout_program
+        level: ERROR
+        message: High place attachment makes buyout psychologically infeasible. Agents
+          with strong community ties and emotional bonds to their home rarely accept
+          voluntary relocation (Binder et al. 2015, de Vries & Fraser 2012).
     household_renter:
       identity_rules:
       - id: relocated_already

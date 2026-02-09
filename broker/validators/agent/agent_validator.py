@@ -167,9 +167,10 @@ class AgentValidator:
                     errors=[affordability_reason],
                     metadata={
                         "level": ValidationLevel.ERROR,
-                        "rule": "affordability",
+                        "rules_hit": ["affordability"],
                         "field": "decision",
-                        "constraint": "financial_affordability"
+                        "constraint": "financial_affordability",
+                        "deterministic": True
                     }
                 ))
 

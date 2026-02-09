@@ -496,6 +496,24 @@ class SkillBrokerEngine:
                     rule_ids.add(meta["rule_id"])
         return frozenset(rule_ids)
 
+    @staticmethod
+    def _all_blocking_deterministic(validation_results: List) -> bool:
+        """Check if ALL blocking rules are deterministic (e.g. affordability).
+
+        Deterministic rules depend on static agent attributes (income,
+        property value) that don't change between retries, so retrying
+        is futile.  Construct-based rules depend on LLM output which
+        MAY change on retry, so EarlyExit should not apply to them.
+        """
+        has_any_blocking = False
+        for v in validation_results:
+            if v and hasattr(v, "valid") and not v.valid:
+                has_any_blocking = True
+                meta = getattr(v, "metadata", None) or {}
+                if not meta.get("deterministic", False):
+                    return False  # At least one non-deterministic rule
+        return has_any_blocking
+
     def _governance_retry_loop(
         self, *, all_valid: bool, skill_proposal, validation_results: List,
         all_validation_history: List, validation_context: Dict,
@@ -590,12 +608,15 @@ class SkillBrokerEngine:
                     errors_list = [e for v in validation_results if v and hasattr(v, 'errors') for e in v.errors]
                     logger.warning(f"[Governance:Retry] Attempt {retry_count} failed validation for {agent_id}. Errors: {errors_list}")
 
-                    # Early exit: if the same rules are blocking as last
-                    # time, further retries are futile (conditions are static).
+                    # Early exit: only if ALL blocking rules are deterministic
+                    # (e.g. affordability — agent income/property don't change
+                    # on retry).  Construct-based rules (e.g. low_coping) depend
+                    # on LLM output which may change, so allow full retries.
                     current_blocking = self._extract_blocking_rule_ids(validation_results)
-                    if current_blocking and current_blocking == prev_blocking_rules:
+                    all_deterministic = self._all_blocking_deterministic(validation_results)
+                    if current_blocking and current_blocking == prev_blocking_rules and all_deterministic:
                         logger.info(
-                            f"[Governance:EarlyExit] Same rules blocked retry {retry_count} "
+                            f"[Governance:EarlyExit] Deterministic rules blocked retry {retry_count} "
                             f"for {agent_id}: {sorted(current_blocking)}. "
                             f"Skipping remaining retries."
                         )
