@@ -2,15 +2,15 @@
 WRR Technical Note — Irrigation ABM Figure (Single Figure, 2 Panels)
 ====================================================================
 Panel (a): 42-year aggregate demand vs CRSS baseline
-            - CRSS baseline (dashed) vs SAGE governed demand (solid) vs SAGE diversion (dotted)
+            - CRSS baseline (dashed) vs WAGF governed demand (solid) vs WAGF diversion (dotted)
             - Gray band: CRSS ±10% reference range
             - Inset text: Mean, CoV statistics
 
 Panel (b): Governance outcome proportions (stacked area)
             - APPROVED (first attempt) / RETRY_SUCCESS / REJECTED
-            - Shows learning curve: high rejection → stabilization
+            - Shows persistent governance: bounded rationality requires continuous constraint
 
-Data priority: production_v15_42yr > production_phase_c_42yr > v12_production_42yr_78agents
+Data priority: production_v20_42yr > production_v15_42yr > production_phase_c_42yr
 CRSS reference: ref/CRSS_DB/CRSS_DB/annual_baseline_time_series.csv
 
 Style: WRR 300 DPI, serif (Times New Roman), 7.0 x 5.5 inches
@@ -135,7 +135,7 @@ mean_approved_final = final_10["APPROVED"].mean()
 mean_rejected_y1_5 = gov_yearly.iloc[:5]["REJECTED"].mean()
 
 print(f"\nStatistics:")
-print(f"  SAGE Mean Demand: {mean_demand:.2f} MAF/yr ({ratio:.2f}x CRSS)")
+print(f"  WAGF Mean Demand: {mean_demand:.2f} MAF/yr ({ratio:.2f}x CRSS)")
 print(f"  CRSS Mean: {mean_crss:.2f} MAF/yr")
 print(f"  CoV: {cov_demand:.1f}%")
 print(f"  Early rejection (Y1-5): {mean_rejected_y1_5:.0%}")
@@ -144,8 +144,8 @@ print(f"  Late approval (Y33-42): {mean_approved_final:.0%}")
 # ── 5. Colors ──
 # Okabe-Ito accessible palette
 C_CRSS = "#332288"       # indigo — CRSS baseline
-C_REQUEST = "#44AA99"    # teal — SAGE request
-C_DIVERSION = "#88CCEE"  # light blue — SAGE diversion
+C_REQUEST = "#44AA99"    # teal — WAGF request
+C_DIVERSION = "#88CCEE"  # light blue — WAGF diversion
 C_APPROVED = "#44AA99"   # teal
 C_RETRY = "#DDCC77"      # sand/gold
 C_REJECTED = "#CC6677"   # rose
@@ -173,35 +173,30 @@ ax_a.plot(
     label="CRSS Baseline", zorder=3,
 )
 
-# SAGE Request (governed demand)
+# WAGF Request (governed demand)
 ax_a.plot(
     years, comp["request_maf"],
-    color=C_REQUEST, lw=2.0, label="SAGE Request", zorder=4,
+    color=C_REQUEST, lw=2.0, label="WAGF Request", zorder=4,
 )
 
-# SAGE Diversion (actual after curtailment)
+# WAGF Diversion (actual after curtailment)
 ax_a.plot(
     years, comp["diversion_maf"],
     color=C_DIVERSION, lw=1.5, linestyle=":",
-    label="SAGE Diversion", zorder=2, alpha=0.8,
-)
-
-# Statistics inset
-stats_text = (
-    f"SAGE: {mean_demand:.2f} MAF/yr "
-    f"({ratio:.2f}× CRSS)\n"
-    f"CoV = {cov_demand:.1f}%"
-)
-ax_a.text(
-    0.98, 0.05, stats_text, transform=ax_a.transAxes,
-    fontsize=7.5, ha="right", va="bottom",
-    bbox=dict(boxstyle="round,pad=0.4", fc="white", ec="gray", alpha=0.9),
+    label="WAGF Diversion", zorder=2, alpha=0.8,
 )
 
 ax_a.set_ylabel("Aggregate Demand (million AF/yr)")
-ax_a.set_title("(a) Annual Water Demand: SAGE vs CRSS Baseline", fontweight="bold", loc="left")
-ax_a.legend(framealpha=0.9, edgecolor="none", fontsize=7.5, loc="upper right")
-ax_a.grid(True, alpha=0.2, linewidth=0.4)
+ax_a.set_title("(a) Annual Water Demand: WAGF vs CRSS Baseline",
+               fontweight="bold", loc="left", fontsize=10)
+# Legend: horizontal, lower-right to avoid overlapping data
+ax_a.set_ylim(3.0, 7.0)
+ax_a.legend(
+    framealpha=0.95, edgecolor="none", fontsize=7,
+    loc="lower right", bbox_to_anchor=(0.99, 0.01),
+    borderpad=0.4, handlelength=1.5, ncol=2,
+)
+ax_a.grid(True, alpha=0.15, linewidth=0.4)
 ax_a.set_xlim(years.min(), years.max())
 ax_a.yaxis.set_major_locator(mticker.MultipleLocator(1))
 for spine in ["top", "right"]:
@@ -220,34 +215,29 @@ ax_b.stackplot(
     alpha=0.85,
 )
 
-# Annotate key transition — require 3+ consecutive years ≥70% APPROVED
-consecutive = 0
-transition_year = None
-for yr in gov_yearly.index:
-    if gov_yearly.loc[yr, "APPROVED"] >= 0.70:
-        consecutive += 1
-        if consecutive >= 3:
-            transition_year = (yr - 2) + YEAR_OFFSET  # first year of the 3-run
-            break
-    else:
-        consecutive = 0
-
-if transition_year is not None:
-    ax_b.axvline(transition_year, color="gray", ls=":", lw=0.8, alpha=0.6)
-    ax_b.text(
-        transition_year + 0.5, 92,
-        f"Governance\nstabilized",
-        fontsize=7, color="gray", va="top",
-    )
+# Cold-start annotation — vertical line at Y5/Y6 boundary
+cold_start_end = 5 + YEAR_OFFSET  # Y5 = 2023
+ax_b.axvline(cold_start_end, color="#666666", ls="--", lw=0.7, alpha=0.5)
+ax_b.text(
+    cold_start_end + 0.5, 97,
+    "Cold-start\nends",
+    fontsize=6.5, color="#666666", va="top", style="italic",
+)
 
 ax_b.set_xlabel("Calendar Year")
 ax_b.set_ylabel("Agent Decisions (%)")
-ax_b.set_title("(b) Governance Intervention Outcomes", fontweight="bold", loc="left")
-ax_b.legend(framealpha=0.9, edgecolor="none", fontsize=7.5, loc="center right")
+ax_b.set_title("(b) Governance Intervention Outcomes",
+               fontweight="bold", loc="left", fontsize=10)
+# Horizontal legend at lower-right (avoids blocking stacked area labels)
+ax_b.legend(
+    framealpha=0.95, edgecolor="none", fontsize=7.5,
+    loc="lower right", bbox_to_anchor=(0.99, 0.01),
+    borderpad=0.5, handlelength=1.8, ncol=3,
+)
 ax_b.set_xlim(years.min(), years.max())
 ax_b.set_ylim(0, 100)
 ax_b.yaxis.set_major_locator(mticker.MultipleLocator(25))
-ax_b.grid(True, alpha=0.2, linewidth=0.4)
+ax_b.grid(True, alpha=0.15, linewidth=0.4)
 for spine in ["top", "right"]:
     ax_b.spines[spine].set_visible(False)
 

@@ -17,6 +17,41 @@ The two dimensions are assessed **independently** — governance rules may condi
 
 **Rating scale**: Both WSA and ACA use a 5-level ordinal scale: VL (Very Low), L (Low), M (Medium), H (High), VH (Very High).
 
+### Theoretical Foundation
+
+WSA/ACA naming and structure derive from Lazarus & Folkman (1984) cognitive appraisal theory:
+
+- **Primary appraisal** (threat evaluation) → WSA: "How severe is the water supply threat?"
+- **Secondary appraisal** (coping evaluation) → ACA: "How capable am I of adapting?"
+
+**Important limitation**: WAGF's WSA/ACA are categorical labels (VL/L/M/H/VH), not a full cognitive appraisal process model. We borrow Lazarus & Folkman's construct naming to provide theoretical grounding, but do not claim to fully implement cognitive appraisal theory. The labels serve as governance-legible inputs that enable construct-conditioned rules.
+
+### Why Dual-Appraisal (Not Single Threat)?
+
+The flood ABM uses PMT (Protection Motivation Theory) with a single threat appraisal because flooding is an acute binary event (flood/no flood). Irrigation demand is fundamentally different:
+
+| Dimension | Flood (PMT) | Irrigation (Dual-Appraisal) |
+|-----------|------------|---------------------------|
+| Threat nature | Acute, binary | Chronic, continuous |
+| Decision type | Binary (adopt protection / not) | Continuous (how much to adjust demand) |
+| Capacity relevance | Lower (adopt elevation or not) | Critical (can I actually change practices?) |
+
+The dual-appraisal design enables **cross-construct governance rules** — e.g., WSA=VH + ACA=VH → "severe drought but high adaptive capacity → you should decrease, not increase." This logical conjunction is inexpressible in a single-appraisal system.
+
+### Governance Rules Conditioned on Constructs
+
+| Rule | Construct(s) | Logic | Rationale |
+|------|-------------|-------|-----------|
+| `high_threat_high_cope_no_increase` | WSA ∈ {H,VH} AND ACA ∈ {H,VH} | Block increase | High threat + high capacity = should conserve |
+| `low_threat_no_increase` | WSA = VL | Block increase | Near-zero scarcity → no justification for more water |
+| `high_threat_no_maintain` | WSA = VH | Warn maintain | Extreme drought → status quo deserves scrutiny |
+
+These three rules triggered **1,250 times** across v20 production (34% of all ERROR triggers), demonstrating that dual-appraisal constructs are a substantive governance mechanism, not decorative metadata.
+
+### Construct Validity (99.2% Coverage)
+
+WSA/ACA valid-label coverage = 99.2% (3,250/3,276 agent-year decisions), indicating gemma3:4b reliably produces 5-level ordinal labels. The 0.8% invalid labels are caught at the governance validation stage.
+
 ## Three Pillars
 
 | Pillar | Name | Configuration | Effect |
@@ -37,6 +72,41 @@ python run_experiment.py --model gemma3:4b --years 10 --agents 10 --seed 42
 # Production (78 real CRSS agents, 42 years — requires ref/CRSS_DB data)
 python run_experiment.py --model gemma3:4b --years 42 --real --seed 42 --num-ctx 8192 --num-predict 4096
 ```
+
+## Production Results (v20, 78 Agents × 42 Years)
+
+### Headline Metrics
+
+| Metric | Value | CRSS Reference |
+|--------|-------|----------------|
+| Mean demand | 5.87 MAF/yr | 5.86 MAF/yr (1.00×) |
+| Steady-state CoV (Y6-42) | 5.3% | Target <10% |
+| Within ±10% corridor | 88% (37/42 yr) | — |
+| Cold-start mean (Y1-5) | 4.76 MAF | Excluded from steady-state stats |
+
+### Governance Outcomes (3,276 Agent-Year Decisions)
+
+| Outcome | Count | Percentage |
+|---------|-------|------------|
+| Approved (1st attempt) | 1,236 | 37.7% |
+| Retry success | 735 | 22.4% |
+| Rejected → maintain_demand | 1,305 | 39.8% |
+
+### Behavioral Diversity (Shannon Entropy)
+
+| Stage | H_norm | Meaning |
+|-------|--------|---------|
+| Proposed (LLM choice) | 0.74 | Agents express diverse preferences |
+| Executed (after governance) | 0.39 | Governance compresses to feasible subset |
+| Compression | 47% | Institutional constraint narrowing |
+
+### Interpretation
+
+- **Demand stability**: Steady-state demand (Y6-42) remains within the CRSS ±10% corridor, achieving the same level of collective demand equilibrium as Hung & Yang (2021) FQL, but through governance constraints rather than Q-value convergence.
+- **Cold-start transient**: Y1-5 demand drops to ~4.4 MAF (25% below CRSS), reflecting zero-memory initialization. FQL also exhibits early exploration instability, but its Q-values begin updating from Y1, producing a shorter transient.
+- **Persistent intervention**: 60% of decisions require governance intervention (retry + rejected). This is not a system deficiency but a structural feature — bounded-rationality LLM agents in chronic drought structurally require external constraint.
+- **Cluster differentiation**: Aggressive agents face 43 percentage-point governance compression (propose 60% increase → execute 17%), while Myopic agents face near-zero compression (98% maintain). This preserves the qualitative behavioral ordering from FQL k-means clusters through governance rules rather than individually calibrated penalty sensitivities.
+- **Top rule triggers**: demand_ceiling (1,420) > high_threat_no_increase (1,180) > curtailment_awareness (499), showing governance load concentrates on hydrologically meaningful constraints.
 
 ## CLI Arguments
 
@@ -164,6 +234,42 @@ Direct performance comparison between LLM-ABM and FQL-ABM requires acknowledging
 - Joint action-magnitude selection (Q-table directly maps state to optimal magnitude)
 
 **What we are NOT claiming**: This comparison does not claim LLM agents are "better" than FQL agents. The goal is to demonstrate that LLM reasoning can produce *scientifically plausible* water demand trajectories under governance, not to outperform a specifically calibrated RL system. Controlled comparison targets: mean demand within CRSS reference range (5.56-6.45 MAF/yr), CoV < 10%, and qualitatively similar cluster behavioral signatures.
+
+### Results Comparison
+
+| Dimension | FQL (Hung & Yang 2021) | WAGF v20 |
+|-----------|----------------------|----------|
+| Agents / Period | 78 / 2019-2060 (42yr) | Same |
+| Monte Carlo traces | 100 | 1 (seed 42) |
+| Demand stabilization | Reward-based self-regulation (regret penalty drives Q-value convergence) | Governance corridor (floor 50% + ceiling 6.0 MAF) |
+| Learning | TD(0) Q-value update leading to policy convergence | No convergent learning (memory + reflection only) |
+| Mean demand | Ensemble distributions; early-year increases above CRSS | 5.87 MAF/yr (1.00x CRSS) |
+| Variability | Ensemble spread; shrinks after prolonged drought | CoV 5.3% (Y6-42) |
+| Cluster ordering | Aggressive > Forward-Looking > Myopic (from Q-value convergence) | Same ordering preserved (from governance compression) |
+| Explainability | Q-table values (opaque numeric) | Natural language audit trail + InterventionReport |
+| Shortage years | 13-30 years depending on adaptation path | 12 years (Tier 1: 5, Tier 2: 2, Tier 3: 5) |
+
+### Core Theoretical Substitution
+
+| FQL Mechanism | WAGF Equivalent | Functional Effect |
+|---------------|-----------------|-------------------|
+| Negative reward (regret x deviation) | Demand corridor (floor + ceiling) | Prevents both over-conservation and over-extraction |
+| Q-value convergence to equilibrium | Static governance rules applied every year | Stable aggregate demand without learning |
+| Agent-specific regret parameter | Governance compression differential | Aggressive: 43pp compression; Myopic: 0pp |
+| Epsilon-greedy exploration | LLM stochasticity + 2% explicit exploration | Behavioral diversity maintained |
+
+### What WAGF Adds
+
+1. **Natural language reasoning + audit trail**: Each decision includes chain-of-thought, WSA/ACA labels, and a governance audit log (which rules triggered, why, and what alternatives were suggested). FQL produces only Q-values and action indices.
+2. **Governance compression as information-theoretic metric**: H_norm 0.74 -> 0.39 (47% compression) quantifies institutional constraint strength. In RL frameworks all actions are inherently valid; this concept has no equivalent.
+3. **Domain transfer without algorithm redesign**: The same broker engine transfers from the flood PMT domain to irrigation demand management with only YAML-level configuration changes. FQL requires redesigning the reward function, state discretization, and action space for each new domain.
+
+### What WAGF Loses
+
+1. **No convergence guarantee**: FQL has Q-learning convergence theorems; WAGF depends on governance rule design quality.
+2. **39.8% rejection waste**: All FQL actions are inherently valid; WAGF rejects nearly 40% of decisions, falling back to maintain_demand.
+3. **Single seed**: FQL reports 100-trace ensemble statistics; WAGF v20 uses only seed 42.
+4. **No optimality criterion**: FQL optimizes expected discounted reward; WAGF has no objective function.
 
 ## Available Skills
 
@@ -323,6 +429,43 @@ Each year, agents receive combined memories with magnitude context:
 > "Year 5: You chose to decrease_demand by 15%. Outcome: Supply was adequate, utilisation dropped to 65%."
 
 This enables causal learning — agents can correlate demand change magnitudes with supply outcomes across the reflection loop.
+
+## Learning, Memory, and Adaptation
+
+### What Counts as "Learning"?
+
+In RL frameworks, learning = Q-value updates leading to policy convergence (convergence to optimal policy). FQL agents update their Q-table and transition probabilities every year, converging to near-optimal demand levels over hundreds of iterations.
+
+WAGF agents present a more nuanced situation:
+
+| Capability | Present? | Mechanism |
+|------------|----------|-----------|
+| Episodic memory | Yes | 5-year window + importance-weighted retrieval |
+| Action-outcome feedback | Yes | "You chose decrease by 15%, outcome: supply adequate" |
+| Annual reflection | Yes | 3 guidance questions producing consolidated insight stored as memory |
+| Value function update | No | LLM weights are frozen — no gradient descent |
+| Policy convergence | No | No systematic improvement toward optimality |
+| Cross-episode optimization | No | No reward signal, no discount factor |
+
+### Reflection is Not RL Learning, but is Not Zero Either
+
+The reflection loop enables agents to:
+
+- **Correlate** actions with outcomes ("I decreased demand last year and supply was adequate")
+- **Form narrative insights** ("Conservative strategies work better during prolonged drought")
+- **Retrieve relevant precedents** from memory when facing similar conditions
+
+But reflection **cannot**:
+
+- Systematically improve policy (the same "insight" may recur annually without changing behavior)
+- Converge to equilibrium (Shannon entropy shows no downward trend: slope=+0.003, p=0.25)
+- Substitute for governance constraints (even with 5-year memory, agents are still 39.8% rejected)
+
+### Correct Framing
+
+WAGF agents have **bounded adaptive capacity** — they can recall past experiences, reflect on outcomes, and express pattern recognition in their prompts. But behavioral stability comes primarily from governance constraints, not agent learning. This is a design choice, not a deficiency: under the cognitive limitations of a small LLM (4B parameters), external governance is a more reliable stabilization mechanism than internal learning.
+
+**Analogy with FQL**: FQL internalizes over-extraction costs via the regret penalty in its reward function (internal regulation). WAGF externalizes these constraints via governance rules (external regulation). Both achieve similar collective demand equilibrium at the basin level.
 
 ## Economic Hallucination
 
@@ -657,23 +800,65 @@ After:  "Valid alternatives: maintain_demand, decrease_demand."
 
 **Rationale**: Small LLMs (gemma3:4b) treat governance suggestions as directives. Biased suggestions caused universal decrease adoption (demand collapse to 69% of CRSS target). Neutral phrasing restored demand stability.
 
-### Demand Floor Stabilizer
+### Demand Corridor: Floor, Ceiling, and Design Rationale
 
-New validator `demand_floor_stabilizer` blocks `decrease_demand` when utilisation < 50% of water right. Creates a demand corridor with `minimum_utilisation_check`:
+The demand corridor is the primary stabilization mechanism, bounding agent demand between a per-agent floor and a basin-wide ceiling:
 
+```text
+10%  <- hard floor (minimum_utilisation_check: economic hallucination defense)
+50%  <- stability floor (demand_floor_stabilizer: prevents over-conservation collapse)
+~~~~ <- agent freedom zone ~~~~
+6.0 MAF <- basin ceiling (demand_ceiling_stabilizer: prevents collective overshoot)
+100% <- water right cap (per-agent legal limit)
 ```
-10%  ← hard floor (minimum_utilisation_check blocks decrease)
-50%  ← stability floor (demand_floor_stabilizer blocks decrease)
-100% ← water right cap (water_right_cap_check blocks increase)
-```
 
-**Calibration parameter**: `DEMAND_FLOOR_RATIO` (default 0.50) in `irrigation_validators.py`. Calibrated via sensitivity test: 40%→CoV 9.7%, **50%→CoV 4.6%**, 60%→CoV 4.2%.
+**Why Floor (50% of water_right)?**
+
+Problem discovered in v14 production (78 agents x 5yr): demand collapsed to 69% of CRSS target (CoV 27.4%).
+
+Root causes:
+
+- Suggestion bias: All ERROR-level suggestions recommended "choose decrease", and small LLMs treated suggestions as directives
+- Persona anchoring: Forward-looking conservative agents repeatedly chose decrease even near zero utilisation
+
+Calibration evidence:
+
+| Floor ratio | Mean (MAF) | CoV | Rejected % |
+|-------------|-----------|------|------------|
+| 60% | 5.35 | 4.2% | 80% |
+| **50%** | **5.31** | **4.6%** | **76%** |
+| 40% | 5.03 | 9.7% | 73% |
+
+Selected 50%: CoV < 10% with lowest rejection rate (maximum agent autonomy).
+
+Theoretical justification: Real-world irrigation districts have minimum delivery obligations and long-term service contracts. Farmers cannot reduce demand below half their water right and still maintain agricultural operations. This is functionally equivalent to FQL's "penalty for under-utilization" (the regret parameter penalizes unmet demand).
+
+**Why Ceiling (6.0 MAF basin total)?**
+
+Problem discovered in v19 production (78 agents x 42yr): demand overshot to 6.60 MAF (+12.6% above CRSS), with 65% of years exceeding the 6.45 MAF upper corridor bound.
+
+Root cause: Tier 0 (normal operations) accounts for 54% of simulation years, and no validator blocks increases during normal conditions. Aggressive agents (86% of the population) ramp demand freely.
+
+Why 6.0 MAF specifically: CRSS baseline mean = 5.86 MAF, so 6.0 MAF = 1.024x (2.4% buffer). The CRSS success range is 5.56-6.45 MAF, placing 6.0 MAF in the upper-center of the corridor. This is wide enough for agents to make small increases in good years but prevents collective overshoot.
+
+Theoretical justification: FQL agents self-regulate over-demand via the reward function's regret penalty (Q-values converge away from excessive extraction). WAGF agents have no reward function, so external governance provides the equivalent constraint. This aligns with Ostrom's (1990) "rules-in-use" framework: the demand ceiling is an operational rule that bounds the feasible action space.
+
+**No Double-Bind Guarantee**
+
+| Scenario | Floor | Ceiling | Available actions |
+|----------|-------|---------|-------------------|
+| Normal demand (50-100% util, <6.0 MAF) | -- | -- | All 5 skills |
+| Low demand (<50% util) | Blocks decrease | -- | increase, maintain |
+| High basin demand (>6.0 MAF) | -- | Blocks increase | maintain, decrease |
+| Low demand + High basin (rare) | Blocks decrease | Blocks increase | maintain only |
+
+In every scenario, at least `maintain_demand` remains available — no all-skills-blocked trap.
 
 ### REJECTED Outcome Handling
 
 REJECTED agents now execute `maintain_demand` as fallback (instead of no-op), preserving their request and recalculating diversion with current curtailment.
 
-### Complete Validator Summary (11 validators)
+### Complete Validator Summary (12 validators)
 
 | # | Validator | Blocks | Level | Category |
 |---|-----------|--------|-------|----------|
@@ -681,13 +866,14 @@ REJECTED agents now execute `maintain_demand` as fallback (instead of no-op), pr
 | 2 | `non_negative_diversion_check` | decrease (diversion=0) | ERROR/WARNING | Physical |
 | 3 | `minimum_utilisation_check` | decrease (<10%) | ERROR | Physical |
 | 4 | `demand_floor_stabilizer` | decrease (<50%) | ERROR | Economic |
-| 5 | `drought_severity_check` | increase (drought>0.7) | ERROR | Physical |
-| 6 | `magnitude_cap_check` | increase (exceeds cap) | WARNING | Physical |
-| 7 | `supply_gap_block_increase` | increase (fulfil<70%) | ERROR | Physical |
-| 8 | `curtailment_awareness_check` | increase (Tier 2+) | ERROR | Social |
-| 9 | `compact_allocation_check` | increase (basin>Compact) | WARNING | Social |
-| 10 | `consecutive_increase_cap_check` | increase (3yr streak) | ERROR | Temporal |
-| 11 | `zero_escape_check` | maintain (<15%) | ERROR | Behavioral |
+| 5 | `demand_ceiling_stabilizer` | increase (basin >6.0 MAF) | ERROR | Economic |
+| 6 | `drought_severity_check` | increase (drought>0.7) | ERROR | Physical |
+| 7 | `magnitude_cap_check` | increase (exceeds cap) | WARNING | Physical |
+| 8 | `supply_gap_block_increase` | increase (fulfil<70%) | ERROR | Physical |
+| 9 | `curtailment_awareness_check` | increase (Tier 2+) | ERROR | Social |
+| 10 | `compact_allocation_check` | increase (basin>Compact) | WARNING | Social |
+| 11 | `consecutive_increase_cap_check` | increase (3yr streak) | ERROR | Temporal |
+| 12 | `zero_escape_check` | maintain (<15%) | ERROR | Behavioral |
 
 ## Colorado River Basin Parameters
 
