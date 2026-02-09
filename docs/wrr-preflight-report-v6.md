@@ -2,6 +2,18 @@
 
 - Generated: 2026-02-09T00:36:31.282766+00:00
 
+## Progress Update (2026-02-09)
+- `research-engineer` skill:
+  - `npx skills add https://github.com/wshobson/agents --skill research-engineer` could not find that exact skill name in the remote skill index.
+  - Global fallback applied: copied local existing skill from `C:\Users\wenyu\.agents\skills\research-engineer` to `C:\Users\wenyu\.codex\skills\research-engineer`.
+- Manuscript `paper/SAGE_WRR_Paper_v7.docx`:
+  - Word readability repaired (namespace declaration recovery) and validated.
+  - Corrupted symbol/text artifacts cleaned (no remaining private-use symbol paragraphs detected).
+  - Validation status: `All validations PASSED!`
+- Relevant commits:
+  - `009f2c6` `paper: repair v7 docx namespace declarations for Word readability [agent: codex-gpt5]`
+  - `6ebb905` `paper: clean corrupted symbols and normalize section prose in v7 [agent: codex-gpt5]`
+
 ## Flood Runner Checks
 - `has_run2_seed_4202`: PASS
 - `has_run3_seed_4203`: PASS
