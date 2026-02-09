@@ -33,13 +33,15 @@ The key methodological shift is from unconstrained generative behavior to audita
 
 **Editing Tool**: Microsoft Word
 
-## Irrigation Evidence Status (v6)
+## Irrigation Evidence Status (v20 FINAL)
 
-- Current production evidence for Section 5.2 is based on trace logs:
-  - `examples/irrigation_abm/results/production_v19_42yr/raw/irrigation_farmer_traces.jsonl`
-  - `examples/irrigation_abm/results/production_v20_42yr/raw/irrigation_farmer_traces.jsonl`
-- Full 42-year `simulation_log.csv` exports are not yet archived for `production_v19_42yr`/`production_v20_42yr`.
-- Manuscript wording should therefore present irrigation as **transferability + governance efficacy** evidence, and avoid final CRSS trajectory-fit claims until full logs are regenerated/exported.
+- **Production v20 COMPLETE**: 78 agents x 42yr, gemma3:4b, seed 42 (finalized 2026-02-08)
+- Full dataset archived at `examples/irrigation_abm/results/production_v20_42yr/`:
+  - `simulation_log.csv` (3,276 rows), `irrigation_farmer_governance_audit.csv`, `raw/irrigation_farmer_traces.jsonl`
+- Smoke validation: **8/10 pass** (all CRITICAL checks pass)
+- Key metrics: Mean=5.873 MAF (1.003x CRSS), CoV=9.2%, 88% within CRSS +/-10%
+- Authoritative metrics: `examples/irrigation_abm/analysis/v20_metrics.json`
+- Section 5 updated with final 42yr numbers (tracked changes in v6.docx)
 
 ---
 
@@ -53,7 +55,7 @@ WRR Technical Reports/Methods limit: **13 Publication Units (PU)** max
 |------|---------|------|
 | **Fig 1** | WAGF Framework (multi-panel: a. Architecture + b. Governance flow) | `figures/fig1_architecture.png` |
 | **Fig 2** | Flood ABM cross-model consistency | `figures/fig2_flood_combined.png` |
-| **Fig 3** | Irrigation ABM CRSS comparison | `figures/fig4_crss_comparison.png` |
+| **Fig 3** | Irrigation ABM: demand vs CRSS + governance outcomes | `figures/fig3_irrigation.png` |
 | **Table 1** | Core metrics (6 models x 3 groups) | Embedded in Word |
 
 **PU Calculation**: 3 figures + 1 table = **4 PU**
@@ -69,6 +71,8 @@ WRR Technical Reports/Methods limit: **13 Publication Units (PU)** max
 | **Figure S3** | Economic hallucination fix (v4 vs v6) | `flood/figures/fig_s3_econ_hallucination.png` |
 | **Figure S4** | Gemma3 3x3 adaptation matrix | `flood/figures/SI_Figure_Adaptation_Gemma3_3x3.png` |
 | **Figure S5** | Ministral3 3x3 adaptation matrix | `flood/figures/SI_Figure_Adaptation_Ministral3_3x3.png` |
+| **Table S3** | Irrigation governance summary (v20 42yr) | `SI/Table_S3_Irrigation_Governance.md` |
+| **Section S6** | Mass balance and human-water coupling | `SI/Section_S6_Mass_Balance.md` |
 
 ---
 
@@ -226,4 +230,4 @@ Plan reviewed by WRR format expert (2026-02-05):
 
 ---
 
-*Last updated: 2026-02-07*
+*Last updated: 2026-02-09*
