@@ -41,16 +41,17 @@ Columns:
 - `retry_rows` (mean)
 - `retry_sum` (mean)
 
-Current values (Run_1 snapshot):
+Current values (live snapshot from available runs; currently `Run_1` + partial `Run_2`):
 
 | Group | R_H | R_R | Rationality pass | H_norm_k4 | EHE_k4 | %Δ EHE vs A | retry_rows | retry_sum |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Group_A | 0.4253 | 0.0944 | 0.9056 | 0.5832 | 0.3671 | baseline | 0.00 | 0.00 |
-| Group_B | 0.0002 | 0.0024 | 0.9976 | 0.6623 | 0.6621 | +80.4% | 82.83 | 114.67 |
-| Group_C | 0.0000 | 0.0041 | 0.9959 | 0.6563 | 0.6563 | +78.8% | 48.50 | 67.17 |
+| Group_A | 0.3819 | 0.0808 | 0.9192 | 0.5665 | 0.3724 | baseline | 0.00 | 0.00 |
+| Group_B | 0.0002 | 0.0023 | 0.9977 | 0.6529 | 0.6528 | +75.3% | 69.25 | 94.63 |
+| Group_C | 0.0000 | 0.0035 | 0.9965 | 0.6326 | 0.6326 | +69.9% | 42.88 | 59.88 |
 
 Computation note:
 - `%Δ EHE vs A = (EHE_group - EHE_A) / EHE_A * 100` using group means.
+- Live table is auto-generated in `docs/wrr_results_live_snapshot_v6.md`.
 
 ## Secondary Table (SI): Model-Level Delta vs Group A
 
@@ -70,8 +71,8 @@ Source file already prepared:
 - `docs/wrr_metrics_vs_groupA_v6.csv`
 
 This supports claims like:
-- Mean `% reduction R_H vs A`: B `~99.96%`, C `100%`.
-- Mean `% gain EHE vs A`: B `~180.4%`, C `~170.5%`.
+- Strong reduction of feasibility violations (`R_H`) in B/C versus A.
+- Positive effective-diversity gain (`EHE_k4`) in B/C versus A.
 
 ## Figure Budget (3 figures max)
 
@@ -98,8 +99,9 @@ Detailed definitions remain in:
 
 ## Claim Strength and Next Requirement
 
-What current Run_1 can support:
+What current available runs can support:
 - Strong directional evidence that governance reduces invalid/irrational decisions while keeping high effective diversity.
+- Current matrix completion is not full (see `docs/wrr_metrics_completion_v6.csv`).
 
 What reviewers will still ask:
 - Variability across seeds/runs.

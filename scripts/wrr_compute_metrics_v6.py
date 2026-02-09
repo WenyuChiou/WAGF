@@ -1,22 +1,28 @@
 #!/usr/bin/env python
 """
-Compute WRR v6 flood metrics for all model x group combinations from JOH_FINAL.
+Compute WRR v6 flood metrics from JOH_FINAL.
 
-Outputs:
+Default outputs:
 - docs/wrr_metrics_all_models_v6.csv
 - docs/wrr_metrics_group_summary_v6.csv
+- docs/wrr_metrics_vs_groupA_v6.csv
+- docs/wrr_metrics_completion_v6.csv
+
+Design goals:
+- Works during ongoing experiments (partial matrix is allowed).
+- Supports Run_1 / Run_2 / Run_3 in one pass.
+- Keeps formulas aligned with docs/wrr-metric-calculation-spec-v6.md.
 """
 
 from __future__ import annotations
 
 import argparse
 import csv
-import glob
 import math
 import re
 from collections import Counter, defaultdict
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Iterable, Optional, Tuple
 
 
 def norm_action(row: Dict[str, str], group: str) -> Optional[str]:
@@ -96,14 +102,42 @@ def shannon_norm(counts: Counter, k: int) -> float:
     return h / math.log2(k)
 
 
-def compute_all_rows(joh_final_dir: Path):
-    rows_out = []
+MODELS = [
+    "gemma3_4b",
+    "gemma3_12b",
+    "gemma3_27b",
+    "ministral3_3b",
+    "ministral3_8b",
+    "ministral3_14b",
+]
+GROUPS = ["Group_A", "Group_B", "Group_C"]
 
-    pattern = str(joh_final_dir / "*/Group_*/Run_1/simulation_log.csv")
-    for file_path in sorted(glob.glob(pattern)):
-        p = Path(file_path)
-        model = p.parts[-4]
-        group = p.parts[-3]
+
+def normalize_runs(run_tokens: str) -> list[str]:
+    runs: list[str] = []
+    for tok in run_tokens.split(","):
+        t = tok.strip()
+        if t:
+            runs.append(t)
+    return runs or ["Run_1"]
+
+
+def discover_csv_paths(
+    joh_final_dir: Path, runs: Iterable[str]
+) -> list[Tuple[str, str, str, Path]]:
+    out: list[Tuple[str, str, str, Path]] = []
+    for model in MODELS:
+        for group in GROUPS:
+            for run in runs:
+                p = joh_final_dir / model / group / run / "simulation_log.csv"
+                if p.exists():
+                    out.append((model, group, run, p))
+    return out
+
+
+def compute_all_rows(joh_final_dir: Path, runs: Iterable[str]):
+    rows_out = []
+    for model, group, run, p in sorted(discover_csv_paths(joh_final_dir, runs)):
 
         with open(p, encoding="utf-8-sig") as fh:
             rows = list(csv.DictReader(fh))
@@ -208,6 +242,7 @@ def compute_all_rows(joh_final_dir: Path):
             {
                 "model": model,
                 "group": group,
+                "run": run,
                 "n_total_rows": n_total,
                 "n_active": n_active,
                 "n_id_violation": n_id,
@@ -228,12 +263,19 @@ def compute_all_rows(joh_final_dir: Path):
     return rows_out
 
 
-def write_outputs(rows_out, out_all: Path, out_group: Path):
+def write_outputs(
+    rows_out,
+    out_all: Path,
+    out_group: Path,
+    out_vs_group_a: Path,
+    out_completion: Path,
+):
     out_all.parent.mkdir(parents=True, exist_ok=True)
 
     all_fields = [
         "model",
         "group",
+        "run",
         "n_total_rows",
         "n_active",
         "n_id_violation",
@@ -255,13 +297,33 @@ def write_outputs(rows_out, out_all: Path, out_group: Path):
         for r in rows_out:
             w.writerow(r)
 
+    # Completion matrix for experiment tracking.
+    completion_fields = ["model", "group", "run", "has_simulation_log"]
+    have = {(r["model"], r["group"], r["run"]) for r in rows_out}
+    with open(out_completion, "w", newline="", encoding="utf-8") as fh:
+        w = csv.DictWriter(fh, fieldnames=completion_fields)
+        w.writeheader()
+        for model in MODELS:
+            for group in GROUPS:
+                for run in sorted({r["run"] for r in rows_out} | {"Run_1", "Run_2", "Run_3"}):
+                    w.writerow(
+                        {
+                            "model": model,
+                            "group": group,
+                            "run": run,
+                            "has_simulation_log": int((model, group, run) in have),
+                        }
+                    )
+
     by = defaultdict(list)
     for r in rows_out:
         by[r["group"]].append(r)
 
     group_fields = [
         "group",
-        "n_models",
+        "n_cases",
+        "n_models_observed",
+        "runs_observed",
         "R_H_mean",
         "R_R_mean",
         "rationality_pass_mean",
@@ -281,6 +343,8 @@ def write_outputs(rows_out, out_all: Path, out_group: Path):
             if not lst:
                 continue
             n = len(lst)
+            models_observed = sorted({x["model"] for x in lst})
+            runs_observed = sorted({x["run"] for x in lst})
 
             def m(k: str) -> float:
                 return sum(float(x[k]) for x in lst) / n
@@ -288,7 +352,9 @@ def write_outputs(rows_out, out_all: Path, out_group: Path):
             w.writerow(
                 {
                     "group": g,
-                    "n_models": n,
+                    "n_cases": n,
+                    "n_models_observed": len(models_observed),
+                    "runs_observed": ",".join(runs_observed),
                     "R_H_mean": m("R_H"),
                     "R_R_mean": m("R_R"),
                     "rationality_pass_mean": m("rationality_pass"),
@@ -302,13 +368,75 @@ def write_outputs(rows_out, out_all: Path, out_group: Path):
                 }
             )
 
+    # Delta vs Group A, paired by (model, run).
+    idx: dict[tuple[str, str, str], dict] = {}
+    for r in rows_out:
+        idx[(r["model"], r["group"], r["run"])] = r
+
+    vs_fields = [
+        "model",
+        "run",
+        "group",
+        "R_H",
+        "R_R",
+        "H_norm_k4",
+        "EHE_k4",
+        "pct_reduction_R_H_vs_A",
+        "pct_reduction_R_R_vs_A",
+        "pct_gain_EHE_vs_A",
+    ]
+    with open(out_vs_group_a, "w", newline="", encoding="utf-8") as fh:
+        w = csv.DictWriter(fh, fieldnames=vs_fields)
+        w.writeheader()
+        for model in MODELS:
+            runs_seen = sorted({k[2] for k in idx if k[0] == model})
+            for run in runs_seen:
+                base = idx.get((model, "Group_A", run))
+                if not base:
+                    continue
+                base_rh = float(base["R_H"])
+                base_rr = float(base["R_R"])
+                base_ehe = float(base["EHE_k4"])
+                for group in ("Group_B", "Group_C"):
+                    cur = idx.get((model, group, run))
+                    if not cur:
+                        continue
+                    rh = float(cur["R_H"])
+                    rr = float(cur["R_R"])
+                    ehe = float(cur["EHE_k4"])
+                    w.writerow(
+                        {
+                            "model": model,
+                            "run": run,
+                            "group": group,
+                            "R_H": rh,
+                            "R_R": rr,
+                            "H_norm_k4": float(cur["H_norm_k4"]),
+                            "EHE_k4": ehe,
+                            "pct_reduction_R_H_vs_A": (
+                                ((base_rh - rh) / base_rh) * 100.0 if base_rh > 0 else 0.0
+                            ),
+                            "pct_reduction_R_R_vs_A": (
+                                ((base_rr - rr) / base_rr) * 100.0 if base_rr > 0 else 0.0
+                            ),
+                            "pct_gain_EHE_vs_A": (
+                                ((ehe - base_ehe) / base_ehe) * 100.0 if base_ehe > 0 else 0.0
+                            ),
+                        }
+                    )
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--joh-final-dir",
         default="examples/single_agent/results/JOH_FINAL",
-        help="Directory containing model/group Run_1 simulation logs.",
+        help="Directory containing model/group/run simulation logs.",
+    )
+    parser.add_argument(
+        "--runs",
+        default="Run_1,Run_2,Run_3",
+        help="Comma-separated run folders to include.",
     )
     parser.add_argument(
         "--out-all",
@@ -320,15 +448,35 @@ def parse_args():
         default="docs/wrr_metrics_group_summary_v6.csv",
         help="Output CSV path for group-mean summary.",
     )
+    parser.add_argument(
+        "--out-vs-group-a",
+        default="docs/wrr_metrics_vs_groupA_v6.csv",
+        help="Output CSV path for Group B/C deltas vs Group A (paired by model+run).",
+    )
+    parser.add_argument(
+        "--out-completion",
+        default="docs/wrr_metrics_completion_v6.csv",
+        help="Output CSV path for model/group/run completion matrix.",
+    )
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
-    rows = compute_all_rows(Path(args.joh_final_dir))
-    write_outputs(rows, Path(args.out_all), Path(args.out_group))
+    runs = normalize_runs(args.runs)
+    rows = compute_all_rows(Path(args.joh_final_dir), runs)
+    write_outputs(
+        rows,
+        Path(args.out_all),
+        Path(args.out_group),
+        Path(args.out_vs_group_a),
+        Path(args.out_completion),
+    )
     print(f"Wrote: {args.out_all}")
     print(f"Wrote: {args.out_group}")
+    print(f"Wrote: {args.out_vs_group_a}")
+    print(f"Wrote: {args.out_completion}")
+    print(f"Rows: {len(rows)} (included runs: {', '.join(runs)})")
 
 
 if __name__ == "__main__":
