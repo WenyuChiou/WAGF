@@ -5,7 +5,8 @@ This section provides concrete examples for two diagnostic channels used in the 
 1. **Feasibility / identity violations (`R_H`)**
 2. **Rationality deviations (`R_R`)**
 
-All examples are directly taken from `simulation_log.csv` in `examples/single_agent/results/JOH_FINAL`.
+All examples below are trace-backed from `raw/household_traces.jsonl` in
+`examples/single_agent/results/JOH_FINAL/*/Group_*/Run_*/raw/`.
 
 #### S7.1 Why these examples are shown
 
@@ -13,14 +14,14 @@ All examples are directly taken from `simulation_log.csv` in `examples/single_ag
 - These examples make the classification operational and auditable.
 - The cases below are representative, not cherry-picked by prompt text.
 
-#### S7.2 Decision-level examples
+#### S7.2 Decision-level examples (reasoning-log verified)
 
 | Case ID | Category | Source | Agent-Year | Observed decision | Diagnostic interpretation |
 |---|---|---|---|---|---|
-| P1 | Column-semantics check (not a valid `R_H` example under strict intent parsing) | `gemma3_12b/Group_A/Run_1/simulation_log.csv` | `Agent_1`, Year 4 | `raw_llm_decision=Buy flood insurance`, `decision=Both Flood Insurance and House Elevation`, `elevated=True` | `decision` is a cumulative state-like label in Group A; this row should not be interpreted as a re-elevation event. |
-| P2 | Physical/identity (`R_H`) | `ministral3_3b/Group_B/Run_1/simulation_log.csv` | `Agent_73`, Year 5 | `yearly_decision=elevate_house`, `elevated=True`, `retry_count=3` | Rare leaked re-elevation violation in governed mode after retry budget exhaustion. |
-| R1 | Irrational behavior (`R_R`) | `gemma3_12b/Group_A/Run_1/simulation_log.csv` | `Agent_43`, Year 3 | `Do Nothing` while threat text implies high threat | High-threat inaction rule violation (`high_threat_inaction`). |
-| R2 | Irrational behavior (`R_R`) | `gemma3_4b/Group_C/Run_1/simulation_log.csv` | `Agent_14`, Year 9 | `yearly_decision=do_nothing`, `threat_appraisal=H`, `retry_count=3` | Residual high-threat inaction in governed mode; consistent with bounded rationality and retry ceiling design. |
+| P1 | Physical/identity (`R_H`) | `ministral3_3b/Group_B/Run_1/raw/household_traces.jsonl` (line 446) | `Agent_73`, Year 5 | `skill_name=elevate_house`, `state_before.elevated=True`, `outcome=REJECTED`, `retry_count=3` | High-confidence physical violation attempt (re-elevation) blocked by identity and precondition checks. |
+| P2 | Physical forensics (parser-intent mismatch) | same as P1 | `Agent_73`, Year 5 | free-text rationale mentions insurance-like action, but parsed skill is `elevate_house` | Indicates malformed/partially parsed output can map to an infeasible structural action; governance intercepts it before execution. |
+| R1 | Irrational behavior (`R_R`) | `gemma3_12b/Group_B/Run_2/raw/household_traces.jsonl` (line 113) | `Agent_13`, Year 2 | `TP_LABEL=L`, `skill_name=elevate_house`, `outcome=REJECTED` | Low-threat costly structural action (`low_threat_costly_structural`), captured as coherence deviation. |
+| R2 | Irrational behavior (`R_R`) | `gemma3_4b/Group_B/Run_1/raw/household_traces.jsonl` (e.g., line 231) | `Agent_31`, Year 3 | `TP_LABEL=H`, `skill_name=do_nothing`, `outcome=REJECTED` | High-threat inaction (`high_threat_inaction`), retained as bounded-rational residual under retry ceiling. |
 
 #### S7.3 Relation to manuscript claims
 
@@ -29,18 +30,21 @@ All examples are directly taken from `simulation_log.csv` in `examples/single_ag
   - `R_R` captures **coherence failures** between appraisal and action.
 - Governed groups substantially suppress both channels at population scale, but do not force perfect rationality in every decision.
 - Remaining outliers are expected under the study design (retry cap keeps a small tail of non-ideal behavior to avoid over-constraining human-like heterogeneity).
+- In the current governed reasoning logs, only one high-confidence physical case is observed; this is consistent with strong containment, not evidence absence of checks.
 
 #### S7.4 Reproducibility note
 
-The examples were identified by replaying the same decision-level rules used in `scripts/wrr_compute_metrics_v6.py`:
+The examples were identified by replaying rule logic on trace rows and writing an auditable case table:
+- `scripts/wrr_reasoning_log_audit_v6.py`
+- `docs/wrr_reasoning_log_behavioral_cases_v6.csv`
+- `docs/wrr_reasoning_log_behavioral_audit_v6.md`
 
-- `R_H`: `previous_elevated=True` and **intent action** in `{elevation, both}`.
+- `R_H` (trace-level physical channel in governed flood traces): proposal conflicts with state preconditions, e.g., `skill_name=elevate_house` with `state_before.elevated=True`, or `skill_name=relocate` with `state_before.relocated=True`.
 - `R_R`:
   - high threat + `do_nothing`,
   - low threat + `relocate`,
-  - low threat + `{elevation, both}`.
+  - low threat + `elevate_house`.
 
-Column semantics note:
-- In Group A logs, `raw_llm_decision` is the yearly action intent and `decision` is a cumulative state-like label.
-- Therefore, Group A physical/identity examples should be checked against `raw_llm_decision` plus state columns (`elevated`, `has_insurance`) to avoid cumulative-label false positives.
-- Applying strict Group A intent parsing to current available runs removes the previously flagged re-elevation-like events that were induced by cumulative labels.
+Data-semantics note:
+- `buy_insurance` is annual/renewable in this flood setup (`skill_registry.yaml`), so insurance repurchase is not classified as a physical impossibility.
+- Group A `simulation_log.csv` uses cumulative-style `decision` labels; physical examples in this SI section are therefore grounded in governed trace logs (Group B/C) where step-level proposal and state are jointly available.
