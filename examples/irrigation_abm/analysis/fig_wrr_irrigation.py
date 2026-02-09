@@ -4,11 +4,10 @@ WRR Technical Note — Irrigation ABM Figure (Single Figure, 2 Panels)
 Panel (a): 42-year aggregate demand vs CRSS baseline
             - CRSS baseline (dashed) vs WAGF governed demand (solid) vs WAGF diversion (dotted)
             - Gray band: CRSS ±10% reference range
-            - Inset text: Mean, CoV statistics
 
-Panel (b): Governance outcome proportions (stacked area)
-            - APPROVED (first attempt) / RETRY_SUCCESS / REJECTED
-            - Shows persistent governance: bounded rationality requires continuous constraint
+Panel (b): Lake Mead elevation with DCP shortage tier bands
+            - Tier 0/1/2/3 background bands at 1075/1050/1025 ft thresholds
+            - Shows bidirectional coupling: agent demand → reservoir → shortage → curtailment
 
 Data priority: production_v20_42yr > production_v15_42yr > production_phase_c_42yr
 CRSS reference: ref/CRSS_DB/CRSS_DB/annual_baseline_time_series.csv
@@ -43,15 +42,12 @@ CANDIDATES = [
 ]
 
 sim_log_path = None
-audit_path = None
 dataset_label = None
 
 for label, result_dir in CANDIDATES:
     sim_p = result_dir / "simulation_log.csv"
-    audit_p = result_dir / "irrigation_farmer_governance_audit.csv"
-    if sim_p.exists() and audit_p.exists():
+    if sim_p.exists():
         sim_log_path = sim_p
-        audit_path = audit_p
         dataset_label = label
         print(f"[OK] Using dataset: {label} ({result_dir.name})")
         break
@@ -80,7 +76,6 @@ plt.rcParams.update({
 
 # ── 1. Load Data ──
 sim = pd.read_csv(sim_log_path, encoding="utf-8")
-audit = pd.read_csv(audit_path, encoding="utf-8-sig")
 crss = pd.read_csv(CRSS_CSV)
 
 n_agents = sim["agent_id"].nunique()
@@ -104,24 +99,12 @@ crss_merged = crss[crss["year"] <= max_year][["year", "calendar_year", "total_ma
 comp = pd.merge(yearly, crss_merged, on="year", suffixes=("", "_crss"))
 comp["calendar_year"] = comp["year"] + YEAR_OFFSET
 
-# ── 3. Governance outcome categorization ──
-def categorize_outcome(row):
-    if row["status"] == "APPROVED" and row["retry_count"] == 0:
-        return "APPROVED"
-    elif row["status"] == "APPROVED" and row["retry_count"] > 0:
-        return "RETRY_SUCCESS"
-    else:
-        return "REJECTED"
-
-audit["outcome_cat"] = audit.apply(categorize_outcome, axis=1)
-
-gov_yearly = audit.groupby("year")["outcome_cat"].value_counts(normalize=True).unstack(fill_value=0)
-# Ensure all columns exist
-for col in ["APPROVED", "RETRY_SUCCESS", "REJECTED"]:
-    if col not in gov_yearly.columns:
-        gov_yearly[col] = 0.0
-gov_yearly = gov_yearly[["APPROVED", "RETRY_SUCCESS", "REJECTED"]]
-gov_yearly["calendar_year"] = gov_yearly.index + YEAR_OFFSET
+# ── 3. Lake Mead elevation per year (from simulation log) ──
+mead_yearly = sim.groupby("year").agg(
+    lake_mead_ft=("lake_mead_level", "first"),
+    shortage_tier=("shortage_tier", "first"),
+).reset_index()
+mead_yearly["calendar_year"] = mead_yearly["year"] + YEAR_OFFSET
 
 # ── 4. Compute statistics ──
 mean_demand = comp["request_maf"].mean()
@@ -129,26 +112,24 @@ mean_crss = comp["total_maf"].mean()
 cov_demand = comp["request_maf"].std() / mean_demand * 100
 ratio = mean_demand / mean_crss
 
-# Approval rate in final 10 years
-final_10 = gov_yearly.iloc[-10:]
-mean_approved_final = final_10["APPROVED"].mean()
-mean_rejected_y1_5 = gov_yearly.iloc[:5]["REJECTED"].mean()
+# Shortage tier summary
+n_tier0 = (mead_yearly["shortage_tier"] == 0).sum()
+n_tier1 = (mead_yearly["shortage_tier"] == 1).sum()
+n_tier2 = (mead_yearly["shortage_tier"] == 2).sum()
+n_tier3 = (mead_yearly["shortage_tier"] == 3).sum()
 
 print(f"\nStatistics:")
 print(f"  WAGF Mean Demand: {mean_demand:.2f} MAF/yr ({ratio:.2f}x CRSS)")
 print(f"  CRSS Mean: {mean_crss:.2f} MAF/yr")
 print(f"  CoV: {cov_demand:.1f}%")
-print(f"  Early rejection (Y1-5): {mean_rejected_y1_5:.0%}")
-print(f"  Late approval (Y33-42): {mean_approved_final:.0%}")
+print(f"  Shortage tiers: T0={n_tier0}, T1={n_tier1}, T2={n_tier2}, T3={n_tier3}")
+print(f"  Mead range: {mead_yearly['lake_mead_ft'].min():.0f}-{mead_yearly['lake_mead_ft'].max():.0f} ft")
 
 # ── 5. Colors ──
 # Okabe-Ito accessible palette
 C_CRSS = "#332288"       # indigo — CRSS baseline
 C_REQUEST = "#44AA99"    # teal — WAGF request
 C_DIVERSION = "#88CCEE"  # light blue — WAGF diversion
-C_APPROVED = "#44AA99"   # teal
-C_RETRY = "#DDCC77"      # sand/gold
-C_REJECTED = "#CC6677"   # rose
 
 # ── 6. Create Figure ──
 fig, (ax_a, ax_b) = plt.subplots(
@@ -202,40 +183,34 @@ ax_a.yaxis.set_major_locator(mticker.MultipleLocator(1))
 for spine in ["top", "right"]:
     ax_a.spines[spine].set_visible(False)
 
-# ── Panel (b): Governance Outcomes ──
-cal_years = gov_yearly["calendar_year"].values
+# ── Panel (b): Lake Mead Elevation with Shortage Tier Bands ──
+mcal = mead_yearly["calendar_year"]
+melev = mead_yearly["lake_mead_ft"]
 
-ax_b.stackplot(
-    cal_years,
-    gov_yearly["APPROVED"].values * 100,
-    gov_yearly["RETRY_SUCCESS"].values * 100,
-    gov_yearly["REJECTED"].values * 100,
-    labels=["Approved", "Retry Success", "Rejected"],
-    colors=[C_APPROVED, C_RETRY, C_REJECTED],
-    alpha=0.85,
-)
+# Tier background bands (DCP thresholds)
+ax_b.axhspan(1075, 1220, alpha=0.08, color="#2E7D32", label="Tier 0 (0%)")
+ax_b.axhspan(1050, 1075, alpha=0.12, color="#DDCC77", label="Tier 1 (5%)")
+ax_b.axhspan(1025, 1050, alpha=0.15, color="#CC6677", label="Tier 2 (10%)")
+ax_b.axhspan(950, 1025, alpha=0.18, color="#882255", label="Tier 3 (20%)")
 
-# Cold-start annotation — vertical line at Y5/Y6 boundary
-cold_start_end = 5 + YEAR_OFFSET  # Y5 = 2023
-ax_b.axvline(cold_start_end, color="#666666", ls="--", lw=0.7, alpha=0.5)
-ax_b.text(
-    cold_start_end + 0.5, 97,
-    "Cold-start\nends",
-    fontsize=6.5, color="#666666", va="top", style="italic",
-)
+# Tier threshold dashed lines
+for thresh in [1075, 1050, 1025]:
+    ax_b.axhline(thresh, color="#888888", ls="--", lw=0.5, alpha=0.5)
+
+# Elevation trajectory
+ax_b.plot(mcal, melev, color=C_CRSS, lw=2.0, zorder=5)
 
 ax_b.set_xlabel("Calendar Year")
-ax_b.set_ylabel("Agent Decisions (%)")
-ax_b.set_title("(b) Governance Intervention Outcomes",
+ax_b.set_ylabel("Lake Mead Elevation (ft)")
+ax_b.set_title("(b) Lake Mead Elevation and Shortage Tiers",
                fontweight="bold", loc="left", fontsize=10)
-# Horizontal legend at lower-right (avoids blocking stacked area labels)
 ax_b.legend(
-    framealpha=0.95, edgecolor="none", fontsize=7.5,
+    framealpha=0.95, edgecolor="none", fontsize=7,
     loc="lower right", bbox_to_anchor=(0.99, 0.01),
-    borderpad=0.5, handlelength=1.8, ncol=3,
+    borderpad=0.4, handlelength=1.5, ncol=2,
 )
 ax_b.set_xlim(years.min(), years.max())
-ax_b.set_ylim(0, 100)
+ax_b.set_ylim(980, 1200)
 ax_b.yaxis.set_major_locator(mticker.MultipleLocator(25))
 ax_b.grid(True, alpha=0.15, linewidth=0.4)
 for spine in ["top", "right"]:

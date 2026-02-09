@@ -195,17 +195,19 @@ This experiment adapts the Fuzzy Q-Learning (FQL) agent decision model from Hung
 | **State representation** | 21-bin discretized utilisation ratio | Natural-language context (water situation, memory, feedback) |
 | **Behavioral heterogeneity** | FQL parameter vectors (mu, sigma, alpha, gamma, epsilon, regret) | Persona narratives + Gaussian magnitude parameters calibrated from FQL clusters |
 
-### Action Space Extension
+### Action Space Extension (v17: 5-Skill)
 
-The original FQL model defines **2 actions** — increase or decrease diversion — with continuous magnitude drawn from N(mu, sigma). The Q-table shape is `(n_preceding=2, n_states=21, n_actions=2)`. The LLM-ABM uses **3 discrete skills** that directly map to these FQL actions plus a natural status-quo extension:
+The original FQL model defines **2 actions** — increase or decrease diversion — with continuous magnitude drawn from N(mu, sigma). The Q-table shape is `(n_preceding=2, n_states=21, n_actions=2)`. The LLM-ABM extends this to **5 discrete skills** that decompose the FQL continuous actions into granular choices plus a status-quo option:
 
-| Skill | FQL Equivalent | Real-World Analog | Rationale |
-|-------|---------------|-------------------|-----------|
-| `increase_demand` | Action 1 (positive delta) | Expanding irrigated acreage or crop intensity | Direct mapping from FQL increase action |
-| `decrease_demand` | Action 0 (negative delta) | Voluntary conservation or reduced crop intensity | Direct mapping from FQL decrease action |
-| `maintain_demand` | Implicit (zero-magnitude) | Status quo operations under long-term water service contracts | FQL requires nonzero action every period (Q-learning update rule); "maintain" is the most common real irrigator decision. Also serves as REJECTED fallback |
+| # | Skill | FQL Equivalent | Real-World Analog | Magnitude Range |
+|---|-------|---------------|-------------------|-----------------|
+| 1 | `increase_large` | Action 1, high magnitude | Major acreage expansion or new crop | N(12%, σ=3), [8-20%] |
+| 2 | `increase_small` | Action 1, low magnitude | Marginal increase in crop intensity | N(4%, σ=1.5), [1-8%] |
+| 3 | `maintain_demand` | Implicit (zero-magnitude) | Status quo under long-term contracts | No change |
+| 4 | `decrease_small` | Action 0, low magnitude | Minor conservation adjustments | N(4%, σ=1.5), [1-8%] |
+| 5 | `decrease_large` | Action 0, high magnitude | Fallowing fields, switching to low-water crops | N(12%, σ=3), [8-20%] |
 
-The 3-skill design matches the FQL 2-action structure (increase/decrease) with the natural extension of a status-quo option, enabling fair comparison between the two approaches. Governance rules differentially constrain action types (e.g., blocking `increase_demand` at allocation cap, blocking `decrease_demand` below demand floor).
+**Why 5 instead of 3?** The 3-skill design (v1-v16) mapped FQL's 2 actions + status quo, but collapsed the continuous magnitude distribution into a single bin per direction. The 5-skill design restores the granularity distinction between small and large adjustments, enabling **differential governance**: Tier 1 shortage blocks `increase_large` (ERROR) but only warns on `increase_small` (WARNING), mirroring how real water institutions allow marginal increases during mild drought but block major expansions.
 
 ### Magnitude Determination: FQL → LLM → Gaussian
 
@@ -217,7 +219,7 @@ The determination of demand change magnitude evolved through three stages:
 | **LLM v1-v11** (Schema-Driven) | LLM outputs `magnitude_pct` (1-30%) | Degenerate: 56.6% chose 25%, only 6-7 unique values |
 | **LLM v12+** (Bounded Gaussian) | Code samples from persona N(default, sigma) | Continuous stochasticity restored, matching FQL distribution |
 
-The v12 design decouples **qualitative choice** (which skill — LLM reasoning) from **quantitative magnitude** (how much — code sampling). This "hybrid agency" reflects a real-world separation: a farmer's strategic decision to invest in drip irrigation is a different cognitive process from the exact percentage of water savings achieved. See [Bounded Gaussian Magnitude Sampling](#bounded-gaussian-magnitude-sampling-v12) for implementation details.
+The v12 design decouples **qualitative choice** (which skill — LLM reasoning) from **quantitative magnitude** (how much — code sampling). This "hybrid agency" reflects a real-world separation: a farmer's strategic decision to invest in drip irrigation is a different cognitive process from the exact percentage of water savings achieved. See [Bounded Gaussian Magnitude Sampling](#bounded-gaussian-magnitude-sampling-v12-v17-per-skill) for implementation details.
 
 ### Fair Comparison Protocol
 
@@ -225,7 +227,7 @@ Direct performance comparison between LLM-ABM and FQL-ABM requires acknowledging
 
 **LLM-ABM advantages:**
 - Matching action space (3 skills vs. 2 actions + implicit maintain) with semantic labels
-- Governance guardrails (11 validators) preventing physically impossible or economically irrational decisions
+- Governance guardrails (12 validators) preventing physically impossible or economically irrational decisions
 - Full environmental context in natural language (drought index, shortage tier, Lake Mead level, curtailment ratio); FQL observes only a binary preceding factor
 
 **FQL advantages:**
@@ -271,39 +273,54 @@ Direct performance comparison between LLM-ABM and FQL-ABM requires acknowledging
 3. **Single seed**: FQL reports 100-trace ensemble statistics; WAGF v20 uses only seed 42.
 4. **No optimality criterion**: FQL optimizes expected discounted reward; WAGF has no objective function.
 
-## Available Skills
+## Available Skills (v17: 5-Skill)
 
-| # | Skill ID | Description | Magnitude (v12+) | Constraints |
-|---|----------|-------------|-------------------|-------------|
-| 1 | `increase_demand` | Request more water allocation | Gaussian N(default, sigma) per persona | Blocked at allocation cap; blocked during severe drought (>0.7) |
-| 2 | `decrease_demand` | Request less water allocation | Gaussian N(default, sigma) per persona | Blocked at min utilisation (10%); blocked below demand floor (50%) |
-| 3 | `maintain_demand` | No change to practices | No magnitude change | Default/fallback; blocked when WSA = VH (`zero_escape_check`) |
+| # | Skill ID | Description | Gaussian Params | Key Constraints |
+|---|----------|-------------|-----------------|-----------------|
+| 1 | `increase_large` | Major demand increase | N(12%, σ=3), [8-20%] × persona_scale | Blocked at cap; blocked Tier 2+; blocked drought>0.7; blocked basin>6.0 MAF |
+| 2 | `increase_small` | Minor demand increase | N(4%, σ=1.5), [1-8%] × persona_scale | Same as above; Tier 1 = WARNING only (not ERROR) |
+| 3 | `maintain_demand` | No change to practices | No magnitude change | Default/fallback; blocked when WSA=VH + util<15% (`zero_escape_check`) |
+| 4 | `decrease_small` | Minor demand decrease | N(4%, σ=1.5), [1-8%] × persona_scale | Blocked at min utilisation (10%); blocked below demand floor (50%) |
+| 5 | `decrease_large` | Major demand decrease | N(12%, σ=3), [8-20%] × persona_scale | Same as above |
 
-> **Note on magnitude**: Since v12, demand change magnitude is sampled from a persona-defined Bounded Gaussian at execution time (see below). Since v18, the `magnitude_pct` field has been **removed from the response format entirely** — reducing the JSON schema from 7 to 4 fields fixed WSA/ACA reason generation with gemma3:4b.
+> **Note on magnitude**: Since v12, demand change magnitude is sampled from skill-specific Bounded Gaussians at execution time. Since v18, the `magnitude_pct` field has been **removed from the response format entirely** — reducing the JSON schema from 7 to 4 fields fixed WSA/ACA reason generation with gemma3:4b.
 
-### Bounded Gaussian Magnitude Sampling (v12+)
+### Bounded Gaussian Magnitude Sampling (v12+, v17 Per-Skill)
 
-Since v12, the LLM's `magnitude_pct` output is **completely ignored**. Demand change magnitude is instead sampled from a persona-defined Gaussian distribution at execution time. This design choice is motivated by empirical findings:
+Since v12, the LLM's `magnitude_pct` output is **completely ignored**. Demand change magnitude is instead sampled from Gaussian distributions at execution time. Since v17, each skill has its own Gaussian parameters (previously all skills shared one set of persona-level params).
 
-- v11 analysis showed LLMs produce degenerate magnitude distributions (56.6% chose exactly 25%, only 6-7 unique values)
-- Small LLMs cannot generate continuous distributions matching FQL behavior
-- Code-based sampling provides true stochasticity matching Hung & Yang (2021)
+**Per-Skill Gaussian Parameters** (from `agent_types.yaml → skill_magnitude`):
+
+| Skill | mu (%) | sigma | min (%) | max (%) |
+|-------|--------|-------|---------|---------|
+| `increase_large` | 12.0 | 3.0 | 8.0 | 20.0 |
+| `increase_small` | 4.0 | 1.5 | 1.0 | 8.0 |
+| `decrease_small` | 4.0 | 1.5 | 1.0 | 8.0 |
+| `decrease_large` | 12.0 | 3.0 | 8.0 | 20.0 |
+
+**Persona Scale Interaction**: Each persona multiplies mu and sigma by its `persona_scale`:
+
+| Persona | Scale | increase_large effective | increase_small effective |
+|---------|-------|------------------------|------------------------|
+| Aggressive | 1.15 | N(13.8%, σ=3.45), [8-20%] | N(4.6%, σ=1.73), [1-8%] |
+| Forward-Looking | 1.00 | N(12.0%, σ=3.0), [8-20%] | N(4.0%, σ=1.5), [1-8%] |
+| Myopic | 0.80 | N(9.6%, σ=2.4), [8-20%] | N(3.2%, σ=1.2), [1-8%] |
 
 The sampling pipeline:
 
-```
-Agent persona → (default, sigma, min, max, exploration_rate)
+```text
+Agent persona + chosen skill → (mu × scale, sigma × scale, min, max, exploration_rate)
   → execute_skill():
       if random() < exploration_rate (2%):
           noise = Normal(0, sigma × 2.0)        ← unbounded exploration
-          magnitude = clip(default + noise, 0.5, 100)
+          magnitude = clip(mu + noise, 0.5, 100)
       else (98%):
           noise = Normal(0, sigma)               ← bounded exploitation
-          magnitude = clip(default + noise, min, max)
+          magnitude = clip(mu + noise, min, max)
   → apply demand change with sampled magnitude
 ```
 
-The `magnitude_pct` field remains in the response schema as a cognitive signal (the LLM still "reasons" about how much to change), but the actual value applied comes from the Gaussian sampler. `magnitude_cap_check` is therefore set to WARNING level (not ERROR) to avoid wasting governance retries on a field the environment ignores.
+This design decouples **qualitative choice** (which skill — LLM reasoning) from **quantitative magnitude** (how much — code sampling). The `magnitude_cap_check` is set to WARNING level (not ERROR) to avoid wasting governance retries on a field the environment ignores.
 
 ```mermaid
 flowchart LR
@@ -362,7 +379,7 @@ When a rule triggers at **ERROR** level, the action is **rejected** and the LLM 
 
 ### Domain Validators
 
-Custom validators in `validators/irrigation_validators.py` provide physical, social, temporal, and behavioral checks. See [Governance Enhancements (v16)](#governance-enhancements-v16) for the complete 11-validator summary.
+Custom validators in `validators/irrigation_validators.py` provide physical, social, temporal, and behavioral checks. See [Governance Enhancements (v16)](#governance-enhancements-v16) for the complete 12-validator summary.
 
 ### Semantic Rules
 
