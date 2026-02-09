@@ -17,8 +17,8 @@ All examples are directly taken from `simulation_log.csv` in `examples/single_ag
 
 | Case ID | Category | Source | Agent-Year | Observed decision | Diagnostic interpretation |
 |---|---|---|---|---|---|
-| P1 | Physical/identity (`R_H`) | `gemma3_12b/Group_A/Run_1/simulation_log.csv` | `Agent_1`, Year 4 | `Both Flood Insurance and House Elevation` with `elevated=True` | Re-elevation attempt after elevation already completed (identity-state inconsistency). |
-| P2 | Physical/identity (`R_H`) | `ministral3_3b/Group_B/Run_1/simulation_log.csv` | `Agent_73`, Year 5 | `yearly_decision=elevate_house`, `elevated=True`, `retry_count=3` | A rare leaked feasibility violation in governed mode after retry budget exhaustion. |
+| P1 | Physical/identity (`R_H`) | `gemma3_12b/Group_A/Run_1/simulation_log.csv` | `Agent_1`, Year 4 | `raw_llm_decision=Buy flood insurance`, `has_insurance=True` | Identity-inconsistent insurance repurchase intent (already insured household proposes insurance again). |
+| P2 | Physical/identity (`R_H`) | `ministral3_3b/Group_B/Run_1/simulation_log.csv` | `Agent_73`, Year 5 | `yearly_decision=elevate_house`, `elevated=True`, `retry_count=3` | Rare leaked re-elevation violation in governed mode after retry budget exhaustion. |
 | R1 | Irrational behavior (`R_R`) | `gemma3_12b/Group_A/Run_1/simulation_log.csv` | `Agent_43`, Year 3 | `Do Nothing` while threat text implies high threat | High-threat inaction rule violation (`high_threat_inaction`). |
 | R2 | Irrational behavior (`R_R`) | `gemma3_4b/Group_C/Run_1/simulation_log.csv` | `Agent_14`, Year 9 | `yearly_decision=do_nothing`, `threat_appraisal=H`, `retry_count=3` | Residual high-threat inaction in governed mode; consistent with bounded rationality and retry ceiling design. |
 
@@ -40,3 +40,6 @@ The examples were identified by replaying the same decision-level rules used in 
   - low threat + `relocate`,
   - low threat + `{elevation, both}`.
 
+Column semantics note:
+- In Group A logs, `raw_llm_decision` is the yearly action intent and `decision` is a cumulative state-like label.
+- Therefore, Group A physical/identity examples should be checked against `raw_llm_decision` plus state columns (`elevated`, `has_insurance`) to avoid cumulative-label false positives.
