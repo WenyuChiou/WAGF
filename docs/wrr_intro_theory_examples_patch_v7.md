@@ -18,6 +18,10 @@ Use this wording to center the narrative on rationalization and diversity:
 
 `The primary governance effect is behavioral rationalization with diversity retention. Across model-group runs, WAGF strongly reduces coherence deviations (R_R) relative to ungoverned baselines while maintaining effective behavioral diversity (EHE). Feasibility contradictions (R_H) are tracked as a safety diagnostic and remain near zero under the strict identity/precondition definition.`
 
+Add one sentence on hallucination risk and module constraints:
+
+`We treat hallucination as a persistent governance concern in LLM-ABM pipelines; therefore, WAGF applies identity rules and physical rules as first-pass constraints before thinking-level coherence checks, so infeasible proposals are filtered prior to execution.`
+
 Optional transferability sentence:
 
 `The irrigation case is used as transferability evidence that the same governance runtime can preserve rationalized behavior under different domain theory slots and institutional constraints.`
