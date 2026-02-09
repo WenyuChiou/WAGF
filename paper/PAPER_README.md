@@ -22,11 +22,12 @@ Traditional water ABMs often encode behavior through theory-based assumptions of
 
 The key methodological shift is from unconstrained generative behavior to auditable bounded rationality. In this framing, governance does not "force optimality"; it enforces feasibility and institutional coherence while retaining meaningful variation in agent behavior. This resolves a central adoption barrier for LLM-ABM in water systems: black-box outputs can be inspected through rule triggers, rejection reasons, retry outcomes, and intervention statistics. The framework is transferable across domains because physics and institutions are defined in configuration (skills, validators, prompts), while the governance runtime remains unchanged.
 
-## Current Versions (2026-02-08)
+## Current Versions (2026-02-09)
 
 | File | Description | Status |
 |------|-------------|--------|
-| `SAGE_WRR_Paper_v6.docx` | Main manuscript (renaming pass from v5 baseline) | **LATEST** |
+| `SAGE_WRR_Paper_v7.docx` | Main manuscript (submission-clean: accepted changes + line numbering) | **LATEST** |
+| `SAGE_WRR_Paper_v6.docx` | Main manuscript with tracked revisions (working edit copy) | Previous working version |
 | `SAGE_WRR_Paper_v5.docx` | Previous manuscript baseline | Archived baseline |
 | `SAGE_WRR_SI_Tables_v5.docx` | Supporting Information tables | **LATEST** |
 
