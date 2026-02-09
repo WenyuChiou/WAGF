@@ -57,7 +57,7 @@ WRR Technical Reports/Methods limit: **13 Publication Units (PU)** max
 | **Fig 1** | WAGF Framework (multi-panel: a. Architecture + b. Governance flow) | `figures/fig1_architecture.png` |
 | **Fig 2** | Flood ABM cross-model consistency | `figures/fig2_flood_combined.png` |
 | **Fig 3** | Irrigation ABM: demand vs CRSS + governance outcomes | `figures/fig3_irrigation.png` |
-| **Table 1** | Core metrics (6 models x 3 groups) | Embedded in Word; source: `tables/Table1_core_metrics_v8.csv` |
+| **Table 1** | Main metrics (6 models x 3 groups): `R_R`, `H_norm`, `EHE` | Embedded in Word; source: `tables/Table1_main_metrics_v8.csv` |
 
 **PU Calculation**: 3 figures + 1 table = **4 PU**
 
@@ -66,7 +66,7 @@ WRR Technical Reports/Methods limit: **13 Publication Units (PU)** max
 | Item | Content | File |
 |------|---------|------|
 | **Table S1** | Complete 18-row multi-model data (6 models x 3 groups) | `SAGE_WRR_SI_Tables_v5.docx` |
-| **Table S2** | R_H by model size | `SAGE_WRR_SI_Tables_v5.docx` |
+| **Table S2** | `R_H` (strict feasibility safety diagnostic) by model size | `SAGE_WRR_SI_Tables_v5.docx` |
 | **Figure S1** | 6x3 Adaptation matrix | `flood/figures/SI_Figure_Adaptation_Matrix_6x3.png` |
 | **Figure S2** | Cumulative relocation (A=0%, B=32%, C=37%) | `flood/figures/fig_s2_relocation.png` |
 | **Figure S3** | Economic hallucination fix (v4 vs v6) | `flood/figures/fig_s3_econ_hallucination.png` |
