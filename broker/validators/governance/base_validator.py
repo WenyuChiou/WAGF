@@ -106,6 +106,7 @@ class BaseValidator(ABC):
                     warnings=[formatted_message] if not is_error else [],
                     metadata={
                         "rule_id": rule.id,
+                        "rules_hit": [rule.id],
                         "category": rule.category,
                         "subcategory": rule.subcategory,
                         "blocked_skill": skill_name,
