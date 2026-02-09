@@ -26,8 +26,9 @@ The key methodological shift is from unconstrained generative behavior to audita
 
 | File | Description | Status |
 |------|-------------|--------|
-| `SAGE_WRR_Paper_v7.docx` | Main manuscript (submission-clean: accepted changes + line numbering) | **LATEST** |
-| `SAGE_WRR_Paper_v6.docx` | Main manuscript with tracked revisions (working edit copy) | Previous working version |
+| `SAGE_WRR_Paper_v8.docx` | Main manuscript (working next version for revised narrative + table refresh) | **LATEST** |
+| `SAGE_WRR_Paper_v7.docx` | Previous main manuscript snapshot | Previous working version |
+| `SAGE_WRR_Paper_v6.docx` | Main manuscript with tracked revisions (older working edit copy) | Archived working version |
 | `SAGE_WRR_Paper_v5.docx` | Previous manuscript baseline | Archived baseline |
 | `SAGE_WRR_SI_Tables_v5.docx` | Supporting Information tables | **LATEST** |
 
@@ -56,7 +57,7 @@ WRR Technical Reports/Methods limit: **13 Publication Units (PU)** max
 | **Fig 1** | WAGF Framework (multi-panel: a. Architecture + b. Governance flow) | `figures/fig1_architecture.png` |
 | **Fig 2** | Flood ABM cross-model consistency | `figures/fig2_flood_combined.png` |
 | **Fig 3** | Irrigation ABM: demand vs CRSS + governance outcomes | `figures/fig3_irrigation.png` |
-| **Table 1** | Core metrics (6 models x 3 groups) | Embedded in Word |
+| **Table 1** | Core metrics (6 models x 3 groups) | Embedded in Word; source: `tables/Table1_core_metrics_v8.csv` |
 
 **PU Calculation**: 3 figures + 1 table = **4 PU**
 
@@ -134,7 +135,8 @@ WRR Technical Reports/Methods limit: **13 Publication Units (PU)** max
 ```
 paper/
 +-- PAPER_README.md              # This file
-+-- SAGE_WRR_Paper_v6.docx       # Latest main manuscript
++-- SAGE_WRR_Paper_v8.docx       # Latest main manuscript
++-- SAGE_WRR_Paper_v7.docx       # Previous main manuscript snapshot
 +-- SAGE_WRR_Paper_v5.docx       # Previous main manuscript baseline
 +-- SAGE_WRR_SI_Tables_v5.docx   # Latest SI tables
 +-- Table2_Update_v5.docx        # Table update document
