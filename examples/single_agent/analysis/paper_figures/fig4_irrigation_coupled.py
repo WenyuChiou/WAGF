@@ -110,7 +110,7 @@ else:
 
         powell_rel = max(0, nat_flow - ub_div)
         inflow = powell_rel + cfg.lb_tributary_maf
-        outflow = lb_div + cfg.mexico_treaty_maf + cfg.evaporation_maf + cfg.lb_municipal_maf
+        outflow = lb_div + cfg.mexico_treaty_maf + cfg.evaporation_maf + cfg.lb_non_ag_total_maf
         storage = max(2.0, min(26.1, storage + inflow - outflow))
         elev = float(np.interp(storage, _S, _E))
         mead_rows.append({"year": yr, "calendar_year": cal_yr, "lake_mead_level": elev})
@@ -151,7 +151,7 @@ for yr in range(1, max_year + 1):
 
     powell_rel = max(0, nat_flow - static_ub_div)
     inflow = powell_rel + cfg.lb_tributary_maf
-    outflow = static_lb_div + cfg.mexico_treaty_maf + cfg.evaporation_maf + cfg.lb_municipal_maf
+    outflow = static_lb_div + cfg.mexico_treaty_maf + cfg.evaporation_maf + cfg.lb_non_ag_total_maf
     baseline_storage = max(2.0, min(26.1, baseline_storage + inflow - outflow))
     elev = float(np.interp(baseline_storage, _S, _E))
     baseline_rows.append({"calendar_year": cal_yr, "lake_mead_level": elev})
