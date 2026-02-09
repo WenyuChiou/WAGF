@@ -14,6 +14,20 @@
   - `009f2c6` `paper: repair v7 docx namespace declarations for Word readability [agent: codex-gpt5]`
   - `6ebb905` `paper: clean corrupted symbols and normalize section prose in v7 [agent: codex-gpt5]`
 
+## Flood Experiment Live Status (2026-02-09T12:54:25-05:00)
+- Active process:
+  - `python examples/single_agent/run_flood.py --model gemma3:27b ... --output examples/single_agent/results/JOH_FINAL/gemma3_27b/Group_B/Run_2 --seed 4202 --memory-seed 4202`
+- Matrix completion:
+  - `25/54` `simulation_log.csv` files present
+  - `29/54` still missing
+- Per-model completion snapshot:
+  - `gemma3_4b`: A/B/C have `Run_1` and `Run_2`
+  - `gemma3_12b`: A/B/C have `Run_1` and `Run_2`
+  - `gemma3_27b`: `Group_A Run_1/Run_2`, `Group_B Run_1` (Run_2 in progress), `Group_C Run_1`
+  - `ministral3_3b`: A/B/C have `Run_1` only
+  - `ministral3_8b`: A/B/C have `Run_1` only
+  - `ministral3_14b`: A/B/C have `Run_1` only
+
 ## Flood Runner Checks
 - `has_run2_seed_4202`: PASS
 - `has_run3_seed_4203`: PASS
