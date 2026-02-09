@@ -73,6 +73,7 @@ WRR Technical Reports/Methods limit: **13 Publication Units (PU)** max
 | **Figure S5** | Ministral3 3x3 adaptation matrix | `flood/figures/SI_Figure_Adaptation_Ministral3_3x3.png` |
 | **Table S3** | Irrigation governance summary (v20 42yr) | `SI/Table_S3_Irrigation_Governance.md` |
 | **Section S6** | Mass balance and human-water coupling | `SI/Section_S6_Mass_Balance.md` |
+| **Section S7** | Decision-level examples: physical/identity hallucination and irrational behavior | `SI/Section_S7_Behavioral_Diagnostics_Examples.md` |
 
 ---
 
