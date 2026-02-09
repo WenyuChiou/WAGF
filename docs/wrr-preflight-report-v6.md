@@ -28,6 +28,28 @@
   - `ministral3_8b`: A/B/C have `Run_1` only
   - `ministral3_14b`: A/B/C have `Run_1` only
 
+## 30-Min Refresh Template
+- Purpose: refresh completion and active-run status every 30 minutes during long runs.
+
+### Commands
+```powershell
+Get-Date -Format "yyyy-MM-ddTHH:mm:ssK"
+
+Get-CimInstance Win32_Process |
+  Where-Object { $_.CommandLine -like '*examples/single_agent/run_flood.py*JOH_FINAL*' } |
+  Select-Object ProcessId, CreationDate, CommandLine
+
+python scripts/wrr_compute_metrics_v6.py
+python scripts/wrr_render_results_md_v6.py
+```
+
+### Paste-Back Format
+- Time:
+- Active process:
+- Completion (`simulation_log.csv`):
+- Newly finished cells since last check:
+- Current blocker (if any):
+
 ## Flood Runner Checks
 - `has_run2_seed_4202`: PASS
 - `has_run3_seed_4203`: PASS
