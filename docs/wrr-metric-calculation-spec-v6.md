@@ -4,7 +4,8 @@ This document defines exactly how each reported metric is computed from `simulat
 
 ## Input File Pattern
 
-- `examples/single_agent/results/JOH_FINAL/<model>/<group>/Run_1/simulation_log.csv`
+- `examples/single_agent/results/JOH_FINAL/<model>/<group>/Run_<k>/simulation_log.csv`
+- Default runs included by script: `Run_1, Run_2, Run_3` (if file exists)
 - Groups:
   - `Group_A` (ungoverned format)
   - `Group_B`, `Group_C` (governed format)
@@ -122,7 +123,16 @@ Important:
 Produced by `scripts/wrr_compute_metrics_v6.py`:
 
 1. `docs/wrr_metrics_all_models_v6.csv`
-- One row per `<model, group>`.
+- One row per `<model, group, run>`.
 
 2. `docs/wrr_metrics_group_summary_v6.csv`
-- Mean values aggregated by group (`Group_A/B/C`).
+- Mean values aggregated by group (`Group_A/B/C`) across all available runs.
+
+3. `docs/wrr_metrics_vs_groupA_v6.csv`
+- Per `<model, run>`, compares Group B/C against Group A:
+  - `% reduction R_H vs A`
+  - `% reduction R_R vs A`
+  - `% gain EHE_k4 vs A`
+
+4. `docs/wrr_metrics_completion_v6.csv`
+- Completion matrix for all expected `<model, group, run>` cells with `has_simulation_log` flag.
