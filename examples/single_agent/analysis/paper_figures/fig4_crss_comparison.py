@@ -26,21 +26,25 @@ CRSS_DIR = ROOT / "ref" / "CRSS_DB" / "CRSS_DB"
 WG_DIR = CRSS_DIR / "Within_Group_Div"
 LB_DIR = CRSS_DIR / "LB_Baseline_DB"
 
-# --- v9 simulation log (corrected mass balance), fallback chain v9 → v7 → v6 ---
+# --- v11 simulation log (latest), fallback chain v11 → v9 → v7 → v6 ---
+SIM_LOG_V11 = ROOT / "examples" / "irrigation_abm" / "results" / "production_4b_42yr_v11" / "simulation_log.csv"
 SIM_LOG_V9 = ROOT / "examples" / "irrigation_abm" / "results" / "production_4b_42yr_v9" / "simulation_log.csv"
 SIM_LOG_V7 = ROOT / "examples" / "irrigation_abm" / "results" / "production_4b_42yr_v7" / "simulation_log.csv"
 SIM_LOG_V6 = ROOT / "examples" / "irrigation_abm" / "results" / "production_4b_42yr_v6" / "simulation_log.csv"
-if SIM_LOG_V9.exists():
+if SIM_LOG_V11.exists():
+    SIM_LOG = SIM_LOG_V11
+    print(f"Using v11 data: {SIM_LOG}")
+elif SIM_LOG_V9.exists():
     SIM_LOG = SIM_LOG_V9
-    print(f"Using v9 data: {SIM_LOG}")
+    print(f"v11 not ready, falling back to v9: {SIM_LOG}")
 elif SIM_LOG_V7.exists():
     SIM_LOG = SIM_LOG_V7
-    print(f"v9 not ready, falling back to v7: {SIM_LOG}")
+    print(f"Falling back to v7: {SIM_LOG}")
 elif SIM_LOG_V6.exists():
     SIM_LOG = SIM_LOG_V6
     print(f"Falling back to v6: {SIM_LOG}")
 else:
-    print(f"ERROR: No simulation log found (v9/v7/v6).")
+    print(f"ERROR: No simulation log found (v11/v9/v7/v6).")
     sys.exit(1)
 
 YEAR_OFFSET = 2018  # simulation year 1 = calendar year 2019
@@ -206,7 +210,8 @@ ax = axes[0]
 if not ub_compare.empty:
     years = ub_compare["calendar_year"]
     ax.plot(years, ub_compare["crss_demand"] / 1e6,
-            color=C_CRSS, lw=2.0, label="CRSS Baseline", zorder=3)
+            color=C_CRSS, lw=2.0, linestyle="--", alpha=0.8,
+            label="CRSS Baseline (near-static)", zorder=3)
     ax.plot(years, ub_compare["sage_request"] / 1e6,
             color=C_SAGE_REQ, lw=1.5, label="SAGE Request (governed)", zorder=2)
     ax.plot(years, ub_compare["sage_diversion"] / 1e6,
@@ -216,6 +221,17 @@ if not ub_compare.empty:
                     ub_compare["crss_demand"] / 1e6,
                     ub_compare["sage_diversion"] / 1e6,
                     alpha=0.08, color=C_SAGE_DIV)
+    # Annotate initial condition (Year 1)
+    ub_year1 = ub_compare[ub_compare["calendar_year"] == 2019]
+    if not ub_year1.empty:
+        y1_val = ub_year1["sage_request"].values[0] / 1e6
+        ax.annotate("Initial: 2018 actual usage\n(3.0 MAF, 28% of 10.5 MAF rights)",
+                    xy=(2019, y1_val), xytext=(2024, y1_val + 1.5),
+                    fontsize=6.5, color="#D55E00", ha="left", va="bottom",
+                    arrowprops=dict(arrowstyle="->, head_width=0.3, head_length=0.4",
+                                    color="#D55E00", lw=1.2),
+                    bbox=dict(boxstyle="round,pad=0.4", fc="white", ec="#D55E00", lw=1.2))
+
     # Annotate paper water gap
     mid_yr = 2040
     ub_crss_mid = ub_compare[ub_compare["calendar_year"] == mid_yr]["crss_demand"].values
@@ -239,7 +255,8 @@ ax = axes[1]
 if not lb_compare.empty:
     years = lb_compare["calendar_year"]
     ax.plot(years, lb_compare["crss_demand"] / 1e6,
-            color=C_CRSS, lw=2.0, label="CRSS Baseline", zorder=3)
+            color=C_CRSS, lw=2.0, linestyle="--", alpha=0.8,
+            label="CRSS Baseline (near-static)", zorder=3)
     ax.plot(years, lb_compare["sage_request"] / 1e6,
             color=C_SAGE_REQ, lw=1.5, label="SAGE Request (governed)", zorder=2)
     ax.plot(years, lb_compare["sage_diversion"] / 1e6,
