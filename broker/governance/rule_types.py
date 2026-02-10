@@ -249,9 +249,20 @@ class GovernanceRule:
         )
 
 
+_DEFAULT_THINKING_CONSTRUCTS = frozenset({
+    "TP_LABEL", "CP_LABEL", "WSA_LABEL", "ACA_LABEL",
+    "BUDGET_UTIL", "EQUITY_GAP", "RISK_APPETITE", "SOLVENCY_IMPACT",
+})
+_DEFAULT_PERSONAL_FIELDS = frozenset({
+    "savings", "income", "cost", "budget", "water_right",
+})
+
+
 def categorize_rule(
     rule: GovernanceRule,
     construct_hints: Optional[Dict[str, str]] = None,
+    thinking_constructs: Optional[set] = None,
+    personal_fields: Optional[set] = None,
 ) -> str:
     """
     Categorize a rule for audit breakdown.
@@ -264,6 +275,10 @@ def categorize_rule(
 
                 {"WSA_LABEL": "thinking", "ACA_LABEL": "thinking",
                  "budget": "personal", "adoption_rate": "social"}
+        thinking_constructs: Optional set of construct names classified as
+            "thinking".  Falls back to ``_DEFAULT_THINKING_CONSTRUCTS``.
+        personal_fields: Optional set of field names classified as
+            "personal".  Falls back to ``_DEFAULT_PERSONAL_FIELDS``.
 
     Returns:
         One of: personal, social, thinking, physical, semantic
@@ -283,15 +298,14 @@ def categorize_rule(
             if cond.field in construct_hints:
                 return construct_hints[cond.field]
 
-    # Default heuristics (cover common behavioral science frameworks)
-    _THINKING_CONSTRUCTS = {"TP_LABEL", "CP_LABEL", "WSA_LABEL", "ACA_LABEL",
-                            "BUDGET_UTIL", "EQUITY_GAP", "RISK_APPETITE", "SOLVENCY_IMPACT"}
-    _PERSONAL_FIELDS = {"savings", "income", "cost", "budget", "water_right"}
-    if rule.construct in _THINKING_CONSTRUCTS:
+    # Configurable heuristic sets (with sensible defaults)
+    tc = thinking_constructs if thinking_constructs is not None else _DEFAULT_THINKING_CONSTRUCTS
+    pf = personal_fields if personal_fields is not None else _DEFAULT_PERSONAL_FIELDS
+    if rule.construct in tc:
         return "thinking"
     if any(c.type == "social" for c in rule.conditions):
         return "social"
-    if any(c.field in _PERSONAL_FIELDS for c in rule.conditions):
+    if any(c.field in pf for c in rule.conditions):
         return "personal"
 
     return "thinking"  # Default

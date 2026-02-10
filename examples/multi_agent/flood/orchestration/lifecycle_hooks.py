@@ -24,6 +24,7 @@ class MultiAgentHooks:
         message_pool: Optional[Any] = None,      # MessagePool instance
         drift_detector: Optional[Any] = None,
         flood_schedule: Optional[Dict[int, float]] = None,
+        social_graph: Optional[Any] = None,      # SocialGraph for neighbor pruning
     ):
         self.env = environment
         self.memory_engine = memory_engine
@@ -48,7 +49,15 @@ class MultiAgentHooks:
         self.game_master = game_master
         self.message_pool = message_pool
         self.drift_detector = drift_detector
+        self.social_graph = social_graph
         self._memory_bridge = MemoryBridge(memory_engine) if memory_engine else None
+
+    def _prune_agent_from_graph(self, agent_id: str):
+        """Remove all social edges for a relocated/bought-out agent."""
+        if not self.social_graph:
+            return
+        for nid in list(self.social_graph.get_neighbors(agent_id)):
+            self.social_graph.remove_edge(agent_id, nid)
 
     def pre_year(self, year, env, agents):
         """Randomly determine if flood occurs and resolve pending actions."""
@@ -83,6 +92,10 @@ class MultiAgentHooks:
                     print(f" [LIFECYCLE] {agent.id} buyout FINALIZED (received ${buyout_amount:,.0f}).")
                 agent.dynamic_state["pending_action"] = None
                 agent.dynamic_state["action_completion_year"] = None
+
+                # Prune relocated/bought-out agents from social graph
+                if agent.dynamic_state.get("relocated"):
+                    self._prune_agent_from_graph(agent.id)
 
         if self.per_agent_depth:
             households = [a for a in agents.values() if a.agent_type in ["household_owner", "household_renter"]]
@@ -290,6 +303,7 @@ class MultiAgentHooks:
                     dest_val = 1
                 agent.dynamic_state["relocated"] = True
                 agent.dynamic_state["relocation_destination"] = "within_prb" if dest_val == 1 else "out_of_basin"
+                self._prune_agent_from_graph(agent.id)
                 print(f" [LIFECYCLE] {agent.id} relocated ({'within PRB' if dest_val == 1 else 'out of basin'})")
 
             # Store last decision for tracking

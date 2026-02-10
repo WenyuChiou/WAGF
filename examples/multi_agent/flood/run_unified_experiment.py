@@ -216,7 +216,9 @@ def run_unified_experiment():
         insurance_pct_cap = 0.02 if is_mg else 0.05
 
         if decision == "elevate_house":
-            cost = 150_000 * (1 - subsidy_rate)
+            # Default elevation is 5ft ($80K base). 3ft=$45K, 8ft=$150K.
+            # Affordability uses 5ft default; actual cost set in lifecycle_hooks.
+            cost = 80_000 * (1 - subsidy_rate)
             if cost > income * elevation_multiplier:
                 mg_note = " (MG: stricter threshold)" if is_mg else ""
                 results.append(ValidationResult(
@@ -247,6 +249,25 @@ def run_unified_experiment():
                         "rules_hit": ["affordability_mg_buyout"],
                         "field": "decision",
                         "constraint": "mg_buyout_barrier",
+                        "deterministic": True
+                    }
+                ))
+
+        if decision == "relocate" and proposal.agent_type == "household_renter":
+            # Relocation costs $5K-$25K. Block if income too low to absorb
+            # first-last-deposit plus moving expenses (~$10K minimum).
+            relocation_floor = 15_000
+            if income < relocation_floor:
+                results.append(ValidationResult(
+                    valid=False,
+                    validator_name="CustomAffordabilityValidator",
+                    errors=[f"AFFORDABILITY: Renter income ${income:,.0f} too low for relocation costs (~$10K minimum)"],
+                    metadata={
+                        "level": ValidationLevel.ERROR,
+                        "rule_id": "affordability_renter_relocate",
+                        "rules_hit": ["affordability_renter_relocate"],
+                        "field": "decision",
+                        "constraint": "financial_affordability",
                         "deterministic": True
                     }
                 ))
@@ -706,6 +727,7 @@ def run_unified_experiment():
         game_master=game_master,
         message_pool=message_pool,
         flood_schedule=flood_schedule,
+        social_graph=graph,
     )
 
     if args.per_agent_depth:

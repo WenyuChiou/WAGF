@@ -338,16 +338,21 @@ class SkillBrokerEngine:
             if secondary_approved and execution_result.success:
                 secondary_execution = self.simulation_engine.execute_skill(secondary_approved)
         elif outcome in (SkillOutcome.REJECTED, SkillOutcome.UNCERTAIN):
-            # REJECTED: execute maintain_demand as fallback so the agent's
-            # request is preserved and diversion is recalculated with current
-            # curtailment (instead of a full no-op that freezes state).
+            # REJECTED: execute the registry's default skill as fallback so the
+            # agent's state is recalculated (instead of a full no-op that
+            # freezes state).
             if self.simulation_engine:
-                fallback = ApprovedSkill(
-                    skill_name="maintain_demand",
-                    agent_id=approved_skill.agent_id,
-                    approval_status="REJECTED_MAINTAIN",
-                )
-                execution_result = self.simulation_engine.execute_skill(fallback)
+                fallback_skill = self.skill_registry.get_default_skill()
+                if fallback_skill and self.skill_registry.exists(fallback_skill):
+                    fallback = ApprovedSkill(
+                        skill_name=fallback_skill,
+                        agent_id=approved_skill.agent_id,
+                        approval_status="REJECTED_FALLBACK",
+                    )
+                    execution_result = self.simulation_engine.execute_skill(fallback)
+                else:
+                    logger.warning(f"Default skill '{fallback_skill}' not in registry for {approved_skill.agent_id}")
+                    execution_result = ExecutionResult(success=False, state_changes={})
             else:
                 execution_result = ExecutionResult(success=False, state_changes={})
         else:

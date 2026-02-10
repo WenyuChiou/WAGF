@@ -307,7 +307,7 @@ household_owner:
       - elevate_house
       - Elevate house
       - '[HE]'
-      description: 'Elevate house structure (Cost: $150,000 * (1 - subsidy rate))'
+      description: 'Elevate house structure (Cost: $45K-$150K depending on height * (1 - subsidy rate))'
     - id: buyout_program
       aliases:
       - BT
@@ -745,10 +745,10 @@ memory_config:
     top_k_significant: 2
   government:
     engine: window
-    window_size: 5
+    window_size: 10
   insurance:
     engine: window
-    window_size: 5
+    window_size: 10
 retrieval_config:
   household:
     strategy: importance_weighted

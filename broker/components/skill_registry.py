@@ -7,10 +7,13 @@ This is NOT a prompt - it's a governance configuration.
 """
 from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass, field
+import logging
 import yaml
 from pathlib import Path
 
 from ..interfaces.skill_types import SkillDefinition, ValidationResult
+
+logger = logging.getLogger(__name__)
 
 
 class SkillRegistry:
@@ -35,10 +38,14 @@ class SkillRegistry:
         self.skills[skill.skill_id] = skill
     
     def register_from_yaml(self, yaml_path: str) -> None:
-        """Load skill definitions from YAML file."""
+        """Load skill definitions from YAML file.
+
+        Also reads the top-level ``default_skill`` key (if present) and
+        sets the registry's default fallback skill accordingly.
+        """
         with open(yaml_path, 'r', encoding='utf-8') as f:
             data = yaml.safe_load(f)
-        
+
         for skill_data in data.get('skills', []):
             skill = SkillDefinition(
                 skill_id=skill_data['skill_id'],
@@ -53,6 +60,17 @@ class SkillRegistry:
                 depends_on=skill_data.get('depends_on', []),
             )
             self.register(skill)
+
+        # Set default fallback skill from YAML if specified
+        default_id = data.get("default_skill")
+        if default_id:
+            if default_id in self.skills:
+                self._default_skill = default_id
+            else:
+                logger.warning(
+                    f"YAML default_skill='{default_id}' not found in registry. "
+                    f"Using fallback '{self._default_skill}'"
+                )
     
     def get(self, skill_id: str) -> Optional[SkillDefinition]:
         """Get a skill definition by ID."""

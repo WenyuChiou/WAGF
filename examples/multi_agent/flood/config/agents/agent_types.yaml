@@ -229,7 +229,7 @@ household_owner:
         description: "Purchase NFIP flood insurance"
       - id: elevate_house
         aliases: ["HE", "elevate", "elevation", "elevate_house", "Elevate house", "[HE]"]
-        description: "Elevate house structure (Cost: $150,000 * (1 - subsidy rate))"
+        description: "Elevate house structure (Cost: $45K-$150K depending on height * (1 - subsidy rate))"
       - id: buyout_program
         aliases: ["BT", "buyout", "Blue Acres", "Accept buyout", "[BT]"]
         description: "Accept NJ Blue Acres buyout"
