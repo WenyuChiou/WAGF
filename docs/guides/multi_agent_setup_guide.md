@@ -1218,6 +1218,7 @@ When debugging a multi-agent experiment, check these items in order:
 
 ### Further Reading
 
+- [Advanced Patterns Guide](advanced_patterns.md) — State hierarchy, two-way coupling, per-type LLM config
 - [Quickstart Guide](quickstart_guide.md) — Tiers 1-2 fundamentals
 - [Customization Guide](customization_guide_en.md) — Custom validators, memory engines, prompts
 - [Troubleshooting Guide](troubleshooting_guide.md) — Full error catalog with solutions
