@@ -2,8 +2,8 @@ import pandas as pd
 from pathlib import Path
 
 # Paths
-RESULTS_DIR = Path(r"c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\single_agent\results\JOH_FINAL")
-OUTPUT_DIR = Path(r"C:\Users\wenyu\.gemini\antigravity\brain\0eefc59d-202e-4d45-bd10-0806e60c7837")
+RESULTS_DIR = Path(__file__).resolve().parents[3] / "results" / "JOH_FINAL"
+OUTPUT_DIR = Path(__file__).resolve().parents[1] / "reports" / "figures"
 
 MODELS = {
     'llama3_2_3b': 'Llama 3.2 (3B)',
