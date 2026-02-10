@@ -110,8 +110,15 @@ class UniversalCognitiveEngine:
         self.context_monitor = None
 
         if sensory_cortex:
-            from broker.components.symbolic_context import Sensor, SymbolicContextMonitor
-
+            try:
+                from cognitive_governance.v1_prototype.memory.symbolic_core import (
+                    Sensor, SymbolicContextMonitor,
+                )
+            except ImportError:
+                raise ImportError(
+                    "Symbolic sensory_cortex requires cognitive_governance.v1_prototype "
+                    "(removed in v0.2). Use scalar mode (stimulus_key) instead."
+                )
             sensors = [Sensor(**sensor_cfg) for sensor_cfg in sensory_cortex]
             self.context_monitor = SymbolicContextMonitor(sensors, arousal_threshold)
             self.mode = "symbolic"
