@@ -1,0 +1,58 @@
+# WAGF Quickstart — Agent Type Configuration
+# Agent types are top-level keys (not nested under 'agent_types:')
+
+shared:
+  rating_scale: |
+    ### RATING SCALE:
+    VL = Very Low | L = Low | M = Medium | H = High | VH = Very High
+
+  response_format:
+    delimiter_start: "<<<DECISION_START>>>"
+    delimiter_end: "<<<DECISION_END>>>"
+    fields:
+      - { key: "decision", type: "decision", required: true }
+
+global_config:
+  memory:
+    window_size: 3
+  llm:
+    num_ctx: 4096
+    num_predict: 1024
+    max_retries: 2
+  governance:
+    max_retries: 2
+    max_reports_per_retry: 2
+
+simple_agent:
+  prompt_template: |
+    You are a resident deciding how to prepare for a potential hazard.
+    Your current situation: {situation}
+
+    Choose one action:
+    1. take_action — Spend resources to protect yourself
+    2. do_nothing — Wait and see
+
+    {response_format}
+  parsing:
+    strict_mode: true
+    decision_keywords: ["decision"]
+    skill_map:
+      "1": take_action
+      "2": do_nothing
+    actions:
+      - id: take_action
+        aliases: ["1", "take action", "protect"]
+      - id: do_nothing
+        aliases: ["2", "do nothing", "wait", "DN"]
+  governance:
+    strict:
+      thinking_rules:
+        - id: already_protected
+          description: "Cannot take_action if already protected"
+          conditions:
+            - construct: "protected"
+              operator: "=="
+              value: 1
+          blocked_skills: [take_action]
+          level: ERROR
+          message: "Already protected — no need to act again."
