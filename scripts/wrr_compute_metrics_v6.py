@@ -111,11 +111,17 @@ def extract_ta_label(text: str) -> str:
         "worried",
     ]
     lo_kw = ["low", "minimal", "unlikely", "safe", "no risk"]
+    neg_kw = ("not", "no", "never", "hardly", "rarely", "without")
 
     if any(k in low for k in hi_kw):
         return "H"
-    if any(k in low for k in lo_kw):
-        return "L"
+    # Negation-aware low cue check (e.g., "not safe" should not map to low threat)
+    for k in lo_kw:
+        for m in re.finditer(re.escape(k), low):
+            pre = low[max(0, m.start() - 20) : m.start()]
+            if any(n in pre.split() for n in neg_kw):
+                continue
+            return "L"
     return "M"
 
 
@@ -139,8 +145,7 @@ def extract_cp_label(text: str) -> str:
     low = (text or "").lower()
 
     lo_kw = [
-        "very low",
-        "low",
+        "very low coping",
         "lack of confidence",
         "not confident",
         "unable",
@@ -148,26 +153,24 @@ def extract_cp_label(text: str) -> str:
         "can't",
         "limited ability",
         "hampered",
-        "difficult",
         "insufficient resources",
         "low self-efficacy",
+        "low confidence",
     ]
     hi_kw = [
-        "very high",
-        "high",
+        "very high coping",
+        "high self-efficacy",
         "confident",
-        "confidence",
+        "high confidence",
         "capable",
         "can manage",
         "can cope",
         "able to",
         "prepared",
         "sufficient resources",
-        "high self-efficacy",
     ]
 
-    # Check low-efficacy cues first to avoid false H from words like "confidence"
-    # inside phrases such as "lack of confidence".
+    # Order matters: low cues first to avoid false positives from generic "confidence".
     if any(k in low for k in lo_kw):
         return "L"
     if any(k in low for k in hi_kw):
