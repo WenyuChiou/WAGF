@@ -32,6 +32,22 @@ This framework provides an architectural **Governance Layer** that validates age
 
 ## Quick Start
 
+### 0. Try the 30-Second Demo (No Ollama Needed)
+
+See the core governance loop with a mock LLM:
+
+```bash
+python examples/quickstart/01_barebone.py
+```
+
+Then see governance rules blocking invalid actions:
+
+```bash
+python examples/quickstart/02_governance.py
+```
+
+See `docs/guides/quickstart_guide.md` for the full 3-tier progressive tutorial.
+
 ### 1. Install
 
 ```bash
