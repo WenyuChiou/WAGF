@@ -26,11 +26,12 @@ The key methodological shift is from unconstrained generative behavior to audita
 
 | File | Description | Status |
 |------|-------------|--------|
-| `SAGE_WRR_Paper_v8.docx` | Main manuscript (working next version for revised narrative + table refresh) | **LATEST** |
-| `SAGE_WRR_Paper_v7.docx` | Previous main manuscript snapshot | Previous working version |
-| `SAGE_WRR_Paper_v6.docx` | Main manuscript with tracked revisions (older working edit copy) | Archived working version |
-| `SAGE_WRR_Paper_v5.docx` | Previous manuscript baseline | Archived baseline |
-| `SAGE_WRR_SI_Tables_v5.docx` | Supporting Information tables | **LATEST** |
+| `SAGE_WRR_Paper_v10.docx` | Main manuscript (Section 5 irrigation: quantitative evidence + SI refs + cold-start + governance metrics) | **LATEST** |
+| `SAGE_WRR_Paper_v9.docx` | Previous manuscript (user edits on S7 diagnostics) | Previous |
+| `SAGE_WRR_Paper_v8.docx` | Previous manuscript (revised narrative + table refresh) | Archived |
+| `SAGE_WRR_Paper_v7.docx` | Previous main manuscript snapshot | Archived |
+| `SAGE_WRR_SI_Tables_v6.docx` | Supporting Information (reorganized: S1-S9, 4 new sections) | **LATEST** |
+| `SAGE_WRR_SI_Tables_v5.docx` | Previous SI tables (flood Tables S1-S2 to be merged into v6) | Previous |
 
 **Editing Tool**: Microsoft Word
 
@@ -61,20 +62,44 @@ WRR Technical Reports/Methods limit: **13 Publication Units (PU)** max
 
 **PU Calculation**: 3 figures + 1 table = **4 PU**
 
-### Supporting Information
+### Supporting Information (v6 — Reorganized)
 
-| Item | Content | File |
-|------|---------|------|
-| **Table S1** | Complete 18-row multi-model data (6 models x 3 groups) | `SAGE_WRR_SI_Tables_v5.docx` |
-| **Table S2** | `R_H` (strict feasibility safety diagnostic) by model size | `SAGE_WRR_SI_Tables_v5.docx` |
-| **Figure S1** | 6x3 Adaptation matrix | `flood/figures/SI_Figure_Adaptation_Matrix_6x3.png` |
-| **Figure S2** | Cumulative relocation (A=0%, B=32%, C=37%) | `flood/figures/fig_s2_relocation.png` |
-| **Figure S3** | Economic hallucination fix (v4 vs v6) | `flood/figures/fig_s3_econ_hallucination.png` |
-| **Figure S4** | Gemma3 3x3 adaptation matrix | `flood/figures/SI_Figure_Adaptation_Gemma3_3x3.png` |
-| **Figure S5** | Ministral3 3x3 adaptation matrix | `flood/figures/SI_Figure_Adaptation_Ministral3_3x3.png` |
-| **Table S3** | Irrigation governance summary (v20 42yr) | `SI/Table_S3_Irrigation_Governance.md` |
-| **Section S6** | Mass balance and human-water coupling | `SI/Section_S6_Mass_Balance.md` |
-| **Section S7** | Decision-level diagnostics: behavioral rationality deviations and feasibility edge cases | `SI/Section_S7_Behavioral_Diagnostics_Examples.md` |
+**Document**: `SAGE_WRR_SI_Tables_v6.docx`
+
+| Section | Content | Source Markdown |
+| ------- | ------- | -------------- |
+| **Part A: Framework-Level** | | |
+| S1 | Prompt templates and response format (flood + irrigation) | `SI/Section_S1_Prompt_Templates.md` |
+| S2 | Governance retry mechanism and EarlyExit algorithm | `SI/Section_S2_Retry_EarlyExit.md` |
+| **Part B: Flood Case Study** | | |
+| S3 / Table S1 | Complete 18-row multi-model data (6 models x 3 groups) | Retained from v5.docx |
+| S3 / Table S2 | `R_H` (strict feasibility safety diagnostic) by model size | Retained from v5.docx |
+| S4 | Flood behavioral diagnostics (4 trace-backed cases) | `SI/Section_S7_Behavioral_Diagnostics_Examples.md` |
+| S5 / Figure S1 | 6x3 Adaptation matrix | `flood/figures/SI_Figure_Adaptation_Matrix_6x3.png` |
+| S5 / Figure S2 | Cumulative relocation (A=0%, B=32%, C=37%) | `flood/figures/fig_s2_relocation.png` |
+| S5 / Figure S3 | Economic hallucination fix (v4 vs v6) | `flood/figures/fig_s3_econ_hallucination.png` |
+| S5 / Figure S4 | Gemma3 3x3 adaptation matrix | `flood/figures/SI_Figure_Adaptation_Gemma3_3x3.png` |
+| S5 / Figure S5 | Ministral3 3x3 adaptation matrix | `flood/figures/SI_Figure_Adaptation_Ministral3_3x3.png` |
+| **Part C: Irrigation Case Study** | | |
+| S6 / Table S3-S4 | Complete governance rule specification (12 validators + 3 thinking rules) | `SI/Section_S6_Governance_Rules.md` |
+| S7 / Table S4-S5 | FQL-to-LLM persona cluster mapping + Gaussian magnitude params | `SI/Section_S7_FQL_Cluster_Mapping.md` |
+| S8 | Mass balance and human-water coupling (with LaTeX equations) | `SI/Section_S8_Mass_Balance.md` |
+| S9 / Table S6 | Irrigation governance summary (v20 42yr production) | `SI/Table_S3_Irrigation_Governance.md` |
+
+**Numbering map (v5 → v6)**:
+
+| v5 ID | v6 ID | Change |
+| ----- | ----- | ------ |
+| — | S1 | NEW: Prompt templates |
+| — | S2 | NEW: Retry + EarlyExit |
+| Table S1 | S3/Table S1 | Moved to Part B |
+| Table S2 | S3/Table S2 | Moved to Part B |
+| Section S7 | S4 | Renumbered |
+| Figures S1-S5 | S5/Fig S1-S5 | Moved to Part B |
+| — | S6 | NEW: Governance rules |
+| — | S7 | NEW: FQL cluster mapping |
+| Section S6 | S8 | Updated + renumbered |
+| Table S3 | S9/Table S6 | Renumbered |
 
 ---
 
@@ -233,4 +258,4 @@ Plan reviewed by WRR format expert (2026-02-05):
 
 ---
 
-*Last updated: 2026-02-09*
+*Last updated: 2026-02-10*
