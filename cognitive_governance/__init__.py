@@ -38,13 +38,11 @@ from .agents import (
     load_agent_configs,
 )
 
-# Domain Configuration
-from .config import (
-    DomainConfigLoader,
-    load_domain,
-    SkillDefinition,
-    ValidatorConfig,
-)
+# Domain Configuration (removed — use broker.config.schema instead)
+DomainConfigLoader = None
+load_domain = None
+SkillDefinition = None
+ValidatorConfig = None
 
 # Simulation Protocols
 from .simulation import (
