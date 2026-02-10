@@ -300,7 +300,7 @@ The model computes Lake Mead elevation via an annual mass balance. All quantitie
 
 **Storage update** — the core equation governing Lake Mead:
 
-$$S(t+1) = S(t) + \text{clamp}\bigl(Q_{\text{in}}(t) - Q_{\text{out}}(t),\; -\Delta_{\max},\; +\Delta_{\max}\bigr) \qquad \text{(Eq.\ 1)}$$
+$$S(t+1) = S(t) + \max\!\bigl(-\Delta_{\max},\; \min(Q_{\text{in}}(t) - Q_{\text{out}}(t),\; \Delta_{\max})\bigr) \qquad \text{(Eq.\ 1)}$$
 
 where $S \in [2.0,\, 26.1]$ MAF (dead-pool to full-pool physical bounds) and $\Delta_{\max} = 3.5$ MAF (Glen Canyon Dam operational buffering).
 
@@ -322,7 +322,7 @@ $$Q_{\text{nat}} = Q_{\text{base}} \times \frac{P}{P_0}, \quad Q_{\text{nat}} \i
 
 **Evaporation** — scales with storage as a surface-area proxy:
 
-$$E(S) = E_{\text{ref}} \times \text{clamp}\!\left(\frac{S}{S_{\text{ref}}},\; 0.15,\; 1.50\right) \qquad \text{(Eq.\ 7)}$$
+$$E(S) = E_{\text{ref}} \times \max\!\left(0.15,\; \min\!\left(\frac{S}{S_{\text{ref}}},\; 1.50\right)\right) \qquad \text{(Eq.\ 7)}$$
 
 **Agent diversion** — links agent decisions to mass balance:
 
@@ -369,16 +369,16 @@ advance_year()
   ├─ 1. _generate_precipitation()          ← CRSS PRISM data (UB 7-state average)
   ├─ 2. _generate_lake_mead_level()        ← Mass balance (Eq. 1-7)
   │      Inflow:
-  │        Q_nat       = 12.0 × (P / 100)           [clamp 6-17 MAF]
+  │        Q_nat       = 12.0 × (P / 100)           [bounded to 6–17 MAF]
   │        D_UB_eff    = min(D_UB, Q_nat - 7.0, 5.0)
   │        Q_Powell    = Q_nat - D_UB_eff
   │        Q_in        = Q_Powell + 1.0              [tributary]
   │      Outflow:
   │        Q_out       = D_LB + M(h) + E(S) + 5.0   [municipal]
   │      Balance:
-  │        ΔS          = clamp(Q_in - Q_out, ±3.5)
-  │        S(t+1)      = clamp(S(t) + ΔS, 2.0, 26.1)
-  │        h           = interp(S, USBR_curve)
+  │        ΔS          = max(-3.5, min(Q_in - Q_out, 3.5))
+  │        S(t+1)      = max(2.0, min(S(t) + ΔS, 26.1))
+  │        h           = USBR storage-elevation lookup(S)
   ├─ 3. _update_preceding_factors()        ← Binary: did precip/Mead rise?
   ├─ 4. _compute_drought_index()           ← Composite severity index
   ├─ 5. _apply_curtailment()               ← Eq. 8: d_i = min(r_i, w_i) × (1 - γ_τ)
@@ -420,9 +420,9 @@ advance_year()
 
 Composite severity index in [0, 1] combining precipitation and reservoir signals:
 
-```
-precip_norm = clamp(1.0 - precip / (2 × baseline), 0, 1)
-mead_norm   = clamp(1.0 - (mead_level - 900) / 320, 0, 1)
+```text
+precip_norm   = max(0, min(1.0 - precip / (2 × baseline), 1))
+mead_norm     = max(0, min(1.0 - (mead_level - 900) / 320, 1))
 drought_index = 0.5 × precip_norm + 0.5 × mead_norm
 ```
 
@@ -484,8 +484,8 @@ flowchart TD
         MB2["Q_Powell = Q_nat − D_UB_eff<br/>(≥ 7.0 MAF min release)"]
         MB3["Q_in = Q_Powell + 1.0"]
         MB4["Q_out = D_LB + M(h) + E(S) + 5.0"]
-        MB5["ΔS = clamp(Q_in − Q_out, ±3.5)<br/>S(t+1) = clamp(S + ΔS, 2.0, 26.1)"]
-        MB6["h = interp(S, USBR curve)<br/>→ shortage tier τ"]
+        MB5["ΔS = max(−3.5, min(Q_in − Q_out, 3.5))<br/>S(t+1) bounded to [2.0, 26.1] MAF"]
+        MB6["h = USBR lookup(S) → elevation<br/>→ shortage tier τ"]
         MB1 --> MB2 --> MB3 --> MB5
         MB4 --> MB5 --> MB6
     end
@@ -554,7 +554,7 @@ The original FQL model defines **2 actions** — increase or decrease diversion 
 | 4 | `decrease_small` | Action 0, low magnitude | Minor conservation adjustments | N(4%, σ=1.5), [1-8%] |
 | 5 | `decrease_large` | Action 0, high magnitude | Fallowing fields, switching to low-water crops | N(12%, σ=3), [8-20%] |
 
-**Why 5 instead of 3?** The 3-skill design (v1-v16) mapped FQL's 2 actions + status quo, but collapsed the continuous magnitude distribution into a single bin per direction. The 5-skill design restores the granularity distinction between small and large adjustments, enabling **differential governance**: Tier 1 shortage blocks `increase_large` (ERROR) but only warns on `increase_small` (WARNING), mirroring how real water institutions allow marginal increases during mild drought but block major expansions.
+**Why 5 instead of 3?** A 3-skill design (increase / maintain / decrease) maps FQL's 2 actions + status quo but collapses the continuous magnitude distribution into a single bin per direction. The 5-skill design restores the granularity distinction between small and large adjustments, enabling **differential governance**: Tier 1 shortage blocks `increase_large` (ERROR) but only warns on `increase_small` (WARNING), mirroring how real water institutions allow marginal increases during mild drought but block major expansions.
 
 **Per-skill constraints:**
 
@@ -566,11 +566,11 @@ The original FQL model defines **2 actions** — increase or decrease diversion 
 | 4 | `decrease_small` | N(4%, σ=1.5), [1-8%] × persona_scale | Blocked at min utilisation (10%); blocked below demand floor (50%) |
 | 5 | `decrease_large` | N(12%, σ=3), [8-20%] × persona_scale | Same as above |
 
-> **Note on magnitude**: Since v12, demand change magnitude is sampled from skill-specific Bounded Gaussians at execution time. Since v18, the `magnitude_pct` field has been **removed from the response format entirely** — reducing the JSON schema from 7 to 4 fields fixed WSA/ACA reason generation with gemma3:4b.
+> **Note on magnitude**: Demand change magnitude is sampled from skill-specific Bounded Gaussians at execution time. The `magnitude_pct` field has been **removed from the response format** — reducing the JSON schema from 7 to 4 fields improved WSA/ACA reason generation with gemma3:4b.
 
 ### 5.3 Bounded Gaussian Magnitude Sampling
 
-Since v12, the LLM's `magnitude_pct` output is **completely ignored**. Demand change magnitude is instead sampled from Gaussian distributions at execution time. Since v17, each skill has its own Gaussian parameters (previously all skills shared one set of persona-level params).
+The LLM's `magnitude_pct` output is **ignored**. Demand change magnitude is sampled from skill-specific Gaussian distributions at execution time.
 
 **Per-Skill Gaussian Parameters** (from `agent_types.yaml → skill_magnitude`):
 
@@ -592,15 +592,15 @@ Since v12, the LLM's `magnitude_pct` output is **completely ignored**. Demand ch
 **Sampling pipeline:**
 
 ```text
-Agent persona + chosen skill → (mu × scale, sigma × scale, min, max, exploration_rate)
+Agent persona + chosen skill → (μ × scale, σ × scale, m_min, m_max, ε)
   → execute_skill():
-      if random() < exploration_rate (2%):
-          noise = Normal(0, sigma × 2.0)        ← unbounded exploration
-          magnitude = clip(mu + noise, 0.5, 100)
-      else (98%):
-          noise = Normal(0, sigma)               ← bounded exploitation
-          magnitude = clip(mu + noise, min, max)
-  → apply demand change with sampled magnitude
+      With probability ε = 0.02 (exploration):
+          X ~ N(μ, (2σ)²)                       ← wide-variance exploration
+          m = max(0.5, min(X, 100))              ← broad bounds
+      With probability 1 − ε (exploitation):
+          X ~ N(μ, σ²)                           ← skill-specific variance
+          m = max(m_min, min(X, m_max))           ← skill-specific bounds
+  → apply demand change with sampled magnitude m
 ```
 
 This design decouples **qualitative choice** (which skill — LLM reasoning) from **quantitative magnitude** (how much — code sampling). The `magnitude_cap_check` is set to WARNING level (not ERROR) to avoid wasting governance retries on a field the environment ignores.
@@ -631,15 +631,15 @@ flowchart LR
     style F fill:#c8e6c9,stroke:#2e7d32
 ```
 
-**Magnitude determination evolution:**
+**Magnitude determination comparison:**
 
-| Stage | Mechanism | Result |
-|-------|-----------|--------|
-| **FQL** (Hung & Yang 2021) | N(mu, sigma) × bin_size via Q-table | Continuous, calibrated distribution |
-| **LLM v1-v11** (Schema-Driven) | LLM outputs `magnitude_pct` (1-30%) | Degenerate: 56.6% chose 25%, only 6-7 unique values |
-| **LLM v12+** (Bounded Gaussian) | Code samples from persona N(default, sigma) | Continuous stochasticity restored, matching FQL distribution |
+| Approach | Mechanism | Result |
+|----------|-----------|--------|
+| **FQL** (Hung & Yang 2021) | N(μ, σ) × bin_size via Q-table | Continuous, calibrated distribution |
+| **Schema-Driven** (LLM chooses magnitude) | LLM outputs `magnitude_pct` (1-30%) | Degenerate: 56.6% chose 25%, only 6-7 unique values |
+| **Bounded Gaussian** (current) | Environment samples from persona-scaled N(μ, σ) | Continuous stochasticity restored, matching FQL distribution |
 
-Opt-out via `--no-magnitude` to remove the field entirely (reduces context burden for smaller models).
+Opt-out via `--no-magnitude` to remove the `magnitude_pct` field from the prompt (reduces context burden for smaller models).
 
 ### 5.4 Dual-Appraisal Framework (WSA/ACA)
 
@@ -696,8 +696,6 @@ Agent responses use the **Reasoning Before Rating** pattern — the `reasoning` 
 | `water_scarcity_assessment` | appraisal | Yes | `WSA_LABEL` (VL/L/M/H/VH) + `WSA_REASON` (one sentence) |
 | `adaptive_capacity_assessment` | appraisal | Yes | `ACA_LABEL` (VL/L/M/H/VH) + `ACA_REASON` (one sentence) |
 | `decision` | choice | Yes | Numeric skill ID (1-5) |
-
-> **Removed fields (v18)**: `magnitude_pct`, `secondary_decision`, and `secondary_magnitude_pct` were removed from the response format. Magnitude is sampled via Bounded Gaussian at execution time (see [5.3](#53-bounded-gaussian-magnitude-sampling)). Multi-skill is disabled. Reducing from 7 to 4 fields fixed WSA/ACA reason generation — gemma3:4b now reliably produces the nested `{"label", "reason"}` format.
 
 **Prompt structure — grouped evaluation dimensions:**
 
@@ -870,7 +868,7 @@ The demand corridor is the primary stabilization mechanism, bounding agent deman
 
 **Why Floor (50% of water_right)?**
 
-Problem discovered in v14 production (78 agents x 5yr): demand collapsed to 69% of CRSS target (CoV 27.4%).
+Without a demand floor, demand collapsed to 69% of CRSS target (CoV 27.4%) during calibration.
 
 Root causes:
 
@@ -891,7 +889,7 @@ Theoretical justification: Real-world irrigation districts have minimum delivery
 
 **Why Ceiling (6.0 MAF basin total)?**
 
-Problem discovered in v19 production (78 agents x 42yr): demand overshot to 6.60 MAF (+12.6% above CRSS), with 65% of years exceeding the 6.45 MAF upper corridor bound.
+Without a demand ceiling, demand overshot to 6.60 MAF (+12.6% above CRSS) during full-horizon calibration, with 65% of years exceeding the 6.45 MAF upper corridor bound.
 
 Root cause: Tier 0 (normal operations) accounts for 54% of simulation years, and no validator blocks increases during normal conditions. Aggressive agents (86% of the population) ramp demand freely.
 
