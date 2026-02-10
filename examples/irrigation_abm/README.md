@@ -464,29 +464,52 @@ When Lake Mead elevation drops, Mexico voluntarily reduces delivery under Minute
 
 ### 4.8 Agent-Reservoir Feedback Loop
 
-```
-Agent decisions (Year t)
-    ↓
-request changes (increase/decrease/maintain)
-    ↓
-update_agent_request() → new diversions
-    ↓
-advance_year() (Year t+1)
-    ↓
-_generate_lake_mead_level()
-    ├─ UB_diversions = Σ agent.diversion (upper basin)
-    ├─ LB_diversions = Σ agent.diversion (lower basin)
-    ├─ Powell release = NF - UB_effective
-    └─ Mead storage → elevation → shortage tier → curtailment
-    ↓
-_apply_curtailment()
-    ↓
-agent.diversion = request × (1 - curtailment_ratio)
-    ↓
-Next year's prompt: "Your allocation is curtailed by X%"
+```mermaid
+flowchart TD
+    subgraph AGENTS ["78 LLM Agents (Year t)"]
+        A1["LLM Reasoning<br/>(WSA/ACA → skill choice)"]
+        A2["Governance Validation<br/>(12 validators)"]
+        A3["Skill Execution<br/>(Gaussian magnitude sampling)"]
+        A1 --> A2 --> A3
+    end
+
+    A3 -->|"r_i (demand request)"| AGG
+
+    AGG["Aggregate Diversions<br/>D_LB = Σ d_i (LB agents)<br/>D_UB = Σ d_i (UB agents)"]
+
+    AGG -->|"D_LB, D_UB"| MB
+
+    subgraph MB ["Mass Balance (Year t → t+1)"]
+        MB1["Q_nat = 12.0 × P/100<br/>(CRSS PRISM precipitation)"]
+        MB2["Q_Powell = Q_nat − D_UB_eff<br/>(≥ 7.0 MAF min release)"]
+        MB3["Q_in = Q_Powell + 1.0"]
+        MB4["Q_out = D_LB + M(h) + E(S) + 5.0"]
+        MB5["ΔS = clamp(Q_in − Q_out, ±3.5)<br/>S(t+1) = clamp(S + ΔS, 2.0, 26.1)"]
+        MB6["h = interp(S, USBR curve)<br/>→ shortage tier τ"]
+        MB1 --> MB2 --> MB3 --> MB5
+        MB4 --> MB5 --> MB6
+    end
+
+    MB6 -->|"tier τ, γ_τ"| CURT
+
+    CURT["Curtailment<br/>d_i = min(r_i, w_i) × (1 − γ_τ)<br/>Tier 0: 0% | Tier 1: 5%<br/>Tier 2: 10% | Tier 3: 20%"]
+
+    CURT -->|"shortage tier<br/>curtailment ratio<br/>Lake Mead elevation"| GOV
+
+    GOV["Governance Activation<br/>curtailment_awareness: block increase (Tier 2+)<br/>demand_ceiling_stabilizer: block increase (>6.0 MAF)<br/>supply_gap_block_increase: block increase (fulfil<70%)"]
+
+    GOV -->|"constrained action space<br/>+ memory feedback"| A1
+
+    style AGENTS fill:#e3f2fd
+    style MB fill:#fff3e0
+    style CURT fill:#fce4ec
+    style GOV fill:#f3e5f5
+    style AGG fill:#e8f5e9
 ```
 
-**Implication**: When agents collectively reduce demand → Lake Mead storage recovers → shortage tier drops → curtailment decreases → agents receive more water. This self-regulating mechanism is the core dynamic that the governance system must preserve.
+**One-year lag**: Diversions during year $t$ determine storage at the start of year $t+1$. The feedback loop is fully closed — no exogenous demand schedules.
+
+**Self-regulating dynamics**: When agents collectively over-extract → Lake Mead storage drops → shortage tier rises → curtailment increases AND governance blocks increase skills → agents are forced toward maintain/decrease → demand drops → Lake Mead recovers → tier drops → constraints relax. This bidirectional coupling is the core mechanism studied in both Hung & Yang (2021) and this work.
 
 ### 4.9 Comparison with Full CRSS
 
