@@ -7,8 +7,8 @@ import os
 import numpy as np
 
 # Setup
-RESULTS_DIR = Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\single_agent\results\JOH_FINAL")
-OUTPUT_DIR = Path(r"C:\Users\wenyu\.gemini\antigravity\brain\0eefc59d-202e-4d45-bd10-0806e60c7837")
+RESULTS_DIR = Path(__file__).resolve().parents[3] / "results" / "JOH_FINAL"
+OUTPUT_DIR = Path(__file__).resolve().parents[1] / "reports" / "figures"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 sns.set_theme(style="whitegrid", context="paper", font_scale=1.2)
