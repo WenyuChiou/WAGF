@@ -119,6 +119,62 @@ def extract_ta_label(text: str) -> str:
     return "M"
 
 
+def extract_cp_label(text: str) -> str:
+    """
+    Extract coping appraisal label for Group A free-text logs.
+
+    Priority:
+    1) explicit categorical token: VH, VL, H, L, M
+    2) fallback keyword mapping to H/L/M
+
+    Note:
+    - This parser is used for construct auditing and future diagnostics.
+    - Current manuscript RR remains based on the three threat-action rules.
+    """
+    t = (text or "").strip().upper()
+    for token in ("VH", "VL", "H", "L", "M"):
+        if re.search(rf"\b{token}\b", t):
+            return token
+
+    low = (text or "").lower()
+
+    lo_kw = [
+        "very low",
+        "low",
+        "lack of confidence",
+        "not confident",
+        "unable",
+        "cannot",
+        "can't",
+        "limited ability",
+        "hampered",
+        "difficult",
+        "insufficient resources",
+        "low self-efficacy",
+    ]
+    hi_kw = [
+        "very high",
+        "high",
+        "confident",
+        "confidence",
+        "capable",
+        "can manage",
+        "can cope",
+        "able to",
+        "prepared",
+        "sufficient resources",
+        "high self-efficacy",
+    ]
+
+    # Check low-efficacy cues first to avoid false H from words like "confidence"
+    # inside phrases such as "lack of confidence".
+    if any(k in low for k in lo_kw):
+        return "L"
+    if any(k in low for k in hi_kw):
+        return "H"
+    return "M"
+
+
 def shannon_norm(counts: Counter, k: int) -> float:
     n = sum(counts.values())
     if n <= 0 or k <= 1:
@@ -228,6 +284,7 @@ def compute_all_rows(joh_final_dir: Path, runs: Iterable[str]):
 
                 # Thinking-rule deviations (decision-level)
                 ta = extract_ta_label(r.get("threat_appraisal", ""))
+                cp = extract_cp_label(r.get("coping_appraisal", ""))
                 if ta in ("H", "VH") and act_intent == "do_nothing":
                     n_think += 1
                 if ta in ("L", "VL") and act_intent == "relocate":

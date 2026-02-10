@@ -81,8 +81,13 @@ Rule checks (decision-level):
 2. Low threat relocation: `TA in {L, VL}` and action `relocate`
 3. Low threat costly structural adaptation: `TA in {L, VL}` and action in `{elevation, both}`
 
+Current manuscript lock:
+- `R_R` follows the three threat-action thinking rules above (for comparability across runs/versions).
+- `coping_appraisal` (`CP_LABEL`) is parsed in the metrics script for construct auditing, but is not added as an extra fourth RR rule in v6 tables.
+
 Column used:
 - `threat_appraisal`
+- `coping_appraisal` (parsed for audit context; not part of RR numerator in v6)
 - Group A action intent source for rule checks: `raw_llm_decision` (fallback to parsed `decision` only if raw field is missing)
 - Group B/C action source for rule checks: `yearly_decision`
 
