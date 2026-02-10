@@ -15,8 +15,8 @@ submit changes, and follow project conventions.
 ### Setup
 
 ```bash
-git clone https://github.com/<your-fork>/governed-broker-framework.git
-cd governed-broker-framework
+git clone https://github.com/<your-fork>/water-agent-governance-framework.git
+cd water-agent-governance-framework
 pip install -r requirements.txt
 pip install -e .
 ```

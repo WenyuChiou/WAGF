@@ -2,7 +2,7 @@
 
 <div align="center">
 
-**A Governance Middleware for LLM-Driven Hydro-Social Agent-Based Models**
+**A Governance Framework for LLM-Driven Agent-Based Models in Water Resources**
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -79,7 +79,6 @@ python examples/single_agent/run_flood.py --model gemma3:4b --years 10 --agents 
 | **Single Agent**   | Intermediate | JOH Benchmark: Groups A/B/C ablation study            | [Go](examples/single_agent/)   |
 | **Irrigation ABM** | Intermediate | Colorado River Basin water demand (Hung & Yang, 2021) | [Go](examples/irrigation_abm/) |
 | **Multi-Agent**    | Advanced     | Social dynamics, insurance market, government policy  | [Go](examples/multi_agent/)    |
-| **Finance**        | Extension    | Cross-domain demonstration (portfolio decisions)      | [Go](examples/archive/finance/) |
 
 ### 5. WRR Paper Workspace
 
@@ -273,7 +272,7 @@ LLM-driven ABMs face five recurring problems that this framework solves:
 
 ## Unified Architecture (v3.5)
 
-The framework utilizes a layered middleware approach that unifies single-agent isolated reasoning with multi-agent social simulations. As of v3.5, all broker-level modules are **fully domain-agnostic** — construct names, action vocabularies, LLM timeouts, and validation keywords are loaded from YAML configuration rather than hardcoded.
+The framework utilizes a layered governance architecture that unifies single-agent isolated reasoning with multi-agent social simulations. As of v3.5, all broker-level modules are **fully domain-agnostic** — construct names, action vocabularies, LLM timeouts, and validation keywords are loaded from YAML configuration rather than hardcoded.
 
 ![Unified Architecture v3.3](docs/architecture.png)
 
