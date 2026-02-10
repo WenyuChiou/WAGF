@@ -1,0 +1,20 @@
+# WAGF Quickstart — Skill Registry
+skills:
+  - skill_id: take_action
+    description: "Take a protective action (costs resources but reduces risk)"
+    eligible_agent_types: ["*"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes:
+      - protected
+    implementation_mapping: "sim.protect"
+
+  - skill_id: do_nothing
+    description: "Do nothing this round"
+    eligible_agent_types: ["*"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes: []
+    implementation_mapping: "sim.noop"
+
+default_skill: do_nothing
