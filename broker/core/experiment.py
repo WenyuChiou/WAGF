@@ -10,6 +10,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from cognitive_governance.agents import BaseAgent
 from ..interfaces.skill_types import ApprovedSkill, SkillOutcome, SkillBrokerResult, ExecutionResult, SkillProposal
+from ..interfaces.lifecycle_protocols import PreYearHook, PostStepHook, PostYearHook
 from .skill_broker_engine import SkillBrokerEngine
 from ..components.context_builder import BaseAgentContextBuilder
 from ..components.memory_engine import MemoryEngine, WindowMemoryEngine, HierarchicalMemoryEngine
@@ -48,7 +49,22 @@ class ExperimentRunner:
         self.step_counter = 0
         self.memory_engine = memory_engine or WindowMemoryEngine(window_size=3)
         self.hooks = hooks or {}
-        
+
+        # Validate hook signatures (warning only, non-breaking)
+        _hook_protocols = {
+            "pre_year": PreYearHook, "pre_step": PreYearHook,
+            "post_step": PostStepHook,
+            "post_year": PostYearHook, "post_step_end": PostYearHook,
+        }
+        for name, hook_fn in self.hooks.items():
+            expected = _hook_protocols.get(name)
+            if expected and not isinstance(hook_fn, expected):
+                logger.warning(
+                    f"[Lifecycle:Diagnostic] Hook '{name}' does not match "
+                    f"{expected.__name__} protocol signature. "
+                    f"See broker.interfaces.lifecycle_protocols for expected signatures."
+                )
+
         # Sync verbosity
         self.broker.log_prompt = self.config.verbose
         
