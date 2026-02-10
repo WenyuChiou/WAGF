@@ -1,0 +1,95 @@
+[
+  {
+    "case_id": "H1",
+    "type": "Feasibility hallucination (identity/precondition)",
+    "file": "examples/single_agent/results/JOH_FINAL/ministral3_3b/Group_B/Run_1/raw/household_traces.jsonl",
+    "line": 446,
+    "agent_id": "Agent_73",
+    "year": 5,
+    "outcome": "REJECTED",
+    "retry_count": 3,
+    "skill_name": "elevate_house",
+    "state_elevated": true,
+    "state_relocated": false,
+    "state_insured": true,
+    "validation_issues": [
+      {
+        "validator": "AgentValidator:format",
+        "rule_id": "Unknown",
+        "errors": [
+          "Response missing required fields: reasoning"
+        ]
+      },
+      {
+        "validator": "AgentValidator:identity_error",
+        "rule_id": "elevation_block",
+        "errors": [
+          "[Rule: elevation_block] Identity Block: elevate_house restricted by elevated"
+        ]
+      },
+      {
+        "validator": "AgentValidator:thinking_error",
+        "rule_id": "elevation_threat_low",
+        "errors": [
+          "[Rule: elevation_threat_low] Elevation blocked: Your threat appraisal ({context.TP_LABEL}) is too low. Consider scenarios with threat >= M."
+        ]
+      },
+      {
+        "validator": "SkillRegistry.preconditions",
+        "rule_id": "Unknown",
+        "errors": [
+          "Precondition failed: 'not elevated' (field is True)"
+        ]
+      }
+    ],
+    "reasoning_excerpt": "{'TP_LABEL': 'L', 'TP_REASON': '.\"},\\n\\n  \"coping_appraisal\": {\"label', 'CP_LABEL': 'M', 'CP_REASON': '\": {\"label\": \"M\", \"reason\": \"Confid', 'demographic_audit': {'score': 0.0, 'details': 'No anchors found in context'}, "
+  },
+  {
+    "case_id": "R1",
+    "type": "Rationality deviation (low-threat costly structural)",
+    "file": "examples/single_agent/results/JOH_FINAL/gemma3_12b/Group_B/Run_2/raw/household_traces.jsonl",
+    "line": 113,
+    "agent_id": "Agent_13",
+    "year": 2,
+    "outcome": "REJECTED",
+    "retry_count": 3,
+    "skill_name": "elevate_house",
+    "state_elevated": false,
+    "state_relocated": false,
+    "state_insured": true,
+    "validation_issues": [
+      {
+        "validator": "AgentValidator:thinking_error",
+        "rule_id": "elevation_threat_low",
+        "errors": [
+          "[Rule: elevation_threat_low] Elevation blocked: Your threat appraisal ({context.TP_LABEL}) is too low. Consider scenarios with threat >= M."
+        ]
+      }
+    ],
+    "reasoning_excerpt": "{'strategy': '', 'confidence': 1.0, 'reasoning': \"While I have flood insurance, my doubts about the insurance company and skepticism towards my neighbors' actions make me uneasy. The flood 15 years ago, though not direct"
+  },
+  {
+    "case_id": "R2",
+    "type": "Rationality deviation (high-threat inaction after retry cap)",
+    "file": "examples/single_agent/results/JOH_FINAL/gemma3_4b/Group_B/Run_1/raw/household_traces.jsonl",
+    "line": 231,
+    "agent_id": "Agent_31",
+    "year": 3,
+    "outcome": "REJECTED",
+    "retry_count": 3,
+    "skill_name": "do_nothing",
+    "state_elevated": true,
+    "state_relocated": false,
+    "state_insured": false,
+    "validation_issues": [
+      {
+        "validator": "AgentValidator:thinking_error",
+        "rule_id": "extreme_threat_block",
+        "errors": [
+          "[Rule: extreme_threat_block] Thinking Block: do_nothing restricted by thinking rules"
+        ]
+      }
+    ],
+    "reasoning_excerpt": "{'strategy': '', 'confidence': 1.0, 'reasoning': \"Given my elevated house and the recent flood, my perceived severity is high, but my vulnerability is relatively low considering the neighborhood’s elevation efforts. I st"
+  }
+]
