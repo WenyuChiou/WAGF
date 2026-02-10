@@ -233,6 +233,10 @@ L1–L5 and L7 power all experiments; L6 is multi-agent only.
 - **[Customization Guide](docs/guides/customization_guide.md)**: Adding new skills, validators, and audit fields.
 - **[Integration Guide](docs/guides/integration_guide.md)**: Connecting external environments to the broker.
 - **[Agent Type Specification Guide](docs/guides/agent_type_specification_guide.md)**: Defining new agent types in YAML.
+- **[Advanced Patterns Guide](docs/guides/advanced_patterns.md)**: State hierarchy, two-way coupling, per-agent-type LLM configuration.
+- **[Multi-Agent Setup Guide](docs/guides/multi_agent_setup_guide.md)**: Full walkthrough for heterogeneous agent populations.
+- **[Troubleshooting Guide](docs/guides/troubleshooting_guide.md)**: Error catalog with solutions.
+- **[YAML Configuration Reference](docs/references/yaml_configuration_reference.md)**: Field-by-field reference for all YAML files.
 
 ### Architecture Specs (`docs/architecture/`)
 

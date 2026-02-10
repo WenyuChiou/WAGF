@@ -81,16 +81,31 @@ class ExperimentRunner:
         return self.get_llm_invoke("default")
 
     def get_llm_invoke(self, agent_type: str) -> Callable:
-        """Create or return cached llm_invoke for a specific agent type."""
+        """Create or return cached llm_invoke for a specific agent type.
+
+        Supports per-type model names via ``llm_params.model`` in YAML:
+
+        .. code-block:: yaml
+
+            government:
+              llm_params:
+                model: llama3.3:70b   # overrides CLI --model for this type
+
+        If ``model`` is not specified in ``llm_params``, the CLI/builder model
+        (``self.config.model``) is used as fallback.
+        """
         if agent_type not in self._llm_cache:
             from broker.utils.llm_utils import create_llm_invoke
             # Get parameters from config if available
             overrides = {}
             if hasattr(self.broker, 'config') and self.broker.config:
                 overrides = self.broker.config.get_llm_params(agent_type)
-            
+
+            # Per-type model name: llm_params.model overrides CLI model
+            model_name = overrides.pop("model", None) or self.config.model
+
             self._llm_cache[agent_type] = create_llm_invoke(
-                self.config.model, 
+                model_name,
                 verbose=self.config.verbose,
                 overrides=overrides
             )
