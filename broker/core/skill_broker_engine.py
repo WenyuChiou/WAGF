@@ -197,12 +197,25 @@ class SkillBrokerEngine:
         if env_context is None:
             env_context = {}
 
+        flat_state = context.get("state", {})
+        flat_env = env_context
+
+        # Diagnostic: warn on key collisions between agent state and env context
+        if __debug__:
+            collisions = set(flat_state.keys()) & set(flat_env.keys())
+            if collisions:
+                logger.warning(
+                    f"[Governance:Diagnostic] Key collision in validation context: "
+                    f"{collisions}. env_context takes precedence. "
+                    f"Consider using distinct key names."
+                )
+
         validation_context = {
             "agent_state": context,
             "agent_type": agent_type,
             "env_state": env_context,  # The "New Standard" source of truth
-            **context.get("state", {}),  # Flatten agent state for custom validators
-            **env_context             # Flat injection for legacy validator lookups
+            **flat_state,              # Flatten agent state for custom validators
+            **flat_env,                # Flat injection for legacy validator lookups
         }
 
         # Inject proposed magnitude into validation context (activates magnitude_cap_check)
@@ -773,9 +786,9 @@ class SkillBrokerEngine:
             is_generic_fallback = (skill_proposal is None or skill_proposal.parse_layer == "default")
 
             if skill_proposal and skill_proposal.magnitude_pct is not None:
-                skill_proposal.magnitude_fallback = True
-                skill_proposal.magnitude_pct = None
-                _params = {"magnitude_fallback": True}
+                # Don't mutate the original SkillProposal — carry values via _params
+                # (the proposal may be referenced by audit writer, memory, or cache)
+                _params = {"magnitude_pct": None, "magnitude_fallback": True}
 
             fallout_skill = (
                 skill_proposal.skill_name if not is_generic_fallback

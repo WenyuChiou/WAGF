@@ -43,8 +43,22 @@ class SkillRegistry:
         Also reads the top-level ``default_skill`` key (if present) and
         sets the registry's default fallback skill accordingly.
         """
-        with open(yaml_path, 'r', encoding='utf-8') as f:
-            data = yaml.safe_load(f)
+        try:
+            with open(yaml_path, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f)
+        except FileNotFoundError:
+            raise FileNotFoundError(
+                f"Skill registry configuration not found: {yaml_path}\n"
+                f"  Tip: Ensure the file exists and the path is correct.\n"
+                f"  Use: registry.register_from_yaml('path/to/skill_registry.yaml')"
+            )
+        except yaml.YAMLError as e:
+            mark = getattr(e, 'problem_mark', None)
+            location = f" (line {mark.line + 1})" if mark else ""
+            raise ValueError(
+                f"Invalid YAML in skill registry {yaml_path}{location}: {e}\n"
+                f"  Tip: Check indentation, colons, and special characters."
+            ) from e
 
         for skill_data in data.get('skills', []):
             skill = SkillDefinition(

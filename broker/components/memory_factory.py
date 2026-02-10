@@ -1,30 +1,25 @@
-﻿"""
+"""
 Shared Memory Engine Factory for SA/MA.
 
-Provides a unified creation API for all supported memory engines:
+Provides a unified creation API for all supported memory engines.
+Delegates to MemoryEngineRegistry for engine resolution.
+
+Supported engines:
 - window, humancentric (production)
 - universal, unified (advanced research)
 - importance, hierarchical (deprecated — use humancentric instead)
+
+External users can register custom engines:
+    from broker.components.memory_registry import MemoryEngineRegistry
+    MemoryEngineRegistry.register("my_engine", MyEngineClass)
 """
 import logging
 from typing import Optional, Dict, Any
 
-logger = logging.getLogger(__name__)
-
 from broker.components.memory_engine import MemoryEngine
-from broker.components.engines.window_engine import WindowMemoryEngine
-from broker.components.engines.importance_engine import ImportanceMemoryEngine
-from broker.components.engines.humancentric_engine import HumanCentricMemoryEngine
-from broker.components.engines.hierarchical_engine import HierarchicalMemoryEngine
-from broker.components.universal_memory import UniversalCognitiveEngine
-from cognitive_governance.memory.unified_engine import UnifiedCognitiveEngine as UnifiedEngine
+from broker.components.memory_registry import MemoryEngineRegistry
 
-
-def _normalize_engine_type(engine_type: str) -> str:
-    normalized = engine_type.lower()
-    if normalized == "human_centric":
-        return "humancentric"
-    return normalized
+logger = logging.getLogger(__name__)
 
 
 def create_memory_engine(
@@ -37,108 +32,20 @@ def create_memory_engine(
     Factory function for creating memory engines.
 
     Args:
-        engine_type: One of "window", "importance", "humancentric",
-                     "hierarchical", "universal", "unified"
-        config: Engine-specific configuration dict
-        scorer: Optional memory scorer
+        engine_type: Registered engine type name (e.g., "window", "humancentric").
+        config: Engine-specific configuration dict.
+        scorer: Optional memory scorer to inject.
         **kwargs: Additional engine parameters (merged into config for
-                  backward compatibility with the legacy create_memory_engine API)
+                  backward compatibility with the legacy API).
 
     Returns:
-        Configured MemoryEngine instance
+        Configured MemoryEngine instance.
+
+    Raises:
+        ValueError: If engine_type is not registered.
     """
     config = {**(config or {}), **kwargs}
-    kwargs = {}  # consumed — avoid passing duplicates to constructors
-    engine_type = _normalize_engine_type(engine_type)
-
-    if engine_type == "window":
-        engine = WindowMemoryEngine(
-            window_size=config.get("window_size", 5),
-        )
-    elif engine_type == "importance":
-        logger.warning(
-            "ImportanceMemoryEngine is deprecated. "
-            "Use engine_type='humancentric' (HumanCentricMemoryEngine) instead."
-        )
-        engine = ImportanceMemoryEngine(
-            window_size=config.get("window_size", 5),
-        )
-    elif engine_type == "humancentric":
-        engine = HumanCentricMemoryEngine(
-            window_size=config.get("window_size", 5),
-            top_k_significant=config.get("top_k_significant", 2),
-            consolidation_prob=config.get("consolidation_probability", 0.7),
-            decay_rate=config.get("decay_rate", 0.1),
-        )
-    elif engine_type == "hierarchical":
-        logger.warning(
-            "HierarchicalMemoryEngine is deprecated. "
-            "Use engine_type='humancentric' (HumanCentricMemoryEngine) instead."
-        )
-        engine = HierarchicalMemoryEngine(
-            window_size=config.get("window_size", 5),
-            semantic_top_k=config.get("top_k_significant", 3),
-        )
-    elif engine_type == "universal":
-        engine = UniversalCognitiveEngine(
-            stimulus_key=config.get("stimulus_key"),
-            sensory_cortex=config.get("sensory_cortex"),
-            arousal_threshold=config.get("arousal_threshold", 1.0),
-            ema_alpha=config.get("ema_alpha", 0.3),
-            window_size=config.get("window_size", 3),
-            top_k_significant=config.get("top_k_significant", 2),
-            consolidation_prob=config.get("consolidation_probability", 0.7),
-            consolidation_threshold=config.get("consolidation_threshold", 0.6),
-            decay_rate=config.get("decay_rate", 0.1),
-            ranking_mode=config.get("ranking_mode", "weighted"),
-            emotional_weights=config.get("emotional_weights"),
-            source_weights=config.get("source_weights"),
-            seed=config.get("seed"),
-        )
-    elif engine_type == "unified":
-        # v5 UnifiedEngine requires explicit strategy creation
-        from cognitive_governance.memory.strategies import (
-            EMASurpriseStrategy,
-            SymbolicSurpriseStrategy,
-            HybridSurpriseStrategy,
-        )
-
-        # Extract memory config from nested structure if needed
-        mem_cfg = config
-        if "global_config" in config and "memory" in config.get("global_config", {}):
-            mem_cfg = config["global_config"]["memory"]
-        elif "memory" in config:
-            mem_cfg = config["memory"]
-
-        # Get strategy parameters (ignoring unsupported kwargs like window_size, ranking_mode)
-        strategy_type = mem_cfg.get("surprise_strategy", "ema")
-        ema_alpha = mem_cfg.get("ema_alpha", 0.3)
-        # Domain-specific stimulus key — configured in agent_types.yaml
-        # (e.g., "flood_depth" for flood, "drought_index" for irrigation)
-        stimulus_key = mem_cfg.get("stimulus_key")
-
-        if strategy_type == "symbolic":
-            strategy = SymbolicSurpriseStrategy(default_sensor_key=stimulus_key)
-        elif strategy_type == "hybrid":
-            strategy = HybridSurpriseStrategy(
-                ema_weight=0.6,
-                symbolic_weight=0.4,
-                ema_stimulus_key=stimulus_key,
-                ema_alpha=ema_alpha,
-            )
-        else:  # default: ema
-            strategy = EMASurpriseStrategy(stimulus_key=stimulus_key, alpha=ema_alpha)
-
-        engine = UnifiedEngine(
-            surprise_strategy=strategy,
-            arousal_threshold=mem_cfg.get("arousal_threshold", 0.5),
-            emotional_weights=mem_cfg.get("emotional_weights"),
-            source_weights=mem_cfg.get("source_weights"),
-            decay_rate=mem_cfg.get("decay_rate", 0.1),
-            seed=mem_cfg.get("seed", config.get("seed", 42)),
-        )
-    else:
-        raise ValueError(f"Unknown engine type: {engine_type}")
+    engine = MemoryEngineRegistry.create(engine_type, config)
 
     if scorer is not None and hasattr(engine, "scorer"):
         engine.scorer = scorer

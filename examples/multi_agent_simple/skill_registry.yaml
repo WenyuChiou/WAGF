@@ -1,0 +1,48 @@
+# Multi-Agent Simple — Skill Registry
+# Two types: "farmer" agents decide water usage, "regulator" reacts to basin state
+skills:
+  - skill_id: increase_usage
+    description: "Increase water usage by a moderate amount"
+    eligible_agent_types: ["farmer"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes:
+      - water_usage
+    implementation_mapping: "sim.increase_usage"
+
+  - skill_id: decrease_usage
+    description: "Decrease water usage to conserve"
+    eligible_agent_types: ["farmer"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes:
+      - water_usage
+    implementation_mapping: "sim.decrease_usage"
+    conflicts_with: [increase_usage]
+
+  - skill_id: maintain_usage
+    description: "Keep current water usage level"
+    eligible_agent_types: ["farmer"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes: []
+    implementation_mapping: "sim.noop"
+
+  - skill_id: issue_warning
+    description: "Issue a conservation warning to all farmers"
+    eligible_agent_types: ["regulator"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes:
+      - warning_active
+    implementation_mapping: "sim.issue_warning"
+
+  - skill_id: no_action
+    description: "Take no regulatory action"
+    eligible_agent_types: ["regulator"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes: []
+    implementation_mapping: "sim.noop"
+
+default_skill: maintain_usage

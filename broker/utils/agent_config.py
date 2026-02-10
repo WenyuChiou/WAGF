@@ -106,6 +106,13 @@ class AgentTypeConfig:
                 cls._instances[resolved] = inst
             cls._instance = cls._instances[resolved]  # backward-compatible handle
             return cls._instance
+
+    @classmethod
+    def clear_cache(cls) -> None:
+        """Clear all cached instances. Useful for test teardown."""
+        with cls._lock:
+            cls._instances.clear()
+            cls._instance = None
     
     def _load_yaml(self, yaml_path: Optional[str] = None):
         """Load from YAML file."""
@@ -117,11 +124,24 @@ class AgentTypeConfig:
             self._yaml_path = str(yaml_path)
             # logger.info(f"Loaded configuration from {yaml_path}")
         except FileNotFoundError:
-            # Fallback to empty config if file missing (useful for testing)
+            logger.warning(
+                f"[Config] Agent type configuration not found: {yaml_path}\n"
+                f"  Tip: Ensure the file exists and the path is correct.\n"
+                f"  Use: AgentTypeConfig.load('path/to/agent_types.yaml')"
+            )
+            self._config = {}
+            self._yaml_path = None
+        except yaml.YAMLError as e:
+            mark = getattr(e, 'problem_mark', None)
+            location = f" (line {mark.line + 1})" if mark else ""
+            logger.warning(
+                f"[Config] Invalid YAML in {yaml_path}{location}: {e}\n"
+                f"  Tip: Check indentation, colons, and special characters."
+            )
             self._config = {}
             self._yaml_path = None
         except Exception as e:
-            logger.warning(f"Failed to load config from {yaml_path}: {e}")
+            logger.warning(f"[Config] Failed to load config from {yaml_path}: {e}")
             self._config = {}
             self._yaml_path = None
     

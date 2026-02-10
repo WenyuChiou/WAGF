@@ -1,0 +1,86 @@
+# Multi-Agent Simple -- Agent Type Configuration
+# Demonstrates: 2 agent types, phase ordering, identity governance rules
+
+shared:
+  rating_scale: |
+    ### RATING SCALE:
+    VL = Very Low | L = Low | M = Medium | H = High | VH = Very High
+
+  response_format:
+    delimiter_start: "<<<DECISION_START>>>"
+    delimiter_end: "<<<DECISION_END>>>"
+    fields:
+      - { key: "reasoning", type: "text", required: false }
+      - { key: "decision", type: "decision", required: true }
+
+global_config:
+  memory:
+    window_size: 5
+  llm:
+    num_ctx: 4096
+    num_predict: 1024
+    max_retries: 2
+  governance:
+    max_retries: 2
+    max_reports_per_retry: 2
+
+# --- Phase 1: Regulator decides first ---
+regulator:
+  prompt_template: |
+    You are a water basin regulator.
+    Current basin level: {basin_level}% of capacity.
+    Number of farmers: {num_farmers}.
+
+    Choose one action:
+    1. issue_warning -- Issue conservation warning to farmers
+    2. no_action -- Take no regulatory action
+
+    {response_format}
+  parsing:
+    strict_mode: true
+    decision_keywords: ["decision"]
+    skill_map:
+      "1": issue_warning
+      "2": no_action
+    actions:
+      - id: issue_warning
+        aliases: ["1", "issue warning", "warn"]
+      - id: no_action
+        aliases: ["2", "no action", "none"]
+
+# --- Phase 2: Farmers react (may see regulator warning) ---
+farmer:
+  prompt_template: |
+    You are a farmer managing water usage.
+    Current water level: {basin_level}% of capacity.
+    Your current usage: {water_usage} units.
+    {warning_text}
+
+    Choose one action:
+    1. increase_usage -- Use more water for crops
+    2. decrease_usage -- Conserve water
+    3. maintain_usage -- Keep current level
+
+    {response_format}
+  parsing:
+    strict_mode: true
+    decision_keywords: ["decision"]
+    skill_map:
+      "1": increase_usage
+      "2": decrease_usage
+      "3": maintain_usage
+    actions:
+      - id: increase_usage
+        aliases: ["1", "increase"]
+      - id: decrease_usage
+        aliases: ["2", "decrease", "conserve"]
+      - id: maintain_usage
+        aliases: ["3", "maintain", "keep"]
+  governance:
+    strict:
+      identity_rules:
+        - id: no_increase_when_warning
+          precondition: warning_active
+          blocked_skills: [increase_usage]
+          level: ERROR
+          message: "Conservation warning active -- cannot increase usage."

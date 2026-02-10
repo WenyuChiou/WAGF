@@ -662,7 +662,43 @@ class ExperimentBuilder:
         self._exact_output = True
         return self
 
+    def validate(self) -> list:
+        """Validate builder configuration before building.
+
+        Returns:
+            List of validation error strings (empty if valid).
+        """
+        errors = []
+        if not self.agents:
+            errors.append(
+                "No agents specified. Use .with_agents(dict) or .with_csv_agents(path, mapping, agent_type)."
+            )
+        if not self.skill_registry:
+            errors.append(
+                "No skill registry specified. Use .with_skill_registry('path/to/skills.yaml') "
+                "or .with_skill_registry(SkillRegistry())."
+            )
+        if self.profile != "default" and not self.agent_types_path:
+            errors.append(
+                f"Governance profile '{self.profile}' requires agent_types.yaml. "
+                f"Use .with_governance('{self.profile}', 'path/to/agent_types.yaml')."
+            )
+        if self.workers < 1:
+            errors.append(f"Workers must be >= 1, got {self.workers}.")
+        if self.num_years < 1 and (self.num_steps is None or self.num_steps < 1):
+            errors.append("Simulation must run for at least 1 year/step.")
+        return errors
+
     def build(self) -> ExperimentRunner:
+        """Build the ExperimentRunner. Validates configuration first."""
+        # Validate before building
+        errors = self.validate()
+        if errors:
+            msg = "ExperimentBuilder validation failed:\n" + "\n".join(
+                f"  - {err}" for err in errors
+            )
+            raise ValueError(msg)
+
         # Complex assembly logic here
         from broker import SkillRegistry
         from broker import GenericAuditWriter, AuditConfig
