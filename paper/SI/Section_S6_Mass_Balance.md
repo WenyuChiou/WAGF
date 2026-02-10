@@ -19,13 +19,13 @@ The inflow and outflow terms are computed as follows:
 
     Mead_outflow  = LB_div + Mexico(DCP) + Evap(storage) + 5.0
 
-where 5.0 MAF represents Lower Basin non-agricultural demands (municipal and industrial, tribal, Central Arizona Project, and system losses). Natural flow at the basin's reference precipitation of 100.0 mm averages 12.0 MAF/yr. Upper Basin diversions are constrained by both the Powell minimum release of 7.0 MAF (USBR Drought Contingency Plan operating rules) and a 5.0 MAF infrastructure ceiling reflecting historical Upper Basin depletion capacity.
+where 5.0 MAF represents Lower Basin non-agricultural demands (municipal and industrial, tribal, Central Arizona Project, and system losses). Natural flow at the basin's reference precipitation of 100.0 mm averages 12.0 MAF/yr. Upper Basin diversions are constrained by both the Powell minimum release of 7.0 MAF (USBR, 2019) and a 5.0 MAF infrastructure ceiling reflecting historical Upper Basin depletion capacity.
 
 Evaporation scales with reservoir surface area using a storage-fraction proxy:
 
     Evap = 0.8 * clamp(Storage / 13.0, 0.15, 1.50)    [MAF/yr]
 
-where 13.0 MAF corresponds to the reference storage at approximately 1100 ft elevation. Mexico treaty deliveries follow Minute 323 tiered reductions: 1.5 MAF at normal levels, reduced by 0.041-0.275 MAF as Lake Mead elevation declines through thresholds at 1090, 1075, 1050, and 1025 ft.
+where 13.0 MAF corresponds to the reference storage at approximately 1100 ft elevation. This simplified evaporation proxy is calibrated to match USBR published estimates of 0.6–1.0 MAF/yr for Lake Mead; no independent validation source exists. Mexico treaty deliveries follow Minute 323 tiered reductions (IBWC, 2017): 1.5 MAF at normal levels, reduced by 0.041-0.275 MAF as Lake Mead elevation declines through thresholds at 1090, 1075, 1050, and 1025 ft.
 
 #### S6.2 Elevation-Storage Relationship
 
@@ -58,7 +58,7 @@ where `request` is the agent's demand decision and `curtailment_ratio` is set by
 
 #### S6.5 Bidirectional Feedback Loop
 
-The mass balance creates a fully coupled human-water system with bidirectional feedback:
+The mass balance creates a fully coupled human-water system with bidirectional feedback, consistent with the socio-hydrology framework (Sivapalan et al., 2012). Agent appraisal constructs (Water Scarcity Assessment, Adaptive Capacity Assessment) follow the cognitive appraisal framework of Lazarus and Folkman (1984), implemented as categorical labels (VL/L/M/H/VH).
 
 1. **Agents to reservoir**: Each agent selects a skill (increase, maintain, or decrease demand). The environment samples a magnitude from a persona-scaled Gaussian distribution and computes the new request. After curtailment, agent diversions aggregate into total Lower Basin and Upper Basin withdrawals, which enter the mass balance as outflow (LB) or as reduced Powell release (UB).
 
