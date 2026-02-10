@@ -1,8 +1,21 @@
 # Experiment Design Guide
 
-This guide walks through building a new SAGE-governed experiment from scratch. Both existing experiments — flood adaptation (PMT) and Colorado River irrigation (dual-appraisal) — follow this pattern.
+This guide walks through building a new WAGF-governed experiment from scratch. Both existing experiments — flood adaptation (PMT) and Colorado River irrigation (dual-appraisal) — follow this pattern.
 
-> **Audience**: Graduate students and researchers building hydro-social ABM experiments using the SAGE governance middleware.
+> **Audience**: Graduate students and researchers building hydro-social ABM experiments using the WAGF governance middleware.
+
+---
+
+## Before You Start
+
+Copy the minimal template to bootstrap your experiment:
+
+```bash
+cp -r examples/minimal examples/your_domain
+cd examples/your_domain
+```
+
+See `examples/minimal/README.md` for a checklist of what to customize.
 
 ---
 
@@ -536,10 +549,68 @@ results/<run_name>/
 
 ---
 
+## Single-Agent Mode (No Social Network)
+
+If your domain does NOT require neighbor interactions, you can skip the social layer entirely. The `examples/minimal/` template demonstrates this pattern — zero social imports.
+
+**Pattern: No InteractionHub**
+
+```python
+runner = (
+    ExperimentBuilder()
+    .with_model("gemma3:4b")
+    .with_agents(agents)
+    .with_simulation(sim)
+    .with_skill_registry("skill_registry.yaml")
+    .with_memory_engine(WindowMemoryEngine(window_size=3))
+    .with_governance("strict", "agent_types.yaml")
+).build()
+# No social graph, no InteractionHub — just the core loop
+```
+
+The social layer (`SocialGraph`, `InteractionHub`, `PhaseOrchestrator`) is fully optional. These components are only needed for multi-agent experiments with neighbor observations and gossip propagation.
+
+---
+
+## Simulation Engine Contracts
+
+ExperimentRunner uses duck typing with fallback logic for simulation engines:
+
+```python
+# ExperimentRunner tries both method names:
+if hasattr(sim_engine, 'advance_step'):
+    env = sim_engine.advance_step()  # Generic term (any time model)
+else:
+    env = sim_engine.advance_year()  # Domain-specific term (temporal)
+```
+
+Your simulation class should implement at minimum `advance_year()`. For skill execution, optionally implement `execute_skill()`:
+
+```python
+class YourSimulation:
+    def advance_year(self) -> Dict[str, Any]:
+        self.year += 1
+        return {"current_year": self.year, "event_occurred": ...}
+
+    def execute_skill(self, approved_skill: ApprovedSkill) -> ExecutionResult:
+        # Apply state changes to agent
+        return ExecutionResult(success=True, state_changes={...})
+```
+
+For IDE type checking support, use the protocol:
+
+```python
+from broker.interfaces.simulation_protocols import SimulationEngineProtocol
+sim: SimulationEngineProtocol = YourSimulation(...)
+```
+
+---
+
 ## Reference Implementations
 
 | Experiment | Theory | Agents | Horizon | Key Files |
 |-----------|--------|--------|---------|-----------|
+| `examples/minimal/` | Generic | 3 agents | 5 years | [README](../../examples/minimal/README.md) |
 | `examples/governed_flood/` | PMT (Rogers, 1983) | 100 households | 10 years | [README](../../examples/governed_flood/README.md) |
 | `examples/irrigation_abm/` | Dual-Appraisal (Hung & Yang, 2021) | 78 CRSS users | 42 years | [README](../../examples/irrigation_abm/README.md) |
 | `examples/single_agent/` | PMT (full ablation) | 100 households | 10 years | Groups A/B/C validation |

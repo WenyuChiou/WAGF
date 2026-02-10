@@ -8,9 +8,15 @@ irrigation water management.
 
 # 1. Base Interfaces (No dependencies)
 from .interfaces.skill_types import (
-    SkillProposal, SkillDefinition, ApprovedSkill, 
+    SkillProposal, SkillDefinition, ApprovedSkill,
     ExecutionResult, SkillBrokerResult, SkillOutcome, ValidationResult
 )
+from .interfaces.environment_protocols import (
+    EnvironmentProtocol, TieredEnvironmentProtocol, SocialEnvironmentProtocol
+)
+from .interfaces.event_generator import EventGeneratorProtocol
+from .interfaces.simulation_protocols import SimulationEngineProtocol, SkillExecutorProtocol
+from .interfaces.lifecycle_protocols import PreYearHook, PostStepHook, PostYearHook
 
 # 2. Utils (Dependent on interfaces)
 from .utils.model_adapter import ModelAdapter, UnifiedAdapter, deepseek_preprocessor

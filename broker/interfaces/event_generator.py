@@ -7,7 +7,7 @@ Design Principles:
 3. Configurable frequency: per_year, per_step, on_demand
 4. Spatial awareness: Events can target specific locations
 """
-from typing import Dict, Any, List, Protocol, Optional
+from typing import Dict, Any, List, Protocol, Optional, runtime_checkable
 from dataclasses import dataclass, field
 from enum import Enum
 from datetime import datetime
@@ -74,6 +74,7 @@ class EnvironmentEvent:
         return False
 
 
+@runtime_checkable
 class EventGeneratorProtocol(Protocol):
     """Interface for event generators.
 
