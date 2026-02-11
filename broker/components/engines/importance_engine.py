@@ -2,7 +2,7 @@ from typing import List, Dict, Any, Optional
 import logging
 import warnings
 
-from cognitive_governance.agents import BaseAgent
+from broker.agents import BaseAgent
 from broker.components.memory_engine import MemoryEngine
 
 logger = logging.getLogger(__name__)

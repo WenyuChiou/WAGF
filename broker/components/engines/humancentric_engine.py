@@ -3,11 +3,11 @@ import copy
 import heapq
 import logging
 
-from cognitive_governance.agents import BaseAgent
+from broker.agents import BaseAgent
 from broker.components.memory_engine import MemoryEngine
 
 if TYPE_CHECKING:
-    from cognitive_governance.memory.strategies.base import SurpriseStrategy
+    from broker.memory.strategies.base import SurpriseStrategy
 
 logger = logging.getLogger(__name__)
 

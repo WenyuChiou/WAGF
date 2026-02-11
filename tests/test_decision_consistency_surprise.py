@@ -7,10 +7,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from cognitive_governance.memory.strategies.decision_consistency import (
+from broker.memory.strategies.decision_consistency import (
     DecisionConsistencySurprise,
 )
-from cognitive_governance.memory.strategies.base import SurpriseStrategy
+from broker.memory.strategies.base import SurpriseStrategy
 
 
 class TestDCSProtocolCompliance(unittest.TestCase):

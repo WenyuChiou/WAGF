@@ -1,7 +1,7 @@
 from typing import Dict, Any, Optional
 import logging
 
-from cognitive_governance.agents import BaseAgent
+from broker.agents import BaseAgent
 from broker import MemoryEngine
 from broker.interfaces.skill_types import SkillOutcome
 from examples.multi_agent.flood.environment.hazard import FloodEvent, HazardModule, VulnerabilityModule, YearMapping

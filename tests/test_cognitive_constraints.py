@@ -11,7 +11,7 @@ Reference:
 """
 import pytest
 
-from cognitive_governance.memory.config.cognitive_constraints import (
+from broker.memory.config.cognitive_constraints import (
     CognitiveConstraints,
     MILLER_STANDARD,
     COWAN_CONSERVATIVE,
@@ -208,7 +208,7 @@ class TestAdaptiveRetrievalEngineIntegration:
 
     def test_engine_accepts_cognitive_constraints(self):
         """AdaptiveRetrievalEngine should accept cognitive_constraints."""
-        from cognitive_governance.memory.retrieval import AdaptiveRetrievalEngine
+        from broker.memory.retrieval import AdaptiveRetrievalEngine
 
         constraints = CognitiveConstraints(
             system1_memory_count=4,
@@ -220,7 +220,7 @@ class TestAdaptiveRetrievalEngineIntegration:
 
     def test_engine_uses_miller_standard_by_default(self):
         """AdaptiveRetrievalEngine should use MILLER_STANDARD by default."""
-        from cognitive_governance.memory.retrieval import AdaptiveRetrievalEngine
+        from broker.memory.retrieval import AdaptiveRetrievalEngine
 
         engine = AdaptiveRetrievalEngine()
         assert engine.constraints.system1_memory_count == MILLER_STANDARD.system1_memory_count

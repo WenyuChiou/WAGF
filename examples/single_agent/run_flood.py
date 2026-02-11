@@ -598,7 +598,7 @@ def load_agents_from_survey(
     Returns dict of Agent objects compatible with the experiment runner.
     """
     from broker.modules.survey.agent_initializer import initialize_agents_from_survey
-    from cognitive_governance.agents import BaseAgent, AgentConfig
+    from broker.agents import BaseAgent, AgentConfig
 
     profiles, stats = initialize_agents_from_survey(
         survey_path=survey_path,

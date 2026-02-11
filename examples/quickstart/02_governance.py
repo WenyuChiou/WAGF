@@ -21,8 +21,8 @@ sys.path.insert(0, str(ROOT))
 from broker.core.experiment import ExperimentBuilder
 from broker.components.memory_engine import WindowMemoryEngine
 from broker.interfaces.skill_types import ExecutionResult
-from cognitive_governance.agents import BaseAgent, AgentConfig
-from cognitive_governance.agents.base import StateParam, Skill
+from broker.agents import BaseAgent, AgentConfig
+from broker.agents.base import StateParam, Skill
 
 # --- 1. Agent with "protected" and "wealth" state ---
 agent_cfg = AgentConfig(

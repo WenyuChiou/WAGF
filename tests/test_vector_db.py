@@ -42,7 +42,7 @@ class TestVectorMemoryIndex:
 
     def test_init_hnsw(self, embedding_dim):
         """Test HNSW index initialization."""
-        from cognitive_governance.memory.vector_db import VectorMemoryIndex
+        from broker.memory.vector_db import VectorMemoryIndex
 
         index = VectorMemoryIndex(embedding_dim=embedding_dim, use_hnsw=True)
 
@@ -52,7 +52,7 @@ class TestVectorMemoryIndex:
 
     def test_init_flat(self, embedding_dim):
         """Test flat index initialization."""
-        from cognitive_governance.memory.vector_db import VectorMemoryIndex
+        from broker.memory.vector_db import VectorMemoryIndex
 
         index = VectorMemoryIndex(embedding_dim=embedding_dim, use_hnsw=False)
 
@@ -61,7 +61,7 @@ class TestVectorMemoryIndex:
 
     def test_add_and_search(self, embedding_dim, random_embedding):
         """Test basic add and search operations."""
-        from cognitive_governance.memory.vector_db import VectorMemoryIndex
+        from broker.memory.vector_db import VectorMemoryIndex
 
         index = VectorMemoryIndex(embedding_dim=embedding_dim)
 
@@ -88,7 +88,7 @@ class TestVectorMemoryIndex:
 
     def test_search_empty_index(self, embedding_dim, random_embedding):
         """Test search on empty index returns empty list."""
-        from cognitive_governance.memory.vector_db import VectorMemoryIndex
+        from broker.memory.vector_db import VectorMemoryIndex
 
         index = VectorMemoryIndex(embedding_dim=embedding_dim)
         results = index.search(random_embedding(), top_k=5)
@@ -97,7 +97,7 @@ class TestVectorMemoryIndex:
 
     def test_remove(self, embedding_dim, random_embedding):
         """Test item removal."""
-        from cognitive_governance.memory.vector_db import VectorMemoryIndex
+        from broker.memory.vector_db import VectorMemoryIndex
 
         index = VectorMemoryIndex(embedding_dim=embedding_dim)
 
@@ -118,7 +118,7 @@ class TestVectorMemoryIndex:
 
     def test_rebuild(self, embedding_dim, random_embedding):
         """Test index rebuild after removals."""
-        from cognitive_governance.memory.vector_db import VectorMemoryIndex
+        from broker.memory.vector_db import VectorMemoryIndex
 
         index = VectorMemoryIndex(embedding_dim=embedding_dim)
 
@@ -139,7 +139,7 @@ class TestVectorMemoryIndex:
 
     def test_dimension_mismatch(self, embedding_dim):
         """Test that dimension mismatch raises error."""
-        from cognitive_governance.memory.vector_db import VectorMemoryIndex
+        from broker.memory.vector_db import VectorMemoryIndex
 
         index = VectorMemoryIndex(embedding_dim=embedding_dim)
 
@@ -150,7 +150,7 @@ class TestVectorMemoryIndex:
 
     def test_update_existing(self, embedding_dim, random_embedding):
         """Test updating an existing item."""
-        from cognitive_governance.memory.vector_db import VectorMemoryIndex
+        from broker.memory.vector_db import VectorMemoryIndex
 
         index = VectorMemoryIndex(embedding_dim=embedding_dim)
 
@@ -164,7 +164,7 @@ class TestVectorMemoryIndex:
 
     def test_clear(self, embedding_dim, random_embedding):
         """Test clearing the index."""
-        from cognitive_governance.memory.vector_db import VectorMemoryIndex
+        from broker.memory.vector_db import VectorMemoryIndex
 
         index = VectorMemoryIndex(embedding_dim=embedding_dim)
 
@@ -177,7 +177,7 @@ class TestVectorMemoryIndex:
 
     def test_get_stats(self, embedding_dim, random_embedding):
         """Test statistics retrieval."""
-        from cognitive_governance.memory.vector_db import VectorMemoryIndex
+        from broker.memory.vector_db import VectorMemoryIndex
 
         index = VectorMemoryIndex(embedding_dim=embedding_dim, use_hnsw=True)
 
@@ -196,7 +196,7 @@ class TestAgentVectorIndex:
 
     def test_multi_agent_isolation(self, embedding_dim, random_embedding):
         """Test that agent indices are isolated."""
-        from cognitive_governance.memory.vector_db import AgentVectorIndex
+        from broker.memory.vector_db import AgentVectorIndex
 
         manager = AgentVectorIndex(embedding_dim=embedding_dim)
 
@@ -219,7 +219,7 @@ class TestAgentVectorIndex:
 
     def test_clear_agent(self, embedding_dim, random_embedding):
         """Test clearing a single agent's index."""
-        from cognitive_governance.memory.vector_db import AgentVectorIndex
+        from broker.memory.vector_db import AgentVectorIndex
 
         manager = AgentVectorIndex(embedding_dim=embedding_dim)
 
@@ -241,7 +241,7 @@ class TestVectorIndexPerformance:
     @pytest.mark.benchmark
     def test_search_performance(self, embedding_dim, random_embedding):
         """Benchmark search performance at different scales."""
-        from cognitive_governance.memory.vector_db import VectorMemoryIndex
+        from broker.memory.vector_db import VectorMemoryIndex
 
         scales = [100, 1000, 5000]
         results = {}
@@ -273,7 +273,7 @@ class TestVectorIndexPerformance:
     @pytest.mark.benchmark
     def test_linear_vs_hnsw(self, embedding_dim, random_embedding):
         """Compare linear scan vs HNSW performance."""
-        from cognitive_governance.memory.vector_db import VectorMemoryIndex
+        from broker.memory.vector_db import VectorMemoryIndex
 
         n = 1000
         iterations = 50

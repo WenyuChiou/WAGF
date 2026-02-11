@@ -19,7 +19,7 @@ from broker.interfaces.skill_types import (
     SkillOutcome, ExecutionResult,
 )
 from broker.components.memory_engine import WindowMemoryEngine
-from cognitive_governance.agents import BaseAgent, AgentConfig, StateParam
+from broker.agents import BaseAgent, AgentConfig, StateParam
 
 
 # ---------------------------------------------------------------------------

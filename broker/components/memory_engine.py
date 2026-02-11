@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional, Tuple, TYPE_CHECKING
 
-from cognitive_governance.agents import BaseAgent
+from broker.agents import BaseAgent
 
 if TYPE_CHECKING:
     from cognitive_governance.v1_prototype.memory import MemoryScorer, MemoryScore

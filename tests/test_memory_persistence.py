@@ -11,8 +11,8 @@ import numpy as np
 from pathlib import Path
 from typing import List
 
-from cognitive_governance.memory import UnifiedMemoryItem
-from cognitive_governance.memory.persistence import (
+from broker.memory import UnifiedMemoryItem
+from broker.memory.persistence import (
     MemoryCheckpoint,
     MemorySerializer,
     save_checkpoint,

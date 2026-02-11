@@ -13,7 +13,7 @@ Key components:
 - MemoryGraph: NetworkX-based graph memory structure (Task-050D)
 
 Usage:
-    from cognitive_governance.memory import (
+    from broker.memory import (
         UnifiedCognitiveEngine,
         UnifiedMemoryItem,
         EMASurpriseStrategy,

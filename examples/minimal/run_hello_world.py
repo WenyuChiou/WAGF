@@ -26,7 +26,7 @@ sys.path.insert(0, str(ROOT))
 from broker.core.experiment import ExperimentBuilder
 from broker.components.memory_engine import WindowMemoryEngine
 from broker.utils.llm_utils import create_llm_invoke
-from cognitive_governance.agents import BaseAgent, AgentConfig
+from broker.agents import BaseAgent, AgentConfig
 
 # ---------- 1. Create agents ----------
 def make_agents(n: int = 3):

@@ -36,7 +36,7 @@ from broker.components.context_providers import PerceptionAwareProvider
 from broker.components.tiered_builder import load_prompt_templates
 from broker.components.memory_engine import create_memory_engine
 from broker.simulation.environment import TieredEnvironment
-from cognitive_governance.agents import BaseAgent, AgentConfig, StateParam, Skill, PerceptionSource
+from broker.agents import BaseAgent, AgentConfig, StateParam, Skill, PerceptionSource
 from examples.multi_agent.flood.environment.hazard import HazardModule, VulnerabilityModule, YearMapping
 from examples.multi_agent.flood.components.media_channels import MediaHub
 

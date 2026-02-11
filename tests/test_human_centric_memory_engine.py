@@ -329,7 +329,7 @@ class TestSurprisePluginInterface(unittest.TestCase):
 
     def test_plugin_observe_forwards_to_strategy(self):
         """With plugin, observe() forwards to strategy.update()."""
-        from cognitive_governance.memory.strategies.decision_consistency import (
+        from broker.memory.strategies.decision_consistency import (
             DecisionConsistencySurprise,
         )
         dcs = DecisionConsistencySurprise(mode="unigram")
@@ -342,7 +342,7 @@ class TestSurprisePluginInterface(unittest.TestCase):
 
     def test_plugin_cognitive_system_switches(self):
         """High surprise → SYSTEM_2, low surprise → SYSTEM_1."""
-        from cognitive_governance.memory.strategies.decision_consistency import (
+        from broker.memory.strategies.decision_consistency import (
             DecisionConsistencySurprise,
         )
         dcs = DecisionConsistencySurprise(mode="unigram")
@@ -363,7 +363,7 @@ class TestSurprisePluginInterface(unittest.TestCase):
 
     def test_plugin_trace_returns_data(self):
         """With plugin, trace returns strategy-specific data."""
-        from cognitive_governance.memory.strategies.decision_consistency import (
+        from broker.memory.strategies.decision_consistency import (
             DecisionConsistencySurprise,
         )
         dcs = DecisionConsistencySurprise(mode="unigram")

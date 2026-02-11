@@ -150,8 +150,8 @@ def _register_builtins():
         pass
 
     try:
-        from cognitive_governance.memory.unified_engine import UnifiedCognitiveEngine as UnifiedEngine
-        from cognitive_governance.memory.strategies import (
+        from broker.memory.unified_engine import UnifiedCognitiveEngine as UnifiedEngine
+        from broker.memory.strategies import (
             EMASurpriseStrategy,
             SymbolicSurpriseStrategy,
             HybridSurpriseStrategy,

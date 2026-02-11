@@ -1,8 +1,8 @@
 ﻿import pytest
 
-from cognitive_governance.memory import UnifiedCognitiveEngine
-from cognitive_governance.memory.config import GlobalMemoryConfig, FloodDomainConfig, DomainMemoryConfig
-from cognitive_governance.memory.strategies import SymbolicSurpriseStrategy, EMASurpriseStrategy
+from broker.memory import UnifiedCognitiveEngine
+from broker.memory.config import GlobalMemoryConfig, FloodDomainConfig, DomainMemoryConfig
+from broker.memory.strategies import SymbolicSurpriseStrategy, EMASurpriseStrategy
 
 
 def test_unified_engine_accepts_config_objects():
