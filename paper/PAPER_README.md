@@ -26,7 +26,8 @@ The key methodological shift is from unconstrained generative behavior to audita
 
 | File | Description | Status |
 |------|-------------|--------|
-| `SAGE_WRR_Paper_v11.docx` | Main manuscript (latest table refresh using Run_1 + Run_2 flood snapshot) | **LATEST** |
+| `SAGE_WRR_Paper_v12.docx` | Main manuscript (A-vs-(B/C) primary framing, conservative B-vs-C interpretation, clean v2 table source wording) | **LATEST** |
+| `SAGE_WRR_Paper_v11.docx` | Previous manuscript snapshot | Previous |
 | `SAGE_WRR_Paper_v10.docx` | Previous manuscript (Section 5 irrigation: quantitative evidence + SI refs + cold-start + governance metrics) | Previous |
 | `SAGE_WRR_Paper_v9.docx` | Previous manuscript (user edits on S7 diagnostics) | Previous |
 | `SAGE_WRR_Paper_v8.docx` | Previous manuscript (revised narrative + table refresh) | Archived |
@@ -59,7 +60,7 @@ WRR Technical Reports/Methods limit: **13 Publication Units (PU)** max
 | **Fig 1** | WAGF Framework (multi-panel: a. Architecture + b. Governance flow) | `figures/fig1_architecture.png` |
 | **Fig 2** | Flood ABM cross-model consistency | `figures/fig2_flood_combined.png` |
 | **Fig 3** | Irrigation ABM: demand vs CRSS + governance outcomes | `figures/fig3_irrigation.png` |
-| **Table 1** | Main metrics (6 models x 3 groups): `R_R`, `H_norm`, `EHE` | Embedded in Word; source: `tables/Table1_main_metrics_v8.csv` |
+| **Table 1** | Main metrics (6 models x 3 groups): executed `R_R`, `R_H`, `EHE` with per-cell `n_runs` | Embedded in Word; source: `tables/Table1_executed_metrics_clean_v2.csv` |
 
 **PU Calculation**: 3 figures + 1 table = **4 PU**
 
@@ -259,4 +260,4 @@ Plan reviewed by WRR format expert (2026-02-05):
 
 ---
 
-*Last updated: 2026-02-10*
+*Last updated: 2026-02-11*
