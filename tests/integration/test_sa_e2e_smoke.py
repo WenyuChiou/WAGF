@@ -25,7 +25,7 @@ from broker.components.skill_registry import SkillRegistry
 from broker.validators.agent.agent_validator import AgentValidator
 from broker.simulation.environment import TieredEnvironment
 from broker.interfaces.skill_types import SkillProposal, ValidationResult
-from cognitive_governance.agents import BaseAgent, AgentConfig
+from broker.agents import BaseAgent, AgentConfig
 
 
 # Mock LLM responses for deterministic testing

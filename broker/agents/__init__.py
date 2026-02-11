@@ -5,11 +5,11 @@ Provides agent protocols and base implementations for the water agent governance
 
 Usage:
     # Load from user-defined YAML
-    from cognitive_governance.agents import load_agents
+    from broker.agents import load_agents
     agents = load_agents("my_agents.yaml")
 
     # Or create programmatically
-    from cognitive_governance.agents import BaseAgent, AgentConfig
+    from broker.agents import BaseAgent, AgentConfig
 """
 from .protocols import (
     AgentProtocol,

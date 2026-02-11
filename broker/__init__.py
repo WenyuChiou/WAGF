@@ -1,4 +1,4 @@
-"""Water Agent Governance Framework (WAGF) — cognitive governance middleware for LLM-driven
+"""Water Agent Governance Framework (WAGF) — cognitive governance framework for LLM-driven
 agent-based models of human-water interactions.
 
 Provides skill-based governance, memory engines, and reflection capabilities
@@ -42,7 +42,7 @@ from .validators import AgentValidator
 # 4. Core (Dependent on everything above)
 from .core.skill_broker_engine import SkillBrokerEngine
 from .core.experiment import ExperimentBuilder, ExperimentRunner
-from cognitive_governance.agents import BaseAgent, AgentConfig
+from broker.agents import BaseAgent, AgentConfig
 
 # Aliases
 GovernedBroker = SkillBrokerEngine

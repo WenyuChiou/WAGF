@@ -21,7 +21,7 @@ from unittest.mock import MagicMock
 # Adjust path to import cognitive_governance
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from cognitive_governance.memory import (
+from broker.memory import (
     UnifiedCognitiveEngine,
     UnifiedMemoryItem,
     UnifiedMemoryStore,
@@ -30,8 +30,8 @@ from cognitive_governance.memory import (
     SymbolicSurpriseStrategy,
     HybridSurpriseStrategy,
 )
-from cognitive_governance.memory.strategies.ema import EMAPredictor
-from cognitive_governance.memory.strategies.symbolic import Sensor, SignatureEngine
+from broker.memory.strategies.ema import EMAPredictor
+from broker.memory.strategies.symbolic import Sensor, SignatureEngine
 
 
 class TestEMAPredictor(unittest.TestCase):

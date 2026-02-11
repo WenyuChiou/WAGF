@@ -9,8 +9,8 @@ import time
 import numpy as np
 from typing import List, Set
 
-from cognitive_governance.memory import UnifiedMemoryItem
-from cognitive_governance.memory.graph import (
+from broker.memory import UnifiedMemoryItem
+from broker.memory.graph import (
     MemoryGraph,
     AgentMemoryGraph,
     EdgeType,

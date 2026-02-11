@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Canonical EMAPredictor — single source of truth in strategies/ema.py
-from cognitive_governance.memory.strategies.ema import EMAPredictor
+from broker.memory.strategies.ema import EMAPredictor
 
 
 class UniversalCognitiveEngine:

@@ -1,6 +1,6 @@
 import pandas as pd
 from typing import Dict, Any, List, Optional
-from cognitive_governance.agents import BaseAgent, AgentConfig, StateParam
+from broker.agents import BaseAgent, AgentConfig, StateParam
 
 def load_agents_from_csv(
     csv_path: str,

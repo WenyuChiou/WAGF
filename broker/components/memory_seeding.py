@@ -1,7 +1,7 @@
 from typing import Dict
 import logging
 
-from cognitive_governance.agents import BaseAgent
+from broker.agents import BaseAgent
 from broker.components.memory_engine import MemoryEngine
 
 logger = logging.getLogger(__name__)

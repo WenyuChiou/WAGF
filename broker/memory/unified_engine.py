@@ -197,7 +197,7 @@ class UnifiedCognitiveEngine:
         auto_consolidate: Whether to auto-consolidate on add
 
     Example:
-        >>> from cognitive_governance.memory import (
+        >>> from broker.memory import (
         ...     UnifiedCognitiveEngine,
         ...     EMASurpriseStrategy,
         ... )

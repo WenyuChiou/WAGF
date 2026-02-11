@@ -7,7 +7,7 @@ from broker.components.skill_registry import SkillRegistry
 from broker.components.context_builder import BaseAgentContextBuilder
 from broker.core.skill_broker_engine import SkillBrokerEngine
 from broker.interfaces.skill_types import SkillDefinition
-from cognitive_governance.agents import BaseAgent, AgentConfig
+from broker.agents import BaseAgent, AgentConfig
 
 def test_v3_2_full_integration():
     # 1. Setup Components

@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, PropertyMock
 from dataclasses import dataclass, field
 from typing import Dict, Any, Optional, List
 
-from cognitive_governance.agents import BaseAgent, AgentConfig, StateParam
+from broker.agents import BaseAgent, AgentConfig, StateParam
 from broker.interfaces.skill_types import (
     SkillProposal, ApprovedSkill, SkillBrokerResult,
     SkillOutcome, ExecutionResult, ValidationResult,

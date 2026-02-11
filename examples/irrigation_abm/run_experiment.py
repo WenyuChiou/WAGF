@@ -31,7 +31,7 @@ import numpy as np
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from cognitive_governance.agents import BaseAgent, AgentConfig
+from broker.agents import BaseAgent, AgentConfig
 from examples.irrigation_abm.irrigation_env import (
     IrrigationEnvironment,
     WaterSystemConfig,

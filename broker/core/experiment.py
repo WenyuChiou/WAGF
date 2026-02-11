@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from cognitive_governance.agents import BaseAgent
+from broker.agents import BaseAgent
 from ..interfaces.skill_types import ApprovedSkill, SkillOutcome, SkillBrokerResult, ExecutionResult, SkillProposal
 from ..interfaces.lifecycle_protocols import PreYearHook, PostStepHook, PostYearHook
 from .skill_broker_engine import SkillBrokerEngine

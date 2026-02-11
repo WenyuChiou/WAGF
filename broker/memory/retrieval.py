@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from .unified_engine import UnifiedMemoryItem
     # Assume EmbeddingProvider protocol is defined elsewhere or imported if needed here.
     # For this modification, we'll rely on the protocol definition being accessible.
-    from cognitive_governance.memory.embeddings import EmbeddingProvider
+    from broker.memory.embeddings import EmbeddingProvider
 
 
 class AdaptiveRetrievalEngine:
@@ -54,7 +54,7 @@ class AdaptiveRetrievalEngine:
 
     Example:
         >>> # Assuming SentenceTransformerProvider is available and imported
-        >>> # from cognitive_governance.memory.embeddings import SentenceTransformerProvider
+        >>> # from broker.memory.embeddings import SentenceTransformerProvider
         >>> # provider = SentenceTransformerProvider()
         >>> # engine = AdaptiveRetrievalEngine(embedding_provider=provider)
         >>> # memories = engine.retrieve(

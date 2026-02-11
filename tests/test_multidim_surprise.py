@@ -5,7 +5,7 @@ Verifies multi-variable surprise tracking and aggregation.
 """
 
 import pytest
-from cognitive_governance.memory.strategies.multidimensional import (
+from broker.memory.strategies.multidimensional import (
     MultiDimensionalSurpriseStrategy,
     create_flood_surprise_strategy,
 )

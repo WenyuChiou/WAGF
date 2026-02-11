@@ -1,4 +1,4 @@
-from cognitive_governance.agents import BaseAgent, AgentConfig, StateParam, Skill, PerceptionSource
+from broker.agents import BaseAgent, AgentConfig, StateParam, Skill, PerceptionSource
 from generate_agents import HouseholdProfile
 
 
