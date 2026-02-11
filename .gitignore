@@ -115,13 +115,8 @@ ref/flood_adaptation_simulation_log.csv
 ref/*_extracted.txt
 ref/paper_analysis/
 
-# Paper artifacts — binary drafts, figures & generated analysis excluded
-paper/*.docx
-paper/figures/*.png
-paper/figures/*.pdf
-paper/tables/*.csv
-paper/archive/
-paper/unpacked_*/
+# Paper artifacts — entire paper/ directory excluded from public repo
+paper/
 examples/single_agent/manuscripts/
 examples/multi_agent/flood/paper3/*.docx
 examples/single_agent/analysis/paper_figures/*.png
