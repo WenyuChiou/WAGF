@@ -200,8 +200,8 @@ household_owner:
     - Elevation Subsidy Rate: {subsidy_rate:.0%}
 
     ### COST GUIDANCE (IMPORTANT)
-    - Elevation is a HIGH-cost action: baseline ~$150,000 before subsidy.
-      Your out-of-pocket cost is roughly $150,000 * (1 - subsidy_rate).
+    - Elevation is a HIGH-cost action: ~$45,000 (3ft), ~$80,000 (5ft), or ~$150,000 (8ft) before subsidy.
+      Your out-of-pocket cost is roughly cost * (1 - subsidy_rate).
     - Buyout is a HIGH-cost, irreversible move (you leave the community).
     - Insurance is a MODERATE annual cost tied to property value and premium rate.
     - If you are uncertain you can afford a high-cost action, choose a lower-cost option.
