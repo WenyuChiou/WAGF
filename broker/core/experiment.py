@@ -101,8 +101,16 @@ class ExperimentRunner:
             if hasattr(self.broker, 'config') and self.broker.config:
                 overrides = self.broker.config.get_llm_params(agent_type)
 
-            # Per-type model name: llm_params.model overrides CLI model
-            model_name = overrides.pop("model", None) or self.config.model
+            # Per-type model name: llm_params.model overrides CLI model.
+            # Keep backward compatibility with legacy placeholder values.
+            model_override = overrides.pop("model", None)
+            if isinstance(model_override, str) and model_override.strip().lower() in {
+                "",
+                "command-line-override",
+                "cli-override",
+            }:
+                model_override = None
+            model_name = model_override or self.config.model
 
             self._llm_cache[agent_type] = create_llm_invoke(
                 model_name,
