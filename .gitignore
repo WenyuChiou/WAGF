@@ -81,10 +81,14 @@ doc/dev_notes_gemini/
 # Task Management (local session tracking)
 .tasks/
 
-# External References (Nested Repos)
+# External References & Research Data (large, not framework code)
 ref/openskills/
 ref/openskills
 ref/RL-ABM-CRSS/
+ref/CRSS_DB/
+ref/*.csv
+ref/*.py
+ref/example_llm_prompts.txt
 
 # Legacy / Prototype Code
 cognitive_governance/v1_prototype/
@@ -100,12 +104,12 @@ cognitive_governance/demo_sdk_usage.py
 ref/archived_docs/
 ref/*.pdf
 ref/*.xlsx
-ref/ABM_draft_*.docx
-ref/ABM_SM_*.docx
+ref/*.docx
 ref/flood_adaptation_simulation_log.csv
 ref/*_extracted.txt
+ref/paper_analysis/
 
-# Paper artifacts — binary drafts excluded, text/scripts tracked
+# Paper artifacts — binary drafts & generated analysis excluded
 paper/*.docx
 paper/archive/
 paper/unpacked_*/
@@ -113,6 +117,18 @@ examples/single_agent/manuscripts/
 examples/multi_agent/flood/paper3/*.docx
 examples/single_agent/analysis/paper_figures/*.png
 examples/single_agent/analysis/paper_figures/*.pdf
+examples/single_agent/analysis/SQ1_Final_Results/*.xlsx
+examples/single_agent/analysis/SQ1_Final_Results/*.png
+examples/single_agent/analysis/SQ2_Final_Results/*.png
+examples/single_agent/analysis/SQ2_Final_Results/*.csv
+examples/single_agent/analysis/SQ3_Final_Results/*.csv
+
+# Paper-specific analysis CSVs/JSON (docs/)
+docs/wrr_*.csv
+docs/wrr_*.json
+
+# Generated verification output
+verification_test/
 
 # Raw LLM Traces (large, regenerable)
 **/raw/*_traces.jsonl
