@@ -466,50 +466,60 @@ When Lake Mead elevation drops, Mexico voluntarily reduces delivery under Minute
 
 ```mermaid
 flowchart TD
-    subgraph AGENTS ["78 LLM Agents (Year t)"]
-        A1["LLM Reasoning<br/>(WSA/ACA → skill choice)"]
-        A2["Governance Validation<br/>(12 validators)"]
-        A3["Skill Execution<br/>(Gaussian magnitude sampling)"]
-        A1 --> A2 --> A3
+    subgraph PHASE1 ["Phase 1: Physical System Update — advance_year(t)"]
+        direction TB
+        IN1["🌧️ <b>Exogenous input</b><br/>P(t) = CRSS PRISM winter precipitation (mm)"]
+        IN2["📦 <b>Lagged input</b><br/>D_UB(t−1), D_LB(t−1) = last year's diversions"]
+
+        NF["<b>Natural Flow</b> (Eq. 6)<br/>Q_nat = 12.0 MAF × P(t) / 100 mm<br/>bounded to [6, 17] MAF"]
+
+        PR["<b>Powell Release</b> (Eq. 4-5)<br/>UB agents withdraw: D_UB_eff = min(D_UB, Q_nat − 7.0, 5.0)<br/>Remainder released: Q_Powell = Q_nat − D_UB_eff"]
+
+        QIN["<b>Mead Inflow</b> (Eq. 2)<br/>Q_in = Q_Powell + 1.0 MAF (LB tributaries)"]
+        QOUT["<b>Mead Outflow</b> (Eq. 3)<br/>Q_out = D_LB(t−1) + Mexico + Evaporation + 5.0 MAF"]
+
+        BAL["<b>Storage Update</b> (Eq. 1)<br/>ΔS = max(−3.5, min(Q_in − Q_out, +3.5)) MAF<br/>S(t) = S(t−1) + ΔS, bounded to [2.0, 26.1] MAF"]
+
+        ELEV["<b>Elevation</b><br/>h(t) = interpolate S(t) on<br/>USBR storage-elevation table (9 points)"]
+
+        TIER["<b>Shortage Tier</b><br/>h ≥ 1075 → Tier 0 (0%)<br/>h < 1075 → Tier 1 (5%)<br/>h < 1050 → Tier 2 (10%)<br/>h < 1025 → Tier 3 (20%)"]
+
+        IN1 --> NF
+        IN2 --> PR
+        NF --> PR --> QIN --> BAL
+        IN2 --> QOUT --> BAL
+        BAL --> ELEV --> TIER
     end
 
-    A3 -->|"r_i (demand request)"| AGG
-
-    AGG["Aggregate Diversions<br/>D_LB = Σ d_i (LB agents)<br/>D_UB = Σ d_i (UB agents)"]
-
-    AGG -->|"D_LB, D_UB"| MB
-
-    subgraph MB ["Mass Balance (Year t → t+1)"]
-        MB1["Q_nat = 12.0 × P/100<br/>(CRSS PRISM precipitation)"]
-        MB2["Q_Powell = Q_nat − D_UB_eff<br/>(≥ 7.0 MAF min release)"]
-        MB3["Q_in = Q_Powell + 1.0"]
-        MB4["Q_out = D_LB + M(h) + E(S) + 5.0"]
-        MB5["ΔS = max(−3.5, min(Q_in − Q_out, 3.5))<br/>S(t+1) bounded to [2.0, 26.1] MAF"]
-        MB6["h = USBR lookup(S) → elevation<br/>→ shortage tier τ"]
-        MB1 --> MB2 --> MB3 --> MB5
-        MB4 --> MB5 --> MB6
+    subgraph PHASE2 ["Phase 2: Curtailment — applied before agent decisions"]
+        CURT["<b>Diversion after curtailment</b> (Eq. 8)<br/>d_i = min(request_i, water_right_i) × (1 − γ_τ)"]
     end
 
-    MB6 -->|"tier τ, γ_τ"| CURT
+    TIER -->|"tier τ(t), elevation h(t)"| CURT
 
-    CURT["Curtailment<br/>d_i = min(r_i, w_i) × (1 − γ_τ)<br/>Tier 0: 0% | Tier 1: 5%<br/>Tier 2: 10% | Tier 3: 20%"]
+    subgraph PHASE3 ["Phase 3: Agent Decisions — per agent in Year t"]
+        direction TB
+        CTX["<b>Prompt Context</b><br/>h(t), tier(t), drought(t), memory,<br/>governance constraints → LLM"]
+        LLM["<b>LLM Reasoning</b><br/>Assess WSA + ACA → choose skill"]
+        GOV["<b>Governance Validation</b><br/>12 validators check feasibility<br/>+ construct coherence"]
+        EXEC["<b>Skill Execution</b><br/>Sample magnitude ~ N(μ, σ) × persona_scale<br/>Update request_i → apply curtailment → d_i(t)"]
+        CTX --> LLM --> GOV --> EXEC
+    end
 
-    CURT -->|"shortage tier<br/>curtailment ratio<br/>Lake Mead elevation"| GOV
+    CURT -->|"h(t), tier(t), drought(t)<br/>injected into agent prompt"| CTX
 
-    GOV["Governance Activation<br/>curtailment_awareness: block increase (Tier 2+)<br/>demand_ceiling_stabilizer: block increase (>6.0 MAF)<br/>supply_gap_block_increase: block increase (fulfil<70%)"]
+    EXEC -.->|"d_i(t) stored in agent state;<br/>aggregated as D_UB(t), D_LB(t)<br/>for next year's mass balance"| IN2
 
-    GOV -->|"constrained action space<br/>+ memory feedback"| A1
-
-    style AGENTS fill:#e3f2fd
-    style MB fill:#fff3e0
-    style CURT fill:#fce4ec
-    style GOV fill:#f3e5f5
-    style AGG fill:#e8f5e9
+    style PHASE1 fill:#fff3e0
+    style PHASE2 fill:#fce4ec
+    style PHASE3 fill:#e3f2fd
+    style IN1 fill:#e1f5fe
+    style IN2 fill:#e8f5e9
 ```
 
-**One-year lag**: Diversions during year $t$ determine storage at the start of year $t+1$. The feedback loop is fully closed — no exogenous demand schedules.
+**Temporal structure**: The diagram reads top-to-bottom within a single simulation year $t$. Phase 1 runs first (`advance_year()`), using last year's diversions $D(t-1)$ and this year's precipitation $P(t)$ to update Lake Mead. Phase 2 applies curtailment before agents act. Phase 3 is where the LLM makes decisions. The **dashed arrow** from Phase 3 back to Phase 1 represents the one-year lag: diversions $d_i(t)$ are stored in agent state and become the lagged input $D(t)$ when the mass balance runs at the start of year $t+1$.
 
-**Self-regulating dynamics**: When agents collectively over-extract → Lake Mead storage drops → shortage tier rises → curtailment increases AND governance blocks increase skills → agents are forced toward maintain/decrease → demand drops → Lake Mead recovers → tier drops → constraints relax. This bidirectional coupling is the core mechanism studied in both Hung & Yang (2021) and this work.
+**Self-regulating dynamics**: Over-extraction → lower Lake Mead → higher shortage tier → larger curtailment + governance blocks increase skills → agents shift to maintain/decrease → demand drops → Lake Mead recovers → tier drops → constraints relax. This negative feedback loop stabilizes demand near the CRSS baseline without a reward signal.
 
 ### 4.9 Comparison with Full CRSS
 
