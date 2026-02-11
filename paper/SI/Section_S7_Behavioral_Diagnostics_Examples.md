@@ -41,3 +41,30 @@ All cases are trace-backed from `raw/household_traces.jsonl` under:
 - Case extraction snapshot: `docs/wrr_s7_examples_v9.json`.
 - `buy_insurance` is renewable in this setup (`examples/single_agent/skill_registry.yaml`), so repeated insurance purchase is not classified as physical impossibility.
 - Group A `simulation_log.csv` uses cumulative decision labels; this SI section therefore uses governed trace rows where proposal, rule result, and state are directly aligned.
+
+#### S7.6 Group B vs Group C: Process-Level Evidence (Balanced Cases)
+
+The main manuscript treats `A` vs `(B, C)` as the primary effectiveness comparison.  
+`B` vs `C` is reported as a secondary process comparison and is documented here with balanced examples.
+
+Aggregate trace snapshot (all available runs in `JOH_FINAL`):
+
+- Group B: retry-positive rate `6.79%`, mean retry count `0.0938`, approved rate `93.21%`, rejected rate `0.3377%`.
+- Group C: retry-positive rate `4.74%`, mean retry count `0.0624`, approved rate `95.26%`, rejected rate `0.2072%`.
+- Year-stratified pattern: C has lower retry-positive rates in Years 1-8, but slightly higher in Years 9-10 (non-monotonic).
+
+Source files:
+
+- `docs/wrr_process_audit_group_summary_v1.csv`
+- `docs/wrr_bc_yearly_process_compare_v1.csv`
+- `docs/wrr_bc_case_examples_v1.csv`
+
+Balanced paired examples (same model, run, agent, and year):
+
+| Pair ID | Direction | Source | Agent-Year | B vs C observation | Interpretation |
+|---|---|---|---|---|---|
+| BC+1 | C improves over B | `gemma3_12b`, `Run_2` | `Agent_13`, Year 2 | B: `retry_count=3`, `outcome=REJECTED`, rule `elevation_threat_low`; C: `retry_count=0`, `outcome=APPROVED`; C memory includes `Consolidated Reflection` | Reflection-linked context can coincide with lower retry burden and accepted action. |
+| BC+2 | C improves over B | `gemma3_4b`, `Run_1` | `Agent_31`, Year 3 | B: `retry_count=3`, `outcome=REJECTED`, rule `extreme_threat_block`; C: `retry_count=0`, `outcome=APPROVED`; C memory includes `Consolidated Reflection` | Under identical external state, C can avoid retry exhaustion seen in B. |
+| BC-1 | C regresses vs B | `gemma3_12b`, `Run_2` | `Agent_20`, Year 2 | B: `retry_count=0`, `outcome=APPROVED`; C: `retry_count=3`, `outcome=REJECTED`, rule `elevation_threat_low`; C memory includes `Consolidated Reflection` | Reflection does not guarantee improvement; B vs C effects are heterogeneous. |
+
+This section is included to prevent one-sided interpretation: current evidence supports process-level differences between B and C, but not a universal C-dominance claim.
