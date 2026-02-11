@@ -110,59 +110,49 @@ Lake Mead storage-to-elevation is interpolated from the USBR 2009 area-capacity 
 ## Agent-Reservoir Feedback Loop
 
 ```mermaid
-flowchart TD
-    subgraph PHASE1 ["Phase 1: Physical System Update — advance_year(t)"]
+flowchart LR
+    subgraph P1 ["Phase 1 — advance_year(t)"]
         direction TB
-        IN1["Exogenous input: P(t) = CRSS PRISM winter precipitation (mm)"]
-        IN2["Lagged input: D_UB(t-1), D_LB(t-1) = last year's diversions"]
-
-        NF["Step 1: Natural Flow\nQ_Nat = 12 * P_winter / 100\nbounded to [6, 17] MAF"]
-
-        PR["Step 2: Powell Release\nQ_raw = Q_Nat - sum(Div_UB)\nQ_Powell = max(7, min(Q_raw, 12))"]
-
-        QIN["Step 3: Mead Inflow\nQ_in = Q_Powell + 1.0 (tributaries)"]
-        QOUT["Step 4: Mead Outflow\nQ_out = D_muni + M_DCP(h) + ET(S) + sum(Div_LB)"]
-
-        BAL["Step 5: Storage Update\nS(t+1) = S(t) + Q_in - Q_out\nS in [2.0, 26.1] MAF"]
-
-        ELEV["Elevation\nh(t) = interpolate S(t) on USBR storage-elevation table"]
-
-        TIER["Shortage Tier\nh >= 1075 -> Tier 0 (0%)\nh < 1075 -> Tier 1 (5%)\nh < 1050 -> Tier 2 (10%)\nh < 1025 -> Tier 3 (20%)"]
-
-        IN1 --> NF
-        IN2 --> PR
-        NF --> PR --> QIN --> BAL
-        IN2 --> QOUT --> BAL
-        BAL --> ELEV --> TIER
+        A["P(t) precipitation"] --> B["1 Natural flow"]
+        B --> C["2 Powell release"]
+        C --> D["3 Mead inflow"]
+        E["D(t-1) diversions"] --> F["4 Mead outflow"]
+        D --> G["5 Storage update"]
+        F --> G
+        G --> H["Elevation h(t)"]
+        H --> I["Shortage tier"]
     end
 
-    subgraph PHASE2 ["Phase 2: Curtailment"]
-        CURT["Step 6: Agent Diversion\nd_i = min(r_i, w_i) * (1 - gamma_tau)"]
+    subgraph P2 ["Phase 2"]
+        J["6 Curtailment"]
     end
 
-    TIER -->|"tier tau(t), elevation h(t)"| CURT
-
-    subgraph PHASE3 ["Phase 3: Agent Decisions"]
+    subgraph P3 ["Phase 3 — per agent"]
         direction TB
-        CTX["Prompt Context\nh(t), tier(t), drought(t), memory,\ngovernance constraints -> LLM"]
-        LLM["LLM Reasoning\nAssess WSA + ACA -> choose skill"]
-        GOV["Governance Validation\n12 validators check feasibility\n+ construct coherence"]
-        EXEC["Skill Execution\nSample magnitude ~ N(mu, sigma) * persona_scale\nUpdate request_i -> apply curtailment -> d_i(t)"]
-        CTX --> LLM --> GOV --> EXEC
+        K["Build prompt"] --> L["LLM reasoning"]
+        L --> M["Governance (12 validators)"]
+        M --> N["Execute skill"]
     end
 
-    CURT -->|"h(t), tier(t), drought(t)"| CTX
+    I --> J
+    J --> K
+    N -.->|"d_i(t) → D(t+1)"| E
 
-    EXEC -.->|"d_i(t) stored in agent state;\naggregated as D_UB(t), D_LB(t)\nfor next year's mass balance"| IN2
-
-    style PHASE1 fill:#fff3e0
-    style PHASE2 fill:#fce4ec
-    style PHASE3 fill:#e3f2fd
+    style P1 fill:#fff3e0
+    style P2 fill:#fce4ec
+    style P3 fill:#e3f2fd
 ```
 
-**Temporal structure**: The diagram reads top-to-bottom within a single simulation year $t$. Phase 1 runs first (`advance_year()`), using last year's diversions $D(t-1)$ and this year's precipitation $P(t)$ to update Lake Mead. Phase 2 applies curtailment before agents act. Phase 3 is where the LLM makes decisions. The dashed arrow from Phase 3 back to Phase 1 represents the one-year lag: diversions $d_i(t)$ are stored in agent state and become the lagged input $D(t)$ when the mass balance runs at the start of year $t+1$.
+| Step | Equation | Constants |
+| :--- | :------- | :-------- |
+| 1 Natural flow | $Q_{Nat} = 12 \times P_{winter}/100$ | bounded [6, 17] MAF |
+| 2 Powell release | $Q_{Powell} = \max(7, \min(Q_{raw}, 12))$ | $Q_{raw} = Q_{Nat} - \sum Div\_UB$ |
+| 3 Mead inflow | $Q_{in} = Q_{Powell} + 1.0$ | tributaries: 1 MAF |
+| 4 Mead outflow | $Q_{out} = D_{muni} + M_{DCP}(h) + ET(S) + \sum Div\_LB$ | $D_{muni}$ = 5.0 MAF |
+| 5 Storage update | $S(t+1) = S(t) + Q_{in} - Q_{out}$ | $S \in [2.0, 26.1]$, $\|\Delta S\| \leq 3.5$ |
+| 6 Curtailment | $d_i = \min(r_i, w_i) \times (1 - \gamma_\tau)$ | tier-dependent $\gamma$ |
 
-**Self-regulating dynamics**: Over-extraction -> lower Lake Mead -> higher shortage tier -> larger curtailment + governance blocks increase skills -> agents shift to maintain/decrease -> demand drops -> Lake Mead recovers -> tier drops -> constraints relax. This negative feedback loop stabilizes demand near the CRSS baseline without a reward signal.
+**Feedback loop**: Over-extraction → lower Mead → higher tier → larger curtailment + governance blocks increases → agents shift to maintain/decrease → demand drops → Mead recovers → tier drops → constraints relax. The dashed arrow represents the one-year lag: $d_i(t)$ becomes $D(t+1)$ in next year's mass balance.
 
 ---
 

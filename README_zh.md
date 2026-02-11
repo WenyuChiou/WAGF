@@ -57,13 +57,12 @@ python examples/single_agent/run_flood.py --model gemma3:4b --years 10 --agents 
 
 ### 4. 探索更多
 
-| 範例               | 複雜度 | 說明                                         | 連結                             |
-| :----------------- | :----- | :------------------------------------------- | :------------------------------- |
-| **Governed Flood** | 入門   | 獨立的 Group C 示範，含完整治理              | [前往](examples/governed_flood/) |
-| **Single Agent**   | 中階   | JOH 基準測試：Groups A/B/C 消融研究          | [前往](examples/single_agent/)   |
-| **Irrigation ABM** | 中階   | 科羅拉多河流域水需求模擬 (Hung & Yang, 2021) | [前往](examples/irrigation_abm/) |
-| **Multi-Agent**    | 進階   | 社會動態、保險市場、政府政策                 | [前往](examples/multi_agent/)    |
-| **Finance**        | 延伸   | 跨領域示範（投資組合決策）                   | [前往](examples/finance/)        |
+| 範例 | 複雜度 | 說明 | 連結 |
+| :--- | :--- | :--- | :--- |
+| **Governed Flood** | 入門 | 獨立的 Group C 示範，含完整治理 | [前往](examples/governed_flood/) |
+| **Single Agent** | 中階 | JOH 基準測試：Groups A/B/C 消融研究 | [前往](examples/single_agent/) |
+| **Irrigation ABM** | 中階 | 科羅拉多河流域水需求模擬 (Hung & Yang, 2021) | [前往](examples/irrigation_abm/) |
+| **Multi-Agent** | 進階 | 社會動態、保險市場、政府政策 | [前往](examples/multi_agent/flood/) |
 
 ### 5. 提供者支援 (Provider Support)
 

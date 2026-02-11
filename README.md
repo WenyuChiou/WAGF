@@ -73,12 +73,12 @@ python examples/single_agent/run_flood.py --model gemma3:4b --years 10 --agents 
 
 ### 4. Explore More
 
-| Example            | Complexity   | Description                                           | Link                           |
-| :----------------- | :----------- | :---------------------------------------------------- | :----------------------------- |
-| **Governed Flood** | Beginner     | Standalone Group C demo with full governance          | [Go](examples/governed_flood/) |
-| **Single Agent**   | Intermediate | JOH (_Journal of Hydrology_) Benchmark: Groups A/B/C ablation study | [Go](examples/single_agent/)   |
+| Example | Complexity | Description | Link |
+| :--- | :--- | :--- | :--- |
+| **Governed Flood** | Beginner | Standalone Group C demo with full governance | [Go](examples/governed_flood/) |
+| **Single Agent** | Intermediate | JOH (_Journal of Hydrology_) Benchmark: Groups A/B/C ablation study | [Go](examples/single_agent/) |
 | **Irrigation ABM** | Intermediate | Colorado River Basin water demand (Hung & Yang, 2021) | [Go](examples/irrigation_abm/) |
-| **Multi-Agent**    | Advanced     | Social dynamics, insurance market, government policy  | [Go](examples/multi_agent/)    |
+| **Multi-Agent** | Advanced | Social dynamics, insurance market, government policy | [Go](examples/multi_agent/flood/) |
 
 ### 5. Provider Support
 
