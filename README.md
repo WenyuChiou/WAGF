@@ -25,8 +25,8 @@ This framework provides an architectural **Governance Layer** that validates age
 **Validated case studies**:
 
 - **Flood Household Adaptation (SA)**: 100 agents using PMT (Protection Motivation Theory), 10-year simulation with Gemma 3 (4B/12B/27B)
-- **Flood Multi-Agent (MA)**: 400 agents (balanced 4-cell design: MG/NMG × Owner/Renter) with institutional agents (Government, Insurance), 13-year PRB simulation
-- **Irrigation Water Management**: 78 CRSS agents from the Upper Colorado River Basin
+- **Flood Multi-Agent (MA)**: 400 agents (balanced 4-cell design: Mapped/Non-Mapped Geography × Owner/Renter) with institutional agents (Government, Insurance), 13-year simulation on the Potomac River Basin (PRB)
+- **Irrigation Water Management**: 78 agents from the Colorado River Simulation System (CRSS) representing the Upper Colorado River Basin
 
 ---
 
@@ -62,7 +62,7 @@ Launch a 10-agent flood adaptation demo with governance and human-centric memory
 python examples/governed_flood/run_experiment.py --model gemma3:4b --years 3 --agents 10
 ```
 
-### 3. Run the Full Benchmark (WRR Paper)
+### 3. Run the Full Benchmark (WRR — _Water Resources Research_ Paper)
 
 Replicate the three-group ablation study (100 agents, 10 years):
 
@@ -76,43 +76,69 @@ python examples/single_agent/run_flood.py --model gemma3:4b --years 10 --agents 
 | Example            | Complexity   | Description                                           | Link                           |
 | :----------------- | :----------- | :---------------------------------------------------- | :----------------------------- |
 | **Governed Flood** | Beginner     | Standalone Group C demo with full governance          | [Go](examples/governed_flood/) |
-| **Single Agent**   | Intermediate | JOH Benchmark: Groups A/B/C ablation study            | [Go](examples/single_agent/)   |
+| **Single Agent**   | Intermediate | JOH (_Journal of Hydrology_) Benchmark: Groups A/B/C ablation study | [Go](examples/single_agent/)   |
 | **Irrigation ABM** | Intermediate | Colorado River Basin water demand (Hung & Yang, 2021) | [Go](examples/irrigation_abm/) |
 | **Multi-Agent**    | Advanced     | Social dynamics, insurance market, government policy  | [Go](examples/multi_agent/)    |
 
-### 5. WRR Paper Workspace
+### 5. Provider Support
 
-Active manuscript work is managed in `paper/` with **WAGF** naming:
-
-- Main manuscript (active): `paper/SAGE_WRR_Paper_v6.docx`
-- Submission guide and workflow: `paper/PAPER_README.md`
-- Architecture and figure specs: `paper/shared/docs/FIGURE_CONFIGURATION.md`
-
-Current convention:
-- Use **WAGF (Water Agent Governance Framework)** in all main-text paper assets.
-- Treat v5 files as historical baseline unless explicitly needed for back-reference.
-
-### 6. Zotero Write Security
-
-For Zotero write scripts, do not hardcode credentials. Use environment variables:
+The framework supports multiple LLM providers via the `providers/` package:
 
 ```bash
-export ZOTERO_API_KEY="..."
-# PowerShell: $env:ZOTERO_API_KEY="..."
+# Local inference (default)
+python examples/governed_flood/run_experiment.py --model gemma3:4b
 
-export ZOTERO_LIBRARY_ID="..."
-# PowerShell: $env:ZOTERO_LIBRARY_ID="..."
-
-export ZOTERO_LIBRARY_TYPE="user"  # optional
+# Cloud providers (requires API key in environment)
+python examples/governed_flood/run_experiment.py --model anthropic:claude-sonnet-4-5-20250929
+python examples/governed_flood/run_experiment.py --model openai:gpt-4o
+python examples/governed_flood/run_experiment.py --model gemini:gemini-1.5-flash
 ```
 
-Paper3 Zotero scripts in `examples/multi_agent/flood/paper3/scripts/` now expect env-based credentials.
+| Provider | Module | Auth |
+| :--- | :--- | :--- |
+| **Ollama** | `providers/ollama.py` | None (local) |
+| **Anthropic** | `providers/anthropic.py` | `ANTHROPIC_API_KEY` |
+| **OpenAI** | `providers/openai_provider.py` | `OPENAI_API_KEY` |
+| **Gemini** | `providers/gemini.py` | `GOOGLE_API_KEY` |
+
+### 6. ExperimentBuilder API
+
+```python
+from broker.core.experiment import ExperimentBuilder
+from broker.components.memory.engines.humancentric import HumanCentricMemoryEngine
+
+runner = (
+    ExperimentBuilder()
+    .with_model("gemma3:4b")          # or "anthropic:claude-sonnet-4-5-20250929"
+    .with_years(3)
+    .with_agents(agents)
+    .with_simulation(sim_engine)
+    .with_skill_registry("config/skill_registry.yaml")
+    .with_governance("strict", "config/agent_types.yaml")
+    .with_memory_engine(HumanCentricMemoryEngine())
+    .with_seed(42)
+    .build()
+)
+runner.run()
+```
+
+See the [Experiment Design Guide](docs/guides/experiment_design_guide.md) for the full API reference.
+
+---
+
+## Navigation
+
+| I am a... | Start here |
+| :--- | :--- |
+| **Researcher** wanting to reproduce results | [Theoretical Basis](docs/modules/00_theoretical_basis_overview.md) → [Experiment Design](docs/guides/experiment_design_guide.md) → [Case Studies](examples/README.md) → [C&V Framework](broker/validators/calibration/README.md) |
+| **Developer** wanting to extend the framework | [Architecture](docs/architecture/architecture.md) → [ExperimentBuilder API](#6-experimentbuilder-api) → [Customization Guide](docs/guides/customization_guide.md) → [Agent Type Spec](docs/guides/agent_type_specification_guide.md) |
+| **Paper contributor** | [For Paper Contributors](#for-paper-contributors) |
 
 ---
 
 ## Module Directory
 
-The `broker/` package contains **107 modules** in seven architectural layers.
+The `broker/` package is organized into **9 sub-packages** across seven architectural layers.
 L1–L5 and L7 power all experiments; L6 is multi-agent only.
 
 > File paths are relative to `broker/`. Detailed docs linked where available.
@@ -123,10 +149,10 @@ L1–L5 and L7 power all experiments; L6 is multi-agent only.
 
 | Module | Path | Role |
 | :--- | :--- | :--- |
-| **TieredContextBuilder** | `components/tiered_builder.py` | CORE / HISTORIC / RECENT tiered prompt construction |
-| **ContextProviders** | `components/context_providers.py` | Pluggable context enrichment chain |
-| **FeedbackProvider** | `components/feedback_provider.py` | Config-driven metric trends & YAML assertion dashboard |
-| **PerceptionFilter** | `components/perception_filter.py` | Agent-type-aware information filtering |
+| **TieredContextBuilder** | `components/context/tiered.py` | CORE / HISTORIC / RECENT tiered prompt construction |
+| **ContextProviders** | `components/context/providers.py` | Pluggable context enrichment chain |
+| **FeedbackProvider** | `components/analytics/feedback.py` | Config-driven metric trends & YAML assertion dashboard |
+| **PerceptionFilter** | `components/social/perception.py` | Agent-type-aware information filtering |
 | **ResponseFormatBuilder** | `components/response_format.py` | YAML-driven response format & output parsing |
 | **Efficiency** | `core/efficiency.py` | Model-adaptive context optimization |
 
@@ -139,10 +165,10 @@ L1–L5 and L7 power all experiments; L6 is multi-agent only.
 | Module | Path | Role |
 | :--- | :--- | :--- |
 | **SkillBrokerEngine** | `core/skill_broker_engine.py` | Core 6-stage pipeline (context → LLM → parse → validate → approve → execute) |
-| **SkillRegistry** | `components/skill_registry.py` | YAML-loaded action ontology with preconditions |
-| **SkillRetriever** | `components/skill_retriever.py` | RAG-based context-aware skill selection |
-| **AuditWriter** | `components/audit_writer.py` | Structured CSV audit trail |
-| **DriftDetector** | `components/drift_detector.py` | Behavioral drift detection across time steps |
+| **SkillRegistry** | `components/governance/registry.py` | YAML-loaded action ontology with preconditions |
+| **SkillRetriever** | `components/governance/retriever.py` | RAG (Retrieval-Augmented Generation) context-aware skill selection |
+| **AuditWriter** | `components/analytics/audit.py` | Structured CSV audit trail |
+| **DriftDetector** | `components/analytics/drift.py` | Behavioral drift detection across time steps |
 | *Governance validators* | `validators/governance/` | 5-category pipeline: Physical, Thinking, Personal, Social, Semantic |
 | *Post-hoc analysis* | `validators/posthoc/` | R_H hallucination rate & keyword classifier |
 | *Calibration & Validation* | `validators/calibration/` | C&V framework: micro, macro, psychometric |
@@ -158,9 +184,9 @@ L1–L5 and L7 power all experiments; L6 is multi-agent only.
 | **ExperimentRunner** | `core/experiment.py` | Experiment orchestrator with seed control |
 | **AgentInitializer** | `core/agent_initializer.py` | Agent construction from YAML + survey data |
 | **SimulationEngine** | `simulation/base_simulation_engine.py` | Sandboxed skill execution engine |
-| **ObservableState** | `components/observable_state.py` | Bounded agent observation interface |
-| *Event generators* | `components/event_generators/` | Domain event sources (flood, hazard, impact, policy) |
-| *Domain adapters* | `components/adapters/` | Environment bindings (flood, irrigation) |
+| **ObservableState** | `components/analytics/observable.py` | Bounded agent observation interface |
+| *Event generators* | `components/events/generators/` | Domain event sources (flood, hazard, impact, policy) |
+| *Event managers* | `components/events/manager.py` | Environment event lifecycle management |
 
 [Simulation Engine docs](docs/modules/simulation_engine.md) | [中文](docs/modules/simulation_engine_zh.md)
 
@@ -170,12 +196,12 @@ L1–L5 and L7 power all experiments; L6 is multi-agent only.
 
 | Module | Path | Role |
 | :--- | :--- | :--- |
-| **MemoryEngine** | `components/memory_engine.py` | Abstract memory interface |
-| **MemoryFactory** | `components/memory_factory.py` | Engine selection from config flags |
-| *Engine implementations* | `components/engines/` | Window, Importance, HumanCentric, Hierarchical |
-| **MemoryBridge** | `components/memory_bridge.py` | v2↔v4 compatibility adapter |
-| **MemorySeeding** | `components/memory_seeding.py` | Initial memory injection from JSON profiles |
-| **SymbolicContext** | `components/symbolic_context.py` | Symbolic state signatures for memory queries |
+| **MemoryEngine** | `components/memory/engine.py` | Abstract memory interface |
+| **MemoryFactory** | `components/memory/factory.py` | Engine selection from config flags |
+| *Engine implementations* | `components/memory/engines/` | Window, Importance, HumanCentric, Hierarchical |
+| **MemoryBridge** | `components/memory/bridge.py` | v2↔v4 compatibility adapter |
+| **MemorySeeding** | `components/memory/seeding.py` | Initial memory injection from JSON profiles |
+| **UnifiedCognitive** | `components/memory/universal.py` | Hybrid memory with EMA (Exponential Moving Average) surprise detection |
 
 [Memory docs](docs/modules/memory_components.md) | [中文](docs/modules/memory_components_zh.md)
 
@@ -185,8 +211,8 @@ L1–L5 and L7 power all experiments; L6 is multi-agent only.
 
 | Module | Path | Role |
 | :--- | :--- | :--- |
-| **ReflectionEngine** | `components/reflection_engine.py` | Batch reflection with domain-specific questions |
-| **DomainAdapters** | `components/domain_adapters.py` | Domain-specific reflection prompts |
+| **ReflectionEngine** | `components/cognitive/reflection.py` | Batch reflection with domain-specific questions |
+| **DomainAdapters** | `components/cognitive/adapters.py` | Domain-specific reflection prompts |
 
 [Reflection docs](docs/modules/reflection_engine.md) | [中文](docs/modules/reflection_engine_zh.md)
 
@@ -196,12 +222,12 @@ L1–L5 and L7 power all experiments; L6 is multi-agent only.
 
 | Module | Path | Role |
 | :--- | :--- | :--- |
-| **SocialGraph** | `components/social_graph.py` | Network topology and neighbor queries |
-| **InteractionHub** | `components/interaction_hub.py` | Multi-tier information diffusion |
-| **PhaseOrchestrator** | `components/phase_orchestrator.py` | Ordered agent-type execution phases |
-| **SagaCoordinator** | `components/saga_coordinator.py` | Multi-step transaction coordination with rollback |
-| **ConflictResolver** | `components/conflict_resolver.py` | Inter-agent action conflict arbitration |
-| *Messaging* | `components/message_pool.py`, `message_provider.py` | Broadcast message queue and context injection |
+| **SocialGraph** | `components/social/graph.py` | Network topology and neighbor queries |
+| **InteractionHub** | `components/analytics/interaction.py` | Multi-tier information diffusion |
+| **PhaseOrchestrator** | `components/orchestration/phases.py` | Ordered agent-type execution phases |
+| **SagaCoordinator** | `components/orchestration/sagas.py` | Multi-step transaction coordination with rollback |
+| **ConflictResolver** | `components/coordination/conflict.py` | Inter-agent action conflict arbitration |
+| *Messaging* | `components/coordination/messages.py` | Broadcast message queue and context injection |
 
 ### L7 — Utilities & Infrastructure
 
@@ -211,7 +237,7 @@ L1–L5 and L7 power all experiments; L6 is multi-agent only.
 | :--- | :--- | :--- |
 | **LLMUtils** | `utils/llm_utils.py` | Config-driven LLM calls with timeout and model quirks |
 | **ModelAdapter** | `utils/model_adapter.py` | Multi-layer defensive parsing (JSON repair → regex → fallback) |
-| *LLM adapters* | `utils/adapters/` | Ollama, OpenAI, DeepSeek provider bindings |
+| *LLM Providers* | `providers/` | Ollama, Anthropic, OpenAI, Gemini provider implementations |
 | *Config schema* | `config/schema.py`, `config/agent_types/` | YAML configuration and agent type registry |
 | *Type interfaces* | `interfaces/` | Type definitions: `skill_types`, `context_types`, `schemas`, etc. |
 
@@ -309,15 +335,37 @@ The memory and governance architecture has evolved through three phases:
 
 **[Deep Dive: Memory Priority & Retrieval Math](docs/modules/memory_components.md)**
 
-### Provider Layer & Adapter
+### Sub-Package Architecture
 
-| Component                      | File                    | Description                                                                                                       |
-| :----------------------------- | :---------------------- | :---------------------------------------------------------------------------------------------------------------- |
-| **UnifiedAdapter**             | `model_adapter.py`      | Smart parsing: handles model-specific quirks (e.g., DeepSeek `<think>` tags, Llama JSON formatting)               |
-| **LLM Utils**                  | `llm_utils.py`          | Config-driven LLM calls: timeout, model quirks, and mock responses loaded from YAML (v3.5)                        |
-| **OllamaProvider**             | `ollama.py`             | Default local inference provider                                                                                  |
-| **FinancialCostProvider**      | `context_providers.py`  | Pre-decision financial cost disclosure (elevation, buyout, insurance costs) injected into agent context            |
-| **PerceptionAwareProvider**    | `context_providers.py`  | Agent-type-aware perception filter (households see qualitative; institutions see quantitative). Must be last in chain |
+After restructuring, `broker/components/` is organized into 9 domain sub-packages:
+
+```
+broker/components/
+├── analytics/         # Audit, drift detection, feedback, observable state
+├── cognitive/         # Reflection engine, domain adapters, cognitive trace
+├── context/           # TieredContextBuilder, context providers
+├── coordination/      # Conflict resolution, message pool, coordinator
+├── events/            # Event generators (flood, hazard, impact, policy)
+├── governance/        # Skill registry, skill retriever, role permissions
+├── memory/            # Memory engine, factory, engines/, seeding, bridge
+├── orchestration/     # Phase orchestrator, saga coordinator
+├── social/            # Social graph, perception filters, graph config
+├── prompt_templates/  # Memory prompt templates
+└── response_format.py # YAML-driven response format builder
+```
+
+### Provider Layer
+
+| Component | File | Description |
+| :--- | :--- | :--- |
+| **UnifiedAdapter** | `utils/model_adapter.py` | Smart parsing: handles model-specific quirks (DeepSeek `<think>` tags, Llama JSON) |
+| **LLM Utils** | `utils/llm_utils.py` | Config-driven LLM calls: timeout, model quirks, mock responses |
+| **LLMProvider (ABC)** | `providers/llm_provider.py` | Abstract provider interface with registry and routing |
+| **OllamaProvider** | `providers/ollama.py` | Local inference provider (default) |
+| **AnthropicProvider** | `providers/anthropic.py` | Anthropic Claude API provider |
+| **OpenAIProvider** | `providers/openai_provider.py` | OpenAI API provider |
+| **GeminiProvider** | `providers/gemini.py` | Google Gemini API provider |
+| **RateLimitedProvider** | `providers/rate_limiter.py` | Token-bucket rate limiting wrapper for cloud providers |
 
 ### Validator Layer (Governance Rule Engine)
 
@@ -388,51 +436,9 @@ BaseValidator (ABC)                    # broker/validators/governance/base_valid
 
 #### Validator Category Details
 
-**1. PhysicalValidator** — State Preconditions
+Five categories: **Physical** (irreversible state guards), **Thinking** (construct-action coherence via PMT/Utility/Financial), **Personal** (financial capacity), **Social** (neighbor influence, WARNING only), **Semantic** (reasoning vs. ground truth hallucination detection).
 
-Guards against actions that contradict irreversible simulation state. These represent the most unambiguous hallucination type: the agent proposes an action that is physically impossible given the current world state.
-
-| Check                | Trigger                                                  | Level | Hallucination Type |
-| :------------------- | :------------------------------------------------------- | :---- | :----------------- |
-| `already_elevated`   | `elevate_house` when `state.elevated=True`               | ERROR | Physical           |
-| `already_relocated`  | Any property action when `state.relocated=True`          | ERROR | Physical           |
-| `renter_restriction` | `elevate_house` or `buyout` when `state.tenure="renter"` | ERROR | Physical           |
-
-**2. ThinkingValidator** — Construct-Action Consistency
-
-Enforces coherence between the agent's self-reported psychological appraisals and the action it proposes. Supports three psychological frameworks (PMT, Utility, Financial) via the `framework` constructor parameter. The multi-condition YAML engine (`_validate_yaml_rules`) uses AND-logic across conditions and is fully domain-agnostic.
-
-| Rule (PMT)       | Condition                       | Blocked Skill               | Level |
-| :--------------- | :------------------------------ | :-------------------------- | :---- |
-| `high_tp_cp`     | TP in {H, VH} AND CP in {H, VH} | `do_nothing`                | ERROR |
-| `extreme_threat` | TP = VH                         | `do_nothing`                | ERROR |
-| `low_tp_extreme` | TP in {VL, L}                   | `relocate`, `elevate_house` | ERROR |
-
-**3. PersonalValidator** — Financial & Cognitive Constraints
-
-Validates that the agent has the economic capacity to execute a proposed action. Prevents the LLM from ignoring budget constraints entirely.
-
-| Check                     | Trigger                                                              | Level |
-| :------------------------ | :------------------------------------------------------------------- | :---- |
-| `elevation_affordability` | `elevate_house` when `savings < elevation_cost * (1 - subsidy_rate)` | ERROR |
-
-**4. SocialValidator** — Neighbor Influence Observation
-
-Social rules are **WARNING only** by design. They log social pressure signals for the audit trail but never block decisions. This reflects the theoretical position that social influence is an input to decision-making, not a constraint on it.
-
-| Check                | Trigger                                        | Level   |
-| :------------------- | :--------------------------------------------- | :------ |
-| `majority_deviation` | `do_nothing` when >50% neighbors have elevated | WARNING |
-
-**5. SemanticGroundingValidator** — Reasoning vs Ground Truth
-
-Detects hallucinations where the agent's free-text reasoning contradicts observable simulation state. This is the most nuanced validator category, as it performs NLP-level pattern matching against structured ground truth.
-
-| Check                | What It Detects                                                                 | Level   |
-| :------------------- | :------------------------------------------------------------------------------ | :------ |
-| `social_proof`       | Agent cites "neighbors" when context shows 0 neighbors (hallucinated consensus) | ERROR   |
-| `temporal_grounding` | Agent references "last year's flood" when no flood occurred                     | WARNING |
-| `state_consistency`  | Agent claims "I'm insured" when `has_insurance=False`                           | WARNING |
+See [Governance Core docs](docs/modules/governance_core.md) for full check tables, trigger conditions, and hallucination taxonomy.
 
 ---
 
@@ -475,7 +481,7 @@ We explicitly engineer the prompt context to counteract known LLM limitations:
 ### 2. The Logic-Action Validator & Explainable Feedback Loop
 
 - **Challenge**: The "Logic-Action Gap." Small LLMs often output a reasoning string that classifies a threat as "Very High" (VH) but then select "Do Nothing" due to syntax confusion or reward bias.
-- **Solution**: The **SkillBrokerEngine** implements a **Recursive Feedback Loop** (see [Skill System Pipeline](#pipeline-flow) for the full 6-stage implementation):
+- **Solution**: The **SkillBrokerEngine** implements a **Recursive Feedback Loop** (see [Skill Architecture](docs/architecture/skill_architecture.md) for the full 6-stage pipeline):
   1. **Detection**: Validators scan the parsed response. If `TP=VH` but `Action=Do Nothing`, an `InterventionReport` is generated.
   2. **Injection**: The framework extracts the specific violation and injects it into a **Retry Prompt**.
   3. **Instruction**: The LLM is told: _"Your previous response was rejected due to logical inconsistency. Here is why: [Violation]. Please reconsider."_
@@ -533,7 +539,7 @@ This is the production memory engine for all governed experiments (flood Group C
 
 ### Reflection Engine
 
-The `ReflectionEngine` (`broker/components/reflection_engine.py`) runs at configurable intervals (default: every year) to consolidate episodic memories into generalized insights. It is automatically invoked by the experiment runner at year-end when using `HumanCentricMemoryEngine` or `UnifiedCognitiveEngine`. Each reflection adds one LLM call per agent per interval.
+The `ReflectionEngine` (`broker/components/cognitive/reflection.py`) runs at configurable intervals (default: every year) to consolidate episodic memories into generalized insights. It is automatically invoked by the experiment runner at year-end when using `HumanCentricMemoryEngine` or `UnifiedCognitiveEngine`. Each reflection adds one LLM call per agent per interval.
 
 1. **Batch Consolidation**: Collects recent memories and prompts the LLM to synthesize lessons learned.
 2. **Domain-Specific Guidance**: Reflection questions are loaded from `agent_types.yaml` (`global_config.reflection.questions`), enabling domain-tailored consolidation (e.g., flood trauma vs irrigation strategy).
@@ -569,498 +575,104 @@ The `ReflectionEngine` (`broker/components/reflection_engine.py`) runs at config
 
 ## Validation Pipeline & Domain Configurations
 
-### Runtime Validation Sequence
+The `SkillBrokerEngine` runs a 5-category ordered validation pipeline (Physical → Thinking → Personal → Social → Semantic) on every `SkillProposal`. ERROR results trigger a retry loop (max 3) with human-readable feedback; WARNING results are logged but do not block execution.
 
-When the `SkillBrokerEngine` receives a parsed `SkillProposal`, it executes the following ordered pipeline. The function `validate_all(skill_name, rules, context, domain=...)` orchestrates all five category validators.
+**Four hallucination types** are detected: Physical (irreversible state violations), Thinking (construct-action inconsistency), Economic (absurd resource decisions), and Semantic (reasoning contradicts ground truth).
 
-```text
+**Domain support**: The `validate_all(domain=...)` parameter selects which `BuiltinCheck` functions are injected. Flood (11 checks) and Irrigation (8 checks + 4 YAML rules) are built-in. New domains add checks via `builtin_checks=[your_fn]` — no core broker changes needed.
 
-SkillProposal ─────────────────────────────────────────────────────────────► Execute
-│ ▲
-│ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ │
-├──►│ Physical │──►│ Thinking │──►│ Personal │─┐ │
-│ │ (state pre- │ │ (construct- │ │ (financial │ │ │
-│ │ conditions) │ │ action │ │ capacity) │ │ │
-│ └─────────────┘ │ coherence) │ └─────────────┘ │ │
-│ └─────────────┘ │ │
-│ ┌─────────────┐ ┌─────────────────┐ │ │
-└──►│ Social │──►│ Semantic │───────────────┘ │
-│ (neighbor │ │ Grounding │ │
-│ influence) │ │ (text vs truth) │ │
-└─────────────┘ └─────────────────┘ │
-│ │
-▼ │
-Any ERROR? ──YES──► RetryLoop (max 3) ──► Re-parse ─┘
-│
-NO
-│
-▼
-Pass (execute skill)
-
-````
-
-### Hallucination Taxonomy
-
-The framework defines four hallucination types, each detected by a different validator category. This taxonomy is used both at runtime (governance) and in post-hoc analysis (paper metrics).
-
-| Type         | Definition                              | Validator                        | Example                                          |
-| :----------- | :-------------------------------------- | :------------------------------- | :----------------------------------------------- |
-| **Physical** | Action contradicts irreversible state   | `PhysicalValidator`              | Elevate an already-elevated house                |
-| **Thinking** | Construct-action inconsistency          | `ThinkingValidator`              | TP=VH threat appraisal, yet selects `do_nothing` |
-| **Economic** | Operationally absurd resource decision  | `PhysicalValidator` (irrigation) | Reduce demand below 10% utilisation floor        |
-| **Semantic** | Reasoning text contradicts ground truth | `SemanticGroundingValidator`     | Cites "neighbors" when agent has 0 neighbors     |
-
-### Domain Validator Configurations
-
-The `validate_all()` function accepts a `domain` parameter that controls which `BuiltinCheck` functions are injected into each validator. The YAML-driven condition engine always runs regardless of domain.
-
-```python
-# Flood domain (default)
-validate_all(skill_name, rules, context, domain="flood")
-
-# Irrigation domain
-validate_all(skill_name, rules, context, domain="irrigation")
-
-# YAML rules only (no hardcoded built-in checks)
-validate_all(skill_name, rules, context, domain=None)
-````
-
-#### Flood Domain Validators (洪水領域驗證器)
-
-| Category | Check ID                  | Trigger                                           | Level   |
-| :------- | :------------------------ | :------------------------------------------------ | :------ |
-| Physical | `already_elevated`        | `elevate_house` when `elevated=True`              | ERROR   |
-| Physical | `already_relocated`       | Property action when `relocated=True`             | ERROR   |
-| Physical | `renter_restriction`      | `elevate_house`/`buyout` when `tenure=renter`     | ERROR   |
-| Thinking | `high_tp_cp`              | TP in {H,VH} + CP in {H,VH} + `do_nothing`        | ERROR   |
-| Thinking | `extreme_threat`          | TP=VH + `do_nothing`                              | ERROR   |
-| Thinking | `low_tp_extreme`          | TP in {VL,L} + `relocate`/`elevate_house`         | ERROR   |
-| Personal | `elevation_affordability` | `elevate_house` when `savings < cost`             | ERROR   |
-| Social   | `majority_deviation`      | `do_nothing` when >50% neighbors elevated         | WARNING |
-| Semantic | `social_proof`            | Reasoning cites neighbors; context shows 0        | ERROR   |
-| Semantic | `temporal_grounding`      | Reasoning cites flood; no flood occurred          | WARNING |
-| Semantic | `state_consistency`       | Reasoning claims insurance; `has_insurance=False` | WARNING |
-
-#### Irrigation Domain Validators (灌溉領域驗證器)
-
-Source: `examples/irrigation_abm/validators/irrigation_validators.py`
-
-**Physical Checks (6 rules):**
-
-| Check ID                     | Trigger                                                  | Level | Notes                                  |
-| :--------------------------- | :------------------------------------------------------- | :---- | :------------------------------------- |
-| `water_right_cap`            | `increase_demand` when `at_allocation_cap=True`          | ERROR | Enforces senior water right limit      |
-| `non_negative_diversion`     | `decrease_demand` when `current_diversion=0`             | ERROR | Floor constraint                       |
-| `efficiency_already_adopted` | `adopt_efficiency` when `has_efficient_system=True`      | ERROR | Irreversible (like elevation in flood) |
-| `minimum_utilisation`        | `decrease_demand`/`reduce_acreage` when utilisation <10% | ERROR | Economic hallucination type            |
-| `drought_severity`           | `increase_demand` when `drought_index >= 0.8`            | ERROR | Conservation mandate                   |
-| `magnitude_cap`              | `increase_demand` when proposed magnitude > cluster cap  | ERROR | Cluster-specific bounds                |
-
-**Institutional Checks (2 rules):**
-
-| Check ID                | Trigger                                            | Level   | Notes                  |
-| :---------------------- | :------------------------------------------------- | :------ | :--------------------- |
-| `curtailment_awareness` | `increase_demand` during active curtailment        | WARNING | Informational only     |
-| `compact_allocation`    | `increase_demand` when basin exceeds Compact share | WARNING | Colorado River Compact |
-
-**Irrigation Thinking Rules (YAML-driven):**
-
-| Rule                                | Condition            | Blocked Skill      |
-| :---------------------------------- | :------------------- | :----------------- |
-| `high_threat_no_maintain`           | WSA = VH threat      | `maintain_demand`  |
-| `high_threat_high_cope_no_increase` | WSA = VH + ACA = H   | `increase_demand`  |
-| `water_right_cap`                   | At allocation cap    | `increase_demand`  |
-| `already_efficient`                 | Has efficient system | `adopt_efficiency` |
-
-#### Domain Comparison Summary (領域對比)
-
-| Dimension                | Flood                                | Irrigation                                                                      |
-| :----------------------- | :----------------------------------- | :------------------------------------------------------------------------------ |
-| **Behavioral Theory**    | PMT (Protection Motivation Theory)   | Dual Appraisal (WSA/ACA)                                                        |
-| **Constructs**           | TP (Threat), CP (Coping), SP, SC, PA | WSA (Water Stress), ACA (Adaptive Capacity)                                     |
-| **Irreversible Actions** | Elevation, Relocation                | Efficiency Adoption                                                             |
-| **Renewable Actions**    | Insurance (annual expiry)            | Demand adjustment (annual)                                                      |
-| **Physical Checks**      | 3 built-in checks                    | 6 built-in checks                                                               |
-| **Social Checks**        | 1 WARNING (majority deviation)       | 2 WARNINGs (curtailment, compact)                                               |
-| **Semantic Checks**      | 3 (social proof, temporal, state)    | None active (agents operate independently; no social network to ground against) |
-| **Hallucination Types**  | Physical, Thinking, Semantic         | Physical, Thinking, Economic                                                    |
-
-### Extending to a New Domain (擴展至新領域)
-
-The validator architecture is designed for domain extensibility. To add validators for a new domain (e.g., groundwater management, drought response), follow this pattern:
-
-**Step 1**: Define `BuiltinCheck` functions in a domain-specific file.
-
-```python
-# examples/groundwater_abm/validators/groundwater_validators.py
-from broker.validators.governance.base_validator import BuiltinCheck
-
-def well_depth_limit_check(skill_name, rules, context):
-    """Block pumping increase if well exceeds depth limit."""
-    if skill_name != "increase_pumping":
-        return []
-    if context.get("well_depth", 0) >= context.get("max_depth", 500):
-        return [ValidationResult(
-            valid=False,
-            validator_name="GroundwaterPhysicalValidator",
-            errors=["Well depth limit exceeded"],
-            metadata={"rule_id": "well_depth_limit", "category": "physical"}
-        )]
-    return []
-
-GROUNDWATER_PHYSICAL_CHECKS = [well_depth_limit_check]
-```
-
-**Step 2**: Inject checks when constructing validators.
-
-```python
-from broker.validators.governance import PhysicalValidator, ThinkingValidator
-
-validators = [
-    PhysicalValidator(builtin_checks=GROUNDWATER_PHYSICAL_CHECKS),
-    ThinkingValidator(builtin_checks=[]),   # YAML rules only
-]
-```
-
-**Step 3**: Or register the domain in `validate_all()` for framework-level support.
-
-```python
-# In broker/validators/governance/__init__.py
-elif domain == "groundwater":
-    validators = [
-        PhysicalValidator(builtin_checks=GROUNDWATER_PHYSICAL_CHECKS),
-        ThinkingValidator(builtin_checks=[]),
-        # ...
-    ]
-```
-
-> **Key pattern / 關鍵模式**: `builtin_checks=None` uses flood defaults (backward compatibility);
-> `builtin_checks=[]` disables all built-in checks (YAML-only mode);
-> `builtin_checks=[your_fn]` injects domain-specific logic.
->
-> `builtin_checks=None` 使用洪水預設值（向後相容）；`builtin_checks=[]` 禁用所有內建檢查
-> （純 YAML 模式）；`builtin_checks=[your_fn]` 注入領域特定邏輯。
+See [Governance Core](docs/modules/governance_core.md) for the full pipeline diagram, per-domain check tables, hallucination taxonomy, and domain extension guide.
 
 ---
 
 ## Configuration-Driven Extension (v3.5)
 
-All domain-specific logic is centralized in YAML configuration files. New water sub-domains (e.g., groundwater management, drought response) can be added by defining skill registries, validators, and agent configurations — without modifying the core broker.
+As of v3.5, the `broker/` layer contains **zero hardcoded domain-specific values** — all timeouts, model quirks, construct labels, and keyword lists are read from YAML. Existing experiments work without config changes (defaults match previous hardcoded values).
 
-### Domain-Agnostic Refactoring (v3.5)
+See [YAML Configuration Reference](docs/references/yaml_configuration_reference.md) for the full parameter reference (memory engine, weighted scoring, reflection, LLM, governance, and StateParam normalization).
 
-As of v3.5, the `broker/` layer contains **zero hardcoded domain-specific values**. The following modules were refactored to read all configuration from YAML:
+### YAML vs. Python Extension Boundary
 
-| Module | Before (v3.4) | After (v3.5) | Config Source |
-| :--- | :--- | :--- | :--- |
-| **LLM Utils** | Hardcoded timeout (120s/600s) by model name pattern; hardcoded DeepSeek/Qwen3 quirks; hardcoded PMT mock response | `LLMConfig` reads `global_config.llm.timeout`, `model_quirks`, `large_model_patterns` from YAML | `agent_types.yaml` |
-| **Validators** | Hardcoded `TP_LABEL`/`CP_LABEL` fallbacks; hardcoded flood/irrigation keyword lists | Template context built dynamically from `reasoning` dict keys; keywords injected via constructor | `agent_types.yaml` |
-| **Audit Writer** | 9 named construct columns (`TP_LABEL`, `CP_LABEL`, etc.) | Dynamic extraction of all `_LABEL`/`_UTIL`/`_GAP`/`_IMPACT` keys from reasoning | Agent output |
-| **Post-hoc R_H** | Hardcoded `elevated`/`relocated` column names | Parameterized `irreversible_states` dict passed by caller | Caller config |
-| **Psychometric** | Hardcoded action names (`elevate_house`, `relocate`) | `expected_behavior_map` and `extreme_actions` passed via constructor | Caller config |
+| What You Want to Change | YAML Only | Python Required | Config File |
+| :--- | :---: | :---: | :--- |
+| Add/remove skills (actions) | Yes | — | `skill_registry.yaml` |
+| Define agent types & personas | Yes | — | `agent_types.yaml` |
+| Add/modify governance rules | Yes | — | `agent_types.yaml` → `governance.rules` |
+| Tune memory parameters (window, decay, weights) | Yes | — | `agent_types.yaml` → `global_config.memory` |
+| Change LLM model or timeout | Yes | — | `agent_types.yaml` → `global_config.llm` |
+| Change response format fields | Yes | — | `agent_types.yaml` → `response_format.fields` |
+| Add a new BuiltinCheck (domain validator) | — | Yes | Implement in `broker/validators/governance/` |
+| Add a new MemoryEngine | — | Yes | Subclass `MemoryEngine` ABC |
+| Add a new LLM Provider | — | Yes | Subclass `LLMProvider` ABC in `providers/` |
+| Add a new domain (beyond flood/irrigation) | — | Yes | New `lifecycle_hooks.py` + `skill_registry.yaml` + `agent_types.yaml` |
+| Custom calibration metrics (C&V) | — | Yes | Provide `compute_metrics_fn` to `CalibrationProtocol` |
 
-**Backward compatibility**: All modules retain sensible defaults. Existing experiments (flood, irrigation) work without any config changes — the defaults match the previous hardcoded values.
+### How to Extend (Interface Contracts)
 
-### YAML Configuration Examples
+To add a **new memory engine**, subclass the ABC in `broker/components/memory/engine.py`:
 
-```yaml
-# agent_types.yaml - Parsing & Memory Configuration
-parsing:
-  decision_keywords: ["decision", "choice", "action"]
-  synonyms:
-    tp: ["severity", "vulnerability", "threat", "risk"]
-    cp: ["efficacy", "self_efficacy", "coping", "ability"]
-
-# LLM configuration (v3.5 — previously hardcoded)
-global_config:
-  llm:
-    timeout: 120
-    timeout_large_model: 600
-    large_model_patterns: ["27b", "30b", "32b", "70b"]
-    model_quirks:
-      deepseek:
-        min_retries: 5
-      qwen3:
-        append_suffix: "/no_think"
-        strip_think_tags: true
-
-memory_config:
-  emotional_weights:
-    critical: 1.0 # Flood damage, trauma
-    major: 0.9    # Important life decisions
-    positive: 0.8 # Successful adaptation
-    routine: 0.1  # Daily noise
-
-  source_weights:
-    personal: 1.0 # Direct experience "I saw..."
-    neighbor: 0.7 # "My neighbor did..."
-    community: 0.5 # "The news said..."
+```python
+class MemoryEngine(ABC):
+    @abstractmethod
+    def add_memory(self, agent_id: str, content: str,
+                   metadata: Optional[Dict[str, Any]] = None) -> None: ...
+    @abstractmethod
+    def retrieve(self, agent: BaseAgent, query: Optional[str] = None,
+                 top_k: int = 3, **kwargs) -> List[dict]: ...
+    @abstractmethod
+    def clear(self, agent_id: str) -> None: ...
 ```
 
-### Framework Parameter Reference
+To add a **new LLM provider**, subclass the ABC in `providers/llm_provider.py`:
 
-All configurable parameters at the framework level, with valid ranges and defaults. Parameters that **must** be in [0, 1] are marked accordingly; integer counts and LLM-standard parameters have their own natural ranges.
+```python
+class LLMProvider(ABC):
+    @property
+    @abstractmethod
+    def provider_name(self) -> str: ...
+    @abstractmethod
+    def invoke(self, prompt: str, **kwargs) -> LLMResponse: ...
+    @abstractmethod
+    async def ainvoke(self, prompt: str, **kwargs) -> LLMResponse: ...
+    def validate_connection(self) -> bool: ...  # default provided
+```
 
-#### Memory Engine Parameters
+To add a **new validator**, subclass `BaseValidator` in `broker/validators/governance/base_validator.py`:
 
-| Parameter | Default | Valid Range | Semantics |
-| :--- | :--- | :--- | :--- |
-| `window_size` | 3 | 1+ (integer) | Working memory buffer size |
-| `top_k_significant` | 2 | 1+ (integer) | Top long-term memories by decayed importance |
-| `decay_rate` | 0.1 | **[0, 1]** | Exponential decay lambda in $e^{-\lambda t}$ |
-| `consolidation_prob` | 0.7 | **[0, 1]** | Probability of working-to-long-term transfer |
-| `consolidation_threshold` | 0.6 | **[0, 1]** | Minimum importance for consolidation eligibility |
-| `ema_alpha` | 0.3 | **[0, 1]** | EMA smoothing factor (lower = slower adaptation) |
-| `arousal_threshold` | 2.0 | [0, +inf) | Z-score threshold for surprise detection (not 0-1 by design) |
-| `forgetting_threshold` | 0.2 | **[0, 1]** | Importance below which memories are eligible for forgetting |
-| `interference_cap` | 0.8 | **[0, 1]** | Maximum retroactive interference suppression |
+```python
+class BaseValidator(ABC):
+    category: str                          # e.g., "physical", "thinking"
+    @abstractmethod
+    def _default_builtin_checks(self) -> List[BuiltinCheck]: ...
+    # validate() is provided by base — override _default_builtin_checks only
+```
 
-#### Weighted Scoring Parameters (sum must equal 1.0)
+To add a **new domain** (e.g., wildfire, drought), provide:
 
-| Parameter | Default | Valid Range | Used In |
-| :--- | :--- | :--- | :--- |
-| `W_recency` | 0.3 | **[0, 1]** | Weighted ranking mode |
-| `W_importance` | 0.5 | **[0, 1]** | Weighted ranking mode |
-| `W_context` | 0.2 | **[0, 1]** | Weighted ranking mode |
-| `W_relevance` | 0.0 | **[0, 1]** | v2-next contextual resonance (disabled by default) |
-| `W_interference` | 0.0 | **[0, 1]** | v2-next retroactive interference (disabled by default) |
-
-> **Constraint**: `W_recency + W_importance + W_context` should sum to 1.0. The framework does not enforce this at runtime.
-
-#### Reflection Parameters
-
-| Parameter | Default | Valid Range | Semantics |
-| :--- | :--- | :--- | :--- |
-| `importance_boost` | 0.85-0.9 | **[0, 1]** | Importance score assigned to reflection insights |
-| `reflection_interval` | 1 | 1+ (integer) | Reflect every N years |
-| `batch_size` | 10 | 1+ (integer) | Agents per reflection batch |
-
-#### LLM Parameters
-
-| Parameter | Default | Valid Range | Semantics |
-| :--- | :--- | :--- | :--- |
-| `temperature` | Ollama default (~0.8) | [0, 2] | LLM sampling temperature (LLM standard, not 0-1) |
-| `top_p` | Ollama default | **[0, 1]** | Nucleus sampling probability |
-| `top_k` | Ollama default | 1+ (integer) | Top-k token sampling |
-| `num_ctx` | 16384 | 1024+ (integer) | Context window size in tokens |
-| `num_predict` | 2048 | -1 or 1+ | Max output tokens (-1 = unlimited) |
-| `max_retries` | 2 | 0+ (integer) | LLM-level retries on timeout/error |
-
-#### Governance Parameters
-
-| Parameter | Default | Valid Range | Semantics |
-| :--- | :--- | :--- | :--- |
-| `max_retries` | 2 | 0+ (integer) | Governance retry attempts after ERROR |
-| `max_reports_per_retry` | 3 | 1+ (integer) | Violation reports shown per retry prompt |
-
-#### StateParam Normalization
-
-All user-defined `StateParam` values are automatically normalized to [0, 1] via:
-
-$$\text{normalized} = \text{clamp}\left(\frac{v - \text{min}}{\text{max} - \text{min}},\ 0,\ 1\right)$$
-
-The `raw_range` tuple defines the domain-specific scale (e.g., `(0, 1000000)` for budget); the framework handles conversion transparently. `dynamic_state` values bypass normalization and use raw domain units.
+1. `skill_registry.yaml` — action ontology for the domain
+2. `agent_types.yaml` — persona definitions, constructs, governance rules
+3. `lifecycle_hooks.py` — subclass `BaseLifecycleHooks` for environment setup and state transitions
+4. (Optional) Domain-specific `BuiltinCheck` functions for validators
 
 ---
 
 ## Skill System
 
-The Skill System is the framework's **action ontology** — it defines what agents can do, how they propose actions, and how proposals are validated before execution. Every agent decision flows through a 6-stage pipeline managed by the `SkillBrokerEngine`.
+The Skill System is the framework's **action ontology** — a 6-stage pipeline (Context → LLM → Parse → Validate → Approve → Execute) managed by the `SkillBrokerEngine`. Skills are defined in YAML (`skill_registry.yaml`) with `skill_id`, `preconditions`, `output_schema` (JSON Schema), `conflicts_with`, and `implementation_mapping`.
 
-### Core Concepts
+Key components:
 
-| Concept               | Component                             | Description                                                                                                                                     |
-| :-------------------- | :------------------------------------ | :---------------------------------------------------------------------------------------------------------------------------------------------- |
-| **SkillDefinition**   | `skill_registry.yaml`                 | YAML entry defining a skill: `skill_id`, `description`, `preconditions`, `institutional_constraints`, `implementation_mapping`, `output_schema` |
-| **SkillRegistry**     | `broker/components/skill_registry.py` | Central registry loaded from YAML. Provides eligibility checks, precondition enforcement, output schema validation, and magnitude bounds.       |
-| **SkillProposal**     | `broker/interfaces/skill_types.py`    | Parsed LLM output before validation. Contains: `skill_name`, `reasoning` (construct labels), `magnitude_pct`, `parse_layer`, `confidence`.      |
-| **ApprovedSkill**     | `broker/interfaces/skill_types.py`    | Post-validation result. Contains: `skill_name`, `approval_status` (APPROVED/REJECTED/REJECTED_FALLBACK), `execution_mapping`, `parameters`.     |
-| **SkillBrokerEngine** | `broker/core/skill_broker_engine.py`  | Main orchestrator. Implements the 6-stage pipeline: context → LLM → parse → validate → approve → execute.                                       |
+| Concept | Description |
+| :--- | :--- |
+| **SkillRegistry** | Central registry loaded from YAML — eligibility checks, precondition enforcement, output schema validation |
+| **SkillProposal** | Parsed LLM output before validation (skill name, construct labels, magnitude) |
+| **ApprovedSkill** | Post-validation result with APPROVED/REJECTED/REJECTED_FALLBACK status |
+| **ResponseFormatBuilder** | Converts YAML `response_format.fields` into structured prompt instructions (supports `text`, `appraisal`, `choice`, `numeric` field types) |
+| **ModelAdapter** | Multi-layer defensive parsing: enclosure → JSON repair → keyword regex → digit extraction → fallback |
 
-### Pipeline Flow
+The pipeline supports format retries (2 max, for parse failures) and governance retries (3 max, for validation ERROR), with human-readable feedback injected into retry prompts.
 
-```
-┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
-│ ① Context    │────►│ ② LLM Call   │────►│ ③ Parse      │────►│ ④ Validate   │────►│ ⑤ Approve    │────►│ ⑥ Execute    │
-│   Builder    │     │   + Prompt   │     │   Output     │     │   Pipeline   │     │   / Reject   │     │   + Audit    │
-└──────────────┘     └──────────────┘     └──────────────┘     └──────┬───────┘     └──────────────┘     └──────────────┘
-                                                                      │ ERROR?
-                                                                      ▼
-                                                               Retry Loop (max 3)
-                                                               with feedback prompt
-```
-
-| Stage          | Component                 | What Happens                                                                                                                                                                                                                                                                                                                                    |
-| :------------- | :------------------------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **① Context**  | `ContextBuilder`          | Build bounded perception: agent state, memory retrieval, filtered skill list, environmental signals                                                                                                                                                                                                                                             |
-| **② LLM**      | `llm_invoke()`            | Call language model with structured prompt (persona + context + response format)                                                                                                                                                                                                                                                                |
-| **③ Parse**    | `ModelAdapter`            | Multi-layer defensive parsing: enclosure → JSON repair → keyword regex → digit extraction → fallback. Extracts `SkillProposal` with construct labels and optional `magnitude_pct`. Up to 2 **format retries** (separate from governance retries — for structural parse failures only).                                                          |
-| **④ Validate** | `_run_validators()`       | Run 5-category governance validators (Physical → Thinking → Personal → Social → Semantic; see [Validator Layer](#validator-layer-governance-rule-engine) for details) + registry checks (eligibility, preconditions, output schema). ERROR triggers up to 3 **governance retries** with human-readable feedback injected into the retry prompt. |
-| **⑤ Approve**  | `_build_approved_skill()` | Create `ApprovedSkill` with status, execution mapping, and parameters. On rejection after max retries: fallback to `default_skill`.                                                                                                                                                                                                             |
-| **⑥ Execute**  | `SimulationEngine`        | Execute approved skill in sandboxed simulation. Write full audit trace (prompt, output, validation history, outcome).                                                                                                                                                                                                                           |
-
-### Response Format & Prompt Engineering
-
-The **ResponseFormatBuilder** (`broker/components/response_format.py`) converts YAML `response_format.fields` into structured prompt instructions. The field ordering in YAML directly controls the order of fields in the LLM prompt.
-
-**YAML Configuration** (from `agent_types.yaml`):
-
-```yaml
-shared:
-  response_format:
-    delimiter_start: "<<<DECISION_START>>>"
-    delimiter_end: "<<<DECISION_END>>>"
-    fields:
-      - { key: "reasoning", type: "text", required: false }
-      - {
-          key: "threat_appraisal",
-          type: "appraisal",
-          required: true,
-          construct: "TP_LABEL",
-        }
-      - {
-          key: "coping_appraisal",
-          type: "appraisal",
-          required: true,
-          construct: "CP_LABEL",
-        }
-      - { key: "decision", type: "choice", required: true }
-      - {
-          key: "magnitude_pct",
-          type: "numeric",
-          min: 1,
-          max: 30,
-          required: false,
-        }
-```
-
-**Field Types**:
-
-| Type        | YAML Example                                                                     | Generated Prompt Output                                         |
-| :---------- | :------------------------------------------------------------------------------- | :-------------------------------------------------------------- |
-| `text`      | `{ key: "reasoning", type: "text" }`                                             | `"reasoning": "..."`                                            |
-| `appraisal` | `{ key: "threat_appraisal", type: "appraisal", construct: "TP_LABEL" }`          | `"threat_appraisal": {"label": "VL/L/M/H/VH", "reason": "..."}` |
-| `choice`    | `{ key: "decision", type: "choice" }`                                            | `"decision": "<Numeric ID, choose ONE from: 1, 2, or 3>"`       |
-| `numeric`   | `{ key: "elevation", type: "numeric", min: 0, max: 5, unit: "m", sign: "both" }` | `"elevation": "Enter a number: +/- 0-5 m"`                      |
-
-**Flexible Numeric Fields (v3.4)**:
-The `numeric` type now supports detailed calibration:
-
-- `unit`: Appends unit to placeholder (e.g., "%", "meters", "USD").
-- `sign`: Controls allowed values (`positive_only` [default], `negative_only`, `both`).
-- `min`/`max`: Generates range guidance and enables automatic clamping (e.g., result > max is clamped to max).
-
-**Example LLM Response** (what the model actually outputs):
-
-```json
-<<<DECISION_START>>>
-{
-  "reasoning": "Flood depth reached 4 feet last year. My savings are limited.",
-  "threat_appraisal": {"label": "H", "reason": "Severe flood risk based on recent damage"},
-  "coping_appraisal": {"label": "L", "reason": "Cannot afford elevation costs"},
-  "decision": 2
-}
-<<<DECISION_END>>>
-```
-
-**Reasoning Before Rating**: All WRR experiment configs place the `reasoning` field **first** in the field list. Because LLMs generate tokens autoregressively (left to right), this forces the model to articulate its reasoning before committing to appraisal labels and action choices — improving generation quality. This is a config-level feature, not a module-level change; any experiment can reorder fields in YAML.
-
-**`required: true` vs `required: false`**: Required fields trigger parse errors and format retries if missing. Optional fields (e.g., `magnitude_pct`, `reasoning`) are silently skipped — the system uses persona defaults or empty values as fallback.
-
-### Skill Registry Configuration
-
-Skills are defined in domain-specific `skill_registry.yaml` files:
-
-```yaml
-skills:
-  - skill_id: elevate_house
-    description: "Elevate your house (High upfront cost, permanent protection...)"
-    eligible_agent_types: ["*"]
-    preconditions: ["not elevated"]
-    institutional_constraints:
-      once_only: true
-      cost_type: "one_time"
-    allowed_state_changes: [elevated]
-    implementation_mapping: "sim.elevate"
-    output_schema:
-      type: object
-      properties:
-        decision: { type: integer }
-    conflicts_with: [relocate]
-
-default_skill: do_nothing
-```
-
-| Field                       | Purpose                                                                    |
-| :-------------------------- | :------------------------------------------------------------------------- |
-| `skill_id`                  | Unique identifier used in governance rules and parsing                     |
-| `eligible_agent_types`      | Which agent types can use this skill (`"*"` = all)                         |
-| `preconditions`             | State conditions that must be met (checked by `check_preconditions()`)     |
-| `institutional_constraints` | Domain rules: `once_only`, `annual`, `magnitude_type`, `max_magnitude_pct` |
-| `output_schema`             | JSON Schema for post-parse validation via `validate_output_schema()`       |
-| `conflicts_with`            | Mutually exclusive skills (for future composite execution)                 |
-| `implementation_mapping`    | Simulation command to execute (e.g., `"sim.elevate"`)                      |
-
-### Enhancements (v3.4/v3.5)
-
-#### JSON Schema Output Validation
-
-Skills can now define a `output_schema` in their YAML registry using JSON Schema standard syntax. The `SkillRegistry.validate_output_schema()` method supports type checking (`number`, `string`, `integer`), range validation (`minimum`/`maximum`), and `enum` constraints.
-
-```yaml
-# Example: irrigation skill with magnitude constraint
-- skill_id: increase_demand
-  output_schema:
-    type: object
-    required: [decision]
-    properties:
-      decision: { type: integer, enum: [1, 2, 3, 4, 5] }
-      magnitude_pct: { type: number, minimum: 1, maximum: 30 }
-  conflicts_with: [decrease_demand]
-```
-
-#### Composite Skill Declarations
-
-Skills declare mutual exclusivity (`conflicts_with`) and dependency ordering (`depends_on`) for future composite skill execution (C4). The registry provides `check_composite_conflicts()` to validate skill combinations before execution.
-
-| Declaration      | Purpose                   | Example                                     |
-| :--------------- | :------------------------ | :------------------------------------------ |
-| `conflicts_with` | Mutually exclusive skills | `increase_demand` ↔ `decrease_demand`       |
-| `depends_on`     | Prerequisite ordering     | `adopt_efficiency` → then `decrease_demand` |
-
-#### Flexible Numeric Parsing (Schema-Driven)
-
-The framework now supports dynamic parsing of any numeric field defined in `response_format.fields`. While `magnitude_pct` is the common use case, agents can now output budget allocations, physical dimensions, or signed values.
-
-| Component      | Behavior                                                                                                                                    |
-| :------------- | :------------------------------------------------------------------------------------------------------------------------------------------ | --- |
-| **Schema**     | Define any field with `type: "numeric"` in `agent_types.yaml`.                                                                              |
-| **Config**     | Support `unit` ("%", "m"), `sign` ("both"), `min`, `max`.                                                                                   |
-| **Parsing**    | `ModelAdapter` dynamically extracts values based on field keys. Supports robust regex extraction for outputs like `"15%"` or `"Enter: 20"`. |
-| **Validation** | Automatic clamping to [min, max] range. Sign enforcement (e.g., rejecting negative values if `positive_only`).                              |
-| **Legacy**     | Fully backward compatible with experiments that use `magnitude_pct` or no numeric fields at all.                                            |     |
-
-#### Per-Agent 2018 Baseline (Irrigation)
-
-Irrigation agents now initialize from **actual 2018 historical diversions** (aligning with Hung & Yang, 2021) rather than a uniform `water_right × 0.8`:
-
-| Basin                       | Source                               | Unit              | Method                                                 |
-| :-------------------------- | :----------------------------------- | :---------------- | :----------------------------------------------------- |
-| **Lower Basin** (22 agents) | `LB_historical_annual_diversion.csv` | acre-ft           | Direct match by agent name                             |
-| **Upper Basin** (56 agents) | `UB_historical_annual_depletion.csv` | thousands AF → AF | Proportional split by `water_right` within state group |
-
-Synthetic profiles (no CRSS data) fall back to `water_right × 0.8`.
-
-#### Skill System Architecture Status
-
-> **Skill System Validation Pipeline Status:**
->
-> | Method                        | Purpose                                     | Status                                               |
-> | :---------------------------- | :------------------------------------------ | :--------------------------------------------------- |
-> | `validate_output_schema()`    | JSON Schema validation for LLM output       | ✅ Wired into `_run_validators()` (commit `f384814`) |
-> | `check_preconditions()`       | YAML precondition enforcement               | ✅ Wired into `_run_validators()` (commit `08cdb3a`) |
-> | `get_magnitude_bounds()`      | Extract magnitude constraints from registry | ✅ Used by schema-driven magnitude pipeline          |
-> | `check_composite_conflicts()` | Mutual exclusivity checking                 | Awaiting C4 composite skill execution                |
+See [Skill Architecture](docs/architecture/skill_architecture.md) for the full pipeline diagram, response format spec, registry configuration, and v3.4/v3.5 enhancements (JSON Schema validation, composite skill declarations, flexible numeric parsing).
 
 ---
 
@@ -1072,8 +684,8 @@ The pipeline validates at three hierarchical levels, following Grimm et al. (200
 
 | Level | Scope | Core Metrics | What It Tests |
 | :---- | :---- | :----------- | :------------ |
-| **L1 — MICRO** | Individual agent | **CACR** (Construct-Action Coherence Rate), **R_H** (Hallucination Rate + EBE) | Are individual decisions internally coherent with reported psychological constructs? |
-| **L2 — MACRO** | Population | **GCR** (Governance Concordance Rate), **EPI** (Empirical Plausibility Index) | Do aggregate adoption rates match empirical benchmarks (NFIP, survey data)? |
+| **L1 — MICRO** | Individual agent | **CACR** (Construct-Action Coherence Rate), **R_H** (Hallucination Rate + EBE: Event-Based Evaluation) | Are individual decisions internally coherent with reported psychological constructs? |
+| **L2 — MACRO** | Population | **GCR** (Governance Concordance Rate), **EPI** (Empirical Plausibility Index) | Do aggregate adoption rates match empirical benchmarks (NFIP: National Flood Insurance Program, survey data)? |
 | **L3 — COGNITIVE** | Psychometric | **ICC(2,1)** + **eta-squared** (effect size) | Does the LLM produce reliable, discriminable construct ratings across replicates? |
 
 Key design features:
@@ -1136,7 +748,7 @@ The framework has been validated through the **WRR Benchmark** (_Water Resources
 | **Google Gemma** | 3-4B, 3-12B, 3-27B  | Primary benchmark models (JOH Paper) |
 | **Mistral**      | Ministral 3B/8B/14B | Cross-family generalization study    |
 | **Meta Llama**   | 3.2-3B-Instruct     | Lightweight edge agents              |
-| **DeepSeek**     | R1-Distill-Llama-8B | High-Reasoning (CoT) tasks           |
+| **DeepSeek**     | R1-Distill-Llama-8B | High-Reasoning (Chain-of-Thought) tasks |
 
 ### Flood Experiment Status (WRR Benchmark)
 
@@ -1173,54 +785,28 @@ All experiments use v7 code (action-outcome feedback, configurable reflection, r
 
 ## Single-Agent vs Multi-Agent Compatibility (SA/MA 適配性)
 
-The `SkillBrokerEngine` is used by **both** SA and MA experiments. MA support works via lifecycle hooks and domain-agnostic context injection:
+The `SkillBrokerEngine` serves **both** SA and MA experiments. MA adds lifecycle hooks (`pre_year`, `post_step`, `post_year`), phased execution (`ExperimentBuilder.with_phase_order()`), and social context injection — all without modifying the core broker pipeline.
 
-| Capability               |        SA         |        MA         | Notes                                     |
-| :----------------------- | :---------------: | :---------------: | :---------------------------------------- |
-| Basic skill execution    |         ✓         |         ✓         | Same broker pipeline                      |
-| Single-agent validation  |         ✓         |         ✓         | 5-category validator pipeline             |
-| Cross-agent constraints  |        N/A        |         ⚠         | Implemented via hooks, not broker audit   |
-| Lifecycle hooks          |         ✓         |         ✓         | `pre_year`, `post_step`, `post_year`      |
-| Memory + Reflection      |         ✓         |         ✓         | Per-agent memory, batch reflection        |
-| Output Schema validation |         ✓         |         ✓         | JSON Schema defined per skill             |
-| Communication protocol   |        N/A        |      Partial      | Broadcast via `env` state; no negotiation |
-| Domain adapters          | Flood, Irrigation | Flood, Irrigation | Extensible via `DomainReflectionAdapter`  |
+**Known MA limitations**: no cross-agent validation in broker (hooks only), no negotiation protocol (broadcast via `env` state), non-PMT agents require domain-specific validator configs.
 
-### MA Execution Model
+See [Multi-Agent Architecture](docs/architecture/mas-five-layers.md) for the full SA/MA compatibility table, phased execution model, and communication protocol details.
 
-The framework supports **phased execution** via `ExperimentBuilder.with_phase_order()` (v3.5). Agent type groups execute sequentially so that institutional decisions are visible to household agents within the same year.
+---
 
-```
-Phase 1: Government agents → execute first
-    ├─ Update env["subsidy_rate"], subsidy decisions
-    └─ Broadcast via post_step hooks
-                    ↓
-Phase 2: Insurance agents → execute second
-    ├─ Update env["premium_rate"], CRS discount
-    └─ Broadcast via post_step hooks
-                    ↓
-Phase 3: Household agents (N sequential) → see institutional decisions in context
-    ├─ SkillBrokerEngine validates per-agent
-    ├─ PerceptionAwareProvider filters context by agent type
-    └─ State changes applied individually
-                    ↓
-Post-year aggregation → damage calculation, reflection batch
-```
+## For Paper Contributors
 
-```python
-# Phase order configuration (SAGA 3-tier)
-builder.with_phase_order([
-    ["government"],                           # Phase 1
-    ["insurance"],                            # Phase 2
-    ["household_owner", "household_renter"],  # Phase 3
-])
-```
+### WRR Paper Workspace
 
-### Known Limitations for MA
+| Paper | Directory | Config |
+| :---- | :-------- | :----- |
+| Paper 2 (Irrigation) | `examples/irrigation_abm/` | `config/agent_types.yaml` |
+| Paper 3 (Flood MA) | `examples/multi_agent/flood/` | `config/ma_agent_types.yaml` |
 
-1. **No cross-agent validation** in broker — inter-agent constraints enforced via hooks (not auditable as governance)
-2. **Non-PMT reasoning** (Government/Finance agents) requires domain-specific validator configs
-3. **No negotiation protocol** — only broadcast communication via environment state
+### Zotero Integration
+
+The project uses a shared Zotero library for reference management. Contact the PI for group access credentials. Citation keys follow `AuthorYear` format (e.g., `Rogers1983`, `Bubeck2012`).
+
+See `docs/guides/zotero_guide.md` for setup instructions and collection structure.
 
 ---
 
