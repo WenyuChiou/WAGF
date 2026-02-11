@@ -150,7 +150,15 @@ class HouseholdAgent:
     def _init_memory_v4(self, config: dict):
         """Initialize V4 symbolic memory if configured."""
         if config.get("engine") == "symbolic":
-            from cognitive_governance.v1_prototype.memory.symbolic import SymbolicMemory
+            try:
+                from cognitive_governance.v1_prototype.memory.symbolic import SymbolicMemory
+            except ImportError:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "Symbolic memory engine requested but cognitive_governance "
+                    "SDK not installed. Returning None."
+                )
+                return None
             sensors = config.get("sensors", [])
             arousal = config.get("arousal_threshold", 0.5)
             return SymbolicMemory(sensors, arousal_threshold=arousal)

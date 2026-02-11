@@ -14,14 +14,15 @@ Architecture:
 """
 
 import sys
+import logging
 import random
 import argparse
 import pandas as pd
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
-# Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+# Add project root to path (4 levels: flood → multi_agent → examples → root)
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from broker import (
     ExperimentBuilder,
@@ -78,8 +79,15 @@ def build_memory_engine(mem_cfg: Dict[str, Any], engine_type: str = "universal")
     scorer = None
     scorer_key = mem_cfg.get("scorer")
     if scorer_key:
-        from cognitive_governance.v1_prototype.memory import get_memory_scorer
-        scorer = get_memory_scorer(scorer_key)
+        try:
+            from cognitive_governance.v1_prototype.memory import get_memory_scorer
+            scorer = get_memory_scorer(scorer_key)
+        except ImportError:
+            logging.getLogger(__name__).warning(
+                "Memory scorer '%s' requested but cognitive_governance SDK "
+                "not installed. Skipping scorer.", scorer_key
+            )
+            scorer = None
 
     if engine_type == "humancentric":
         # Note: HumanCentricMemoryEngine doesn't support scorer parameter
@@ -742,6 +750,7 @@ def run_unified_experiment():
         .with_output(args.output)
         .with_verbose(args.verbose)
         .with_agents(all_agents)
+        .with_skill_registry(str(MULTI_AGENT_DIR / "config" / "skill_registry.yaml"))
         .with_memory_engine(memory_engine)
         .with_lifecycle_hooks(
             pre_year=ma_hooks.pre_year,
