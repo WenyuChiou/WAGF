@@ -26,7 +26,8 @@ The key methodological shift is from unconstrained generative behavior to audita
 
 | File | Description | Status |
 |------|-------------|--------|
-| `SAGE_WRR_Paper_v12.docx` | Main manuscript (A-vs-(B/C) primary framing, conservative B-vs-C interpretation, clean v2 table source wording) | **LATEST** |
+| `SAGE_WRR_Paper_v13.docx` | Main manuscript (irrigation section reframed as application showcase; de-emphasized comparative claims) | **LATEST** |
+| `SAGE_WRR_Paper_v12.docx` | Previous manuscript snapshot | Previous |
 | `SAGE_WRR_Paper_v11.docx` | Previous manuscript snapshot | Previous |
 | `SAGE_WRR_Paper_v10.docx` | Previous manuscript (Section 5 irrigation: quantitative evidence + SI refs + cold-start + governance metrics) | Previous |
 | `SAGE_WRR_Paper_v9.docx` | Previous manuscript (user edits on S7 diagnostics) | Previous |
