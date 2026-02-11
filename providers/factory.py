@@ -65,17 +65,30 @@ def create_provider(config: Dict[str, Any]) -> LLMProvider:
     
     elif provider_type == "gemini":
         from .gemini import GeminiProvider
-        
+
         api_key = config.get("api_key", "")
         if api_key.startswith("${") and api_key.endswith("}"):
             env_var = api_key[2:-1]
             api_key = os.getenv(env_var, "")
-            
+
         provider = GeminiProvider(
             config=llm_config,
             api_key=api_key
         )
-    
+
+    elif provider_type in ("anthropic", "claude"):
+        from .anthropic import AnthropicProvider
+
+        api_key = config.get("api_key", "")
+        if api_key.startswith("${") and api_key.endswith("}"):
+            env_var = api_key[2:-1]
+            api_key = os.getenv(env_var, "")
+
+        provider = AnthropicProvider(
+            config=llm_config,
+            api_key=api_key
+        )
+
     else:
         raise ValueError(f"Unknown provider type: {provider_type}")
 

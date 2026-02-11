@@ -6,6 +6,7 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from broker.utils.model_adapter import UnifiedAdapter
+from broker.utils.parsing_audits import audit_demographic_grounding
 
 def test_demographic_audit():
     print("Testing Demographic Audit Logic...\n")
@@ -27,7 +28,7 @@ def test_demographic_audit():
     }
     
     print("--- Case 1: Strong Grounding ---")
-    audit1 = adapter._audit_demographic_grounding(reasoning_strong, context)
+    audit1 = audit_demographic_grounding(reasoning_strong, context, None, adapter.config)
     print(f"Score: {audit1['score']} (Expected: 1.0)")
     print(f"Cited: {audit1['cited_anchors']}")
     
@@ -39,7 +40,7 @@ def test_demographic_audit():
     }
     
     print("\n--- Case 2: Weak Grounding ---")
-    audit2 = adapter._audit_demographic_grounding(reasoning_weak, context)
+    audit2 = audit_demographic_grounding(reasoning_weak, context, None, adapter.config)
     print(f"Score: {audit2['score']} (Expected: 0.0)")
     print(f"Cited: {audit2['cited_anchors']}")
     
@@ -50,7 +51,7 @@ def test_demographic_audit():
     }
     
     print("\n--- Case 3: Partial Grounding ---")
-    audit3 = adapter._audit_demographic_grounding(reasoning_partial, context)
+    audit3 = audit_demographic_grounding(reasoning_partial, context, None, adapter.config)
     print(f"Score: {audit3['score']} (Expected: 0.5)")
     print(f"Cited: {audit3['cited_anchors']}")
 

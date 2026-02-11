@@ -24,523 +24,31 @@ Part of SAGE C&V Framework (feature/calibration-validation).
 
 from __future__ import annotations
 
-import os
-from dataclasses import dataclass, field
+from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
-import yaml
 
-
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
-
-# No default vignette directory — callers must provide domain-specific vignettes.
-VIGNETTE_DIR = None
-
-# PMT label ordinal mapping for ICC computation
-LABEL_TO_ORDINAL: Dict[str, int] = {
-    "VL": 1, "L": 2, "M": 3, "H": 4, "VH": 5,
-}
-
-
-# ---------------------------------------------------------------------------
-# Data classes
-# ---------------------------------------------------------------------------
-
-@dataclass
-class Vignette:
-    """Standardized flood scenario for psychometric probing.
-
-    Attributes:
-        id: Unique vignette identifier.
-        severity: "high", "medium", or "low".
-        description: Human-readable description.
-        scenario: Full scenario text presented to the agent.
-        state_overrides: Agent state values for this scenario.
-        expected_responses: Expected construct/action ranges.
-    """
-    id: str
-    severity: str
-    description: str
-    scenario: str
-    state_overrides: Dict[str, Any]
-    expected_responses: Dict[str, Dict[str, List[str]]]
-
-    @classmethod
-    def from_yaml(cls, path: str | Path) -> Vignette:
-        """Load vignette from YAML file."""
-        with open(path, "r", encoding="utf-8") as f:
-            data = yaml.safe_load(f)
-        v = data["vignette"]
-        return cls(
-            id=v["id"],
-            severity=v["severity"],
-            description=v["description"],
-            scenario=v["scenario"],
-            state_overrides=v.get("state_overrides", {}),
-            expected_responses=v.get("expected_responses", {}),
-        )
-
-
-@dataclass
-class ProbeResponse:
-    """Single response from an agent to a vignette probe.
-
-    Supports both construct-rich mode (PMT with tp_label/cp_label)
-    and construct-free mode (decision-only or generic constructs).
-
-    Attributes:
-        vignette_id: Which vignette was presented.
-        archetype: Agent archetype (e.g., "risk_averse_homeowner").
-        replicate: Replicate number (1-30).
-        tp_label: Reported Threat Perception (PMT shorthand).
-        cp_label: Reported Coping Perception (PMT shorthand).
-        decision: Chosen action.
-        reasoning: Full reasoning text.
-        governed: Whether SAGE governance was active.
-        raw_response: Full LLM response text.
-        construct_labels: Generic construct label dict for non-PMT use.
-    """
-    vignette_id: str
-    archetype: str
-    replicate: int
-    tp_label: str = ""
-    cp_label: str = ""
-    decision: str = ""
-    reasoning: str = ""
-    governed: bool = False
-    raw_response: str = ""
-    construct_labels: Dict[str, str] = field(default_factory=dict)
-
-    def __post_init__(self):
-        # Sync tp_label/cp_label into construct_labels for uniform access
-        if self.tp_label and "TP_LABEL" not in self.construct_labels:
-            self.construct_labels["TP_LABEL"] = self.tp_label
-        if self.cp_label and "CP_LABEL" not in self.construct_labels:
-            self.construct_labels["CP_LABEL"] = self.cp_label
-
-    @property
-    def tp_ordinal(self) -> int:
-        """Convert TP label to ordinal (1-5)."""
-        return LABEL_TO_ORDINAL.get(self.tp_label.upper(), 3)
-
-    @property
-    def cp_ordinal(self) -> int:
-        """Convert CP label to ordinal (1-5)."""
-        return LABEL_TO_ORDINAL.get(self.cp_label.upper(), 3)
-
-    def get_ordinal(
-        self,
-        construct: str,
-        label_map: Optional[Dict[str, int]] = None,
-    ) -> int:
-        """Get ordinal value for any construct.
-
-        Parameters
-        ----------
-        construct : str
-            Construct name (e.g., "TP_LABEL", "WSA_LABEL").
-        label_map : dict, optional
-            Custom label→ordinal mapping.  Default: LABEL_TO_ORDINAL.
-
-        Returns
-        -------
-        int
-        """
-        lmap = label_map or LABEL_TO_ORDINAL
-        label = self.construct_labels.get(construct, "")
-        return lmap.get(label.upper(), 0) if label else 0
-
-
-@dataclass
-class ICCResult:
-    """Intraclass Correlation Coefficient result.
-
-    Attributes:
-        construct: Which construct was measured.
-        icc_value: ICC(2,1) value (-1 to 1, target > 0.6).
-        f_value: F-statistic from one-way ANOVA.
-        p_value: p-value of F-test.
-        n_subjects: Number of subjects (archetypes).
-        n_raters: Number of raters (replicates).
-        ci_lower: Lower bound of 95% CI.
-        ci_upper: Upper bound of 95% CI.
-    """
-    construct: str
-    icc_value: float
-    f_value: float = 0.0
-    p_value: float = 1.0
-    n_subjects: int = 0
-    n_raters: int = 0
-    ci_lower: float = 0.0
-    ci_upper: float = 0.0
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "construct": self.construct,
-            "icc": self.icc_value,
-            "f_value": self.f_value,
-            "p_value": self.p_value,
-            "n_subjects": self.n_subjects,
-            "n_raters": self.n_raters,
-            "ci_95": [self.ci_lower, self.ci_upper],
-        }
-
-
-@dataclass
-class ConsistencyResult:
-    """Internal consistency (Cronbach's alpha analogue).
-
-    For LLM agents, we compute the correlation between TP/CP ratings
-    and action coherence across replicates — analogous to Cronbach's
-    alpha for multi-item scales.
-
-    Attributes:
-        alpha: Cronbach's alpha value (target > 0.7).
-        n_items: Number of items (constructs).
-        item_correlations: Pairwise correlations between constructs.
-    """
-    alpha: float
-    n_items: int = 0
-    item_correlations: Dict[str, float] = field(default_factory=dict)
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "alpha": self.alpha,
-            "n_items": self.n_items,
-            "item_correlations": self.item_correlations,
-        }
-
-
-@dataclass
-class VignetteReport:
-    """Report for a single vignette across all archetypes.
-
-    Attributes:
-        vignette_id: Vignette identifier.
-        severity: Vignette severity level.
-        n_responses: Total responses collected.
-        tp_icc: ICC for Threat Perception.
-        cp_icc: ICC for Coping Perception.
-        decision_agreement: Fleiss' kappa for action agreement.
-        coherence_rate: Fraction of responses with coherent action.
-        incoherence_rate: Fraction with incoherent (hallucinated) action.
-    """
-    vignette_id: str
-    severity: str
-    n_responses: int
-    tp_icc: Optional[ICCResult] = None
-    cp_icc: Optional[ICCResult] = None
-    decision_agreement: float = 0.0
-    coherence_rate: float = 0.0
-    incoherence_rate: float = 0.0
-
-
-@dataclass
-class EffectSizeResult:
-    """Between-archetype effect size (eta-squared).
-
-    Measures how much variance in construct ratings is explained by
-    archetype identity (between-group variance / total variance).
-
-    Attributes:
-        construct: Construct name ("tp" or "cp").
-        eta_squared: Eta-squared value (0-1, target >= 0.25).
-        ss_between: Sum of squares between archetypes.
-        ss_total: Total sum of squares.
-        f_value: F-statistic from one-way ANOVA.
-        p_value: p-value of F-test.
-    """
-    construct: str
-    eta_squared: float
-    ss_between: float = 0.0
-    ss_total: float = 0.0
-    f_value: float = 0.0
-    p_value: float = 1.0
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "construct": self.construct,
-            "eta_squared": round(self.eta_squared, 4),
-            "ss_between": round(self.ss_between, 2),
-            "ss_total": round(self.ss_total, 2),
-            "f_value": round(self.f_value, 3),
-            "p_value": round(self.p_value, 6),
-        }
-
-
-@dataclass
-class ConvergentValidityResult:
-    """Convergent validity — correlation between construct and external criterion.
-
-    For flood domain: TP ordinal should correlate with vignette severity.
-
-    Attributes:
-        construct: Construct name.
-        criterion: External criterion name.
-        spearman_rho: Spearman rank correlation.
-        p_value: p-value of the correlation.
-        n_observations: Number of observations.
-    """
-    construct: str
-    criterion: str
-    spearman_rho: float
-    p_value: float = 1.0
-    n_observations: int = 0
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "construct": self.construct,
-            "criterion": self.criterion,
-            "spearman_rho": round(self.spearman_rho, 4),
-            "p_value": round(self.p_value, 6),
-            "n_observations": self.n_observations,
-        }
-
-
-@dataclass
-class BatteryReport:
-    """Complete psychometric battery report.
-
-    Attributes:
-        vignette_reports: Per-vignette results.
-        overall_tp_icc: ICC for TP across all vignettes.
-        overall_cp_icc: ICC for CP across all vignettes.
-        consistency: Internal consistency (Cronbach's alpha).
-        governance_effect: Paired comparison results (governed vs not).
-        n_total_probes: Total LLM calls made.
-        tp_effect_size: Eta-squared for TP between archetypes.
-        cp_effect_size: Eta-squared for CP between archetypes.
-        convergent_validity: TP vs vignette severity correlation.
-        tp_cp_discriminant: TP-CP inter-construct correlation.
-    """
-    vignette_reports: List[VignetteReport] = field(default_factory=list)
-    overall_tp_icc: Optional[ICCResult] = None
-    overall_cp_icc: Optional[ICCResult] = None
-    consistency: Optional[ConsistencyResult] = None
-    governance_effect: Dict[str, Any] = field(default_factory=dict)
-    n_total_probes: int = 0
-    tp_effect_size: Optional[EffectSizeResult] = None
-    cp_effect_size: Optional[EffectSizeResult] = None
-    convergent_validity: Optional[ConvergentValidityResult] = None
-    tp_cp_discriminant: float = 0.0
-
-    def to_dict(self) -> Dict[str, Any]:
-        d: Dict[str, Any] = {
-            "n_total_probes": self.n_total_probes,
-            "n_vignettes": len(self.vignette_reports),
-        }
-        if self.overall_tp_icc:
-            d["overall_tp_icc"] = self.overall_tp_icc.to_dict()
-        if self.overall_cp_icc:
-            d["overall_cp_icc"] = self.overall_cp_icc.to_dict()
-        if self.consistency:
-            d["consistency"] = self.consistency.to_dict()
-        if self.governance_effect:
-            d["governance_effect"] = self.governance_effect
-        if self.tp_effect_size:
-            d["tp_effect_size"] = self.tp_effect_size.to_dict()
-        if self.cp_effect_size:
-            d["cp_effect_size"] = self.cp_effect_size.to_dict()
-        if self.convergent_validity:
-            d["convergent_validity"] = self.convergent_validity.to_dict()
-        d["tp_cp_discriminant_r"] = round(self.tp_cp_discriminant, 4)
-        return d
-
-
-# ---------------------------------------------------------------------------
-# Statistical computations
-# ---------------------------------------------------------------------------
-
-def compute_icc_2_1(
-    ratings: np.ndarray,
-    construct_name: str = "",
-) -> ICCResult:
-    """Compute ICC(2,1) — two-way random, single measures.
-
-    This is the standard ICC for test-retest reliability where both
-    subjects (archetypes) and raters (replicates) are random effects.
-
-    Parameters
-    ----------
-    ratings : ndarray, shape (n_subjects, n_raters)
-        Rating matrix where rows = subjects, columns = replicates.
-    construct_name : str
-        Label for the construct being measured.
-
-    Returns
-    -------
-    ICCResult
-
-    References
-    ----------
-    Shrout & Fleiss (1979). Intraclass Correlations: Uses in Assessing
-        Rater Reliability. Psychological Bulletin, 86(2), 420-428.
-    """
-    n, k = ratings.shape  # n subjects, k raters
-
-    if n < 2 or k < 2:
-        return ICCResult(
-            construct=construct_name,
-            icc_value=0.0,
-            n_subjects=n,
-            n_raters=k,
-        )
-
-    # Grand mean
-    grand_mean = np.mean(ratings)
-
-    # Between-subjects sum of squares
-    subject_means = np.mean(ratings, axis=1)
-    ss_between = k * np.sum((subject_means - grand_mean) ** 2)
-
-    # Within-subjects sum of squares
-    ss_within = np.sum((ratings - subject_means[:, np.newaxis]) ** 2)
-
-    # Between-raters sum of squares
-    rater_means = np.mean(ratings, axis=0)
-    ss_raters = n * np.sum((rater_means - grand_mean) ** 2)
-
-    # Residual (error) sum of squares
-    ss_error = ss_within - ss_raters
-
-    # Mean squares
-    ms_between = ss_between / (n - 1) if n > 1 else 0
-    ms_raters = ss_raters / (k - 1) if k > 1 else 0
-    ms_error = ss_error / ((n - 1) * (k - 1)) if (n > 1 and k > 1) else 0
-
-    # ICC(2,1) = (MS_between - MS_error) / (MS_between + (k-1)*MS_error + k*(MS_raters - MS_error)/n)
-    denom = (
-        ms_between
-        + (k - 1) * ms_error
-        + k * (ms_raters - ms_error) / n
-    )
-
-    if denom == 0:
-        icc = 0.0
-    else:
-        icc = (ms_between - ms_error) / denom
-
-    # F-value for significance test
-    f_val = ms_between / ms_error if ms_error > 0 else 0.0
-
-    # Approximate p-value from F distribution
-    try:
-        from scipy import stats as sp_stats
-        df1 = n - 1
-        df2 = (n - 1) * (k - 1)
-        p_val = 1 - sp_stats.f.cdf(f_val, df1, df2) if f_val > 0 else 1.0
-
-        # 95% CI using Shrout-Fleiss formulas
-        fl = f_val / sp_stats.f.ppf(0.975, df1, df2) if f_val > 0 else 0
-        fu = f_val * sp_stats.f.ppf(0.975, df2, df1) if f_val > 0 else 0
-
-        ci_lower = max(-1.0, (fl - 1) / (fl + k - 1)) if fl > 0 else -1.0
-        ci_upper = min(1.0, (fu - 1) / (fu + k - 1)) if fu > 0 else 1.0
-    except ImportError:
-        p_val = 1.0
-        ci_lower = 0.0
-        ci_upper = 0.0
-
-    return ICCResult(
-        construct=construct_name,
-        icc_value=float(np.clip(icc, -1.0, 1.0)),
-        f_value=float(f_val),
-        p_value=float(p_val),
-        n_subjects=n,
-        n_raters=k,
-        ci_lower=float(ci_lower),
-        ci_upper=float(ci_upper),
-    )
-
-
-def compute_cronbach_alpha(items: np.ndarray) -> float:
-    """Compute Cronbach's alpha for internal consistency.
-
-    Parameters
-    ----------
-    items : ndarray, shape (n_observations, n_items)
-        Each column is an "item" (construct rating), each row is
-        a response.
-
-    Returns
-    -------
-    float
-        Cronbach's alpha (0-1, target > 0.7).
-    """
-    n_items = items.shape[1]
-    if n_items < 2:
-        return 0.0
-
-    item_vars = np.var(items, axis=0, ddof=1)
-    total_var = np.var(np.sum(items, axis=1), ddof=1)
-
-    if total_var == 0:
-        return 0.0
-
-    alpha = (n_items / (n_items - 1)) * (1 - np.sum(item_vars) / total_var)
-    return float(np.clip(alpha, 0.0, 1.0))
-
-
-def compute_fleiss_kappa(
-    decisions: List[List[str]],
-) -> float:
-    """Compute Fleiss' kappa for nominal agreement.
-
-    Parameters
-    ----------
-    decisions : list of list of str
-        Outer list = subjects (archetype-vignette combos),
-        inner list = rater decisions (replicates).
-
-    Returns
-    -------
-    float
-        Fleiss' kappa (-1 to 1, target > 0.4 for moderate agreement).
-    """
-    if not decisions:
-        return 0.0
-
-    # Collect all unique categories
-    categories = sorted(set(d for sublist in decisions for d in sublist))
-    n_cat = len(categories)
-    cat_idx = {c: i for i, c in enumerate(categories)}
-
-    n_subjects = len(decisions)
-    n_raters = len(decisions[0]) if decisions else 0
-
-    if n_subjects < 2 or n_raters < 2 or n_cat < 2:
-        return 0.0
-
-    # Build rating matrix: n_subjects x n_categories
-    rating_matrix = np.zeros((n_subjects, n_cat), dtype=float)
-    for i, subject_decisions in enumerate(decisions):
-        for d in subject_decisions:
-            if d in cat_idx:
-                rating_matrix[i, cat_idx[d]] += 1
-
-    # Proportion of ratings per category
-    p_j = np.sum(rating_matrix, axis=0) / (n_subjects * n_raters)
-
-    # Per-subject agreement
-    p_i = np.sum(rating_matrix ** 2, axis=1) - n_raters
-    p_i = p_i / (n_raters * (n_raters - 1))
-
-    # Overall agreement
-    p_bar = np.mean(p_i)
-
-    # Expected agreement by chance
-    p_e = np.sum(p_j ** 2)
-
-    if p_e == 1.0:
-        return 1.0
-
-    kappa = (p_bar - p_e) / (1 - p_e)
-    return float(np.clip(kappa, -1.0, 1.0))
+# Re-export types and stats for backward compatibility
+from .psychometric_types import (  # noqa: F401
+    VIGNETTE_DIR,
+    LABEL_TO_ORDINAL,
+    Vignette,
+    ProbeResponse,
+    ICCResult,
+    ConsistencyResult,
+    VignetteReport,
+    EffectSizeResult,
+    ConvergentValidityResult,
+    BatteryReport,
+)
+from .psychometric_stats import (  # noqa: F401
+    compute_icc_2_1,
+    compute_cronbach_alpha,
+    compute_fleiss_kappa,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -654,7 +162,7 @@ class PsychometricBattery:
         vignette_id : str, optional
             Filter to specific vignette (None = all).  When ``None`` and
             multiple vignettes are present, subjects are compound
-            (archetype × vignette) pairs so that replicate slots do not
+            (archetype x vignette) pairs so that replicate slots do not
             collide across vignettes.
         construct : str
             "tp" or "cp" (which construct to analyze).
@@ -679,12 +187,11 @@ class PsychometricBattery:
         if ordinal_col not in df.columns or df.empty:
             return ICCResult(construct=construct, icc_value=0.0)
 
-        # Determine subject key: single vignette → archetype only,
-        # multiple vignettes → (archetype, vignette_id) compound key
+        # Determine subject key: single vignette -> archetype only,
+        # multiple vignettes -> (archetype, vignette_id) compound key
         # to avoid replicate-slot collisions.
         n_vignettes = df["vignette_id"].nunique()
         if n_vignettes > 1 and not vignette_id:
-            # Compound subjects: (archetype, vignette_id)
             df = df.copy()
             df["_subject"] = df["archetype"] + "|" + df["vignette_id"]
         else:
@@ -722,15 +229,6 @@ class PsychometricBattery:
         """Compute internal consistency (Cronbach's alpha analogue).
 
         Treats TP and CP ordinal ratings as two "items" in a scale.
-
-        Parameters
-        ----------
-        governed : bool, optional
-            Filter to governed or ungoverned responses.
-
-        Returns
-        -------
-        ConsistencyResult
         """
         df = self.responses_to_dataframe()
         if df.empty:
@@ -762,20 +260,7 @@ class PsychometricBattery:
         vignette_id: Optional[str] = None,
         governed: Optional[bool] = None,
     ) -> float:
-        """Compute Fleiss' kappa for action agreement across replicates.
-
-        Parameters
-        ----------
-        vignette_id : str, optional
-            Filter to specific vignette.
-        governed : bool, optional
-            Filter to governed or ungoverned responses.
-
-        Returns
-        -------
-        float
-            Fleiss' kappa value.
-        """
+        """Compute Fleiss' kappa for action agreement across replicates."""
         df = self.responses_to_dataframe()
         if df.empty:
             return 0.0
@@ -785,19 +270,17 @@ class PsychometricBattery:
         if governed is not None:
             df = df[df["governed"] == governed]
 
-        # Group by archetype — each archetype's replicates form a "subject"
         decision_lists = []
         for arch, arch_df in df.groupby("archetype"):
             decisions = arch_df.sort_values("replicate")["decision"].tolist()
             if len(decisions) >= 2:
                 decision_lists.append(decisions)
 
-        # Pad to same length
         if not decision_lists:
             return 0.0
         max_len = max(len(d) for d in decision_lists)
         padded = [
-            d + [d[-1]] * (max_len - len(d))  # Repeat last decision to pad
+            d + [d[-1]] * (max_len - len(d))
             for d in decision_lists
         ]
 
@@ -810,17 +293,9 @@ class PsychometricBattery:
     ) -> Tuple[float, float]:
         """Evaluate response coherence against vignette expectations.
 
-        Parameters
-        ----------
-        vignette_id : str
-            Which vignette to evaluate.
-        governed : bool, optional
-            Filter to governed or ungoverned.
-
         Returns
         -------
         (coherence_rate, incoherence_rate)
-            Fraction of responses in expected vs incoherent ranges.
         """
         vignette = self._vignettes.get(vignette_id)
         if not vignette:
@@ -843,14 +318,12 @@ class PsychometricBattery:
         n_incoherent = 0
 
         for _, row in df.iterrows():
-            # Check TP
             tp_expected = expected.get("TP_LABEL", {})
             tp_incoherent = tp_expected.get("incoherent", [])
             if row["tp_label"] in tp_incoherent:
                 n_incoherent += 1
                 continue
 
-            # Check decision
             dec_expected = expected.get("decision", {})
             dec_incoherent = dec_expected.get("incoherent", [])
             dec_acceptable = dec_expected.get("acceptable", [])
@@ -874,25 +347,7 @@ class PsychometricBattery:
         governed: Optional[bool] = None,
         action_ordinal_map: Optional[Dict[str, int]] = None,
     ) -> ICCResult:
-        """Compute ICC on decision choices (construct-free).
-
-        Maps action names to ordinal values (e.g., by aggressiveness)
-        and computes ICC across replicates per archetype.
-
-        Parameters
-        ----------
-        vignette_id : str, optional
-            Filter to specific vignette.
-        governed : bool, optional
-            Filter to governed or ungoverned.
-        action_ordinal_map : dict, optional
-            Custom action→ordinal mapping.  If not provided, actions
-            are mapped alphabetically (1, 2, 3, ...).
-
-        Returns
-        -------
-        ICCResult
-        """
+        """Compute ICC on decision choices (construct-free)."""
         df = self.responses_to_dataframe()
         if df.empty:
             return ICCResult(construct="decision", icc_value=0.0)
@@ -905,20 +360,17 @@ class PsychometricBattery:
         if "decision" not in df.columns or df.empty:
             return ICCResult(construct="decision", icc_value=0.0)
 
-        # Build ordinal mapping
         if action_ordinal_map is None:
             unique_actions = sorted(df["decision"].dropna().unique())
             action_ordinal_map = {
                 a: i + 1 for i, a in enumerate(unique_actions)
             }
 
-        # Map decisions to ordinals
         df = df.copy()
         df["decision_ordinal"] = df["decision"].map(
             lambda x: action_ordinal_map.get(x, 0)
         )
 
-        # Build rating matrix: archetypes x replicates
         archetypes = sorted(df["archetype"].unique())
         max_rep = int(df["replicate"].max()) if not df.empty else 0
 
@@ -946,25 +398,7 @@ class PsychometricBattery:
         vignette_id: Optional[str] = None,
         governed: Optional[bool] = None,
     ) -> Dict[str, Any]:
-        """Compute reasoning consistency across replicates (keyword overlap).
-
-        For each archetype-vignette pair, measures how similar the
-        reasoning text is across replicates using Jaccard keyword overlap.
-
-        Parameters
-        ----------
-        vignette_id : str, optional
-            Filter to specific vignette.
-        governed : bool, optional
-            Filter to governed or ungoverned.
-
-        Returns
-        -------
-        dict
-            mean_consistency: Average pairwise Jaccard similarity.
-            per_archetype: Per-archetype mean consistency.
-            n_pairs: Total pairs compared.
-        """
+        """Compute reasoning consistency across replicates (Jaccard overlap)."""
         responses = [r for r in self._responses if r.reasoning]
         if vignette_id:
             responses = [r for r in responses if r.vignette_id == vignette_id]
@@ -972,14 +406,8 @@ class PsychometricBattery:
             responses = [r for r in responses if r.governed == governed]
 
         if not responses:
-            return {
-                "mean_consistency": 0.0,
-                "per_archetype": {},
-                "n_pairs": 0,
-            }
+            return {"mean_consistency": 0.0, "per_archetype": {}, "n_pairs": 0}
 
-        # Group by (vignette, archetype)
-        from collections import defaultdict
         groups: Dict[Tuple[str, str], List[str]] = defaultdict(list)
         for r in responses:
             groups[(r.vignette_id, r.archetype)].append(r.reasoning)
@@ -991,12 +419,8 @@ class PsychometricBattery:
             if len(texts) < 2:
                 continue
 
-            # Keyword extraction (simple word-level)
-            token_sets = [
-                set(t.lower().split()) for t in texts
-            ]
+            token_sets = [set(t.lower().split()) for t in texts]
 
-            # Pairwise Jaccard
             for i in range(len(token_sets)):
                 for j in range(i + 1, len(token_sets)):
                     intersection = len(token_sets[i] & token_sets[j])
@@ -1029,24 +453,7 @@ class PsychometricBattery:
         construct: str = "tp",
         governed: Optional[bool] = None,
     ) -> EffectSizeResult:
-        """Compute eta-squared (between-archetype effect size).
-
-        Eta-squared = SS_between / SS_total from one-way ANOVA where
-        groups are archetypes and the DV is construct ordinal rating.
-
-        Target: eta² >= 0.25 (archetypes produce meaningfully different behaviors).
-
-        Parameters
-        ----------
-        construct : str
-            "tp" or "cp".
-        governed : bool, optional
-            Filter to governed or ungoverned.
-
-        Returns
-        -------
-        EffectSizeResult
-        """
+        """Compute eta-squared (between-archetype effect size)."""
         df = self.responses_to_dataframe()
         if df.empty:
             return EffectSizeResult(construct=construct, eta_squared=0.0)
@@ -1058,14 +465,12 @@ class PsychometricBattery:
         if ordinal_col not in df.columns or df.empty:
             return EffectSizeResult(construct=construct, eta_squared=0.0)
 
-        # Group by archetype
         groups = [g[ordinal_col].values for _, g in df.groupby("archetype")]
         groups = [g for g in groups if len(g) > 0]
 
         if len(groups) < 2:
             return EffectSizeResult(construct=construct, eta_squared=0.0)
 
-        # One-way ANOVA components
         all_vals = np.concatenate(groups)
         grand_mean = np.mean(all_vals)
         n_total = len(all_vals)
@@ -1074,7 +479,7 @@ class PsychometricBattery:
         ss_between = sum(len(g) * (np.mean(g) - grand_mean) ** 2 for g in groups)
         ss_within = ss_total - ss_between
 
-        k = len(groups)  # number of groups
+        k = len(groups)
         df_between = k - 1
         df_within = n_total - k
 
@@ -1089,7 +494,6 @@ class PsychometricBattery:
         ms_within = ss_within / df_within
         f_val = ms_between / ms_within
 
-        # p-value
         try:
             from scipy import stats as sp_stats
             p_val = 1 - sp_stats.f.cdf(f_val, df_between, df_within)
@@ -1111,22 +515,7 @@ class PsychometricBattery:
         self,
         governed: Optional[bool] = None,
     ) -> ConvergentValidityResult:
-        """Compute convergent validity: TP ordinal vs vignette severity.
-
-        Vignette severity is mapped to ordinal: low=1, medium=2, high=3,
-        extreme=4. TP should correlate positively with severity.
-
-        Target: Spearman rho >= 0.3.
-
-        Parameters
-        ----------
-        governed : bool, optional
-            Filter to governed or ungoverned.
-
-        Returns
-        -------
-        ConvergentValidityResult
-        """
+        """Compute convergent validity: TP ordinal vs vignette severity."""
         severity_ordinal = {"low": 1, "medium": 2, "high": 3, "extreme": 4}
 
         df = self.responses_to_dataframe()
@@ -1139,7 +528,6 @@ class PsychometricBattery:
         if governed is not None:
             df = df[df["governed"] == governed]
 
-        # Map vignette_id to severity via loaded vignettes
         vig_severity = {}
         for vid, vig in self._vignettes.items():
             vig_severity[vid] = severity_ordinal.get(vig.severity, 2)
@@ -1161,7 +549,6 @@ class PsychometricBattery:
                 df["tp_ordinal"].values,
             )
         except ImportError:
-            # Fallback: Pearson correlation
             rho = float(np.corrcoef(
                 df["severity_ordinal"].values,
                 df["tp_ordinal"].values,
@@ -1180,13 +567,7 @@ class PsychometricBattery:
         self,
         governed: Optional[bool] = None,
     ) -> float:
-        """Compute TP-CP discriminant correlation.
-
-        If TP and CP correlate too highly (r > 0.8), the constructs are
-        not being discriminated by the LLM.
-
-        Returns Pearson r between TP and CP ordinals.
-        """
+        """Compute TP-CP discriminant correlation."""
         df = self.responses_to_dataframe()
         if df.empty:
             return 0.0
@@ -1212,24 +593,13 @@ class PsychometricBattery:
         self,
         governed: Optional[bool] = None,
     ) -> BatteryReport:
-        """Compute complete psychometric battery report.
-
-        Parameters
-        ----------
-        governed : bool, optional
-            Filter to governed or ungoverned responses.
-
-        Returns
-        -------
-        BatteryReport
-        """
+        """Compute complete psychometric battery report."""
         report = BatteryReport()
         report.n_total_probes = len([
             r for r in self._responses
             if governed is None or r.governed == governed
         ])
 
-        # Per-vignette reports (only vignettes with at least 1 response)
         for vid, vignette in self.vignettes.items():
             n_resp = len([
                 r for r in self._responses
@@ -1259,48 +629,28 @@ class PsychometricBattery:
                 incoherence_rate=incoh,
             ))
 
-        # Overall ICC (across all vignettes)
         report.overall_tp_icc = self.compute_icc(
             construct="tp", governed=governed
         )
         report.overall_cp_icc = self.compute_icc(
             construct="cp", governed=governed
         )
-
-        # Internal consistency
         report.consistency = self.compute_consistency(governed=governed)
-
-        # Effect size (eta-squared) — R3-D
         report.tp_effect_size = self.compute_effect_size(
             construct="tp", governed=governed
         )
         report.cp_effect_size = self.compute_effect_size(
             construct="cp", governed=governed
         )
-
-        # Convergent validity — R3-D
         report.convergent_validity = self.compute_convergent_validity(
             governed=governed
         )
-
-        # TP-CP discriminant — R3-D
         report.tp_cp_discriminant = self.compute_discriminant(governed=governed)
 
         return report
 
     def compute_governance_effect(self) -> Dict[str, Any]:
-        """Compare governed vs ungoverned probe responses.
-
-        Computes paired statistics for P2 experiment.
-
-        Returns
-        -------
-        dict with keys:
-            cacr_governed, cacr_ungoverned: Coherence rates.
-            tp_icc_governed, tp_icc_ungoverned: ICC values.
-            mann_whitney_u: Test statistic for TP ordinal comparison.
-            p_value: p-value for the comparison.
-        """
+        """Compare governed vs ungoverned probe responses."""
         gov_report = self.compute_full_report(governed=True)
         ungov_report = self.compute_full_report(governed=False)
 
@@ -1317,10 +667,9 @@ class PsychometricBattery:
             "n_ungoverned": ungov_report.n_total_probes,
         }
 
-        # Mann-Whitney U on TP ordinals
         df = self.responses_to_dataframe()
-        gov_tp = df[df["governed"] == True]["tp_ordinal"].values
-        ungov_tp = df[df["governed"] == False]["tp_ordinal"].values
+        gov_tp = df[df["governed"] == True]["tp_ordinal"].values  # noqa: E712
+        ungov_tp = df[df["governed"] == False]["tp_ordinal"].values  # noqa: E712
 
         if len(gov_tp) >= 2 and len(ungov_tp) >= 2:
             try:
@@ -1328,7 +677,6 @@ class PsychometricBattery:
                 u_stat, p_val = sp_stats.mannwhitneyu(
                     gov_tp, ungov_tp, alternative="two-sided"
                 )
-                # Rank-biserial r (effect size)
                 n1, n2 = len(gov_tp), len(ungov_tp)
                 r_rb = 1 - (2 * u_stat) / (n1 * n2)
 
