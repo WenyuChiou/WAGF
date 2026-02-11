@@ -6,7 +6,7 @@ default_skill: do_nothing
 skills:
   # ── Household Owner Skills ──────────────────────────────────────────
   - skill_id: do_nothing
-    description: "Take no protective action this year"
+    description: "Take no protective action this year. This includes waiting for more information, believing current protection is adequate, focusing on other financial priorities, feeling uncertain about what to do, or accepting the situation as it is."
     eligible_agent_types: ["household_owner", "household_renter"]
     preconditions: []
     institutional_constraints: {}

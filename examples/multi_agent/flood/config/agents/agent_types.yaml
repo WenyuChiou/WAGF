@@ -193,6 +193,7 @@ household_owner:
     {global_news}
 
     ### LOCAL NEIGHBORHOOD
+    {flood_proximity_qualifier}
     {social_gossip}
 
     ### CURRENT COSTS
@@ -288,6 +289,7 @@ household_renter:
     {global_news}
 
     ### LOCAL NEIGHBORHOOD
+    {flood_proximity_qualifier}
     {social_gossip}
 
     ### COST GUIDANCE (IMPORTANT)

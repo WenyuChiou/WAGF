@@ -28,6 +28,7 @@ It is crucial to accurately assess your flood risk based on your personal flood 
 {global_news}
 
 ### LOCAL NEIGHBORHOOD
+{flood_proximity_qualifier}
 {social_gossip}
 
 ### FINANCIAL DETAILS (YOUR SPECIFIC COSTS)

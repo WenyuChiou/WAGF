@@ -169,11 +169,36 @@ class MultiAgentHooks:
         self.env["insured_count"] = sum(1 for a in households if a.dynamic_state.get("has_insurance"))
 
         # Set per-agent flooded_this_year flag for trace capture (Section 22, Phase D)
+        # Also set flood_proximity_qualifier to dampen social amplification for non-flooded agents
+        # (Expert Review Fix 4: non-flooded agents conflate neighbor depth with own risk)
         for agent in households:
             if self.per_agent_depth:
-                agent.dynamic_state["flooded_this_year"] = self.agent_flood_depths.get(agent.id, 0) > 0
+                agent_depth = self.agent_flood_depths.get(agent.id, 0)
+                agent.dynamic_state["flooded_this_year"] = agent_depth > 0
+                if agent_depth > 0:
+                    agent.dynamic_state["flood_proximity_qualifier"] = (
+                        f"**YOUR PROPERTY WAS FLOODED THIS YEAR** (depth: {agent_depth:.2f}m / {agent_depth * 3.28084:.1f}ft). "
+                        "The reports below reflect conditions in YOUR area."
+                    )
+                elif self.env.get("flood_occurred", False):
+                    agent.dynamic_state["flood_proximity_qualifier"] = (
+                        "**Your property was NOT flooded this year**, but flooding occurred in other parts of the basin. "
+                        "The reports below are from neighbors in OTHER areas — their flood depths do NOT apply to your location."
+                    )
+                else:
+                    agent.dynamic_state["flood_proximity_qualifier"] = (
+                        "No flooding was reported in the basin this year."
+                    )
             else:
                 agent.dynamic_state["flooded_this_year"] = self.env.get("flood_occurred", False)
+                if self.env.get("flood_occurred", False):
+                    agent.dynamic_state["flood_proximity_qualifier"] = (
+                        "Flooding occurred in your community this year."
+                    )
+                else:
+                    agent.dynamic_state["flood_proximity_qualifier"] = (
+                        "No flooding was reported in your community this year."
+                    )
 
         # Institutional metrics: MG/NMG adaptation breakdown (for government prompt)
         mg_agents = [a for a in households if getattr(a, 'fixed_attributes', {}).get("mg")]

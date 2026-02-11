@@ -360,7 +360,50 @@ def run_unified_experiment():
                 }
             ))
 
-        # Rule 3: LOW-zone renters without flood experience → block insurance
+        # Rule 3: Elevation requires flood_count >= 2 (repeated experience)
+        # (de Ruig et al. 2023: only 11.3% dry-floodproofing after Sandy;
+        # single flood rarely triggers $45K-$150K investment)
+        if (decision == "elevate_house"
+                and flood_count < 2
+                and not elevated):
+            results.append(ValidationResult(
+                valid=False,
+                validator_name="FloodZoneAppropriatenessValidator",
+                errors=[f"ELEVATION_EXPERIENCE: elevate_house requires flood_count >= 2 (current: {flood_count})"],
+                metadata={
+                    "level": ValidationLevel.ERROR,
+                    "rule": "elevation_experience_gate",
+                    "rules_hit": ["elevation_experience_gate"],
+                    "field": "decision",
+                    "constraint": "elevation_requires_repeated_flood",
+                    "deterministic": True
+                }
+            ))
+
+        # Rule 4: Income < $40K blocks elevation without full subsidy
+        # (Bubeck et al. 2012, Botzen et al. 2019: elevation concentrated in
+        # higher-income communities; FEMA data shows income-adaptation correlation)
+        income = personal.get('income', 50000)
+        subsidy_rate = context.get('agent_state', {}).get('subsidy_rate',
+                       context.get('subsidy_rate', 0.50))
+        if (decision == "elevate_house"
+                and income < 40000
+                and subsidy_rate < 0.90):
+            results.append(ValidationResult(
+                valid=False,
+                validator_name="FloodZoneAppropriatenessValidator",
+                errors=[f"INCOME_GATE: elevate_house blocked for income ${income:,.0f} < $40K without near-full subsidy"],
+                metadata={
+                    "level": ValidationLevel.ERROR,
+                    "rule": "elevation_income_gate",
+                    "rules_hit": ["elevation_income_gate"],
+                    "field": "decision",
+                    "constraint": "elevation_requires_income_or_subsidy",
+                    "deterministic": True
+                }
+            ))
+
+        # Rule 5: LOW-zone renters without flood experience → block insurance
         # (empirically, LOW-zone renters rarely purchase flood insurance;
         # cost-benefit is unfavorable with minimal flood risk)
         if (decision in {"buy_contents_insurance", "buy_insurance"}
