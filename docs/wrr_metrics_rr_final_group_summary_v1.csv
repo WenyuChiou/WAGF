@@ -1,0 +1,4 @@
+group,n_cells,R_R_final_pct_mean,R_H_final_pct_mean,EHE_k4_final_mean
+Group_A,6,8.88,45.002,0.34
+Group_B,6,0.253,11.06,0.579
+Group_C,6,0.165,10.691,0.575
