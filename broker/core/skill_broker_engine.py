@@ -323,7 +323,7 @@ class SkillBrokerEngine:
                 else:
                     # Validate secondary individually
                     sec_validation = self._run_validators(
-                        secondary_proposal, validation_context, agent_type
+                        secondary_proposal, validation_context
                     )
                     sec_valid = all(v.valid for v in sec_validation if v)
                     if sec_valid:
