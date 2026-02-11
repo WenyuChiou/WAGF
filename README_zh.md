@@ -24,8 +24,9 @@
 
 **已驗證案例研究**：
 
-- **洪水家戶適應**：100 個代理人使用 PMT，Gemma 3 (4B/12B/27B) 驅動之 10 年模擬。
-- **灌溉水管理**：科羅拉多河上游盆地的 78 個 CRSS 代理人。
+- **洪水家戶適應 (SA)**：100 個代理人使用 PMT，Gemma 3 (4B/12B/27B) 驅動之 10 年模擬。
+- **洪水多代理人 (MA)**：400 個代理人（均衡四格設計：已繪製/未繪製洪水地圖區 × 屋主/租客），含機構代理人（政府、保險），波多馬克河流域 (PRB) 13 年模擬。
+- **灌溉水管理**：科羅拉多河模擬系統 (CRSS) 上游盆地的 78 個代理人。
 
 ---
 
@@ -45,7 +46,7 @@ pip install -r requirements.txt
 python examples/governed_flood/run_experiment.py --model gemma3:4b --years 3 --agents 10
 ```
 
-### 3. 執行完整基準測試（WRR 論文）
+### 3. 執行完整基準測試（WRR — _Water Resources Research_ 論文）
 
 複製三組消融研究（100 代理人，10 年）：
 
@@ -64,33 +65,51 @@ python examples/single_agent/run_flood.py --model gemma3:4b --years 10 --agents 
 | **Multi-Agent**    | 進階   | 社會動態、保險市場、政府政策                 | [前往](examples/multi_agent/)    |
 | **Finance**        | 延伸   | 跨領域示範（投資組合決策）                   | [前往](examples/finance/)        |
 
-### 5. WRR 論文工作區
+### 5. 提供者支援 (Provider Support)
 
-目前論文主線工作集中在 `paper/`，並採用 **WAGF** 命名：
-
-- 主稿（現行）：`paper/SAGE_WRR_Paper_v6.docx`
-- 投稿流程與版本說明：`paper/PAPER_README.md`
-- 架構圖與圖表規劃：`paper/shared/docs/FIGURE_CONFIGURATION.md`
-
-目前慣例：
-- 主文與投稿資產使用 **WAGF (Water Agent Governance Framework)** 命名。
-- v5 檔案視為歷史基準，除非需要回溯比較。
-
-### 6. Zotero 寫入安全規範
-
-Zotero 寫入腳本禁止硬編憑證，請改用環境變數：
+框架支援多種 LLM 提供者，通過 `--model` 旗標選擇：
 
 ```bash
-export ZOTERO_API_KEY="..."
-# PowerShell: $env:ZOTERO_API_KEY="..."
-
-export ZOTERO_LIBRARY_ID="..."
-# PowerShell: $env:ZOTERO_LIBRARY_ID="..."
-
-export ZOTERO_LIBRARY_TYPE="user"  # 可選
+python run_experiment.py --model gemma3:4b                         # Ollama（預設，本地推理）
+python run_experiment.py --model anthropic:claude-sonnet-4-5-20250929  # Anthropic Claude
+python run_experiment.py --model gemini:gemini-1.5-flash-latest    # Google Gemini
+python run_experiment.py --model openai:gpt-4-turbo                # OpenAI
 ```
 
-`examples/multi_agent/flood/paper3/scripts/` 下的 Zotero 腳本已改為讀取環境變數。
+| 提供者 | 前綴 | 需要 |
+| :--- | :--- | :--- |
+| **Ollama** | _(無)_ | 本地安裝 Ollama |
+| **Anthropic** | `anthropic:` 或 `claude:` | `ANTHROPIC_API_KEY` |
+| **Gemini** | `gemini:` | `GEMINI_API_KEY` |
+| **OpenAI / Azure** | `openai:` 或 `azure:` | `OPENAI_API_KEY` |
+
+### 6. ExperimentBuilder API
+
+```python
+from broker.core.experiment import ExperimentBuilder
+from broker.components.memory.engines.humancentric import HumanCentricMemoryEngine
+
+experiment = (
+    ExperimentBuilder("examples/single_agent/config/agent_types.yaml")
+    .with_model("gemma3:4b")
+    .with_memory_engine(HumanCentricMemoryEngine)
+    .with_governance("strict")
+    .with_years(10)
+    .with_agents(100)
+    .build()
+)
+experiment.run()
+```
+
+---
+
+## 導覽
+
+| 讀者類型 | 建議路徑 |
+| :--- | :--- |
+| **研究者**（重現實驗結果） | [理論基礎](docs/modules/00_theoretical_basis_overview.md) → [實驗設計](docs/guides/experiment_design_guide.md) → [範例](examples/README.md) → [C&V 框架](broker/validators/calibration/README.md) |
+| **開發者**（擴展框架） | [架構](docs/architecture/architecture.md) → [ExperimentBuilder API](#6-experimentbuilder-api) → [自定義指南](docs/guides/customization_guide.md) → [代理人類型規格](docs/guides/agent_type_specification_guide.md) |
+| **論文貢獻者** | [論文貢獻者指南](#論文貢獻者) |
 
 ---
 
@@ -159,7 +178,7 @@ LLM 驅動的 ABM 面臨五個反覆出現的問題，本框架逐一解決：
 | :------------ | :----------- | :------- | :-------------------------------------------------------------------------- |
 | **底座**      | **執行引擎** | _身體_   | 能夠執行物理動作，但沒有記憶或理性。                                        |
 | **+ Level 1** | **感知透鏡** | _眼睛_   | 加入有界感知（視窗記憶）。防止 LLM 因歷史過長而當機。                       |
-| **+ Level 2** | **記憶引擎** | _海馬迴_ | 加入**通用認知架構 (v3)**。包含驚喜驅動的系統 1/2 切換與創傷優先檢索。      |
+| **+ Level 2** | **記憶引擎** | _海馬迴_ | 加入 **HumanCentric 記憶引擎**。情感顯著性編碼（重要性 = 情緒 × 來源），含隨機整合與指數衰減。 |
 | **+ Level 3** | **技能仲裁** | _超我_   | 加入**治理機制**。強制執行 "Thinking Rules"，確保行為符合信念（理性驗證）。 |
 
 > **為什麼這對研究很重要**：此設計支持受控消融研究。運行 Level 1 Agent（Group A — 基準組）對比 Level 3 Agent（Group C — 完整組），精確區分出*哪一個*認知組件解決了特定的行為偏差。
@@ -174,20 +193,26 @@ LLM 驅動的 ABM 面臨五個反覆出現的問題，本框架逐一解決：
 
 - **v1 (舊版)**：[可得性捷思] — 單一視窗記憶模式（Group A/B 基準）。
 - **v2 (加權)**：[情境依賴記憶] — 模組化 `SkillBrokerEngine` 與**加權優先級檢索** ($S = W_{rec}R + W_{imp}I + W_{ctx}C$)。
-- **v3 (最新)**：[雙系統理論與主動推理] — **通用認知架構（驚喜引擎）**。
-  - **動態切換**：根據預測誤差 ($PE$) 自動在系統一（習慣）與系統二（理性）之間切換。
-  - **狀態-心智耦聯**：環境現實 ($R$) 與心理預期 ($E$) 直接驅動認知喚起程度。
-  - **可解釋審計**：提供完整的邏輯軌跡，解釋「代理人為何想起這件事/選擇此行動」。
+- **v3 (最新)**：[情緒加權記憶架構] — 引入多種記憶引擎。生產實驗使用 **HumanCentricMemoryEngine**（基本排序模式）。
+  - **重要性 = 情緒 × 來源**：關鍵字分類的情緒權重（critical/major/positive/shift/routine）乘以來源接近度（personal > neighbor > community > abstract）。
+  - **隨機整合**：高重要性記憶以概率方式轉入長期儲存（$P = 0.7$，重要性 $> 0.6$ 時）。工作記憶上限 20 條，長期記憶上限 100 條。
+  - **指數衰減**：$I(t) = I_0 \cdot e^{-\lambda t}$，應用於長期記憶。
+  - _注_：更進階的 `UnifiedCognitiveEngine`（含 EMA 驚喜偵測與系統 1/2 切換）已實作但**未用於** WRR 單代理人實驗。多代理人洪水實驗（Paper 3）使用此引擎。
 
 **[深度解析：記憶優先級與檢索數學](docs/modules/memory_components_zh.md)**
 
-### 提供者層與適配器
+### 提供者層 (Provider Layer)
 
-| 組件               | 檔案               | 說明                                                                          |
-| :----------------- | :----------------- | :---------------------------------------------------------------------------- |
-| **UnifiedAdapter** | `model_adapter.py` | 智能解析：處理特定模型的怪癖（例如 DeepSeek `<think>` 標籤、Llama JSON 格式） |
-| **LLM Utils**      | `llm_utils.py`     | 集中式 LLM 調用，具備穩健錯誤處理與詳細程度控制                               |
-| **OllamaProvider** | `ollama.py`        | 預設的本地推理提供者                                                          |
+| 組件 | 檔案 | 說明 |
+| :--- | :--- | :--- |
+| **LLMProvider** (ABC) | `providers/llm_provider.py` | 統一介面：`invoke()` / `ainvoke()` / `validate_connection()` |
+| **OllamaProvider** | `providers/ollama.py` | 本地推理（預設） |
+| **AnthropicProvider** | `providers/anthropic.py` | Claude API (claude-sonnet/opus/haiku) |
+| **OpenAIProvider** | `providers/openai_provider.py` | GPT-4 / Azure OpenAI |
+| **GeminiProvider** | `providers/gemini.py` | Google Gemini API |
+| **RateLimitedProvider** | `providers/llm_provider.py` | 速率限制包裝器，含指數退避重試 |
+| **UnifiedAdapter** | `broker/core/model_adapter.py` | 智能解析：處理模型特殊處理（DeepSeek `<think>`、Llama JSON） |
+| **LLM Utils** | `broker/utils/llm_utils.py` | 集中式 LLM 調用，穩健錯誤處理與詳細程度控制 |
 
 ## 驗證器層（治理規則引擎）
 
@@ -307,47 +332,106 @@ fields:
 
 ## 驗證管線
 
-| 階段 | 驗證器          | 檢查                               |
-| :--- | :-------------- | :--------------------------------- |
-| 1    | Admissibility   | 技能存在？代理人有資格使用此技能？ |
-| 2    | Feasibility     | 前置條件滿足？（例如，尚未加高）   |
-| 3    | Constraints     | 一次性或年度限制？                 |
-| 4    | Effect Safety   | 狀態變更有效？                     |
-| 5    | PMT Consistency | 推理與決策一致？                   |
-| 6    | Uncertainty     | 回應有信心？                       |
+`SkillBrokerEngine` 對每個 `SkillProposal` 執行 5 類有序驗證管線（Physical → Thinking → Personal → Social → Semantic）。ERROR 結果觸發重試循環（最多 3 次），附帶人類可讀回饋；WARNING 結果僅記錄，不阻止執行。
+
+| 類別 | 驗證器 | 檢查 |
+| :--- | :----- | :--- |
+| **Physical** | `PhysicalValidator` | 不可逆狀態守衛（已加高？已搬遷？） |
+| **Thinking** | `ThinkingValidator` | 構念-行動一致性（PMT / Utility / Financial） |
+| **Personal** | `PersonalValidator` | 財務能力約束（收入、補貼門檻） |
+| **Social** | `SocialValidator` | 鄰居影響觀測（僅 WARNING，不阻止） |
+| **Semantic** | `SemanticGroundingValidator` | 推理文本 vs 模擬事實（幻覺偵測） |
 
 ---
 
 ## 領域中立配置 (v3.5)
 
-所有領域專屬邏輯集中於 `agent_types.yaml`。框架本身對模擬領域無關。自 v3.5 起，LLM 逾時、模型特殊處理、mock 回應、驗證器關鍵字、審計欄位及心理測量行動名稱均從 YAML 配置載入：
+自 v3.5 起，`broker/` 層**零硬編碼領域值** — 所有逾時、模型特殊處理、構念標籤及關鍵字均從 YAML 載入。現有實驗無需更改配置（預設值與先前硬編碼值一致）。
 
-```yaml
-# agent_types.yaml - 解析與記憶配置
-parsing:
-  decision_keywords: ["decision", "choice", "action"]
-  synonyms:
-    tp: ["severity", "vulnerability", "threat", "risk"]
-    cp: ["efficacy", "self_efficacy", "coping", "ability"]
+參見 [YAML 配置參考](docs/references/yaml_configuration_reference.md) 了解完整參數規格（記憶引擎、加權評分、反思、LLM、治理、StateParam 正規化）。
 
-memory_config:
-  emotional_weights:
-    critical: 1.0 # 洪水損害、創傷
-    major: 0.9 # 重大生活決策
-    positive: 0.8 # 成功的適應
-    routine: 0.1 # 日常噪音
+### YAML vs. Python 擴展邊界
 
-  source_weights:
-    personal: 1.0 # 直接經歷「我看到...」
-    neighbor: 0.7 # 「我的鄰居做了...」
-    community: 0.5 # 「新聞說...」
+| 您想要變更的內容 | 僅 YAML | 需要 Python | 配置檔 |
+| :--- | :---: | :---: | :--- |
+| 新增/移除技能（動作） | Yes | — | `skill_registry.yaml` |
+| 定義代理人類型與人設 | Yes | — | `agent_types.yaml` |
+| 新增/修改治理規則 | Yes | — | `agent_types.yaml` → `governance.rules` |
+| 調整記憶參數（視窗、衰減、權重） | Yes | — | `agent_types.yaml` → `global_config.memory` |
+| 變更 LLM 模型或逾時 | Yes | — | `agent_types.yaml` → `global_config.llm` |
+| 變更回應格式欄位 | Yes | — | `agent_types.yaml` → `response_format.fields` |
+| 新增 BuiltinCheck（領域驗證器） | — | Yes | 實作於 `broker/validators/governance/` |
+| 新增記憶引擎 | — | Yes | 繼承 `MemoryEngine` ABC |
+| 新增 LLM 提供者 | — | Yes | 繼承 `LLMProvider` ABC（`providers/`） |
+| 新增領域（洪水/灌溉以外） | — | Yes | 新建 `lifecycle_hooks.py` + `skill_registry.yaml` + `agent_types.yaml` |
+| 自定義校準指標 (C&V) | — | Yes | 提供 `compute_metrics_fn` 給 `CalibrationProtocol` |
 
-  # 上下文優先級權重
-  priority_schema:
-    flood_depth: 1.0 # 最高：物理現實
-    savings: 0.8 # 財務現實
-    risk_tolerance: 0.5 # 心理因素
+### 如何擴展（介面契約）
+
+新增**記憶引擎** — 繼承 `broker/components/memory/engine.py` 中的 ABC：
+
+```python
+class MemoryEngine(ABC):
+    @abstractmethod
+    def add_memory(self, agent_id: str, content: str,
+                   metadata: Optional[Dict[str, Any]] = None) -> None: ...
+    @abstractmethod
+    def retrieve(self, agent: BaseAgent, query: Optional[str] = None,
+                 top_k: int = 3, **kwargs) -> List[dict]: ...
+    @abstractmethod
+    def clear(self, agent_id: str) -> None: ...
 ```
+
+新增 **LLM 提供者** — 繼承 `providers/llm_provider.py` 中的 ABC：
+
+```python
+class LLMProvider(ABC):
+    @property
+    @abstractmethod
+    def provider_name(self) -> str: ...
+    @abstractmethod
+    def invoke(self, prompt: str, **kwargs) -> LLMResponse: ...
+    @abstractmethod
+    async def ainvoke(self, prompt: str, **kwargs) -> LLMResponse: ...
+    def validate_connection(self) -> bool: ...  # 提供預設實作
+```
+
+新增**驗證器** — 繼承 `broker/validators/governance/base_validator.py`：
+
+```python
+class BaseValidator(ABC):
+    category: str                          # 例如 "physical", "thinking"
+    @abstractmethod
+    def _default_builtin_checks(self) -> List[BuiltinCheck]: ...
+    # validate() 由基類提供 — 僅需覆寫 _default_builtin_checks
+```
+
+新增**領域**（例如野火、乾旱），需提供：
+
+1. `skill_registry.yaml` — 該領域的動作本體論
+2. `agent_types.yaml` — 人設定義、構念、治理規則
+3. `lifecycle_hooks.py` — 繼承 `BaseLifecycleHooks`，處理環境設定與狀態轉換
+4. （可選）領域特定的 `BuiltinCheck` 函式
+
+---
+
+## 事後校準與驗證 (C&V)
+
+[驗證器層](#驗證器層治理規則引擎)在**執行期**攔截幻覺，而 C&V 框架在模擬結束**後**評估輸出：_「受治理的代理人是否產生了科學上合理的行為？」_
+
+驗證遵循 Grimm et al. (2005) 模式導向建模的三層層級：
+
+| 層級 | 範圍 | 核心指標 | 測試目標 |
+| :--- | :--- | :------- | :------- |
+| **L1 — 微觀** | 個體代理人 | **CACR**（構念-行動一致率）、**R_H**（幻覺率 + EBE） | 個體決策是否與其報告的心理構念內部一致？ |
+| **L2 — 宏觀** | 總體人口 | **GCR**（治理一致率）、**EPI**（經驗合理性指數） | 總體採用率是否符合經驗基準（NFIP、調查數據）？ |
+| **L3 — 認知** | 心理計量 | **ICC(2,1)** + **eta-squared**（效果量） | LLM 是否在重複測試中產生可靠、可區分的構念評分？ |
+
+設計特點：L1/L2 **零 LLM 調用**（純審計 CSV 分析）；配置驅動路由（`ValidationRouter` 從 `agent_types.yaml` 自動偵測適用指標）；領域無關（構念名稱、行動詞彙由調用者提供）。
+
+三階段校準協議：**Pilot**（25 代理人 × 3 年）→ **Sensitivity**（LLM 探針測試）→ **Full**（400 代理人 × 13 年 × 10 seeds）。
+
+**[完整 C&V 文件、API 範例與指標閾值](broker/validators/calibration/README.md)**
 
 ---
 
@@ -377,7 +461,7 @@ memory_config:
 | :--------------- | :------------------ | :--------------------------- |
 | **Google Gemma** | 3-4B, 3-12B, 3-27B  | 主要基準測試模型（JOH 論文） |
 | **Meta Llama**   | 3.2-3B-Instruct     | 輕量邊緣代理人               |
-| **DeepSeek**     | R1-Distill-Llama-8B | 高推理（CoT）任務            |
+| **DeepSeek**     | R1-Distill-Llama-8B | 高推理（思維鏈）任務         |
 
 **[完整實驗細節](examples/single_agent/)**
 
@@ -396,6 +480,23 @@ memory_config:
 **挑戰**：當治理規則形成狹窄的「行動漏斗」（例如：TP=H 阻止「什麼都不做」，CP=L 阻止「加高」和「搬遷」），代理人可能只剩一個有效動作，失去有意義的選擇。
 
 **洞察**：我們區分 **ERROR** 規則（阻止動作並觸發重試）與 **WARNING** 規則（允許動作通過但在審計軌跡中記錄觀察）。這在保持科學可觀測性的同時維護了代理人自主性。
+
+---
+
+## 論文貢獻者
+
+### WRR 論文工作區
+
+| 論文 | 目錄 | 配置檔 |
+| :--- | :--- | :----- |
+| Paper 2（灌溉） | `examples/irrigation_abm/` | `config/agent_types.yaml` |
+| Paper 3（洪水 MA） | `examples/multi_agent/flood/` | `config/ma_agent_types.yaml` |
+
+### Zotero 整合
+
+專案使用共享 Zotero 文獻庫管理參考文獻。請聯繫 PI 取得群組存取憑證。引用鍵格式為 `AuthorYear`（例如 `Rogers1983`、`Bubeck2012`）。
+
+設定說明請參見 `docs/guides/zotero_guide.md`。
 
 ---
 
