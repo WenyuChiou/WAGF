@@ -28,7 +28,9 @@ def create_provider(config: Dict[str, Any]) -> LLMProvider:
     DEFAULT_MODELS = {
         "ollama": "llama3.2:3b",
         "openai": "gpt-4-turbo",
-        "gemini": "gemini-1.5-flash-latest"
+        "gemini": "gemini-1.5-flash-latest",
+        "anthropic": "claude-sonnet-4-5-20250929",
+        "claude": "claude-sonnet-4-5-20250929",
     }
     
     # 1. Base Configuration
@@ -65,17 +67,30 @@ def create_provider(config: Dict[str, Any]) -> LLMProvider:
     
     elif provider_type == "gemini":
         from .gemini import GeminiProvider
-        
+
         api_key = config.get("api_key", "")
         if api_key.startswith("${") and api_key.endswith("}"):
             env_var = api_key[2:-1]
             api_key = os.getenv(env_var, "")
-            
+
         provider = GeminiProvider(
             config=llm_config,
             api_key=api_key
         )
-    
+
+    elif provider_type in ("anthropic", "claude"):
+        from .anthropic import AnthropicProvider
+
+        api_key = config.get("api_key", "")
+        if api_key.startswith("${") and api_key.endswith("}"):
+            env_var = api_key[2:-1]
+            api_key = os.getenv(env_var, "")
+
+        provider = AnthropicProvider(
+            config=llm_config,
+            api_key=api_key
+        )
+
     else:
         raise ValueError(f"Unknown provider type: {provider_type}")
 
@@ -84,7 +99,7 @@ def create_provider(config: Dict[str, Any]) -> LLMProvider:
     max_retries = config.get("max_retries", 3)
     
     # If using cloud providers, default to some safety if not specified
-    if provider_type in ["gemini", "openai"] and rpm_limit is None:
+    if provider_type in ["gemini", "openai", "anthropic", "claude"] and rpm_limit is None:
         # Defaults for safety (adjust as needed)
         rpm_limit = 10 
 
