@@ -10,7 +10,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 from broker.agents import BaseAgent, AgentConfig, StateParam
 from broker.components.context_builder import TieredContextBuilder, AttributeProvider, SocialProvider
 from broker.components.interaction_hub import InteractionHub
-from broker.core.governed_broker import SkillBrokerEngine
+from broker.core.skill_broker_engine import SkillBrokerEngine
 from broker.utils.model_adapter import UnifiedAdapter
 from broker.components.audit_writer import GenericAuditWriter, AuditConfig
 from broker.validators.agent.agent_validator import AgentValidator
