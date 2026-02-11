@@ -30,7 +30,7 @@ This experiment demonstrates the WAGF governance middleware applied to a nonstat
   - [5.1 Behavioral Clusters](#51-behavioral-clusters)
   - [5.2 Action Space (5-Skill)](#52-action-space-5-skill)
   - [5.3 Bounded Gaussian Magnitude Sampling](#53-bounded-gaussian-magnitude-sampling)
-  - [5.4 Dual-Appraisal Framework (WSA/ACA)](#54-dual-appraisal-framework-wsaaca)
+  - [5.4 Cognitive Appraisal Constructs (WSA/ACA)](#54-cognitive-appraisal-constructs-wsaaca)
   - [5.5 Response Format and Prompt Design](#55-response-format-and-prompt-design)
   - [5.6 Memory and Retrieval](#56-memory-and-retrieval)
   - [5.7 Reflection](#57-reflection)
@@ -43,7 +43,7 @@ This experiment demonstrates the WAGF governance middleware applied to a nonstat
   - [6.5 Suggestion Bias Correction](#65-suggestion-bias-correction)
   - [6.6 REJECTED Outcome Handling](#66-rejected-outcome-handling)
   - [6.7 Economic Hallucination Defense](#67-economic-hallucination-defense)
-- [7. Production Results (v20)](#7-production-results-v20)
+- [7. Production Results](#7-production-results)
   - [7.1 Headline Metrics](#71-headline-metrics)
   - [7.2 Governance Outcomes](#72-governance-outcomes)
   - [7.3 Behavioral Diversity](#73-behavioral-diversity)
@@ -176,7 +176,7 @@ flowchart TD
             G -->|ERROR| I{"Retry<br/>≤ 3 attempts?"}
             I -->|Yes| J["Re-prompt with<br/>rejection reason"]
             J --> F
-            I -->|No / EarlyExit| K["REJECTED<br/>→ maintain_demand fallback"]
+            I -->|"No / EarlyExit<br/>(same rules re-trigger)"| K["REJECTED<br/>→ maintain_demand fallback"]
             K --> H
         end
 
@@ -207,12 +207,12 @@ flowchart TD
       - Append action-outcome feedback from prior year
    b. Agent Decision Step (per agent):
       - Retrieve memories (window + top-k significant)
-      - Build dual-appraisal prompt with persona context
+      - Build WSA/ACA appraisal prompt with persona context
       - Call LLM → parse response → extract WSA/ACA + decision
       - Validate against governance rules (12 validators, strict profile)
       - APPROVED → execute skill with Gaussian-sampled magnitude
       - ERROR → retry with rejection feedback (up to 3 retries)
-      - REJECTED (after retries / EarlyExit) → execute maintain_demand fallback
+      - REJECTED (after retries / EarlyExit — early termination when identical rules block consecutive retries) → execute maintain_demand fallback
    c. Skill Execution:
       - Sample magnitude from persona Gaussian N(default, sigma)
       - Apply demand change, enforce floor/cap constraints
@@ -532,7 +532,7 @@ flowchart TD
 
 ### 5.1 Behavioral Clusters
 
-Three k-means clusters from Hung & Yang (2021) Section 4.1, mapped from FQL parameters to LLM personas:
+Three k-means clusters from Hung & Yang (2021) Section 4.1, mapped from FQL parameters to LLM personas (67 aggressive, 5 forward-looking conservative, 6 myopic conservative among the 78 CRSS agents):
 
 | Cluster | FQL mu/sigma | LLM Persona | default | sigma | min | max | Exploration |
 |---------|-------------|-------------|---------|-------|-----|-----|-------------|
@@ -546,25 +546,25 @@ Each persona receives a tailored narrative in the prompt template, with cluster-
 
 The original FQL model defines **2 actions** — increase or decrease diversion — with continuous magnitude drawn from N(mu, sigma). The LLM-ABM extends this to **5 discrete skills** that decompose the FQL continuous actions into granular choices plus a status-quo option:
 
-| # | Skill | FQL Equivalent | Real-World Analog | Magnitude Range |
-|---|-------|---------------|-------------------|-----------------|
-| 1 | `increase_large` | Action 1, high magnitude | Major acreage expansion or new crop | N(12%, σ=3), [8-20%] |
-| 2 | `increase_small` | Action 1, low magnitude | Marginal increase in crop intensity | N(4%, σ=1.5), [1-8%] |
-| 3 | `maintain_demand` | Implicit (zero-magnitude) | Status quo under long-term contracts | No change |
-| 4 | `decrease_small` | Action 0, low magnitude | Minor conservation adjustments | N(4%, σ=1.5), [1-8%] |
-| 5 | `decrease_large` | Action 0, high magnitude | Fallowing fields, switching to low-water crops | N(12%, σ=3), [8-20%] |
+| # | Skill | FQL Equivalent | Real-World Analog |
+|---|-------|---------------|-------------------|
+| 1 | `increase_large` | Action 1, high magnitude | Major acreage expansion or new crop |
+| 2 | `increase_small` | Action 1, low magnitude | Marginal increase in crop intensity |
+| 3 | `maintain_demand` | Implicit (zero-magnitude) | Status quo under long-term contracts |
+| 4 | `decrease_small` | Action 0, low magnitude | Minor conservation adjustments |
+| 5 | `decrease_large` | Action 0, high magnitude | Fallowing fields, switching to low-water crops |
 
 **Why 5 instead of 3?** A 3-skill design (increase / maintain / decrease) maps FQL's 2 actions + status quo but collapses the continuous magnitude distribution into a single bin per direction. The 5-skill design restores the granularity distinction between small and large adjustments, enabling **differential governance**: Tier 1 shortage blocks `increase_large` (ERROR) but only warns on `increase_small` (WARNING), mirroring how real water institutions allow marginal increases during mild drought but block major expansions.
 
 **Per-skill constraints:**
 
-| # | Skill ID | Gaussian Params | Key Constraints |
-|---|----------|-----------------|-----------------|
-| 1 | `increase_large` | N(12%, σ=3), [8-20%] × persona_scale | Blocked at cap; blocked Tier 2+; blocked drought>0.7; blocked basin>6.0 MAF |
-| 2 | `increase_small` | N(4%, σ=1.5), [1-8%] × persona_scale | Same as above; Tier 1 = WARNING only (not ERROR) |
-| 3 | `maintain_demand` | No magnitude change | Default/fallback; blocked when WSA=VH + util<15% (`zero_escape_check`) |
-| 4 | `decrease_small` | N(4%, σ=1.5), [1-8%] × persona_scale | Blocked at min utilisation (10%); blocked below demand floor (50%) |
-| 5 | `decrease_large` | N(12%, σ=3), [8-20%] × persona_scale | Same as above |
+| # | Skill ID | Key Constraints |
+|---|----------|-----------------|
+| 1 | `increase_large` | Blocked at cap; blocked Tier 2+; blocked drought>0.7; blocked basin>6.0 MAF |
+| 2 | `increase_small` | Same as above; Tier 1 = WARNING only (not ERROR) |
+| 3 | `maintain_demand` | Default/fallback; blocked when WSA=VH + util<15% (`zero_escape_check`) |
+| 4 | `decrease_small` | Blocked at min utilisation (10%); blocked below demand floor (50%) |
+| 5 | `decrease_large` | Same as above |
 
 > **Note on magnitude**: Demand change magnitude is sampled from skill-specific Bounded Gaussians at execution time. The `magnitude_pct` field has been **removed from the response format** — reducing the JSON schema from 7 to 4 fields improved WSA/ACA reason generation with gemma3:4b.
 
@@ -641,9 +641,9 @@ flowchart LR
 
 Opt-out via `--no-magnitude` to remove the `magnitude_pct` field from the prompt (reduces context burden for smaller models).
 
-### 5.4 Dual-Appraisal Framework (WSA/ACA)
+### 5.4 Cognitive Appraisal Constructs (WSA/ACA)
 
-Irrigation agents use a **dual-appraisal** framework adapted from the FQL behavioral model in Hung & Yang (2021). Each year, agents assess two independent dimensions before choosing an action:
+Irrigation agents follow **cognitive appraisal theory** (Lazarus & Folkman, 1984), adapted from the FQL behavioral model in Hung & Yang (2021). Each year, agents assess two independent dimensions before choosing an action:
 
 | Dimension | Construct | Description |
 |-----------|-----------|-------------|
@@ -661,15 +661,15 @@ The two dimensions are assessed **independently** — governance rules may condi
 
 **Important limitation**: WAGF's WSA/ACA are categorical labels (VL/L/M/H/VH), not a full cognitive appraisal process model. We borrow Lazarus & Folkman's construct naming to provide theoretical grounding, but do not claim to fully implement cognitive appraisal theory. The labels serve as governance-legible inputs that enable construct-conditioned rules.
 
-**Why dual-appraisal (not single threat)?** The flood ABM uses PMT (Protection Motivation Theory) with a single threat appraisal because flooding is an acute binary event (flood/no flood). Irrigation demand is fundamentally different:
+**Why two appraisal dimensions (not single threat)?** The flood ABM uses PMT (Protection Motivation Theory) with a single threat appraisal because flooding is an acute binary event (flood/no flood). Irrigation demand is fundamentally different:
 
-| Dimension | Flood (PMT) | Irrigation (Dual-Appraisal) |
+| Dimension | Flood (PMT) | Irrigation (Cognitive Appraisal) |
 |-----------|------------|---------------------------|
 | Threat nature | Acute, binary | Chronic, continuous |
 | Decision type | Binary (adopt protection / not) | Continuous (how much to adjust demand) |
 | Capacity relevance | Lower (adopt elevation or not) | Critical (can I actually change practices?) |
 
-The dual-appraisal design enables **cross-construct governance rules** — e.g., WSA=VH + ACA=VH → "severe drought but high adaptive capacity → you should decrease, not increase." This logical conjunction is inexpressible in a single-appraisal system.
+The two-construct design enables **cross-construct governance rules** — e.g., WSA=VH + ACA=VH → "severe drought but high adaptive capacity → you should decrease, not increase." This logical conjunction is inexpressible in a single-appraisal system.
 
 **Construct validity (99.2% coverage):** WSA/ACA valid-label coverage = 99.2% (3,250/3,276 agent-year decisions), indicating gemma3:4b reliably produces 5-level ordinal labels. The 0.8% invalid labels are caught at the governance validation stage.
 
@@ -916,7 +916,7 @@ In every scenario, at least `maintain_demand` remains available — no all-skill
 | `low_threat_no_increase` | WSA = VL | Block increase | Near-zero scarcity → no justification for more water |
 | `high_threat_no_maintain` | WSA = VH | Warn maintain | Extreme drought → status quo deserves scrutiny |
 
-These three rules triggered **1,250 times** across v20 production (34% of all ERROR triggers), demonstrating that dual-appraisal constructs are a substantive governance mechanism, not decorative metadata.
+These three rules triggered **1,250 times** across v20 production (34% of all ERROR triggers), demonstrating that WSA/ACA constructs are a substantive governance mechanism, not decorative metadata.
 
 ### 6.5 Suggestion Bias Correction
 
@@ -935,11 +935,11 @@ REJECTED agents now execute `maintain_demand` as fallback (instead of no-op), pr
 
 ### 6.7 Economic Hallucination Defense
 
-v4 experiments revealed a novel LLM failure mode: **economic hallucination** — actions that are physically feasible but operationally absurd given quantitative context.
+Early calibration revealed a novel LLM failure mode: **economic hallucination** — actions that are physically feasible but operationally absurd given quantitative context.
 
 Forward-looking conservative (FLC) agents repeatedly chose `decrease_demand` despite their context showing near-zero utilisation. Persona anchoring ("cautious farmer") overwhelmed numerical awareness, compounding demand to zero over ~30 years.
 
-**Three-layer defense (v6+):**
+**Four-layer defense:**
 
 1. **MIN_UTIL floor (P0)**: `execute_skill` enforces `max(new_request, water_right * 0.10)` across all reduction skills
 2. **Diminishing returns (P1)**: Taper = `(utilisation - 0.10) / 0.90` — reductions shrink smoothly as utilisation approaches 10%
@@ -950,7 +950,7 @@ This extends the hallucination taxonomy beyond physical impossibility (flood dom
 
 ---
 
-## 7. Production Results (v20)
+## 7. Production Results
 
 **Experiment**: 78 agents x 42 years, gemma3:4b, Phase C governance, seed 42.
 
@@ -985,7 +985,7 @@ This extends the hallucination taxonomy beyond physical impossibility (flood dom
 
 - **Demand stability**: Steady-state demand (Y6-42) remains within the CRSS +/-10% corridor, achieving the same level of collective demand equilibrium as Hung & Yang (2021) FQL, but through governance constraints rather than Q-value convergence.
 - **Cold-start transient**: Y1-5 mean demand is 4.76 MAF (19% below CRSS), with Y5 trough at 4.44 MAF, reflecting zero-memory initialization. FQL also exhibits early exploration instability, but its Q-values begin updating from Y1, producing a shorter transient.
-- **Persistent intervention**: 60% of decisions require governance intervention (retry + rejected). This is not a system deficiency but a structural feature — bounded-rationality LLM agents in chronic drought structurally require external constraint.
+- **Persistent intervention**: 62% of decisions require governance intervention (retry + rejected). This is not a system deficiency but a structural feature — bounded-rationality LLM agents in chronic drought structurally require external constraint.
 - **Cluster differentiation**: Aggressive agents face 43 percentage-point governance compression (propose 60% increase → execute 17%), while Myopic agents face near-zero compression (98% maintain). This preserves the qualitative behavioral ordering from FQL k-means clusters through governance rules rather than individually calibrated penalty sensitivities.
 - **Top rule triggers**: demand_ceiling_stabilizer (1,420) > high_threat_high_cope_no_increase (1,180) > curtailment_awareness (499), showing governance load concentrates on hydrologically meaningful constraints.
 
