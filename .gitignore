@@ -96,6 +96,12 @@ cognitive_governance/domains/
 cognitive_governance/config/
 cognitive_governance/demo_sdk_usage.py
 
+# Local run/automation scripts (machine-specific)
+auto_run_*.ps1
+monitor_*.ps1
+*.ps1
+*.sh
+
 # Backup & Temp Files
 *.bak
 ~$*
@@ -109,8 +115,11 @@ ref/flood_adaptation_simulation_log.csv
 ref/*_extracted.txt
 ref/paper_analysis/
 
-# Paper artifacts — binary drafts & generated analysis excluded
+# Paper artifacts — binary drafts, figures & generated analysis excluded
 paper/*.docx
+paper/figures/*.png
+paper/figures/*.pdf
+paper/tables/*.csv
 paper/archive/
 paper/unpacked_*/
 examples/single_agent/manuscripts/
@@ -162,4 +171,11 @@ current_role.txt
 
 # Archived examples and diagnostics
 examples/archive/
+examples/single_agent/archive/
 _archive/
+
+# Generated analysis JSON
+examples/single_agent/analysis/reports/*.json
+examples/irrigation_abm/analysis/*.png
+examples/irrigation_abm/analysis/*.pdf
+examples/irrigation_abm/analysis/*.json

@@ -79,13 +79,13 @@ class TestExtractFinalStatesFromDecisions:
         assert states["H001"]["relocated"] is False
 
     def test_multi_year_cumulative(self):
-        """Insurance yr1 + elevate yr2 → both True."""
+        """Insurance yr1 + elevate yr2 → elevated=True, insurance lapsed (annual)."""
         traces = [
             make_trace("H001", year=1, action="buy_insurance"),
             make_trace("H001", year=2, action="elevate_house"),
         ]
         states = _extract_final_states_from_decisions(traces)
-        assert states["H001"]["has_insurance"] is True
+        assert states["H001"]["has_insurance"] is False  # lapsed: last action != buy_insurance
         assert states["H001"]["elevated"] is True
 
     def test_irreversible_elevation(self):
@@ -95,12 +95,12 @@ class TestExtractFinalStatesFromDecisions:
         states = _extract_final_states_from_decisions(traces)
         assert states["H001"]["elevated"] is True
 
-    def test_irreversible_insurance(self):
-        """Insurance yr1, do_nothing yr2-5 → still insured."""
+    def test_insurance_annual_lapse(self):
+        """Insurance yr1, do_nothing yr2-5 → insurance lapsed (annual, not irreversible)."""
         traces = [make_trace("H001", year=1, action="buy_insurance")]
         traces += [make_trace("H001", year=y, action="do_nothing") for y in range(2, 6)]
         states = _extract_final_states_from_decisions(traces)
-        assert states["H001"]["has_insurance"] is True
+        assert states["H001"]["has_insurance"] is False  # lapsed: not renewed
 
     def test_buyout(self):
         traces = [
@@ -109,7 +109,7 @@ class TestExtractFinalStatesFromDecisions:
         ]
         states = _extract_final_states_from_decisions(traces)
         assert states["H001"]["bought_out"] is True
-        assert states["H001"]["has_insurance"] is True
+        assert states["H001"]["has_insurance"] is False  # lapsed: last action=buyout
 
     def test_renter_relocate(self):
         traces = [
@@ -117,7 +117,7 @@ class TestExtractFinalStatesFromDecisions:
             make_trace("H201", year=3, action="relocate"),
         ]
         states = _extract_final_states_from_decisions(traces)
-        assert states["H201"]["has_insurance"] is True
+        assert states["H201"]["has_insurance"] is False  # lapsed: last action=relocate
         assert states["H201"]["relocated"] is True
 
     def test_empty_traces(self):
@@ -173,7 +173,7 @@ class TestExtractFinalStatesFromDecisions:
         states = _extract_final_states_from_decisions(traces)
         assert states["H001"]["flood_zone"] == "HIGH"
         assert states["H001"]["cumulative_damage"] == 30000
-        assert states["H001"]["has_insurance"] is True  # from yr1 decision
+        assert states["H001"]["has_insurance"] is False  # lapsed: last action=do_nothing (yr5)
 
     def test_multiple_agents(self):
         """Multiple agents are tracked independently."""
@@ -213,8 +213,8 @@ class TestExtractFinalStatesFromDecisions:
         states = _extract_final_states_from_decisions(traces)
         assert states["H001"]["flood_zone"] == "HIGH"
         assert states["H001"]["_year"] == 5
-        # Both actions should be cumulated regardless of order
-        assert states["H001"]["has_insurance"] is True
+        # Elevation is irreversible (cumulated), insurance is annual (last action=elevate → lapsed)
+        assert states["H001"]["has_insurance"] is False  # lapsed: last action=elevate (yr5)
         assert states["H001"]["elevated"] is True
 
     def test_missing_agent_id_key(self):
@@ -384,9 +384,9 @@ class TestRegression:
         # Old function reads state_after directly — still False (bug we know about)
         assert old_states["H001"]["has_insurance"] is False
 
-        # New function infers from decisions — True (the fix)
+        # New function infers from decisions — last action=do_nothing → insurance lapsed
         new_states = _extract_final_states_from_decisions(traces)
-        assert new_states["H001"]["has_insurance"] is True
+        assert new_states["H001"]["has_insurance"] is False  # annual lapse: not renewed yr3
 
     def test_decision_based_vs_state_based_divergence(self):
         """Demonstrate the bug: state_after never updated, decisions show truth."""
