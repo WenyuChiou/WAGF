@@ -34,12 +34,12 @@ $runSeed = @{
 }
 
 $models = @(
-    @{tag = "gemma3:4b"; dir = "gemma3_4b"},
-    @{tag = "gemma3:12b"; dir = "gemma3_12b"},
-    @{tag = "gemma3:27b"; dir = "gemma3_27b"},
     @{tag = "ministral-3:3b"; dir = "ministral3_3b"},
     @{tag = "ministral-3:8b"; dir = "ministral3_8b"},
-    @{tag = "ministral-3:14b"; dir = "ministral3_14b"}
+    @{tag = "ministral-3:14b"; dir = "ministral3_14b"},
+    @{tag = "gemma3:4b"; dir = "gemma3_4b"},
+    @{tag = "gemma3:12b"; dir = "gemma3_12b"},
+    @{tag = "gemma3:27b"; dir = "gemma3_27b"}
 )
 
 $groups = @("Group_A", "Group_B", "Group_C")
