@@ -1,11 +1,22 @@
 """
-WAGF - Agents Module.
+Governed AI SDK - Agents Module.
 
-Provides agent protocols and base implementations for the Water Agent Governance Framework.
+Provides agent protocols and base implementations for the water agent governance framework.
 
 Usage:
+    # Load from user-defined YAML
+    from broker.agents import load_agents
+    agents = load_agents("my_agents.yaml")
+
+    # Or create programmatically
     from broker.agents import BaseAgent, AgentConfig
 """
+from .protocols import (
+    AgentProtocol,
+    StatefulAgentProtocol,
+    MemoryCapableAgentProtocol,
+)
+
 from .base import (
     # Normalization utilities
     normalize,
@@ -21,8 +32,17 @@ from .base import (
     BaseAgent,
 )
 
+from .loader import (
+    load_agent_configs,
+    load_agents,
+)
+
 
 __all__ = [
+    # Protocols
+    "AgentProtocol",
+    "StatefulAgentProtocol",
+    "MemoryCapableAgentProtocol",
     # Utils
     "normalize",
     "denormalize",
@@ -35,4 +55,7 @@ __all__ = [
     "AgentConfig",
     # Agent
     "BaseAgent",
+    # Loader
+    "load_agent_configs",
+    "load_agents",
 ]

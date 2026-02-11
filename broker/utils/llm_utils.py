@@ -299,7 +299,7 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
     """
     # Phase 0.3: Route to modern provider factory ONLY for known cloud providers
     # This prevents "gemma3:4b" from being split into provider="gemma3"
-    KNOWN_PROVIDERS = ["gemini", "openai", "azure", "anthropic", "claude"]
+    KNOWN_PROVIDERS = ["gemini", "openai", "azure"]
     
     if ":" in model and not model.startswith("mock"):
         parts = model.split(":", 1)

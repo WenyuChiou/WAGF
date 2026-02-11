@@ -3,25 +3,9 @@ Preprocessors for model adapter output normalization.
 """
 from typing import Dict, Any, List, Callable
 import re
-import json
 
+from .json_repair import json_extract_preprocessor
 from .adapters.deepseek import deepseek_preprocessor
-
-
-def json_extract_preprocessor(text: str) -> str:
-    """
-    Preprocessor for models that may return JSON.
-    Extracts text content from JSON if present.
-    """
-    try:
-        data = json.loads(text)
-        if isinstance(data, dict):
-            for key in ["response", "output", "text", "content"]:
-                if key in data:
-                    return str(data[key])
-        return text
-    except json.JSONDecodeError:
-        return text
 
 
 class GenericRegexPreprocessor:

@@ -5,6 +5,12 @@ Generic protocols and interfaces for dependency injection.
 Allows domain-specific implementations to be provided without
 coupling the broker framework to specific application domains.
 """
+from .enrichment import (
+    PositionData,
+    PositionEnricher,
+    ValueData,
+    ValueEnricher,
+)
 from .context_types import (
     PsychologicalFrameworkType,
     MemoryContext,
@@ -37,6 +43,11 @@ from .environment_protocols import (
 )
 
 __all__ = [
+    # Enrichment interfaces
+    "PositionData",
+    "PositionEnricher",
+    "ValueData",
+    "ValueEnricher",
     # Context types
     "PsychologicalFrameworkType",
     "MemoryContext",
