@@ -68,19 +68,29 @@ WAGF Quickstart — Governance in Action
 
 ---
 
-## Tier 3: Production Template
+## Tier 3: Real LLM Experiment
 
-Copy the minimal template and customize for your domain.
+Run a governed flood experiment with a real LLM (requires Ollama).
 
 ```bash
-cp -r examples/minimal examples/my_domain
-cd examples/my_domain
-python run_hello_world.py --model gemma3:4b --years 5
+python examples/governed_flood/run_experiment.py --model gemma3:4b --years 5
 ```
 
-This requires Ollama running locally. See `examples/minimal/README.md` for the full checklist of what to customize.
+**What it demonstrates:**
 
-**Source:** `examples/minimal/` (155 Python + 72 YAML lines)
+- Real LLM decision-making with governance constraints
+- Domain-specific validators (flood risk rules)
+- Custom adapter for output parsing
+- YAML-driven skill registry and agent configuration
+
+**To build your own domain**, copy `examples/governed_flood/` as a template:
+
+- `run_experiment.py` — ExperimentBuilder setup
+- `adapters/` — Domain-specific output parsing
+- `validators/` — Domain-specific governance rules
+- `config/` — Agent types and skill definitions (YAML)
+
+**Source:** `examples/governed_flood/` (5 Python files + YAML config)
 
 ---
 
