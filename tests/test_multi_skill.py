@@ -13,7 +13,7 @@ from broker.interfaces.skill_types import (
     SkillProposal, MultiSkillProposal, SkillBrokerResult,
     ApprovedSkill, ExecutionResult, SkillOutcome, ValidationResult,
 )
-from broker.components.skill_registry import SkillRegistry
+from broker.components.governance.registry import SkillRegistry
 
 
 # ── MultiSkillProposal ──

@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from broker.core.experiment import ExperimentBuilder
-from broker.components.memory_engine import WindowMemoryEngine
+from broker.components.memory.engine import WindowMemoryEngine
 from broker.utils.llm_utils import create_llm_invoke
 from broker.agents import BaseAgent, AgentConfig
 

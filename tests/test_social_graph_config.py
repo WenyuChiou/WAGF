@@ -8,7 +8,7 @@ import pytest
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
-from broker.components.social_graph_config import (
+from broker.components.social.config import (
     SocialGraphSpec,
     AGENT_SOCIAL_SPECS,
     DEFAULT_SOCIAL_SPEC,

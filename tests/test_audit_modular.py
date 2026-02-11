@@ -13,7 +13,7 @@ import tempfile
 import csv
 from pathlib import Path
 
-from broker.components.audit_writer import GenericAuditWriter, AuditConfig
+from broker.components.analytics.audit import GenericAuditWriter, AuditConfig
 from broker.utils.agent_config import GovernanceAuditor
 
 

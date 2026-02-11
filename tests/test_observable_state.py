@@ -3,7 +3,7 @@ import pytest
 from broker.interfaces.observable_state import (
     ObservableMetric, ObservableScope, UpdateFrequency
 )
-from broker.components.observable_state import ObservableStateManager
+from broker.components.analytics.observable import ObservableStateManager
 
 
 class TestObservableStateManager:
@@ -106,7 +106,7 @@ class TestMetricFactories:
 
     def test_flood_observables_factory(self):
         """create_flood_observables returns valid metrics."""
-        from broker.components.observable_state import create_flood_observables
+        from broker.components.analytics.observable import create_flood_observables
 
         metrics = create_flood_observables()
         assert len(metrics) >= 4
@@ -115,7 +115,7 @@ class TestMetricFactories:
 
     def test_generic_rate_metric(self):
         """create_rate_metric creates valid rate computation."""
-        from broker.components.observable_state import create_rate_metric
+        from broker.components.analytics.observable import create_rate_metric
 
         metric = create_rate_metric(
             name="has_foo_rate",
@@ -133,7 +133,7 @@ class TestMetricFactories:
 
     def test_rate_metric_with_filter(self):
         """create_rate_metric applies filter correctly."""
-        from broker.components.observable_state import create_rate_metric
+        from broker.components.analytics.observable import create_rate_metric
 
         metric = create_rate_metric(
             name="active_insurance_rate",
@@ -152,7 +152,7 @@ class TestMetricFactories:
 
     def test_flood_observables_compute_correctly(self):
         """Flood observables compute correct rates."""
-        from broker.components.observable_state import (
+        from broker.components.analytics.observable import (
             ObservableStateManager, create_flood_observables
         )
 
@@ -182,7 +182,7 @@ class TestDriftObservables:
     """Test drift observables factory."""
 
     def test_create_drift_observables_returns_three_metrics(self):
-        from broker.components.observable_state import create_drift_observables
+        from broker.components.analytics.observable import create_drift_observables
 
         metrics = create_drift_observables()
         assert "decision_entropy" in metrics
@@ -190,7 +190,7 @@ class TestDriftObservables:
         assert "stagnation_rate" in metrics
 
     def test_entropy_metric_without_detector_returns_zero(self):
-        from broker.components.observable_state import create_drift_observables
+        from broker.components.analytics.observable import create_drift_observables
 
         metrics = create_drift_observables(None)
         assert metrics["decision_entropy"]([], {}) == 0.0

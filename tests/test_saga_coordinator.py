@@ -3,7 +3,7 @@
 Tests saga execution, rollback, timeout, and domain definitions.
 """
 import pytest
-from broker.components.saga_coordinator import (
+from broker.components.orchestration.sagas import (
     SagaCoordinator,
     SagaStep,
     SagaDefinition,

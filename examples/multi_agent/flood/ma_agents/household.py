@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional, Literal, TYPE_CHECKING
 import random
 
-from broker.components.memory import CognitiveMemory
+from broker.components.memory.legacy import CognitiveMemory
 from broker.utils.agent_config import AgentTypeConfig
 
 if TYPE_CHECKING:

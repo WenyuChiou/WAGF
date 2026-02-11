@@ -11,7 +11,7 @@ Responsibility:
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
 
-from broker.components.memory import CognitiveMemory
+from broker.components.memory.legacy import CognitiveMemory
 from broker.utils.agent_config import AgentTypeConfig
 from ..environment.risk_rating import calculate_individual_premium
 

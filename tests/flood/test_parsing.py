@@ -18,8 +18,8 @@ from pathlib import Path
 
 # Setup paths - IMPORTANT: Insert ROOT_DIR at position 0 to override local broker
 CURRENT_DIR = Path(__file__).parent
-MA_DIR = CURRENT_DIR.parent
-ROOT_DIR = MA_DIR.parent.parent
+ROOT_DIR = CURRENT_DIR.parent.parent
+MA_DIR = ROOT_DIR / "examples" / "multi_agent" / "flood"
 
 # Remove any existing paths that might conflict
 sys.path = [p for p in sys.path if 'multi_agent' not in p or p == str(MA_DIR)]

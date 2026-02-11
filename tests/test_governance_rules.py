@@ -256,7 +256,7 @@ class TestValidateAll:
             "social_context": {"elevated_neighbor_pct": 0.6}
         }
 
-        results = validate_all("do_nothing", [], context)
+        results = validate_all("do_nothing", [], context, domain="flood")
         # Should have results from thinking validator at minimum
         assert len(results) > 0
 

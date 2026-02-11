@@ -5,9 +5,9 @@ import logging
 
 import pytest
 
-from broker.components.coordinator import GameMaster
-from broker.components.message_pool import MessagePool
-from broker.components.phase_orchestrator import PhaseOrchestrator
+from broker.components.coordination.coordinator import GameMaster
+from broker.components.coordination.messages import MessagePool
+from broker.components.orchestration.phases import PhaseOrchestrator
 from broker.interfaces.artifacts import ArtifactEnvelope
 from broker.interfaces.coordination import ActionProposal
 from examples.multi_agent.flood.protocols.artifacts import PolicyArtifact

@@ -5,19 +5,19 @@ Reference: Task-054 Communication Layer
 import pytest
 
 from broker.interfaces.coordination import ActionProposal, ActionResolution
-from broker.components.coordinator import (
+from broker.components.coordination.coordinator import (
     PassthroughStrategy,
     ConflictAwareStrategy,
     CustomStrategy,
     GameMaster,
     create_game_master,
 )
-from broker.components.conflict_resolver import (
+from broker.components.coordination.conflict import (
     ConflictDetector,
     ConflictResolver,
     PriorityResolution,
 )
-from broker.components.message_pool import MessagePool
+from broker.components.coordination.messages import MessagePool
 
 
 # ---------------------------------------------------------------------------

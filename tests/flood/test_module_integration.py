@@ -172,7 +172,7 @@ class TestWindowMemoryEngine(unittest.TestCase):
 
     def setUp(self):
         """Create memory engine and mock agent."""
-        from broker.components.memory_engine import WindowMemoryEngine
+        from broker.components.memory.engine import WindowMemoryEngine
         self.engine = WindowMemoryEngine(window_size=3)
 
         # Mock agent with id attribute
@@ -211,7 +211,7 @@ class TestImportanceMemoryEngine(unittest.TestCase):
 
     def setUp(self):
         """Create importance memory engine."""
-        from broker.components.memory_engine import ImportanceMemoryEngine
+        from broker.components.memory.engine import ImportanceMemoryEngine
         self.engine = ImportanceMemoryEngine(
             window_size=2,
             top_k_significant=2,
@@ -257,7 +257,7 @@ class TestHumanCentricMemoryEngine(unittest.TestCase):
 
     def setUp(self):
         """Create human-centric memory engine with fixed seed."""
-        from broker.components.memory_engine import HumanCentricMemoryEngine
+        from broker.components.memory.engine import HumanCentricMemoryEngine
         self.engine = HumanCentricMemoryEngine(
             window_size=2,
             top_k_significant=2,

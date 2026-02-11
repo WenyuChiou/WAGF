@@ -12,7 +12,7 @@ Serves as the single source of truth for "Non-Personal" state.
 from typing import Dict, Any, Optional, List, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from broker.components.social_graph import SocialGraph
+    from broker.components.social.graph import SocialGraph
 
 class TieredEnvironment:
     """

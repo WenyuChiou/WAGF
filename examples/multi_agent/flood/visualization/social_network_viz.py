@@ -31,7 +31,7 @@ except ImportError:
 # Add parent paths for imports
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent))
 
-from broker.components.social_graph import (
+from broker.components.social.graph import (
     SocialGraph,
     SpatialNeighborhoodGraph,
     create_social_graph,

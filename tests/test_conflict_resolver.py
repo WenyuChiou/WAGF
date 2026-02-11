@@ -5,7 +5,7 @@ Reference: Task-054 Communication Layer
 import pytest
 
 from broker.interfaces.coordination import ActionProposal, ActionResolution, ResourceConflict
-from broker.components.conflict_resolver import (
+from broker.components.coordination.conflict import (
     ConflictDetector,
     PriorityResolution,
     ProportionalResolution,

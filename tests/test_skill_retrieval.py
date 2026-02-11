@@ -1,5 +1,5 @@
 import pytest
-from broker.components.skill_retriever import SkillRetriever
+from broker.components.governance.retriever import SkillRetriever
 from broker.interfaces.skill_types import SkillDefinition
 
 def test_retrieval_logic():
@@ -73,7 +73,7 @@ def test_skill_broker_integration():
     # Mock dependencies manually or use simple objects
     from unittest.mock import MagicMock
     from broker.core.skill_broker_engine import SkillBrokerEngine
-    from broker.components.skill_registry import SkillRegistry
+    from broker.components.governance.registry import SkillRegistry
     
     registry = SkillRegistry()
     s_def = SkillDefinition("s1", "description", ["*"], [], {}, [], "")

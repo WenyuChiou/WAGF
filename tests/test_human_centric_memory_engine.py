@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 # Adjust the path to import from the broker package
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from broker.components.memory_engine import HumanCentricMemoryEngine, BaseAgent
+from broker.components.memory.engine import HumanCentricMemoryEngine, BaseAgent
 
 class TestHumanCentricMemoryEngine(unittest.TestCase):
 

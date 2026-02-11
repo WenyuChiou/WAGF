@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from broker.core.experiment import ExperimentBuilder
-from broker.components.memory_engine import WindowMemoryEngine
+from broker.components.memory.engine import WindowMemoryEngine
 from broker.interfaces.skill_types import ExecutionResult
 from broker.agents import BaseAgent, AgentConfig
 from broker.agents.base import StateParam, Skill

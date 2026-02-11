@@ -1,4 +1,4 @@
-from broker.components.reflection_engine import ReflectionEngine
+from broker.components.cognitive.reflection import ReflectionEngine
 
 
 class DummyTemplate:

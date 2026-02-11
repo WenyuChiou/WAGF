@@ -30,8 +30,8 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 # Import broker components
-from broker.components.interaction_hub import InteractionHub
-from broker.components.social_graph import SocialGraph, create_social_graph
+from broker.components.analytics.interaction import InteractionHub
+from broker.components.social.graph import SocialGraph, create_social_graph
 from broker.interfaces.skill_types import SkillProposal, SkillOutcome
 
 

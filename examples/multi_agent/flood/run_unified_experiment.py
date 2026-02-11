@@ -33,9 +33,9 @@ from broker import (
     InteractionHub,
     create_social_graph
 )
-from broker.components.context_providers import PerceptionAwareProvider
-from broker.components.tiered_builder import load_prompt_templates
-from broker.components.memory_engine import create_memory_engine
+from broker.components.context.providers import PerceptionAwareProvider
+from broker.components.context.tiered import load_prompt_templates
+from broker.components.memory.engine import create_memory_engine
 from broker.simulation.environment import TieredEnvironment
 from broker.agents import BaseAgent, AgentConfig, StateParam, Skill, PerceptionSource
 from examples.multi_agent.flood.environment.hazard import HazardModule, VulnerabilityModule, YearMapping
@@ -99,7 +99,7 @@ def build_memory_engine(mem_cfg: Dict[str, Any], engine_type: str = "universal")
         )
     if engine_type == "hierarchical":
         # Note: HierarchicalMemoryEngine is deprecated and doesn't support scorer
-        from broker.components.memory_engine import HierarchicalMemoryEngine
+        from broker.components.memory.engine import HierarchicalMemoryEngine
         return HierarchicalMemoryEngine(
             window_size=mem_cfg.get("window_size", 5),
             semantic_top_k=mem_cfg.get("top_k_significant", 3),
@@ -132,7 +132,7 @@ def run_unified_experiment():
                         help="Memory engine type")
     parser.add_argument("--gossip", action="store_true", help="Enable neighbor gossip (SQ2)")
     parser.add_argument("--initial-subsidy", type=float, default=0.50, help="Initial gov subsidy rate (SQ3)")
-    parser.add_argument("--initial-premium", type=float, default=0.02, help="Initial insurance premium rate (SQ3)")
+    parser.add_argument("--initial-premium", type=float, default=0.008, help="Initial insurance premium rate (SQ3). NFIP typical: 0.005-0.015")
     parser.add_argument("--grid-dir", type=str, default=None, help="Path to PRB ASCII grid directory")
     parser.add_argument("--grid-years", type=str, default=None, help="Comma-separated PRB years to load (e.g. 2011,2012,2023)")
     parser.add_argument("--mode", type=str, choices=["survey", "random", "balanced"], default="survey",
@@ -213,35 +213,21 @@ def run_unified_experiment():
 
         income = personal.get('income', 50000)
         subsidy_rate = env.get('subsidy_rate', 0.5)
-        premium_rate = env.get('premium_rate', 0.02)
+        premium_rate = env.get('premium_rate', 0.008)
         property_value = personal.get('rcv_building', 300000)
         is_mg = personal.get('mg', False)
 
         decision = proposal.skill_name
 
-        # MG agents face tighter affordability thresholds (Section 22, Phase B)
-        elevation_multiplier = 1.5 if is_mg else 3.0
-        insurance_pct_cap = 0.02 if is_mg else 0.05
+        # Insurance affordability: uniform 5% of income cap for all agents.
+        # MG/NMG gap emerges from income inequality (MG mean $36K vs NMG $85K).
+        insurance_pct_cap = 0.05
 
-        if decision == "elevate_house":
-            # Default elevation is 5ft ($80K base). 3ft=$45K, 8ft=$150K.
-            # Affordability uses 5ft default; actual cost set in lifecycle_hooks.
-            cost = 80_000 * (1 - subsidy_rate)
-            if cost > income * elevation_multiplier:
-                mg_note = " (MG: stricter threshold)" if is_mg else ""
-                results.append(ValidationResult(
-                    valid=False,
-                    validator_name="CustomAffordabilityValidator",
-                    errors=[f"AFFORDABILITY: Cannot afford elevation (${cost:,.0f} > {elevation_multiplier}x income ${income*elevation_multiplier:,.0f}){mg_note}"],
-                    metadata={
-                        "level": ValidationLevel.ERROR,
-                        "rule_id": "affordability_elevation",
-                        "rules_hit": ["affordability_elevation"],
-                        "field": "decision",
-                        "constraint": "financial_affordability",
-                        "deterministic": True
-                    }
-                ))
+        # NOTE: Elevation affordability check REMOVED (2026-02-11).
+        # Homeowners can finance elevation via SBA disaster loans, FEMA HMGP
+        # grants, home equity loans, etc. Income alone is not a good proxy for
+        # elevation access. Elevation is still constrained by governance rules:
+        # status_quo_bias (no flood experience) and low_coping (CP=L blocks).
 
         if decision == "buyout_program" and is_mg:
             # MG agents face additional barriers to buyout participation
@@ -667,8 +653,8 @@ def run_unified_experiment():
     message_pool = None
     game_master = None
     if args.enable_communication:
-        from broker.components.message_pool import MessagePool
-        from broker.components.coordinator import GameMaster, PassthroughStrategy
+        from broker.components.coordination.messages import MessagePool
+        from broker.components.coordination.coordinator import GameMaster, PassthroughStrategy
         message_pool = MessagePool(social_graph=graph)
         game_master = GameMaster(
             strategy=PassthroughStrategy(),

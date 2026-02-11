@@ -28,11 +28,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent))
 
 from broker.core.experiment import ExperimentBuilder, ExperimentRunner
-from broker.components.social_graph import NeighborhoodGraph
-from broker.components.interaction_hub import InteractionHub
-from broker.components.context_builder import TieredContextBuilder, PrioritySchemaProvider
-from broker.components.skill_registry import SkillRegistry
-from broker.components.memory_engine import WindowMemoryEngine, ImportanceMemoryEngine, HumanCentricMemoryEngine
+from broker.components.social.graph import NeighborhoodGraph
+from broker.components.analytics.interaction import InteractionHub
+from broker.components.context.builder import TieredContextBuilder, PrioritySchemaProvider
+from broker.components.governance.registry import SkillRegistry
+from broker.components.memory.engine import WindowMemoryEngine, ImportanceMemoryEngine, HumanCentricMemoryEngine
 from broker.interfaces.skill_types import ExecutionResult
 # from analysis.plot_results import plot_adaptation_results
 from broker.utils.llm_utils import create_legacy_invoke as create_llm_invoke
@@ -524,7 +524,7 @@ class FinalParityHook:
         
         # --- PILLAR 2: BATCH YEAR-END REFLECTION (Personalized) ---
         if self.reflection_engine and self.reflection_engine.should_reflect("any", year):
-            from broker.components.reflection_engine import AgentReflectionContext
+            from broker.components.cognitive.reflection import AgentReflectionContext
             refl_cfg = self.runner.broker.config.get_reflection_config()
             batch_size = refl_cfg.get("batch_size", 10)
 
@@ -987,11 +987,11 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         )
         print(f" Using HumanCentricMemoryEngine (emotional encoding + stochastic consolidation, window={window_size})")
     elif memory_engine_type == "hierarchical":
-        from broker.components.memory_engine import HierarchicalMemoryEngine
+        from broker.components.memory.engine import HierarchicalMemoryEngine
         memory_engine = HierarchicalMemoryEngine(window_size=window_size, semantic_top_k=3)
         print(f" Using HierarchicalMemoryEngine (Tiered: Core, Episodic, Semantic)")
     elif memory_engine_type == "universal":
-        from broker.components.memory_engine import create_memory_engine
+        from broker.components.memory.engine import create_memory_engine
         
         # Load memory config
         household_mem = agent_cfg_data.get('household', {}).get('memory', {})
@@ -1090,7 +1090,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     # Pillar 2: Instantiate ReflectionEngine for HumanCentric memory
     reflection_engine = None
     if memory_engine_type == "humancentric":
-        from broker.components.reflection_engine import ReflectionEngine
+        from broker.components.cognitive.reflection import ReflectionEngine
         from examples.governed_flood.adapters.flood_adapter import FloodAdapter
         # Load configurable weights/intervals from YAML (Pillar 2)
         refl_cfg = agent_cfg_data.get('shared', {}).get('reflection_config', {})
