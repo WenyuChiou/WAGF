@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Literal, Any
 
 import yaml
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class MemoryConfig(BaseModel):
@@ -27,10 +27,10 @@ class MemoryConfig(BaseModel):
     surprise_boost_factor: float = Field(default=1.5, ge=1.0, le=3.0)
     forgetting_threshold: float = Field(default=0.2, ge=0.0, le=1.0)
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
-    @validator("engine_type", pre=True)
+    @field_validator("engine_type", mode="before")
+    @classmethod
     def normalize_engine_type(cls, value: str) -> str:
         if value == "human_centric":
             return "humancentric"
@@ -62,10 +62,10 @@ class RatingScaleConfig(BaseModel):
         description="Optional numeric range [min, max] for utility/financial"
     )
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
-    @validator("numeric_range")
+    @field_validator("numeric_range")
+    @classmethod
     def validate_numeric_range(cls, v):
         if v is not None:
             if len(v) != 2:
@@ -86,8 +86,7 @@ class RatingScalesConfig(BaseModel):
     financial: Optional[RatingScaleConfig] = None
     generic: Optional[RatingScaleConfig] = None
 
-    class Config:
-        extra = "allow"  # Allow custom framework names
+    model_config = ConfigDict(extra="allow")  # Allow custom framework names
 
 
 # =============================================================================
@@ -105,8 +104,7 @@ class ConstructDefinition(BaseModel):
     description: Optional[str] = Field(default=None, description="Detailed description")
     scale: str = Field(default="pmt", description="Rating scale to use (pmt/utility/financial)")
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class FrameworkConstructs(BaseModel):
@@ -124,8 +122,7 @@ class FrameworkConstructs(BaseModel):
         description="Optional constructs (e.g., SP_LABEL for PMT, ADOPTION_RATE for utility)"
     )
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class ConstructsConfig(BaseModel):
@@ -139,8 +136,7 @@ class ConstructsConfig(BaseModel):
     financial: Optional[FrameworkConstructs] = None
     generic: Optional[FrameworkConstructs] = None
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class RuleCondition(BaseModel):
@@ -170,8 +166,7 @@ class RuleCondition(BaseModel):
         description="Single value for comparison operators (==, <, >, etc.)"
     )
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class GovernanceRule(BaseModel):
@@ -199,8 +194,7 @@ class GovernanceRule(BaseModel):
     # Task-041: Add framework field for multi-framework support
     framework: Optional[Literal["pmt", "utility", "financial", "generic"]] = None
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class GovernanceProfile(BaseModel):
@@ -208,8 +202,7 @@ class GovernanceProfile(BaseModel):
     thinking_rules: List[GovernanceRule] = []
     identity_rules: List[GovernanceRule] = []
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class GovernanceProfiles(BaseModel):
@@ -218,8 +211,7 @@ class GovernanceProfiles(BaseModel):
     relaxed: Optional[GovernanceProfile] = None
     disabled: Optional[GovernanceProfile] = None
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class GlobalConfig(BaseModel):
@@ -229,8 +221,7 @@ class GlobalConfig(BaseModel):
     llm: Optional[Dict[str, Any]] = None
     governance: Optional[Dict[str, Any]] = None
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class SharedConfig(BaseModel):
@@ -249,8 +240,7 @@ class SharedConfig(BaseModel):
     )
     response_format: Optional[Dict[str, Any]] = None
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class AgentTypeSpecificConfig(BaseModel):
@@ -268,8 +258,7 @@ class AgentTypeSpecificConfig(BaseModel):
     eligible_skills: Optional[List[str]] = None
     memory: Optional[MemoryConfig] = None
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class AgentTypeConfig(BaseModel):
@@ -281,8 +270,7 @@ class AgentTypeConfig(BaseModel):
     insurance: Optional[AgentTypeSpecificConfig] = None
     governance: Optional[GovernanceProfiles] = None
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 def load_agent_config(config_path: Path) -> AgentTypeConfig:

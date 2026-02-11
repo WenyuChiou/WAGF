@@ -88,17 +88,29 @@ ref/RL-ABM-CRSS/
 
 # Legacy / Prototype Code
 cognitive_governance/v1_prototype/
+cognitive_governance/domains/
+cognitive_governance/config/
+cognitive_governance/demo_sdk_usage.py
 
 # Backup & Temp Files
 *.bak
 ~$*
 
-# Old Paper Drafts (archived externally)
+# Reference artifacts (large files, not framework code)
+ref/archived_docs/
+ref/*.pdf
+ref/*.xlsx
 ref/ABM_draft_*.docx
 ref/ABM_SM_*.docx
+ref/flood_adaptation_simulation_log.csv
+ref/*_extracted.txt
 
-# Paper artifacts — edit locally, store on Zenodo/OSF for archival
-paper/
+# Paper artifacts — binary drafts excluded, text/scripts tracked
+paper/*.docx
+paper/archive/
+paper/unpacked_*/
+examples/single_agent/manuscripts/
+examples/multi_agent/flood/paper3/*.docx
 examples/single_agent/analysis/paper_figures/*.png
 examples/single_agent/analysis/paper_figures/*.pdf
 
@@ -132,5 +144,6 @@ hooks/
 roles/
 current_role.txt
 
-# Archived diagnostic scripts
+# Archived examples and diagnostics
+examples/archive/
 _archive/

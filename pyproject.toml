@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "governed-broker-framework"
-version = "0.1.0"
-description = "Cognitive governance middleware for LLM-driven agent-based models of human-water interactions"
+name = "water-agent-governance-framework"
+version = "0.2.0"
+description = "A governance framework for LLM-driven agent-based models in water resources"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
@@ -30,3 +30,16 @@ full = [
     "httpx>=0.24.0",
     "beautifulsoup4>=4.12.2",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "benchmark: marks performance benchmarks",
+]
+addopts = "--strict-markers --tb=short -q"

@@ -26,6 +26,7 @@ from .utils.performance_tuner import get_optimal_config, apply_to_llm_config
 
 # 3. Components (Dependent on interfaces/utils)
 from .components.memory_engine import MemoryEngine, WindowMemoryEngine, ImportanceMemoryEngine, HumanCentricMemoryEngine
+from .components.memory_registry import MemoryEngineRegistry
 from .components.skill_registry import SkillRegistry
 from .components.context_builder import (
     ContextBuilder, BaseAgentContextBuilder, TieredContextBuilder, 

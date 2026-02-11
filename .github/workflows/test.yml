@@ -1,0 +1,36 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, "refactor/**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Core tests
+        run: pytest tests/core/ -v --tb=short
+
+      - name: SDK tests (no LLM)
+        run: pytest tests/sdk/ -v --tb=short -k "not real_llm" --ignore=tests/sdk/test_domain_packs.py
+
+      - name: Integration tests (no LLM)
+        run: pytest tests/integration/ -v --tb=short -k "not real_llm"

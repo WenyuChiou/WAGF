@@ -5,8 +5,8 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 # Config
-RESULTS_DIR = Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\single_agent\results\JOH_FINAL")
-OUTPUT_DIR = Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\single_agent\analysis_tools\analysis\reports\figures")
+RESULTS_DIR = Path(__file__).resolve().parents[3] / "results" / "JOH_FINAL"
+OUTPUT_DIR = Path(__file__).resolve().parents[1] / "reports" / "figures"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 TARGET_FILES = {

@@ -2,7 +2,7 @@
 
 <div align="center">
 
-**A Governance Middleware for LLM-Driven Hydro-Social Agent-Based Models**
+**A Governance Framework for LLM-Driven Agent-Based Models in Water Resources**
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -79,7 +79,6 @@ python examples/single_agent/run_flood.py --model gemma3:4b --years 10 --agents 
 | **Single Agent**   | Intermediate | JOH Benchmark: Groups A/B/C ablation study            | [Go](examples/single_agent/)   |
 | **Irrigation ABM** | Intermediate | Colorado River Basin water demand (Hung & Yang, 2021) | [Go](examples/irrigation_abm/) |
 | **Multi-Agent**    | Advanced     | Social dynamics, insurance market, government policy  | [Go](examples/multi_agent/)    |
-| **Finance**        | Extension    | Cross-domain demonstration (portfolio decisions)      | [Go](examples/archive/finance/) |
 
 ### 5. WRR Paper Workspace
 
@@ -233,6 +232,10 @@ L1–L5 and L7 power all experiments; L6 is multi-agent only.
 - **[Customization Guide](docs/guides/customization_guide.md)**: Adding new skills, validators, and audit fields.
 - **[Integration Guide](docs/guides/integration_guide.md)**: Connecting external environments to the broker.
 - **[Agent Type Specification Guide](docs/guides/agent_type_specification_guide.md)**: Defining new agent types in YAML.
+- **[Advanced Patterns Guide](docs/guides/advanced_patterns.md)**: State hierarchy, two-way coupling, per-agent-type LLM configuration.
+- **[Multi-Agent Setup Guide](docs/guides/multi_agent_setup_guide.md)**: Full walkthrough for heterogeneous agent populations.
+- **[Troubleshooting Guide](docs/guides/troubleshooting_guide.md)**: Error catalog with solutions.
+- **[YAML Configuration Reference](docs/references/yaml_configuration_reference.md)**: Field-by-field reference for all YAML files.
 
 ### Architecture Specs (`docs/architecture/`)
 
@@ -269,7 +272,7 @@ LLM-driven ABMs face five recurring problems that this framework solves:
 
 ## Unified Architecture (v3.5)
 
-The framework utilizes a layered middleware approach that unifies single-agent isolated reasoning with multi-agent social simulations. As of v3.5, all broker-level modules are **fully domain-agnostic** — construct names, action vocabularies, LLM timeouts, and validation keywords are loaded from YAML configuration rather than hardcoded.
+The framework utilizes a layered governance architecture that unifies single-agent isolated reasoning with multi-agent social simulations. As of v3.5, all broker-level modules are **fully domain-agnostic** — construct names, action vocabularies, LLM timeouts, and validation keywords are loaded from YAML configuration rather than hardcoded.
 
 ![Unified Architecture v3.3](docs/architecture.png)
 
@@ -793,6 +796,70 @@ memory_config:
     neighbor: 0.7 # "My neighbor did..."
     community: 0.5 # "The news said..."
 ```
+
+### Framework Parameter Reference
+
+All configurable parameters at the framework level, with valid ranges and defaults. Parameters that **must** be in [0, 1] are marked accordingly; integer counts and LLM-standard parameters have their own natural ranges.
+
+#### Memory Engine Parameters
+
+| Parameter | Default | Valid Range | Semantics |
+| :--- | :--- | :--- | :--- |
+| `window_size` | 3 | 1+ (integer) | Working memory buffer size |
+| `top_k_significant` | 2 | 1+ (integer) | Top long-term memories by decayed importance |
+| `decay_rate` | 0.1 | **[0, 1]** | Exponential decay lambda in $e^{-\lambda t}$ |
+| `consolidation_prob` | 0.7 | **[0, 1]** | Probability of working-to-long-term transfer |
+| `consolidation_threshold` | 0.6 | **[0, 1]** | Minimum importance for consolidation eligibility |
+| `ema_alpha` | 0.3 | **[0, 1]** | EMA smoothing factor (lower = slower adaptation) |
+| `arousal_threshold` | 2.0 | [0, +inf) | Z-score threshold for surprise detection (not 0-1 by design) |
+| `forgetting_threshold` | 0.2 | **[0, 1]** | Importance below which memories are eligible for forgetting |
+| `interference_cap` | 0.8 | **[0, 1]** | Maximum retroactive interference suppression |
+
+#### Weighted Scoring Parameters (sum must equal 1.0)
+
+| Parameter | Default | Valid Range | Used In |
+| :--- | :--- | :--- | :--- |
+| `W_recency` | 0.3 | **[0, 1]** | Weighted ranking mode |
+| `W_importance` | 0.5 | **[0, 1]** | Weighted ranking mode |
+| `W_context` | 0.2 | **[0, 1]** | Weighted ranking mode |
+| `W_relevance` | 0.0 | **[0, 1]** | v2-next contextual resonance (disabled by default) |
+| `W_interference` | 0.0 | **[0, 1]** | v2-next retroactive interference (disabled by default) |
+
+> **Constraint**: `W_recency + W_importance + W_context` should sum to 1.0. The framework does not enforce this at runtime.
+
+#### Reflection Parameters
+
+| Parameter | Default | Valid Range | Semantics |
+| :--- | :--- | :--- | :--- |
+| `importance_boost` | 0.85-0.9 | **[0, 1]** | Importance score assigned to reflection insights |
+| `reflection_interval` | 1 | 1+ (integer) | Reflect every N years |
+| `batch_size` | 10 | 1+ (integer) | Agents per reflection batch |
+
+#### LLM Parameters
+
+| Parameter | Default | Valid Range | Semantics |
+| :--- | :--- | :--- | :--- |
+| `temperature` | Ollama default (~0.8) | [0, 2] | LLM sampling temperature (LLM standard, not 0-1) |
+| `top_p` | Ollama default | **[0, 1]** | Nucleus sampling probability |
+| `top_k` | Ollama default | 1+ (integer) | Top-k token sampling |
+| `num_ctx` | 16384 | 1024+ (integer) | Context window size in tokens |
+| `num_predict` | 2048 | -1 or 1+ | Max output tokens (-1 = unlimited) |
+| `max_retries` | 2 | 0+ (integer) | LLM-level retries on timeout/error |
+
+#### Governance Parameters
+
+| Parameter | Default | Valid Range | Semantics |
+| :--- | :--- | :--- | :--- |
+| `max_retries` | 2 | 0+ (integer) | Governance retry attempts after ERROR |
+| `max_reports_per_retry` | 3 | 1+ (integer) | Violation reports shown per retry prompt |
+
+#### StateParam Normalization
+
+All user-defined `StateParam` values are automatically normalized to [0, 1] via:
+
+$$\text{normalized} = \text{clamp}\left(\frac{v - \text{min}}{\text{max} - \text{min}},\ 0,\ 1\right)$$
+
+The `raw_range` tuple defines the domain-specific scale (e.g., `(0, 1000000)` for budget); the framework handles conversion transparently. `dynamic_state` values bypass normalization and use raw domain units.
 
 ---
 
