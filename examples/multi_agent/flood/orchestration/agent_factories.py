@@ -160,6 +160,8 @@ def wrap_household(profile: HouseholdProfile) -> BaseAgent:
         # Prompt-friendly derived fields
         "income_range": _income_to_range(profile.income),
         "residency_generations": f"{profile.generations} generation{'s' if profile.generations != 1 else ''}",
+        # Social signal dampening (set properly in pre_year; default avoids KeyError)
+        "flood_proximity_qualifier": "",
     }
 
     agent._id = profile.agent_id

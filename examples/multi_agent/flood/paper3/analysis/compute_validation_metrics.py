@@ -142,14 +142,16 @@ PMT_RENTER_RULES = {
 
 EMPIRICAL_BENCHMARKS = {
     "insurance_rate_sfha": {
-        "range": (0.30, 0.50),
+        "range": (0.30, 0.60),
         "weight": 1.0,
         "description": "Insurance uptake rate in SFHA zones",
+        # Widened upper bound: Choi et al. (2024) 48.3%, de Ruig et al. (2023) 65.9% post-Sandy
     },
     "insurance_rate_all": {
-        "range": (0.15, 0.40),
+        "range": (0.15, 0.55),
         "weight": 0.8,
         "description": "Overall insurance uptake rate",
+        # Widened upper bound: high SFHA fraction + post-disaster spike (Gallagher 2014)
     },
     "elevation_rate": {
         "range": (0.03, 0.12),

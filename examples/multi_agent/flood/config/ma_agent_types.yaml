@@ -791,6 +791,8 @@ governance:
         - buyout_program
         level: ERROR
       thinking_rules:
+      # Only block do_nothing for the extreme case: VH threat + VH coping
+      # (agent perceives extreme danger AND believes they are fully capable)
       - id: owner_inaction_high_threat
         construct: TP_LABEL
         conditions:
@@ -799,26 +801,13 @@ governance:
           - VH
         - construct: CP_LABEL
           values:
-          - H
           - VH
         blocked_skills:
         - do_nothing
         level: ERROR
-        message: With very high threat AND strong coping capacity, inaction is not justified.
-      - id: owner_inaction_moderate_threat
-        construct: TP_LABEL
-        conditions:
-        - construct: TP_LABEL
-          values:
-          - VH
-          - H
-        - construct: CP_LABEL
-          values:
-          - M
-        blocked_skills:
-        - do_nothing
-        level: WARNING
-        message: High threat with moderate coping — consider taking protective action, but inaction may reflect status quo bias or financial constraints.
+        message: With very high threat AND very high coping capacity, inaction is not justified.
+      # PMT fatalism pathway: TP=H/VH + CP=L/VL → do_nothing is ALLOWED
+      # (Grothmann & Reusswig 2006: low coping → non-protective responses)
       - id: owner_fatalism_allowed
         construct: TP_LABEL
         conditions:
@@ -830,10 +819,9 @@ governance:
           values:
           - VL
           - L
-        blocked_skills:
-        - do_nothing
-        level: WARNING
-        message: High threat with low coping — inaction may reflect resource constraints or fatalism.
+        blocked_skills: []
+        level: INFO
+        message: High threat with low coping — fatalism or resource constraints may lead to inaction.
       - id: owner_complex_action_low_coping
         construct: CP_LABEL
         conditions:
