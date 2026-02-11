@@ -13,19 +13,19 @@ from broker.interfaces.coordination import (
     PhaseConfig,
     ActionProposal,
 )
-from broker.components.message_pool import MessagePool
-from broker.components.message_provider import MessagePoolProvider
-from broker.components.conflict_resolver import (
+from broker.components.coordination.messages import MessagePool
+from broker.components.coordination.provider import MessagePoolProvider
+from broker.components.coordination.conflict import (
     ConflictDetector,
     ConflictResolver,
     PriorityResolution,
 )
-from broker.components.coordinator import (
+from broker.components.coordination.coordinator import (
     GameMaster,
     ConflictAwareStrategy,
     create_game_master,
 )
-from broker.components.phase_orchestrator import PhaseOrchestrator
+from broker.components.orchestration.phases import PhaseOrchestrator
 
 
 # ---------------------------------------------------------------------------

@@ -24,7 +24,7 @@ from .providers import (
 )
 from broker.components.memory.engine import MemoryEngine
 from broker.components.analytics.interaction import InteractionHub
-from broker.components.neighbor_utils import get_neighbor_summary
+from .providers import get_neighbor_summary
 
 # SDK observer imports (optional, for Phase 8)
 if TYPE_CHECKING:

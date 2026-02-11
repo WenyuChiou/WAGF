@@ -3,7 +3,7 @@
 Tests population-level entropy, individual Jaccard stagnation, and alerts.
 """
 import pytest
-from broker.components.drift_detector import (
+from broker.components.analytics.drift import (
     DriftDetector,
     DriftReport,
     AgentDriftReport,

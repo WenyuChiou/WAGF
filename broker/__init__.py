@@ -25,16 +25,16 @@ from .utils.data_loader import load_agents_from_csv
 from .utils.performance_tuner import get_optimal_config, apply_to_llm_config
 
 # 3. Components (Dependent on interfaces/utils)
-from .components.memory_engine import MemoryEngine, WindowMemoryEngine, ImportanceMemoryEngine, HumanCentricMemoryEngine
-from .components.memory_registry import MemoryEngineRegistry
-from .components.skill_registry import SkillRegistry
-from .components.context_builder import (
-    ContextBuilder, BaseAgentContextBuilder, TieredContextBuilder, 
+from .components.memory.engine import MemoryEngine, WindowMemoryEngine, ImportanceMemoryEngine, HumanCentricMemoryEngine
+from .components.memory.registry import MemoryEngineRegistry
+from .components.governance.registry import SkillRegistry
+from .components.context.builder import (
+    ContextBuilder, BaseAgentContextBuilder, TieredContextBuilder,
     create_context_builder, load_prompt_templates
 )
-from .components.interaction_hub import InteractionHub
-from .components.social_graph import NeighborhoodGraph, SocialGraph, create_social_graph
-from .components.audit_writer import GenericAuditWriter, AuditConfig, GenericAuditWriter as AuditWriter, AuditConfig as GenericAuditConfig
+from .components.analytics.interaction import InteractionHub
+from .components.social.graph import NeighborhoodGraph, SocialGraph, create_social_graph
+from .components.analytics.audit import GenericAuditWriter, AuditConfig, GenericAuditWriter as AuditWriter, AuditConfig as GenericAuditConfig
 
 # 3b. Validators (part of broker namespace now)
 from .validators import AgentValidator

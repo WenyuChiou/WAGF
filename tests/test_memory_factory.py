@@ -1,6 +1,6 @@
 ﻿import pytest
 
-from broker.components.memory_factory import create_memory_engine
+from broker.components.memory.factory import create_memory_engine
 
 
 @pytest.mark.parametrize("engine_type", [

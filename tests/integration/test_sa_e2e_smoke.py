@@ -21,7 +21,7 @@ from unittest.mock import MagicMock, patch
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from broker.utils.model_adapter import UnifiedAdapter
-from broker.components.skill_registry import SkillRegistry
+from broker.components.governance.registry import SkillRegistry
 from broker.validators.agent.agent_validator import AgentValidator
 from broker.simulation.environment import TieredEnvironment
 from broker.interfaces.skill_types import SkillProposal, ValidationResult

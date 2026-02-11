@@ -12,8 +12,8 @@ from broker.agents import BaseAgent
 from ..interfaces.skill_types import ApprovedSkill, SkillOutcome, SkillBrokerResult, ExecutionResult, SkillProposal
 from ..interfaces.lifecycle_protocols import PreYearHook, PostStepHook, PostYearHook
 from .skill_broker_engine import SkillBrokerEngine
-from ..components.context_builder import BaseAgentContextBuilder
-from ..components.memory_engine import MemoryEngine, WindowMemoryEngine, HierarchicalMemoryEngine
+from ..components.context.builder import BaseAgentContextBuilder
+from ..components.memory.engine import MemoryEngine, WindowMemoryEngine, HierarchicalMemoryEngine
 from ..utils.agent_config import GovernanceAuditor
 from ..utils.logging import logger
 from .efficiency import CognitiveCache
@@ -718,7 +718,7 @@ class ExperimentBuilder:
         from broker import SkillRegistry
         from broker import GenericAuditWriter, AuditConfig
         from broker.validators.agent import AgentValidator
-        from broker.components.context_builder import create_context_builder
+        from broker.components.context.builder import create_context_builder
         import os
 
         # PR: Adaptive Performance Module - Auto-tune if enabled
@@ -748,11 +748,11 @@ class ExperimentBuilder:
         # 2. Setup Memory Engine (Default to Window if not provided)
         mem_engine = self.memory_engine or WindowMemoryEngine(window_size=3)
         # Seed initial memory from agent profiles (if provided)
-        from broker.components.memory_engine import seed_memory_from_agents
+        from broker.components.memory.engine import seed_memory_from_agents
         seed_memory_from_agents(mem_engine, self.agents)
         
         # Phase 28: If using HierarchicalMemoryEngine, ensure ContextBuilder supports it
-        from ..components.context_builder import TieredContextBuilder
+        from ..components.context.builder import TieredContextBuilder
         
         # 3. Setup Context Builder
         # Inject memory_engine and semantic_thresholds into ctx_builder if it supports it
@@ -764,7 +764,7 @@ class ExperimentBuilder:
         if hasattr(ctx_builder, 'memory_engine'):
             ctx_builder.memory_engine = mem_engine
             # Also update MemoryProvider instances in the provider pipeline
-            from broker.components.context_providers import MemoryProvider as _MemProv
+            from broker.components.context.providers import MemoryProvider as _MemProv
             for provider in getattr(ctx_builder, 'providers', []):
                 if isinstance(provider, _MemProv) and provider.engine is None:
                     provider.engine = mem_engine
@@ -777,7 +777,7 @@ class ExperimentBuilder:
             ctx_builder.hub.memory_engine = mem_engine
         
         # Re-alignment: Inject skill_registry into TieredContextBuilder
-        from broker.components.context_builder import TieredContextBuilder
+        from broker.components.context.builder import TieredContextBuilder
         if isinstance(ctx_builder, TieredContextBuilder):
             ctx_builder.skill_registry = reg
         

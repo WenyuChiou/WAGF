@@ -19,7 +19,7 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from broker.simulation.environment import TieredEnvironment
-from broker.components.audit_writer import GenericAuditWriter, AuditConfig
+from broker.components.analytics.audit import GenericAuditWriter, AuditConfig
 
 
 # ============================================================================

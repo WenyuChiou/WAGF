@@ -1,8 +1,8 @@
 """Tests for UniversalCognitiveEngine.retrieve_stratified() (Task-059B)."""
 import pytest
 
-from broker.components.universal_memory import UniversalCognitiveEngine
-from broker.components.engines.window_engine import WindowMemoryEngine
+from broker.components.memory.universal import UniversalCognitiveEngine
+from broker.components.memory.engines.window import WindowMemoryEngine
 
 
 class TestRetrieveStratifiedExists:

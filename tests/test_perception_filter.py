@@ -1,6 +1,6 @@
 """Tests for Perception Filter Implementation."""
 import pytest
-from broker.components.perception_filter import (
+from broker.components.social.perception import (
     HouseholdPerceptionFilter,
     GovernmentPerceptionFilter,
     InsurancePerceptionFilter,

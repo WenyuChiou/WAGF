@@ -12,7 +12,7 @@ from typing import Dict, List, Any, Optional, Callable, TYPE_CHECKING
 from dataclasses import dataclass
 import logging
 
-from broker.components.context_providers import (
+from broker.components.context.providers import (
     ContextProvider,
     AttributeProvider,
     MemoryProvider,
@@ -22,8 +22,8 @@ from broker.components.context_providers import (
     NarrativeProvider,
     EnvironmentObservationProvider,
 )
-from broker.components.memory_engine import MemoryEngine
-from broker.components.interaction_hub import InteractionHub
+from broker.components.memory.engine import MemoryEngine
+from broker.components.analytics.interaction import InteractionHub
 from broker.config.agent_types.registry import AgentTypeRegistry
 from broker.interfaces.context_types import (
     UniversalContext,
@@ -32,7 +32,7 @@ from broker.interfaces.context_types import (
 )
 
 if TYPE_CHECKING:
-    from broker.components.skill_registry import SkillRegistry
+    from broker.components.governance.registry import SkillRegistry
     from cognitive_governance.v1_prototype.social import SocialObserver
     from cognitive_governance.v1_prototype.observation import EnvironmentObserver
 

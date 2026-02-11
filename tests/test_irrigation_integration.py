@@ -81,7 +81,7 @@ def test_build_regret_feedback_formats_shortfall():
 
 
 def test_memory_window_keeps_last_five():
-    from broker.components.engines.window_engine import WindowMemoryEngine
+    from broker.components.memory.engines.window import WindowMemoryEngine
 
     engine = WindowMemoryEngine(window_size=5)
     agent = SimpleNamespace(id="Agent_001", memory=[])
@@ -93,7 +93,7 @@ def test_memory_window_keeps_last_five():
 
 def test_hierarchical_memory_returns_semantic():
     import warnings
-    from broker.components.engines.hierarchical_engine import HierarchicalMemoryEngine
+    from broker.components.memory.engines.hierarchical import HierarchicalMemoryEngine
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
@@ -111,7 +111,7 @@ def test_hierarchical_memory_returns_semantic():
 
 
 def test_reflection_triggers():
-    from broker.components.reflection_engine import ReflectionEngine, ReflectionTrigger
+    from broker.components.cognitive.reflection import ReflectionEngine, ReflectionTrigger
 
     engine = ReflectionEngine(reflection_interval=5)
     assert engine.should_reflect_triggered("A", "household", 10, ReflectionTrigger.PERIODIC)
@@ -160,8 +160,8 @@ def test_execute_skill_maintain_demand():
 # ---------------------------------------------------------------------------
 def test_irrigation_context_pipeline_no_n_a():
     """Full pipeline: irrigation agent attributes + memory reach the prompt (no [N/A])."""
-    from broker.components.tiered_builder import TieredContextBuilder
-    from broker.components.engines.window_engine import WindowMemoryEngine
+    from broker.components.context.tiered import TieredContextBuilder
+    from broker.components.memory.engines.window import WindowMemoryEngine
 
     class _Agent:
         def __init__(self):

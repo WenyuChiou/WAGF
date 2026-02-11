@@ -16,7 +16,7 @@ Literature: SagaLLM (Chang & Geng, 2025) — transaction guarantees
 """
 from typing import Any, Dict
 
-from broker.components.saga_coordinator import SagaStep, SagaDefinition
+from broker.components.orchestration.sagas import SagaStep, SagaDefinition
 
 
 # ---------------------------------------------------------------------------

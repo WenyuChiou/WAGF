@@ -2,7 +2,7 @@
 import pytest
 from unittest.mock import MagicMock
 
-from broker.components.reflection_engine import (
+from broker.components.cognitive.reflection import (
     ReflectionEngine,
     AgentReflectionContext,
     REFLECTION_QUESTIONS,

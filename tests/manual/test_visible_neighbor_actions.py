@@ -5,8 +5,8 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from broker.components.interaction_hub import InteractionHub
-from broker.components.social_graph import RandomGraph
+from broker.components.analytics.interaction import InteractionHub
+from broker.components.social.graph import RandomGraph
 
 class MockAgent:
     def __init__(self, aid, elevated=False, relocated=False, insured=False):

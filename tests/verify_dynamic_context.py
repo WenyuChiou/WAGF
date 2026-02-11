@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from broker.components.context_builder import DynamicStateProvider, TieredContextBuilder, InteractionHub
+from broker.components.context.builder import DynamicStateProvider, TieredContextBuilder, InteractionHub
 
 # Mock Agents and InteractionHub
 class MockAgent:

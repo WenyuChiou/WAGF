@@ -5,19 +5,19 @@ from broker.interfaces.event_generator import (
     EventSeverity,
     EventScope,
 )
-from broker.components.event_generators.hazard import (
+from broker.components.events.generators.hazard import (
     HazardEventGenerator,
     HazardEventConfig,
 )
-from broker.components.event_generators.impact import (
+from broker.components.events.generators.impact import (
     ImpactEventGenerator,
     ImpactEventConfig,
 )
-from broker.components.event_generators.policy import (
+from broker.components.events.generators.policy import (
     PolicyEventGenerator,
     PolicyEventConfig,
 )
-from broker.components.ma_event_manager import (
+from broker.components.events.ma_manager import (
     MAEventManager,
     EventPhase,
 )

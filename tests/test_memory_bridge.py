@@ -1,7 +1,7 @@
 """Tests for MemoryBridge: Communication Layer → Memory integration."""
 import pytest
 from unittest.mock import MagicMock, call
-from broker.components.memory_bridge import MemoryBridge, MESSAGE_SOURCE_MAP
+from broker.components.memory.bridge import MemoryBridge, MESSAGE_SOURCE_MAP
 from broker.interfaces.coordination import ActionProposal, ActionResolution, AgentMessage
 
 

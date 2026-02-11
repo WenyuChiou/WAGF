@@ -1,10 +1,10 @@
 import pytest
 import warnings
 from unittest.mock import MagicMock
-from broker.components.memory_engine import HierarchicalMemoryEngine
-from broker.components.skill_retriever import SkillRetriever
-from broker.components.skill_registry import SkillRegistry
-from broker.components.context_builder import BaseAgentContextBuilder
+from broker.components.memory.engine import HierarchicalMemoryEngine
+from broker.components.governance.retriever import SkillRetriever
+from broker.components.governance.registry import SkillRegistry
+from broker.components.context.builder import BaseAgentContextBuilder
 from broker.core.skill_broker_engine import SkillBrokerEngine
 from broker.interfaces.skill_types import SkillDefinition
 from broker.agents import BaseAgent, AgentConfig

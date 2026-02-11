@@ -1,6 +1,6 @@
 ﻿"""Tests for ReflectionTrigger system (Task-059D)."""
 
-from broker.components.reflection_engine import (
+from broker.components.cognitive.reflection import (
     ReflectionEngine,
     ReflectionTrigger,
     ReflectionTriggerConfig,

@@ -5,8 +5,8 @@ from broker.interfaces.event_generator import (
     EventSeverity,
     EventScope,
 )
-from broker.components.event_manager import EnvironmentEventManager
-from broker.components.event_generators.flood import (
+from broker.components.events.manager import EnvironmentEventManager
+from broker.components.events.generators.flood import (
     FloodEventGenerator,
     FloodConfig,
 )

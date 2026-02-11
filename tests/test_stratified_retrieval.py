@@ -1,6 +1,6 @@
 """Tests for source-stratified memory retrieval (Task-057B)."""
 import pytest
-from broker.components.engines.humancentric_engine import HumanCentricMemoryEngine
+from broker.components.memory.engines.humancentric import HumanCentricMemoryEngine
 
 
 @pytest.fixture

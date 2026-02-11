@@ -13,7 +13,7 @@ from typing import Dict, Any
 
 # Import core components
 from broker.core.skill_broker_engine import SkillBrokerEngine
-from broker.components.skill_registry import SkillRegistry
+from broker.components.governance.registry import SkillRegistry
 from broker.utils.model_adapter import UnifiedAdapter
 from broker.validators import AgentValidator
 from broker.utils.llm_utils import LLMStats

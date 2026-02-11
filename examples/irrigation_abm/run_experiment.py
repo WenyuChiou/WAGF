@@ -48,11 +48,11 @@ from examples.irrigation_abm.irrigation_personas import (
     rebalance_clusters,
 )
 from broker.core.experiment import ExperimentBuilder
-from broker.components.memory_engine import HumanCentricMemoryEngine
-from broker.components.reflection_engine import ReflectionEngine
+from broker.components.memory.engine import HumanCentricMemoryEngine
+from broker.components.cognitive.reflection import ReflectionEngine
 from examples.irrigation_abm.adapters.irrigation_adapter import IrrigationAdapter
-from broker.components.skill_registry import SkillRegistry
-from broker.components.context_builder import TieredContextBuilder
+from broker.components.governance.registry import SkillRegistry
+from broker.components.context.builder import TieredContextBuilder
 from broker.interfaces.skill_types import ExecutionResult
 from broker.utils.llm_utils import create_legacy_invoke as create_llm_invoke
 from broker.utils.agent_config import GovernanceAuditor
@@ -617,7 +617,7 @@ def main():
     feedback_cfg = irr_cfg.get("feedback", {})
     _metrics_tracker = None  # set below if feedback is configured
     if feedback_cfg.get("tracked_metrics"):
-        from broker.components.feedback_provider import (
+        from broker.components.analytics.feedback import (
             AgentMetricsTracker,
             FeedbackDashboardProvider,
         )

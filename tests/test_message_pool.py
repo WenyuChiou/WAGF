@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 from broker.interfaces.coordination import AgentMessage, Subscription
 from broker.interfaces.event_generator import EventScope
-from broker.components.message_pool import MessagePool
+from broker.components.coordination.messages import MessagePool
 
 
 # ---------------------------------------------------------------------------

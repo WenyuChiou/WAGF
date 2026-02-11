@@ -10,7 +10,7 @@ Core components for the water agent governance framework:
 """
 
 # Perception filter exports (Task-043)
-from .perception_filter import (
+from .social.perception import (
     HouseholdPerceptionFilter,
     GovernmentPerceptionFilter,
     InsurancePerceptionFilter,
@@ -22,7 +22,7 @@ from .perception_filter import (
 )
 
 # Social graph configuration exports (Task-043)
-from .social_graph_config import (
+from .social.config import (
     SocialGraphSpec,
     AGENT_SOCIAL_SPECS,
     get_social_spec,
@@ -30,7 +30,7 @@ from .social_graph_config import (
 )
 
 # Context provider exports
-from .context_providers import (
+from .context.providers import (
     ContextProvider,
     PerceptionAwareProvider,
     ObservableStateProvider,
@@ -38,19 +38,19 @@ from .context_providers import (
 )
 
 # Observable state exports (Task-041)
-from .observable_state import (
+from .analytics.observable import (
     ObservableStateManager,
     create_flood_observables,
     create_rate_metric,
 )
 
 # Event manager exports (Task-042)
-from .event_manager import (
+from .events.manager import (
     EnvironmentEventManager,
 )
 
 # Domain adapter exports
-from .domain_adapters import DomainReflectionAdapter
+from .cognitive.adapters import DomainReflectionAdapter
 
 __all__ = [
     # Domain adapters

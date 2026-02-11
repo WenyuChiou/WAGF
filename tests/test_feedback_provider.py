@@ -9,7 +9,7 @@ Covers:
 
 import pytest
 
-from broker.components.feedback_provider import (
+from broker.components.analytics.feedback import (
     AgentMetricsTracker,
     FeedbackDashboardProvider,
     SafeExpressionEvaluator,

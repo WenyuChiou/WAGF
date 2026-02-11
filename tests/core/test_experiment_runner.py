@@ -18,7 +18,7 @@ from broker.interfaces.skill_types import (
     SkillProposal, ApprovedSkill, SkillBrokerResult,
     SkillOutcome, ExecutionResult,
 )
-from broker.components.memory_engine import WindowMemoryEngine
+from broker.components.memory.engine import WindowMemoryEngine
 from broker.agents import BaseAgent, AgentConfig, StateParam
 
 

@@ -22,12 +22,12 @@ from typing import Dict, Any, List, Optional
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from broker.core.experiment import ExperimentBuilder
-from broker.components.memory_engine import HumanCentricMemoryEngine
-from broker.components.reflection_engine import ReflectionEngine
-from broker.components.skill_registry import SkillRegistry
-from broker.components.social_graph import NeighborhoodGraph
-from broker.components.interaction_hub import InteractionHub
-from broker.components.context_builder import TieredContextBuilder, PrioritySchemaProvider
+from broker.components.memory.engine import HumanCentricMemoryEngine
+from broker.components.cognitive.reflection import ReflectionEngine
+from broker.components.governance.registry import SkillRegistry
+from broker.components.social.graph import NeighborhoodGraph
+from broker.components.analytics.interaction import InteractionHub
+from broker.components.context.builder import TieredContextBuilder, PrioritySchemaProvider
 from broker.interfaces.skill_types import ExecutionResult
 from broker.utils.llm_utils import create_legacy_invoke as create_llm_invoke
 from broker.utils.agent_config import GovernanceAuditor

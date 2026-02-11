@@ -1,7 +1,7 @@
 """Tests for dynamic reflection importance scoring (Task-057C)."""
 import pytest
 
-from broker.components.reflection_engine import (
+from broker.components.cognitive.reflection import (
     ReflectionEngine,
     AgentReflectionContext,
     IMPORTANCE_PROFILES,

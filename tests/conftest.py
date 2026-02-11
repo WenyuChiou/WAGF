@@ -17,8 +17,8 @@ from broker.interfaces.skill_types import (
     SkillProposal, ApprovedSkill, SkillBrokerResult,
     SkillOutcome, ExecutionResult, ValidationResult,
 )
-from broker.components.skill_registry import SkillRegistry
-from broker.components.memory_engine import WindowMemoryEngine
+from broker.components.governance.registry import SkillRegistry
+from broker.components.memory.engine import WindowMemoryEngine
 
 
 # ---------------------------------------------------------------------------

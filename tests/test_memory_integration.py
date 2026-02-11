@@ -1,6 +1,6 @@
 import pytest
-from broker.components.memory_engine import create_memory_engine
-from broker.components.universal_memory import UniversalCognitiveEngine
+from broker.components.memory.engine import create_memory_engine
+from broker.components.memory.universal import UniversalCognitiveEngine
 
 
 class MockAgent:

@@ -2,8 +2,8 @@
 
 import pytest
 from unittest.mock import MagicMock
-from broker.components.tiered_builder import TieredContextBuilder
-from broker.components.context_providers import MemoryProvider
+from broker.components.context.tiered import TieredContextBuilder
+from broker.components.context.providers import MemoryProvider
 
 
 @pytest.fixture
@@ -159,7 +159,7 @@ class TestMemoryProviderPropagation:
         assert mem_providers[0].engine is None
 
     def test_provider_engine_set_at_init(self):
-        from broker.components.engines.window_engine import WindowMemoryEngine
+        from broker.components.memory.engines.window import WindowMemoryEngine
         agent = _make_irrigation_agent()
         mem = WindowMemoryEngine(window_size=3)
         builder = TieredContextBuilder(agents={"a1": agent}, hub=None, memory_engine=mem)

@@ -8,7 +8,7 @@ import pytest
 from unittest.mock import MagicMock
 
 from broker.interfaces.coordination import ExecutionPhase, PhaseConfig
-from broker.components.phase_orchestrator import PhaseOrchestrator
+from broker.components.orchestration.phases import PhaseOrchestrator
 
 
 # ---------------------------------------------------------------------------

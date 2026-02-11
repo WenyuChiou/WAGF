@@ -23,15 +23,15 @@ from ..interfaces.skill_types import (
     SkillProposal, SkillDefinition, ApprovedSkill, InterventionReport,
     ExecutionResult, SkillBrokerResult, SkillOutcome, ValidationResult
 )
-from ..components.skill_registry import SkillRegistry
+from ..components.governance.registry import SkillRegistry
 from ..utils.model_adapter import ModelAdapter
 from ..validators import AgentValidator
-from ..components.memory_engine import MemoryEngine
-from ..components.context_builder import ContextBuilder, BaseAgentContextBuilder
+from ..components.memory.engine import MemoryEngine
+from ..components.context.builder import ContextBuilder, BaseAgentContextBuilder
 from ..utils.agent_config import GovernanceAuditor, load_agent_config
-from ..components.interaction_hub import InteractionHub
-from ..components.audit_writer import AuditWriter
-from ..components.skill_retriever import SkillRetriever
+from ..components.analytics.interaction import InteractionHub
+from ..components.analytics.audit import AuditWriter
+from ..components.governance.retriever import SkillRetriever
 from ..utils.logging import logger
 
 
@@ -135,7 +135,7 @@ class SkillBrokerEngine:
         # to maintain parity for the baseline WindowMemoryEngine benchmarks.
         should_rag = self.skill_retriever and context.get("available_skills")
         if should_rag:
-            from broker.components.memory_engine import WindowMemoryEngine
+            from broker.components.memory.engine import WindowMemoryEngine
             # Safely check for WindowMemoryEngine to maintain legacy parity
             mem_engine = getattr(self.context_builder, 'memory_engine', None)
             if not mem_engine and hasattr(self.context_builder, 'hub'):

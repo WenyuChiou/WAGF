@@ -1,4 +1,4 @@
-from broker.components.memory_engine import MemoryEngine
+from broker.components.memory.engine import MemoryEngine
 
 
 class DummyEngine(MemoryEngine):

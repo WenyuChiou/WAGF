@@ -16,7 +16,7 @@ import sys
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from broker.components.skill_registry import SkillRegistry
+from broker.components.governance.registry import SkillRegistry
 from broker.interfaces.skill_types import SkillDefinition, ValidationResult
 
 

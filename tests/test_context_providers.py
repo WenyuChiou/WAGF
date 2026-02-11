@@ -1,10 +1,10 @@
 """Tests for context providers."""
 import pytest
-from broker.components.context_providers import (
+from broker.components.context.providers import (
     ObservableStateProvider,
     EnvironmentEventProvider,
 )
-from broker.components.observable_state import (
+from broker.components.analytics.observable import (
     ObservableStateManager,
     create_flood_observables,
     create_rate_metric,
@@ -15,7 +15,7 @@ from broker.interfaces.event_generator import (
     EventSeverity,
     EventScope,
 )
-from broker.components.event_manager import EnvironmentEventManager
+from broker.components.events.manager import EnvironmentEventManager
 
 
 class TestObservableStateProvider:

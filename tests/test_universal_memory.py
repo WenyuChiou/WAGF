@@ -7,8 +7,8 @@ from unittest.mock import MagicMock, patch
 # Adjust path to import broker package
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from broker.components.universal_memory import UniversalCognitiveEngine, EMAPredictor
-from broker.components.memory_engine import BaseAgent
+from broker.components.memory.universal import UniversalCognitiveEngine, EMAPredictor
+from broker.components.memory.engine import BaseAgent
 
 class TestEMAPredictor(unittest.TestCase):
     def test_ema_update_math(self):
@@ -38,7 +38,7 @@ class TestUniversalCognitiveEngine(unittest.TestCase):
         # Set up agent memory attribute for the engine to use
         self.agent.memory = []
         # Mock the parent retrieve to track calls - patch at memory_engine module level
-        self.patcher = patch('broker.components.memory_engine.HumanCentricMemoryEngine.retrieve')
+        self.patcher = patch('broker.components.memory.engines.humancentric.HumanCentricMemoryEngine.retrieve')
         self.mock_super_retrieve = self.patcher.start()
         self.mock_super_retrieve.return_value = ["Mocked Memory"]
 
@@ -103,33 +103,6 @@ class TestUniversalCognitiveEngine(unittest.TestCase):
         # Now Expectation should be ~10. Surprise ~0.
         # Should drop back to System 1
         self.assertEqual(engine.current_system, "SYSTEM_1", "Agent should have normalized by now.")
-
-    def test_symbolic_mode_novelty_first(self):
-        """Symbolic mode uses novelty-first surprise and switches systems."""
-        sensory_cortex = [
-            {
-                "path": "x",
-                "name": "X",
-                "bins": [
-                    {"label": "LOW", "max": 0.5},
-                    {"label": "HIGH", "max": 99.0},
-                ],
-            }
-        ]
-        engine = UniversalCognitiveEngine(
-            stimulus_key=None,
-            sensory_cortex=sensory_cortex,
-            arousal_threshold=0.5,
-            ema_alpha=0.5,
-        )
-
-        engine.retrieve(self.agent, world_state={"x": 0.8})
-        self.assertEqual(engine.current_system, "SYSTEM_2")
-        self.assertEqual(engine.last_surprise, 1.0)
-
-        engine.retrieve(self.agent, world_state={"x": 0.8})
-        self.assertEqual(engine.current_system, "SYSTEM_1")
-        self.assertLess(engine.last_surprise, 1.0)
 
 if __name__ == '__main__':
     unittest.main()

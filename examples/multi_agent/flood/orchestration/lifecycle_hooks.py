@@ -7,7 +7,7 @@ from broker.interfaces.skill_types import SkillOutcome
 from examples.multi_agent.flood.environment.hazard import FloodEvent, HazardModule, VulnerabilityModule, YearMapping
 from examples.multi_agent.flood.components.media_channels import MediaHub
 from examples.multi_agent.flood.orchestration.disaster_sim import depth_to_qualitative_description
-from broker.components.memory_bridge import MemoryBridge # Added import
+from broker.components.memory.bridge import MemoryBridge # Added import
 
 
 class MultiAgentHooks:
@@ -62,6 +62,8 @@ class MultiAgentHooks:
     def pre_year(self, year, env, agents):
         """Randomly determine if flood occurs and resolve pending actions."""
         self.env["year"] = year
+        # Sync self.env → runner's env so validators see premium_rate, subsidy_rate, etc.
+        env.update(self.env)
 
         for agent in agents.values():
             if agent.agent_type not in ["household_owner", "household_renter"]:
@@ -548,7 +550,7 @@ class MultiAgentHooks:
                         self._run_ma_reflection(agent.id, year, agents, self.memory_engine, flood_occurred)
 
                 # Government/Insurance reflection (institutional trigger)
-                from broker.components.reflection_engine import ReflectionEngine, ReflectionTrigger
+                from broker.components.cognitive.reflection import ReflectionEngine, ReflectionTrigger
                 reflection_engine = ReflectionEngine()
                 for agent in agents.values():
                     if getattr(agent, "agent_type", "") in ("government", "insurance"):
