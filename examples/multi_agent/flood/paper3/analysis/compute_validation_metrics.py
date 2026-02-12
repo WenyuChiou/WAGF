@@ -503,10 +503,11 @@ def compute_l2_metrics(
         low, high = config["range"]
         weight = config["weight"]
 
-        is_in_range = low <= value <= high if value is not None else False
+        rounded_value = round(value, 4) if value is not None else None
+        is_in_range = low <= rounded_value <= high if rounded_value is not None else False
 
         benchmark_results[name] = {
-            "value": round(value, 4) if value is not None else None,
+            "value": rounded_value,
             "range": config["range"],
             "in_range": is_in_range,
             "weight": weight,
@@ -677,17 +678,27 @@ def _compute_benchmark(name: str, df: pd.DataFrame, traces: List[Dict]) -> Optio
             return (buyout.astype(bool) | reloc.astype(bool)).astype(float).mean()
 
         elif name == "do_nothing_rate_postflood":
-            # Inaction rate among flooded agents
-            # Computed from traces directly (not merged DataFrame), no fillna needed
-            # Check multiple locations: top-level, state_before, environment_context
+            # Inaction rate among flooded agents — uses EFFECTIVE outcomes.
+            # Empirical benchmarks (Grothmann & Reusswig 2006, Bubeck et al. 2012)
+            # measure observed behavior, not intentions. REJECTED proposals
+            # (e.g., elevation blocked by income/eligibility) mirror real-world
+            # barriers; the agent's effective outcome is inaction (do_nothing).
             flooded_traces = [t for t in traces if (
                 t.get("flooded_this_year", False)
                 or t.get("state_before", {}).get("flooded_this_year", False)
             )]
             if len(flooded_traces) == 0:
                 return None
+
+            def _effective_action(t: Dict) -> str:
+                """Return effective action: REJECTED→do_nothing, else proposed."""
+                outcome = t.get("outcome", "")
+                if outcome == "REJECTED":
+                    return "do_nothing"
+                return _normalize_action(_extract_action(t))
+
             inaction = sum(1 for t in flooded_traces
-                          if _normalize_action(_extract_action(t)) == "do_nothing")
+                          if _effective_action(t) == "do_nothing")
             return inaction / len(flooded_traces)
 
         elif name == "mg_adaptation_gap":
