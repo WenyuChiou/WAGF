@@ -1,0 +1,855 @@
+"""
+Unified Adapter — single adapter supporting all models and agent types.
+
+Extracted from model_adapter.py (Phase 2.2 split).
+Skills, decision keywords, and default settings are loaded from agent_types.yaml.
+Model-specific quirks (like DeepSeek's <think> tags) are handled via preprocessor.
+"""
+from typing import Dict, Any, Optional, List, Callable
+import re
+import json
+
+from ...interfaces.skill_types import SkillProposal
+from ...utils.logging import logger
+from ..preprocessors import GenericRegexPreprocessor, SmartRepairPreprocessor, get_preprocessor
+from ..adapters.deepseek import deepseek_preprocessor
+from ..normalization import _THINK_TAG_RE, FRAMEWORK_NORMALIZATION_MAP, normalize_construct_value
+from ..parsing_audits import is_list_item, parse_numeric_value, audit_demographic_grounding
+from ..agent_config import load_agent_config
+from .base import ModelAdapter
+
+
+class UnifiedAdapter(ModelAdapter):
+    """
+    Unified adapter supporting all models AND all agent types.
+
+    Skills, decision keywords, and default settings are loaded from agent_types.yaml.
+    Model-specific quirks (like DeepSeek's <think> tags) are handled via preprocessor.
+    """
+
+    def __init__(
+        self,
+        agent_type: str = "default",
+        preprocessor: Optional[Callable[[str], str]] = None,
+        valid_skills: Optional[set] = None,
+        config_path: str = None
+    ):
+        """
+        Initialize unified adapter.
+
+        Args:
+            agent_type: Type of agent (e.g., "trader", "manager", "consumer")
+            preprocessor: Optional function to preprocess raw output
+            valid_skills: Optional set of valid skill names (overrides agent_type config)
+            config_path: Optional path to agent_types.yaml
+        """
+        self.agent_type = agent_type
+        self.agent_config = load_agent_config(config_path)
+
+        # Load parsing config and actual actions/aliases
+        parsing_cfg = self.agent_config.get_parsing_config(agent_type)
+        if not parsing_cfg:
+            # Smart defaults if 'parsing' block is missing from YAML
+            parsing_cfg = {
+                "decision_keywords": ["final decision:", "decision:", "decide:"],
+                "default_skill": "do_nothing",
+                "constructs": {}
+            }
+
+        actions = self.agent_config.get_valid_actions(agent_type)
+
+        self.config = parsing_cfg
+
+        # Determine preprocessor (Order: Explicit argument > YAML Config > Identity)
+        # Phase 12/28: Ensure explicit or config preprocessors are not overwritten
+        if preprocessor:
+            self._preprocessor = preprocessor
+        else:
+            p_cfg = parsing_cfg.get("preprocessor", {})
+            if p_cfg:
+                self._preprocessor = get_preprocessor(p_cfg)
+            else:
+                self._preprocessor = lambda x: x
+
+        # Load valid skills for the agent type to build alias map
+        self.valid_skills = self.agent_config.get_valid_actions(agent_type)
+        # Build alias map from config (e.g., "ACT1" -> "action_alpha", "ACT2" -> "action_beta")
+        self.alias_map = self.agent_config.get_action_alias_map(agent_type)
+
+    def _get_preprocessor_for_type(self, agent_type: str) -> Callable[[str], str]:
+        """Get preprocessor for a specific agent type."""
+        try:
+            is_identity = (self._preprocessor.__name__ == "<lambda>" and self._preprocessor("") == "")
+        except (AttributeError, TypeError):
+            is_identity = False
+
+        if not is_identity:
+            return self._preprocessor
+
+        p_cfg = self.agent_config.get_parsing_config(agent_type).get("preprocessor", {})
+        if p_cfg:
+            return get_preprocessor(p_cfg)
+        return self._preprocessor
+
+    def parse_output(self, raw_output: str, context: Dict[str, Any]) -> Optional[SkillProposal]:
+        """
+        Parse LLM output into SkillProposal.
+        Supports: Enclosure blocks (Phase 15), JSON, and Structured Text.
+        """
+        agent_id = context.get("agent_id", "unknown")
+        agent_type = context.get("agent_type", self.agent_type)
+        valid_skills = self.agent_config.get_valid_actions(agent_type)
+        preprocessor = self._get_preprocessor_for_type(agent_type)
+        parsing_cfg = self.agent_config.get_parsing_config(agent_type) or {}
+        skill_map = self.agent_config.get_skill_map(agent_type, context)
+        # Dynamic alias map per agent_type (not self.alias_map which may be stale)
+        alias_map = self.agent_config.get_action_alias_map(agent_type)
+
+        # 0. Initialize results
+        skill_name = None
+        reasoning = {}
+        parsing_warnings = []
+        # Phase 0.3: Retrieve agent-specific normalization map
+        custom_mapping = parsing_cfg.get("normalization", {})
+        proximity_window = parsing_cfg.get("proximity_window", 35)
+
+        # Track which parsing method succeeded (enclosure/json/keyword/digit/default)
+        parse_layer = ""
+        parse_confidence = 0.0
+        construct_completeness = 0.0
+        parse_metadata = {
+            "parse_layer": "",
+            "parse_confidence": 0.0,
+            "construct_completeness": 0.0,
+        }
+
+        # Phase 15: Early return for empty output
+        if not raw_output:
+            return None
+
+        # Phase 46: Strip Qwen3 thinking tokens before parsing
+        # Qwen3 models wrap reasoning in <think>...</think> tags
+        raw_output = _THINK_TAG_RE.sub('', raw_output).strip()
+        if not raw_output:
+            return None  # Only thinking tokens, no actual response
+
+        # 1. Phase 15: Enclosure Extraction (Priority)
+        # Dynamic Delimiters (from YAML config) - Phase 23
+        try:
+            from broker.components.response_format import ResponseFormatBuilder
+            cfg = self.agent_config
+            agent_cfg = cfg.get(agent_type)
+            shared_cfg = {"response_format": cfg._config.get("shared", {}).get("response_format", {})}
+            rfb = ResponseFormatBuilder(agent_cfg, shared_cfg)
+            d_start, d_end = rfb.get_delimiters()
+            # Use non-greedy match to handle multiple blocks if present
+            dynamic_pattern = rf"{re.escape(d_start)}\s*(.*?)\s*{re.escape(d_end)}"
+        except (ImportError, AttributeError, Exception):
+            dynamic_pattern = None
+
+        patterns = [
+            dynamic_pattern,
+            r"<<<DECISION_START>>>\s*(.*?)\s*<<<DECISION_END>>>",
+            r"<decision>\s*(.*?)\s*</decision>",
+            r"(?:decision|choice|selected_action)[:\s]*({.*?})", # Find JSON-like block after keyword
+            r"({.*})", # Final fallback: Find any JSON-like block
+        ]
+
+        target_content = raw_output
+        is_enclosed = False
+        for pattern in [p for p in patterns if p]:
+            match = re.search(pattern, raw_output, re.DOTALL | re.IGNORECASE)
+            if match:
+                target_content = match.group(1)
+                parse_layer = "enclosure"
+                is_enclosed = True
+                break
+
+        # 2. Preprocess target
+        cleaned_target = preprocessor(target_content)
+
+        # 3. ATTEMPT JSON PARSING
+        _magnitude_pct = None  # Optional magnitude for Group D experiments
+        found_json = False
+        data_lowered = None  # Will be set if JSON parsing succeeds
+        try:
+            json_text = cleaned_target.strip()
+
+            # 3a. Strip markdown code blocks if present (common in Gemma/Llama responses)
+            if "```" in json_text:
+                # Prioritize json block but fallback to any block
+                json_block_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', json_text, re.DOTALL)
+                if json_block_match:
+                    json_text = json_block_match.group(1)
+                else:
+                    # If it's just opening ```json or similar, strip markers
+                    json_text = re.sub(r'```(?:json)?', '', json_text)
+                    json_text = json_text.replace('```', '')
+
+            if "{" in json_text:
+                json_text = json_text[json_text.find("{"):json_text.rfind("}")+1]
+
+            # Preprocessor Failsafe: Handle double-braces mimicry from small models
+            if json_text.startswith("{{") and json_text.endswith("}}"):
+                json_text = json_text[1:-1]
+
+            json_text = json_text.replace("{{", "{").replace("}}", "}")
+            json_text = re.sub(r',\s*([\]}])', r'\1', json_text)
+
+            data = json.loads(json_text)
+            if isinstance(data, dict):
+                found_json = True
+                parse_layer = f"{parse_layer}+json" if is_enclosed else "json"
+                # Robust case-insensitive key lookup
+                data_lowered = {k.lower(): v for k, v in data.items()}
+
+                # Extract decision (Generalized: Use keywords from config)
+                decision_kws = parsing_cfg.get("decision_keywords", ["decision", "choice", "action"])
+                decision_val = None
+                for kw in decision_kws:
+                    decision_val = data_lowered.get(kw.lower())
+                    if decision_val is not None: break
+
+
+
+                # Resolve decision
+                if decision_val is not None:
+                    # Case 0: Nested dict (some models output {"action": {"choice": 1}})
+
+
+                    if isinstance(decision_val, dict):
+                        decision_val = decision_val.get("choice") or decision_val.get("id") or decision_val.get("value")
+
+                    # Case 0b: List/array (small models like gemma3:1b output [2, 3, 4])
+                    # Take the first element as the primary decision
+                    if isinstance(decision_val, list) and decision_val:
+                        decision_val = decision_val[0]
+
+                    if decision_val is not None:
+                        # Case 1: Direct mapping (int or exact digit string)
+                        if str(decision_val) in skill_map:
+                            skill_name = skill_map[str(decision_val)]
+                        # Case 2: String like "1. Buy Insurance" or "Option 1"
+                        elif isinstance(decision_val, str):
+                            digit_match = re.search(r'(\d+)', decision_val)
+                            if digit_match and digit_match.group(1) in skill_map:
+                                skill_name = skill_map[digit_match.group(1)]
+                            else:
+                                # Search for skill names in string (Fuzzy match)
+                                decision_norm = decision_val.lower().replace("_", " ").replace("-", " ")
+                                for skill in valid_skills:
+                                    skill_norm = skill.lower().replace("_", " ").replace("-", " ")
+                                    if skill_norm in decision_norm:
+                                        skill_name = skill
+                                        break
+                                # Also check alias map directly
+                                # This handles "Buy Insurance" -> "buy_insurance" or "DN" -> "do_nothing"
+                                for alias, canonical in skill_map.items():
+                                    alias_norm = alias.lower().replace("_", " ").replace("-", " ")
+                                    if alias_norm in decision_norm:
+                                        skill_name = canonical
+                                        break
+
+                # Extract numeric fields (dynamic, config-driven)
+                # For backward compatibility, we still expose _magnitude_pct as the primary numeric value
+                numeric_fields = self.agent_config.get_numeric_fields(agent_type)
+                _extracted_numerics = {}  # Will store all extracted numeric values
+
+                if numeric_fields:
+                    for nf in numeric_fields:
+                        key = nf.get("key")
+                        if not key:
+                            continue
+
+                        # Try to get from JSON with case-insensitive lookup
+                        raw_val = data_lowered.get(key.lower())
+                        if raw_val is None:
+                            continue
+
+                        # Parse the value
+                        parsed_val = parse_numeric_value(raw_val, nf, parsing_warnings, self.config)
+                        if parsed_val is not None:
+                            _extracted_numerics[key] = parsed_val
+
+                    # For backward compatibility: expose first numeric as _magnitude_pct
+                    # Priority: magnitude_pct > magnitude > first defined numeric field
+                    if "magnitude_pct" in _extracted_numerics:
+                        _magnitude_pct = _extracted_numerics["magnitude_pct"]
+                    elif "magnitude" in _extracted_numerics:
+                        _magnitude_pct = _extracted_numerics["magnitude"]
+                    elif _extracted_numerics:
+                        _magnitude_pct = list(_extracted_numerics.values())[0]
+                else:
+                    # Legacy fallback: hardcoded magnitude/magnitude_pct lookup
+                    magnitude_raw = data_lowered.get("magnitude") or data_lowered.get("magnitude_pct")
+                    if magnitude_raw is not None:
+                        try:
+                            _magnitude_pct = float(magnitude_raw)
+                        except (ValueError, TypeError):
+                            if isinstance(magnitude_raw, str):
+                                digit_match = re.search(r'(\d+)', magnitude_raw)
+                                if digit_match:
+                                    _magnitude_pct = float(digit_match.group(1))
+
+                # RECOVERY: If JSON parsed but no decision found, look for "Naked Digit" after the JSON block
+                if not skill_name:
+                    after_json = cleaned_target[cleaned_target.rfind("}")+1:].strip()
+                    # Look for digits at start OR with some context (like "Decision: 4")
+                    digit_match = re.search(r'(?:decision|choice|id|:)?\s*(\d)\b', after_json, re.IGNORECASE)
+                    if digit_match and digit_match.group(1) in skill_map:
+                        skill_name = skill_map[digit_match.group(1)]
+                        parse_layer = "json_plus_digit"
+
+
+
+
+
+                if skill_name:
+                    # Reset warnings if JSON parsing succeeded (even with digit recovery)
+                    parsing_warnings = [w for w in parsing_warnings if "STRICT_MODE" not in w]
+
+                # Extract Reasoning & Constructs
+                reasoning = {
+                    "strategy": data.get("strategy", ""),
+                    "confidence": data.get("confidence", 1.0)
+                }
+                # Get construct mapping from config for dynamic matching
+                construct_mapping = parsing_cfg.get("constructs", {}) if parsing_cfg else {}
+
+                # Synonym Mapping (Now purely config-driven)
+                # If 'synonyms' is defined in YAML, use it. Otherwise, no synonym expansion.
+                SYNONYM_MAP = parsing_cfg.get("synonyms", {})
+
+
+
+
+                for k, v in data.items():
+                    if k.lower() in ["decision", "choice", "action", "strategy", "confidence"]:
+                        continue
+
+                    # 1. Identify which constructs this JSON key 'k' might relate to
+                    matched_names = []
+                    k_normalized = k.lower().replace("_", " ").replace("-", " ")
+
+                    for c_name, c_cfg in construct_mapping.items():
+                        keywords = list(c_cfg.get("keywords", []))
+
+                        # Add internal synonyms for standard constructs
+                        # Check if any synonym base (e.g., 'tp', 'sp') is in the construct name
+                        for base_name, synonyms in SYNONYM_MAP.items():
+                            if base_name.lower() in c_name.lower():
+                                keywords.extend(synonyms)
+
+                        # Normalize keywords for matching
+                        keywords_normalized = [kw.lower().replace("_", " ") for kw in keywords]
+
+                        # Check if JSON key matches any keyword
+                        if any(kw in k_normalized for kw in keywords_normalized):
+                            matched_names.append(c_name)
+
+                    # Also check if the key directly matches a construct name (case-insensitive)
+                    for c_name in construct_mapping.keys():
+                        c_name_norm = c_name.lower().replace("_", " ")
+                        if c_name_norm in k_normalized or k_normalized in c_name_norm:
+                            if c_name not in matched_names:
+                                matched_names.append(c_name)
+
+
+                    # 2. Extract values based on structure
+                    if isinstance(v, dict):
+                        for sub_k, sub_v in v.items():
+                            sub_k_lower = sub_k.lower()
+                            # Nested mapping: check if sub-key is a label or reason
+                            if "label" in sub_k_lower:
+                                for name in [n for n in matched_names if "_LABEL" in n]:
+                                    reasoning[name] = normalize_construct_value(sub_v, custom_mapping=custom_mapping)
+                            elif any(rk in sub_k_lower for rk in ["reason", "why", "explanation", "because"]):
+                                for name in [n for n in matched_names if "_REASON" in n]:
+                                    reasoning[name] = sub_v
+                            else:
+                                reasoning[f"{k}_{sub_k}"] = normalize_construct_value(sub_v, custom_mapping=custom_mapping)
+                    elif isinstance(v, (str, int, float)):
+                        # Flattened string or value: assign to matched constructs
+                        if matched_names:
+                            for name in matched_names:
+                                # For labels, if it's a string, we might want to extract just the label part
+                                if "_LABEL" in name and isinstance(v, str):
+                                    # Robust extraction using regex from config if available
+                                    regex = construct_mapping[name].get("regex")
+                                    if regex:
+                                        # 1. Try full regex match (prefix + label)
+                                        match = re.search(regex, v, re.IGNORECASE)
+                                        if match and match.groups():
+                                            reasoning[name] = match.group(1)
+                                        else:
+                                            # 2. Try to find any of the labels from the capture group alternatives
+                                            # This handles cases where the key is already identified, but the value is a string containing the label
+                                            # e.g. Regex: "(?:threat)[:\s]* (High|Low)" -> look for "High" or "Low" in v
+                                            try:
+                                                # Extract the alternatives from the first capture group if possible
+                                                # Pattern usually looks like (A|B|C)
+                                                inner_pattern = re.search(r'\(([^?].+?)\)', regex)
+                                                if inner_pattern:
+                                                    alternatives = [alt.strip() for alt in inner_pattern.group(1).split('|')]
+                                                    # Sort by length descending to match "Very High" before "High"
+                                                    alternatives.sort(key=len, reverse=True)
+
+                                                    # First try direct match
+                                                    matched = False
+                                                    for alt in alternatives:
+                                                        if alt.lower() in v.lower():
+                                                            reasoning[name] = alt
+                                                            matched = True
+                                                            break
+
+                                                    # If not matched, try normalization
+                                                    if not matched:
+                                                        normalized = normalize_construct_value(v, alternatives, custom_mapping=custom_mapping)
+                                                        if normalized.upper() in [a.upper() for a in alternatives]:
+                                                            reasoning[name] = normalized
+                                                        # else: Leave empty, let CONSTRUCT EXTRACTION handle it
+                                                else:
+                                                    # No alternatives to match against, try normalization
+                                                    reasoning[name] = normalize_construct_value(v, custom_mapping=custom_mapping)
+                                            except Exception:
+                                                reasoning[name] = normalize_construct_value(v, custom_mapping=custom_mapping)
+                                    else:
+                                        reasoning[name] = normalize_construct_value(v, custom_mapping=custom_mapping)
+                                else:
+                                    reasoning[name] = normalize_construct_value(v, custom_mapping=custom_mapping)
+                        else:
+                            # Fallback: direct name match
+                            k_upper = k.upper()
+                            if k_upper in construct_mapping:
+                                reasoning[k_upper] = normalize_construct_value(v, custom_mapping=custom_mapping)
+                            else:
+                                reasoning[k] = normalize_construct_value(v, custom_mapping=custom_mapping)
+        except (json.JSONDecodeError, AttributeError):
+            pass
+
+        # 4. KEYWORD SEARCH (Fallback if JSON resolution failed)
+        if not skill_name:
+            kw_res = self._parse_keywords(cleaned_target, agent_type, context)
+            if kw_res:
+                skill_name = kw_res.get("skill_name")
+                if _magnitude_pct is None:
+                    _magnitude_pct = kw_res.get("magnitude_pct")
+                # Merge keyword reasoning if json failed
+                if not reasoning.get("strategy"):
+                    reasoning.update(kw_res.get("reasoning", {}))
+                parse_layer = f"{parse_layer}+keyword" if is_enclosed else "keyword"
+
+        # 5. NAKED DIGIT SEARCH (Last Resort)
+        if not skill_name:
+            digit_match = re.search(r'\b(\d)\b', cleaned_target)
+            if digit_match and digit_match.group(1) in skill_map:
+                skill_name = skill_map[digit_match.group(1)]
+                parse_layer = f"{parse_layer}+digit" if is_enclosed else "digit"
+
+        # 6. CONSTRUCT EXTRACTION (Regex based, applied to cleaned_target)
+        constructs_cfg = parsing_cfg.get("constructs", {})
+        if constructs_cfg and cleaned_target:
+            for key, cfg in constructs_cfg.items():
+                if key not in reasoning or not reasoning[key]:
+                    regex = cfg.get("regex")
+
+                    keywords = cfg.get("keywords", [])
+                    if regex and keywords:
+                        # 1. Find all keywords and their positions
+                        kw_pattern = "|".join([re.escape(kw) for kw in keywords])
+                        # Look for keyword with word boundaries
+                        kw_matches = list(re.finditer(rf"(?i)\b(?:{kw_pattern})\b", cleaned_target))
+
+                        # Process keywords in reverse (prioritize mentions near the end)
+                        found = False
+                        for kw_match in reversed(kw_matches):
+                            # 2. Look at text following the keyword (up to proximity_window chars gap)
+                            start_search = kw_match.end()
+                            end_search = min(start_search + proximity_window, len(cleaned_target))
+                            gap_text = cleaned_target[start_search:end_search]
+
+                            # 3. Check for values in this gap - pick the FIRST match which is most adjacent
+                            # Attempt 1: Exact code match (VL, L, M, H, VH)
+                            val_matches = list(re.finditer(regex, gap_text, re.IGNORECASE | re.DOTALL))
+                            for val_match in val_matches:
+                                temp_val = val_match.group(1).strip() if val_match.groups() else val_match.group(0).strip()
+                                g_start = start_search + val_match.start()
+                                g_end = start_search + val_match.end()
+
+                                # Only accept if it's NOT just an item in an echoed list
+                                if not is_list_item(cleaned_target, g_start, g_end, self.config):
+                                    reasoning[key] = normalize_construct_value(temp_val, custom_mapping=custom_mapping)
+                                    found = True
+                                    break
+
+                            if not found:
+                                # Attempt 2: Search for long-form names (e.g. "Medium") in this gap
+                                # Collect all matches to pick the one closest to the keyword
+                                word_matches = []
+                                for word, code in custom_mapping.items():
+                                    if len(word) > 2: # Stick to descriptive labels
+                                        for m in re.finditer(rf"\b{re.escape(word)}\b", gap_text, re.IGNORECASE):
+                                            word_matches.append((m.start(), m.end(), code))
+
+                                if word_matches:
+                                    # Sort by start index and pick the first one that passes the list guard
+                                    word_matches.sort()
+                                    for w_start, w_end, code in word_matches:
+                                        g_start = start_search + w_start
+                                        g_end = start_search + w_end
+                                        if not is_list_item(cleaned_target, g_start, g_end, self.config):
+                                            reasoning[key] = code
+                                            found = True
+                                            break
+
+                            if found: break
+
+
+
+        # 6. LAST RESORT: Search for bracketed numbers [1-7] in cleaned_target
+        # STRICT MODE: If enabled, do NOT use digit extraction (prevents bias from reasoning text)
+        # This forces the system to retry with clearer instructions instead of guessing.
+        strict_mode = parsing_cfg.get("strict_mode", True)
+
+        if not skill_name:
+            bracket_matches = re.findall(r'\[(\d)\]', cleaned_target)
+            digit_matches = re.findall(r'(\d)', cleaned_target)
+            candidates = bracket_matches if bracket_matches else digit_matches
+
+            # Allow digit extraction as last resort during retries even in strict mode
+            is_retry = context.get("retry_attempt", 0) > 0
+
+            if candidates and (not strict_mode or is_retry):
+                last_digit = candidates[-1]
+                if last_digit in skill_map:
+                    skill_name = skill_name or skill_map[last_digit]
+                    parse_layer = parse_layer or "digit_fallback"
+                    parsing_warnings.append(f"Retry-based extraction from digit: {last_digit}")
+            elif candidates and strict_mode and not skill_name:
+                # Log the failed parse attempt for audit but do NOT use the digit
+                parsing_warnings.append(f"STRICT_MODE: Rejected digit extraction ({candidates[-1]}). Will trigger retry.")
+
+        if not skill_name:
+            if strict_mode:
+                msg = f"STRICT_MODE: Failed to parse any valid decision for agent '{agent_id}'. Default fallback disabled."
+                parsing_warnings.append(msg)
+                logger.error(f" [Adapter:Error] {msg}")
+                return None # Return None to trigger retry/abort in Broker
+            else:
+                skill_name = parsing_cfg.get("default_skill", "do_nothing")
+                parse_layer = "default"
+                parsing_warnings.append(f"Default skill '{skill_name}' used.")
+
+        # Resolve to canonical ID via alias map (dynamic per agent_type)
+        skill_name = alias_map.get(skill_name.lower(), skill_name)
+
+        # 7. Semantic Correlation Audit (Phase 20)
+        # Check both T1 and T2/T3 memory storage patterns
+        retrieved_memories = context.get("retrieved_memories") or context.get("memory")
+        if not retrieved_memories and "personal" in context:
+            retrieved_memories = context["personal"].get("memory")
+
+        combined_reasoning = str(reasoning) + cleaned_target
+
+        # 6. Correlation Audit (Standard)
+        # ... (Existing logic) ...
+
+        # 7. Demographic Grounding Audit (Phase 21)
+        # Checks if qualitative anchors (Persona/History) are cited in reasoning
+        demo_audit = audit_demographic_grounding(reasoning, context, parsing_cfg, self.config)
+        reasoning["demographic_audit"] = demo_audit
+
+
+        correlation_score = 0.0
+        details = []
+        if retrieved_memories and isinstance(retrieved_memories, list):
+            # Domain-agnostic audit keywords
+            audit_kws = list(parsing_cfg.get("audit_keywords", []))
+            # Fallback if empty
+            if not audit_kws:
+                audit_kws = ["choice", "decision", "action", "reason", "because"]
+
+            kws_pattern = r'\b(' + '|'.join([re.escape(k) for k in audit_kws]) + r')\b'
+
+            for i, mem in enumerate(retrieved_memories):
+                mem_text = str(mem).lower()
+                # Focus on configured keywords
+                kws = re.findall(kws_pattern, mem_text, re.IGNORECASE)
+                if kws:
+                    hits = [kw for kw in set(kws) if kw.lower() in combined_reasoning.lower()]
+                    if hits:
+                        correlation_score += (len(hits) / len(set(kws))) * (1.0 / len(retrieved_memories))
+                        details.append(f"Mem[{i}] hits: {hits}")
+
+
+        reasoning["semantic_correlation_audit"] = {
+            "score": round(correlation_score, 2),
+            "details": details[:3]
+        }
+
+        # 6. Post-Parsing Robustness: Completeness Check
+        missing_labels = []
+        if parsing_cfg and "constructs" in parsing_cfg:
+            expected = set(parsing_cfg["constructs"].keys())
+            found = set(reasoning.keys())
+            missing = expected - found
+            if missing:
+                msg = f"Missing constructs for '{agent_type}': {list(missing)}"
+                parsing_warnings.append(msg)
+                logger.warning(f" [Adapter:Diagnostic] Warning: {msg}")
+                # Check if any critical LABEL fields are missing - these should trigger retry
+                missing_labels = [m for m in missing if "_LABEL" in m]
+                if missing_labels:
+                    parsing_warnings.append(f"CRITICAL: Missing LABEL constructs {missing_labels}. Triggering retry.")
+        if parse_layer:
+            year = context.get("current_year", "?")
+            logger.info(f" [Year {year}] [Adapter:Audit] Agent {agent_id} | Layer: {parse_layer} | Warnings: {len(parsing_warnings)}")
+            # Show reasoning summary
+            strat = reasoning.get("strategy", "") or reasoning.get("reason", "")
+            if strat:
+                logger.debug(f"  - Reasoning: {strat[:120]}...")
+
+            # Show construct classification (Generic)
+            construct_parts = []
+            for k, v in reasoning.items():
+                if "_LABEL" in k:
+                    construct_parts.append(f"{k.split('_')[0]}={v}")
+            if construct_parts:
+                logger.info(f"  - Constructs: {' | '.join(construct_parts)}")
+
+        # 7. Final Polish: Ensure all _LABEL values are normalized before returning
+        for k in list(reasoning.keys()):
+            if "_LABEL" in k:
+                reasoning[k] = normalize_construct_value(str(reasoning[k]), custom_mapping=custom_mapping)
+
+        # 8. Skill Name Normalization (Cross-Model Fix)
+        # Convert aliases like "HE", "FI", "insurance" to canonical names
+        if skill_name:
+            normalized = alias_map.get(skill_name.lower())
+            if normalized:
+                if normalized != skill_name:
+                    logger.debug(f" [Adapter:Normalize] {skill_name} -> {normalized}")
+                skill_name = normalized
+
+        # 9. Parse metadata (confidence + construct completeness)
+        base_layer = "fallback"
+        if "json" in parse_layer:
+            base_layer = "json"
+            parse_confidence = 0.95
+        elif "keyword" in parse_layer:
+            base_layer = "keyword"
+            parse_confidence = 0.70
+        elif "digit" in parse_layer:
+            base_layer = "digit"
+            parse_confidence = 0.50
+        elif parse_layer == "default":
+            base_layer = "fallback"
+            parse_confidence = 0.20
+
+        required_constructs = [k for k in constructs_cfg if "_LABEL" in k] + ["decision"]
+        found = 0
+        for construct in required_constructs:
+            if construct in reasoning:
+                found += 1
+                continue
+            if construct == "decision" and skill_name:
+                found += 1
+                continue
+        construct_completeness = found / len(required_constructs)
+
+        parse_metadata["parse_layer"] = base_layer
+        parse_metadata["parse_confidence"] = parse_confidence
+        parse_metadata["construct_completeness"] = construct_completeness
+
+        # ── Multi-skill: extract secondary_decision if multi_skill enabled ──
+        _secondary_skill_name = None
+        _secondary_magnitude_pct = None
+        ms_cfg = self.agent_config.get_multi_skill_config(agent_type)
+        if ms_cfg:
+            sec_field = ms_cfg.get("secondary_field", "secondary_decision")
+            sec_mag_field = ms_cfg.get("secondary_magnitude_field", "secondary_magnitude_pct")
+            sec_val = data_lowered.get(sec_field.lower()) if data_lowered else None
+
+            # Regex fallback for secondary
+            if sec_val is None and raw_output:
+                sec_pattern = rf'"{sec_field}"\s*:\s*"?(\d+)"?'
+                sec_match = re.search(sec_pattern, raw_output, re.IGNORECASE)
+                if sec_match:
+                    sec_val = sec_match.group(1)
+
+            if sec_val is not None:
+                sec_id = None
+                if isinstance(sec_val, (int, float)):
+                    sec_id = str(int(sec_val))
+                elif isinstance(sec_val, str):
+                    sec_digit = re.search(r'(\d+)', sec_val)
+                    if sec_digit:
+                        sec_id = sec_digit.group(1)
+
+                # 0 means "no secondary action"
+                if sec_id and sec_id != "0" and sec_id in skill_map:
+                    _secondary_skill_name = skill_map[sec_id]
+
+                    # Extract secondary magnitude with bounds validation
+                    sec_mag_raw = data_lowered.get(sec_mag_field.lower()) if data_lowered else None
+                    if sec_mag_raw is not None:
+                        try:
+                            mag_val = float(re.search(r'(\d+)', str(sec_mag_raw)).group(1))
+                            # Look up bounds from response_format numeric field definition
+                            mag_min, mag_max = 1, 100  # safe defaults
+                            for nf in self.agent_config.get_numeric_fields(agent_type):
+                                if nf["key"] == sec_mag_field:
+                                    mag_min = nf.get("min") or mag_min
+                                    mag_max = nf.get("max") or mag_max
+                                    break
+                            if mag_min <= mag_val <= mag_max:
+                                _secondary_magnitude_pct = mag_val
+                            else:
+                                logger.warning(
+                                    f" [Multi-Skill] {agent_id} | Secondary magnitude "
+                                    f"{mag_val}% out of bounds [{mag_min}, {mag_max}], ignoring"
+                                )
+                        except (AttributeError, ValueError, TypeError):
+                            pass
+
+        # Store secondary in reasoning for broker engine to access
+        if _secondary_skill_name:
+            reasoning["_secondary_skill_name"] = _secondary_skill_name
+            if _secondary_magnitude_pct is not None:
+                reasoning["_secondary_magnitude_pct"] = _secondary_magnitude_pct
+
+        reasoning["_parse_metadata"] = parse_metadata
+
+        return SkillProposal(
+            agent_id=agent_id,
+            skill_name=skill_name,
+            reasoning=reasoning,
+            agent_type=agent_type,
+            raw_output=raw_output,
+            parsing_warnings=parsing_warnings,
+            parse_layer=parse_layer,
+            parse_confidence=parse_confidence,
+            construct_completeness=construct_completeness,
+            magnitude_pct=_magnitude_pct,
+        )
+
+    def _parse_keywords(self, text: str, agent_type: str, context: Dict[str, Any] = None) -> Optional[Dict[str, Any]]:
+        """
+        Fallback keyword/regex based parsing.
+        """
+        parsing_cfg = self.agent_config.get_parsing_config(agent_type)
+        if not parsing_cfg: return None
+
+        decision_keywords = parsing_cfg.get("decision_keywords", ["decision", "choice", "action", "selected_action"])
+        valid_skills = self.agent_config.get_valid_actions(agent_type)
+        skill_map = self.agent_config.get_skill_map(agent_type, context)
+
+        found_skill = None
+        found_mag = None
+
+        # 0. PRE-AUDIT: Look for numeric fields in the text (dynamic, config-driven)
+        numeric_fields = self.agent_config.get_numeric_fields(agent_type)
+        numeric_keys = [nf.get("key", "") for nf in numeric_fields] if numeric_fields else []
+
+        # Build regex pattern from configured numeric field keys, plus legacy fallbacks
+        search_keys = numeric_keys + ["magnitude", "pct", "percent", "amount"]
+        unique_keys = list(set([k for k in search_keys if k]))  # dedupe
+
+        if unique_keys:
+            pattern = r'(?:' + '|'.join(re.escape(k) for k in unique_keys) + r')\b\s*[:=]?\s*([+-]?\d+(?:\.\d+)?)'
+            mag_match = re.search(pattern, text.lower())
+            if mag_match:
+                found_mag = float(mag_match.group(1))
+
+        # 1. DECISION LINE SEARCH
+        lines = text.split('\n')
+        for line in lines:
+            line_lower = line.strip().lower()
+            for kw in decision_keywords:
+                # Look for kw followed by punctuation or space
+                if re.search(rf"\b{re.escape(kw.lower())}\b", line_lower):
+                    split_parts = re.split(rf"\b{re.escape(kw.lower())}\b", line_lower, maxsplit=1)
+                    if len(split_parts) > 1:
+                        raw_val = split_parts[1].strip()
+                        # 1a. Try Digit in keyword line
+                        digit_match = re.search(r'(\d)', raw_val)
+                        if digit_match and digit_match.group(1) in skill_map:
+                            return {"skill_name": skill_map[digit_match.group(1)], "magnitude_pct": found_mag, "reasoning": {}}
+                        # 1b. Try exact skill name match in this line
+                        for s in valid_skills:
+                            if re.search(rf"\b{re.escape(s.lower())}\b", raw_val):
+                                return {"skill_name": s, "magnitude_pct": found_mag, "reasoning": {}}
+
+        # 2. GLOBAL FUZZY SEARCH (Fallback if no decision line found)
+        # Search for any mention of a skill ID or skill name in the entire text
+        text_lower = text.lower()
+
+        # 2a. Look for "I choose X", "Plan: X", etc. anywhere
+        choice_patterns = [
+            r"i (?:choose|select|decide on|will use) (?:choice|option|skill)?\s*[:]?\s*(\d)\b",
+            r"selected (?:choice|option|skill)\s*[:]?\s*(\d)\b",
+            r"\bchoice\s*(\d)\b",
+            r"\bskill\s*(\d)\b"
+        ]
+        for pattern in choice_patterns:
+            matches = list(re.finditer(pattern, text_lower))
+            if matches:
+                last_digit = matches[-1].group(1)
+                if last_digit in skill_map:
+                    return {"skill_name": skill_map[last_digit], "magnitude_pct": found_mag, "reasoning": {"parse_mode": "fuzzy_regex"}}
+
+        # 2b. Look for unique skill names
+        found_skills = []
+        for s in valid_skills:
+            s_variants = [s.lower(), s.lower().replace("_", " ")]
+            for variant in s_variants:
+                if rf"\b{re.escape(variant)}\b" in text_lower:
+                    found_skills.append(s)
+                    break
+
+        if len(set(found_skills)) == 1:
+            return {"skill_name": found_skills[0], "magnitude_pct": found_mag, "reasoning": {"parse_mode": "fuzzy_name"}}
+
+        # If we found magnitude but no skill, we still return just magnitude in case it helps
+        if found_mag:
+            return {"skill_name": None, "magnitude_pct": found_mag, "reasoning": {}}
+
+        return None
+
+
+    def format_retry_prompt(self, original_prompt: str, errors: List[Any], max_reports: Optional[int] = None) -> str:
+        """
+        Format retry prompt with validation errors or InterventionReports.
+
+        Supports both legacy List[str] errors and new List[InterventionReport] for XAI.
+        """
+        from ...interfaces.skill_types import InterventionReport
+
+        if max_reports and len(errors) > max_reports:
+            logger.warning(f" [Adapter] Truncating retry reports from {len(errors)} to {max_reports} to save context.")
+            errors = errors[:max_reports]
+            truncated = True
+        else:
+            truncated = False
+
+        error_lines = []
+        for e in errors:
+            if isinstance(e, InterventionReport):
+                error_lines.append(e.to_prompt_string())
+            elif isinstance(e, str):
+                error_lines.append(f"- {e}")
+            else:
+                error_lines.append(f"- {str(e)}")
+
+        if truncated:
+            error_lines.append(f"\n[!NOTE] There were more issues detected, but only the top {max_reports} are shown for brevity. Please fix these first.")
+
+        error_text = "\n".join(error_lines)
+        return f"""Your previous response was flagged by the governance layer.
+
+**Issues Detected:**
+{error_text}
+
+Please reconsider your decision. Ensure your new response addresses the violations above.
+
+{original_prompt}"""

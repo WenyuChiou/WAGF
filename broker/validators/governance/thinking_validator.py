@@ -3,19 +3,18 @@ Thinking Validator - Multi-framework construct validation and reasoning coherenc
 
 Validates that an agent's chosen action is logically consistent with its
 self-reported behavioral appraisals.  Supports multiple psychological
-frameworks registered in FRAMEWORK_CONSTRUCTS:
-
-- PMT (Protection Motivation Theory): threat/coping appraisal — flood domain
-- WSA/ACA (Dual Appraisal): water scarcity/adaptive capacity — irrigation domain
-- Utility: budget/equity assessment — government agents
-- Financial: risk/solvency assessment — insurance agents
+frameworks registered via ``register_framework_metadata()``.
 
 The YAML-driven condition engine (_validate_yaml_rules, _evaluate_conditions,
 _evaluate_single_condition) is fully domain-agnostic.  Framework-specific
-built-in checks (_validate_pmt, _validate_utility, _validate_financial) are
-registered as ``builtin_checks`` and default to PMT/Utility/Financial checks.
-Pass ``builtin_checks=[]`` to use YAML rules only, or supply domain-specific
+built-in checks are registered as ``builtin_checks`` and default to
+water-domain checks when the water domain pack is loaded.  Pass
+``builtin_checks=[]`` to use YAML rules only, or supply domain-specific
 checks for new frameworks.
+
+Domain packs register their metadata at import time via
+``register_framework_metadata()``.  See ``broker.domains.water`` for a
+reference implementation.
 """
 from typing import List, Dict, Any, Optional
 from broker.interfaces.skill_types import ValidationResult
@@ -25,50 +24,52 @@ from broker.validators.governance.base_validator import BaseValidator, BuiltinCh
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Registered Behavioral Science Frameworks
+# Framework Metadata Registry
 # ──────────────────────────────────────────────────────────────────────
-# Each framework defines its ordinal rating scale and construct field
-# names.  New water-domain frameworks (e.g., groundwater stress/capacity)
-# can be added here or injected at runtime via the constructor.
+# Domain packs populate these at import time via register_framework_metadata().
+# Start empty — no hardcoded domain content.
 # ──────────────────────────────────────────────────────────────────────
 
-# Ordinal label orderings per framework (lowest → highest)
-FRAMEWORK_LABEL_ORDERS = {
-    "pmt": {"VL": 0, "L": 1, "M": 2, "H": 3, "VH": 4},          # 5-level: flood domain
-    "dual_appraisal": {"VL": 0, "L": 1, "M": 2, "H": 3, "VH": 4},  # 5-level: irrigation domain
-    "utility": {"L": 0, "M": 1, "H": 2},                          # 3-level: government agents
-    "financial": {"C": 0, "M": 1, "A": 2},                        # Conservative/Moderate/Aggressive
-}
+FRAMEWORK_LABEL_ORDERS: Dict[str, Dict[str, int]] = {}
+FRAMEWORK_CONSTRUCTS: Dict[str, dict] = {}
+_LABEL_MAPPINGS: Dict[str, Dict[str, str]] = {}
 
 # Default label ordering (5-level VL–VH scale, used when framework is unknown)
-DEFAULT_LABEL_ORDER = FRAMEWORK_LABEL_ORDERS["pmt"]
+_DEFAULT_LABEL_ORDER: Dict[str, int] = {"VL": 0, "L": 1, "M": 2, "H": 3, "VH": 4}
 
-# Backward-compatibility alias (external code may import this name)
-PMT_LABEL_ORDER = DEFAULT_LABEL_ORDER
+# Backward-compatibility aliases
+DEFAULT_LABEL_ORDER = _DEFAULT_LABEL_ORDER
+PMT_LABEL_ORDER = _DEFAULT_LABEL_ORDER
 
-# Construct field name mappings per framework
-FRAMEWORK_CONSTRUCTS = {
-    "pmt": {
-        "primary": "TP_LABEL",      # Threat Perception (Rogers, 1983)
-        "secondary": "CP_LABEL",    # Coping Perception
-        "all": ["TP_LABEL", "CP_LABEL", "SP_LABEL", "SC_LABEL", "PA_LABEL"],
-    },
-    "dual_appraisal": {
-        "primary": "WSA_LABEL",     # Water Scarcity Assessment (Hung & Yang, 2021)
-        "secondary": "ACA_LABEL",   # Adaptive Capacity Assessment
-        "all": ["WSA_LABEL", "ACA_LABEL"],
-    },
-    "utility": {
-        "primary": "BUDGET_UTIL",   # Budget Utility
-        "secondary": "EQUITY_GAP",  # Equity Assessment
-        "all": ["BUDGET_UTIL", "EQUITY_GAP", "ADOPTION_RATE"],
-    },
-    "financial": {
-        "primary": "RISK_APPETITE", # Risk Appetite
-        "secondary": "SOLVENCY_IMPACT",  # Solvency Impact
-        "all": ["RISK_APPETITE", "SOLVENCY_IMPACT", "MARKET_SHARE"],
-    },
+# Generic fallback label mappings (used when no domain-specific mapping registered)
+_GENERIC_LABEL_MAPPINGS: Dict[str, str] = {
+    "VERY LOW": "VL", "LOW": "L", "MEDIUM": "M",
+    "HIGH": "H", "VERY HIGH": "VH",
 }
+
+
+def register_framework_metadata(
+    name: str,
+    constructs: dict,
+    label_order: Dict[str, int],
+    label_mappings: Optional[Dict[str, str]] = None,
+) -> None:
+    """
+    Register framework metadata for use by ThinkingValidator.
+
+    Called by domain packs at import time.  For example, the water domain
+    pack registers PMT, dual_appraisal, utility, and financial frameworks.
+
+    Args:
+        name: Framework identifier (e.g., "pmt", "utility")
+        constructs: Dict with "primary", "secondary", "all" keys
+        label_order: Ordinal mapping from label strings to ints
+        label_mappings: Optional normalization mappings (e.g., "VERY HIGH" -> "VH")
+    """
+    FRAMEWORK_LABEL_ORDERS[name] = label_order
+    FRAMEWORK_CONSTRUCTS[name] = constructs
+    if label_mappings:
+        _LABEL_MAPPINGS[name] = label_mappings
 
 
 class ThinkingValidator(BaseValidator):
@@ -119,8 +120,8 @@ class ThinkingValidator(BaseValidator):
                 Configured per domain in ``agent_types.yaml``.
         """
         self.framework = framework.lower()
-        self._label_order = FRAMEWORK_LABEL_ORDERS.get(self.framework, DEFAULT_LABEL_ORDER)
-        self._constructs = FRAMEWORK_CONSTRUCTS.get(self.framework, FRAMEWORK_CONSTRUCTS["pmt"])
+        self._label_order = FRAMEWORK_LABEL_ORDERS.get(self.framework, _DEFAULT_LABEL_ORDER)
+        self._constructs = FRAMEWORK_CONSTRUCTS.get(self.framework, {})
         self._extreme_actions = extreme_actions or set()
         super().__init__(builtin_checks=builtin_checks)
 
@@ -573,6 +574,9 @@ class ThinkingValidator(BaseValidator):
         """
         Normalize label to standard format for the given framework.
 
+        Uses mappings registered by domain packs via ``register_framework_metadata()``.
+        Falls back to generic VL/L/M/H/VH mappings for unknown frameworks.
+
         Args:
             label: Raw label string
             framework: Framework to use for normalization (defaults to self.framework)
@@ -585,34 +589,7 @@ class ThinkingValidator(BaseValidator):
         label = str(label).upper().strip()
 
         fw = framework or self.framework
-
-        # Framework-specific mappings
-        if fw == "pmt":
-            mappings = {
-                "VERY LOW": "VL", "VERYLOW": "VL", "VERY_LOW": "VL",
-                "LOW": "L",
-                "MEDIUM": "M", "MED": "M", "MODERATE": "M",
-                "HIGH": "H",
-                "VERY HIGH": "VH", "VERYHIGH": "VH", "VERY_HIGH": "VH"
-            }
-        elif fw == "utility":
-            mappings = {
-                "LOW": "L", "LOW PRIORITY": "L", "LOW_PRIORITY": "L",
-                "MEDIUM": "M", "MED": "M", "MEDIUM PRIORITY": "M",
-                "HIGH": "H", "HIGH PRIORITY": "H", "HIGH_PRIORITY": "H"
-            }
-        elif fw == "financial":
-            mappings = {
-                "CONSERVATIVE": "C", "CONS": "C", "LOW": "C",
-                "MODERATE": "M", "MOD": "M", "MEDIUM": "M",
-                "AGGRESSIVE": "A", "AGG": "A", "HIGH": "A"
-            }
-        else:
-            # Generic fallback (5-level VL–VH scale)
-            mappings = {
-                "VERY LOW": "VL", "LOW": "L", "MEDIUM": "M",
-                "HIGH": "H", "VERY HIGH": "VH"
-            }
+        mappings = _LABEL_MAPPINGS.get(fw, _GENERIC_LABEL_MAPPINGS)
 
         return mappings.get(label, label)
 

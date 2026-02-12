@@ -363,7 +363,7 @@ class AgentValidator:
             try:
                 from broker.utils.agent_config import load_agent_config
                 normalization_map = load_agent_config().get_shared("normalization_map", {})
-            except:
+            except (ImportError, AttributeError, KeyError):
                 normalization_map = {}
                 
             # Fallback to standard 5-level if nothing in config
@@ -415,7 +415,7 @@ class AgentValidator:
                                     elif op == "<=": matches.append(val <= target)
                                     elif op == "==": matches.append(val == target)
                                     else: matches.append(False)
-                                except:
+                                except (ValueError, TypeError):
                                     matches.append(False)
                             else:
                                 # Categorical/Label Comparison (for Flood/PMT) - 5-level aware

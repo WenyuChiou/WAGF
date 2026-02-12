@@ -1,18 +1,17 @@
 """
-Psychometric Framework - Psychological assessment frameworks for agent validation.
+Psychometric Framework — Psychological assessment frameworks for agent validation.
 
-This module provides psychological framework implementations for different agent types:
-- PMTFramework: Protection Motivation Theory for household agents
-- UtilityFramework: Utility Theory for government agents
-- FinancialFramework: Financial Risk Theory for insurance agents
+This module provides the abstract base class and registry for psychological
+frameworks.  Concrete implementations live in domain packs under
+``broker/domains/`` (e.g., ``broker.domains.water.pmt.PMTFramework``).
 
-Each framework defines:
-- Constructs: The measurable dimensions (e.g., TP_LABEL, CP_LABEL for PMT)
-- Coherence validation: Checking if appraisals are internally consistent
-- Expected behavior mapping: What actions are expected given appraisals
+The ``get_framework()`` / ``register_framework()`` registry allows domain
+packs to self-register at import time so that callers need not know where
+concrete classes reside.
 
 Part of Task-040: SA/MA Unified Architecture (Part 14.5)
 """
+
 from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
@@ -204,537 +203,11 @@ class PsychologicalFramework(ABC):
         return [k for k, v in self.get_constructs().items() if v.required]
 
 
-# PMT Label ordering for comparison
-PMT_LABEL_ORDER = {"VL": 0, "L": 1, "M": 2, "H": 3, "VH": 4}
-
-
-class PMTFramework(PsychologicalFramework):
-    """
-    Protection Motivation Theory framework for household agents.
-
-    PMT models protective behavior through two cognitive processes:
-    - Threat Appraisal (TP): Perceived severity and vulnerability
-    - Coping Appraisal (CP): Self-efficacy and response efficacy
-
-    Key coherence rules:
-    - High TP + High CP should not result in do_nothing
-    - Low TP should not justify extreme actions
-    - VH TP requires protective action
-
-    Optional constructs:
-    - Stakeholder Perception (SP): Trust in external actors
-
-    Domain-specific skill names (extreme_actions, complex_actions)
-    are configurable via constructor.  Defaults are provided for
-    backward compatibility; new domains should override via arguments.
-    """
-
-    def __init__(
-        self,
-        extreme_actions: Optional[set] = None,
-        complex_actions: Optional[set] = None,
-        expected_behavior_map: Optional[Dict[str, List[str]]] = None,
-    ):
-        self._extreme_actions = extreme_actions or {
-            "relocate", "elevate_house", "buyout_program"
-        }
-        self._complex_actions = complex_actions or {
-            "elevate_house", "relocate", "buyout_program"
-        }
-        self._expected_behavior_map = expected_behavior_map
-
-    @property
-    def name(self) -> str:
-        return "Protection Motivation Theory (PMT)"
-
-    def get_constructs(self) -> Dict[str, ConstructDef]:
-        """Return PMT constructs: TP, CP, and optional SP."""
-        return {
-            "TP_LABEL": ConstructDef(
-                name="Threat Perception",
-                values=["VL", "L", "M", "H", "VH"],
-                required=True,
-                description="Perceived severity and vulnerability to threat"
-            ),
-            "CP_LABEL": ConstructDef(
-                name="Coping Perception",
-                values=["VL", "L", "M", "H", "VH"],
-                required=True,
-                description="Perceived ability to cope with threat"
-            ),
-            "SP_LABEL": ConstructDef(
-                name="Stakeholder Perception",
-                values=["VL", "L", "M", "H", "VH"],
-                required=False,
-                description="Perceived support from stakeholders (government, insurance)"
-            ),
-        }
-
-    def validate_coherence(self, appraisals: Dict[str, str]) -> ValidationResult:
-        """
-        Validate PMT coherence rules.
-
-        Rules:
-        1. High TP + High CP should not do_nothing
-        2. VH TP requires action
-        3. Low TP should not justify extreme measures
-
-        Args:
-            appraisals: Dictionary with TP_LABEL, CP_LABEL, and optional SP_LABEL
-
-        Returns:
-            ValidationResult with any coherence violations
-        """
-        errors = []
-        warnings = []
-        violations = []
-
-        tp = self._normalize_label(appraisals.get("TP_LABEL", "M"))
-        cp = self._normalize_label(appraisals.get("CP_LABEL", "M"))
-
-        # First, check required constructs
-        required_check = self.validate_required_constructs(appraisals)
-        if not required_check.valid:
-            return required_check
-
-        # Check construct values
-        value_check = self.validate_construct_values(appraisals)
-        if not value_check.valid:
-            return value_check
-
-        # PMT-specific coherence rules are about action consistency,
-        # not appraisal consistency. The coherence check itself is valid
-        # as long as values are in range.
-
-        # However, we can flag combinations that typically require action
-        if tp in ("H", "VH") and cp in ("H", "VH"):
-            warnings.append("High threat + high coping typically leads to protective action")
-
-        if tp == "VH":
-            warnings.append("Very high threat typically requires protective action")
-
-        return ValidationResult(
-            valid=True,  # Appraisals themselves are coherent
-            errors=errors,
-            warnings=warnings,
-            rule_violations=violations,
-            metadata={
-                "tp_label": tp,
-                "cp_label": cp,
-                "sp_label": appraisals.get("SP_LABEL", ""),
-            }
-        )
-
-    def validate_action_coherence(
-        self,
-        appraisals: Dict[str, str],
-        proposed_skill: str
-    ) -> ValidationResult:
-        """
-        Validate that a proposed action is coherent with PMT appraisals.
-
-        This is the main PMT validation used in governance rules.
-
-        Args:
-            appraisals: Dictionary with TP_LABEL, CP_LABEL
-            proposed_skill: The skill being proposed
-
-        Returns:
-            ValidationResult indicating if action is coherent with appraisals
-        """
-        errors = []
-        warnings = []
-        violations = []
-
-        tp = self._normalize_label(appraisals.get("TP_LABEL", "M"))
-        cp = self._normalize_label(appraisals.get("CP_LABEL", "M"))
-
-        # Rule 1: High TP + High CP should not do_nothing
-        if tp in ("H", "VH") and cp in ("H", "VH"):
-            if proposed_skill == "do_nothing":
-                errors.append("High threat + high coping should lead to protective action")
-                violations.append("high_tp_high_cp_should_act")
-
-        # Rule 2: VH TP requires action
-        if tp == "VH":
-            if proposed_skill == "do_nothing":
-                errors.append("Very high threat perception requires protective action")
-                violations.append("extreme_threat_requires_action")
-
-        # Rule 3: Low TP should not justify extreme measures
-        if tp in ("VL", "L"):
-            if proposed_skill in self._extreme_actions:
-                errors.append(f"Low threat ({tp}) does not justify extreme measure: {proposed_skill}")
-                violations.append("low_tp_blocks_extreme_action")
-
-        # Rule 4: Low CP limits complex actions
-        if cp == "VL":
-            if proposed_skill in self._complex_actions:
-                warnings.append(f"Very low coping may limit ability to execute: {proposed_skill}")
-
-        return ValidationResult(
-            valid=len(errors) == 0,
-            errors=errors,
-            warnings=warnings,
-            rule_violations=violations,
-            metadata={
-                "tp_label": tp,
-                "cp_label": cp,
-                "proposed_skill": proposed_skill,
-            }
-        )
-
-    # Default expected-behavior map keyed by ``"TP_CP"`` pair.
-    # Kept for backward compatibility; callers may override via
-    # ``expected_behavior_map`` constructor argument.
-    _DEFAULT_BEHAVIOR_MAP: Dict[str, List[str]] = {
-        "H_H":  ["elevate_house", "buy_insurance", "buyout_program", "relocate"],
-        "VH_H": ["elevate_house", "buy_insurance", "buyout_program", "relocate"],
-        "H_VH": ["elevate_house", "buy_insurance", "buyout_program", "relocate"],
-        "VH_VH": ["elevate_house", "buy_insurance", "buyout_program", "relocate"],
-        "H_VL": ["buy_insurance", "buyout_program"],
-        "H_L":  ["buy_insurance", "buyout_program"],
-        "H_M":  ["buy_insurance", "buyout_program"],
-        "VH_VL": ["buy_insurance", "buyout_program"],
-        "VH_L": ["buy_insurance", "buyout_program"],
-        "VH_M": ["buy_insurance", "buyout_program"],
-        "M_VL": ["buy_insurance", "do_nothing"],
-        "M_L":  ["buy_insurance", "do_nothing"],
-        "M_M":  ["buy_insurance", "do_nothing"],
-        "M_H":  ["buy_insurance", "do_nothing"],
-        "M_VH": ["buy_insurance", "do_nothing"],
-    }
-    # Anything not listed (VL_*, L_*) falls through to the default below.
-    _DEFAULT_FALLBACK = ["do_nothing", "buy_insurance"]
-
-    def get_expected_behavior(self, appraisals: Dict[str, str]) -> List[str]:
-        """
-        Return expected skills given PMT appraisals.
-
-        If an ``expected_behavior_map`` was provided at construction time it
-        is used exclusively; otherwise the built-in default map applies.
-
-        The map is keyed by ``"TP_CP"`` strings (e.g. ``"H_VH"``).
-
-        Args:
-            appraisals: Dictionary with TP_LABEL, CP_LABEL
-
-        Returns:
-            List of expected skill names
-        """
-        tp = self._normalize_label(appraisals.get("TP_LABEL", "M"))
-        cp = self._normalize_label(appraisals.get("CP_LABEL", "M"))
-
-        key = f"{tp}_{cp}"
-
-        if self._expected_behavior_map is not None:
-            return list(self._expected_behavior_map.get(key, []))
-
-        return list(self._DEFAULT_BEHAVIOR_MAP.get(key, self._DEFAULT_FALLBACK))
-
-    def get_blocked_skills(self, appraisals: Dict[str, str]) -> List[str]:
-        """
-        Return skills that should be blocked given PMT appraisals.
-
-        Args:
-            appraisals: Dictionary with TP_LABEL, CP_LABEL
-
-        Returns:
-            List of skill names that should be blocked
-        """
-        tp = self._normalize_label(appraisals.get("TP_LABEL", "M"))
-        cp = self._normalize_label(appraisals.get("CP_LABEL", "M"))
-
-        blocked = []
-
-        # High TP + High CP: Block inaction
-        if tp in ("H", "VH") and cp in ("H", "VH"):
-            blocked.append("do_nothing")
-
-        # VH TP alone blocks inaction
-        if tp == "VH":
-            if "do_nothing" not in blocked:
-                blocked.append("do_nothing")
-
-        # Low TP blocks extreme measures
-        if tp in ("VL", "L"):
-            blocked.extend(self._extreme_actions)
-
-        return list(set(blocked))  # Remove duplicates
-
-    def _normalize_label(self, label: Optional[str]) -> str:
-        """Normalize PMT label to standard format."""
-        if not label:
-            return "M"  # Default to Medium
-        label = str(label).upper().strip()
-        mappings = {
-            "VERY LOW": "VL", "VERYLOW": "VL", "VERY_LOW": "VL",
-            "LOW": "L",
-            "MEDIUM": "M", "MED": "M", "MODERATE": "M",
-            "HIGH": "H",
-            "VERY HIGH": "VH", "VERYHIGH": "VH", "VERY_HIGH": "VH"
-        }
-        return mappings.get(label, label)
-
-    def compare_labels(self, label1: str, label2: str) -> int:
-        """
-        Compare two PMT labels.
-
-        Args:
-            label1: First label
-            label2: Second label
-
-        Returns:
-            -1 if label1 < label2, 0 if equal, 1 if label1 > label2
-        """
-        order1 = PMT_LABEL_ORDER.get(self._normalize_label(label1), 2)
-        order2 = PMT_LABEL_ORDER.get(self._normalize_label(label2), 2)
-        if order1 < order2:
-            return -1
-        elif order1 > order2:
-            return 1
-        return 0
-
-
-class UtilityFramework(PsychologicalFramework):
-    """
-    Utility Theory framework for government agents.
-
-    Government agents evaluate policies based on:
-    - Budget Utility: Fiscal impact (deficit, neutral, surplus)
-    - Equity Gap: Socioeconomic equity assessment
-    - Adoption Rate: Policy adoption among constituents
-
-    Coherence rules:
-    - High deficit with high spending programs is inconsistent
-    - High equity gap should prioritize equity-focused actions
-    """
-
-    @property
-    def name(self) -> str:
-        return "Utility Theory"
-
-    def get_constructs(self) -> Dict[str, ConstructDef]:
-        """Return Utility Theory constructs for government agents."""
-        return {
-            "BUDGET_UTIL": ConstructDef(
-                name="Budget Utility",
-                values=["DEFICIT", "NEUTRAL", "SURPLUS"],
-                required=True,
-                description="Current budget impact assessment"
-            ),
-            "EQUITY_GAP": ConstructDef(
-                name="Equity Gap",
-                values=["HIGH", "MEDIUM", "LOW"],
-                required=True,
-                description="Socioeconomic equity assessment"
-            ),
-            "ADOPTION_RATE": ConstructDef(
-                name="Adoption Rate",
-                values=["LOW", "MEDIUM", "HIGH"],
-                required=False,
-                description="Current policy adoption rate"
-            ),
-        }
-
-    def validate_coherence(self, appraisals: Dict[str, str]) -> ValidationResult:
-        """
-        Validate Utility Theory coherence.
-
-        Args:
-            appraisals: Dictionary with BUDGET_UTIL, EQUITY_GAP, ADOPTION_RATE
-
-        Returns:
-            ValidationResult with coherence assessment
-        """
-        errors = []
-        warnings = []
-
-        # Check required constructs
-        required_check = self.validate_required_constructs(appraisals)
-        if not required_check.valid:
-            return required_check
-
-        # Check value validity
-        value_check = self.validate_construct_values(appraisals)
-        if not value_check.valid:
-            return value_check
-
-        budget = appraisals.get("BUDGET_UTIL", "NEUTRAL").upper()
-        equity = appraisals.get("EQUITY_GAP", "MEDIUM").upper()
-
-        # Coherence warnings
-        if budget == "DEFICIT" and equity == "HIGH":
-            warnings.append("Budget deficit with high equity gap may require careful prioritization")
-
-        return ValidationResult(
-            valid=True,
-            errors=errors,
-            warnings=warnings,
-            metadata={
-                "budget_util": budget,
-                "equity_gap": equity,
-                "adoption_rate": appraisals.get("ADOPTION_RATE", ""),
-            }
-        )
-
-    def get_expected_behavior(self, appraisals: Dict[str, str]) -> List[str]:
-        """
-        Return expected government actions given utility appraisals.
-
-        Args:
-            appraisals: Dictionary with BUDGET_UTIL, EQUITY_GAP
-
-        Returns:
-            List of expected action/skill names
-        """
-        budget = appraisals.get("BUDGET_UTIL", "NEUTRAL").upper()
-        equity = appraisals.get("EQUITY_GAP", "MEDIUM").upper()
-
-        expected = []
-
-        # High equity gap prioritizes equity-focused actions
-        if equity == "HIGH":
-            expected = ["increase_subsidy", "targeted_assistance", "outreach_program"]
-
-        # Budget surplus allows more spending
-        elif budget == "SURPLUS":
-            expected = ["increase_subsidy", "infrastructure_improvement", "expand_program"]
-
-        # Budget deficit requires cost control
-        elif budget == "DEFICIT":
-            expected = ["reduce_subsidy", "cost_optimization", "maintain_current"]
-
-        else:
-            expected = ["maintain_current", "incremental_improvement"]
-
-        return expected
-
-
-class FinancialFramework(PsychologicalFramework):
-    """
-    Financial Risk Theory framework for insurance agents.
-
-    Insurance agents evaluate decisions based on:
-    - Loss Ratio: Claims vs premiums (high, medium, low)
-    - Solvency: Financial stability (at_risk, stable, strong)
-    - Market Share: Competitive position
-
-    Coherence rules:
-    - High loss ratio with strong solvency may indicate pricing issues
-    - At-risk solvency should prioritize conservative actions
-    """
-
-    @property
-    def name(self) -> str:
-        return "Financial Risk Theory"
-
-    def get_constructs(self) -> Dict[str, ConstructDef]:
-        """Return Financial constructs for insurance agents."""
-        return {
-            "LOSS_RATIO": ConstructDef(
-                name="Loss Ratio",
-                values=["HIGH", "MEDIUM", "LOW"],
-                required=True,
-                description="Claims to premiums ratio assessment"
-            ),
-            "SOLVENCY": ConstructDef(
-                name="Solvency",
-                values=["AT_RISK", "STABLE", "STRONG"],
-                required=True,
-                description="Financial stability status"
-            ),
-            "MARKET_SHARE": ConstructDef(
-                name="Market Share",
-                values=["DECLINING", "STABLE", "GROWING"],
-                required=False,
-                description="Competitive market position"
-            ),
-        }
-
-    def validate_coherence(self, appraisals: Dict[str, str]) -> ValidationResult:
-        """
-        Validate Financial Theory coherence.
-
-        Args:
-            appraisals: Dictionary with LOSS_RATIO, SOLVENCY, MARKET_SHARE
-
-        Returns:
-            ValidationResult with coherence assessment
-        """
-        errors = []
-        warnings = []
-
-        # Check required constructs
-        required_check = self.validate_required_constructs(appraisals)
-        if not required_check.valid:
-            return required_check
-
-        # Check value validity
-        value_check = self.validate_construct_values(appraisals)
-        if not value_check.valid:
-            return value_check
-
-        loss = appraisals.get("LOSS_RATIO", "MEDIUM").upper()
-        solvency = appraisals.get("SOLVENCY", "STABLE").upper()
-
-        # Coherence warnings
-        if loss == "HIGH" and solvency == "STRONG":
-            warnings.append("High loss ratio with strong solvency may indicate pricing inefficiency")
-
-        if solvency == "AT_RISK":
-            warnings.append("At-risk solvency requires conservative decision-making")
-
-        return ValidationResult(
-            valid=True,
-            errors=errors,
-            warnings=warnings,
-            metadata={
-                "loss_ratio": loss,
-                "solvency": solvency,
-                "market_share": appraisals.get("MARKET_SHARE", ""),
-            }
-        )
-
-    def get_expected_behavior(self, appraisals: Dict[str, str]) -> List[str]:
-        """
-        Return expected insurance actions given financial appraisals.
-
-        Args:
-            appraisals: Dictionary with LOSS_RATIO, SOLVENCY
-
-        Returns:
-            List of expected action/skill names
-        """
-        loss = appraisals.get("LOSS_RATIO", "MEDIUM").upper()
-        solvency = appraisals.get("SOLVENCY", "STABLE").upper()
-
-        expected = []
-
-        # At-risk solvency: Conservative actions
-        if solvency == "AT_RISK":
-            expected = ["raise_premium", "limit_coverage", "reduce_exposure"]
-
-        # High loss ratio: Corrective actions
-        elif loss == "HIGH":
-            expected = ["raise_premium", "adjust_coverage", "increase_deductible"]
-
-        # Strong position: Growth actions
-        elif solvency == "STRONG" and loss == "LOW":
-            expected = ["expand_coverage", "competitive_pricing", "new_product"]
-
-        else:
-            expected = ["maintain_pricing", "standard_renewal"]
-
-        return expected
-
-
+# ---------------------------------------------------------------------------
 # Framework registry
-_FRAMEWORKS: Dict[str, type] = {
-    "pmt": PMTFramework,
-    "utility": UtilityFramework,
-    "financial": FinancialFramework,
-}
+# ---------------------------------------------------------------------------
+
+_FRAMEWORKS: Dict[str, type] = {}
 
 
 def get_framework(name: str) -> PsychologicalFramework:
@@ -742,7 +215,7 @@ def get_framework(name: str) -> PsychologicalFramework:
     Factory function to get a psychological framework by name.
 
     Args:
-        name: Framework name ("pmt", "utility", "financial")
+        name: Framework name (e.g., "pmt", "utility", "financial")
 
     Returns:
         Instance of the requested framework
@@ -754,6 +227,13 @@ def get_framework(name: str) -> PsychologicalFramework:
         >>> framework = get_framework("pmt")
         >>> constructs = framework.get_constructs()
     """
+    # Ensure domain packs are loaded (lazy trigger)
+    if not _FRAMEWORKS:
+        try:
+            import broker.domains  # noqa: F401
+        except ImportError:
+            pass
+
     name_lower = name.lower().strip()
 
     if name_lower not in _FRAMEWORKS:
@@ -782,4 +262,42 @@ def register_framework(name: str, framework_class: type) -> None:
 
 def list_frameworks() -> List[str]:
     """Return list of available framework names."""
+    # Ensure domain packs are loaded
+    if not _FRAMEWORKS:
+        try:
+            import broker.domains  # noqa: F401
+        except ImportError:
+            pass
     return list(_FRAMEWORKS.keys())
+
+
+# ---------------------------------------------------------------------------
+# Backward-compatibility shim
+# ---------------------------------------------------------------------------
+# Concrete framework classes were moved to broker.domains.water in v0.3.
+# This __getattr__ allows old imports like:
+#     from broker.core.psychometric import PMTFramework
+# to continue working with a deprecation warning.
+
+_MOVED_CLASSES = {
+    "PMTFramework": "broker.domains.water.pmt",
+    "UtilityFramework": "broker.domains.water.utility",
+    "FinancialFramework": "broker.domains.water.financial",
+    "PMT_LABEL_ORDER": "broker.domains.water.pmt",
+}
+
+
+def __getattr__(name: str):
+    if name in _MOVED_CLASSES:
+        import importlib
+        import warnings
+        module_path = _MOVED_CLASSES[name]
+        warnings.warn(
+            f"{name} has moved to {module_path}. "
+            f"Update your import to: from {module_path} import {name}",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        mod = importlib.import_module(module_path)
+        return getattr(mod, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
