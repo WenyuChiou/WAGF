@@ -11,6 +11,13 @@ from broker.components.memory.bridge import MemoryBridge # Added import
 
 
 class MultiAgentHooks:
+    # Minimum flood depth for an agent to be considered "flooded" (behavioral response).
+    # Literature: DIP paper (2024, npj Natural Hazards) recommends 0 to -0.5 ft DIP
+    # for slab-on-grade residential buildings without basements.
+    # At 0.5 ft: structure damage = 9.8%, contents = 33.6% — first non-trivial level.
+    # Also compensates for ffe_ft=0.0 simplification (real NJ FFE ≈ 0.5-1 ft).
+    FLOOD_DEPTH_THRESHOLD_M = 0.15  # ~0.5 ft / 6 inches
+
     def __init__(
         self,
         environment: Dict,
@@ -117,9 +124,9 @@ class MultiAgentHooks:
 
             max_depth_m = max(self.agent_flood_depths.values()) if self.agent_flood_depths else 0.0
             avg_depth_m = sum(self.agent_flood_depths.values()) / len(self.agent_flood_depths) if self.agent_flood_depths else 0.0
-            flooded_count = sum(1 for d in self.agent_flood_depths.values() if d > 0)
+            flooded_count = sum(1 for d in self.agent_flood_depths.values() if d >= self.FLOOD_DEPTH_THRESHOLD_M)
 
-            self.env["flood_occurred"] = max_depth_m > 0
+            self.env["flood_occurred"] = max_depth_m >= self.FLOOD_DEPTH_THRESHOLD_M
             self.env["flood_depth_m"] = round(max_depth_m, 3)
             self.env["flood_depth_ft"] = round(max_depth_m * 3.28084, 3)
             self.env["avg_flood_depth_m"] = round(avg_depth_m, 3)
@@ -143,7 +150,7 @@ class MultiAgentHooks:
                 event = self.hazard.get_flood_event(year=year)
                 depth_m = event.depth_m
                 depth_ft = event.depth_ft
-            self.env["flood_occurred"] = depth_m > 0
+            self.env["flood_occurred"] = depth_m >= self.FLOOD_DEPTH_THRESHOLD_M
             self.env["flood_depth_m"] = round(depth_m, 3)
             self.env["flood_depth_ft"] = round(depth_ft, 3)
             self.agent_flood_depths = {}
@@ -399,7 +406,7 @@ class MultiAgentHooks:
                 if depth_ft <= 0:
                     continue
 
-                flooded_agents += 1
+                # --- Physical damage (any positive depth per FEMA curve) ---
                 rcv_building = agent.fixed_attributes["rcv_building"]
                 rcv_contents = agent.fixed_attributes["rcv_contents"]
                 agent_elev_ft = agent.dynamic_state.get("elevation_feet") if agent.dynamic_state.get("elevated") else None
@@ -414,6 +421,14 @@ class MultiAgentHooks:
 
                 agent.dynamic_state["cumulative_damage"] += damage
                 total_damage += damage
+
+                # --- Behavioral response: only above perception threshold ---
+                # DIP paper (2024): slab-on-grade DIP = 0 to -0.5 ft;
+                # 0.5 ft is the first non-trivial damage level (structure 9.8%, contents 33.6%).
+                if depth_m < self.FLOOD_DEPTH_THRESHOLD_M:
+                    continue  # Physical damage recorded, but agent doesn't perceive as "flood event"
+
+                flooded_agents += 1
 
                 # Track flood history for memory-mediated TP (Paper 3)
                 agent.dynamic_state["flood_count"] = agent.dynamic_state.get("flood_count", 0) + 1
@@ -442,7 +457,7 @@ class MultiAgentHooks:
 
             was_flooded = (
                 (self.per_agent_depth and agent.id in self.agent_flood_depths
-                 and self.agent_flood_depths[agent.id] > 0)
+                 and self.agent_flood_depths[agent.id] >= self.FLOOD_DEPTH_THRESHOLD_M)
                 or (not self.per_agent_depth and community_depth_ft > 0)
             )
 
