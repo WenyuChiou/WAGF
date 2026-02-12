@@ -83,9 +83,9 @@ PMT_OWNER_RULES = {
     # Moderate Threat (relaxed per Grothmann & Reusswig 2006, Bubeck 2012: subsidies & social norms)
     # - Government subsidies lower response costs, enabling action
     # - Social proof from neighbors reduces perceived complexity
-    ("M", "VH"): ["buy_insurance", "elevate", "buyout", "do_nothing"],
-    ("M", "H"): ["buy_insurance", "elevate", "buyout", "do_nothing"],  # Subsidy enables buyout
-    ("M", "M"): ["buy_insurance", "elevate", "buyout", "do_nothing"],  # buyout enabled by ~50% gov subsidy (Grothmann 2006)
+    ("M", "VH"): ["buy_insurance", "elevate", "do_nothing"],  # Removed buyout: requires TP≥H (Baker et al. 2018)
+    ("M", "H"): ["buy_insurance", "elevate", "do_nothing"],   # Removed buyout: irreversible action requires high threat
+    ("M", "M"): ["buy_insurance", "elevate", "do_nothing"],   # Removed buyout: moderate threat insufficient for extreme action
     ("M", "L"): ["buy_insurance", "do_nothing"],  # Removed elevate: LOW coping precludes structural action
     ("M", "VL"): ["do_nothing"],
 
@@ -117,9 +117,9 @@ PMT_RENTER_RULES = {
     ("H", "L"): ["buy_insurance", "do_nothing"],
     ("H", "VL"): ["do_nothing"],
     # Moderate Threat (relaxed based on PMT research)
-    ("M", "VH"): ["buy_insurance", "relocate", "do_nothing"],
-    ("M", "H"): ["buy_insurance", "relocate", "do_nothing"],  # Added relocate
-    ("M", "M"): ["buy_insurance", "relocate", "do_nothing"],  # Added relocate
+    ("M", "VH"): ["buy_insurance", "do_nothing"],  # Removed relocate: requires TP≥H (Baker et al. 2018)
+    ("M", "H"): ["buy_insurance", "do_nothing"],   # Removed relocate: irreversible action requires high threat
+    ("M", "M"): ["buy_insurance", "do_nothing"],   # Removed relocate: moderate threat insufficient for extreme action
     ("M", "L"): ["do_nothing", "buy_insurance"],
     ("M", "VL"): ["do_nothing"],
     # Low Threat (relaxed: insurance is reasonable even at low threat)
@@ -191,15 +191,29 @@ EMPIRICAL_BENCHMARKS = {
 # =============================================================================
 
 @dataclass
+class CACRDecomposition:
+    """CACR decomposition separating LLM reasoning from governance filtering."""
+    cacr_raw: float       # Coherence of proposed_skill (pre-governance, all attempts)
+    cacr_final: float     # Coherence of final_skill (post-governance, approved only)
+    retry_rate: float     # Fraction of decisions requiring retry
+    fallback_rate: float  # Fraction of decisions where proposed != final
+    total_proposals: int
+    quadrant_cacr: Dict[str, float]  # CACR by (TP_high_low, CP_high_low) quadrant
+
+
+@dataclass
 class L1Metrics:
     """L1 Micro validation metrics."""
     cacr: float  # Construct-Action Coherence Rate
     r_h: float   # Hallucination Rate
     ebe: float   # Effective Behavioral Entropy
+    ebe_max: float  # Maximum entropy = log2(K) for K distinct actions
+    ebe_ratio: float  # ebe / ebe_max (0=degenerate, 1=uniform random)
     total_decisions: int
     coherent_decisions: int
     hallucinations: int
     action_distribution: Dict[str, int]
+    cacr_decomposition: Optional[CACRDecomposition] = None
 
     def passes_thresholds(self) -> Dict[str, bool]:
         # CACR threshold: 0.75 based on empirical PMT literature:
@@ -211,7 +225,8 @@ class L1Metrics:
         return {
             "CACR": self.cacr >= 0.75,
             "R_H": self.r_h <= 0.10,
-            "EBE": self.ebe > 0,
+            # EBE ratio: neither degenerate (all same action) nor uniform random
+            "EBE": 0.1 < self.ebe_ratio < 0.9 if self.ebe_max > 0 else False,
         }
 
 
@@ -222,6 +237,7 @@ class L2Metrics:
     benchmark_results: Dict[str, Dict]
     benchmarks_in_range: int
     total_benchmarks: int
+    supplementary: Optional[Dict] = None  # Informational metrics (not benchmarks)
 
     def passes_threshold(self) -> bool:
         return self.epi >= 0.60
@@ -336,10 +352,17 @@ def compute_l1_metrics(traces: List[Dict], agent_type: str = "owner") -> L1Metri
     # Compute EBE (Effective Behavioral Entropy)
     ebe = _compute_entropy(action_counts)
 
+    # EBE reference: max entropy = log2(K) for K distinct actions
+    k = len(action_counts)
+    ebe_max = math.log2(k) if k > 1 else 0.0
+    ebe_ratio = ebe / ebe_max if ebe_max > 0 else 0.0
+
     return L1Metrics(
         cacr=round(cacr, 4),
         r_h=round(r_h, 4),
         ebe=round(ebe, 4),
+        ebe_max=round(ebe_max, 4),
+        ebe_ratio=round(ebe_ratio, 4),
         total_decisions=total,
         coherent_decisions=coherent,
         hallucinations=hallucinations,
@@ -440,6 +463,151 @@ def _compute_entropy(counts: Counter) -> float:
 
 
 # =============================================================================
+# CACR Decomposition (from governance audit CSVs)
+# =============================================================================
+
+def _tp_quadrant(tp: str) -> str:
+    """Map TP label to high/low quadrant."""
+    return "high" if tp in ("H", "VH") else "low"
+
+
+def _cp_quadrant(cp: str) -> str:
+    """Map CP label to high/low quadrant."""
+    return "high" if cp in ("H", "VH") else "low"
+
+
+def compute_cacr_decomposition(audit_csv_paths: List[Path]) -> Optional[CACRDecomposition]:
+    """
+    Compute CACR decomposition from governance audit CSVs.
+
+    Separates "LLM reasoning quality" (cacr_raw) from "governance filter
+    effectiveness" (cacr_final). This is the strongest defense against the
+    "constrained RNG" criticism: if cacr_raw is high, the LLM is reasoning
+    well even before governance intervenes.
+
+    Args:
+        audit_csv_paths: List of paths to governance audit CSVs
+
+    Returns:
+        CACRDecomposition or None if no audit data available
+    """
+    rows = []
+    for path in audit_csv_paths:
+        if not path.exists():
+            continue
+        try:
+            df = pd.read_csv(path, encoding='utf-8-sig')
+            rows.append(df)
+        except Exception as e:
+            print(f"  Warning: Could not read audit CSV {path}: {e}")
+            continue
+
+    if not rows:
+        return None
+
+    audit = pd.concat(rows, ignore_index=True)
+
+    # Need proposed_skill and construct TP/CP labels
+    tp_col = None
+    cp_col = None
+    for col in audit.columns:
+        if col in ("construct_TP_LABEL", "reason_tp_label"):
+            tp_col = col
+        if col in ("construct_CP_LABEL", "reason_cp_label"):
+            cp_col = col
+
+    if tp_col is None or cp_col is None or "proposed_skill" not in audit.columns:
+        print("  Warning: Audit CSV missing required columns for CACR decomposition")
+        return None
+
+    # Filter to household agents only (skip government/insurance)
+    household_mask = audit["agent_id"].astype(str).str.startswith("H")
+    audit = audit[household_mask].copy()
+
+    if len(audit) == 0:
+        return None
+
+    # Determine agent type from agent_id pattern (owners: H0001-H0200, renters: H0201-H0400)
+    # This is approximate; exact mapping depends on profile assignment
+    def _get_rules_for_row(row):
+        agent_id = str(row.get("agent_id", ""))
+        # Check if renter by looking at proposed actions or file source
+        proposed = _normalize_action(row.get("proposed_skill", "do_nothing"))
+        if proposed == "relocate":
+            return PMT_RENTER_RULES
+        return PMT_OWNER_RULES
+
+    # Compute CACR_raw: coherence of proposed_skill
+    raw_coherent = 0
+    total = len(audit)
+    quadrant_counts = {}  # {quadrant_key: (coherent, total)}
+
+    for _, row in audit.iterrows():
+        tp = str(row.get(tp_col, "M")).strip()
+        cp = str(row.get(cp_col, "M")).strip()
+        proposed = _normalize_action(row.get("proposed_skill", "do_nothing"))
+        rules = _get_rules_for_row(row)
+
+        key = (tp, cp)
+        is_coherent = proposed in rules.get(key, [])
+        if is_coherent:
+            raw_coherent += 1
+
+        # Quadrant tracking
+        q_key = f"TP_{_tp_quadrant(tp)}_CP_{_cp_quadrant(cp)}"
+        if q_key not in quadrant_counts:
+            quadrant_counts[q_key] = [0, 0]
+        quadrant_counts[q_key][1] += 1
+        if is_coherent:
+            quadrant_counts[q_key][0] += 1
+
+    # Compute CACR_final: coherence of final_skill (approved outcomes only)
+    final_col = "final_skill" if "final_skill" in audit.columns else "proposed_skill"
+    approved_mask = audit.get("outcome", audit.get("status", "")).isin(["APPROVED", "RETRY_SUCCESS"])
+    approved = audit[approved_mask]
+
+    final_coherent = 0
+    for _, row in approved.iterrows():
+        tp = str(row.get(tp_col, "M")).strip()
+        cp = str(row.get(cp_col, "M")).strip()
+        final = _normalize_action(row.get(final_col, "do_nothing"))
+        rules = _get_rules_for_row(row)
+        key = (tp, cp)
+        if final in rules.get(key, []):
+            final_coherent += 1
+
+    cacr_raw = raw_coherent / total if total > 0 else 0.0
+    cacr_final = final_coherent / len(approved) if len(approved) > 0 else 0.0
+
+    # Retry and fallback rates
+    retry_col = "retry_count" if "retry_count" in audit.columns else None
+    retry_rate = 0.0
+    if retry_col:
+        retry_rate = (audit[retry_col].fillna(0).astype(int) > 0).mean()
+
+    fallback_rate = 0.0
+    if final_col in audit.columns and "proposed_skill" in audit.columns:
+        fallback_rate = (
+            audit[final_col].fillna("") != audit["proposed_skill"].fillna("")
+        ).mean()
+
+    # Quadrant CACR
+    quadrant_cacr = {
+        k: round(v[0] / v[1], 4) if v[1] > 0 else 0.0
+        for k, v in quadrant_counts.items()
+    }
+
+    return CACRDecomposition(
+        cacr_raw=round(cacr_raw, 4),
+        cacr_final=round(cacr_final, 4),
+        retry_rate=round(retry_rate, 4),
+        fallback_rate=round(fallback_rate, 4),
+        total_proposals=total,
+        quadrant_cacr=quadrant_cacr,
+    )
+
+
+# =============================================================================
 # L2 Metric Computation
 # =============================================================================
 
@@ -523,12 +691,89 @@ def compute_l2_metrics(
     # Compute EPI (weighted proportion in range)
     epi = weighted_in_range / total_weight if total_weight > 0 else 0.0
 
+    # Supplementary metrics: REJECTED tracking by MG status
+    # Transforms "methodological awkwardness" into environmental justice finding
+    supplementary = _compute_rejection_supplementary(traces, agent_profiles)
+
     return L2Metrics(
         epi=round(epi, 4),
         benchmark_results=benchmark_results,
         benchmarks_in_range=in_range_count,
         total_benchmarks=len(EMPIRICAL_BENCHMARKS),
+        supplementary=supplementary,
     )
+
+
+def _compute_rejection_supplementary(
+    traces: List[Dict],
+    agent_profiles: pd.DataFrame,
+) -> Dict:
+    """
+    Compute REJECTED tracking metrics as supplementary L2 output.
+
+    REJECTED proposals mirror real-world institutional barriers (affordability,
+    eligibility). Tracking rejection rates by MG status reveals whether
+    governance constraints disproportionately affect marginalized groups —
+    an endogenous environmental justice finding.
+    """
+    # Build agent_id → mg lookup
+    mg_lookup = dict(zip(
+        agent_profiles["agent_id"].astype(str),
+        agent_profiles["mg"].astype(bool),
+    ))
+
+    rejected_mg = 0
+    rejected_nmg = 0
+    total_mg = 0
+    total_nmg = 0
+
+    for trace in traces:
+        agent_id = str(trace.get("agent_id", ""))
+        is_mg = mg_lookup.get(agent_id)
+        if is_mg is None:
+            continue
+
+        outcome = trace.get("outcome", "")
+        if is_mg:
+            total_mg += 1
+            if outcome == "REJECTED":
+                rejected_mg += 1
+        else:
+            total_nmg += 1
+            if outcome == "REJECTED":
+                rejected_nmg += 1
+
+    rejection_rate_mg = rejected_mg / total_mg if total_mg > 0 else 0.0
+    rejection_rate_nmg = rejected_nmg / total_nmg if total_nmg > 0 else 0.0
+    total_rejected = rejected_mg + rejected_nmg
+    total_all = total_mg + total_nmg
+    overall_rejection_rate = total_rejected / total_all if total_all > 0 else 0.0
+
+    # Constrained non-adaptation rate: fraction of all decisions where
+    # the agent WANTED to act but was blocked by governance
+    constrained_non_adaptation = 0
+    for trace in traces:
+        outcome = trace.get("outcome", "")
+        if outcome == "REJECTED":
+            proposed = _normalize_action(
+                trace.get("skill_proposal", {}).get("skill_name", "do_nothing")
+                if isinstance(trace.get("skill_proposal"), dict)
+                else "do_nothing"
+            )
+            if proposed != "do_nothing":
+                constrained_non_adaptation += 1
+
+    constrained_rate = constrained_non_adaptation / total_all if total_all > 0 else 0.0
+
+    return {
+        "rejection_rate_overall": round(overall_rejection_rate, 4),
+        "rejection_rate_mg": round(rejection_rate_mg, 4),
+        "rejection_rate_nmg": round(rejection_rate_nmg, 4),
+        "rejection_gap_mg_minus_nmg": round(rejection_rate_mg - rejection_rate_nmg, 4),
+        "constrained_non_adaptation_rate": round(constrained_rate, 4),
+        "total_rejected": total_rejected,
+        "total_decisions": total_all,
+    }
 
 
 def _extract_final_states(traces: List[Dict]) -> Dict[str, Dict]:
@@ -702,7 +947,8 @@ def _compute_benchmark(name: str, df: pd.DataFrame, traces: List[Dict]) -> Optio
             return inaction / len(flooded_traces)
 
         elif name == "mg_adaptation_gap":
-            # Gap between MG and NMG adaptation rates
+            # Gap between MG and NMG adaptation rates (insurance-based).
+            # Composite version (any_adaptation) reported in supplementary.
             # fillna(False): agents without traces treated as unadapted
             if ins_col is None or ins_col not in df.columns:
                 return None
@@ -832,22 +1078,43 @@ def compute_validation(
     l1_renter = compute_l1_metrics(renter_traces, "renter")
 
     # Combined L1
+    combined_actions = {
+        k: l1_owner.action_distribution.get(k, 0) + l1_renter.action_distribution.get(k, 0)
+        for k in set(l1_owner.action_distribution) | set(l1_renter.action_distribution)
+    }
+    combined_ebe = round((l1_owner.ebe + l1_renter.ebe) / 2, 4)
+    k_combined = len(combined_actions)
+    combined_ebe_max = round(math.log2(k_combined), 4) if k_combined > 1 else 0.0
+    combined_ebe_ratio = round(combined_ebe / combined_ebe_max, 4) if combined_ebe_max > 0 else 0.0
+
     l1_combined = L1Metrics(
         cacr=round((l1_owner.cacr * len(owner_traces) + l1_renter.cacr * len(renter_traces)) / len(all_traces), 4),
         r_h=round((l1_owner.r_h * len(owner_traces) + l1_renter.r_h * len(renter_traces)) / len(all_traces), 4),
-        ebe=round((l1_owner.ebe + l1_renter.ebe) / 2, 4),
+        ebe=combined_ebe,
+        ebe_max=combined_ebe_max,
+        ebe_ratio=combined_ebe_ratio,
         total_decisions=len(all_traces),
         coherent_decisions=l1_owner.coherent_decisions + l1_renter.coherent_decisions,
         hallucinations=l1_owner.hallucinations + l1_renter.hallucinations,
-        action_distribution={
-            k: l1_owner.action_distribution.get(k, 0) + l1_renter.action_distribution.get(k, 0)
-            for k in set(l1_owner.action_distribution) | set(l1_renter.action_distribution)
-        },
+        action_distribution=combined_actions,
     )
+
+    # Try CACR decomposition from governance audit CSVs
+    audit_csvs = list(traces_dir.glob("**/*governance_audit.csv"))
+    if audit_csvs:
+        print(f"\n  Found {len(audit_csvs)} governance audit CSV(s)")
+        cacr_decomp = compute_cacr_decomposition(audit_csvs)
+        if cacr_decomp:
+            l1_combined.cacr_decomposition = cacr_decomp
+            print(f"  CACR_raw (pre-governance): {cacr_decomp.cacr_raw}")
+            print(f"  CACR_final (post-governance): {cacr_decomp.cacr_final}")
+            print(f"  Retry rate: {cacr_decomp.retry_rate}")
+            print(f"  Fallback rate: {cacr_decomp.fallback_rate}")
+            print(f"  Quadrant CACR: {cacr_decomp.quadrant_cacr}")
 
     print(f"  CACR: {l1_combined.cacr} (threshold >=0.75)")
     print(f"  R_H: {l1_combined.r_h} (threshold <=0.10)")
-    print(f"  EBE: {l1_combined.ebe} (threshold >0)")
+    print(f"  EBE: {l1_combined.ebe} (ratio={l1_combined.ebe_ratio}, threshold 0.1<ratio<0.9)")
 
     # Compute L2 metrics
     print("\nComputing L2 metrics...")
@@ -898,26 +1165,33 @@ def compute_validation(
 
     # Save L1 details
     l1_path = output_dir / "l1_micro_metrics.json"
+    l1_data = {
+        "combined": asdict(l1_combined),
+        "owner": asdict(l1_owner),
+        "renter": asdict(l1_renter),
+        "thresholds": {"CACR": ">=0.75", "R_H": "<=0.10", "EBE": "0.1<ratio<0.9"},
+        "pass": l1_combined.passes_thresholds(),
+    }
+    # CACR decomposition stored separately to avoid cluttering per-type metrics
+    if l1_combined.cacr_decomposition:
+        l1_data["cacr_decomposition"] = asdict(l1_combined.cacr_decomposition)
     with open(l1_path, 'w', encoding='utf-8') as f:
-        json.dump(_to_json_serializable({
-            "combined": asdict(l1_combined),
-            "owner": asdict(l1_owner),
-            "renter": asdict(l1_renter),
-            "thresholds": {"CACR": ">=0.75", "R_H": "<=0.10", "EBE": ">0"},
-            "pass": l1_combined.passes_thresholds(),
-        }), f, indent=2, ensure_ascii=False)
+        json.dump(_to_json_serializable(l1_data), f, indent=2, ensure_ascii=False)
     print(f"Saved: {l1_path}")
 
     # Save L2 details
     l2_path = output_dir / "l2_macro_metrics.json"
+    l2_data = {
+        "epi": l2.epi,
+        "benchmarks_in_range": l2.benchmarks_in_range,
+        "total_benchmarks": l2.total_benchmarks,
+        "benchmark_results": l2.benchmark_results,
+        "pass": l2.passes_threshold(),
+    }
+    if l2.supplementary:
+        l2_data["supplementary"] = l2.supplementary
     with open(l2_path, 'w', encoding='utf-8') as f:
-        json.dump(_to_json_serializable({
-            "epi": l2.epi,
-            "benchmarks_in_range": l2.benchmarks_in_range,
-            "total_benchmarks": l2.total_benchmarks,
-            "benchmark_results": l2.benchmark_results,
-            "pass": l2.passes_threshold(),
-        }), f, indent=2, ensure_ascii=False)
+        json.dump(_to_json_serializable(l2_data), f, indent=2, ensure_ascii=False)
     print(f"Saved: {l2_path}")
 
     # Save benchmark comparison CSV

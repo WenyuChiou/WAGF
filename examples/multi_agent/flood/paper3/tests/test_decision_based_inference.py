@@ -24,8 +24,14 @@ from examples.multi_agent.flood.paper3.analysis.compute_validation_metrics impor
     _extract_final_states,
     _normalize_action,
     _compute_benchmark,
+    compute_l1_metrics,
     compute_l2_metrics,
+    compute_cacr_decomposition,
+    CACRDecomposition,
+    L1Metrics,
     EMPIRICAL_BENCHMARKS,
+    PMT_OWNER_RULES,
+    PMT_RENTER_RULES,
 )
 
 
@@ -304,7 +310,7 @@ class TestBenchmarkWithDecisionState:
             make_trace("H001", year=1, action="buy_insurance"),  # MG, insured
             make_trace("H002", year=1, action="do_nothing"),     # MG, not insured
             make_trace("H003", year=1, action="do_nothing"),     # NMG
-            make_trace("H004", year=1, action="elevate_house"),  # NMG
+            make_trace("H004", year=1, action="elevate_house"),  # NMG (elevation doesn't count)
         ]
         profiles = _make_agent_profiles([
             {"agent_id": "H001", "tenure": "Owner", "flood_zone": "HIGH", "mg": True},
@@ -443,3 +449,229 @@ class TestNormalizeAction:
 
     def test_none_input(self):
         assert _normalize_action(None) == "do_nothing"
+
+
+# =============================================================================
+# EBE Ratio Tests
+# =============================================================================
+
+
+class TestEBERatio:
+    """Tests for EBE reference distribution ratio."""
+
+    def test_ebe_ratio_diverse_actions(self):
+        """Multiple distinct actions → ratio between 0 and 1."""
+        traces = [
+            make_trace("H001", year=1, action="buy_insurance"),
+            make_trace("H002", year=1, action="elevate_house"),
+            make_trace("H003", year=1, action="do_nothing"),
+            make_trace("H004", year=1, action="buyout_program"),
+        ]
+        # Add TP/CP labels for coherence check
+        for t in traces:
+            t["skill_proposal"]["reasoning"]["TP_LABEL"] = "H"
+            t["skill_proposal"]["reasoning"]["CP_LABEL"] = "H"
+
+        l1 = compute_l1_metrics(traces, "owner")
+        assert l1.ebe_max > 0
+        assert 0 < l1.ebe_ratio <= 1.0
+        # 4 distinct actions, uniform → ratio = 1.0
+        assert l1.ebe_ratio == pytest.approx(1.0, abs=0.01)
+
+    def test_ebe_ratio_single_action(self):
+        """All same action → ebe=0, ebe_max=0, ratio=0."""
+        traces = [
+            make_trace("H001", year=1, action="do_nothing"),
+            make_trace("H002", year=1, action="do_nothing"),
+            make_trace("H003", year=1, action="do_nothing"),
+        ]
+        for t in traces:
+            t["skill_proposal"]["reasoning"]["TP_LABEL"] = "L"
+            t["skill_proposal"]["reasoning"]["CP_LABEL"] = "L"
+
+        l1 = compute_l1_metrics(traces, "owner")
+        assert l1.ebe == 0.0
+        assert l1.ebe_max == 0.0
+        assert l1.ebe_ratio == 0.0
+
+    def test_ebe_ratio_passes_threshold(self):
+        """Diverse but not uniform → passes 0.1 < ratio < 0.9 check."""
+        traces = [
+            make_trace("H001", year=1, action="buy_insurance"),
+            make_trace("H002", year=1, action="buy_insurance"),
+            make_trace("H003", year=1, action="buy_insurance"),
+            make_trace("H004", year=1, action="do_nothing"),
+            make_trace("H005", year=1, action="elevate_house"),
+        ]
+        for t in traces:
+            t["skill_proposal"]["reasoning"]["TP_LABEL"] = "H"
+            t["skill_proposal"]["reasoning"]["CP_LABEL"] = "H"
+
+        l1 = compute_l1_metrics(traces, "owner")
+        thresholds = l1.passes_thresholds()
+        # 3 distinct actions, skewed → ratio should be between 0.1 and 0.9
+        assert l1.ebe_ratio > 0.1
+        assert l1.ebe_ratio < 0.9
+        assert thresholds["EBE"] is True
+
+
+# =============================================================================
+# PMT Rule Removal Tests (buyout from M,* cells)
+# =============================================================================
+
+
+class TestPMTBuyoutRemoval:
+    """Tests verifying buyout removed from moderate-threat PMT cells."""
+
+    def test_owner_m_vh_no_buyout(self):
+        assert "buyout" not in PMT_OWNER_RULES[("M", "VH")]
+
+    def test_owner_m_h_no_buyout(self):
+        assert "buyout" not in PMT_OWNER_RULES[("M", "H")]
+
+    def test_owner_m_m_no_buyout(self):
+        assert "buyout" not in PMT_OWNER_RULES[("M", "M")]
+
+    def test_renter_m_vh_no_relocate(self):
+        assert "relocate" not in PMT_RENTER_RULES[("M", "VH")]
+
+    def test_renter_m_h_no_relocate(self):
+        assert "relocate" not in PMT_RENTER_RULES[("M", "H")]
+
+    def test_renter_m_m_no_relocate(self):
+        assert "relocate" not in PMT_RENTER_RULES[("M", "M")]
+
+    def test_owner_high_threat_still_has_buyout(self):
+        """Buyout preserved for TP≥H cells."""
+        assert "buyout" in PMT_OWNER_RULES[("H", "VH")]
+        assert "buyout" in PMT_OWNER_RULES[("H", "H")]
+        assert "buyout" in PMT_OWNER_RULES[("VH", "VH")]
+        assert "buyout" in PMT_OWNER_RULES[("VH", "H")]
+
+
+# =============================================================================
+# CACR Decomposition Tests
+# =============================================================================
+
+
+class TestCACRDecomposition:
+    """Tests for CACR raw/final decomposition."""
+
+    def test_no_audit_files_returns_none(self):
+        """No audit CSV files → returns None."""
+        from pathlib import Path
+        result = compute_cacr_decomposition([Path("/nonexistent/path.csv")])
+        assert result is None
+
+    def test_decomposition_with_csv(self, tmp_path):
+        """Create a minimal audit CSV and verify decomposition."""
+        # Create a mock audit CSV
+        audit_data = pd.DataFrame([
+            {"agent_id": "H001", "proposed_skill": "buy_insurance",
+             "final_skill": "buy_insurance", "outcome": "APPROVED",
+             "construct_TP_LABEL": "H", "construct_CP_LABEL": "H", "retry_count": 0},
+            {"agent_id": "H002", "proposed_skill": "elevate_house",
+             "final_skill": "elevate_house", "outcome": "APPROVED",
+             "construct_TP_LABEL": "H", "construct_CP_LABEL": "VH", "retry_count": 0},
+            {"agent_id": "H003", "proposed_skill": "buyout_program",
+             "final_skill": "do_nothing", "outcome": "REJECTED",
+             "construct_TP_LABEL": "L", "construct_CP_LABEL": "L", "retry_count": 1},
+        ])
+        csv_path = tmp_path / "test_governance_audit.csv"
+        audit_data.to_csv(csv_path, index=False, encoding='utf-8-sig')
+
+        result = compute_cacr_decomposition([csv_path])
+        assert result is not None
+        assert isinstance(result, CACRDecomposition)
+        assert result.total_proposals == 3
+        # H001: (H,H) → buy_insurance is valid ✓
+        # H002: (H,VH) → elevate is valid ✓
+        # H003: (L,L) → buyout is NOT valid ✗
+        assert result.cacr_raw == pytest.approx(2 / 3, abs=0.01)
+        assert result.retry_rate == pytest.approx(1 / 3, abs=0.01)
+        assert result.fallback_rate == pytest.approx(1 / 3, abs=0.01)
+        assert len(result.quadrant_cacr) > 0
+
+    def test_quadrant_cacr_keys(self, tmp_path):
+        """Verify quadrant keys are TP_high/low_CP_high/low."""
+        audit_data = pd.DataFrame([
+            {"agent_id": "H001", "proposed_skill": "buy_insurance",
+             "final_skill": "buy_insurance", "outcome": "APPROVED",
+             "construct_TP_LABEL": "VH", "construct_CP_LABEL": "H", "retry_count": 0},
+            {"agent_id": "H002", "proposed_skill": "do_nothing",
+             "final_skill": "do_nothing", "outcome": "APPROVED",
+             "construct_TP_LABEL": "L", "construct_CP_LABEL": "VL", "retry_count": 0},
+        ])
+        csv_path = tmp_path / "test_audit.csv"
+        audit_data.to_csv(csv_path, index=False, encoding='utf-8-sig')
+
+        result = compute_cacr_decomposition([csv_path])
+        assert "TP_high_CP_high" in result.quadrant_cacr
+        assert "TP_low_CP_low" in result.quadrant_cacr
+
+
+# =============================================================================
+# Rejection Supplementary Metrics Tests
+# =============================================================================
+
+
+class TestRejectionSupplementary:
+    """Tests for REJECTED tracking in L2 supplementary output."""
+
+    def test_supplementary_present(self):
+        """L2 metrics should include supplementary dict."""
+        traces = [
+            make_trace("H001", year=1, action="buy_insurance"),
+            make_trace("H002", year=1, action="do_nothing"),
+        ]
+        profiles = _make_agent_profiles([
+            {"agent_id": "H001", "tenure": "Owner", "flood_zone": "HIGH", "mg": True},
+            {"agent_id": "H002", "tenure": "Owner", "flood_zone": "HIGH", "mg": False},
+        ])
+        result = compute_l2_metrics(traces, profiles)
+        assert result.supplementary is not None
+        assert "rejection_rate_overall" in result.supplementary
+        assert "rejection_rate_mg" in result.supplementary
+        assert "constrained_non_adaptation_rate" in result.supplementary
+
+    def test_no_rejections(self):
+        """No REJECTED traces → all rejection rates = 0."""
+        traces = [
+            make_trace("H001", year=1, action="buy_insurance"),
+            make_trace("H002", year=1, action="do_nothing"),
+        ]
+        profiles = _make_agent_profiles([
+            {"agent_id": "H001", "tenure": "Owner", "flood_zone": "HIGH", "mg": True},
+            {"agent_id": "H002", "tenure": "Owner", "flood_zone": "HIGH", "mg": False},
+        ])
+        result = compute_l2_metrics(traces, profiles)
+        assert result.supplementary["rejection_rate_overall"] == 0.0
+        assert result.supplementary["total_rejected"] == 0
+
+    def test_with_rejections_by_mg(self):
+        """REJECTED traces tracked by MG status."""
+        traces = [
+            make_trace("H001", year=1, action="buy_insurance"),  # MG, approved
+        ]
+        # Add a REJECTED trace for MG agent
+        rejected = {
+            "agent_id": "H002", "year": 1, "outcome": "REJECTED",
+            "skill_proposal": {"skill_name": "elevate_house", "reasoning": {}},
+            "approved_skill": {"skill_name": "do_nothing", "status": "REJECTED"},
+        }
+        traces.append(rejected)
+        # NMG agent, approved
+        traces.append(make_trace("H003", year=1, action="do_nothing"))
+
+        profiles = _make_agent_profiles([
+            {"agent_id": "H001", "tenure": "Owner", "flood_zone": "HIGH", "mg": True},
+            {"agent_id": "H002", "tenure": "Owner", "flood_zone": "HIGH", "mg": True},
+            {"agent_id": "H003", "tenure": "Owner", "flood_zone": "HIGH", "mg": False},
+        ])
+        result = compute_l2_metrics(traces, profiles)
+        # 1 rejected out of 2 MG traces
+        assert result.supplementary["rejection_rate_mg"] == pytest.approx(0.5, abs=0.01)
+        assert result.supplementary["rejection_rate_nmg"] == pytest.approx(0.0, abs=0.01)
+        assert result.supplementary["rejection_gap_mg_minus_nmg"] == pytest.approx(0.5, abs=0.01)
+        # H002 wanted elevate (not do_nothing) but was rejected → constrained
+        assert result.supplementary["constrained_non_adaptation_rate"] == pytest.approx(1 / 3, abs=0.01)
