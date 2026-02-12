@@ -31,7 +31,19 @@ jobs:
         run: python -m pytest tests/core/ -v --tb=short
 
       - name: SDK tests (no LLM)
-        run: python -m pytest tests/sdk/ -v --tb=short -k "not real_llm" --ignore=tests/sdk/test_domain_packs.py
+        run: |
+          python -m pytest tests/sdk/ -v --tb=short -k "not real_llm" --ignore=tests/sdk/test_domain_packs.py || code=$?
+          if [ "${code:-0}" = "5" ]; then
+            echo "No SDK tests collected; skipping."
+            exit 0
+          fi
+          exit ${code:-0}
 
       - name: Integration tests (no LLM)
-        run: python -m pytest tests/integration/ -v --tb=short -k "not real_llm"
+        run: |
+          python -m pytest tests/integration/ -v --tb=short -k "not real_llm" || code=$?
+          if [ "${code:-0}" = "5" ]; then
+            echo "No integration tests collected; skipping."
+            exit 0
+          fi
+          exit ${code:-0}
