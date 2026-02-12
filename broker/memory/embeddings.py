@@ -1,5 +1,6 @@
 # cognitive_governance/memory/embeddings.py
 
+import logging
 from typing import Protocol, List, Optional, Dict, Any
 from abc import ABC, abstractmethod
 import numpy as np
@@ -10,7 +11,7 @@ try:
     SENTENCE_TRANSFORMERS_AVAILABLE = True
 except ImportError:
     SENTENCE_TRANSFORMERS_AVAILABLE = False
-    print("WARNING: sentence-transformers not installed. SentenceTransformerProvider will not be functional.")
+    logging.getLogger("broker").warning("sentence-transformers not installed. SentenceTransformerProvider will not be functional.")
 
 class EmbeddingProvider(Protocol):
     """
@@ -45,9 +46,10 @@ class SentenceTransformerProvider:
         if self._model is None:
             if not SENTENCE_TRANSFORMERS_AVAILABLE:
                 raise RuntimeError("sentence-transformers library is required but not installed.")
-            print(f"Loading SentenceTransformer model: {self.model_name}...")
+            _log = logging.getLogger("broker")
+            _log.info("Loading SentenceTransformer model: %s...", self.model_name)
             self._model = SentenceTransformer(self.model_name)
-            print("Model loaded.")
+            _log.info("SentenceTransformer model loaded.")
         return self._model
 
     def embed(self, texts: List[str]) -> List[np.ndarray]:

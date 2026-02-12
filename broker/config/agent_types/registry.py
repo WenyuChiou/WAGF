@@ -6,6 +6,7 @@ Supports YAML-based configuration loading with inheritance.
 
 Part of Task-040: SA/MA Unified Architecture (Part 14.5)
 """
+import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Set
 import copy
@@ -330,7 +331,7 @@ class AgentTypeRegistry:
                 count += 1
             except Exception as e:
                 # Log but continue loading other types
-                print(f"Warning: Failed to load agent type '{type_id}': {e}")
+                logging.getLogger("broker").warning("Failed to load agent type '%s': %s", type_id, e)
 
         return count
 

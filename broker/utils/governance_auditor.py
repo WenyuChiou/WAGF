@@ -174,34 +174,37 @@ class GovernanceAuditor:
             self.format_retry_attempts
         )
 
-        print("\n" + "="*50)
-        print("  GOVERNANCE AUDIT SUMMARY")
-        print("="*50)
-        print(f"  Total Interventions: {self.total_interventions}")
-        print(f"  Parsing Failures:    {self.parse_errors}")
-        print(f"  Successful Retries:  {self.retry_success_count}")
-        print(f"  Final Fallouts:      {self.retry_failure_count}")
-        print("-"*50)
-        print("  Structural Faults (Format Issues):")
-        print(f"  - Format Retry Attempts: {self.format_retry_attempts}")
-        print(f"  - Faults Fixed:          {self.structural_faults_fixed}")
-        print(f"  - Faults Terminal:       {self.structural_faults_terminal}")
-        print("-"*50)
-        print("  LLM-Level Retries (Extra LLM Calls):")
-        print(f"  - Empty Content Retries:   {self.empty_content_retries}")
-        print(f"  - Empty Content Failures:  {self.empty_content_failures}")
-        print(f"  - Invalid Label Retries:   {self.invalid_label_retries}")
-        print(f"  - Total Extra LLM Calls:   {total_extra_llm_calls}")
-        print("-"*50)
-        print("  Top Rule Violations (ERROR):")
-        # Sort by frequency
+        lines = [
+            "",
+            "=" * 50,
+            "  GOVERNANCE AUDIT SUMMARY",
+            "=" * 50,
+            f"  Total Interventions: {self.total_interventions}",
+            f"  Parsing Failures:    {self.parse_errors}",
+            f"  Successful Retries:  {self.retry_success_count}",
+            f"  Final Fallouts:      {self.retry_failure_count}",
+            "-" * 50,
+            "  Structural Faults (Format Issues):",
+            f"  - Format Retry Attempts: {self.format_retry_attempts}",
+            f"  - Faults Fixed:          {self.structural_faults_fixed}",
+            f"  - Faults Terminal:       {self.structural_faults_terminal}",
+            "-" * 50,
+            "  LLM-Level Retries (Extra LLM Calls):",
+            f"  - Empty Content Retries:   {self.empty_content_retries}",
+            f"  - Empty Content Failures:  {self.empty_content_failures}",
+            f"  - Invalid Label Retries:   {self.invalid_label_retries}",
+            f"  - Total Extra LLM Calls:   {total_extra_llm_calls}",
+            "-" * 50,
+            "  Top Rule Violations (ERROR):",
+        ]
         sorted_rules = sorted(self.rule_hits.items(), key=lambda x: x[1], reverse=True)
         for rule_id, count in sorted_rules[:5]:
-            print(f"  - {rule_id}: {count} hits")
+            lines.append(f"  - {rule_id}: {count} hits")
         if self.total_warnings > 0:
-            print("-"*50)
-            print(f"  Warnings (Non-Blocking): {self.total_warnings}")
+            lines.append("-" * 50)
+            lines.append(f"  Warnings (Non-Blocking): {self.total_warnings}")
             sorted_warnings = sorted(self.warning_hits.items(), key=lambda x: x[1], reverse=True)
             for rule_id, count in sorted_warnings[:5]:
-                print(f"  - {rule_id}: {count} warnings")
-        print("="*50 + "\n")
+                lines.append(f"  - {rule_id}: {count} warnings")
+        lines.append("=" * 50)
+        logger.info("\n".join(lines))

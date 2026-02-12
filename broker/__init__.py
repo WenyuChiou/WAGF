@@ -7,6 +7,8 @@ irrigation, education, finance, …) is supplied by pluggable domain packs
 under ``broker.domains``.
 """
 
+__version__ = "0.2.0"
+
 # 1. Base Interfaces (No dependencies)
 from .interfaces.skill_types import (
     SkillProposal, SkillDefinition, ApprovedSkill,
@@ -20,22 +22,21 @@ from .interfaces.simulation_protocols import SimulationEngineProtocol, SkillExec
 from .interfaces.lifecycle_protocols import PreYearHook, PostStepHook, PostYearHook
 
 # 2. Utils (Dependent on interfaces)
-from .utils.model_adapter import ModelAdapter, UnifiedAdapter, deepseek_preprocessor
-from .utils.agent_config import load_agent_config, ValidationRule, CoherenceRule, AgentTypeConfig
+from .utils.model_adapter import ModelAdapter, UnifiedAdapter
+from .utils.agent_config import load_agent_config, AgentTypeConfig
 from .utils.data_loader import load_agents_from_csv
-from .utils.performance_tuner import get_optimal_config, apply_to_llm_config
 
 # 3. Components (Dependent on interfaces/utils)
 from .components.memory.engine import MemoryEngine, WindowMemoryEngine, ImportanceMemoryEngine, HumanCentricMemoryEngine
 from .components.memory.registry import MemoryEngineRegistry
 from .components.governance.registry import SkillRegistry
 from .components.context.builder import (
-    ContextBuilder, BaseAgentContextBuilder, TieredContextBuilder,
-    create_context_builder, load_prompt_templates
+    BaseAgentContextBuilder, TieredContextBuilder,
+    create_context_builder
 )
 from .components.analytics.interaction import InteractionHub
 from .components.social.graph import NeighborhoodGraph, SocialGraph, create_social_graph
-from .components.analytics.audit import GenericAuditWriter, AuditConfig, GenericAuditWriter as AuditWriter, AuditConfig as GenericAuditConfig
+from .components.analytics.audit import GenericAuditWriter, AuditConfig
 
 # 3b. Validators (part of broker namespace now)
 from .validators import AgentValidator
@@ -48,5 +49,6 @@ from broker.agents import BaseAgent, AgentConfig
 # 5. Domain packs (auto-register frameworks, thinking checks, etc.)
 import broker.domains  # noqa: F401, E402
 
-# Aliases
+# Backward-compat aliases
 GovernedBroker = SkillBrokerEngine
+AuditWriter = GenericAuditWriter
