@@ -110,11 +110,16 @@ class ExperimentBuilder:
         return self
 
     def with_hooks(self, hooks: List[Callable]):
-        """Register a list of pre_year hooks for simplicity.
+        """Register a list of pre_year hooks.
 
-        If multiple hooks are provided, they are composed into a single
-        callable that invokes each in order.
+        .. deprecated:: 0.3.0
+            Use ``with_lifecycle_hooks(pre_year=hook)`` instead.
         """
+        import warnings
+        warnings.warn(
+            "with_hooks() is deprecated, use with_lifecycle_hooks(pre_year=hook) instead.",
+            DeprecationWarning, stacklevel=2,
+        )
         if len(hooks) == 1:
             self.hooks["pre_year"] = hooks[0]
         elif len(hooks) > 1:
@@ -125,7 +130,16 @@ class ExperimentBuilder:
         return self
 
     def with_hook(self, hook: Callable):
-        """Register a single pre_year hook."""
+        """Register a single pre_year hook.
+
+        .. deprecated:: 0.3.0
+            Use ``with_lifecycle_hooks(pre_year=hook)`` instead.
+        """
+        import warnings
+        warnings.warn(
+            "with_hook() is deprecated, use with_lifecycle_hooks(pre_year=hook) instead.",
+            DeprecationWarning, stacklevel=2,
+        )
         self.hooks["pre_year"] = hook
         return self
 

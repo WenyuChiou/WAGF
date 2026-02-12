@@ -13,6 +13,7 @@ Memory capacity constraints are based on cognitive science literature:
 Reference: Task-040 Memory Module Optimization, Task-050E Cognitive Constraints
 """
 
+import logging
 from typing import Dict, List, Optional, Any, TYPE_CHECKING
 import time
 import numpy as np  # Explicitly import numpy
@@ -296,7 +297,7 @@ class AdaptiveRetrievalEngine:
                 if query_embedding_list:
                     query_embedding = np.array(query_embedding_list[0]) # Convert to numpy array
             except Exception as e:
-                print(f"Warning: Failed to embed query '{query[:30]}...': {e}")
+                logging.getLogger("broker").warning("Failed to embed query '%s...': %s", query[:30], e)
                 # Continue without semantic score if embedding fails
 
         # Score each item
@@ -314,7 +315,7 @@ class AdaptiveRetrievalEngine:
                     item_embedding_np = np.array(item.embedding)
                     semantic_score = self._compute_semantic_score(query_embedding, item_embedding_np)
                 except Exception as e:
-                    print(f"Warning: Failed to compute semantic score for item {item.id}: {e}")
+                    logging.getLogger("broker").warning("Failed to compute semantic score for item %s: %s", item.id, e)
                     semantic_score = 0.0 # Default to 0 if computation fails
 
             # Weighted combination

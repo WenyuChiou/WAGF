@@ -12,6 +12,7 @@ Literature Support:
 Task-037: Migrated from agents/base_agent.py to SDK
 """
 
+import logging
 from dataclasses import dataclass, field
 from typing import Dict, List, Tuple, Any, Optional
 
@@ -343,10 +344,8 @@ class BaseAgent:
 
             return [s.skill_id for s in self.config.skills]
         except Exception as e:
-            print(f"CRITICAL ERROR in get_available_skills: {e}")
-            import traceback
-            traceback.print_exc()
-            raise e
+            logging.getLogger("broker").critical("get_available_skills failed: %s", e, exc_info=True)
+            raise
 
     def execute_skill(self, skill_id: str, adjustment: float = 0.0) -> bool:
         """
