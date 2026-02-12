@@ -348,10 +348,12 @@ class AgentTypeRegistry:
 
 def create_default_registry() -> AgentTypeRegistry:
     """
-    Create a registry with default household types.
+    Create a registry with default household types (water domain).
 
-    This provides a minimal registry for backward compatibility
-    with existing SA experiments.
+    .. deprecated::
+        This function provides water-domain defaults for backward compatibility.
+        New domains should use ``AgentTypeRegistry()`` with YAML config via
+        ``ExperimentBuilder.with_governance()``.
 
     Returns:
         AgentTypeRegistry with default household types

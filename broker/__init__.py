@@ -1,9 +1,10 @@
-"""Water Agent Governance Framework (WAGF) — cognitive governance framework for LLM-driven
-agent-based models of human-water interactions.
+"""Governed Broker Framework — cognitive governance framework for LLM-driven
+agent-based models.
 
 Provides skill-based governance, memory engines, and reflection capabilities
-for coupled human-water simulations including flood risk adaptation and
-irrigation water management.
+for coupled human-environment simulations.  Domain-specific content (flood,
+irrigation, education, finance, …) is supplied by pluggable domain packs
+under ``broker.domains``.
 """
 
 # 1. Base Interfaces (No dependencies)
@@ -43,6 +44,9 @@ from .validators import AgentValidator
 from .core.skill_broker_engine import SkillBrokerEngine
 from .core.experiment import ExperimentBuilder, ExperimentRunner
 from broker.agents import BaseAgent, AgentConfig
+
+# 5. Domain packs (auto-register frameworks, thinking checks, etc.)
+import broker.domains  # noqa: F401, E402
 
 # Aliases
 GovernedBroker = SkillBrokerEngine

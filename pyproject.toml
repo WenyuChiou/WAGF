@@ -5,30 +5,46 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "water-agent-governance-framework"
 version = "0.2.0"
-description = "A governance framework for LLM-driven agent-based models in water resources"
+description = "A governance framework for LLM-driven agent-based models"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
     {name = "LLM-ABM Research Team"}
 ]
+keywords = ["agent-based-modeling", "governance", "llm", "behavioral-science"]
 dependencies = [
     "pydantic>=2.0",
     "pyyaml>=6.0",
+    "numpy>=1.24",
+    "pandas>=2.0",
+    "requests>=2.28",
+]
+
+[project.optional-dependencies]
+llm = [
+    "langchain-ollama>=0.1.0",
+    "langchain-core>=0.2.0",
+]
+analysis = [
+    "matplotlib>=3.7",
+    "seaborn>=0.12",
+    "scipy>=1.10",
+    "openpyxl>=3.1",
+]
+web = [
     "fastapi>=0.100.0",
     "uvicorn>=0.22.0",
     "Jinja2>=3.1.2",
     "python-dotenv>=1.0.0",
+    "httpx>=0.24.0",
+    "beautifulsoup4>=4.12.2",
 ]
-
-[project.optional-dependencies]
 dev = [
     "pytest>=7.0",
 ]
 full = [
-    "governed-broker-framework[dev]",
-    "httpx>=0.24.0",
-    "beautifulsoup4>=4.12.2",
+    "water-agent-governance-framework[llm,analysis,web,dev]",
 ]
 
 [tool.pytest.ini_options]

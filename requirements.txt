@@ -1,26 +1,14 @@
-# SAGE (Structured Agent Governance Engine) — Dependencies
-# Install: pip install -r requirements.txt
+# Dependencies are managed in pyproject.toml (single source of truth).
+# Install: pip install -e .            (core only)
+# Install: pip install -e ".[llm]"     (+ LLM providers)
+# Install: pip install -e ".[analysis]" (+ matplotlib, scipy, etc.)
+# Install: pip install -e ".[full]"    (everything)
+#
+# This file is kept for tools that only understand requirements.txt.
+# Regenerate: pip-compile pyproject.toml -o requirements.txt
 
-# --- Core Framework ---
 pydantic>=2.0
 pyyaml>=6.0
 numpy>=1.24
 pandas>=2.0
 requests>=2.28
-
-# --- LLM Integration (Ollama local models) ---
-langchain-ollama>=0.1.0
-langchain-core>=0.2.0
-
-# --- Experiment Analysis & Figures ---
-matplotlib>=3.7
-seaborn>=0.12
-openpyxl>=3.1
-scipy>=1.10
-
-# --- Optional: Cloud LLM Providers ---
-# openai>=1.0
-# google-generativeai>=0.3
-
-# --- Development ---
-# pytest>=7.0

@@ -249,13 +249,31 @@ class GovernanceRule:
         )
 
 
-_DEFAULT_THINKING_CONSTRUCTS = frozenset({
-    "TP_LABEL", "CP_LABEL", "WSA_LABEL", "ACA_LABEL",
-    "BUDGET_UTIL", "EQUITY_GAP", "RISK_APPETITE", "SOLVENCY_IMPACT",
-})
-_DEFAULT_PERSONAL_FIELDS = frozenset({
-    "savings", "income", "cost", "budget", "water_right",
-})
+# Populated by domain packs via register_rule_type_defaults().
+# Start empty — domain-agnostic.
+_DEFAULT_THINKING_CONSTRUCTS: frozenset = frozenset()
+_DEFAULT_PERSONAL_FIELDS: frozenset = frozenset()
+
+
+def register_rule_type_defaults(
+    thinking_constructs: Optional[frozenset] = None,
+    personal_fields: Optional[frozenset] = None,
+) -> None:
+    """
+    Register domain-specific defaults for rule categorization.
+
+    Called by domain packs at import time.  Values are merged (union)
+    with existing registrations so multiple packs can contribute.
+
+    Args:
+        thinking_constructs: Construct names classified as "thinking"
+        personal_fields: Field names classified as "personal"
+    """
+    global _DEFAULT_THINKING_CONSTRUCTS, _DEFAULT_PERSONAL_FIELDS
+    if thinking_constructs:
+        _DEFAULT_THINKING_CONSTRUCTS = _DEFAULT_THINKING_CONSTRUCTS | thinking_constructs
+    if personal_fields:
+        _DEFAULT_PERSONAL_FIELDS = _DEFAULT_PERSONAL_FIELDS | personal_fields
 
 
 def categorize_rule(
