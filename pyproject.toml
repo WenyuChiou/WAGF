@@ -8,7 +8,7 @@ version = "0.2.0"
 description = "A governance framework for LLM-driven agent-based models"
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "MIT"}
+license = "MIT"
 authors = [
     {name = "LLM-ABM Research Team"}
 ]
@@ -46,6 +46,10 @@ dev = [
 full = [
     "water-agent-governance-framework[llm,analysis,web,dev]",
 ]
+
+[tool.setuptools.packages.find]
+include = ["broker*", "providers*"]
+exclude = ["paper*", "docs*", "examples*", "tests*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
