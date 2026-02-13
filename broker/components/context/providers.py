@@ -639,6 +639,15 @@ class FinancialCostProvider(ContextProvider):
         # Subsidy rate (ensure it's in context for template)
         personal["subsidy_rate"] = subsidy_rate
 
+        # Elevation cost burden: lowest option cost as % of annual income.
+        # Helps LLM gauge affordability ("107% of your income" is more
+        # concrete than "$40,000 after subsidy").
+        min_elev_cost = min(personal.get(f"elevation_cost_{ft}ft", 0)
+                            for ft in self.ELEVATION_COST_BASE)
+        personal["elevation_burden_pct"] = (
+            min_elev_cost / income * 100 if income > 0 else 999
+        )
+
 
 __all__ = [
     "ContextProvider",
