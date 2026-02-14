@@ -1,0 +1,23 @@
+# Hallucination Detection Rules for Flood ABM
+# Each rule defines a physically impossible action given agent state.
+
+hallucination_rules:
+  - id: double_elevation
+    description: "Already elevated home trying to elevate again"
+    type: state_conflict
+    action: elevate
+    state_field: elevated
+    state_value: true
+
+  - id: bought_out_acting
+    description: "Already bought out but still making non-trivial decisions"
+    type: state_conflict
+    state_field: bought_out
+    state_value: true
+    action: "!do_nothing"  # any action except do_nothing
+
+  - id: renter_elevate
+    description: "Renter trying to elevate (structural action requires ownership)"
+    type: agent_type_conflict
+    agent_type_contains: renter
+    action: elevate
