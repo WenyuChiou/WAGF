@@ -79,6 +79,15 @@ L2 Macro Validation (Aggregate)
 pip install pandas numpy
 ```
 
+### Quick Start (Synthetic Data)
+
+```bash
+# Run examples with synthetic traces (no experiment data needed)
+python example_cv_usage.py
+```
+
+This demonstrates L1 metrics, L2 benchmarks, full pipeline I/O, and domain adaptation (irrigation).
+
 ### Run Validation
 
 ```bash

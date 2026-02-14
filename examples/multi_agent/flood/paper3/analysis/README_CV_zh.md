@@ -79,6 +79,15 @@ L2 宏觀驗證（總體）
 pip install pandas numpy
 ```
 
+### 快速入門（合成資料）
+
+```bash
+# 使用合成追蹤資料執行範例（不需要實驗資料）
+python example_cv_usage.py
+```
+
+此範例展示 L1 指標、L2 基準值、完整管線 I/O 和領域適配（灌溉）。
+
 ### 執行驗證
 
 ```bash
