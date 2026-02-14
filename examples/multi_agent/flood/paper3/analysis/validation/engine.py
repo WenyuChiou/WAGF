@@ -7,7 +7,7 @@ import math
 from pathlib import Path
 from collections import Counter
 from dataclasses import asdict
-from typing import Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 import pandas as pd
 
@@ -17,9 +17,13 @@ from validation.metrics.l1_micro import (
     L1Metrics,
 )
 from validation.metrics.l2_macro import compute_l2_metrics
+from validation.metrics.cgr import compute_cgr
 from validation.metrics.entropy import _compute_entropy
 from validation.reporting.report_builder import ValidationReport, _to_json_serializable
 from validation.benchmarks.flood import EMPIRICAL_BENCHMARKS
+
+if TYPE_CHECKING:
+    from validation.theories.base import BehavioralTheory
 
 
 def load_traces(traces_dir: Path) -> Tuple[List[Dict], List[Dict]]:
@@ -48,6 +52,7 @@ def compute_validation(
     traces_dir: Path,
     agent_profiles_path: Path,
     output_dir: Path,
+    theory: Optional["BehavioralTheory"] = None,
 ) -> ValidationReport:
     """Compute full validation report."""
     print(f"Loading traces from: {traces_dir}")
@@ -66,8 +71,8 @@ def compute_validation(
     print(f"  Agents: {len(agent_profiles)}")
 
     print("\nComputing L1 metrics...")
-    l1_owner = compute_l1_metrics(owner_traces, "owner")
-    l1_renter = compute_l1_metrics(renter_traces, "renter")
+    l1_owner = compute_l1_metrics(owner_traces, "owner", theory=theory)
+    l1_renter = compute_l1_metrics(renter_traces, "renter", theory=theory)
 
     # Combined L1
     combined_actions = {
@@ -75,8 +80,8 @@ def compute_validation(
         for k in set(l1_owner.action_distribution) | set(l1_renter.action_distribution)
     }
     combined_ebe = round(_compute_entropy(Counter(combined_actions)), 4)
-    k_combined = len(combined_actions)
-    combined_ebe_max = round(math.log2(k_combined), 4) if k_combined > 1 else 0.0
+    k_combined = 5  # Fixed: full household action space (owner 4 + renter 3, shared do_nothing)
+    combined_ebe_max = round(math.log2(k_combined), 4)
     combined_ebe_ratio = round(combined_ebe / combined_ebe_max, 4) if combined_ebe_max > 0 else 0.0
 
     l1_combined = L1Metrics(
@@ -95,7 +100,7 @@ def compute_validation(
     audit_csvs = list(traces_dir.glob("**/*governance_audit.csv"))
     if audit_csvs:
         print(f"\n  Found {len(audit_csvs)} governance audit CSV(s)")
-        cacr_decomp = compute_cacr_decomposition(audit_csvs)
+        cacr_decomp = compute_cacr_decomposition(audit_csvs, theory=theory)
         if cacr_decomp:
             l1_combined.cacr_decomposition = cacr_decomp
             print(f"  CACR_raw (pre-governance): {cacr_decomp.cacr_raw}")
@@ -107,6 +112,16 @@ def compute_validation(
     print(f"  CACR: {l1_combined.cacr} (threshold >=0.75)")
     print(f"  R_H: {l1_combined.r_h} (threshold <=0.10)")
     print(f"  EBE: {l1_combined.ebe} (ratio={l1_combined.ebe_ratio}, threshold 0.1<ratio<0.9)")
+
+    # CGR (Construct Grounding Rate)
+    print("\nComputing CGR metrics...")
+    cgr_results = compute_cgr(all_traces)
+    print(f"  CGR_TP exact: {cgr_results['cgr_tp_exact']}")
+    print(f"  CGR_CP exact: {cgr_results['cgr_cp_exact']}")
+    print(f"  CGR_TP adjacent: {cgr_results['cgr_tp_adjacent']}")
+    print(f"  CGR_CP adjacent: {cgr_results['cgr_cp_adjacent']}")
+    print(f"  Kappa TP: {cgr_results['kappa_tp']}, Kappa CP: {cgr_results['kappa_cp']}")
+    print(f"  Grounded: {cgr_results['n_grounded']}, Skipped: {cgr_results['n_skipped']}")
 
     # L2
     print("\nComputing L2 metrics...")
@@ -144,6 +159,7 @@ def compute_validation(
         json.dump(_to_json_serializable({
             "l1": asdict(l1_combined),
             "l2": asdict(l2),
+            "cgr": cgr_results,
             "traces_path": str(traces_dir),
             "seed": seed,
             "model": model,
@@ -166,6 +182,11 @@ def compute_validation(
     with open(l1_path, 'w', encoding='utf-8') as f:
         json.dump(_to_json_serializable(l1_data), f, indent=2, ensure_ascii=False)
     print(f"Saved: {l1_path}")
+
+    cgr_path = output_dir / "cgr_metrics.json"
+    with open(cgr_path, 'w', encoding='utf-8') as f:
+        json.dump(_to_json_serializable(cgr_results), f, indent=2, ensure_ascii=False)
+    print(f"Saved: {cgr_path}")
 
     l2_path = output_dir / "l2_macro_metrics.json"
     l2_data = {

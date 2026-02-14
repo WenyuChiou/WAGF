@@ -81,14 +81,14 @@ This document enables AI agents to quickly understand the Paper 3 design and fra
 
 | # | Metric | Range | Weight | Category |
 |---|--------|-------|--------|----------|
-| B1 | insurance_rate_sfha | 0.30-0.50 | 1.0 | AGGREGATE |
-| B2 | insurance_rate_all | 0.15-0.40 | 0.8 | AGGREGATE |
-| B3 | elevation_rate | 0.03-0.12 | 1.0 | AGGREGATE |
-| B4 | buyout_rate | 0.02-0.15 | 0.8 | AGGREGATE |
+| B1 | insurance_rate_sfha | 0.30-0.60 | 1.0 | AGGREGATE |
+| B2 | insurance_rate_all | 0.15-0.55 | 0.8 | AGGREGATE |
+| B3 | elevation_rate | 0.10-0.35 | 1.0 | AGGREGATE |
+| B4 | buyout_rate | 0.05-0.25 | 0.8 | AGGREGATE |
 | B5 | do_nothing_rate_postflood | 0.35-0.65 | 1.5 | CONDITIONAL |
-| B6 | mg_adaptation_gap | 0.10-0.30 | **2.0** | DEMOGRAPHIC |
-| B7 | rl_uninsured_rate | 0.15-0.40 | 1.0 | CONDITIONAL |
-| B8 | insurance_lapse_rate | 0.05-0.15 | 1.0 | TEMPORAL |
+| B6 | mg_adaptation_gap | 0.05-0.30 | **2.0** | DEMOGRAPHIC |
+| B7 | renter_uninsured_rate | 0.15-0.40 | 1.0 | CONDITIONAL |
+| B8 | insurance_lapse_rate | 0.15-0.30 | 1.0 | TEMPORAL |
 
 ---
 
@@ -242,4 +242,4 @@ Environment Update
 
 ---
 
-*Last updated: 2026-02-05*
+*Last updated: 2026-02-14*
