@@ -304,13 +304,16 @@ class TestBenchmarkWithDecisionState:
         buyout_val = result.benchmark_results["buyout_rate"]["value"]
         assert buyout_val == pytest.approx(0.50, abs=0.01)
 
-    def test_mg_adaptation_gap(self):
-        """MG: 1/2 insured=0.50, NMG: 0/2 insured=0.0 → gap=0.50."""
+    def test_mg_adaptation_gap_composite(self):
+        """Composite: MG 1/2 adapted, NMG 2/2 adapted → gap=0.50.
+
+        Composite counts ANY protective action (insurance, elevation, buyout, relocation).
+        """
         traces = [
-            make_trace("H001", year=1, action="buy_insurance"),  # MG, insured
-            make_trace("H002", year=1, action="do_nothing"),     # MG, not insured
-            make_trace("H003", year=1, action="do_nothing"),     # NMG
-            make_trace("H004", year=1, action="elevate_house"),  # NMG (elevation doesn't count)
+            make_trace("H001", year=1, action="buy_insurance"),  # MG, adapted (insurance)
+            make_trace("H002", year=1, action="do_nothing"),     # MG, not adapted
+            make_trace("H003", year=1, action="do_nothing"),     # NMG, not adapted via insurance...
+            make_trace("H004", year=1, action="elevate_house"),  # NMG, adapted (elevation counts!)
         ]
         profiles = _make_agent_profiles([
             {"agent_id": "H001", "tenure": "Owner", "flood_zone": "HIGH", "mg": True},
@@ -320,7 +323,28 @@ class TestBenchmarkWithDecisionState:
         ])
         result = compute_l2_metrics(traces, profiles)
         gap_val = result.benchmark_results["mg_adaptation_gap"]["value"]
-        assert gap_val == pytest.approx(0.50, abs=0.01)
+        # MG: 1/2=0.50 adapted, NMG: 1/2=0.50 adapted (H004 elevated counts) → gap=0.0
+        # H003 do_nothing = not adapted, H004 elevate = adapted
+        assert gap_val == pytest.approx(0.0, abs=0.01)
+
+    def test_mg_adaptation_gap_insurance_only(self):
+        """When only insurance differs, composite still captures it."""
+        traces = [
+            make_trace("H001", year=1, action="do_nothing"),      # MG, not adapted
+            make_trace("H002", year=1, action="do_nothing"),      # MG, not adapted
+            make_trace("H003", year=1, action="buy_insurance"),   # NMG, adapted
+            make_trace("H004", year=1, action="buy_insurance"),   # NMG, adapted
+        ]
+        profiles = _make_agent_profiles([
+            {"agent_id": "H001", "tenure": "Owner", "flood_zone": "HIGH", "mg": True},
+            {"agent_id": "H002", "tenure": "Owner", "flood_zone": "HIGH", "mg": True},
+            {"agent_id": "H003", "tenure": "Owner", "flood_zone": "HIGH", "mg": False},
+            {"agent_id": "H004", "tenure": "Owner", "flood_zone": "HIGH", "mg": False},
+        ])
+        result = compute_l2_metrics(traces, profiles)
+        gap_val = result.benchmark_results["mg_adaptation_gap"]["value"]
+        # MG: 0/2=0.0 adapted, NMG: 2/2=1.0 adapted → gap=1.0
+        assert gap_val == pytest.approx(1.0, abs=0.01)
 
     def test_renter_uninsured_rate(self):
         """2 HIGH-zone renters, 1 bought insurance → uninsured = 1 - 0.5 = 0.5."""

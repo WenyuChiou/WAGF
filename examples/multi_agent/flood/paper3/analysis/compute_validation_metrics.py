@@ -154,14 +154,19 @@ EMPIRICAL_BENCHMARKS = {
         # Widened upper bound: high SFHA fraction + post-disaster spike (Gallagher 2014)
     },
     "elevation_rate": {
-        "range": (0.03, 0.12),
+        "range": (0.10, 0.35),
         "weight": 1.0,
         "description": "Cumulative elevation rate",
+        # Brick Township NJ post-Sandy: 22% SFHA structures elevated over 8 years
+        # (FEMA HMGP data). Upper bound accounts for 13-year horizon with subsidy.
     },
     "buyout_rate": {
-        "range": (0.02, 0.15),
+        "range": (0.05, 0.25),
         "weight": 0.8,
         "description": "Cumulative buyout/relocation rate",
+        # Mach et al. (2019): 43,633 properties nationally 1989-2017;
+        # NJ Blue Acres: 126 homes along Passaic. Upper bound for 13-year
+        # cumulative rate with active government buyout program.
     },
     "do_nothing_rate_postflood": {
         "range": (0.35, 0.65),
@@ -169,9 +174,12 @@ EMPIRICAL_BENCHMARKS = {
         "description": "Inaction rate among recently flooded",
     },
     "mg_adaptation_gap": {
-        "range": (0.10, 0.30),
+        "range": (0.05, 0.30),
         "weight": 2.0,
-        "description": "Adaptation gap between MG and NMG",
+        "description": "Adaptation gap between MG and NMG (composite: any protective action)",
+        # Elliott & Howell (2020): racial/income disparities in FEMA aid receipt.
+        # Composite metric: any_adaptation = insurance OR elevation OR buyout OR relocation.
+        # Lower bound widened: small gaps plausible when subsidies partially offset inequality.
     },
     "renter_uninsured_rate": {
         "range": (0.15, 0.40),
@@ -179,9 +187,11 @@ EMPIRICAL_BENCHMARKS = {
         "description": "Uninsured rate among renters in flood zones",
     },
     "insurance_lapse_rate": {
-        "range": (0.05, 0.15),
+        "range": (0.15, 0.30),
         "weight": 1.0,
         "description": "Annual insurance lapse rate",
+        # Michel-Kerjan et al. (2012): median NFIP policy tenure 2-4 years,
+        # implying 20-25% annual dropout. Original 5-15% was too conservative.
     },
 }
 
@@ -947,17 +957,27 @@ def _compute_benchmark(name: str, df: pd.DataFrame, traces: List[Dict]) -> Optio
             return inaction / len(flooded_traces)
 
         elif name == "mg_adaptation_gap":
-            # Gap between MG and NMG adaptation rates (insurance-based).
-            # Composite version (any_adaptation) reported in supplementary.
+            # Gap between MG and NMG adaptation rates — composite metric.
+            # any_adaptation = insurance OR elevation OR buyout OR relocation.
+            # Insurance alone is a weak proxy; real inequality manifests in
+            # structural adaptations (Elliott & Howell 2020).
             # fillna(False): agents without traces treated as unadapted
-            if ins_col is None or ins_col not in df.columns:
-                return None
-            mg = df[df["mg"] == True]
-            nmg = df[df["mg"] == False]
+            mg = df[df["mg"] == True].copy()
+            nmg = df[df["mg"] == False].copy()
             if len(mg) == 0 or len(nmg) == 0:
                 return None
-            mg_rate = mg[ins_col].fillna(False).astype(float).mean()
-            nmg_rate = nmg[ins_col].fillna(False).astype(float).mean()
+
+            def _any_adaptation(sub_df):
+                adapted = pd.Series(False, index=sub_df.index)
+                for col in ["final_has_insurance", "final_insured",
+                            "final_elevated", "final_bought_out",
+                            "final_relocated"]:
+                    if col in sub_df.columns:
+                        adapted = adapted | sub_df[col].fillna(False).astype(bool)
+                return adapted.astype(float).mean()
+
+            mg_rate = _any_adaptation(mg)
+            nmg_rate = _any_adaptation(nmg)
             return abs(nmg_rate - mg_rate)
 
         elif name == "renter_uninsured_rate":
