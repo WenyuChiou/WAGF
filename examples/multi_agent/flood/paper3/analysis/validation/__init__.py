@@ -20,6 +20,13 @@ from validation.metrics.l1_micro import (
     L1Metrics,
 )
 from validation.metrics.l2_macro import compute_l2_metrics, L2Metrics
+from validation.metrics.cgr import compute_cgr
+from validation.metrics.bootstrap import bootstrap_ci
+from validation.metrics.null_model import (
+    generate_null_traces,
+    compute_null_epi_distribution,
+    epi_significance_test,
+)
 from validation.reporting.report_builder import ValidationReport, _to_json_serializable
 
 __all__ = [
@@ -28,6 +35,11 @@ __all__ = [
     "compute_l1_metrics",
     "compute_l2_metrics",
     "compute_cacr_decomposition",
+    "compute_cgr",
+    "bootstrap_ci",
+    "generate_null_traces",
+    "compute_null_epi_distribution",
+    "epi_significance_test",
     "L1Metrics",
     "L2Metrics",
     "CACRDecomposition",

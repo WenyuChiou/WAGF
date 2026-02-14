@@ -9,7 +9,7 @@ import math
 from pathlib import Path
 from collections import Counter
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -17,6 +17,7 @@ import pandas as pd
 from validation.theories.pmt import (
     PMT_OWNER_RULES,
     PMT_RENTER_RULES,
+    PMTTheory,
     _is_sensible_action,
 )
 from validation.io.trace_reader import (
@@ -27,6 +28,9 @@ from validation.io.trace_reader import (
 )
 from validation.hallucinations.flood import _is_hallucination
 from validation.metrics.entropy import _compute_entropy
+
+if TYPE_CHECKING:
+    from validation.theories.base import BehavioralTheory
 
 
 # =============================================================================
@@ -70,9 +74,23 @@ class L1Metrics:
 # L1 Metric Computation
 # =============================================================================
 
-def compute_l1_metrics(traces: List[Dict], agent_type: str = "owner") -> L1Metrics:
-    """Compute L1 micro-level validation metrics."""
-    rules = PMT_OWNER_RULES if agent_type == "owner" else PMT_RENTER_RULES
+def compute_l1_metrics(
+    traces: List[Dict],
+    agent_type: str = "owner",
+    theory: Optional["BehavioralTheory"] = None,
+    action_space_size: Optional[int] = None,
+) -> L1Metrics:
+    """Compute L1 micro-level validation metrics.
+
+    Args:
+        traces: List of decision trace dicts.
+        agent_type: "owner" or "renter".
+        theory: BehavioralTheory implementation. Defaults to PMTTheory().
+        action_space_size: Fixed action space size for EHE normalization.
+            If None, defaults to 4 for owner, 3 for renter.
+    """
+    if theory is None:
+        theory = PMTTheory()
 
     total = len(traces)
     coherent = 0
@@ -81,22 +99,21 @@ def compute_l1_metrics(traces: List[Dict], agent_type: str = "owner") -> L1Metri
     action_counts = Counter()
 
     for trace in traces:
-        tp = _extract_tp_label(trace)
-        cp = _extract_cp_label(trace)
         action = _extract_action(trace)
         action = _normalize_action(action)
         action_counts[action] += 1
 
-        if tp == "UNKNOWN" or cp == "UNKNOWN":
+        constructs = theory.extract_constructs(trace)
+        if any(v == "UNKNOWN" for v in constructs.values()):
             extraction_failures += 1
             continue
 
-        key = (tp, cp)
-        if key in rules:
-            if action in rules[key]:
+        coherent_actions = theory.get_coherent_actions(constructs, agent_type)
+        if coherent_actions:
+            if action in coherent_actions:
                 coherent += 1
         else:
-            if _is_sensible_action(tp, cp, action, agent_type):
+            if theory.is_sensible_action(constructs, action, agent_type):
                 coherent += 1
 
         if _is_hallucination(trace):
@@ -109,7 +126,11 @@ def compute_l1_metrics(traces: List[Dict], agent_type: str = "owner") -> L1Metri
     cacr = coherent / cacr_eligible if cacr_eligible > 0 else 0.0
     r_h = hallucinations / total if total > 0 else 0.0
     ebe = _compute_entropy(action_counts)
-    k = len(action_counts)
+    # Use fixed action space size for consistent cross-model/cross-domain comparison
+    if action_space_size is not None:
+        k = action_space_size
+    else:
+        k = {"owner": 4, "renter": 3}.get(agent_type, len(action_counts))
     ebe_max = math.log2(k) if k > 1 else 0.0
     ebe_ratio = ebe / ebe_max if ebe_max > 0 else 0.0
 
@@ -138,8 +159,19 @@ def _cp_quadrant(cp: str) -> str:
     return "high" if cp in ("H", "VH") else "low"
 
 
-def compute_cacr_decomposition(audit_csv_paths: List[Path]) -> Optional[CACRDecomposition]:
-    """Compute CACR decomposition from governance audit CSVs."""
+def compute_cacr_decomposition(
+    audit_csv_paths: List[Path],
+    theory: Optional["BehavioralTheory"] = None,
+) -> Optional[CACRDecomposition]:
+    """Compute CACR decomposition from governance audit CSVs.
+
+    Args:
+        audit_csv_paths: Paths to governance audit CSV files.
+        theory: BehavioralTheory implementation. Defaults to PMTTheory().
+    """
+    if theory is None:
+        theory = PMTTheory()
+
     rows = []
     for path in audit_csv_paths:
         if not path.exists():
@@ -174,18 +206,26 @@ def compute_cacr_decomposition(audit_csv_paths: List[Path]) -> Optional[CACRDeco
     if len(audit) == 0:
         return None
 
-    def _get_rules_for_row(row):
+    # Determine agent_type per row: prefer audit CSV column, fallback to heuristic
+    has_agent_type_col = "agent_type" in audit.columns
+
+    def _get_agent_type_for_row(row) -> str:
+        if has_agent_type_col:
+            at = str(row.get("agent_type", "")).strip().lower()
+            if at in ("owner", "renter"):
+                return at
+        # Fallback: agent_id heuristic
         agent_id = str(row.get("agent_id", ""))
         try:
             num = int(agent_id.replace("H", "").replace("h", ""))
             if num > 200:
-                return PMT_RENTER_RULES
-            return PMT_OWNER_RULES
+                return "renter"
+            return "owner"
         except (ValueError, IndexError):
             proposed = _normalize_action(row.get("proposed_skill", "do_nothing"))
             if proposed == "relocate":
-                return PMT_RENTER_RULES
-            return PMT_OWNER_RULES
+                return "renter"
+            return "owner"
 
     raw_coherent = 0
     total = len(audit)
@@ -199,10 +239,11 @@ def compute_cacr_decomposition(audit_csv_paths: List[Path]) -> Optional[CACRDeco
             extraction_skipped += 1
             continue
         proposed = _normalize_action(row.get("proposed_skill", "do_nothing"))
-        rules = _get_rules_for_row(row)
+        agent_type = _get_agent_type_for_row(row)
+        constructs = {"TP": tp, "CP": cp}
+        coherent_actions = theory.get_coherent_actions(constructs, agent_type)
 
-        key = (tp, cp)
-        is_coherent = proposed in rules.get(key, [])
+        is_coherent = proposed in coherent_actions if coherent_actions else False
         if is_coherent:
             raw_coherent += 1
 
@@ -226,9 +267,10 @@ def compute_cacr_decomposition(audit_csv_paths: List[Path]) -> Optional[CACRDeco
         if not tp or not cp or tp == "nan" or cp == "nan":
             continue
         final = _normalize_action(row.get(final_col, "do_nothing"))
-        rules = _get_rules_for_row(row)
-        key = (tp, cp)
-        if final in rules.get(key, []):
+        agent_type = _get_agent_type_for_row(row)
+        constructs = {"TP": tp, "CP": cp}
+        coherent_actions = theory.get_coherent_actions(constructs, agent_type)
+        if final in coherent_actions:
             final_coherent += 1
 
     cacr_raw = raw_coherent / total if total > 0 else 0.0
