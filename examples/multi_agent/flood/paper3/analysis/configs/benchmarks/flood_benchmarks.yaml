@@ -1,0 +1,77 @@
+# Empirical Benchmarks for Flood ABM Validation
+# L2 Macro metrics: compare simulated aggregate outcomes to empirical ranges
+
+benchmarks:
+  insurance_rate_sfha:
+    range: [0.30, 0.60]
+    weight: 1.0
+    computation: insurance_rate_sfha
+    description: "Insurance uptake rate in SFHA zones"
+    # Widened upper bound: Choi et al. (2024) 48.3%, de Ruig et al. (2023) 65.9% post-Sandy
+
+  insurance_rate_all:
+    range: [0.15, 0.55]
+    weight: 0.8
+    computation: insurance_rate_all
+    description: "Overall insurance uptake rate"
+    # Widened upper bound: high SFHA fraction + post-disaster spike (Gallagher 2014)
+
+  elevation_rate:
+    range: [0.10, 0.35]
+    weight: 1.0
+    computation: elevation_rate
+    description: "Cumulative elevation rate"
+    # Brick Township NJ post-Sandy: 22% SFHA structures elevated over 8 years
+    # (FEMA HMGP data). Upper bound accounts for 13-year horizon with subsidy.
+
+  buyout_rate:
+    range: [0.05, 0.25]
+    weight: 0.8
+    computation: buyout_rate
+    description: "Cumulative buyout/relocation rate"
+    # Mach et al. (2019): 43,633 properties nationally 1989-2017;
+    # NJ Blue Acres: 126 homes along Passaic.
+
+  do_nothing_rate_postflood:
+    range: [0.35, 0.65]
+    weight: 1.5
+    computation: do_nothing_rate_postflood
+    description: "Inaction rate among recently flooded"
+
+  mg_adaptation_gap:
+    range: [0.05, 0.30]
+    weight: 2.0
+    computation: mg_adaptation_gap
+    description: "Adaptation gap between MG and NMG (composite: any protective action)"
+    # Elliott & Howell (2020): racial/income disparities in FEMA aid receipt.
+    # Composite metric: any_adaptation = insurance OR elevation OR buyout OR relocation.
+
+  renter_uninsured_rate:
+    range: [0.15, 0.40]
+    weight: 1.0
+    computation: renter_uninsured_rate
+    description: "Uninsured rate among renters in flood zones"
+
+  insurance_lapse_rate:
+    range: [0.15, 0.30]
+    weight: 1.0
+    computation: insurance_lapse_rate
+    description: "Annual insurance lapse rate"
+    # Michel-Kerjan et al. (2012): median NFIP policy tenure 2-4 years
+
+thresholds:
+  l1:
+    cacr:
+      operator: ">="
+      value: 0.75
+    r_h:
+      operator: "<="
+      value: 0.10
+    ebe_ratio:
+      operator: range
+      low: 0.1
+      high: 0.9
+  l2:
+    epi:
+      operator: ">="
+      value: 0.60

@@ -1,0 +1,127 @@
+# Protection Motivation Theory (PMT) Configuration for Flood ABM
+# References:
+#   - Rogers (1975, 1983): PMT original formulation
+#   - Grothmann & Reusswig (2006): PMT applied to flood adaptation
+#   - Bubeck et al. (2012): subsidies & social norms shift coping appraisal
+#   - Lindell & Perry (2012): PADM allows habitual low-cost actions
+#   - Baker et al. (2018): buyout requires high threat appraisal
+
+theory:
+  name: pmt
+  full_name: "Protection Motivation Theory"
+  paradigm: construct_action_mapping
+  dimensions:
+    - name: TP
+      label_field: TP_LABEL
+      extraction_paths:
+        - "skill_proposal.reasoning.TP_LABEL"
+        - "TP_LABEL"
+      fallback: "UNKNOWN"
+    - name: CP
+      label_field: CP_LABEL
+      extraction_paths:
+        - "skill_proposal.reasoning.CP_LABEL"
+        - "CP_LABEL"
+      fallback: "UNKNOWN"
+
+  quadrant_thresholds:
+    high: ["H", "VH"]
+    low: ["VL", "L", "M"]
+
+  action_aliases:
+    buy_insurance:
+      - buy_insurance
+      - purchase_insurance
+      - get_insurance
+      - insurance
+      - buy_contents_insurance
+      - buy_structure_insurance
+      - contents_insurance
+    elevate:
+      - elevate
+      - elevate_home
+      - home_elevation
+      - raise_home
+      - elevate_house
+    buyout:
+      - buyout
+      - voluntary_buyout
+      - accept_buyout
+      - buyout_program
+    relocate:
+      - relocate
+      - move
+      - relocation
+    retrofit:
+      - retrofit
+      - floodproof
+      - flood_retrofit
+    do_nothing:
+      - do_nothing
+      - no_action
+      - wait
+      - "none"
+
+  # PMT construct-action mapping rules
+  # Key format: "TP_CP" where TP and CP are ordinal labels (VL/L/M/H/VH)
+  rules:
+    owner:
+      # High Threat + High Coping -> Should act
+      VH_VH: [buy_insurance, elevate, buyout, retrofit]
+      VH_H:  [buy_insurance, elevate, buyout, retrofit]
+      H_VH:  [buy_insurance, elevate, buyout]
+      H_H:   [buy_insurance, elevate, buyout]
+      VH_M:  [buy_insurance, elevate, buyout]
+      H_M:   [buy_insurance, elevate, buyout]
+      # High Threat + Low Coping -> Limited actions or fatalism
+      VH_L:  [buy_insurance, do_nothing]
+      VH_VL: [do_nothing]
+      H_L:   [buy_insurance, do_nothing]
+      H_VL:  [do_nothing]
+      # Moderate Threat (relaxed per Grothmann & Reusswig 2006, Bubeck 2012)
+      M_VH:  [buy_insurance, elevate, do_nothing]
+      M_H:   [buy_insurance, elevate, do_nothing]
+      M_M:   [buy_insurance, elevate, do_nothing]
+      M_L:   [buy_insurance, do_nothing]
+      M_VL:  [do_nothing]
+      # Low Threat -> Inaction acceptable, insurance is prudent (PADM)
+      L_VH:  [buy_insurance, do_nothing]
+      L_H:   [buy_insurance, do_nothing]
+      L_M:   [do_nothing, buy_insurance]
+      L_L:   [do_nothing, buy_insurance]
+      L_VL:  [do_nothing]
+      VL_VH: [do_nothing, buy_insurance]
+      VL_H:  [do_nothing, buy_insurance]
+      VL_M:  [do_nothing]
+      VL_L:  [do_nothing]
+      VL_VL: [do_nothing]
+
+    renter:
+      # Renters: no elevate, buyout -> relocate
+      VH_VH: [buy_insurance, relocate]
+      VH_H:  [buy_insurance, relocate]
+      H_VH:  [buy_insurance, relocate]
+      H_H:   [buy_insurance, relocate]
+      VH_M:  [buy_insurance, relocate]
+      H_M:   [buy_insurance, relocate]
+      VH_L:  [buy_insurance, do_nothing]
+      VH_VL: [do_nothing]
+      H_L:   [buy_insurance, do_nothing]
+      H_VL:  [do_nothing]
+      # Moderate Threat
+      M_VH:  [buy_insurance, do_nothing]
+      M_H:   [buy_insurance, do_nothing]
+      M_M:   [buy_insurance, do_nothing]
+      M_L:   [do_nothing, buy_insurance]
+      M_VL:  [do_nothing]
+      # Low Threat
+      L_VH:  [do_nothing, buy_insurance]
+      L_H:   [do_nothing, buy_insurance]
+      L_M:   [do_nothing, buy_insurance]
+      L_L:   [do_nothing, buy_insurance]
+      L_VL:  [do_nothing]
+      VL_VH: [do_nothing, buy_insurance]
+      VL_H:  [do_nothing, buy_insurance]
+      VL_M:  [do_nothing]
+      VL_L:  [do_nothing]
+      VL_VL: [do_nothing]
