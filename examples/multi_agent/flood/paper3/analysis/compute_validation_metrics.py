@@ -269,7 +269,10 @@ class ValidationReport:
 # =============================================================================
 
 def _extract_tp_label(trace: Dict) -> str:
-    """Extract TP_LABEL from nested trace structure."""
+    """Extract TP_LABEL from nested trace structure.
+
+    Returns "UNKNOWN" if extraction fails (never silently defaults to "M").
+    """
     # Try nested path first: skill_proposal.reasoning.TP_LABEL
     skill_proposal = trace.get("skill_proposal", {})
     if isinstance(skill_proposal, dict):
@@ -277,17 +280,20 @@ def _extract_tp_label(trace: Dict) -> str:
         if isinstance(reasoning, dict) and "TP_LABEL" in reasoning:
             return reasoning["TP_LABEL"]
     # Fallback to top-level
-    return trace.get("TP_LABEL", "M")
+    return trace.get("TP_LABEL", "UNKNOWN")
 
 
 def _extract_cp_label(trace: Dict) -> str:
-    """Extract CP_LABEL from nested trace structure."""
+    """Extract CP_LABEL from nested trace structure.
+
+    Returns "UNKNOWN" if extraction fails (never silently defaults to "M").
+    """
     skill_proposal = trace.get("skill_proposal", {})
     if isinstance(skill_proposal, dict):
         reasoning = skill_proposal.get("reasoning", {})
         if isinstance(reasoning, dict) and "CP_LABEL" in reasoning:
             return reasoning["CP_LABEL"]
-    return trace.get("CP_LABEL", "M")
+    return trace.get("CP_LABEL", "UNKNOWN")
 
 
 def _extract_action(trace: Dict) -> str:
@@ -328,6 +334,7 @@ def compute_l1_metrics(traces: List[Dict], agent_type: str = "owner") -> L1Metri
     total = len(traces)
     coherent = 0
     hallucinations = 0
+    extraction_failures = 0
     action_counts = Counter()
 
     for trace in traces:
@@ -338,6 +345,11 @@ def compute_l1_metrics(traces: List[Dict], agent_type: str = "owner") -> L1Metri
         # Normalize action name
         action = _normalize_action(action)
         action_counts[action] += 1
+
+        # Skip CACR evaluation for traces with extraction failures
+        if tp == "UNKNOWN" or cp == "UNKNOWN":
+            extraction_failures += 1
+            continue
 
         # Check PMT coherence
         key = (tp, cp)
@@ -353,8 +365,12 @@ def compute_l1_metrics(traces: List[Dict], agent_type: str = "owner") -> L1Metri
         if _is_hallucination(trace):
             hallucinations += 1
 
-    # Compute CACR
-    cacr = coherent / total if total > 0 else 0.0
+    if extraction_failures > 0:
+        print(f"  WARNING: {extraction_failures} traces with UNKNOWN TP/CP labels excluded from CACR")
+
+    # Compute CACR (denominator excludes extraction failures)
+    cacr_eligible = total - extraction_failures
+    cacr = coherent / cacr_eligible if cacr_eligible > 0 else 0.0
 
     # Compute R_H
     r_h = hallucinations / total if total > 0 else 0.0
@@ -537,24 +553,35 @@ def compute_cacr_decomposition(audit_csv_paths: List[Path]) -> Optional[CACRDeco
     if len(audit) == 0:
         return None
 
-    # Determine agent type from agent_id pattern (owners: H0001-H0200, renters: H0201-H0400)
-    # This is approximate; exact mapping depends on profile assignment
+    # Determine agent type from agent_id numeric suffix
+    # H0001-H0200 = owners, H0201-H0400 = renters (based on profile assignment)
+    # Falls back to action-based inference only if ID parsing fails
     def _get_rules_for_row(row):
         agent_id = str(row.get("agent_id", ""))
-        # Check if renter by looking at proposed actions or file source
-        proposed = _normalize_action(row.get("proposed_skill", "do_nothing"))
-        if proposed == "relocate":
-            return PMT_RENTER_RULES
-        return PMT_OWNER_RULES
+        try:
+            num = int(agent_id.replace("H", "").replace("h", ""))
+            if num > 200:
+                return PMT_RENTER_RULES
+            return PMT_OWNER_RULES
+        except (ValueError, IndexError):
+            # Fallback: use action-based inference
+            proposed = _normalize_action(row.get("proposed_skill", "do_nothing"))
+            if proposed == "relocate":
+                return PMT_RENTER_RULES
+            return PMT_OWNER_RULES
 
     # Compute CACR_raw: coherence of proposed_skill
     raw_coherent = 0
     total = len(audit)
     quadrant_counts = {}  # {quadrant_key: (coherent, total)}
 
+    extraction_skipped = 0
     for _, row in audit.iterrows():
-        tp = str(row.get(tp_col, "M")).strip()
-        cp = str(row.get(cp_col, "M")).strip()
+        tp = str(row.get(tp_col, "")).strip()
+        cp = str(row.get(cp_col, "")).strip()
+        if not tp or not cp or tp == "nan" or cp == "nan":
+            extraction_skipped += 1
+            continue
         proposed = _normalize_action(row.get("proposed_skill", "do_nothing"))
         rules = _get_rules_for_row(row)
 
@@ -571,6 +598,8 @@ def compute_cacr_decomposition(audit_csv_paths: List[Path]) -> Optional[CACRDeco
         if is_coherent:
             quadrant_counts[q_key][0] += 1
 
+    total = total - extraction_skipped  # Adjust denominator
+
     # Compute CACR_final: coherence of final_skill (approved outcomes only)
     final_col = "final_skill" if "final_skill" in audit.columns else "proposed_skill"
     approved_mask = audit.get("outcome", audit.get("status", "")).isin(["APPROVED", "RETRY_SUCCESS"])
@@ -578,8 +607,10 @@ def compute_cacr_decomposition(audit_csv_paths: List[Path]) -> Optional[CACRDeco
 
     final_coherent = 0
     for _, row in approved.iterrows():
-        tp = str(row.get(tp_col, "M")).strip()
-        cp = str(row.get(cp_col, "M")).strip()
+        tp = str(row.get(tp_col, "")).strip()
+        cp = str(row.get(cp_col, "")).strip()
+        if not tp or not cp or tp == "nan" or cp == "nan":
+            continue
         final = _normalize_action(row.get(final_col, "do_nothing"))
         rules = _get_rules_for_row(row)
         key = (tp, cp)
@@ -1102,7 +1133,8 @@ def compute_validation(
         k: l1_owner.action_distribution.get(k, 0) + l1_renter.action_distribution.get(k, 0)
         for k in set(l1_owner.action_distribution) | set(l1_renter.action_distribution)
     }
-    combined_ebe = round((l1_owner.ebe + l1_renter.ebe) / 2, 4)
+    # Compute EBE from combined distribution directly (entropy is NOT additive)
+    combined_ebe = round(_compute_entropy(Counter(combined_actions)), 4)
     k_combined = len(combined_actions)
     combined_ebe_max = round(math.log2(k_combined), 4) if k_combined > 1 else 0.0
     combined_ebe_ratio = round(combined_ebe / combined_ebe_max, 4) if combined_ebe_max > 0 else 0.0
