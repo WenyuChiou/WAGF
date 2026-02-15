@@ -148,6 +148,7 @@ nul
 hooks/
 
 # AI Agents & IDE Metadata
+.ai/
 .agents/
 .claude/
 .codex/
