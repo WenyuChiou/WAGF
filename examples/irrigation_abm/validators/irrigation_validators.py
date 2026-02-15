@@ -592,9 +592,10 @@ def supply_gap_block_increase(
 # Phase C/D Pilot Validators — gated by module-level flags
 # =============================================================================
 
-# Feature flags — set by run_experiment.py based on --pilot-phase
+# Feature flags — set by run_experiment.py based on --pilot-phase / --ablation-mode
 ENABLE_CONSECUTIVE_CAP = False
 ENABLE_ZERO_ESCAPE = False
+ENABLE_DEMAND_CEILING = True  # Default ON; ablation sets False
 
 # Module-level state for consecutive increase tracking (cleared per experiment)
 _consecutive_increase_tracker: Dict[str, int] = {}
@@ -751,6 +752,9 @@ def demand_ceiling_stabilizer(
 
     Tier C suggestion: None (behavioral rule — agent decides autonomously).
     """
+    if not ENABLE_DEMAND_CEILING:
+        return []
+
     if skill_name not in INCREASE_SKILLS:
         return []
 

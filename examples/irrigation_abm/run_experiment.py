@@ -465,6 +465,12 @@ def main():
     # Reset module-level flags (safe for multi-run in same process)
     irr_validators.ENABLE_CONSECUTIVE_CAP = False
     irr_validators.ENABLE_ZERO_ESCAPE = False
+    irr_validators.ENABLE_DEMAND_CEILING = True  # default ON
+
+    # Ablation mode: disable specific validator(s)
+    if getattr(args, "ablation_mode", None) == "no_demand_ceiling":
+        irr_validators.ENABLE_DEMAND_CEILING = False
+        print("[Ablation] demand_ceiling_stabilizer DISABLED — increases NOT capped at 6.0 MAF")
 
     # Always use main config (pilot config merged into agent_types.yaml)
     agent_config_path = config_dir / "agent_types.yaml"
@@ -734,6 +740,9 @@ def parse_args():
     p.add_argument("--pilot-phase", type=str, default=None,
                    choices=["A", "B", "C", "D"],
                    help="Pilot phase: A=baseline, B=BLOCK+retry, C=+consecutive_cap, D=+zero_escape")
+    p.add_argument("--ablation-mode", type=str, default=None,
+                   choices=["no_demand_ceiling"],
+                   help="Policy counterfactual: disable specific validator (e.g., no_demand_ceiling)")
     return p.parse_args()
 
 

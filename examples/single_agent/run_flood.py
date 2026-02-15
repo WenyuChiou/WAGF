@@ -241,12 +241,14 @@ class ResearchSimulation:
         agents: Dict[str, Any],
         flood_years: List[int] = None,
         flood_mode: str = "fixed",
-        flood_probability: float = FLOOD_PROBABILITY
+        flood_probability: float = FLOOD_PROBABILITY,
+        premium_rate: float = 0.02,
     ):
         self.agents = agents
         self.flood_years = flood_years or []
         self.flood_mode = flood_mode
         self.flood_probability = flood_probability
+        self.premium_rate = premium_rate
         self.current_year = 0
         self.flood_event = False
         self.grant_available = False
@@ -259,9 +261,10 @@ class ResearchSimulation:
             self.flood_event = self.current_year in self.flood_years
         self.grant_available = random.random() < GRANT_PROBABILITY
         return {
-            "flood_event": self.flood_event, 
+            "flood_event": self.flood_event,
             "grant_available": self.grant_available,
-            "current_year": self.current_year
+            "current_year": self.current_year,
+            "premium_rate": self.premium_rate,
         }
 
     # Defensive alias map for execute_skill (safety net if adapter misses normalization)
@@ -896,7 +899,11 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     print(f" Flood Years scheduled: {flood_years}")
 
     # 4. Setup Components
-    sim = ResearchSimulation(agents, flood_years, flood_mode=flood_mode)
+    premium_rate = getattr(args, 'premium_rate', None) or 0.02
+    sim = ResearchSimulation(agents, flood_years, flood_mode=flood_mode,
+                             premium_rate=premium_rate)
+    if premium_rate != 0.02:
+        print(f" [Counterfactual] Insurance premium rate: {premium_rate} (baseline: 0.02)")
     graph = NeighborhoodGraph(list(agents.keys()), k=4)
     hub = InteractionHub(graph)
     ctx_builder = FinalContextBuilder(
@@ -1197,6 +1204,9 @@ if __name__ == "__main__":
     parser.add_argument("--memory-ranking-mode", type=str, default="legacy", choices=["legacy", "weighted"], help="Ranking logic for HumanCentricMemoryEngine (legacy=v1 decay, weighted=v2 unified scoring)")
     parser.add_argument("--initial-agents", type=str, default=None, help="Path to standard agent profiles CSV")
     parser.add_argument("--shuffle-skills", action="store_true", help="Enable skill ordering randomization to reduce positional bias (Task-060B)")
+    parser.add_argument("--premium-rate", type=float, default=None,
+                        help="Override insurance premium rate (default 0.02). "
+                             "Use 0.04 for doubled-premium counterfactual.")
     args = parser.parse_args()
 
     # Apply LLM config from command line

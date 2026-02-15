@@ -648,6 +648,34 @@ class FinancialCostProvider(ContextProvider):
             min_elev_cost / income * 100 if income > 0 else 999
         )
 
+        # Insurance premium burden: premium as % of annual income.
+        # Gives LLM concrete affordability signal to differentiate MG/NMG
+        # insurance behavior (Paper 3: mg_adaptation_gap fix).
+        insurance_burden_pct = (
+            current_premium / income * 100 if income > 0 else 999
+        )
+        personal["insurance_burden_pct"] = insurance_burden_pct
+
+        # Generate insurance_cost_text for prompt template placeholder.
+        # Thresholds calibrated to MG/NMG burden distributions in PRB:
+        #   MG median ~5%, NMG median ~3.5%; MG p75 ~26%, NMG p75 ~13%
+        if insurance_burden_pct < 3:
+            affordability = "affordable"
+        elif insurance_burden_pct < 7:
+            affordability = "moderate"
+        elif insurance_burden_pct < 15:
+            affordability = "a significant financial strain"
+        else:
+            affordability = "a severe financial burden — may force trade-offs with food, medicine, or rent"
+
+        personal["insurance_cost_text"] = (
+            f"- Insurance Premium Burden: Your ${current_premium:,.0f}/year premium "
+            f"is {insurance_burden_pct:.1f}% of your annual income (${income:,.0f}). "
+            f"This is {affordability}. "
+            f"Below 3% is affordable. 3-7% is moderate. "
+            f"Above 7% is a significant strain. Above 15% may be unaffordable."
+        )
+
 
 __all__ = [
     "ContextProvider",
