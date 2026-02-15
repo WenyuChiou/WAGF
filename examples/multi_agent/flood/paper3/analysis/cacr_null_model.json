@@ -1,0 +1,25 @@
+{
+  "owner": {
+    "null_cacr_mean": 0.432,
+    "null_cacr_std": 0.1849,
+    "null_cacr_min": 0.2,
+    "null_cacr_max": 0.8,
+    "n_cells": 25,
+    "action_pool_size": 5
+  },
+  "renter": {
+    "null_cacr_mean": 0.5733,
+    "null_cacr_std": 0.1497,
+    "null_cacr_min": 0.3333,
+    "null_cacr_max": 0.6667,
+    "n_cells": 25,
+    "action_pool_size": 3
+  },
+  "combined": {
+    "null_cacr_weighted": 0.4744,
+    "weights": {
+      "owner": 0.7,
+      "renter": 0.3
+    }
+  }
+}
