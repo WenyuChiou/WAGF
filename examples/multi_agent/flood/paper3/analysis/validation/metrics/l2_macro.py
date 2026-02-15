@@ -5,14 +5,17 @@ EPI (Empirical Plausibility Index) and 8 empirical benchmarks.
 """
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 import pandas as pd
 
 from validation.theories.pmt import PMT_OWNER_RULES, PMT_RENTER_RULES
 from validation.io.trace_reader import _normalize_action, _extract_action
 from validation.io.state_inference import _extract_final_states_from_decisions
-from validation.benchmarks.flood import EMPIRICAL_BENCHMARKS, _compute_benchmark
+from validation.benchmarks.flood import (
+    EMPIRICAL_BENCHMARKS as _FLOOD_BENCHMARKS,
+    _compute_benchmark as _flood_compute_benchmark,
+)
 
 
 @dataclass
@@ -31,8 +34,23 @@ class L2Metrics:
 def compute_l2_metrics(
     traces: List[Dict],
     agent_profiles: pd.DataFrame,
+    benchmarks: Optional[Dict[str, Dict]] = None,
+    benchmark_compute_fn: Optional[Callable] = None,
 ) -> L2Metrics:
-    """Compute L2 macro-level validation metrics."""
+    """Compute L2 macro-level validation metrics.
+
+    Args:
+        traces: List of decision trace dicts.
+        agent_profiles: DataFrame with agent metadata.
+        benchmarks: Dict of benchmark definitions {name: {range, weight, description}}.
+            Defaults to flood EMPIRICAL_BENCHMARKS for backward compatibility.
+        benchmark_compute_fn: Function(name, df, traces) -> Optional[float].
+            Defaults to flood _compute_benchmark for backward compatibility.
+    """
+    if benchmarks is None:
+        benchmarks = _FLOOD_BENCHMARKS
+    if benchmark_compute_fn is None:
+        benchmark_compute_fn = _flood_compute_benchmark
     # Check trace coverage
     traced_agents = set(t.get("agent_id", "") for t in traces)
     traced_agents.discard("")
@@ -68,8 +86,8 @@ def compute_l2_metrics(
     total_weight = 0
     weighted_in_range = 0
 
-    for name, config in EMPIRICAL_BENCHMARKS.items():
-        value = _compute_benchmark(name, df, traces)
+    for name, config in benchmarks.items():
+        value = benchmark_compute_fn(name, df, traces)
         low, high = config["range"]
         weight = config["weight"]
 
@@ -98,7 +116,7 @@ def compute_l2_metrics(
         epi=round(epi, 4),
         benchmark_results=benchmark_results,
         benchmarks_in_range=in_range_count,
-        total_benchmarks=len(EMPIRICAL_BENCHMARKS),
+        total_benchmarks=len(benchmarks),
         supplementary=supplementary,
     )
 

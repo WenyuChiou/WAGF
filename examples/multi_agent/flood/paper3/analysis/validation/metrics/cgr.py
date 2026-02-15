@@ -7,14 +7,17 @@ then comparing against LLM-assigned labels.
 Metrics:
     cgr_exact:    Exact match rate (grounded == LLM label)
     cgr_adjacent: ±1-level agreement rate
-    kappa_tp/cp:  Cohen's kappa for TP/CP
+    kappa_tp/cp:  Weighted Cohen's kappa for TP/CP (linear weights for ordinal)
     confusion:    Confusion matrices for TP and CP
 """
 
 from collections import Counter
-from typing import Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 from validation.io.trace_reader import _extract_tp_label, _extract_cp_label
+
+if TYPE_CHECKING:
+    from validation.grounding.base import GroundingStrategy
 
 
 # Ordered levels for adjacency check
@@ -104,7 +107,10 @@ def _is_adjacent(level_a: str, level_b: str) -> bool:
 
 
 def _cohens_kappa(confusion: Dict[Tuple[str, str], int], labels: List[str]) -> float:
-    """Compute Cohen's kappa from a confusion matrix dict."""
+    """Compute unweighted Cohen's kappa from a confusion matrix dict.
+
+    Retained for backward compatibility. For ordinal scales, prefer _weighted_kappa.
+    """
     n = sum(confusion.values())
     if n == 0:
         return 0.0
@@ -125,34 +131,118 @@ def _cohens_kappa(confusion: Dict[Tuple[str, str], int], labels: List[str]) -> f
     return (p_o - p_e) / (1.0 - p_e)
 
 
-def compute_cgr(traces: List[Dict]) -> Dict:
+def _weighted_kappa(
+    confusion: Dict[Tuple[str, str], int],
+    labels: List[str],
+    weight_type: str = "linear",
+) -> float:
+    """Compute weighted Cohen's kappa for ordinal scales.
+
+    Linear weights: w_ij = |i - j| / (k - 1)
+    Quadratic weights: w_ij = (i - j)^2 / (k - 1)^2
+
+    For ordinal TP/CP scales (VL/L/M/H/VH), weighted kappa penalizes
+    distant disagreements more than adjacent ones. This is the standard
+    approach for ordinal reliability assessment (Cohen, 1968; Fleiss, 1981).
+
+    Args:
+        confusion: Dict of {(grounded_label, llm_label): count}.
+        labels: Ordered list of labels (e.g., ["VL", "L", "M", "H", "VH"]).
+        weight_type: "linear" or "quadratic" weights.
+
+    Returns:
+        Weighted kappa coefficient in [-1, 1].
+    """
+    n = sum(confusion.values())
+    if n == 0:
+        return 0.0
+
+    k = len(labels)
+    if k <= 1:
+        return 1.0
+
+    label_idx = {lv: i for i, lv in enumerate(labels)}
+
+    # Build weight matrix
+    if weight_type == "quadratic":
+        w = [[((i - j) ** 2) / ((k - 1) ** 2) for j in range(k)] for i in range(k)]
+    else:  # linear
+        w = [[abs(i - j) / (k - 1) for j in range(k)] for i in range(k)]
+
+    # Row/column marginals
+    row_sums = [sum(confusion.get((labels[i], labels[j]), 0) for j in range(k)) for i in range(k)]
+    col_sums = [sum(confusion.get((labels[i], labels[j]), 0) for i in range(k)) for j in range(k)]
+
+    # Observed weighted disagreement
+    p_o = 0.0
+    for i in range(k):
+        for j in range(k):
+            p_o += w[i][j] * confusion.get((labels[i], labels[j]), 0)
+    p_o /= n
+
+    # Expected weighted disagreement
+    p_e = 0.0
+    for i in range(k):
+        for j in range(k):
+            p_e += w[i][j] * (row_sums[i] * col_sums[j])
+    p_e /= (n * n)
+
+    if abs(p_e) < 1e-10:
+        return 1.0 if abs(p_o) < 1e-10 else 0.0
+
+    return 1.0 - (p_o / p_e)
+
+
+def compute_cgr(
+    traces: List[Dict],
+    grounder: Optional["GroundingStrategy"] = None,
+    theory=None,
+) -> Dict:
     """Compute Construct Grounding Rate.
 
     For each trace with state_before:
-    1. Rule-based TP/CP from state_before
-    2. LLM TP/CP from trace labels
+    1. Rule-based construct levels from state_before (via grounder)
+    2. LLM construct levels from trace labels (via theory or default TP/CP extraction)
     3. Exact match + ±1-level agreement
 
     Args:
         traces: List of decision trace dicts (must include state_before).
+        grounder: GroundingStrategy implementation for deriving expected constructs.
+            Defaults to flood PMT grounding (ground_tp/cp_from_state) for backward compat.
+        theory: Optional BehavioralTheory for extracting LLM constructs.
+            If None, uses default TP/CP extraction.
 
     Returns:
         Dict with keys:
-            cgr_tp_exact, cgr_cp_exact, cgr_tp_adjacent, cgr_cp_adjacent,
-            kappa_tp, kappa_cp,
-            tp_confusion, cp_confusion,
-            n_grounded, n_skipped
+            cgr_<dim>_exact, cgr_<dim>_adjacent for each grounded dimension,
+            kappa_<dim>, confusion matrices, n_grounded, n_skipped.
     """
-    tp_exact = 0
-    cp_exact = 0
-    tp_adjacent = 0
-    cp_adjacent = 0
+    # Determine grounding mode
+    use_flood_default = grounder is None
+
+    # For multi-dimension support, we track per-dimension results
+    if use_flood_default:
+        dimensions = ["tp", "cp"]
+    else:
+        # Probe first trace to discover dimensions
+        for trace in traces:
+            sb = trace.get("state_before", {})
+            if sb:
+                grounded = grounder.ground_constructs(sb)
+                dimensions = [d.lower() for d in grounded.keys()]
+                break
+        else:
+            dimensions = []
+
+    exact_counts = {d: 0 for d in dimensions}
+    adjacent_counts = {d: 0 for d in dimensions}
     n_grounded = 0
     n_skipped = 0
 
-    # Confusion matrices: (grounded, llm) -> count
-    tp_confusion: Dict[Tuple[str, str], int] = Counter()
-    cp_confusion: Dict[Tuple[str, str], int] = Counter()
+    # Confusion matrices: dim -> {(grounded, llm): count}
+    confusion_matrices: Dict[str, Dict[Tuple[str, str], int]] = {
+        d: Counter() for d in dimensions
+    }
 
     for trace in traces:
         state_before = trace.get("state_before", {})
@@ -160,57 +250,64 @@ def compute_cgr(traces: List[Dict]) -> Dict:
             n_skipped += 1
             continue
 
-        llm_tp = _extract_tp_label(trace)
-        llm_cp = _extract_cp_label(trace)
+        # Extract LLM labels
+        if theory is not None:
+            llm_constructs = theory.extract_constructs(trace)
+        else:
+            llm_constructs = {
+                "TP": _extract_tp_label(trace),
+                "CP": _extract_cp_label(trace),
+            }
 
-        if llm_tp == "UNKNOWN" or llm_cp == "UNKNOWN":
+        if any(v == "UNKNOWN" for v in llm_constructs.values()):
             n_skipped += 1
             continue
 
-        grounded_tp = ground_tp_from_state(state_before)
-        grounded_cp = ground_cp_from_state(state_before)
+        # Ground constructs
+        if use_flood_default:
+            grounded = {
+                "TP": ground_tp_from_state(state_before),
+                "CP": ground_cp_from_state(state_before),
+            }
+        else:
+            grounded = grounder.ground_constructs(state_before)
 
         n_grounded += 1
 
-        tp_confusion[(grounded_tp, llm_tp)] += 1
-        cp_confusion[(grounded_cp, llm_cp)] += 1
+        for dim in dimensions:
+            dim_upper = dim.upper()
+            g_val = grounded.get(dim_upper, grounded.get(dim, ""))
+            l_val = llm_constructs.get(dim_upper, llm_constructs.get(dim, ""))
 
-        if grounded_tp == llm_tp:
-            tp_exact += 1
-        if grounded_cp == llm_cp:
-            cp_exact += 1
-        if _is_adjacent(grounded_tp, llm_tp):
-            tp_adjacent += 1
-        if _is_adjacent(grounded_cp, llm_cp):
-            cp_adjacent += 1
+            confusion_matrices[dim][(g_val, l_val)] += 1
+
+            if g_val == l_val:
+                exact_counts[dim] += 1
+            if _is_adjacent(g_val, l_val):
+                adjacent_counts[dim] += 1
 
     if n_grounded == 0:
-        return {
-            "cgr_tp_exact": 0.0,
-            "cgr_cp_exact": 0.0,
-            "cgr_tp_adjacent": 0.0,
-            "cgr_cp_adjacent": 0.0,
-            "kappa_tp": 0.0,
-            "kappa_cp": 0.0,
-            "tp_confusion": {},
-            "cp_confusion": {},
-            "n_grounded": 0,
-            "n_skipped": n_skipped,
-        }
+        result = {"n_grounded": 0, "n_skipped": n_skipped}
+        for dim in dimensions:
+            result[f"cgr_{dim}_exact"] = 0.0
+            result[f"cgr_{dim}_adjacent"] = 0.0
+            result[f"kappa_{dim}"] = 0.0
+            result[f"{dim}_confusion"] = {}
+        return result
 
-    # Convert tuple keys to strings for JSON serialization
-    tp_confusion_str = {f"{k[0]}_vs_{k[1]}": v for k, v in tp_confusion.items()}
-    cp_confusion_str = {f"{k[0]}_vs_{k[1]}": v for k, v in cp_confusion.items()}
-
-    return {
-        "cgr_tp_exact": round(tp_exact / n_grounded, 4),
-        "cgr_cp_exact": round(cp_exact / n_grounded, 4),
-        "cgr_tp_adjacent": round(tp_adjacent / n_grounded, 4),
-        "cgr_cp_adjacent": round(cp_adjacent / n_grounded, 4),
-        "kappa_tp": round(_cohens_kappa(dict(tp_confusion), _LEVELS), 4),
-        "kappa_cp": round(_cohens_kappa(dict(cp_confusion), _LEVELS), 4),
-        "tp_confusion": tp_confusion_str,
-        "cp_confusion": cp_confusion_str,
+    result = {
         "n_grounded": n_grounded,
         "n_skipped": n_skipped,
     }
+    for dim in dimensions:
+        result[f"cgr_{dim}_exact"] = round(exact_counts[dim] / n_grounded, 4)
+        result[f"cgr_{dim}_adjacent"] = round(adjacent_counts[dim] / n_grounded, 4)
+        result[f"kappa_{dim}"] = round(
+            _weighted_kappa(dict(confusion_matrices[dim]), _LEVELS), 4
+        )
+        # Convert tuple keys to strings for JSON serialization
+        result[f"{dim}_confusion"] = {
+            f"{k[0]}_vs_{k[1]}": v for k, v in confusion_matrices[dim].items()
+        }
+
+    return result

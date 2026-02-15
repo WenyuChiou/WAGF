@@ -20,10 +20,12 @@ from validation.metrics.l2_macro import compute_l2_metrics
 from validation.metrics.cgr import compute_cgr
 from validation.metrics.entropy import _compute_entropy
 from validation.reporting.report_builder import ValidationReport, _to_json_serializable
-from validation.benchmarks.flood import EMPIRICAL_BENCHMARKS
+from validation.benchmarks.flood import EMPIRICAL_BENCHMARKS  # default for backward compat
 
 if TYPE_CHECKING:
     from validation.theories.base import BehavioralTheory
+    from validation.hallucinations.base import HallucinationChecker
+    from validation.grounding.base import GroundingStrategy
 
 
 def load_traces(traces_dir: Path) -> Tuple[List[Dict], List[Dict]]:
@@ -53,6 +55,8 @@ def compute_validation(
     agent_profiles_path: Path,
     output_dir: Path,
     theory: Optional["BehavioralTheory"] = None,
+    hallucination_checker: Optional["HallucinationChecker"] = None,
+    grounder: Optional["GroundingStrategy"] = None,
 ) -> ValidationReport:
     """Compute full validation report."""
     print(f"Loading traces from: {traces_dir}")
@@ -71,8 +75,10 @@ def compute_validation(
     print(f"  Agents: {len(agent_profiles)}")
 
     print("\nComputing L1 metrics...")
-    l1_owner = compute_l1_metrics(owner_traces, "owner", theory=theory)
-    l1_renter = compute_l1_metrics(renter_traces, "renter", theory=theory)
+    l1_owner = compute_l1_metrics(owner_traces, "owner", theory=theory,
+                                   hallucination_checker=hallucination_checker)
+    l1_renter = compute_l1_metrics(renter_traces, "renter", theory=theory,
+                                    hallucination_checker=hallucination_checker)
 
     # Combined L1
     combined_actions = {
@@ -115,7 +121,7 @@ def compute_validation(
 
     # CGR (Construct Grounding Rate)
     print("\nComputing CGR metrics...")
-    cgr_results = compute_cgr(all_traces)
+    cgr_results = compute_cgr(all_traces, grounder=grounder, theory=theory)
     print(f"  CGR_TP exact: {cgr_results['cgr_tp_exact']}")
     print(f"  CGR_CP exact: {cgr_results['cgr_cp_exact']}")
     print(f"  CGR_TP adjacent: {cgr_results['cgr_tp_adjacent']}")

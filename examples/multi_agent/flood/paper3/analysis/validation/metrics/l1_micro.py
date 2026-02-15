@@ -26,11 +26,13 @@ from validation.io.trace_reader import (
     _extract_action,
     _normalize_action,
 )
-from validation.hallucinations.flood import _is_hallucination
+from validation.hallucinations.flood import _is_hallucination, FloodHallucinationChecker
+from validation.hallucinations.base import NullHallucinationChecker
 from validation.metrics.entropy import _compute_entropy
 
 if TYPE_CHECKING:
     from validation.theories.base import BehavioralTheory
+    from validation.hallucinations.base import HallucinationChecker
 
 
 # =============================================================================
@@ -63,6 +65,21 @@ class L1Metrics:
     cacr_decomposition: Optional[CACRDecomposition] = None
 
     def passes_thresholds(self) -> Dict[str, bool]:
+        """Check if metrics pass publication thresholds.
+
+        Threshold justifications:
+            CACR >= 0.75: Derived from inter-rater reliability conventions.
+                Cohen's kappa >= 0.60 is "substantial agreement" (Landis & Koch, 1977).
+                CACR maps to agreement rate; kappa=0.60 corresponds to ~75% agreement
+                for typical marginal distributions (Sim & Wright, 2005). Additionally,
+                human inter-coder reliability in behavioral coding studies typically
+                achieves 70-85% (Bakeman & Gottman, 1997). The 0.75 threshold
+                represents the lower bound of acceptable human-level coherence.
+            R_H <= 0.10: Physical impossibilities should be rare. 10% tolerance
+                accounts for LLM parsing errors and edge cases in state tracking.
+            EBE ratio 0.1-0.9: Avoids degenerate distributions (all same action)
+                while allowing natural skew toward common actions.
+        """
         return {
             "CACR": self.cacr >= 0.75,
             "R_H": self.r_h <= 0.10,
@@ -79,6 +96,7 @@ def compute_l1_metrics(
     agent_type: str = "owner",
     theory: Optional["BehavioralTheory"] = None,
     action_space_size: Optional[int] = None,
+    hallucination_checker: Optional["HallucinationChecker"] = None,
 ) -> L1Metrics:
     """Compute L1 micro-level validation metrics.
 
@@ -88,9 +106,13 @@ def compute_l1_metrics(
         theory: BehavioralTheory implementation. Defaults to PMTTheory().
         action_space_size: Fixed action space size for EHE normalization.
             If None, defaults to 4 for owner, 3 for renter.
+        hallucination_checker: HallucinationChecker implementation.
+            Defaults to FloodHallucinationChecker() for backward compatibility.
     """
     if theory is None:
         theory = PMTTheory()
+    if hallucination_checker is None:
+        hallucination_checker = FloodHallucinationChecker()
 
     total = len(traces)
     coherent = 0
@@ -116,7 +138,7 @@ def compute_l1_metrics(
             if theory.is_sensible_action(constructs, action, agent_type):
                 coherent += 1
 
-        if _is_hallucination(trace):
+        if hallucination_checker.is_hallucination(trace):
             hallucinations += 1
 
     if extraction_failures > 0:

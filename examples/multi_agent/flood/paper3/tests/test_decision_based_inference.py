@@ -503,7 +503,7 @@ class TestEBERatio:
         assert l1.ebe_ratio == pytest.approx(1.0, abs=0.01)
 
     def test_ebe_ratio_single_action(self):
-        """All same action → ebe=0, ebe_max=0, ratio=0."""
+        """All same action → ebe=0, ratio=0. ebe_max fixed by action space size."""
         traces = [
             make_trace("H001", year=1, action="do_nothing"),
             make_trace("H002", year=1, action="do_nothing"),
@@ -515,7 +515,8 @@ class TestEBERatio:
 
         l1 = compute_l1_metrics(traces, "owner")
         assert l1.ebe == 0.0
-        assert l1.ebe_max == 0.0
+        # Fixed k=4 for owner → ebe_max = log2(4) = 2.0
+        assert l1.ebe_max == pytest.approx(2.0, abs=0.01)
         assert l1.ebe_ratio == 0.0
 
     def test_ebe_ratio_passes_threshold(self):

@@ -28,6 +28,10 @@ from validation.metrics.null_model import (
     epi_significance_test,
 )
 from validation.reporting.report_builder import ValidationReport, _to_json_serializable
+from validation.hallucinations.base import HallucinationChecker, NullHallucinationChecker
+from validation.hallucinations.flood import FloodHallucinationChecker
+from validation.grounding.base import GroundingStrategy
+from validation.grounding.flood import FloodGroundingStrategy
 
 __all__ = [
     "compute_validation",
@@ -45,4 +49,9 @@ __all__ = [
     "CACRDecomposition",
     "ValidationReport",
     "_to_json_serializable",
+    "HallucinationChecker",
+    "NullHallucinationChecker",
+    "FloodHallucinationChecker",
+    "GroundingStrategy",
+    "FloodGroundingStrategy",
 ]

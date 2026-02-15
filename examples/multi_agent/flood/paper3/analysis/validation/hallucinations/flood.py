@@ -2,6 +2,7 @@
 Hallucination Detection for Flood ABM.
 
 Checks for physically impossible actions given agent state.
+Implements HallucinationChecker protocol.
 """
 
 import json
@@ -11,7 +12,10 @@ from validation.io.trace_reader import _normalize_action, _extract_action
 
 
 def _is_hallucination(trace: Dict) -> bool:
-    """Check if trace contains a hallucination (physically impossible action)."""
+    """Check if trace contains a hallucination (physically impossible action).
+
+    Backward-compatible free function. For new code, use FloodHallucinationChecker.
+    """
     action = _normalize_action(_extract_action(trace))
     state_before = trace.get("state_before", {})
     if isinstance(state_before, str):
@@ -34,3 +38,14 @@ def _is_hallucination(trace: Dict) -> bool:
         return True
 
     return False
+
+
+class FloodHallucinationChecker:
+    """Flood ABM hallucination checker implementing HallucinationChecker protocol."""
+
+    @property
+    def name(self) -> str:
+        return "flood_physical"
+
+    def is_hallucination(self, trace: Dict) -> bool:
+        return _is_hallucination(trace)

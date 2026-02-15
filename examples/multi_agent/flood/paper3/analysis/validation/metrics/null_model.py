@@ -19,15 +19,17 @@ import pandas as pd
 from validation.metrics.l2_macro import compute_l2_metrics
 
 
-# Action pools per agent type
-_OWNER_ACTIONS = ["do_nothing", "buy_insurance", "elevate", "buyout", "retrofit"]
-_RENTER_ACTIONS = ["do_nothing", "buy_insurance", "relocate"]
+# Default action pools per agent type (flood ABM)
+_FLOOD_OWNER_ACTIONS = ["do_nothing", "buy_insurance", "elevate", "buyout", "retrofit"]
+_FLOOD_RENTER_ACTIONS = ["do_nothing", "buy_insurance", "relocate"]
+_FLOOD_ACTION_POOLS = {"owner": _FLOOD_OWNER_ACTIONS, "renter": _FLOOD_RENTER_ACTIONS}
 
 
 def generate_null_traces(
     agent_profiles: pd.DataFrame,
     n_years: int = 13,
     seed: int = 0,
+    action_pools: Optional[Dict[str, List[str]]] = None,
 ) -> List[Dict]:
     """Generate uniformly random action traces for null model.
 
@@ -38,10 +40,16 @@ def generate_null_traces(
         agent_profiles: DataFrame with agent_id, tenure, flood_zone, mg columns.
         n_years: Number of simulation years.
         seed: Random seed for reproducibility.
+        action_pools: Dict mapping agent type to action list.
+            E.g., {"owner": ["do_nothing", "buy_insurance", ...], "renter": [...]}.
+            Defaults to flood ABM action pools for backward compatibility.
 
     Returns:
         List of trace dicts compatible with compute_l2_metrics().
     """
+    if action_pools is None:
+        action_pools = _FLOOD_ACTION_POOLS
+
     rng = np.random.default_rng(seed)
     traces = []
 
@@ -52,7 +60,8 @@ def generate_null_traces(
         mg = bool(row.get("mg", False))
 
         is_owner = tenure.lower() == "owner"
-        action_pool = _OWNER_ACTIONS if is_owner else _RENTER_ACTIONS
+        agent_type_key = "owner" if is_owner else "renter"
+        action_pool = action_pools.get(agent_type_key, ["do_nothing"])
 
         for year in range(1, n_years + 1):
             action = action_pool[rng.integers(len(action_pool))]
@@ -87,6 +96,7 @@ def compute_null_epi_distribution(
     n_simulations: int = 1000,
     n_years: int = 13,
     seed: int = 0,
+    action_pools: Optional[Dict[str, List[str]]] = None,
 ) -> Dict:
     """Monte Carlo null-model EPI distribution.
 
@@ -98,6 +108,8 @@ def compute_null_epi_distribution(
         n_simulations: Number of Monte Carlo iterations.
         n_years: Years per simulation.
         seed: Base random seed.
+        action_pools: Dict mapping agent type to action list.
+            Defaults to flood ABM action pools.
 
     Returns:
         Dict with null_epi_mean, null_epi_std, null_epi_p05, null_epi_p95,
@@ -106,7 +118,8 @@ def compute_null_epi_distribution(
     samples = []
 
     for i in range(n_simulations):
-        null_traces = generate_null_traces(agent_profiles, n_years, seed=seed + i)
+        null_traces = generate_null_traces(agent_profiles, n_years, seed=seed + i,
+                                           action_pools=action_pools)
         l2 = compute_l2_metrics(null_traces, agent_profiles)
         samples.append(l2.epi)
 
