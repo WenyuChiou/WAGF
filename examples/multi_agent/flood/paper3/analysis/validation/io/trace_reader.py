@@ -4,7 +4,21 @@ Trace Field Extraction and Action Normalization.
 Extracts TP/CP labels and action names from nested trace structures.
 """
 
-from typing import Dict
+from typing import Dict, Optional
+
+
+# Default flood-domain action aliases (extracted for extensibility)
+_FLOOD_ACTION_ALIASES: Dict[str, list] = {
+    "buy_insurance": [
+        "buy_insurance", "purchase_insurance", "get_insurance", "insurance",
+        "buy_contents_insurance", "buy_structure_insurance", "contents_insurance",
+    ],
+    "elevate": ["elevate", "elevate_home", "home_elevation", "raise_home", "elevate_house"],
+    "buyout": ["buyout", "voluntary_buyout", "accept_buyout", "buyout_program"],
+    "relocate": ["relocate", "move", "relocation"],
+    "retrofit": ["retrofit", "floodproof", "flood_retrofit"],
+    "do_nothing": ["do_nothing", "no_action", "wait", "none"],
+}
 
 
 def _extract_tp_label(trace: Dict) -> str:
@@ -48,25 +62,21 @@ def _extract_action(trace: Dict) -> str:
     return "do_nothing"
 
 
-def _normalize_action(action) -> str:
-    """Normalize action names to standard form."""
+def _normalize_action(action, action_aliases: Optional[Dict[str, list]] = None) -> str:
+    """Normalize action names to standard form.
+
+    Args:
+        action: Raw action (str or dict with skill_name/name key).
+        action_aliases: Dict mapping canonical action name to list of variants.
+            Defaults to _FLOOD_ACTION_ALIASES for backward compatibility.
+    """
     if isinstance(action, dict):
         action = action.get("skill_name", action.get("name", "do_nothing"))
     if not isinstance(action, str):
         return "do_nothing"
     action = action.lower().strip()
 
-    mappings = {
-        "buy_insurance": [
-            "buy_insurance", "purchase_insurance", "get_insurance", "insurance",
-            "buy_contents_insurance", "buy_structure_insurance", "contents_insurance",
-        ],
-        "elevate": ["elevate", "elevate_home", "home_elevation", "raise_home", "elevate_house"],
-        "buyout": ["buyout", "voluntary_buyout", "accept_buyout", "buyout_program"],
-        "relocate": ["relocate", "move", "relocation"],
-        "retrofit": ["retrofit", "floodproof", "flood_retrofit"],
-        "do_nothing": ["do_nothing", "no_action", "wait", "none"],
-    }
+    mappings = action_aliases if action_aliases is not None else _FLOOD_ACTION_ALIASES
 
     for standard, variants in mappings.items():
         if action in variants:

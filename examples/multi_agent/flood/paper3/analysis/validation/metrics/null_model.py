@@ -11,7 +11,7 @@ Usage:
     sig = epi_significance_test(observed_epi=0.78, null_distribution=null["samples"])
 """
 
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -25,11 +25,20 @@ _FLOOD_RENTER_ACTIONS = ["do_nothing", "buy_insurance", "relocate"]
 _FLOOD_ACTION_POOLS = {"owner": _FLOOD_OWNER_ACTIONS, "renter": _FLOOD_RENTER_ACTIONS}
 
 
+def _default_flood_hazard(row: pd.Series, rng: np.random.Generator) -> bool:
+    """Default flood hazard function: ~20% for HIGH zone, ~5% otherwise."""
+    flood_zone = str(row.get("flood_zone", "LOW"))
+    if flood_zone == "HIGH":
+        return rng.random() < 0.20
+    return rng.random() < 0.05
+
+
 def generate_null_traces(
     agent_profiles: pd.DataFrame,
     n_years: int = 13,
     seed: int = 0,
     action_pools: Optional[Dict[str, List[str]]] = None,
+    hazard_fn: Optional[Callable[[pd.Series, np.random.Generator], bool]] = None,
 ) -> List[Dict]:
     """Generate uniformly random action traces for null model.
 
@@ -43,12 +52,16 @@ def generate_null_traces(
         action_pools: Dict mapping agent type to action list.
             E.g., {"owner": ["do_nothing", "buy_insurance", ...], "renter": [...]}.
             Defaults to flood ABM action pools for backward compatibility.
+        hazard_fn: Function(row, rng) -> bool that determines if agent is
+            affected by hazard this year. Defaults to _default_flood_hazard.
 
     Returns:
         List of trace dicts compatible with compute_l2_metrics().
     """
     if action_pools is None:
         action_pools = _FLOOD_ACTION_POOLS
+    if hazard_fn is None:
+        hazard_fn = _default_flood_hazard
 
     rng = np.random.default_rng(seed)
     traces = []
@@ -65,12 +78,7 @@ def generate_null_traces(
 
         for year in range(1, n_years + 1):
             action = action_pool[rng.integers(len(action_pool))]
-
-            # Simulate flooding: ~20% chance per year for HIGH zone, ~5% for others
-            if flood_zone == "HIGH":
-                flooded = rng.random() < 0.20
-            else:
-                flooded = rng.random() < 0.05
+            flooded = hazard_fn(row, rng)
 
             trace = {
                 "agent_id": agent_id,
@@ -97,6 +105,7 @@ def compute_null_epi_distribution(
     n_years: int = 13,
     seed: int = 0,
     action_pools: Optional[Dict[str, List[str]]] = None,
+    hazard_fn: Optional[Callable[[pd.Series, np.random.Generator], bool]] = None,
 ) -> Dict:
     """Monte Carlo null-model EPI distribution.
 
@@ -110,6 +119,8 @@ def compute_null_epi_distribution(
         seed: Base random seed.
         action_pools: Dict mapping agent type to action list.
             Defaults to flood ABM action pools.
+        hazard_fn: Function(row, rng) -> bool for hazard simulation.
+            Defaults to _default_flood_hazard.
 
     Returns:
         Dict with null_epi_mean, null_epi_std, null_epi_p05, null_epi_p95,
@@ -119,7 +130,8 @@ def compute_null_epi_distribution(
 
     for i in range(n_simulations):
         null_traces = generate_null_traces(agent_profiles, n_years, seed=seed + i,
-                                           action_pools=action_pools)
+                                           action_pools=action_pools,
+                                           hazard_fn=hazard_fn)
         l2 = compute_l2_metrics(null_traces, agent_profiles)
         samples.append(l2.epi)
 

@@ -17,6 +17,7 @@ from validation.metrics.null_model import (
     generate_null_traces,
     compute_null_epi_distribution,
     epi_significance_test,
+    _default_flood_hazard,
 )
 
 
@@ -155,3 +156,42 @@ class TestSignificanceTest:
         assert "significant" in result
         assert "observed_epi" in result
         assert "null_mean" in result
+
+
+# =============================================================================
+# Hazard Function Extensibility Tests
+# =============================================================================
+
+class TestHazardFnExtensibility:
+    def test_no_hazard_fn(self, small_profiles):
+        """Custom hazard_fn that never triggers produces no floods."""
+        def no_hazard(row, rng):
+            return False
+
+        traces = generate_null_traces(small_profiles, n_years=3, seed=0,
+                                      hazard_fn=no_hazard)
+        assert all(t["flooded_this_year"] is False for t in traces)
+
+    def test_always_hazard_fn(self, small_profiles):
+        """Custom hazard_fn that always triggers."""
+        def always_hazard(row, rng):
+            return True
+
+        traces = generate_null_traces(small_profiles, n_years=3, seed=0,
+                                      hazard_fn=always_hazard)
+        assert all(t["flooded_this_year"] is True for t in traces)
+
+    def test_default_flood_hazard_exported(self):
+        """_default_flood_hazard is importable."""
+        assert callable(_default_flood_hazard)
+
+    def test_hazard_fn_passthrough_to_distribution(self, small_profiles):
+        """hazard_fn is forwarded through compute_null_epi_distribution."""
+        def no_hazard(row, rng):
+            return False
+
+        result = compute_null_epi_distribution(
+            small_profiles, n_simulations=3, n_years=2, seed=0,
+            hazard_fn=no_hazard,
+        )
+        assert len(result["samples"]) == 3

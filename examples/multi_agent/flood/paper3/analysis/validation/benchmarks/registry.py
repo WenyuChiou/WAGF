@@ -21,12 +21,20 @@ class BenchmarkRegistry:
         return decorator
 
     def dispatch(self, name: str, df: pd.DataFrame, traces: List[Dict],
-                 ins_col: Optional[str], elev_col: Optional[str]) -> Optional[float]:
-        """Dispatch to registered benchmark function."""
+                 **kwargs) -> Optional[float]:
+        """Dispatch to registered benchmark function.
+
+        Args:
+            name: Benchmark name.
+            df: Agent profiles DataFrame with inferred final states.
+            traces: List of decision trace dicts.
+            **kwargs: Domain-specific keyword arguments forwarded to the
+                registered function (e.g., ins_col, elev_col for flood).
+        """
         if name not in self._registry:
             return None
         try:
-            return self._registry[name](df, traces, ins_col, elev_col)
+            return self._registry[name](df, traces, **kwargs)
         except Exception as e:
             print(f"Warning: Could not compute {name}: {e}")
             return None
