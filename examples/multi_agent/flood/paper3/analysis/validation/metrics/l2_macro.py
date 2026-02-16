@@ -121,6 +121,55 @@ def compute_l2_metrics(
     )
 
 
+def epi_weight_sensitivity(
+    benchmark_results: Dict[str, Dict],
+) -> Dict[str, Dict]:
+    """Recompute EPI under alternative weighting schemes.
+
+    Tests whether the pass/fail verdict is robust to weight choice.
+    Uses the already-computed benchmark values (no re-running benchmarks).
+
+    Three schemes:
+        equal: All weights = 1.0
+        current: Original weights from benchmark definitions
+        relaxed: Halve the heaviest weight (demographic), cap at 1.0
+
+    Args:
+        benchmark_results: Dict from L2Metrics.benchmark_results.
+            Each value must have keys: value, range, in_range, weight.
+
+    Returns:
+        Dict mapping scheme name to {epi, passes, weights}.
+    """
+    schemes = {
+        "equal": {name: 1.0 for name in benchmark_results},
+        "current": {name: r["weight"] for name, r in benchmark_results.items()},
+        "relaxed": {
+            name: min(r["weight"] * 0.5, 1.0) if r["weight"] > 1.0 else r["weight"]
+            for name, r in benchmark_results.items()
+        },
+    }
+
+    results = {}
+    for scheme_name, weights in schemes.items():
+        total_weight = 0.0
+        weighted_in_range = 0.0
+        for name, r in benchmark_results.items():
+            if r["value"] is not None:
+                w = weights[name]
+                total_weight += w
+                if r["in_range"]:
+                    weighted_in_range += w
+        epi = weighted_in_range / total_weight if total_weight > 0 else 0.0
+        results[scheme_name] = {
+            "epi": round(epi, 4),
+            "passes": epi >= 0.60,
+            "weights": weights,
+        }
+
+    return results
+
+
 def _compute_rejection_supplementary(
     traces: List[Dict],
     agent_profiles: pd.DataFrame,
