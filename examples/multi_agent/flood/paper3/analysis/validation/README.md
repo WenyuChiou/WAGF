@@ -97,15 +97,15 @@ complete trace dict field reference.
 
 ## Known Limitations
 
-1. **L0 (documentation audit)** not yet automated — manual checklist only
-2. **L4 (meta-validation)** not implemented — requires Wasserstein distance
-3. **Sycophancy testing** not included — would need adversarial prompt probing
-4. **State inference** uses rule-based approach (configurable via `state_rules`) — more complex domains may need custom inference functions
+1. **L0 (documentation audit)** uses keyword matching — not semantic analysis. May miss rephrased content. See `metrics/l0_audit.py`.
+2. **L4 (meta-validation)** uses Wasserstein-1 on categorical distributions. Requires empirical reference data for meaningful comparison. See `metrics/l4_meta.py`.
+3. **Sycophancy testing** provides probe framework but requires LLM inference loop (external). See `metrics/sycophancy.py`.
+4. **State inference** uses rule-based approach (configurable via `state_rules`) — more complex domains may need custom inference functions.
 
 ## Tests
 
 ```bash
-# All validation tests (188+)
+# All validation tests (264+)
 python -m pytest examples/multi_agent/flood/paper3/tests/ -v
 
 # Broker-level CV tests
