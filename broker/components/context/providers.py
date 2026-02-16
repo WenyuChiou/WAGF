@@ -657,23 +657,30 @@ class FinancialCostProvider(ContextProvider):
         personal["insurance_burden_pct"] = insurance_burden_pct
 
         # Generate insurance_cost_text for prompt template placeholder.
-        # Thresholds calibrated to MG/NMG burden distributions in PRB:
+        # 3-tier scheme calibrated to MG/NMG burden distributions in PRB:
         #   MG median ~5%, NMG median ~3.5%; MG p75 ~26%, NMG p75 ~13%
-        if insurance_burden_pct < 3:
+        # Uses descriptive norms (not welfare threats) to avoid RLHF
+        # moral-harm reflex that causes overcorrection in small LLMs.
+        if insurance_burden_pct < 5:
             affordability = "affordable"
-        elif insurance_burden_pct < 7:
-            affordability = "moderate"
-        elif insurance_burden_pct < 15:
-            affordability = "a significant financial strain"
+        elif insurance_burden_pct < 12:
+            affordability = (
+                "a meaningful financial commitment. "
+                "Some households at this income level delay or skip insurance"
+            )
         else:
-            affordability = "a severe financial burden — may force trade-offs with food, medicine, or rent"
+            affordability = (
+                "a heavy financial burden. "
+                "Many households at this income level choose not to "
+                "sustain insurance"
+            )
 
         personal["insurance_cost_text"] = (
             f"- Insurance Premium Burden: Your ${current_premium:,.0f}/year premium "
             f"is {insurance_burden_pct:.1f}% of your annual income (${income:,.0f}). "
             f"This is {affordability}. "
-            f"Below 3% is affordable. 3-7% is moderate. "
-            f"Above 7% is a significant strain. Above 15% may be unaffordable."
+            f"Below 5% of income is generally affordable. "
+            f"Above 12% is a heavy burden for most households."
         )
 
 
