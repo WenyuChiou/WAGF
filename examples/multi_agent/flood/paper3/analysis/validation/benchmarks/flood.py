@@ -85,7 +85,8 @@ def _get_elevated_col(df: pd.DataFrame) -> Optional[str]:
 # =============================================================================
 
 @_registry.register("insurance_rate_sfha")
-def _compute_insurance_rate_sfha(df, traces, ins_col, elev_col):
+def _compute_insurance_rate_sfha(df, traces, **kwargs):
+    ins_col = kwargs.get("ins_col") or _get_insured_col(df)
     high_risk = df[df["flood_zone"] == "HIGH"]
     if len(high_risk) == 0 or ins_col is None:
         return None
@@ -96,14 +97,16 @@ def _compute_insurance_rate_sfha(df, traces, ins_col, elev_col):
 
 
 @_registry.register("insurance_rate_all")
-def _compute_insurance_rate_all(df, traces, ins_col, elev_col):
+def _compute_insurance_rate_all(df, traces, **kwargs):
+    ins_col = kwargs.get("ins_col") or _get_insured_col(df)
     if ins_col is None or ins_col not in df.columns:
         return None
     return df[ins_col].fillna(False).astype(float).mean()
 
 
 @_registry.register("elevation_rate")
-def _compute_elevation_rate(df, traces, ins_col, elev_col):
+def _compute_elevation_rate(df, traces, **kwargs):
+    elev_col = kwargs.get("elev_col") or _get_elevated_col(df)
     owners = df[df["tenure"] == "Owner"]
     if len(owners) == 0 or elev_col is None or elev_col not in owners.columns:
         return None
@@ -111,7 +114,7 @@ def _compute_elevation_rate(df, traces, ins_col, elev_col):
 
 
 @_registry.register("buyout_rate")
-def _compute_buyout_rate(df, traces, ins_col, elev_col):
+def _compute_buyout_rate(df, traces, **kwargs):
     if "final_bought_out" not in df.columns and "final_relocated" not in df.columns:
         return None
     buyout = df.get("final_bought_out", pd.Series([False]*len(df), index=df.index)).fillna(False)
@@ -120,7 +123,7 @@ def _compute_buyout_rate(df, traces, ins_col, elev_col):
 
 
 @_registry.register("do_nothing_rate_postflood")
-def _compute_do_nothing_rate_postflood(df, traces, ins_col, elev_col):
+def _compute_do_nothing_rate_postflood(df, traces, **kwargs):
     flooded_traces = [t for t in traces if (
         t.get("flooded_this_year", False)
         or t.get("state_before", {}).get("flooded_this_year", False)
@@ -139,7 +142,7 @@ def _compute_do_nothing_rate_postflood(df, traces, ins_col, elev_col):
 
 
 @_registry.register("mg_adaptation_gap")
-def _compute_mg_adaptation_gap(df, traces, ins_col, elev_col):
+def _compute_mg_adaptation_gap(df, traces, **kwargs):
     mg = df[df["mg"] == True].copy()
     nmg = df[df["mg"] == False].copy()
     if len(mg) == 0 or len(nmg) == 0:
@@ -160,7 +163,8 @@ def _compute_mg_adaptation_gap(df, traces, ins_col, elev_col):
 
 
 @_registry.register("renter_uninsured_rate")
-def _compute_renter_uninsured_rate(df, traces, ins_col, elev_col):
+def _compute_renter_uninsured_rate(df, traces, **kwargs):
+    ins_col = kwargs.get("ins_col") or _get_insured_col(df)
     renters_flood = df[(df["tenure"] == "Renter") & (df["flood_zone"] == "HIGH")]
     if len(renters_flood) == 0 or ins_col is None or ins_col not in renters_flood.columns:
         return None
@@ -168,7 +172,7 @@ def _compute_renter_uninsured_rate(df, traces, ins_col, elev_col):
 
 
 @_registry.register("insurance_lapse_rate")
-def _compute_insurance_lapse_rate(df, traces, ins_col, elev_col):
+def _compute_insurance_lapse_rate(df, traces, **kwargs):
     agent_traces: Dict[str, list] = {}
     for trace in traces:
         aid = trace.get("agent_id", "")
@@ -207,4 +211,4 @@ def _compute_benchmark(name: str, df: pd.DataFrame, traces: List[Dict]) -> Optio
     """Compute a specific benchmark value (backward-compatible wrapper)."""
     ins_col = _get_insured_col(df)
     elev_col = _get_elevated_col(df)
-    return _registry.dispatch(name, df, traces, ins_col, elev_col)
+    return _registry.dispatch(name, df, traces, ins_col=ins_col, elev_col=elev_col)

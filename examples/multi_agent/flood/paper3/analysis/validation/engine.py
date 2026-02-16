@@ -28,26 +28,48 @@ if TYPE_CHECKING:
     from validation.grounding.base import GroundingStrategy
 
 
-def load_traces(traces_dir: Path) -> Tuple[List[Dict], List[Dict]]:
-    """Load owner and renter traces from directory."""
-    owner_traces = []
-    renter_traces = []
+# Default flood-domain trace file patterns
+_FLOOD_TRACE_PATTERNS: Dict[str, List[str]] = {
+    "owner": ["**/household_owner_traces.jsonl", "**/owner_traces.jsonl"],
+    "renter": ["**/household_renter_traces.jsonl", "**/renter_traces.jsonl"],
+}
 
-    for pattern in ["**/household_owner_traces.jsonl", "**/owner_traces.jsonl"]:
-        for filepath in traces_dir.glob(pattern):
-            with open(filepath, 'r', encoding='utf-8') as f:
-                for line in f:
-                    if line.strip():
-                        owner_traces.append(json.loads(line))
 
-    for pattern in ["**/household_renter_traces.jsonl", "**/renter_traces.jsonl"]:
-        for filepath in traces_dir.glob(pattern):
-            with open(filepath, 'r', encoding='utf-8') as f:
-                for line in f:
-                    if line.strip():
-                        renter_traces.append(json.loads(line))
+def load_traces(
+    traces_dir: Path,
+    trace_patterns: Optional[Dict[str, List[str]]] = None,
+) -> Tuple[List[Dict], List[Dict]]:
+    """Load traces from directory using configurable file patterns.
 
-    return owner_traces, renter_traces
+    Args:
+        traces_dir: Directory containing trace JSONL files.
+        trace_patterns: Dict mapping group name to list of glob patterns.
+            Must have exactly two keys (first = "primary", second = "secondary").
+            Defaults to _FLOOD_TRACE_PATTERNS (owner/renter) for backward compat.
+
+    Returns:
+        Tuple of (primary_traces, secondary_traces).
+    """
+    if trace_patterns is None:
+        trace_patterns = _FLOOD_TRACE_PATTERNS
+
+    groups = list(trace_patterns.keys())
+    if len(groups) != 2:
+        raise ValueError(
+            f"trace_patterns must have exactly 2 keys, got {len(groups)}: {groups}"
+        )
+    result = {g: [] for g in groups}
+
+    for group_name in groups:
+        patterns = trace_patterns[group_name]
+        for pattern in patterns:
+            for filepath in traces_dir.glob(pattern):
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        if line.strip():
+                            result[group_name].append(json.loads(line))
+
+    return result[groups[0]], result[groups[1]]
 
 
 def compute_validation(
@@ -57,10 +79,31 @@ def compute_validation(
     theory: Optional["BehavioralTheory"] = None,
     hallucination_checker: Optional["HallucinationChecker"] = None,
     grounder: Optional["GroundingStrategy"] = None,
+    trace_patterns: Optional[Dict[str, List[str]]] = None,
+    action_space_size: Optional[int] = None,
+    benchmarks: Optional[Dict[str, Dict]] = None,
+    benchmark_compute_fn=None,
 ) -> ValidationReport:
-    """Compute full validation report."""
+    """Compute full validation report.
+
+    Args:
+        traces_dir: Directory containing trace JSONL files.
+        agent_profiles_path: Path to agent profiles CSV.
+        output_dir: Directory for output reports.
+        theory: BehavioralTheory protocol implementation.
+        hallucination_checker: HallucinationChecker protocol implementation.
+        grounder: GroundingStrategy protocol implementation.
+        trace_patterns: Dict mapping group names to glob patterns for trace loading.
+            Defaults to flood owner/renter patterns.
+        action_space_size: Number of unique actions in the domain for EBE
+            normalization. Defaults to 5 (flood: owner 4 + renter 3, shared do_nothing).
+        benchmarks: Dict of benchmark definitions for L2 metrics.
+            Defaults to flood EMPIRICAL_BENCHMARKS.
+        benchmark_compute_fn: Function(name, df, traces) -> Optional[float].
+            Defaults to flood _compute_benchmark.
+    """
     print(f"Loading traces from: {traces_dir}")
-    owner_traces, renter_traces = load_traces(traces_dir)
+    owner_traces, renter_traces = load_traces(traces_dir, trace_patterns=trace_patterns)
     all_traces = owner_traces + renter_traces
 
     print(f"  Owner traces: {len(owner_traces)}")
@@ -86,7 +129,12 @@ def compute_validation(
         for k in set(l1_owner.action_distribution) | set(l1_renter.action_distribution)
     }
     combined_ebe = round(_compute_entropy(Counter(combined_actions)), 4)
-    k_combined = 5  # Fixed: full household action space (owner 4 + renter 3, shared do_nothing)
+    if action_space_size is not None:
+        k_combined = action_space_size
+    elif theory is not None and hasattr(theory, 'action_space_size'):
+        k_combined = theory.action_space_size
+    else:
+        k_combined = 5  # Default: flood household action space
     combined_ebe_max = round(math.log2(k_combined), 4)
     combined_ebe_ratio = round(combined_ebe / combined_ebe_max, 4) if combined_ebe_max > 0 else 0.0
 
@@ -131,7 +179,9 @@ def compute_validation(
 
     # L2
     print("\nComputing L2 metrics...")
-    l2 = compute_l2_metrics(all_traces, agent_profiles)
+    l2 = compute_l2_metrics(all_traces, agent_profiles,
+                            benchmarks=benchmarks,
+                            benchmark_compute_fn=benchmark_compute_fn)
 
     print(f"  EPI: {l2.epi} (threshold >=0.60)")
     print(f"  Benchmarks in range: {l2.benchmarks_in_range}/{l2.total_benchmarks}")
