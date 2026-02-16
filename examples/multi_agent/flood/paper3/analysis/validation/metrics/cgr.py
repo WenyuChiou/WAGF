@@ -300,10 +300,14 @@ def compute_cgr(
         "n_skipped": n_skipped,
     }
     for dim in dimensions:
+        cm = dict(confusion_matrices[dim])
         result[f"cgr_{dim}_exact"] = round(exact_counts[dim] / n_grounded, 4)
         result[f"cgr_{dim}_adjacent"] = round(adjacent_counts[dim] / n_grounded, 4)
         result[f"kappa_{dim}"] = round(
-            _weighted_kappa(dict(confusion_matrices[dim]), _LEVELS), 4
+            _weighted_kappa(cm, _LEVELS), 4
+        )
+        result[f"kappa_{dim}_unweighted"] = round(
+            _cohens_kappa(cm, _LEVELS), 4
         )
         # Convert tuple keys to strings for JSON serialization
         result[f"{dim}_confusion"] = {

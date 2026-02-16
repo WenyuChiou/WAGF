@@ -86,6 +86,39 @@ class L1Metrics:
             "EBE": 0.1 < self.ebe_ratio < 0.9 if self.ebe_max > 0 else False,
         }
 
+    def threshold_sensitivity(
+        self,
+        cacr_range: Optional[List[float]] = None,
+    ) -> List[Dict]:
+        """Sweep CACR thresholds and report pass/fail for this experiment.
+
+        Useful for justifying the 0.75 threshold choice. Generates a table
+        showing how the pass/fail verdict changes across thresholds.
+
+        Args:
+            cacr_range: List of CACR thresholds to test.
+                Defaults to [0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95].
+
+        Returns:
+            List of dicts with keys: threshold, cacr_pass, cacr_value, overall_pass.
+        """
+        if cacr_range is None:
+            cacr_range = [round(0.50 + i * 0.05, 2) for i in range(10)]
+
+        rh_pass = self.r_h <= 0.10
+        ebe_pass = (0.1 < self.ebe_ratio < 0.9) if self.ebe_max > 0 else False
+
+        results = []
+        for threshold in cacr_range:
+            cacr_pass = self.cacr >= threshold
+            results.append({
+                "threshold": threshold,
+                "cacr_pass": cacr_pass,
+                "cacr_value": self.cacr,
+                "overall_pass": cacr_pass and rh_pass and ebe_pass,
+            })
+        return results
+
 
 # =============================================================================
 # L1 Metric Computation
@@ -167,6 +200,47 @@ def compute_l1_metrics(
         hallucinations=hallucinations,
         action_distribution=dict(action_counts),
     )
+
+
+def cacr_threshold_sensitivity_batch(
+    l1_metrics_list: List[L1Metrics],
+    labels: Optional[List[str]] = None,
+    cacr_range: Optional[List[float]] = None,
+) -> List[Dict]:
+    """Compute CACR threshold sensitivity across multiple experiments.
+
+    For each threshold, reports how many experiments pass and which ones.
+    This provides empirical justification for the chosen CACR threshold.
+
+    Args:
+        l1_metrics_list: List of L1Metrics from different experiments/seeds.
+        labels: Optional labels for each experiment (e.g., seed IDs).
+        cacr_range: CACR thresholds to sweep.
+            Defaults to [0.50, 0.55, ..., 0.95].
+
+    Returns:
+        List of dicts: {threshold, n_pass, n_total, pass_rate, experiments_passing}.
+    """
+    if cacr_range is None:
+        cacr_range = [round(0.50 + i * 0.05, 2) for i in range(10)]
+    if labels is None:
+        labels = [f"exp_{i}" for i in range(len(l1_metrics_list))]
+
+    n = len(l1_metrics_list)
+    results = []
+    for threshold in cacr_range:
+        passing = [
+            labels[i] for i, m in enumerate(l1_metrics_list)
+            if m.cacr >= threshold
+        ]
+        results.append({
+            "threshold": threshold,
+            "n_pass": len(passing),
+            "n_total": n,
+            "pass_rate": round(len(passing) / n, 4) if n > 0 else 0.0,
+            "experiments_passing": passing,
+        })
+    return results
 
 
 # =============================================================================

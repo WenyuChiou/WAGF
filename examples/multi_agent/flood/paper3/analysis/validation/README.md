@@ -23,6 +23,7 @@ validation/
 ├── __init__.py              # Public API exports
 ├── engine.py                # Main pipeline (compute_validation, load_traces)
 ├── EXTENDING.md             # Guide: extending to new domains
+├── TRACE_SCHEMA.md          # Trace dict field reference
 ├── README.md                # This file
 │
 ├── theories/                # BehavioralTheory protocol
@@ -63,7 +64,7 @@ validation/
 |-------|------|-------------|-----------|
 | L1 Micro | Per-decision quality | CACR ≥ 0.75, R_H ≤ 0.10, 0.1 < EBE ratio < 0.9 | All three |
 | L1+ | Governance decomposition | CACR_raw, retry_rate, fallback_rate | Informational |
-| CGR | Construct grounding | CGR_TP, CGR_CP, Kappa | Informational |
+| CGR | Construct grounding | CGR_TP, CGR_CP, weighted + unweighted Kappa | Informational |
 | L2 Macro | Population plausibility | EPI ≥ 0.60 (weighted benchmark score) | EPI |
 | L3 | Cognitive consistency | ICC(2,1) ≥ 0.60, eta² ≥ 0.25 | Both |
 
@@ -82,7 +83,8 @@ action space size, hazard function, benchmark definitions) — all with
 backward-compatible flood defaults.
 
 See **[EXTENDING.md](EXTENDING.md)** for the full domain extension guide with
-irrigation examples.
+irrigation examples. See **[TRACE_SCHEMA.md](TRACE_SCHEMA.md)** for the
+complete trace dict field reference.
 
 ## Architecture Evolution
 

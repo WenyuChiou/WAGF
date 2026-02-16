@@ -16,6 +16,7 @@ from validation.metrics.cgr import (
     compute_cgr,
     _is_adjacent,
     _cohens_kappa,
+    _weighted_kappa,
 )
 
 
@@ -214,3 +215,66 @@ class TestCohensKappa:
     def test_empty(self):
         kappa = _cohens_kappa({}, ["H", "L"])
         assert kappa == 0.0
+
+
+# =============================================================================
+# Weighted Kappa Tests (Ordinal)
+# =============================================================================
+
+class TestWeightedKappa:
+    LABELS = ["VL", "L", "M", "H", "VH"]
+
+    def test_perfect_agreement(self):
+        confusion = {("H", "H"): 50, ("L", "L"): 50}
+        kw = _weighted_kappa(confusion, self.LABELS)
+        assert kw == 1.0
+
+    def test_empty(self):
+        assert _weighted_kappa({}, self.LABELS) == 0.0
+
+    def test_adjacent_disagreement_penalized_less(self):
+        """Adjacent errors (H→VH) should yield higher kappa than distant (H→VL)."""
+        # Spread across categories; some adjacent errors
+        adjacent = {("H", "H"): 40, ("L", "L"): 40, ("H", "VH"): 10, ("L", "M"): 10}
+        # Same base; distant errors instead
+        distant = {("H", "H"): 40, ("L", "L"): 40, ("H", "VL"): 10, ("L", "VH"): 10}
+        kw_adj = _weighted_kappa(adjacent, self.LABELS)
+        kw_dist = _weighted_kappa(distant, self.LABELS)
+        assert kw_adj > kw_dist
+
+    def test_weighted_ge_unweighted_for_adjacent(self):
+        """Weighted kappa >= unweighted when errors are adjacent (ordinal advantage)."""
+        # Mix of exact + adjacent disagreements
+        confusion = {("H", "H"): 40, ("H", "VH"): 10, ("L", "L"): 40, ("L", "M"): 10}
+        kw = _weighted_kappa(confusion, self.LABELS)
+        ku = _cohens_kappa(confusion, self.LABELS)
+        assert kw >= ku
+
+    def test_quadratic_weights(self):
+        """Quadratic weights penalize distant errors even more."""
+        distant = {("VH", "VL"): 50, ("M", "M"): 50}
+        kw_linear = _weighted_kappa(distant, self.LABELS, weight_type="linear")
+        kw_quad = _weighted_kappa(distant, self.LABELS, weight_type="quadratic")
+        # Quadratic penalizes VH→VL more, so kappa is lower
+        assert kw_quad <= kw_linear
+
+    def test_single_label_returns_one(self):
+        assert _weighted_kappa({("M", "M"): 100}, ["M"]) == 1.0
+
+    def test_cgr_output_has_both_kappas(self):
+        """compute_cgr() now outputs both weighted and unweighted kappa."""
+        traces = [{
+            "skill_proposal": {
+                "reasoning": {"TP_LABEL": "VH", "CP_LABEL": "VL"},
+                "skill_name": "do_nothing",
+            },
+            "state_before": {
+                "flood_zone": "HIGH", "flooded_this_year": True,
+                "flood_count": 1, "mg": True, "income": 25000,
+            },
+        }]
+        result = compute_cgr(traces)
+        assert "kappa_tp" in result
+        assert "kappa_tp_unweighted" in result
+        assert "kappa_cp" in result
+        assert "kappa_cp_unweighted" in result
