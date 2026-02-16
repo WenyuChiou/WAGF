@@ -99,6 +99,98 @@ def generate_null_traces(
     return traces
 
 
+def generate_frequency_matched_null_traces(
+    agent_profiles: pd.DataFrame,
+    observed_traces: List[Dict],
+    n_years: int = 13,
+    seed: int = 0,
+    hazard_fn: Optional[Callable[[pd.Series, np.random.Generator], bool]] = None,
+) -> List[Dict]:
+    """Generate null traces with action frequencies matching observed data.
+
+    Instead of uniform random selection, actions are sampled proportional
+    to observed frequencies per agent type. This is a stricter null model:
+    if EPI still significantly exceeds this baseline, the result is not
+    simply an artifact of action frequency skew.
+
+    Args:
+        agent_profiles: DataFrame with agent_id, tenure, flood_zone, mg columns.
+        observed_traces: Actual experiment traces used to derive frequencies.
+        n_years: Number of simulation years.
+        seed: Random seed for reproducibility.
+        hazard_fn: Function(row, rng) -> bool for hazard simulation.
+
+    Returns:
+        List of trace dicts compatible with compute_l2_metrics().
+    """
+    from validation.io.trace_reader import _normalize_action, _extract_action
+
+    if hazard_fn is None:
+        hazard_fn = _default_flood_hazard
+
+    # Compute observed action frequencies per agent type
+    freq: Dict[str, Dict[str, int]] = {"owner": {}, "renter": {}}
+    tenure_lookup = dict(zip(
+        agent_profiles["agent_id"].astype(str),
+        agent_profiles.get("tenure", pd.Series(["Owner"] * len(agent_profiles))).astype(str),
+    ))
+    for t in observed_traces:
+        aid = str(t.get("agent_id", ""))
+        outcome = t.get("outcome", "")
+        if outcome == "REJECTED":
+            action = "do_nothing"
+        else:
+            action = _normalize_action(_extract_action(t))
+        tenure = tenure_lookup.get(aid, "Owner")
+        atype = "owner" if tenure.lower() == "owner" else "renter"
+        freq[atype][action] = freq[atype].get(action, 0) + 1
+
+    # Build probability arrays per agent type
+    action_pools: Dict[str, List[str]] = {}
+    action_probs: Dict[str, np.ndarray] = {}
+    for atype in ("owner", "renter"):
+        if freq[atype]:
+            actions = sorted(freq[atype].keys())
+            counts = np.array([freq[atype][a] for a in actions], dtype=float)
+            action_pools[atype] = actions
+            action_probs[atype] = counts / counts.sum()
+        else:
+            action_pools[atype] = ["do_nothing"]
+            action_probs[atype] = np.array([1.0])
+
+    rng = np.random.default_rng(seed)
+    traces = []
+
+    for _, row in agent_profiles.iterrows():
+        agent_id = str(row["agent_id"])
+        tenure = str(row.get("tenure", "Owner"))
+        flood_zone = str(row.get("flood_zone", "LOW"))
+        mg = bool(row.get("mg", False))
+        atype = "owner" if tenure.lower() == "owner" else "renter"
+        pool = action_pools[atype]
+        probs = action_probs[atype]
+
+        for year in range(1, n_years + 1):
+            action = pool[rng.choice(len(pool), p=probs)]
+            flooded = hazard_fn(row, rng)
+            traces.append({
+                "agent_id": agent_id,
+                "year": year,
+                "approved_skill": {"skill_name": action},
+                "outcome": "APPROVED",
+                "validated": True,
+                "flooded_this_year": flooded,
+                "state_before": {
+                    "flood_zone": flood_zone,
+                    "tenure": tenure,
+                    "mg": mg,
+                    "flooded_this_year": flooded,
+                },
+            })
+
+    return traces
+
+
 def compute_null_epi_distribution(
     agent_profiles: pd.DataFrame,
     n_simulations: int = 1000,
@@ -146,6 +238,48 @@ def compute_null_epi_distribution(
         "null_epi_p99": round(float(np.percentile(samples_arr, 99)), 4),
         "samples": [round(float(s), 4) for s in samples],
         "n_simulations": n_simulations,
+    }
+
+
+def compute_frequency_matched_null_distribution(
+    agent_profiles: pd.DataFrame,
+    observed_traces: List[Dict],
+    n_simulations: int = 1000,
+    n_years: int = 13,
+    seed: int = 0,
+    hazard_fn: Optional[Callable[[pd.Series, np.random.Generator], bool]] = None,
+) -> Dict:
+    """Monte Carlo frequency-matched null distribution.
+
+    Like compute_null_epi_distribution but uses frequency-matched sampling.
+    Answers: "Could agents randomly choosing with the same action frequencies
+    achieve EPI >= threshold?"
+
+    Returns:
+        Same structure as compute_null_epi_distribution().
+    """
+    samples = []
+
+    for i in range(n_simulations):
+        null_traces = generate_frequency_matched_null_traces(
+            agent_profiles, observed_traces, n_years,
+            seed=seed + i, hazard_fn=hazard_fn,
+        )
+        l2 = compute_l2_metrics(null_traces, agent_profiles)
+        samples.append(l2.epi)
+
+    samples_arr = np.array(samples)
+
+    return {
+        "null_epi_mean": round(float(samples_arr.mean()), 4),
+        "null_epi_std": round(float(samples_arr.std()), 4),
+        "null_epi_p05": round(float(np.percentile(samples_arr, 5)), 4),
+        "null_epi_p50": round(float(np.percentile(samples_arr, 50)), 4),
+        "null_epi_p95": round(float(np.percentile(samples_arr, 95)), 4),
+        "null_epi_p99": round(float(np.percentile(samples_arr, 99)), 4),
+        "samples": [round(float(s), 4) for s in samples],
+        "n_simulations": n_simulations,
+        "model": "frequency_matched",
     }
 
 
