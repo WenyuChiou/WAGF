@@ -301,6 +301,9 @@ class TieredContextBuilder(BaseAgentContextBuilder):
 
         if self.hub is not None:
             context = self.hub.build_tiered_context(agent_id, self.agents, self.global_news)
+            # Inject neighbor action summary (local observation of last-year decisions)
+            context.setdefault("local", {})["neighbor_action_summary"] = \
+                self.hub.get_neighbor_action_summary(agent_id, self.agents)
         else:
             # Fallback context when no InteractionHub (e.g., irrigation domain)
             # Mirror InteractionHub.build_tiered_context() attribute gathering
@@ -418,6 +421,7 @@ class TieredContextBuilder(BaseAgentContextBuilder):
 
         social = l.get("social", [])
         template_vars["social_gossip"] = "\n".join([f"- {s}" for s in social]) if social else ""
+        template_vars["neighbor_action_summary"] = l.get("neighbor_action_summary", "")
 
         g = context.get("global", [])
         template_vars["global_news"] = "\n".join([f"- {news}" for news in g]) if g else ""
@@ -496,6 +500,9 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         template_vars["insurance_cost_text"] = p.get(
             "insurance_cost_text", context.get("personal", {}).get("insurance_cost_text", "")
         )
+        # Hybrid prompt guidance for MG barrier and renewal fatigue
+        template_vars["mg_barrier_text"] = p.get("mg_barrier_text", "")
+        template_vars["renewal_fatigue_text"] = p.get("renewal_fatigue_text", "")
 
         try:
             from broker.components.response_format import ResponseFormatBuilder

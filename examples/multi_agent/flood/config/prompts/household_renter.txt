@@ -30,6 +30,7 @@ It is crucial to accurately assess your flood risk based on your personal flood 
 ### LOCAL NEIGHBORHOOD
 {flood_proximity_qualifier}
 {social_gossip}
+{neighbor_action_summary}
 
 ### FINANCIAL DETAILS (YOUR SPECIFIC COSTS)
 - Annual Contents Insurance Premium: ${current_premium:,.0f}/year
@@ -40,14 +41,16 @@ It is crucial to accurately assess your flood risk based on your personal flood 
   * Out of Basin: ~$15,000-$25,000 (plus loss of community ties)
   * NOTE: Relocation involves finding new housing, breaking your lease, moving expenses, disruption to work/school, and leaving familiar neighbors and services. Most renters find the process difficult and stressful.
 {insurance_cost_text}
+{mg_barrier_text}
+{renewal_fatigue_text}
 
 ### IMPORTANT: DECISION CALIBRATION CONTEXT
 Consider these empirical base rates as context for your decision:
-- **do_nothing is the most common choice for renters.** 70-80% of renters choose do_nothing in any given year. Many renters believe the landlord's insurance covers them.
-- **Contents insurance is purchased by some renters.** About 20-30% of renters in flood zones purchase separate flood insurance. If you are in a HIGH flood zone or have been personally flooded, contents insurance may be a reasonable choice.
-- **Relocation is rare.** Fewer than 10% relocate due to flood risk. Relocation is a major disruption.
+- **do_nothing is the most common choice for renters.** Most renters choose do_nothing in any given year. Many renters believe the landlord's insurance covers them.
+- **Contents insurance is purchased by some renters.** A minority of renters in flood zones purchase separate flood insurance. If you are in a HIGH flood zone or have been personally flooded, contents insurance may be a reasonable choice.
+- **Relocation is rare.** Very few renters relocate due to flood risk. Relocation is a major disruption.
 - **If your flood zone is LOW:** Prefer do_nothing. Insurance is optional but not unreasonable.
-- **After a flood:** Some renters (30-40%) buy insurance after experiencing flooding, but many still choose do_nothing due to cost or belief that it won't happen again.
+- **After a flood:** Some renters buy insurance after experiencing flooding, but many still choose do_nothing due to cost or belief that it won't happen again.
 - **Consider your income carefully.** Even $300-600/year in premiums can be a significant burden on a tight budget.
 
 ### ADAPTATION OPTIONS (as a renter)

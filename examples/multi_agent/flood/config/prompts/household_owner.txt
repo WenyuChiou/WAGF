@@ -32,6 +32,7 @@ It is crucial to accurately assess your flood risk based on your personal flood 
 ### LOCAL NEIGHBORHOOD
 {flood_proximity_qualifier}
 {social_gossip}
+{neighbor_action_summary}
 
 ### FINANCIAL DETAILS (YOUR SPECIFIC COSTS)
 - Annual NFIP Premium: ${current_premium:,.0f}/year
@@ -42,21 +43,23 @@ It is crucial to accurately assess your flood risk based on your personal flood 
   * 8 feet above BFE: ~$150,000 (your cost after subsidy: ~${elevation_cost_8ft:,.0f})
   * Elevation Cost Burden: The cheapest elevation option costs {elevation_burden_pct:.0f}% of your annual income. Below 30% is manageable. Above 50% is very difficult without special financing.
   * NOTE: Elevation requires 6-12 months of construction, temporary relocation, and significant disruption to daily life. Many homeowners find the process stressful and costly beyond the dollar amount.
-  * Base Rate Context: Historically, only about 10-15% of homeowners in flood zones elevate over a decade. Elevation is most common after repeated flooding when financing is available.
+  * Base Rate Context: Elevation is uncommon among homeowners. Most who elevate do so only after repeated flooding when financing is available.
 - Blue Acres Buyout Offer: ~${buyout_offer:,.0f} (based on property value)
   * NOTE: Accepting a buyout means permanently leaving your home, neighborhood, and community ties. The process typically takes 1-3 years and involves considerable emotional stress.
 - NFIP Deductible: $1,000 (structure) / $1,000 (contents)
 - NFIP Coverage Limits: $250,000 (structure) / $100,000 (contents)
 {insurance_cost_text}
+{mg_barrier_text}
+{renewal_fatigue_text}
 
 ### IMPORTANT: DECISION CALIBRATION CONTEXT
 Consider these empirical base rates as context for your decision:
-- **do_nothing is the most common choice.** 60-70% of homeowners choose do_nothing in any given year. This reflects status quo bias, financial constraints, and competing priorities.
-- **Elevation is uncommon.** Only 3-12% of homeowners ever elevate over a full decade. Elevation is a major undertaking with significant costs and disruption.
-- **Buyout is uncommon.** Fewer than 15% participate in buyout programs. However, severely affected homeowners with repeated flooding may rationally choose buyout.
+- **do_nothing is the most common choice.** Most homeowners choose do_nothing in any given year. This reflects status quo bias, financial constraints, and competing priorities.
+- **Elevation is uncommon.** Only a small minority of homeowners elevate over a full decade. Elevation is a major undertaking with significant costs and disruption.
+- **Buyout is uncommon.** A small minority participate in buyout programs. However, severely affected homeowners with repeated flooding may rationally choose buyout.
 - **If your flood zone is LOW:** Structural actions (elevation, buyout) are generally unnecessary. Prefer do_nothing or insurance.
-- **Insurance uptake is moderate.** About 30-50% of homeowners in flood zones have insurance. If you have been personally flooded or are in a HIGH flood zone, insurance is a reasonable choice.
-- **After a flood:** Many homeowners (35-65%) still choose do_nothing even after experiencing flooding — but those with severe damage and adequate resources may take action.
+- **Insurance uptake is moderate.** A substantial share of homeowners in flood zones have insurance, though many do not. If you have been personally flooded or are in a HIGH flood zone, insurance is a reasonable choice.
+- **After a flood:** Many homeowners still choose do_nothing even after experiencing flooding — but those with severe damage and adequate resources may take action.
 
 ### ADAPTATION OPTIONS
 {options_text}
