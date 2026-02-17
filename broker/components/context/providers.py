@@ -683,6 +683,56 @@ class FinancialCostProvider(ContextProvider):
             f"Above 12% is a heavy burden for most households."
         )
 
+        # --- Hybrid prompt guidance for MG barrier and renewal fatigue ---
+        # These texts give LLM agents soft behavioral nudges in the zone
+        # between "hard block" and "fully allowed". Hard blocks are enforced
+        # by validators; these prompts handle the intermediate cases.
+        # Read from personal dict (merged fixed_attributes + dynamic_state),
+        # matching the validator's data source pattern.
+        is_mg = personal.get("mg", False)
+        flood_count = personal.get("flood_count", 0)
+        flooded_this_year = personal.get("flooded_this_year", False)
+        years_since_flood = personal.get("years_since_flood", 99)
+        flood_zone = personal.get("flood_zone", "MEDIUM")
+        has_insurance = personal.get("has_insurance", False)
+
+        # MG barrier prompt: flood_count == 1 (had one flood, but barriers persist)
+        # flood_count == 0 is hard-blocked by validator (unless flooded_this_year);
+        # >= 2 is fully allowed.
+        # Only show to uninsured agents (already-insured agents need no discouragement).
+        # Uses descriptive-statistics framing to avoid RLHF moral-harm reflex.
+        if (is_mg and flood_count == 1
+                and not flooded_this_year and not has_insurance):
+            personal["mg_barrier_text"] = (
+                "- **Insurance Enrollment Context**: Among households with your "
+                "income profile and community background in the Passaic River Basin "
+                "who have experienced one prior flood, carrying NFIP flood insurance "
+                "is uncommon — many face enrollment barriers including documentation "
+                "requirements, upfront costs, and distrust of federal programs."
+            )
+        else:
+            personal["mg_barrier_text"] = ""
+
+        # Renewal fatigue prompt: years_since_flood 1-2 (recent but fading memory)
+        # years_since_flood >= 3 is hard-blocked by validator; 0 = just flooded.
+        # Only applies to agents with prior flood experience (flood_count > 0).
+        # years_since_flood=99 means "never flooded" — handled by MG barrier, not here.
+        # Only show to currently-insured agents (uninsured have nothing to lapse).
+        if (not flooded_this_year
+                and 1 <= years_since_flood <= 2
+                and flood_zone != "HIGH"
+                and flood_count > 0
+                and has_insurance):
+            personal["renewal_fatigue_text"] = (
+                f"- **Insurance Renewal Context**: It has been {years_since_flood} "
+                f"year(s) since your last flood. NFIP policy retention data shows "
+                f"that many policyholders discontinue coverage within a few years "
+                f"without a reinforcing flood event — a common pattern driven by "
+                f"fading risk salience and annual cost."
+            )
+        else:
+            personal["renewal_fatigue_text"] = ""
+
 
 __all__ = [
     "ContextProvider",

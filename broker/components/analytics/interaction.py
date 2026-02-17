@@ -16,6 +16,19 @@ if TYPE_CHECKING:
     from cognitive_governance.v1_prototype.observation import EnvironmentObserver
 
 
+def _action_label(action: str) -> str:
+    """Convert a skill_id to a human-readable past-tense label."""
+    _MAP = {
+        "do_nothing": "took no action",
+        "buy_insurance": "bought flood insurance",
+        "buy_contents_insurance": "bought contents insurance",
+        "elevate_house": "elevated their home",
+        "buyout_program": "applied for buyout",
+        "relocate": "relocated",
+    }
+    return _MAP.get(action, action.replace("_", " "))
+
+
 class InteractionHub:
     """
     Manages the 'Worldview' of agents by aggregating tiered information.
@@ -81,8 +94,10 @@ class InteractionHub:
             if not neighbor:
                 continue
 
+            dstate = getattr(neighbor, 'dynamic_state', {}) or {}
+
             # Check for elevated status (visible: construction/raised foundation)
-            if getattr(neighbor, 'elevated', False):
+            if dstate.get('elevated', False) or getattr(neighbor, 'elevated', False):
                 visible_actions.append({
                     "neighbor_id": nid,
                     "action": "elevated_house",
@@ -90,7 +105,7 @@ class InteractionHub:
                 })
 
             # Check for relocated status (visible: moving truck/empty house)
-            if getattr(neighbor, 'relocated', False):
+            if dstate.get('relocated', False) or getattr(neighbor, 'relocated', False):
                 visible_actions.append({
                     "neighbor_id": nid,
                     "action": "relocated",
@@ -98,7 +113,10 @@ class InteractionHub:
                 })
 
             # Check for insurance (visible sign/sticker)
-            if getattr(neighbor, 'has_flood_insurance', False):
+            # Flood ABM uses 'has_insurance'; legacy uses 'has_flood_insurance'
+            if (dstate.get('has_insurance', False)
+                    or getattr(neighbor, 'has_flood_insurance', False)
+                    or getattr(neighbor, 'has_insurance', False)):
                 visible_actions.append({
                     "neighbor_id": nid,
                     "action": "insured",
@@ -148,6 +166,40 @@ class InteractionHub:
                 visible_actions.append(action_copy)
 
         return visible_actions
+
+    def get_neighbor_action_summary(self, agent_id: str, agents: Dict[str, Any]) -> str:
+        """
+        Summarize neighbors' most recent decisions as a prose sentence.
+
+        Reads each neighbor's dynamic_state["last_decision"] (set by the
+        simulation after each round), groups by action, and returns a
+        one-line summary such as:
+          "Among your 4 nearby neighbors last year: 3 took no action,
+           1 bought flood insurance."
+
+        Returns empty string when no neighbor data is available (e.g. year 1).
+        """
+        neighbor_ids = self.graph.get_neighbors(agent_id)
+        if not neighbor_ids:
+            return ""
+
+        action_counts: Dict[str, int] = {}
+        for nid in neighbor_ids:
+            neighbor = agents.get(nid)
+            if not neighbor:
+                continue
+            dstate = getattr(neighbor, 'dynamic_state', {}) or {}
+            last = dstate.get("last_decision")
+            if last:
+                label = _action_label(last)
+                action_counts[label] = action_counts.get(label, 0) + 1
+
+        if not action_counts:
+            return ""
+
+        total = sum(action_counts.values())
+        parts = [f"{count} {label}" for label, count in action_counts.items()]
+        return f"Among your {total} nearby neighbor{'s' if total != 1 else ''} last year: {', '.join(parts)}."
 
     def get_social_context_v2(
         self,
