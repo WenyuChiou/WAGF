@@ -4,7 +4,7 @@
 # 15 archetypes for test-retest reliability (ICC 2,1) validation.
 # Each archetype represents a distinct demographic-situational profile.
 #
-# Protocol: 15 archetypes × 6 vignettes × 30 replicates = 2,700 LLM calls
+# Protocol: 15 archetypes × 6 scenarios × 30 replicates = 2,700 LLM calls
 #
 # Archetypes are designed to:
 # 1. Cover the 4-cell balanced design (MG/NMG × Owner/Renter)
@@ -445,7 +445,7 @@ probing:
   replicates: 30
   governed: true
   temperature: 0.7  # Matches experiment config (harmonized per R1-D)
-  vignette_dir: "examples/multi_agent/flood/paper3/configs/vignettes"
+  scenario_dir: "examples/multi_agent/flood/paper3/configs/scenarios"
   thresholds:
     icc_tp: 0.60
     icc_cp: 0.60

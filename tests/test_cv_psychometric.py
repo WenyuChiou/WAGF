@@ -1,12 +1,12 @@
 """Tests for Level 3 COGNITIVE validators: psychometric_battery.py.
 
 Validates:
-    - Vignette loading from YAML
+    - Scenario loading from YAML
     - ICC(2,1) computation with known data
     - Cronbach's alpha
     - Fleiss' kappa for decision agreement
     - PsychometricBattery response collection and analysis
-    - Coherence evaluation against vignette expectations
+    - Coherence evaluation against scenario expectations
 """
 
 import pytest
@@ -16,10 +16,12 @@ from pathlib import Path
 
 from broker.validators.calibration.psychometric_battery import (
     PsychometricBattery,
+    Scenario,
     Vignette,
     ProbeResponse,
     ICCResult,
     ConsistencyResult,
+    ScenarioReport,
     VignetteReport,
     BatteryReport,
     EffectSizeResult,
@@ -37,23 +39,23 @@ from broker.validators.calibration.psychometric_battery import (
 
 @pytest.fixture
 def battery():
-    """PsychometricBattery with flood-domain vignettes."""
-    vdir = Path(__file__).resolve().parents[1] / "examples" / "multi_agent" / "flood" / "paper3" / "configs" / "vignettes"
-    return PsychometricBattery(vignette_dir=vdir)
+    """PsychometricBattery with flood-domain scenarios."""
+    sdir = Path(__file__).resolve().parents[1] / "examples" / "multi_agent" / "flood" / "paper3" / "configs" / "scenarios"
+    return PsychometricBattery(scenario_dir=sdir)
 
 
 @pytest.fixture
 def sample_responses():
-    """Simulated responses: 3 archetypes x 3 vignettes x 5 replicates."""
+    """Simulated responses: 3 archetypes x 3 scenarios x 5 replicates."""
     responses = []
     archetypes = ["risk_averse", "risk_neutral", "risk_seeking"]
-    vignettes = {
+    scenario_defs = {
         "high_severity_flood": {"tp": "VH", "cp": "H", "dec": "elevate_house"},
         "medium_severity_flood": {"tp": "M", "cp": "M", "dec": "buy_insurance"},
         "low_severity_flood": {"tp": "L", "cp": "H", "dec": "do_nothing"},
     }
 
-    for vid, expected in vignettes.items():
+    for vid, expected in scenario_defs.items():
         for arch_idx, arch in enumerate(archetypes):
             for rep in range(1, 6):
                 # Add some variation by archetype
@@ -65,7 +67,7 @@ def sample_responses():
                     tp = "H" if tp == "VH" else "M"
 
                 responses.append(ProbeResponse(
-                    vignette_id=vid,
+                    scenario_id=vid,
                     archetype=arch,
                     replicate=rep,
                     tp_label=tp,
@@ -83,7 +85,7 @@ def governed_responses(sample_responses):
     governed = []
     for r in sample_responses:
         governed.append(ProbeResponse(
-            vignette_id=r.vignette_id,
+            scenario_id=r.scenario_id,
             archetype=r.archetype,
             replicate=r.replicate,
             tp_label=r.tp_label,
@@ -95,25 +97,25 @@ def governed_responses(sample_responses):
 
 
 # ---------------------------------------------------------------------------
-# Vignette loading
+# Scenario loading
 # ---------------------------------------------------------------------------
 
-class TestVignetteLoading:
-    """Tests for vignette YAML loading."""
+class TestScenarioLoading:
+    """Tests for scenario YAML loading."""
 
-    def test_load_vignettes(self, battery):
-        """Should load all vignettes from default directory (3 core + 3 edge-case)."""
-        vignettes = battery.load_vignettes()
-        assert len(vignettes) >= 3  # At least 3 core vignettes
-        ids = {v.id for v in vignettes}
+    def test_load_scenarios(self, battery):
+        """Should load all scenarios from default directory (3 core + 3 edge-case)."""
+        scenarios = battery.load_scenarios()
+        assert len(scenarios) >= 3  # At least 3 core scenarios
+        ids = {v.id for v in scenarios}
         assert "high_severity_flood" in ids
         assert "medium_severity_flood" in ids
         assert "low_severity_flood" in ids
 
-    def test_vignette_properties(self, battery):
-        """Each vignette should have required properties."""
-        battery.load_vignettes()
-        for vid, v in battery.vignettes.items():
+    def test_scenario_properties(self, battery):
+        """Each scenario should have required properties."""
+        battery.load_scenarios()
+        for sid, v in battery.scenarios.items():
             assert v.id
             assert v.severity in ("high", "medium", "low", "extreme")
             assert v.scenario
@@ -121,26 +123,26 @@ class TestVignetteLoading:
             assert v.expected_responses
 
     def test_high_severity_expectations(self, battery):
-        """High severity vignette should expect H/VH threat."""
-        battery.load_vignettes()
-        v = battery.vignettes["high_severity_flood"]
+        """High severity scenario should expect H/VH threat."""
+        battery.load_scenarios()
+        v = battery.scenarios["high_severity_flood"]
         tp_expected = v.expected_responses["TP_LABEL"]["expected"]
         assert "H" in tp_expected or "VH" in tp_expected
         dec_incoherent = v.expected_responses["decision"]["incoherent"]
         assert "do_nothing" in dec_incoherent
 
     def test_low_severity_expectations(self, battery):
-        """Low severity vignette should expect VL/L threat."""
-        battery.load_vignettes()
-        v = battery.vignettes["low_severity_flood"]
+        """Low severity scenario should expect VL/L threat."""
+        battery.load_scenarios()
+        v = battery.scenarios["low_severity_flood"]
         tp_expected = v.expected_responses["TP_LABEL"]["expected"]
         assert "VL" in tp_expected or "L" in tp_expected
 
     def test_missing_directory(self):
-        """Missing vignette dir should return empty list."""
-        battery = PsychometricBattery(vignette_dir=Path("/nonexistent"))
-        vignettes = battery.load_vignettes()
-        assert len(vignettes) == 0
+        """Missing scenario dir should return empty list."""
+        battery = PsychometricBattery(scenario_dir=Path("/nonexistent"))
+        scenarios = battery.load_scenarios()
+        assert len(scenarios) == 0
 
 
 # ---------------------------------------------------------------------------
@@ -282,13 +284,13 @@ class TestBatteryResponses:
         battery.add_responses(sample_responses)
         df = battery.responses_to_dataframe()
         assert len(df) == len(sample_responses)
-        assert "vignette_id" in df.columns
+        assert "scenario_id" in df.columns
         assert "tp_ordinal" in df.columns
 
     def test_ordinal_conversion(self):
         """ProbeResponse should convert labels to ordinals."""
         r = ProbeResponse(
-            vignette_id="test", archetype="a", replicate=1,
+            scenario_id="test", archetype="a", replicate=1,
             tp_label="VH", cp_label="L",
         )
         assert r.tp_ordinal == 5
@@ -304,7 +306,7 @@ class TestBatteryAnalysis:
 
     def test_icc_computation(self, battery, sample_responses):
         """ICC should be computable from sample responses."""
-        battery.load_vignettes()
+        battery.load_scenarios()
         battery.add_responses(sample_responses)
         icc = battery.compute_icc(
             vignette_id="high_severity_flood",
@@ -322,7 +324,7 @@ class TestBatteryAnalysis:
 
     def test_decision_agreement(self, battery, sample_responses):
         """Agreement should be high for consistent responses."""
-        battery.load_vignettes()
+        battery.load_scenarios()
         battery.add_responses(sample_responses)
         # Within each vignette, all archetypes give same decision
         # (with some variation), so kappa should be moderate to high
@@ -332,8 +334,8 @@ class TestBatteryAnalysis:
         assert isinstance(kappa, float)
 
     def test_coherence_evaluation(self, battery, sample_responses):
-        """Coherence against vignette expectations."""
-        battery.load_vignettes()
+        """Coherence against scenario expectations."""
+        battery.load_scenarios()
         battery.add_responses(sample_responses)
         coh, incoh = battery.evaluate_coherence("high_severity_flood")
         # All responses should be coherent for high severity
@@ -341,7 +343,7 @@ class TestBatteryAnalysis:
 
     def test_coherence_low_severity(self, battery, sample_responses):
         """Low severity: do_nothing should be coherent."""
-        battery.load_vignettes()
+        battery.load_scenarios()
         battery.add_responses(sample_responses)
         coh, incoh = battery.evaluate_coherence("low_severity_flood")
         assert coh > 0
@@ -357,30 +359,30 @@ class TestBatteryReport:
 
     def test_full_report(self, battery, sample_responses):
         """Full report should include all components."""
-        battery.load_vignettes()
+        battery.load_scenarios()
         battery.add_responses(sample_responses)
         report = battery.compute_full_report()
         assert isinstance(report, BatteryReport)
-        assert len(report.vignette_reports) == 3
+        assert len(report.scenario_reports) == 3
         assert report.overall_tp_icc is not None
         assert report.consistency is not None
         assert report.n_total_probes == len(sample_responses)
 
     def test_report_to_dict(self, battery, sample_responses):
         """Report serialization."""
-        battery.load_vignettes()
+        battery.load_scenarios()
         battery.add_responses(sample_responses)
         report = battery.compute_full_report()
         d = report.to_dict()
         assert "n_total_probes" in d
-        assert "n_vignettes" in d
+        assert "n_scenarios" in d
         assert "overall_tp_icc" in d
 
     def test_governance_effect(
         self, battery, sample_responses, governed_responses
     ):
         """Governance effect comparison."""
-        battery.load_vignettes()
+        battery.load_scenarios()
         battery.add_responses(sample_responses)
         battery.add_responses(governed_responses)
         effect = battery.compute_governance_effect()
@@ -391,7 +393,7 @@ class TestBatteryReport:
 
     def test_full_report_includes_r3d_fields(self, battery, sample_responses):
         """Report should include R3-D fields: effect size, convergent, discriminant."""
-        battery.load_vignettes()
+        battery.load_scenarios()
         battery.add_responses(sample_responses)
         report = battery.compute_full_report()
         assert report.tp_effect_size is not None
@@ -476,7 +478,7 @@ class TestConvergentValidity:
 
     def test_convergent_basic(self, battery, sample_responses):
         """Convergent validity should be computable."""
-        battery.load_vignettes()
+        battery.load_scenarios()
         battery.add_responses(sample_responses)
         result = battery.compute_convergent_validity()
         assert isinstance(result, ConvergentValidityResult)
@@ -485,7 +487,7 @@ class TestConvergentValidity:
 
     def test_convergent_positive_correlation(self, battery):
         """Higher severity -> higher TP should produce positive rho."""
-        battery.load_vignettes()
+        battery.load_scenarios()
         responses = []
         for rep in range(1, 6):
             responses.append(ProbeResponse(
@@ -502,13 +504,13 @@ class TestConvergentValidity:
 
     def test_convergent_empty(self, battery):
         """Empty responses -> rho = 0."""
-        battery.load_vignettes()
+        battery.load_scenarios()
         result = battery.compute_convergent_validity()
         assert result.spearman_rho == 0.0
 
     def test_convergent_to_dict(self, battery, sample_responses):
         """ConvergentValidityResult serialization."""
-        battery.load_vignettes()
+        battery.load_scenarios()
         battery.add_responses(sample_responses)
         result = battery.compute_convergent_validity()
         d = result.to_dict()

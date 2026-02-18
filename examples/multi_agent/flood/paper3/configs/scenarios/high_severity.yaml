@@ -1,5 +1,5 @@
 # =============================================================================
-# HIGH-SEVERITY FLOOD VIGNETTE
+# HIGH-SEVERITY FLOOD SCENARIO
 # =============================================================================
 # Standardized psychometric probe for C&V Level 3 cognitive validation.
 # Adapted from Grothmann & Reusswig (2006) high-flood-risk scenarios.
@@ -10,7 +10,7 @@
 #   Action: protective (elevate, insure, or relocate)
 # =============================================================================
 
-vignette:
+scenario:
   id: high_severity_flood
   severity: high
   description: >
@@ -35,7 +35,7 @@ vignette:
     probability of similar flooding in the next 10 years is estimated
     at 65%.
 
-  # Agent state overrides for this vignette
+  # Agent state overrides for this scenario
   state_overrides:
     flood_depth_ft: 4.5
     damage_cost: 42000

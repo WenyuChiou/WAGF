@@ -1,5 +1,5 @@
 # =============================================================================
-# POST-ADAPTATION VIGNETTE (CRITICAL C9)
+# POST-ADAPTATION SCENARIO (CRITICAL C9)
 # =============================================================================
 # Edge-case: Agent already elevated + insured, faces another moderate flood.
 # Tests state awareness — agent should recognize existing protections.
@@ -10,7 +10,7 @@
 #   Action: do_nothing (already well-protected) — NOT re-elevate
 # =============================================================================
 
-vignette:
+scenario:
   id: post_adaptation
   severity: medium
   description: >

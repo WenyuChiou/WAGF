@@ -220,7 +220,7 @@ def run_persona_sensitivity(
     )
     from broker.validators.calibration.psychometric_battery import (
         PsychometricBattery,
-        Vignette,
+        Scenario,
     )
 
     output_dir = Path(output_dir)
@@ -231,16 +231,16 @@ def run_persona_sensitivity(
         config = yaml.safe_load(f)
     archetypes = config.get("archetypes", {})
 
-    # Load vignettes (use high_severity only for sensitivity — reduces cost)
-    vignette_dir = _PROJECT_ROOT / "examples" / "multi_agent" / "flood" / "paper3" / "configs" / "vignettes"
-    battery = PsychometricBattery(vignette_dir=vignette_dir)
-    vignettes = battery.load_vignettes()
-    # Use only high severity vignette for swap tests (cost savings)
-    high_vig = [v for v in vignettes if "high" in v.id.lower()]
+    # Load scenarios (use high_severity only for sensitivity — reduces cost)
+    scenario_dir = _PROJECT_ROOT / "examples" / "multi_agent" / "flood" / "paper3" / "configs" / "scenarios"
+    battery = PsychometricBattery(scenario_dir=scenario_dir)
+    scenarios = battery.load_scenarios()
+    # Use only high severity scenario for swap tests (cost savings)
+    high_vig = [v for v in scenarios if "high" in v.id.lower()]
     if high_vig:
-        test_vignettes = high_vig
+        test_scenarios = high_vig
     else:
-        test_vignettes = vignettes[:1]  # fallback to first vignette
+        test_scenarios = scenarios[:1]  # fallback to first scenario
 
     invoke = create_probe_invoke(model, temperature=temperature)
 
@@ -270,7 +270,7 @@ def run_persona_sensitivity(
             base_responses = []
             swap_responses = []
 
-            for vig in test_vignettes:
+            for vig in test_scenarios:
                 base_prompt = build_probe_prompt(base_arch, vig)
                 swap_prompt = build_probe_prompt(swap_arch, vig)
 

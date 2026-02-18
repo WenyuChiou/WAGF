@@ -1,5 +1,5 @@
 # =============================================================================
-# LOW-SEVERITY FLOOD VIGNETTE
+# LOW-SEVERITY FLOOD SCENARIO
 # =============================================================================
 # Standardized psychometric probe for C&V Level 3 cognitive validation.
 # Minimal flood risk — tests whether agents correctly report low threat.
@@ -10,7 +10,7 @@
 #   Action: do_nothing or buy_insurance (no extreme actions justified)
 # =============================================================================
 
-vignette:
+scenario:
   id: low_severity_flood
   severity: low
   description: >

@@ -1,7 +1,7 @@
 """
 Level 3 — COGNITIVE Validation: Psychometric Battery.
 
-Implements standardized vignette probes for evaluating LLM agent
+Implements standardized scenario probes for evaluating LLM agent
 psychological construct fidelity.  Each agent archetype responds to
 standardized flood scenarios multiple times to assess:
 
@@ -10,7 +10,7 @@ standardized flood scenarios multiple times to assess:
     3. Governance effect on construct fidelity (paired comparison)
 
 Protocol (from C&V plan Section 4):
-    P1: 6 archetypes x 3 vignettes x 30 replicates = 540 LLM calls
+    P1: 6 archetypes x 3 scenarios x 30 replicates = 540 LLM calls
     P2: With/without governance = 1,080 calls
 
 References:
@@ -33,12 +33,15 @@ import pandas as pd
 
 # Re-export types and stats for backward compatibility
 from .psychometric_types import (  # noqa: F401
+    SCENARIO_DIR,
     VIGNETTE_DIR,
     LABEL_TO_ORDINAL,
+    Scenario,
     Vignette,
     ProbeResponse,
     ICCResult,
     ConsistencyResult,
+    ScenarioReport,
     VignetteReport,
     EffectSizeResult,
     ConvergentValidityResult,
@@ -56,59 +59,72 @@ from .psychometric_stats import (  # noqa: F401
 # ---------------------------------------------------------------------------
 
 class PsychometricBattery:
-    """Level 3 cognitive validation: standardized vignette probes.
+    """Level 3 cognitive validation: standardized scenario probes.
 
-    This module manages vignette loading, probe execution, and
+    This module manages scenario loading, probe execution, and
     statistical analysis of probe responses.
 
     **Note**: Actual LLM inference is handled externally (the caller
     passes a probe function).  This module only handles:
-    - Vignette management
+    - Scenario management
     - Response collection
     - Statistical analysis (ICC, Cronbach, Fleiss)
     - Report generation
 
     Parameters
     ----------
+    scenario_dir : Path, optional
+        Directory containing scenario YAML files.  If ``None``,
+        ``load_scenarios()`` returns an empty list.  Callers performing
+        ICC probing must provide a domain-specific scenario directory.
     vignette_dir : Path, optional
-        Directory containing vignette YAML files.  If ``None``,
-        ``load_vignettes()`` returns an empty list.  Callers performing
-        ICC probing must provide a domain-specific vignette directory.
+        Backward compatibility alias for ``scenario_dir``.
     """
 
-    def __init__(self, vignette_dir: Optional[Path] = None):
-        self._vignette_dir = vignette_dir or VIGNETTE_DIR
-        self._vignettes: Dict[str, Vignette] = {}
+    def __init__(self, scenario_dir: Optional[Path] = None,
+                 vignette_dir: Optional[Path] = None):
+        self._scenario_dir = scenario_dir or vignette_dir or SCENARIO_DIR
+        self._scenarios: Dict[str, Scenario] = {}
         self._responses: List[ProbeResponse] = []
 
     # ------------------------------------------------------------------
-    # Vignette management
+    # Scenario management
     # ------------------------------------------------------------------
 
-    def load_vignettes(self) -> List[Vignette]:
-        """Load all vignette YAML files from the vignette directory."""
-        self._vignettes.clear()
-        if self._vignette_dir is None:
+    def load_scenarios(self) -> List[Scenario]:
+        """Load all scenario YAML files from the scenario directory."""
+        self._scenarios.clear()
+        if self._scenario_dir is None:
             return []
-        vdir = Path(self._vignette_dir)
-        if not vdir.exists():
+        sdir = Path(self._scenario_dir)
+        if not sdir.exists():
             return []
 
-        for yaml_file in sorted(vdir.glob("*.yaml")):
+        for yaml_file in sorted(sdir.glob("*.yaml")):
             try:
-                v = Vignette.from_yaml(yaml_file)
-                self._vignettes[v.id] = v
+                s = Scenario.from_yaml(yaml_file)
+                self._scenarios[s.id] = s
             except Exception:
                 continue
 
-        return list(self._vignettes.values())
+        return list(self._scenarios.values())
+
+    # Backward compatibility alias
+    def load_vignettes(self) -> List[Scenario]:
+        """Backward compatibility alias for load_scenarios()."""
+        return self.load_scenarios()
 
     @property
-    def vignettes(self) -> Dict[str, Vignette]:
-        """Return loaded vignettes."""
-        if not self._vignettes:
-            self.load_vignettes()
-        return self._vignettes
+    def scenarios(self) -> Dict[str, Scenario]:
+        """Return loaded scenarios."""
+        if not self._scenarios:
+            self.load_scenarios()
+        return self._scenarios
+
+    @property
+    def vignettes(self) -> Dict[str, Scenario]:
+        """Backward compatibility alias for scenarios."""
+        return self.scenarios
 
     # ------------------------------------------------------------------
     # Response collection
@@ -132,7 +148,8 @@ class PsychometricBattery:
             return pd.DataFrame()
         return pd.DataFrame([
             {
-                "vignette_id": r.vignette_id,
+                "scenario_id": r.scenario_id,
+                "vignette_id": r.scenario_id,  # backward compat column
                 "archetype": r.archetype,
                 "replicate": r.replicate,
                 "tp_label": r.tp_label,
@@ -151,35 +168,39 @@ class PsychometricBattery:
 
     def compute_icc(
         self,
-        vignette_id: Optional[str] = None,
+        scenario_id: Optional[str] = None,
         construct: str = "tp",
         governed: Optional[bool] = None,
+        vignette_id: Optional[str] = None,
     ) -> ICCResult:
         """Compute ICC(2,1) for a construct across archetypes.
 
         Parameters
         ----------
-        vignette_id : str, optional
-            Filter to specific vignette (None = all).  When ``None`` and
-            multiple vignettes are present, subjects are compound
-            (archetype x vignette) pairs so that replicate slots do not
-            collide across vignettes.
+        scenario_id : str, optional
+            Filter to specific scenario (None = all).  When ``None`` and
+            multiple scenarios are present, subjects are compound
+            (archetype x scenario) pairs so that replicate slots do not
+            collide across scenarios.
         construct : str
             "tp" or "cp" (which construct to analyze).
         governed : bool, optional
             Filter to governed or ungoverned responses.
+        vignette_id : str, optional
+            Backward compatibility alias for scenario_id.
 
         Returns
         -------
         ICCResult
         """
+        sid = scenario_id or vignette_id
         df = self.responses_to_dataframe()
         if df.empty:
             return ICCResult(construct=construct, icc_value=0.0)
 
         # Filter
-        if vignette_id:
-            df = df[df["vignette_id"] == vignette_id]
+        if sid:
+            df = df[df["scenario_id"] == sid]
         if governed is not None:
             df = df[df["governed"] == governed]
 
@@ -187,13 +208,11 @@ class PsychometricBattery:
         if ordinal_col not in df.columns or df.empty:
             return ICCResult(construct=construct, icc_value=0.0)
 
-        # Determine subject key: single vignette -> archetype only,
-        # multiple vignettes -> (archetype, vignette_id) compound key
-        # to avoid replicate-slot collisions.
-        n_vignettes = df["vignette_id"].nunique()
-        if n_vignettes > 1 and not vignette_id:
+        # Determine subject key
+        n_scenarios = df["scenario_id"].nunique()
+        if n_scenarios > 1 and not sid:
             df = df.copy()
-            df["_subject"] = df["archetype"] + "|" + df["vignette_id"]
+            df["_subject"] = df["archetype"] + "|" + df["scenario_id"]
         else:
             df = df.copy()
             df["_subject"] = df["archetype"]
@@ -257,16 +276,18 @@ class PsychometricBattery:
 
     def compute_decision_agreement(
         self,
-        vignette_id: Optional[str] = None,
+        scenario_id: Optional[str] = None,
         governed: Optional[bool] = None,
+        vignette_id: Optional[str] = None,
     ) -> float:
         """Compute Fleiss' kappa for action agreement across replicates."""
+        sid = scenario_id or vignette_id
         df = self.responses_to_dataframe()
         if df.empty:
             return 0.0
 
-        if vignette_id:
-            df = df[df["vignette_id"] == vignette_id]
+        if sid:
+            df = df[df["scenario_id"] == sid]
         if governed is not None:
             df = df[df["governed"] == governed]
 
@@ -288,24 +309,24 @@ class PsychometricBattery:
 
     def evaluate_coherence(
         self,
-        vignette_id: str,
+        scenario_id: str,
         governed: Optional[bool] = None,
     ) -> Tuple[float, float]:
-        """Evaluate response coherence against vignette expectations.
+        """Evaluate response coherence against scenario expectations.
 
         Returns
         -------
         (coherence_rate, incoherence_rate)
         """
-        vignette = self._vignettes.get(vignette_id)
-        if not vignette:
+        scenario = self._scenarios.get(scenario_id)
+        if not scenario:
             return 0.0, 0.0
 
         df = self.responses_to_dataframe()
         if df.empty:
             return 0.0, 0.0
 
-        df = df[df["vignette_id"] == vignette_id]
+        df = df[df["scenario_id"] == scenario_id]
         if governed is not None:
             df = df[df["governed"] == governed]
 
@@ -313,7 +334,7 @@ class PsychometricBattery:
             return 0.0, 0.0
 
         n = len(df)
-        expected = vignette.expected_responses
+        expected = scenario.expected_responses
         n_coherent = 0
         n_incoherent = 0
 
@@ -343,17 +364,19 @@ class PsychometricBattery:
 
     def compute_decision_icc(
         self,
-        vignette_id: Optional[str] = None,
+        scenario_id: Optional[str] = None,
         governed: Optional[bool] = None,
         action_ordinal_map: Optional[Dict[str, int]] = None,
+        vignette_id: Optional[str] = None,
     ) -> ICCResult:
         """Compute ICC on decision choices (construct-free)."""
+        sid = scenario_id or vignette_id
         df = self.responses_to_dataframe()
         if df.empty:
             return ICCResult(construct="decision", icc_value=0.0)
 
-        if vignette_id:
-            df = df[df["vignette_id"] == vignette_id]
+        if sid:
+            df = df[df["scenario_id"] == sid]
         if governed is not None:
             df = df[df["governed"] == governed]
 
@@ -395,13 +418,15 @@ class PsychometricBattery:
 
     def compute_reasoning_consistency(
         self,
-        vignette_id: Optional[str] = None,
+        scenario_id: Optional[str] = None,
         governed: Optional[bool] = None,
+        vignette_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Compute reasoning consistency across replicates (Jaccard overlap)."""
+        sid = scenario_id or vignette_id
         responses = [r for r in self._responses if r.reasoning]
-        if vignette_id:
-            responses = [r for r in responses if r.vignette_id == vignette_id]
+        if sid:
+            responses = [r for r in responses if r.scenario_id == sid]
         if governed is not None:
             responses = [r for r in responses if r.governed == governed]
 
@@ -410,7 +435,7 @@ class PsychometricBattery:
 
         groups: Dict[Tuple[str, str], List[str]] = defaultdict(list)
         for r in responses:
-            groups[(r.vignette_id, r.archetype)].append(r.reasoning)
+            groups[(r.scenario_id, r.archetype)].append(r.reasoning)
 
         all_similarities: List[float] = []
         per_archetype: Dict[str, List[float]] = defaultdict(list)
@@ -515,30 +540,30 @@ class PsychometricBattery:
         self,
         governed: Optional[bool] = None,
     ) -> ConvergentValidityResult:
-        """Compute convergent validity: TP ordinal vs vignette severity."""
+        """Compute convergent validity: TP ordinal vs scenario severity."""
         severity_ordinal = {"low": 1, "medium": 2, "high": 3, "extreme": 4}
 
         df = self.responses_to_dataframe()
         if df.empty:
             return ConvergentValidityResult(
-                construct="tp", criterion="vignette_severity",
+                construct="tp", criterion="scenario_severity",
                 spearman_rho=0.0,
             )
 
         if governed is not None:
             df = df[df["governed"] == governed]
 
-        vig_severity = {}
-        for vid, vig in self._vignettes.items():
-            vig_severity[vid] = severity_ordinal.get(vig.severity, 2)
+        scen_severity = {}
+        for sid, scen in self._scenarios.items():
+            scen_severity[sid] = severity_ordinal.get(scen.severity, 2)
 
         df = df.copy()
-        df["severity_ordinal"] = df["vignette_id"].map(vig_severity)
+        df["severity_ordinal"] = df["scenario_id"].map(scen_severity)
         df = df.dropna(subset=["severity_ordinal", "tp_ordinal"])
 
         if len(df) < 3:
             return ConvergentValidityResult(
-                construct="tp", criterion="vignette_severity",
+                construct="tp", criterion="scenario_severity",
                 spearman_rho=0.0, n_observations=len(df),
             )
 
@@ -557,7 +582,7 @@ class PsychometricBattery:
 
         return ConvergentValidityResult(
             construct="tp",
-            criterion="vignette_severity",
+            criterion="scenario_severity",
             spearman_rho=float(rho) if not np.isnan(rho) else 0.0,
             p_value=float(p_val) if not np.isnan(p_val) else 1.0,
             n_observations=len(df),
@@ -600,27 +625,27 @@ class PsychometricBattery:
             if governed is None or r.governed == governed
         ])
 
-        for vid, vignette in self.vignettes.items():
+        for sid, scenario in self.scenarios.items():
             n_resp = len([
                 r for r in self._responses
-                if r.vignette_id == vid
+                if r.scenario_id == sid
                 and (governed is None or r.governed == governed)
             ])
             if n_resp == 0:
                 continue
 
-            tp_icc = self.compute_icc(vignette_id=vid, construct="tp",
+            tp_icc = self.compute_icc(scenario_id=sid, construct="tp",
                                       governed=governed)
-            cp_icc = self.compute_icc(vignette_id=vid, construct="cp",
+            cp_icc = self.compute_icc(scenario_id=sid, construct="cp",
                                       governed=governed)
             agreement = self.compute_decision_agreement(
-                vignette_id=vid, governed=governed
+                scenario_id=sid, governed=governed
             )
-            coh, incoh = self.evaluate_coherence(vid, governed=governed)
+            coh, incoh = self.evaluate_coherence(sid, governed=governed)
 
-            report.vignette_reports.append(VignetteReport(
-                vignette_id=vid,
-                severity=vignette.severity,
+            report.scenario_reports.append(ScenarioReport(
+                scenario_id=sid,
+                severity=scenario.severity,
                 n_responses=n_resp,
                 tp_icc=tp_icc,
                 cp_icc=cp_icc,

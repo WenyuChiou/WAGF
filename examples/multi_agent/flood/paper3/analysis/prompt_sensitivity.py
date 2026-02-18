@@ -448,12 +448,12 @@ def run_prompt_sensitivity(
         config = yaml.safe_load(f)
     archetypes = config.get("archetypes", {})
 
-    # Load vignettes — use only high severity for cost savings
-    vignette_dir = _PROJECT_ROOT / "examples" / "multi_agent" / "flood" / "paper3" / "configs" / "vignettes"
-    battery = PsychometricBattery(vignette_dir=vignette_dir)
-    vignettes = battery.load_vignettes()
-    high_vig = [v for v in vignettes if "high" in v.id.lower()]
-    test_vignettes = high_vig if high_vig else vignettes[:1]
+    # Load scenarios — use only high severity for cost savings
+    scenario_dir = _PROJECT_ROOT / "examples" / "multi_agent" / "flood" / "paper3" / "configs" / "scenarios"
+    battery = PsychometricBattery(scenario_dir=scenario_dir)
+    scenarios = battery.load_scenarios()
+    high_vig = [v for v in scenarios if "high" in v.id.lower()]
+    test_scenarios = high_vig if high_vig else scenarios[:1]
 
     invoke = create_probe_invoke(model, temperature=temperature)
 
@@ -462,7 +462,7 @@ def run_prompt_sensitivity(
     print("TEST 1: Option Reordering (Positional Bias)")
     print("=" * 60)
     reorder_results = run_option_reordering_test(
-        archetypes, test_vignettes, invoke, replicates=replicates,
+        archetypes, test_scenarios, invoke, replicates=replicates,
     )
     print(f"\n  {reorder_results['summary']['conclusion']}")
 
@@ -471,7 +471,7 @@ def run_prompt_sensitivity(
     print("TEST 2: Risk Framing Effect")
     print("=" * 60)
     framing_results = run_framing_test(
-        archetypes, test_vignettes, invoke, replicates=replicates,
+        archetypes, test_scenarios, invoke, replicates=replicates,
     )
     print(f"\n  {framing_results['summary']['conclusion']}")
 

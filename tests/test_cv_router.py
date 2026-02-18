@@ -582,7 +582,7 @@ class TestDecisionICC:
         for arch in ["a", "b", "c"]:
             for rep in range(1, 6):
                 responses.append(ProbeResponse(
-                    vignette_id="v1", archetype=arch, replicate=rep,
+                    scenario_id="v1", archetype=arch, replicate=rep,
                     decision="action_x",
                 ))
         battery.add_responses(responses)
@@ -600,7 +600,7 @@ class TestDecisionICC:
         for arch, action in action_map.items():
             for rep in range(1, 6):
                 responses.append(ProbeResponse(
-                    vignette_id="v1", archetype=arch, replicate=rep,
+                    scenario_id="v1", archetype=arch, replicate=rep,
                     decision=action,
                 ))
         battery.add_responses(responses)
@@ -614,7 +614,7 @@ class TestDecisionICC:
         for arch in ["a", "b"]:
             for rep in range(1, 4):
                 responses.append(ProbeResponse(
-                    vignette_id="v1", archetype=arch, replicate=rep,
+                    scenario_id="v1", archetype=arch, replicate=rep,
                     decision="elevate" if arch == "a" else "relocate",
                 ))
         battery.add_responses(responses)
@@ -633,7 +633,7 @@ class TestReasoningConsistency:
         responses = []
         for rep in range(1, 4):
             responses.append(ProbeResponse(
-                vignette_id="v1", archetype="a", replicate=rep,
+                scenario_id="v1", archetype="a", replicate=rep,
                 reasoning=text,
             ))
         battery.add_responses(responses)
@@ -646,15 +646,15 @@ class TestReasoningConsistency:
         battery = PsychometricBattery()
         responses = [
             ProbeResponse(
-                vignette_id="v1", archetype="a", replicate=1,
+                scenario_id="v1", archetype="a", replicate=1,
                 reasoning="alpha beta gamma delta",
             ),
             ProbeResponse(
-                vignette_id="v1", archetype="a", replicate=2,
+                scenario_id="v1", archetype="a", replicate=2,
                 reasoning="epsilon zeta eta theta",
             ),
             ProbeResponse(
-                vignette_id="v1", archetype="a", replicate=3,
+                scenario_id="v1", archetype="a", replicate=3,
                 reasoning="iota kappa lambda mu",
             ),
         ]
@@ -667,7 +667,7 @@ class TestReasoningConsistency:
         battery = PsychometricBattery()
         responses = [
             ProbeResponse(
-                vignette_id="v1", archetype="a", replicate=1,
+                scenario_id="v1", archetype="a", replicate=1,
                 decision="x",
             ),
         ]
@@ -682,7 +682,7 @@ class TestProbeResponseConstructLabels:
     def test_tp_cp_sync(self):
         """tp_label/cp_label should sync to construct_labels."""
         r = ProbeResponse(
-            vignette_id="v1", archetype="a", replicate=1,
+            scenario_id="v1", archetype="a", replicate=1,
             tp_label="H", cp_label="L",
         )
         assert r.construct_labels["TP_LABEL"] == "H"
@@ -691,7 +691,7 @@ class TestProbeResponseConstructLabels:
     def test_generic_constructs(self):
         """Custom constructs via construct_labels dict."""
         r = ProbeResponse(
-            vignette_id="v1", archetype="a", replicate=1,
+            scenario_id="v1", archetype="a", replicate=1,
             construct_labels={"WSA_LABEL": "VH", "ACA_LABEL": "L"},
         )
         assert r.get_ordinal("WSA_LABEL") == 5  # VH = 5 in LABEL_TO_ORDINAL
@@ -700,7 +700,7 @@ class TestProbeResponseConstructLabels:
     def test_custom_label_map(self):
         """Custom label map in get_ordinal."""
         r = ProbeResponse(
-            vignette_id="v1", archetype="a", replicate=1,
+            scenario_id="v1", archetype="a", replicate=1,
             construct_labels={"BUDGET_UTIL": "H"},
         )
         custom_map = {"L": 1, "M": 2, "H": 3}
@@ -709,7 +709,7 @@ class TestProbeResponseConstructLabels:
     def test_missing_construct(self):
         """Missing construct returns 0."""
         r = ProbeResponse(
-            vignette_id="v1", archetype="a", replicate=1,
+            scenario_id="v1", archetype="a", replicate=1,
         )
         assert r.get_ordinal("NONEXISTENT") == 0
 
