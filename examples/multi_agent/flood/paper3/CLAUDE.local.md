@@ -130,7 +130,7 @@ paper3/
 │
 ├── configs/                  # Experiment configurations
 │   ├── icc_archetypes.yaml
-│   └── vignettes/
+│   └── scenarios/
 │
 └── CLAUDE.local.md           # This file
 ```
@@ -230,6 +230,52 @@ Environment Update
   - Owners: lognormal($280K/$400K median), σ=0.3
   - Renters: contents only, income-based
 - **Initial Memories**: 6 categories (flood_experience, insurance, social, gov_trust, place, zone)
+
+---
+
+## Prompt Design Rationale (Methods Section Material)
+
+### De-quantification (v7, 2026-02-16)
+
+Population-frequency percentages (e.g., "60-70% choose do_nothing") were removed from
+household prompts because they are methodologically unsound: real agents cannot observe
+global population statistics. They were replaced by a **Default-Override + Waterfall**
+structure informed by a 3-expert panel (behavioral, water resources, LLM engineering).
+
+**Key design principles:**
+1. **Default-Override**: `do_nothing` declared as explicit default; alternatives require
+   passing a 3-gate filter (urgent? affordable? worth the disruption?)
+2. **Experiential barriers over descriptive norms**: Instead of "only 3-12% elevate,"
+   the prompt describes concrete PRB obstacles (permits, contractor scarcity, grant competition)
+3. **PRB-specific feasibility barriers for elevation**:
+   - Local building permit + NJDEP flood hazard permit (3-6 months)
+   - Specialized contractors (fewer than 12 firms in northern NJ, 12-24 month backlogs post-flood)
+   - Federal grants (HMGP/FMA) are competitive, 2-5 year timeline, most applicants denied
+   - Structural eligibility varies by foundation type (slab-on-grade much more expensive)
+   - Temporary relocation required (6-12 months, must continue mortgage payments)
+4. **Year-1 cold start**: `get_neighbor_action_summary()` returns an inaction baseline
+   ("no neighbors taking major flood protection actions") instead of empty string
+5. **Section title**: "YOUR DECISION PRIORITIES" (not "CALIBRATION" — avoids priming
+   meta-calibration behavior in small LLMs)
+
+**Literature grounding:**
+- Status quo bias: Samuelson & Zeckhauser (1988)
+- Present bias / hassle costs: O'Donoghue & Rabin (1999), Bertrand et al. (2006)
+- Flood insurance lapse: Gallagher (2014), Michel-Kerjan et al. (2012)
+- NFIP elevation barriers: FEMA P-312, Xian et al. (2017)
+- RLHF action bias in small LLMs: documented in gemma3:4b behavior (50.3% elevation
+  without quantitative anchors vs 3-12% empirical)
+
+### Calibration History
+
+| Version | Prompt Style | Owner do_nothing | Renter do_nothing | Renter ins | Elevation | Notes |
+|---------|-------------|-----------------|-------------------|------------|-----------|-------|
+| v5 | Hardcoded % | ~35% | — | — | ~10% | EPI=0.78 but methodologically unsound |
+| v6 dequant | Qualitative ("small minority") | 0% | — | — | 62.7% | Too weak for 4B model |
+| v7 | Default-Override + barriers | 57% | 33.5% | 66.5% | 1.0% | Renter ins too high ("most practical option" = directive) |
+| v7b | Stronger do_nothing + remove gate | 96.5% | 96.5% | 3.5% | 0.5% | Overcorrected — all agents passive |
+| v7c | Owner=v7, Renter=middle ground | 58% | 75% | 25% | 0.6% | EPI=0.58 (elev/buyout too low) |
+| **v7d** | **Soften elev/buyout barriers** | **63%** | **70%** | **30%** | **7%** | **EPI=0.6923 PASS — production ready** |
 
 ---
 

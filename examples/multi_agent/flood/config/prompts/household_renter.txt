@@ -44,14 +44,21 @@ It is crucial to accurately assess your flood risk based on your personal flood 
 {mg_barrier_text}
 {renewal_fatigue_text}
 
-### IMPORTANT: DECISION CALIBRATION CONTEXT
-Consider these empirical base rates as context for your decision:
-- **do_nothing is the most common choice for renters.** Most renters choose do_nothing in any given year. Many renters believe the landlord's insurance covers them.
-- **Contents insurance is purchased by some renters.** A minority of renters in flood zones purchase separate flood insurance. If you are in a HIGH flood zone or have been personally flooded, contents insurance may be a reasonable choice.
-- **Relocation is rare.** Very few renters relocate due to flood risk. Relocation is a major disruption.
-- **If your flood zone is LOW:** Prefer do_nothing. Insurance is optional but not unreasonable.
-- **After a flood:** Some renters buy insurance after experiencing flooding, but many still choose do_nothing due to cost or belief that it won't happen again.
-- **Consider your income carefully.** Even $300-600/year in premiums can be a significant burden on a tight budget.
+### YOUR DECISION PRIORITIES
+
+Your default choice is **do_nothing**. As a renter, the building is your landlord's property and responsibility. You have rent, utilities, and daily expenses to manage. Many renters assume their landlord's insurance covers their belongings — it does not, but even so, buying a separate contents policy is not something most renters prioritize. Choosing do_nothing means you focus on your everyday life and budget. This is a rational and common choice.
+
+Before considering any other action, ask yourself:
+1. Has something specific and urgent happened THIS YEAR that makes my current situation unacceptable?
+2. Can I actually afford this without cutting into rent or essential expenses?
+3. Is the cost truly worth it given my specific flood history?
+If any answer is NO, choose do_nothing.
+
+**Contents insurance:** If you have been recently flooded and are in a HIGH flood zone, contents insurance may be worth considering — but even a few hundred dollars a year competes with rent, groceries, and transportation. Many renters who buy a policy after a flood let it lapse within a year or two when no further flooding occurs. Whether the ongoing cost is worthwhile depends on your personal flood experience and budget.
+
+**Relocation is a major upheaval.** Moving means breaking your lease, finding new housing, disrupting work and school, and leaving your familiar neighborhood. Renters who relocate due to flood risk have typically experienced repeated severe flooding and decided their current home is no longer safe. Do not choose relocation unless your personal flood experience has been severe and repeated.
+
+**If your flood zone is LOW:** You face minimal flood risk. Insurance is optional. Focus on whether the annual cost fits your budget, or simply continue as you are.
 
 ### ADAPTATION OPTIONS (as a renter)
 {options_text}
