@@ -22,8 +22,11 @@ import yaml
 # Constants
 # ---------------------------------------------------------------------------
 
-# No default vignette directory — callers must provide domain-specific vignettes.
-VIGNETTE_DIR = None
+# No default scenario directory — callers must provide domain-specific scenarios.
+SCENARIO_DIR = None
+
+# Backward compatibility alias
+VIGNETTE_DIR = SCENARIO_DIR
 
 # PMT label ordinal mapping for ICC computation
 LABEL_TO_ORDINAL: Dict[str, int] = {
@@ -36,11 +39,11 @@ LABEL_TO_ORDINAL: Dict[str, int] = {
 # ---------------------------------------------------------------------------
 
 @dataclass
-class Vignette:
+class Scenario:
     """Standardized flood scenario for psychometric probing.
 
     Attributes:
-        id: Unique vignette identifier.
+        id: Unique scenario identifier.
         severity: "high", "medium", or "low".
         description: Human-readable description.
         scenario: Full scenario text presented to the agent.
@@ -55,11 +58,11 @@ class Vignette:
     expected_responses: Dict[str, Dict[str, List[str]]]
 
     @classmethod
-    def from_yaml(cls, path: str | Path) -> Vignette:
-        """Load vignette from YAML file."""
+    def from_yaml(cls, path: str | Path) -> Scenario:
+        """Load scenario from YAML file."""
         with open(path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
-        v = data["vignette"]
+        v = data["scenario"]
         return cls(
             id=v["id"],
             severity=v["severity"],
@@ -70,15 +73,19 @@ class Vignette:
         )
 
 
+# Backward compatibility alias
+Vignette = Scenario
+
+
 @dataclass
 class ProbeResponse:
-    """Single response from an agent to a vignette probe.
+    """Single response from an agent to a scenario probe.
 
     Supports both construct-rich mode (PMT with tp_label/cp_label)
     and construct-free mode (decision-only or generic constructs).
 
     Attributes:
-        vignette_id: Which vignette was presented.
+        scenario_id: Which scenario was presented.
         archetype: Agent archetype (e.g., "risk_averse_homeowner").
         replicate: Replicate number (1-30).
         tp_label: Reported Threat Perception (PMT shorthand).
@@ -89,7 +96,7 @@ class ProbeResponse:
         raw_response: Full LLM response text.
         construct_labels: Generic construct label dict for non-PMT use.
     """
-    vignette_id: str
+    scenario_id: str
     archetype: str
     replicate: int
     tp_label: str = ""
@@ -100,12 +107,34 @@ class ProbeResponse:
     raw_response: str = ""
     construct_labels: Dict[str, str] = field(default_factory=dict)
 
-    def __post_init__(self):
+    # Backward compatibility: accept vignette_id as alias
+    def __init__(self, scenario_id: str = "", archetype: str = "",
+                 replicate: int = 0, tp_label: str = "",
+                 cp_label: str = "", decision: str = "",
+                 reasoning: str = "", governed: bool = False,
+                 raw_response: str = "",
+                 construct_labels: Optional[Dict[str, str]] = None,
+                 vignette_id: str = ""):
+        self.scenario_id = scenario_id or vignette_id
+        self.archetype = archetype
+        self.replicate = replicate
+        self.tp_label = tp_label
+        self.cp_label = cp_label
+        self.decision = decision
+        self.reasoning = reasoning
+        self.governed = governed
+        self.raw_response = raw_response
+        self.construct_labels = construct_labels if construct_labels is not None else {}
         # Sync tp_label/cp_label into construct_labels for uniform access
         if self.tp_label and "TP_LABEL" not in self.construct_labels:
             self.construct_labels["TP_LABEL"] = self.tp_label
         if self.cp_label and "CP_LABEL" not in self.construct_labels:
             self.construct_labels["CP_LABEL"] = self.cp_label
+
+    @property
+    def vignette_id(self) -> str:
+        """Backward compatibility alias for scenario_id."""
+        return self.scenario_id
 
     @property
     def tp_ordinal(self) -> int:
@@ -201,12 +230,12 @@ class ConsistencyResult:
 
 
 @dataclass
-class VignetteReport:
-    """Report for a single vignette across all archetypes.
+class ScenarioReport:
+    """Report for a single scenario across all archetypes.
 
     Attributes:
-        vignette_id: Vignette identifier.
-        severity: Vignette severity level.
+        scenario_id: Scenario identifier.
+        severity: Scenario severity level.
         n_responses: Total responses collected.
         tp_icc: ICC for Threat Perception.
         cp_icc: ICC for Coping Perception.
@@ -214,7 +243,7 @@ class VignetteReport:
         coherence_rate: Fraction of responses with coherent action.
         incoherence_rate: Fraction with incoherent (hallucinated) action.
     """
-    vignette_id: str
+    scenario_id: str
     severity: str
     n_responses: int
     tp_icc: Optional[ICCResult] = None
@@ -222,6 +251,15 @@ class VignetteReport:
     decision_agreement: float = 0.0
     coherence_rate: float = 0.0
     incoherence_rate: float = 0.0
+
+    @property
+    def vignette_id(self) -> str:
+        """Backward compatibility alias."""
+        return self.scenario_id
+
+
+# Backward compatibility alias
+VignetteReport = ScenarioReport
 
 
 @dataclass
@@ -261,7 +299,7 @@ class EffectSizeResult:
 class ConvergentValidityResult:
     """Convergent validity -- correlation between construct and external criterion.
 
-    For flood domain: TP ordinal should correlate with vignette severity.
+    For flood domain: TP ordinal should correlate with scenario severity.
 
     Attributes:
         construct: Construct name.
@@ -291,18 +329,18 @@ class BatteryReport:
     """Complete psychometric battery report.
 
     Attributes:
-        vignette_reports: Per-vignette results.
-        overall_tp_icc: ICC for TP across all vignettes.
-        overall_cp_icc: ICC for CP across all vignettes.
+        scenario_reports: Per-scenario results.
+        overall_tp_icc: ICC for TP across all scenarios.
+        overall_cp_icc: ICC for CP across all scenarios.
         consistency: Internal consistency (Cronbach's alpha).
         governance_effect: Paired comparison results (governed vs not).
         n_total_probes: Total LLM calls made.
         tp_effect_size: Eta-squared for TP between archetypes.
         cp_effect_size: Eta-squared for CP between archetypes.
-        convergent_validity: TP vs vignette severity correlation.
+        convergent_validity: TP vs scenario severity correlation.
         tp_cp_discriminant: TP-CP inter-construct correlation.
     """
-    vignette_reports: List[VignetteReport] = field(default_factory=list)
+    scenario_reports: List[ScenarioReport] = field(default_factory=list)
     overall_tp_icc: Optional[ICCResult] = None
     overall_cp_icc: Optional[ICCResult] = None
     consistency: Optional[ConsistencyResult] = None
@@ -313,10 +351,15 @@ class BatteryReport:
     convergent_validity: Optional[ConvergentValidityResult] = None
     tp_cp_discriminant: float = 0.0
 
+    @property
+    def vignette_reports(self) -> List[ScenarioReport]:
+        """Backward compatibility alias."""
+        return self.scenario_reports
+
     def to_dict(self) -> Dict[str, Any]:
         d: Dict[str, Any] = {
             "n_total_probes": self.n_total_probes,
-            "n_vignettes": len(self.vignette_reports),
+            "n_scenarios": len(self.scenario_reports),
         }
         if self.overall_tp_icc:
             d["overall_tp_icc"] = self.overall_tp_icc.to_dict()

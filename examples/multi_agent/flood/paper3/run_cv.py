@@ -55,8 +55,10 @@ from broker.validators.calibration.cv_runner import CVRunner, CVReport
 from broker.validators.calibration.psychometric_battery import (
     PsychometricBattery,
     ProbeResponse,
-    Vignette,
+    Scenario,
 )
+# Backward compatibility
+Vignette = Scenario
 
 # Local imports
 from paper3.analysis.audit_to_cv import load_audit_for_cv, load_audit_all_seeds
@@ -67,7 +69,7 @@ from paper3.analysis.empirical_benchmarks import compare_with_benchmarks
 # Constants
 # ---------------------------------------------------------------------------
 
-VIGNETTE_DIR = FLOOD_DIR / "paper3" / "configs" / "vignettes"
+SCENARIO_DIR = FLOOD_DIR / "paper3" / "configs" / "scenarios"
 DEFAULT_MODEL = "gemma3:4b"
 DEFAULT_REPLICATES = 30
 
@@ -260,12 +262,12 @@ def _extract_balanced_braces(text: str) -> Optional[str]:
 
 def build_probe_prompt(
     archetype: Dict[str, Any],
-    vignette: Vignette,
+    vignette: Scenario,
 ) -> str:
-    """Build a prompt for ICC probing from archetype + vignette.
+    """Build a prompt for ICC probing from archetype + scenario.
 
     Mirrors the structure of the actual experiment prompts but substitutes
-    the vignette scenario for the real environment.
+    the scenario for the real environment.
     """
     persona = archetype["persona"]
     atype = archetype["agent_type"]
@@ -291,7 +293,7 @@ def build_probe_prompt(
 
     situation = "\n".join(situation_lines)
 
-    # Vignette scenario replaces the normal environment update
+    # Scenario replaces the normal environment update
     prompt = f"""{identity}
 
 ### YOUR SITUATION
@@ -351,24 +353,24 @@ def run_icc_probing(
     replicates = probing_config.get("replicates", replicates)
     temperature = probing_config.get("temperature", 0.7)
 
-    # Load vignettes
-    battery = PsychometricBattery(vignette_dir=VIGNETTE_DIR)
-    vignettes = battery.load_vignettes()
-    print(f"Loaded {len(vignettes)} vignettes, {len(archetypes)} archetypes")
-    print(f"Total probes: {len(vignettes)} x {len(archetypes)} x {replicates} = "
-          f"{len(vignettes) * len(archetypes) * replicates}")
+    # Load scenarios
+    battery = PsychometricBattery(scenario_dir=SCENARIO_DIR)
+    scenarios = battery.load_scenarios()
+    print(f"Loaded {len(scenarios)} scenarios, {len(archetypes)} archetypes")
+    print(f"Total probes: {len(scenarios)} x {len(archetypes)} x {replicates} = "
+          f"{len(scenarios) * len(archetypes) * replicates}")
 
     # Create LLM invoke function
     invoke = create_probe_invoke(model, temperature=temperature)
 
     # Run probing
-    total = len(archetypes) * len(vignettes) * replicates
+    total = len(archetypes) * len(scenarios) * replicates
     completed = 0
     failed = 0
 
     for arch_name, arch_data in archetypes.items():
-        for vignette in vignettes:
-            prompt = build_probe_prompt(arch_data, vignette)
+        for scenario in scenarios:
+            prompt = build_probe_prompt(arch_data, scenario)
 
             for rep in range(1, replicates + 1):
                 raw, success = invoke(prompt)
@@ -376,7 +378,7 @@ def run_icc_probing(
 
                 if not success or not raw:
                     failed += 1
-                    print(f"  [{completed}/{total}] FAILED: {arch_name} x {vignette.id} rep {rep}")
+                    print(f"  [{completed}/{total}] FAILED: {arch_name} x {scenario.id} rep {rep}")
                     continue
 
                 parsed = parse_probe_response(raw)
@@ -394,7 +396,7 @@ def run_icc_probing(
                 reasoning = parsed.get("reasoning", "")
 
                 response = ProbeResponse(
-                    vignette_id=vignette.id,
+                    scenario_id=scenario.id,
                     archetype=arch_name,
                     replicate=rep,
                     tp_label=tp,
@@ -407,7 +409,7 @@ def run_icc_probing(
                 battery.add_response(response)
 
                 if completed % 50 == 0 or completed == total:
-                    print(f"  [{completed}/{total}] {arch_name} x {vignette.id} "
+                    print(f"  [{completed}/{total}] {arch_name} x {scenario.id} "
                           f"rep {rep}: TP={tp}, CP={cp}, action={decision}")
 
                 # Incremental save every 500 calls (prevent data loss on crash)
@@ -460,16 +462,16 @@ def run_icc_probing(
         warn = " WARNING: constructs not discriminated" if abs(disc) > 0.8 else ""
         print(f"  TP-CP discriminant r: {disc:.3f}{warn}")
 
-    for vr in report.vignette_reports:
-        print(f"\n  Vignette: {vr.vignette_id} ({vr.severity})")
-        print(f"    Responses: {vr.n_responses}")
-        print(f"    Coherence: {vr.coherence_rate:.1%}")
-        print(f"    Incoherence: {vr.incoherence_rate:.1%}")
-        if vr.tp_icc:
-            print(f"    TP ICC: {vr.tp_icc.icc_value:.3f}")
-        if vr.cp_icc:
-            print(f"    CP ICC: {vr.cp_icc.icc_value:.3f}")
-        print(f"    Decision agreement (Fleiss' kappa): {vr.decision_agreement:.3f}")
+    for sr in report.scenario_reports:
+        print(f"\n  Scenario: {sr.scenario_id} ({sr.severity})")
+        print(f"    Responses: {sr.n_responses}")
+        print(f"    Coherence: {sr.coherence_rate:.1%}")
+        print(f"    Incoherence: {sr.incoherence_rate:.1%}")
+        if sr.tp_icc:
+            print(f"    TP ICC: {sr.tp_icc.icc_value:.3f}")
+        if sr.cp_icc:
+            print(f"    CP ICC: {sr.cp_icc.icc_value:.3f}")
+        print(f"    Decision agreement (Fleiss' kappa): {sr.decision_agreement:.3f}")
 
     # Save report
     report_dict = report.to_dict()
@@ -477,7 +479,7 @@ def run_icc_probing(
         "model": model,
         "replicates": replicates,
         "n_archetypes": len(archetypes),
-        "n_vignettes": len(vignettes),
+        "n_scenarios": len(scenarios),
         "total_probes": completed,
         "failed_probes": failed,
         "governed": governed,
@@ -802,7 +804,7 @@ def main():
         "--replicates",
         type=int,
         default=DEFAULT_REPLICATES,
-        help=f"ICC replicates per archetype-vignette (default: {DEFAULT_REPLICATES})",
+        help=f"ICC replicates per archetype-scenario (default: {DEFAULT_REPLICATES})",
     )
     parser.add_argument(
         "--trace-dir",

@@ -1,5 +1,5 @@
 # =============================================================================
-# CONTRADICTORY SIGNALS VIGNETTE (CRITICAL C9)
+# CONTRADICTORY SIGNALS SCENARIO (CRITICAL C9)
 # =============================================================================
 # Edge-case: FEMA map revision says low risk, but agent just experienced flooding.
 # Tests cognitive dissonance handling — can the LLM reconcile conflicting info?
@@ -10,7 +10,7 @@
 #   Action: protective action preferred (experience > official map)
 # =============================================================================
 
-vignette:
+scenario:
   id: contradictory_signals
   severity: medium
   description: >

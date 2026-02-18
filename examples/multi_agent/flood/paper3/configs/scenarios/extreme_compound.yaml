@@ -1,5 +1,5 @@
 # =============================================================================
-# EXTREME COMPOUND VIGNETTE (CRITICAL C9)
+# EXTREME COMPOUND SCENARIO (CRITICAL C9)
 # =============================================================================
 # Edge-case: Catastrophic flood + budget-exhausted government + lapsed insurance.
 # Tests model at distribution boundary — stress test for OOD robustness.
@@ -10,7 +10,7 @@
 #   Action: varies — fatalism (do_nothing) is acceptable given low CP
 # =============================================================================
 
-vignette:
+scenario:
   id: extreme_compound
   severity: extreme
   description: >

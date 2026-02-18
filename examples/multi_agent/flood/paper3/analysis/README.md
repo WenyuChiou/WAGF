@@ -1,4 +1,4 @@
-# LLM-ABM Construct & Validation Framework (C&V Framework)
+# WAGF Construct & Validation Module (C&V)
 
 ## Overview
 
@@ -256,26 +256,95 @@ These metrics transform "methodological embarrassment" into environmental justic
 
 ---
 
+## Hybrid Governance Calibration (v9b)
+
+A key challenge in LLM-ABM is calibrating behavioral rates to match empirical data. Small LLMs (4B parameters) exhibit two failure modes:
+
+1. **Prompt-only calibration fails**: LLMs ignore base-rate calibration text in prompts (v7: EPI=0.1099)
+2. **Hard-block-only calibration over-constrains**: Validators that always block remove LLM agency (v8: EPI=0.4725 but mg_adaptation_gap=0.005)
+
+The **hybrid approach** combines hard governance blocks for clear-cut cases with descriptive-norm prompt guidance for intermediate cases, preserving LLM decision-making agency where empirically defensible.
+
+### Design Principle
+
+Each behavioral constraint operates on a **3-tier gradient**:
+
+```
+    Hard BLOCK              Prompt Guidance           Fully Allowed
+    (validator ERROR)       (descriptive norms)       (no intervention)
+    ─────────────────────── ─────────────────────── ───────────────────
+    No agency               LLM weighs tradeoffs    Full agency
+    Deterministic outcome   Probabilistic influence  No influence
+```
+
+### MG Insurance Access Barrier
+
+Marginalized households face documented structural barriers to NFIP enrollment: trust deficit, language access, bureaucratic complexity (Atreya et al., 2015; FEMA, 2018).
+
+| Flood Experience | Currently Flooded | Mechanism | Rationale |
+|-----------------|-------------------|-----------|-----------|
+| Never (`flood_count == 0`) | No | **Hard BLOCK** | No personal motivation to overcome structural barriers |
+| Never (`flood_count == 0`) | Yes | Allowed | Immediate flooding creates urgent need |
+| Once (`flood_count == 1`) | No | **Prompt guidance** | One experience may not overcome barriers; LLM weighs |
+| Once (`flood_count == 1`) | Yes | Allowed | Re-flooding reinforces urgency |
+| Repeated (`flood_count >= 2`) | Any | Allowed | Repeated exposure overcomes barriers |
+
+**Prompt text** (shown to MG agents with `flood_count == 1`, not currently flooded):
+> "As a lower-income household, you face additional obstacles to NFIP enrollment: unfamiliar application process, limited language resources, and distrust of government programs. Many similar households wait until repeated flooding before enrolling. Only about 15-25% of households in your situation carry flood insurance."
+
+### Insurance Renewal Fatigue
+
+NFIP policies are annual. Without reinforcing flood events, policyholders lapse (Michel-Kerjan et al., 2012: median tenure 2-4 years). HIGH-zone (SFHA) agents are exempt due to persistent visible risk.
+
+| Years Since Flood | Flood Zone | Mechanism | Rationale |
+|-------------------|------------|-----------|-----------|
+| 0 (just flooded) | Any | Allowed | Immediate salience |
+| 1-2 | Non-HIGH | **Prompt guidance** | Fading memory; LLM decides |
+| 3+ | Non-HIGH | **Hard BLOCK** | Near-certain lapse (Michel-Kerjan 2012) |
+| Any | HIGH (SFHA) | Allowed | SFHA = persistent visible risk |
+
+**Prompt text** (shown to non-HIGH zone agents with `years_since_flood` 1-2):
+> "It has been N year(s) since your last flood. Research shows that most NFIP policyholders let their coverage lapse within 2-4 years without a reinforcing flood event. Many of your neighbors in similar situations have already dropped their policies."
+
+### Implementation
+
+| Component | File | Role |
+|-----------|------|------|
+| Hard block validators | `run_unified_experiment.py` | `validate_insurance_access_barriers()` |
+| Prompt text generation | `broker/components/context/providers.py` | `InstitutionalProvider.provide()` |
+| Template forwarding | `broker/components/context/tiered.py` | `mg_barrier_text`, `renewal_fatigue_text` |
+| Prompt templates | `config/prompts/household_{owner,renter}.txt` | `{mg_barrier_text}`, `{renewal_fatigue_text}` |
+
+### Calibration Version History
+
+| Version | EPI | Pass | Key Change |
+|---------|-----|------|------------|
+| v7 | 0.1099 | 1/8 | Prompt-only (insurance dominance) |
+| v8 | 0.4725 | 4/8 | Hard block: lapse + MG barrier + renewal fatigue |
+| v9b | TBD | TBD | Hybrid: prompt guidance for intermediate cases |
+
+---
+
 ## Known Limitations and Future Directions
 
 ### Current Limitations
 
-1. **Construct label circularity**: CACR checks whether LLM-generated TP/CP labels are consistent with actions = self-consistency, not construct validity. Future: "construct grounding" validation.
+1. **Construct label circularity**: CACR checks whether LLM-generated TP/CP labels are consistent with actions = self-consistency, not construct validity. Mitigation: CGR (Construct Grounding Rate) provides objective comparison.
 2. **No spatial validation**: All metrics are aspatial. Water resources applications need Moran's I (spatial autocorrelation), flood zone gradient analysis.
 3. **No temporal trajectory validation**: EPI compresses multi-year dynamics into a single number. Future: post-flood adaptation spike ratio, insurance survival half-life, adaptation S-curve fitting.
-4. **Single theory support**: Currently hard-codes PMT. Future: `BehavioralTheory` protocol supporting TPB, HBM, PADM, Prospect Theory, etc.
+4. **Behavioral theory extensibility**: Now supports `BehavioralTheory` protocol (PMT implemented; TPB, HBM, PADM templates in EXTENDING.md), but only PMT has been empirically validated.
 5. **Memory limitations**: 500K+ traces require streaming processing. Currently loads all into memory.
 
 ### Architecture Evolution Plan
 
 | Phase | Content | Status |
 |-------|---------|--------|
-| Phase 0 | Fix P0 bugs (EBE averaging, UNKNOWN sentinel) | ✅ Complete |
-| Phase 1 | Externalize constants to YAML (rules, benchmarks) | 🔲 Planned |
-| Phase 2 | Split into sub-modules (metrics/, io/, reporting/) | 🔲 Planned |
-| Phase 3 | BehavioralTheory protocol + TheoryRegistry | 🔲 Planned |
-| Phase 4 | Pluggable BenchmarkComputation plugins | 🔲 Planned |
-| Phase 5 | Streaming TraceReader + ValidationRunner facade | 🔲 Planned |
+| Phase 0 | Fix P0 bugs (EBE averaging, UNKNOWN sentinel) | Complete |
+| Phase 1 | Split into sub-packages (metrics/, io/, reporting/, theories/, benchmarks/) | Complete |
+| Phase 2 | 4 Protocol interfaces (BehavioralTheory, HallucinationChecker, GroundingStrategy, BenchmarkRegistry) | Complete |
+| Phase 3 | P0/P1 fixes (CGR, Null Model, Bootstrap CI, Benchmark sync) | Complete |
+| Phase 4 | Cross-domain generalization (6 configurable extension points, EXTENDING.md) | Complete |
+| Phase 5 | Streaming TraceReader + advanced meta-validation (L4 Wasserstein, sycophancy) | Complete |
 
 ---
 
@@ -283,25 +352,29 @@ These metrics transform "methodological embarrassment" into environmental justic
 
 1. **Structural plausibility, not predictive accuracy**: LLM-ABM is not a statistical prediction model; validation targets behavioral fidelity
 2. **Calibration vs. validation separation**: Explicitly label which benchmarks were iterated during development (calibration targets) vs. held out (validation targets)
-3. **Governance ≈ institutional constraints**: REJECTED proposals are analogous to real-world institutional barriers (eligibility, affordability)
-4. **4B model as scope condition**: Small LLMs represent "model capability lower bound"; results are conservative but credible
-5. **Base rate neglect ≈ bounded rationality**: LLM ignoring calibration text can be interpreted as bounded rationality (feature, not bug)
-6. **UNKNOWN sentinel**: Failed construct extraction defaults to "UNKNOWN" (not "M"), excluded from CACR for metric honesty
+3. **Governance = institutional constraints**: REJECTED proposals are analogous to real-world institutional barriers (eligibility, affordability). This is methodologically defensible, not a workaround.
+4. **Hybrid governance calibration**: Hard blocks for clear-cut cases, descriptive-norm prompts for intermediate cases. Preserves LLM agency while maintaining empirical plausibility. See "Hybrid Governance Calibration" section above.
+5. **4B model as scope condition**: Small LLMs represent "model capability lower bound"; results are conservative but credible
+6. **Base rate neglect = bounded rationality**: LLM ignoring calibration text parallels human bounded rationality (feature, not bug)
+7. **UNKNOWN sentinel**: Failed construct extraction defaults to "UNKNOWN" (not "M"), excluded from CACR for metric honesty
+8. **Descriptive norms over welfare threats**: Prompt text uses "many similar households do X" framing, not "you are vulnerable" framing. Welfare-threat language triggers RLHF moral-harm reflex in small LLMs, causing overcorrection.
 
 ---
 
 ## References
 
+- Ajzen, I. (1991). The Theory of Planned Behavior. *Organizational Behavior and Human Decision Processes*.
+- Atreya, A. et al. (2015). What drives households to buy flood insurance? *Ecological Economics*.
+- Bubeck, P. et al. (2012). A review of risk perceptions and coping. *Risk Analysis*.
+- Choi, J. et al. (2024). National Flood Insurance Program participation.
+- Elliott, J.R. & Howell, J. (2020). Beyond disasters. *Social Problems*.
+- FEMA (2018). An Affordability Framework for the National Flood Insurance Program.
 - Grimm, V. et al. (2005). Pattern-oriented modeling of agent-based complex systems. *Science*.
 - Grothmann, T. & Reusswig, F. (2006). People at risk of flooding. *Natural Hazards*.
-- Bubeck, P. et al. (2012). A review of risk perceptions and coping. *Risk Analysis*.
-- Michel-Kerjan, E. et al. (2012). Policy tenure under the NFIP. *Risk Analysis*.
-- Mach, K.J. et al. (2019). Managed retreat through voluntary buyouts. *Science Advances*.
-- Elliott, J.R. & Howell, J. (2020). Beyond disasters. *Social Problems*.
-- Choi, J. et al. (2024). National Flood Insurance Program participation.
 - Lindell, M.K. & Perry, R.W. (2012). The Protective Action Decision Model. *Risk Analysis*.
-- Ajzen, I. (1991). The Theory of Planned Behavior. *Organizational Behavior and Human Decision Processes*.
+- Mach, K.J. et al. (2019). Managed retreat through voluntary buyouts. *Science Advances*.
+- Michel-Kerjan, E. et al. (2012). Policy tenure under the NFIP. *Risk Analysis*.
 
 ---
 
-*Last updated: 2026-02-14*
+*Last updated: 2026-02-16*

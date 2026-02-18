@@ -1,5 +1,5 @@
 # =============================================================================
-# MEDIUM-SEVERITY FLOOD VIGNETTE
+# MEDIUM-SEVERITY FLOOD SCENARIO
 # =============================================================================
 # Standardized psychometric probe for C&V Level 3 cognitive validation.
 # Represents an ambiguous scenario where rational agents may diverge.
@@ -10,7 +10,7 @@
 #   Action: mixed (insure, do_nothing, or moderate protection)
 # =============================================================================
 
-vignette:
+scenario:
   id: medium_severity_flood
   severity: medium
   description: >
