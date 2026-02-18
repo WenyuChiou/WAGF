@@ -416,6 +416,9 @@ class UnifiedAdapter(ModelAdapter):
                                     else:
                                         reasoning[name] = normalize_construct_value(v, custom_mapping=custom_mapping)
                                 else:
+                                    # Don't overwrite REASON if already populated with real text
+                                    if "_REASON" in name and reasoning.get(name) and len(str(reasoning[name])) > 10:
+                                        continue
                                     reasoning[name] = normalize_construct_value(v, custom_mapping=custom_mapping)
                         else:
                             # Fallback: direct name match

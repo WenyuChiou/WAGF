@@ -347,14 +347,12 @@ household_owner:
         - stakeholder
         - trust
         - government
-        - insurance
         regex: (?i)(?:label)?[:\s\*\[]*\b(VL|L|M|H|VH)\b
       SP_REASON:
         keywords:
         - stakeholder
         - trust
         - government
-        - insurance
         regex: (?i)(?:reason|why|because|explanation)[:\s\*]*(.*)
       SC_LABEL:
         keywords:
@@ -490,7 +488,6 @@ household_renter:
         - stakeholder
         - trust
         - government
-        - insurance
         regex: (?i)(?:label)?[:\s\*\[]*\b(VL|L|M|H|VH)\b
       SC_LABEL:
         keywords:

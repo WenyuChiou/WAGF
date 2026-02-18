@@ -674,9 +674,9 @@ class MultiAgentHooks:
         # Define allocation for stratified retrieval (can be customized)
         # This ensures a mix of memory types are considered for reflection.
         retrieval_allocation = {
-            "personal": 1,
+            "personal": 3,
             "neighbor": 1,
-            "reflection": 3,
+            "reflection": 1,
         }
         total_k = 5
         
@@ -692,31 +692,51 @@ class MultiAgentHooks:
         if not stratified_memories:
             return # No memories to reflect on
 
-        # --- Construct Reflection Prompt (Simplified) ---
-        # In a full implementation, this would use LLM prompts and potentially 057-A's personalized prompts.
-        # For now, we'll create a basic reflection summary.
-        
-        reflection_prompt = f"Reflecting on Year {year} for agent {agent_id}:\n"
-        reflection_prompt += "Key events and context:\n"
-        for i, mem in enumerate(stratified_memories[:3]): # Use top 3 memories for summary
-            reflection_prompt += f"- {mem}\n"
-        
-        reflection_prompt += "\nBased on this context, what are the most important lessons learned or insights gained for the future?"
-        
-        # --- Generate Reflection Memory ---
-        # In a real scenario, an LLM would generate the reflection content.
-        # For now, we simulate by creating a generic reflection based on the prompt structure.
-        generated_reflection = f"Year {year}: Consolidated Reflection: Learned valuable lessons from past events and community inputs. Importance of preparedness highlighted."
+        # --- Generate Personalized Reflection from Agent State ---
+        agent = agents.get(agent_id)
+        if agent is None:
+            return
+
+        ds = agent.dynamic_state
+        parts = [f"Year {year}:"]
+
+        # Flood experience
+        if ds.get("flooded_this_year"):
+            depth = self.agent_flood_depths.get(agent_id, 0)
+            damage_pct = ds.get("flood_damage_pct", 0)
+            parts.append(f"Experienced flooding (depth {depth:.2f}m, ~{damage_pct:.0%} damage).")
+        elif flood_occurred:
+            parts.append("Community flooded but my property was spared.")
+        else:
+            parts.append("No flood this year.")
+
+        # Action taken
+        last_decision = ds.get("last_decision", "do_nothing")
+        if last_decision != "do_nothing":
+            parts.append(f"Decided to {last_decision.replace('_', ' ')}.")
+
+        # Insurance + elevation status
+        if ds.get("has_insurance"):
+            parts.append("Currently insured.")
+        if ds.get("elevated"):
+            parts.append("Home elevated.")
+
+        # Include top retrieved memory snippet for synthesis
+        if stratified_memories:
+            snippet = str(stratified_memories[0])[:100]
+            parts.append(f"Key memory: {snippet}")
+
+        generated_reflection = " ".join(parts)
 
         # Add the generated reflection as a new memory
         memory_engine.add_memory(
             agent_id,
             generated_reflection,
             metadata={
-                "source": "personal", # Reflections are personal insights derived from various sources
-                "emotion": "major",   # Reflections often carry significant emotional weight
-                "importance": 0.85,   # Reflections are typically important for future decisions
-                "type": "reflection", # Explicitly mark as reflection
+                "source": "personal",
+                "emotion": "major",
+                "importance": 0.45,   # Below flood memories (0.80) and decisions (0.50)
+                "type": "reflection",
                 "context": "year_end_review"
             }
         )
