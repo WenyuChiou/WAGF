@@ -340,6 +340,14 @@ class MultiAgentHooks:
                 self._prune_agent_from_graph(agent.id)
                 print(f" [LIFECYCLE] {agent.id} relocated ({'within PRB' if dest_val == 1 else 'out of basin'})")
 
+            # Insurance lapse: NFIP policies are annual. If agent did not
+            # actively purchase/renew insurance this year, coverage lapses.
+            # (Michel-Kerjan et al. 2012: median NFIP tenure 2-4 years)
+            if decision not in ("buy_insurance", "buy_contents_insurance"):
+                if agent.dynamic_state.get("has_insurance"):
+                    agent.dynamic_state["has_insurance"] = False
+                    agent.dynamic_state["insurance_status"] = "do NOT have"
+
             # Store last decision for tracking
             agent.dynamic_state["last_decision"] = decision
 

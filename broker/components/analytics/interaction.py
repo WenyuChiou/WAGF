@@ -195,6 +195,14 @@ class InteractionHub:
                 action_counts[label] = action_counts.get(label, 0) + 1
 
         if not action_counts:
+            # Year-1 cold start: provide baseline observation instead of
+            # empty string, so LLM has a social norm anchor from the start.
+            if neighbor_ids:
+                return (
+                    "You have not observed any of your neighbors taking "
+                    "major flood protection actions. Life in the neighborhood "
+                    "continues as normal."
+                )
             return ""
 
         total = sum(action_counts.values())

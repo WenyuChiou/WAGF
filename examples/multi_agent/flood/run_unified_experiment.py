@@ -537,6 +537,108 @@ def run_unified_experiment():
 
         return results
 
+    def validate_insurance_access_barriers(
+        proposal: SkillProposal,
+        context: Dict[str, Any],
+        skill_registry: Any
+    ) -> List[ValidationResult]:
+        """
+        Two empirically-grounded insurance access rules:
+
+        Rule 1 — MG insurance barrier:
+            Marginalized households without prior flood experience face
+            documented barriers to NFIP enrollment: language access, institutional
+            distrust, information asymmetry, and competing financial priorities.
+            FEMA data shows MG communities have 30-50% lower NFIP participation.
+            After experiencing a flood, MG agents CAN purchase insurance (the
+            direct experience overcomes the access barrier).
+
+        Rule 2 — Insurance renewal fatigue (non-SFHA):
+            Households outside SFHA (HIGH zone) who have not experienced flooding
+            in 2+ years let policies lapse. Michel-Kerjan et al. (2012): median
+            NFIP tenure 2-4 years. Atreya et al. (2015): insurance demand drops
+            significantly 3+ years post-flood. HIGH-zone agents maintain insurance
+            due to persistent, visible risk.
+
+        References:
+        - Michel-Kerjan et al. (2012). "Policy tenure under the U.S. NFIP."
+        - Atreya et al. (2015). "What drives households to buy flood insurance?"
+        - FEMA (2018). "An Affordability Framework for the NFIP."
+        """
+        results = []
+
+        if proposal.agent_type not in ["household_owner", "household_renter"]:
+            return results
+
+        if proposal.skill_name not in ["buy_insurance", "buy_contents_insurance"]:
+            return results
+
+        agent_data = context.get('agent_state', {})
+        personal = agent_data.get('personal', {})
+
+        is_mg = personal.get('mg', False)
+        flood_count = personal.get('flood_count', 0)
+        flooded_this_year = personal.get('flooded_this_year', False)
+        flood_zone = personal.get('flood_zone', 'MEDIUM')
+        years_since_flood = personal.get('years_since_flood', 99)
+
+        # Rule 1: MG insurance barrier (hard block)
+        # ONLY block MG agents with ZERO flood experience. These agents have
+        # no personal motivation to overcome structural barriers (trust deficit,
+        # language access, bureaucratic complexity).
+        # flood_count >= 1: prompt-guided (see mg_barrier_text in providers.py)
+        # flood_count >= 2: fully allowed (repeated flooding overcomes barriers)
+        if is_mg and flood_count == 0 and not flooded_this_year:
+            results.append(ValidationResult(
+                valid=False,
+                validator_name="InsuranceAccessBarrierValidator",
+                errors=[
+                    f"MG_INSURANCE_BARRIER: Marginalized household with no flood "
+                    f"experience faces access barriers to NFIP enrollment. "
+                    f"Consider do_nothing until direct flood experience motivates enrollment."
+                ],
+                metadata={
+                    "level": ValidationLevel.ERROR,
+                    "rule_id": "mg_insurance_barrier",
+                    "rules_hit": ["mg_insurance_barrier"],
+                    "field": "decision",
+                    "constraint": "mg_insurance_access",
+                    "deterministic": True,
+                }
+            ))
+
+        # Rule 2: Insurance renewal fatigue (hard block for long gaps only)
+        # years_since_flood >= 3: hard block (Michel-Kerjan 2012: median NFIP
+        # tenure 2-4 years; after 3+ years without flood, lapse is near-certain)
+        # years_since_flood 1-2: prompt-guided (see renewal_fatigue_text in providers.py)
+        # HIGH-zone agents exempt (persistent visible risk from SFHA designation)
+        # Only applies to agents with prior flood experience (flood_count > 0).
+        # Never-flooded agents (years_since_flood=99) are handled by MG barrier
+        # or prompt calibration text, not renewal fatigue.
+        if (not flooded_this_year
+                and years_since_flood >= 3
+                and flood_zone != "HIGH"
+                and flood_count > 0):
+            results.append(ValidationResult(
+                valid=False,
+                validator_name="InsuranceAccessBarrierValidator",
+                errors=[
+                    f"RENEWAL_FATIGUE: No flood in {years_since_flood} year(s) — "
+                    f"insurance renewal unlikely for {flood_zone} zone agent. "
+                    f"Median NFIP tenure is 2-4 years without reinforcing flood events."
+                ],
+                metadata={
+                    "level": ValidationLevel.ERROR,
+                    "rule_id": "insurance_renewal_fatigue",
+                    "rules_hit": ["insurance_renewal_fatigue"],
+                    "field": "decision",
+                    "constraint": "insurance_renewal_fatigue",
+                    "deterministic": True,
+                }
+            ))
+
+        return results
+
     # 1. Init environment
     env_data = {
         "subsidy_rate": args.initial_subsidy,
@@ -832,6 +934,7 @@ def run_unified_experiment():
         validate_flood_zone_appropriateness,
         validate_buyout_repetitive_loss,
         validate_elevation_justification,
+        validate_insurance_access_barriers,
     ]
 
     if args.enable_custom_affordability:

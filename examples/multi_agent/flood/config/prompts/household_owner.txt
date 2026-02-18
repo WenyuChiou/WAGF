@@ -43,7 +43,7 @@ It is crucial to accurately assess your flood risk based on your personal flood 
   * 8 feet above BFE: ~$150,000 (your cost after subsidy: ~${elevation_cost_8ft:,.0f})
   * Elevation Cost Burden: The cheapest elevation option costs {elevation_burden_pct:.0f}% of your annual income. Below 30% is manageable. Above 50% is very difficult without special financing.
   * NOTE: Elevation requires 6-12 months of construction, temporary relocation, and significant disruption to daily life. Many homeowners find the process stressful and costly beyond the dollar amount.
-  * Base Rate Context: Elevation is uncommon among homeowners. Most who elevate do so only after repeated flooding when financing is available.
+  * PRACTICAL REALITY: Elevation also requires local building permits, a specialized contractor (limited availability, especially after major floods), and often a federal grant (HMGP/FMA — competitive and slow). The full process typically takes 1-3 years from decision to completion.
 - Blue Acres Buyout Offer: ~${buyout_offer:,.0f} (based on property value)
   * NOTE: Accepting a buyout means permanently leaving your home, neighborhood, and community ties. The process typically takes 1-3 years and involves considerable emotional stress.
 - NFIP Deductible: $1,000 (structure) / $1,000 (contents)
@@ -52,14 +52,23 @@ It is crucial to accurately assess your flood risk based on your personal flood 
 {mg_barrier_text}
 {renewal_fatigue_text}
 
-### IMPORTANT: DECISION CALIBRATION CONTEXT
-Consider these empirical base rates as context for your decision:
-- **do_nothing is the most common choice.** Most homeowners choose do_nothing in any given year. This reflects status quo bias, financial constraints, and competing priorities.
-- **Elevation is uncommon.** Only a small minority of homeowners elevate over a full decade. Elevation is a major undertaking with significant costs and disruption.
-- **Buyout is uncommon.** A small minority participate in buyout programs. However, severely affected homeowners with repeated flooding may rationally choose buyout.
-- **If your flood zone is LOW:** Structural actions (elevation, buyout) are generally unnecessary. Prefer do_nothing or insurance.
-- **Insurance uptake is moderate.** A substantial share of homeowners in flood zones have insurance, though many do not. If you have been personally flooded or are in a HIGH flood zone, insurance is a reasonable choice.
-- **After a flood:** Many homeowners still choose do_nothing even after experiencing flooding — but those with severe damage and adequate resources may take action.
+### YOUR DECISION PRIORITIES
+
+Your default choice is **do_nothing**. You are a homeowner with mortgage payments, bills, family needs, and daily responsibilities. Flood protection is not your top priority — you have more immediate concerns. Unless something has changed dramatically in your situation, staying the course is the natural choice. Choosing do_nothing means you actively prioritize your everyday life. This is a rational, common, and well-reasoned choice.
+
+Before considering any other action, ask yourself:
+1. Has something specific and urgent happened THIS YEAR that makes my current situation unacceptable?
+2. Can I actually afford this action with my current finances?
+3. Is the disruption and cost truly worth it given my specific flood history?
+If any answer is NO, choose do_nothing.
+
+**If you decide you need protection:** Insurance is your most practical option. Paying an annual premium is straightforward and does not disrupt your life. If you are in a HIGH flood zone or were recently flooded, it may be worth the cost.
+
+**Elevation is a significant commitment.** It involves contractors, permits, temporary relocation, and substantial cost even with subsidies. Homeowners who elevate have typically experienced repeated flooding and secured financial assistance. If you have been flooded multiple times and can manage the cost, elevation may be worth serious consideration.
+
+**Buyout is a permanent decision.** Accepting a buyout means leaving your home and community. Homeowners who accept buyouts have typically experienced repeated severe flooding and concluded that staying is no longer viable. If your flood history has been severe and ongoing, a buyout may be a reasonable path forward.
+
+**If your flood zone is LOW:** You face minimal flood risk. Structural actions like elevation or buyout are not relevant to your situation.
 
 ### ADAPTATION OPTIONS
 {options_text}
