@@ -2,14 +2,15 @@
 """
 FQL Baseline — Comparison Metrics for Nature Water Paper.
 
-Computes: EHE, demand-Mead correlation, demand ratio, shortage years,
-skill distribution, and Mead trajectory across 3 conditions:
+Computes water-system metrics across 3 conditions:
   1. LLM Governed (production_v20_42yr)
   2. LLM Ungoverned (ungoverned_v20_42yr)
   3. FQL Baseline (fql_raw — no governance, faithful to Hung & Yang 2021)
 
-EHE is computed on 3 directional categories (increase/maintain/decrease)
-for fair comparison: LLM has 5 skills, FQL has 2 actions + maintain.
+EHE is computed ONLY for LLM conditions (Governed vs Ungoverned).
+FQL has a binary action space (increase/decrease) with no maintain action;
+computing EHE for FQL is not meaningful since its "maintain" outcomes are
+entirely validator-blocking artifacts, not behavioral choices.
 """
 
 import sys
@@ -27,9 +28,9 @@ FQL_RESULTS = Path(r"C:\Users\wenyu\Desktop\Lehigh\wagf-fql-baseline\examples\ir
 
 # LLM 5-skill model
 LLM_SKILLS = ["increase_large", "increase_small", "maintain_demand", "decrease_small", "decrease_large"]
-# FQL 2-action model (+ maintain from cap)
-FQL_SKILLS = ["increase_demand", "decrease_demand", "maintain_demand"]
-# Fair comparison: 3 directional categories
+# FQL 2-action model (Hung & Yang 2021: only increase/decrease)
+FQL_ACTIONS = ["increase_demand", "decrease_demand"]
+# Direction categories for LLM EHE
 DIRECTIONS = ["increase", "maintain", "decrease"]
 K_DIR = len(DIRECTIONS)  # 3
 H_MAX_DIR = math.log2(K_DIR)  # 1.585
@@ -95,13 +96,14 @@ for s in seeds:
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# 1. EHE (3-direction: increase / maintain / decrease)
+# 1. EHE — LLM ONLY (Governed vs Ungoverned)
 # ══════════════════════════════════════════════════════════════════════════
 print("\n" + "=" * 80)
-print("1. EHE — 3-direction (increase / maintain / decrease)")
+print("1. EHE — 3-direction (LLM Governed vs Ungoverned ONLY)")
+print("   FQL excluded: binary action space (increase/decrease), no maintain action.")
 print("=" * 80)
 
-for label, sim_dict in [("LLM Governed", gov_sim), ("LLM Ungoverned", ungov_sim), ("FQL Baseline", fql_sim)]:
+for label, sim_dict in [("LLM Governed", gov_sim), ("LLM Ungoverned", ungov_sim)]:
     print(f"\n  {label}:")
     seed_ehes = {}
     for s in seeds:
@@ -211,14 +213,14 @@ print("\n" + "=" * 80)
 print("5. SKILL DISTRIBUTION (% of total decisions, ensemble mean)")
 print("=" * 80)
 
-# 5a. Direction-level (3 categories — comparable across conditions)
-print(f"\n  5a. Directional (3-category):")
-print(f"  {'Direction':<20s} {'LLM Gov':>10s} {'LLM Ungov':>10s} {'FQL':>10s}")
-print(f"  {'─'*20} {'─'*10} {'─'*10} {'─'*10}")
+# 5a. Direction-level for LLM only
+print(f"\n  5a. LLM Directional (3-category):")
+print(f"  {'Direction':<20s} {'LLM Gov':>10s} {'LLM Ungov':>10s}")
+print(f"  {'─'*20} {'─'*10} {'─'*10}")
 
 for direction in DIRECTIONS:
     pcts = {}
-    for lbl, sim_dict in [("gov", gov_sim), ("ungov", ungov_sim), ("fql", fql_sim)]:
+    for lbl, sim_dict in [("gov", gov_sim), ("ungov", ungov_sim)]:
         seed_pcts = []
         for s in seeds:
             df = sim_dict[s]
@@ -227,9 +229,9 @@ for direction in DIRECTIONS:
             count = (dirs == direction).sum()
             seed_pcts.append(100 * count / total if total > 0 else 0)
         pcts[lbl] = np.mean(seed_pcts)
-    print(f"  {direction:<20s} {pcts['gov']:9.1f}% {pcts['ungov']:9.1f}% {pcts['fql']:9.1f}%")
+    print(f"  {direction:<20s} {pcts['gov']:9.1f}% {pcts['ungov']:9.1f}%")
 
-# 5b. Raw skills for each condition
+# 5b. Raw skills for LLM
 print(f"\n  5b. LLM raw skills (5-skill model):")
 for skill in LLM_SKILLS:
     pcts = {}
@@ -243,15 +245,18 @@ for skill in LLM_SKILLS:
         pcts[lbl] = np.mean(seed_pcts)
     print(f"  {skill:<20s} gov={pcts['gov']:5.1f}%  ungov={pcts['ungov']:5.1f}%")
 
-print(f"\n  5c. FQL raw skills (2-action model):")
-for skill in FQL_SKILLS:
+# 5c. FQL raw actions (2-action model)
+print(f"\n  5c. FQL raw actions (2-action model, Hung & Yang 2021):")
+print(f"       Note: 'maintain_demand' = validator blocking, NOT an FQL action.")
+for skill in FQL_ACTIONS + ["maintain_demand"]:
     seed_pcts = []
     for s in seeds:
         df = fql_sim[s]
         total = len(df)
         count = (df["yearly_decision"].str.lower().str.strip() == skill).sum()
         seed_pcts.append(100 * count / total if total > 0 else 0)
-    print(f"  {skill:<20s} {np.mean(seed_pcts):5.1f}%")
+    suffix = " (blocked)" if skill == "maintain_demand" else ""
+    print(f"  {skill:<20s} {np.mean(seed_pcts):5.1f}%{suffix}")
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -323,8 +328,19 @@ def wsa_coherence_fn(df):
     h_increase = (h_mask & skill.str.startswith("increase")).sum()
     return (h_total - h_increase) / h_total if h_total > 0 else 1.0
 
-metrics = [
-    ("EHE (3-dir)", ehe_fn),
+# EHE only for LLM conditions
+print(f"\n  --- EHE (LLM only) ---")
+print(f"  {'Metric':<20s} {'LLM Governed':>18s} {'LLM Ungoverned':>18s}")
+print(f"  {'─'*20} {'─'*18} {'─'*18}")
+for name, fn in [("EHE (3-dir)", ehe_fn)]:
+    row = []
+    for sim_dict in [gov_sim, ungov_sim]:
+        mean, sd = compute_ensemble(sim_dict, fn)
+        row.append(f"{mean:.3f}±{sd:.3f}" if sd > 0.001 else f"{mean:.3f}")
+    print(f"  {name:<20s} {row[0]:>18s} {row[1]:>18s}")
+
+# Water-system metrics for all 3 conditions
+water_metrics = [
     ("Demand ratio", demand_ratio_fn),
     ("Demand-Mead r", demand_mead_r_fn),
     ("Shortage years", shortage_fn),
@@ -332,10 +348,11 @@ metrics = [
     ("WSA coherence", wsa_coherence_fn),
 ]
 
-print(f"\n  {'Metric':<20s} {'LLM Governed':>18s} {'LLM Ungoverned':>18s} {'FQL Baseline':>18s}")
+print(f"\n  --- Water-System Metrics (all 3 conditions) ---")
+print(f"  {'Metric':<20s} {'LLM Governed':>18s} {'LLM Ungoverned':>18s} {'FQL Baseline':>18s}")
 print(f"  {'─'*20} {'─'*18} {'─'*18} {'─'*18}")
 
-for name, fn in metrics:
+for name, fn in water_metrics:
     row = []
     for sim_dict in [gov_sim, ungov_sim, fql_sim]:
         mean, sd = compute_ensemble(sim_dict, fn)
@@ -345,5 +362,9 @@ for name, fn in metrics:
             row.append(f"{mean:.3f}")
     print(f"  {name:<20s} {row[0]:>18s} {row[1]:>18s} {row[2]:>18s}")
 
+print(f"\n  --- Qualitative Differences ---")
+print(f"  {'Feature':<20s} {'LLM Governed':>18s} {'LLM Ungoverned':>18s} {'FQL Baseline':>18s}")
+print(f"  {'─'*20} {'─'*18} {'─'*18} {'─'*18}")
+print(f"  {'Action space':<20s} {'5 skills':>18s} {'5 skills':>18s} {'2 actions':>18s}")
 print(f"  {'Reasoning traces':<20s} {'Yes':>18s} {'Yes':>18s} {'No':>18s}")
 print(f"  {'Rule ablation':<20s} {'Yes':>18s} {'N/A':>18s} {'No':>18s}")
