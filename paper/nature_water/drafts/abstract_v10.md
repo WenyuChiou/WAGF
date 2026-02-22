@@ -1,10 +1,18 @@
-# Nature Water — Abstract (v10b — A1 ablation signal added)
+# Nature Water — Abstract (v14 — water-first rewrite)
 ## ≤150 words | Unreferenced | Analysis format
 
 ---
 
-Constraints are conventionally expected to reduce available actions. We find the opposite: institutional boundary enforcement increases realized behavioural diversity in language-based water agents, and this diversity reshapes water-system outcomes. In a governed architecture where open-weight language models generate decision proposals validated against physical and institutional rules, we test this effect across Colorado River irrigation (78 agents, 42 years) and household flood adaptation (100 agents, 10 years, 6 models). Governed agents achieve higher diversity than both ungoverned agents and a hand-coded Protection Motivation Theory baseline, eliminating constraint violations. Governed agents extract more water during favourable conditions and curtail during drought; ungoverned agents collapse into rigid demand increases. Targeted removal of a single governance rule increases diversity further but decouples it from drought responsiveness, distinguishing adaptive from arbitrary diversity. The effect is positive across all six model scales, significant for five. Institutional boundaries widen adaptive capacity that fixed decision rules cannot represent.
+We propose a governance architecture that validates natural-language agent reasoning against modular physical and institutional rules. In a 42-year Colorado River irrigation simulation, governed agents extracted more water than ungoverned agents while maintaining drought responsiveness — adaptive exploitation consistent with prior-appropriation dynamics that parameterized models cannot represent. Institutional rules created feasibility boundaries within which agents developed differentiated strategies autonomously, producing higher strategy diversity than both ungoverned agents and a hand-coded baseline. Targeted removal of a single rule — the demand ceiling linking individual proposals to basin-wide demand — increased diversity but decoupled it from drought signals, nearly doubling shortage frequency and distinguishing adaptive from arbitrary diversity. The effect generalized from chronic drought (78 agents, 42 years) to acute flood hazard (100 agents, 10 years), was positive across six model scales tested, and significant for five. Institutional boundaries widen adaptive capacity in ways that fixed decision rules cannot represent.
 
 ---
 
-### Word count: 150
+### Word count: ~145
+### Changes from v10b → v14:
+- Complete rewrite following expert panel consensus
+- Water finding leads (adaptive exploitation), not conceptual claim ("constraints expected to reduce...")
+- Method is implicit, water science is the subject
+- Removed: "constraint paradox", "behavioural entropy", "EHE", "model scales" as standalone phrase
+- Added: "adaptive exploitation", "feasibility boundaries", "adaptive vs arbitrary diversity"
+- A1 ablation finding given full sentence
+- Cross-domain stated as water hazard types, not model robustness
