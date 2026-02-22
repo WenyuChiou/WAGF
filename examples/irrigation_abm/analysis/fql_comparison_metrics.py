@@ -24,7 +24,7 @@ import math
 
 # ── Paths ──
 MAIN_RESULTS = Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\irrigation_abm\results")
-FQL_RESULTS = Path(r"C:\Users\wenyu\Desktop\Lehigh\wagf-fql-baseline\examples\irrigation_abm\results\fql_raw")
+FQL_RESULTS = Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\irrigation_abm\results\fql_raw")
 
 # LLM 5-skill model
 LLM_SKILLS = ["increase_large", "increase_small", "maintain_demand", "decrease_small", "decrease_large"]

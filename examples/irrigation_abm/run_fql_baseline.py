@@ -336,6 +336,60 @@ def run_simulation(
 # Synthetic profile builder (for smoke tests without CRSS data)
 # ─────────────────────────────────────────────────────────────────────
 
+def _reconstruct_profiles_from_logs(
+    log_dir: str,
+    seed: int = 42,
+) -> List[IrrigationAgentProfile]:
+    """Reconstruct agent profiles from an existing simulation_log.csv.
+
+    Extracts agent_id, cluster, basin, water_right, and initial diversion
+    from year 1 of a governed LLM run. FQL parameters come from cluster
+    configs (identical to the original --real path).
+
+    Args:
+        log_dir: Path to a directory containing simulation_log.csv
+            (e.g., results/production_v20_42yr_seed42).
+        seed: Random seed for any stochastic profile attributes.
+    """
+    from examples.irrigation_abm.irrigation_personas import build_narrative_persona
+
+    csv_path = Path(log_dir) / "simulation_log.csv"
+    if not csv_path.exists():
+        raise FileNotFoundError(f"No simulation_log.csv in {log_dir}")
+
+    df = pd.read_csv(csv_path, encoding="utf-8")
+    y1 = df[df["year"] == 1].copy()
+    rng = np.random.default_rng(seed)
+
+    profiles = []
+    for _, row in y1.iterrows():
+        cluster = row["cluster"]
+        ref = CLUSTER_CONFIGS.get(cluster, CLUSTER_FORWARD_LOOKING)
+
+        profile = IrrigationAgentProfile(
+            agent_id=row["agent_id"],
+            basin=row["basin"],
+            cluster=cluster,
+            mu=ref.mu,
+            sigma=ref.sigma,
+            alpha=ref.alpha,
+            gamma_param=ref.gamma,
+            epsilon=ref.epsilon,
+            regret=ref.regret,
+            forget=True,
+            farm_size_acres=rng.uniform(200, 2000),
+            water_right=row["water_right"],
+            crop_type="mixed",
+            years_farming=int(rng.integers(5, 40)),
+            has_efficient_system=bool(row.get("has_efficient_system", False)),
+            actual_2018_diversion=row["diversion"],
+        )
+        profile.narrative_persona = build_narrative_persona(profile, rng)
+        profiles.append(profile)
+
+    return profiles
+
+
 def _create_synthetic_profiles(
     n_agents: int,
     seed: int = 42,
@@ -395,7 +449,10 @@ def main():
     irr_validators.ENABLE_DEMAND_CEILING = True
 
     # Create profiles
-    if args.real:
+    if args.from_logs:
+        profiles = _reconstruct_profiles_from_logs(args.from_logs, seed)
+        print(f"[Data] Reconstructed {len(profiles)} agents from existing simulation logs")
+    elif args.real:
         params_csv = str(ref_dir / "RL-ABM-CRSS" / "ALL_colorado_ABM_params_cal_1108.csv")
         crss_db = str(ref_dir / "CRSS_DB" / "CRSS_DB")
         profiles = create_profiles_from_data(
@@ -448,7 +505,7 @@ def main():
     env.initialize_from_profiles(profiles)
 
     # Load CRSS precipitation if available
-    if args.real:
+    if args.real and not args.from_logs:
         precip_csv = ref_dir / "CRSS_DB" / "CRSS_DB" / "HistoricalData" / "PrismWinterPrecip_ST_NOAA_Future.csv"
         if precip_csv.exists():
             env.load_crss_precipitation(str(precip_csv))
@@ -529,6 +586,9 @@ def parse_args():
                    help="Rebalance cluster assignment to 50%%-30%%-20%%")
     p.add_argument("--no-governance", action="store_true",
                    help="Skip all governance validators (raw FQL behavior)")
+    p.add_argument("--from-logs", type=str, default=None,
+                   help="Reconstruct profiles from existing simulation_log.csv directory "
+                        "(e.g., results/production_v20_42yr_seed42). Use when ref/ data is unavailable.")
     return p.parse_args()
 
 
