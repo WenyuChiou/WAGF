@@ -272,4 +272,30 @@ Per-model CIs (Table 3) reveal that three models show positive governance effect
 
 ---
 
+## S11. Fuzzy Q-Learning Baseline Comparison
+
+To assess whether adaptive exploitation requires the natural-language reasoning format or merely the governance constraints, we ran a fuzzy Q-learning (FQL) baseline using the reinforcement learning agent from Hung and Yang (2021). The FQL agent operates within the same simulation environment (identical reservoir model, precipitation inputs, shortage tiers, curtailment rules, and governance validators) and the same 78 CRSS agent profiles as the LLM experiments. The only difference is the decision kernel: FQL maps a discretized state (current diversion relative to water right) to two actions (increase or decrease demand) via Q-value comparison, whereas the LLM agent reasons in natural language over five skills.
+
+Agent profiles were reconstructed from governed LLM simulation logs (year 1 state: agent_id, cluster, basin, water_right, initial diversion). FQL parameters (mu, sigma, alpha, gamma, epsilon, regret) were assigned from cluster-canonical values (Hung & Yang, 2021, Table 1). Three seeds (42, 43, 44) with cluster rebalancing (50%–30%–20%) matched the LLM experimental design.
+
+**Table S4. Water-system outcomes: LLM governed vs FQL baseline (irrigation domain, 78 agents × 42 years, 3 seeds each).**
+
+| Metric | LLM Governed | FQL Baseline |
+|--------|:---:|:---:|
+| Mean demand ratio | 0.394 ± 0.004 | 0.395 ± 0.008 |
+| Demand–Mead coupling (r) | 0.547 ± 0.083 | 0.057 ± 0.323 |
+| Shortage years (/42) | 13.3 ± 1.5 | 24.7 ± 9.1 |
+| Min Mead elevation (ft) | 1,002 ± 1 | 1,020 ± 4 |
+| 42-yr mean Mead (ft) | 1,094 | 1,065 |
+
+FQL agents extracted nearly identical water volumes (demand ratio 0.395 versus 0.394) but showed near-zero correlation between demand and reservoir state (r = 0.057 versus 0.547). This decoupling produced substantially more shortage years (24.7 versus 13.3) despite comparable extraction levels. The FQL agent's Q-learning updates its action preferences based on reward signals (fulfilled diversion relative to request), but this learning occurs within a state→action mapping that cannot reference drought context, institutional announcements, or neighbour behaviour in the way that natural-language reasoning can.
+
+Note that 84–89% of FQL decisions resulted in maintain_demand — not because FQL selected this action (FQL has only increase/decrease), but because governance validators blocked the proposed action and the deterministic fallback executed maintain_demand. This high blocking rate reflects the mismatch between FQL's binary action space and the governance rules designed for a richer decision vocabulary. EHE is therefore not computed for FQL, as the action distribution is dominated by a validator artifact rather than behavioural choice.
+
+**Interpretation.** The FQL comparison isolates the representational contribution: governance alone does not produce adaptive exploitation. The combination of governance constraints *and* natural-language reasoning is required — governance defines the feasibility boundaries, and language-based reasoning enables agents to adaptively navigate within those boundaries in response to environmental state.
+
+**Data and code.** FQL results: `examples/irrigation_abm/results/fql_raw/seed{42,43,44}/`. Runner: `examples/irrigation_abm/run_fql_baseline.py --from-logs`. Comparison metrics: `examples/irrigation_abm/analysis/fql_comparison_metrics.py`.
+
+---
+
 **End of Supplementary Information**
