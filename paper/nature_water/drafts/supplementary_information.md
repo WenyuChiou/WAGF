@@ -117,7 +117,7 @@ Under premium doubling, the diversity effect reversed:
 - Governed EHE (premium doubled): 0.693 ± 0.024
 - Difference: -0.104 (ungoverned > governed)
 
-This contrasts with baseline premium conditions, where governed EHE exceeded ungoverned EHE by +0.189 for the same model (Gemma-3 4B).
+This contrasts with baseline premium conditions, where governed EHE exceeded ungoverned EHE for the same model (Table 3).
 
 **Interpretation.** External cost pressure (premium doubling) appears to force behavioural diversification independently of governance. In the ungoverned condition, agents adapted to the higher premium by exploring alternative mitigation strategies (elevation, relocation, do_nothing), increasing entropy above the governed condition. This suggests that sufficiently strong economic incentives can substitute for governance constraints in promoting diverse adaptive responses.
 
@@ -252,11 +252,11 @@ where $k$ is the number of available action categories and $p_i$ is the empirica
 
 Per-model analyses are reported as primary findings because:
 
-1. **Model heterogeneity**: Effect sizes varied substantially across models (Δ EHE range: −0.209 to +0.323 in flood domain)
+1. **Model heterogeneity**: Effect sizes varied substantially across models (Table 3: Δ EHE from +0.012 to +0.415)
 2. **Scientific interpretation**: Model-specific patterns reveal which architectural features (parameter count, training data, instruction-tuning methods) modulate governance responsiveness
 3. **Pooled CI limitations**: Pooled confidence intervals aggregate across heterogeneous effect sizes and should be interpreted as meta-analytic summaries, not tests of overall effect presence
 
-Per-model CIs (Table 3) reveal that three models show positive governance effects and three show negative effects. Pooling across models obscures this heterogeneity and is not reported in the main text. Table S3 reports EHE sensitivity to composite-action normalization specification across four scenarios.
+All six models showed positive governance effects under the primary normalization (Table 3), but the magnitude varied by over an order of magnitude. Under alternative composite-action normalizations (Table S3), some models show reversed effects, underscoring that the direction depends on specification choice for models with high composite rates. Table S3 reports EHE sensitivity to composite-action normalization specification across four scenarios.
 
 ---
 
@@ -270,7 +270,7 @@ Per-model CIs (Table 3) reveal that three models show positive governance effect
 
 **Long-term behavioural convergence.** Our experiments spanned 10–42 simulated years, but real adaptive systems evolve over decades to centuries. Extended simulations could reveal whether governance-induced diversity persists, intensifies, or erodes under prolonged stress.
 
-**Empirical validation.** While our L2 (meso-level) calibration achieved EPI scores of 0.65–0.87 against historical data, direct comparison to controlled human experiments would strengthen claims about LLM agents as behavioural proxies.
+**Empirical validation.** While our validation protocol assessed micro-behavioural coherence and population-level patterns against empirical benchmarks (see Methods), direct comparison to controlled human experiments would strengthen claims about LLM agents as behavioural proxies.
 
 ---
 
