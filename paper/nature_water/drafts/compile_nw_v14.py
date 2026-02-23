@@ -138,7 +138,7 @@ intro_paragraphs = [
 
     'Answering this governance question connects computation to institutional theory. Constraints are conventionally expected to reduce the space of available actions. But Ostrom (1990) observed that well-designed institutions for managing common-pool resources do not merely restrict behaviour \u2014 they define feasibility boundaries within which diverse adaptive strategies become viable. We hypothesized that architectural governance \u2014 validating agent proposals against physical and institutional rules before execution \u2014 would produce a structurally analogous outcome at the computational level: eliminating physically impossible outputs while preserving or expanding the space of plausible decisions. We note that this is a structural parallel between institutional rules governing communities and computational validators governing artificial agents, requiring empirical rather than theoretical justification.',
 
-    'Here we test this hypothesis across two contrasting water domains: irrigation management in the Colorado River Basin (78 agents, 42 years, generating over 9,800 governed decisions across three seeds) and household flood adaptation (100 agents, 10 years, stochastic flood events, over 3,000 governed decisions validated against empirical behavioural benchmarks). Governed agents exploit water more aggressively during abundance and curtail during drought \u2014 a pattern of adaptive exploitation that neither mathematical optimization nor rule-based agents can represent, and that requires institutional rules to emerge. Ungoverned agents collapse into repetitive demand patterns. This governance effect is positive for all six model scales tested (3B to 27B parameters, two model families), statistically significant for five, and persists among first-attempt proposals before any governance feedback. Because each institutional rule can be independently enabled, disabled, or reconfigured, the approach functions as a method for experimentally probing how specific institutional designs shape adaptive water behaviour \u2014 a computationally governed representation of how people reason about water under uncertainty.',
+    'Here we test this hypothesis across two contrasting water domains: irrigation management in the Colorado River Basin (78 agents, 42 years, generating over 9,800 governed decisions across three seeds) and household flood adaptation (100 agents, 10 years, stochastic flood events, 3,000 governed decisions validated against empirical behavioural benchmarks). Governed agents exploit water more aggressively during abundance and curtail during drought \u2014 a pattern of adaptive exploitation that neither mathematical optimization nor rule-based agents can represent, and that requires institutional rules to emerge. Ungoverned agents collapse into repetitive demand patterns. This governance effect is positive for all six model scales tested (3B to 27B parameters, two model families), statistically significant for five, and persists among first-attempt proposals before any governance feedback. Because each institutional rule can be independently enabled, disabled, or reconfigured, the approach functions as a method for experimentally probing how specific institutional designs shape adaptive water behaviour \u2014 a computationally governed representation of how people reason about water under uncertainty.',
 ]
 
 for para in intro_paragraphs:
@@ -168,12 +168,12 @@ for para in r1_paras:
 add_table(
     '| Metric | Governed | Ungoverned | A1 (No Ceiling) |',
     [
-        '| Mean demand ratio | 0.394 \u00b1 0.004 | 0.288 \u00b1 0.020 | 0.440 \u00b1 0.012 |',
+        '| Mean demand ratio | 0.394 ± 0.004 | 0.288 ± 0.020 | 0.440 ± 0.012 |',
         '| 42-yr mean Mead elevation (ft) | 1,094 | 1,173 | 1,069 |',
-        '| Demand\u2013Mead coupling (r) | 0.547 \u00b1 0.083 | 0.378 \u00b1 0.081 | 0.234 \u00b1 0.127 |',
-        '| Shortage years (/42) | 13.3 \u00b1 1.5 | 5.0 \u00b1 1.7 | 25.3 \u00b1 1.5 |',
-        '| Min Mead elevation (ft) | 1,002 \u00b1 1 | 1,001 \u00b1 0.4 | 984 \u00b1 11 |',
-        '| Strategy diversity (EHE) | 0.738 \u00b1 0.017 | 0.637 \u00b1 0.017 | 0.793 \u00b1 0.002 |',
+        '| Demand\u2013Mead coupling (r) | 0.547 ± 0.083 | 0.378 ± 0.081 | 0.234 ± 0.127 |',
+        '| Shortage years (/42) | 13.3 ± 1.5 | 5.0 ± 1.7 | 25.3 ± 1.5 |',
+        '| Min Mead elevation (ft) | 1,002 ± 1 | 1,001 ± 0.4 | 984 ± 11 |',
+        '| Strategy diversity (EHE) | 0.738 ± 0.017 | 0.637 ± 0.017 | 0.793 ± 0.002 |',
         '| Behavioural Rationality (BRI, %) | 58.0 | 9.4 | \u2014 |',
     ],
     caption='Table 1. Water-system outcomes and strategy diversity across three governance conditions (irrigation domain, Gemma-3 4B, 78 agents \u00d7 42 years, 3 runs each).',
@@ -201,7 +201,7 @@ for para in r2_paras:
 doc.add_heading('Governance generates strategy diversity beyond what hand-coded models can represent', level=2)
 
 r3_paras = [
-    'Governed agents exhibited higher strategy diversity than both ungoverned agents and a hand-coded Protection Motivation Theory baseline across both water domains. In irrigation, governed EHE (0.738 \u00b1 0.017) exceeded ungoverned (0.637 \u00b1 0.017) with zero distributional overlap across three seeds (Table 1). In flood adaptation, the ordering was consistent: governed language agents (0.752 \u00b1 0.052) exceeded rule-based PMT agents (0.689 \u00b1 0.001), which exceeded ungoverned language agents (0.337 \u00b1 0.064; Table 2). Ungoverned agents collapsed into behavioural monoculture: 77\u201382% demand increases in irrigation, 85.9% inaction in flood.',
+    'Governed agents exhibited higher strategy diversity than both ungoverned agents and a hand-coded Protection Motivation Theory baseline across both water domains. In irrigation, governed EHE (0.738 ± 0.017) exceeded ungoverned (0.637 ± 0.017) with zero distributional overlap across three seeds (Table 1). In flood adaptation, the ordering was consistent: governed language agents (0.752 ± 0.052) exceeded rule-based PMT agents (0.689 ± 0.001), which exceeded ungoverned language agents (0.337 ± 0.064; Table 2). Ungoverned agents collapsed into behavioural monoculture: 77\u201382% demand increases in irrigation, 85.9% inaction in flood.',
 
     'This diversity is generated by agents reasoning within governance, not filtered into existence by validators. Proposals submitted before any governance feedback already showed higher diversity (first-attempt EHE 0.761 governed versus 0.640 ungoverned; irrigation domain), confirming that the governance context shapes the reasoning process rather than the rejection-retry mechanism creating diversity post hoc (see Supplementary Information for retry statistics).',
 
@@ -214,9 +214,9 @@ for para in r3_paras:
 add_table(
     '| Condition | EHE | CACR (%) | do_nothing (%) | insurance (%) | elevation (%) | relocation (%) |',
     [
-        '| Governed LLM | 0.752 \u00b1 0.052 | 100.0 | 35.6 | 50.7 | 10.6 | 3.0 |',
-        '| Rule-based PMT | 0.689 \u00b1 0.001 | 100.0 | 10.6 | 49.1 | 40.2 | 0.1 |',
-        '| Ungoverned LLM | 0.337 \u00b1 0.064 | 85.5 | 85.9 | 11.7 | 2.3 | 0.0 |',
+        '| Governed LLM | 0.752 ± 0.052 | 100.0 | 35.6 | 50.7 | 10.6 | 3.0 |',
+        '| Rule-based PMT | 0.689 ± 0.001 | 100.0 | 10.6 | 49.1 | 40.2 | 0.1 |',
+        '| Ungoverned LLM | 0.337 ± 0.064 | 85.5 | 85.9 | 11.7 | 2.3 | 0.0 |',
     ],
     caption='Table 2. Strategy diversity: governed LLM vs rule-based PMT vs ungoverned LLM (flood domain, Gemma-3 4B, 100 agents \u00d7 10 years, 3 runs each).',
     footnote='EHE computed from annual action selections. CACR = Construct-Action Coherence Rate: fraction of decisions where the agent\u2019s stated risk assessment is consistent with its chosen action (see Methods; operationalized differently from the irrigation-domain BRI in Table 1). Rule-based agent uses deterministic PMT threshold logic with parameterized agent heterogeneity; composite recommendations (simultaneous insurance + elevation) split into constituents for EHE computation (see Methods).'
@@ -239,12 +239,12 @@ for para in r4_paras:
 add_table(
     '| Model | Ungoverned EHE | Governed EHE | Delta | 95% CI |',
     [
-        '| Gemma-3 4B | 0.337 \u00b1 0.064 | 0.752 \u00b1 0.052 | +0.415 | [+0.393, +0.458] |',
-        '| Gemma-3 12B | 0.471 \u00b1 0.014 | 0.483 \u00b1 0.042 | +0.012 | [\u20130.018, +0.039] |',
-        '| Gemma-3 27B | 0.462 \u00b1 0.032 | 0.676 \u00b1 0.018 | +0.214 | [+0.204, +0.231] |',
-        '| Ministral 3B | 0.431 \u00b1 0.056 | 0.734 \u00b1 0.020 | +0.302 | [+0.232, +0.350] |',
-        '| Ministral 8B | 0.579 \u00b1 0.014 | 0.626 \u00b1 0.008 | +0.047 | [+0.042, +0.091] |',
-        '| Ministral 14B | 0.665 \u00b1 0.010 | 0.708 \u00b1 0.012 | +0.043 | [+0.041, +0.054] |',
+        '| Gemma-3 4B | 0.337 ± 0.064 | 0.752 ± 0.052 | +0.415 | [+0.393, +0.458] |',
+        '| Gemma-3 12B | 0.471 ± 0.014 | 0.483 ± 0.042 | +0.012 | [\u20130.018, +0.039] |',
+        '| Gemma-3 27B | 0.462 ± 0.032 | 0.676 ± 0.018 | +0.214 | [+0.204, +0.231] |',
+        '| Ministral 3B | 0.431 ± 0.056 | 0.734 ± 0.020 | +0.302 | [+0.232, +0.350] |',
+        '| Ministral 8B | 0.579 ± 0.014 | 0.626 ± 0.008 | +0.047 | [+0.042, +0.091] |',
+        '| Ministral 14B | 0.665 ± 0.010 | 0.708 ± 0.012 | +0.043 | [+0.041, +0.054] |',
     ],
     caption='Table 3. Governance effect on strategy diversity across six language models (flood domain, 100 agents \u00d7 10 years, 3 runs per condition).',
     footnote='Delta = governed minus ungoverned EHE. 95% CIs from bootstrap resampling (agent-timestep level, 10,000 iterations). Reasoning-action mismatch rates in Table S1.'

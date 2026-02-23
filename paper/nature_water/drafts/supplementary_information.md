@@ -283,7 +283,22 @@ Per-model analyses are reported as primary findings because:
 2. **Scientific interpretation**: Model-specific patterns reveal which architectural features (parameter count, training data, instruction-tuning methods) modulate governance responsiveness
 3. **Pooled CI limitations**: Pooled confidence intervals aggregate across heterogeneous effect sizes and should be interpreted as meta-analytic summaries, not tests of overall effect presence
 
-All six models showed positive governance effects under the primary normalization (Table 3), but the magnitude varied by over an order of magnitude. Under alternative composite-action normalizations (Table S5), some models show reversed effects, underscoring that the direction depends on specification choice for models with high composite rates. Table S5 reports EHE sensitivity to composite-action normalization specification across four scenarios.
+All six models showed positive governance effects under the primary normalization (Table 3), but the magnitude varied by over an order of magnitude. Under alternative composite-action normalizations (Supplementary Table S5), some models show reversed effects, underscoring that the direction depends on specification choice for models with high composite rates.
+
+**Table S5. EHE sensitivity to composite-action normalization specification (flood domain, 100 agents × 10 years, 3 runs per condition).**
+
+*Composite-action treatment scenarios:* Ungoverned agents occasionally selected composite actions (simultaneously purchasing insurance and elevating). Four normalization specifications were tested: S1 (asymmetric k=5/4, composite as 5th action), S2 (merge to elevate, k=4), S3 (uniform k=5), S4 (split into constituents, k=4; primary specification).
+
+| Model | S1 (k=5/4) | S2 (merge) | S3 (k=5/5) | S4 (split) |
+|-------|:-:|:-:|:-:|:-:|
+| Gemma-3 4B | **+0.219** | **+0.191** | **+0.115** | **+0.164** |
+| Gemma-3 12B | +0.046 | +0.002 | −0.021 | **−0.150** |
+| Gemma-3 27B | **+0.065** | +0.014 | −0.029 | +0.007 |
+| Ministral 3B | **+0.161** | **+0.252** | **+0.060** | **+0.116** |
+| Ministral 8B | **−0.094** | **−0.125** | **−0.181** | **−0.098** |
+| Ministral 14B | +0.013 | **+0.240** | **−0.085** | **+0.058** |
+
+*Bold indicates |Δ| > 0.05. Positive = governance increases EHE. No specification produces a pooled 95% CI excluding zero; the effect is model-dependent. Gemma-3 4B and Ministral 3B show positive effects under all four specifications; Ministral 8B shows reversal under all four.*
 
 ---
 
