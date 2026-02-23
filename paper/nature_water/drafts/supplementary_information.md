@@ -131,6 +131,8 @@ This contrasts with baseline premium conditions, where governed EHE exceeded ung
 
 Summary water-system outcomes are reported in main-text Table 1. This section provides additional detail.
 
+**Table S6. Supplementary water-system outcomes (irrigation domain, Gemma-3 4B, 78 agents × 42 years, 3 runs each).**
+
 | Metric | Governed | Ungoverned |
 |--------|----------|------------|
 | Minimum Lake Mead elevation (ft) | 1,002 | 1,001 |
