@@ -87,6 +87,29 @@ To further characterize the qualitative diversity of reasoning, Table S2c presen
 
 These four agents span three behavioural clusters, yet the reasoning divergence goes far beyond what cluster membership determines. Agents 1 and 4 share the same cluster (aggressive), the same WSA (M), and the same ACA (H), yet select different skills through different cognitive frames — one anchored on self-confidence, the other on social obligations. Agent 3 provides the strongest evidence for reasoning-generated heterogeneity: its memory consolidation concludes that its chosen strategy is inadequate, yet its reasoning process constructs an explicit argument for persistence. A parameterized model can produce an agent that ignores its memory (by not including memory as an input); it cannot produce an agent that *acknowledges* its memory, *evaluates* its implications, and *argues against* them in natural language.
 
+### Taxonomy of cognitive frames observed under governance
+
+Across all three seeds, we identified ten distinct cognitive frames through which governed agents justified their decisions. Table S2d catalogues each frame with a representative quote. These frames are not pre-specified in the persona prompt or governance rules; they emerge from the interaction between the agent's persona, memory, environmental context, and governance feedback.
+
+**Table S2d. Taxonomy of cognitive frames observed in governed irrigation agents.**
+
+| # | Cognitive Frame | Representative Quote (abbreviated) | Skill | Scenario |
+|---|----------------|-------------------------------------|-------|----------|
+| 1 | Opportunity-seeking under confidence | "My adaptive capacity is high, and I'm confident in my ability to adjust quickly. I'll take a cautiously aggressive approach." | increase_large | Seed 42, Yr 2, Tier 2 |
+| 2 | Reflective learning from failure | "My memory highlights the inadequacy of this approach. I need to proactively manage my water use." | decrease_small | Seed 42, Yr 2, Tier 2 |
+| 3 | Tradition-anchored inertia | "Given my deep-seated skepticism of forecasts and my faith in past practices, I'm going to stick with what I've always done." | maintain | Seed 42, Yr 2, Tier 2 |
+| 4 | Social responsibility | "My neighbors also rely on me, so I'll aim for a measured increase to demonstrate my commitment to production." | increase_small | Seed 42, Yr 2, Tier 2 |
+| 5 | Empirical disillusionment | "I've learned the hard way that simply requesting more won't magically increase my supply." | decrease_large | Seed 42, Yr 3, Tier 3 |
+| 6 | Cautious incrementalism under uncertainty | "Drastic action isn't warranted; however, I must acknowledge the need for some adjustment, leaning towards conservation." | decrease_small | Seed 42, Yr 3, Tier 3 |
+| 7 | Loss aversion / change skepticism | "Maintaining the same demand clearly isn't sufficient... However, I'm deeply skeptical of any changes that haven't proven successful." | maintain | Seed 42, Yr 3, Tier 3 |
+| 8 | Reputation-conscious preemptive conservation | "I need to aggressively reduce my demand to demonstrate proactive management. I'll lean into my reputation for decisive action." | decrease_large | Seed 42, Yr 4, Tier 1 |
+| 9 | Scale-based confidence | "My historical data shows a consistent request of 99,129 acre-ft... I believe a robust water allocation gives me the flexibility to handle fluctuating conditions." | maintain | Seed 42, Yr 4, Tier 1 |
+| 10 | Memory-overriding persistence | Agent's memory: "maintaining demand was not a viable strategy." Agent's reasoning: "I've weathered shortages before, and I don't see a compelling reason to radically alter my approach." | maintain | Seed 42, Yr 2, Tier 2 |
+
+*All quotes from governed audit logs (seed 42, `irrigation_farmer_governance_audit.csv`). Frames are not mutually exclusive — a single agent may invoke different frames across years as conditions and memory evolve.*
+
+Frames 1–4 and 10 co-occur under identical physical conditions (Year 2, Tier 2, Mead = 1,028 ft; see Table S2c), demonstrating that the diversity is not driven by environmental differences. Frame 10 (memory-overriding persistence) is particularly diagnostic: the agent's consolidated memory explicitly concludes its strategy is inadequate, yet its reasoning constructs an argument for continuation. This form of meta-reasoning — acknowledging, evaluating, and overriding one's own experiential memory — cannot emerge from parameterized variation within a fixed decision function, regardless of the number of parameters.
+
 **Data sources.** Governed traces from `production_v20_42yr_seed{42,43,44}/irrigation_farmer_governance_audit.csv`. Reasoning text from structured CSV field `reason_reasoning`. Heterogeneity analysis: `examples/irrigation_abm/analysis/reasoning_heterogeneity_traces.py`.
 
 ---
