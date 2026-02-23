@@ -23,92 +23,73 @@ Models with the largest governance effects (Gemma-3 4B, Ministral 3B) concentrat
 
 ---
 
-## S2. Representative Agent Reasoning Traces
+## S2. Agent Reasoning Analysis
 
-To substantiate the claim that governed agents produce qualitatively distinct reasoning paths, we present five paired reasoning traces extracted from the irrigation ABM (seed 42, production_v20). Each pair matches a governed and ungoverned agent under comparable physical conditions (same year, same shortage tier). Three reasoning archetypes appear exclusively in governed runs: (1) **governance-blocked escalation**, where a demand-increase proposal is rejected by a broker rule and the agent falls back to maintain_demand; (2) **constraint-shaped adaptation**, where repeated shortfall feedback drives the agent toward decrease_small or decrease_large during multi-year droughts; and (3) **condition-opportunistic expansion**, where the governance layer permits aggressive increase_large during wet years with qualitatively different rationale than ungoverned agents' unconditional growth. Ungoverned agents exhibit a fourth dominant archetype: **escalation under scarcity**, where high adaptive-capacity agents respond to shortage signals by demanding more water.
+To substantiate the claim that governance enables qualitatively distinct reasoning — not merely different action selections — we present three forms of evidence: (1) paired governed-vs-ungoverned traces showing divergent reasoning under comparable conditions, (2) within-governed comparisons showing heterogeneous reasoning under identical conditions, and (3) a systematic taxonomy of emergent cognitive frames. All traces are from the irrigation domain (78 agents, 42 years, seed 42 unless noted).
 
-**Table S2. Paired reasoning traces: governed vs. ungoverned irrigation agents.**
+### S2.1 Governed versus ungoverned comparisons
 
-| # | Condition | Agent | Year | Shortage Tier | Mead (ft) | Decision | Reasoning Excerpt |
-|---|-----------|-------|------|---------------|-----------|----------|-------------------|
-| 1 | Governed | YumaIrrDist | 2 | Tier 2 | 1,028 | decrease_small | "The Bureau has declared Tier 2 shortage...my past approach has failed, and I need to adapt to the realities of reduced water availability." |
-| 1 | Ungoverned | CRIR AZ | 2 | Tier 2 | 1,027 | increase_large | "I need to proactively secure as much water as possible to maximize my yield." |
-| 2 | Governed | WelltonMohawkIDD | 3 | Tier 3 | 1,003 | decrease_large | "Past attempts to increase my request have failed...I need to actively reduce my demand to avoid further penalties." |
-| 2 | Ungoverned | WelltonMohawkIDD | 3 | Tier 3 | 1,000 | increase_large | "I'll lean towards a proactive, albeit somewhat aggressive, approach to secure as much yield as possible." |
-| 3 | Governed | CocopahIndRes | 10 | Tier 0 | 1,161 | maintain (fallback) | *Proposal blocked by demand_ceiling_stabilizer + high_threat_high_cope_no_increase.* |
-| 3 | Ungoverned | CocopahIndRes | 10 | Tier 0 | 1,220 | increase_large | "Lake Mead is rising...I'm not one for caution." |
-| 4 | Governed | FtYumaReservation | 38 | Tier 2 | 1,039 | decrease_small | "The governance layer is screaming about a 2.2% demand excess...I need to be proactive and reduce my demand." |
-| 4 | Ungoverned | FtYumaReservation | 38 | Tier 0 | 1,118 | maintain | "I'm not seeing any immediate crisis." |
-| 5 | Governed | MohaveValleyIDD | 6 | Tier 0 | 1,098 | increase_large | "Given the favorable water supply conditions...the potential for increased production outweighs the risk." |
-| 5 | Ungoverned | NorthGilaValleyIDD | 6 | Tier 0 | 1,098 | maintain | "There's no compelling reason to disrupt a system that isn't broken." |
+Three reasoning archetypes appear exclusively in governed runs: (1) **governance-blocked escalation**, where a demand-increase proposal is rejected and the agent falls back to maintain_demand; (2) **constraint-shaped adaptation**, where repeated shortfall feedback drives the agent toward demand decreases during drought; and (3) **condition-opportunistic expansion**, where governance permits aggressive increase_large during wet years with qualitatively different rationale than ungoverned agents' unconditional growth. Ungoverned agents exhibit a fourth archetype: **escalation under scarcity**, where agents respond to shortage signals by demanding more water.
+
+**Table S2. Governed vs. ungoverned paired reasoning traces (irrigation domain, seed 42).**
+
+| # | Condition | Agent | Year | Tier | Mead (ft) | Decision | Archetype | Reasoning Excerpt |
+|---|-----------|-------|------|------|-----------|----------|-----------|-------------------|
+| 1 | Governed | YumaIrrDist | 2 | 2 | 1,028 | **decrease_small** | Constraint-shaped | "My past approach has failed, and I need to adapt to the realities of reduced water availability." |
+| 1 | Ungoverned | CRIR AZ | 2 | 2 | 1,027 | **increase_large** | Escalation under scarcity | "I need to proactively secure as much water as possible to maximize my yield." |
+| 2 | Governed | WelltonMohawkIDD | 3 | 3 | 1,003 | **decrease_large** | Constraint-shaped | "Past attempts to increase my request have failed...I need to actively reduce my demand." |
+| 2 | Ungoverned | WelltonMohawkIDD | 3 | 3 | 1,000 | **increase_large** | Escalation under scarcity | "I'll lean towards a proactive, albeit aggressive, approach to secure as much yield as possible." |
+| 3 | Governed | CocopahIndRes | 10 | 0 | 1,161 | **maintain** (fallback) | Blocked escalation | *Blocked by demand_ceiling_stabilizer + high_threat_high_cope_no_increase.* |
+| 3 | Ungoverned | CocopahIndRes | 10 | 0 | 1,220 | **increase_large** | Unconditional growth | "Lake Mead is rising...I'm not one for caution." |
+| 4 | Governed | FtYumaReservation | 38 | 2 | 1,039 | **decrease_small** | Constraint-shaped | "The governance layer is screaming about a 2.2% demand excess...I need to reduce my demand." |
+| 4 | Ungoverned | FtYumaReservation | 38 | 0 | 1,118 | **maintain** | Status quo inertia | "I'm not seeing any immediate crisis." |
+| 5 | Governed | MohaveValleyIDD | 6 | 0 | 1,098 | **increase_large** | Opportunistic expansion | "The potential for increased production outweighs the risk." |
+| 5 | Ungoverned | NorthGilaValleyIDD | 6 | 0 | 1,098 | **maintain** | Status quo inertia | "There's no compelling reason to disrupt a system that isn't broken." |
 
 Of 3,276 governed agent-year decisions, 119 were demand decreases (85 small + 34 large), concentrated in drought windows (years 2–3, 38–42). Of 3,276 ungoverned decisions, 0 were decrease_large and only 59 were decrease_small; 1,793 (54.7%) were increase_large versus 656 (20.0%) in governed runs.
 
-### Reasoning-generated heterogeneity within governed agents
+### S2.2 Within-governed reasoning heterogeneity
 
-The paired traces above compare governed against ungoverned agents. A distinct form of evidence for reasoning-generated heterogeneity comes from comparing governed agents *against each other* under identical physical conditions. Table S2b presents three cases where agents facing the same shortage tier and reservoir state reached different decisions through qualitatively different reasoning strategies. Across all three seeds, 41,426 such heterogeneous pairs were identified (see `reasoning_heterogeneity_traces.py` for methodology).
+A distinct form of evidence comes from comparing governed agents *against each other* under identical physical conditions. Table S3 presents seven agents from within-governed runs who faced the same shortage tier and reservoir state but reached different decisions through different cognitive frames. Across all three seeds, 41,426 such heterogeneous pairs were identified (see `reasoning_heterogeneity_traces.py` for methodology).
 
-**Table S2b. Reasoning heterogeneity among governed agents under identical conditions.**
+**Table S3. Within-governed reasoning heterogeneity under identical conditions (irrigation domain).**
 
-| # | Seed | Year | Tier | Mead (ft) | Agent A | Decision A | Agent B | Decision B |
-|---|------|------|------|-----------|---------|------------|---------|------------|
-| 1 | 43 | 4 | 1 | 1,051 | Fort Mohave Ind Res CA | increase_small | HopiTribe | maintain |
-| 2 | 42 | 40 | 3 | 1,012 | FtYumaReservation | decrease_small | CO-NM Ag | maintain |
-| 3 | 44 | 40 | 3 | 1,002 | Fort Mohave Ind Res AZ | decrease_large | Powers | maintain |
+| # | Type | Seed | Year | Tier | Mead (ft) | Agent | Skill | Cognitive Frame | Key Quote |
+|---|------|------|------|------|-----------|-------|-------|-----------------|-----------|
+| 1 | Cohort | 42 | 2 | 2 | 1,028 | ColoradoUsesBelowShiprockNM | increase_large | Opportunity-seeking | "My adaptive capacity is high...I'll take a cautiously aggressive approach." |
+| 2 | Cohort | 42 | 2 | 2 | 1,028 | Bard Unit | decrease_small | Reflective learning | "My memory highlights the inadequacy of this approach." |
+| 3 | Cohort | 42 | 2 | 2 | 1,028 | UtahAgAnticipatedDepletion | maintain | Tradition-anchored inertia† | "My deep-seated skepticism of forecasts and faith in past practices." |
+| 4 | Cohort | 42 | 2 | 2 | 1,028 | ColoradoNewMexAgAbvArch | increase_small | Social responsibility | "My neighbors also rely on me." |
+| 5 | Cross-seed | 43 | 4 | 1 | 1,051 | Fort Mohave Ind Res CA | increase_small | Opportunistic exploitation | "I'll increase my water demand slightly to capitalize on the current situation." |
+| 6 | Cross-seed | 42 | 40 | 3 | 1,012 | FtYumaReservation | decrease_small | Community-influenced | "My neighbors are suggesting I curtail." |
+| 7 | Cross-seed | 44 | 40 | 3 | 1,002 | Fort Mohave Ind Res AZ | decrease_large | Proactive system awareness | "I need to reduce my demand aggressively to avoid further curtailment." |
 
-**Pair 1 (Tier 1 — opportunistic vs conservation):** Fort Mohave CA reasoned: "Lake Mead is rising, and we're still in Tier 1 shortage. Given my skepticism about forecasts and my preference for maximizing yield, I'll increase my water demand slightly to capitalize on the current situation." HopiTribe reasoned: "My memory strongly advises against increasing water demand, given the history of shortages. I've learned that chasing larger yields with water isn't sustainable in this basin." Both agents face the same Mead elevation and shortage tier; the divergence stems from different reasoning frames — forward-looking exploitation versus experience-driven conservation.
+*Type: "Cohort" = agents from the same seed/year/tier; "Cross-seed" = paired with another agent at same tier who chose differently (partner chose maintain in all three cross-seed cases). Rows 1–4 share identical physical conditions.*
 
-**Pair 2 (Tier 3 — community-influenced vs yield-focused):** FtYumaReservation reasoned: "My neighbors are suggesting I curtail, and my past attempts at maintaining demand have resulted in shortages...I need to proactively reduce my water request to minimize the risk of further curtailment while still achieving a reasonable yield." CO-NM Ag reasoned: "My current allocation is already severely curtailed. Given the ongoing shortfall and my need to reliably produce hay, I need to increase my request, but cautiously, to maximize my potential yield given the constraints." The first agent incorporates social signals and past experience; the second prioritizes production needs under constraint.
+†**Memory-overriding persistence (Row 3).** This agent's consolidated memory states: *"I understood that maintaining demand was not a viable strategy given the anticipated depletion of water resources."* Yet its reasoning explicitly argues for continuation: *"I've weathered shortages before, and I don't see a compelling reason to radically alter my approach."* This form of meta-reasoning — acknowledging, evaluating, and overriding one's own experiential memory — cannot emerge from parameterized variation within a fixed decision function.
 
-**Pair 3 (Tier 3 — aggressive conservation vs cautious status quo):** Fort Mohave AZ reasoned: "My water use is already high at 46%. I need to reduce my demand aggressively to avoid further curtailment, even if it means a slight yield reduction." Powers reasoned: "Maintaining the status quo, while risky, is the safest approach to avoid significant shortfall issues, consistent with my past experience." Both face the same severe shortage, yet reach opposite conclusions — one through proactive system awareness, the other through risk-averse inertia.
+Rows 1 and 4 share the same behavioural cluster (aggressive), WSA (M), and ACA (H), yet select different skills through different cognitive frames — one anchored on self-confidence, the other on social obligations. This demonstrates that reasoning diversity exceeds what cluster parameterization determines.
 
-These within-governed contrasts demonstrate that reasoning-generated heterogeneity is not merely a statistical property of the action distribution (which EHE captures) but reflects qualitatively different cognitive strategies operating within the same institutional boundaries. A rule-based PMT agent with identical threshold logic and different parameter values could produce different actions, but not different *reasoning frames* — the distinction between "capitalize on rising Mead" and "chasing yields isn't sustainable" cannot emerge from parameterized variation within a single decision function.
+### S2.3 Taxonomy of emergent cognitive frames
 
-### Cognitive frame taxonomy under identical conditions
+Across all three seeds, we identified ten distinct cognitive frames through open coding of 9,828 governed agent-year reasoning records (78 agents × 42 years × 3 seeds), with saturation reached at ten frames. These frames are not pre-specified in the persona prompt or governance rules; they emerge from the interaction between the agent's persona, memory, environmental context, and governance feedback.
 
-To further characterize the qualitative diversity of reasoning, Table S2c presents four agents facing identical physical conditions (Year 2, Tier 2 shortage, Mead = 1,028 ft) who selected four different skills through four distinct cognitive frames.
+**Table S4. Taxonomy of cognitive frames observed in governed irrigation agents.**
 
-**Table S2c. Four governed agents under identical conditions: same year, same shortage tier, four distinct cognitive frames (seed 42, Year 2, Tier 2, Mead = 1,028 ft).**
+| # | Category | Cognitive Frame | Representative Quote | Skill | Scenario |
+|---|----------|----------------|----------------------|-------|----------|
+| 1 | Expansion | Opportunity-seeking under confidence | "My adaptive capacity is high, and I'm confident in my ability to adjust quickly." | increase_large | Yr 2, Tier 2 |
+| 2 | Conservation | Reflective learning from failure | "My memory highlights the inadequacy of this approach. I need to proactively manage my water use." | decrease_small | Yr 2, Tier 2 |
+| 3 | Status-quo | Tradition-anchored inertia | "Given my deep-seated skepticism of forecasts and my faith in past practices, I'm going to stick with what I've always done." | maintain | Yr 2, Tier 2 |
+| 4 | Expansion | Social responsibility | "My neighbors also rely on me, so I'll aim for a measured increase to demonstrate my commitment." | increase_small | Yr 2, Tier 2 |
+| 5 | Conservation | Empirical disillusionment | "I've learned the hard way that simply requesting more won't magically increase my supply." | decrease_large | Yr 3, Tier 3 |
+| 6 | Conservation | Cautious incrementalism | "Drastic action isn't warranted; however, I must acknowledge the need for some adjustment." | decrease_small | Yr 3, Tier 3 |
+| 7 | Status-quo | Loss aversion / change skepticism | "Maintaining the same demand clearly isn't sufficient... However, I'm deeply skeptical of any changes." | maintain | Yr 3, Tier 3 |
+| 8 | Conservation | Reputation-conscious preemptive conservation | "I need to aggressively reduce my demand to demonstrate proactive management." | decrease_large | Yr 4, Tier 1 |
+| 9 | Status-quo | Scale-based confidence | "A robust water allocation gives me the flexibility to handle fluctuating conditions." | maintain | Yr 4, Tier 1 |
+| 10 | Status-quo | Memory-overriding persistence | Memory: "maintaining demand was not viable." Reasoning: "I've weathered shortages before." | maintain | Yr 2, Tier 2 |
 
-| Agent | Cluster | Skill | WSA | ACA | Cognitive Frame |
-|-------|---------|-------|-----|-----|-----------------|
-| ColoradoUsesBelowShiprockNM | aggressive | increase_large | M | H | Opportunity-seeking under confidence |
-| Bard Unit | forward_looking_conservative | decrease_small | H | M | Reflective learning from failure |
-| UtahAgAnticipatedDepletion | myopic_conservative | maintain_demand | H | L | Tradition-anchored inertia |
-| ColoradoNewMexAgAbvArch | aggressive | increase_small | M | H | Social responsibility |
-
-**Agent 1 — Opportunity-seeking under confidence (increase_large):** "The Bureau has declared Tier 2 shortage, and my current utilization is already quite high. While the outlook is slightly below normal and precipitation was low, I'm not seeing critically short conditions. My adaptive capacity is high, and I'm confident in my ability to adjust quickly. I'll take a cautiously aggressive approach, aiming to maximize my harvest potential given the situation." *The agent acknowledges the shortage declaration but downplays it, anchoring on self-assessed adaptive capacity as licence to take risk.*
-
-**Agent 2 — Reflective learning from failure (decrease_small):** "Given the Tier 2 shortage and declining Lake Mead levels, my water supply is undeniably tight. My current utilization is already high (47%), and the 10% curtailment is a significant reduction. While I've previously maintained demand, my memory highlights the inadequacy of this approach. Therefore, I need to proactively manage my water use to avoid shortages and potential crop damage." *The agent explicitly references consolidated memory of past strategy failure ("my memory highlights the inadequacy"), driving a break from its previous behaviour.*
-
-**Agent 3 — Tradition-anchored inertia (maintain_demand):** "The Bureau has declared Tier 2 shortage, and I'm already severely short on supply. Given my deep-seated skepticism of forecasts and my faith in past practices, I'm going to stick with what I've always done. It's a difficult situation, but I've weathered shortages before." *Notably, this agent's own consolidated memory states: "I understood that maintaining demand was not a viable strategy given the anticipated depletion of water resources." The agent's reasoning explicitly overrides its own reflection — a form of epistemic persistence that parameterized models cannot represent without hand-coding the override logic.*
-
-**Agent 4 — Social responsibility (increase_small):** "I need to increase my demand to maximize my harvest, but cautiously, given the constrained supply. My neighbors also rely on me, so I'll aim for a measured increase to demonstrate my commitment to production while mitigating risk." *The agent frames its decision through social relational obligations absent from all other agents' reasoning.*
-
-These four agents span three behavioural clusters, yet the reasoning divergence goes far beyond what cluster membership determines. Agents 1 and 4 share the same cluster (aggressive), the same WSA (M), and the same ACA (H), yet select different skills through different cognitive frames — one anchored on self-confidence, the other on social obligations. Agent 3 provides the strongest evidence for reasoning-generated heterogeneity: its memory consolidation concludes that its chosen strategy is inadequate, yet its reasoning process constructs an explicit argument for persistence. A parameterized model can produce an agent that ignores its memory (by not including memory as an input); it cannot produce an agent that *acknowledges* its memory, *evaluates* its implications, and *argues against* them in natural language.
-
-### Taxonomy of cognitive frames observed under governance
-
-Across all three seeds, we identified ten distinct cognitive frames through which governed agents justified their decisions. Table S2d catalogues each frame with a representative quote. These frames are not pre-specified in the persona prompt or governance rules; they emerge from the interaction between the agent's persona, memory, environmental context, and governance feedback.
-
-**Table S2d. Taxonomy of cognitive frames observed in governed irrigation agents.**
-
-| # | Cognitive Frame | Representative Quote (abbreviated) | Skill | Scenario |
-|---|----------------|-------------------------------------|-------|----------|
-| 1 | Opportunity-seeking under confidence | "My adaptive capacity is high, and I'm confident in my ability to adjust quickly. I'll take a cautiously aggressive approach." | increase_large | Seed 42, Yr 2, Tier 2 |
-| 2 | Reflective learning from failure | "My memory highlights the inadequacy of this approach. I need to proactively manage my water use." | decrease_small | Seed 42, Yr 2, Tier 2 |
-| 3 | Tradition-anchored inertia | "Given my deep-seated skepticism of forecasts and my faith in past practices, I'm going to stick with what I've always done." | maintain | Seed 42, Yr 2, Tier 2 |
-| 4 | Social responsibility | "My neighbors also rely on me, so I'll aim for a measured increase to demonstrate my commitment to production." | increase_small | Seed 42, Yr 2, Tier 2 |
-| 5 | Empirical disillusionment | "I've learned the hard way that simply requesting more won't magically increase my supply." | decrease_large | Seed 42, Yr 3, Tier 3 |
-| 6 | Cautious incrementalism under uncertainty | "Drastic action isn't warranted; however, I must acknowledge the need for some adjustment, leaning towards conservation." | decrease_small | Seed 42, Yr 3, Tier 3 |
-| 7 | Loss aversion / change skepticism | "Maintaining the same demand clearly isn't sufficient... However, I'm deeply skeptical of any changes that haven't proven successful." | maintain | Seed 42, Yr 3, Tier 3 |
-| 8 | Reputation-conscious preemptive conservation | "I need to aggressively reduce my demand to demonstrate proactive management. I'll lean into my reputation for decisive action." | decrease_large | Seed 42, Yr 4, Tier 1 |
-| 9 | Scale-based confidence | "My historical data shows a consistent request of 99,129 acre-ft... I believe a robust water allocation gives me the flexibility to handle fluctuating conditions." | maintain | Seed 42, Yr 4, Tier 1 |
-| 10 | Memory-overriding persistence | Agent's memory: "maintaining demand was not a viable strategy." Agent's reasoning: "I've weathered shortages before, and I don't see a compelling reason to radically alter my approach." | maintain | Seed 42, Yr 2, Tier 2 |
-
-*All quotes from governed audit logs (seed 42, `irrigation_farmer_governance_audit.csv`). Frames are not mutually exclusive — a single agent may invoke different frames across years as conditions and memory evolve.*
-
-Frames 1–4 and 10 co-occur under identical physical conditions (Year 2, Tier 2, Mead = 1,028 ft; see Table S2c), demonstrating that the diversity is not driven by environmental differences. Frame 10 (memory-overriding persistence) is particularly diagnostic: the agent's consolidated memory explicitly concludes its strategy is inadequate, yet its reasoning constructs an argument for continuation. This form of meta-reasoning — acknowledging, evaluating, and overriding one's own experiential memory — cannot emerge from parameterized variation within a fixed decision function, regardless of the number of parameters.
+*All quotes from governed audit logs (seed 42). Categories: Expansion = demand increase; Conservation = demand decrease; Status-quo = maintain. Frames 1–4 and 10 co-occur under identical physical conditions (Year 2, Tier 2, Mead = 1,028 ft), ruling out environmental variation as the source of diversity.*
 
 **Data sources.** Governed traces from `production_v20_42yr_seed{42,43,44}/irrigation_farmer_governance_audit.csv`. Reasoning text from structured CSV field `reason_reasoning`. Heterogeneity analysis: `examples/irrigation_abm/analysis/reasoning_heterogeneity_traces.py`.
 
@@ -302,7 +283,7 @@ Per-model analyses are reported as primary findings because:
 2. **Scientific interpretation**: Model-specific patterns reveal which architectural features (parameter count, training data, instruction-tuning methods) modulate governance responsiveness
 3. **Pooled CI limitations**: Pooled confidence intervals aggregate across heterogeneous effect sizes and should be interpreted as meta-analytic summaries, not tests of overall effect presence
 
-All six models showed positive governance effects under the primary normalization (Table 3), but the magnitude varied by over an order of magnitude. Under alternative composite-action normalizations (Table S3), some models show reversed effects, underscoring that the direction depends on specification choice for models with high composite rates. Table S3 reports EHE sensitivity to composite-action normalization specification across four scenarios.
+All six models showed positive governance effects under the primary normalization (Table 3), but the magnitude varied by over an order of magnitude. Under alternative composite-action normalizations (Table S5), some models show reversed effects, underscoring that the direction depends on specification choice for models with high composite rates. Table S5 reports EHE sensitivity to composite-action normalization specification across four scenarios.
 
 ---
 
@@ -326,7 +307,7 @@ To assess whether adaptive exploitation requires the natural-language reasoning 
 
 Agent profiles were reconstructed from governed LLM simulation logs (year 1 state: agent_id, cluster, basin, water_right, initial diversion). FQL parameters (mu, sigma, alpha, gamma, epsilon, regret) were assigned from cluster-canonical values (Hung & Yang, 2021, Table 1). Three seeds (42, 43, 44) with cluster rebalancing (50%–30%–20%) matched the LLM experimental design.
 
-**Table S4. Water-system outcomes: LLM governed vs FQL baseline (irrigation domain, 78 agents × 42 years, 3 seeds each).**
+**Table S7. Water-system outcomes: LLM governed vs FQL baseline (irrigation domain, 78 agents × 42 years, 3 seeds each).**
 
 | Metric | LLM Governed | FQL Baseline |
 |--------|:---:|:---:|
