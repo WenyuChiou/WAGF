@@ -64,6 +64,29 @@ The paired traces above compare governed against ungoverned agents. A distinct f
 
 These within-governed contrasts demonstrate that reasoning-generated heterogeneity is not merely a statistical property of the action distribution (which EHE captures) but reflects qualitatively different cognitive strategies operating within the same institutional boundaries. A rule-based PMT agent with identical threshold logic and different parameter values could produce different actions, but not different *reasoning frames* — the distinction between "capitalize on rising Mead" and "chasing yields isn't sustainable" cannot emerge from parameterized variation within a single decision function.
 
+### Cognitive frame taxonomy under identical conditions
+
+To further characterize the qualitative diversity of reasoning, Table S2c presents four agents facing identical physical conditions (Year 2, Tier 2 shortage, Mead = 1,028 ft) who selected four different skills through four distinct cognitive frames.
+
+**Table S2c. Four governed agents under identical conditions: same year, same shortage tier, four distinct cognitive frames (seed 42, Year 2, Tier 2, Mead = 1,028 ft).**
+
+| Agent | Cluster | Skill | WSA | ACA | Cognitive Frame |
+|-------|---------|-------|-----|-----|-----------------|
+| ColoradoUsesBelowShiprockNM | aggressive | increase_large | M | H | Opportunity-seeking under confidence |
+| Bard Unit | forward_looking_conservative | decrease_small | H | M | Reflective learning from failure |
+| UtahAgAnticipatedDepletion | myopic_conservative | maintain_demand | H | L | Tradition-anchored inertia |
+| ColoradoNewMexAgAbvArch | aggressive | increase_small | M | H | Social responsibility |
+
+**Agent 1 — Opportunity-seeking under confidence (increase_large):** "The Bureau has declared Tier 2 shortage, and my current utilization is already quite high. While the outlook is slightly below normal and precipitation was low, I'm not seeing critically short conditions. My adaptive capacity is high, and I'm confident in my ability to adjust quickly. I'll take a cautiously aggressive approach, aiming to maximize my harvest potential given the situation." *The agent acknowledges the shortage declaration but downplays it, anchoring on self-assessed adaptive capacity as licence to take risk.*
+
+**Agent 2 — Reflective learning from failure (decrease_small):** "Given the Tier 2 shortage and declining Lake Mead levels, my water supply is undeniably tight. My current utilization is already high (47%), and the 10% curtailment is a significant reduction. While I've previously maintained demand, my memory highlights the inadequacy of this approach. Therefore, I need to proactively manage my water use to avoid shortages and potential crop damage." *The agent explicitly references consolidated memory of past strategy failure ("my memory highlights the inadequacy"), driving a break from its previous behaviour.*
+
+**Agent 3 — Tradition-anchored inertia (maintain_demand):** "The Bureau has declared Tier 2 shortage, and I'm already severely short on supply. Given my deep-seated skepticism of forecasts and my faith in past practices, I'm going to stick with what I've always done. It's a difficult situation, but I've weathered shortages before." *Notably, this agent's own consolidated memory states: "I understood that maintaining demand was not a viable strategy given the anticipated depletion of water resources." The agent's reasoning explicitly overrides its own reflection — a form of epistemic persistence that parameterized models cannot represent without hand-coding the override logic.*
+
+**Agent 4 — Social responsibility (increase_small):** "I need to increase my demand to maximize my harvest, but cautiously, given the constrained supply. My neighbors also rely on me, so I'll aim for a measured increase to demonstrate my commitment to production while mitigating risk." *The agent frames its decision through social relational obligations absent from all other agents' reasoning.*
+
+These four agents span three behavioural clusters, yet the reasoning divergence goes far beyond what cluster membership determines. Agents 1 and 4 share the same cluster (aggressive), the same WSA (M), and the same ACA (H), yet select different skills through different cognitive frames — one anchored on self-confidence, the other on social obligations. Agent 3 provides the strongest evidence for reasoning-generated heterogeneity: its memory consolidation concludes that its chosen strategy is inadequate, yet its reasoning process constructs an explicit argument for persistence. A parameterized model can produce an agent that ignores its memory (by not including memory as an input); it cannot produce an agent that *acknowledges* its memory, *evaluates* its implications, and *argues against* them in natural language.
+
 **Data sources.** Governed traces from `production_v20_42yr_seed{42,43,44}/irrigation_farmer_governance_audit.csv`. Reasoning text from structured CSV field `reason_reasoning`. Heterogeneity analysis: `examples/irrigation_abm/analysis/reasoning_heterogeneity_traces.py`.
 
 ---
