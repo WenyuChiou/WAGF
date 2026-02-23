@@ -62,7 +62,7 @@ The flood-adaptation application models 100 household agents making protective d
 The experiment uses a three-group factorial design:
 - **Group A (Ungoverned)**: LLM with window memory and governance validation disabled — establishes the baseline behavioural quality. Critically, Group A agents receive identical prompt templates, PMT-based response format requirements, and environmental context signals as Groups B and C; the only difference is that proposed decisions bypass governance validation and execute directly.
 - **Group B (Governed)**: LLM with window memory (5-year window) and full governance validation — isolates the governance effect.
-- **Group C (Governed + HumanCentric Memory)**: LLM with surprise-weighted, arousal-gated memory featuring stochastic consolidation and exponential decay, plus full governance validation — tests whether cognitively inspired memory improves native alignment. Group C results did not substantively differ from Group B and are omitted; main-text comparisons use Groups A and B only.
+- **Group C (Governed + HumanCentric Memory)**: LLM with surprise-weighted, arousal-gated memory featuring stochastic consolidation and exponential decay, plus full governance validation — tests whether cognitively inspired memory improves native alignment. Group C is not analysed in this paper; main-text comparisons use Groups A and B only.
 
 Governance rules include: blocking relocation when threat appraisal is low (ERROR level), blocking do-nothing when threat is high (ERROR level), and preventing re-elevation of already-elevated homes. Each group was run with 3 replicate seeds (43, 44, 45) for a total of 9 runs per model scale.
 
