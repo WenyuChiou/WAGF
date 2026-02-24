@@ -262,22 +262,23 @@ def generate_figure():
         ('fql',        FQL_COLOR,   'FQL baseline',     ':',  0.9),
     ]
 
-    # ── Panel (a): Mead elevation ──
+    # ── Panel (a): Mead elevation (all 4 conditions incl. FQL) ──
     ax_a = fig.add_subplot(gs[0, 0])
-    for cond, color, label, ls, lw in line_conds:
+    for cond, color, label, ls, lw in line_conds_with_fql:
         if cond not in ts:
             continue
         yrs = ts[cond]['years']
         ax_a.plot(yrs, ts[cond]['mead_mean'], color=color, linewidth=lw,
                   linestyle=ls, label=label)
+        alpha_val = 0.08 if cond == 'fql' else 0.15
         ax_a.fill_between(yrs,
                           ts[cond]['mead_mean'] - ts[cond]['mead_std'],
                           ts[cond]['mead_mean'] + ts[cond]['mead_std'],
-                          alpha=0.15, color=color)
+                          alpha=alpha_val, color=color)
 
-    # Shortage tier thresholds
+    # Shortage tier thresholds (lighter grey to distinguish from FQL dotted line)
     for elev, tier_label in [(1075, 'Tier 1'), (1050, 'Tier 2'), (1025, 'Tier 3')]:
-        ax_a.axhline(y=elev, color='gray', linestyle='--', linewidth=0.7, alpha=0.6)
+        ax_a.axhline(y=elev, color='#BBBBBB', linestyle='--', linewidth=0.5, alpha=0.5)
         ax_a.text(2, elev + 3, tier_label, fontsize=6, color='gray',
                   ha='left', va='bottom')
 
@@ -285,7 +286,7 @@ def generate_figure():
     ax_a.set_xlabel('Simulation year')
     ax_a.set_xlim(1, 42)
     ax_a.set_ylim(940, 1260)
-    ax_a.legend(loc='lower left', frameon=False, fontsize=6.5)
+    ax_a.legend(loc='upper left', frameon=False, fontsize=6.5)
     ax_a.text(-0.12, 1.05, 'a', transform=ax_a.transAxes,
               fontsize=8, fontweight='bold', va='top')
 
@@ -386,7 +387,7 @@ def generate_figure():
                       arrowprops=dict(arrowstyle='-', color=color, alpha=0.4, lw=0.5))
 
     ax_d.set_xlabel('Demand\u2013Mead correlation (Pearson $r$)')
-    ax_d.set_ylabel('Behavioural diversity')
+    ax_d.set_ylabel('Behavioural diversity (EHE)')
     ax_d.axvline(x=0, color='grey', ls=':', lw=0.4, alpha=0.3)
     ax_d.text(-0.12, 1.05, 'd', transform=ax_d.transAxes,
               fontsize=8, fontweight='bold', va='top')
