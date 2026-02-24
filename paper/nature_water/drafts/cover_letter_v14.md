@@ -16,7 +16,7 @@ Water resource models have long represented human decisions as parameterized fun
 
 ## Key Findings
 
-In a 42-year Colorado River irrigation simulation, governed agents extracted more water than ungoverned agents (demand ratio 0.394 vs 0.288) while maintaining stronger drought coupling (r = 0.547 vs 0.378) — a pattern of adaptive exploitation consistent with prior-appropriation dynamics. The governance effect generalized from chronic drought (78 agents, 42 years) to acute flood hazard (100 agents, 10 years), was positive for five of six language model scales tested (3B–27B parameters, two model families), and governance reduced irrational behaviour rates from 0.8–11.6% to below 1.7% across all six.
+In a 42-year Colorado River irrigation simulation, governed agents extracted more water than ungoverned agents (demand ratio 0.394 vs 0.288) while maintaining stronger drought coupling (r = 0.547 vs 0.378) — a pattern of adaptive exploitation consistent with prior-appropriation dynamics. The governance effect generalized from chronic drought (78 agents, 42 years) to acute flood hazard (100 agents, 10 years), was positive for five of six language model scales tested (3B–27B parameters, two model families), and governance reduced irrational behaviour rates from 0.8–11.6% to below 1.7%, significantly for four of six models.
 
 ## Relevance to Nature Water
 
