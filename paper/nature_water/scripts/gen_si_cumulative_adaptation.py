@@ -4,8 +4,8 @@ Nature Water Fig 3: Cumulative Adaptation State Evolution (Flood Domain).
 
 Three-panel stacked bar chart comparing protection state trajectories:
   (a) Rule-based PMT baseline
-  (b) Ungoverned language agent (Group A)
-  (c) Governed language agent (Group B)
+  (b) Ungoverned language agent
+  (c) Governed language agent
 
 All panels: Gemma-3 4B, 100 agents, 10 years, 3 seeds averaged.
 """

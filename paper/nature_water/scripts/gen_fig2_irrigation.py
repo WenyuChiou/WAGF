@@ -256,7 +256,7 @@ def generate_figure():
     line_conds = [
         ('governed',   GOV_COLOR,   'Governed',         '-',  1.0),
         ('ungoverned', UNGOV_COLOR, 'Ungoverned',       '--', 1.0),
-        ('a1',         A1_COLOR,    'A1 (no ceiling)',  '-.', 1.0),
+        ('a1',         A1_COLOR,    'No ceiling',       '-.', 1.0),
     ]
     line_conds_with_fql = line_conds + [
         ('fql',        FQL_COLOR,   'FQL baseline',     ':',  0.9),
@@ -314,7 +314,7 @@ def generate_figure():
 
     bar_conds = [
         ('governed',   'Governed'),
-        ('a1',         'A1'),
+        ('a1',         'No ceiling'),
         ('ungoverned', 'Ungoverned'),
         ('fql',        'FQL'),
     ]
@@ -352,7 +352,7 @@ def generate_figure():
     scatter_conds = [
         ('governed',   GOV_COLOR,   'Governed',        'o'),   # circle
         ('ungoverned', UNGOV_COLOR, 'Ungoverned',      's'),   # square
-        ('a1',         A1_COLOR,    'A1 (no ceiling)',  'D'),   # diamond
+        ('a1',         A1_COLOR,    'No ceiling',       'D'),   # diamond
         ('fql',        FQL_COLOR,   'FQL baseline',    '^'),   # triangle
     ]
 

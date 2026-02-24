@@ -179,9 +179,9 @@ for i, (rule_text, is_ablation) in enumerate(rules):
                 rule_text,
                 ha="center", va="center", fontsize=5.5,
                 color=RED_ACCENT, fontweight="bold", zorder=5)
-        # Small "A1 ablation" tag in top-right corner of chip
+        # Small "ablation target" tag in top-right corner of chip
         ax.text(rule_x + rule_w - 0.06, ry + rule_h - 0.06,
-                "A1",
+                "ablation",
                 ha="right", va="top", fontsize=4.5,
                 color=RED_ACCENT, fontweight="bold", zorder=5,
                 bbox=dict(boxstyle="round,pad=0.06",

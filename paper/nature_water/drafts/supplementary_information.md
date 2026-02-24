@@ -25,28 +25,28 @@ A third rule, V3 (inaction under extreme threat), blocks do_nothing when threat 
 
 *Triggers include all governance-intercepted proposals across the retry loop, not only final outcomes. "Corrected on retry" indicates the agent revised its proposal to a compliant action after receiving governance feedback. The high correction rate (97.6% overall) indicates that agents incorporate governance feedback into subsequent reasoning.*
 
-For ungoverned agents (Group A), threat and coping appraisals are inferred from free-text narratives using a three-tier keyword classifier: (1) explicit categorical labels (VH/H/M/L/VL), (1.5) qualifier precedence that detects negation and hedging phrases (e.g., "low risk of flooding", "moderate concern") before keyword matching, and (2) curated PMT keyword dictionaries. For governed agents (Group C), structured labels are emitted directly by the governance pipeline. Group A uses a relaxed low-threat threshold {L, VL, M} to account for classification uncertainty; Group C uses the strict threshold {L, VL}.
+For ungoverned agents, threat and coping appraisals are inferred from free-text narratives using a three-tier keyword classifier: (1) explicit categorical labels (VH/H/M/L/VL), (1.5) qualifier precedence that detects negation and hedging phrases (e.g., "low risk of flooding", "moderate concern") before keyword matching, and (2) curated PMT keyword dictionaries. For governed agents, structured labels are emitted directly by the governance pipeline. Ungoverned agents use a relaxed low-threat threshold {L, VL, M} to account for classification uncertainty; governed agents use the strict threshold {L, VL}.
 
 **Supplementary Table 1. IBR decomposition across six language models (flood domain, 100 agents × 10 years, 3 runs per condition). Values are means ± s.d. across seeds.**
 
 | Model | Condition | R_H (%) | V1 | V2 | Behavioural diversity |
 |---|---|---|---|---|---|
-| Gemma-3 4B | A (ungoverned) | 1.15 ± 0.17 | 0.3 | 10.0 | 0.307 ± 0.059 |
-| | C (governed) | 0.86 ± 0.44 | 0 | 6.7 | 0.636 ± 0.044 |
-| Gemma-3 12B | A (ungoverned) | 3.35 ± 0.13 | 0.7 | 29.3 | 0.282 ± 0.012 |
-| | C (governed) | 0.15 ± 0.07 | 0 | 1.3 | 0.310 ± 0.048 |
-| Gemma-3 27B | A (ungoverned) | 0.78 ± 0.38 | 0 | 7.0 | 0.322 ± 0.020 |
-| | C (governed) | 0.33 ± 0.00 | 0 | 3.0 | 0.496 ± 0.051 |
-| Ministral 3B | A (ungoverned) | 8.89 ± 1.24 | 3.0 | 76.7 | 0.373 ± 0.061 |
-| | C (governed) | 1.70 ± 0.26 | 0 | 10.7 | 0.571 ± 0.047 |
-| Ministral 8B | A (ungoverned) | 1.56 ± 0.00 | 2.7 | 11.3 | 0.555 ± 0.009 |
-| | C (governed) | 0.13 ± 0.13 | 0 | 1.0 | 0.531 ± 0.028 |
-| Ministral 14B | A (ungoverned) | 11.61 ± 0.58 | 6.7 | 97.0 | 0.572 ± 0.018 |
-| | C (governed) | 0.40 ± 0.18 | 0 | 3.3 | 0.605 ± 0.011 |
+| Gemma-3 4B | Ungoverned | 1.15 ± 0.17 | 0.3 | 10.0 | 0.307 ± 0.059 |
+| | Governed | 0.86 ± 0.44 | 0 | 6.7 | 0.636 ± 0.044 |
+| Gemma-3 12B | Ungoverned | 3.35 ± 0.13 | 0.7 | 29.3 | 0.282 ± 0.012 |
+| | Governed | 0.15 ± 0.07 | 0 | 1.3 | 0.310 ± 0.048 |
+| Gemma-3 27B | Ungoverned | 0.78 ± 0.38 | 0 | 7.0 | 0.322 ± 0.020 |
+| | Governed | 0.33 ± 0.00 | 0 | 3.0 | 0.496 ± 0.051 |
+| Ministral 3B | Ungoverned | 8.89 ± 1.24 | 3.0 | 76.7 | 0.373 ± 0.061 |
+| | Governed | 1.70 ± 0.26 | 0 | 10.7 | 0.571 ± 0.047 |
+| Ministral 8B | Ungoverned | 1.56 ± 0.00 | 2.7 | 11.3 | 0.555 ± 0.009 |
+| | Governed | 0.13 ± 0.13 | 0 | 1.0 | 0.531 ± 0.028 |
+| Ministral 14B | Ungoverned | 11.61 ± 0.58 | 6.7 | 97.0 | 0.572 ± 0.018 |
+| | Governed | 0.40 ± 0.18 | 0 | 3.3 | 0.605 ± 0.011 |
 
 *V1/V2 counts are per-run means (3-run average). R_H% = (V1 + V2) / N_active × 100. Post-relocation agent-years excluded from N_active. Behavioural diversity = normalized Shannon entropy H/log₂(k) (0 = monoculture; 1 = uniform).*
 
-**Supplementary Table 2. Governance effect on IBR (paired difference, A minus C).**
+**Supplementary Table 2. Governance effect on IBR (paired difference, ungoverned minus governed).**
 
 | Model | Δ R_H (pp) | 95% CI | p (paired t) |
 |---|---|---|---|
@@ -57,9 +57,9 @@ For ungoverned agents (Group A), threat and coping appraisals are inferred from 
 | Ministral 8B | +1.43 | [+1.11, +1.74] | 0.003 |
 | Ministral 14B | +11.21 | [+9.74, +12.67] | <0.001 |
 
-*95% CIs from paired t-distribution (df = 2). For Gemma-3 4B and 27B, the small A–C difference relative to between-run variance yields non-significant p-values; however, the direction of the effect (A > C) is consistent across all six models.*
+*95% CIs from paired t-distribution (df = 2). For Gemma-3 4B and 27B, the small ungoverned–governed difference relative to between-run variance yields non-significant p-values; however, the direction of the effect (ungoverned > governed) is consistent across all six models.*
 
-**Note on group labels.** The cross-model comparison (Tables 3, S1) uses Group C (governed + HumanCentric memory) as the governed condition because Groups A and C were run for all six models, whereas Group B (governed, window memory only) was run only for Gemma-3 4B. For Gemma-3 4B, Groups B and C produced identical behavioural diversity (0.636 ± 0.044; Table 2 reports Group B). The governance effect in both groups is attributable to the validator pipeline, which is identical across Groups B and C; the memory subsystem differs but does not alter governance rule application.
+**Note on governed conditions.** The cross-model comparison (Fig. 4, Supplementary Table 1) uses governed agents with HumanCentric memory because this condition was run for all six models, whereas governed agents with window memory only were run for Gemma-3 4B. For Gemma-3 4B, both governed conditions produced identical behavioural diversity (0.636 ± 0.044; Table 2 reports the window-memory condition). The governance effect is attributable to the validator pipeline, which is identical across both governed conditions; the memory subsystem differs but does not alter governance rule application.
 
 **Ungoverned decision distributions.** Models with the largest governance effects (Gemma-3 4B, Ministral 3B) concentrated 82–86% of ungoverned decisions on do_nothing, producing low baseline behavioural diversity that governance substantially increased. Gemma-3 12B showed near-identical distributions across conditions (80–81% buy_insurance), yielding a non-significant diversity effect.
 
@@ -186,7 +186,7 @@ Under premium doubling, the diversity effect reversed:
 - Governed behavioural diversity (premium doubled): 0.693 ± 0.024
 - Difference: -0.104 (ungoverned > governed)
 
-This contrasts with baseline premium conditions, where governed behavioural diversity exceeded ungoverned for the same model (Table 3).
+This contrasts with baseline premium conditions, where governed behavioural diversity exceeded ungoverned for the same model (Fig. 4).
 
 **Interpretation.** External cost pressure (premium doubling) appears to force behavioural diversification independently of governance. In the ungoverned condition, agents adapted to the higher premium by exploring alternative mitigation strategies (elevation, relocation, do_nothing), increasing diversity above the governed condition. This suggests that sufficiently strong economic incentives can substitute for governance constraints in promoting diverse adaptive responses.
 
@@ -255,7 +255,7 @@ Twelve validators enforcing physical, social, temporal, and behavioural constrai
 7. Upstream flow variability constraints
 
 *Institutional validators (1):*
-8. Demand ceiling stabilizer (blocks demand-increase proposals when aggregate basin demand exceeds 6.0 MAF — the rule tested in the A1 ablation)
+8. Demand ceiling stabilizer (blocks demand-increase proposals when aggregate basin demand exceeds 6.0 MAF — the rule tested in the no-ceiling ablation)
 
 *Social validators (2):*
 9. Equity constraint (within-group demand variance limits)
@@ -319,11 +319,11 @@ where $k$ is the number of available action categories and $p_i$ is the empirica
 
 Per-model analyses are reported as primary findings because:
 
-1. **Model heterogeneity**: Effect sizes varied substantially across models (Table 3: Δ from −0.024 to +0.329)
+1. **Model heterogeneity**: Effect sizes varied substantially across models (Fig. 4: Δ from −0.024 to +0.329)
 2. **Scientific interpretation**: Model-specific patterns reveal which architectural features (parameter count, training data, instruction-tuning methods) modulate governance responsiveness
 3. **Pooled CI limitations**: Pooled confidence intervals aggregate across heterogeneous effect sizes and should be interpreted as meta-analytic summaries, not tests of overall effect presence
 
-Five of six models showed positive governance effects under the primary normalization (Table 3), with one (Ministral 8B) showing a small negative effect (Δ = −0.024). The magnitude of positive effects varied by over an order of magnitude. Under alternative composite-action normalizations (Supplementary Table 7), some models show reversed effects, underscoring that the direction depends on specification choice for models with high composite rates.
+Five of six models showed positive governance effects under the primary normalization (Fig. 4), with one (Ministral 8B) showing a small negative effect (Δ = −0.024). The magnitude of positive effects varied by over an order of magnitude. Under alternative composite-action normalizations (Supplementary Table 7), some models show reversed effects, underscoring that the direction depends on specification choice for models with high composite rates.
 
 **Supplementary Table 7. Behavioural diversity sensitivity to composite-action normalization specification (flood domain, 100 agents × 10 years, 3 runs per condition).**
 
