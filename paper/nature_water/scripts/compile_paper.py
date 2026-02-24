@@ -395,11 +395,11 @@ def compile_main_paper():
 
     # Figure insertion map: after which section heading to insert which figure
     # Figures are inserted AFTER processing the section
-    # Framework diagram moved to SI; main text uses 2 water-outcome figures only
+    # Main text: 4 figures (framework, irrigation, flood, cross-model) + 2 tables
     figure_after_section = {
         "section2_v11_results.md": [
             (FIGURES_DIR / "Fig2_irrigation.png",
-             "**Figure 1. Adaptive exploitation under institutional governance** "
+             "**Figure 2. Adaptive exploitation under institutional governance** "
              "(irrigation domain, 78 agents × 42 years, 3 seeds). "
              "(a) Lake Mead elevation time series with shortage-tier thresholds. "
              "(b) Basin demand ratio (total request / total water right); governed agents "
@@ -407,20 +407,33 @@ def compile_main_paper():
              "FQL (grey) extracts similar volume but with no drought coupling. "
              "(c) Action distribution showing ungoverned collapse into demand increases "
              "and FQL dominance of validator-blocked maintain. "
+             "\"No ceiling\" removes only the demand-ceiling validator. "
              "(d) Behavioural diversity versus demand–Mead coupling "
              "(Pearson r): governed agents occupy the adaptive-diversity quadrant "
-             "(high diversity, strong coupling); A1 (green) shows arbitrary diversity "
+             "(high diversity, strong coupling); the no-ceiling condition (green) shows arbitrary diversity "
              "(high diversity, weak coupling). "
              "Shaded bands show ± 1 s.d. across 3 seeds.",
              Inches(6.0)),
             (FIGURES_DIR / "Fig3_cumulative_adaptation.png",
-             "**Figure 2. Flood-adaptation trajectories across agent types** "
-             "(100 agents × 10 years). Bars show 3-seed means. "
+             "**Figure 3. Flood-adaptation trajectories across agent types** "
+             "(100 agents × 10 years, Gemma-3 4B). Bars show 3-seed means; "
+             "error whiskers show ± 1 s.d. across seeds. "
              "(a) Rule-based PMT agents converge rapidly to elevation-dominated protection. "
              "(b) Ungoverned language agents stagnate in unprotected states. "
              "(c) Governed language agents develop a diverse mix of protection strategies "
              "including relocation, which neither rule-based nor ungoverned agents achieve. "
              "Insurance requires annual renewal; elevation is permanent.",
+             Inches(6.0)),
+            (FIGURES_DIR / "Fig4_crossmodel.png",
+             "**Figure 4. Governance effect on behavioural diversity across six language models** "
+             "(flood domain, 100 agents × 10 years, 3 runs per condition). "
+             "Models sorted by parameter count (3.2B to 27B). "
+             "(a) Paired dot plot showing ungoverned (red) vs governed (blue) "
+             "behavioural diversity for each model; connecting lines indicate effect direction. "
+             "(b) Forest plot of governance effect (Δ = governed − ungoverned) with 95% CIs; "
+             "blue = statistically significant, grey = non-significant. "
+             "Diamond shows pooled effect across all six models. "
+             "Full IBR decomposition in Supplementary Table 1.",
              Inches(6.0)),
         ],
     }

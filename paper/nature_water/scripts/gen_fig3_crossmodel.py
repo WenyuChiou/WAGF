@@ -1,7 +1,8 @@
 """
-Nature Water -- Supplementary Figure 1: Cross-model behavioural diversity governance effect (flood domain)
+Nature Water -- Figure 4: Cross-model governance effect on behavioural diversity (flood domain)
   (a) Paired dot plot -- Behavioural diversity by model (ungoverned vs governed)
   (b) Forest plot -- Delta behavioural diversity with 95% CI
+Promoted from SI to main text (expert panel recommendation M5).
 """
 import sys
 sys.stdout.reconfigure(encoding='utf-8')
@@ -46,13 +47,14 @@ LINE_COLOR  = '#888888'   # connecting lines
 # ====================================================================
 
 models = [
-    'Ministral 3B',
-    'Gemma-3 4B',
-    'Ministral 8B',
-    'Gemma-3 12B',
-    'Ministral 14B',
-    'Gemma-3 27B',
+    'Ministral 3B (3.2B)',
+    'Gemma-3 4B (3.9B)',
+    'Ministral 8B (8.1B)',
+    'Gemma-3 12B (12B)',
+    'Ministral 14B (14B)',
+    'Gemma-3 27B (27B)',
 ]
+# Family identification (for bracket drawing)
 families = ['Ministral', 'Gemma-3', 'Ministral', 'Gemma-3', 'Ministral', 'Gemma-3']
 
 # EHE values (Table 3)
@@ -133,8 +135,8 @@ for idx_list, label in [(gemma_idx, 'Gemma-3'), (minis_idx, 'Ministral')]:
               rotation=270, color='#555555', clip_on=False)
 
 ax_a.legend(loc='lower right', frameon=False, markerscale=0.9)
-ax_a.text(-0.15, -0.08, '(a)', transform=ax_a.transAxes,
-          fontsize=9, fontweight='bold', va='top')
+ax_a.text(-0.15, -0.08, 'a', transform=ax_a.transAxes,
+          fontsize=8, fontweight='bold', va='top')
 
 # ------------------------------------------------------------------
 # Panel (b): Forest plot -- Delta EHE + 95% CI
@@ -182,14 +184,14 @@ ax_b.set_xlim(-0.15, 0.55)
 ax_b.set_ylim(-0.6, y_pooled + 0.6)
 ax_b.invert_yaxis()
 
-ax_b.text(-0.08, -0.08, '(b)', transform=ax_b.transAxes,
-          fontsize=9, fontweight='bold', va='top')
+ax_b.text(-0.08, -0.08, 'b', transform=ax_b.transAxes,
+          fontsize=8, fontweight='bold', va='top')
 
 # ------------------------------------------------------------------
 # Save
 # ------------------------------------------------------------------
 for ext in ['png', 'pdf']:
-    fpath = OUT / f'FigS1_crossmodel.{ext}'
+    fpath = OUT / f'Fig4_crossmodel.{ext}'
     fig.savefig(fpath, dpi=300, bbox_inches='tight', facecolor='white')
     print(f'Saved: {fpath}')
 
