@@ -1,0 +1,13 @@
+﻿model,group,classification_method,low_threat_threshold,R_H_mean,N_active_total,total_violations
+Gemma3-4B,A,Three-tier keyword (Tier1+1.5+2),"{L, VL, M}",1.15,2699,31
+Gemma3-4B,C,Structured labels (direct),"{L, VL}",0.86,2383,20
+Gemma3-12B,A,Three-tier keyword (Tier1+1.5+2),"{L, VL, M}",3.35,2685,90
+Gemma3-12B,C,Structured labels (direct),"{L, VL}",0.15,2634,4
+Gemma3-27B,A,Three-tier keyword (Tier1+1.5+2),"{L, VL, M}",0.78,2700,21
+Gemma3-27B,C,Structured labels (direct),"{L, VL}",0.33,2691,9
+Ministral-3B,A,Three-tier keyword (Tier1+1.5+2),"{L, VL, M}",8.89,2688,239
+Ministral-3B,C,Structured labels (direct),"{L, VL}",1.7,1883,32
+Ministral-8B,A,Three-tier keyword (Tier1+1.5+2),"{L, VL, M}",1.56,2688,42
+Ministral-8B,C,Structured labels (direct),"{L, VL}",0.13,2213,3
+Ministral-14B,A,Three-tier keyword (Tier1+1.5+2),"{L, VL, M}",11.61,2679,311
+Ministral-14B,C,Structured labels (direct),"{L, VL}",0.4,2470,10
