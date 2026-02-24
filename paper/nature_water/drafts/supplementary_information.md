@@ -17,7 +17,7 @@ For ungoverned agents (Group A), threat and coping appraisals are inferred from 
 
 **Supplementary Table 1. IBR decomposition across six language models (flood domain, 100 agents × 10 years, 3 runs per condition). Values are means ± s.d. across seeds.**
 
-| Model | Condition | R_H (%) | V1 | V2 | Strategy diversity |
+| Model | Condition | R_H (%) | V1 | V2 | Behavioural diversity |
 |---|---|---|---|---|---|
 | Gemma-3 4B | A (ungoverned) | 1.15 ± 0.17 | 0.3 | 10.0 | 0.307 ± 0.059 |
 | | C (governed) | 0.86 ± 0.44 | 0 | 6.7 | 0.636 ± 0.044 |
@@ -32,7 +32,7 @@ For ungoverned agents (Group A), threat and coping appraisals are inferred from 
 | Ministral 14B | A (ungoverned) | 11.61 ± 0.58 | 6.7 | 97.0 | 0.572 ± 0.018 |
 | | C (governed) | 0.40 ± 0.18 | 0 | 3.3 | 0.605 ± 0.011 |
 
-*V1/V2 counts are per-run means (3-run average). R_H% = (V1 + V2) / N_active × 100. Post-relocation agent-years excluded from N_active. Strategy diversity = normalized Shannon entropy H/log₂(k) (0 = monoculture; 1 = uniform).*
+*V1/V2 counts are per-run means (3-run average). R_H% = (V1 + V2) / N_active × 100. Post-relocation agent-years excluded from N_active. Behavioural diversity = normalized Shannon entropy H/log₂(k) (0 = monoculture; 1 = uniform).*
 
 **Supplementary Table 2. Governance effect on IBR (paired difference, A minus C).**
 
@@ -47,9 +47,9 @@ For ungoverned agents (Group A), threat and coping appraisals are inferred from 
 
 *95% CIs from paired t-distribution (df = 2). For Gemma-3 4B and 27B, the small A–C difference relative to between-run variance yields non-significant p-values; however, the direction of the effect (A > C) is consistent across all six models.*
 
-**Note on group labels.** The cross-model comparison (Tables 3, S1) uses Group C (governed + HumanCentric memory) as the governed condition because Groups A and C were run for all six models, whereas Group B (governed, window memory only) was run only for Gemma-3 4B. For Gemma-3 4B, Groups B and C produced identical strategy diversity (0.636 ± 0.044; Table 2 reports Group B). The governance effect in both groups is attributable to the validator pipeline, which is identical across Groups B and C; the memory subsystem differs but does not alter governance rule application.
+**Note on group labels.** The cross-model comparison (Tables 3, S1) uses Group C (governed + HumanCentric memory) as the governed condition because Groups A and C were run for all six models, whereas Group B (governed, window memory only) was run only for Gemma-3 4B. For Gemma-3 4B, Groups B and C produced identical behavioural diversity (0.636 ± 0.044; Table 2 reports Group B). The governance effect in both groups is attributable to the validator pipeline, which is identical across Groups B and C; the memory subsystem differs but does not alter governance rule application.
 
-**Ungoverned decision distributions.** Models with the largest governance effects (Gemma-3 4B, Ministral 3B) concentrated 82–86% of ungoverned decisions on do_nothing, producing low baseline strategy diversity that governance substantially increased. Gemma-3 12B showed near-identical distributions across conditions (80–81% buy_insurance), yielding a non-significant diversity effect.
+**Ungoverned decision distributions.** Models with the largest governance effects (Gemma-3 4B, Ministral 3B) concentrated 82–86% of ungoverned decisions on do_nothing, producing low baseline behavioural diversity that governance substantially increased. Gemma-3 12B showed near-identical distributions across conditions (80–81% buy_insurance), yielding a non-significant diversity effect.
 
 ---
 
@@ -130,8 +130,8 @@ Across all three seeds, we identified ten distinct cognitive frames through open
 To verify that the diversity effect reflects genuine governance-induced behavioural diversification rather than retry artefacts, we analysed only the first decision attempt for each agent-timestep in the irrigation domain.
 
 **Irrigation first-attempt results:**
-- Governed first-attempt strategy diversity: 0.761 ± 0.020
-- Ungoverned first-attempt strategy diversity: 0.640 ± 0.017
+- Governed first-attempt behavioural diversity: 0.761 ± 0.020
+- Ungoverned first-attempt behavioural diversity: 0.640 ± 0.017
 - Difference: +0.121 (p < 0.001)
 
 This 12.1 percentage-point increase in diversity from governance persists when considering only initial proposals, confirming that the diversity effect is not a consequence of iterative refinement. The effect magnitude is comparable to the full-trace analysis (which includes retries), indicating that governance shapes agent reasoning at the initial decision stage.
@@ -170,11 +170,11 @@ To test whether the diversity effect persists under altered economic incentives,
 **Results:**
 
 Under premium doubling, the diversity effect reversed:
-- Ungoverned strategy diversity (premium doubled): 0.797 ± 0.018
-- Governed strategy diversity (premium doubled): 0.693 ± 0.024
+- Ungoverned behavioural diversity (premium doubled): 0.797 ± 0.018
+- Governed behavioural diversity (premium doubled): 0.693 ± 0.024
 - Difference: -0.104 (ungoverned > governed)
 
-This contrasts with baseline premium conditions, where governed strategy diversity exceeded ungoverned for the same model (Table 3).
+This contrasts with baseline premium conditions, where governed behavioural diversity exceeded ungoverned for the same model (Table 3).
 
 **Interpretation.** External cost pressure (premium doubling) appears to force behavioural diversification independently of governance. In the ungoverned condition, agents adapted to the higher premium by exploring alternative mitigation strategies (elevation, relocation, do_nothing), increasing diversity above the governed condition. This suggests that sufficiently strong economic incentives can substitute for governance constraints in promoting diverse adaptive responses.
 
@@ -293,15 +293,15 @@ Raw experimental outputs (agent traces, validator logs, system state snapshots) 
 
 ### Strategy Diversity
 
-We quantified strategy diversity using normalized Shannon entropy (Shannon, 1948):
+We quantified behavioural diversity using normalized Shannon entropy (Shannon, 1948):
 
-$$\text{Strategy diversity} = -\frac{1}{\log_2 k} \sum_{i=1}^{k} p_i \log_2 p_i$$
+$$\text{Behavioural diversity} = -\frac{1}{\log_2 k} \sum_{i=1}^{k} p_i \log_2 p_i$$
 
 where $k$ is the number of available action categories and $p_i$ is the empirical frequency of action $i$ across all agent-timesteps. Normalization by $\log_2 k$ ensures a range of [0, 1], with 0 indicating behavioural monoculture (all agents select the same action) and 1 indicating maximum diversity (uniform distribution over all actions).
 
 **Confidence intervals:** 95% CIs were computed via 10,000-iteration bootstrap resampling at the agent-timestep level, preserving within-agent temporal autocorrelation structure.
 
-**Statistical significance:** Differences in strategy diversity between governed and ungoverned conditions were assessed using permutation tests (10,000 permutations) to avoid distributional assumptions.
+**Statistical significance:** Differences in behavioural diversity between governed and ungoverned conditions were assessed using permutation tests (10,000 permutations) to avoid distributional assumptions.
 
 ### Model-Specific vs. Pooled Analysis
 
@@ -313,7 +313,7 @@ Per-model analyses are reported as primary findings because:
 
 Five of six models showed positive governance effects under the primary normalization (Table 3), with one (Ministral 8B) showing a small negative effect (Δ = −0.024). The magnitude of positive effects varied by over an order of magnitude. Under alternative composite-action normalizations (Supplementary Table 7), some models show reversed effects, underscoring that the direction depends on specification choice for models with high composite rates.
 
-**Supplementary Table 7. Strategy diversity sensitivity to composite-action normalization specification (flood domain, 100 agents × 10 years, 3 runs per condition).**
+**Supplementary Table 7. Behavioural diversity sensitivity to composite-action normalization specification (flood domain, 100 agents × 10 years, 3 runs per condition).**
 
 *Composite-action treatment scenarios:* Ungoverned agents occasionally selected composite actions (simultaneously purchasing insurance and elevating). Four normalization specifications were tested: S1 (asymmetric k=5/4, composite as 5th action), S2 (merge to elevate, k=4), S3 (uniform k=5), S4 (split into constituents, k=4; primary specification).
 
@@ -326,7 +326,7 @@ Five of six models showed positive governance effects under the primary normaliz
 | Ministral 8B | **−0.094** | **−0.125** | **−0.181** | **−0.098** |
 | Ministral 14B | +0.013 | **+0.240** | **−0.085** | **+0.058** |
 
-*Bold indicates |Δ| > 0.05. Positive = governance increases strategy diversity. No specification produces a pooled 95% CI excluding zero; the effect is model-dependent. Gemma-3 4B and Ministral 3B show positive effects under all four specifications; Ministral 8B shows reversal under all four.*
+*Bold indicates |Δ| > 0.05. Positive = governance increases behavioural diversity. No specification produces a pooled 95% CI excluding zero; the effect is model-dependent. Gemma-3 4B and Ministral 3B show positive effects under all four specifications; Ministral 8B shows reversal under all four.*
 
 ---
 
@@ -362,7 +362,7 @@ Agent profiles were reconstructed from governed LLM simulation logs (year 1 stat
 
 FQL agents extracted nearly identical water volumes (demand ratio 0.395 versus 0.394) but showed near-zero correlation between demand and reservoir state (r = 0.057 versus 0.547). This decoupling produced substantially more shortage years (24.7 versus 13.3) despite comparable extraction levels. The FQL agent's Q-learning updates its action preferences based on reward signals (fulfilled diversion relative to request), but this learning occurs within a state-action mapping that cannot reference drought context, institutional announcements, or neighbour behaviour in the way that natural-language reasoning can.
 
-Note that 84–89% of FQL decisions resulted in maintain_demand — not because FQL selected this action (FQL has only increase/decrease), but because governance validators blocked the proposed action and the deterministic fallback executed maintain_demand. This high blocking rate reflects the mismatch between FQL's binary action space and the governance rules designed for a richer decision vocabulary. Strategy diversity is therefore not computed for FQL, as the action distribution is dominated by a validator artifact rather than behavioural choice.
+Note that 84–89% of FQL decisions resulted in maintain_demand — not because FQL selected this action (FQL has only increase/decrease), but because governance validators blocked the proposed action and the deterministic fallback executed maintain_demand. This high blocking rate reflects the mismatch between FQL's binary action space and the governance rules designed for a richer decision vocabulary. Behavioural diversity is therefore not computed for FQL, as the action distribution is dominated by a validator artifact rather than behavioural choice.
 
 **Interpretation.** The FQL comparison isolates the representational contribution: governance alone does not produce adaptive exploitation. The combination of governance constraints *and* natural-language reasoning is required — governance defines the feasibility boundaries, and language-based reasoning enables agents to adaptively navigate within those boundaries in response to environmental state.
 

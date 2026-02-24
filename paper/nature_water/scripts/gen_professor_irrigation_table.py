@@ -19,7 +19,7 @@ metrics = [
     'Demand–Mead coupling (r)',
     'Shortage years (/42)',
     'Min Mead elevation (ft)',
-    'Strategy diversity (EHE)',
+    'Behavioural diversity (EHE)',
     'Behavioural Rationality (BRI %)',
 ]
 
@@ -206,7 +206,7 @@ insights = [
     '● Removing 1 rule of 12 (demand ceiling) → coupling collapses (0.547 → 0.234), shortage doubles → institutional rule decomposition',
     '● FQL extracts same volume (0.395) but zero coupling (r = 0.057) → language reasoning required, not just governance',
     '● Governed BRI 58% vs Ungoverned 9.4% (+517%) → governance eliminates increase-bias without prescribing actions',
-    '● Strategy diversity: Governed 0.738 vs Ungoverned 0.637 (+16%) → governance expands decision repertoire',
+    '● Behavioural diversity: Governed 0.738 vs Ungoverned 0.637 (+16%) → governance expands decision repertoire',
 ]
 
 for k, ins in enumerate(insights):

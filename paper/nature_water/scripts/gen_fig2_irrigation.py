@@ -3,7 +3,7 @@ Nature Water — Figure 2: Irrigation domain results (4-panel)
   (a) Lake Mead elevation time series
   (b) Demand ratio time series (4 conditions incl. FQL)
   (c) Skill distribution stacked bars (4 conditions)
-  (d) Strategy diversity vs demand-Mead coupling scatter (12 points)
+  (d) Behavioural diversity vs demand-Mead coupling scatter (12 points)
 """
 import sys
 sys.stdout.reconfigure(encoding='utf-8')
@@ -168,7 +168,7 @@ def compute_skill_distributions(data):
 
 
 def compute_ehe_per_seed(data):
-    """Compute strategy diversity per seed per condition.
+    """Compute behavioural diversity per seed per condition.
     LLM: 5-action space, EHE = H/log2(5)
     FQL: use fql_raw_skill (2-action), EHE = H/log2(2)
     """
@@ -386,7 +386,7 @@ def generate_figure():
                       arrowprops=dict(arrowstyle='-', color=color, alpha=0.4, lw=0.5))
 
     ax_d.set_xlabel('Demand\u2013Mead correlation (Pearson $r$)')
-    ax_d.set_ylabel('Strategy diversity')
+    ax_d.set_ylabel('Behavioural diversity')
     ax_d.axvline(x=0, color='grey', ls=':', lw=0.4, alpha=0.3)
     ax_d.text(-0.12, 1.05, 'd', transform=ax_d.transAxes,
               fontsize=8, fontweight='bold', va='top')

@@ -113,7 +113,7 @@ def create_flood_table():
     # EHE block: cols 5-8
     r0.cells[5].merge(r0.cells[8])
     set_cell_bg(r0.cells[5], HEADER_BG)
-    set_cell_text(r0.cells[5], "EHE \u2014 Strategy Diversity (0\u20131, \u2191 better)", bold=True, color=WHITE)
+    set_cell_text(r0.cells[5], "EHE \u2014 Behavioural Diversity (0\u20131, \u2191 better)", bold=True, color=WHITE)
 
     # Header row 2
     headers2 = ['Model', 'Ungov.', 'Gov.', 'Diff', 'Change',
@@ -231,7 +231,7 @@ def create_irrigation_table():
         'Demand\u2013Mead coupling (r)',
         'Shortage years (/42)',
         'Min Mead elevation (ft)',
-        'Strategy diversity (EHE)',
+        'Behavioural diversity (EHE)',
         'Behavioural Rationality (BRI %)',
     ]
     ungov_str = ['0.288 \u00b1 0.020', '1,173', '0.378 \u00b1 0.081', '5.0 \u00b1 1.7',
@@ -327,7 +327,7 @@ def create_irrigation_table():
         "Removing 1 rule of 12 (demand ceiling) \u2192 coupling collapses (0.547 \u2192 0.234), shortage doubles \u2192 institutional rule decomposition",
         "FQL extracts same volume (0.395) but zero coupling (r = 0.057) \u2192 language reasoning required, not just governance",
         "Governed BRI 58% vs Ungoverned 9.4% (+517%) \u2192 governance eliminates increase-bias without prescribing actions",
-        "Strategy diversity: Governed 0.738 vs Ungoverned 0.637 (+16%) \u2192 governance expands decision repertoire",
+        "Behavioural diversity: Governed 0.738 vs Ungoverned 0.637 (+16%) \u2192 governance expands decision repertoire",
     ]
     for f in findings:
         p = doc.add_paragraph(style='List Bullet')

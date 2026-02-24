@@ -344,7 +344,7 @@ def compile_main_paper():
 
     # ==================== TITLE ====================
     para = doc.add_paragraph()
-    run = para.add_run("Institutional Constraints Widen Adaptive Strategy Diversity\nin Language-Based Water Agents")
+    run = para.add_run("Institutional Constraints Widen Adaptive Behavioural Diversity\nin Language-Based Water Agents")
     set_run_font(run, size=Pt(16), bold=True)
     set_paragraph_format(para, alignment=WD_ALIGN_PARAGRAPH.CENTER,
                          space_before=Pt(48), space_after=Pt(24))
@@ -407,7 +407,7 @@ def compile_main_paper():
              "FQL (grey) extracts similar volume but with no drought coupling. "
              "(c) Action distribution showing ungoverned collapse into demand increases "
              "and FQL dominance of validator-blocked maintain. "
-             "(d) Strategy diversity versus demand–Mead coupling "
+             "(d) Behavioural diversity versus demand–Mead coupling "
              "(Pearson r): governed agents occupy the adaptive-diversity quadrant "
              "(high diversity, strong coupling); A1 (green) shows arbitrary diversity "
              "(high diversity, weak coupling). "
@@ -604,7 +604,7 @@ def compile_si():
                          space_before=Pt(24), space_after=Pt(6))
 
     para = doc.add_paragraph()
-    run = para.add_run("Institutional Constraints Widen Adaptive Strategy Diversity in Language-Based Water Agents")
+    run = para.add_run("Institutional Constraints Widen Adaptive Behavioural Diversity in Language-Based Water Agents")
     set_run_font(run, size=Pt(12), italic=True)
     set_paragraph_format(para, alignment=WD_ALIGN_PARAGRAPH.CENTER,
                          space_after=Pt(24))
