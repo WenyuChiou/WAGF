@@ -35,6 +35,7 @@ def _compute_physical_hallucinations(
     df: pd.DataFrame,
     irreversible_states: Optional[Dict[str, Optional[str]]] = None,
     exit_state_col: str = "relocated",
+    decision_col: Optional[str] = None,
 ) -> pd.Series:
     """Detect physical hallucinations from state transitions.
 
@@ -55,6 +56,9 @@ def _compute_physical_hallucinations(
     exit_state_col : str
         Column marking the permanent exit state (agent leaves simulation).
         Default: ``"relocated"``.
+    decision_col : str, optional
+        Column containing the per-year **action** (not cumulative state).
+        If None, auto-detects ``yearly_decision`` then ``decision``.
 
     Insurance renewal is excluded (annual renewable, not hallucination).
     """
@@ -63,8 +67,11 @@ def _compute_physical_hallucinations(
 
     df_s = df.sort_values(["agent_id", "year"]).copy()
 
-    dec_col = "yearly_decision"
-    if dec_col not in df_s.columns:
+    if decision_col is not None and decision_col in df_s.columns:
+        dec_col = decision_col
+    elif "yearly_decision" in df_s.columns:
+        dec_col = "yearly_decision"
+    else:
         dec_col = "decision"
 
     action = df_s[dec_col].astype(str).str.lower()
@@ -171,7 +178,8 @@ def compute_hallucination_rate(
 
     # Physical hallucinations
     phys_mask = _compute_physical_hallucinations(
-        df, irreversible_states=irreversible_states, exit_state_col=exit_state_col,
+        df, irreversible_states=irreversible_states,
+        exit_state_col=exit_state_col, decision_col=decision_col,
     )
     phys_active = phys_mask.reindex(df_active.index, fill_value=False)
     n_physical = int(phys_active.sum())
