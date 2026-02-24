@@ -1,7 +1,7 @@
 """
-Nature Water -- Supplementary Figure 1: Cross-model strategy diversity governance effect (flood domain)
-  (a) Paired dot plot -- Strategy diversity by model (ungoverned vs governed)
-  (b) Forest plot -- Delta strategy diversity with 95% CI
+Nature Water -- Supplementary Figure 1: Cross-model behavioural diversity governance effect (flood domain)
+  (a) Paired dot plot -- Behavioural diversity by model (ungoverned vs governed)
+  (b) Forest plot -- Delta behavioural diversity with 95% CI
 """
 import sys
 sys.stdout.reconfigure(encoding='utf-8')
@@ -104,7 +104,7 @@ ax_a.scatter(gov_ehe, y_pos, c=GOV_COLOR, s=40, zorder=2,
 
 ax_a.set_yticks(y_pos)
 ax_a.set_yticklabels(models)
-ax_a.set_xlabel('Strategy diversity')
+ax_a.set_xlabel('Behavioural diversity')
 ax_a.set_xlim(0.15, 0.85)
 ax_a.invert_yaxis()
 
@@ -177,7 +177,7 @@ all_yticks  = list(y_pos) + [y_pooled]
 all_ylabels = [''] * n + ['Pooled']
 ax_b.set_yticks(all_yticks)
 ax_b.set_yticklabels(all_ylabels)
-ax_b.set_xlabel('\u0394 Strategy diversity (governed \u2212 ungoverned)')
+ax_b.set_xlabel('\u0394 Behavioural diversity (governed \u2212 ungoverned)')
 ax_b.set_xlim(-0.15, 0.55)
 ax_b.set_ylim(-0.6, y_pooled + 0.6)
 ax_b.invert_yaxis()

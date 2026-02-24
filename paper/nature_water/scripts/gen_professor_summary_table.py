@@ -1,5 +1,5 @@
 """
-Generate professor-facing summary table: IBR + Strategy Diversity across 6 models.
+Generate professor-facing summary table: IBR + Behavioural Diversity across 6 models.
 Format: colored diff cells (green=improvement, red=regression) matching user's screenshot style.
 """
 import sys
@@ -92,7 +92,7 @@ rect = plt.Rectangle((ehe_x, top), ehe_w, top_header_h,
                       facecolor=HEADER_BG, edgecolor='white', lw=1)
 ax.add_patch(rect)
 ax.text(ehe_x + ehe_w/2, top + top_header_h/2,
-        'EHE — Strategy Diversity (0–1, higher = better)',
+        'EHE — Behavioural Diversity (0–1, higher = better)',
         ha='center', va='center', color=HEADER_TEXT, fontsize=9.5, fontweight='bold')
 
 # Model top header
