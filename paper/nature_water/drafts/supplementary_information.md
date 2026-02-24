@@ -44,6 +44,8 @@ For ungoverned agents (Group A), threat and coping appraisals are inferred from 
 
 *V1/V2 counts are per-run means (3-run average). R_H% = (V1 + V2 + V3) / N_active × 100. 95% CIs from paired t-distribution (df = 2). Post-relocation agent-years excluded from N_active. For Gemma-3 4B and 27B, the small A–C difference relative to between-run variance yields non-significant p-values; however, the direction of the effect (A > C) is consistent across all six models.*
 
+**Note on group labels.** The cross-model comparison (Tables 3, S1) uses Group C (governed + HumanCentric memory) as the governed condition because Groups A and C were run for all six models, whereas Group B (governed, window memory only) was run only for Gemma-3 4B. For Gemma-3 4B, Groups B and C produced identical EHE (0.636 ± 0.044; Table 2 reports Group B). The governance effect in both groups is attributable to the validator pipeline, which is identical across Groups B and C; the memory subsystem differs but does not alter governance rule application.
+
 **V3 = 0 across all models.** The V3 rule flags inaction under very-high (VH) threat perception with adequate coping capacity. In ungoverned runs, the keyword classifier rarely assigns VH because LLM free-text narratives express threat through hedged language ("significant risk", "growing concern") rather than extreme categorical labels. In governed runs, structured VH labels occur infrequently (1–2% of agent-years), and agents receiving VH appraisals consistently selected protective actions. V3 therefore captures a theoretically important but empirically rare violation mode in this experimental design.
 
 **Ungoverned decision distributions.** Models with the largest governance effects (Gemma-3 4B, Ministral 3B) concentrated 82–86% of ungoverned decisions on do_nothing, producing low baseline EHE that governance substantially increased. Gemma-3 12B showed near-identical distributions across conditions (80–81% buy_insurance), yielding a non-significant diversity effect.
@@ -306,11 +308,11 @@ where $k$ is the number of available action categories and $p_i$ is the empirica
 
 Per-model analyses are reported as primary findings because:
 
-1. **Model heterogeneity**: Effect sizes varied substantially across models (Table 3: Δ EHE from +0.012 to +0.415)
+1. **Model heterogeneity**: Effect sizes varied substantially across models (Table 3: Δ EHE from −0.024 to +0.329)
 2. **Scientific interpretation**: Model-specific patterns reveal which architectural features (parameter count, training data, instruction-tuning methods) modulate governance responsiveness
 3. **Pooled CI limitations**: Pooled confidence intervals aggregate across heterogeneous effect sizes and should be interpreted as meta-analytic summaries, not tests of overall effect presence
 
-All six models showed positive governance effects under the primary normalization (Table 3), but the magnitude varied by over an order of magnitude. Under alternative composite-action normalizations (Supplementary Table S5), some models show reversed effects, underscoring that the direction depends on specification choice for models with high composite rates.
+Five of six models showed positive governance effects under the primary normalization (Table 3), with one (Ministral 8B) showing a small negative effect (Δ = −0.024). The magnitude of positive effects varied by over an order of magnitude. Under alternative composite-action normalizations (Supplementary Table S5), some models show reversed effects, underscoring that the direction depends on specification choice for models with high composite rates.
 
 **Table S5. EHE sensitivity to composite-action normalization specification (flood domain, 100 agents × 10 years, 3 runs per condition).**
 

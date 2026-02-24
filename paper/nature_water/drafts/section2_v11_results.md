@@ -11,23 +11,23 @@
 
 Governed agents extracted more water than ungoverned agents while maintaining stronger coupling between individual decisions and reservoir state (Table 1). Over 42 simulated years, governed agents achieved a mean demand ratio of 0.394 compared with 0.288 for ungoverned agents — yet governed agents responded more sensitively to drought, as reflected in the correlation between annual Lake Mead elevation and aggregate demand (r = 0.547 governed versus 0.378 ungoverned). Lake Mead was consequently lower under governance (42-year mean 1,094 ft versus 1,173 ft) and governed agents triggered shortage conditions more frequently (13.3 versus 5.0 of 42 years). The minimum Mead elevation was comparable (governed 1,002 ft versus ungoverned 1,001 ft), confirming that both systems reached the physical floor during severe early drought; the divergence occurred during recovery, where governed agents adaptively adjusted demand while ungoverned agents could not.
 
-This pattern — higher extraction during abundance, proportionate response to scarcity signals — is consistent with adaptive exploitation under prior-appropriation. In real Colorado River management, institutional rules (shortage tiers, delivery obligations) enable senior rights holders to utilize water aggressively in normal years because those rules guarantee curtailment during drought. Governed agents display a structurally analogous dynamic: institutional validators made it safe to extract more water by ensuring that drought-inappropriate proposals were blocked before execution. The water-system consequence is that governance shifts the operating point upward without degrading drought responsiveness.
+This pattern — higher extraction during abundance, proportionate response to scarcity signals — is consistent with adaptive exploitation under prior-appropriation. In real Colorado River management, institutional rules (shortage tiers, delivery obligations) enable senior rights holders to utilize water aggressively in normal years because those rules guarantee curtailment during drought. Governed agents display a structurally analogous dynamic: institutional validators made it safe to extract more water by ensuring that drought-inappropriate proposals were blocked before execution. The water-system consequence is that governance shifts the operating point upward without degrading drought responsiveness. A fuzzy Q-learning baseline (Hung and Yang, 2021) extracted nearly identical water volumes (demand ratio 0.395) but with near-zero demand–Mead coupling (r = 0.057; Table 1, FQL column), confirming that adaptive exploitation requires natural-language reasoning within governance boundaries, not governance constraints alone (Supplementary Section S11).
 
 Without governance, agents collapsed into monotonic demand-increase patterns, concentrating 77–82% of decisions on demand increases across all seeds. Their demand trajectories converged toward a code-level ceiling over 42 years, producing artificially conservative demand profiles driven by clamps rather than adaptive choice. Ungoverned reservoir stability was inertial — agents rarely triggered shortage because they never extracted enough to draw Mead below critical thresholds, not because they responded to drought. This adaptive exploitation pattern — visible because language-based agents generate explicit reasoning that governance can evaluate and channel — represents a water-system dynamic that conventional parameterized decision rules cannot produce.
 
-**Table 1. Water-system outcomes and strategy diversity across three governance conditions (irrigation domain, Gemma-3 4B, 78 agents × 42 years, 3 runs each).**
+**Table 1. Water-system outcomes and strategy diversity across four conditions (irrigation domain, Gemma-3 4B, 78 agents × 42 years, 3 runs each). FQL = fuzzy Q-learning baseline (Hung and Yang, 2021; see Methods and Supplementary Section S11).**
 
-| Metric | Governed | Ungoverned | A1 (No Ceiling) |
-|--------|----------|------------|-----------------|
-| Mean demand ratio | 0.394 ± 0.004 | 0.288 ± 0.020 | 0.440 ± 0.012 |
-| 42-yr mean Mead elevation (ft) | 1,094 | 1,173 | 1,069 |
-| Demand-Mead coupling (r) | 0.547 ± 0.083 | 0.378 ± 0.081 | 0.234 ± 0.127 |
-| Shortage years (/42) | 13.3 ± 1.5 | 5.0 ± 1.7 | 25.3 ± 1.5 |
-| Min Mead elevation (ft) | 1,002 ± 1 | 1,001 ± 0.4 | 984 ± 11 |
-| Strategy diversity (EHE) | 0.738 ± 0.017 | 0.637 ± 0.017 | 0.793 ± 0.002 |
-| Behavioural Rationality (BRI, %) | 58.0 | 9.4 | — |
+| Metric | Governed | Ungoverned | A1 (No Ceiling) | FQL Baseline |
+|--------|----------|------------|-----------------|--------------|
+| Mean demand ratio | 0.394 ± 0.004 | 0.288 ± 0.020 | 0.440 ± 0.012 | 0.395 ± 0.008 |
+| 42-yr mean Mead elevation (ft) | 1,094 | 1,173 | 1,069 | 1,065 |
+| Demand-Mead coupling (r) | 0.547 ± 0.083 | 0.378 ± 0.081 | 0.234 ± 0.127 | 0.057 ± 0.323 |
+| Shortage years (/42) | 13.3 ± 1.5 | 5.0 ± 1.7 | 25.3 ± 1.5 | 24.7 ± 9.1 |
+| Min Mead elevation (ft) | 1,002 ± 1 | 1,001 ± 0.4 | 984 ± 11 | 1,020 ± 4 |
+| Strategy diversity (EHE) | 0.738 ± 0.017 | 0.637 ± 0.017 | 0.793 ± 0.002 | — |
+| Behavioural Rationality (BRI, %) | 58.0 | 9.4 | — | — |
 
-*Three independent runs per condition (seeds 42, 43, 44). Demand ratio = requested volume / historical baseline allocation. Demand-Mead coupling = Pearson r between annual Lake Mead elevation and annual mean demand ratio (positive r indicates agents reduce demand during drought). EHE = Effective Heterogeneity Entropy (normalized Shannon entropy over 5 action types; see Methods). BRI = fraction of high-scarcity decisions where agents did not increase demand (null expectation under uniform random = 60%). A1 removes the demand ceiling stabilizer only (see next section). See Supplementary Table S6 for additional water-system metrics.*
+*Three independent runs per condition (seeds 42, 43, 44). Demand ratio = requested volume / historical baseline allocation. Demand–Mead coupling = Pearson r between annual Lake Mead elevation and annual mean demand ratio (positive r indicates agents reduce demand during drought). EHE = Effective Heterogeneity Entropy (normalized Shannon entropy over 5 action types; see Methods). BRI = Behavioural Rationality Index, the fraction of high-scarcity decisions where agents did not increase demand (null expectation under uniform random = 60%; see Methods for relationship to IBR used in the flood domain). A1 removes the demand ceiling stabilizer only (see next section). FQL uses the same reservoir model and governance validators but replaces natural-language reasoning with a Q-learning decision kernel (2-action: increase/decrease); EHE and BRI are not computed because 84–89% of FQL actions resulted from validator blocking rather than agent choice (Supplementary Section S11). See Supplementary Table S6 for additional water-system metrics.*
 
 ### A single institutional rule couples individual decisions to basin-wide drought
 
@@ -51,9 +51,9 @@ The rule-based PMT agent's diversity stems entirely from parameterized variation
 
 | Condition | EHE | IBR (%) | do_nothing (%) | insurance (%) | elevation (%) | relocation (%) |
 |---|---|---|---|---|---|---|
-| **Governed LLM** | **0.636 ± 0.044** | 0.9 | 35.6 | 50.7 | 10.6 | 3.0 |
+| **Governed language agent** | **0.636 ± 0.044** | 0.86 | 35.6 | 50.7 | 10.6 | 3.0 |
 | **Rule-based PMT** | **0.486 ± 0.011** | 0.0 | 69.7 | 21.3 | 8.7 | 0.0 |
-| **Ungoverned LLM** | **0.307 ± 0.059** | 1.1 | 85.9 | 11.7 | 2.3 | 0.0 |
+| **Ungoverned language agent** | **0.307 ± 0.059** | 1.15 | 85.9 | 11.7 | 2.3 | 0.0 |
 
 *EHE = mean of per-year normalized Shannon entropy H/log₂(k) over active years; mean ± s.d. over 3 runs. Action percentages for rule-based agents are computed from yearly state transitions (new actions only); combined insurance-and-elevation events (<1%) are counted as elevation. IBR = Irrational Behavior Rate: fraction of decisions classified as physically impossible or inconsistent with the agent's own threat perception via posthoc PMT rules (see Methods). Rule-based agent uses deterministic PMT threshold logic with parameterized agent heterogeneity. Post-relocation agent-years excluded.*
 
