@@ -520,6 +520,37 @@ def compile_main_paper():
         para.paragraph_format.left_indent = Inches(0.3)
         para.paragraph_format.first_line_indent = Inches(-0.3)
 
+    # ==================== END MATTER ====================
+    endmatter_sections = [
+        ("Data Availability",
+         "All simulation output data, agent decision traces, and governance audit logs "
+         "generated in this study are available at [repository URL to be added upon acceptance]. "
+         "Raw CRSS demand data for the irrigation domain are publicly available from the US "
+         "Bureau of Reclamation (https://www.usbr.gov/lc/region/g4000/NaturalFlow/). Flood "
+         "depth grids were generated from publicly available FEMA flood maps. Census-tract "
+         "demographic profiles were derived from the US Census Bureau American Community Survey."),
+        ("Code Availability",
+         "The Water Agent Governance Framework (WAGF) source code, including the broker "
+         "architecture, governance validators, configuration files for both domains, and all "
+         "analysis scripts used to generate the figures and tables in this paper, is available "
+         "at [repository URL to be added upon acceptance] under an MIT licence. Experiments "
+         "were run using Ollama (v0.5.x) with open-weight models (Gemma-3 and Ministral "
+         "families); no proprietary APIs were required."),
+        ("Author Contributions",
+         "W.Y.: Conceptualization, Methodology, Software, Validation, Formal Analysis, "
+         "Investigation, Data Curation, Writing \u2014 Original Draft, Visualization. "
+         "[Additional authors TBD]: Supervision, Writing \u2014 Review & Editing, Funding Acquisition."),
+        ("Competing Interests",
+         "The authors declare no competing interests."),
+        ("Acknowledgements",
+         "[To be added \u2014 funding sources, computational resources, etc.]"),
+    ]
+    for title, body in endmatter_sections:
+        add_heading(doc, title, level=2)
+        para = doc.add_paragraph()
+        add_formatted_text(para, body, size=FONT_SIZE)
+        set_paragraph_format(para, first_line_indent=None)
+
     # Line numbers
     add_line_numbers(doc)
 
