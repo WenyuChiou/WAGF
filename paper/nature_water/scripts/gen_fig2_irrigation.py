@@ -255,11 +255,11 @@ def generate_figure():
     # Condition definitions for line plots
     line_conds = [
         ('governed',   GOV_COLOR,   'Governed',         '-',  1.0),
-        ('ungoverned', UNGOV_COLOR, 'Ungoverned',       '-',  1.0),
-        ('a1',         A1_COLOR,    'A1 (no ceiling)',   '-',  1.0),
+        ('ungoverned', UNGOV_COLOR, 'Ungoverned',       '--', 1.0),
+        ('a1',         A1_COLOR,    'A1 (no ceiling)',  '-.', 1.0),
     ]
     line_conds_with_fql = line_conds + [
-        ('fql',        FQL_COLOR,   'FQL baseline',     '--', 0.9),
+        ('fql',        FQL_COLOR,   'FQL baseline',     ':',  0.9),
     ]
 
     # ── Panel (a): Mead elevation ──

@@ -163,15 +163,18 @@ def main():
             print(f"  ERROR: No data for {label}")
             continue
 
-        # Average across seeds
+        # Average and std across seeds
         avg_counts = {}
+        std_counts = {}
         for s in STATES:
             if all_counts[s]:
                 avg_counts[s] = np.mean(all_counts[s], axis=0)
+                std_counts[s] = np.std(all_counts[s], axis=0)
             else:
                 avg_counts[s] = np.zeros(len(all_years))
+                std_counts[s] = np.zeros(len(all_years))
 
-        # Stacked bar
+        # Stacked bar with error whiskers
         bottom = np.zeros(len(all_years))
         x = np.arange(len(all_years))
 
@@ -179,6 +182,11 @@ def main():
             vals = avg_counts[s]
             ax.bar(x, vals, bottom=bottom, color=COLORS[s], label=s, width=0.8,
                    edgecolor="white", linewidth=0.3, hatch=HATCHES[s])
+            # Error whisker at top of each segment (only if std > 0 somewhere)
+            if np.any(std_counts[s] > 0):
+                ax.errorbar(x, bottom + vals, yerr=std_counts[s],
+                            fmt='none', ecolor='#333333', elinewidth=0.5,
+                            capsize=1.5, capthick=0.5, zorder=5)
             bottom += vals
 
         ax.set_xticks(x)
