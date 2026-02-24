@@ -1,8 +1,10 @@
 """
 Generate Fig 1: WAGF Framework Diagram for Nature Water.
 
-Panel (a): High-level simulation loop (Agent → Broker → Sim → Signals)
-Panel (b): Governance pipeline detail (6-step validation)
+Single panel: High-level simulation loop (Agent Population → Institutional
+Governance → Simulation Engine → Environmental Context) with 3 example
+water-policy rules shown inside the Institutional Governance box.
+One rule (demand ceiling) is highlighted as the A1 ablation target.
 
 Style: Nature Water conventions — minimal, white background, sans-serif,
        blue (#2166AC) for governance, grey elsewhere.
@@ -27,6 +29,7 @@ GREY_BORDER = "#888888"
 BLACK = "#333333"
 WHITE = "#FFFFFF"
 RED_ACCENT = "#B2182B"
+RED_FILL = "#FFF5F5"
 
 plt.rcParams.update({
     "font.family": "sans-serif",
@@ -36,21 +39,16 @@ plt.rcParams.update({
     "text.color": BLACK,
 })
 
-# ── Figure setup (180 mm ≈ 7.09 in) ─────────────────────────────────
-fig = plt.figure(figsize=(7.09, 9.0), dpi=300)
+# ── Figure setup (180 mm ≈ 7.09 in, height halved to ~4.5 in) ────────
+fig = plt.figure(figsize=(7.09, 4.5), dpi=300)
 fig.patch.set_facecolor(WHITE)
 
-# Two panels stacked vertically
-ax_a = fig.add_axes([0.02, 0.50, 0.96, 0.48])  # panel (a) top
-ax_b = fig.add_axes([0.02, 0.02, 0.96, 0.46])  # panel (b) bottom
-
-for ax in (ax_a, ax_b):
-    ax.set_xlim(0, 10)
-    ax.set_aspect("equal")
-    ax.axis("off")
-
-ax_a.set_ylim(0, 10)
-ax_b.set_ylim(0, 7)  # shorter y range → wider effective x space
+# Single panel occupies full canvas with narrow margins
+ax = fig.add_axes([0.02, 0.10, 0.96, 0.88])
+ax.set_xlim(0, 10)
+ax.set_ylim(0, 10)
+ax.set_aspect("equal")
+ax.axis("off")
 
 
 # ── Helper: rounded box ─────────────────────────────────────────────
@@ -111,238 +109,171 @@ def draw_arrow(ax, xy_start, xy_end, label=None, color=BLACK,
 
 
 # =====================================================================
-# PANEL (a): Simulation loop
+# SINGLE PANEL: Simulation loop with rule examples
 # =====================================================================
-ax_a.text(0.15, 9.6, "(a)", fontsize=9, fontweight="bold",
-          transform=ax_a.transData)
 
-# Box positions — clockwise: top, right, bottom, left
-bw, bh = 3.0, 1.3  # box width, height
+# Box dimensions — 4 boxes arranged clockwise: top, right, bottom, left
+bw, bh = 3.0, 1.3   # standard box width, height
+
+# ── Four loop boxes ──────────────────────────────────────────────────
 
 # Agent Population — top centre
 ax_top = 5.0 - bw / 2
 ay_top = 7.8
-draw_box(ax_a, ax_top, ay_top, bw, bh,
+draw_box(ax, ax_top, ay_top, bw, bh,
          "Agent Population",
          "Natural-language reasoning\n78 irrigators or 100 households",
          facecolor=GREY)
 
-# Governance Broker — right
-ax_right = 7.8
-ay_right = 5.0 - bh / 2
-draw_box(ax_a, ax_right, ay_right, bw, bh,
-         "Institutional Governance",
-         "Physical + institutional +\nbehavioural rules",
+# Institutional Governance — right (taller to accommodate rule examples)
+gov_w = 3.4
+gov_h = 3.6   # taller to hold rule sub-boxes
+ax_right = 7.5
+ay_right = 5.0 - gov_h / 2
+draw_box(ax, ax_right, ay_right, gov_w, gov_h,
+         "",   # title drawn manually below so we can position it precisely
          facecolor=BLUE_LIGHT, edgecolor=BLUE, linewidth=1.2,
-         title_color=BLUE)
+         pad=0.12)
+
+# Governance box title — pinned near top of box
+ax.text(ax_right + gov_w / 2, ay_right + gov_h - 0.32,
+        "Institutional Governance",
+        ha="center", va="center", fontsize=7.5,
+        fontweight="bold", color=BLUE, zorder=3)
+
+# ── Rule example sub-boxes inside Governance box ──────────────────────
+# Stacked vertically, centred inside the governance box.
+# Layout: title pinned to top row, then 3 rule chips below.
+
+rule_w = 2.8
+rule_h = 0.68
+rule_gap = 0.15
+rule_x = ax_right + (gov_w - rule_w) / 2   # horizontally centred
+
+# Start stacking rules from just below the title
+rules_top = ay_right + gov_h - 0.72
+
+rules = [
+    # (label, is_ablation_target)
+    ("Demand ceiling:\nblocks increases above 6.0 MAF", True),
+    ("Shortage-tier curtailment\n(pro-rata)", False),
+    ("Rate-of-change limit (±15%/yr)", False),
+]
+
+rule_positions = []
+for i, (rule_text, is_ablation) in enumerate(rules):
+    ry = rules_top - i * (rule_h + rule_gap) - rule_h
+    rule_positions.append(ry)
+
+    if is_ablation:
+        # Highlighted chip: dashed red border, tinted fill
+        chip = FancyBboxPatch(
+            (rule_x, ry), rule_w, rule_h,
+            boxstyle="round,pad=0.08",
+            facecolor=RED_FILL, edgecolor=RED_ACCENT,
+            linewidth=1.0, linestyle="--",
+            zorder=4, transform=ax.transData,
+        )
+        ax.add_patch(chip)
+        ax.text(rule_x + rule_w / 2, ry + rule_h / 2,
+                rule_text,
+                ha="center", va="center", fontsize=5.5,
+                color=RED_ACCENT, fontweight="bold", zorder=5)
+        # Small "A1 ablation" tag in top-right corner of chip
+        ax.text(rule_x + rule_w - 0.06, ry + rule_h - 0.06,
+                "A1",
+                ha="right", va="top", fontsize=4.5,
+                color=RED_ACCENT, fontweight="bold", zorder=5,
+                bbox=dict(boxstyle="round,pad=0.06",
+                          fc=RED_FILL, ec=RED_ACCENT,
+                          linewidth=0.5, alpha=0.9))
+    else:
+        # Normal rule chip: solid border, plain grey fill
+        chip = FancyBboxPatch(
+            (rule_x, ry), rule_w, rule_h,
+            boxstyle="round,pad=0.08",
+            facecolor=WHITE, edgecolor=BLUE,
+            linewidth=0.6, linestyle="-",
+            zorder=4, transform=ax.transData,
+        )
+        ax.add_patch(chip)
+        ax.text(rule_x + rule_w / 2, ry + rule_h / 2,
+                rule_text,
+                ha="center", va="center", fontsize=5.5,
+                color=BLACK, zorder=5)
 
 # Simulation Engine — bottom centre
 ax_bot = 5.0 - bw / 2
-ay_bot = 1.5
-draw_box(ax_a, ax_bot, ay_bot, bw, bh,
+ay_bot = 1.8
+draw_box(ax, ax_bot, ay_bot, bw, bh,
          "Simulation Engine",
          "Reservoir model / flood hazard\nMass balance, shortage tiers",
          facecolor=GREY)
 
-# Signal Assembly — left
-ax_left = -0.8
+# Environmental Context — left
+ax_left = -0.6
 ay_left = 5.0 - bh / 2
-draw_box(ax_a, ax_left, ay_left, bw, bh,
+draw_box(ax, ax_left, ay_left, bw, bh,
          "Environmental Context",
          "Drought index, water rights,\nneighbour decisions",
          facecolor=GREY)
 
-# ── Arrows (clockwise) ──────────────────────────────────────────────
-# Agent → Broker (top-right to right-top)
-draw_arrow(ax_a,
+
+# ── Arrows (clockwise around the loop) ───────────────────────────────
+
+# Agent → Broker (top-right corner → governance box top)
+draw_arrow(ax,
            (ax_top + bw, ay_top + bh / 2),
-           (ax_right, ay_right + bh),
+           (ax_right, ay_right + gov_h),
            label="Proposed action\n+ reasoning",
            connectionstyle="arc3,rad=0.15",
-           label_offset=(0.15, 0.35), shrinkA=12, shrinkB=12)
+           label_offset=(0.15, 0.3), shrinkA=12, shrinkB=12)
 
-# Broker → Simulation (right-bottom to bottom-right)
-draw_arrow(ax_a,
-           (ax_right + bw / 2, ay_right),
+# Broker → Simulation (governance box bottom → bottom-right corner)
+draw_arrow(ax,
+           (ax_right + gov_w / 2, ay_right),
            (ax_bot + bw, ay_bot + bh),
            label="Validated\naction",
            connectionstyle="arc3,rad=0.15",
            label_offset=(0.2, 0.1), shrinkA=12, shrinkB=12)
 
-# Simulation → Signal Assembly (bottom-left to left-bottom)
-draw_arrow(ax_a,
+# Simulation → Environmental Context (bottom-left → left box bottom)
+draw_arrow(ax,
            (ax_bot, ay_bot + bh / 2),
            (ax_left + bw, ay_left),
            label="Updated\nstate",
            connectionstyle="arc3,rad=0.15",
            label_offset=(-0.15, 0.15), shrinkA=12, shrinkB=12)
 
-# Signal Assembly → Agent (left-top to top-left)
-draw_arrow(ax_a,
+# Environmental Context → Agent (left box top → top-left corner)
+draw_arrow(ax,
            (ax_left + bw / 2, ay_left + bh),
            (ax_top, ay_top),
            label="Decision\ncontext",
            connectionstyle="arc3,rad=0.15",
            label_offset=(-0.3, 0.4), shrinkA=12, shrinkB=12)
 
-# ── Dashed retry arrow: Broker → Agent ──────────────────────────────
-draw_arrow(ax_a,
-           (ax_right + 0.3, ay_right + bh),
+# ── Dashed retry arrow: Governance → Agent ───────────────────────────
+draw_arrow(ax,
+           (ax_right + 0.3, ay_right + gov_h),
            (ax_top + bw - 0.3, ay_top),
            label="Retry\n(violated rule)",
            color=RED_ACCENT, linestyle="--", linewidth=0.8,
-           connectionstyle="arc3,rad=-0.3",
+           connectionstyle="arc3,rad=-0.25",
            label_offset=(0.65, -0.05), label_size=5.5,
            shrinkA=10, shrinkB=10, label_color=RED_ACCENT)
 
-# Subtitle for panel (a)
-ax_a.text(5.0, 0.4,
-          "Each time step: every agent proposes an action; "
-          "institutional rules validate it;\n"
-          "the simulation executes validated actions and returns updated environmental signals.",
-          ha="center", va="center", fontsize=5.5, color="#666666",
-          style="italic")
 
-
-# =====================================================================
-# PANEL (b): Governance pipeline
-# =====================================================================
-ax_b.text(0.15, 6.75, "(b)", fontsize=9, fontweight="bold",
-          transform=ax_b.transData)
-
-ax_b.text(5.0, 6.5, "Governance pipeline (six-step institutional rule validation)",
-          ha="center", va="center", fontsize=7.5, fontweight="bold",
-          color=BLUE)
-
-# ── Pipeline steps ───────────────────────────────────────────────────
-steps = [
-    ("Format\ncheck", None, False),
-    ("Action-vocabulary\ncheck", None, False),
-    ("Physical\nfeasibility", "Mass balance,\ncapacity limits", False),
-    ("Institutional\ncompliance", "Prior-appropriation\nrules, programme\neligibility", True),   # ablation
-    ("Magnitude\nplausibility", "Rate-of-change\nbounds (±15 %/yr)", False),
-    ("Theory\nconsistency", "Appraisal–action\nalignment", False),
-]
-
-n = len(steps)
-step_w = 1.3
-step_h = 1.35
-gap = 0.13
-total_w = n * step_w + (n - 1) * gap
-x_start = (10 - total_w) / 2 + 0.25  # shift right slightly for input label
-y_pipe = 3.8
-
-# Input arrow
-ax_b.annotate("", xy=(x_start - 0.05, y_pipe + step_h / 2),
-              xytext=(x_start - 0.75, y_pipe + step_h / 2),
-              arrowprops=dict(arrowstyle="-|>", color=BLACK, lw=1.0))
-ax_b.text(x_start - 0.85, y_pipe + step_h / 2, "Agent\nproposal",
-          ha="right", va="center", fontsize=6, fontweight="bold")
-
-for i, (title, sub, is_ablation) in enumerate(steps):
-    x = x_start + i * (step_w + gap)
-
-    ec = BLUE if is_ablation else GREY_BORDER
-    ls = "--" if is_ablation else "-"
-    lw = 1.2 if is_ablation else 0.8
-    fc = BLUE_LIGHT if is_ablation else GREY
-
-    # Step number label
-    ax_b.text(x + step_w / 2, y_pipe + step_h + 0.15, f"Step {i + 1}",
-              ha="center", va="center", fontsize=5, color="#AAAAAA")
-
-    # The box
-    draw_box(ax_b, x, y_pipe, step_w, step_h,
-             title, subtitle=sub,
-             facecolor=fc, edgecolor=ec, linewidth=lw, linestyle=ls,
-             title_size=6, subtitle_size=4.8, pad=0.08)
-
-    # Arrow between steps
-    if i < n - 1:
-        x_next = x_start + (i + 1) * (step_w + gap)
-        ax_b.annotate("", xy=(x_next, y_pipe + step_h / 2),
-                      xytext=(x + step_w, y_pipe + step_h / 2),
-                      arrowprops=dict(arrowstyle="-|>", color=BLACK, lw=0.6))
-
-# ── Ablation callout on step 4 ──────────────────────────────────────
-abl_x = x_start + 3 * (step_w + gap) + step_w / 2
-abl_y = y_pipe - 0.2
-
-# Callout line
-ax_b.plot([abl_x, abl_x], [y_pipe, abl_y - 0.15],
-          color=RED_ACCENT, linewidth=0.7, linestyle="--", zorder=3)
-
-# Callout box
-callout_w, callout_h = 2.3, 0.42
-cx = abl_x - callout_w / 2
-cy = abl_y - callout_h - 0.25
-callout = FancyBboxPatch(
-    (cx, cy), callout_w, callout_h,
-    boxstyle="round,pad=0.10",
-    facecolor="#FFF5F5", edgecolor=RED_ACCENT,
-    linewidth=0.8, linestyle="--", zorder=3,
+# ── Subtitle at the bottom of the figure ─────────────────────────────
+fig.text(
+    0.5, 0.04,
+    "Each time step: agents propose water-use actions; institutional rules validate proposals "
+    "against physical and policy constraints;\nthe simulation executes validated actions and "
+    "returns updated environmental signals.",
+    ha="center", va="center", fontsize=5.5, color="#666666",
+    style="italic", transform=fig.transFigure,
 )
-ax_b.add_patch(callout)
-ax_b.text(abl_x, cy + callout_h / 2,
-          "A1 ablation: demand ceiling removed",
-          ha="center", va="center", fontsize=5.2,
-          color=RED_ACCENT, fontweight="bold", zorder=4)
 
-# ── Output arrows ───────────────────────────────────────────────────
-x_last = x_start + (n - 1) * (step_w + gap) + step_w
-
-# Fork point
-fork_x = x_last + 0.25
-fork_y = y_pipe + step_h / 2
-ax_b.annotate("", xy=(fork_x, fork_y),
-              xytext=(x_last, fork_y),
-              arrowprops=dict(arrowstyle="-", color=BLACK, lw=1.0))
-
-# "Validated action" — top branch
-ax_b.annotate("", xy=(fork_x + 0.8, fork_y + 0.4),
-              xytext=(fork_x, fork_y),
-              arrowprops=dict(arrowstyle="-|>", color=BLUE, lw=1.0))
-ax_b.text(fork_x + 0.9, fork_y + 0.4, "Validated\naction",
-          ha="left", va="center", fontsize=5.5, fontweight="bold",
-          color=BLUE)
-
-# "Retry with feedback" — bottom branch
-ax_b.annotate("", xy=(fork_x + 0.8, fork_y - 0.5),
-              xytext=(fork_x, fork_y),
-              arrowprops=dict(arrowstyle="-|>", color=RED_ACCENT, lw=1.0,
-                              linestyle="--"))
-ax_b.text(fork_x + 0.9, fork_y - 0.5, "Retry with\nfeedback",
-          ha="left", va="center", fontsize=5.5, fontweight="bold",
-          color=RED_ACCENT)
-
-# ── Audit trail box ─────────────────────────────────────────────────
-audit_w = total_w + 0.6
-audit_x = x_start - 0.3
-audit_y = 1.0
-audit_h = 0.65
-
-audit_box = FancyBboxPatch(
-    (audit_x, audit_y), audit_w, audit_h,
-    boxstyle="round,pad=0.10",
-    facecolor="#F8F8F8", edgecolor=GREY_BORDER,
-    linewidth=0.6, zorder=2,
-)
-ax_b.add_patch(audit_box)
-
-ax_b.text(audit_x + audit_w / 2, audit_y + audit_h / 2 + 0.10,
-          "Decision audit trail",
-          ha="center", va="center", fontsize=6.5, fontweight="bold",
-          color=BLACK, zorder=3)
-ax_b.text(audit_x + audit_w / 2, audit_y + audit_h / 2 - 0.12,
-          "All proposals, reasoning traces, and rule violations recorded",
-          ha="center", va="center", fontsize=5.2, color="#666666",
-          style="italic", zorder=3)
-
-# Dashed connector from pipeline to audit box
-pipe_mid_x = x_start + total_w / 2
-ax_b.plot([pipe_mid_x, pipe_mid_x],
-          [y_pipe, audit_y + audit_h],
-          color=GREY_BORDER, linewidth=0.5, linestyle=":", zorder=1)
 
 # ── Save ─────────────────────────────────────────────────────────────
 out_dir = Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework"
