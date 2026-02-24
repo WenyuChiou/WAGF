@@ -405,7 +405,7 @@ def compile_main_paper():
              "(b) Basin demand ratio (total request / total water right); governed agents "
              "(blue) track drought, ungoverned (vermillion) monotonically increase, "
              "FQL (grey) extracts similar volume but with no drought coupling. "
-             "(c) Skill distribution showing ungoverned collapse into demand increases "
+             "(c) Action distribution showing ungoverned collapse into demand increases "
              "and FQL dominance of validator-blocked maintain. "
              "(d) Strategy diversity versus demand–Mead coupling "
              "(Pearson r): governed agents occupy the adaptive-diversity quadrant "

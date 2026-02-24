@@ -191,7 +191,7 @@ Summary water-system outcomes are reported in main-text Table 1. This section pr
 | Metric | Governed | Ungoverned |
 |--------|----------|------------|
 | Minimum Lake Mead elevation (ft) | 1,002 | 1,001 |
-| Shortage-threshold crossings (of 42 yr) | 13.3 ± 1.5 | 5.0 ± 1.7 |
+| Shortage years (/42) | 13.3 ± 1.5 | 5.0 ± 1.7 |
 | Shortage-year demand ratio | 0.362 ± 0.008 | 0.234 ± 0.012 |
 | Plentiful-year demand ratio | 0.409 ± 0.009 | 0.295 ± 0.019 |
 | Curtailment spread (plentiful − shortage) | 0.047 | 0.061 |
