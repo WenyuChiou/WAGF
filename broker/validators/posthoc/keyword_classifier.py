@@ -10,12 +10,16 @@ keyword dictionaries via ``ta_keywords`` and ``ca_keywords`` constructor
 parameters, or use Tier 1 only (explicit label regex) which is
 domain-agnostic.
 
-Two-tier strategy:
+Three-tier strategy:
 
-    Tier 1 — Explicit label regex: ``VH``, ``H``, ``M``, ``L``, ``VL``
-             (domain-agnostic — works for any structured label output)
-    Tier 2 — Keyword matching from curated dictionaries
-             (default dictionaries are PMT/flood-specific)
+    Tier 1   — Explicit label regex: ``VH``, ``H``, ``M``, ``L``, ``VL``
+               (domain-agnostic — works for any structured label output)
+    Tier 1.5 — Qualifier precedence: detects "low risk", "moderate concern"
+               framing and overrides naive keyword hits (fixes negation
+               problem where "low risk of flooding" would match H keyword
+               "risk of flood")
+    Tier 2   — Keyword matching from curated dictionaries
+               (default dictionaries are PMT/flood-specific)
 
 This formalizes the SQ1 analysis methodology (``master_report.py``) into
 a reusable module.  Tier 1 catches structured labels emitted by governed
@@ -46,10 +50,20 @@ TA_KEYWORDS: Dict[str, List[str]] = {
         "dangerous", "bad", "devastating",
         # Perceived Susceptibility / Vulnerability
         "susceptible", "likely", "high risk", "exposed", "probability",
-        "chance", "vulnerable",
-        # Fear Arousal
-        "afraid", "anxious", "worried", "concerned", "frightened",
+        "chance", "vulnerable", "vulnerability",
+        # Fear Arousal — adjective and noun forms (Witte, 1992)
+        "afraid", "anxious", "anxiety", "worried", "worry",
+        "concerned", "concern", "frightened",
         "emergency", "flee",
+        # Threat salience — common LLM narrative expressions
+        "significant risk", "significant threat", "significant concern",
+        "ongoing risk", "ongoing threat", "persistent risk", "persistent threat",
+        "real risk", "real threat", "serious risk", "serious threat",
+        "substantial risk", "substantial threat",
+        "growing risk", "growing threat", "growing concern",
+        "increasing risk", "increasing threat",
+        "heightened risk", "heightened threat",
+        "flood risk", "risk of flood", "threat of flood",
     ],
     "L": [
         "minimal", "safe", "none", "low", "unlikely", "no risk",
@@ -99,6 +113,25 @@ class KeywordClassifier:
     # Core classification
     # ------------------------------------------------------------------
 
+    # Qualifier patterns that override naive keyword matching.
+    # LLM narratives frequently wrap H keywords inside low/moderate framing,
+    # e.g. "low risk of flooding", "moderate concern".  Without qualifier
+    # precedence, substring matching misclassifies these as H.
+    _LOW_QUALIFIERS = re.compile(
+        r"remains?\s+low|perceive[ds]?\s+low|low\s+risk|low\s+but"
+        r"|minimal|no\s+immediate\s+threat|unlikely\s+to|not\s+high"
+        r"|low\s+level|low\s+perceived|perceive.*\blow\b",
+        re.IGNORECASE,
+    )
+    _MOD_QUALIFIERS = re.compile(
+        r"\bmoderate\b|\bmoderately\b",
+        re.IGNORECASE,
+    )
+    _ESCALATION_OVERRIDE = re.compile(
+        r"severe|critical|extreme|catastrophic|devastating|emergency",
+        re.IGNORECASE,
+    )
+
     @staticmethod
     def classify_label(
         text: str,
@@ -106,25 +139,46 @@ class KeywordClassifier:
     ) -> str:
         """Classify free text into a PMT level.
 
-        Tier 1: Explicit categorical codes (VH/H/M/L/VL).
-        Tier 2: Keyword match against *keywords* dict.
+        Three-tier strategy:
+
+        Tier 1:   Explicit categorical codes (VH/H/M/L/VL).
+        Tier 1.5: Qualifier precedence — "low risk", "moderate concern"
+                  override naive keyword hits (fixes negation problem).
+        Tier 2:   Keyword match against *keywords* dict.
 
         Returns one of ``"VH"``, ``"H"``, ``"M"``, ``"L"``, ``"VL"``.
         """
         if not isinstance(text, str):
             return "M"
-        upper = text.upper()
+        upper = text.upper().strip()
 
-        # Tier 1 — explicit labels (order matters: VH/VL before H/L)
+        # Tier 1 — exact stand-alone labels
+        if upper in ("VH", "H", "M", "L", "VL"):
+            return upper
         if re.search(r"\bVH\b", upper):
             return "VH"
-        if re.search(r"\bH\b", upper):
-            return "H"
         if re.search(r"\bVL\b", upper):
             return "VL"
+        # Only match bare H/L/M when they appear as isolated tokens,
+        # not inside words.  Tier 1 is for structured label output.
+        if re.search(r"\bH\b", upper):
+            return "H"
         if re.search(r"\bL\b", upper):
             return "L"
         if re.search(r"\bM\b", upper):
+            return "M"
+
+        # Tier 1.5 — qualifier precedence (handles negation/framing)
+        has_low = bool(KeywordClassifier._LOW_QUALIFIERS.search(text))
+        has_mod = bool(KeywordClassifier._MOD_QUALIFIERS.search(text))
+        if has_low:
+            # Allow escalation override: "low but ... devastating" → H
+            if KeywordClassifier._ESCALATION_OVERRIDE.search(text):
+                return "H"
+            return "L"
+        if has_mod:
+            if KeywordClassifier._ESCALATION_OVERRIDE.search(text):
+                return "H"
             return "M"
 
         # Tier 2 — keyword matching
