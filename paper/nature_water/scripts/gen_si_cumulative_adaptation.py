@@ -32,6 +32,8 @@ plt.rcParams.update({
     'savefig.bbox': 'tight',
     'axes.spines.top': False,
     'axes.spines.right': False,
+    'xtick.direction': 'out',
+    'ytick.direction': 'out',
 })
 
 # ── Paths ──────────────────────────────────────────────────────────────────
@@ -53,11 +55,18 @@ CONFIGS = {
 STATES = ["No protection", "Insurance only", "Elevation only",
           "Insurance + Elevation", "Relocated"]
 COLORS = {
-    "No protection":         "#d9d9d9",   # light grey
-    "Insurance only":        "#4292c6",   # blue
-    "Elevation only":        "#ef6548",   # orange-red
-    "Insurance + Elevation": "#78c679",   # green
-    "Relocated":             "#8c6bb1",   # purple
+    "No protection":         "#BBBBBB",
+    "Insurance only":        "#0072B2",   # Okabe-Ito blue
+    "Elevation only":        "#D55E00",   # Okabe-Ito vermillion
+    "Insurance + Elevation": "#009E73",   # Okabe-Ito bluish green
+    "Relocated":             "#CC79A7",   # Okabe-Ito reddish purple
+}
+HATCHES = {
+    "No protection":         "",
+    "Insurance only":        "///",
+    "Elevation only":        "...",
+    "Insurance + Elevation": "xxx",
+    "Relocated":             "\\\\\\",
 }
 
 def classify_state_from_columns(df):
@@ -126,7 +135,7 @@ def main():
     OUT = Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\paper\nature_water\figures")
     OUT.mkdir(parents=True, exist_ok=True)
 
-    fig, axes = plt.subplots(1, 3, figsize=(10, 4), sharey=True)
+    fig, axes = plt.subplots(1, 3, figsize=(7.09, 3.0), sharey=True)
 
     panel_labels = ["a", "b", "c"]
 
@@ -169,32 +178,34 @@ def main():
         for s in STATES:
             vals = avg_counts[s]
             ax.bar(x, vals, bottom=bottom, color=COLORS[s], label=s, width=0.8,
-                   edgecolor="white", linewidth=0.3)
+                   edgecolor="white", linewidth=0.3, hatch=HATCHES[s])
             bottom += vals
 
-        ax.set_xlabel("Simulation year", fontsize=8)
         ax.set_xticks(x)
-        ax.set_xticklabels([str(y) for y in all_years], fontsize=7)
-        ax.set_title(f"({panel_labels[idx]}) {label}", fontsize=9, fontweight="bold",
-                     loc="left", pad=8)
+        ax.set_xticklabels([str(y) for y in all_years], fontsize=7.5)
+        # Separate bold panel label + normal descriptor
+        ax.text(-0.05, 1.08, panel_labels[idx], transform=ax.transAxes,
+                fontsize=8, fontweight='bold', va='top')
+        ax.set_title(label, fontsize=7.5, fontweight='normal', loc='left', pad=12)
 
         if idx == 0:
-            ax.set_ylabel("Number of agents", fontsize=8)
+            ax.set_ylabel("Share of agents (%)", fontsize=8.5)
 
-        ax.set_ylim(0, 105)
+        ax.set_ylim(0, 100)
         ax.yaxis.set_major_locator(mticker.MultipleLocator(20))
-        ax.grid(axis="y", linestyle="--", alpha=0.3, zorder=0)
+        ax.grid(axis="y", linestyle="--", alpha=0.15, zorder=0)
         ax.set_axisbelow(True)
+
+    # Shared x-axis label
+    fig.text(0.5, 0.01, 'Simulation year', ha='center', fontsize=8.5)
 
     # Single legend at bottom
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="lower center", ncol=5, fontsize=7,
-               frameon=False, bbox_to_anchor=(0.5, -0.02))
+               frameon=False, bbox_to_anchor=(0.5, -0.06))
 
-    plt.suptitle("Flood-adaptation trajectories across agent types",
-                 fontsize=10, fontweight="bold", y=1.02)
     plt.tight_layout()
-    plt.subplots_adjust(bottom=0.12)
+    plt.subplots_adjust(bottom=0.18, wspace=0.08)
 
     for ext in ["png", "pdf"]:
         out_path = OUT / f"Fig3_cumulative_adaptation.{ext}"

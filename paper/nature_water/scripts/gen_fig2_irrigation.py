@@ -36,12 +36,14 @@ plt.rcParams.update({
     'savefig.bbox': 'tight',
     'axes.spines.top': False,
     'axes.spines.right': False,
+    'xtick.direction': 'out',
+    'ytick.direction': 'out',
 })
 
-# Colors
-GOV_COLOR   = '#2166AC'   # blue
-UNGOV_COLOR = '#B2182B'   # red
-A1_COLOR    = '#E6AB02'   # amber
+# Colors — Okabe-Ito palette (colorblind-safe)
+GOV_COLOR   = '#0072B2'   # Okabe-Ito blue
+UNGOV_COLOR = '#D55E00'   # Okabe-Ito vermillion
+A1_COLOR    = '#009E73'   # Okabe-Ito bluish green
 FQL_COLOR   = '#666666'   # grey
 
 SEEDS = [42, 43, 44]
@@ -51,7 +53,7 @@ LLM_SKILLS = ['increase_large', 'increase_small', 'maintain_demand',
               'decrease_small', 'decrease_large']
 LLM_SKILL_LABELS = ['Increase large', 'Increase small', 'Maintain',
                      'Decrease small', 'Decrease large']
-SKILL_COLORS = ['#D73027', '#FC8D59', '#FEE090', '#91BFDB', '#4575B4']
+SKILL_COLORS = ['#D55E00', '#E69F00', '#F0E442', '#56B4E9', '#0072B2']
 
 # FQL raw actions (2-action space)
 FQL_RAW_SKILLS = ['increase_demand', 'decrease_demand']
@@ -252,12 +254,12 @@ def generate_figure():
 
     # Condition definitions for line plots
     line_conds = [
-        ('governed',   GOV_COLOR,   'Governed',         '-',  1.5),
-        ('ungoverned', UNGOV_COLOR, 'Ungoverned',       '-',  1.5),
-        ('a1',         A1_COLOR,    'A1 (no ceiling)',   '-',  1.5),
+        ('governed',   GOV_COLOR,   'Governed',         '-',  1.0),
+        ('ungoverned', UNGOV_COLOR, 'Ungoverned',       '-',  1.0),
+        ('a1',         A1_COLOR,    'A1 (no ceiling)',   '-',  1.0),
     ]
     line_conds_with_fql = line_conds + [
-        ('fql',        FQL_COLOR,   'FQL baseline',     '--', 1.2),
+        ('fql',        FQL_COLOR,   'FQL baseline',     '--', 0.9),
     ]
 
     # ── Panel (a): Mead elevation ──
@@ -276,16 +278,16 @@ def generate_figure():
     # Shortage tier thresholds
     for elev, tier_label in [(1075, 'Tier 1'), (1050, 'Tier 2'), (1025, 'Tier 3')]:
         ax_a.axhline(y=elev, color='gray', linestyle='--', linewidth=0.7, alpha=0.6)
-        ax_a.text(42.5, elev + 3, tier_label, fontsize=6, color='gray',
-                  ha='right', va='bottom')
+        ax_a.text(2, elev + 3, tier_label, fontsize=6, color='gray',
+                  ha='left', va='bottom')
 
     ax_a.set_ylabel('Lake Mead elevation (ft)')
     ax_a.set_xlabel('Simulation year')
     ax_a.set_xlim(1, 42)
     ax_a.set_ylim(940, 1260)
-    ax_a.legend(loc='lower left', framealpha=0.9, fontsize=6.5)
-    ax_a.text(-0.12, 1.05, '(a)', transform=ax_a.transAxes,
-              fontsize=9, fontweight='bold', va='top')
+    ax_a.legend(loc='lower left', frameon=False, fontsize=6.5)
+    ax_a.text(-0.12, 1.05, 'a', transform=ax_a.transAxes,
+              fontsize=8, fontweight='bold', va='top')
 
     # ── Panel (b): Demand ratio ──
     ax_b = fig.add_subplot(gs[0, 1])
@@ -300,12 +302,12 @@ def generate_figure():
                           ts[cond]['demand_mean'] + ts[cond]['demand_std'],
                           alpha=0.15, color=color)
 
-    ax_b.set_ylabel('Basin demand ratio\n(total request / total water right)')
+    ax_b.set_ylabel('Basin demand ratio')
     ax_b.set_xlabel('Simulation year')
     ax_b.set_xlim(1, 42)
-    ax_b.legend(loc='upper left', framealpha=0.9, fontsize=6.5)
-    ax_b.text(-0.12, 1.05, '(b)', transform=ax_b.transAxes,
-              fontsize=9, fontweight='bold', va='top')
+    ax_b.legend(loc='upper left', frameon=False, fontsize=6.5)
+    ax_b.text(-0.12, 1.05, 'b', transform=ax_b.transAxes,
+              fontsize=8, fontweight='bold', va='top')
 
     # ── Panel (c): Skill distribution stacked bars ──
     ax_c = fig.add_subplot(gs[1, 0])
@@ -337,20 +339,21 @@ def generate_figure():
     ax_c.set_yticklabels([l for _, l in bar_conds], fontsize=7)
     ax_c.set_xlabel('Action share (%)')
     ax_c.set_xlim(0, 105)
-    ax_c.legend(loc='upper right', fontsize=5.5, ncol=1,
-                title='Action', title_fontsize=6.5, framealpha=0.9)
+    ax_c.set_xticks([0, 50, 100])
+    ax_c.legend(loc='upper right', fontsize=6, ncol=1,
+                title='Action', title_fontsize=7, frameon=False)
     ax_c.invert_yaxis()
-    ax_c.text(-0.12, 1.05, '(c)', transform=ax_c.transAxes,
-              fontsize=9, fontweight='bold', va='top')
+    ax_c.text(-0.12, 1.05, 'c', transform=ax_c.transAxes,
+              fontsize=8, fontweight='bold', va='top')
 
     # ── Panel (d): EHE vs demand-Mead scatter ──
     ax_d = fig.add_subplot(gs[1, 1])
 
     scatter_conds = [
-        ('governed',   GOV_COLOR,   'Governed',       'o'),
-        ('ungoverned', UNGOV_COLOR, 'Ungoverned',     'o'),
-        ('a1',         A1_COLOR,    'A1 (no ceiling)', 'o'),
-        ('fql',        FQL_COLOR,   'FQL baseline',   '^'),
+        ('governed',   GOV_COLOR,   'Governed',        'o'),   # circle
+        ('ungoverned', UNGOV_COLOR, 'Ungoverned',      's'),   # square
+        ('a1',         A1_COLOR,    'A1 (no ceiling)',  'D'),   # diamond
+        ('fql',        FQL_COLOR,   'FQL baseline',    '^'),   # triangle
     ]
 
     for cond, color, label, marker in scatter_conds:
@@ -367,8 +370,8 @@ def generate_figure():
 
         # Offset annotations to avoid overlap
         offsets = {
-            'governed':   (10, -14),
-            'ungoverned': (10, 8),
+            'governed':   (12, -16),
+            'ungoverned': (12, 12),
             'a1':         (-15, 10),
             'fql':        (-8, -14),
         }
@@ -384,8 +387,9 @@ def generate_figure():
 
     ax_d.set_xlabel('Demand\u2013Mead correlation (Pearson $r$)')
     ax_d.set_ylabel('Strategy diversity')
-    ax_d.text(-0.12, 1.05, '(d)', transform=ax_d.transAxes,
-              fontsize=9, fontweight='bold', va='top')
+    ax_d.axvline(x=0, color='grey', ls=':', lw=0.4, alpha=0.3)
+    ax_d.text(-0.12, 1.05, 'd', transform=ax_d.transAxes,
+              fontsize=8, fontweight='bold', va='top')
 
     # Quadrant labels
     ax_d.text(0.02, 0.98, 'Arbitrary\ndiversity',
