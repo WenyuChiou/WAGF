@@ -395,35 +395,27 @@ def compile_main_paper():
 
     # Figure insertion map: after which section heading to insert which figure
     # Figures are inserted AFTER processing the section
+    # Framework diagram moved to SI; main text uses 2 water-outcome figures only
     figure_after_section = {
-        "introduction_v10.md": [
-            (FIGURES_DIR / "Fig1_framework.png",
-             "**Figure 1. Architecture of the Water Agent Governance Framework.** "
-             "Each time step, agents propose water-use actions in natural language; "
-             "institutional rules validate proposals against physical and policy constraints; "
-             "the simulation executes validated actions and returns updated environmental signals. "
-             "Three example governance rules are shown, with the demand ceiling (ablation target A1) "
-             "highlighted. The dashed retry arrow indicates the revision loop when a proposal "
-             "violates an institutional rule.",
-             Inches(6.0)),
-        ],
         "section2_v11_results.md": [
             (FIGURES_DIR / "Fig2_irrigation.png",
-             "**Figure 2. Adaptive exploitation under institutional governance** "
+             "**Figure 1. Adaptive exploitation under institutional governance** "
              "(irrigation domain, 78 agents × 42 years, 3 seeds). "
              "(a) Lake Mead elevation time series with shortage-tier thresholds. "
-             "(b) Basin demand ratio; governed agents (blue) track drought, ungoverned "
-             "(red) monotonically increase, FQL (grey) extracts similar volume but "
-             "with no drought coupling. (c) Skill distribution showing ungoverned "
-             "collapse into demand increases and FQL dominance of validator-blocked "
-             "maintain. (d) Strategy diversity versus demand–Mead coupling "
+             "(b) Basin demand ratio (total request / total water right); governed agents "
+             "(blue) track drought, ungoverned (vermillion) monotonically increase, "
+             "FQL (grey) extracts similar volume but with no drought coupling. "
+             "(c) Skill distribution showing ungoverned collapse into demand increases "
+             "and FQL dominance of validator-blocked maintain. "
+             "(d) Strategy diversity versus demand–Mead coupling "
              "(Pearson r): governed agents occupy the adaptive-diversity quadrant "
-             "(high diversity, strong coupling); A1 (amber) shows arbitrary diversity "
-             "(high diversity, weak coupling). Bands show ± 1 s.d. across seeds.",
+             "(high diversity, strong coupling); A1 (green) shows arbitrary diversity "
+             "(high diversity, weak coupling). "
+             "Shaded bands show ± 1 s.d. across 3 seeds.",
              Inches(6.0)),
             (FIGURES_DIR / "Fig3_cumulative_adaptation.png",
-             "**Figure 3. Flood-adaptation trajectories across agent types** "
-             "(100 agents × 10 years, 3-seed average). "
+             "**Figure 2. Flood-adaptation trajectories across agent types** "
+             "(100 agents × 10 years). Bars show 3-seed means. "
              "(a) Rule-based PMT agents converge rapidly to elevation-dominated protection. "
              "(b) Ungoverned language agents stagnate in unprotected states. "
              "(c) Governed language agents develop a diverse mix of protection strategies "
