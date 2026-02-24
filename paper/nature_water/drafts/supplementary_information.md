@@ -4,22 +4,49 @@
 
 ---
 
-## S1. Annual Decision Distributions and Data Quality by Model
+## S1. IBR Decomposition and Governance Effect by Model
 
-Strategy diversity in the flood domain is measured from each agent's annual action selection — the single decision submitted in each yearly round — rather than from cumulative protection states (see Methods). Table S1 reports the ungoverned annual decision distributions and reasoning–action mismatch rates for each model.
+The Irrational Behaviour Rate (IBR, denoted R_H) quantifies the percentage of agent decisions that violate Protection Motivation Theory predictions, computed as the sum of three verification rules divided by the number of active agent-year observations:
 
-**Table S1. Ungoverned annual decision distributions and reasoning–action mismatch rates (flood domain, 100 agents × 10 years, 3 runs).**
+- **V1** (relocation under low threat): agent relocated despite appraising flood risk as low
+- **V2** (elevation under low threat): agent elevated the house despite appraising flood risk as low
+- **V3** (inaction under extreme threat with adequate coping): agent chose do_nothing despite appraising flood risk as very high and coping capacity as adequate
 
-| Model | do_nothing (%) | buy_insurance (%) | elevate_house (%) | relocate (%) | Reasoning–action mismatch (%) |
-|-------|:-:|:-:|:-:|:-:|:-:|
-| Gemma-3 4B | 85.9 | 11.7 | 2.3 | 0.0 | 14.5 |
-| Gemma-3 12B | 9.4 | 80.3 | 9.8 | 0.5 | 0.1 |
-| Gemma-3 27B | 72.5 | 26.2 | 1.4 | 0.0 | 11.2 |
-| Ministral 3B | 82.5 | 7.4 | 9.7 | 0.4 | 62.3 |
-| Ministral 8B | 38.7 | 58.2 | 2.6 | 0.5 | 6.4 |
-| Ministral 14B | 27.9 | 61.4 | 9.9 | 0.8 | 18.2 |
+For ungoverned agents (Group A), threat and coping appraisals are inferred from free-text narratives using a three-tier keyword classifier: (1) explicit categorical labels (VH/H/M/L/VL), (1.5) qualifier precedence that detects negation and hedging phrases (e.g., "low risk of flooding", "moderate concern") before keyword matching, and (2) curated PMT keyword dictionaries. For governed agents (Group C), structured labels are emitted directly by the governance pipeline. Group A uses a relaxed low-threat threshold {L, VL, M} to account for classification uncertainty; Group C uses the strict threshold {L, VL}.
 
-Models with the largest governance effects (Gemma-3 4B, Ministral 3B) concentrated 82–86% of ungoverned decisions on do_nothing, producing low baseline EHE that governance substantially increased. Gemma-3 12B showed near-identical distributions across conditions (80–81% buy_insurance), yielding a non-significant diversity effect. Reasoning–action mismatches — where the agent's stated risk assessment contradicts its chosen action — were eliminated entirely under governance (0.0% across all models).
+**Table S1. IBR decomposition across six language models (flood domain, 100 agents × 10 years, 3 runs per condition). Values are means ± s.d. across seeds.**
+
+| Model | Condition | R_H (%) | V1 | V2 | V3 | EHE |
+|---|---|---|---|---|---|---|
+| Gemma-3 4B | A (ungoverned) | 1.15 ± 0.17 | 0.3 | 10.0 | 0 | 0.307 ± 0.059 |
+| | C (governed) | 0.86 ± 0.44 | 0 | 6.7 | 0 | 0.636 ± 0.044 |
+| Gemma-3 12B | A (ungoverned) | 3.35 ± 0.13 | 0.7 | 29.3 | 0 | 0.282 ± 0.012 |
+| | C (governed) | 0.15 ± 0.07 | 0 | 1.3 | 0 | 0.310 ± 0.048 |
+| Gemma-3 27B | A (ungoverned) | 0.78 ± 0.38 | 0 | 7.0 | 0 | 0.322 ± 0.020 |
+| | C (governed) | 0.33 ± 0.00 | 0 | 3.0 | 0 | 0.496 ± 0.051 |
+| Ministral 3B | A (ungoverned) | 8.89 ± 1.24 | 3.0 | 76.7 | 0 | 0.373 ± 0.061 |
+| | C (governed) | 1.70 ± 0.26 | 0 | 10.7 | 0 | 0.571 ± 0.047 |
+| Ministral 8B | A (ungoverned) | 1.56 ± 0.00 | 2.7 | 11.3 | 0 | 0.555 ± 0.009 |
+| | C (governed) | 0.13 ± 0.13 | 0 | 1.0 | 0 | 0.531 ± 0.028 |
+| Ministral 14B | A (ungoverned) | 11.61 ± 0.58 | 6.7 | 97.0 | 0 | 0.572 ± 0.018 |
+| | C (governed) | 0.40 ± 0.18 | 0 | 3.3 | 0 | 0.605 ± 0.011 |
+
+**Table S1b. Governance effect on IBR (paired difference, A minus C).**
+
+| Model | Δ R_H (pp) | 95% CI | p (paired t) |
+|---|---|---|---|
+| Gemma-3 4B | +0.29 | [−0.47, +1.06] | 0.24 |
+| Gemma-3 12B | +3.20 | [+2.73, +3.67] | 0.001 |
+| Gemma-3 27B | +0.44 | [−0.51, +1.40] | 0.18 |
+| Ministral 3B | +7.19 | [+4.09, +10.29] | 0.010 |
+| Ministral 8B | +1.43 | [+1.11, +1.74] | 0.003 |
+| Ministral 14B | +11.21 | [+9.74, +12.67] | <0.001 |
+
+*V1/V2 counts are per-run means (3-run average). R_H% = (V1 + V2 + V3) / N_active × 100. 95% CIs from paired t-distribution (df = 2). Post-relocation agent-years excluded from N_active. For Gemma-3 4B and 27B, the small A–C difference relative to between-run variance yields non-significant p-values; however, the direction of the effect (A > C) is consistent across all six models.*
+
+**V3 = 0 across all models.** The V3 rule flags inaction under very-high (VH) threat perception with adequate coping capacity. In ungoverned runs, the keyword classifier rarely assigns VH because LLM free-text narratives express threat through hedged language ("significant risk", "growing concern") rather than extreme categorical labels. In governed runs, structured VH labels occur infrequently (1–2% of agent-years), and agents receiving VH appraisals consistently selected protective actions. V3 therefore captures a theoretically important but empirically rare violation mode in this experimental design.
+
+**Ungoverned decision distributions.** Models with the largest governance effects (Gemma-3 4B, Ministral 3B) concentrated 82–86% of ungoverned decisions on do_nothing, producing low baseline EHE that governance substantially increased. Gemma-3 12B showed near-identical distributions across conditions (80–81% buy_insurance), yielding a non-significant diversity effect.
 
 ---
 
@@ -123,7 +150,7 @@ The null model baseline of 60% arises from the irrigation skill structure, where
 
 **Interpretation.** Ungoverned agents exhibited a strong increase-bias (BRI of 9.4%), consistently selecting water-intensive actions regardless of stated appraisals of water scarcity. Governance increased BRI to 58.0%, approaching the null model rate of 60%. This indicates that governance removes the increase-bias without prescribing specific action sequences. Governed agents' decisions reflect their stated cognitive appraisals at rates statistically indistinguishable from unstructured choice (χ² test, p = 0.42), demonstrating that governance enables rational diversity through constraint rather than prescription.
 
-**Flood domain results:** Governed BRI was 100.0% across all models; ungoverned BRI ranged from 37.7% (Ministral 3B) to 99.9% (Gemma-3 12B). See Table S1 for per-model reasoning–action mismatch rates.
+**Flood domain results:** Governed BRI was 100.0% across all models; ungoverned BRI ranged from 37.7% (Ministral 3B) to 99.9% (Gemma-3 12B). See Table S1 for per-model IBR decomposition.
 
 ---
 
