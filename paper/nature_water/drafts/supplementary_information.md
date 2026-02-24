@@ -11,7 +11,19 @@ The Irrational Behaviour Rate (IBR, denoted R_H) quantifies the percentage of ag
 - **V1** (relocation under low threat): agent relocated despite appraising flood risk as low
 - **V2** (elevation under low threat): agent elevated the house despite appraising flood risk as low
 
-A third rule, V3 (inaction under extreme threat with adequate coping), was tested but yielded zero violations across all twelve conditions (six models × two governance states). This null result reflects the rarity of very-high (VH) threat appraisals: ungoverned agents express threat through hedged language rather than extreme categorical labels, and the few governed agents receiving VH appraisals consistently selected protective actions. V3 is omitted from Supplementary Table 1.
+A third rule, V3 (inaction under extreme threat), blocks do_nothing when threat appraisal is H or VH. V3 yielded zero IBR violations in final executed decisions across all twelve conditions (six models × two governance states) because the governance pipeline intercepted V3-violating proposals before execution. In governed runs (Gemma-3 4B, 3 seeds), V3 triggered 238 times (9.15% of audited decisions); 220 proposals (92.4%) were corrected by the agent on retry, and 18 (7.6%) were ultimately rejected. Two additional thinking rules — blocking elevation and relocation under low threat — triggered 4 and 2 times respectively, all corrected on retry (Supplementary Table 1b). This pattern demonstrates that governance validators actively shape agent proposals through iterative feedback, not merely filter final outputs. V3 is omitted from IBR computation in Supplementary Table 1 because no V3 violations survived the governance pipeline to affect executed behaviour.
+
+**Supplementary Table 1b. Governance rule trigger frequency (flood domain, Gemma-3 4B governed, 100 agents × 10 years, 3 seeds, 2,600 audited decisions).**
+
+| Rule | Description | Level | Triggers | Corrected on retry | Final rejected | Trigger rate |
+|---|---|---|---|---|---|---|
+| extreme_threat_block | Block do_nothing when TP ≥ H | ERROR | 238 | 220 (92.4%) | 18 (7.6%) | 9.15% |
+| elevation_threat_low | Block elevation when TP ≤ L | ERROR | 4 | 4 (100%) | 0 | 0.15% |
+| relocation_threat_low | Block relocation when TP ≤ L | ERROR | 2 | 2 (100%) | 0 | 0.08% |
+| elevation_block | Block elevation if already elevated | ERROR | 1 | 1 (100%) | 0 | 0.04% |
+| low_coping_block | Block elevation/relocation when CP ≤ L | WARNING | 0 | — | — | 0.00% |
+
+*Triggers include all governance-intercepted proposals across the retry loop, not only final outcomes. "Corrected on retry" indicates the agent revised its proposal to a compliant action after receiving governance feedback. The high correction rate (97.6% overall) indicates that agents incorporate governance feedback into subsequent reasoning.*
 
 For ungoverned agents (Group A), threat and coping appraisals are inferred from free-text narratives using a three-tier keyword classifier: (1) explicit categorical labels (VH/H/M/L/VL), (1.5) qualifier precedence that detects negation and hedging phrases (e.g., "low risk of flooding", "moderate concern") before keyword matching, and (2) curated PMT keyword dictionaries. For governed agents (Group C), structured labels are emitted directly by the governance pipeline. Group A uses a relaxed low-threat threshold {L, VL, M} to account for classification uncertainty; Group C uses the strict threshold {L, VL}.
 
