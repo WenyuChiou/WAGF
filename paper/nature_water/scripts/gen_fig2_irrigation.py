@@ -3,7 +3,7 @@ Nature Water — Figure 2: Irrigation domain results (4-panel)
   (a) Lake Mead elevation time series
   (b) Demand ratio time series (4 conditions incl. FQL)
   (c) Skill distribution stacked bars (4 conditions)
-  (d) EHE vs demand-Mead coupling scatter (12 points)
+  (d) Strategy diversity vs demand-Mead coupling scatter (12 points)
 """
 import sys
 sys.stdout.reconfigure(encoding='utf-8')
@@ -166,7 +166,7 @@ def compute_skill_distributions(data):
 
 
 def compute_ehe_per_seed(data):
-    """Compute EHE per seed per condition.
+    """Compute strategy diversity per seed per condition.
     LLM: 5-action space, EHE = H/log2(5)
     FQL: use fql_raw_skill (2-action), EHE = H/log2(2)
     """
@@ -242,7 +242,7 @@ def generate_figure():
     # Print summary
     for cond in ['governed', 'ungoverned', 'a1', 'fql']:
         if cond in ehes and cond in corrs:
-            print(f"  {cond}: EHE = {np.mean(ehes[cond]):.3f} +/- {np.std(ehes[cond]):.3f}, "
+            print(f"  {cond}: SD = {np.mean(ehes[cond]):.3f} +/- {np.std(ehes[cond]):.3f}, "
                   f"r = {np.mean(corrs[cond]):.3f} +/- {np.std(corrs[cond]):.3f}")
 
     # ── Figure setup ──
@@ -330,7 +330,7 @@ def generate_figure():
                             label=sl if idx == 0 else None)
             if val > 6:
                 ax_c.text(left + val / 2, idx, f'{val:.0f}%',
-                          ha='center', va='center', fontsize=5.5, color='black')
+                          ha='center', va='center', fontsize=6.5, color='black')
             left += val
 
     ax_c.set_yticks(y_positions)
@@ -367,15 +367,15 @@ def generate_figure():
 
         # Offset annotations to avoid overlap
         offsets = {
-            'governed':   (10, -10),
-            'ungoverned': (10, -10),
-            'a1':         (10, 6),
+            'governed':   (10, -14),
+            'ungoverned': (10, 8),
+            'a1':         (-15, 10),
             'fql':        (-8, -14),
         }
         ox, oy = offsets.get(cond, (8, -4))
         disp_label = label
         if cond == 'fql':
-            disp_label = 'FQL\n(2-action EHE)'
+            disp_label = 'FQL\n(2-action)'
         ax_d.annotate(disp_label,
                       xy=(mean_r, mean_ehe), fontsize=6, color=color,
                       textcoords='offset points', xytext=(ox, oy),
@@ -383,7 +383,7 @@ def generate_figure():
                       arrowprops=dict(arrowstyle='-', color=color, alpha=0.4, lw=0.5))
 
     ax_d.set_xlabel('Demand\u2013Mead correlation (Pearson $r$)')
-    ax_d.set_ylabel('EHE (normalized entropy)')
+    ax_d.set_ylabel('Strategy diversity')
     ax_d.text(-0.12, 1.05, '(d)', transform=ax_d.transAxes,
               fontsize=9, fontweight='bold', va='top')
 

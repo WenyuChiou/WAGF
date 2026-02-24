@@ -1,7 +1,7 @@
 """
-Nature Water -- Figure 3: Cross-model EHE governance effect (flood domain)
-  (a) Paired dot plot -- EHE by model (ungoverned vs governed)
-  (b) Forest plot -- Delta EHE with 95% CI
+Nature Water -- Supplementary Figure 1: Cross-model strategy diversity governance effect (flood domain)
+  (a) Paired dot plot -- Strategy diversity by model (ungoverned vs governed)
+  (b) Forest plot -- Delta strategy diversity with 95% CI
 """
 import sys
 sys.stdout.reconfigure(encoding='utf-8')
@@ -72,6 +72,12 @@ significant = np.array([True, True, False, False, False, True])
 n = len(models)
 y_pos = np.arange(n)
 
+# Pooled effect (computed from individual deltas; used in panel b)
+pooled_mean = np.mean(delta_ehe)
+pooled_se   = np.std(delta_ehe, ddof=1) / np.sqrt(n)
+pooled_ci   = [pooled_mean - 1.96 * pooled_se, pooled_mean + 1.96 * pooled_se]
+y_pooled    = n + 0.8  # one clear step below last model row
+
 # ====================================================================
 # FIGURE
 # ====================================================================
@@ -98,8 +104,8 @@ ax_a.scatter(gov_ehe, y_pos, c=GOV_COLOR, s=40, zorder=2,
 
 ax_a.set_yticks(y_pos)
 ax_a.set_yticklabels(models)
-ax_a.set_xlabel('EHE')
-ax_a.set_xlim(0.15, 0.80)
+ax_a.set_xlabel('Strategy diversity')
+ax_a.set_xlim(0.15, 0.85)
 ax_a.invert_yaxis()
 
 # Family brackets (right side)
@@ -148,13 +154,32 @@ for i in range(n):
     ax_b.text(x_annot, y_pos[i], f'{delta_ehe[i]:+.3f}', fontsize=6.5,
               va='center', ha='left', color=color)
 
+# Pooled-effect diamond
+POOL_COLOR = '#222222'
+# Horizontal separator above pooled row
+ax_b.axhline(n + 0.35, color='#cccccc', linewidth=0.6, linestyle='-', zorder=0)
+# CI bar
+ax_b.plot([pooled_ci[0], pooled_ci[1]], [y_pooled, y_pooled],
+          color=POOL_COLOR, linewidth=2.0, solid_capstyle='round', zorder=1)
+# Diamond marker (rotated square via marker='D')
+ax_b.scatter(pooled_mean, y_pooled, marker='D', c=POOL_COLOR, s=50, zorder=2,
+             edgecolors='white', linewidths=0.5)
+# Annotation
+ax_b.text(pooled_ci[1] + 0.015, y_pooled,
+          f'{pooled_mean:+.3f}', fontsize=6.5,
+          va='center', ha='left', color=POOL_COLOR)
+
 # Vertical zero line
 ax_b.axvline(0, color='#333333', linewidth=0.6, linestyle='--', zorder=0)
 
-ax_b.set_yticks(y_pos)
-ax_b.set_yticklabels([])  # shared y-axis labels from panel (a)
-ax_b.set_xlabel('\u0394 EHE (governed \u2212 ungoverned)')
+# Y-axis ticks: individual models (blank labels, shared with panel a) + pooled row
+all_yticks  = list(y_pos) + [y_pooled]
+all_ylabels = [''] * n + ['Pooled']
+ax_b.set_yticks(all_yticks)
+ax_b.set_yticklabels(all_ylabels)
+ax_b.set_xlabel('\u0394 Strategy diversity (governed \u2212 ungoverned)')
 ax_b.set_xlim(-0.15, 0.55)
+ax_b.set_ylim(-0.6, y_pooled + 0.6)
 ax_b.invert_yaxis()
 
 ax_b.text(-0.08, -0.08, '(b)', transform=ax_b.transAxes,
@@ -164,7 +189,7 @@ ax_b.text(-0.08, -0.08, '(b)', transform=ax_b.transAxes,
 # Save
 # ------------------------------------------------------------------
 for ext in ['png', 'pdf']:
-    fpath = OUT / f'Fig3_crossmodel.{ext}'
+    fpath = OUT / f'FigS1_crossmodel.{ext}'
     fig.savefig(fpath, dpi=300, bbox_inches='tight', facecolor='white')
     print(f'Saved: {fpath}')
 

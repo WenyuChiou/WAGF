@@ -399,35 +399,36 @@ def compile_main_paper():
         "introduction_v10.md": [
             (FIGURES_DIR / "Fig1_framework.png",
              "**Figure 1. Architecture of the Water Agent Governance Framework.** "
-             "(a) High-level simulation loop: each time step, agents propose actions "
-             "in natural language; institutional rules validate proposals; the simulation "
-             "executes validated actions and returns updated environmental signals. "
-             "(b) Six-step governance pipeline with the institutional compliance rule "
-             "(demand ceiling) highlighted as the target of the A1 ablation experiment.",
+             "Each time step, agents propose water-use actions in natural language; "
+             "institutional rules validate proposals against physical and policy constraints; "
+             "the simulation executes validated actions and returns updated environmental signals. "
+             "Three example governance rules are shown, with the demand ceiling (ablation target A1) "
+             "highlighted. The dashed retry arrow indicates the revision loop when a proposal "
+             "violates an institutional rule.",
              Inches(6.0)),
         ],
         "section2_v11_results.md": [
             (FIGURES_DIR / "Fig2_irrigation.png",
              "**Figure 2. Adaptive exploitation under institutional governance** "
-             "(irrigation domain, Gemma-3 4B, 78 agents × 42 years, 3 seeds). "
+             "(irrigation domain, 78 agents × 42 years, 3 seeds). "
              "(a) Lake Mead elevation time series with shortage-tier thresholds. "
              "(b) Basin demand ratio; governed agents (blue) track drought, ungoverned "
              "(red) monotonically increase, FQL (grey) extracts similar volume but "
              "with no drought coupling. (c) Skill distribution showing ungoverned "
              "collapse into demand increases and FQL dominance of validator-blocked "
-             "maintain. (d) Strategy diversity (EHE) versus demand–Mead coupling "
+             "maintain. (d) Strategy diversity versus demand–Mead coupling "
              "(Pearson r): governed agents occupy the adaptive-diversity quadrant "
-             "(high EHE, strong coupling); A1 (amber) shows arbitrary diversity "
-             "(high EHE, weak coupling).",
+             "(high diversity, strong coupling); A1 (amber) shows arbitrary diversity "
+             "(high diversity, weak coupling). Bands show ± 1 s.d. across seeds.",
              Inches(6.0)),
-            (FIGURES_DIR / "Fig3_crossmodel.png",
-             "**Figure 3. Governance effect on strategy diversity across six language "
-             "models** (flood domain, 100 agents × 10 years, 3 runs per condition). "
-             "(a) Paired comparison of ungoverned (red) and governed (blue) EHE for "
-             "each model, sorted by parameter count. (b) Forest plot of delta EHE "
-             "(governed minus ungoverned) with 95% confidence intervals. Blue bars "
-             "indicate statistically significant effects (CI excludes zero); grey "
-             "bars indicate non-significant effects.",
+            (FIGURES_DIR / "Fig3_cumulative_adaptation.png",
+             "**Figure 3. Flood-adaptation trajectories across agent types** "
+             "(100 agents × 10 years, 3-seed average). "
+             "(a) Rule-based PMT agents converge rapidly to elevation-dominated protection. "
+             "(b) Ungoverned language agents stagnate in unprotected states. "
+             "(c) Governed language agents develop a diverse mix of protection strategies "
+             "including relocation, which neither rule-based nor ungoverned agents achieve. "
+             "Insurance requires annual renewal; elevation is permanent.",
              Inches(6.0)),
         ],
     }
