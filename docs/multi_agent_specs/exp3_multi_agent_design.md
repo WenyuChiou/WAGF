@@ -1094,7 +1094,7 @@ def create_validators_for_agent(agent_type: str) -> List[SkillValidator]:
 | Mach et al. (2019) | Nationwide | 40,000+ | FEMA buyout patterns |
 | Bukvic & Barnett (2023) | East Coast | 1,450 | Place attachment → relocation |
 
-**Full documentation**: [`docs/validator_design_readme.md`](validator_design_readme.md)
+**Full documentation**: [`docs/internal/infrastructure/validator_design_readme.md`](../internal/infrastructure/validator_design_readme.md)
 
 ---
 
