@@ -27,7 +27,7 @@
 
 ### Target
 
-Paper 3 targets **Water Resources Research (WRR)**. The SAGE governance framework is the tool; the story is about **flood adaptation science** in the Passaic River Basin (PRB), New Jersey.
+Paper 3 targets **Water Resources Research (WRR)**. The WAGF governance framework is the tool; the story is about **flood adaptation science** in the Passaic River Basin (PRB), New Jersey.
 
 ### Core Claim
 
@@ -177,7 +177,7 @@ Each year, for each household agent:
 2. **Prompt construction**: Persona + memories + environment (flood depth, damage) + policy (subsidy rate, premium) + social info (neighbor actions, gossip, news, social media)
 3. **LLM call**: Gemma 3 4B, temp=0.7, num_ctx=8192
 4. **Parse response**: Extract TP_LABEL, CP_LABEL, SP_LABEL, SC_LABEL, PA_LABEL, decision, reasoning
-5. **Governance validation**: SAGA rules check construct-action coherence
+5. **Governance validation**: WAGF 3-Tier rules check construct-action coherence
 6. **Retry if needed**: Up to 3 retries with intervention messages
 7. **Audit logging**: All decisions written to `household_*_governance_audit.csv`
 8. **Memory encoding**: Decision + outcome stored as new memory
@@ -217,7 +217,7 @@ Each year, for each household agent:
 - Mechanism: Effective premium = base_risk_rating_2_premium x (1 - crs_discount). CRS range: 0-45%
 - Receives: claims history, uptake rates, solvency, mitigation score
 
-**SAGA 3-tier ordering**: Government first -> Insurance second -> Households third (each year). Government and insurance decisions affect household prompts in the same year.
+**WAGF 3-Tier 3-tier ordering**: Government first -> Insurance second -> Households third (each year). Government and insurance decisions affect household prompts in the same year.
 
 ### 3.5 Social Network & Information Channels
 
@@ -248,7 +248,7 @@ Each year, for each household agent:
 
 **Implementation**: `examples/multi_agent/flood/environment/vulnerability.py` -- `VulnerabilityCalculator`
 
-### 3.7 Governance (SAGA)
+### 3.7 Governance (WAGF 3-Tier)
 
 **Profile**: Strict for households
 
@@ -906,8 +906,8 @@ STEP 8: Analysis Scripts (figures, tables)
 | RCV | Replacement Cost Value |
 | RL | Repetitive Loss |
 | RQ | Research Question |
-| SAGA | SAGE Agent Governance Architecture (3-tier) |
-| SAGE | Simulated Agent Governance Engine |
+| WAGF 3-Tier | WAGF Agent Governance Architecture (3-tier) |
+| WAGF | Water Agent Governance Framework |
 | SC | Social Capital (PMT construct) |
 | SCC | Social Capital and Cohesion (prior paper) |
 | SFHA | Special Flood Hazard Area |

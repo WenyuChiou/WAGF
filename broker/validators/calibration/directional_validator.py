@@ -44,7 +44,7 @@ Usage::
     report = validator.run_all(invoke_fn=my_llm_invoke, replicates=10)
     print(f"Pass rate: {report.pass_rate:.2f}")
 
-Part of SAGE Calibration Protocol.
+Part of WAGF Calibration Protocol.
 """
 
 from __future__ import annotations

@@ -26,7 +26,7 @@ This document enables AI agents to quickly understand the Paper 3 design and fra
 | TP | Threat Perception (VL/L/M/H/VH) - perceived flood risk |
 | CP | Coping Perception (VL/L/M/H/VH) - perceived ability to respond |
 | PMT | Protection Motivation Theory - TP×CP → Action |
-| SAGA | Semantic Agent Governance Architecture |
+| WAGF 3-Tier | 3-Tier Governance Ordering (Government → Insurance → Households) |
 | ICC | Intraclass Correlation Coefficient (reliability measure) |
 | EPI | Empirical Plausibility Index (aggregate validation) |
 | CACR | Construct-Action Coherence Rate (per-decision validation) |
@@ -186,7 +186,7 @@ python paper3/analysis/export_agent_initialization.py
 
 ---
 
-## SAGA 3-Tier Architecture
+## WAGF 3-Tier 3-Tier Architecture
 
 ```text
 Phase 1: Government (NJDEP)

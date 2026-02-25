@@ -1,6 +1,6 @@
 # Paper 3: LLM-Governed Multi-Agent Flood Adaptation Simulation
 
-## Passaic River Basin Household Flood Risk Decision-Making under SAGE Framework
+## Passaic River Basin Household Flood Risk Decision-Making under WAGF Framework
 
 **Target Journal**: Water Resources Research (WRR)
 
@@ -38,7 +38,7 @@ This repository contains the implementation for Paper 3, a **Water Resources Res
 
 ### Core Framework
 
-The simulation operates on the **SAGE (Simulated Agent Governance Engine)** framework with **SAGA (SAGE Agent Governance Architecture) 3-tier ordering**. SAGE provides a structured approach to governing LLM agent behavior through configurable rules that ensure psychological coherence while preserving emergent heterogeneity.
+The simulation operates on the **WAGF (Water Agent Governance Framework)** framework with **WAGF 3-Tier (WAGF Agent Governance Architecture) 3-tier ordering**. WAGF provides a structured approach to governing LLM agent behavior through configurable rules that ensure psychological coherence while preserving emergent heterogeneity.
 
 ### Study Area
 
@@ -58,7 +58,7 @@ We claim **structural plausibility**, not predictive accuracy. The LLM-ABM produ
 2. **Emergent construct heterogeneity**: PMT constructs (TP, CP, SP, SC, PA) emerge from LLM reasoning rather than being pre-initialized
 3. **Endogenous institutional feedback**: Government and insurance agents respond adaptively to household behavior
 4. **Multi-channel social influence**: Information propagates through observation, gossip, news, and social media with distinct dynamics
-5. **Governance-validated coherence**: SAGA rules ensure construct-action pairs conform to psychological theory
+5. **Governance-validated coherence**: WAGF 3-Tier rules ensure construct-action pairs conform to psychological theory
 
 ---
 
@@ -128,7 +128,7 @@ All three research questions are answered from a **single unified experiment** w
 
 ```
                     +------------------+
-                    |  SAGA 3-Tier     |
+                    |  WAGF 3-Tier 3-Tier     |
                     |  Orchestrator    |
                     +--------+---------+
                              |
@@ -151,7 +151,7 @@ All three research questions are answered from a **single unified experiment** w
                     +------------------+
 ```
 
-### SAGA 3-Tier Ordering
+### WAGF 3-Tier 3-Tier Ordering
 
 Each simulation year proceeds in strict order:
 1. **Government First**: NJ Government (NJDEP) decides on subsidy rate adjustments
@@ -320,7 +320,7 @@ For each household agent, each simulation year:
 2. **Prompt Construction**: Persona + memories + environment (flood depth, damage) + policy (subsidy rate, premium) + social info (neighbor actions, gossip, news, social media)
 3. **LLM Call**: Gemma 3 4B, temperature=0.7, num_ctx=8192
 4. **Parse Response**: Extract TP_LABEL, CP_LABEL, SP_LABEL, SC_LABEL, PA_LABEL, decision, reasoning
-5. **Governance Validation**: SAGA rules check construct-action coherence
+5. **Governance Validation**: WAGF 3-Tier rules check construct-action coherence
 6. **Retry if Needed**: Up to 3 retries with intervention messages
 7. **Audit Logging**: All decisions written to governance audit CSV
 8. **Memory Encoding**: Decision + outcome stored as new memory
@@ -908,8 +908,8 @@ The LLM approach achieves individual heterogeneity with lower specification burd
 | RCV | Replacement Cost Value |
 | RL | Repetitive Loss |
 | RQ | Research Question |
-| SAGA | SAGE Agent Governance Architecture |
-| SAGE | Simulated Agent Governance Engine |
+| WAGF 3-Tier | WAGF Agent Governance Architecture |
+| WAGF | Water Agent Governance Framework |
 | SC | Social Capital (PMT construct) |
 | SFHA | Special Flood Hazard Area |
 | SI | Supplementary Information |

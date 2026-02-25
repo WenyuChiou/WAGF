@@ -28,9 +28,9 @@ Excluded from word count: title, authors, Key Points, keywords, text inside tabl
 3. `Gossip with reasoning propagation drives stronger adaptation clustering than observation or media channels alone` (112 chars)
 
 #### Abstract (< 250 words, single paragraph)
-Theme: Traditional ABMs treat agents within demographic groups as identical, producing zero within-group variance. We develop an LLM-governed multi-agent simulation using the SAGE (Structured Agent Governance Engine) framework where 100 household agents in the Passaic River Basin, NJ develop unique adaptation trajectories through personal flood memory, institutional feedback, and social information channels over 13 years.
+Theme: Traditional ABMs treat agents within demographic groups as identical, producing zero within-group variance. We develop an LLM-governed multi-agent simulation using the WAGF (Water Agent Governance Framework) framework where 100 household agents in the Passaic River Basin, NJ develop unique adaptation trajectories through personal flood memory, institutional feedback, and social information channels over 13 years.
 
-Structure: (1) Gap — parametric ABM limitations; (2) Approach — SAGE framework with memory-mediated cognition, endogenous institutions, multi-channel social information; (3) Key findings for RQ1/RQ2/RQ3; (4) Implication for flood risk management and policy.
+Structure: (1) Gap — parametric ABM limitations; (2) Approach — WAGF framework with memory-mediated cognition, endogenous institutions, multi-channel social information; (3) Key findings for RQ1/RQ2/RQ3; (4) Implication for flood risk management and policy.
 
 #### Plain Language Summary (≤ 200 words, no jargon)
 Theme: Accessible explanation of why individual flood experiences matter for community-level adaptation, and how government/insurance policies interact with personal decisions. Written for non-specialist audience.
@@ -78,7 +78,7 @@ Theme: Accessible explanation of why individual flood experiences matter for com
 - Generative Agents: Park et al. (2023) — memory, reflection, planning
 - LLM agents in social science: Huang et al. (2025 Nature MI), AgentTorch (Chopra et al., 2024)
 - Governance challenge: LLMs can hallucinate, violate domain rules, produce incoherent behavior
-- SAGE framework: governance middleware that constrains LLM outputs to domain-valid actions while preserving reasoning diversity
+- WAGF framework: governance middleware that constrains LLM outputs to domain-valid actions while preserving reasoning diversity
 
 ---
 
@@ -91,7 +91,7 @@ Theme: Accessible explanation of why individual flood experiences matter for com
 - 13 years of ASCII flood hazard raster data (2011-2023)
 - **→ Figure 1: Study area map**
 
-**3.2 SAGE Governance Framework** (~500 words)
+**3.2 WAGF Governance Framework** (~500 words)
 - Architecture overview: LLM reasoning → Governance validation → Memory storage → Action execution
 - Three-tier agent ordering: Government → Insurance → Households (sequential phases)
 - Governance profiles: strict validation ensures PMT-coherent decisions
@@ -180,7 +180,7 @@ Theme: Accessible explanation of why individual flood experiences matter for com
 - Social media's dual role: speed vs. noise
 
 **5.4 Methodological Contributions** (~200 words)
-- SAGE governance as general-purpose middleware for LLM-ABMs in water resources
+- WAGF governance as general-purpose middleware for LLM-ABMs in water resources
 - 3-level C&V protocol as a template for future LLM-ABM studies
 - Memory-mediated cognition as alternative to parametric behavioral equations
 - Model choice justification: why local small models with governance
@@ -205,14 +205,14 @@ Theme: Accessible explanation of why individual flood experiences matter for com
 
 #### Acknowledgments
 - Funding source (NSF grant if applicable)
-- AI tools disclosure: "This study used locally deployed open-source language models (Gemma 3 4B) for agent cognition within the SAGE framework. All LLM outputs were governed by domain validation rules. The authors take full responsibility for all content."
+- AI tools disclosure: "This study used locally deployed open-source language models (Gemma 3 4B) for agent cognition within the WAGF framework. All LLM outputs were governed by domain validation rules. The authors take full responsibility for all content."
 
 #### Conflict of Interest
 "The authors declare there are no conflicts of interest for this manuscript."
 
 #### Open Research
 - **Data Availability**: NJ flood preparedness survey data deposited in [repository]; PRB flood hazard rasters from [source]; agent simulation outputs deposited in Zenodo with DOI.
-- **Software Availability**: SAGE framework code available at [GitHub URL] under MIT license; analysis scripts at [GitHub URL]; Zenodo DOI for archived version.
+- **Software Availability**: WAGF framework code available at [GitHub URL] under MIT license; analysis scripts at [GitHub URL]; Zenodo DOI for archived version.
 
 #### References (~40-50 references in AGU author-date style)
 
@@ -229,7 +229,7 @@ Theme: Accessible explanation of why individual flood experiences matter for com
 - **Script**: `paper3/analysis/fig1_study_area.py`
 - **Size**: Full width (190mm)
 
-### Figure 2: SAGE Framework Architecture
+### Figure 2: WAGF Framework Architecture
 - **Type**: Schematic diagram
 - **Panels**: 2 panels (a, b)
   - (a) Overall architecture: LLM core → Governance layer (profile, rules) → Memory engine → Social network → Environment — showing data flows

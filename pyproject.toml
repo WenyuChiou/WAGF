@@ -10,7 +10,8 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 authors = [
-    {name = "LLM-ABM Research Team"}
+    {name = "Wen-Yuan Chen"},
+    {name = "Y. C. Ethan Yang"},
 ]
 keywords = ["agent-based-modeling", "governance", "llm", "behavioral-science"]
 dependencies = [

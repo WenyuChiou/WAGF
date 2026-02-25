@@ -1,7 +1,7 @@
 # Calibration & Validation (C&V) Framework
 
 Generic, domain-agnostic validation pipeline for LLM-driven agent-based
-models.  Part of the **SAGE** (Structured Agent Governance Engine) framework.
+models.  Part of the **WAGF** (Water Agent Governance Framework) framework.
 
 ## Architecture
 

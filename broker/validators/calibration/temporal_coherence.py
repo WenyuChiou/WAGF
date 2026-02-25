@@ -19,7 +19,7 @@ References:
     Grimm et al. (2005) — Multi-level pattern validation
     Thiele et al. (2014) — Temporal pattern extraction
 
-Part of SAGE C&V Framework (feature/calibration-validation).
+Part of WAGF C&V Framework (feature/calibration-validation).
 """
 
 from __future__ import annotations

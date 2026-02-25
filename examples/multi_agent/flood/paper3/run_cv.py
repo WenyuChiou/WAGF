@@ -339,7 +339,7 @@ def run_icc_probing(
     output_dir : Path
         Where to save results.
     governed : bool
-        Whether to apply SAGE governance to responses.
+        Whether to apply WAGF governance to responses.
     """
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)

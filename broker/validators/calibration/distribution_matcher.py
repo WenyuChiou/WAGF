@@ -15,7 +15,7 @@ References:
     Windrum et al. (2007) — Empirical validation survey for ABMs
     Bubeck et al. (2012) — Flood adaptation empirical baseline data
 
-Part of SAGE C&V Framework (feature/calibration-validation).
+Part of WAGF C&V Framework (feature/calibration-validation).
 """
 
 from __future__ import annotations

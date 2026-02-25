@@ -11,6 +11,8 @@
 [![Tests: 1776+](https://img.shields.io/badge/tests-1776%2B_passing-brightgreen.svg)]()
 [![Ollama](https://img.shields.io/badge/Ollama-Local_Inference-000000?style=flat&logo=ollama&logoColor=white)](https://ollama.com/)
 
+[**English**](README.md) | [**繁體中文**](README_zh.md)
+
 </div>
 
 ## What is WAGF?
@@ -29,20 +31,6 @@ Large Language Models (LLMs) can generate rich, human-like reasoning for agent-b
 | **Opaque decisions** — no audit trail | Structured CSV traces: input, reasoning, validation, outcome |
 | **Unsafe mutation** — LLM breaks simulation state | Sandboxed execution: validated skills run by engine, not LLM |
 
-### How Does It Compare?
-
-| Feature | WAGF | AgentVerse | Concordia | CAMEL |
-|:---|:---|:---|:---|:---|
-| Structural governance (rule-based validation) | 5-category pipeline | No | No | No |
-| Scientific ABM integration | Lifecycle hooks + state management | No | Limited | No |
-| Hallucination prevention | Structural (validate + retry) | Prompt-only | Prompt-only | Prompt-only |
-| Full audit trail (CSV traces) | Yes | Logs only | Limited | Limited |
-| Behavioral theory integration (PMT) | Built-in | No | No | No |
-| Domain-agnostic core | Yes (YAML-configured) | Yes | Yes | Yes |
-| Multi-LLM provider support | Ollama, Anthropic, OpenAI, Gemini | OpenAI | OpenAI | Multi |
-
-> Comparison based on published documentation: AgentVerse ([Chen et al., 2023](https://arxiv.org/abs/2308.10848)), Concordia ([Vezhnevets et al., 2023](https://arxiv.org/abs/2312.03664)), CAMEL ([Li et al., 2023](https://arxiv.org/abs/2303.17760)). "Structural governance" = rule-based validation pipeline that blocks invalid actions before execution, distinct from prompt-based steering.
-
 ### Validated Case Studies
 
 - **Flood Household Adaptation** — 100 agents using Protection Motivation Theory (PMT), 10-year simulation with Gemma 3 (small/medium/large local LLMs)
@@ -60,7 +48,7 @@ Large Language Models (LLMs) can generate rich, human-like reasoning for agent-b
 
 ```bash
 # 1. Clone and install
-git clone https://github.com/wenyuanchen1/governed_broker_framework.git
+git clone https://github.com/WenyuChiou/governed-broker-framework.git
 cd governed_broker_framework
 pip install -e ".[llm]"              # core + LLM providers
 
@@ -117,6 +105,8 @@ This trace is fully reproducible and auditable — every decision, rejection, an
 ---
 
 ## Architecture
+
+![Unified Architecture](docs/architecture.png)
 
 WAGF has two core components:
 
@@ -280,8 +270,7 @@ If you use WAGF in your research, please cite:
 ```bibtex
 @article{wagf2026,
   title={Water Agent Governance Framework: Governing LLM-Driven Agent-Based Models for Water Resources},
-  author={[Authors]},
-  journal={[Journal]},
+  author={Chen, Wen-Yuan and Yang, Y. C. Ethan},
   year={2026},
   note={Manuscript in preparation}
 }

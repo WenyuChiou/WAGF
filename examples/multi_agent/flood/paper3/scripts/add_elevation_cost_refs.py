@@ -59,7 +59,7 @@ if resp["successful"]:
         "<p><b>Cited in:</b> Section 3.4 (Adaptation Actions) and Section 3.7 "
         "(Calibration & Validation)</p>"
         "<p><b>Role:</b> Primary academic source supporting elevation cost parameters "
-        "in SAGE model. Our 3-tier costs ($45K/3ft, $80K/5ft, $150K/8ft) align with "
+        "in WAGF model. Our 3-tier costs ($45K/3ft, $80K/5ft, $150K/8ft) align with "
         "their cost-benefit analysis showing optimal elevation heights of 3-8 ft "
         "depending on flood zone and house value. Also supports our use of HAZUS "
         "depth-damage curves for damage estimation.</p>"

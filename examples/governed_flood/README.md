@@ -2,7 +2,7 @@
 
 Standalone demonstration of **Full Cognitive Governance** (Group C) for flood adaptation agent-based modeling.  100 household agents make annual protective-action decisions using LLM reasoning governed by Protection Motivation Theory (PMT; Rogers, 1983; Grothmann & Reusswig, 2006).
 
-This experiment showcases the three pillars of the SAGE governance middleware in a nonstationary hydro-social system where agents face recurring flood events over a 10-year horizon.
+This experiment showcases the three pillars of the WAGF governance middleware in a nonstationary hydro-social system where agents face recurring flood events over a 10-year horizon.
 
 > **Scope**: This is a simplified, self-contained demo of the Group C configuration.  The full JOH validation suite (Groups A/B/C, stress tests, survey mode) lives in `examples/single_agent/run_flood.py`.
 
@@ -104,7 +104,7 @@ The numeric skill map adapts to agent state:
 
 ### Three Rule Types
 
-The SAGE framework uses a **priority-ordered rule chain** evaluated in this order:
+The WAGF framework uses a **priority-ordered rule chain** evaluated in this order:
 
 ```
 1. Identity Rules    → Physical state constraints (always enforced first)

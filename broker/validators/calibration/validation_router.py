@@ -31,7 +31,7 @@ Literature grounding:
     Huang et al. (2025) — LLM psychometric reliability (Nature MI)
     Shannon (1948) — entropy-based diversity measurement
 
-Part of SAGE C&V Framework (feature/calibration-validation).
+Part of WAGF C&V Framework (feature/calibration-validation).
 """
 
 from __future__ import annotations

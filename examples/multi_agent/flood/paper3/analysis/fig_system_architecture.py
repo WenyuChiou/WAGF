@@ -3,7 +3,7 @@ System Architecture Figure for Paper 3
 
 Generates publication-quality system architecture diagram showing:
 1. Stage 1: Agent Initialization (Survey → Balanced Sampler → 400 Agents)
-2. Stage 2: SAGA 3-Tier Governance Simulation
+2. Stage 2: WAGF 3-Tier 3-Tier Governance Simulation
 3. Stage 3: Three-Level Validation Framework
 
 Output: 300 DPI PNG/PDF for Water Resources Research submission
@@ -168,10 +168,10 @@ def create_system_architecture_figure():
     draw_arrow(ax, (0.55, 0.82), (0.64, 0.82))
 
     # =========================================================================
-    # STAGE 2: SAGA Simulation (middle section)
+    # STAGE 2: WAGF 3-Tier Simulation (middle section)
     # =========================================================================
     draw_stage_box(ax, 0.02, 0.28, 0.96, 0.42, COLORS['stage2_bg'],
-                   "STAGE 2: SAGA 3-Tier Governance Simulation (13 years)")
+                   "STAGE 2: WAGF 3-Tier 3-Tier Governance Simulation (13 years)")
 
     # Government box
     draw_rounded_box(ax, 0.08, 0.52, 0.18, 0.12, COLORS['box_gov'],

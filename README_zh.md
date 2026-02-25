@@ -11,7 +11,7 @@
 [![Tests: 1776+](https://img.shields.io/badge/tests-1776%2B_passing-brightgreen.svg)]()
 [![Ollama](https://img.shields.io/badge/Ollama-Local_Inference-000000?style=flat&logo=ollama&logoColor=white)](https://ollama.com/)
 
-[**English**](README.md) | [**中文**](README_zh.md)
+[**English**](README.md) | [**繁體中文**](README_zh.md)
 
 </div>
 
@@ -31,20 +31,6 @@
 | **不透明決策** — 無審計軌跡 | 結構化 CSV 軌跡：輸入、推理、驗證、結果 |
 | **不安全修改** — LLM 破壞模擬狀態 | 沙盒執行：驗證通過的技能由引擎執行，非 LLM |
 
-### 與其他框架的比較
-
-| 功能 | WAGF | AgentVerse | Concordia | CAMEL |
-|:---|:---|:---|:---|:---|
-| 結構化治理（規則驗證） | 5 類管線 | 無 | 無 | 無 |
-| 科學 ABM 整合 | 生命週期鉤子 + 狀態管理 | 無 | 有限 | 無 |
-| 幻覺防止 | 結構化（驗證 + 重試） | 僅 Prompt | 僅 Prompt | 僅 Prompt |
-| 完整審計軌跡（CSV） | 是 | 僅日誌 | 有限 | 有限 |
-| 行為理論整合（PMT） | 內建 | 無 | 無 | 無 |
-| 領域無關核心 | 是（YAML 配置） | 是 | 是 | 是 |
-| 多 LLM 提供者 | Ollama, Anthropic, OpenAI, Gemini | OpenAI | OpenAI | 多 |
-
-> 比較基於各框架已發表的文件：AgentVerse ([Chen et al., 2023](https://arxiv.org/abs/2308.10848))、Concordia ([Vezhnevets et al., 2023](https://arxiv.org/abs/2312.03664))、CAMEL ([Li et al., 2023](https://arxiv.org/abs/2303.17760))。「結構化治理」= 在執行前阻止無效動作的規則驗證管線，與基於 prompt 的引導不同。
-
 ### 已驗證案例研究
 
 - **洪水家戶適應** — 100 個代理人使用保護動機理論 (PMT)，10 年模擬，Gemma 3（小型/中型/大型本地 LLM）
@@ -62,7 +48,7 @@
 
 ```bash
 # 1. 克隆並安裝
-git clone https://github.com/wenyuanchen1/governed_broker_framework.git
+git clone https://github.com/WenyuChiou/governed-broker-framework.git
 cd governed_broker_framework
 pip install -e ".[llm]"              # 核心 + LLM 提供者
 
@@ -118,6 +104,8 @@ python examples/single_agent/run_flood.py --model gemma3:4b --years 10 --agents 
 ---
 
 ## 架構
+
+![統一架構圖](docs/architecture.png)
 
 WAGF 有兩個核心組件：
 
@@ -280,8 +268,7 @@ runner.run()
 ```bibtex
 @article{wagf2026,
   title={Water Agent Governance Framework: Governing LLM-Driven Agent-Based Models for Water Resources},
-  author={[Authors]},
-  journal={[Journal]},
+  author={Chen, Wen-Yuan and Yang, Y. C. Ethan},
   year={2026},
   note={Manuscript in preparation}
 }
