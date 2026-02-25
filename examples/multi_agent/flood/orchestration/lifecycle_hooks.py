@@ -18,6 +18,15 @@ class MultiAgentHooks:
     # Also compensates for ffe_ft=0.0 simplification (real NJ FFE ≈ 0.5-1 ft).
     FLOOD_DEPTH_THRESHOLD_M = 0.15  # ~0.5 ft / 6 inches
 
+    # Year-indexed NFIP premium escalation schedule (NFIP trajectory recalibration).
+    # Reflects Biggert-Waters (2012), HFIAA (2014), and Risk Rating 2.0 (2021) phases.
+    # Multiplier applied to base_premium_rate each simulation year.
+    PREMIUM_ESCALATION = {
+        1: 1.00, 2: 1.00, 3: 1.05, 4: 1.10, 5: 1.15,    # Biggert-Waters
+        6: 1.18, 7: 1.22, 8: 1.26, 9: 1.30,               # HFIAA gradual
+        10: 1.35, 11: 1.50, 12: 1.60, 13: 1.65,            # Risk Rating 2.0
+    }
+
     def __init__(
         self,
         environment: Dict,
@@ -58,6 +67,35 @@ class MultiAgentHooks:
         self.drift_detector = drift_detector
         self.social_graph = social_graph
         self._memory_bridge = MemoryBridge(memory_engine) if memory_engine else None
+
+        # --- Institutional state tracking (C&V: trajectory validation) ---
+        # Government budget and policy stability
+        self.env.setdefault("govt_budget_remaining", 500_000)
+        self.env.setdefault("govt_budget_pct", 100.0)
+        self.env.setdefault("govt_consecutive_increases", 0)
+        self.env.setdefault("govt_last_decision", "none")
+        self.env.setdefault("elevation_spending_this_year", 0)
+        self.env.setdefault("flood_years_count", 0)
+        self.env.setdefault("elevated_pct", 0.0)
+        self.env.setdefault("mg_elevated_pct", 0.0)
+        self.env.setdefault("nmg_elevated_pct", 0.0)
+        self.env.setdefault("flood_this_year_text", "No flooding")
+        # Insurance derived metrics
+        self.env.setdefault("effective_rate", self.env.get("base_premium_rate", self.env.get("premium_rate", 0.008)))
+        self.env.setdefault("loss_ratio_display", 0.0)
+        self.env.setdefault("loss_ratio_category", "healthy")
+        self.env.setdefault("community_mitigation_score", 0)
+        self.env.setdefault("crs_class", 10)
+        self.env.setdefault("crs_consecutive_maintains", 0)
+        self.env.setdefault("crs_last_decision", "none")
+        self.env.setdefault("total_claims", 0.0)
+        self.env.setdefault("total_premiums", 0.0)
+        # Track years since last flood for government prompt
+        self.env.setdefault("years_since_last_flood", 0)
+        # Flood severity tracking
+        self.env.setdefault("flood_severity", "NONE")
+        self.env.setdefault("flood_affected_pct", 0.0)
+        self.env.setdefault("years_since_severe_flood", 0)
 
     def _prune_agent_from_graph(self, agent_id: str):
         """Remove all social edges for a relocated/bought-out agent."""
@@ -154,6 +192,13 @@ class MultiAgentHooks:
             self.env["flood_depth_m"] = round(depth_m, 3)
             self.env["flood_depth_ft"] = round(depth_ft, 3)
             self.agent_flood_depths = {}
+            # Community mode: all non-relocated households affected if flood occurs
+            if self.env["flood_occurred"]:
+                hh_list = [a for a in agents.values() if a.agent_type in ["household_owner", "household_renter"]
+                           and not a.dynamic_state.get("relocated")]
+                self.env["flooded_household_count"] = len(hh_list)
+            else:
+                self.env["flooded_household_count"] = 0
             self.env["crisis_event"] = self.env["flood_occurred"]
             self.env["crisis_boosters"] = {"emotion:fear": 1.5} if self.env["flood_occurred"] else {}
 
@@ -219,6 +264,84 @@ class MultiAgentHooks:
         self.env["mg_insured_count"] = mg_insured
         self.env["nmg_insured_count"] = nmg_insured
 
+        # --- Institutional derived metrics (for government & insurance prompts) ---
+        total_hh = len(households) or 1  # avoid div-by-zero
+
+        # Government: Reset annual budget, track flood years
+        self.env["govt_budget_remaining"] = 500_000  # Annual budget reset
+        self.env["govt_budget_pct"] = 100.0           # Must reset in sync
+        self.env["elevation_spending_this_year"] = 0
+        # flood_years_count and years_since_last_flood: env is single source of truth
+        if self.env.get("flood_occurred", False):
+            self.env["flood_years_count"] = self.env.get("flood_years_count", 0) + 1
+            self.env["years_since_last_flood"] = 0
+        else:
+            self.env["years_since_last_flood"] = self.env.get("years_since_last_flood", 0) + 1
+
+        # Elevation percentages (overall, MG, NMG)
+        elevated_count = self.env.get("elevated_count", 0)
+        self.env["elevated_pct"] = round(100 * elevated_count / total_hh, 1)
+        self.env["mg_elevated_pct"] = round(100 * mg_elevated / max(len(mg_agents), 1), 1)
+        self.env["nmg_elevated_pct"] = round(100 * nmg_elevated / max(len(nmg_agents), 1), 1)
+
+        # Flood status text + severity classification for institutional prompts
+        if self.env.get("flood_occurred", False):
+            depth_ft = self.env.get("flood_depth_ft", 0)
+            flooded_n = self.env.get("flooded_household_count", 0)
+            affected_pct = round(100 * flooded_n / total_hh, 1) if total_hh > 0 else 0
+            self.env["flood_affected_pct"] = affected_pct
+            # Severity: SEVERE if >20% affected OR depth >8ft; else MODERATE
+            if affected_pct > 20 or depth_ft > 8.0:
+                self.env["flood_severity"] = "SEVERE"
+                self.env["years_since_severe_flood"] = 0
+            else:
+                self.env["flood_severity"] = "MODERATE"
+                self.env["years_since_severe_flood"] = self.env.get("years_since_severe_flood", 0) + 1
+            self.env["flood_this_year_text"] = (
+                f"FLOODING THIS YEAR ({self.env['flood_severity']}) — max depth {depth_ft:.1f}ft, "
+                f"{flooded_n} households affected ({affected_pct:.0f}%)"
+            )
+        else:
+            self.env["flood_affected_pct"] = 0.0
+            self.env["flood_severity"] = "NONE"
+            # NOTE: years_since_last_flood already incremented in flood-tracking block above.
+            # Only increment years_since_severe_flood here (separate counter).
+            self.env["years_since_severe_flood"] = self.env.get("years_since_severe_flood", 0) + 1
+            self.env["flood_this_year_text"] = "No flooding this year"
+
+        # Insurance: effective rate with year-indexed premium escalation, CRS, mitigation
+        base_rate = self.env.get("base_premium_rate", self.env.get("premium_rate", 0.008))
+        escalation = self.PREMIUM_ESCALATION.get(year, self.PREMIUM_ESCALATION.get(13, 1.65))
+        crs_disc = self.env.get("crs_discount", 0.0)
+        self.env["premium_rate"] = base_rate * escalation
+        self.env["effective_rate"] = base_rate * escalation * (1 - crs_disc)
+        self.env["premium_escalation_pct"] = round((escalation - 1.0) * 100, 1)
+        # Clamp loss_ratio for display (raw can be 0 in no-flood years, 50+ in flood years)
+        raw_lr = self.env.get("loss_ratio", 0.0)
+        self.env["loss_ratio_display"] = round(min(raw_lr, 5.0), 2)
+        if raw_lr <= 0.80:
+            self.env["loss_ratio_category"] = "healthy"
+        elif raw_lr <= 1.50:
+            self.env["loss_ratio_category"] = "elevated"
+        else:
+            self.env["loss_ratio_category"] = "crisis"
+        # CRS class: Class 10 (no discount) to Class 1 (45% discount)
+        self.env["crs_class"] = max(1, 10 - round(crs_disc / 0.05))
+        # Community mitigation score (0-100): weighted from elevation% + insurance%
+        insured_count = self.env.get("insured_count", 0)
+        insured_pct = insured_count / total_hh
+        elev_pct_frac = elevated_count / total_hh
+        self.env["community_mitigation_score"] = int(
+            min(100, 60 * elev_pct_frac + 40 * insured_pct)
+        )
+
+        # CRITICAL: Sync self.env → runner's env dict after all updates.
+        # The runner creates a fresh env={} each year and passes it to pre_year.
+        # env.update(self.env) at the top copies the STALE state from last year.
+        # We must re-sync after flood detection + institutional metrics so agents
+        # see the current year's flood_occurred, flood_this_year_text, etc.
+        env.update(self.env)
+
     def post_step(self, agent, result):
         """Update global vars if institutional agent acted."""
         # Check for approved outcomes (APPROVED or RETRY_SUCCESS)
@@ -238,12 +361,22 @@ class MultiAgentHooks:
                 self.env["govt_message"] = "The government has DECREASED the subsidy due to budget constraints."
             else:
                 self.env["govt_message"] = "The government is MAINTAINING the current subsidy rate."
+            # --- Consecutive increase tracking & budget deduction ---
+            if decision == "increase_subsidy":
+                self.env["govt_consecutive_increases"] = self.env.get("govt_consecutive_increases", 0) + 1
+                # Budget deduction: each increase costs ~$25K (subsidy expansion cost)
+                self.env["govt_budget_remaining"] = max(0, self.env.get("govt_budget_remaining", 500_000) - 25_000)
+            else:
+                self.env["govt_consecutive_increases"] = 0
+            self.env["govt_last_decision"] = decision
+            self.env["govt_budget_pct"] = round(100 * self.env["govt_budget_remaining"] / 500_000, 1)
             # Store institutional memory
             if self.memory_engine:
                 self.memory_engine.add_memory(
                     agent.id,
                     (f"Year {current_year}: Set subsidy rate to {self.env['subsidy_rate']:.0%} "
-                     f"(was {current:.0%}). Elevated: {self.env.get('elevated_count', '?')}/{self.env.get('total_households', '?')}."),
+                     f"(was {current:.0%}). Elevated: {self.env.get('elevated_count', '?')}/{self.env.get('total_households', '?')}. "
+                     f"Budget remaining: {self.env['govt_budget_pct']:.0f}%."),
                     metadata={"source": "personal", "importance": 0.6, "category": "policy_decision"}
                 )
 
@@ -266,11 +399,22 @@ class MultiAgentHooks:
                 self.env["insurance_message"] = (
                     f"CRS class maintained at {current_crs:.0%} discount."
                 )
-            # Update effective premium rate: base_rate * (1 - crs_discount)
+            # --- CRS consecutive maintain tracking ---
+            if decision == "maintain_crs":
+                self.env["crs_consecutive_maintains"] = self.env.get("crs_consecutive_maintains", 0) + 1
+            else:
+                self.env["crs_consecutive_maintains"] = 0
+            self.env["crs_last_decision"] = decision
+            # Update effective premium rate: base_rate * escalation * (1 - crs_discount)
             # Preserve base_premium_rate on first use to avoid compounding
             if "base_premium_rate" not in self.env:
                 self.env["base_premium_rate"] = self.env.get("premium_rate", 0.02)
-            self.env["premium_rate"] = self.env["base_premium_rate"] * (1 - self.env["crs_discount"])
+            current_year = self.env.get("year", 1)
+            escalation = self.PREMIUM_ESCALATION.get(current_year, self.PREMIUM_ESCALATION.get(13, 1.65))
+            self.env["premium_rate"] = self.env["base_premium_rate"] * escalation * (1 - self.env["crs_discount"])
+            self.env["effective_rate"] = self.env["premium_rate"]
+            # Update CRS class after change
+            self.env["crs_class"] = max(1, 10 - round(self.env["crs_discount"] / 0.05))
             # Store institutional memory
             if self.memory_engine:
                 loss_ratio = self.env.get("loss_ratio", 0.0)
@@ -278,7 +422,7 @@ class MultiAgentHooks:
                     agent.id,
                     (f"Year {current_year}: CRS discount set to {self.env['crs_discount']:.0%} "
                      f"(was {current_crs:.0%}). Effective premium: {self.env['premium_rate']:.3%}. "
-                     f"Loss ratio: {loss_ratio:.2f}. "
+                     f"Loss ratio: {loss_ratio:.2f}. CRS Class: {self.env['crs_class']}. "
                      f"Insured: {self.env.get('insured_count', '?')}/{self.env.get('total_households', '?')}."),
                     metadata={"source": "personal", "importance": 0.6, "category": "policy_decision"}
                 )
@@ -289,6 +433,17 @@ class MultiAgentHooks:
 
             if decision in ["buy_insurance", "buy_contents_insurance"]:
                 agent.dynamic_state["has_insurance"] = True
+                # Track consecutive insured years for cost pressure prompt (P3)
+                agent.dynamic_state["insured_years"] = agent.dynamic_state.get("insured_years", 0) + 1
+                # Track cumulative premiums paid (use effective_rate = post-CRS)
+                fixed = getattr(agent, "fixed_attributes", None) or {}
+                rcv_b = fixed.get("rcv_building", 0)
+                rcv_c = fixed.get("rcv_contents", 0)
+                prem_rate = self.env.get("effective_rate", self.env.get("premium_rate", 0.008))
+                annual_premium = prem_rate * (rcv_b + rcv_c)
+                agent.dynamic_state["cumulative_premiums_paid"] = (
+                    agent.dynamic_state.get("cumulative_premiums_paid", 0) + annual_premium
+                )
                 # Sub-option: insurance coverage type (1=Structure+Contents, 2=Contents-only)
                 coverage = reasoning.get("insurance_coverage")
                 if coverage is not None:
@@ -347,6 +502,7 @@ class MultiAgentHooks:
                 if agent.dynamic_state.get("has_insurance"):
                     agent.dynamic_state["has_insurance"] = False
                     agent.dynamic_state["insurance_status"] = "do NOT have"
+                    agent.dynamic_state["insured_years"] = 0  # Reset on lapse
 
             # Store last decision for tracking
             agent.dynamic_state["last_decision"] = decision
@@ -445,6 +601,9 @@ class MultiAgentHooks:
                 description = depth_to_qualitative_description(depth_ft)
                 cum_damage = agent.dynamic_state["cumulative_damage"]
                 flood_count = agent.dynamic_state["flood_count"]
+                # Current-year floods get high importance (0.8);
+                # older floods stored during post_year have lower importance (0.6)
+                # to reduce over-responsive insurance spike from historical events.
                 memory_engine.add_memory(
                     agent.id,
                     (

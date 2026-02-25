@@ -136,7 +136,7 @@ class TestBenchmarkConfig:
     def test_yaml_loads_successfully(self):
         config = load_benchmark_config()
         assert config is not None
-        assert len(config.benchmarks) == 8
+        assert len(config.benchmarks) == 16  # 8 household + 7 institutional + 1 diagnostic
 
     def test_benchmark_ranges_match_hardcoded(self):
         """YAML benchmark ranges must match EMPIRICAL_BENCHMARKS."""
@@ -262,7 +262,7 @@ class TestFullConfig:
 
     def test_benchmarks_accessible(self):
         config = load_default_config()
-        assert len(config.benchmarks.benchmarks) == 8
+        assert len(config.benchmarks.benchmarks) == 16  # 8 household + 7 institutional + 1 diagnostic
 
     def test_hallucination_rules_accessible(self):
         config = load_default_config()
