@@ -19,7 +19,7 @@ References:
         Nature Machine Intelligence. doi:10.1038/s42256-025-01115-6
     Grothmann & Reusswig (2006) — PMT + flood preparedness scenarios
 
-Part of SAGE C&V Framework (feature/calibration-validation).
+Part of WAGF C&V Framework (feature/calibration-validation).
 """
 
 from __future__ import annotations

@@ -52,9 +52,9 @@ EXISTING_ITEMS = {
     },
     'XEBQWVQK': {
         'collections': [METH_LLM],
-        'note': '<p><b>Cited in:</b> Section 1 (Introduction), Section 2.3 (LLM Agents), Section 3.2 (SAGE Framework)</p>'
+        'note': '<p><b>Cited in:</b> Section 1 (Introduction), Section 2.3 (LLM Agents), Section 3.2 (WAGF Framework)</p>'
                '<p><b>Role:</b> Generative Agents (Smallville). Foundation for LLM agent architecture with '
-               'memory stream, reflection, and planning. Our SAGE framework extends this with governance layer.</p>',
+               'memory stream, reflection, and planning. Our WAGF framework extends this with governance layer.</p>',
     },
     'RMNEUT7F': {
         'collections': [METH_LLM],

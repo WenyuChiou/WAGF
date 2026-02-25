@@ -1,5 +1,5 @@
 """
-Calibration & Validation (C&V) Framework for SAGE.
+Calibration & Validation (C&V) Framework for WAGF.
 
 Three-level validation architecture:
 
@@ -21,7 +21,7 @@ References:
     Windrum et al. (2007) Empirical validation survey
     Huang et al. (2025) LLM psychometric testing (Nature MI)
 
-Part of SAGE C&V Framework (feature/calibration-validation).
+Part of WAGF C&V Framework (feature/calibration-validation).
 """
 
 from broker.validators.calibration.micro_validator import (

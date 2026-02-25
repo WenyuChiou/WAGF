@@ -1,7 +1,7 @@
 # LLM-Governed Multi-Agent Flood Adaptation Simulation (Paper 3)
 
 > **Target Journal**: Water Resources Research (WRR)
-> **Framework**: SAGE (Simulated Agent Governance Engine) with SAGA 3-tier ordering
+> **Framework**: WAGF (Water Agent Governance Framework) with WAGF 3-Tier 3-tier ordering
 > **Study Area**: Passaic River Basin (PRB), New Jersey
 > **Status**: ICC validation complete (TP ICC=0.964, CP ICC=0.947), primary experiments in progress
 
@@ -192,15 +192,15 @@ All three RQs are answered from a **single unified experiment** (full-featured L
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    SAGE GOVERNANCE FRAMEWORK                    │
+│                    WAGF GOVERNANCE FRAMEWORK                    │
 ├─────────────────────────────────────────────────────────────────┤
 │  Layer 1: PROMPT        │  Persona + Memory + Context           │
 │  Layer 2: LLM           │  Gemma 3 4B (temp=0.7, ctx=8192)     │
-│  Layer 3: GOVERNANCE    │  SAGA rules + financial constraints   │
+│  Layer 3: GOVERNANCE    │  WAGF 3-Tier rules + financial constraints   │
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
-│                    SAGA 3-TIER ORDERING                         │
+│                    WAGF 3-Tier 3-TIER ORDERING                         │
 ├─────────────────────────────────────────────────────────────────┤
 │  Tier 1: Government     │  NJDEP Blue Acres (subsidy decisions) │
 │  Tier 2: Insurance      │  FEMA/NFIP CRS (premium decisions)    │
@@ -223,15 +223,15 @@ Pre-Year Hook:
   2. Resolve pending actions (elevation completion, buyout finalization)
   3. Calculate per-agent flood depths
 
-SAGA Tier 1 (Government):
+WAGF 3-Tier Tier 1 (Government):
   4. NJDEP receives: damage reports, MG/NMG adoption rates, budget
   5. NJDEP decides: increase/decrease/maintain subsidy (±5%)
 
-SAGA Tier 2 (Insurance):
+WAGF 3-Tier Tier 2 (Insurance):
   6. FEMA receives: claims history, uptake rates, loss ratio
   7. FEMA decides: improve/reduce/maintain CRS discount (±5%)
 
-SAGA Tier 3 (Households):
+WAGF 3-Tier Tier 3 (Households):
   8. For each household agent:
      a. Retrieve relevant memories
      b. Construct prompt with persona + context + policy info
@@ -493,7 +493,7 @@ TP_label = parse_construct(response, "TP")  # Emergent from reasoning
 
 ## 8. Governance Framework
 
-### SAGA (SAGE Agent Governance Architecture)
+### WAGF 3-Tier (WAGF Agent Governance Architecture)
 
 **Three-tier ordering** ensures institutional decisions affect household prompts in the same year:
 
@@ -1426,8 +1426,8 @@ python paper3/analysis/fig_agent_spatial_distribution.py --no-flood   # Without 
 | **R_H** | Hallucination Rate |
 | **RCV** | Replacement Cost Value |
 | **RL** | Repetitive Loss (≥2 floods) |
-| **SAGA** | SAGE Agent Governance Architecture (3-tier) |
-| **SAGE** | Simulated Agent Governance Engine |
+| **WAGF 3-Tier** | WAGF Agent Governance Architecture (3-tier) |
+| **WAGF** | Water Agent Governance Framework |
 | **SC** | Social Capital (PMT construct) |
 | **SFHA** | Special Flood Hazard Area |
 | **SP** | Stakeholder Perception (PMT/PADM construct) |

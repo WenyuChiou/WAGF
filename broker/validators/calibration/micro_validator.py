@@ -23,7 +23,7 @@ References:
     SeekBench (2025) — Evidence-grounded reasoning evaluation
     Huang et al. (2025) — LLM psychometric measurement (Nature MI)
 
-Part of SAGE C&V Framework (feature/calibration-validation).
+Part of WAGF C&V Framework (feature/calibration-validation).
 """
 
 from __future__ import annotations

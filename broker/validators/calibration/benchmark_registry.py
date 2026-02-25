@@ -3,7 +3,7 @@ Benchmark Registry — Domain-Agnostic Empirical Benchmark Engine.
 
 Provides a generic framework for defining, registering, and comparing
 simulation outputs against empirical benchmarks from literature or
-survey data.  Part of the SAGE Calibration Protocol.
+survey data.  Part of the WAGF Calibration Protocol.
 
 Key classes:
     :class:`Benchmark` — single empirical benchmark definition

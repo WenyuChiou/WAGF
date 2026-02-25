@@ -37,7 +37,7 @@ Usage::
     )
     report.save_json("calibration_report.json")
 
-Part of SAGE Calibration Protocol.
+Part of WAGF Calibration Protocol.
 """
 
 from __future__ import annotations

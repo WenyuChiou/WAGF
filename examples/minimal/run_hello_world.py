@@ -1,7 +1,7 @@
 """
-SAGE Hello World — Minimal LLM-Governed Agent Example
+WAGF Hello World — Minimal LLM-Governed Agent Example
 ======================================================
-Demonstrates the core SAGE (Structured Agent Governance Engine) workflow:
+Demonstrates the core WAGF (Water Agent Governance Framework) workflow:
   1. Define agents with state
   2. Register skills + governance rules
   3. Run a multi-step simulation where an LLM decides actions
@@ -27,6 +27,7 @@ from broker.core.experiment import ExperimentBuilder
 from broker.components.memory.engine import WindowMemoryEngine
 from broker.utils.llm_utils import create_llm_invoke
 from broker.agents import BaseAgent, AgentConfig
+from broker.agents.base import StateParam, Skill
 
 # ---------- 1. Create agents ----------
 def make_agents(n: int = 3):
@@ -37,12 +38,15 @@ def make_agents(n: int = 3):
             name=f"Agent_{i}",
             agent_type="simple_agent",
             state_params=[
-                {"key": "protected", "value": False},
-                {"key": "wealth", "value": 100},
+                StateParam("protected", (0, 1), 0.0, "Whether agent is protected"),
+                StateParam("wealth", (0, 1000), 100.0, "Agent wealth"),
             ],
             objectives=["Protect yourself from hazards"],
             constraints=[],
-            skills=["take_action", "do_nothing"],
+            skills=[
+                Skill("take_action", "Take protective action", "protected", "increase"),
+                Skill("do_nothing", "Wait and observe", None, "none"),
+            ],
         )
         agent = BaseAgent(config)
         agents[agent.name] = agent
@@ -105,7 +109,7 @@ class SimpleHooks:
 
 # ---------- 4. Main ----------
 def main():
-    parser = argparse.ArgumentParser(description="SAGE Hello World")
+    parser = argparse.ArgumentParser(description="WAGF Hello World")
     parser.add_argument("--model", default="gemma3:4b", help="Ollama model ID")
     parser.add_argument("--years", type=int, default=5, help="Simulation years")
     parser.add_argument("--agents", type=int, default=3, help="Number of agents")
@@ -116,7 +120,7 @@ def main():
     sim = MinimalSimulation(agents)
     hooks = SimpleHooks(sim)
 
-    print(f"SAGE Hello World — {args.agents} agents × {args.years} years")
+    print(f"WAGF Hello World — {args.agents} agents × {args.years} years")
     print(f"Model: {args.model}")
     print("=" * 50)
 

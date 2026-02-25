@@ -92,7 +92,7 @@ class ProbeResponse:
         cp_label: Reported Coping Perception (PMT shorthand).
         decision: Chosen action.
         reasoning: Full reasoning text.
-        governed: Whether SAGE governance was active.
+        governed: Whether WAGF governance was active.
         raw_response: Full LLM response text.
         construct_labels: Generic construct label dict for non-PMT use.
     """

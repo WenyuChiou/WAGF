@@ -25,7 +25,7 @@ Usage (auto-detect)::
     plan = runner.plan           # inspect what will run
     report = runner.run_posthoc()
 
-Part of SAGE C&V Framework (feature/calibration-validation).
+Part of WAGF C&V Framework (feature/calibration-validation).
 """
 
 from __future__ import annotations

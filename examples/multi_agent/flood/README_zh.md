@@ -1,7 +1,7 @@
 # LLM 治理多代理洪水調適模擬 (Paper 3)
 
 > **目標期刊**：Water Resources Research (WRR)
-> **框架**：SAGE (Simulated Agent Governance Engine) 搭配 SAGA 三層排序
+> **框架**：WAGF (Water Agent Governance Framework) 搭配 WAGF 3-Tier 三層排序
 > **研究區域**：Passaic River Basin (PRB), 美國紐澤西州
 > **狀態**：ICC 驗證完成 (TP ICC=0.964, CP ICC=0.947)，主要實驗進行中
 
@@ -192,15 +192,15 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    SAGE 治理框架                                 │
+│                    WAGF 治理框架                                 │
 ├─────────────────────────────────────────────────────────────────┤
 │  第1層：提示詞      │  人設 + 記憶 + 情境                        │
 │  第2層：LLM        │  Gemma 3 4B (temp=0.7, ctx=8192)          │
-│  第3層：治理       │  SAGA 規則 + 財務限制                      │
+│  第3層：治理       │  WAGF 3-Tier 規則 + 財務限制                      │
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
-│                    SAGA 三層排序                                 │
+│                    WAGF 3-Tier 三層排序                                 │
 ├─────────────────────────────────────────────────────────────────┤
 │  第1層：政府       │  NJDEP Blue Acres (補助決策)               │
 │  第2層：保險       │  FEMA/NFIP CRS (保費決策)                  │
@@ -223,15 +223,15 @@
   2. 解決待處理行動（抬升完成、收購定案）
   3. 計算每代理洪水深度
 
-SAGA 第1層（政府）：
+WAGF 3-Tier 第1層（政府）：
   4. NJDEP 接收：損害報告、MG/NMG 採納率、預算
   5. NJDEP 決定：增加/減少/維持補助 (±5%)
 
-SAGA 第2層（保險）：
+WAGF 3-Tier 第2層（保險）：
   6. FEMA 接收：理賠紀錄、投保率、損失率
   7. FEMA 決定：改善/削減/維持 CRS 折扣 (±5%)
 
-SAGA 第3層（家戶）：
+WAGF 3-Tier 第3層（家戶）：
   8. 對每個家戶代理：
      a. 擷取相關記憶
      b. 建構提示詞（人設 + 情境 + 政策資訊）
@@ -493,7 +493,7 @@ TP_label = parse_construct(response, "TP")  # 從推理湧現
 
 ## 8. 治理框架
 
-### SAGA (SAGE Agent Governance Architecture)
+### WAGF 3-Tier (WAGF Agent Governance Architecture)
 
 **三層排序**確保機構決策在同一年影響家戶提示詞：
 
@@ -1411,8 +1411,8 @@ paper3/
 | **R_H** | 幻覺率 (Hallucination Rate) |
 | **RCV** | 重置成本價值 (Replacement Cost Value) |
 | **RL** | 重複損失 (Repetitive Loss, ≥2 次洪水) |
-| **SAGA** | SAGE 代理治理架構 (SAGE Agent Governance Architecture, 三層) |
-| **SAGE** | 模擬代理治理引擎 (Simulated Agent Governance Engine) |
+| **WAGF 3-Tier** | WAGF 代理治理架構 (WAGF Agent Governance Architecture, 三層) |
+| **WAGF** | 模擬代理治理引擎 (Water Agent Governance Framework) |
 | **SC** | 社會資本 (Social Capital, PMT 構面) |
 | **SFHA** | 特殊洪氾區 (Special Flood Hazard Area) |
 | **SP** | 利害關係人感知 (Stakeholder Perception, PMT/PADM 構面) |

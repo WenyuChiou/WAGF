@@ -1,4 +1,4 @@
-# Minimal Agent Types — SAGE Hello World
+# Minimal Agent Types — WAGF Hello World
 global_config:
   memory:
     window_size: 3
