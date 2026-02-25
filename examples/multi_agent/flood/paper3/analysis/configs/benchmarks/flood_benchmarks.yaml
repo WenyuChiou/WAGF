@@ -59,6 +59,63 @@ benchmarks:
     description: "Annual insurance lapse rate"
     # Michel-Kerjan et al. (2012): median NFIP policy tenure 2-4 years
 
+  # --- Institutional trajectory benchmarks ---
+  govt_final_subsidy:
+    range: [0.40, 0.75]
+    weight: 1.0
+    computation: govt_final_subsidy
+    description: "Final government subsidy rate"
+    # HMGP ~75% federal share max; state rarely exceeds
+
+  govt_avg_subsidy:
+    range: [0.45, 0.70]
+    weight: 1.0
+    computation: govt_avg_subsidy
+    description: "Average government subsidy rate across simulation"
+
+  govt_decrease_count:
+    range: [1.0, 5.0]
+    weight: 1.0
+    computation: govt_decrease_count
+    description: "Government decrease decisions (must decrease at least once)"
+    # Budget pressure requires at least one decrease over 13 years
+
+  govt_change_count:
+    range: [3.0, 8.0]
+    weight: 0.8
+    computation: govt_change_count
+    description: "Total government subsidy changes per simulation"
+    # Policy doesn't change every year, but shouldn't be completely static
+
+  ins_final_crs:
+    range: [0.05, 0.25]
+    weight: 1.0
+    computation: ins_final_crs
+    description: "Final CRS discount"
+    # NJ Class 7-9 typical (5-15%)
+
+  ins_avg_crs:
+    range: [0.03, 0.20]
+    weight: 1.0
+    computation: ins_avg_crs
+    description: "Average CRS discount across simulation"
+
+  ins_improve_count:
+    range: [1.0, 5.0]
+    weight: 0.8
+    computation: ins_improve_count
+    description: "Number of CRS improvement decisions per simulation"
+    # CRS changes are slow (Class changes require documented activities)
+
+  # --- Trajectory diagnostic (P5: NFIP recalibration) ---
+  insurance_trajectory_change:
+    range: [-0.40, 0.10]
+    weight: 0.0
+    computation: insurance_trajectory_change
+    description: "Relative change in overall insurance rate Y1→Y13"
+    # Diagnostic only — NOT included in EPI (weight=0.0).
+    # NFIP observed: -29% (2011-2023). Simulated should decline or flatten.
+
 thresholds:
   l1:
     cacr:

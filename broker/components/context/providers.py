@@ -718,20 +718,54 @@ class FinancialCostProvider(ContextProvider):
         # Only applies to agents with prior flood experience (flood_count > 0).
         # years_since_flood=99 means "never flooded" — handled by MG barrier, not here.
         # Only show to currently-insured agents (uninsured have nothing to lapse).
+        renewal_fatigue_text = ""
         if (not flooded_this_year
                 and 1 <= years_since_flood <= 2
                 and flood_zone != "HIGH"
                 and flood_count > 0
                 and has_insurance):
-            personal["renewal_fatigue_text"] = (
+            renewal_fatigue_text = (
                 f"- **Insurance Renewal Context**: It has been {years_since_flood} "
                 f"year(s) since your last flood. NFIP policy retention data shows "
                 f"that many policyholders discontinue coverage within a few years "
                 f"without a reinforcing flood event — a common pattern driven by "
                 f"fading risk salience and annual cost."
             )
+
+        # P4: HIGH-zone premium pressure — when escalation makes premiums unaffordable
+        # Extends renewal_fatigue_text for HIGH-zone agents (normally exempt from
+        # renewal fatigue) when premium escalation exceeds 30% above baseline.
+        premium_escalation_pct = env_context.get("premium_escalation_pct", 0)
+        if (has_insurance
+                and flood_zone == "HIGH"
+                and premium_escalation_pct > 30):
+            renewal_fatigue_text += (
+                f"\n- **Premium Escalation Warning**: Your premium has increased "
+                f"{premium_escalation_pct:.0f}% from when you first purchased. "
+                f"Updated federal flood risk assessments have significantly "
+                f"increased costs for homeowners in your area. Many are "
+                f"reassessing whether insurance remains affordable."
+            )
+
+        personal["renewal_fatigue_text"] = renewal_fatigue_text
+
+        # P3: Cost pressure prompt for long-term insured without claims.
+        # Triggers annual lapse pressure for agents paying premiums without
+        # filing claims (Michel-Kerjan et al. 2012: sunk cost salience).
+        insured_years = personal.get("insured_years", 0)
+        cumulative_premiums = personal.get("cumulative_premiums_paid", 0)
+        if (has_insurance
+                and insured_years >= 3
+                and years_since_flood >= 3):
+            personal["cost_pressure_text"] = (
+                f"- **Cumulative Cost Consideration**: You have been paying flood "
+                f"insurance for {insured_years} consecutive years without filing a "
+                f"claim. Your cumulative premiums total approximately "
+                f"${cumulative_premiums:,.0f}. Some policyholders in this situation "
+                f"decide the ongoing cost is not worth it."
+            )
         else:
-            personal["renewal_fatigue_text"] = ""
+            personal["cost_pressure_text"] = ""
 
 
 __all__ = [

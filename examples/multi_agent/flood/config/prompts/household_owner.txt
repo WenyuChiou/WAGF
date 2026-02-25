@@ -51,6 +51,7 @@ It is crucial to accurately assess your flood risk based on your personal flood 
 {insurance_cost_text}
 {mg_barrier_text}
 {renewal_fatigue_text}
+{cost_pressure_text}
 
 ### YOUR DECISION PRIORITIES
 
@@ -62,7 +63,7 @@ Before considering any other action, ask yourself:
 3. Is the disruption and cost truly worth it given my specific flood history?
 If any answer is NO, choose do_nothing.
 
-**If you decide you need protection:** Insurance is your most practical option. Paying an annual premium is straightforward and does not disrupt your life. If you are in a HIGH flood zone or were recently flooded, it may be worth the cost.
+**If you decide you need protection:** Some homeowners in your situation purchase insurance, though many do not — especially when the premium is a meaningful expense relative to income. A single flood does not necessarily mean your area will flood again soon. If you are in a HIGH flood zone or were recently flooded, insurance may be worth considering given your specific risk.
 
 **Elevation is a significant commitment.** It involves contractors, permits, temporary relocation, and substantial cost even with subsidies. Homeowners who elevate have typically experienced repeated flooding and secured financial assistance. If you have been flooded multiple times and can manage the cost, elevation may be worth serious consideration.
 

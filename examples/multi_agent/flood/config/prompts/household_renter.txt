@@ -43,6 +43,7 @@ It is crucial to accurately assess your flood risk based on your personal flood 
 {insurance_cost_text}
 {mg_barrier_text}
 {renewal_fatigue_text}
+{cost_pressure_text}
 
 ### YOUR DECISION PRIORITIES
 
@@ -54,7 +55,7 @@ Before considering any other action, ask yourself:
 3. Is the cost truly worth it given my specific flood history?
 If any answer is NO, choose do_nothing.
 
-**Contents insurance:** If you have been recently flooded and are in a HIGH flood zone, contents insurance may be worth considering — but even a few hundred dollars a year competes with rent, groceries, and transportation. Many renters who buy a policy after a flood let it lapse within a year or two when no further flooding occurs. Whether the ongoing cost is worthwhile depends on your personal flood experience and budget.
+**Contents insurance:** Some renters in your situation purchase contents insurance, though many do not — a single flood does not necessarily mean your area will flood again soon. Even a few hundred dollars a year competes with rent, groceries, and transportation. Many renters who buy a policy after a flood let it lapse within a year or two when no further flooding occurs. Whether the ongoing cost is worthwhile depends on your personal flood experience and budget.
 
 **Relocation is a major upheaval.** Moving means breaking your lease, finding new housing, disrupting work and school, and leaving your familiar neighborhood. Renters who relocate due to flood risk have typically experienced repeated severe flooding and decided their current home is no longer safe. Do not choose relocation unless your personal flood experience has been severe and repeated.
 
