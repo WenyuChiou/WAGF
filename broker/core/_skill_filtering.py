@@ -38,6 +38,16 @@ class SkillFilterMixin:
         action_ids = self._get_action_ids(agent_type)
         if not action_ids:
             return
+        # Respect pre-filtered available_skills from context builder (e.g.,
+        # run_flood.py removes elevate_house for already-elevated agents).
+        # Only keep action_ids that the context builder left in place.
+        pre_filtered = context.get("available_skills")
+        if pre_filtered:
+            pre_ids = {
+                (s.get("skill_name") if isinstance(s, dict) else s)
+                for s in pre_filtered
+            }
+            action_ids = [a for a in action_ids if a in pre_ids]
         filtered = self._filter_identity_skills(agent_type, action_ids, state)
         context["available_skills"] = filtered
         self._inject_options_text(context, filtered)
