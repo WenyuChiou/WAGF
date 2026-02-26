@@ -129,14 +129,13 @@ class FinalContextBuilder(TieredContextBuilder):
         
         # 4. Filter Available Skills (Pillar 1: Governance)
         # STRICTLY prevent proposing re-elevation if already elevated
-        available_skills = context.get('available_skills', [])
-        filtered_skills = []
-        for s in available_skills:
-            skill_id = s.get('skill_name') if isinstance(s, dict) else s
-            if skill_id == "elevate_house" and elevated:
-                continue 
-            filtered_skills.append(s)
-        context['available_skills'] = filtered_skills
+        # Note: super().build() returns available_skills=[] (empty).
+        # We must set the canonical list from agent.config.skills, then filter.
+        all_skills = list(getattr(agent, 'config', None) and agent.config.skills or
+                         ["buy_insurance", "elevate_house", "relocate", "do_nothing"])
+        if elevated:
+            all_skills = [s for s in all_skills if s != "elevate_house"]
+        context['available_skills'] = all_skills
         mem_val = personal.get('memory', [])
         if isinstance(mem_val, dict):
             # Flatten tiered memory for prompt
@@ -1188,7 +1187,7 @@ if __name__ == "__main__":
     parser.add_argument("--flood-mode", type=str, default="fixed", choices=["fixed", "prob"], help="Flood schedule: fixed (use flood_years.csv) or prob (use FLOOD_PROBABILITY)")
     parser.add_argument("--seed", type=int, default=None, help="Random seed for reproducibility. If None, uses system time.")
     parser.add_argument("--memory-seed", type=int, default=42, help="Random seed for memory engine consolidation/retrieval. Default=42 for experiment alignment.")
-    parser.add_argument("--governance-mode", type=str, default="strict", choices=["strict", "relaxed", "disabled"], help="Governance strictness profile")
+    parser.add_argument("--governance-mode", type=str, default="strict", choices=["strict", "relaxed", "disabled", "strict_no_etb"], help="Governance strictness profile")
     # LLM sampling parameters (None = use Ollama default)
     parser.add_argument("--temperature", type=float, default=None, help="LLM temperature (e.g., 0.8, 1.0). None=Ollama default")
     parser.add_argument("--top-p", type=float, default=None, help="Top-p sampling (e.g., 0.9, 0.95). None=Ollama default")
