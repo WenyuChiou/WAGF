@@ -585,7 +585,14 @@ class IrrigationEnvironment:
             return ExecutionResult(success=False, error=f"Unknown agent: {aid}")
 
         wr = agent["water_right"]
-        current = agent.get("diversion", agent["request"])
+        # v21 FIX: Use request (paper demand) as base for all skills.
+        # Previously used diversion (physical delivery), which is compressed
+        # by curtailment + Powell constraints.  This created an asymmetry:
+        # maintain_demand preserved request while increase/decrease operated
+        # on the much-lower diversion.  Using request ensures a consistent
+        # base across all skill types.  The demand_ceiling_stabilizer and
+        # other governance rules still prevent unbounded request growth.
+        current = agent["request"]
         meta = getattr(approved_skill, "parameters", {}) or {}
 
         # ═══ v17: Skill-level Gaussian magnitude sampling ═══
@@ -653,9 +660,8 @@ class IrrigationEnvironment:
         state_changes["is_exploration"] = is_exploration
 
         if skill in ("increase_large", "increase_small", "increase_demand"):
-            # Scale increase by actual diversion (physical water received),
-            # not request (paper demand). Prevents unbounded request growth
-            # when Powell/infra constraints cap actual delivery.
+            # v21: Scale increase by request (paper demand).  Governance
+            # rules (demand_ceiling_stabilizer) prevent unbounded growth.
             change = current * (magnitude_pct / 100.0)
             new_req = min(current + change, wr)
             self.update_agent_request(aid, new_req)
@@ -663,7 +669,8 @@ class IrrigationEnvironment:
             state_changes["magnitude_pct_applied"] = magnitude_pct
 
         elif skill in ("decrease_large", "decrease_small", "decrease_demand"):
-            change = wr * (magnitude_pct / 100.0)
+            # v21: Also use request as base (was water_right).
+            change = current * (magnitude_pct / 100.0)
             floor = wr * MIN_UTIL
             utilisation = current / wr if wr > 0 else 1.0
             # P1: diminishing returns as utilisation approaches floor

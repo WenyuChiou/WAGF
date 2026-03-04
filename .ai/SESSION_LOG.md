@@ -1,5 +1,305 @@
 # Session Log
 
+## Session AV (2026-03-03) — Fig 3 Panel (b) Redesign + Experiment Management
+
+### Fig 3b Design (v13→v22, 9+ iterations)
+- v13: Cumulative insurance-years → GOV/DIS overlap (4.54 vs 4.62), rejected
+- v14: First-difference delta line → "太單調了" (too monotonous)
+- v15: Stacked area 3 rows → redundant with panel (a)
+- v16: Diverging bars → professor vetoed pre/post flood comparison
+- v17: Heatmap 3×10 → only 1 dimension
+- v18: Ternary trajectory → "太擠" (bottom-edge crowding)
+- v19/v19b: Phase space → wrong axis choice / bottom-heavy
+- v20: Sparkline matrix 3×3 → user: "能變成一張圖嗎"
+- v21: Compact 3×1 → user approved, flood years corrected to {3,4,9}
+- **v22 (FINAL)**: Clean 3×1 with data-driven y-limits, subtle flood shading, gridlines
+
+### Panel (b) Final Design
+- 3 stacked sub-panels: Insurance / Elevation / Relocation rates (%)
+- Each overlays 3 conditions: Governed LLM (blue), LLM no validator (orange), Traditional ABM (grey dashed)
+- ±1 SE bands from 3 seeds, flood periods Y3-4 and Y9 shaded in light blue-grey
+- Integrated into `gen_fig3_case2_flood.py` (replaces old EHE line chart)
+- Layout fix: panel (c) shifted right (wspace 0.15→0.28) to prevent ylabel overlap
+
+### Prototype Cleanup
+- Removed 9 files: Fig3b_v20/v21/v22 .png/.pdf + gen_fig3b_v20/v21/v22 .py
+
+### Flood Disabled Batch ✅ COMPLETE (18/18)
+- All 6 models × 3 seeds finished (including gemma3:27b Run_2/3 which were pending)
+
+### Irrigation v21 Pipeline 🔄 RUNNING
+- User started: `run_nw_pipeline.py --skip-wait --start-from 2 --stop-at 10`
+- seed42 already complete, seeds 43-46 governed + seeds 42-46 ungoverned queued
+- No-ceiling ablation deferred (SI only)
+- v20 outdated data archived to `_archive_outdated/`
+
+### Resource Management
+- Killed stale processes (PID 144320, 205292)
+- Unloaded gemma3:27b from Ollama VRAM (14GB freed)
+
+### Files Modified
+- `paper/nature_water/scripts/gen_fig3_case2_flood.py`: panel (b) rewritten, layout adjusted
+- `paper/nature_water/figures/Fig3_flood_case.{png,pdf}`: regenerated
+- 9 prototype files deleted from `paper/nature_water/figures/`
+- `.ai/NEXT_TASK.md`: updated experiment inventory + fig 3 status
+- `.ai/SESSION_LOG.md`: this entry
+
+---
+
+## Session AT (2026-02-26) — Results/Discussion v17 + Experiment Inventory
+
+### NW Analysis Format Confirmed
+- Main text ≤ 4,000w (excl. Abstract, Methods, refs, legends)
+- Abstract ≤ 150w, Display items ≤ 7, References ~50
+- Subheadings in Results/Methods only; Discussion has NO subheadings
+
+### Results v17 Written (`section2_v17_results.md`)
+- R1: Validators enable scarcity-responsive behavior (~650w) — both domains
+- R2: Non-compliance at scarcity × capacity boundary (~350w) — anticipatory extraction + CA null
+- R3: Cross-model generalization (~250w) — 6 models, rule design > scale
+- Table 1 (irrigation) + Table 2 (flood) — PMT IBR = "—" (not applicable)
+- Demand-ceiling ablation, FQL, first-attempt diversity → all moved to SI
+- Total Results: ~1,350w
+
+### Discussion v17 Written (`section3_v17_discussion.md`)
+- P1: Central finding + Ostrom parallel
+- P2: Diagnostic capacity (anticipatory extraction audit trail)
+- P3: NEW — CA null cross-domain insight (PMT theory test)
+- P4: Scope conditions + limitations
+- P5: Consistency + domain-transferability + outlook
+- Total Discussion: ~790w
+
+### Introduction P6 Corrected
+- "twelvefold" → "sixteenfold" (actual: 0.6% → 9.7% ≈ 16×)
+- "relocation nearly vanishes" → REMOVED (28% vs 22%, not dramatic)
+- Added specific irrigation numbers: "IBR from 91% to 42%"
+
+### Flood Data Verified (3-seed gemma3:4b)
+| Condition | IBR | EHE | Relocation (cum) |
+|-----------|-----|-----|-----------------|
+| With validators | 0.6% ± 0.4% | 0.738 ± 0.038 | 28.0% ± 4.3% |
+| Without validators | 9.7% ± 0.7% | 0.737 ± 0.003 | 22.3% ± 2.6% |
+| Rule-based PMT | — | 0.752 ± 0.043 | 27.0% ± 12.0% |
+
+### gemma3:12b No-validator Run_1 Analysis
+- IBR ≈ 0.1% (very few H/VH threat appraisals, only 13/940)
+- Insurance monoculture: 83% insurance, EHE=0.447
+- Nearly identical to governed 12b — validators have minimal effect on this model
+- 12b problem is behavioral monoculture, not inconsistency
+
+### Experiment Inventory (see NEXT_TASK.md for full table)
+- Flood governed: 18/18 ✅
+- Flood no-validator: 3/18 complete, 1 running, 14 remaining
+- Irrigation governed v21: 1/5 seeds ✅
+- Irrigation no-validator v21: 0/5 seeds ❌
+- FQL: 10/10 ✅
+
+### Main Text Word Count
+| Section | Words |
+|---------|-------|
+| Introduction | ~890 |
+| Results | ~1,350 |
+| Discussion | ~790 |
+| **Total** | **~3,030 / 4,000** |
+
+### Files Created/Modified
+- `paper/nature_water/drafts/section2_v17_results.md`: NEW
+- `paper/nature_water/drafts/section3_v17_discussion.md`: NEW
+- `paper/nature_water/drafts/introduction_v10.md`: P6 corrections
+- `paper/nature_water/scripts/gen_fig2_case1_irrigation.py`: ungov_dir_fn v21 fallback
+- `.ai/NEXT_TASK.md`: full experiment inventory + priority list
+- MEMORY.md: Prof. Yang review reminder + v17 status
+
+---
+
+## Session AS (2026-02-26) — Fig 2/3 Redesign + v20 Archive + 6-Model Batch
+
+### Fig 3 Redesign
+- **Panel (b)**: Multi-layer protection trajectory → **Per-year EHE (behavioural entropy)**
+  - Shows LLM agents produce richer diversity than rule-based ABMs (the LLM unique value)
+  - Rule-based: low flat EHE (~0.6), LLM: higher EHE (~0.7+), responsive to flood events
+  - Function: `_compute_yearly_ehe()` replaces `_compute_multilayer_trajectory()`
+- **Panel (c) violation colors**: Fixed — stronger colormap (white→orange→deep red), shared `vmax=100`
+  - Both panels on same scale for direct comparison (disabled dark vs governed light)
+- **Naming**: "LLM (no validation)" → **"LLM (no validator)"** across both Fig 2 and Fig 3 scripts
+
+### Fig 2 Redesign
+- **Panel (a)**: 3 sub-panels → **2 sub-panels** (FQL overlaid as dashed line in both)
+  - Sub-panel 1: **Governed LLM** (stacked area + Mead + FQL dashed)
+  - Sub-panel 2: **Governed LLM (no validator)** (stacked area + Mead + FQL dashed)
+  - FQL no longer has its own dedicated sub-panel
+- **Naming**: "LLM (no validator)" → **"Governed LLM (no validator)"** throughout
+- Legend moved to no-validator panel, right y-axis (Mead) on rightmost panel
+
+### v20 Data Archived
+- Moved all v20 irrigation results to `examples/irrigation_abm/results/_archive_v20/`
+  - 5× production_v20 (governed) + 5× ungoverned_v20 = 10 directories
+- Remaining: `production_v21_42yr_seed42` (correct) + `ungoverned_v21_42yr_seed42` (incomplete, 173 traces)
+- Prevents Fig 2 script from accidentally using broken v20 data
+
+### Disabled Run_2 Analysis
+- Run_2 complete: 923 traces (Year 1-10), 100 agents, R5=0, IBR=10.2%, EHE=0.739
+- Consistent with Run_1 (IBR=8.9%, EHE=0.737) — stable across seeds
+
+### 6-Model Disabled Batch Created
+- Script: `examples/single_agent/run_flood_disabled_batch.py`
+- Models (order): gemma3:12b → 27b → ministral3:3b → 8b → 14b → gemma3:4b
+- 3 seeds each (42, 43, 44), --years 10, --governance-mode disabled
+- 16 jobs total (gemma3_4b Run_1/2 skipped = already done)
+- `--skip-existing` flag auto-skips completed runs
+- User executing: `python run_flood_disabled_batch.py --skip-existing`
+
+### Introduction P6 Rewritten
+- "cognitive infrastructure" → "validation rules do not suppress behavioral diversity but redirect it"
+- "governed vs ungoverned" → **"with validators vs without validators"** (CRITICAL naming fix)
+- British "behaviour" → American "behavior" throughout P6
+- Added: "irrational behavior increases twelvefold", "voluntary relocation nearly vanishes"
+- Added: "threat-dominated reasoning in which coping appraisal plays no measurable role"
+
+### Run_1 Data Cleanup
+- Removed 302 traces (Year 11-13) from Run_1 JSONL
+- Deduplicated 842 retry traces (format parsing retries) → 986 final traces
+- Run_1 IBR corrected: 8.9% → 8.7% after dedup
+
+### CRITICAL NAMING CONVENTION (updated in MEMORY.md)
+- Both conditions use WAGF framework
+- Comparison: **"with validators" vs "without validators"**, NOT "governed vs ungoverned"
+- Figure labels: "Governed LLM" vs "Governed LLM (no validator)"
+- Paper text: "With validators..." / "Without validators..."
+
+### Files Modified
+- `paper/nature_water/scripts/gen_fig3_case2_flood.py`: panel (b) EHE, violation colors, naming
+- `paper/nature_water/scripts/gen_fig2_case1_irrigation.py`: 2-panel layout, naming
+- `paper/nature_water/drafts/introduction_v10.md`: P6 rewritten (validator framing)
+- `examples/single_agent/run_flood_disabled_batch.py`: NEW — 6-model batch runner
+- `examples/irrigation_abm/results/_archive_v20/`: v20 data archived
+
+---
+
+## Session AR (2026-02-26) — Disabled Run_1 Analysis + Fig 3 JSONL Loader + IBR Comparison
+
+### Year Count Mismatch Found
+- Disabled Run_1 was started with `--years 13` (MA flood convention), but SA flood = **10 years**
+- Governed runs (JOH_FINAL) confirmed: all Year 10 max
+- **Resolution**: Run_1 data valid — filter `year <= 10`, discard Year 11-13
+- Run_2/Run_3 should use default `--years 10` (no `--years` flag needed)
+
+### gen_fig3_case2_flood.py — JSONL Fallback Loader
+- Disabled runs produce `household_traces.jsonl` (not `simulation_log.csv` until complete)
+- Added `_load_llm_run_from_traces()`: reads JSONL, flattens nested fields, filters `year <= max_year`
+  - `approved_skill.skill_name` → `yearly_decision`
+  - `skill_proposal.reasoning.TP_LABEL` → `threat_appraisal` (uppercased)
+  - `skill_proposal.reasoning.CP_LABEL` → `coping_appraisal` (uppercased)
+  - `state_after.{elevated, has_insurance, relocated}` → boolean columns
+- `_load_llm_run_grouped()` now: prefer CSV → fallback JSONL
+- CSV loader also adds `year <= 10` filter for consistency
+- Fig 3 generated successfully: 2 disabled runs loaded (Run_1: 1828, Run_2: 56 in progress)
+
+### Disabled Run_1 Analysis (Year 1-10, n=1828)
+- **R5 violations: 0** ✅ (fix confirmed)
+- Actions: buy_insurance 50.9%, do_nothing 36.9%, elevate_house 10.3%, relocate 1.9%
+- Year 1-3: heavy elevation (25-35%), Year 4+: elevation stops (all upgraded)
+- TP: M=49.4%, H=33.0%, L=9.6%, VH=5.1%, VL=2.9%
+- CP: M=93.9% (near-uniform — no governance → no coping differentiation)
+- Year 10 final state: 45.5% elevation-only, 53.3% ins+elev, 1.2% relocated
+- EHE = 0.737
+
+### Post-hoc IBR Comparison (Key Finding)
+| Condition | IBR | R1 | R5 | EHE |
+|-----------|-----|----|----|-----|
+| Governed LLM (n=3) | **0.8%** ± 0.9% | 0.8% | 0 | 0.743 |
+| Disabled LLM (n=1) | **8.9%** | 8.8% | 0 | 0.737 |
+| Rule-based PMT (n=3) | N/A | N/A | N/A | 0.598 |
+
+- Governance reduces IBR by **11×** (0.8% vs 8.9%)
+- Nearly all violations = R1 (high threat + do_nothing)
+- EHE nearly identical (0.743 vs 0.737) → governance ≠ less diversity, = smarter diversity
+- Rule-based lowest EHE (0.598) → LLM agents inherently more diverse
+
+### Files Modified
+- `paper/nature_water/scripts/gen_fig3_case2_flood.py`: added JSONL loader + year<=10 filter
+- `.ai/SESSION_LOG.md`, `.ai/NEXT_TASK.md`: updated
+
+---
+
+## Session AQ (2026-02-26) — R5 Root Cause Fix + Fig 2 Regeneration
+
+### R5 Bug — TRUE Root Cause Found & Fixed
+- Session AO fix was INCOMPLETE: added pre-filter intersection in `_skill_filtering.py`, but `FinalContextBuilder.build()` was filtering an EMPTY list (`available_skills=[]` from TieredContextBuilder default)
+- **Root cause chain**:
+  1. `TieredContextBuilder.build()` initializes `available_skills = []` (empty list)
+  2. `FinalContextBuilder.build()` old code: filters `[]` → still `[]`
+  3. `_inject_filtered_skills()`: `if pre_filtered:` → `[]` is falsy → SKIPS intersection
+  4. Overwrites with all 4 skills including `elevate_house` for elevated agents
+- **Fix** (run_flood.py lines 130-138): Read skills from `agent.config.skills` (non-empty), filter `elevate_house` if elevated, then set `context['available_skills']`
+- **Pipeline test PASS**: prompt shows 3 options, dynamic_skill_map "2"→"relocate", skill_map resolves correctly
+- **Gov impact**: NONE — gov has `identity_rules` as second defense layer
+- **Lesson**: `__pycache__` on Windows can survive `find -exec rm -rf` — always verify deletion
+- Commit: `c26c403`
+
+### Cleanup
+- Deleted invalid Run_1/Run_2 data (had R5 violations from buggy code)
+- Removed debug traces from `_skill_filtering.py` (net zero change)
+- Cleaned all `__pycache__`, test artifacts, temp files
+
+### Fig 2 Regenerated (gen_fig2_case1_irrigation.py)
+- 3 conditions: Governed LLM | LLM (no validation) | Baseline (FQL)
+- Data: gov seed42=v21, seeds 43-46=v20 fallback; ungov=v20; FQL=seeds 42-51
+- Action split: Gov 38.7% rejected, 48.6% chosen maintain | Ungov 8.7% rejected
+- Output: `Fig2_irrigation_case.{png,pdf}`
+
+### Flood Disabled Seeds — Running
+- User manually running 3 seeds (42, 43, 44) with fixed code
+- Results → `results/JOH_ABLATION_DISABLED/gemma3_4b/Group_C_disabled/Run_{1,2,3}`
+
+### Files Modified
+- `examples/single_agent/run_flood.py`: FinalContextBuilder R5 fix + strict_no_etb CLI choice
+- `broker/core/_skill_filtering.py`: debug traces removed (logic unchanged from Session AO)
+- `.ai/NEXT_TASK.md`, `.ai/SESSION_LOG.md`: updated
+
+## Session AP (2026-02-26) — Irrigation v21 Analysis + Fig 2 Consolidation
+
+### Fig 2 Regenerated
+- Updated `gen_fig2_irrigation.py` to prefer v21 data (governed seed42 from v21, seed43/44 fallback to v20)
+- Also updated `compute_first_attempt_ehe()` for v21 audit
+- v21 governed: EHE=0.710, IBR=0.410, DR=0.389, SY=14.3
+
+### Maintain Behavior Analysis
+- 58.7% of all decisions = maintain_demand
+- **98.6% voluntary** (LLM chose maintain), only 1.4% governance-forced fallback
+- WSA×ACA dual-appraisal confirmed: VL→100% maintain, H×H→39% maintain (61% increase)
+- Governance REJECTED 1,194 decisions (36%) but ALL retried successfully — LLM self-corrected
+
+### Request vs Diversion Mechanism
+- `diversion = request × (1 - curtailment_ratio)` — mathematically exact
+- 64.3% of agent-years: curtailment=0, request=diversion
+- Shortage tiers: Tier1=5%, Tier2=10%, Tier3=20% curtailment
+- Request is path-dependent: each year adjusts from previous year's request (not independent)
+
+### Methods v3 Updated
+- Added proxy framing: discrete actions = planting/operational decisions
+- Added request→diversion explanation with feedback loop
+- Decided NOT to add detailed curtailment/path-dependency (NW word limit)
+
+### Key Insight: v21 More Conservative Than v20
+- v21 fixed asymmetric base bug in execute_skill() → more maintain, less increase
+- v20 maintain=1,448 vs v21 maintain=1,923 (seed42)
+- Behavior more realistic: farmers are conservative, change slowly
+
+### Fig 2 Consolidation
+- Deleted old `gen_fig2_irrigation.py` (3-panel: stacked area + DR scatter + EHE bars)
+- Kept `gen_fig2_case1_irrigation.py` as sole Fig 2 script (3-panel: stacked area + MAF scatter + pie matrix)
+- Updated governed path: v21 preferred, v20 fallback
+- Old `Fig2_irrigation.{png,pdf}` deleted
+
+### Expert Panel Review
+- 4 specialists: Water Resources Engineer, Agricultural Economist, ABM Scientist, Behavioral Psychologist
+- Verdict: ACCEPT WITH MINOR REVISIONS (7.75/10)
+- Key strength: WSA×ACA gradient is strongest validation artifact
+- Key concern: DR=0.389 below real-world (but lower basin weighted DR=0.665 is realistic)
+- Action items: n≥3 seeds for v21, justify 6.0 MAF ceiling, lead with relative comparison
+- Saved: `examples/irrigation_abm/analysis/v21_expert_plausibility_review.md`
+
 ## Session AO (2026-02-26) — R5 Bug Fix + Narrative Correction
 
 ### CRITICAL BUG: R5 Re-Elevation Was Code Bug, Not LLM Hallucination

@@ -1,10 +1,11 @@
-# Nature Water — Abstract (v14 — water-first rewrite)
+# Nature Water — Abstract (v16 — style polish: no em dashes, plain language metrics)
 ## ≤150 words | Unreferenced | Analysis format
 
 ---
 
-In a 42-year Colorado River irrigation simulation, language-based agents governed by modular physical and institutional rules extracted more water while maintaining drought responsiveness (demand ratio — water requested relative to historical allocation — 0.394 versus 0.288; demand–reservoir coupling r = 0.547 versus 0.378). Governed agents exhibited adaptive exploitation — higher extraction during abundance, proportionate curtailment during drought — a water-system dynamic whose underlying reasoning is compressed away by parameterized decision functions. Institutional rules created feasibility boundaries within which agents developed differentiated strategies autonomously, producing higher behavioural diversity than both ungoverned agents and a hand-coded baseline. Targeted removal of a single rule — the demand ceiling linking individual proposals to basin-wide demand — increased diversity but decoupled it from drought signals, nearly doubling shortage frequency and distinguishing adaptive from arbitrary diversity. The effect generalized from chronic drought (78 agents, 42 years) to acute flood hazard (100 agents, 10 years), was positive for five of six language models tested (three statistically significant), and governance reduced irrational behaviour rates from 0.8–11.6% to at or below 1.7% (significant for four of six models). Institutional boundaries widen adaptive capacity in ways that fixed decision rules cannot represent.
+Institutional rules in water resource systems are conventionally understood as constraints on behaviour. Here we show that for large language model (LLM) agents simulating water decisions, institutional rules function as cognitive infrastructure: without them, agents cannot reason about conservation. In a 42-year Colorado River simulation, removing governance caused behavioural collapse, with 91% of high-scarcity decisions proposing demand increases. Governed agents maintained scarcity-appropriate behaviour (irrational behaviour rate 42%) while extracting 37% more water. Decomposing decisions by agents' self-assessed scarcity appraisals reveals that non-compliance concentrates where high scarcity awareness intersects high adaptive capacity. These cognitively structured patterns are observable in reasoning traces but invisible to conventional agent-based models. Removing a single institutional rule increased diversity but raised irrational behaviour and nearly doubled shortage frequency, distinguishing adaptive from arbitrary diversity. The governance effect generalized from chronic drought to acute flood hazard across six LLMs tested.
 
 ---
 
-### Word count: ~150
+### Word count: 148
+

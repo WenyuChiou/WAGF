@@ -393,6 +393,39 @@ household:
             level: WARNING,
           }
 
+    # Ablation: strict minus extreme_threat_block (Paper 1b R2)
+    strict_no_etb:
+      thinking_rules:
+        - {
+            id: low_coping_block,
+            construct: CP_LABEL,
+            conditions: [{ construct: CP_LABEL, values: ["VL", "L"] }],
+            blocked_skills: ["elevate_house", "relocate"],
+            level: WARNING,
+            message: "Low coping appraisal: agent perceives low self-efficacy for complex actions.",
+          }
+        - {
+            id: relocation_threat_low,
+            conditions: [{ construct: TP_LABEL, values: ["VL", "L"] }],
+            blocked_skills: ["relocate"],
+            level: ERROR,
+            message: "Relocation blocked: Threat level is too low to justify abandoning property.",
+          }
+        - {
+            id: elevation_threat_low,
+            conditions: [{ construct: TP_LABEL, values: ["VL", "L"] }],
+            blocked_skills: ["elevate_house"],
+            level: ERROR,
+            message: "Elevation blocked: Your threat appraisal ({context.TP_LABEL}) is too low. Consider scenarios with threat >= M.",
+          }
+      identity_rules:
+        - {
+            id: elevation_block,
+            precondition: elevated,
+            blocked_skills: ["elevate_house"],
+            level: ERROR,
+          }
+
     disabled:
       thinking_rules: []
       identity_rules: []
