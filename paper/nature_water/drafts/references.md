@@ -14,6 +14,10 @@
 
 4. Di Baldassarre, G. et al. Sociohydrology: Scientific challenges in addressing the sustainable development goals. *Water Resour. Res.* **55**, 6327-6355 (2019). https://doi.org/10.1029/2018WR023901
 
+29. Di Baldassarre, G. et al. Socio-hydrology: conceptualising human-flood interactions. *Hydrol. Earth Syst. Sci.* **17**, 3295-3303 (2013). https://doi.org/10.5194/hess-17-3295-2013
+
+30. Di Baldassarre, G. et al. Debates: Perspectives on socio-hydrology: Capturing feedbacks between physical and social processes. *Water Resour. Res.* **51**, 4770-4781 (2015). https://doi.org/10.1002/2014WR016416
+
 5. Blair, P. & Buytaert, W. Socio-hydrological modelling: a review asking "why, what and how?". *Hydrol. Earth Syst. Sci.* **20**, 443-478 (2016). https://doi.org/10.5194/hess-20-443-2016
 
 6. Epstein, J. M. & Axtell, R. L. *Growing Artificial Societies: Social Science from the Bottom Up* (MIT Press/Brookings Institution Press, 1996). ISBN: 978-0-262-55025-3
@@ -27,6 +31,14 @@
 10. Hung, C.-L. & Yang, Y. C. E. Assessing adaptive irrigation impacts on water scarcity in nonstationary environments—A multi-agent modeling framework. *Water Resour. Res.* **57**, e2020WR028946 (2021). https://doi.org/10.1029/2020WR028946
 
 11. Castilla-Rho, J. C. et al. An agent-based platform for simulating complex human–aquifer interactions in managed groundwater systems. *Environ. Model. Softw.* **92**, 27-46 (2017). https://doi.org/10.1016/j.envsoft.2017.02.011
+
+25. Yang, Y. C. E., Cai, X. & Stipanović, D. M. A decentralized optimization algorithm for multiagent system-based watershed management. *Water Resour. Res.* **45**, W08430 (2009). https://doi.org/10.1029/2008WR007634
+
+26. Hyun, J.-Y. & Yang, Y. C. E. Using a coupled agent-based modeling approach to analyze the role of risk perception in water management decisions. *Hydrol. Earth Syst. Sci.* **23**, 2261-2278 (2019). https://doi.org/10.5194/hess-23-2261-2019
+
+27. Lin, C.-Y. & Yang, Y. C. E. An investigation of coupled natural human systems using a two-way coupled agent-based modeling framework. *Environ. Model. Softw.* **155**, 105451 (2022). https://doi.org/10.1016/j.envsoft.2022.105451
+
+28. Hung, F. & Yang, Y. C. E. Assessing the impact of adaptation strategies on water scarcity under climate change in the Colorado River Basin. *J. Hydrol.* **612**, 128193 (2022). https://doi.org/10.1016/j.jhydrol.2022.128193
 
 12. An, L. Modeling human decisions in coupled human and natural systems: Review of agent-based models. *Ecol. Model.* **229**, 25-36 (2012). https://doi.org/10.1016/j.ecolmodel.2011.07.010
 
@@ -58,7 +70,7 @@
 
 ## Notes
 
-- **Total references**: 24
+- **Total references**: 28
 - **Sources**: Introduction (v10), Results (v11), Discussion (v11), Methods (v3), Abstract (v10)
 - All citations verified against Zotero library tagged with `NW-Intro` and `Paper1b`
 - Format: Nature Water style (numbered, author-date format with DOI)
@@ -75,14 +87,16 @@
 - Bonabeau 2002 (ABM methods)
 - Berglund 2015 (ABM for water resources)
 - Haer et al. 2017 (PMT-based flood ABM)
-- Hung & Yang 2021 (irrigation ABM, Colorado River)
+- Yang et al. 2009 (decentralized multi-agent watershed optimization)
+- Hung & Yang 2021 (irrigation ABM, Colorado River) — ×3 mentions (P3, P6, P7)
+- Hyun & Yang 2019 (risk perception coupled ABM)
 - Castilla-Rho et al. 2017 (reinforcement learning in ABM)
 - An 2012 (review of ABM decision-making)
 - Müller et al. 2013 (ODD + D protocol)
 - Schlüter et al. 2017 (behavioral theories in ABM)
 - Park et al. 2023 (generative agents)
 - Vezhnevets et al. 2023 (Concordia framework)
-- Gao et al. 2024 (LLM-ABM survey, 1000+ agents)
+- Gao et al. 2024 (LLM-ABM survey)
 - Huang et al. 2025 (hallucination survey)
 - Ostrom 1990 (institutional theory, common-pool resources)
 

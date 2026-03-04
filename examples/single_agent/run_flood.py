@@ -58,12 +58,13 @@ PAST_EVENTS = [
 
 class FinalContextBuilder(TieredContextBuilder):
     """Subclass of TieredContextBuilder to verbalize floats and format memory into string."""
-    def __init__(self, *args, sim=None, memory_top_k: int = 5, shuffle_skills: bool = False, shuffle_seed_base: int = None, **kwargs):
+    def __init__(self, *args, sim=None, memory_top_k: int = 5, shuffle_skills: bool = False, shuffle_seed_base: int = None, governance_mode: str = "strict", **kwargs):
         super().__init__(*args, **kwargs)
         self.sim = sim
         self.memory_top_k = memory_top_k
         self.shuffle_skills = shuffle_skills
         self.shuffle_seed_base = shuffle_seed_base
+        self.governance_mode = governance_mode
     
     def _verbalize_trust(self, trust_value: float, category: str = "insurance") -> str:
         if category == "insurance":
@@ -242,12 +243,14 @@ class ResearchSimulation:
         flood_mode: str = "fixed",
         flood_probability: float = FLOOD_PROBABILITY,
         premium_rate: float = 0.02,
+        governance_mode: str = "strict",
     ):
         self.agents = agents
         self.flood_years = flood_years or []
         self.flood_mode = flood_mode
         self.flood_probability = flood_probability
         self.premium_rate = premium_rate
+        self.governance_mode = governance_mode
         self.current_year = 0
         self.flood_event = False
         self.grant_available = False
@@ -285,8 +288,13 @@ class ResearchSimulation:
         
         if skill == "elevate_house":
             if getattr(agent, "elevated", False):
-                return ExecutionResult(success=False, error="House already elevated.")
-            state_changes["elevated"] = True
+                if self.governance_mode == "disabled":
+                    # No-op: record the hallucination but don't block
+                    state_changes["elevated"] = True  # already True, no-op
+                else:
+                    return ExecutionResult(success=False, error="House already elevated.")
+            else:
+                state_changes["elevated"] = True
             
         elif skill == "buy_insurance": 
             state_changes["has_insurance"] = True
@@ -794,7 +802,12 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     registry_path = base_path / "skill_registry.yaml"
     registry = SkillRegistry()
     registry.register_from_yaml(str(registry_path))
-    
+
+    # Disabled mode: clear preconditions so hallucinations pass through (no retry)
+    if governance_mode == "disabled":
+        for skill in registry.skills.values():
+            skill.preconditions = []
+
     agent_config_path = base_path / "agent_types.yaml"
     with open(agent_config_path, 'r', encoding='utf-8') as f:
         agent_cfg_data = yaml.safe_load(f)
@@ -900,7 +913,8 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     # 4. Setup Components
     premium_rate = getattr(args, 'premium_rate', None) or 0.02
     sim = ResearchSimulation(agents, flood_years, flood_mode=flood_mode,
-                             premium_rate=premium_rate)
+                             premium_rate=premium_rate,
+                             governance_mode=governance_mode)
     if premium_rate != 0.02:
         print(f" [Counterfactual] Insurance premium rate: {premium_rate} (baseline: 0.02)")
     graph = NeighborhoodGraph(list(agents.keys()), k=4)
@@ -915,6 +929,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         memory_top_k=window_size,
         shuffle_skills=shuffle_skills,
         shuffle_seed_base=seed,
+        governance_mode=governance_mode,
     )
 
     # Inject PrioritySchemaProvider if enabled (Separation for Group C)

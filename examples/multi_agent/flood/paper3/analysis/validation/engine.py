@@ -72,6 +72,32 @@ def load_traces(
     return result[groups[0]], result[groups[1]]
 
 
+_INSTITUTIONAL_TRACE_PATTERNS = [
+    "**/government_traces.jsonl",
+    "**/insurance_traces.jsonl",
+]
+
+
+def _load_institutional_traces(traces_dir: Path) -> List[Dict]:
+    """Load government and insurance traces for trajectory benchmarks."""
+    traces = []
+    for pattern in _INSTITUTIONAL_TRACE_PATTERNS:
+        for filepath in traces_dir.glob(pattern):
+            with open(filepath, 'r', encoding='utf-8') as f:
+                for line in f:
+                    if line.strip():
+                        traces.append(json.loads(line))
+    # Also check parent directory (audit CSVs pattern)
+    if not traces and traces_dir.parent != traces_dir:
+        for pattern in _INSTITUTIONAL_TRACE_PATTERNS:
+            for filepath in traces_dir.parent.glob(pattern.removeprefix("**/")):
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        if line.strip():
+                            traces.append(json.loads(line))
+    return traces
+
+
 def compute_validation(
     traces_dir: Path,
     agent_profiles_path: Path,
@@ -106,9 +132,13 @@ def compute_validation(
     owner_traces, renter_traces = load_traces(traces_dir, trace_patterns=trace_patterns)
     all_traces = owner_traces + renter_traces
 
+    # Load institutional traces (government + insurance) for trajectory benchmarks
+    institutional_traces = _load_institutional_traces(traces_dir)
+
     print(f"  Owner traces: {len(owner_traces)}")
     print(f"  Renter traces: {len(renter_traces)}")
-    print(f"  Total: {len(all_traces)}")
+    print(f"  Institutional traces: {len(institutional_traces)}")
+    print(f"  Total: {len(all_traces)} (household) + {len(institutional_traces)} (institutional)")
 
     if len(all_traces) == 0:
         raise ValueError(f"No traces found in {traces_dir}")
@@ -150,8 +180,11 @@ def compute_validation(
         action_distribution=combined_actions,
     )
 
-    # CACR decomposition
+    # CACR decomposition — search traces_dir and its parent (audit CSVs
+    # are often in the parent directory, e.g. gemma3_4b_strict/ vs raw/)
     audit_csvs = list(traces_dir.glob("**/*governance_audit.csv"))
+    if not audit_csvs and traces_dir.parent != traces_dir:
+        audit_csvs = list(traces_dir.parent.glob("*governance_audit.csv"))
     if audit_csvs:
         print(f"\n  Found {len(audit_csvs)} governance audit CSV(s)")
         cacr_decomp = compute_cacr_decomposition(audit_csvs, theory=theory)
@@ -177,9 +210,10 @@ def compute_validation(
     print(f"  Kappa TP: {cgr_results['kappa_tp']}, Kappa CP: {cgr_results['kappa_cp']}")
     print(f"  Grounded: {cgr_results['n_grounded']}, Skipped: {cgr_results['n_skipped']}")
 
-    # L2
+    # L2 — include institutional traces for trajectory benchmarks
     print("\nComputing L2 metrics...")
-    l2 = compute_l2_metrics(all_traces, agent_profiles,
+    l2_traces = all_traces + institutional_traces
+    l2 = compute_l2_metrics(l2_traces, agent_profiles,
                             benchmarks=benchmarks,
                             benchmark_compute_fn=benchmark_compute_fn)
 

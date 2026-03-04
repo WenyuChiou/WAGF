@@ -4,13 +4,13 @@ Nature Water — Figure 3 (flood case study): 3-panel figure.
 
 Layout (7.09 × 7.0 in, full Nature Water width):
   Top row:   (a) Cumulative protection state evolution — 3 side-by-side stacked
-                 bar sub-panels: Rule-based | LLM (no validation) | Governed LLM
+                 bar sub-panels: Rule-based | LLM (no validator) | Governed LLM
   Bottom row: (b) Initial vs final protection state comparison (grouped bars)
-              (c) TA×CA pie matrices: LLM (no validation) vs Governed LLM
+              (c) TA×CA pie matrices: LLM (no validator) vs Governed LLM
 
 Data sources:
   - Rule-based PMT : examples/single_agent/results/rulebased/Run_{1,2,3}/simulation_log.csv
-  - LLM (no validation): examples/single_agent/results/JOH_ABLATION_DISABLED/gemma3_4b/Group_C_disabled/Run_{1,2,3}/simulation_log.csv
+  - LLM (no validator): examples/single_agent/results/JOH_ABLATION_DISABLED/gemma3_4b/Group_C_disabled/Run_{1,2,3}/simulation_log.csv
   - Governed LLM   : examples/single_agent/results/JOH_FINAL/gemma3_4b/Group_C/Run_{1,2,3}/simulation_log.csv
 
 Output: paper/nature_water/figures/Fig3_flood_case.{png,pdf}
@@ -233,13 +233,86 @@ def _load_rulebased_run(run: str) -> pd.DataFrame:
     return df
 
 
+def _load_llm_run_from_traces(base_dir: Path, run: str,
+                               max_year: int = 10) -> pd.DataFrame:
+    """Load one LLM run from household_traces.jsonl (fallback when CSV absent).
+
+    Flattens nested fields:
+      - approved_skill.skill_name → yearly_decision
+      - skill_proposal.reasoning.TP_LABEL → threat_appraisal
+      - skill_proposal.reasoning.CP_LABEL → coping_appraisal
+      - state_after.{elevated, has_insurance, relocated} → boolean columns
+    Filters to year <= max_year for cross-condition alignment.
+    """
+    import json as _json
+
+    jsonl_path = base_dir / run / "raw" / "household_traces.jsonl"
+    if not jsonl_path.exists():
+        print(f"  WARNING: Missing {jsonl_path}")
+        return pd.DataFrame()
+
+    rows = []
+    with open(jsonl_path, encoding='utf-8') as fh:
+        for line in fh:
+            t = _json.loads(line)
+            year = t.get('year', 0)
+            if year > max_year:
+                continue
+
+            # Extract action from approved_skill
+            ap = t.get('approved_skill', {})
+            if isinstance(ap, dict):
+                action = ap.get('skill_name', 'do_nothing')
+            else:
+                action = str(ap) if ap else 'do_nothing'
+
+            # Extract TP/CP from skill_proposal.reasoning
+            sp = t.get('skill_proposal', {})
+            reasoning = sp.get('reasoning', {}) if isinstance(sp, dict) else {}
+            if isinstance(reasoning, dict):
+                tp = str(reasoning.get('TP_LABEL', '')).strip().upper()
+                cp = str(reasoning.get('CP_LABEL', '')).strip().upper()
+            else:
+                tp, cp = '', ''
+
+            # State after action (for cumulative protection classification)
+            sa = t.get('state_after', t.get('state_before', {}))
+            elevated = sa.get('elevated', False)
+            has_ins = sa.get('has_insurance', False)
+            relocated = sa.get('relocated', False)
+
+            rows.append({
+                'year': year,
+                'agent_id': t.get('agent_id', ''),
+                'yearly_decision': action,
+                'threat_appraisal': tp,
+                'coping_appraisal': cp,
+                'elevated': elevated,
+                'has_insurance': has_ins,
+                'relocated': relocated,
+            })
+
+    if not rows:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(rows)
+    df['prot_state'] = df.apply(_classify_state_from_cols, axis=1)
+    print(f"    Loaded {len(df)} traces from {jsonl_path.name} (year≤{max_year})")
+    return df
+
+
 def _load_llm_run_grouped(base_dir: Path, run: str) -> pd.DataFrame:
-    """Load one LLM run (Group_A or Group_B)."""
+    """Load one LLM run. Prefers simulation_log.csv; falls back to traces."""
     path = base_dir / run / "simulation_log.csv"
     if not path.exists():
-        print(f"  WARNING: Missing {path}")
-        return pd.DataFrame()
+        # Fallback: load from household_traces.jsonl
+        return _load_llm_run_from_traces(base_dir, run, max_year=10)
+
     df = pd.read_csv(path, encoding='utf-8-sig')
+
+    # Filter to year <= 10 for consistency
+    if 'year' in df.columns:
+        df = df[df['year'] <= 10].copy()
 
     # Determine which column holds the cumulative state label
     if 'cumulative_state' in df.columns:
@@ -340,7 +413,7 @@ def draw_panel_a(axes, data: dict):
     """
     sub_configs = [
         ('rulebased', 'Rule-based',            PMT_COLOR),
-        ('disabled',  'LLM (no validation)',   UNGOV_COLOR),
+        ('disabled',  'LLM (no validator)',   UNGOV_COLOR),
         ('gov',       'Governed LLM',          GOV_COLOR),
     ]
 
@@ -694,30 +767,35 @@ def _normalise_decision(dec: str) -> str:
     return mapping.get(d, 'do_nothing')
 
 
-def _compute_multilayer_trajectory(dfs: list) -> tuple:
-    """Compute % agents with multi-layer protection per year.
+def _compute_yearly_ehe(dfs: list) -> tuple:
+    """Compute per-year normalised Shannon entropy (EHE) from action distributions.
 
-    Multi-layer = (insurance AND elevation) OR relocated.
-    Returns: (years, means, stds) arrays.
+    Returns: (years, means, stds) arrays — one EHE value per simulation year.
+    This captures *within-year behavioural diversity*, which is high for LLM agents
+    (diverse reasoning → diverse actions) and low for rule-based agents
+    (deterministic formula → uniform response).
     """
     if not dfs:
         return np.arange(1, 11), np.zeros(10), np.zeros(10)
 
     per_run = []
     for df in dfs:
-        df = df.copy()
-        df['elev'] = _as_bool(df['elevated'])
-        df['ins'] = _as_bool(df['has_insurance'])
-        df['reloc'] = _as_bool(df['relocated'])
-        df['multi'] = (df['elev'] & df['ins']) | df['reloc']
-        yearly = []
+        yearly_ehe = []
         for y in range(1, 11):
             yr = df[df['year'] == y]
             if len(yr) == 0:
-                yearly.append(0.0)
+                yearly_ehe.append(0.0)
+                continue
+            # Get decision column
+            if 'yearly_decision' in yr.columns:
+                dec = yr['yearly_decision']
+            elif 'action' in yr.columns:
+                dec = yr['action']
             else:
-                yearly.append(yr['multi'].sum() / len(yr) * 100)
-        per_run.append(yearly)
+                yearly_ehe.append(0.0)
+                continue
+            yearly_ehe.append(_ehe_from_decisions(dec))
+        per_run.append(yearly_ehe)
 
     arr = np.array(per_run)
     years = np.arange(1, 11)
@@ -726,58 +804,203 @@ def _compute_multilayer_trajectory(dfs: list) -> tuple:
     return years, means, stds
 
 
-def draw_panel_b(ax, data: dict):
-    """Draw panel (b): multi-layer flood protection rate over time.
+def _compute_action_props_and_se(dfs: list, action: str):
+    """Return (mean_vals, se_vals) arrays of length 10 for one action."""
+    per_run = []
+    for df in dfs:
+        if df.empty:
+            continue
+        # Need yearly_action column — derive if missing
+        if 'yearly_action' not in df.columns:
+            if 'yearly_decision' in df.columns:
+                df = df.copy()
+                df['yearly_action'] = df['yearly_decision'].apply(_normalise_decision)
+            else:
+                continue
+        vals = []
+        for yr in range(1, 11):
+            yr_df = df[df['year'] == yr]
+            total = len(yr_df)
+            if total == 0:
+                vals.append(0.0)
+            else:
+                vals.append((yr_df['yearly_action'] == action).sum() / total * 100)
+        per_run.append(vals)
+    if not per_run:
+        return np.zeros(10), np.zeros(10)
+    arr = np.array(per_run)
+    mean = arr.mean(axis=0)
+    se = arr.std(axis=0, ddof=1) / np.sqrt(len(per_run)) if len(per_run) > 1 else np.zeros(10)
+    return mean, se
 
-    Water insight: governance builds flood resilience through layered protection,
-    not just single-measure adoption. Flood events (Y3, Y4, Y9) trigger jumps.
+
+def _derive_yearly_action_rulebased(df: pd.DataFrame) -> pd.DataFrame:
+    """Add yearly_action column to rulebased DF (transition-based)."""
+    if 'yearly_action' in df.columns:
+        return df
+    df = df.copy()
+    df_sorted = df.sort_values(['agent_id', 'year'])
+    actions = []
+    for _, agent_df in df_sorted.groupby('agent_id'):
+        prev_ins, prev_elv, prev_rel = False, False, False
+        for _, row in agent_df.iterrows():
+            ins = _as_bool(pd.Series([row['has_insurance']]))[0]
+            elv = _as_bool(pd.Series([row['elevated']]))[0]
+            rel = _as_bool(pd.Series([row['relocated']]))[0]
+            if rel and not prev_rel:
+                actions.append('relocate')
+            elif elv and not prev_elv:
+                actions.append('elevate_house')
+            elif ins and not prev_ins:
+                actions.append('buy_insurance')
+            else:
+                actions.append('do_nothing')
+            prev_ins, prev_elv, prev_rel = ins, elv, rel
+    df_sorted['yearly_action'] = actions
+    return df_sorted
+
+
+def _derive_yearly_action_llm(df: pd.DataFrame) -> pd.DataFrame:
+    """Add yearly_action column to LLM DF from yearly_decision."""
+    if 'yearly_action' in df.columns:
+        return df
+    df = df.copy()
+    if 'yearly_decision' in df.columns:
+        df['yearly_action'] = df['yearly_decision'].apply(_normalise_decision)
+    elif 'decision' in df.columns:
+        df['yearly_action'] = df['decision'].apply(_normalise_decision)
+    else:
+        df['yearly_action'] = 'do_nothing'
+    return df
+
+
+def draw_panel_b(axes_b, data: dict):
+    """Draw panel (b): 3×1 yearly adaptive action share sub-panels.
+
+    Row i:   Insurance purchase rate (%)
+    Row ii:  Elevation rate (%)
+    Row iii: Relocation rate (%)
+
+    Each sub-panel overlays 3 conditions with ±1 SE bands.
+    Flood periods shaded.
     """
-    conditions = [
-        ('rulebased', 'Rule-based',            PMT_COLOR,   '--'),
-        ('disabled',  'LLM (no val.)',         UNGOV_COLOR,  '-'),
-        ('gov',       'Governed',              GOV_COLOR,    '-'),
+    from matplotlib.lines import Line2D
+
+    # Condition config: key, label, color, marker, linestyle
+    cond_config = [
+        ('gov',       'Governed LLM',       GOV_COLOR,   'o',  '-'),
+        ('disabled',  'LLM (no validator)', UNGOV_COLOR, 's',  '-'),
+        ('rulebased', 'Traditional ABM',    PMT_COLOR,   '^',  '--'),
     ]
 
-    for cond_key, label, color, ls in conditions:
-        years, means, stds = _compute_multilayer_trajectory(data[cond_key])
+    # Row config: action_key, panel_label, ylabel
+    row_config = [
+        ('buy_insurance', 'i',   'Insurance (%)'),
+        ('elevate_house', 'ii',  'Elevation (%)'),
+        ('relocate',      'iii', 'Relocation (%)'),
+    ]
 
-        # Individual runs as thin lines (if multiple)
-        if len(data[cond_key]) > 1:
-            for df in data[cond_key]:
-                _, run_m, _ = _compute_multilayer_trajectory([df])
-                ax.plot(years, run_m, color=color, alpha=0.15, lw=0.6, zorder=1)
+    years = np.arange(1, 11)
 
-        # Mean line
-        ax.plot(years, means, color=color, ls=ls, lw=1.2, marker='o',
-                markersize=3, zorder=3, label=label)
+    # Pre-process: add yearly_action to all DFs
+    processed = {}
+    for cond_key in ['rulebased', 'disabled', 'gov']:
+        processed[cond_key] = []
+        for df in data[cond_key]:
+            if cond_key == 'rulebased':
+                processed[cond_key].append(_derive_yearly_action_rulebased(df))
+            else:
+                processed[cond_key].append(_derive_yearly_action_llm(df))
 
-        # Confidence band
-        if stds.max() > 0:
-            ax.fill_between(years, means - stds, means + stds,
-                            color=color, alpha=0.12, zorder=1)
+    # Pre-compute all data
+    all_data = {}
+    for action_key, _, _ in row_config:
+        all_data[action_key] = {}
+        for cond_key, _, _, _, _ in cond_config:
+            all_data[action_key][cond_key] = _compute_action_props_and_se(
+                processed[cond_key], action_key)
 
-    # Flood event markers
-    for fy in FLOOD_YEARS:
-        ax.axvline(fy, color='#AAAAAA', ls=':', lw=0.6, alpha=0.6, zorder=0)
-    # Single "F" label at top for flood markers
-    ax.text(FLOOD_YEARS[0], ax.get_ylim()[1] if ax.get_ylim()[1] > 0 else 95,
-            'F', fontsize=6, color='#888888', ha='center', va='bottom')
-    ax.text(FLOOD_YEARS[1], 95, 'F', fontsize=6, color='#888888', ha='center', va='bottom')
-    ax.text(FLOOD_YEARS[2], 95, 'F', fontsize=6, color='#888888', ha='center', va='bottom')
+    # Determine y-axis limits from data
+    def get_ymax(action_key):
+        max_val = 0
+        for cond_key, _, _, _, _ in cond_config:
+            mean, se = all_data[action_key][cond_key]
+            max_val = max(max_val, np.max(mean + se))
+        return max_val
 
-    ax.set_xlim(0.5, 10.5)
-    ax.set_xticks(range(1, 11))
-    ax.set_xticklabels(range(1, 11), fontsize=BASE_FONT - 1)
-    ax.set_xlabel('Simulation year', fontsize=BASE_FONT - 0.5, labelpad=2)
-    ax.set_ylabel('Multi-layer protection (%)', fontsize=BASE_FONT - 0.5, labelpad=2)
-    ax.set_ylim(0, 100)
-    ax.yaxis.set_major_locator(ticker.MultipleLocator(25))
+    for row_idx, (action_key, panel_label, ylabel) in enumerate(row_config):
+        ax = axes_b[row_idx]
 
-    # Legend
-    ax.legend(fontsize=BASE_FONT - 2.0, frameon=False,
-              loc='center right', handlelength=1.2,
-              handletextpad=0.3, labelspacing=0.2,
-              borderpad=0.2)
+        # Data-driven y-max
+        raw_max = get_ymax(action_key)
+        if raw_max <= 15:
+            y_max = int(np.ceil(raw_max / 5) * 5) + 2
+            yticks = np.arange(0, y_max + 1, 5)
+        elif raw_max <= 30:
+            y_max = int(np.ceil(raw_max / 10) * 10) + 5
+            yticks = np.arange(0, y_max + 1, 10)
+        else:
+            y_max = int(np.ceil(raw_max / 10) * 10) + 5
+            yticks = np.arange(0, y_max + 1, 20)
+
+        # Flood event shading
+        for fy_start, fy_end in [(2.5, 4.5), (8.5, 9.5)]:
+            ax.axvspan(fy_start, fy_end, color='#E8EEF4', alpha=0.8, zorder=0)
+
+        # Horizontal gridlines
+        ax.yaxis.grid(True, color='#E0E0E0', linewidth=0.4, zorder=0)
+        ax.set_axisbelow(True)
+
+        # Plot each condition
+        for cond_key, cond_label, color, marker, ls in cond_config:
+            mean, se = all_data[action_key][cond_key]
+            ax.fill_between(years, np.maximum(mean - se, 0), mean + se,
+                           color=color, alpha=0.10, zorder=1)
+            ax.plot(years, mean, ls, color=color, linewidth=1.2, zorder=3)
+            ax.plot(years, mean, marker, color=color, markersize=3,
+                    markeredgecolor='white', markeredgewidth=0.3, zorder=4)
+
+        # Y-axis
+        ax.set_ylabel(ylabel, fontsize=BASE_FONT - 1, labelpad=3)
+        ax.set_ylim(0, y_max)
+        ax.set_yticks(yticks)
+
+        # Panel label
+        ax.text(0.02, 0.92, panel_label, transform=ax.transAxes,
+                fontsize=BASE_FONT, fontweight='bold', va='top', ha='left')
+
+        # Flood label on top sub-panel only
+        if row_idx == 0:
+            for mid, label in [(3.5, 'Flood\nY3\u20134'), (9.0, 'Flood\nY9')]:
+                ax.text(mid, y_max * 0.95, label, fontsize=5, color='#666666',
+                        ha='center', va='top', linespacing=0.9, zorder=5)
+
+        ax.tick_params(length=2, pad=2)
+
+        # X-axis only on bottom sub-panel
+        if row_idx < 2:
+            ax.set_xticklabels([])
+        else:
+            ax.set_xticks(years)
+            ax.set_xticklabels([str(y) for y in years], fontsize=BASE_FONT - 1)
+            ax.set_xlabel('Simulation year', fontsize=BASE_FONT - 0.5, labelpad=2)
+
+    # Legend on top sub-panel
+    legend_elements = [
+        Line2D([0], [0], color=GOV_COLOR, marker='o', markersize=3.5,
+               markeredgecolor='white', markeredgewidth=0.3,
+               linewidth=1.2, label='Governed LLM'),
+        Line2D([0], [0], color=UNGOV_COLOR, marker='s', markersize=3.5,
+               markeredgecolor='white', markeredgewidth=0.3,
+               linewidth=1.2, label='LLM (no validator)'),
+        Line2D([0], [0], color=PMT_COLOR, marker='^', markersize=3.5,
+               markeredgecolor='white', markeredgewidth=0.3,
+               linewidth=1.2, linestyle='--', label='Traditional ABM'),
+    ]
+    axes_b[0].legend(handles=legend_elements, loc='upper center',
+                     bbox_to_anchor=(0.5, 1.30), ncol=3, frameon=False,
+                     fontsize=BASE_FONT - 1.5, handlelength=2.0,
+                     columnspacing=1.0, handletextpad=0.4)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -818,18 +1041,17 @@ def generate_figure():
     print("Loading data...")
     data = load_all_runs()
 
-    # ── Figure: 2×3 layout ──────────────────────────────────────────────────
-    # Row 1: a1, a2, a3  (stacked bars)
-    # Row 2: b, c1, c2   (before/after bars, ungoverned pie, governed pie)
-    fig = plt.figure(figsize=(7.09, 7.0))
+    # ── Figure: 2-row layout ─────────────────────────────────────────────
+    # Row 1: (a) 3 stacked bar sub-panels — cumulative protection states
+    # Row 2: (b) 2 TA×CA pie matrices — LLM (no validator) vs Governed LLM
+    fig = plt.figure(figsize=(7.09, 6.0))
 
-    # Two-row outer grid
     gs_outer = gridspec.GridSpec(
         2, 1,
-        height_ratios=[1.0, 1.5],
-        left=0.07, right=0.97,
-        top=0.95, bottom=0.06,
-        hspace=0.32,
+        height_ratios=[1.0, 1.3],
+        left=0.07, right=0.96,
+        top=0.96, bottom=0.06,
+        hspace=0.30,
     )
 
     # Row 1: 3 equal-width columns for panel (a)
@@ -838,55 +1060,43 @@ def generate_figure():
         wspace=0.25,
     )
 
-    # Row 2: b(wider) + c1 + c2
+    # Row 2: 2 pie matrices side-by-side
     gs_row2 = gridspec.GridSpecFromSubplotSpec(
-        1, 3, subplot_spec=gs_outer[1],
-        width_ratios=[1.15, 1.0, 1.0],
-        wspace=0.30,
+        1, 2, subplot_spec=gs_outer[1],
+        wspace=0.20,
     )
 
-    # ── Row 1: Panel (a) — 3 equal stacked bar sub-panels ──────────
+    # ── Panel (a) — 3 stacked bar sub-panels ──────────────────────────
     ax_a1 = fig.add_subplot(gs_row1[0, 0])
     ax_a2 = fig.add_subplot(gs_row1[0, 1], sharey=ax_a1)
     ax_a3 = fig.add_subplot(gs_row1[0, 2], sharey=ax_a1)
     draw_panel_a([ax_a1, ax_a2, ax_a3], data)
 
-    # ── Row 2, col 0: Panel (b) — initial vs final protection state ──
-    ax_b = fig.add_subplot(gs_row2[0, 0])
-    draw_panel_b(ax_b, data)
-
-    # ── Row 2, cols 1-2: Panel (c) — pie matrices ──────────
-    # Prepare data (Run_1 only for comparable n=1000)
+    # ── Panel (b) — TA×CA pie matrices ────────────────────────────────
     df_dis = _prepare_pie_df(data['disabled'][:1], 'yearly_decision')
     df_gov = _prepare_pie_df(data['gov'][:1], 'yearly_decision')
 
-    # Shared violation colormap
-    max_viol = 1
-    for df in [df_dis, df_gov]:
-        for ta in LEVEL_ORDER:
-            for ca in LEVEL_ORDER:
-                vc, _ = _compute_cell_violations(df, ta, ca)
-                max_viol = max(max_viol, vc)
-
     viol_cmap = mcolors.LinearSegmentedColormap.from_list(
-        'viol', [(1, 1, 1), (1, 0.96, 0.85), (1, 0.85, 0.55), (0.95, 0.65, 0.15)],
+        'viol', [(1, 1, 1), (1, 0.92, 0.78), (1, 0.72, 0.42),
+                 (0.92, 0.45, 0.10), (0.75, 0.15, 0.05)],
         N=256)
-    viol_norm = mcolors.Normalize(vmin=0, vmax=max_viol)
+    VIOL_MAX = 100
+    viol_norm = mcolors.Normalize(vmin=0, vmax=VIOL_MAX)
 
-    ax_c1 = fig.add_subplot(gs_row2[0, 1])
-    ax_c2 = fig.add_subplot(gs_row2[0, 2])
+    ax_b1 = fig.add_subplot(gs_row2[0, 0])
+    ax_b2 = fig.add_subplot(gs_row2[0, 1])
 
-    draw_single_pie_grid(fig, ax_c1, df_dis, 'LLM (no validation)', UNGOV_COLOR,
+    draw_single_pie_grid(fig, ax_b1, df_dis, 'LLM (no validator)', UNGOV_COLOR,
                          show_ylabel=True, show_legend=True,
                          viol_cmap=viol_cmap, viol_norm=viol_norm)
-    draw_single_pie_grid(fig, ax_c2, df_gov, 'Governed LLM', GOV_COLOR,
+    draw_single_pie_grid(fig, ax_b2, df_gov, 'Governed LLM', GOV_COLOR,
                          show_ylabel=False, show_legend=False,
                          viol_cmap=viol_cmap, viol_norm=viol_norm)
 
-    # Colorbar next to governed grid
-    pos_c2 = ax_c2.get_position()
-    ax_cb = fig.add_axes([pos_c2.x1 + 0.005, pos_c2.y0 + pos_c2.height * 0.05,
-                          0.008, pos_c2.height * 0.9])
+    # Shared colorbar
+    pos_b2 = ax_b2.get_position()
+    ax_cb = fig.add_axes([pos_b2.x1 + 0.005, pos_b2.y0 + pos_b2.height * 0.05,
+                          0.008, pos_b2.height * 0.9])
     cb = ColorbarBase(ax_cb, cmap=viol_cmap, norm=viol_norm, orientation='vertical')
     cb.set_label('Violations', fontsize=BASE_FONT - 0.5, labelpad=2)
     cb.ax.tick_params(labelsize=BASE_FONT - 1)
@@ -895,9 +1105,7 @@ def generate_figure():
     label_x = 0.01
     fig.text(label_x, ax_a1.get_position().y1 + 0.01, 'a',
              fontsize=10, fontweight='bold', va='bottom')
-    fig.text(label_x, ax_b.get_position().y1 + 0.01, 'b',
-             fontsize=10, fontweight='bold', va='bottom')
-    fig.text(ax_c1.get_position().x0 - 0.03, ax_c1.get_position().y1 + 0.01, 'c',
+    fig.text(label_x, ax_b1.get_position().y1 + 0.01, 'b',
              fontsize=10, fontweight='bold', va='bottom')
 
     # ── Save ────────────────────────────────────────────────────────────────
@@ -917,7 +1125,7 @@ def generate_figure():
 def print_summary_stats(data: dict):
     print("\n=== Protection State Summary ===")
     for cond_name, cond_key in [('Rule-based',            'rulebased'),
-                                 ('LLM (no validation)',   'disabled'),
+                                 ('LLM (no validator)',   'disabled'),
                                  ('Governed LLM',          'gov')]:
         print(f"\n  {cond_name}:")
         all_df = pd.concat(data[cond_key], ignore_index=True) if data[cond_key] else pd.DataFrame()
@@ -931,7 +1139,7 @@ def print_summary_stats(data: dict):
 
     print("\n=== EHE per Run ===")
     for cond_name, cond_key in [('Rule-based',            'rulebased'),
-                                 ('LLM (no validation)',   'disabled'),
+                                 ('LLM (no validator)',   'disabled'),
                                  ('Governed LLM',          'gov')]:
         ehe_vals = []
         for run_df in data[cond_key]:

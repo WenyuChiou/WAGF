@@ -2,25 +2,25 @@
 
 Dear Editors,
 
-We are pleased to submit our manuscript, **"Institutional Governance Enables Adaptive Strategy Diversity in Language-Based Water Resource Simulation,"** for consideration as an Analysis article in *Nature Water*.
+We are pleased to submit our manuscript, **"Institutional Governance as Cognitive Infrastructure for Water Resource Simulation with Language Model Agents,"** for consideration as an Analysis article in *Nature Water*.
 
 ## Summary
 
-Water resource models have long represented human decisions as parameterized functions — computable mappings that compress reasoning into mathematical objects. This paper proposes a governance architecture that validates natural-language agent reasoning against modular physical and institutional rules, and demonstrates that this approach addresses three longstanding limitations of agent-based water modelling:
+Water resource models have long represented human decisions as parameterized functions — computable mappings that compress reasoning into mathematical objects. This paper demonstrates that institutional governance rules function as cognitive infrastructure for LLM-based water agents: without them, agents cannot reason about conservation. We present three findings with implications for understanding water institutions:
 
-1. **Opaque reasoning**: Traditional agents map numerical states to numerical actions; our language-based agents produce explicit reasoning traces that governance can evaluate, creating a transparent decision audit trail.
+1. **Institutions enable conservation reasoning**: Removing governance caused behavioural collapse — 91% of high-scarcity decisions proposed demand increases — while governed agents maintained scarcity-appropriate behaviour (42% irrational behaviour rate) with higher water extraction. This reveals institutions as prerequisites for conservation reasoning, not merely constraints on behaviour.
 
-2. **Parametric homogeneity**: Conventional agent-based models differentiate agents only through parameter values within identical decision logic. Governed language agents generate qualitatively different reasoning paths, producing higher strategy diversity than both ungoverned agents and a hand-coded Protection Motivation Theory baseline.
+2. **Non-compliance has cognitive structure**: Decomposing decisions by agents' self-assessed scarcity and capacity appraisals shows that non-compliance concentrates at the intersection of high scarcity awareness and high adaptive capacity — a pattern consistent with anticipatory extraction observed in real allocation systems, and diagnosable through reasoning traces that conventional models cannot produce.
 
-3. **Hard-coded institutional rules**: In existing models, institutional rules are embedded in simulation code and cannot be independently manipulated. Our modular validator architecture enables experimental decomposition — we demonstrate that removing a single rule of twelve (the demand ceiling linking individual proposals to basin-wide demand) increases diversity but collapses drought responsiveness, distinguishing adaptive from arbitrary diversity.
+3. **Adaptive versus arbitrary diversity**: Removing a single institutional rule (the demand ceiling linking individual proposals to basin-wide demand) increased diversity but raised irrational behaviour and nearly doubled shortage frequency, separating diversity from adaptive diversity through experimental decomposition impossible in conventional models.
 
 ## Key Findings
 
-In a 42-year Colorado River irrigation simulation, governed agents extracted more water than ungoverned agents (demand ratio 0.394 vs 0.288) while maintaining stronger drought coupling (r = 0.547 vs 0.378) — a pattern of adaptive exploitation consistent with prior-appropriation dynamics. The governance effect generalized from chronic drought (78 agents, 42 years) to acute flood hazard (100 agents, 10 years), was positive for five of six language model scales tested (3B–27B parameters, two model families), and governance reduced irrational behaviour rates from 0.8–11.6% to below 1.7%, significantly for four of six models.
+In a 42-year Colorado River irrigation simulation, governed agents extracted more water than ungoverned agents (demand ratio 0.394 vs 0.288) while maintaining scarcity-appropriate behaviour. The governance effect generalized from chronic drought (78 agents, 42 years) to acute flood hazard (100 agents, 10 years), was positive for five of six LLM scales tested (3B–27B parameters, two model families), and governance reduced irrational behaviour rates from 0.8–11.6% to below 1.7%, significantly for four of six models.
 
 ## Relevance to Nature Water
 
-This work is relevant to *Nature Water* because it advances computational representation of human water decision-making — a core challenge in understanding human–water system dynamics. The governance architecture functions as a computational laboratory for water institutions: researchers can independently enable, disable, or reconfigure institutional rules and observe how populations of reasoning agents endogenously adapt their strategies. This capacity to experimentally probe institutional designs is distinct from sensitivity analysis and is enabled by the natural-language reasoning format that our method introduces.
+This work is relevant to *Nature Water* because it advances computational representation of human water decision-making — a core challenge in understanding human–water system dynamics. The governance architecture functions as a computational laboratory for water institutions: researchers can independently enable, disable, or reconfigure institutional rules and observe how populations of reasoning agents endogenously adapt their strategies. The diagnostic capacity — observing what agents reason at institutional boundaries, not just what they execute — offers a new instrument for understanding how institutions structure water-use decisions.
 
 ## Manuscript Details
 

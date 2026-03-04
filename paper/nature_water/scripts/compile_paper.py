@@ -351,7 +351,7 @@ def compile_main_paper():
 
     # Authors
     para = doc.add_paragraph()
-    run = para.add_run("Wen-Yu Lin¹*, Cal Buelo¹")
+    run = para.add_run("Wen-Yuan Chen¹*, Y. C. Ethan Yang¹")
     set_run_font(run, size=Pt(12))
     set_paragraph_format(para, alignment=WD_ALIGN_PARAGRAPH.CENTER,
                          space_after=Pt(6))
@@ -364,7 +364,7 @@ def compile_main_paper():
                          space_after=Pt(4))
 
     para = doc.add_paragraph()
-    run = para.add_run("* Corresponding author: wel224@lehigh.edu")
+    run = para.add_run("* Corresponding author: wec225@lehigh.edu")
     set_run_font(run, size=Pt(10), italic=True)
     set_paragraph_format(para, alignment=WD_ALIGN_PARAGRAPH.CENTER,
                          space_after=Pt(24))
@@ -395,44 +395,70 @@ def compile_main_paper():
 
     # Figure insertion map: after which section heading to insert which figure
     # Figures are inserted AFTER processing the section
-    # Main text: 4 figures (framework, irrigation, flood, cross-model) + 2 tables
+    # Main text: 4 figures (framework, irrigation, flood, cross-model)
+    # Tables moved to Extended Data (not counted toward 4-item limit)
     figure_after_section = {
-        "section2_v11_results.md": [
-            (FIGURES_DIR / "Fig2_irrigation.png",
-             "**Figure 2. Adaptive exploitation under institutional governance** "
-             "(irrigation domain, 78 agents × 42 years, 3 seeds). "
-             "(a) Lake Mead elevation time series with shortage-tier thresholds. "
-             "(b) Basin demand ratio (total request / total water right); governed agents "
-             "(blue) track drought, ungoverned (vermillion) monotonically increase, "
-             "FQL (grey) extracts similar volume but with no drought coupling. "
-             "(c) Action distribution showing ungoverned collapse into demand increases "
-             "and FQL dominance of validator-blocked maintain. "
-             "\"No ceiling\" removes only the demand-ceiling validator. "
-             "(d) Behavioural diversity versus demand–Mead coupling "
-             "(Pearson r): governed agents occupy the adaptive-diversity quadrant "
-             "(high diversity, strong coupling); the no-ceiling condition (green) shows arbitrary diversity "
-             "(high diversity, weak coupling). "
-             "Shaded bands show ± 1 s.d. across 3 seeds.",
+        "introduction_v10.md": [
+            (FIGURES_DIR / "Fig1_framework.png",
+             "**Figure 1. Water Agent Governance Framework architecture.** "
+             "At each decision step, an LLM agent receives contextual information "
+             "(personal state, social observations, system indicators) and proposes "
+             "an action with natural-language reasoning. The governance pipeline "
+             "validates the proposal through six sequential checks: schema validation, "
+             "action legality, physical feasibility, institutional compliance, "
+             "magnitude plausibility, and theory consistency. Failed proposals receive "
+             "structured feedback for revision (up to three attempts). "
+             "All domain-specific knowledge is expressed through declarative configuration "
+             "files (action registries, agent-type specifications, persona prompts), "
+             "making the architecture transferable across water domains without code changes.",
              Inches(6.0)),
-            (FIGURES_DIR / "Fig3_cumulative_adaptation.png",
-             "**Figure 3. Flood-adaptation trajectories across agent types** "
-             "(100 agents × 10 years, Gemma-3 4B). Bars show 3-seed means; "
-             "error whiskers show ± 1 s.d. across seeds. "
-             "(a) Rule-based PMT agents converge rapidly to elevation-dominated protection. "
-             "(b) Ungoverned language agents stagnate in unprotected states. "
-             "(c) Governed language agents develop a diverse mix of protection strategies "
-             "including relocation, which neither rule-based nor ungoverned agents achieve. "
-             "Insurance requires annual renewal; elevation is permanent.",
+        ],
+        "section2_v11_results.md": [
+            (FIGURES_DIR / "Fig2_irrigation_v2.png",
+             "**Figure 2. Governance shapes adaptive exploitation in the irrigation domain** "
+             "(78 agents \u00d7 42 years, Gemma-3 4B, 3 seeds). "
+             "(**a**) Action composition over time for three conditions: governed (with demand-ceiling rule, "
+             "IBR = 42%), no ceiling (demand-ceiling removed), and ungoverned (all governance removed, "
+             "IBR = 91%). Stacked areas show ensemble-mean action shares. "
+             "Black solid line: condition-specific Lake Mead level (right axis); "
+             "grey dashed line: fuzzy Q-learning (FQL) baseline (Hung and Yang, 2021). "
+             "Red dashed line: Tier 1 shortage threshold (1,075 ft); grey shading: drought periods. "
+             "IBR = Irrational Behaviour Rate (fraction of high-scarcity decisions proposing demand increases). "
+             "(**b**) Demand ratio (requested volume / historical baseline) versus shortage years "
+             "(years with mean Lake Mead below 1,075 ft). Each small dot represents one seed; "
+             "large markers show condition means. Arrows trace ablation path: removing only the "
+             "demand-ceiling rule shifts toward over-extraction; removing all governance collapses extraction. "
+             "Governed agents occupy the adaptive exploitation zone (high extraction, moderate shortage). "
+             "Shaded bands show \u00b1 1 s.d. across 3 seeds.",
+             Inches(6.0)),
+            (FIGURES_DIR / "Fig3_pie_v3.png",
+             "**Figure 3. Structured non-compliance at institutional boundaries across two water domains.** "
+             "(**a**) Irrigation domain: 5\u00d75 pie matrix showing action distributions across "
+             "Water Shortage Appraisal (WSA, rows) and Adaptive Capacity Appraisal (ACA, columns) levels "
+             "(78 agents \u00d7 42 years, Gemma-3 4B, 3 seeds). Pie sizes proportional to decision count (n). "
+             "Non-compliance concentrates at the high-WSA/high-ACA boundary where 54.8% of governed agents "
+             "still proposed demand increases (100% rejected by governance rules). "
+             "(**b**) Flood domain: 5\u00d75 pie matrix showing cumulative protection state across "
+             "Threat Appraisal (TA, rows) and Coping Appraisal (CA, columns) levels "
+             "(100 agents \u00d7 10 years, Gemma-3 4B, 3 seeds). "
+             "92% of governed decisions self-assessed coping appraisal at a single level (Med CA, highlighted), "
+             "suggesting governance success in flood partially reflects compression of cognitive differentiation. "
+             "Colours: Okabe-Ito palette consistent across all figures.",
              Inches(6.0)),
             (FIGURES_DIR / "Fig4_crossmodel.png",
-             "**Figure 4. Governance effect on behavioural diversity across six language models** "
-             "(flood domain, 100 agents × 10 years, 3 runs per condition). "
+             "**Figure 4. Governance effect on behavioural diversity and rationality across six LLMs** "
+             "(flood domain, 100 agents \u00d7 10 years, 3 runs per condition). "
              "Models sorted by parameter count (3.2B to 27B). "
-             "(a) Paired dot plot showing ungoverned (red) vs governed (blue) "
-             "behavioural diversity for each model; connecting lines indicate effect direction. "
-             "(b) Forest plot of governance effect (Δ = governed − ungoverned) with 95% CIs; "
+             "(**a**) Paired dot plot showing ungoverned (vermillion) versus governed (blue) "
+             "behavioural diversity (normalised Shannon entropy H/log\u2082(k), k = 4 action types); "
+             "connecting lines indicate effect direction. "
+             "(**b**) Forest plot of governance effect (\u0394 = governed \u2212 ungoverned) with 95% CIs; "
              "blue = statistically significant, grey = non-significant. "
-             "Diamond shows pooled effect across all six models. "
+             "Diamond shows mean effect across all six models (+0.123). "
+             "(**c**) IBR (Irrational Behaviour Rate, %; fraction of physically impossible or "
+             "PMT-inconsistent decisions) for each model. Governance reduced IBR in all six models, "
+             "with the largest reductions for Ministral 14B (11.6% \u2192 0.4%) and Ministral 3B "
+             "(8.9% \u2192 1.7%). Error bars: \u00b1 1 s.d. across 3 seeds. "
              "Full IBR decomposition in Supplementary Table 1.",
              Inches(6.0)),
         ],
@@ -506,16 +532,22 @@ def compile_main_paper():
         "Blair, P. & Buytaert, W. Socio-hydrological modelling: a review asking 'why, what and how?'. Hydrol. Earth Syst. Sci. 20, 443–478 (2016).",
         "Bonabeau, E. Agent-based modeling: methods and techniques for simulating human systems. Proc. Natl Acad. Sci. USA 99, 7280–7287 (2002).",
         "Bubeck, P. et al. A review of risk perceptions and other factors that influence flood mitigation behavior. Risk Anal. 32, 1481–1495 (2012).",
-        "Castilla-Rho, J. C. et al. An agent-based platform for simulating complex human–aquifer interactions in managed groundwater systems. Environ. Model. Softw. 73, 305–323 (2015).",
+        "Castilla-Rho, J. C. et al. An agent-based platform for simulating complex human–aquifer interactions in managed groundwater systems. Environ. Model. Softw. 92, 27–46 (2017).",
+        "Di Baldassarre, G. et al. Socio-hydrology: conceptualising human-flood interactions. Hydrol. Earth Syst. Sci. 17, 3295–3303 (2013).",
+        "Di Baldassarre, G. et al. Debates: perspectives on socio-hydrology: capturing feedbacks between physical and social processes. Water Resour. Res. 51, 4770–4781 (2015).",
         "Di Baldassarre, G. et al. Sociohydrology: scientific challenges in addressing the sustainable development goals. Water Resour. Res. 55, 6327–6355 (2019).",
         "Epstein, J. M. & Axtell, R. Growing Artificial Societies: Social Science from the Bottom Up (MIT Press, 1996).",
-        "Guo, T. et al. Large language model based multi-agents: a survey of progress and challenges. Preprint at https://arxiv.org/abs/2402.01680 (2024).",
+        "Gao, C. et al. Large language models empowered agent-based modeling and simulation: a survey and perspectives. Humanit. Soc. Sci. Commun. 11, 1498 (2024).",
         "Gemma Team. Gemma 3 Technical Report. Preprint at https://arxiv.org/abs/2503.19786 (2025).",
         "Grimm, V. et al. Pattern-oriented modeling of agent-based complex systems: lessons from ecology. Science 310, 987–991 (2005).",
         "Haer, T., Botzen, W. J. W., de Moel, H. & Aerts, J. C. J. H. Integrating household risk mitigation behavior in flood risk analysis: an agent-based model approach. Risk Anal. 37, 1977–1992 (2017).",
         "Huang, L. et al. A survey on hallucination in large language models: principles, taxonomy, challenges, and open questions. ACM Trans. Inf. Syst. 43, 1–55 (2025).",
         "Hung, F. & Yang, Y.-C. E. Assessing adaptive irrigation impacts on water scarcity in nonstationary environments — a multi-agent reinforcement learning approach. Water Resour. Res. 57, e2020WR029262 (2021).",
+        "Hung, F. & Yang, Y.-C. E. Assessing the impact of adaptation strategies on water scarcity under climate change in the Colorado River Basin. J. Hydrol. 612, 128193 (2022).",
+        "Hyun, J.-Y. & Yang, Y.-C. E. Using a coupled agent-based modeling approach to analyze the role of risk perception in water management decisions. Hydrol. Earth Syst. Sci. 23, 2261–2278 (2019).",
+        "Lin, C.-Y. & Yang, Y.-C. E. An investigation of coupled natural human systems using a two-way coupled agent-based modeling framework. Environ. Model. Softw. 155, 105451 (2022).",
         "Liu, J. et al. Complexity of coupled human and natural systems. Science 317, 1513–1516 (2007).",
+        "Loucks, D. P. & van Beek, E. Water Resource Systems Planning and Management: An Introduction to Methods, Models, and Applications (Springer, 2017).",
         "Maass, A. et al. Design of Water-Resource Systems: New Techniques for Relating Economic Objectives, Engineering Analysis, and Governmental Planning (Harvard Univ. Press, 1962).",
         "Müller, B. et al. Describing human decisions in agent-based models — ODD+D, an extension of the ODD protocol. Environ. Model. Softw. 48, 37–48 (2013).",
         "Ostrom, E. Governing the Commons: The Evolution of Institutions for Collective Action (Cambridge Univ. Press, 1990).",
@@ -524,6 +556,7 @@ def compile_main_paper():
         "Schlüter, M. et al. A framework for mapping and comparing behavioural theories in models of social-ecological systems. Ecol. Econ. 131, 21–35 (2017).",
         "Sivapalan, M. et al. Socio-hydrology: a new science of people and water. Hydrol. Process. 26, 1270–1276 (2012).",
         "Vezhnevets, A. S. et al. Generative agent-based modeling with actions grounded in physical, social, or digital space using Concordia. Preprint at https://arxiv.org/abs/2312.03664 (2023).",
+        "Yang, Y.-C. E., Cai, X. & Stipanović, D. M. A decentralized optimization algorithm for multiagent system-based watershed management. Water Resour. Res. 45, W08430 (2009).",
     ]
     for ref in refs:
         para = doc.add_paragraph()
@@ -537,7 +570,7 @@ def compile_main_paper():
     endmatter_sections = [
         ("Data Availability",
          "All simulation output data, agent decision traces, and governance audit logs "
-         "generated in this study are available at [repository URL to be added upon acceptance]. "
+         "generated in this study will be deposited in Zenodo upon acceptance (DOI to be assigned). "
          "Raw CRSS demand data for the irrigation domain are publicly available from the US "
          "Bureau of Reclamation (https://www.usbr.gov/lc/region/g4000/NaturalFlow/). Flood "
          "depth grids were generated from publicly available FEMA flood maps. Census-tract "
@@ -545,14 +578,14 @@ def compile_main_paper():
         ("Code Availability",
          "The Water Agent Governance Framework (WAGF) source code, including the broker "
          "architecture, governance validators, configuration files for both domains, and all "
-         "analysis scripts used to generate the figures and tables in this paper, is available "
-         "at [repository URL to be added upon acceptance] under an MIT licence. Experiments "
-         "were run using Ollama (v0.5.x) with open-weight models (Gemma-3 and Ministral "
+         "analysis scripts used to generate the figures and tables in this paper, will be "
+         "archived on Zenodo and made available on GitHub upon acceptance (DOI and URL to be assigned). "
+         "Experiments were run using Ollama (v0.5.x) with open-weight models (Gemma-3 and Ministral "
          "families); no proprietary APIs were required."),
         ("Author Contributions",
-         "W.Y.: Conceptualization, Methodology, Software, Validation, Formal Analysis, "
+         "W.-Y.C.: Conceptualization, Methodology, Software, Validation, Formal Analysis, "
          "Investigation, Data Curation, Writing \u2014 Original Draft, Visualization. "
-         "[Additional authors TBD]: Supervision, Writing \u2014 Review & Editing, Funding Acquisition."),
+         "Y.C.E.Y.: Supervision, Writing \u2014 Review & Editing, Funding Acquisition."),
         ("Competing Interests",
          "The authors declare no competing interests."),
         ("Acknowledgements",
@@ -585,7 +618,7 @@ def compile_main_paper():
         fldChar2 = parse_xml(f'<w:fldChar {nsdecls("w")} w:fldCharType="end"/>')
         run3._element.append(fldChar2)
 
-    out_path = OUTPUT / "NatureWater_MainText_v14.docx"
+    out_path = OUTPUT / "NatureWater_MainText_v16.docx"
     doc.save(str(out_path))
     print(f"Main paper saved to: {out_path}")
     return out_path
@@ -667,14 +700,14 @@ def compile_si():
     # Line numbers
     add_line_numbers(doc)
 
-    out_path = OUTPUT / "NatureWater_SI_v14.docx"
+    out_path = OUTPUT / "NatureWater_SI_v16.docx"
     doc.save(str(out_path))
     print(f"SI saved to: {out_path}")
     return out_path
 
 
 if __name__ == "__main__":
-    print("Compiling Nature Water paper v14...")
+    print("Compiling Nature Water paper v16...")
     main_path = compile_main_paper()
     si_path = compile_si()
     print(f"\nDone. Files:")

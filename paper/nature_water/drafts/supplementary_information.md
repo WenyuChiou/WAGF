@@ -25,43 +25,43 @@ A third rule, V3 (inaction under extreme threat), blocks do_nothing when threat 
 
 *Triggers include all governance-intercepted proposals across the retry loop, not only final outcomes. "Corrected on retry" indicates the agent revised its proposal to a compliant action after receiving governance feedback. The high correction rate (97.6% overall) indicates that agents incorporate governance feedback into subsequent reasoning.*
 
-For ungoverned agents, threat and coping appraisals are inferred from free-text narratives using a three-tier keyword classifier: (1) explicit categorical labels (VH/H/M/L/VL), (1.5) qualifier precedence that detects negation and hedging phrases (e.g., "low risk of flooding", "moderate concern") before keyword matching, and (2) curated PMT keyword dictionaries. For governed agents, structured labels are emitted directly by the governance pipeline. Ungoverned agents use a relaxed low-threat threshold {L, VL, M} to account for classification uncertainty; governed agents use the strict threshold {L, VL}.
+For LLM (no validator) agents, threat and coping appraisals are inferred from free-text narratives using a three-tier keyword classifier: (1) explicit categorical labels (VH/H/M/L/VL), (1.5) qualifier precedence that detects negation and hedging phrases (e.g., "low risk of flooding", "moderate concern") before keyword matching, and (2) curated PMT keyword dictionaries. For governed LLM agents, structured labels are emitted directly by the governance pipeline. LLM (no validator) agents use a relaxed low-threat threshold {L, VL, M} to account for classification uncertainty; governed agents use the strict threshold {L, VL}.
 
-**Supplementary Table 1. IBR decomposition across six language models (flood domain, 100 agents × 10 years, 3 runs per condition). Values are means ± s.d. across seeds.**
+**Supplementary Table 1. Cross-model IBR and behavioural diversity (flood domain, 100 agents × 10 years, 3 seeds per condition). Values are means ± s.d. across seeds. IBR excludes R5 (re-elevation block, a code-level constraint).**
 
-| Model | Condition | R_H (%) | V1 | V2 | Behavioural diversity |
-|---|---|---|---|---|---|
-| Gemma-3 4B | Ungoverned | 1.15 ± 0.17 | 0.3 | 10.0 | 0.307 ± 0.059 |
-| | Governed | 0.86 ± 0.44 | 0 | 6.7 | 0.636 ± 0.044 |
-| Gemma-3 12B | Ungoverned | 3.35 ± 0.13 | 0.7 | 29.3 | 0.282 ± 0.012 |
-| | Governed | 0.15 ± 0.07 | 0 | 1.3 | 0.310 ± 0.048 |
-| Gemma-3 27B | Ungoverned | 0.78 ± 0.38 | 0 | 7.0 | 0.322 ± 0.020 |
-| | Governed | 0.33 ± 0.00 | 0 | 3.0 | 0.496 ± 0.051 |
-| Ministral 3B | Ungoverned | 8.89 ± 1.24 | 3.0 | 76.7 | 0.373 ± 0.061 |
-| | Governed | 1.70 ± 0.26 | 0 | 10.7 | 0.571 ± 0.047 |
-| Ministral 8B | Ungoverned | 1.56 ± 0.00 | 2.7 | 11.3 | 0.555 ± 0.009 |
-| | Governed | 0.13 ± 0.13 | 0 | 1.0 | 0.531 ± 0.028 |
-| Ministral 14B | Ungoverned | 11.61 ± 0.58 | 6.7 | 97.0 | 0.572 ± 0.018 |
-| | Governed | 0.40 ± 0.18 | 0 | 3.3 | 0.605 ± 0.011 |
+| Model | Condition | IBR (%) | R1 | R3 | R4 | EHE |
+|---|---|---|---|---|---|---|
+| Ministral 3B | LLM (no validator) | 5.0 ± 0.6 | 49 | 26 | 76 | 0.825 ± 0.017 |
+| | Governed LLM | 0.3 ± 0.3 | 1 | 1 | 6 | 0.810 ± 0.014 |
+| Gemma-3 4B | LLM (no validator) | 8.1 ± 1.7 | 235 | 2 | 6 | 0.846 ± 0.042 |
+| | Governed LLM | 0.6 ± 0.4 | 17 | 0 | 0 | 0.866 ± 0.045 |
+| Ministral 8B | LLM (no validator) | 2.3 ± 0.3 | 31 | 5 | 32 | 0.791 ± 0.030 |
+| | Governed LLM | 0.0 ± 0.0 | 0 | 0 | 0 | 0.728 ± 0.009 |
+| Gemma-3 12B | LLM (no validator) | 0.2 ± 0.3 | 0 | 0 | 7 | 0.603 ± 0.084 |
+| | Governed LLM | 0.1 ± 0.1 | 0 | 0 | 2 | 0.612 ± 0.071 |
+| Ministral 14B | LLM (no validator) | 3.1 ± 0.2 | 34 | 18 | 41 | 0.876 ± 0.026 |
+| | Governed LLM | 0.0 ± 0.0 | 0 | 0 | 0 | 0.833 ± 0.013 |
+| Gemma-3 27B | LLM (no validator) | 0.4 ± 0.3 | 11 | 0 | 0 | 0.662 ± 0.019 |
+| | Governed LLM | 0.0 ± 0.0 | 0 | 0 | 0 | 0.638 ± 0.028 |
 
-*V1/V2 counts are per-run means (3-run average). R_H% = (V1 + V2) / N_active × 100. Post-relocation agent-years excluded from N_active. Behavioural diversity = normalized Shannon entropy H/log₂(k) (0 = monoculture; 1 = uniform).*
+*R1 = high-threat inaction (do_nothing when TP ≥ H); R3 = low-threat relocation (relocate when TP ≤ L); R4 = low-threat elevation (elevate when TP ≤ L). Counts are 3-seed totals (N = 3,000 agent-years per condition per model). EHE = normalized Shannon entropy H/log₂(4), where 0 = monoculture and 1 = uniform.*
 
-**Supplementary Table 2. Governance effect on IBR (paired difference, ungoverned minus governed).**
+**Supplementary Table 2. Governance effect on IBR and EHE (paired difference across 3 seeds, df = 2).**
 
-| Model | Δ R_H (pp) | 95% CI | p (paired t) |
-|---|---|---|---|
-| Gemma-3 4B | +0.29 | [−0.47, +1.06] | 0.24 |
-| Gemma-3 12B | +3.20 | [+2.73, +3.67] | 0.001 |
-| Gemma-3 27B | +0.44 | [−0.51, +1.40] | 0.18 |
-| Ministral 3B | +7.19 | [+4.09, +10.29] | 0.010 |
-| Ministral 8B | +1.43 | [+1.11, +1.74] | 0.003 |
-| Ministral 14B | +11.21 | [+9.74, +12.67] | <0.001 |
+| Model | ΔIBR (pp) | 95% CI | p | ΔEHE | 95% CI | p |
+|---|---|---|---|---|---|---|
+| Ministral 3B | +4.77 | [+3.89, +5.64] | 0.002 | −0.014 | [−0.068, +0.039] | 0.370 |
+| Gemma-3 4B | +7.53 | [+2.81, +12.26] | 0.021 | +0.021 | [−0.194, +0.236] | 0.716 |
+| Ministral 8B | +2.27 | [+1.64, +2.89] | 0.004 | −0.063 | [−0.136, +0.009] | 0.064 |
+| Gemma-3 12B | +0.17 | [−0.35, +0.68] | 0.300 | +0.008 | [−0.264, +0.280] | 0.907 |
+| Ministral 14B | +3.10 | [+2.60, +3.60] | 0.001 | −0.042 | [−0.138, +0.053] | 0.198 |
+| Gemma-3 27B | +0.37 | [−0.26, +0.99] | 0.128 | −0.024 | [−0.115, +0.066] | 0.370 |
 
-*95% CIs from paired t-distribution (df = 2). For Gemma-3 4B and 27B, the small ungoverned–governed difference relative to between-run variance yields non-significant p-values; however, the direction of the effect (ungoverned > governed) is consistent across all six models.*
+*ΔIBR = (no validator) − (governed); positive = governance reduces IBR. ΔEHE = (governed) − (no validator); negative ≈ governance does not suppress diversity. 95% CIs from paired t-distribution (df = 2). Four of six models show significant IBR reduction (p < 0.05); no model shows significant EHE change, confirming that governance constrains irrational behaviour without suppressing adaptive diversity.*
 
-**Note on governed conditions.** The cross-model comparison (Fig. 4, Supplementary Table 1) uses governed agents with HumanCentric memory because this condition was run for all six models, whereas governed agents with window memory only were run for Gemma-3 4B. For Gemma-3 4B, both governed conditions produced identical behavioural diversity (0.636 ± 0.044; Table 2 reports the window-memory condition). The governance effect is attributable to the validator pipeline, which is identical across both governed conditions; the memory subsystem differs but does not alter governance rule application.
+**Note on governed conditions.** The cross-model comparison (Fig. 4, Supplementary Table 1) uses governed agents with window memory (Group_B), which was run for all six models. The main text flood results (Table 2) use governed agents with HumanCentric memory, which was only run for Gemma-3 4B. Both governed conditions share the same validator pipeline; the memory subsystem differs but does not alter governance rule application. For Gemma-3 4B, the two governed conditions produce comparable EHE (0.866 ± 0.045 window vs. 0.860 ± 0.063 HumanCentric).
 
-**Ungoverned decision distributions.** Models with the largest governance effects (Gemma-3 4B, Ministral 3B) concentrated 82–86% of ungoverned decisions on do_nothing, producing low baseline behavioural diversity that governance substantially increased. Gemma-3 12B showed near-identical distributions across conditions (80–81% buy_insurance), yielding a non-significant diversity effect.
+**Decision distribution patterns.** Gemma-3 4B shows the largest IBR gap (+7.5 pp) driven primarily by R1 violations (high-threat inaction: 235 occurrences without validators vs. 17 with). Ministral 3B distributes violations across all three rules. Gemma-3 12B is a near-null case (IBR < 0.3% in both conditions), suggesting this model's base behaviour already aligns with PMT predictions. EHE differences are small and non-significant across all models (|ΔEHE| < 0.07), confirming that governance reduces irrational behaviour without suppressing adaptive diversity.
 
 ---
 
@@ -81,7 +81,7 @@ Three reasoning archetypes appear exclusively in governed runs: (1) **governance
 | 1 | Ungoverned | CRIR AZ | 2 | 2 | 1,027 | **increase_large** | Escalation under scarcity | "I need to proactively secure as much water as possible to maximize my yield." |
 | 2 | Governed | WelltonMohawkIDD | 3 | 3 | 1,003 | **decrease_large** | Constraint-shaped | "Past attempts to increase my request have failed...I need to actively reduce my demand." |
 | 2 | Ungoverned | WelltonMohawkIDD | 3 | 3 | 1,000 | **increase_large** | Escalation under scarcity | "I'll lean towards a proactive, albeit aggressive, approach to secure as much yield as possible." |
-| 3 | Governed | CocopahIndRes | 10 | 0 | 1,161 | **maintain** (fallback) | Blocked escalation | *Blocked by demand_ceiling_stabilizer + high_threat_high_cope_no_increase.* |
+| 3 | Governed | CocopahIndRes | 10 | 0 | 1,161 | **maintain** (fallback) | Blocked escalation | *Blocked by demand-ceiling rule + high_threat_high_cope_no_increase.* |
 | 3 | Ungoverned | CocopahIndRes | 10 | 0 | 1,220 | **increase_large** | Unconditional growth | "Lake Mead is rising...I'm not one for caution." |
 | 4 | Governed | FtYumaReservation | 38 | 2 | 1,039 | **decrease_small** | Constraint-shaped | "The governance layer is screaming about a 2.2% demand excess...I need to reduce my demand." |
 | 4 | Ungoverned | FtYumaReservation | 38 | 0 | 1,118 | **maintain** | Status quo inertia | "I'm not seeing any immediate crisis." |
@@ -165,7 +165,7 @@ The null model baseline of 60% arises from the irrigation skill structure, where
 
 **Interpretation.** Ungoverned agents exhibited a strong increase-bias (BRI of 9.4%), consistently selecting water-intensive actions regardless of stated appraisals of water scarcity. Governance increased BRI to 58.0%, approaching the null model rate of 60%. This indicates that governance removes the increase-bias without prescribing specific action sequences. Governed agents' decisions reflect their stated cognitive appraisals at rates statistically indistinguishable from unstructured choice (χ² test, p = 0.42), demonstrating that governance enables rational diversity through constraint rather than prescription.
 
-**Flood domain results:** Governed BRI was 100.0% across all models; ungoverned BRI ranged from 37.7% (Ministral 3B) to 99.9% (Gemma-3 12B). See Supplementary Table 1 for per-model IBR decomposition.
+**Flood domain results:** Governed LLM BRI was 100.0% across all models; LLM (no validator) BRI ranged from 37.7% (Ministral 3B) to 99.9% (Gemma-3 12B). See Supplementary Table 1 for per-model IBR decomposition.
 
 ---
 
@@ -182,13 +182,13 @@ To test whether the diversity effect persists under altered economic incentives,
 **Results:**
 
 Under premium doubling, the diversity effect reversed:
-- Ungoverned behavioural diversity (premium doubled): 0.797 ± 0.018
-- Governed behavioural diversity (premium doubled): 0.693 ± 0.024
-- Difference: -0.104 (ungoverned > governed)
+- LLM (no validator) behavioural diversity (premium doubled): 0.797 ± 0.018
+- Governed LLM behavioural diversity (premium doubled): 0.693 ± 0.024
+- Difference: −0.104 (no validator > governed)
 
-This contrasts with baseline premium conditions, where governed behavioural diversity exceeded ungoverned for the same model (Fig. 4).
+This contrasts with baseline premium conditions, where governed and no-validator agents show comparable behavioural diversity for the same model (Fig. 4).
 
-**Interpretation.** External cost pressure (premium doubling) appears to force behavioural diversification independently of governance. In the ungoverned condition, agents adapted to the higher premium by exploring alternative mitigation strategies (elevation, relocation, do_nothing), increasing diversity above the governed condition. This suggests that sufficiently strong economic incentives can substitute for governance constraints in promoting diverse adaptive responses.
+**Interpretation.** External cost pressure (premium doubling) appears to force behavioural diversification independently of governance. In the no-validator condition, agents adapted to the higher premium by exploring alternative mitigation strategies (elevation, relocation, do_nothing), increasing diversity above the governed condition. This suggests that sufficiently strong economic incentives can substitute for governance constraints in promoting diverse adaptive responses.
 
 **Decision.** We report the premium doubling analysis here as exploratory sensitivity evidence. Future work should systematically vary insurance premiums, elevation costs, and buyout offers to map the economic-governance interaction landscape.
 
@@ -196,7 +196,7 @@ This contrasts with baseline premium conditions, where governed behavioural dive
 
 ## Supplementary Note 6. Supplementary Water-System Outcomes
 
-Summary water-system outcomes are reported in main-text Table 1. This section provides additional detail.
+Summary water-system outcomes are reported in Extended Data Table 1. This section provides additional detail.
 
 **Supplementary Table 6. Supplementary water-system outcomes (irrigation domain, Gemma-3 4B, 78 agents × 42 years, 3 runs each).**
 
@@ -208,11 +208,11 @@ Summary water-system outcomes are reported in main-text Table 1. This section pr
 | Plentiful-year demand ratio | 0.409 ± 0.009 | 0.295 ± 0.019 |
 | Curtailment spread (plentiful − shortage) | 0.047 | 0.061 |
 | Year-over-year demand variability (SD) | 0.037 | 0.061 |
-| Percentage of agents increasing demand | ~53% | 77–82% |
+| Percentage of decisions that were demand increases | ~53% | 77–82% |
 
 *All demand ratios computed as basin-aggregate (total requests / total water rights per year). Curtailment spread = plentiful-year DR minus shortage-year DR.*
 
-The near-identical minimum elevations (1,002 vs. 1,001 ft) indicate both conditions avoided catastrophic reservoir failure. Governed agents crossed the 1,075-ft shortage-declaration threshold more frequently (13.3 vs. 5.0 years), reflecting productive engagement with the prior-appropriation system's responsive range rather than commons degradation. Ungoverned agents showed higher year-over-year demand variability (SD 0.061 vs. 0.037), driven by the volatility of ceiling-capped monotonic growth trajectories rather than adaptive demand management.
+The near-identical minimum elevations (1,002 vs. 1,001 ft) indicate both conditions avoided catastrophic reservoir failure. Governed agents crossed the 1,075-ft shortage-declaration threshold more frequently (13.3 vs. 5.0 years), reflecting productive engagement with the drought-responsive allocation system's responsive range rather than commons degradation. Ungoverned agents showed higher year-over-year demand variability (SD 0.061 vs. 0.037), driven by the volatility of ceiling-capped monotonic growth trajectories rather than adaptive demand management.
 
 ---
 
@@ -239,44 +239,51 @@ All experiments were conducted using locally hosted models via Ollama inference 
 - Inference mode: Local (Ollama)
 - Hardware: NVIDIA RTX GPU with Ollama serving
 
-### Domain-Specific Validation Frameworks
+### Domain-Specific Governance Validator Inventory
 
-**Irrigation domain (Colorado River Basin):**
+The governance pipeline validates each agent decision through validators organised in three tiers: **behavioural governance rules** (derived from the domain's behavioural theory — the paper's primary methodological contribution), **domain constraints** (physical, financial, and institutional feasibility checks standard in any ABM), and **epistemic guardrails** (LLM-specific checks that ensure reasoning is grounded in actual simulation state). Validators operate at two severity levels: ERROR (blocks the proposed action and triggers re-reasoning, up to 3 attempts) and WARNING (flags but does not block). The Irrational Behaviour Rate (IBR) reported in the main text is computed using the same behavioural governance rules applied post-hoc to executed decisions (see Methods: Validation Protocol).
 
-Twelve validators enforcing physical, social, temporal, and behavioural constraints:
+**Supplementary Table SN-A. Irrigation domain governance validators (12 active).**
 
-*Physical validators (7):*
-1. Water balance constraint (USBR allocation rules)
-2. Reservoir capacity bounds (Lake Mead: 1,000–1,229 ft)
-3. Demand magnitude feasibility (≤200% baseline)
-4. Infrastructure capacity limits
-5. Drought tier consistency (USBR 2007 guidelines)
-6. Evaporation rate bounds
-7. Upstream flow variability constraints
+| # | Validator | Category | Severity | Trigger Condition |
+|---|-----------|----------|----------|-------------------|
+| 1 | Water-right cap | Physical | ERROR | Agent at allocation cap proposes demand increase |
+| 2 | Non-negative diversion | Physical | ERROR | Agent at zero diversion proposes demand decrease |
+| 3 | Minimum utilisation floor | Physical | ERROR | Utilisation < 10% of water right; blocks further decrease |
+| 4 | Demand-floor stabiliser | Economic | ERROR | Utilisation < 50% of water right; blocks decrease below stability corridor |
+| 5 | **Demand-ceiling rule** | **Institutional** | **ERROR** | **Basin demand > 6.0 MAF; blocks demand increase (ablation target)** |
+| 6 | Drought severity | Institutional | ERROR/WARN | Drought index ≥ 0.7: blocks large increase; ≥ 0.85: blocks all increases |
+| 7 | Magnitude cap | Physical | WARNING | Proposed magnitude exceeds persona cluster bounds |
+| 8 | Supply-gap block | Physical | ERROR | Fulfilment ratio < 70%; blocks demand increase |
+| 9 | Curtailment awareness | Social | ERROR/WARN | Tier 2+: blocks all increases; Tier 1: blocks large only |
+| 10 | Compact allocation | Social | WARNING | Basin demand exceeds Colorado River Compact share |
+| 11 | Consecutive-increase cap | Temporal | ERROR | ≥ 3 consecutive demand increases (feature-flagged; default OFF in production) |
+| 12 | WSA-ACA coherence | Behavioural | ERROR | High water-shortage appraisal + high adaptive capacity → blocks demand increase |
 
-*Institutional validators (1):*
-8. Demand ceiling stabilizer (blocks demand-increase proposals when aggregate basin demand exceeds 6.0 MAF — the rule tested in the no-ceiling ablation)
+*Notes: Validators 1–8 enforce physical and economic feasibility. Validator 5 is the demand-ceiling rule tested in the ablation experiment (main text, R2). Validator 6 uses split severity: drought index ≥ 0.7 triggers WARNING (flags large increases), while drought index ≥ 0.85 escalates to ERROR (blocks all increases). Validator 9 similarly uses split severity: Tier 2+ shortage triggers ERROR (blocks all increases), while Tier 1 triggers WARNING (blocks large increases only). Validator 11 was disabled in production runs. Validator 12 operationalises the dual-appraisal framework (WSA/ACA). Irrigation IBR decomposes into three rule sets mapped to specific validators: (A) physical impossibilities — validators 1, 2, 3, and 8 (proposing increases at cap, decreases at zero, below minimum utilisation, or during supply gaps); (B) dual-appraisal incoherence — validator 12 (WSA/ACA label–action mismatches evaluated against a 25-cell coherence matrix); (C) temporal violations — validator 11 logic applied post-hoc (≥ 4 consecutive increases during drought, evaluated regardless of whether the runtime validator was active). BRI ≈ 1 − IBR, using a domain-specific definition where rational behaviour = not increasing demand during high scarcity (see Methods).*
 
-*Social validators (2):*
-9. Equity constraint (within-group demand variance limits)
-10. Communication protocol compliance
+**Supplementary Table SN-B. Flood domain governance validators (13 total: 4 behavioural + 5 domain + 4 epistemic).**
 
-*Temporal validators (1):*
-11. Inter-annual demand smoothness (≤30% year-over-year change)
+| # | Validator | Category | Severity | Trigger Condition |
+|---|-----------|----------|----------|-------------------|
+| | **Behavioural governance rules (PMT-derived)** | | | |
+| 1 | Extreme-threat block | PMT governance | ERROR | Threat perception ≥ High; blocks do_nothing |
+| 2 | Low-coping block | PMT governance | WARNING | Coping perception ≤ Low; warns against elevate/relocate |
+| 3 | Relocation-threat-low | PMT governance | ERROR | Threat perception ≤ Low; blocks relocate |
+| 4 | Elevation-threat-low | PMT governance | ERROR | Threat perception ≤ Low; blocks elevate |
+| | **Domain constraints (simulation infrastructure)** | | | |
+| 5 | Re-elevation block (YAML) | Physical | ERROR | Home already elevated; blocks elevate (declared in skill registry) |
+| 6 | Re-elevation block (code) | Physical | ERROR | Defence-in-depth duplicate of rule 5 implemented in Python validator; both must pass |
+| 7 | Post-relocation block | Physical | ERROR | Agent relocated; blocks all property actions |
+| 8 | Renter restriction | Institutional | ERROR | Tenure = renter; blocks elevation and buyout |
+| 9 | Elevation affordability | Financial | ERROR | Savings < elevation cost; blocks elevate |
+| | **Epistemic guardrails (LLM-specific)** | | | |
+| 10 | Majority-deviation warning | Social | WARNING | > 50% neighbours adapted but agent chooses do_nothing |
+| 11 | Social-proof hallucination | Semantic | WARNING | Reasoning cites neighbours but agent has 0 neighbours |
+| 12 | Temporal grounding | Semantic | WARNING | Reasoning references floods that did not occur |
+| 13 | State consistency | Semantic | WARNING | Reasoning contradicts known agent state variables |
 
-*Behavioural validators (1):*
-12. WSA-ACA construct-action alignment
-
-**Flood domain (coastal household adaptation):**
-
-Protection Motivation Theory (PMT)-based governance framework with four validator classes:
-
-1. **Threat-appraisal alignment**: Blocks mitigation actions (elevate, insure) when agent appraises flood risk as low
-2. **Coping-appraisal alignment**: Blocks actions when agent rates their self-efficacy or response efficacy as insufficient
-3. **Physical feasibility**: Enforces wealth constraints, rental status restrictions, and sequential elevation limits
-4. **Re-elevation block**: Prevents redundant elevation after prior implementation
-
-All validators operated at severity level ERROR (blocking + retry), not WARNING (logging only), to ensure governance constraints actively shaped agent behaviour.
+*Notes: Behavioural governance rules (1–4) are derived from Protection Motivation Theory and constitute the paper's primary governance contribution. The same rules are applied post-hoc to compute IBR: rules 3 and 4 correspond to IBR violation types V1 (relocation under low threat) and V2 (elevation under low threat); rule 1 corresponds to V3 (inaction under extreme threat), which is excluded from the reported IBR because governance intercepted all violations before execution (see Supplementary Note 1). Rule 2 operates at WARNING severity, which for small LLMs (≤ 4B parameters) produces no measurable behavioural change — a boundary condition of soft governance. Domain constraints (5–9) enforce feasibility checks standard in any flood ABM. Epistemic guardrails (10–13) address reasoning errors unique to LLM-based agents; these operate at WARNING severity and are not included in IBR computation.*
 
 ### Experimental Replication
 
@@ -293,11 +300,11 @@ All random seeds controlled both agent initialization (persona assignment) and s
 All experiment configurations, validation frameworks, and analysis scripts are available in the project repository:
 
 - **Irrigation experiment**: `examples/irrigation_abm/`
-- **Flood experiment (single-agent)**: `examples/single_agent/`
+- **Flood experiment**: `examples/single_agent/` (100-agent household simulation; "single_agent" refers to the single-tier agent hierarchy, as distinct from the three-tier multi-agent configuration used in a companion study)
 - **Governance framework**: `broker/`
 - **Analysis scripts**: `paper/nature_water/scripts/`
 
-Raw experimental outputs (agent traces, validator logs, system state snapshots) are archived and available upon request due to size constraints (>100 GB).
+All simulation code and configuration files will be archived on Zenodo upon acceptance (DOI to be assigned). Raw experimental outputs (agent traces, validator logs, system state snapshots) are archived and available upon request due to size constraints (>100 GB).
 
 ---
 
@@ -319,15 +326,15 @@ where $k$ is the number of available action categories and $p_i$ is the empirica
 
 Per-model analyses are reported as primary findings because:
 
-1. **Model heterogeneity**: Effect sizes varied substantially across models (Fig. 4: Δ from −0.024 to +0.329)
+1. **Model heterogeneity**: Effect sizes varied substantially across models (Fig. 4: ΔEHE from −0.063 to +0.021; ΔIBR from +0.17 to +7.53 pp)
 2. **Scientific interpretation**: Model-specific patterns reveal which architectural features (parameter count, training data, instruction-tuning methods) modulate governance responsiveness
 3. **Pooled CI limitations**: Pooled confidence intervals aggregate across heterogeneous effect sizes and should be interpreted as meta-analytic summaries, not tests of overall effect presence
 
-Five of six models showed positive governance effects under the primary normalization (Fig. 4), with one (Ministral 8B) showing a small negative effect (Δ = −0.024). The magnitude of positive effects varied by over an order of magnitude. Under alternative composite-action normalizations (Supplementary Table 7), some models show reversed effects, underscoring that the direction depends on specification choice for models with high composite rates.
+All six models showed IBR reduction under governance, with four reaching statistical significance (p < 0.05; Supplementary Table 2). No model showed a significant EHE change, confirming that governance constrains irrational behaviour without suppressing adaptive diversity. Under alternative composite-action normalizations (Supplementary Table 7), EHE direction depends on specification choice for models with high composite rates.
 
 **Supplementary Table 7. Behavioural diversity sensitivity to composite-action normalization specification (flood domain, 100 agents × 10 years, 3 runs per condition).**
 
-*Composite-action treatment scenarios:* Ungoverned agents occasionally selected composite actions (simultaneously purchasing insurance and elevating). Four normalization specifications were tested: S1 (asymmetric k=5/4, composite as 5th action), S2 (merge to elevate, k=4), S3 (uniform k=5), S4 (split into constituents, k=4; primary specification).
+*Composite-action treatment scenarios:* LLM (no validator) agents occasionally selected composite actions (simultaneously purchasing insurance and elevating). Four normalization specifications were tested: S1 (asymmetric k=5/4, composite as 5th action), S2 (merge to elevate, k=4), S3 (uniform k=5), S4 (split into constituents, k=4; primary specification).
 
 | Model | S1 (k=5/4) | S2 (merge) | S3 (k=5/5) | S4 (split) |
 |-------|:-:|:-:|:-:|:-:|
@@ -379,6 +386,39 @@ Note that 84–89% of FQL decisions resulted in maintain_demand — not because 
 **Interpretation.** The FQL comparison isolates the representational contribution: governance alone does not produce adaptive exploitation. The combination of governance constraints *and* natural-language reasoning is required — governance defines the feasibility boundaries, and language-based reasoning enables agents to adaptively navigate within those boundaries in response to environmental state.
 
 **Data and code.** FQL results: `examples/irrigation_abm/results/fql_raw/seed{42,43,44}/`. Runner: `examples/irrigation_abm/run_fql_baseline.py --from-logs`. Comparison metrics: `examples/irrigation_abm/analysis/fql_comparison_metrics.py`.
+
+---
+
+## Supplementary Note 12. Rule-Based PMT Agent Parameterization
+
+The rule-based PMT agent uses a softmax utility framework to operationalize Protection Motivation Theory. At each decision step, the agent computes utilities for four actions and selects probabilistically via softmax with temperature τ = 0.5.
+
+**Base utilities:**
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| U₀(do_nothing) | 0.6 | Inertia / status quo bias |
+| U₀(insurance) | 0.3 | Baseline insurance propensity |
+| U₀(elevation) | 0.1 | Baseline elevation propensity |
+| U₀(relocation) | −1.5 | Relocation strongly disfavoured |
+
+**Modifiers:**
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| Flood effect (community) | +0.8 | Utility boost for protective actions when community flood occurs |
+| Flood effect (personal) | +1.2 | Additional boost when agent personally flooded |
+| Grant effect on elevation | +0.8 | Elevation utility boost when grant available |
+| Elevation cost | −1.0 | Cost penalty for elevation |
+| Relocation cost | −2.0 | Cost penalty for relocation |
+| Memory decay | 0.85 | Exponential decay rate for flood memory |
+| Memory coefficient (insurance) | 0.35 | Memory-driven insurance utility |
+| Memory coefficient (elevation) | 0.35 | Memory-driven elevation utility |
+| Memory coefficient (relocation) | 0.20 | Memory-driven relocation utility |
+| Memory coefficient (inaction) | −0.20 | Memory discourages inaction |
+| Softmax temperature (τ) | 0.5 | Higher = more stochastic |
+
+Base utilities were calibrated to reproduce empirical PMT patterns (Bubeck et al., 2012): high do-nothing propensity reflecting status quo bias, moderate insurance uptake, low elevation rates reflecting practical barriers, and very rare relocation. The stochastic softmax framework (rather than deterministic thresholds) generates within-population heterogeneity from agent-specific flood histories and grant exposure, providing a fair comparison against language agents that generate diversity through reasoning.
 
 ---
 
