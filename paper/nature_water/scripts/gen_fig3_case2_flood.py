@@ -411,11 +411,7 @@ def draw_panel_a(axes, data: dict):
 
     Y-axis = absolute agent count (decreasing as agents relocate).
     """
-    sub_configs = [
-        ('rulebased', 'Rule-based',            PMT_COLOR),
-        ('disabled',  'LLM (no validator)',   UNGOV_COLOR),
-        ('gov',       'Governed LLM',          GOV_COLOR),
-    ]
+    sub_configs = get_panel_a_configs()
 
     count_data = {}
     for cond, _, _ in sub_configs:
@@ -487,6 +483,18 @@ def draw_panel_a(axes, data: dict):
     )
 
     # Panel label 'a' — added in generate_figure() for alignment
+
+
+def get_panel_a_configs():
+    """Top-row order for Fig. 3.
+
+    Keep governed on the left and ungoverned on the right.
+    """
+    return [
+        ('gov',       'Governed LLM',        GOV_COLOR),
+        ('rulebased', 'Rule-based',          PMT_COLOR),
+        ('disabled',  'LLM (no validator)',  UNGOV_COLOR),
+    ]
 
     return axes
 
