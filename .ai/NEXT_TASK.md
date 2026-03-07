@@ -71,5 +71,7 @@ examples/single_agent/results/JOH_FINAL/_archive_Group_B/
 - New planning artifact:
   - `docs/plans/2026-03-07-release-readiness-audit.md`
   - `docs/plans/2026-03-07-repo-boundary-map.md`
+  - `docs/plans/2026-03-07-water-sector-positioning-plan.md`
 - Suggested continuation path:
   - paper-first hardening on naming, repo boundaries, and framework-facing docs
+  - keep WAGF positioned as water-sector-first, with non-water use described only as a secondary extension path

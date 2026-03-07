@@ -2,9 +2,9 @@
 
 <div align="center">
 
-**A governance framework for LLM-driven agent-based models**
+**A governance framework for LLM-driven agent-based models in human-water systems**
 
-*Domain-agnostic governance core with water-domain reference implementations*
+*Water-sector-first governance core with reusable extension patterns*
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -17,7 +17,7 @@
 
 ## What is WAGF?
 
-Large Language Models (LLMs) can generate rich, human-like reasoning for agent-based models — but they also hallucinate, contradict themselves, and produce invalid actions. WAGF provides a **Governance Broker** that validates every LLM decision against physical constraints and behavioral theories before execution, turning unreliable LLM outputs into scientifically auditable agent behavior.
+Large Language Models (LLMs) can generate rich, human-like reasoning for agent-based models — but they also hallucinate, contradict themselves, and produce invalid actions. WAGF provides a **Governance Broker** that validates every LLM decision against physical constraints and behavioral theories before execution, turning unreliable LLM outputs into scientifically auditable agent behavior for human-water systems.
 
 **Key contribution**: Unlike prompt-only approaches, WAGF structurally prevents hallucinations through a validation pipeline that checks each decision against domain rules. Invalid decisions trigger a retry loop with specific feedback, not just re-prompting.
 
@@ -33,7 +33,7 @@ Large Language Models (LLMs) can generate rich, human-like reasoning for agent-b
 
 ### Reference Domain Packs and Case Studies
 
-The repository currently ships with mature water-domain reference implementations. They demonstrate the framework, but they do not limit it. New domains can reuse the same broker, validator, memory, and context infrastructure with their own theory pack and lifecycle hooks.
+The repository currently ships with mature water-sector reference implementations. They define the main identity of the framework. The same broker, validator, memory, and context infrastructure can be extended to other ABM settings later, but water remains the home domain.
 
 - **Flood Household Adaptation** — 100 agents using Protection Motivation Theory (PMT), 10-year simulation with Gemma 3 (small/medium/large local LLMs)
 - **Flood Multi-Agent** — 400 agents (household + government + insurance), 13-year simulation, Potomac River Basin
@@ -150,11 +150,11 @@ Supporting subsystems (configured per experiment):
 
 WAGF is easiest to read as three layers:
 
-- **Core framework** (`broker/`) ??generic governance pipeline, parsing, validation orchestration, memory, context assembly, and audit
+- **Core framework** (`broker/`) ??reusable governance pipeline, parsing, validation orchestration, memory, context assembly, and audit
 - **Domain packs** (`broker/domains/`, experiment config, lifecycle hooks) ??theory metadata, domain validators, construct naming, skill registries
 - **Reference experiments** (`examples/`) ??complete runnable ABM studies built from the core plus a domain pack
 
-The current flood and irrigation implementations are reference packs, not evidence that the framework only supports water domains.
+The current flood and irrigation implementations are the primary reference packs because WAGF was designed for water-sector ABM first. Extension beyond water is possible, but it is a secondary path rather than the central claim.
 
 ### Repo Surface
 
