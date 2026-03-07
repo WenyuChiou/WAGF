@@ -361,3 +361,14 @@ Verification:
 
 Compatibility note:
 - `dual_appraisal` metadata remains in `broker/domains/water/thinking_checks.py` as a backward-compatibility alias only. Mainline naming should use `cognitive_appraisal`.
+## Session BN - Release Readiness Audit
+
+Date: 2026-03-07
+
+Summary:
+- Wrote a formal release-readiness audit for WAGF.
+- Organized the assessment into strengths, paper-readiness, release risks, and recommended next-step options.
+- Positioned the recommended strategy as paper-first, release-aware.
+
+Artifact:
+- `docs/plans/2026-03-07-release-readiness-audit.md`

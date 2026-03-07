@@ -68,3 +68,7 @@ examples/single_agent/results/JOH_FINAL/_archive_Group_B/
 - Execution reference: `docs/plans/2026-03-07-abm-generalization-plan.md`
 - Regression gate: `docs/checklists/abm_generalization_regression_gate.md`
 - Immediate next step: decide whether to clean remaining archive/analysis references to `dual-appraisal`, or leave them as historical artifacts.
+- New planning artifact:
+  - `docs/plans/2026-03-07-release-readiness-audit.md`
+- Suggested continuation path:
+  - paper-first hardening on naming, repo boundaries, and framework-facing docs
