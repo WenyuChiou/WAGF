@@ -67,4 +67,4 @@ examples/single_agent/results/JOH_FINAL/_archive_Group_B/
 - Safety rule: use staged checkpoints; do not refactor core + examples simultaneously.
 - Execution reference: `docs/plans/2026-03-07-abm-generalization-plan.md`
 - Regression gate: `docs/checklists/abm_generalization_regression_gate.md`
-- Immediate next step: move from Task 4 to Task 5 by adding a non-water minimal reference example.
+- Immediate next step: run Task 6 full regression checkpoint before any deeper refactor.

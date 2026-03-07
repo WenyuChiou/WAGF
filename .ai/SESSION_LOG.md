@@ -268,3 +268,16 @@ Summary:
 Verification:
 - `python -m pytest tests/test_multi_skill.py tests/test_multi_skill_integration.py tests/test_response_format_builder.py -q`
 - `rg -n "max_skills|execution_order|general-purpose planner|bounded composite-action" docs/references/yaml_configuration_reference.md docs/guides/domain_pack_guide.md broker/utils/agent_config.py`
+## Session BJ - Task 5 Non-Water Minimal Example
+
+Date: 2026-03-07
+
+Summary:
+- Added `examples/minimal_nonwater/` as a generic reference example.
+- Added config and smoke tests to prove a non-water agent type can load and render response format.
+- Added a small demo script that exits without requiring a live LLM call.
+
+Verification:
+- `python -m pytest tests/test_minimal_nonwater_config.py -q`
+- `python -m pytest tests/test_config_schema.py tests/test_response_format_builder.py -q`
+- `python examples/minimal_nonwater/run_demo.py`
