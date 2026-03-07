@@ -61,3 +61,10 @@ examples/single_agent/results/rulebased/Run_{1-3}/
 # ARCHIVED (DO NOT USE)
 examples/single_agent/results/JOH_FINAL/_archive_Group_B/
 ```
+## 2026-03-07 - ABM Generalization Program
+
+- Goal: make WAGF easier for external ABM developers to adopt without making the core sound flood-only.
+- Safety rule: use staged checkpoints; do not refactor core + examples simultaneously.
+- Execution reference: `docs/plans/2026-03-07-abm-generalization-plan.md`
+- Regression gate: `docs/checklists/abm_generalization_regression_gate.md`
+- Immediate next step: run Task 1 regression gate, then update README/domain-pack docs before any core abstraction work.
