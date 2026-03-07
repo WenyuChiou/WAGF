@@ -99,3 +99,15 @@ def test_flood_panel_a_legend_is_top_right_of_first_subplot():
 
     assert cfg["target_axis_index"] == 0
     assert cfg["loc"] == "upper right"
+
+
+def test_irrigation_fig2_bottom_row_uses_two_pie_panels():
+    mod = _load_irrigation_fig_module()
+
+    panel_cfgs = mod.get_irrigation_pie_panel_configs()
+
+    assert [cfg["key"] for cfg in panel_cfgs] == ["gov", "disabled"]
+    assert [cfg["title"] for cfg in panel_cfgs] == [
+        "Governed LLM",
+        "Governed LLM (no validator)",
+    ]
