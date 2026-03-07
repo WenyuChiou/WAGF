@@ -1,0 +1,19 @@
+skills:
+  - skill_id: adapt_strategy
+    description: "Adjust strategy in response to changing conditions."
+    eligible_agent_types: ["analyst"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes:
+      - strategy_state
+    implementation_mapping: "demo.adapt"
+
+  - skill_id: hold_position
+    description: "Keep the current strategy for now."
+    eligible_agent_types: ["analyst"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes: []
+    implementation_mapping: "demo.hold"
+
+default_skill: hold_position

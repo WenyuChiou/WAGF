@@ -1,0 +1,40 @@
+shared:
+  rating_scales:
+    generic:
+      levels: ["LOW", "MID", "HIGH"]
+      labels:
+        LOW: "Low"
+        MID: "Medium"
+        HIGH: "High"
+      template: "LOW = Low | MID = Medium | HIGH = High"
+  response_format:
+    delimiter_start: "<<<DECISION_START>>>"
+    delimiter_end: "<<<DECISION_END>>>"
+    fields:
+      - key: risk_appraisal
+        type: appraisal
+        required: true
+        construct: "RISK_LABEL"
+        reason_hint: "How much strategic risk do you perceive?"
+      - key: capacity_appraisal
+        type: appraisal
+        required: true
+        construct: "CAPACITY_LABEL"
+        reason_hint: "How much room do you have to respond?"
+      - key: decision
+        type: choice
+        required: true
+
+analyst:
+  psychological_framework: generic
+  parsing:
+    actions:
+      - id: adapt_strategy
+        aliases: ["1", "adapt"]
+        description: "Adjust strategy in response to changing conditions."
+      - id: hold_position
+        aliases: ["2", "hold"]
+        description: "Keep the current strategy for now."
+  prompt_template: |
+    You are an analyst managing a generic adaptive system.
+    Assess your risk and response capacity, then choose one action.
