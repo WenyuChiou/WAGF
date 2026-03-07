@@ -111,3 +111,24 @@ def test_irrigation_fig2_bottom_row_uses_two_pie_panels():
         "Governed LLM",
         "Governed LLM (no validator)",
     ]
+
+
+def test_irrigation_violation_annotation_style_matches_flood_badge_pattern():
+    mod = _load_irrigation_fig_module()
+
+    style = mod.get_irrigation_violation_annotation_style()
+
+    assert style["fontsize"] >= 7.5
+    assert style["fontweight"] == "bold"
+    assert style["bbox"]["facecolor"] == "white"
+    assert style["bbox"]["edgecolor"] == "#B22222"
+
+
+def test_irrigation_center_count_style_matches_fig3_overlay():
+    mod = _load_irrigation_fig_module()
+
+    style = mod.get_irrigation_center_count_style()
+
+    assert style["fontsize"] == 6.0
+    assert style["fontweight"] == "bold"
+    assert style["bbox"]["facecolor"] == "#00000055"
