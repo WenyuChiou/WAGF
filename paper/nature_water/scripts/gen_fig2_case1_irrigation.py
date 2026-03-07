@@ -42,10 +42,10 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 # ---------------------------------------------------------------------------
 # Colours  (Okabe-Ito palette)
 # ---------------------------------------------------------------------------
-C_GOV   = "#0072B2"   # governed — blue
-C_UNGOV = "#D55E00"   # ungoverned — vermillion
-C_NOCEIL= "#009E73"   # no ceiling — teal
-C_FQL   = "#666666"   # FQL — grey
+C_GOV   = "#0072B2"   # governed - blue
+C_UNGOV = "#D55E00"   # ungoverned - vermillion
+C_NOCEIL= "#009E73"   # no ceiling - teal
+C_FQL   = "#666666"   # FQL - grey
 
 ACTION_COLORS = {
     "increase_large":    "#D55E00",
@@ -190,11 +190,11 @@ def correct_actions_with_audit(sim_df, audit_df):
     n_rejected = mask_rej.sum()
     total = len(corrected)
 
-    # Rejected proposals → maintain_demand (executed fallback)
+    # Rejected proposals -> maintain_demand (executed fallback)
     corrected.loc[mask_rej, 'yearly_decision'] = 'maintain_demand'
 
     corrected.drop(columns='_rejected', inplace=True)
-    print(f"  Action correction: {n_rejected} rejected ({n_rejected/total*100:.1f}%) → maintain_demand")
+    print(f"  Action correction: {n_rejected} rejected ({n_rejected/total*100:.1f}%) -> maintain_demand")
     return corrected
 
 
@@ -686,7 +686,7 @@ def build_figure():
     gov_audit    = load_audit_logs(gov_dir_fn)
     ungov_audit  = load_audit_logs(ungov_dir_fn)
 
-    # --- Correct yearly_decision: REJECTED → maintain_demand ---
+    # --- Correct yearly_decision: REJECTED -> maintain_demand ---
     print("Correcting actions using audit traces...")
     gov_df    = correct_actions_with_audit(gov_df, gov_audit)
     ungov_df  = correct_actions_with_audit(ungov_df, ungov_audit)
@@ -703,7 +703,7 @@ def build_figure():
 
     print("Computing derived quantities...")
 
-    # Stacked area — all 3 conditions
+    # Stacked area - all 3 conditions
     gov_share   = compute_stacked_area(gov_df)
     ungov_share = compute_stacked_area(ungov_df)
     fql_share   = compute_stacked_area(fql_df) if fql_df is not None else None
@@ -716,7 +716,7 @@ def build_figure():
     ungov_mead_std = compute_mead_band(ungov_df)[1]
 
     # Bottom-row pie matrices use proposed_skill from single seed (seed 42)
-    # for cleaner n values (78 agents × 42 years = 3,276 decisions)
+    # for cleaner n values (78 agents x 42 years = 3,276 decisions)
     pie_gov_data = pie_gov_total = pie_gov_violations = None
     if gov_audit is not None:
         pie_audit_single = gov_audit[gov_audit['seed'] == 42]
@@ -728,13 +728,13 @@ def build_figure():
 
 
     # -----------------------------------------------------------------------
-    # Figure layout — (a) full-width top, legend, then (b)(c)(d) each on own row
+    # Figure layout - (a) full-width top, legend, then (b)(c)(d) each on own row
     # -----------------------------------------------------------------------
     print("Building figure...")
     fig = plt.figure(figsize=(7.09, 7.6))
 
     # Outer GridSpec: 3 rows
-    #   row 0: panel (a) — 3 stacked area sub-panels (full width)
+    #   row 0: panel (a) - 3 stacked area sub-panels (full width)
     #   row 1: legend strip
     #   row 2: panels (b) + (c) side by side
     outer = gridspec.GridSpec(
@@ -744,7 +744,7 @@ def build_figure():
         height_ratios=[0.80, 0.01, 1.05],
     )
 
-    # Panel (a): 2 side-by-side stacked areas — Governed LLM | Governed LLM (no validator)
+    # Panel (a): 2 side-by-side stacked areas - Governed LLM | Governed LLM (no validator)
     # FQL baseline overlaid as dashed Mead line in both panels
     a_gs = gridspec.GridSpecFromSubplotSpec(
         1, 2, subplot_spec=outer[0],
@@ -767,7 +767,7 @@ def build_figure():
     ax_b2 = fig.add_subplot(bc_gs[1])
 
     # -----------------------------------------------------------------------
-    # Panel (a) — 3 stacked area sub-panels
+    # Panel (a) - 3 stacked area sub-panels
     # -----------------------------------------------------------------------
     draw_stacked_panel(
         ax_a_gov, ax_a_gov2,
@@ -860,259 +860,6 @@ def build_figure():
     plt.close(fig)
     print("Done.")
     return
-
-    # -----------------------------------------------------------------------
-    # Panel (b) — demand ratio vs shortage years scatter
-    # -----------------------------------------------------------------------
-    conditions = []
-    if gov_dr is not None:
-        conditions.append(('Governed LLM',        C_GOV,   'o', gov_dr,   gov_sy))
-    if ungov_dr is not None:
-        conditions.append(('Governed LLM (no validator)',  C_UNGOV, 's', ungov_dr, ungov_sy))
-    if fql_dr is not None:
-        conditions.append(('Baseline (FQL)',       C_FQL,   '^', fql_dr,   fql_sy))
-
-    cond_means = {}
-    for label, color, marker, dr_series, sy_series in conditions:
-        # Align seeds that appear in both
-        common_seeds = dr_series.index.intersection(
-            sy_series.index if sy_series is not None else dr_series.index
-        )
-        if sy_series is None:
-            print(f"  WARNING: no shortage-year data for {label}")
-            continue
-
-        dr_vals = dr_series.loc[common_seeds].values
-        sy_vals = sy_series.loc[common_seeds].values
-
-        # Per-seed markers
-        ax_b.scatter(sy_vals, dr_vals, color=color, marker=marker,
-                     s=50, alpha=0.8, zorder=3, linewidths=0.5,
-                     edgecolors='white', label=label)
-
-    ax_b.set_xlabel("Shortage years\n(Mead < 1,075 ft)", fontsize=8)
-    ax_b.set_ylabel("Water demand (MAF)", fontsize=8)
-    ax_b.set_title("")
-    ax_b.legend(fontsize=7.0, frameon=False, handletextpad=0.3,
-                loc='lower right', markerscale=1.0)
-
-    # -----------------------------------------------------------------------
-    # Panel (c) — WSA × ACA pie matrix
-    # -----------------------------------------------------------------------
-    ax_c_bg.set_axis_off()
-
-    if pie_data is not None:
-        # Get the bounding box of ax_c_bg in figure-normalised coords
-        bbox = ax_c_bg.get_position()
-        fig_w, fig_h = fig.get_size_inches()
-
-        n_rows = len(WSA_ORDER)
-        n_cols = len(ACA_ORDER)
-
-        # Margins inside the background axes (in axes-fraction units)
-        left_margin  = 0.09   # space for y-axis labels
-        right_margin = 0.01
-        top_margin   = 0.10   # space for column headers + title (wider gap)
-        bot_margin   = 0.01   # space for x-axis labels
-
-        cell_w = (1.0 - left_margin - right_margin) / n_cols
-        cell_h = (1.0 - top_margin  - bot_margin)   / n_rows
-
-        viol_cmap = mcolors.LinearSegmentedColormap.from_list(
-            "irr_viols",
-            ['#F7F7F7', '#F7D9A6', '#F3A65A', '#D95F02'],
-        )
-        viol_max = max(pie_violations.values()) if pie_violations else 0
-        viol_norm = mcolors.Normalize(vmin=0, vmax=max(1, viol_max))
-
-        # Max n across cells (for scaling pie radius)
-        max_n = max(pie_total.values()) if pie_total else 1
-        MIN_RADIUS = 0.024   # fraction of figure (larger so n=1 visible)
-        MAX_RADIUS = 0.042   # reduced from 0.048 to prevent label overlap
-
-        for ri, wsa in enumerate(WSA_ORDER):
-            for ci, aca in enumerate(ACA_ORDER):
-                n = pie_total.get((wsa, aca), 0)
-                viol_count = pie_violations.get((wsa, aca), 0)
-
-                # Centre of cell in axes-fraction coords
-                cx_ax = left_margin + (ci + 0.5) * cell_w
-                cy_ax = (1.0 - top_margin) - (ri + 0.5) * cell_h
-
-                # Shift pie center up slightly to leave room for label
-                cy_ax_pie = cy_ax + cell_h * 0.06
-
-                # Bottom edge of this cell (grid line position)
-                cell_bottom = (1.0 - top_margin) - (ri + 1) * cell_h
-                cell_left = left_margin + ci * cell_w
-                cell_top = (1.0 - top_margin) - ri * cell_h
-
-                if n > 0:
-                    rect = plt.Rectangle(
-                        (cell_left, cell_bottom), cell_w, cell_h,
-                        facecolor=viol_cmap(viol_norm(viol_count)) if viol_count > 0 else '#F7F7F7',
-                        edgecolor='none',
-                        transform=ax_c_bg.transAxes,
-                        zorder=-2,
-                    )
-                    ax_c_bg.add_patch(rect)
-
-                if n == 0:
-                    # Show n=0 label at cell bottom grid line
-                    ax_c_bg.text(cx_ax, cell_bottom,
-                                 "n=0", ha='center', va='bottom',
-                                 fontsize=6.0, color='#999999',
-                                 transform=ax_c_bg.transAxes)
-                    continue
-
-                # Convert to figure coords (use shifted center for pie)
-                cx_fig = bbox.x0 + cx_ax * bbox.width
-                cy_fig = bbox.y0 + cy_ax_pie * bbox.height
-
-                # Radius scaled by sqrt(n/max_n), in figure coords
-                r_frac = MIN_RADIUS + (MAX_RADIUS - MIN_RADIUS) * math.sqrt(n / max_n)
-                # Convert to axes for the pie
-                r_ax_x = r_frac / bbox.width
-                r_ax_y = r_frac / bbox.height
-
-                # Use the smaller of x/y radius for circular appearance
-                r_ax = min(r_ax_x, r_ax_y) * 1.0
-
-                counts = pie_data[(wsa, aca)]
-                sizes = [counts[a] for a in PIE_ACTION_ORDER]
-                colors = [PIE_ACTION_COLORS[a] for a in PIE_ACTION_ORDER]
-                sizes_nonzero = [(s, c) for s, c in zip(sizes, colors) if s > 0]
-                if not sizes_nonzero:
-                    continue
-                sz, cl = zip(*sizes_nonzero)
-
-                # Add axes for this pie
-                pie_ax = fig.add_axes(
-                    [cx_fig - r_frac, cy_fig - r_frac,
-                     2 * r_frac, 2 * r_frac]
-                )
-                pie_ax.pie(sz, colors=cl, startangle=90,
-                           wedgeprops=dict(linewidth=0.3, edgecolor='white'))
-                pie_ax.set_aspect('equal')
-                pie_ax.text(
-                    0.5, 0.5, str(n),
-                    ha='center', va='center',
-                    fontsize=6.0, color='white', fontweight='bold',
-                    transform=pie_ax.transAxes,
-                    bbox=dict(boxstyle='round,pad=0.12', facecolor='#00000066', edgecolor='none'),
-                )
-                pie_ax.set_axis_off()
-
-                if viol_count > 0:
-                    ax_c_bg.text(
-                        cell_left + cell_w * 0.92,
-                        cell_top - cell_h * 0.08,
-                        str(viol_count),
-                        ha='right', va='top',
-                        fontsize=6.2, color='#B22222', fontweight='bold',
-                        transform=ax_c_bg.transAxes,
-                    )
-
-        # Axis labels — drawn in ax_c_bg coords using text
-        # X-axis (ACA) column labels
-        for ci, aca in enumerate(ACA_ORDER):
-            cx_ax = left_margin + (ci + 0.5) * cell_w
-            ax_c_bg.text(cx_ax, 1.0 - top_margin + 0.02, aca,
-                         ha='center', va='bottom', fontsize=8,
-                         transform=ax_c_bg.transAxes)
-
-        # Y-axis (WSA) row labels
-        for ri, wsa in enumerate(WSA_ORDER):
-            cy_ax = (1.0 - top_margin) - (ri + 0.5) * cell_h
-            ax_c_bg.text(left_margin - 0.02, cy_ax, wsa,
-                         ha='right', va='center', fontsize=8,
-                         transform=ax_c_bg.transAxes)
-
-        # Axis titles — x title above column ticks with gap
-        ax_c_bg.text(
-            left_margin + (1.0 - left_margin - right_margin) / 2,
-            1.0 - top_margin * 0.05,
-            "Adaptive Capacity Appraisal (ACA)",
-            ha='center', va='center', fontsize=8.5, fontweight='bold',
-            transform=ax_c_bg.transAxes,
-        )
-        ax_c_bg.text(
-            left_margin * 0.15,
-            bot_margin + (1.0 - top_margin - bot_margin) / 2,
-            "Water Shortage Appraisal (WSA)",
-            ha='center', va='center', fontsize=8.5, fontweight='bold',
-            rotation=90,
-            transform=ax_c_bg.transAxes,
-        )
-        # (duplicate direction sub-labels removed — row/col labels are sufficient)
-
-        # Grid lines (drawn in axes-fraction coords)
-        for ri in range(n_rows + 1):
-            cy = (1.0 - top_margin) - ri * cell_h
-            ax_c_bg.plot(
-                [left_margin, 1.0 - right_margin], [cy, cy],
-                color='#CCCCCC', linewidth=0.4,
-                transform=ax_c_bg.transAxes, zorder=0,
-            )
-        for ci in range(n_cols + 1):
-            cx = left_margin + ci * cell_w
-            ax_c_bg.plot(
-                [cx, cx], [bot_margin, 1.0 - top_margin],
-                color='#CCCCCC', linewidth=0.4,
-                transform=ax_c_bg.transAxes, zorder=0,
-            )
-
-        # Legend for pie colours (below grid) — uses original 5 actions
-        pie_legend_handles = [
-            mpatches.Patch(facecolor=PIE_ACTION_COLORS[a], label=PIE_ACTION_LABELS[a])
-            for a in PIE_ACTION_ORDER
-        ]
-        ax_c_bg.legend(
-            handles=pie_legend_handles,
-            loc='lower center',
-            bbox_to_anchor=(left_margin + (1.0 - left_margin - right_margin) / 2,
-                            -0.14),
-            ncol=5,
-            fontsize=6.5,
-            frameon=False,
-            handlelength=0.9,
-            handletextpad=0.3,
-            columnspacing=0.5,
-        )
-
-    else:
-        ax_c_bg.text(0.5, 0.5, "No audit data", ha='center', va='center',
-                     transform=ax_c_bg.transAxes, fontsize=8)
-
-    # -----------------------------------------------------------------------
-    # Panel labels  a, b, c, d
-    # -----------------------------------------------------------------------
-    label_kw = dict(fontsize=8, fontweight='bold', va='top', ha='left',
-                    transform=fig.transFigure)
-
-    # (a) top-left of the left sub-panel in top_gs[0]
-    bbox_a = ax_a_gov.get_position()
-    fig.text(bbox_a.x0 - 0.06, bbox_a.y1 + 0.01, 'a', **label_kw)
-
-    # (b)
-    bbox_b = ax_b.get_position()
-    fig.text(bbox_b.x0 - 0.04, bbox_b.y1 + 0.01, 'b', **label_kw)
-
-    # (c)
-    bbox_c = ax_c_bg.get_position()
-    fig.text(bbox_c.x0 - 0.02, bbox_c.y1 + 0.01, 'c', **label_kw)
-
-
-    # -----------------------------------------------------------------------
-    # Save
-    # -----------------------------------------------------------------------
-    for ext in ('png', 'pdf'):
-        out_path = OUT_DIR / f"Fig2_irrigation_case.{ext}"
-        fig.savefig(str(out_path), dpi=300, bbox_inches='tight')
-        print(f"Saved: {out_path}")
-
-    plt.close(fig)
-    print("Done.")
 
 
 if __name__ == "__main__":
