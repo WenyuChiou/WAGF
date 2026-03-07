@@ -654,7 +654,7 @@ def draw_single_pie_grid(fig, ax, df, title, title_color, show_ylabel=True,
     Mini pie charts = action distribution per cell.
     """
     PIE_ACTIONS = ['do_nothing', 'buy_insurance', 'elevate_house', 'relocate']
-    PIE_COLORS = ['#BBBBBB', '#0072B2', '#D55E00', '#CC79A7']
+    PIE_COLORS = ['#BDBDBD', '#4C78A8', '#F2B701', '#CC6677']
     PIE_LABELS = ['DN', 'FI', 'HE', 'RL']  # Do Nothing, Flood Insurance, House Elevation, Relocate
 
     ax.set_xlim(-0.5, 4.5)

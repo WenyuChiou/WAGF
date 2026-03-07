@@ -27,6 +27,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import matplotlib.patches as mpatches
+import matplotlib.colors as mcolors
 from matplotlib.patches import FancyArrowPatch
 from matplotlib import rcParams
 
@@ -371,10 +372,14 @@ ACA_ORDER = ['VL', 'L', 'M', 'H', 'VH']   # left to right (cols)
 def compute_pie_matrix(audit_df):
     """Compute action count distributions for each (WSA, ACA) cell.
 
-    Returns dict: (wsa, aca) -> dict(action -> count), and total_per_cell dict.
+    Returns:
+      - dict: (wsa, aca) -> dict(action -> count)
+      - dict: (wsa, aca) -> total sample count
+      - dict: (wsa, aca) -> violation count
     """
     data = {}
     total = {}
+    violations = {}
     for wsa in WSA_ORDER:
         for aca in ACA_ORDER:
             mask = (
@@ -386,7 +391,8 @@ def compute_pie_matrix(audit_df):
             cell_counts = {a: int(counts.get(a, 0)) for a in PIE_ACTION_ORDER}
             data[(wsa, aca)] = cell_counts
             total[(wsa, aca)] = sum(cell_counts.values())
-    return data, total
+            violations[(wsa, aca)] = int((sub['status'] != 'APPROVED').sum())
+    return data, total, violations
 
 
 # ---------------------------------------------------------------------------
@@ -514,10 +520,10 @@ def build_figure():
 
     # Panel (c) pie matrix — uses proposed_skill from single seed (seed 42)
     # for cleaner n values (78 agents × 42 years = 3,276 decisions)
-    pie_data = pie_total = None
+    pie_data = pie_total = pie_violations = None
     if gov_audit is not None:
         pie_audit_single = gov_audit[gov_audit['seed'] == 42]
-        pie_data, pie_total = compute_pie_matrix(pie_audit_single)
+        pie_data, pie_total, pie_violations = compute_pie_matrix(pie_audit_single)
 
 
     # -----------------------------------------------------------------------
@@ -681,6 +687,13 @@ def build_figure():
         cell_w = (1.0 - left_margin - right_margin) / n_cols
         cell_h = (1.0 - top_margin  - bot_margin)   / n_rows
 
+        viol_cmap = mcolors.LinearSegmentedColormap.from_list(
+            "irr_viols",
+            ['#F7F7F7', '#F7D9A6', '#F3A65A', '#D95F02'],
+        )
+        viol_max = max(pie_violations.values()) if pie_violations else 0
+        viol_norm = mcolors.Normalize(vmin=0, vmax=max(1, viol_max))
+
         # Max n across cells (for scaling pie radius)
         max_n = max(pie_total.values()) if pie_total else 1
         MIN_RADIUS = 0.024   # fraction of figure (larger so n=1 visible)
@@ -689,6 +702,7 @@ def build_figure():
         for ri, wsa in enumerate(WSA_ORDER):
             for ci, aca in enumerate(ACA_ORDER):
                 n = pie_total.get((wsa, aca), 0)
+                viol_count = pie_violations.get((wsa, aca), 0)
 
                 # Centre of cell in axes-fraction coords
                 cx_ax = left_margin + (ci + 0.5) * cell_w
@@ -699,6 +713,18 @@ def build_figure():
 
                 # Bottom edge of this cell (grid line position)
                 cell_bottom = (1.0 - top_margin) - (ri + 1) * cell_h
+                cell_left = left_margin + ci * cell_w
+                cell_top = (1.0 - top_margin) - ri * cell_h
+
+                if n > 0:
+                    rect = plt.Rectangle(
+                        (cell_left, cell_bottom), cell_w, cell_h,
+                        facecolor=viol_cmap(viol_norm(viol_count)) if viol_count > 0 else '#F7F7F7',
+                        edgecolor='none',
+                        transform=ax_c_bg.transAxes,
+                        zorder=-2,
+                    )
+                    ax_c_bg.add_patch(rect)
 
                 if n == 0:
                     # Show n=0 label at cell bottom grid line
@@ -714,12 +740,6 @@ def build_figure():
 
                 # Radius scaled by sqrt(n/max_n), in figure coords
                 r_frac = MIN_RADIUS + (MAX_RADIUS - MIN_RADIUS) * math.sqrt(n / max_n)
-
-                # n= label at cell bottom grid line
-                ax_c_bg.text(cx_ax, cell_bottom,
-                             f"n={n}", ha='center', va='bottom',
-                             fontsize=6.0, color='#444444',
-                             transform=ax_c_bg.transAxes)
                 # Convert to axes for the pie
                 r_ax_x = r_frac / bbox.width
                 r_ax_y = r_frac / bbox.height
@@ -743,6 +763,24 @@ def build_figure():
                 pie_ax.pie(sz, colors=cl, startangle=90,
                            wedgeprops=dict(linewidth=0.3, edgecolor='white'))
                 pie_ax.set_aspect('equal')
+                pie_ax.text(
+                    0.5, 0.5, str(n),
+                    ha='center', va='center',
+                    fontsize=6.0, color='white', fontweight='bold',
+                    transform=pie_ax.transAxes,
+                    bbox=dict(boxstyle='round,pad=0.12', facecolor='#00000066', edgecolor='none'),
+                )
+                pie_ax.set_axis_off()
+
+                if viol_count > 0:
+                    ax_c_bg.text(
+                        cell_left + cell_w * 0.92,
+                        cell_top - cell_h * 0.08,
+                        str(viol_count),
+                        ha='right', va='top',
+                        fontsize=6.2, color='#B22222', fontweight='bold',
+                        transform=ax_c_bg.transAxes,
+                    )
 
         # Axis labels — drawn in ax_c_bg coords using text
         # X-axis (ACA) column labels
