@@ -617,7 +617,7 @@ class AgentTypeConfig:
         3. shared.rating_scale (legacy fallback)
 
         Args:
-            framework: One of "pmt", "utility", "financial", "generic"
+            framework: Built-in or custom framework name
 
         Returns:
             Rating scale template string for prompt injection
@@ -632,12 +632,10 @@ class AgentTypeConfig:
             if template:
                 return template
 
-        # 2. Use registry default
+        # 2. Use registry default or registered custom framework
         try:
-            fw = FrameworkType(framework.lower())
-            scale = RatingScaleRegistry.get(fw)
-            return scale.template
-        except (ValueError, KeyError):
+            return RatingScaleRegistry.get_by_name(framework).template
+        except KeyError:
             pass
 
         # 3. Legacy fallback
@@ -666,10 +664,8 @@ class AgentTypeConfig:
                 return levels
 
         try:
-            fw = FrameworkType(framework.lower())
-            scale = RatingScaleRegistry.get(fw)
-            return scale.levels
-        except (ValueError, KeyError):
+            return RatingScaleRegistry.get_by_name(framework).levels
+        except KeyError:
             return ["VL", "L", "M", "H", "VH"]  # PMT default
 
     def get_framework_for_agent_type(self, agent_type: str) -> str:

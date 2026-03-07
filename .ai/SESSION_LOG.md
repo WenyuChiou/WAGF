@@ -244,3 +244,15 @@ Summary:
 
 Verification:
 - `rg -n "Domain Pack Guide|Core vs Domain Packs|reference domain packs|theory-coherence|general-purpose planner|fully domain-agnostic|flood-only|PMT-only" README.md docs/guides/experiment_design_guide.md docs/guides/domain_pack_guide.md`
+## Session BH - Task 3 Generic Framework Registration
+
+Date: 2026-03-07
+
+Summary:
+- Added a regression test for custom non-water framework registration.
+- Extended `RatingScaleRegistry` to accept registered custom framework keys.
+- Updated `AgentTypeConfig` rating-scale lookup to use registered custom frameworks before PMT fallback.
+
+Verification:
+- `python -m pytest tests/test_framework_registration_generic.py -q`
+- `python -m pytest tests/test_thinking_validator.py tests/test_rating_scales.py tests/test_agent_config_rating_scale.py -q`

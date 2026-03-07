@@ -8,7 +8,7 @@ Task-041: Universal Prompt/Context/Governance Framework
 """
 
 from dataclasses import dataclass
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Union
 from enum import Enum
 
 
@@ -105,6 +105,13 @@ class RatingScale:
         return val_idx >= threshold_idx
 
 
+def _normalize_framework_key(framework: Union["FrameworkType", str]) -> str:
+    """Normalize registry keys for built-in and custom frameworks."""
+    if isinstance(framework, FrameworkType):
+        return framework.value
+    return str(framework).lower()
+
+
 class RatingScaleRegistry:
     """
     Central registry for framework rating scales.
@@ -113,7 +120,7 @@ class RatingScaleRegistry:
     with support for custom scales loaded from YAML configuration.
     """
 
-    _scales: Dict[FrameworkType, RatingScale] = {}
+    _scales: Dict[str, RatingScale] = {}
     _initialized: bool = False
 
     @classmethod
@@ -123,7 +130,7 @@ class RatingScaleRegistry:
             return
 
         # PMT: Protection Motivation Theory (5-level)
-        cls._scales[FrameworkType.PMT] = RatingScale(
+        cls._scales[FrameworkType.PMT.value] = RatingScale(
             framework=FrameworkType.PMT,
             levels=["VL", "L", "M", "H", "VH"],
             labels={
@@ -138,7 +145,7 @@ VL = Very Low | L = Low | M = Medium | H = High | VH = Very High"""
         )
 
         # Utility: Government policy decisions (3-level + numeric)
-        cls._scales[FrameworkType.UTILITY] = RatingScale(
+        cls._scales[FrameworkType.UTILITY.value] = RatingScale(
             framework=FrameworkType.UTILITY,
             levels=["L", "M", "H"],
             labels={
@@ -153,7 +160,7 @@ Use numeric scores (0.0-1.0) for budget allocation.""",
         )
 
         # Financial: Insurance risk appetite (3-level)
-        cls._scales[FrameworkType.FINANCIAL] = RatingScale(
+        cls._scales[FrameworkType.FINANCIAL.value] = RatingScale(
             framework=FrameworkType.FINANCIAL,
             levels=["C", "M", "A"],
             labels={
@@ -166,7 +173,7 @@ C = Conservative | M = Moderate | A = Aggressive"""
         )
 
         # Generic fallback (same as PMT for backward compatibility)
-        cls._scales[FrameworkType.GENERIC] = cls._scales[FrameworkType.PMT]
+        cls._scales[FrameworkType.GENERIC.value] = cls._scales[FrameworkType.PMT.value]
 
         cls._initialized = True
 
@@ -179,10 +186,10 @@ C = Conservative | M = Moderate | A = Aggressive"""
             scale: The RatingScale to register
         """
         cls._ensure_defaults()
-        cls._scales[scale.framework] = scale
+        cls._scales[_normalize_framework_key(scale.framework)] = scale
 
     @classmethod
-    def get(cls, framework: FrameworkType) -> RatingScale:
+    def get(cls, framework: Union[FrameworkType, str]) -> RatingScale:
         """
         Get rating scale for framework, defaulting to PMT.
 
@@ -193,7 +200,8 @@ C = Conservative | M = Moderate | A = Aggressive"""
             RatingScale for the framework
         """
         cls._ensure_defaults()
-        return cls._scales.get(framework, cls._scales[FrameworkType.PMT])
+        key = _normalize_framework_key(framework)
+        return cls._scales.get(key, cls._scales[FrameworkType.PMT.value])
 
     @classmethod
     def get_by_name(cls, framework_name: str) -> RatingScale:
@@ -211,7 +219,7 @@ C = Conservative | M = Moderate | A = Aggressive"""
             framework = FrameworkType(framework_name.lower())
             return cls.get(framework)
         except ValueError:
-            return cls.get(FrameworkType.PMT)
+            return cls.get(framework_name.lower())
 
     @classmethod
     def load_from_yaml(cls, yaml_config: Dict):
@@ -237,7 +245,7 @@ C = Conservative | M = Moderate | A = Aggressive"""
             try:
                 framework = FrameworkType(framework_name.lower())
             except ValueError:
-                continue  # Skip unknown frameworks
+                framework = framework_name.lower()
 
             scale = RatingScale(
                 framework=framework,
@@ -249,15 +257,21 @@ C = Conservative | M = Moderate | A = Aggressive"""
             cls.register(scale)
 
     @classmethod
-    def get_all_frameworks(cls) -> List[FrameworkType]:
+    def get_all_frameworks(cls) -> List[Union[FrameworkType, str]]:
         """
         Get list of all registered frameworks.
 
         Returns:
-            List of FrameworkType values
+            List of registered framework keys, preserving enum values when possible
         """
         cls._ensure_defaults()
-        return list(cls._scales.keys())
+        frameworks: List[Union[FrameworkType, str]] = []
+        for key in cls._scales.keys():
+            try:
+                frameworks.append(FrameworkType(key))
+            except ValueError:
+                frameworks.append(key)
+        return frameworks
 
     @classmethod
     def reset(cls):
