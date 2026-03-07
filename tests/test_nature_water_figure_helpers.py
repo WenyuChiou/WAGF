@@ -132,3 +132,12 @@ def test_irrigation_center_count_style_matches_fig3_overlay():
     assert style["fontsize"] == 6.0
     assert style["fontweight"] == "bold"
     assert style["bbox"]["facecolor"] == "#00000055"
+
+
+def test_irrigation_title_sits_above_aca_axis_label():
+    mod = _load_irrigation_fig_module()
+
+    layout = mod.get_irrigation_pie_text_layout()
+
+    assert layout["title_y"] > layout["aca_label_y"]
+    assert layout["title_y"] - layout["aca_label_y"] >= 0.06
