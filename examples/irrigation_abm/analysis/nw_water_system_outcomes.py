@@ -12,7 +12,7 @@ import numpy as np
 from pathlib import Path
 import json
 
-BASE = Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\irrigation_abm\results")
+BASE = Path(__file__).resolve().parents[3] / "examples" / "irrigation_abm" / "results"
 seeds = [42, 43, 44]
 
 # ══════════════════════════════════════════════════════════════════════════

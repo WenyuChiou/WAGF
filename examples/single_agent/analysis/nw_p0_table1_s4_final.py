@@ -11,7 +11,8 @@ import numpy as np
 from pathlib import Path
 from collections import Counter
 
-BASE = Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\single_agent\results\JOH_FINAL")
+REPO_ROOT = Path(__file__).resolve().parents[3]
+BASE = REPO_ROOT / "examples" / "single_agent" / "results" / "JOH_FINAL"
 
 MODELS = {
     "gemma3_4b": "Gemma-3 4B",
@@ -260,7 +261,7 @@ for r in table_rows:
 print(f"\n*k = 4 for all conditions. Composite actions (simultaneous insurance + elevation) in ungoverned runs are split into constituent decisions (see Methods). EHE_valid excludes physical constraint violations. Delta = max(Gov B, Gov C) − Ungov EHE_valid. Values are mean ± SD across 3 independent runs (seed = 42).*")
 
 # Save CSV
-out = Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\paper\tables\Table1_flood_S4_final.csv")
+out = REPO_ROOT / "paper" / "tables" / "Table1_flood_S4_final.csv"
 pd.DataFrame(table_rows).to_csv(out, index=False)
 print(f"\nSaved: {out}")
 

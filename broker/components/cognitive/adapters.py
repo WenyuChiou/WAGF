@@ -15,7 +15,7 @@ Architecture:
 
 Usage:
     from .adapters import DomainReflectionAdapter
-    from examples.governed_flood.adapters import FloodAdapter
+    from examples.single_agent.adapters.flood_adapter import FloodAdapter
 
     adapter = FloodAdapter()
     engine = ReflectionEngine(adapter=adapter)
