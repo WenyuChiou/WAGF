@@ -301,3 +301,15 @@ Verification:
 
 Note:
 - `irrigation_farmer` currently resolves to `pmt` in config lookup. This did not break checkpoint tests, but it should be reviewed against the intended dual-appraisal framing before a deeper refactor.
+## Session BL - Irrigation Framework Naming Cleanup
+
+Date: 2026-03-07
+
+Summary:
+- Changed `irrigation_farmer` to explicitly use `generic` framework instead of implicit PMT fallback.
+- Updated public-facing docs to describe irrigation as a `WSA/ACA appraisal` setup rather than dual-appraisal.
+- Added a regression test to lock the irrigation framework lookup.
+
+Verification:
+- `python -m pytest tests/test_agent_config_rating_scale.py -q`
+- `python -c "from broker.utils.agent_config import AgentTypeConfig; cfg=AgentTypeConfig.load('examples/irrigation_abm/config/agent_types.yaml', force_reload=True); print(cfg.get_framework_for_agent_type('irrigation_farmer'))"`
