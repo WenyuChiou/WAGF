@@ -57,3 +57,15 @@ def test_compute_pie_matrix_returns_counts_totals_and_violations():
     assert totals[("L", "H")] == 1
     assert counts[("L", "H")]["decrease_small"] == 1
     assert violations[("L", "H")] == 0
+
+
+def test_flood_fig3_panel_a_order_is_governed_then_rulebased_then_ungoverned():
+    repo = Path(__file__).resolve().parents[1]
+    path = repo / "paper" / "nature_water" / "scripts" / "gen_fig3_case2_flood.py"
+    spec = importlib.util.spec_from_file_location("nw_fig3_flood", path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+
+    panel_order = [item[0] for item in module.get_panel_a_configs()]
+    assert panel_order == ["gov", "rulebased", "disabled"]
