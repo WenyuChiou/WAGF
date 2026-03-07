@@ -13,7 +13,8 @@ from pathlib import Path
 from collections import Counter
 import json
 
-BASE = Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\single_agent\results\JOH_FINAL")
+REPO_ROOT = Path(__file__).resolve().parents[3]
+BASE = REPO_ROOT / "examples" / "single_agent" / "results" / "JOH_FINAL"
 
 MODELS = {
     "gemma3_4b": "Gemma-3 4B",
@@ -375,7 +376,7 @@ for model_name in MODELS.values():
 # ══════════════════════════════════════════════════════════════════════════
 # 7. SAVE TABLE 1 DATA AS CSV
 # ══════════════════════════════════════════════════════════════════════════
-out_csv = Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\paper\tables\Table1_flood_3run_stats.csv")
+out_csv = REPO_ROOT / "paper" / "tables" / "Table1_flood_3run_stats.csv"
 pd.DataFrame(table1_data).to_csv(out_csv, index=False)
 print(f"\nSaved: {out_csv}")
 

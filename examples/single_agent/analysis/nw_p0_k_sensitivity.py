@@ -21,7 +21,7 @@ import numpy as np
 from pathlib import Path
 from collections import Counter
 
-BASE = Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\single_agent\results\JOH_FINAL")
+BASE = Path(__file__).resolve().parents[3] / "examples" / "single_agent" / "results" / "JOH_FINAL"
 
 MODELS = {
     "gemma3_4b": "Gemma-3 4B",

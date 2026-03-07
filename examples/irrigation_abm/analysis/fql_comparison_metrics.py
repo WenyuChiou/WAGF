@@ -23,8 +23,8 @@ from collections import Counter
 import math
 
 # ── Paths ──
-MAIN_RESULTS = Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\irrigation_abm\results")
-FQL_RESULTS = Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\irrigation_abm\results\fql_raw")
+MAIN_RESULTS = Path(__file__).resolve().parents[3] / "examples" / "irrigation_abm" / "results"
+FQL_RESULTS = MAIN_RESULTS / "fql_raw"
 
 # LLM 5-skill model
 LLM_SKILLS = ["increase_large", "increase_small", "maintain_demand", "decrease_small", "decrease_large"]

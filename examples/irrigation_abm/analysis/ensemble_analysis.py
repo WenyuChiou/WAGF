@@ -10,7 +10,7 @@ import numpy as np
 import sys, os
 
 # ── Load data ────────────────────────────────────────────────────────────
-BASE = r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\irrigation_abm\results"
+BASE = str(Path(__file__).resolve().parents[3] / "examples" / "irrigation_abm" / "results")
 seeds = {}
 for s in [42, 43, 44]:
     path = os.path.join(BASE, f"production_v20_42yr_seed{s}", "simulation_log.csv")

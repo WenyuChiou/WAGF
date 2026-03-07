@@ -22,7 +22,7 @@ from collections import Counter
 import math
 
 # ── Paths ──
-MAIN_RESULTS = Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\irrigation_abm\results")
+MAIN_RESULTS = Path(__file__).resolve().parents[3] / "examples" / "irrigation_abm" / "results"
 FQL_RESULTS = Path(r"C:\Users\wenyu\Desktop\Lehigh\wagf-fql-baseline\examples\irrigation_abm\results\fql_raw")
 OUT_DIR = Path(r"C:\Users\wenyu\Desktop\Lehigh\wagf-fql-baseline\examples\irrigation_abm\analysis\figures")
 OUT_DIR.mkdir(parents=True, exist_ok=True)

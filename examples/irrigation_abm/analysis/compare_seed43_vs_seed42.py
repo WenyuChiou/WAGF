@@ -10,7 +10,7 @@ import math
 from collections import Counter, defaultdict
 from pathlib import Path
 
-BASE = Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\irrigation_abm\results")
+BASE = Path(__file__).resolve().parents[3] / "examples" / "irrigation_abm" / "results"
 SEED43_TRACES = BASE / "production_v20_42yr_seed43" / "raw" / "irrigation_farmer_traces.jsonl"
 SEED42_CSV = BASE / "production_v20_42yr_seed42" / "simulation_log.csv"
 
