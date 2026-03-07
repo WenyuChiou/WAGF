@@ -462,15 +462,16 @@ def draw_panel_a(axes, data: dict):
         ax.set_ylim(0, 105)
         ax.yaxis.set_major_locator(ticker.MultipleLocator(20))
 
-    # Legend inside Ungoverned panel (axes[1]) — abbreviated, compact
+    # Legend inside first panel (axes[0]) — abbreviated, compact
     handles_leg = [
         mpatches.Patch(facecolor=PROT_COLORS[s], edgecolor='white',
                        linewidth=0.4, label=PROT_ABBREV[s])
         for s in PROT_STATES
     ]
-    axes[1].legend(
+    legend_cfg = get_panel_a_legend_config()
+    axes[legend_cfg['target_axis_index']].legend(
         handles=handles_leg,
-        loc='lower right',
+        loc=legend_cfg['loc'],
         fontsize=BASE_FONT - 1,
         frameon=True, framealpha=0.9,
         facecolor='white', edgecolor='#CCCCCC',
@@ -495,6 +496,13 @@ def get_panel_a_configs():
         ('rulebased', 'Rule-based',          PMT_COLOR),
         ('disabled',  'LLM (no validator)',  UNGOV_COLOR),
     ]
+
+
+def get_panel_a_legend_config():
+    return {
+        'target_axis_index': 0,
+        'loc': 'upper right',
+    }
 
 
 def get_violation_annotation_style():
