@@ -256,3 +256,15 @@ Summary:
 Verification:
 - `python -m pytest tests/test_framework_registration_generic.py -q`
 - `python -m pytest tests/test_thinking_validator.py tests/test_rating_scales.py tests/test_agent_config_rating_scale.py -q`
+## Session BI - Task 4 Bounded Composite Multi-Skill
+
+Date: 2026-03-07
+
+Summary:
+- Added a failing integration test for `multi_skill.max_skills > 2`.
+- Normalized multi-skill config to cap at two skills and default to sequential execution.
+- Updated YAML reference to document bounded composite semantics.
+
+Verification:
+- `python -m pytest tests/test_multi_skill.py tests/test_multi_skill_integration.py tests/test_response_format_builder.py -q`
+- `rg -n "max_skills|execution_order|general-purpose planner|bounded composite-action" docs/references/yaml_configuration_reference.md docs/guides/domain_pack_guide.md broker/utils/agent_config.py`

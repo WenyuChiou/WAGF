@@ -287,8 +287,8 @@ Enables agents to propose a primary and secondary skill in a single turn.
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `enabled` | bool | No | false | Enable multi-skill proposals |
-| `max_skills` | int | No | 2 | Maximum skills per turn |
-| `execution_order` | string | No | `"sequential"` | Execution strategy. Valid values: `sequential`, `parallel` |
+| `max_skills` | int | No | 2 | Maximum skills per turn. Current implementation is capped at 2 (primary + optional secondary). |
+| `execution_order` | string | No | `"sequential"` | Execution strategy. Current supported value is `sequential`. |
 | `secondary_field` | string | No | `"secondary_decision"` | Response field key for the secondary skill |
 | `secondary_magnitude_field` | string | No | -- | Response field key for secondary magnitude |
 | `conflicts` | object | No | {} | Per-skill conflict map: `{skill_A: [skill_B, ...]}` |
