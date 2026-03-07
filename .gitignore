@@ -175,3 +175,8 @@ examples/single_agent/analysis/reports/*.json
 examples/irrigation_abm/analysis/*.png
 examples/irrigation_abm/analysis/*.pdf
 examples/irrigation_abm/analysis/*.json
+examples/multi_agent/flood/paper3/analysis/working/
+examples/multi_agent/flood/paper3/analysis/figures/working/
+examples/multi_agent/flood/paper3/analysis/.ai/
+examples/multi_agent/flood/paper3/nul
+paper/nature_water/'

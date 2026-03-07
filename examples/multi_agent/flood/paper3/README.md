@@ -6,6 +6,16 @@
 
 **Status**: Implementation complete. Awaiting ICC probing and experiment execution.
 
+## Workspace Boundary
+
+`examples/multi_agent/flood/paper3/` is the dedicated workspace for the MA flood study:
+
+- Runtime and configs stay in `paper3/`
+- MA flood experiment outputs stay in `paper3/results/`
+- MA flood validation and postprocessing stay in `paper3/analysis/`
+
+The Nature Water manuscript is managed separately under `paper/nature_water/`. That manuscript may read derived summaries from MA flood outputs, but its drafts, figures, tables, and briefing artifacts should stay under `paper/nature_water/` so the two workstreams do not overwrite or contaminate each other.
+
 ---
 
 ## Table of Contents
