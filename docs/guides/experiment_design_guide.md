@@ -2,7 +2,7 @@
 
 This guide treats the repository's flood and irrigation studies as reference domain packs built on top of the same reusable governance core.
 
-This guide walks through building a new WAGF-governed experiment from scratch. Both existing experiments — flood adaptation (PMT) and Colorado River irrigation (WSA/ACA appraisal) — follow this pattern.
+This guide walks through building a new WAGF-governed experiment from scratch. Both existing experiments — flood adaptation (PMT) and Colorado River irrigation (Cognitive Appraisal Theory) — follow this pattern.
 
 > **Audience**: Graduate students and researchers building hydro-social ABM experiments using the WAGF governance middleware.
 
@@ -45,7 +45,7 @@ Choose a behavioral theory and define the agent's cognitive dimensions (appraisa
 | Domain | Theory | Threat Construct | Capacity Construct |
 |--------|--------|-----------------|-------------------|
 | Flood adaptation | PMT (Rogers, 1983) | TP_LABEL (threat perception) | CP_LABEL (coping appraisal) |
-| Irrigation demand | WSA/ACA appraisal (Hung & Yang, 2021) | WSA_LABEL (water scarcity) | ACA_LABEL (adaptive capacity) |
+| Irrigation demand | Cognitive Appraisal Theory (Hung & Yang, 2021) | WSA_LABEL (water scarcity) | ACA_LABEL (adaptive capacity) |
 | *(Your domain)* | *(Your theory)* | *(Your threat construct)* | *(Your capacity construct)* |
 
 The 5-level ordinal scale (VL, L, M, H, VH) is shared across all domains. Governance rules and validators reference these labels to enforce behavioral coherence.

@@ -115,7 +115,7 @@ class FrameworkConstructs(BaseModel):
     """
     required: List[ConstructDefinition] = Field(
         default_factory=list,
-        description="Required constructs (e.g., TP_LABEL/CP_LABEL for PMT, WSA_LABEL/ACA_LABEL for dual-appraisal)"
+        description="Required constructs (e.g., TP_LABEL/CP_LABEL for PMT, WSA_LABEL/ACA_LABEL for cognitive appraisal)"
     )
     optional: List[ConstructDefinition] = Field(
         default_factory=list,
@@ -192,7 +192,7 @@ class GovernanceRule(BaseModel):
     level: Literal["ERROR", "WARNING"] = "ERROR"
     message: Optional[str] = None
     # Task-041: Add framework field for multi-framework support
-    framework: Optional[Literal["pmt", "utility", "financial", "generic"]] = None
+    framework: Optional[Literal["pmt", "utility", "financial", "generic", "cognitive_appraisal"]] = None
 
     model_config = ConfigDict(extra="allow")
 
@@ -249,7 +249,7 @@ class AgentTypeSpecificConfig(BaseModel):
 
     Task-041: Universal Prompt/Context/Governance Framework
     """
-    psychological_framework: Optional[Literal["pmt", "utility", "financial", "generic"]] = Field(
+    psychological_framework: Optional[Literal["pmt", "utility", "financial", "generic", "cognitive_appraisal"]] = Field(
         default="pmt",
         description="Psychological framework for this agent type"
     )

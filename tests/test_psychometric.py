@@ -457,6 +457,13 @@ class TestFrameworkFactory:
         framework = get_framework("financial")
         assert isinstance(framework, FinancialFramework)
 
+    def test_get_framework_cognitive_appraisal(self):
+        """Test getting Cognitive Appraisal framework."""
+        from broker.domains.water.cognitive_appraisal import CognitiveAppraisalFramework
+
+        framework = get_framework("cognitive_appraisal")
+        assert isinstance(framework, CognitiveAppraisalFramework)
+
     def test_get_framework_case_insensitive(self):
         """Test framework lookup is case insensitive."""
         pmt1 = get_framework("PMT")

@@ -151,7 +151,7 @@ class TestAgentTypeSpecificConfig:
 
     def test_valid_frameworks(self):
         """All valid frameworks should parse correctly."""
-        for framework in ["pmt", "utility", "financial", "generic"]:
+        for framework in ["pmt", "utility", "financial", "generic", "cognitive_appraisal"]:
             config = AgentTypeSpecificConfig(psychological_framework=framework)
             assert config.psychological_framework == framework
 

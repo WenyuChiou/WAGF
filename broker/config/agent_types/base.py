@@ -17,10 +17,12 @@ class PsychologicalFramework(str, Enum):
 
     Different agent types use different frameworks:
     - PMT: Protection Motivation Theory (households)
+    - COGNITIVE_APPRAISAL: Cognitive Appraisal Theory (irrigation agents)
     - UTILITY: Utility Theory (government agents)
     - FINANCIAL: Financial Risk Theory (insurance agents)
     """
     PMT = "pmt"
+    COGNITIVE_APPRAISAL = "cognitive_appraisal"
     UTILITY = "utility"
     FINANCIAL = "financial"
     CUSTOM = "custom"
@@ -42,7 +44,7 @@ class ConstructDefinition:
     Definition of a psychological construct.
 
     Constructs are the measurable dimensions of an agent's cognitive state.
-    Examples: TP_LABEL (PMT), WSA_LABEL (dual-appraisal), BUDGET_UTIL (utility).
+    Examples: TP_LABEL (PMT), WSA_LABEL (cognitive appraisal), BUDGET_UTIL (utility).
     """
     name: str                          # Human-readable name
     key: str                           # Internal key (e.g., "TP_LABEL")
@@ -200,7 +202,7 @@ class AgentTypeDefinition:
 
     Examples:
         - household: PMT framework, protective actions (domain-specific)
-        - irrigation_farmer: Dual-appraisal framework, demand management
+        - irrigation_farmer: Cognitive appraisal framework, demand management
         - government: Utility framework, policy decisions
         - insurance: Financial framework, risk management
     """

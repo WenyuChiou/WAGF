@@ -15,6 +15,7 @@ from enum import Enum
 class PsychologicalFrameworkType(Enum):
     """Psychological framework types for agent behavior modeling."""
     PMT = "pmt"           # Protection Motivation Theory (household)
+    COGNITIVE_APPRAISAL = "cognitive_appraisal"  # Irrigation appraisal framework
     UTILITY = "utility"   # Utility Theory (government)
     FINANCIAL = "financial"  # Financial Risk Theory (insurance)
     GENERIC = "generic"   # Default/generic framework

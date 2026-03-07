@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide explains how to customize each WAGF component for a new domain. All examples illustrate patterns from both flood adaptation (PMT) and irrigation demand (dual-appraisal) domains.
+This guide explains how to customize each WAGF component for a new domain. All examples illustrate patterns from both flood adaptation (PMT) and irrigation demand (Cognitive Appraisal Theory) domains.
 
 ---
 
