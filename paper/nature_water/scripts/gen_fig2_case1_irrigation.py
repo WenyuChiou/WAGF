@@ -433,6 +433,13 @@ def get_irrigation_center_count_style():
     }
 
 
+def get_irrigation_pie_text_layout():
+    return {
+        "aca_label_y": 0.965,
+        "title_y": 1.035,
+    }
+
+
 def draw_irrigation_pie_grid(
     fig,
     ax_bg,
@@ -445,6 +452,7 @@ def draw_irrigation_pie_grid(
     show_legend=False,
 ):
     ax_bg.set_axis_off()
+    text_layout = get_irrigation_pie_text_layout()
 
     if pie_data is None:
         ax_bg.text(0.5, 0.5, "No audit data", ha='center', va='center',
@@ -560,14 +568,14 @@ def draw_irrigation_pie_grid(
 
     ax_bg.text(
         left_margin + (1.0 - left_margin - right_margin) / 2,
-        1.0 - top_margin * 0.05,
+        text_layout["aca_label_y"],
         "Adaptive Capacity Appraisal (ACA)",
         ha='center', va='center', fontsize=8.5, fontweight='bold',
         transform=ax_bg.transAxes,
     )
     ax_bg.text(
         left_margin + (1.0 - left_margin - right_margin) / 2,
-        1.0,
+        text_layout["title_y"],
         title,
         ha='center', va='bottom', fontsize=8.5, fontweight='bold',
         color=title_color,
