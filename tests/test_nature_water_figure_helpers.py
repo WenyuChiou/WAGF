@@ -69,3 +69,19 @@ def test_flood_fig3_panel_a_order_is_governed_then_rulebased_then_ungoverned():
 
     panel_order = [item[0] for item in module.get_panel_a_configs()]
     assert panel_order == ["gov", "rulebased", "disabled"]
+
+
+def test_flood_violation_annotation_style_is_high_contrast():
+    repo = Path(__file__).resolve().parents[1]
+    path = repo / "paper" / "nature_water" / "scripts" / "gen_fig3_case2_flood.py"
+    spec = importlib.util.spec_from_file_location("nw_fig3_flood", path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+
+    style = module.get_violation_annotation_style()
+
+    assert style["fontsize"] >= 7.5
+    assert style["fontweight"] == "bold"
+    assert "bbox" in style
+    assert style["bbox"]["facecolor"] == "white"
