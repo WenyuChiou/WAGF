@@ -85,3 +85,17 @@ def test_flood_violation_annotation_style_is_high_contrast():
     assert style["fontweight"] == "bold"
     assert "bbox" in style
     assert style["bbox"]["facecolor"] == "white"
+
+
+def test_flood_panel_a_legend_is_top_right_of_first_subplot():
+    repo = Path(__file__).resolve().parents[1]
+    path = repo / "paper" / "nature_water" / "scripts" / "gen_fig3_case2_flood.py"
+    spec = importlib.util.spec_from_file_location("nw_fig3_flood", path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+
+    cfg = module.get_panel_a_legend_config()
+
+    assert cfg["target_axis_index"] == 0
+    assert cfg["loc"] == "upper right"
