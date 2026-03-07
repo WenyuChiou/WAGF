@@ -383,3 +383,14 @@ Summary:
 
 Artifact:
 - `docs/plans/2026-03-07-repo-boundary-map.md`
+## Session BP - Water-Sector Positioning Alignment
+
+Date: 2026-03-07
+
+Summary:
+- Added a short positioning plan to keep WAGF framed as water-sector-first.
+- Updated the main README to anchor the framework identity in human-water systems while keeping extensibility as a secondary path.
+- Updated the main domain-pack and experiment-design guides to describe non-water use as a later extension, not the primary claim.
+
+Artifact:
+- `docs/plans/2026-03-07-water-sector-positioning-plan.md`

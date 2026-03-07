@@ -1,12 +1,12 @@
 # Experiment Design Guide
 
-This guide treats the repository's flood and irrigation studies as reference domain packs built on top of the same reusable governance core.
+This guide treats the repository's flood and irrigation studies as primary water-sector reference domain packs built on top of the same reusable governance core.
 
 This guide walks through building a new WAGF-governed experiment from scratch. Both existing experiments — flood adaptation (PMT) and Colorado River irrigation (Cognitive Appraisal Theory) — follow this pattern.
 
-> **Audience**: Graduate students and researchers building hydro-social ABM experiments using the WAGF governance middleware.
+> **Audience**: Graduate students and researchers building hydro-social and broader water-sector ABM experiments using the WAGF governance middleware.
 
-External ABM developers can use the same workflow for non-water domains by swapping in their own theory pack, constructs, governance rules, and lifecycle hooks.
+External ABM developers can later adapt the same workflow to non-water domains by swapping in their own theory pack, constructs, governance rules, and lifecycle hooks, but that is an extension path rather than the main repository identity.
 
 ---
 
@@ -50,7 +50,7 @@ Choose a behavioral theory and define the agent's cognitive dimensions (appraisa
 
 The 5-level ordinal scale (VL, L, M, H, VH) is shared across all domains. Governance rules and validators reference these labels to enforce behavioral coherence.
 
-Treat this as a common default rather than a flood-specific assumption. If a new domain needs a different construct vocabulary or scale semantics, define them in the domain pack and register the corresponding theory metadata.
+Treat this as a common water-sector default rather than a flood-specific assumption. If a new domain needs a different construct vocabulary or scale semantics, define them in the domain pack and register the corresponding theory metadata.
 
 ---
 

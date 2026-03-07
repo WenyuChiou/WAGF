@@ -1,6 +1,6 @@
 # Domain Pack Guide
 
-This guide explains how to use WAGF as a reusable ABM governance core rather than as a flood-only framework.
+This guide explains how to use WAGF as a reusable ABM governance core for human-water systems rather than as a flood-only framework.
 
 ## Mental Model
 
@@ -37,7 +37,7 @@ A domain pack owns:
 - lifecycle hooks
 - optional domain-specific analysis helpers
 
-The water-domain implementations in this repository are reference packs. They are mature examples, not mandatory dependencies for new ABM domains.
+The water-domain implementations in this repository are the home reference packs. They are mature examples for water-sector work first, while still offering reusable patterns for later extension to other ABM domains.
 
 ## Theory Packs
 
@@ -54,17 +54,19 @@ Examples:
 
 - PMT: `TP_LABEL`, `CP_LABEL`
 - Cognitive Appraisal Theory: `WSA_LABEL`, `ACA_LABEL`
-- a generic non-water pack: `RISK_LABEL`, `CAPACITY_LABEL`
+- a later non-water extension pack: `RISK_LABEL`, `CAPACITY_LABEL`
 
 ## Recommended Extension Path
 
-When adding a new domain:
+When adding a new water-sector domain:
 
 1. Copy `examples/minimal/` to a new experiment directory.
 2. Define your constructs and actions in YAML.
 3. Reuse generic validators first.
 4. Add Python-level validators only for domain logic that cannot be expressed cleanly in YAML.
 5. Keep experiment-specific analysis outside the core framework.
+
+If you later extend beyond water, follow the same pattern after the water-sector core and documentation are already stable.
 
 ## Multi-Skill Boundary
 
