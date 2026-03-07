@@ -140,4 +140,4 @@ def test_irrigation_title_sits_above_aca_axis_label():
     layout = mod.get_irrigation_pie_text_layout()
 
     assert layout["title_y"] > layout["aca_label_y"]
-    assert layout["title_y"] - layout["aca_label_y"] >= 0.06
+    assert layout["aca_label_y"] < 0.0

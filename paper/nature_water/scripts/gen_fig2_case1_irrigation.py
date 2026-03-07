@@ -435,7 +435,7 @@ def get_irrigation_center_count_style():
 
 def get_irrigation_pie_text_layout():
     return {
-        "aca_label_y": 0.965,
+        "aca_label_y": -0.055,
         "title_y": 1.035,
     }
 
@@ -601,7 +601,7 @@ def draw_irrigation_pie_grid(
         ax_bg.legend(
             handles=pie_legend_handles,
             loc='lower center',
-            bbox_to_anchor=(left_margin + (1.0 - left_margin - right_margin) / 2, -0.14),
+            bbox_to_anchor=(left_margin + (1.0 - left_margin - right_margin) / 2, -0.18),
             ncol=5,
             fontsize=6.5,
             frameon=False,
