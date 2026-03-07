@@ -589,6 +589,8 @@ class AgentTypeConfig:
         Get multi-skill configuration for an agent type.
 
         Returns the multi_skill config dict if enabled, empty dict otherwise.
+        Multi-skill is intentionally bounded to a primary action plus one
+        optional secondary action. Any larger requested value is capped at 2.
         Config lives under agent_type in agent_types.yaml:
             household:
               multi_skill:
@@ -601,7 +603,11 @@ class AgentTypeConfig:
         ms = cfg.get("multi_skill", {})
         if not ms.get("enabled", False):
             return {}
-        return ms
+        normalized = dict(ms)
+        normalized["max_skills"] = min(int(normalized.get("max_skills", 2)), 2)
+        normalized.setdefault("execution_order", "sequential")
+        normalized.setdefault("secondary_field", "secondary_decision")
+        return normalized
 
     # =========================================================================
     # Task-041: Framework-Aware Rating Scale Support

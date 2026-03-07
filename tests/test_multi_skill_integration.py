@@ -97,6 +97,7 @@ def test_get_multi_skill_config_enabled(enabled_config):
     ms = enabled_config.get_multi_skill_config("test_agent")
     assert ms["enabled"] is True
     assert ms["max_skills"] == 2
+    assert ms["execution_order"] == "sequential"
     assert ms["secondary_field"] == "secondary_decision"
 
 
@@ -110,6 +111,28 @@ def test_get_multi_skill_config_missing(disabled_config):
     """When agent type has no multi_skill section, returns empty dict."""
     ms = disabled_config.get_multi_skill_config("nonexistent_agent")
     assert ms == {}
+
+
+def test_get_multi_skill_config_caps_at_two_and_defaults_sequential(tmp_path):
+    """Composite action semantics are bounded to two skills and sequential execution."""
+    yaml_content = {
+        "bounded_agent": {
+            "multi_skill": {
+                "enabled": True,
+                "max_skills": 4,
+                "secondary_field": "secondary_decision",
+            }
+        }
+    }
+    yaml_file = tmp_path / "agent_types.yaml"
+    yaml_file.write_text(yaml.dump(yaml_content), encoding="utf-8")
+
+    AgentTypeConfig._instance = None
+    cfg = AgentTypeConfig.load(str(yaml_file))
+    ms = cfg.get_multi_skill_config("bounded_agent")
+
+    assert ms["max_skills"] == 2
+    assert ms["execution_order"] == "sequential"
 
 
 # ── ResponseFormatBuilder with multi_skill fields ──
