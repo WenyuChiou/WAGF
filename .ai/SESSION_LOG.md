@@ -281,3 +281,23 @@ Verification:
 - `python -m pytest tests/test_minimal_nonwater_config.py -q`
 - `python -m pytest tests/test_config_schema.py tests/test_response_format_builder.py -q`
 - `python examples/minimal_nonwater/run_demo.py`
+## Session BK - Task 6 Full Regression Checkpoint
+
+Date: 2026-03-07
+
+Summary:
+- Ran the full ABM-generalization checkpoint suite after Tasks 1-5.
+- Confirmed provider smoke, multi-skill tests, theory/rating/config tests, and psychometric/context tests all passed.
+- Re-ran runtime smoke commands for provider and domain framework lookup.
+
+Verification:
+- `python providers/smoke.py --providers ollama`
+- `python -m pytest tests/test_provider_smoke.py tests/test_multi_skill.py tests/test_multi_skill_integration.py -q`
+- `python -m pytest tests/test_thinking_validator.py tests/test_rating_scales.py tests/test_agent_config_rating_scale.py tests/test_response_format_builder.py -q`
+- `python -m pytest tests/test_config_schema.py tests/test_context_types.py tests/test_psychometric.py -q`
+- `python -c "from providers.smoke import run_smoke_checks; print([r.status for r in run_smoke_checks(['ollama'])])"`
+- `python -c "from broker.utils.agent_config import AgentTypeConfig; cfg=AgentTypeConfig.load('examples/single_agent/agent_types.yaml'); print(cfg.get_framework_for_agent_type('household'))"`
+- `python -c "from broker.utils.agent_config import AgentTypeConfig; cfg=AgentTypeConfig.load('examples/irrigation_abm/config/agent_types.yaml'); print(cfg.get_framework_for_agent_type('irrigation_farmer'))"`
+
+Note:
+- `irrigation_farmer` currently resolves to `pmt` in config lookup. This did not break checkpoint tests, but it should be reviewed against the intended dual-appraisal framing before a deeper refactor.
