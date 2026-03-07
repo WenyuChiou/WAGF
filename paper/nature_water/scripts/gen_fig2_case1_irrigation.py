@@ -28,6 +28,7 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import matplotlib.patches as mpatches
 import matplotlib.colors as mcolors
+from matplotlib.colorbar import ColorbarBase
 from matplotlib.patches import FancyArrowPatch
 from matplotlib import rcParams
 
@@ -436,8 +437,34 @@ def get_irrigation_center_count_style():
 def get_irrigation_pie_text_layout():
     return {
         "aca_label_y": -0.055,
-        "title_y": 1.035,
+        "title_y": 1.01,
     }
+
+
+def get_irrigation_violation_badge_layout():
+    return {
+        "use_figure_overlay": True,
+        "x_ratio": 0.965,
+        "y_ratio": 0.035,
+    }
+
+
+def get_irrigation_colorbar_config():
+    return {
+        "orientation": "vertical",
+        "label": "Violations",
+        "width": 0.008,
+        "pad": 0.006,
+        "height_ratio": 0.9,
+        "y_offset_ratio": 0.05,
+    }
+
+
+def create_irrigation_violation_cmap():
+    return mcolors.LinearSegmentedColormap.from_list(
+        "irr_viols",
+        ['#F7F7F7', '#F7D9A6', '#F3A65A', '#D95F02'],
+    )
 
 
 def draw_irrigation_pie_grid(
@@ -450,9 +477,12 @@ def draw_irrigation_pie_grid(
     title_color,
     show_ylabel=True,
     show_legend=False,
+    viol_cmap=None,
+    viol_norm=None,
 ):
     ax_bg.set_axis_off()
     text_layout = get_irrigation_pie_text_layout()
+    badge_layout = get_irrigation_violation_badge_layout()
 
     if pie_data is None:
         ax_bg.text(0.5, 0.5, "No audit data", ha='center', va='center',
@@ -472,12 +502,11 @@ def draw_irrigation_pie_grid(
     cell_w = (1.0 - left_margin - right_margin) / n_cols
     cell_h = (1.0 - top_margin - bot_margin) / n_rows
 
-    viol_cmap = mcolors.LinearSegmentedColormap.from_list(
-        "irr_viols",
-        ['#F7F7F7', '#F7D9A6', '#F3A65A', '#D95F02'],
-    )
-    viol_max = max(pie_violations.values()) if pie_violations else 0
-    viol_norm = mcolors.Normalize(vmin=0, vmax=max(1, viol_max))
+    if viol_cmap is None:
+        viol_cmap = create_irrigation_violation_cmap()
+    if viol_norm is None:
+        viol_max = max(pie_violations.values()) if pie_violations else 0
+        viol_norm = mcolors.Normalize(vmin=0, vmax=max(1, viol_max))
 
     max_n = max(pie_total.values()) if pie_total else 1
     min_radius = 0.022
@@ -537,11 +566,11 @@ def draw_irrigation_pie_grid(
             pie_ax.set_axis_off()
 
             if viol_count > 0:
-                ax_bg.text(
-                    cell_left + cell_w * 0.92,
-                    cell_top - cell_h * 0.08,
+                fig.text(
+                    bbox.x0 + (cell_left + cell_w * badge_layout["x_ratio"]) * bbox.width,
+                    bbox.y0 + (cell_top - cell_h * badge_layout["y_ratio"]) * bbox.height,
                     str(viol_count),
-                    transform=ax_bg.transAxes,
+                    transform=fig.transFigure,
                     **get_irrigation_violation_annotation_style(),
                 )
 
@@ -843,6 +872,12 @@ def build_figure():
         "gov": (pie_gov_data, pie_gov_total, pie_gov_violations),
         "disabled": (pie_ungov_data, pie_ungov_total, pie_ungov_violations),
     }
+    all_violation_counts = []
+    for _, _, pviol in pie_panels.values():
+        if pviol:
+            all_violation_counts.extend(pviol.values())
+    viol_cmap = create_irrigation_violation_cmap()
+    viol_norm = mcolors.Normalize(vmin=0, vmax=max(1, max(all_violation_counts) if all_violation_counts else 0))
     for ax, cfg in zip([ax_b1, ax_b2], get_irrigation_pie_panel_configs()):
         pdata, ptotal, pviol = pie_panels[cfg["key"]]
         draw_irrigation_pie_grid(
@@ -851,7 +886,21 @@ def build_figure():
             title_color=cfg["title_color"],
             show_ylabel=cfg["show_ylabel"],
             show_legend=cfg["show_legend"],
+            viol_cmap=viol_cmap,
+            viol_norm=viol_norm,
         )
+
+    pos_b2 = ax_b2.get_position()
+    cb_cfg = get_irrigation_colorbar_config()
+    ax_cb = fig.add_axes([
+        pos_b2.x1 + cb_cfg["pad"],
+        pos_b2.y0 + pos_b2.height * cb_cfg["y_offset_ratio"],
+        cb_cfg["width"],
+        pos_b2.height * cb_cfg["height_ratio"],
+    ])
+    cb = ColorbarBase(ax_cb, cmap=viol_cmap, norm=viol_norm, orientation=cb_cfg["orientation"])
+    cb.set_label(cb_cfg["label"], fontsize=7.0, labelpad=2)
+    cb.ax.tick_params(labelsize=6.5)
 
     label_kw = dict(fontsize=8, fontweight='bold', va='top', ha='left',
                     transform=fig.transFigure)
