@@ -2,9 +2,9 @@
 
 <div align="center">
 
-**A governance framework for LLM-driven agent-based models in water resources**
+**A governance framework for LLM-driven agent-based models**
 
-*Domain-agnostic governance core, demonstrated on flood risk adaptation and irrigation water management*
+*Domain-agnostic governance core with water-domain reference implementations*
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -31,7 +31,9 @@ Large Language Models (LLMs) can generate rich, human-like reasoning for agent-b
 | **Opaque decisions** — no audit trail | Structured CSV traces: input, reasoning, validation, outcome |
 | **Unsafe mutation** — LLM breaks simulation state | Sandboxed execution: validated skills run by engine, not LLM |
 
-### Validated Case Studies
+### Reference Domain Packs and Case Studies
+
+The repository currently ships with mature water-domain reference implementations. They demonstrate the framework, but they do not limit it. New domains can reuse the same broker, validator, memory, and context infrastructure with their own theory pack and lifecycle hooks.
 
 - **Flood Household Adaptation** — 100 agents using Protection Motivation Theory (PMT), 10-year simulation with Gemma 3 (small/medium/large local LLMs)
 - **Flood Multi-Agent** — 400 agents (household + government + insurance), 13-year simulation, Potomac River Basin
@@ -144,6 +146,16 @@ Supporting subsystems (configured per experiment):
 
 **Execution Environment** — Domain-specific simulation engines, lifecycle hooks (`pre_year` / `post_step` / `post_year`), event generators, and state management. Each domain (flood, irrigation) provides its own hooks and skill definitions in YAML.
 
+### Core vs Domain Packs
+
+WAGF is easiest to read as three layers:
+
+- **Core framework** (`broker/`) ??generic governance pipeline, parsing, validation orchestration, memory, context assembly, and audit
+- **Domain packs** (`broker/domains/`, experiment config, lifecycle hooks) ??theory metadata, domain validators, construct naming, skill registries
+- **Reference experiments** (`examples/`) ??complete runnable ABM studies built from the core plus a domain pack
+
+The current flood and irrigation implementations are reference packs, not evidence that the framework only supports water domains.
+
 ### Combinatorial Agent Design
 
 Build agents of varying cognitive complexity by stacking modules:
@@ -186,6 +198,8 @@ Zero LLM calls for L1/L2 — operates entirely on audit CSV traces. See [C&V Fra
 
 ## Configuration & Extension
 
+In practice, reusable core behavior belongs in `broker/`, while domain packs carry any theory metadata or Python validators that cannot be expressed cleanly in YAML alone.
+
 All domain-specific values are loaded from YAML — zero hardcoded domain logic in `broker/`.
 
 | What You Want to Change | YAML Only | Python Required |
@@ -205,9 +219,11 @@ All domain-specific values are loaded from YAML — zero hardcoded domain logic 
 2. `agent_types.yaml` — persona definitions, construct labels, governance rules
 3. `lifecycle_hooks.py` — subclass `BaseLifecycleHooks` for environment setup and state transitions
 
-See [Customization Guide](docs/guides/customization_guide.md) and [Experiment Design Guide](docs/guides/experiment_design_guide.md).
+See [Customization Guide](docs/guides/customization_guide.md), [Experiment Design Guide](docs/guides/experiment_design_guide.md), and [Domain Pack Guide](docs/guides/domain_pack_guide.md).
 
 ### Programmatic API
+
+For external users, the "new domain" workflow is best understood as building a **domain pack**: reusable configuration plus any theory metadata, validators, and lifecycle hooks needed for one ABM setting.
 
 ```python
 from broker.core.experiment import ExperimentBuilder
@@ -245,7 +261,7 @@ runner.run()
 
 ## Documentation
 
-**Getting Started**: [Quickstart Guide](docs/guides/quickstart_guide.md) | [Experiment Design](docs/guides/experiment_design_guide.md) | [Troubleshooting](docs/guides/troubleshooting_guide.md)
+**Getting Started**: [Quickstart Guide](docs/guides/quickstart_guide.md) | [Experiment Design](docs/guides/experiment_design_guide.md) | [Domain Packs](docs/guides/domain_pack_guide.md) | [Troubleshooting](docs/guides/troubleshooting_guide.md)
 
 **Guides**: [Agent Assembly](docs/guides/agent_assembly.md) | [Customization](docs/guides/customization_guide.md) | [Multi-Agent Setup](docs/guides/multi_agent_setup_guide.md) | [Advanced Patterns](docs/guides/advanced_patterns.md) | [YAML Reference](docs/references/yaml_configuration_reference.md)
 

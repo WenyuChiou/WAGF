@@ -1,8 +1,12 @@
 # Experiment Design Guide
 
+This guide treats the repository's flood and irrigation studies as reference domain packs built on top of the same reusable governance core.
+
 This guide walks through building a new WAGF-governed experiment from scratch. Both existing experiments — flood adaptation (PMT) and Colorado River irrigation (dual-appraisal) — follow this pattern.
 
 > **Audience**: Graduate students and researchers building hydro-social ABM experiments using the WAGF governance middleware.
+
+External ABM developers can use the same workflow for non-water domains by swapping in their own theory pack, constructs, governance rules, and lifecycle hooks.
 
 ---
 
@@ -45,6 +49,8 @@ Choose a behavioral theory and define the agent's cognitive dimensions (appraisa
 | *(Your domain)* | *(Your theory)* | *(Your threat construct)* | *(Your capacity construct)* |
 
 The 5-level ordinal scale (VL, L, M, H, VH) is shared across all domains. Governance rules and validators reference these labels to enforce behavioral coherence.
+
+Treat this as a common default rather than a flood-specific assumption. If a new domain needs a different construct vocabulary or scale semantics, define them in the domain pack and register the corresponding theory metadata.
 
 ---
 
@@ -109,6 +115,8 @@ shared:
 
 Define thinking rules (appraisal-based) and identity rules (state-based) under a named profile:
 
+In external-facing documentation, these are best described as **theory-coherence rules** plus **identity/state rules**.
+
 ```yaml
 your_agent_type:
   governance:
@@ -164,6 +172,8 @@ your_agent_type:
       strategic: ["decision", "adopt", "reduce", "increase"]
       positive: ["surplus", "adequate", "safe", "protected"]
       social: ["neighbor", "community", "upstream"]
+
+These keyword groups are only examples. Replace them with domain-appropriate vocabulary instead of inheriting water-specific terms by default.
 
     emotional_weights:
       crisis: 1.0
