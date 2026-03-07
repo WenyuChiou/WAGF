@@ -24,6 +24,7 @@ from broker.governance.rule_types import GovernanceRule
 WATER_FRAMEWORK_LABEL_ORDERS: Dict[str, Dict[str, int]] = {
     "pmt": {"VL": 0, "L": 1, "M": 2, "H": 3, "VH": 4},
     "dual_appraisal": {"VL": 0, "L": 1, "M": 2, "H": 3, "VH": 4},
+    "cognitive_appraisal": {"VL": 0, "L": 1, "M": 2, "H": 3, "VH": 4},
     "utility": {"L": 0, "M": 1, "H": 2},
     "financial": {"C": 0, "M": 1, "A": 2},
 }
@@ -35,6 +36,11 @@ WATER_FRAMEWORK_CONSTRUCTS: Dict[str, dict] = {
         "all": ["TP_LABEL", "CP_LABEL", "SP_LABEL", "SC_LABEL", "PA_LABEL"],
     },
     "dual_appraisal": {
+        "primary": "WSA_LABEL",
+        "secondary": "ACA_LABEL",
+        "all": ["WSA_LABEL", "ACA_LABEL"],
+    },
+    "cognitive_appraisal": {
         "primary": "WSA_LABEL",
         "secondary": "ACA_LABEL",
         "all": ["WSA_LABEL", "ACA_LABEL"],
@@ -60,6 +66,13 @@ WATER_LABEL_MAPPINGS: Dict[str, Dict[str, str]] = {
         "VERY HIGH": "VH", "VERYHIGH": "VH", "VERY_HIGH": "VH",
     },
     "dual_appraisal": {
+        "VERY LOW": "VL", "VERYLOW": "VL", "VERY_LOW": "VL",
+        "LOW": "L",
+        "MEDIUM": "M", "MED": "M", "MODERATE": "M",
+        "HIGH": "H",
+        "VERY HIGH": "VH", "VERYHIGH": "VH", "VERY_HIGH": "VH",
+    },
+    "cognitive_appraisal": {
         "VERY LOW": "VL", "VERYLOW": "VL", "VERY_LOW": "VL",
         "LOW": "L",
         "MEDIUM": "M", "MED": "M", "MODERATE": "M",

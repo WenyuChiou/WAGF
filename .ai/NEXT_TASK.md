@@ -67,4 +67,4 @@ examples/single_agent/results/JOH_FINAL/_archive_Group_B/
 - Safety rule: use staged checkpoints; do not refactor core + examples simultaneously.
 - Execution reference: `docs/plans/2026-03-07-abm-generalization-plan.md`
 - Regression gate: `docs/checklists/abm_generalization_regression_gate.md`
-- Immediate next step: decide whether to extend the same naming cleanup from irrigation docs into remaining analysis/archive text that still says dual-appraisal.
+- Immediate next step: decide whether to clean remaining archive/analysis references to `dual-appraisal`, or leave them as historical artifacts.

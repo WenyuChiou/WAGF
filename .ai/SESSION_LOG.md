@@ -1,5 +1,36 @@
 # Session Log
 
+## Session BF (2026-03-07) — Fig 4 Demoted to SI + SI Reorganization
+
+### Fig 4 → Supplementary Fig. 1
+- Old 3-panel forest plot (paired EHE dots, paired IBR dots, ΔEHE forest) replaced with single EHE × IBR scatter plot with arrows
+- Output renamed: `Fig4_crossmodel.{png,pdf}` → `SFig_crossmodel_ehe_ibr.{png,pdf}`
+- Old Fig4 files deleted
+- Main text `(Fig. 4)` → `(Supplementary Fig. 1)` in Results R3 and Discussion
+
+### SI Reorganized (12 → 9 Supplementary Notes)
+- **SN1**: Model Configuration (was SN7)
+- **SN2**: Governance Rule Specs (was SN7 sub-notes SN-A/SN-B, promoted)
+- **SN3**: LLM Prompt Templates (NEW placeholder)
+- **SN4**: Statistical Methods + BRI (was SN9 + SN4 merged)
+- **SN5**: Cross-Model Replication (was SN1 + SF1)
+- **SN6**: Agent Reasoning (was SN2, unchanged content)
+- **SN7**: Robustness Checks (was SN3 + SN5 merged)
+- **SN8**: Supplementary Water Outcomes (was SN6 + SN11/FQL merged)
+- **SN9**: PMT Agent Params (was SN12)
+- **Removed**: old SN4 (BRI standalone), old SN8 (data avail → main text), old SN10 (limitations → main text)
+
+### Table Renumbering (consecutive ST1-ST11)
+ST1=irrigation validators, ST2=flood validators, ST3=normalization sensitivity, ST4=rule triggers, ST5=cross-model IBR/EHE, ST6=paired differences, ST7=gov-vs-noval traces, ST8=within-gov heterogeneity, ST9=cognitive frames, ST10=supplementary water outcomes, ST11=FQL comparison
+
+### Cross-Reference Updates
+- Results: SN11→SN8, SN2→SN6, SN12→SN9, Fig.4→SFig.1, ST2→ST6
+- Discussion: Fig.4→SFig.1, SN5→SN7
+- Methods: SN-A/SN-B→ST1/ST2, SN12→SN9, ST7→ST3, SN1→SN5, SN2→SN4, ST2→ST6
+- Deleted redundant `supplementary_table_s1.md`
+
+---
+
 ## Session BD (2026-03-07) — Table Formatting + Overclaim Fixes + Cleanup
 
 ### Table Formatting
@@ -313,3 +344,20 @@ Summary:
 Verification:
 - `python -m pytest tests/test_agent_config_rating_scale.py -q`
 - `python -c "from broker.utils.agent_config import AgentTypeConfig; cfg=AgentTypeConfig.load('examples/irrigation_abm/config/agent_types.yaml', force_reload=True); print(cfg.get_framework_for_agent_type('irrigation_farmer'))"`
+## Session BM - Cognitive Appraisal Theory Migration
+
+Date: 2026-03-07
+
+Summary:
+- Promoted irrigation from an ad hoc `generic` label to an explicit `cognitive_appraisal` framework.
+- Added a water-domain `CognitiveAppraisalFramework` and registered it in the psychometric framework registry.
+- Extended schema and enum support so strict config parsing now accepts `cognitive_appraisal`.
+- Updated main docs to describe irrigation using Cognitive Appraisal Theory rather than dual-appraisal.
+
+Verification:
+- `python -m pytest tests/test_agent_config_rating_scale.py tests/test_config_schema.py tests/test_psychometric.py -q`
+- `python -c "from broker.utils.agent_config import AgentTypeConfig; cfg=AgentTypeConfig.load('examples/irrigation_abm/config/agent_types.yaml', force_reload=True); print(cfg.get_framework_for_agent_type('irrigation_farmer'))"`
+- `python -c "from broker.core.psychometric import get_framework; f=get_framework('cognitive_appraisal'); print(f.name); print(sorted(f.get_constructs().keys()))"`
+
+Compatibility note:
+- `dual_appraisal` metadata remains in `broker/domains/water/thinking_checks.py` as a backward-compatibility alias only. Mainline naming should use `cognitive_appraisal`.

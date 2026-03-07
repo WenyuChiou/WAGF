@@ -53,7 +53,7 @@ For a new theory pack, define:
 Examples:
 
 - PMT: `TP_LABEL`, `CP_LABEL`
-- WSA/ACA appraisal: `WSA_LABEL`, `ACA_LABEL`
+- Cognitive Appraisal Theory: `WSA_LABEL`, `ACA_LABEL`
 - a generic non-water pack: `RISK_LABEL`, `CAPACITY_LABEL`
 
 ## Recommended Extension Path

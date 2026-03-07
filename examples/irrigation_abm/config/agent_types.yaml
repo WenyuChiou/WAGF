@@ -110,7 +110,7 @@ irrigation_farmer:
     (2021): Aggressive, Forward-looking Conservative, Myopic Conservative.
     LLM reasoning replaces Q-learning; governance rules enforce water
     allocation constraints equivalent to FQL parameter bounds.
-  psychological_framework: generic
+  psychological_framework: cognitive_appraisal
 
   prompt_template_file: config/prompts/irrigation_farmer.txt
 

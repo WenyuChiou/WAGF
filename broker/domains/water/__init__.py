@@ -9,6 +9,7 @@ thinking-validator metadata when imported.
 from broker.core.psychometric import register_framework
 
 from .pmt import PMTFramework
+from .cognitive_appraisal import CognitiveAppraisalFramework
 from .utility import UtilityFramework
 from .financial import FinancialFramework
 
@@ -17,6 +18,7 @@ def register() -> None:
     """Register water-domain frameworks and thinking-validator metadata."""
     # Psychological frameworks
     register_framework("pmt", PMTFramework)
+    register_framework("cognitive_appraisal", CognitiveAppraisalFramework)
     register_framework("utility", UtilityFramework)
     register_framework("financial", FinancialFramework)
 
