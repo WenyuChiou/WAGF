@@ -141,3 +141,23 @@ def test_irrigation_title_sits_above_aca_axis_label():
 
     assert layout["title_y"] > layout["aca_label_y"]
     assert layout["aca_label_y"] < 0.0
+    assert layout["title_y"] <= 1.02
+
+
+def test_irrigation_uses_shared_violation_colorbar():
+    mod = _load_irrigation_fig_module()
+
+    cfg = mod.get_irrigation_colorbar_config()
+
+    assert cfg["orientation"] == "vertical"
+    assert cfg["label"] == "Violations"
+    assert cfg["width"] > 0
+
+
+def test_irrigation_violation_badges_use_figure_overlay():
+    mod = _load_irrigation_fig_module()
+
+    cfg = mod.get_irrigation_violation_badge_layout()
+
+    assert cfg["use_figure_overlay"] is True
+    assert cfg["x_ratio"] >= 0.94
