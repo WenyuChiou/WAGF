@@ -110,6 +110,7 @@ irrigation_farmer:
     (2021): Aggressive, Forward-looking Conservative, Myopic Conservative.
     LLM reasoning replaces Q-learning; governance rules enforce water
     allocation constraints equivalent to FQL parameter bounds.
+  psychological_framework: generic
 
   prompt_template_file: config/prompts/irrigation_farmer.txt
 
@@ -317,7 +318,7 @@ irrigation_farmer:
   # ---------------------------------------------------------------------------
   governance:
     # Strict governance: enforces water allocation rules + behavioral
-    # consistency checks analogous to flood dual-appraisal governance.
+    # consistency checks for the WSA/ACA appraisal structure.
     strict:
       thinking_rules:
         # R1: High water threat → cannot maintain status quo

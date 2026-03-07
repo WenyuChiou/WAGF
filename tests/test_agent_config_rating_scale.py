@@ -166,3 +166,8 @@ government:
 
         # Should be utility scale
         assert "Priority" in scale or "L/M/H" in scale or scale  # Non-empty
+
+    def test_irrigation_agent_type_uses_generic_framework(self):
+        """Irrigation config should not fall back to PMT."""
+        config = AgentTypeConfig.load("examples/irrigation_abm/config/agent_types.yaml", force_reload=True)
+        assert config.get_framework_for_agent_type("irrigation_farmer") == "generic"
