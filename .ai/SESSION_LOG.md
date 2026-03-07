@@ -372,3 +372,14 @@ Summary:
 
 Artifact:
 - `docs/plans/2026-03-07-release-readiness-audit.md`
+## Session BO - Repo Boundary Map
+
+Date: 2026-03-07
+
+Summary:
+- Added a repo boundary map to distinguish framework-facing, reference-domain, paper-facing, and local/archive surfaces.
+- Added a short repo-surface section to the main README.
+- Added a paper-workspace boundary note to `paper/PAPER_README.md`.
+
+Artifact:
+- `docs/plans/2026-03-07-repo-boundary-map.md`

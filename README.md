@@ -156,6 +156,17 @@ WAGF is easiest to read as three layers:
 
 The current flood and irrigation implementations are reference packs, not evidence that the framework only supports water domains.
 
+### Repo Surface
+
+For continuation work and external onboarding, treat the repository as four surfaces:
+
+- **Framework-facing**: `broker/`, `providers/`, `tests/`, `docs/guides/`, `docs/modules/`
+- **Reference-domain-facing**: `examples/minimal/`, `examples/minimal_nonwater/`, `examples/single_agent/`, `examples/irrigation_abm/`, `examples/multi_agent/flood/`
+- **Paper/manuscript-facing**: `paper/`
+- **Local or archive**: `.ai/`, `_archive/`, `examples/archive/`, other ignored working directories
+
+This boundary keeps the framework story separate from manuscript production and local analysis clutter.
+
 ### Combinatorial Agent Design
 
 Build agents of varying cognitive complexity by stacking modules:

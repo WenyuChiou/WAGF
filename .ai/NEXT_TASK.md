@@ -70,5 +70,6 @@ examples/single_agent/results/JOH_FINAL/_archive_Group_B/
 - Immediate next step: decide whether to clean remaining archive/analysis references to `dual-appraisal`, or leave them as historical artifacts.
 - New planning artifact:
   - `docs/plans/2026-03-07-release-readiness-audit.md`
+  - `docs/plans/2026-03-07-repo-boundary-map.md`
 - Suggested continuation path:
   - paper-first hardening on naming, repo boundaries, and framework-facing docs
