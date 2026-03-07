@@ -215,3 +215,20 @@
   - `openai`: missing `OPENAI_API_KEY`
   - `anthropic`: missing `ANTHROPIC_API_KEY`
   - `gemini`: missing `GOOGLE_API_KEY`
+## Session BF - ABM Generalization Plan
+
+Date: 2026-03-07
+
+Summary:
+- Reviewed current blocker for external ABM adoption: framework is partially generic in code but still flood/PMT-centric in external framing.
+- Identified multi-skill as a bounded composite-action implementation, not a general planner.
+- Wrote staged generalization plan with explicit task checkpoints and rollback conditions.
+
+Artifacts created:
+- `docs/plans/2026-03-07-abm-generalization-plan.md`
+- `docs/checklists/abm_generalization_regression_gate.md`
+
+Execution policy:
+- One fresh implementation agent per task.
+- Mandatory verification after every stage.
+- Stop immediately if flood, irrigation, paper3, or provider smoke regress.

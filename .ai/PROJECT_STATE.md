@@ -121,3 +121,17 @@
 ## Paper 3 (Multi-Agent Flood ABM) — RECALIBRATION NEEDED
 - 400 agents × 13yr, 12 skills, per-agent-depth PRB floods
 - NFIP trajectory recalibration pending
+## 2026-03-07 - ABM Generalization Direction
+
+- Target audience expansion: external ABM developers, not only current water/flood experiments.
+- Current assessment:
+  - Theory-driven governance is real and implemented in core validators.
+  - External framing is still PMT/flood-heavy even where code is generic.
+  - Multi-skill is better described as bounded composite action, not a general planner.
+- Active execution plan:
+  - `docs/plans/2026-03-07-abm-generalization-plan.md`
+- Required invariants during refactor:
+  - Preserve single-agent flood behavior.
+  - Preserve irrigation dual-appraisal behavior and FQL reference path.
+  - Preserve paper3 multi-agent flood workflow isolation.
+  - Keep `multi_skill` default off unless explicitly enabled.
