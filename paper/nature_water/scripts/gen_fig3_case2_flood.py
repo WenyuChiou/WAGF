@@ -496,6 +496,22 @@ def get_panel_a_configs():
         ('disabled',  'LLM (no validator)',  UNGOV_COLOR),
     ]
 
+
+def get_violation_annotation_style():
+    return {
+        'ha': 'right',
+        'va': 'top',
+        'fontsize': 7.8,
+        'color': '#B22222',
+        'fontweight': 'bold',
+        'bbox': {
+            'boxstyle': 'round,pad=0.16',
+            'facecolor': 'white',
+            'edgecolor': '#B22222',
+            'linewidth': 0.5,
+        },
+    }
+
     return axes
 
 
@@ -723,9 +739,10 @@ def draw_single_pie_grid(fig, ax, df, title, title_color, show_ylabel=True,
 
             # Violation count annotation (top-right corner)
             if viol_count > 0:
-                ax.text(j + 0.40, i + 0.40, str(viol_count),
-                        ha='right', va='top', fontsize=6.5,
-                        color='#CC0000', fontweight='bold')
+                ax.text(
+                    j + 0.43, i + 0.43, str(viol_count),
+                    **get_violation_annotation_style(),
+                )
 
             # n label centered inside pie
             ax.text(j, i - 0.02, str(n), ha='center', va='center',
