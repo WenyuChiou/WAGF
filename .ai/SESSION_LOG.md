@@ -232,3 +232,15 @@ Execution policy:
 - One fresh implementation agent per task.
 - Mandatory verification after every stage.
 - Stop immediately if flood, irrigation, paper3, or provider smoke regress.
+## Session BG - Task 2 Docs Boundary
+
+Date: 2026-03-07
+
+Summary:
+- Started Task 2 from the ABM generalization plan.
+- Reframed README around core framework + domain packs + reference experiments.
+- Added `docs/guides/domain_pack_guide.md` for external ABM developers.
+- Updated experiment design guide with non-water/domain-pack positioning notes.
+
+Verification:
+- `rg -n "Domain Pack Guide|Core vs Domain Packs|reference domain packs|theory-coherence|general-purpose planner|fully domain-agnostic|flood-only|PMT-only" README.md docs/guides/experiment_design_guide.md docs/guides/domain_pack_guide.md`
