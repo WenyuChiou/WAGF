@@ -402,6 +402,37 @@ def get_irrigation_pie_panel_configs():
     ]
 
 
+def get_irrigation_violation_annotation_style():
+    return {
+        'ha': 'right',
+        'va': 'top',
+        'fontsize': 7.8,
+        'color': '#B22222',
+        'fontweight': 'bold',
+        'bbox': {
+            'boxstyle': 'round,pad=0.16',
+            'facecolor': 'white',
+            'edgecolor': '#B22222',
+            'linewidth': 0.5,
+        },
+    }
+
+
+def get_irrigation_center_count_style():
+    return {
+        'ha': 'center',
+        'va': 'center',
+        'fontsize': 6.0,
+        'color': 'white',
+        'fontweight': 'bold',
+        'bbox': {
+            'boxstyle': 'round,pad=0.1',
+            'facecolor': '#00000055',
+            'edgecolor': 'none',
+        },
+    }
+
+
 def draw_irrigation_pie_grid(
     fig,
     ax_bg,
@@ -492,10 +523,8 @@ def draw_irrigation_pie_grid(
             pie_ax.set_aspect('equal')
             pie_ax.text(
                 0.5, 0.5, str(n),
-                ha='center', va='center',
-                fontsize=6.0, color='white', fontweight='bold',
                 transform=pie_ax.transAxes,
-                bbox=dict(boxstyle='round,pad=0.12', facecolor='#00000066', edgecolor='none'),
+                **get_irrigation_center_count_style(),
             )
             pie_ax.set_axis_off()
 
@@ -504,9 +533,8 @@ def draw_irrigation_pie_grid(
                     cell_left + cell_w * 0.92,
                     cell_top - cell_h * 0.08,
                     str(viol_count),
-                    ha='right', va='top',
-                    fontsize=6.2, color='#B22222', fontweight='bold',
                     transform=ax_bg.transAxes,
+                    **get_irrigation_violation_annotation_style(),
                 )
 
     for ci, aca in enumerate(ACA_ORDER):
