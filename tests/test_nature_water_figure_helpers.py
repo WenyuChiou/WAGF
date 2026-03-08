@@ -14,7 +14,7 @@ def _load_irrigation_fig_module():
     return module
 
 
-def test_compute_pie_matrix_returns_counts_totals_and_violations():
+def test_compute_pie_matrix_returns_counts_totals_and_violation_percentages():
     mod = _load_irrigation_fig_module()
 
     df = pd.DataFrame(
@@ -52,7 +52,7 @@ def test_compute_pie_matrix_returns_counts_totals_and_violations():
     assert counts[("H", "M")]["increase_small"] == 1
     assert counts[("H", "M")]["increase_large"] == 1
     assert counts[("H", "M")]["maintain_demand"] == 1
-    assert violations[("H", "M")] == 2
+    assert violations[("H", "M")] == 67
 
     assert totals[("L", "H")] == 1
     assert counts[("L", "H")]["decrease_small"] == 1
@@ -176,7 +176,7 @@ def test_irrigation_uses_shared_violation_colorbar():
     cfg = mod.get_irrigation_colorbar_config()
 
     assert cfg["orientation"] == "vertical"
-    assert cfg["label"] == "Violations"
+    assert cfg["label"] == "Violation rate (%)"
     assert cfg["width"] > 0
 
 
