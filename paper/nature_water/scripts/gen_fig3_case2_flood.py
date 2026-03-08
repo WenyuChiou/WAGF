@@ -469,7 +469,7 @@ def draw_panel_a(axes, data: dict):
         else:
             ax.tick_params(labelleft=False)
 
-        ax.set_ylim(0, 105)
+        ax.set_ylim(*get_panel_a_ylim())
         ax.yaxis.set_major_locator(ticker.MultipleLocator(20))
 
         marker_style = get_flood_year_marker_style()
@@ -524,6 +524,10 @@ def get_panel_a_configs():
     ]
 
 
+def get_panel_a_ylim():
+    return (0, 110)
+
+
 def get_flood_years():
     return [3, 4, 9]
 
@@ -535,7 +539,7 @@ def get_flood_year_spans():
 def get_flood_year_marker_style():
     return {
         'label': 'F',
-        'y': 104,
+        'y': 106,
         'fontsize': BASE_FONT - 0.2,
         'color': '#D94B4B',
         'fontweight': 'bold',
