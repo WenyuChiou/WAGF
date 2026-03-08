@@ -376,7 +376,7 @@ def compute_pie_matrix(audit_df):
     Returns:
       - dict: (wsa, aca) -> dict(action -> count)
       - dict: (wsa, aca) -> total sample count
-      - dict: (wsa, aca) -> violation count
+      - dict: (wsa, aca) -> violation percentage (0-100)
     """
     data = {}
     total = {}
@@ -392,7 +392,8 @@ def compute_pie_matrix(audit_df):
             cell_counts = {a: int(counts.get(a, 0)) for a in PIE_ACTION_ORDER}
             data[(wsa, aca)] = cell_counts
             total[(wsa, aca)] = sum(cell_counts.values())
-            violations[(wsa, aca)] = int((sub['status'] != 'APPROVED').sum())
+            violation_count = int((sub['status'] != 'APPROVED').sum())
+            violations[(wsa, aca)] = int(round((violation_count / max(1, total[(wsa, aca)])) * 100))
     return data, total, violations
 
 
@@ -452,7 +453,7 @@ def get_irrigation_violation_badge_layout():
 def get_irrigation_colorbar_config():
     return {
         "orientation": "vertical",
-        "label": "Violations",
+        "label": "Violation rate (%)",
         "width": 0.008,
         "pad": 0.006,
         "height_ratio": 0.9,
@@ -514,8 +515,7 @@ def draw_irrigation_pie_grid(
     if viol_cmap is None:
         viol_cmap = create_irrigation_violation_cmap()
     if viol_norm is None:
-        viol_max = max(pie_violations.values()) if pie_violations else 0
-        viol_norm = mcolors.Normalize(vmin=0, vmax=max(1, viol_max))
+        viol_norm = mcolors.Normalize(vmin=0, vmax=100)
 
     max_n = max(pie_total.values()) if pie_total else 1
     min_radius = 0.022
@@ -578,7 +578,7 @@ def draw_irrigation_pie_grid(
                 fig.text(
                     bbox.x0 + (cell_left + cell_w * badge_layout["x_ratio"]) * bbox.width,
                     bbox.y0 + (cell_top - cell_h * badge_layout["y_ratio"]) * bbox.height,
-                    str(viol_count),
+                    f"{viol_count}%",
                     transform=fig.transFigure,
                     **get_irrigation_violation_annotation_style(),
                 )
@@ -868,7 +868,7 @@ def build_figure():
         if pviol:
             all_violation_counts.extend(pviol.values())
     viol_cmap = create_irrigation_violation_cmap()
-    viol_norm = mcolors.Normalize(vmin=0, vmax=max(1, max(all_violation_counts) if all_violation_counts else 0))
+    viol_norm = mcolors.Normalize(vmin=0, vmax=100)
     for ax, cfg in zip([ax_b1, ax_b2], get_irrigation_pie_panel_configs()):
         pdata, ptotal, pviol = pie_panels[cfg["key"]]
         draw_irrigation_pie_grid(
