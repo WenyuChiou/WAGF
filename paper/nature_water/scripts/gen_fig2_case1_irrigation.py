@@ -463,8 +463,8 @@ def get_irrigation_colorbar_config():
 def get_irrigation_action_legend_config():
     return {
         "use_figure_legend": True,
-        "anchor_x": 0.53,
-        "anchor_y": 0.165,
+        "anchor_x": 0.70,
+        "anchor_y": 0.135,
         "ncol": 2,
     }
 
