@@ -113,6 +113,20 @@ def test_flood_year_markers_use_years_3_4_9():
     assert module.get_flood_year_spans() == [(2.5, 4.5), (8.5, 9.5)]
 
 
+def test_flood_year_marker_style_has_top_padding():
+    repo = Path(__file__).resolve().parents[1]
+    path = repo / "paper" / "nature_water" / "scripts" / "gen_fig3_case2_flood.py"
+    spec = importlib.util.spec_from_file_location("nw_fig3_flood", path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+
+    style = module.get_flood_year_marker_style()
+
+    assert style["y"] > 104
+    assert module.get_panel_a_ylim()[1] >= 108
+
+
 def test_irrigation_fig2_bottom_row_uses_two_pie_panels():
     mod = _load_irrigation_fig_module()
 
