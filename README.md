@@ -11,13 +11,13 @@
 [![Tests: 1776+](https://img.shields.io/badge/tests-1776%2B_passing-brightgreen.svg)]()
 [![Ollama](https://img.shields.io/badge/Ollama-Local_Inference-000000?style=flat&logo=ollama&logoColor=white)](https://ollama.com/)
 
-[**English**](README.md) | [**繁體中文**](README_zh.md)
+[**English**](README.md) | [**繁�?中�?**](README_zh.md)
 
 </div>
 
 ## What is WAGF?
 
-Large Language Models (LLMs) can generate rich, human-like reasoning for agent-based models — but they also hallucinate, contradict themselves, and produce invalid actions. WAGF provides a **Governance Broker** that validates every LLM decision against physical constraints and behavioral theories before execution, turning unreliable LLM outputs into scientifically auditable agent behavior for human-water systems.
+Large Language Models (LLMs) can generate rich, human-like reasoning for agent-based models ??but they also hallucinate, contradict themselves, and produce invalid actions. WAGF provides a **Governance Broker** that validates every LLM decision against physical constraints and behavioral theories before execution, turning unreliable LLM outputs into scientifically auditable agent behavior for human-water systems.
 
 **Key contribution**: Unlike prompt-only approaches, WAGF structurally prevents hallucinations through a validation pipeline that checks each decision against domain rules. Invalid decisions trigger a retry loop with specific feedback, not just re-prompting.
 
@@ -25,19 +25,19 @@ Large Language Models (LLMs) can generate rich, human-like reasoning for agent-b
 
 | Challenge | Framework Solution |
 |:---|:---|
-| **Hallucination** — LLM invents actions | Strict skill registry: only registered actions accepted |
-| **Logical drift** — reasoning contradicts choice | Thinking validators enforce construct-action coherence |
-| **Context overflow** — cannot dump full history | Salience-based memory retrieval (top-k relevant events) |
-| **Opaque decisions** — no audit trail | Structured CSV traces: input, reasoning, validation, outcome |
-| **Unsafe mutation** — LLM breaks simulation state | Sandboxed execution: validated skills run by engine, not LLM |
+| **Hallucination** ??LLM invents actions | Strict skill registry: only registered actions accepted |
+| **Logical drift** ??reasoning contradicts choice | Thinking validators enforce construct-action coherence |
+| **Context overflow** ??cannot dump full history | Salience-based memory retrieval (top-k relevant events) |
+| **Opaque decisions** ??no audit trail | Structured CSV traces: input, reasoning, validation, outcome |
+| **Unsafe mutation** ??LLM breaks simulation state | Sandboxed execution: validated skills run by engine, not LLM |
 
 ### Reference Domain Packs and Case Studies
 
 The repository currently ships with mature water-sector reference implementations. They define the main identity of the framework. The same broker, validator, memory, and context infrastructure can be extended to other ABM settings later, but water remains the home domain.
 
-- **Flood Household Adaptation** — 100 agents using Protection Motivation Theory (PMT), 10-year simulation with Gemma 3 (small/medium/large local LLMs)
-- **Flood Multi-Agent** — 400 agents (household + government + insurance), 13-year simulation, Potomac River Basin
-- **Irrigation Water Management** — 78 CRSS agents, 42-year simulation, Colorado River Basin
+- **Flood Household Adaptation** ??100 agents using Protection Motivation Theory (PMT), 10-year simulation with Gemma 3 (small/medium/large local LLMs)
+- **Flood Multi-Agent** ??400 agents (household + government + insurance), 13-year simulation, Potomac River Basin
+- **Irrigation Water Management** ??78 CRSS agents, 42-year simulation, Colorado River Basin
 
 ---
 
@@ -46,7 +46,7 @@ The repository currently ships with mature water-sector reference implementation
 ### Prerequisites
 
 - Python 3.10+
-- [Ollama](https://ollama.com/download) for local LLM inference (optional — mock mode available)
+- [Ollama](https://ollama.com/download) for local LLM inference (optional ??mock mode available)
 
 ```bash
 # 1. Clone and install
@@ -77,32 +77,32 @@ python examples/single_agent/run_flood.py --model gemma3:4b --years 10 --agents 
 
 ### Governed Decision Example
 
-Here is what WAGF does at every time step — a concrete trace from the flood simulation:
+Here is what WAGF does at every time step ??a concrete trace from the flood simulation:
 
 ```
 Year 3, Agent #42 (low-income homeowner, high flood zone):
 
   LLM proposes: elevate_home (cost $30,000)
     Physical validator:  PASS  (not already elevated)
-    Thinking validator:  ERROR — threat_appraisal=Medium but chose most expensive action
-    → Retry with feedback: "Your threat assessment is Medium, but you chose the
+    Thinking validator:  ERROR ??threat_appraisal=Medium but chose most expensive action
+    ??Retry with feedback: "Your threat assessment is Medium, but you chose the
       costliest protective action. Consider whether a less expensive option
       (e.g., insurance at $1,200/yr) better matches your risk assessment."
 
   LLM proposes (retry 1): buy_insurance (cost $1,200/yr)
     Physical validator:  PASS
-    Thinking validator:  PASS  (Medium threat → moderate action: coherent)
+    Thinking validator:  PASS  (Medium threat ??moderate action: coherent)
     Personal validator:  PASS  (income $35,000 > premium $1,200)
-    Social validator:    WARNING — 70% of neighbors did nothing (logged, not blocked)
+    Social validator:    WARNING ??70% of neighbors did nothing (logged, not blocked)
     Semantic validator:  PASS
-    → APPROVED → Executed by simulation engine
+    ??APPROVED ??Executed by simulation engine
 
   Audit CSV row:
     year=3, agent=42, proposed=elevate_home, outcome=REJECTED, retry=1,
     final=buy_insurance, outcome=APPROVED, rule_violated=thinking_pmt_coherence
 ```
 
-This trace is fully reproducible and auditable — every decision, rejection, and retry is logged.
+This trace is fully reproducible and auditable ??every decision, rejection, and retry is logged.
 
 ---
 
@@ -113,38 +113,38 @@ This trace is fully reproducible and auditable — every decision, rejection, an
 WAGF has two core components:
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                      Governance Broker                           │
-│  Validates LLM outputs against domain rules before execution     │
-│                                                                  │
-│  Context → LLM → Parse → Validate → Approve → Execute           │
-│            ↑                  │                                   │
-│            └──── retry with ──┘ (if ERROR)                       │
-│                  feedback                                        │
-│                                                                  │
-│  Validator categories: Physical | Thinking | Personal |          │
-│                         Social  | Semantic                       │
-├──────────────────────────────────────────────────────────────────┤
-│                    Execution Environment                         │
-│  Runs simulations, manages state, handles agent lifecycle        │
-│                                                                  │
-│  Lifecycle hooks: pre_year() → agent decisions → post_step()     │
-│                   → post_year() → next year                      │
-│                                                                  │
-│  Each domain provides: skill_registry.yaml + agent_types.yaml    │
-│                         + lifecycle_hooks.py                      │
-└──────────────────────────────────────────────────────────────────┘
+?��??�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�??
+??                     Governance Broker                           ??
+?? Validates LLM outputs against domain rules before execution     ??
+??                                                                 ??
+?? Context ??LLM ??Parse ??Validate ??Approve ??Execute           ??
+??           ??                 ??                                  ??
+??           ?��??�?�?� retry with ?�?�??(if ERROR)                       ??
+??                 feedback                                        ??
+??                                                                 ??
+?? Validator categories: Physical | Thinking | Personal |          ??
+??                        Social  | Semantic                       ??
+?��??�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�??
+??                   Execution Environment                         ??
+?? Runs simulations, manages state, handles agent lifecycle        ??
+??                                                                 ??
+?? Lifecycle hooks: pre_year() ??agent decisions ??post_step()     ??
+??                  ??post_year() ??next year                      ??
+??                                                                 ??
+?? Each domain provides: skill_registry.yaml + agent_types.yaml    ??
+??                        + lifecycle_hooks.py                      ??
+?��??�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�??
 
 Supporting subsystems (configured per experiment):
-  Memory    — emotional salience encoding, consolidation, decay
-  Context   — tiered prompt construction (core / historic / recent)
-  Social    — neighbor observation, information diffusion (multi-agent)
-  Reflection — periodic LLM-driven memory consolidation
+  Memory    ??emotional salience encoding, consolidation, decay
+  Context   ??tiered prompt construction (core / historic / recent)
+  Social    ??neighbor observation, information diffusion (multi-agent)
+  Reflection ??periodic LLM-driven memory consolidation
 ```
 
-**Governance Broker** (`broker/`) — The 6-stage pipeline runs on every agent decision. Five validator categories check physical constraints, logical coherence, financial capacity, social norms, and semantic grounding. ERROR results trigger retry with specific feedback; WARNING results log observations without blocking.
+**Governance Broker** (`broker/`) ??The 6-stage pipeline runs on every agent decision. Five validator categories check physical constraints, logical coherence, financial capacity, social norms, and semantic grounding. ERROR results trigger retry with specific feedback; WARNING results log observations without blocking.
 
-**Execution Environment** — Domain-specific simulation engines, lifecycle hooks (`pre_year` / `post_step` / `post_year`), event generators, and state management. Each domain (flood, irrigation) provides its own hooks and skill definitions in YAML.
+**Execution Environment** ??Domain-specific simulation engines, lifecycle hooks (`pre_year` / `post_step` / `post_year`), event generators, and state management. Each domain (flood, irrigation) provides its own hooks and skill definitions in YAML.
 
 ### Core vs Domain Packs
 
@@ -183,12 +183,12 @@ This enables controlled comparison studies: run Level 1 (no governance) vs Level
 ### Key Entry Points
 
 ```
-broker/core/skill_broker_engine.py        — The 6-stage governance pipeline
-broker/core/experiment.py                 — ExperimentRunner + ExperimentBuilder API
-broker/validators/governance/             — All 5 validator category implementations
-broker/components/memory/                 — Memory engine ABC + 4 implementations
-broker/components/context/providers.py    — Context enrichment chain
-examples/quickstart/                      — progressive tutorial
+broker/core/skill_broker_engine.py        ??The 6-stage governance pipeline
+broker/core/experiment.py                 ??ExperimentRunner + ExperimentBuilder API
+broker/validators/governance/             ??All 5 validator category implementations
+broker/components/memory/                 ??Memory engine ABC + 4 implementations
+broker/components/context/providers.py    ??Context enrichment chain
+examples/quickstart/                      ??progressive tutorial
 ```
 
 ---
@@ -200,10 +200,10 @@ Post-hoc validation at three levels, following Grimm et al. (2005) pattern-orien
 | Level | Scope | Core Metrics | What It Tests |
 |:---|:---|:---|:---|
 | **L1 Micro** | Individual agent | **CACR** (Construct-Action Coherence Rate), **R_H** (Hallucination Rate), **EBE** (Event-Based Evaluation) | Are individual decisions internally coherent with reported beliefs? |
-| **L2 Macro** | Population | **EPI** (Empirical Plausibility Index) — weighted match against empirical benchmarks | Do aggregate adoption rates match real-world data (e.g., NFIP insurance rates, USGS water use)? |
+| **L2 Macro** | Population | **EPI** (Empirical Plausibility Index) ??weighted match against empirical benchmarks | Do aggregate adoption rates match real-world data (e.g., NFIP insurance rates, USGS water use)? |
 | **L3 Cognitive** | Psychometric | **ICC** (Intraclass Correlation), **eta-squared** (effect size) | Does the LLM produce reliable, discriminable construct ratings? |
 
-Zero LLM calls for L1/L2 — operates entirely on audit CSV traces. See [C&V Framework docs](broker/validators/calibration/README.md).
+Zero LLM calls for L1/L2 ??operates entirely on audit CSV traces. See [C&V Framework docs](broker/validators/calibration/README.md).
 
 ---
 
@@ -211,24 +211,24 @@ Zero LLM calls for L1/L2 — operates entirely on audit CSV traces. See [C&V Fra
 
 In practice, reusable core behavior belongs in `broker/`, while domain packs carry any theory metadata or Python validators that cannot be expressed cleanly in YAML alone.
 
-All domain-specific values are loaded from YAML — zero hardcoded domain logic in `broker/`.
+All domain-specific values are loaded from YAML ??zero hardcoded domain logic in `broker/`.
 
 | What You Want to Change | YAML Only | Python Required |
 |:---|:---:|:---:|
-| Add/remove skills (actions) | Yes | — |
-| Define agent types & personas | Yes | — |
-| Add/modify governance rules | Yes | — |
-| Tune memory parameters | Yes | — |
-| Change LLM model or provider | Yes | — |
-| Add a new domain validator | — | Yes |
-| Add a new memory engine | — | Yes |
-| Add a new LLM provider | — | Yes |
-| Add a new domain (flood, irrigation, ...) | — | Yes |
+| Add/remove skills (actions) | Yes | ??|
+| Define agent types & personas | Yes | ??|
+| Add/modify governance rules | Yes | ??|
+| Tune memory parameters | Yes | ??|
+| Change LLM model or provider | Yes | ??|
+| Add a new domain validator | ??| Yes |
+| Add a new memory engine | ??| Yes |
+| Add a new LLM provider | ??| Yes |
+| Add a new domain (flood, irrigation, ...) | ??| Yes |
 
 **To add a new domain**, provide three files:
-1. `skill_registry.yaml` — available actions and their preconditions
-2. `agent_types.yaml` — persona definitions, construct labels, governance rules
-3. `lifecycle_hooks.py` — subclass `BaseLifecycleHooks` for environment setup and state transitions
+1. `skill_registry.yaml` ??available actions and their preconditions
+2. `agent_types.yaml` ??persona definitions, construct labels, governance rules
+3. `lifecycle_hooks.py` ??subclass `BaseLifecycleHooks` for environment setup and state transitions
 
 See [Customization Guide](docs/guides/customization_guide.md), [Experiment Design Guide](docs/guides/experiment_design_guide.md), and [Domain Pack Guide](docs/guides/domain_pack_guide.md).
 
@@ -261,12 +261,14 @@ runner.run()
 
 | Example | Description | Link |
 |:---|:---|:---|
-| **Quickstart** | Progressive tutorial (mock LLM → governance rules) | [Go](examples/quickstart/) |
-| **Minimal Template** | Copy this to start a new domain (3 agents, 5 years) | [Go](examples/minimal/) |
-| **Governed Flood** | Standalone demo with full governance | [Go](examples/governed_flood/) |
-| **Single-Agent Benchmark** | Comparison study: no governance / governance / governance+memory | [Go](examples/single_agent/) |
-| **Irrigation ABM** | Colorado River Basin water demand (Hung & Yang 2021) | [Go](examples/irrigation_abm/) |
-| **Multi-Agent Flood** | 400 agents with government & insurance institutional actors | [Go](examples/multi_agent/flood/) |
+| **Quickstart** | Progressive tutorial (mock LLM and governance rules) | [Go](examples/quickstart/) |
+| **Minimal Template** | Official scaffold for a new ABM domain | [Go](examples/minimal/) |
+| **Minimal Non-Water** | Secondary reference showing a non-water configuration | [Go](examples/minimal_nonwater/) |
+| **Multi-Agent Simple** | Small teaching example for phase ordering and cross-type governance | [Go](examples/multi_agent_simple/) |
+| **Governed Flood** | Compact flood-sector teaching demo with full governance | [Go](examples/governed_flood/) |
+| **Single-Agent Benchmark** | Primary single-agent flood reference and paper benchmark | [Go](examples/single_agent/) |
+| **Irrigation ABM** | Primary irrigation water-management reference pack | [Go](examples/irrigation_abm/) |
+| **Multi-Agent Flood** | Primary multi-agent flood reference pack | [Go](examples/multi_agent/flood/) |
 
 ---
 
@@ -284,9 +286,9 @@ runner.run()
 
 | I am a... | Start here |
 |:---|:---|
-| **Water researcher** wanting to try it | [Quickstart](docs/guides/quickstart_guide.md) → [Run Examples](examples/README.md) → [Experiment Design](docs/guides/experiment_design_guide.md) |
-| **Researcher** reproducing paper results | [Theory](docs/modules/00_theoretical_basis_overview.md) → [Experiment Design](docs/guides/experiment_design_guide.md) → [C&V Framework](broker/validators/calibration/README.md) |
-| **Developer** extending the framework | [Architecture](docs/architecture/architecture.md) → [Customization](docs/guides/customization_guide.md) → [Agent Types](docs/guides/agent_type_specification_guide.md) |
+| **Water researcher** wanting to try it | [Quickstart](docs/guides/quickstart_guide.md) ??[Run Examples](examples/README.md) ??[Experiment Design](docs/guides/experiment_design_guide.md) |
+| **Researcher** reproducing paper results | [Theory](docs/modules/00_theoretical_basis_overview.md) ??[Experiment Design](docs/guides/experiment_design_guide.md) ??[C&V Framework](broker/validators/calibration/README.md) |
+| **Developer** extending the framework | [Architecture](docs/architecture/architecture.md) ??[Customization](docs/guides/customization_guide.md) ??[Agent Types](docs/guides/agent_type_specification_guide.md) |
 
 ---
 
