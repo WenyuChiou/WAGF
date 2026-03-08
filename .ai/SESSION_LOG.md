@@ -433,3 +433,14 @@ Summary:
 - Repositioned `single_agent/`, `irrigation_abm/`, and `multi_agent/flood/` as the primary water-sector reference implementations.
 - Kept `governed_flood/`, `multi_agent_simple/`, and `minimal_nonwater/` visible, but clearly marked them as secondary teaching/demo surfaces.
 - Updated the quickstart/customization docs so `examples/minimal/` is again the official template rather than the compact flood demo.
+
+## Session BT - SA vs MA Reference Wording Fix
+
+Date: 2026-03-08
+
+Summary:
+- Clarified that `irrigation_abm/` is also a single-agent reference implementation, not a separate architecture class parallel to SA/MA.
+- Updated the examples navigation to distinguish:
+  - single-agent reference implementations: flood + irrigation
+  - multi-agent reference implementations: flood
+- Kept all physical paths unchanged to avoid disruptive refactors.
