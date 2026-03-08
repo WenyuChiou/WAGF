@@ -170,5 +170,5 @@ def test_irrigation_action_legend_is_shared_between_two_panels():
 
     assert cfg["use_figure_legend"] is True
     assert 0.62 <= cfg["anchor_x"] <= 0.78
-    assert 0.10 <= cfg["anchor_y"] <= 0.16
+    assert 0.06 <= cfg["anchor_y"] <= 0.10
     assert cfg["ncol"] == 2
