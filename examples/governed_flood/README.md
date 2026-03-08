@@ -1,5 +1,9 @@
 # Governed Flood Adaptation Experiment
 
+> **Positioning**: This directory is a compact teaching demo for the flood
+> domain. For the full single-agent validation suite used in paper-grade
+> analysis, see `examples/single_agent/`.
+
 Standalone demonstration of **Full Cognitive Governance** (Group C) for flood adaptation agent-based modeling.  100 household agents make annual protective-action decisions using LLM reasoning governed by Protection Motivation Theory (PMT; Rogers, 1983; Grothmann & Reusswig, 2006).
 
 This experiment showcases the three pillars of the WAGF governance middleware in a nonstationary hydro-social system where agents face recurring flood events over a 10-year horizon.

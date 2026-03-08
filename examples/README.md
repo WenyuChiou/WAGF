@@ -1,8 +1,17 @@
 # Examples & Benchmarks
 
-**Language: [English](README.md) | [中文](README_zh.md)**
+**Language: [English](README.md) | [����](README_zh.md)**
 
-This directory contains reproduction scripts, experimental configurations, and benchmark results for the Water Agent Governance Framework.
+This directory contains four different kinds of assets:
+
+1. Tutorials for new users
+2. Templates for new ABM domains
+3. Water-sector reference experiments
+4. Archived or legacy materials
+
+WAGF is intended to be usable by ABM developers, but it is still a
+water-sector-first framework. The flood and irrigation examples remain the main
+reference implementations.
 
 ---
 
@@ -17,65 +26,78 @@ This directory contains reproduction scripts, experimental configurations, and b
 
 ## Which Example Should I Start With?
 
-| I want to... | Example | Time |
-| :--- | :--- | :--- |
-| See the core loop (no LLM needed) | `quickstart/01_barebone.py` | 30 sec |
-| See governance blocking invalid actions | `quickstart/02_governance.py` | 1 min |
-| Try multi-agent phase ordering (no LLM) | `multi_agent_simple/run.py` | 2 min |
-| Run a real flood simulation | `governed_flood/run_experiment.py` | 5 min |
-| Build my own domain from scratch | Copy `minimal/` as template | -- |
-| Reproduce the JOH paper (Groups A/B/C) | `single_agent/` | 2+ hrs |
-| Run irrigation water management | `irrigation_abm/` | 1+ hrs |
-| Run multi-agent flood with institutions | `multi_agent/flood/` | 4+ hrs |
+| I want to... | Example | Role | Time |
+| :--- | :--- | :--- | :--- |
+| See the core loop (no LLM needed) | `quickstart/01_barebone.py` | Tutorial | 30 sec |
+| See governance blocking invalid actions | `quickstart/02_governance.py` | Tutorial | 1 min |
+| Try multi-agent phase ordering (no LLM) | `multi_agent_simple/run.py` | Tutorial | 2 min |
+| Build my own domain from scratch | Copy `minimal/` as template | Template | -- |
+| See a generic non-water configuration | `minimal_nonwater/run_demo.py` | Template / reference | 1 min |
+| Run a compact flood simulation | `governed_flood/run_experiment.py` | Teaching demo | 5 min |
+| Reproduce the JOH paper (Groups A/B/C) | `single_agent/` | Water reference | 2+ hrs |
+| Run irrigation water management | `irrigation_abm/` | Water reference | 1+ hrs |
+| Run multi-agent flood with institutions | `multi_agent/flood/` | Water reference | 4+ hrs |
 
 ---
 
-## Learning Path (Recommended Order)
+## Learning Path
 
-![Example Progression](../docs/example_progression.png)
-
-**Groups A/B/C** refers to the ablation study design used in the JOH (_Journal of Hydrology_) benchmark:
-
-- **Group A** — Baseline: no governance, no memory (raw LLM output)
-- **Group B** — Governance + window memory (rational but no long-term memory)
-- **Group C** — Full cognitive: governance + HumanCentric memory + priority schema
-
-| # | Example | Complexity | What You Learn |
+| # | Example | Type | What You Learn |
 | :-- | :--- | :--- | :--- |
-| 0 | **[quickstart/](quickstart/)** | Tutorial | Core governance loop with mock LLM — no Ollama needed |
-| 1 | **[governed_flood/](governed_flood/)** | Beginner | Standalone Group C demo — governance + human-centric memory in action |
-| 2 | **[single_agent/](single_agent/)** | Intermediate | Full JOH Benchmark — Groups A/B/C ablation study, stress tests, survey mode |
-| 3 | **[irrigation_abm/](irrigation_abm/)** | Intermediate | Different domain — 78 CRSS agents, Colorado River Basin water demand |
-| 4 | **[multi_agent/flood/](multi_agent/flood/)** | Advanced | Social dynamics — insurance market, government subsidies, peer effects |
+| 0 | **[quickstart/](quickstart/)** | Tutorial | Core governance loop with mock LLM, no Ollama needed |
+| 1 | **[multi_agent_simple/](multi_agent_simple/)** | Tutorial | Small multi-agent teaching example with phase ordering |
+| 2 | **[minimal/](minimal/)** | Template | Copy this to start a new ABM domain |
+| 3 | **[governed_flood/](governed_flood/)** | Teaching demo | Compact flood-sector demo with full governance |
+| 4 | **[single_agent/](single_agent/)** | Water reference | Full JOH benchmark with Groups A/B/C, stress tests, and survey mode |
+| 5 | **[irrigation_abm/](irrigation_abm/)** | Water reference | Colorado River irrigation case with cognitive appraisal governance |
+| 6 | **[multi_agent/flood/](multi_agent/flood/)** | Water reference | Full multi-agent flood study with institutions and social effects |
 
 ---
 
 ## Directory Overview
 
-| Directory | Agents | Social | Governance | Memory | Status |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **[quickstart/](quickstart/)** | 1-7 | No | Demo | None/Window | Tutorial |
-| **[multi_agent_simple/](multi_agent_simple/)** | 7 | No | Basic | Window | Tutorial |
-| **[governed_flood/](governed_flood/)** | 100 | No | Strict only | HumanCentric | Active |
-| **[single_agent/](single_agent/)** | 100 | Optional | 3 profiles (strict/relaxed/disabled) | Configurable | Active |
-| **[irrigation_abm/](irrigation_abm/)** | 78 | No | 12 domain validators | Universal | Active |
-| **[multi_agent/flood/](multi_agent/flood/)** | 400 | Yes | Advanced | Universal | Active |
-| **[minimal/](minimal/)** | -- | -- | -- | -- | Template |
-| **[archive/](archive/)** | -- | -- | -- | -- | Archived |
+### Tutorials
 
-**Status legend**: Tutorial = no LLM required, mock-based | Active = production-ready, used in papers | Template = scaffold for new domains | Archived = deprecated, no longer maintained
+| Directory | Why it exists | Maintenance status |
+| :--- | :--- | :--- |
+| **[quickstart/](quickstart/)** | Teaches the core governance loop progressively | Maintained |
+| **[multi_agent_simple/](multi_agent_simple/)** | Teaches multi-agent phase ordering and cross-type governance with a tiny mock simulation | Maintained tutorial |
 
-**Note**: `quickstart/` and `multi_agent_simple/` form a 3-tier progressive tutorial (barebone → governance → multi-agent). `multi_agent_simple/` is Tier 3 of the quickstart series.
+### Templates
 
-**Note**: `archive/` contains deprecated examples (finance, ma_legacy, single_agent_modular, unified_flood) superseded by current implementations.
+| Directory | Why it exists | Maintenance status |
+| :--- | :--- | :--- |
+| **[minimal/](minimal/)** | Official starting scaffold for a new ABM domain | Maintained |
+| **[minimal_nonwater/](minimal_nonwater/)** | Small proof that the core is configurable beyond water | Secondary reference |
+
+### Water-Sector Reference Experiments
+
+| Directory | Why it exists | Maintenance status |
+| :--- | :--- | :--- |
+| **[governed_flood/](governed_flood/)** | Compact flood-sector teaching demo for full governance | Maintained demo |
+| **[single_agent/](single_agent/)** | Main single-agent flood validation suite for paper results | Primary reference |
+| **[irrigation_abm/](irrigation_abm/)** | Main irrigation water-management reference pack | Primary reference |
+| **[multi_agent/flood/](multi_agent/flood/)** | Main multi-agent flood reference pack | Primary reference |
+
+### Archive / Legacy
+
+| Directory | Why it exists | Maintenance status |
+| :--- | :--- | :--- |
+| **[archive/](archive/)** | Historical experiments and superseded implementations | Archived |
+
+`archive/` contains deprecated examples such as `finance`, `ma_legacy`,
+`single_agent_modular`, and `unified_flood`. They remain for provenance, not as
+recommended starting points.
 
 ---
 
 ## Quick Start
 
-### 1. Simplest: Governed Flood Demo
+### 1. Simplest Water Demo: Governed Flood
 
-The governed_flood example is a self-contained Group C experiment with full governance and human-centric memory. No configuration required.
+The governed_flood example is a compact teaching demo for the flood domain. It
+is useful for first contact with a real water-sector run, but it is not the
+main paper-grade validation suite.
 
 ```bash
 python examples/governed_flood/run_experiment.py --model gemma3:4b --years 3 --agents 10
@@ -99,7 +121,7 @@ python examples/single_agent/run_flood.py --model gemma3:4b --years 10 --agents 
     --memory-engine humancentric --governance-mode strict --use-priority-schema
 ```
 
-### 3. Multi-Agent: Social Dynamics
+### 3. Multi-Agent Water Reference
 
 Run a multi-agent flood experiment with household, government, and insurance agents:
 
@@ -115,28 +137,12 @@ Each experiment produces outputs in its `results/` directory. Common files:
 
 | File | Description |
 | :--- | :--- |
-| `simulation_log.csv` or `household_decisions.csv` | Per-agent, per-year decision log (action, appraisals, reasoning) |
-| `*_governance_audit.csv` | Governance audit trail (interventions, retries, warnings) |
+| `simulation_log.csv` or `household_decisions.csv` | Per-agent, per-year decision log |
+| `*_governance_audit.csv` | Governance audit trail |
 | `governance_summary.json` | Aggregate governance statistics |
 | `config_snapshot.yaml` | Full experiment configuration snapshot for reproducibility |
 
-**Note**: File names vary by example. Check each example's README for exact output file names.
-
----
-
-## Models
-
-All examples support Ollama-compatible models and cloud providers. Recommended models:
-
-| Model | Tag | Parameters | Notes |
-| :--- | :--- | :--- | :--- |
-| Gemma 3 | `gemma3:4b` | 4B | Primary benchmark — fast, good parsing |
-| Gemma 3 | `gemma3:12b` | 12B | Better reasoning, slower |
-| Gemma 3 | `gemma3:27b` | 27B | Best quality, requires significant VRAM |
-| Llama 3.2 | `llama3.2:3b` | 3B | Lightweight, parsing challenges |
-| DeepSeek R1 | `deepseek-r1:8b` | 8B | Chain-of-thought reasoning |
-
-Cloud providers: use `anthropic:model-name`, `openai:model-name`, or `gemini:model-name` with the `--model` flag.
+File names vary by example. Check each example's README for exact output names.
 
 ---
 
