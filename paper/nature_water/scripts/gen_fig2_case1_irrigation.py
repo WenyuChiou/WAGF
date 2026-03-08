@@ -464,7 +464,7 @@ def get_irrigation_action_legend_config():
     return {
         "use_figure_legend": True,
         "anchor_x": 0.62,
-        "anchor_y": 0.108,
+        "anchor_y": 0.088,
         "ncol": 2,
     }
 
