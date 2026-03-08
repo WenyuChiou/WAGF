@@ -444,3 +444,12 @@ Summary:
   - single-agent reference implementations: flood + irrigation
   - multi-agent reference implementations: flood
 - Kept all physical paths unchanged to avoid disruptive refactors.
+
+## Session BU - Single-Agent README Split
+
+Date: 2026-03-08
+
+Summary:
+- Split `examples/single_agent/README.md` into a developer-facing entry README and a preserved research-oriented README.
+- Saved the original long-form validation dossier as `examples/single_agent/README_research.md`.
+- Replaced the top-level single-agent README with a shorter entry surface focused on runtime files, config surface, scope boundary, and how ABM developers should approach the pack.

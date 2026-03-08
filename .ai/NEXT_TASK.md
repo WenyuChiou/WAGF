@@ -91,8 +91,8 @@ examples/single_agent/results/JOH_FINAL/_archive_Group_B/
   - `broker/components/events/generators/hazard.py`
   - `broker/components/events/generators/impact.py`
 - Example navigation has been simplified at the docs level, but the next structural cleanup is still:
-  - split `examples/single_agent/README.md` into developer-facing and research-facing versions
   - add config-surface READMEs for the three primary reference implementations
 - SA/MA wording is now aligned at the docs level:
   - SA references: `examples/single_agent/`, `examples/irrigation_abm/`
   - MA references: `examples/multi_agent/flood/`
+- `examples/single_agent/README.md` has now been split; the next documentation cleanup should focus on short config-surface READMEs.
