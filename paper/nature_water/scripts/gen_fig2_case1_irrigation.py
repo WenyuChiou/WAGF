@@ -463,9 +463,10 @@ def get_irrigation_colorbar_config():
 
 def get_irrigation_action_legend_config():
     return {
-        "use_figure_legend": True,
-        "anchor_x": 0.62,
-        "anchor_y": 0.088,
+        "use_figure_legend": False,
+        "target_axis_index": 1,
+        "loc": "lower right",
+        "bbox_to_anchor": (0.985, 0.10),
         "ncol": 2,
     }
 
@@ -898,10 +899,11 @@ def build_figure():
         mpatches.Patch(facecolor=PIE_ACTION_COLORS[a], label=PIE_ACTION_LABELS[a])
         for a in PIE_ACTION_ORDER
     ]
-    fig.legend(
+    legend_target_ax = [ax_b1, ax_b2][legend_cfg["target_axis_index"]]
+    legend_target_ax.legend(
         handles=pie_legend_handles,
-        loc='lower left',
-        bbox_to_anchor=(legend_cfg["anchor_x"], legend_cfg["anchor_y"]),
+        loc=legend_cfg["loc"],
+        bbox_to_anchor=legend_cfg["bbox_to_anchor"],
         ncol=legend_cfg["ncol"],
         fontsize=5.8,
         frameon=False,
@@ -909,6 +911,7 @@ def build_figure():
         handletextpad=0.25,
         columnspacing=0.40,
         labelspacing=0.16,
+        borderaxespad=0.0,
     )
 
     label_kw = dict(fontsize=8, fontweight='bold', va='top', ha='left',
