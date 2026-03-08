@@ -125,7 +125,7 @@ def run_unified_experiment():
     parser.add_argument("--model", type=str, default="gpt-oss:latest", help="LLM model")
     parser.add_argument("--agents", type=int, default=10, help="Number of household agents (random mode only)")
     parser.add_argument("--years", type=int, default=10, help="Simulation years")
-    parser.add_argument("--output", type=str, default="examples/multi_agent/results_unified")
+    parser.add_argument("--output", type=str, default="examples/multi_agent/flood/results_unified")
     parser.add_argument("--verbose", action="store_true", help="Enable verbose LLM output")
     parser.add_argument("--memory-engine", type=str, default="humancentric",
                         choices=["window", "humancentric", "hierarchical", "universal"],
