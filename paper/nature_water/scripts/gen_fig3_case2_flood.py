@@ -432,6 +432,16 @@ def draw_panel_a(axes, data: dict):
         bar_w = 0.75
         bottom = np.zeros(len(years))
 
+        for year_idx, year in enumerate(years):
+            if year in get_flood_years():
+                ax.axvspan(
+                    x[year_idx] - 0.36,
+                    x[year_idx] + 0.36,
+                    color=get_flood_year_marker_style()["span_color"],
+                    alpha=get_flood_year_marker_style()["span_alpha"],
+                    zorder=1,
+                )
+
         for state in PROT_STATES:
             vals = mean_c[state].values
 
@@ -461,6 +471,22 @@ def draw_panel_a(axes, data: dict):
 
         ax.set_ylim(0, 105)
         ax.yaxis.set_major_locator(ticker.MultipleLocator(20))
+
+        marker_style = get_flood_year_marker_style()
+        for year_idx, year in enumerate(years):
+            if year in get_flood_years():
+                ax.text(
+                    x[year_idx],
+                    marker_style["y"],
+                    marker_style["label"],
+                    ha='center',
+                    va='center',
+                    fontsize=marker_style["fontsize"],
+                    color=marker_style["color"],
+                    fontweight=marker_style["fontweight"],
+                    bbox=marker_style["bbox"],
+                    zorder=5,
+                )
 
     # Legend inside first panel (axes[0]) — abbreviated, compact
     handles_leg = [
@@ -496,6 +522,32 @@ def get_panel_a_configs():
         ('rulebased', 'Rule-based',          PMT_COLOR),
         ('disabled',  'LLM (no validator)',  UNGOV_COLOR),
     ]
+
+
+def get_flood_years():
+    return [3, 4, 9]
+
+
+def get_flood_year_spans():
+    return [(2.5, 4.5), (8.5, 9.5)]
+
+
+def get_flood_year_marker_style():
+    return {
+        'label': 'F',
+        'y': 104,
+        'fontsize': BASE_FONT - 0.2,
+        'color': '#D94B4B',
+        'fontweight': 'bold',
+        'span_color': '#F5DADA',
+        'span_alpha': 0.42,
+        'bbox': {
+            'boxstyle': 'round,pad=0.22,rounding_size=0.03',
+            'facecolor': '#F9EFEF',
+            'edgecolor': '#EBCACA',
+            'linewidth': 0.8,
+        },
+    }
 
 
 def get_panel_a_legend_config():
@@ -977,7 +1029,7 @@ def draw_panel_b(axes_b, data: dict):
             yticks = np.arange(0, y_max + 1, 20)
 
         # Flood event shading
-        for fy_start, fy_end in [(2.5, 4.5), (8.5, 9.5)]:
+        for fy_start, fy_end in get_flood_year_spans():
             ax.axvspan(fy_start, fy_end, color='#E8EEF4', alpha=0.8, zorder=0)
 
         # Horizontal gridlines

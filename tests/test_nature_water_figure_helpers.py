@@ -101,6 +101,18 @@ def test_flood_panel_a_legend_is_top_right_of_first_subplot():
     assert cfg["loc"] == "upper right"
 
 
+def test_flood_year_markers_use_years_3_4_9():
+    repo = Path(__file__).resolve().parents[1]
+    path = repo / "paper" / "nature_water" / "scripts" / "gen_fig3_case2_flood.py"
+    spec = importlib.util.spec_from_file_location("nw_fig3_flood", path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+
+    assert module.get_flood_years() == [3, 4, 9]
+    assert module.get_flood_year_spans() == [(2.5, 4.5), (8.5, 9.5)]
+
+
 def test_irrigation_fig2_bottom_row_uses_two_pie_panels():
     mod = _load_irrigation_fig_module()
 
