@@ -406,3 +406,20 @@ Summary:
 
 Artifact:
 - `docs/plans/2026-03-08-systematic-design-audit.md`
+
+## Session BR - Core Example Decoupling Phase 1
+
+Date: 2026-03-08
+
+Summary:
+- Started the first low-risk decoupling pass to reduce direct `broker/ -> examples/` runtime imports without changing reference implementation behavior.
+- Moved water-domain validator dispatch behind `broker/domains/water/validator_bundles.py`.
+- Removed the optional MA example re-export import from `broker/interfaces/artifacts.py` and kept a stable broker-facing fallback artifact surface.
+- Added regression tests to lock these boundaries before further decoupling.
+
+Verification:
+- `python -m pytest tests/test_domain_validator_dispatch.py tests/test_irrigation_env.py -q`
+- `python -m pytest tests/test_artifact_fallbacks.py tests/test_artifacts.py tests/test_cross_agent_validation.py tests/test_058_integration.py -q`
+- `python -c "import examples.single_agent.run_flood as m; print('single_agent import ok')"`
+- `python -c "import examples.irrigation_abm.run_experiment as m; print('irrigation import ok')"`
+- `python -c "import importlib.util, pathlib; p=pathlib.Path('examples/multi_agent/flood/run_unified_experiment.py'); spec=importlib.util.spec_from_file_location('maflood', p); m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m); print('ma flood import ok')"`
