@@ -394,3 +394,15 @@ Summary:
 
 Artifact:
 - `docs/plans/2026-03-07-water-sector-positioning-plan.md`
+
+## Session BQ - Systematic Design Audit
+
+Date: 2026-03-08
+
+Summary:
+- Completed a systematic design audit across the core broker, water-domain theory registration, and the three primary water-sector reference implementations.
+- Confirmed that WAGF's main architectural strength is the separation between reusable governance core, theory/domain metadata, and runnable reference implementations.
+- Identified the main remaining design risks as residual `broker/ -> examples/` runtime coupling, research-heavy entry runners, and inconsistent developer-facing surfaces.
+
+Artifact:
+- `docs/plans/2026-03-08-systematic-design-audit.md`

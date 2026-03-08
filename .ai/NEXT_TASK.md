@@ -75,3 +75,12 @@ examples/single_agent/results/JOH_FINAL/_archive_Group_B/
 - Suggested continuation path:
   - paper-first hardening on naming, repo boundaries, and framework-facing docs
   - keep WAGF positioned as water-sector-first, with non-water use described only as a secondary extension path
+
+## 2026-03-08 - Design Audit Follow-Up
+
+- Use `docs/plans/2026-03-08-systematic-design-audit.md` as the current high-level architecture baseline.
+- Highest-priority technical cleanup:
+  - reduce runtime imports from `broker/` into `examples/`
+  - split `examples/single_agent/README.md` into developer-facing and research-facing versions
+  - add short config-surface READMEs for primary reference implementations
+- Keep water-sector-first positioning intact while improving ABM developer onboarding.
