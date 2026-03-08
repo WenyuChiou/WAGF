@@ -398,7 +398,7 @@ def compute_pie_matrix(audit_df):
 
 def get_irrigation_pie_panel_configs():
     return [
-        {"key": "gov", "title": "Governed LLM", "title_color": C_GOV, "show_ylabel": True, "show_legend": True},
+        {"key": "gov", "title": "Governed LLM", "title_color": C_GOV, "show_ylabel": True, "show_legend": False},
         {"key": "disabled", "title": "Governed LLM (no validator)", "title_color": C_UNGOV, "show_ylabel": False, "show_legend": False},
     ]
 
@@ -457,6 +457,15 @@ def get_irrigation_colorbar_config():
         "pad": 0.006,
         "height_ratio": 0.9,
         "y_offset_ratio": 0.05,
+    }
+
+
+def get_irrigation_action_legend_config():
+    return {
+        "use_figure_legend": True,
+        "anchor_x": 0.5,
+        "anchor_y": 0.07,
+        "ncol": 5,
     }
 
 
@@ -621,24 +630,6 @@ def draw_irrigation_pie_grid(
         ax_bg.plot([cx, cx], [bot_margin, 1.0 - top_margin],
                    color='#CCCCCC', linewidth=0.4,
                    transform=ax_bg.transAxes, zorder=0)
-
-    if show_legend:
-        pie_legend_handles = [
-            mpatches.Patch(facecolor=PIE_ACTION_COLORS[a], label=PIE_ACTION_LABELS[a])
-            for a in PIE_ACTION_ORDER
-        ]
-        ax_bg.legend(
-            handles=pie_legend_handles,
-            loc='lower center',
-            bbox_to_anchor=(left_margin + (1.0 - left_margin - right_margin) / 2, -0.18),
-            ncol=5,
-            fontsize=6.5,
-            frameon=False,
-            handlelength=0.9,
-            handletextpad=0.3,
-            columnspacing=0.5,
-        )
-
 
 # ---------------------------------------------------------------------------
 # Panel D helpers
@@ -901,6 +892,23 @@ def build_figure():
     cb = ColorbarBase(ax_cb, cmap=viol_cmap, norm=viol_norm, orientation=cb_cfg["orientation"])
     cb.set_label(cb_cfg["label"], fontsize=7.0, labelpad=2)
     cb.ax.tick_params(labelsize=6.5)
+
+    legend_cfg = get_irrigation_action_legend_config()
+    pie_legend_handles = [
+        mpatches.Patch(facecolor=PIE_ACTION_COLORS[a], label=PIE_ACTION_LABELS[a])
+        for a in PIE_ACTION_ORDER
+    ]
+    fig.legend(
+        handles=pie_legend_handles,
+        loc='lower center',
+        bbox_to_anchor=(legend_cfg["anchor_x"], legend_cfg["anchor_y"]),
+        ncol=legend_cfg["ncol"],
+        fontsize=6.5,
+        frameon=False,
+        handlelength=0.9,
+        handletextpad=0.3,
+        columnspacing=0.5,
+    )
 
     label_kw = dict(fontsize=8, fontweight='bold', va='top', ha='left',
                     transform=fig.transFigure)

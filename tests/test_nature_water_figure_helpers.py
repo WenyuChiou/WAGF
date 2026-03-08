@@ -161,3 +161,12 @@ def test_irrigation_violation_badges_use_figure_overlay():
 
     assert cfg["use_figure_overlay"] is True
     assert cfg["x_ratio"] >= 0.94
+
+
+def test_irrigation_action_legend_is_shared_between_two_panels():
+    mod = _load_irrigation_fig_module()
+
+    cfg = mod.get_irrigation_action_legend_config()
+
+    assert cfg["use_figure_legend"] is True
+    assert cfg["anchor_x"] == 0.5
