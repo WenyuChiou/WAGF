@@ -463,8 +463,8 @@ def get_irrigation_colorbar_config():
 def get_irrigation_action_legend_config():
     return {
         "use_figure_legend": True,
-        "anchor_x": 0.70,
-        "anchor_y": 0.135,
+        "anchor_x": 0.745,
+        "anchor_y": 0.118,
         "ncol": 2,
     }
 
@@ -903,12 +903,12 @@ def build_figure():
         loc='upper center',
         bbox_to_anchor=(legend_cfg["anchor_x"], legend_cfg["anchor_y"]),
         ncol=legend_cfg["ncol"],
-        fontsize=6.5,
+        fontsize=6.0,
         frameon=False,
-        handlelength=0.9,
+        handlelength=0.8,
         handletextpad=0.3,
-        columnspacing=0.5,
-        labelspacing=0.25,
+        columnspacing=0.45,
+        labelspacing=0.18,
     )
 
     label_kw = dict(fontsize=8, fontweight='bold', va='top', ha='left',
