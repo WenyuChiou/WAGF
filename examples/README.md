@@ -32,9 +32,9 @@ Most users should only look at five entry points:
 | :--- | :--- | :--- |
 | Understand the broker loop in minutes | `quickstart/` | Tutorial |
 | Start a new domain | `minimal/` | Template |
-| Study the main single-agent flood case | `single_agent/` | Primary reference |
-| Study the irrigation case | `irrigation_abm/` | Primary reference |
-| Study the institutional multi-agent flood case | `multi_agent/flood/` | Primary reference |
+| Study the main single-agent flood case | `single_agent/` | Primary SA reference |
+| Study the single-agent irrigation case | `irrigation_abm/` | Primary SA reference |
+| Study the institutional multi-agent flood case | `multi_agent/flood/` | Primary MA reference |
 
 Everything else in `examples/` is secondary teaching support, a compact demo, or historical/archive material.
 
@@ -46,9 +46,9 @@ Everything else in `examples/` is secondary teaching support, a compact demo, or
 | :-- | :--- | :--- | :--- |
 | 0 | **[quickstart/](quickstart/)** | Tutorial | Core governance loop with mock LLM, no Ollama needed |
 | 1 | **[minimal/](minimal/)** | Template | Copy this to start a new ABM domain |
-| 2 | **[single_agent/](single_agent/)** | Water reference | Full single-agent flood benchmark |
-| 3 | **[irrigation_abm/](irrigation_abm/)** | Water reference | Colorado River irrigation case |
-| 4 | **[multi_agent/flood/](multi_agent/flood/)** | Water reference | Institutional multi-agent flood study |
+| 2 | **[single_agent/](single_agent/)** | SA water reference | Full single-agent flood benchmark |
+| 3 | **[irrigation_abm/](irrigation_abm/)** | SA water reference | Colorado River irrigation case |
+| 4 | **[multi_agent/flood/](multi_agent/flood/)** | MA water reference | Institutional multi-agent flood study |
 | 5 | **[governed_flood/](governed_flood/)** | Teaching demo | Compact flood-sector demo |
 | 6 | **[multi_agent_simple/](multi_agent_simple/)** | Tutorial | Tiny phase-ordering example |
 | 7 | **[minimal_nonwater/](minimal_nonwater/)** | Secondary reference | Small proof of non-water configurability |
@@ -59,10 +59,17 @@ Everything else in `examples/` is secondary teaching support, a compact demo, or
 
 ### Primary Water-Sector Reference Implementations
 
+#### Single-Agent Reference Implementations
+
 | Directory | Why it exists | Maintenance status |
 | :--- | :--- | :--- |
 | **[single_agent/](single_agent/)** | Main single-agent flood validation suite for paper results | Primary reference |
-| **[irrigation_abm/](irrigation_abm/)** | Main irrigation water-management reference implementation | Primary reference |
+| **[irrigation_abm/](irrigation_abm/)** | Main single-agent irrigation water-management reference implementation | Primary reference |
+
+#### Multi-Agent Reference Implementations
+
+| Directory | Why it exists | Maintenance status |
+| :--- | :--- | :--- |
 | **[multi_agent/flood/](multi_agent/flood/)** | Main multi-agent flood reference implementation | Primary reference |
 
 ### Tutorials and Templates
