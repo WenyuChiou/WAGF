@@ -259,16 +259,20 @@ runner.run()
 
 ## Examples
 
-| Example | Description | Link |
+Start with these five surfaces:
+
+| Surface | Description | Link |
 |:---|:---|:---|
-| **Quickstart** | Progressive tutorial (mock LLM and governance rules) | [Go](examples/quickstart/) |
+| **Quickstart** | Progressive tutorial for the broker loop | [Go](examples/quickstart/) |
 | **Minimal Template** | Official scaffold for a new ABM domain | [Go](examples/minimal/) |
-| **Minimal Non-Water** | Secondary reference showing a non-water configuration | [Go](examples/minimal_nonwater/) |
-| **Multi-Agent Simple** | Small teaching example for phase ordering and cross-type governance | [Go](examples/multi_agent_simple/) |
-| **Governed Flood** | Compact flood-sector teaching demo with full governance | [Go](examples/governed_flood/) |
-| **Single-Agent Benchmark** | Primary single-agent flood reference and paper benchmark | [Go](examples/single_agent/) |
-| **Irrigation ABM** | Primary irrigation water-management reference pack | [Go](examples/irrigation_abm/) |
-| **Multi-Agent Flood** | Primary multi-agent flood reference pack | [Go](examples/multi_agent/flood/) |
+| **Single-Agent Flood** | Primary single-agent flood reference implementation | [Go](examples/single_agent/) |
+| **Irrigation ABM** | Primary irrigation water-management reference implementation | [Go](examples/irrigation_abm/) |
+| **Multi-Agent Flood** | Primary multi-agent flood reference implementation | [Go](examples/multi_agent/flood/) |
+
+Secondary examples such as `governed_flood/`, `multi_agent_simple/`, and
+`minimal_nonwater/` remain useful, but they are teaching/demo surfaces rather
+than the main reference implementations. See [examples/README.md](examples/README.md)
+for the full map.
 
 ---
 

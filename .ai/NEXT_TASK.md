@@ -90,3 +90,6 @@ examples/single_agent/results/JOH_FINAL/_archive_Group_B/
 - Next decoupling candidates:
   - `broker/components/events/generators/hazard.py`
   - `broker/components/events/generators/impact.py`
+- Example navigation has been simplified at the docs level, but the next structural cleanup is still:
+  - split `examples/single_agent/README.md` into developer-facing and research-facing versions
+  - add config-surface READMEs for the three primary reference implementations

@@ -423,3 +423,13 @@ Verification:
 - `python -c "import examples.single_agent.run_flood as m; print('single_agent import ok')"`
 - `python -c "import examples.irrigation_abm.run_experiment as m; print('irrigation import ok')"`
 - `python -c "import importlib.util, pathlib; p=pathlib.Path('examples/multi_agent/flood/run_unified_experiment.py'); spec=importlib.util.spec_from_file_location('maflood', p); m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m); print('ma flood import ok')"`
+
+## Session BS - Example Navigation Simplification
+
+Date: 2026-03-08
+
+Summary:
+- Simplified the `examples/` navigation so ABM developers see the main entry surfaces first instead of treating all examples as equally important.
+- Repositioned `single_agent/`, `irrigation_abm/`, and `multi_agent/flood/` as the primary water-sector reference implementations.
+- Kept `governed_flood/`, `multi_agent_simple/`, and `minimal_nonwater/` visible, but clearly marked them as secondary teaching/demo surfaces.
+- Updated the quickstart/customization docs so `examples/minimal/` is again the official template rather than the compact flood demo.
