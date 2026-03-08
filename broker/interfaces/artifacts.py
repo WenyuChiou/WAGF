@@ -166,37 +166,29 @@ except ImportError:
     pass  # coordination module not yet available; will populate on first use
 
 
-# --- Optional re-exports for domain artifacts (test convenience) ---
-# Some test modules import PolicyArtifact/MarketArtifact/HouseholdIntention
-# directly from broker.interfaces.artifacts. Re-export if available.
-try:
-    from examples.multi_agent.flood.protocols.artifacts import (  # type: ignore
-        PolicyArtifact,
-        MarketArtifact,
-        HouseholdIntention,
-    )
-except Exception:
-    # Keep imports optional to avoid hard dependency on example modules.
-    class _FallbackArtifact(AgentArtifact):
-        """Fallback artifact placeholder when domain artifacts are unavailable."""
+# Stable broker-facing fallbacks. Domain implementations may subclass
+# AgentArtifact separately, but the broker should not import example code here.
+class _FallbackArtifact(AgentArtifact):
+    """Fallback artifact placeholder for broker-facing tests and routing."""
 
-        def __init__(self, **kwargs: Any) -> None:
-            agent_id = kwargs.pop("agent_id", "")
-            year = kwargs.pop("year", 0)
-            rationale = kwargs.pop("rationale", "")
-            super().__init__(agent_id=agent_id, year=year, rationale=rationale)
-            for key, value in kwargs.items():
-                setattr(self, key, value)
+    def __init__(self, **kwargs: Any) -> None:
+        agent_id = kwargs.pop("agent_id", "")
+        year = kwargs.pop("year", 0)
+        rationale = kwargs.pop("rationale", "")
+        super().__init__(agent_id=agent_id, year=year, rationale=rationale)
+        for key, value in kwargs.items():
+            setattr(self, key, value)
 
-        def artifact_type(self) -> str:
-            return self.__class__.__name__
+    def artifact_type(self) -> str:
+        return self.__class__.__name__
 
-        def validate(self) -> List[str]:
-            return []
+    def validate(self) -> List[str]:
+        return []
 
-    PolicyArtifact = type("PolicyArtifact", (_FallbackArtifact,), {})  # type: ignore
-    MarketArtifact = type("MarketArtifact", (_FallbackArtifact,), {})  # type: ignore
-    HouseholdIntention = type("HouseholdIntention", (_FallbackArtifact,), {})  # type: ignore
+
+PolicyArtifact = type("PolicyArtifact", (_FallbackArtifact,), {})  # type: ignore
+MarketArtifact = type("MarketArtifact", (_FallbackArtifact,), {})  # type: ignore
+HouseholdIntention = type("HouseholdIntention", (_FallbackArtifact,), {})  # type: ignore
 
 
 __all__ = [

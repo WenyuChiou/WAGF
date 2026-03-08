@@ -80,7 +80,13 @@ examples/single_agent/results/JOH_FINAL/_archive_Group_B/
 
 - Use `docs/plans/2026-03-08-systematic-design-audit.md` as the current high-level architecture baseline.
 - Highest-priority technical cleanup:
-  - reduce runtime imports from `broker/` into `examples/`
+  - continue reducing runtime imports from `broker/` into `examples/`
   - split `examples/single_agent/README.md` into developer-facing and research-facing versions
   - add short config-surface READMEs for primary reference implementations
 - Keep water-sector-first positioning intact while improving ABM developer onboarding.
+- Phase 1 completed:
+  - validator dispatch moved behind `broker/domains/water/validator_bundles.py`
+  - `broker/interfaces/artifacts.py` no longer re-exports MA example artifacts via import
+- Next decoupling candidates:
+  - `broker/components/events/generators/hazard.py`
+  - `broker/components/events/generators/impact.py`
