@@ -463,8 +463,8 @@ def get_irrigation_colorbar_config():
 def get_irrigation_action_legend_config():
     return {
         "use_figure_legend": True,
-        "anchor_x": 0.82,
-        "anchor_y": 0.88,
+        "anchor_x": 0.53,
+        "anchor_y": 0.165,
         "ncol": 2,
     }
 
@@ -900,7 +900,7 @@ def build_figure():
     ]
     fig.legend(
         handles=pie_legend_handles,
-        loc='upper right',
+        loc='upper center',
         bbox_to_anchor=(legend_cfg["anchor_x"], legend_cfg["anchor_y"]),
         ncol=legend_cfg["ncol"],
         fontsize=6.5,
