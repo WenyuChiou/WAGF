@@ -96,3 +96,10 @@ examples/single_agent/results/JOH_FINAL/_archive_Group_B/
   - SA references: `examples/single_agent/`, `examples/irrigation_abm/`
   - MA references: `examples/multi_agent/flood/`
 - `examples/single_agent/README.md` has now been split; the next documentation cleanup should focus on short config-surface READMEs.
+- Config-surface READMEs have now been added for:
+  - `examples/single_agent/config/`
+  - `examples/irrigation_abm/config/`
+  - `examples/multi_agent/flood/config/`
+- Next likely cleanup:
+  - review `hazard.py` / `impact.py` for documentation-only vs runtime coupling
+  - decide whether `examples/irrigation_abm/README.md` also needs a developer/research split

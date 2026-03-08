@@ -453,3 +453,15 @@ Summary:
 - Split `examples/single_agent/README.md` into a developer-facing entry README and a preserved research-oriented README.
 - Saved the original long-form validation dossier as `examples/single_agent/README_research.md`.
 - Replaced the top-level single-agent README with a shorter entry surface focused on runtime files, config surface, scope boundary, and how ABM developers should approach the pack.
+
+## Session BV - Config Surface READMEs
+
+Date: 2026-03-08
+
+Summary:
+- Added short config-surface READMEs for the three primary reference implementations.
+- Standardized each config README around the same questions:
+  - which files to read first
+  - which files to change first
+  - which files are advanced surfaces
+- Kept the existing directory layouts unchanged; the READMEs explain the current surfaces rather than forcing the cases into one identical structure.
