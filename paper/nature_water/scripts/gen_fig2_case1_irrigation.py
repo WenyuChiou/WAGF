@@ -466,8 +466,18 @@ def get_irrigation_action_legend_config():
         "use_figure_legend": False,
         "target_axis_index": 1,
         "loc": "lower right",
-        "bbox_to_anchor": (0.985, 0.10),
+        "bbox_to_anchor": (0.985, 0.07),
         "ncol": 2,
+    }
+
+
+def get_irrigation_count_note_config():
+    return {
+        "text": "Numbers inside pies denote annual decisions (seed 42), not households.",
+        "x": 0.50,
+        "y": 0.465,
+        "fontsize": 6.2,
+        "color": "#666666",
     }
 
 
@@ -546,9 +556,9 @@ def draw_irrigation_pie_grid(
                 ax_bg.add_patch(rect)
 
             if n == 0:
-                ax_bg.text(cx_ax, cell_bottom, "n=0",
+                ax_bg.text(cx_ax, cell_bottom, "0 decisions",
                            ha='center', va='bottom',
-                           fontsize=6.0, color='#999999',
+                           fontsize=5.3, color='#999999',
                            transform=ax_bg.transAxes)
                 continue
 
@@ -912,6 +922,17 @@ def build_figure():
         columnspacing=0.40,
         labelspacing=0.16,
         borderaxespad=0.0,
+    )
+
+    note_cfg = get_irrigation_count_note_config()
+    fig.text(
+        note_cfg["x"],
+        note_cfg["y"],
+        note_cfg["text"],
+        ha='center',
+        va='center',
+        fontsize=note_cfg["fontsize"],
+        color=note_cfg["color"],
     )
 
     label_kw = dict(fontsize=8, fontweight='bold', va='top', ha='left',

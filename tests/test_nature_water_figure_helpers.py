@@ -197,4 +197,14 @@ def test_irrigation_action_legend_is_shared_between_two_panels():
     assert cfg["use_figure_legend"] is False
     assert cfg["target_axis_index"] == 1
     assert cfg["loc"] == "lower right"
+    assert cfg["bbox_to_anchor"][1] < 0.10
     assert cfg["ncol"] == 2
+
+
+def test_irrigation_panel_b_note_clarifies_counts_are_decisions():
+    mod = _load_irrigation_fig_module()
+
+    cfg = mod.get_irrigation_count_note_config()
+
+    assert "decisions" in cfg["text"].lower()
+    assert "households" in cfg["text"].lower()
