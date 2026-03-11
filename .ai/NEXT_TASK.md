@@ -37,6 +37,15 @@
   - social information contribution
 - Memory remains part of architecture but is **not** a primary ablation/RQ
 - Use `si2_exogenous_institutions` and `si3*` social ablations as main mechanism contrasts
+- Interpret the balanced population as 4 groups:
+  - MG homeowner
+  - MG renter
+  - NMG homeowner
+  - NMG renter
+- Working RQs:
+  1. flood adaptation inequalities across marginalized/non-marginalized homeowners and renters
+  2. endogenous institutional feedback contribution
+  3. social information contribution across homeowner/renter groups
 
 ## Data Path Reference
 ```
