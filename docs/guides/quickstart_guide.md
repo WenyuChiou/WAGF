@@ -17,7 +17,7 @@ python examples/quickstart/01_barebone.py
 **What you'll see:**
 
 ```
-WAGF Quickstart ??Barebone Decision Loop
+WAGF Quickstart - Barebone Decision Loop
 ========================================
 --- Year 1 ---
   Agent_1: take_action (APPROVED)
@@ -49,7 +49,7 @@ python examples/quickstart/02_governance.py
 **What you'll see:**
 
 ```
-WAGF Quickstart ??Governance in Action
+WAGF Quickstart - Governance in Action
 ========================================
 --- Year 1 --- (protected=False)
   Agent_1: take_action (APPROVED)
@@ -85,10 +85,10 @@ python examples/governed_flood/run_experiment.py --model gemma3:4b --years 5
 
 **To build your own domain**, copy `examples/minimal/` as the official template:
 
-- `run_experiment.py` ??ExperimentBuilder setup
-- `adapters/` ??Domain-specific output parsing
-- `validators/` ??Domain-specific governance rules
-- `config/` ??Agent types and skill definitions (YAML)
+- `run_experiment.py` - ExperimentBuilder setup
+- `adapters/` - Domain-specific output parsing
+- `validators/` - Domain-specific governance rules
+- `config/` - Agent types and skill definitions (YAML)
 
 **Source:** `examples/minimal/` (official starter scaffold)
 
