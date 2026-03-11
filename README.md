@@ -11,7 +11,7 @@
 [![Tests: 1776+](https://img.shields.io/badge/tests-1776%2B_passing-brightgreen.svg)]()
 [![Ollama](https://img.shields.io/badge/Ollama-Local_Inference-000000?style=flat&logo=ollama&logoColor=white)](https://ollama.com/)
 
-[**English**](README.md) | [**蝜蕭?銝哨蕭?**](README_zh.md)
+[**English**](README.md) | [**Chinese**](README_zh.md)
 
 </div>
 
