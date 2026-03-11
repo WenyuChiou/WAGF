@@ -106,3 +106,9 @@ Summary:
 - Recommended secondary axis: social information contribution
 - Explicitly excluded memory ablation as a primary RQ due to defense burden
 - Added formal plan: `docs/plans/2026-03-10-paper3-ma-flood-rq-plan.md`
+- Clarified that the balanced 4-cell design must remain visible in the RQs:
+  - MG homeowner
+  - MG renter
+  - NMG homeowner
+  - NMG renter
+- Refined working RQ wording to include homeowner/renter structure rather than MG/NMG only
