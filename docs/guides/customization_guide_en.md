@@ -1,4 +1,4 @@
-# Customization Guide ??Water Agent Governance Framework
+# Customization Guide - Water Agent Governance Framework
 
 ## Overview
 
@@ -20,7 +20,7 @@ def my_physical_check(
     rules: List[GovernanceRule],
     context: Dict[str, Any],
 ) -> List[ValidationResult]:
-    """Physical constraint check ??block increase when at capacity."""
+    """Physical constraint check - block increase when at capacity."""
     if skill_name != "increase_demand":
         return []
     if not context.get("at_cap", False):
@@ -28,7 +28,7 @@ def my_physical_check(
     return [ValidationResult(
         valid=False,                  # ERROR = block and retry
         validator_name="DomainPhysicalValidator",
-        errors=["At maximum capacity ??cannot increase demand."],
+        errors=["At maximum capacity - cannot increase demand."],
         warnings=[],
         metadata={"rule_id": "capacity_cap_check", "level": "ERROR"},
     )]
@@ -288,9 +288,9 @@ identity_rules:
 ### Rule Evaluation Order
 
 ```text
-1. Identity Rules    ??Physical state constraints (always evaluated first)
-2. Thinking Rules    ??Appraisal coherence (in YAML order)
-3. Domain Validators ??Custom checks (physical, social, semantic)
+1. Identity Rules    - Physical state constraints (always evaluated first)
+2. Thinking Rules    - Appraisal coherence (in YAML order)
+3. Domain Validators - Custom checks (physical, social, semantic)
 ```
 
 The first ERROR-level violation stops evaluation and triggers a re-prompt (up to 3 governance retries).
@@ -379,13 +379,13 @@ runner.hooks = {
 2. Add the skill's state field to your agent's `state_params`
 3. Update the prompt template to list the new action
 4. Implement `execute_skill()` handling in your environment
-5. Test: run 1 agent, 1 year ??verify skill appears in audit trace
+5. Test: run 1 agent, 1 year - verify skill appears in audit trace
 
 ### Recipe 2: Add a Governance Rule (3 steps)
 
 1. Add the rule to `agent_types.yaml` under `governance.strict.thinking_rules`
 2. Choose severity: `ERROR` (blocks action) or `WARNING` (logs only)
-3. Test: create a scenario where the rule should trigger ??verify in audit trace
+3. Test: create a scenario where the rule should trigger - verify in audit trace
 
 ### Recipe 3: Switch Memory Engines (2 steps)
 
@@ -397,7 +397,7 @@ runner.hooks = {
 1. Write a check function following the `BuiltinCheck` signature (see Section 1)
 2. Create a bridge function that aggregates your checks
 3. Register via `builder.with_custom_validators([bridge_fn])`
-4. Test: create a scenario where validation should fail ??verify ERROR in audit trace
+4. Test: create a scenario where validation should fail - verify ERROR in audit trace
 
 ---
 
