@@ -1,6 +1,6 @@
 # Examples & Benchmarks
 
-**Language: [English](README.md) | [¤¤¤å](README_zh.md)**
+**Language: [English](README.md) | [Chinese](README_zh.md)**
 
 This directory contains four kinds of assets:
 
