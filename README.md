@@ -293,7 +293,7 @@ If you use WAGF in your research, please cite:
 ```bibtex
 @article{wagf2026,
   title={Water Agent Governance Framework: Governing LLM-Driven Agent-Based Models for Water Resources},
-  author={Chen, Wen-Yuan and Yang, Y. C. Ethan},
+  author={Chiou, Wenyu and Yang, Y. C. Ethan},
   year={2026},
   note={Manuscript in preparation}
 }
