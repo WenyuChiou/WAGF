@@ -5,44 +5,95 @@ for the Passaic River Basin communities.
 
 ### BUDGET STATUS
 - Annual Budget: ${govt_budget_remaining:,.0f} remaining ({govt_budget_pct:.0f}% of $500K)
-- Each subsidy increase costs approximately $25,000 in expanded commitments.
+- Budget Health: **{budget_health_label}**
+- Each large subsidy increase (+5%) costs approximately $25,000 in expanded commitments.
+- Each small subsidy increase (+2.5%) costs approximately $12,500.
 
-### COMMUNITY STATUS
-- Year: {year}
-- Current Subsidy Rate: {subsidy_rate:.0%}
+### SUSTAINABILITY
+- Program duration: 13 years. You are in Year {year}. Years remaining: {years_remaining}.
+- Estimated annual cost at current subsidy: ~${annual_subsidy_cost:,}/year
+- Projected years until budget depletion: {years_to_depletion}
+- IMPORTANT: If the budget depletes, ALL subsidies drop to the 20% floor for the
+  remaining program years. This would abruptly withdraw support from all communities
+  at a critical time.
+
+### SITUATION ASSESSMENT
+- Current Subsidy Rate: {subsidy_rate:.0%} — **{subsidy_level_label}**
 - Flood Status: {flood_this_year_text}
-- Flood Severity: {flood_severity} (SEVERE = major event, MODERATE = routine, NONE = dry year)
+- Flood Urgency: **{flood_urgency_label}**
 - Flood Years (cumulative): {flood_years_count} out of {year} years
 - Years Since Last Severe Flood: {years_since_severe_flood}
-- Elevated Households: {elevated_count} of {total_households} ({elevated_pct:.1f}%)
-  - Marginalized (MG): {mg_elevated_count} ({mg_elevated_pct:.1f}%)
-  - Non-Marginalized (NMG): {nmg_elevated_count} ({nmg_elevated_pct:.1f}%)
-- MG Households: {mg_count} ({mg_ratio:.0%} of community)
+- Adaptation Progress (MG): **{adaptation_progress_label}** — {mg_elevated_count} of MG households elevated ({mg_elevated_pct:.1f}%)
+- NMG Elevated: {nmg_elevated_count} ({nmg_elevated_pct:.1f}%)
+- Equity Gap (NMG vs MG): **{equity_gap_label}**
+- Total Households: {total_households}
 
 ### POLICY HISTORY
 - Last Decision: {govt_last_decision}
 - Consecutive Increases: {govt_consecutive_increases}
+- Policy Momentum: **{policy_momentum_label}**
 
-### DECISION RULES
+### DECISION FRAMEWORK
 
-Follow these rules IN ORDER. Pick the FIRST rule that matches.
+**Default action: maintain_subsidy**
+Unless conditions have CHANGED SIGNIFICANTLY since last year, maintaining the
+current rate supports policy stability and budget sustainability. Continuing an
+existing subsidy rate is NOT inaction — it is sustained commitment.
 
-RULE A — You MUST choose **increase_subsidy** IF ALL FOUR conditions are true:
-1. Flood severity is **SEVERE**
-2. MG elevated percentage is below 15%
-3. Budget is above 40%
-4. Consecutive increases is below 2
+**Interpreting flood urgency:**
+- "Immediate crisis" = novel severe event in the first 5 years. May justify increase.
+- "Recurring severe event" = severe flood after 5+ flood years. This is the basin's
+  known pattern. Maintain current support — do NOT treat as a reason to increase.
+  The appropriate response to a recurring pattern is sustained commitment, not expansion.
+- "Routine event" = moderate flooding. Maintain unless other factors changed.
+- "Calm period" = no recent floods. Consider whether current subsidy level is justified.
 
-RULE B — You MUST choose **decrease_subsidy** IF ANY of these is true:
-1. Budget is below 20%
-2. Subsidy rate is above 70% AND elevated percentage exceeds 15%
-3. Years since last severe flood is 2 or more AND subsidy rate is above 50%
+To justify an INCREASE, BOTH of these must be true:
+- Flood urgency is "Immediate crisis" (not "Recurring severe event")
+- Budget health is adequate (>40% remaining) to absorb the additional cost
 
-RULE C — If neither Rule A nor Rule B applies, choose **maintain_subsidy**.
+To justify a DECREASE, at least one of these should be clearly true:
+- Subsidy is High or Very high (>50%) AND flood urgency is NOT "Immediate crisis"
+- Budget is Constrained or Nearly depleted
+- Adaptation progress is Very early stage despite years of High subsidies (subsidies
+  are not producing results — fiscal discipline requires pulling back)
+
+**Fiscal responsibility check**: If subsidies have been High (>50%) for 3+ consecutive
+years but adaptation remains Very early stage or Making progress, the program is not
+achieving its goals. A small decrease signals the need for communities to increase
+their own investment, rather than indefinitely expanding public spending.
+
+Example of good decrease reasoning: "The subsidy has been at {subsidy_rate:.0%} for
+multiple years, yet adaptation remains at {adaptation_progress_label} level. Continued
+high spending without corresponding community progress is not fiscally responsible.
+A small decrease encourages community co-investment while preserving budget capacity."
+
+Example of good maintain reasoning: "While floods continue to affect the basin,
+the current subsidy rate of {subsidy_rate:.0%} already represents a commitment to
+community support. Adaptation progress is at {adaptation_progress_label} level.
+Further increases would accelerate budget depletion (currently {govt_budget_pct:.0f}%
+remaining, ~{years_to_depletion} years to depletion). Maintaining the current rate
+balances continued support with fiscal sustainability."
+
+### HARD LIMITS
+The following limits are enforced by the system. They reflect real policy
+constraints that should also inform your reasoning:
+- Subsidy rate cannot exceed 95% or go below 20%
+- Budget below 20% blocks any increase
+- Maximum 2 consecutive increases allowed (policy stability)
+
+### YOUR OPTIONS
+- **large_increase_subsidy** (+5%): A major expansion — only for "Immediate crisis" with budget >40% AND subsidy below 65%. Never appropriate for "Recurring severe event".
+- **small_increase_subsidy** (+2.5%): A moderate expansion — for "Immediate crisis" when a large increase is not warranted
+- **maintain_subsidy** (no change): Keep current rate — appropriate for "Recurring severe event", "Routine event", and most situations
+- **small_decrease_subsidy** (-2.5%): A moderate reduction — when subsidy is High but adaptation progress is stagnant, or when "Routine event" doesn't justify current spending level
+- **large_decrease_subsidy** (-5%): A major reduction — when budget is severely constrained or adaptation is well-advanced and subsidy is no longer needed
 
 ### RESPONSE FORMAT
+Consider the sustainability projection and decide. Explain your reasoning, then decide.
+
 Respond ONLY with a valid JSON object:
 {{
-  "decision": "increase_subsidy | decrease_subsidy | maintain_subsidy",
-  "reasoning": "Which rule (A, B, or C) applies and why"
+  "reasoning": "Your assessment of the situation and why you chose this action",
+  "decision": "large_increase_subsidy | small_increase_subsidy | maintain_subsidy | small_decrease_subsidy | large_decrease_subsidy"
 }}

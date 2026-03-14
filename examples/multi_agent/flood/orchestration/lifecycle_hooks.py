@@ -41,6 +41,7 @@ class MultiAgentHooks:
         drift_detector: Optional[Any] = None,
         flood_schedule: Optional[Dict[int, float]] = None,
         social_graph: Optional[Any] = None,      # SocialGraph for neighbor pruning
+        interaction_hub: Optional[Any] = None,    # InteractionHub for gossip storage
     ):
         self.env = environment
         self.memory_engine = memory_engine
@@ -66,6 +67,7 @@ class MultiAgentHooks:
         self.message_pool = message_pool
         self.drift_detector = drift_detector
         self.social_graph = social_graph
+        self._interaction_hub = interaction_hub
         self._memory_bridge = MemoryBridge(memory_engine) if memory_engine else None
 
         # --- Institutional state tracking (C&V: trajectory validation) ---
@@ -267,9 +269,13 @@ class MultiAgentHooks:
         # --- Institutional derived metrics (for government & insurance prompts) ---
         total_hh = len(households) or 1  # avoid div-by-zero
 
-        # Government: Reset annual budget, track flood years
-        self.env["govt_budget_remaining"] = 500_000  # Annual budget reset
-        self.env["govt_budget_pct"] = 100.0           # Must reset in sync
+        # Government: Budget is cumulative (NOT reset annually).
+        # Each subsidy increase costs more at higher rates (political capital + real cost).
+        # Initial budget: $500K (set via setdefault in __init__).
+        self.env.setdefault("govt_budget_remaining", 500_000)
+        self.env["govt_budget_pct"] = round(
+            100 * self.env["govt_budget_remaining"] / 500_000, 1
+        )
         self.env["elevation_spending_this_year"] = 0
         # flood_years_count and years_since_last_flood: env is single source of truth
         if self.env.get("flood_occurred", False):
@@ -309,9 +315,19 @@ class MultiAgentHooks:
             self.env["years_since_severe_flood"] = self.env.get("years_since_severe_flood", 0) + 1
             self.env["flood_this_year_text"] = "No flooding this year"
 
-        # Insurance: effective rate with year-indexed premium escalation, CRS, mitigation
+        # Insurance: effective rate with loss-ratio-adjusted premium escalation + CRS
         base_rate = self.env.get("base_premium_rate", self.env.get("premium_rate", 0.008))
-        escalation = self.PREMIUM_ESCALATION.get(year, self.PREMIUM_ESCALATION.get(13, 1.65))
+        base_escalation = self.PREMIUM_ESCALATION.get(year, self.PREMIUM_ESCALATION.get(13, 1.65))
+        # Loss-ratio adjustment: if loss_ratio < 1.0, dampen escalation by 20%;
+        # if loss_ratio > 2.0, amplify by 10%. This makes premiums responsive to claims.
+        lr = self.env.get("loss_ratio", 0.0)
+        if lr < 1.0:
+            lr_factor = 0.80  # healthy program → slower premium growth
+        elif lr > 2.0:
+            lr_factor = 1.10  # distressed program → faster premium growth
+        else:
+            lr_factor = 1.0   # neutral
+        escalation = 1.0 + (base_escalation - 1.0) * lr_factor
         crs_disc = self.env.get("crs_discount", 0.0)
         self.env["premium_rate"] = base_rate * escalation
         self.env["effective_rate"] = base_rate * escalation * (1 - crs_disc)
@@ -335,6 +351,151 @@ class MultiAgentHooks:
             min(100, 60 * elev_pct_frac + 40 * insured_pct)
         )
 
+        # --- Qualitative labels (hybrid design: Python computes, LLM judges) ---
+        # Instead of pre-computed YES/NO rule answers, provide qualitative situation
+        # assessments so the LLM can make subjective policy judgments.
+
+        # Insurance qualitative labels
+        _score = self.env.get('community_mitigation_score', 0)
+        _crs = self.env.get('crs_discount', 0.0)
+
+        # Mitigation label (5 levels)
+        if _score < 10:
+            self.env['mitigation_label'] = "Very Weak"
+        elif _score < 20:
+            self.env['mitigation_label'] = "Weak"
+        elif _score < 30:
+            self.env['mitigation_label'] = "Moderate"
+        elif _score < 40:
+            self.env['mitigation_label'] = "Strong"
+        else:
+            self.env['mitigation_label'] = "Very Strong"
+
+        # Mitigation trend (3-year lookback for gradual changes)
+        # Year-over-year changes are small (1-2 pts); use 3-year window to detect trends
+        _score_history = self.env.get('_mitigation_score_history', [])
+        _score_history.append(_score)
+        if len(_score_history) > 3:
+            _score_history = _score_history[-3:]
+        self.env['_mitigation_score_history'] = _score_history
+        if len(_score_history) >= 2:
+            _delta = _score - _score_history[0]  # compare to oldest in window
+            if _delta > 2:
+                self.env['mitigation_trend'] = "Improving"
+            elif _delta < -2:
+                self.env['mitigation_trend'] = "Declining"
+            else:
+                self.env['mitigation_trend'] = "Stable"
+        else:
+            self.env['mitigation_trend'] = "Stable"
+        self.env['_prev_mitigation_score'] = _score  # keep for backward compat
+
+        # CRS headroom label (3 levels, calibrated to 45% hard cap)
+        if _crs >= 0.35:
+            self.env['crs_headroom_label'] = "At practical ceiling"
+        elif _crs >= 0.25:
+            self.env['crs_headroom_label'] = "Approaching ceiling"
+        else:
+            self.env['crs_headroom_label'] = "Room to grow"
+
+        # Program health label (composite of loss_ratio_category + score)
+        _lr_cat = self.env.get('loss_ratio_category', 'healthy')
+        if _lr_cat == "healthy" and _score >= 20:
+            self.env['program_health_label'] = "Healthy"
+        elif _lr_cat == "healthy" or _score >= 15:
+            self.env['program_health_label'] = "Stable"
+        elif _lr_cat == "elevated" or _score >= 8:
+            self.env['program_health_label'] = "Concerning"
+        else:
+            self.env['program_health_label'] = "Distressed"
+
+        # Government qualitative labels
+        _budget = self.env.get('govt_budget_pct', 100.0)
+        _mg_elev = self.env.get('mg_elevated_pct', 0.0)
+        _nmg_elev = self.env.get('nmg_elevated_pct', 0.0)
+        _consec = self.env.get('govt_consecutive_increases', 0)
+        _subsidy = self.env.get('subsidy_rate', 0.50)
+        _severity = self.env.get('flood_severity', 'NONE')
+        _yrs_severe = self.env.get('years_since_severe_flood', 0)
+        _last_gov = self.env.get('govt_last_decision', 'none')
+
+        # Budget health label (4 levels)
+        if _budget > 60:
+            self.env['budget_health_label'] = "Well-funded"
+        elif _budget > 40:
+            self.env['budget_health_label'] = "Adequate"
+        elif _budget > 20:
+            self.env['budget_health_label'] = "Constrained"
+        else:
+            self.env['budget_health_label'] = "Nearly depleted"
+
+        # Adaptation progress label (4 levels based on MG elevation)
+        if _mg_elev < 5:
+            self.env['adaptation_progress_label'] = "Very early stage"
+        elif _mg_elev < 15:
+            self.env['adaptation_progress_label'] = "Making progress"
+        elif _mg_elev < 30:
+            self.env['adaptation_progress_label'] = "Substantial"
+        else:
+            self.env['adaptation_progress_label'] = "Well-adapted"
+
+        # Equity gap label (MG vs NMG elevation gap)
+        _gap = _nmg_elev - _mg_elev
+        if _gap > 10:
+            self.env['equity_gap_label'] = "Large gap"
+        elif _gap > 5:
+            self.env['equity_gap_label'] = "Moderate gap"
+        elif _gap > 0:
+            self.env['equity_gap_label'] = "Narrowing"
+        else:
+            self.env['equity_gap_label'] = "Roughly equal"
+
+        # Policy momentum label (based on consecutive increases + last decision)
+        if _consec >= 2:
+            self.env['policy_momentum_label'] = "Strong expansion (2+ consecutive increases)"
+        elif _consec == 1:
+            self.env['policy_momentum_label'] = "Recent increase"
+        elif 'decrease' in _last_gov:
+            self.env['policy_momentum_label'] = "Recent contraction"
+        else:
+            self.env['policy_momentum_label'] = "Holding steady"
+
+        # Flood urgency label (severity + flood history)
+        # After 5+ flood years, SEVERE is recurring, not a novel crisis
+        _flood_yrs = self.env.get('flood_years_count', 0)
+        if _severity == "SEVERE" and _flood_yrs <= 5:
+            self.env['flood_urgency_label'] = "Immediate crisis"
+        elif _severity == "SEVERE":
+            self.env['flood_urgency_label'] = "Recurring severe event"
+        elif _severity == "MODERATE":
+            self.env['flood_urgency_label'] = "Routine event"
+        elif _yrs_severe <= 2:
+            self.env['flood_urgency_label'] = "Recent crisis"
+        else:
+            self.env['flood_urgency_label'] = "Calm period"
+
+        # Subsidy level label (4 levels)
+        if _subsidy < 0.30:
+            self.env['subsidy_level_label'] = "Low"
+        elif _subsidy < 0.50:
+            self.env['subsidy_level_label'] = "Moderate"
+        elif _subsidy < 0.70:
+            self.env['subsidy_level_label'] = "High"
+        else:
+            self.env['subsidy_level_label'] = "Very high"
+
+        # Budget sustainability projection (scarcity framing)
+        _budget_rem = self.env.get('govt_budget_remaining', 500_000)
+        # Estimate annual cost at current subsidy rate
+        _annual_cost = int(_subsidy * 100_000)  # approximate
+        if _annual_cost > 0:
+            _years_to_depletion = max(0, int(_budget_rem / _annual_cost))
+        else:
+            _years_to_depletion = 99
+        self.env['annual_subsidy_cost'] = _annual_cost
+        self.env['years_to_depletion'] = _years_to_depletion
+        self.env['years_remaining'] = max(0, 13 - year)
+
         # CRITICAL: Sync self.env → runner's env dict after all updates.
         # The runner creates a fresh env={} each year and passes it to pre_year.
         # env.update(self.env) at the top copies the STALE state from last year.
@@ -344,28 +505,47 @@ class MultiAgentHooks:
 
     def post_step(self, agent, result):
         """Update global vars if institutional agent acted."""
-        # Check for approved outcomes (APPROVED or RETRY_SUCCESS)
+        # For REJECTED outcomes, still record last_decision as do_nothing
+        # so neighbors can observe this agent's (fallback) action in gossip.
+        # Also reset consecutive_increases for government — REJECTED = policy pause.
         if result.outcome not in (SkillOutcome.APPROVED, SkillOutcome.RETRY_SUCCESS):
+            if hasattr(agent, 'dynamic_state'):
+                agent.dynamic_state["last_decision"] = "do_nothing"
+            if agent.agent_type == "government":
+                self.env["govt_consecutive_increases"] = 0
+                self.env["govt_last_decision"] = "maintain_subsidy"
+                self.env["govt_message"] = "The government is MAINTAINING the current subsidy rate."
             return
 
         decision = result.skill_proposal.skill_name
 
         if agent.agent_type == "government":
             current = self.env["subsidy_rate"]
+            rate_before_update = current  # capture for budget calculation
             current_year = self.env.get("year", 1)
-            if decision == "increase_subsidy":
+            # 5-level subsidy changes: large=±5%, small=±2.5%
+            if decision == "large_increase_subsidy":
                 self.env["subsidy_rate"] = min(0.95, current + 0.05)
-                self.env["govt_message"] = "The government has INCREASED the adaptation subsidy to support your safety."
-            elif decision == "decrease_subsidy":
+                self.env["govt_message"] = "The government has significantly INCREASED the adaptation subsidy (+5%) to support your safety."
+            elif decision == "small_increase_subsidy":
+                self.env["subsidy_rate"] = min(0.95, current + 0.025)
+                self.env["govt_message"] = "The government has moderately INCREASED the adaptation subsidy (+2.5%)."
+            elif decision == "large_decrease_subsidy":
                 self.env["subsidy_rate"] = max(0.20, current - 0.05)
-                self.env["govt_message"] = "The government has DECREASED the subsidy due to budget constraints."
+                self.env["govt_message"] = "The government has significantly DECREASED the subsidy (-5%) due to budget constraints."
+            elif decision == "small_decrease_subsidy":
+                self.env["subsidy_rate"] = max(0.20, current - 0.025)
+                self.env["govt_message"] = "The government has moderately DECREASED the subsidy (-2.5%)."
             else:
                 self.env["govt_message"] = "The government is MAINTAINING the current subsidy rate."
             # --- Consecutive increase tracking & budget deduction ---
-            if decision == "increase_subsidy":
+            if decision in ("large_increase_subsidy", "small_increase_subsidy"):
                 self.env["govt_consecutive_increases"] = self.env.get("govt_consecutive_increases", 0) + 1
-                # Budget deduction: each increase costs ~$25K (subsidy expansion cost)
-                self.env["govt_budget_remaining"] = max(0, self.env.get("govt_budget_remaining", 500_000) - 25_000)
+                # Budget deduction: cost scales with pre-update rate (political capital + real cost).
+                # Large: 50% rate: $50K, 70%: $70K. Small: half that.
+                base_cost = int(rate_before_update * 100_000)
+                increase_cost = base_cost if decision == "large_increase_subsidy" else base_cost // 2
+                self.env["govt_budget_remaining"] = max(0, self.env.get("govt_budget_remaining", 500_000) - increase_cost)
             else:
                 self.env["govt_consecutive_increases"] = 0
             self.env["govt_last_decision"] = decision
@@ -379,20 +559,37 @@ class MultiAgentHooks:
                      f"Budget remaining: {self.env['govt_budget_pct']:.0f}%."),
                     metadata={"source": "personal", "importance": 0.6, "category": "policy_decision"}
                 )
+            # Sync state to agent so traces capture changes
+            agent.dynamic_state["subsidy_rate"] = self.env["subsidy_rate"]
+            agent.dynamic_state["budget_remaining"] = self.env["govt_budget_remaining"]
+            agent.dynamic_state["last_decision"] = decision
 
         elif agent.agent_type == "insurance":
             current_crs = self.env.get("crs_discount", 0.0)
             current_year = self.env.get("year", 1)
-            if decision == "improve_crs":
+            # 5-level CRS changes: significantly=±5%, normal=±2.5%
+            if decision == "significantly_improve_crs":
                 self.env["crs_discount"] = min(0.45, current_crs + 0.05)
                 self.env["insurance_message"] = (
-                    f"CRS class improved — community discount now {self.env['crs_discount']:.0%}. "
+                    f"CRS class significantly improved (+5%) — community discount now {self.env['crs_discount']:.0%}. "
                     "Residents benefit from lower premiums."
                 )
-            elif decision == "reduce_crs":
+            elif decision == "improve_crs":
+                self.env["crs_discount"] = min(0.45, current_crs + 0.025)
+                self.env["insurance_message"] = (
+                    f"CRS class improved (+2.5%) — community discount now {self.env['crs_discount']:.0%}. "
+                    "Residents benefit from slightly lower premiums."
+                )
+            elif decision == "significantly_reduce_crs":
                 self.env["crs_discount"] = max(0.0, current_crs - 0.05)
                 self.env["insurance_message"] = (
-                    f"CRS class reduced — community discount now {self.env['crs_discount']:.0%}. "
+                    f"CRS class significantly reduced (-5%) — community discount now {self.env['crs_discount']:.0%}. "
+                    "Budget constraints limit mitigation investment."
+                )
+            elif decision == "reduce_crs":
+                self.env["crs_discount"] = max(0.0, current_crs - 0.025)
+                self.env["insurance_message"] = (
+                    f"CRS class reduced (-2.5%) — community discount now {self.env['crs_discount']:.0%}. "
                     "Budget constraints limit mitigation investment."
                 )
             else:
@@ -426,6 +623,10 @@ class MultiAgentHooks:
                      f"Insured: {self.env.get('insured_count', '?')}/{self.env.get('total_households', '?')}."),
                     metadata={"source": "personal", "importance": 0.6, "category": "policy_decision"}
                 )
+            # Sync state to agent so traces capture changes
+            agent.dynamic_state["crs_discount"] = self.env["crs_discount"]
+            agent.dynamic_state["crs_class"] = self.env["crs_class"]
+            agent.dynamic_state["last_decision"] = decision
 
         elif agent.agent_type in ["household_owner", "household_renter"]:
             current_year = self.env.get("year", 1)
@@ -664,6 +865,24 @@ class MultiAgentHooks:
                         agent_id, unread, year=year, max_store=3
                     )
 
+        # Store neighbor action observations as social memories (persists gossip)
+        if memory_engine and hasattr(self, '_interaction_hub') and self._interaction_hub:
+            for agent in agents.values():
+                if agent.agent_type not in ["household_owner", "household_renter"]:
+                    continue
+                if agent.dynamic_state.get("relocated"):
+                    continue
+                summary = self._interaction_hub.get_neighbor_action_summary(
+                    agent.id, agents
+                )
+                if summary and "not observed" not in summary.lower():
+                    memory_engine.add_memory(
+                        agent.id,
+                        f"Year {year}: {summary}",
+                        metadata={"source": "neighbor", "importance": 0.35,
+                                  "category": "social_observation"}
+                    )
+
         if community_depth_ft > 0 or self.agent_flood_depths:
             if self.per_agent_depth:
                 print(f" [YEAR-END] Total Community Damage: ${total_damage:,.0f} ({flooded_agents} households flooded)")
@@ -716,6 +935,32 @@ class MultiAgentHooks:
                 # Track out-of-pocket costs for agent
                 oop = max(0, raw_claim - claim)
                 agent.dynamic_state["cumulative_oop"] = agent.dynamic_state.get("cumulative_oop", 0) + oop
+
+        # Track OOP for UNINSURED agents — full damage is out-of-pocket
+        if community_depth_ft > 0 or self.agent_flood_depths:
+            for agent in agents.values():
+                if agent.agent_type not in ["household_owner", "household_renter"]:
+                    continue
+                if agent.dynamic_state.get("has_insurance"):
+                    continue  # already handled above
+                if agent.dynamic_state.get("relocated"):
+                    continue
+                if self.per_agent_depth and agent.id in self.agent_flood_depths:
+                    d_ft = self.agent_flood_depths[agent.id] * 3.28084
+                else:
+                    d_ft = community_depth_ft
+                if d_ft <= 0:
+                    continue
+                fixed = getattr(agent, "fixed_attributes", None) or {}
+                agent_elev_ft = agent.dynamic_state.get("elevation_feet") if agent.dynamic_state.get("elevated") else None
+                dmg_res = self.vuln.calculate_damage(
+                    depth_ft=d_ft,
+                    rcv_building=fixed.get("rcv_building", 0),
+                    rcv_contents=fixed.get("rcv_contents", 0),
+                    is_elevated=agent.dynamic_state.get("elevated", False),
+                    elevation_height_ft=agent_elev_ft,
+                )
+                agent.dynamic_state["cumulative_oop"] = agent.dynamic_state.get("cumulative_oop", 0) + dmg_res["total_damage"]
 
         loss_ratio = (total_claims / total_premiums) if total_premiums > 0 else 0.0
         self.env["loss_ratio"] = round(loss_ratio, 3)
