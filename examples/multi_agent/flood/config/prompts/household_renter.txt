@@ -40,6 +40,7 @@ It is crucial to accurately assess your flood risk based on your personal flood 
   * Within PRB (local move): ~$5,000-$10,000
   * Out of Basin: ~$15,000-$25,000 (plus loss of community ties)
   * NOTE: Relocation involves finding new housing, breaking your lease, moving expenses, disruption to work/school, and leaving familiar neighbors and services. Most renters find the process difficult and stressful.
+  * YOUR CUMULATIVE FLOOD DAMAGE: ${cumulative_damage:,.0f} — if this already exceeds relocation costs, moving may save money over time.
 {insurance_cost_text}
 {mg_barrier_text}
 {renewal_fatigue_text}
@@ -57,7 +58,7 @@ If any answer is NO, choose do_nothing.
 
 **Contents insurance:** Some renters in your situation purchase contents insurance, though many do not — a single flood does not necessarily mean your area will flood again soon. Even a few hundred dollars a year competes with rent, groceries, and transportation. Many renters who buy a policy after a flood let it lapse within a year or two when no further flooding occurs. Whether the ongoing cost is worthwhile depends on your personal flood experience and budget.
 
-**Relocation is a major upheaval.** Moving means breaking your lease, finding new housing, disrupting work and school, and leaving your familiar neighborhood. Renters who relocate due to flood risk have typically experienced repeated severe flooding and decided their current home is no longer safe. Do not choose relocation unless your personal flood experience has been severe and repeated.
+**Relocation is a significant decision.** Moving means finding new housing, managing moving costs, and adjusting to a new neighborhood. Most renters stay in place after a single flood. However, renters who have experienced multiple severe floods sometimes decide that moving to a safer area — even within the same region — is worth the short-term cost and disruption. If you have been flooded 3 or more times, or your cumulative flood damage significantly exceeds relocation costs, relocating may be a reasonable choice.
 
 **If your flood zone is LOW:** You face minimal flood risk. Insurance is optional. Focus on whether the annual cost fits your budget, or simply continue as you are.
 

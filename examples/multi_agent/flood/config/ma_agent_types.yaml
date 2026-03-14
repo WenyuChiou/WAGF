@@ -517,11 +517,13 @@ nj_government:
     - Community Adaptation Status: {elevated_count} of {total_households} households\
     \ elevated\n- Buyout Applications Pending: {buyout_pending}\n- Marginalized Group\
     \ (MG) Households: {mg_count} ({mg_ratio:.0%})\n\n### POLICY OPTIONS\nChoose ONE\
-    \ of the following:\n- \"increase_subsidy\": Raise elevation subsidy by 5% to\
-    \ encourage more adaptation\n- \"decrease_subsidy\": Reduce subsidy by 5% to conserve\
-    \ budget\n- \"maintain_subsidy\": Keep current subsidy rate unchanged\n\n### RESPONSE\
-    \ FORMAT\nRespond ONLY with a valid JSON object:\n{\n  \"decision\": \"increase_subsidy\
-    \ | decrease_subsidy | maintain_subsidy\",\n  \"reasoning\": \"Your policy rationale\
+    \ of the following:\n- \"large_increase_subsidy\": Raise elevation subsidy by 5%\n\
+    - \"small_increase_subsidy\": Raise elevation subsidy by 2.5%\n\
+    - \"maintain_subsidy\": Keep current subsidy rate unchanged\n\
+    - \"small_decrease_subsidy\": Reduce subsidy by 2.5%\n\
+    - \"large_decrease_subsidy\": Reduce subsidy by 5%\n\n### RESPONSE\
+    \ FORMAT\nRespond ONLY with a valid JSON object:\n{\n  \"decision\": \"large_increase_subsidy\
+    \ | small_increase_subsidy | maintain_subsidy | small_decrease_subsidy | large_decrease_subsidy\",\n  \"reasoning\": \"Your policy rationale\
     \ here\"\n}\n"
   response_format:
     fields:
@@ -540,22 +542,23 @@ nj_government:
     preprocessor:
       type: smart_repair
     actions:
-    - id: increase_subsidy
+    - id: large_increase_subsidy
       aliases:
+      - LARGE_INCREASE
+      - large_increase
       - INCREASE
       - increase
       - INCREASE_SUBSIDY
       - '1'
       - '[1]'
       description: Increase elevation subsidy by 5%
-    - id: decrease_subsidy
+    - id: small_increase_subsidy
       aliases:
-      - DECREASE
-      - decrease
-      - DECREASE_SUBSIDY
+      - SMALL_INCREASE
+      - small_increase
       - '2'
       - '[2]'
-      description: Decrease elevation subsidy by 5%
+      description: Increase elevation subsidy by 2.5%
     - id: maintain_subsidy
       aliases:
       - MAINTAIN
@@ -563,6 +566,23 @@ nj_government:
       - '3'
       - '[3]'
       description: Maintain current subsidy rate
+    - id: small_decrease_subsidy
+      aliases:
+      - SMALL_DECREASE
+      - small_decrease
+      - '4'
+      - '[4]'
+      description: Decrease elevation subsidy by 2.5%
+    - id: large_decrease_subsidy
+      aliases:
+      - LARGE_DECREASE
+      - large_decrease
+      - DECREASE
+      - decrease
+      - DECREASE_SUBSIDY
+      - '5'
+      - '[5]'
+      description: Decrease elevation subsidy by 5%
 government:
   description: State Government Agency (alias for nj_government).
   llm_params:
@@ -586,16 +606,16 @@ government:
     preprocessor:
       type: smart_repair
     actions:
-    - id: increase_subsidy
+    - id: large_increase_subsidy
       aliases:
-      - INCREASE
-      - increase
+      - LARGE_INCREASE
+      - large_increase
       - '1'
       - '[1]'
-    - id: decrease_subsidy
+    - id: small_increase_subsidy
       aliases:
-      - DECREASE
-      - decrease
+      - SMALL_INCREASE
+      - small_increase
       - '2'
       - '[2]'
     - id: maintain_subsidy
@@ -604,6 +624,18 @@ government:
       - maintain
       - '3'
       - '[3]'
+    - id: small_decrease_subsidy
+      aliases:
+      - SMALL_DECREASE
+      - small_decrease
+      - '4'
+      - '[4]'
+    - id: large_decrease_subsidy
+      aliases:
+      - LARGE_DECREASE
+      - large_decrease
+      - '5'
+      - '[5]'
 fema_nfip:
   description: FEMA NFIP — Community Rating System (CRS) Administrator
   llm_params:
@@ -626,15 +658,16 @@ fema_nfip:
     \ Households: {insured_count} of {total_households}\n- Program Loss Ratio: {loss_ratio:.2f}\
     \ (Target: 0.60-0.80)\n- Recent Claims: {recent_claims} in past year\n- Community\
     \ Mitigation Score: {mitigation_score}/100\n\n### POLICY OPTIONS\nChoose ONE of\
-    \ the following:\n- \"improve_crs\": Increase CRS discount by 5% (invest in community\
-    \ mitigation → lower premiums)\n- \"reduce_crs\": Reduce CRS discount by 5% (scale\
-    \ back mitigation efforts due to budget)\n- \"maintain_crs\": Keep current CRS class\
-    \ and discount level\n\n### OBJECTIVES\n1. Encourage community-level flood risk\
+    \ the following:\n- \"significantly_improve_crs\": Increase CRS discount by 5%\n\
+    - \"improve_crs\": Increase CRS discount by 2.5%\n\
+    - \"maintain_crs\": Keep current CRS class and discount level\n\
+    - \"reduce_crs\": Reduce CRS discount by 2.5%\n\
+    - \"significantly_reduce_crs\": Reduce CRS discount by 5%\n\n### OBJECTIVES\n1. Encourage community-level flood risk\
     \ reduction through CRS incentives\n2. Support affordable insurance access through\
     \ earned premium discounts\n3. Balance CRS investment costs against premium savings\
     \ for residents\n4. Prioritize mitigation activities that reduce losses for vulnerable\
     \ populations\n\n### RESPONSE FORMAT\nRespond ONLY with a valid JSON object:\n{\n\
-    \  \"decision\": \"improve_crs | reduce_crs | maintain_crs\",\n  \"reasoning\":\
+    \  \"decision\": \"significantly_improve_crs | improve_crs | maintain_crs | reduce_crs | significantly_reduce_crs\",\n  \"reasoning\":\
     \ \"Your policy rationale here\"\n}\n"
   response_format:
     fields:
@@ -653,22 +686,22 @@ fema_nfip:
     preprocessor:
       type: smart_repair
     actions:
+    - id: significantly_improve_crs
+      aliases:
+      - SIGNIFICANTLY_IMPROVE
+      - significantly_improve
+      - sig_improve
+      - IMPROVE_CRS
+      - '1'
+      - '[1]'
+      description: Significantly improve CRS class — increase discount by 5%
     - id: improve_crs
       aliases:
       - IMPROVE
       - improve
-      - IMPROVE_CRS
-      - '1'
-      - '[1]'
-      description: Improve CRS class — increase community discount by 5%
-    - id: reduce_crs
-      aliases:
-      - REDUCE
-      - reduce
-      - REDUCE_CRS
       - '2'
       - '[2]'
-      description: Reduce CRS class — decrease community discount by 5%
+      description: Improve CRS class — increase discount by 2.5%
     - id: maintain_crs
       aliases:
       - MAINTAIN
@@ -676,6 +709,22 @@ fema_nfip:
       - '3'
       - '[3]'
       description: Maintain current CRS class and discount
+    - id: reduce_crs
+      aliases:
+      - REDUCE
+      - reduce
+      - REDUCE_CRS
+      - '4'
+      - '[4]'
+      description: Reduce CRS class — decrease discount by 2.5%
+    - id: significantly_reduce_crs
+      aliases:
+      - SIGNIFICANTLY_REDUCE
+      - significantly_reduce
+      - sig_reduce
+      - '5'
+      - '[5]'
+      description: Significantly reduce CRS class — decrease discount by 5%
 insurance:
   description: Regional CRS Administrator (alias for fema_nfip).
   llm_params:
@@ -699,16 +748,17 @@ insurance:
     preprocessor:
       type: smart_repair
     actions:
+    - id: significantly_improve_crs
+      aliases:
+      - SIGNIFICANTLY_IMPROVE
+      - significantly_improve
+      - sig_improve
+      - '1'
+      - '[1]'
     - id: improve_crs
       aliases:
       - IMPROVE
       - improve
-      - '1'
-      - '[1]'
-    - id: reduce_crs
-      aliases:
-      - REDUCE
-      - reduce
       - '2'
       - '[2]'
     - id: maintain_crs
@@ -717,11 +767,24 @@ insurance:
       - maintain
       - '3'
       - '[3]'
+    - id: reduce_crs
+      aliases:
+      - REDUCE
+      - reduce
+      - '4'
+      - '[4]'
+    - id: significantly_reduce_crs
+      aliases:
+      - SIGNIFICANTLY_REDUCE
+      - significantly_reduce
+      - sig_reduce
+      - '5'
+      - '[5]'
 memory_config:
   household_owner:
     engine: symbolic
-    window_size: 3
-    top_k_significant: 2
+    window_size: 5
+    top_k_significant: 3
     consolidation_prob: 0.7
     decay_rate: 0.1
     sensors:
@@ -740,8 +803,8 @@ memory_config:
     scorer: flood
   household_renter:
     engine: symbolic
-    window_size: 3
-    top_k_significant: 2
+    window_size: 5
+    top_k_significant: 3
   government:
     engine: window
     window_size: 10
@@ -897,18 +960,26 @@ governance:
         - do_nothing
         level: WARNING
         message: High threat with low coping — inaction may reflect resource constraints or fatalism.
-      - id: renter_complex_action_low_coping
+      - id: renter_complex_action_very_low_coping
         construct: CP_LABEL
         conditions:
         - construct: CP_LABEL
           values:
           - VL
-          - L
         blocked_skills:
         - relocate
         level: ERROR
-        message: Relocation is blocked due to your low confidence in your ability
-          to cope.
+        message: Relocation is blocked due to very low confidence in your ability to cope.
+      - id: renter_relocation_low_coping_warning
+        construct: CP_LABEL
+        conditions:
+        - construct: CP_LABEL
+          values:
+          - L
+        blocked_skills:
+        - relocate
+        level: WARNING
+        message: Low coping capacity makes relocation difficult but not impossible if flood damage is severe.
     nj_government:
       identity_rules: []
       thinking_rules: []
