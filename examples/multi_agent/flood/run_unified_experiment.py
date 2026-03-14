@@ -177,6 +177,11 @@ def run_unified_experiment():
                         help="Enable MessagePool + GameMaster communication layer (Task-060D)")
     parser.add_argument("--enable-cross-validation", action="store_true",
                         help="Enable CrossAgentValidator echo chamber detection (Task-060E)")
+    # Paper 3 ablation flags
+    parser.add_argument("--exogenous-institutions", action="store_true",
+                        help="Use fixed exogenous institutional policy (no LLM for gov/ins). For SI-2 ablation.")
+    parser.add_argument("--disable-governance", action="store_true",
+                        help="Disable all governance validators (skip rule checks). For SI-7 ablation.")
     parser.add_argument("--seed", type=int, default=None,
                         help="Random seed for reproducibility")
     args = parser.parse_args()
@@ -266,25 +271,10 @@ def run_unified_experiment():
                     }
                 ))
 
-        if decision in ["buy_insurance", "buy_contents_insurance"]:
-            # Renters insure contents only; owners insure the building
-            insured_value = personal.get('rcv_contents', 50000) if proposal.agent_type == "household_renter" else property_value
-            premium = premium_rate * insured_value
-            if premium > income * insurance_pct_cap:
-                mg_note = f" (MG: {insurance_pct_cap:.0%} cap)" if is_mg else ""
-                results.append(ValidationResult(
-                    valid=False,
-                    validator_name="CustomAffordabilityValidator",
-                    errors=[f"AFFORDABILITY: Premium ${premium:,.0f} exceeds {insurance_pct_cap:.0%} of income (${income*insurance_pct_cap:,.0f}){mg_note}"],
-                    metadata={
-                        "level": ValidationLevel.ERROR,
-                        "rule_id": "affordability_insurance",
-                        "rules_hit": ["affordability_insurance"],
-                        "field": "decision",
-                        "constraint": "financial_affordability",
-                        "deterministic": True
-                    }
-                ))
+        # Insurance affordability is handled via prompt-level guidance (insurance_cost_text)
+        # which tells the LLM the premium burden percentage and descriptive norms.
+        # This gives the LLM genuine judgment space — some agents may buy insurance
+        # despite heavy burden (debt, post-disaster fear), which is realistic behavior.
 
         return results
 
@@ -433,11 +423,12 @@ def run_unified_experiment():
         skill_registry: Any
     ) -> List[ValidationResult]:
         """
-        Block buyout unless agent has Repetitive Loss status (flood_count >= 2).
+        Block buyout unless agent has Severe Repetitive Loss status (flood_count >= 3).
 
-        FEMA defines Repetitive Loss (RL) as a property with 2+ flood insurance
-        claims of $1,000+ in any 10-year period.  The Blue Acres buyout program
-        (NJ) and most FEMA HMGP buyout programs prioritize RL properties.
+        FEMA defines Severe Repetitive Loss (SRL) as a property with 4+ flood
+        insurance claims or 2+ claims exceeding 50% of building value. Blue Acres
+        prioritizes SRL/RL properties. We use flood_count >= 3 as a proxy for the
+        multi-year, multi-event threshold that makes buyout realistic.
 
         References:
         - FEMA Repetitive Loss Strategy (2005)
@@ -457,14 +448,14 @@ def run_unified_experiment():
 
         flood_count = personal.get('flood_count', 0)
 
-        if flood_count < 2:
+        if flood_count < 3:
             results.append(ValidationResult(
                 valid=False,
                 validator_name="BuyoutRepetitiveLossValidator",
                 errors=[
-                    f"REPETITIVE_LOSS: Buyout requires 2+ flood events "
+                    f"REPETITIVE_LOSS: Buyout requires 3+ flood events "
                     f"(current flood_count={flood_count}). "
-                    f"Consider insurance or elevation instead."
+                    f"Blue Acres prioritizes severe repetitive loss properties."
                 ],
                 metadata={
                     "level": ValidationLevel.ERROR,
@@ -645,8 +636,9 @@ def run_unified_experiment():
         skill_registry: Any
     ) -> List[ValidationResult]:
         """
-        Governance validators for government agent decisions.
-        G1: Cap at 95%, G2: Floor at 20%, G3: Budget depleted, G4: Policy stability.
+        Validators for government agent decisions.
+        Hard constraints: G1 cap 95%, G2 floor 20%, G3 budget depleted, G4 consecutive limit.
+        Soft: G7-v2 trajectory moderation (downgrade large→small, not block).
         """
         results = []
         if proposal.agent_type != "government":
@@ -658,8 +650,12 @@ def run_unified_experiment():
         budget_pct = env.get('govt_budget_pct', 100.0)
         consecutive = env.get('govt_consecutive_increases', 0)
 
+        # 5-level skill sets for government
+        increase_skills = {"large_increase_subsidy", "small_increase_subsidy"}
+        decrease_skills = {"large_decrease_subsidy", "small_decrease_subsidy"}
+
         # G1: Cap — cannot increase above 95%
-        if decision == "increase_subsidy" and subsidy_rate >= 0.95:
+        if decision in increase_skills and subsidy_rate >= 0.95:
             results.append(ValidationResult(
                 valid=False,
                 validator_name="GovernmentPolicyValidator",
@@ -675,8 +671,8 @@ def run_unified_experiment():
                 }
             ))
 
-        # G2: Floor — cannot decrease below 45% (fiscal baseline protection)
-        if decision == "decrease_subsidy" and subsidy_rate <= 0.45:
+        # G2: Floor — cannot decrease below 20% (consistent with lifecycle_hooks.py executor floor)
+        if decision in decrease_skills and subsidy_rate <= 0.20:
             results.append(ValidationResult(
                 valid=False,
                 validator_name="GovernmentPolicyValidator",
@@ -693,7 +689,7 @@ def run_unified_experiment():
             ))
 
         # G3: Budget depleted — cannot increase if budget < 20%
-        if decision == "increase_subsidy" and budget_pct < 20:
+        if decision in increase_skills and budget_pct < 20:
             results.append(ValidationResult(
                 valid=False,
                 validator_name="GovernmentPolicyValidator",
@@ -709,8 +705,8 @@ def run_unified_experiment():
                 }
             ))
 
-        # G4: Policy stability — cannot increase more than 3 consecutive years
-        if decision == "increase_subsidy" and consecutive >= 3:
+        # G4: Policy stability — cannot increase more than 2 consecutive years
+        if decision in increase_skills and consecutive >= 2:
             results.append(ValidationResult(
                 valid=False,
                 validator_name="GovernmentPolicyValidator",
@@ -726,40 +722,22 @@ def run_unified_experiment():
                 }
             ))
 
-        # G5: No increase unless SEVERE flood — routine flooding doesn't justify increase
-        flood_severity = env.get('flood_severity', 'NONE')
-        if decision == "increase_subsidy" and flood_severity != "SEVERE":
+        # G7-v2: Trajectory moderation — downgrade large→small when budget declining
+        # under sustained increases. Preserves LLM's directional intent, moderates magnitude.
+        if decision == "large_increase_subsidy" and consecutive >= 1 and budget_pct < 40:
             results.append(ValidationResult(
                 valid=False,
                 validator_name="GovernmentPolicyValidator",
-                errors=[f"GOVT_NOT_SEVERE: Flood severity '{flood_severity}' is not SEVERE. Subsidy increase requires a severe flood event."],
+                errors=[f"GOVT_TRAJECTORY: Budget at {budget_pct:.0f}% with {consecutive} consecutive increase(s) — "
+                        f"downgrading large increase to small increase for fiscal sustainability."],
                 metadata={
                     "level": ValidationLevel.ERROR,
-                    "rule_id": "govt_severity_increase",
-                    "rules_hit": ["govt_severity_increase"],
+                    "rule_id": "govt_trajectory_moderation",
+                    "rules_hit": ["govt_trajectory_moderation"],
                     "field": "decision",
-                    "constraint": "severe_flood_required_for_increase",
+                    "constraint": "trajectory_moderation",
                     "deterministic": True,
-                    "suggestion": "maintain_subsidy"
-                }
-            ))
-
-        # G7: Fiscal pullback — block maintain when no severe flood for 4+ years and subsidy above initial
-        years_since_severe = env.get('years_since_severe_flood', 0)
-        subsidy_rate = env.get('subsidy_rate', 0.5)
-        if decision == "maintain_subsidy" and years_since_severe >= 4 and subsidy_rate > 0.50:
-            results.append(ValidationResult(
-                valid=False,
-                validator_name="GovernmentPolicyValidator",
-                errors=[f"GOVT_FISCAL_PULLBACK: No severe flood in {years_since_severe} years and subsidy at {subsidy_rate:.0%} (above 55%). Fiscal pullback required."],
-                metadata={
-                    "level": ValidationLevel.ERROR,
-                    "rule_id": "govt_fiscal_pullback",
-                    "rules_hit": ["govt_fiscal_pullback"],
-                    "field": "decision",
-                    "constraint": "fiscal_sustainability",
-                    "deterministic": True,
-                    "suggestion": "decrease_subsidy"
+                    "suggestion": "small_increase_subsidy"
                 }
             ))
 
@@ -771,8 +749,9 @@ def run_unified_experiment():
         skill_registry: Any
     ) -> List[ValidationResult]:
         """
-        Governance validators for insurance agent decisions.
-        I1: CRS cap at 45%, I2: CRS floor at 0%, I3: No investment during crisis.
+        Validators for insurance agent decisions.
+        Hard constraints: I1 cap 45%, I2 floor 5%, I7 cooldown.
+        Soft: I6-v2 ceiling awareness (downgrade significantly→improve near ceiling).
         """
         results = []
         if proposal.agent_type != "insurance":
@@ -781,10 +760,13 @@ def run_unified_experiment():
         env = context.get('env_state', {})
         decision = proposal.skill_name
         crs_discount = env.get('crs_discount', 0.0)
-        loss_ratio = env.get('loss_ratio', 0.0)
+
+        # 5-level skill sets for insurance
+        improve_skills = {"significantly_improve_crs", "improve_crs"}
+        reduce_skills = {"significantly_reduce_crs", "reduce_crs"}
 
         # I1: Cap — CRS discount cannot exceed 45% (Class 1)
-        if decision == "improve_crs" and crs_discount >= 0.45:
+        if decision in improve_skills and crs_discount >= 0.45:
             results.append(ValidationResult(
                 valid=False,
                 validator_name="InsurancePolicyValidator",
@@ -800,12 +782,12 @@ def run_unified_experiment():
                 }
             ))
 
-        # I2: Floor — CRS discount cannot go below 0%
-        if decision == "reduce_crs" and crs_discount <= 0.0:
+        # I2: Floor — CRS discount cannot go below 5% (Class 9 minimum, no C10 withdrawal)
+        if decision in reduce_skills and crs_discount <= 0.05:
             results.append(ValidationResult(
                 valid=False,
                 validator_name="InsurancePolicyValidator",
-                errors=["INS_FLOOR: CRS discount already at minimum (0%, Class 10). Cannot reduce further."],
+                errors=["INS_FLOOR: CRS discount already at minimum (5%, Class 9). Cannot reduce further."],
                 metadata={
                     "level": ValidationLevel.ERROR,
                     "rule_id": "ins_crs_floor",
@@ -817,79 +799,9 @@ def run_unified_experiment():
                 }
             ))
 
-        # I3: No CRS improvement when mitigation score too low
-        mitigation_score = env.get('community_mitigation_score', 0)
-        if decision == "improve_crs" and mitigation_score < 20:
-            results.append(ValidationResult(
-                valid=False,
-                validator_name="InsurancePolicyValidator",
-                errors=[f"INS_LOW_MITIGATION: Community mitigation score {mitigation_score}/100 too low to justify CRS improvement (min: 20)."],
-                metadata={
-                    "level": ValidationLevel.ERROR,
-                    "rule_id": "ins_low_mitigation",
-                    "rules_hit": ["ins_low_mitigation"],
-                    "field": "decision",
-                    "constraint": "mitigation_threshold",
-                    "deterministic": True,
-                    "suggestion": "maintain_crs"
-                }
-            ))
-
-        # I4: No CRS reduction when community mitigation is adequate
-        if decision == "reduce_crs" and mitigation_score >= 15:
-            results.append(ValidationResult(
-                valid=False,
-                validator_name="InsurancePolicyValidator",
-                errors=[f"INS_GOOD_MITIGATION: Community mitigation score {mitigation_score}/100 is adequate (>=15). CRS reduction not justified."],
-                metadata={
-                    "level": ValidationLevel.ERROR,
-                    "rule_id": "ins_good_mitigation_no_reduce",
-                    "rules_hit": ["ins_good_mitigation_no_reduce"],
-                    "field": "decision",
-                    "constraint": "mitigation_protects_crs",
-                    "deterministic": True,
-                    "suggestion": "maintain_crs"
-                }
-            ))
-
-        # I5: No CRS improvement when no households are elevated
-        elevated_pct = env.get('elevated_pct', 0.0)
-        if decision == "improve_crs" and elevated_pct < 3.0:
-            results.append(ValidationResult(
-                valid=False,
-                validator_name="InsurancePolicyValidator",
-                errors=[f"INS_NO_ELEVATION: Elevated households at {elevated_pct:.1f}% — need at least 3% elevation for CRS improvement."],
-                metadata={
-                    "level": ValidationLevel.ERROR,
-                    "rule_id": "ins_no_elevation",
-                    "rules_hit": ["ins_no_elevation"],
-                    "field": "decision",
-                    "constraint": "elevation_required",
-                    "deterministic": True,
-                    "suggestion": "maintain_crs"
-                }
-            ))
-
-        # I6: CRS soft cap at 20% — most NJ communities stay Class 7-9
-        if decision == "improve_crs" and crs_discount >= 0.20:
-            results.append(ValidationResult(
-                valid=False,
-                validator_name="InsurancePolicyValidator",
-                errors=[f"INS_SOFT_CAP: CRS discount at {crs_discount:.0%} has reached the practical ceiling for this community (20%)."],
-                metadata={
-                    "level": ValidationLevel.ERROR,
-                    "rule_id": "ins_crs_soft_cap",
-                    "rules_hit": ["ins_crs_soft_cap"],
-                    "field": "decision",
-                    "constraint": "crs_practical_ceiling",
-                    "deterministic": True,
-                    "suggestion": "maintain_crs"
-                }
-            ))
-
         # I7: CRS cooldown — real CRS evaluations occur every 2+ years, not annually
         crs_last = env.get('crs_last_decision', 'none')
-        if decision == "improve_crs" and crs_last == "improve_crs":
+        if decision in improve_skills and crs_last in improve_skills:
             results.append(ValidationResult(
                 valid=False,
                 validator_name="InsurancePolicyValidator",
@@ -905,6 +817,26 @@ def run_unified_experiment():
                 }
             ))
 
+        # I6-v2: Ceiling awareness — downgrade significantly_improve to improve
+        # when CRS is already high (≥35%) and mitigation score doesn't strongly justify it.
+        mitigation_score = env.get('community_mitigation_score', 0)
+        if decision == "significantly_improve_crs" and crs_discount >= 0.35 and mitigation_score < 70:
+            results.append(ValidationResult(
+                valid=False,
+                validator_name="InsurancePolicyValidator",
+                errors=[f"INS_CEILING: CRS at {crs_discount:.0%} near ceiling with mitigation score {mitigation_score}/100 — "
+                        f"downgrading to moderate improvement."],
+                metadata={
+                    "level": ValidationLevel.ERROR,
+                    "rule_id": "ins_ceiling_awareness",
+                    "rules_hit": ["ins_ceiling_awareness"],
+                    "field": "decision",
+                    "constraint": "ceiling_moderation",
+                    "deterministic": True,
+                    "suggestion": "improve_crs"
+                }
+            ))
+
         return results
 
     # 1. Init environment
@@ -912,7 +844,7 @@ def run_unified_experiment():
         "subsidy_rate": args.initial_subsidy,
         "premium_rate": args.initial_premium,
         "base_premium_rate": args.initial_premium,  # Immutable base for CRS calc
-        "crs_discount": 0.05,  # CRS Class 9 baseline (~5% discount, typical NJ)
+        "crs_discount": 0.15,  # CRS Class 7 baseline (~15% discount, typical PRB NJ)
         "flood_occurred": False,
         "flood_depth_m": 0.0,
         "flood_depth_ft": 0.0,
@@ -938,11 +870,11 @@ def run_unified_experiment():
         "nmg_elevated_pct": 0.0,
         "flood_this_year_text": "No flooding",
         # Insurance
-        "effective_rate": args.initial_premium * (1 - 0.05),  # base * (1 - initial crs_discount=0.05)
+        "effective_rate": args.initial_premium * (1 - 0.15),  # base * (1 - initial crs_discount=0.15 for Class 7)
         "loss_ratio_display": 0.0,
         "loss_ratio_category": "healthy",
         "community_mitigation_score": 0,
-        "crs_class": 9,  # Class 9 = 5% discount (NJ baseline)
+        "crs_class": 7,  # Class 7 = 15% discount (PRB baseline, C5-C8 typical)
         "crs_consecutive_maintains": 0,
         "crs_last_decision": "none",
         "total_claims": 0.0,
@@ -958,8 +890,13 @@ def run_unified_experiment():
 
     
     # 2. Setup agents (Gov + Ins + Households)
-    gov = create_government_agent()
-    ins = create_insurance_agent()
+    if args.exogenous_institutions:
+        print("[INFO] Exogenous institutions mode: gov/ins use FIXED policy (no LLM)")
+        gov = None
+        ins = None
+    else:
+        gov = create_government_agent()
+        ins = create_insurance_agent()
 
     # Load household profiles based on mode
     if args.mode == "survey":
@@ -984,8 +921,9 @@ def run_unified_experiment():
 
     households = [wrap_household(p) for p in profiles]
 
-    # Order: Institutional agents first
-    all_agents = {a.id: a for a in [gov, ins] + households}
+    # Order: Institutional agents first (if present)
+    institutional_agents = [a for a in [gov, ins] if a is not None]
+    all_agents = {a.id: a for a in institutional_agents + households}
 
     # Calculate MG statistics for government prompt
     mg_count = sum(1 for p in profiles if p.mg)
@@ -1163,6 +1101,7 @@ def run_unified_experiment():
         message_pool=message_pool,
         flood_schedule=flood_schedule,
         social_graph=graph,
+        interaction_hub=hub,
     )
 
     if args.per_agent_depth:
@@ -1220,9 +1159,12 @@ def run_unified_experiment():
                     "loss_ratio_display",
                     "loss_ratio_category",
                     "community_mitigation_score",
+                    "crs_discount",
                     "crs_class",
                     "crs_consecutive_maintains",
                     "crs_last_decision",
+                    "year",
+                    "base_premium_rate",
                     "total_claims",
                     "total_premiums",
                     "years_since_last_flood",
@@ -1231,6 +1173,13 @@ def run_unified_experiment():
                     "years_since_severe_flood",
                     # Premium escalation (P2: NFIP trajectory recalibration)
                     "premium_escalation_pct",
+                    # Qualitative labels (hybrid design: Python computes, LLM judges)
+                    "mitigation_label", "mitigation_trend",
+                    "crs_headroom_label", "program_health_label",
+                    "budget_health_label", "adaptation_progress_label",
+                    "equity_gap_label", "policy_momentum_label",
+                    "flood_urgency_label", "subsidy_level_label",
+                    "annual_subsidy_cost", "years_to_depletion", "years_remaining",
                 ], # Phase 2 PR2: Allow institutional influence
                 prompt_templates=load_prompt_templates(str(MULTI_AGENT_DIR / "config" / "ma_agent_types.yaml")),
                 enable_financial_constraints=args.enable_financial_constraints,
@@ -1238,31 +1187,47 @@ def run_unified_experiment():
             )
         )
         .with_governance(
-            profile="strict",
+            profile="disabled" if args.disable_governance else "strict",
             config_path=str(MULTI_AGENT_DIR / "config" / "ma_agent_types.yaml")
         )
-        .with_phase_order([
-            ["government"],                           # Phase 1: NJDEP decides subsidy
-            ["insurance"],                            # Phase 2: FEMA/NFIP decides premium
-            ["household_owner", "household_renter"],  # Phase 3: Households decide adaptation
-        ])
+        .with_phase_order(
+            [["household_owner", "household_renter"]]  # Households only (exogenous institutions)
+            if args.exogenous_institutions else
+            [
+                ["government"],                           # Phase 1: NJDEP decides subsidy
+                ["insurance"],                            # Phase 2: FEMA/NFIP decides premium
+                ["household_owner", "household_renter"],  # Phase 3: Households decide adaptation
+            ]
+        )
     )
 
     # Structural action validators — always active (evidence-based constraints)
     # These enforce: flood history requirements, zone appropriateness, and
     # repetitive-loss eligibility for buyout (FEMA/Blue Acres policy).
-    structural_validators = [
-        validate_flood_zone_appropriateness,
-        validate_buyout_repetitive_loss,
-        validate_elevation_justification,
-        validate_insurance_access_barriers,
-        validate_government_decision,
-        validate_insurance_decision,
-    ]
-
-    if args.enable_custom_affordability:
-        # Add income-based affordability checks (alternative to --enable-financial-constraints)
-        structural_validators.insert(0, validate_affordability)
+    if args.disable_governance:
+        print("[INFO] Governance DISABLED: household validators and coherence rules skipped")
+        # Keep institutional validators if institutional agents are active
+        if args.exogenous_institutions:
+            structural_validators = []
+        else:
+            structural_validators = [
+                validate_government_decision,   # G1-G4 hard constraints only
+                validate_insurance_decision,    # I1, I2, I7 hard constraints only
+            ]
+    else:
+        structural_validators = [
+            validate_flood_zone_appropriateness,
+            validate_buyout_repetitive_loss,
+            validate_elevation_justification,
+            validate_insurance_access_barriers,
+            *([] if args.exogenous_institutions else [
+                validate_government_decision,   # G1-G4 hard constraints only
+                validate_insurance_decision,    # I1, I2, I7 hard constraints only
+            ]),
+        ]
+        if args.enable_custom_affordability:
+            # Add income-based affordability checks (alternative to --enable-financial-constraints)
+            structural_validators.insert(0, validate_affordability)
 
     builder.with_custom_validators(structural_validators)
 

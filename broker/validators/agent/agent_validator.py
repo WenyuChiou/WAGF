@@ -522,12 +522,10 @@ class AgentValidator:
                     f"AFFORDABILITY: Cannot afford elevation (${cost:,.0f} > 3x income ${income*3:,.0f})"
                 )
 
-        if decision in ["buy_insurance", "buy_contents_insurance"]:
-            premium = premium_rate * property_value
-            if premium > income * 0.05:
-                return False, (
-                    f"AFFORDABILITY: Premium ${premium:,.0f} exceeds 5% of income ${income*0.05:,.0f}"
-                )
+        # Insurance affordability is handled via prompt-level guidance (insurance_cost_text)
+        # which tells the LLM the premium burden percentage and descriptive norms.
+        # This gives the LLM genuine judgment space — some agents may choose to buy
+        # insurance despite heavy burden (debt, fear after floods), which is realistic.
 
         return True, None
     

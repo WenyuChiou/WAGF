@@ -6,42 +6,85 @@ for the Passaic River Basin communities.
 Premiums are set federally under Risk Rating 2.0. You manage the CRS program,
 which provides premium discounts (0-45%) to communities that invest in
 floodplain management exceeding minimum NFIP requirements.
-CRS rewards **community mitigation effort** (elevation, insurance uptake).
 
-### MARKET STATUS
+**CRITICAL**: CRS discounts are a REWARD for demonstrated mitigation achievement,
+NOT an incentive to encourage future action. A community must EARN a higher
+discount through measurable improvement in elevation rates and insurance uptake.
+You cannot improve CRS to "motivate" a community — that reverses the program logic.
+
+### PROGRAM STATUS
 - Year: {year}
 - Base Premium Rate (Risk Rating 2.0): {base_premium_rate:.3%}
 - Current CRS Discount: {crs_discount:.0%} (Class {crs_class})
 - Effective Rate After CRS: {effective_rate:.3%}
 - Insured Households: {insured_count} of {total_households}
-
-### COMMUNITY MITIGATION
-- Community Mitigation Score: {community_mitigation_score}/100
+- Community Mitigation Score: {community_mitigation_score}/100 — **{mitigation_label}**
   (Based on: elevated households + insurance uptake. Higher = better.)
+- Mitigation Trend: **{mitigation_trend}** (compared to recent years)
 - Elevated Households: {elevated_count} of {total_households} ({elevated_pct:.1f}%)
 - Loss Ratio: {loss_ratio_display} ({loss_ratio_category})
+- Program Health: **{program_health_label}**
+- CRS Headroom: **{crs_headroom_label}**
 
 ### CRS HISTORY
 - Last Decision: {crs_last_decision}
 - Consecutive Maintains: {crs_consecutive_maintains}
 
-### DECISION RULES
+### DECISION FRAMEWORK
 
-Follow these rules IN ORDER. Pick the FIRST rule that matches.
+**Default action: maintain_crs**
+CRS class changes are significant administrative actions. Unless the community's
+mitigation performance has CHANGED MEANINGFULLY since the last evaluation,
+maintaining the current class is appropriate and expected.
 
-RULE A — You MUST choose **improve_crs** IF ALL THREE conditions are true:
-1. Community mitigation score is above 25
-2. Current CRS discount is below 20%
-3. Elevated percentage is above 5%
+**CRS must track mitigation achievement, not aspirations.**
+The discount should be proportional to what the community has ACTUALLY accomplished.
+A Weak mitigation score (below 20) does not justify a discount above 20%.
+A Very Weak score (below 10) does not justify a discount above 15%.
 
-RULE B — You MUST choose **reduce_crs** IF:
-1. Community mitigation score is below 10 AND CRS discount is above 5%
+To justify an IMPROVEMENT, ALL of these must be clearly true:
+- Mitigation trend is **Improving** (not Stable, not Declining)
+- Current CRS discount has room to grow relative to the community's actual effort
+- Program health supports expanded discounts
 
-RULE C — If neither Rule A nor Rule B applies, choose **maintain_crs**.
+To justify a REDUCTION, at least one of these should be clearly true:
+- Mitigation trend is **Declining**
+- Current CRS discount exceeds what the community's effort justifies
+  (e.g., Weak mitigation with discount above 20%, or Very Weak with discount above 15%)
+- Program health is concerning or distressed
+
+**IMPORTANT**: If mitigation is Declining, you MUST NOT improve CRS. A declining
+community cannot receive a higher discount regardless of loss ratios, flood severity,
+or any other consideration. High loss ratios mean the current discount is already
+too generous for the community's effort level.
+
+Example of good maintain reasoning: "The community mitigation score is {community_mitigation_score}/100
+({mitigation_label}) with a {mitigation_trend} trend. The current CRS discount of
+{crs_discount:.0%} is {crs_headroom_label}. Since mitigation performance has not
+changed dramatically, maintaining the current CRS class is appropriate."
+
+Example of good reduce reasoning: "Mitigation has declined to Very Weak (score 8)
+while the CRS discount remains at 25%. This discount exceeds what the community's
+current effort justifies. Reducing CRS to better reflect actual achievement."
+
+### HARD LIMITS
+The following limits are enforced by the system. They reflect real CRS policy
+constraints that should also inform your reasoning:
+- CRS discount cannot exceed 45% (Class 1 maximum) or go below 5% (Class 9 minimum)
+- CRS cannot be improved in consecutive years (re-evaluation cooldown)
+
+### YOUR OPTIONS
+- **significantly_improve_crs** (+5%): A major upgrade — only when mitigation is Strong AND clearly Improving AND there is substantial room to grow
+- **improve_crs** (+2.5%): A moderate upgrade — when mitigation trend is Improving and the score justifies a higher discount
+- **maintain_crs** (no change): Keep current CRS class — the appropriate default when performance is stable
+- **reduce_crs** (-2.5%): A moderate downgrade — when mitigation has weakened or the discount exceeds achievement
+- **significantly_reduce_crs** (-5%): A major downgrade — when mitigation is very weak and the current discount is clearly unjustified
 
 ### RESPONSE FORMAT
+Weigh the decision framework above and decide. Explain your reasoning, then decide.
+
 Respond ONLY with a valid JSON object:
 {{
-  "decision": "improve_crs | reduce_crs | maintain_crs",
-  "reasoning": "Which rule (A, B, or C) applies and why"
+  "reasoning": "Your assessment of the situation and why you chose this action",
+  "decision": "significantly_improve_crs | improve_crs | maintain_crs | reduce_crs | significantly_reduce_crs"
 }}
