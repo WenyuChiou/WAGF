@@ -74,10 +74,17 @@ def config_to_cli_args(cfg: dict, seed: int) -> list:
 
     # Institutions
     inst = cfg.get("institutions", {})
-    gov = inst.get("government", {})
-    ins = inst.get("insurance", {})
-    args.extend(["--initial-subsidy", str(gov.get("initial_subsidy", 0.50))])
-    args.extend(["--initial-premium", str(ins.get("initial_premium", 0.02))])
+    gov_cfg = inst.get("government", {})
+    ins_cfg = inst.get("insurance", {})
+    args.extend(["--initial-subsidy", str(gov_cfg.get("initial_subsidy", 0.50))])
+    args.extend(["--initial-premium", str(ins_cfg.get("initial_premium", 0.02))])
+    # Exogenous institutions: if either gov or ins has llm_driven=false, use fixed policy
+    if not gov_cfg.get("llm_driven", True) or not ins_cfg.get("llm_driven", True):
+        args.append("--exogenous-institutions")
+    # Fixed institutional policy schedule (RQ2 ablation)
+    fixed_policy = inst.get("fixed_policy_schedule")
+    if fixed_policy:
+        args.extend(["--fixed-institutional-policy", fixed_policy])
 
     # Social
     social = cfg.get("social", {})
@@ -91,19 +98,22 @@ def config_to_cli_args(cfg: dict, seed: int) -> list:
     args.extend(["--news-delay", str(news_delay)])
 
     # Governance
-    gov_cfg = cfg.get("governance", {})
-    if gov_cfg.get("financial_constraints", False):
+    governance_cfg = cfg.get("governance", {})
+    if governance_cfg.get("financial_constraints", False):
         args.append("--enable-financial-constraints")
-    if gov_cfg.get("cross_validation", False):
+    if governance_cfg.get("cross_validation", False):
         args.append("--enable-cross-validation")
-    if gov_cfg.get("communication", False):
+    if governance_cfg.get("communication", False):
         args.append("--enable-communication")
+    # Disable governance (si7 ablation)
+    if governance_cfg.get("profile", "strict") == "disabled":
+        args.append("--disable-governance")
 
     # Seed
     args.extend(["--seed", str(seed)])
 
     # Skill ordering randomization
-    if cfg.get("governance", {}).get("shuffle_skills", False):
+    if governance_cfg.get("shuffle_skills", False):
         args.append("--shuffle-skills")
 
     # Output

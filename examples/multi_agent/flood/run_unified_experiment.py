@@ -180,6 +180,9 @@ def run_unified_experiment():
     # Paper 3 ablation flags
     parser.add_argument("--exogenous-institutions", action="store_true",
                         help="Use fixed exogenous institutional policy (no LLM for gov/ins). For SI-2 ablation.")
+    parser.add_argument("--fixed-institutional-policy", type=str, default=None,
+                        help="YAML file with yearly {subsidy_rate, crs_discount} schedule. "
+                             "Disables gov/ins LLM agents. For RQ2 ablation.")
     parser.add_argument("--disable-governance", action="store_true",
                         help="Disable all governance validators (skip rule checks). For SI-7 ablation.")
     parser.add_argument("--seed", type=int, default=None,
@@ -190,7 +193,23 @@ def run_unified_experiment():
     if args.seed is not None:
         random.seed(args.seed)
         print(f"[INFO] Random seed set to {args.seed}")
-    
+
+    # Load fixed institutional policy schedule (RQ2 ablation)
+    fixed_policy_schedule = None
+    if args.fixed_institutional_policy:
+        import yaml as _yaml
+        policy_path = Path(args.fixed_institutional_policy)
+        if not policy_path.exists():
+            print(f"[ERROR] Fixed policy file not found: {policy_path}")
+            sys.exit(1)
+        with open(policy_path, encoding="utf-8") as _f:
+            fixed_policy_schedule = _yaml.safe_load(_f)
+        # Ensure keys are ints (YAML may parse them as ints already, but be safe)
+        fixed_policy_schedule = {int(k): v for k, v in fixed_policy_schedule.items()}
+        print(f"[INFO] Fixed institutional policy loaded from {policy_path} ({len(fixed_policy_schedule)} years)")
+        # Fixed policy implies no LLM institutional agents (same as exogenous)
+        args.exogenous_institutions = True
+
     # =============================================================================
     # CUSTOM VALIDATOR FUNCTIONS (Application-Specific)
     # =============================================================================
@@ -1102,6 +1121,7 @@ def run_unified_experiment():
         flood_schedule=flood_schedule,
         social_graph=graph,
         interaction_hub=hub,
+        fixed_policy_schedule=fixed_policy_schedule,
     )
 
     if args.per_agent_depth:
