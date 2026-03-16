@@ -42,6 +42,7 @@ class MultiAgentHooks:
         flood_schedule: Optional[Dict[int, float]] = None,
         social_graph: Optional[Any] = None,      # SocialGraph for neighbor pruning
         interaction_hub: Optional[Any] = None,    # InteractionHub for gossip storage
+        fixed_policy_schedule: Optional[Dict[int, Dict[str, float]]] = None,  # RQ2 ablation
     ):
         self.env = environment
         self.memory_engine = memory_engine
@@ -69,6 +70,7 @@ class MultiAgentHooks:
         self.social_graph = social_graph
         self._interaction_hub = interaction_hub
         self._memory_bridge = MemoryBridge(memory_engine) if memory_engine else None
+        self.fixed_policy_schedule = fixed_policy_schedule
 
         # --- Institutional state tracking (C&V: trajectory validation) ---
         # Government budget and policy stability
@@ -314,6 +316,16 @@ class MultiAgentHooks:
             # Only increment years_since_severe_flood here (separate counter).
             self.env["years_since_severe_flood"] = self.env.get("years_since_severe_flood", 0) + 1
             self.env["flood_this_year_text"] = "No flooding this year"
+
+        # Apply fixed institutional policy schedule (RQ2 ablation: replayed policy)
+        if self.fixed_policy_schedule and year in self.fixed_policy_schedule:
+            policy = self.fixed_policy_schedule[year]
+            if "subsidy_rate" in policy:
+                self.env["subsidy_rate"] = policy["subsidy_rate"]
+            if "crs_discount" in policy:
+                self.env["crs_discount"] = policy["crs_discount"]
+            logging.info(f"[FIXED_POLICY] Year {year}: subsidy_rate={self.env['subsidy_rate']:.3f}, "
+                         f"crs_discount={self.env.get('crs_discount', 0):.3f}")
 
         # Insurance: effective rate with loss-ratio-adjusted premium escalation + CRS
         base_rate = self.env.get("base_premium_rate", self.env.get("premium_rate", 0.008))

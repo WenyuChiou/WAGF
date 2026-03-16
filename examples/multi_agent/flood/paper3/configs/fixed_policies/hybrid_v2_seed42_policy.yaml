@@ -1,0 +1,60 @@
+# Fixed institutional policy schedule extracted from paper3_hybrid_v2/seed_42
+# Government (NJDEP) subsidy decisions + Insurance (FEMA/CRS) discount decisions
+#
+# Initial values: subsidy_rate=0.50, crs_discount=0.15 (CRS Class 7)
+# Gov skills: small_increase_subsidy (+2.5%), large_increase_subsidy (+5%), maintain_subsidy
+# Ins skills: improve_crs (+2.5%), reduce_crs (-2.5%), maintain_crs
+#
+# Year mapping: simulation year 1 = calendar year 2011
+
+1:
+  subsidy_rate: 0.525    # gov: small_increase_subsidy
+  crs_discount: 0.15     # ins: maintain_crs
+
+2:
+  subsidy_rate: 0.55     # gov: small_increase_subsidy
+  crs_discount: 0.175    # ins: improve_crs
+
+3:
+  subsidy_rate: 0.55     # gov: maintain_subsidy
+  crs_discount: 0.175    # ins: maintain_crs
+
+4:
+  subsidy_rate: 0.60     # gov: large_increase_subsidy
+  crs_discount: 0.175    # ins: maintain_crs
+
+5:
+  subsidy_rate: 0.65     # gov: large_increase_subsidy
+  crs_discount: 0.20     # ins: improve_crs
+
+6:
+  subsidy_rate: 0.65     # gov: maintain_subsidy
+  crs_discount: 0.20     # ins: maintain_crs
+
+7:
+  subsidy_rate: 0.65     # gov: maintain_subsidy
+  crs_discount: 0.20     # ins: maintain_crs
+
+8:
+  subsidy_rate: 0.65     # gov: maintain_subsidy
+  crs_discount: 0.20     # ins: maintain_crs
+
+9:
+  subsidy_rate: 0.65     # gov: maintain_subsidy
+  crs_discount: 0.175    # ins: reduce_crs
+
+10:
+  subsidy_rate: 0.65     # gov: maintain_subsidy
+  crs_discount: 0.175    # ins: maintain_crs
+
+11:
+  subsidy_rate: 0.65     # gov: maintain_subsidy
+  crs_discount: 0.175    # ins: maintain_crs
+
+12:
+  subsidy_rate: 0.65     # gov: maintain_subsidy
+  crs_discount: 0.175    # ins: maintain_crs
+
+13:
+  subsidy_rate: 0.65     # gov: maintain_subsidy
+  crs_discount: 0.20     # ins: improve_crs
