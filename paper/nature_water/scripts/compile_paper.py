@@ -397,7 +397,7 @@ def compile_main_paper():
 
     # Figure insertion map: after which section heading to insert which figure
     # Figures are inserted AFTER processing the section
-    # Main text: 4 figures (framework, irrigation, flood, cross-model)
+    # Main text: 3 figures (framework, irrigation, flood)
     # Tables moved to Extended Data (not counted toward 4-item limit)
     figure_after_section = {
         "introduction_v10.md": [
@@ -416,48 +416,38 @@ def compile_main_paper():
              Inches(6.0)),
         ],
         "section2_v11_results.md": [
-            (FIGURES_DIR / "Fig2_irrigation_v2.png",
+            (FIGURES_DIR / "Fig2_irrigation_case.png",
              "**Figure 2. Governance shapes water-resource reasoning in the irrigation domain** "
              "(78 agents \u00d7 42 years, Gemma-3 4B, 5 seeds each). "
-             "(**a**) Action composition over time for two conditions: governed (IBR = 38%) "
-             "and LLM (no validator) (IBR = 61%). Stacked areas show ensemble-mean action shares. "
-             "Black solid line: condition-specific Lake Mead level (right axis); "
+             "(**a**) Action composition over time for governed (left, IBR = 38%) and "
+             "LLM (no validator) (right, IBR = 61%) conditions. "
+             "Stacked areas show ensemble-mean action shares across 5 seeds. "
+             "Black solid line: Lake Mead elevation (right axis); "
              "grey dashed line: fuzzy Q-learning (FQL) baseline (Hung and Yang, 2021). "
-             "Red dashed line: Tier 1 shortage threshold (1,075 ft); grey shading: drought periods. "
-             "IBR = Irrational Behaviour Rate (fraction of high-scarcity decisions proposing demand increases). "
-             "(**b**) Demand ratio (requested volume / historical baseline) versus shortage years "
-             "(years with mean Lake Mead below 1,075 ft). Each small dot represents one seed; "
-             "large markers show condition means. "
-             "Shaded bands show \u00b1 1 s.d. across 5 seeds.",
+             "Red dashed line: Tier 1 shortage threshold (1,075 ft). "
+             "Grey shading: \u00b1 1 s.d. envelope around Mead elevation. "
+             "(**b**) 5\u00d75 pie matrices decomposing action distributions by "
+             "Water Shortage Appraisal (WSA, rows) and Adaptive Capacity Appraisal (ACA, columns). "
+             "Left: governed; right: LLM (no validator). "
+             "Pie sizes proportional to decision count (n). "
+             "Background shading indicates governance violation rate per cell. "
+             "Non-compliance concentrates at the high-WSA/high-ACA boundary, "
+             "where 51.2% of governed agents proposed demand increases (all rejected).",
              Inches(6.0)),
-            (FIGURES_DIR / "Fig3_pie_v3.png",
-             "**Figure 3. Structured non-compliance at institutional boundaries across two water domains.** "
-             "(**a**) Irrigation domain: 5\u00d75 pie matrix showing action distributions across "
-             "Water Shortage Appraisal (WSA, rows) and Adaptive Capacity Appraisal (ACA, columns) levels "
-             "(78 agents \u00d7 42 years, Gemma-3 4B, 5 seeds). Pie sizes proportional to decision count (n). "
-             "Non-compliance concentrates at the high-WSA/high-ACA boundary where 51.2% of governed agents "
-             "proposed demand increases (all rejected by governance rules). "
-             "(**b**) Flood domain: 5\u00d75 pie matrix showing cumulative protection state across "
-             "Threat Appraisal (TA, rows) and Coping Appraisal (CA, columns) levels "
-             "(100 agents \u00d7 10 years, Gemma-3 4B, 3 seeds). "
-             "92% of governed decisions self-assessed coping appraisal at a single level (Med CA, highlighted), "
-             "suggesting governance success in flood partially reflects compression of cognitive differentiation. "
-             "Colours: Okabe-Ito palette consistent across all figures.",
-             Inches(6.0)),
-            (FIGURES_DIR / "Fig4_crossmodel.png",
-             "**Figure 4. Governance effect on behavioural diversity and rationality across six LLMs** "
-             "(flood domain, 100 agents \u00d7 10 years, 3 runs per condition). "
-             "Models sorted by parameter count (3B to 27B). "
-             "(**a**) Paired dot plot showing LLM (no validator) (vermillion) versus governed (blue) "
-             "behavioural diversity (normalised Shannon entropy H/log\u2082(k), k = 4 action types); "
-             "connecting lines indicate effect direction. "
-             "(**b**) Forest plot of governance effect (\u0394EHE = governed \u2212 no validator) with 95% CIs; "
-             "blue = statistically significant, grey = non-significant. "
-             "(**c**) IBR (Irrational Behaviour Rate, %; fraction of PMT-inconsistent decisions) "
-             "for each model. Governance reduced IBR in all six models, "
-             "with the largest reductions for Gemma-3 4B (8.1% \u2192 0.6%) and Ministral 3B "
-             "(5.0% \u2192 0.3%). Error bars: \u00b1 1 s.d. across 3 seeds. "
-             "Full IBR decomposition in Supplementary Table 1.",
+            (FIGURES_DIR / "Fig3_flood_case.png",
+             "**Figure 3. Governance effect on household flood-adaptation behaviour** "
+             "(100 agents \u00d7 10 years, Gemma-3 4B, 3 seeds each). "
+             "(**a**) Cumulative protection state over 10 years for three conditions: "
+             "governed LLM (left), rule-based PMT baseline (centre), and LLM (no validator) (right). "
+             "Stacked bars show population counts by protection state "
+             "(DN = do nothing, FI = flood insurance, HE = home elevation, "
+             "FI+HE = both, RL = relocation). "
+             "(**b**) 5\u00d75 pie matrices decomposing action distributions by "
+             "Threat Appraisal (TA, rows) and Coping Appraisal (CA, columns). "
+             "Left: LLM (no validator); right: governed LLM. "
+             "Background shading indicates governance violation rate per cell. "
+             "92% of governed agents self-assessed coping appraisal at a single level (M, moderate), "
+             "suggesting governance success in flood partially reflects cognitive compression.",
              Inches(6.0)),
         ],
     }
@@ -543,6 +533,7 @@ def compile_main_paper():
         "Hung, F. & Yang, Y.-C. E. Assessing adaptive irrigation impacts on water scarcity in nonstationary environments — a multi-agent reinforcement learning approach. Water Resour. Res. 57, e2020WR029262 (2021).",
         "Hung, F. & Yang, Y.-C. E. Assessing the impact of adaptation strategies on water scarcity under climate change in the Colorado River Basin. J. Hydrol. 612, 128193 (2022).",
         "Hyun, J.-Y. & Yang, Y.-C. E. Using a coupled agent-based modeling approach to analyze the role of risk perception in water management decisions. Hydrol. Earth Syst. Sci. 23, 2261–2278 (2019).",
+        "Libecap, G. D. Institutional path dependence in climate adaptation: Coman's 'some unsettled problems of irrigation'. Am. Econ. Rev. 101, 64–80 (2011).",
         "Lin, C.-Y. & Yang, Y.-C. E. An investigation of coupled natural human systems using a two-way coupled agent-based modeling framework. Environ. Model. Softw. 155, 105451 (2022).",
         "Liu, J. et al. Complexity of coupled human and natural systems. Science 317, 1513–1516 (2007).",
         "Loucks, D. P. & van Beek, E. Water Resource Systems Planning and Management: An Introduction to Methods, Models, and Applications (Springer, 2017).",
@@ -616,7 +607,7 @@ def compile_main_paper():
         fldChar2 = parse_xml(f'<w:fldChar {nsdecls("w")} w:fldCharType="end"/>')
         run3._element.append(fldChar2)
 
-    out_path = OUTPUT / "NatureWater_MainText_v19.docx"
+    out_path = OUTPUT / "NatureWater_MainText_v21.docx"
     doc.save(str(out_path))
     print(f"Main paper saved to: {out_path}")
     return out_path
@@ -698,14 +689,14 @@ def compile_si():
     # Line numbers
     add_line_numbers(doc)
 
-    out_path = OUTPUT / "NatureWater_SI_v19.docx"
+    out_path = OUTPUT / "NatureWater_SI_v21.docx"
     doc.save(str(out_path))
     print(f"SI saved to: {out_path}")
     return out_path
 
 
 if __name__ == "__main__":
-    print("Compiling Nature Water paper v19...")
+    print("Compiling Nature Water paper v21...")
     main_path = compile_main_paper()
     si_path = compile_si()
     print(f"\nDone. Files:")
