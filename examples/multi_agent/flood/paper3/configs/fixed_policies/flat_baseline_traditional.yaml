@@ -1,0 +1,65 @@
+# Flat baseline institutional policy for RQ2 Ablation B
+#
+# These values represent the exogenous institutional assumptions in the
+# Traditional Bayesian ABM (FLOODABM): fixed subsidy and no CRS discount.
+#
+# - subsidy_rate = 0.50 (50%): FEMA HMGP standard federal cost-share
+# - crs_discount = 0.0 (0%): No community rating system discount assumed
+#
+# Purpose: Isolate the effect of institutional learning (3-tier endogenous)
+# by holding institutional parameters constant at Traditional ABM defaults
+# while keeping the LLM household decision mechanism identical.
+#
+# Year mapping: simulation year 1 = calendar year 2011
+
+1:
+  subsidy_rate: 0.50
+  crs_discount: 0.0
+
+2:
+  subsidy_rate: 0.50
+  crs_discount: 0.0
+
+3:
+  subsidy_rate: 0.50
+  crs_discount: 0.0
+
+4:
+  subsidy_rate: 0.50
+  crs_discount: 0.0
+
+5:
+  subsidy_rate: 0.50
+  crs_discount: 0.0
+
+6:
+  subsidy_rate: 0.50
+  crs_discount: 0.0
+
+7:
+  subsidy_rate: 0.50
+  crs_discount: 0.0
+
+8:
+  subsidy_rate: 0.50
+  crs_discount: 0.0
+
+9:
+  subsidy_rate: 0.50
+  crs_discount: 0.0
+
+10:
+  subsidy_rate: 0.50
+  crs_discount: 0.0
+
+11:
+  subsidy_rate: 0.50
+  crs_discount: 0.0
+
+12:
+  subsidy_rate: 0.50
+  crs_discount: 0.0
+
+13:
+  subsidy_rate: 0.50
+  crs_discount: 0.0

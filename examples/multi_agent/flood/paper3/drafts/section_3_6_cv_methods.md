@@ -30,7 +30,7 @@ Prompt design followed an iterative refinement process (v5 → v6 → v7 → v7d
 
 ## Level 2: Macro-Level Empirical Plausibility
 
-L2 validation evaluates whether aggregate system behavior reproduces known empirical patterns. Following Grimm et al. (2005), we adopt pattern-oriented validation: the model must simultaneously satisfy multiple independent structural benchmarks. We define the Empirical Plausibility Index (EPI) as the weighted proportion of benchmarks falling within empirically supported ranges.
+L2 assessment evaluates whether aggregate system behavior falls within the envelope of known empirical patterns. Following the pattern-oriented modeling philosophy of Grimm et al. (2005), the model must simultaneously satisfy multiple independent structural benchmarks---but unlike traditional statistical validation (e.g., hypothesis testing, goodness-of-fit), our approach tests range membership rather than distributional fit. We define the Empirical Plausibility Index (EPI) as the weighted proportion of benchmarks whose simulated values fall within empirically supported ranges. EPI is therefore a plausibility diagnostic---it confirms that emergent behavior is consistent with observed phenomena, but does not constitute predictive validation or parameter calibration in the classical sense.
 
 ### Benchmark Classification
 
