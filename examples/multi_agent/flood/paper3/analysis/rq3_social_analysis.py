@@ -44,7 +44,7 @@ import matplotlib.ticker as mticker
 # Paths
 # ---------------------------------------------------------------------------
 BASE = Path(r"c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework")
-RESULT_DIR = BASE / "examples" / "multi_agent" / "flood" / "paper3" / "results" / "paper3_primary" / "seed_42"
+RESULT_DIR = BASE / "examples" / "multi_agent" / "flood" / "paper3" / "results" / "paper3_hybrid_v2" / "seed_42"
 RAW_DIR = RESULT_DIR / "gemma3_4b_strict" / "raw"
 AUDIT_DIR = RESULT_DIR / "gemma3_4b_strict"
 DATA_DIR = BASE / "examples" / "multi_agent" / "flood" / "data"

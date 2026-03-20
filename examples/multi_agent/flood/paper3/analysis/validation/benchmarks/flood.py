@@ -249,8 +249,16 @@ def _compute_insurance_lapse_rate(df, traces, **kwargs):
 # Institutional Trajectory Benchmarks
 # =============================================================================
 
-_GOVT_ACTIONS = {"increase_subsidy", "decrease_subsidy", "maintain_subsidy"}
-_INS_ACTIONS = {"improve_crs", "reduce_crs", "maintain_crs"}
+_GOVT_ACTIONS = {
+    "large_increase_subsidy", "small_increase_subsidy", "maintain_subsidy",
+    "small_decrease_subsidy", "large_decrease_subsidy",
+    # Legacy 3-level names (backward compat with old traces)
+    "increase_subsidy", "decrease_subsidy",
+}
+_INS_ACTIONS = {
+    "significantly_improve_crs", "improve_crs", "maintain_crs",
+    "reduce_crs", "significantly_reduce_crs",
+}
 
 
 def _extract_institutional_trajectories(
@@ -324,7 +332,7 @@ def _compute_govt_decrease_count(df, traces, **kwargs):
     inst = _extract_institutional_trajectories(traces)
     count = sum(
         1 for t in inst["government"]
-        if _extract_action(t).lower().strip() == "decrease_subsidy"
+        if _extract_action(t).lower().strip() in ("decrease_subsidy", "small_decrease_subsidy", "large_decrease_subsidy")
     )
     return float(count)
 
@@ -334,7 +342,11 @@ def _compute_govt_change_count(df, traces, **kwargs):
     inst = _extract_institutional_trajectories(traces)
     count = sum(
         1 for t in inst["government"]
-        if _extract_action(t).lower().strip() in ("increase_subsidy", "decrease_subsidy")
+        if _extract_action(t).lower().strip() in (
+            "increase_subsidy", "decrease_subsidy",
+            "large_increase_subsidy", "small_increase_subsidy",
+            "small_decrease_subsidy", "large_decrease_subsidy",
+        )
     )
     return float(count)
 
@@ -362,7 +374,7 @@ def _compute_ins_improve_count(df, traces, **kwargs):
     inst = _extract_institutional_trajectories(traces)
     count = sum(
         1 for t in inst["insurance"]
-        if _extract_action(t).lower().strip() == "improve_crs"
+        if _extract_action(t).lower().strip() in ("improve_crs", "significantly_improve_crs")
     )
     return float(count)
 

@@ -302,7 +302,8 @@ def compute_epi(
     EPI = weighted fraction of evaluated benchmarks where the simulated
     aggregate rate falls within the empirical range (with tolerance).
 
-    Threshold: EPI >= 0.60 for L2 macro validation pass.
+    Threshold: EPI >= 0.60 for L2 macro plausibility threshold
+    (range-based assessment, not statistical validation).
 
     Parameters
     ----------
