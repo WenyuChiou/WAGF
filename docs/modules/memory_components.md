@@ -8,9 +8,9 @@ The **Memory and Retrieval System** is the cognitive bridge between an agent's p
 
 ## WRR-Validated Configuration
 
-For all WRR (Water Resources Research) experiments, the **HumanCentricMemoryEngine** in **basic ranking mode** is the validated configuration. This engine combines a recent-window buffer (5 most recent memories) with top-k retrieval (2 highest by decayed importance), using `importance = emotional_weight * source_weight` scoring. See `agent_types.yaml` in each experiment for domain-specific emotion keywords and source patterns.
+For all WRR (Water Resources Research) experiments, the **HumanCentricMemoryEngine** in **weighted ranking mode** is the production configuration. This engine uses a unified scoring formula `S = W_r*R + W_i*I + W_c*C` combining recency (R), importance (I), and context match (C), with configurable weights (default: W_r=0.3, W_i=0.5, W_c=0.2). Memory encoding uses `importance = emotional_weight * source_weight` scoring. See `agent_types.yaml` in each experiment for domain-specific emotion keywords, source patterns, and retrieval weights.
 
-The memory evolution roadmap below describes the full architecture including experimental engines (v3/v4) that are available but not used in WRR validation experiments.
+The memory evolution roadmap below describes the full architecture including experimental engines (v3/v4) that are deprecated in favor of v2 with optional plugins.
 
 ## Memory Evolution & Roadmap
 
@@ -221,7 +221,7 @@ V3 is the "controller" of the cognitive architecture. It models the **Arousal Lo
 
 ### 5.1 Cognitive Constraints (Memory Capacity)
 
-The `CognitiveConstraints` dataclass (`cognitive_governance/memory/config/cognitive_constraints.py`) parameterizes how many memories are retrieved per arousal level, grounded in established psychology:
+The `CognitiveConstraints` dataclass (`broker/memory/config/cognitive_constraints.py`) parameterizes how many memories are retrieved per arousal level, grounded in established psychology:
 
 - **System 1 (Low arousal)**: 5 recent memories (Cowan 2001: working memory holds 4±1 items)
 - **System 2 (High arousal)**: 7 recent memories (Miller 1956: 7±2 chunks)
@@ -236,16 +236,16 @@ The `CognitiveConstraints` dataclass (`cognitive_governance/memory/config/cognit
 
 The `get_memory_count(arousal)` method interpolates between System 1 and System 2 counts based on the current arousal level, providing smooth transitions rather than a hard cutoff.
 
-### 5.2 Advanced Extensions (cognitive_governance/)
+### 5.2 Advanced Extensions (broker/memory/)
 
-The following capabilities exist in the `cognitive_governance/` extension package:
+The following capabilities exist in the `broker/memory/` research prototype package. These are **not used in production experiments** but are available for future research:
 
-- **Decision-Consistency Surprise** (`cognitive_governance/memory/strategies/decision_consistency.py`): Domain-agnostic action-history surprise. **Integrated** via P1 SurprisePlugin interface.
-- **EMA Surprise** (`cognitive_governance/memory/strategies/ema.py`): Scalar EMA-based surprise. **Integrated** via P1 SurprisePlugin.
-- **Symbolic Surprise** (`cognitive_governance/memory/strategies/symbolic.py`): Frequency-based state signature surprise. **Integrated** via P1 SurprisePlugin.
-- **Multi-dimensional Surprise** (`cognitive_governance/memory/strategies/multidimensional.py`): Extends scalar PE to a vector of surprise dimensions for richer arousal modeling.
-- **Embedding-based Retrieval** (`cognitive_governance/memory/embeddings.py`): Vector similarity search using `all-MiniLM-L6-v2` via `SentenceTransformerProvider`. Alternative to keyword/tag matching.
-- **Memory Graph** (`cognitive_governance/memory/`): Bidirectional linking between memories for associative retrieval.
+- **Decision-Consistency Surprise** (`broker/memory/strategies/decision_consistency.py`): Domain-agnostic action-history surprise. Integrated via P1 SurprisePlugin interface.
+- **EMA Surprise** (`broker/memory/strategies/ema.py`): Scalar EMA-based surprise. Integrated via P1 SurprisePlugin.
+- **Symbolic Surprise** (`broker/memory/strategies/symbolic.py`): Frequency-based state signature surprise. Integrated via P1 SurprisePlugin.
+- **Multi-dimensional Surprise** (`broker/memory/strategies/multidimensional.py`): Extends scalar PE to a vector of surprise dimensions for richer arousal modeling.
+- **Embedding-based Retrieval** (`broker/memory/embeddings.py`): Vector similarity search using `all-MiniLM-L6-v2` via `SentenceTransformerProvider`. Alternative to keyword/tag matching.
+- **Memory Graph** (`broker/memory/graph.py`): Bidirectional linking between memories for associative retrieval.
 
 ---
 
