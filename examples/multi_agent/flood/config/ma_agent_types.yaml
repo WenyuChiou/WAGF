@@ -43,12 +43,12 @@ global_config:
       stimulus_key: flood_depth_m
       arousal_threshold: 1.0
       ema_alpha: 0.3
-      engine: universal
+      engine: humancentric
     household_renter:
       stimulus_key: flood_depth_m
       arousal_threshold: 0.8
       ema_alpha: 0.3
-      engine: universal
+      engine: humancentric
     nj_government:
       stimulus_key: adaptation_gap
       arousal_threshold: 0.15
