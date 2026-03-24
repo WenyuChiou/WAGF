@@ -8,6 +8,7 @@ from examples.multi_agent.flood.environment.hazard import FloodEvent, HazardModu
 from examples.multi_agent.flood.components.media_channels import MediaHub
 from examples.multi_agent.flood.orchestration.disaster_sim import depth_to_qualitative_description
 from broker.components.memory.bridge import MemoryBridge # Added import
+from examples.multi_agent.flood.orchestration.flood_adapter import FloodHouseholdAdapter
 
 
 class MultiAgentHooks:
@@ -43,9 +44,12 @@ class MultiAgentHooks:
         social_graph: Optional[Any] = None,      # SocialGraph for neighbor pruning
         interaction_hub: Optional[Any] = None,    # InteractionHub for gossip storage
         fixed_policy_schedule: Optional[Dict[int, Dict[str, float]]] = None,  # RQ2 ablation
+        reflection_config: Optional[Dict] = None,  # from global_config.reflection
     ):
         self.env = environment
         self.memory_engine = memory_engine
+        self._reflection_config = reflection_config or {}
+        self._flood_adapter = FloodHouseholdAdapter()
         self.hazard = hazard_module or HazardModule()
         self.vuln = VulnerabilityModule()
         self.media_hub = media_hub
@@ -1004,18 +1008,33 @@ class MultiAgentHooks:
 
         # --- MA Reflection Integration (Task-057D) ---
         if self._memory_bridge and self.memory_engine:
+            refl_cfg = self._reflection_config
+            refl_triggers = refl_cfg.get("triggers", {})
+            refl_interval = refl_cfg.get("interval", 1)
+            crisis_trigger = refl_triggers.get("crisis", True)
+            periodic_interval = refl_triggers.get("periodic_interval", 5)
+
             crisis_event = self.env.get("crisis_event", flood_occurred)
             if not flood_occurred:
                 crisis_event = False
-            # Trigger reflection at the end of the year, especially if there was a crisis
-            if crisis_event or year % 5 == 0:
+
+            # Trigger: crisis year, periodic interval, or every-year if interval=1
+            should_reflect = False
+            if crisis_trigger and crisis_event:
+                should_reflect = True
+            if periodic_interval > 0 and year % periodic_interval == 0:
+                should_reflect = True
+            if refl_interval == 1:
+                should_reflect = True
+
+            if should_reflect:
                 for agent in agents.values():
                     if agent.agent_type in ["household_owner", "household_renter"]:
                         self._run_ma_reflection(agent.id, year, agents, self.memory_engine, flood_occurred)
 
                 # Government/Insurance reflection (institutional trigger)
                 from broker.components.cognitive.reflection import ReflectionEngine, ReflectionTrigger
-                reflection_engine = ReflectionEngine()
+                reflection_engine = ReflectionEngine(adapter=self._flood_adapter)
                 for agent in agents.values():
                     if getattr(agent, "agent_type", "") in ("government", "insurance"):
                         base_type = "government" if "government" in agent.agent_type else "insurance"

@@ -91,11 +91,17 @@ def build_memory_engine(mem_cfg: Dict[str, Any], engine_type: str = "universal")
 
     if engine_type == "humancentric":
         # Note: HumanCentricMemoryEngine doesn't support scorer parameter
+        rw = mem_cfg.get("retrieval_weights", {})
         return HumanCentricMemoryEngine(
-            window_size=mem_cfg.get("window_size", 3),
+            window_size=mem_cfg.get("window_size", 5),
             top_k_significant=mem_cfg.get("top_k_significant", 2),
             consolidation_prob=mem_cfg.get("consolidation_probability", 0.7),
+            consolidation_threshold=mem_cfg.get("consolidation_threshold", 0.6),
             decay_rate=mem_cfg.get("decay_rate", 0.1),
+            W_recency=rw.get("recency", 0.3),
+            W_importance=rw.get("importance", 0.5),
+            W_context=rw.get("context", 0.2),
+            ranking_mode=mem_cfg.get("ranking_mode", "weighted"),
         )
     if engine_type == "hierarchical":
         # Note: HierarchicalMemoryEngine is deprecated and doesn't support scorer
@@ -1109,6 +1115,9 @@ def run_unified_experiment():
                 flood_schedule[int(entry)] = 0.6
         print(f"[INFO] Deterministic flood schedule: {flood_schedule}")
 
+    # Reflection config from YAML
+    reflection_config = agent_cfg._config.get("global_config", {}).get("reflection", {})
+
     ma_hooks = MultiAgentHooks(
         tiered_env.global_state,
         memory_engine=memory_engine,
@@ -1122,6 +1131,7 @@ def run_unified_experiment():
         social_graph=graph,
         interaction_hub=hub,
         fixed_policy_schedule=fixed_policy_schedule,
+        reflection_config=reflection_config,
     )
 
     if args.per_agent_depth:
