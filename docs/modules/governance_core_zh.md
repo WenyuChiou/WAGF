@@ -154,7 +154,7 @@ thinking_rules:
 | 檢查 | 規則 ID | 方法 | 偵測 |
 | :--- | :--- | :--- | :--- |
 | **迴聲室** | `ECHO_CHAMBER_DETECTED` | `echo_chamber_check()` | 當 > 80% 代理人選擇相同技能時標記 |
-| **低熵** | `LOW_DECISION_ENTROPY` | （同上） | Shannon 熵 $H = -\sum p_i \log_2 p_i$ 低於閾值（預設 0.5 位元） |
+| **低熵** | `LOW_DECISION_ENTROPY` | （同上） | Shannon 熵 `H = -Σ pi × log2(pi)` 低於閾值（預設 0.5 位元） |
 | **死鎖** | `DEADLOCK_RISK` | `deadlock_check()` | 當 > 50% 提案被 GameMaster 拒絕時標記 |
 
 ### 可插拔領域規則

@@ -169,7 +169,7 @@ For multi-agent simulations, the `CrossAgentValidator` (`broker/validators/gover
 | Check | Rule ID | Method | Detection |
 | :---- | :------ | :----- | :-------- |
 | **Echo Chamber** | `ECHO_CHAMBER_DETECTED` | `echo_chamber_check()` | Flags when > 80% of agents chose the same skill (configurable `echo_threshold`) |
-| **Low Entropy** | `LOW_DECISION_ENTROPY` | (Same method) | Shannon entropy $H = -\sum p_i \log_2 p_i$ below threshold (default 0.5 bits) |
+| **Low Entropy** | `LOW_DECISION_ENTROPY` | (Same method) | Shannon entropy `H = -Σ pi × log2(pi)` below threshold (default 0.5 bits) |
 | **Deadlock** | `DEADLOCK_RISK` | `deadlock_check()` | Flags when > 50% of proposals were rejected by the GameMaster |
 
 ### Pluggable Domain Rules
