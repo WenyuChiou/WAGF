@@ -15,24 +15,24 @@ This document bridges the gap between **Behavioral Theory** and **Software Engin
 - **Theory**: Humans judge the probability of an event by how easily they can recall it (**Tversky & Kahneman, 1973**). Memories follow an exponential decay over time (**Ebbinghaus, 1885**).
 - **Implementation**: `HumanCentricMemoryEngine` (v1 mode).
 - **Mechanism**:
-  - **Importance Score ($I$)**: Normalized [0, 1] based on emotional weight and source credibility.
-  - **Decay Function**: $S = I \times e^{-\lambda t}$. Traumatic events remain "available" in memory longer than routine data.
+  - **Importance Score (I)**: Normalized [0, 1] based on emotional weight and source credibility.
+  - **Decay Function**: `S = I × e^(-λt)`. Traumatic events remain "available" in memory longer than routine data.
 
 ### 1.2 Context-Dependent Memory
 
 - **Theory**: Memory retrieval is significantly more effective when the context at the time of retrieval matches the context at the time of encoding (**Godden & Baddeley, 1975**).
 - **Implementation**: `HumanCentricMemoryEngine` (v2 mode).
 - **Mechanism**:
-  - **Context Score ($C$)**: A binary match {0, 1} between current situation tags and stored memory tags.
-  - **Weighted Retrieval**: $S = W_{rec}R + W_{imp}I + W_{ctx}C$. This allows even distant memories to be "reawakened" if the environment matches.
+  - **Context Score (C)**: A binary match {0, 1} between current situation tags and stored memory tags.
+  - **Weighted Retrieval**: `S = Wr×R + Wi×I + Wc×C`. This allows even distant memories to be "reawakened" if the environment matches.
 
 ### 1.3 Dual-Process Theory & Active Inference
 
-- **Theory**: Human cognition balances between fast, intuitive "System 1" and slow, analytical "System 2" (**Kahneman, 2011**). This switching is driven by **Surprise** or **Prediction Error ($PE$)**, where the brain allocates more resources only when expectations are violated (**Friston, 2010**).
+- **Theory**: Human cognition balances between fast, intuitive "System 1" and slow, analytical "System 2" (**Kahneman, 2011**). This switching is driven by **Surprise** or **Prediction Error (PE)**, where the brain allocates more resources only when expectations are violated (**Friston, 2010**).
 - **Implementation**: `UniversalCognitiveEngine` (v3 "The Surprise Engine").
 - **Mechanism**:
-  - **Routine ($PE < \theta$)**: Uses v1 (System 1/Habit). Saves energy/compute.
-  - **Surprise ($PE \ge \theta$)**: Uses v2 (System 2/Deliberate). Forces context-aware retrieval.
+  - **Routine (PE < θ)**: Uses v1 (System 1/Habit). Saves energy/compute.
+  - **Surprise (PE ≥ θ)**: Uses v2 (System 2/Deliberate). Forces context-aware retrieval.
 
 ### 1.4 Configurable Reasoning (e.g., PMT)
 
@@ -102,9 +102,9 @@ The following lifecycle demonstrates how these theories interact in a single sim
 
 - **State**: Year 5, Raining.
 - **Predictor**: Expectation = Sunny (Avg). Reality = Extreme Rain.
-- **Surprise ($PE$)**: $PE = |1.0 - 0.1| = 0.9$.
-- **Trigger**: $0.9 > \theta$ (0.5). Switch to **System 2** (v2 Retrieval).
-- **Retrieval**: 3-year-old "Flood Trauma" is reawakened because $C=1.0$ (matching the Rain/Flood context).
+- **Surprise (PE)**: PE = |1.0 - 0.1| = 0.9.
+- **Trigger**: 0.9 > θ (0.5). Switch to **System 2** (v2 Retrieval).
+- **Retrieval**: 3-year-old "Flood Trauma" is reawakened because C=1.0 (matching the Rain/Flood context).
 - **Effect**: The agent "wakes up" and remembers the pain clearly, bypassing normalcy bias.
 
 ### Step 2: Reasoning (PMT & Bounded Rationality)

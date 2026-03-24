@@ -16,8 +16,8 @@ The `ContextBuilder` transforms raw data into a narrative structure understandab
 
 2.  **Retrieved Memory**:
     - Retrieves the 3-5 most relevant segments from the agent's long-term history.
-    - _Mechanism_: Uses the **Priority Retrieval Mechanism** ($S$) where:
-      $$S(m) = (W_{rec} \cdot S_{rec}) + (W_{imp} \cdot S_{imp}) + (W_{ctx} \cdot S_{ctx})$$
+    - _Mechanism_: Uses the **Priority Retrieval Mechanism** (S) where:
+      `S(m) = Wrec × Srec + Wimp × Simp + Wctx × Sctx`
       This allows high-importance (trauma) or situationally-relevant (tag-matched) memories to bypass simple recency decay.
 
     **Note**: The `priority_schema` is an optional configuration in `agent_types.yaml`. It is **not used** in the WRR validation experiments, which rely on the `HumanCentricMemoryEngine` basic ranking mode (window + top-k by decayed importance) for memory retrieval. The priority schema is available for advanced experiments that need weighted multi-factor retrieval.

@@ -31,7 +31,7 @@ To understand how our agents "think" about the past, we follow a single event th
 | Feature               | Model v1: Legacy (Habit)        | Model v2: Weighted (Deliberate)      | Model v3: Universal (Switch)     | Model v4: Symbolic (Gestalt)  |
 | :-------------------- | :------------------------------ | :----------------------------------- | :------------------------------- | :---------------------------- |
 | **Retrieval Logic**   | **Saliency-Based**.             | **Unified Scoring** + Resonance + Interference. | **Surprise-Driven Gating**.      | **Signature-Based**.          |
-| **Core Formula**      | $S(t) = I \cdot e^{-\lambda t}$ | $S = W_rR + W_iI + W_cC + W_{rel}Rel - W_{int}Int$ | $PE = \|Reality - Expectation\|$ | $S = 1 - P(Signature)$        |
+| **Core Formula**      | `S(t) = I * e^(-λt)` | `S = W_r*R + W_i*I + W_c*C + W_rel*Rel - W_int*Int` | `PE = |Reality - Expectation|` | `S = 1 - P(Signature)`        |
 | **Design Philosophy** | **Availability Heuristic**.     | **Contextual Relevance** + Cognitive Interference. | **Active Inference**.            | **Bounded Rationality**.      |
 | **Goal**              | Remember "recent shocks".       | Remember "relevant history"; forget superseded info. | **Habit** until **Surprise**.    | **Context** without **Cost**. |
 | **Status**            | Production (WRR)                | **Production (WRR)** — primary engine | Deprecated (use v2 + plugin)     | Deprecated (use v2 + plugin)  |
@@ -40,25 +40,25 @@ To understand how our agents "think" about the past, we follow a single event th
 
 | Symbol        | Component/Parameter     | Default | Definition                                                    |
 | :------------ | :---------------------- | :------ | :------------------------------------------------------------ |
-| **$R$**       | **Recency Score**       | (Calc)  | $1 - (\text{age} / \text{max\_age})$: Freshness (Now=1.0).    |
-| **$I$**       | **Importance Score**    | (Calc)  | $I_{initial} \cdot e^{-\lambda t}$: Decay-adjusted intensity. |
-| **$C$**       | **Context Score**       | (Calc)  | Binary match between memory tags and current prompt.          |
-| **$PE$**      | **Prediction Error**    | (Calc)  | Level of "Surprise" (Reality vs Expectation).                 |
-| **$\lambda$** | **Decay Rate**          | 0.1     | Constant determining forgetting speed.                        |
-| $W_{rec}$     | **Recency Weight**      | 0.3     | Weight of "Freshness" in the prompt.                          |
-| $W_{imp}$     | **Importance Weight**   | 0.5     | Weight of "Historical Significance" ($I$).                    |
-| $W_{ctx}$     | **Context Weight**      | 0.2     | Weight of "Situational Relevance" ($C$).                      |
-| $W_{rel}$     | **Relevance Weight**    | 0.0     | Weight for query-memory keyword overlap (P2).                 |
-| $W_{int}$     | **Interference Weight** | 0.0     | Weight for retroactive interference penalty (P2).             |
-| $\gamma$      | **Interference Cap**    | 0.8     | Max interference penalty (preserves partial retrieval).       |
-| $I_{gate}$    | **Consolidation Gate**  | 0.6     | Min. $I_{initial}$ to attempt permanent storage.              |
-| $P_{burn}$    | **Burning Probability** | 0.8     | Prob. a memory is consolidated if it passes the gate.         |
+| **R**         | **Recency Score**       | (Calc)  | `1 - (age / max_age)`: Freshness (Now=1.0)                   |
+| **I**         | **Importance Score**    | (Calc)  | `I_initial * e^(-λt)`: Decay-adjusted intensity.             |
+| **C**         | **Context Score**       | (Calc)  | Binary match between memory tags and current prompt.          |
+| **PE**        | **Prediction Error**    | (Calc)  | Level of "Surprise" (Reality vs Expectation).                 |
+| **λ**         | **Decay Rate**          | 0.1     | Constant determining forgetting speed.                        |
+| W_rec         | **Recency Weight**      | 0.3     | Weight of "Freshness" in the prompt.                          |
+| W_imp         | **Importance Weight**   | 0.5     | Weight of "Historical Significance" (I).                      |
+| W_ctx         | **Context Weight**      | 0.2     | Weight of "Situational Relevance" (C).                        |
+| W_rel         | **Relevance Weight**    | 0.0     | Weight for query-memory keyword overlap (P2).                 |
+| W_int         | **Interference Weight** | 0.0     | Weight for retroactive interference penalty (P2).             |
+| γ             | **Interference Cap**    | 0.8     | Max interference penalty (preserves partial retrieval).       |
+| I_gate        | **Consolidation Gate**  | 0.6     | Min. I_initial to attempt permanent storage.                  |
+| P_burn        | **Burning Probability** | 0.8     | Prob. a memory is consolidated if it passes the gate.         |
 
-#### **C. Importance Calculation Logic (How we derive $I$):**
+#### **C. Importance Calculation Logic (How we derive I):**
 
-Importance ($I$) is not random; it is the product of **Emotional Weight** and **Source Reliability**.
+Importance (I) is not random; it is the product of **Emotional Weight** and **Source Reliability**.
 
-$$I_{initial} = W_{emotion} \times W_{source}$$
+`I_initial = W_emotion * W_source`
 
 ---
 
@@ -71,34 +71,34 @@ $$I_{initial} = W_{emotion} \times W_{source}$$
 The agent has the following two historical memories stored in its long-term archive:
 
 - **Memory A (The Disaster)**: "Year 1: A massive flood breached the levee. My basement was under 2 feet of water, and I lost all my furniture. It was terrifying."
-  - **Stats**: $I_{initial}=1.0$, Age=10, Tags: `[Flood]`.
+  - **Stats**: I_initial=1.0, Age=10, Tags: `[Flood]`.
 - **Memory B (The Routine)**: "Year 10: The sun was out all day. I spent the afternoon gardening in the backyard. It was a normal, quiet Saturday."
-  - **Stats**: $I_{initial}=0.1$, Age=1, Tags: `[Routine]`.
+  - **Stats**: I_initial=0.1, Age=1, Tags: `[Routine]`.
 
 ---
 
 #### **Model v1: The Habitual Agent (Habit)**
 
-V1 only cares about Saliency ($I \cdot e^{-\lambda t}$).
+V1 only cares about Saliency (`I * e^(-λt)`).
 
-1.  **Memory A Score**: $1.0 \cdot e^{-(0.1 \times 10)} = 0.36$.
-2.  **Memory B Score**: $0.1 \cdot e^{-(0.1 \times 1)} \approx 0.09$.
-3.  **The Result**: Memory A (Flood) is decaying. It is being heavily crowded out by the **Working Memory Window**, which is full of hundreds of routine memories like Memory B (Recent Sunny Days) with $S \approx 1.0$.
+1.  **Memory A Score**: `1.0 * e^(-(0.1 * 10)) = 0.36`.
+2.  **Memory B Score**: `0.1 * e^(-(0.1 * 1)) ≈ 0.09`.
+3.  **The Result**: Memory A (Flood) is decaying. It is being heavily crowded out by the **Working Memory Window**, which is full of hundreds of routine memories like Memory B (Recent Sunny Days) with S ≈ 1.0.
 4.  **Action**: The agent stays calm and **ignores the warning** because the "Normalcy Bias" of the last 9 sunny years dominates its thoughts.
 
 ---
 
 #### **Model v2: The Rational Agent (Deliberate)**
 
-V2 uses $S = (R \times W_r) + (I \times W_i) + (C \times W_c) + (Rel \times W_{rel}) - (Int \times W_{int})$.
-With defaults $W_r{=}0.3,\; W_i{=}0.5,\; W_c{=}0.2,\; W_{rel}{=}0,\; W_{int}{=}0$ this reduces to the classic formula.
+V2 uses `S = (R * W_r) + (I * W_i) + (C * W_c) + (Rel * W_rel) - (Int * W_int)`.
+With defaults W_r=0.3, W_i=0.5, W_c=0.2, W_rel=0, W_int=0 this reduces to the classic formula.
 
 1.  **Memory A (Disaster)**:
-    - **Math**: $(R=0.0 \times 0.3) + (I=0.36 \times 0.5) + (C=1.0 \times 0.2) = 0.0 + 0.18 + 0.20 = \mathbf{0.38}$
-    - **Why**: The **Context Score** ($C=1.0$) is triggered by the word "Flood" in the current forecast.
+    - **Math**: `(R=0.0 * 0.3) + (I=0.36 * 0.5) + (C=1.0 * 0.2) = 0.0 + 0.18 + 0.20 = **0.38**`
+    - **Why**: The **Context Score** (C=1.0) is triggered by the word "Flood" in the current forecast.
 2.  **Memory B (Routine)**:
-    - **Math**: $(R=0.9 \times 0.3) + (I=0.09 \times 0.5) + (C=0.0 \times 0.2) = 0.27 + 0.045 + 0.0 = \mathbf{0.315}$
-    - **Why**: High recency ($R=0.9$) but zero context match ($C=0.0$).
+    - **Math**: `(R=0.9 * 0.3) + (I=0.09 * 0.5) + (C=0.0 * 0.2) = 0.27 + 0.045 + 0.0 = **0.315**`
+    - **Why**: High recency (R=0.9) but zero context match (C=0.0).
 3.  **The Result**: **0.38 > 0.315**. The catastrophe from 10 years ago beats the gardening trip from last year.
 4.  **Action**: The agent **purchases flood insurance** immediately.
 
@@ -115,23 +115,27 @@ The v2 engine received three rounds of enhancements that make it a self-containe
 
 ### P2 — Three Retrieval Innovations
 
-#### Contextual Resonance ($Rel$)
+#### Contextual Resonance (Rel)
 
 When a retrieval query is provided, each memory receives a **relevance score** based on keyword overlap (overlap coefficient):
 
-$$Rel = \frac{|Q \cap M|}{\min(|Q|, |M|)}$$
+```
+Rel = |Q ∩ M| / min(|Q|, |M|)
+```
 
-where $Q$ and $M$ are the keyword sets (after stopword removal) of the query and memory content respectively. Activated by setting `W_relevance > 0`.
+where Q and M are the keyword sets (after stopword removal) of the query and memory content respectively. Activated by setting `W_relevance > 0`.
 
 **Reference**: Park et al. (2023) *relevance* dimension; Tulving (1972) encoding-specificity principle.
 
-#### Interference-Based Forgetting ($Int$)
+#### Interference-Based Forgetting (Int)
 
 Newer memories with similar content **retroactively suppress** older memories, modelling the well-established retroactive-interference effect:
 
-$$Int = \min(\max_{m' \in newer}(Rel(m, m')) \cdot \gamma,\; \gamma)$$
+```
+Int = min(max_over_newer(Rel(m, m')) × γ, γ)
+```
 
-where $\gamma$ is the interference cap (default 0.8). Activated by setting `W_interference > 0`.
+where γ is the interference cap (default 0.8). Activated by setting `W_interference > 0`.
 
 **Reference**: Anderson & Neely (1996); Wixted (2004).
 
@@ -139,8 +143,8 @@ where $\gamma$ is the interference cap (default 0.8). Activated by setting `W_in
 
 A **domain-agnostic** surprise strategy based on the agent's own action history. Unlike EMA (requires a stimulus key) or Symbolic (requires sensor config), DCS needs **zero domain configuration**:
 
-- **Unigram mode**: $Surprise = 1 - P(action \mid history)$ with Laplace smoothing
-- **Bigram mode**: $Surprise = 1 - P(action \mid prev\_action)$ for transition-aware detection
+- **Unigram mode**: `Surprise = 1 - P(action | history)` with Laplace smoothing
+- **Bigram mode**: `Surprise = 1 - P(action | prev_action)` for transition-aware detection
 
 Available at `cognitive_governance.memory.strategies.DecisionConsistencySurprise`.
 
@@ -169,11 +173,11 @@ V3 is the "controller" of the cognitive architecture. It models the **Arousal Lo
 
 ### 3.1 The Arousal Loop Mechanics
 
-1.  **Sensory Input ($Reality$)**: The agent sees `flood_depth = 2.0m`.
-2.  **Internal Prediction ($Expectation$)**: The agent expects `flood_depth = 0.1m` (based on EMA of past years).
-3.  **Surprise ($PE$)**: $PE = |2.0 - 0.1| = 1.9$.
+1.  **Sensory Input (Reality)**: The agent sees `flood_depth = 2.0m`.
+2.  **Internal Prediction (Expectation)**: The agent expects `flood_depth = 0.1m` (based on EMA of past years).
+3.  **Surprise (PE)**: PE = |2.0 - 0.1| = 1.9.
 4.  **Arousal Switch**:
-    - If $PE \ge 0.5$ (Threshold): **Switch to System 2**.
+    - If PE ≥ 0.5 (Threshold): **Switch to System 2**.
 
 ---
 
@@ -184,20 +188,20 @@ V3 is the "controller" of the cognitive architecture. It models the **Arousal Lo
 ### 4.1 Motivation: Why Symbolic? (The "Goldilocks" Solution)
 
 - **Problem with v3 (Scalar)**: Single-variable thresholds (e.g., `Depth > 0.5`) are brittle. They fail to capture complex context (e.g., "High Water" is fine if it's a "Controlled Release").
-- **Problem with Vector Embeddings**: While powerful, calculating 1000-dimensional cosine similarities for every agent step is **computationally prohibitive** ($O(N)$) for 100+ agents.
-- **The v4 Solution**: **Symbolic Signatures**. By hashing discrete states, we get the **contextual flexibility** of vectors with the **$O(1)$ speed** of hash maps.
+- **Problem with Vector Embeddings**: While powerful, calculating 1000-dimensional cosine similarities for every agent step is **computationally prohibitive** (O(N)) for 100+ agents.
+- **The v4 Solution**: **Symbolic Signatures**. By hashing discrete states, we get the **contextual flexibility** of vectors with the **O(1) speed** of hash maps.
 
 ### 4.2 The Mechanism
 
 1.  **Sensors**: Detect `FLOOD:HIGH` and `PANIC:LOW`.
 2.  **Signature**: `Hash("FLOOD:HIGH|PANIC:LOW")`.
-3.  **Surprise**: $S = 1 - P(\text{Signature})$.
+3.  **Surprise**: `S = 1 - P(Signature)`.
 
 ### 4.3 Practical Calculation: The "Boiling Frog" Trace
 
 **Q: How does the agent react to repeating disasters?**
 
-| Year    | Event (Stimulus) | Signature                           | Probability ($P$) | Surprise ($S = 1-P$) | System State                | Agent Action       |
+| Year    | Event (Stimulus) | Signature                           | Probability (P) | Surprise (S = 1-P) | System State                | Agent Action       |
 | :------ | :--------------- | :---------------------------------- | :---------------- | :------------------- | :-------------------------- | :----------------- |
 | **Y1**  | **Flash Flood**  | `FLOOD:HIGH`                        | 0.0 (New)         | **1.0 (High)**       | **System 2 (Panic)**        | **Buy Insurance**  |
 | **Y2**  | Flood Again      | `FLOOD:HIGH`                        | 0.5 (Seen)        | 0.5 (Med)            | System 1 (Habit)            | Renew / Complacent |
@@ -206,7 +210,7 @@ V3 is the "controller" of the cognitive architecture. It models the **Arousal Lo
 | **Y10** | **New Context**  | `FLOOD:HIGH` + `NEIGHBOR:ELEVATING` | 0.0 (New Combo)   | **1.0 (High)**       | **System 2 (Wake Up)**      | **Elevate House**  |
 
 > [!IMPORTANT]
-> **The Boiling Frog Effect**: Note how in Year 4, despite the high risk (`FLOOD:HIGH`), the Surprise is effectively zero ($S=0.25$). The agent has "normalized" the disaster. Only a **Context Shift** (Year 10) can break this habit loop.
+> **The Boiling Frog Effect**: Note how in Year 4, despite the high risk (`FLOOD:HIGH`), the Surprise is effectively zero (S=0.25). The agent has "normalized" the disaster. Only a **Context Shift** (Year 10) can break this habit loop.
 
 ---
 

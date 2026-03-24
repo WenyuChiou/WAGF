@@ -10,7 +10,7 @@ This engine is the **Timekeeper** and **Physics Resolver**.
 
 ### Key Responsibilities
 
-1.  **Time Stepping**: Advances the simulation year by year ($t \rightarrow t+1$).
+1.  **Time Stepping**: Advances the simulation year by year (t → t+1).
 2.  **External Shocks**: Injects flood events based on a probability distribution or external data.
 3.  **Action Resolution**:
     - _Example_: If Agent A chooses `relocate`, the engine removes them from the active map and updates statistics.
