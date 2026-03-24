@@ -540,6 +540,7 @@ class MultiAgentHooks:
             rate_before_update = current  # capture for budget calculation
             current_year = self.env.get("year", 1)
             # 5-level subsidy changes: large=±5%, small=±2.5%
+            # Safety bounds: [0.20, 0.95] — physical constraint (not policy choice)
             if decision == "large_increase_subsidy":
                 self.env["subsidy_rate"] = min(0.95, current + 0.05)
                 self.env["govt_message"] = "The government has significantly INCREASED the adaptation subsidy (+5%) to support your safety."
