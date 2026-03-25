@@ -34,8 +34,8 @@ Large Language Models (LLMs) can generate rich, human-like reasoning for agent-b
 
 The repository currently ships with mature water-sector reference implementations. They define the main identity of the framework. The same broker, validator, memory, and context infrastructure can be extended to other ABM settings later, but water remains the home domain.
 
-- **Flood Household Adaptation** - 100 agents using Protection Motivation Theory (PMT), 10-year simulation with Gemma 3 (small/medium/large local LLMs)
-- **Flood Multi-Agent** - 400 agents (household + government + insurance), 13-year simulation, Potomac River Basin
+- **Flood Household Adaptation** - Single-agent using Protection Motivation Theory (PMT), 13-year simulation with Gemma 3 (4B/12B/27B local LLMs), Passaic River Basin
+- **Flood Multi-Agent** - 402 agents (200 owner + 200 renter + 1 government + 1 insurance), 13-year simulation, Passaic River Basin
 - **Irrigation Water Management** - 78 CRSS agents, 42-year simulation, Colorado River Basin
 
 ---
@@ -126,7 +126,7 @@ Execution Environment
                         + lifecycle_hooks.py
 
 Supporting subsystems
-  Memory     - emotional salience encoding, consolidation, decay
+  Memory     - weighted retrieval (recency + importance + context), consolidation, decay
   Context    - tiered prompt construction (core / historic / recent)
   Social     - neighbor observation, information diffusion (multi-agent)
   Reflection - periodic LLM-driven memory consolidation
@@ -165,7 +165,7 @@ Build agents of varying cognitive complexity by stacking modules:
 |:---|:---|:---|
 | **Base** | Execution Engine | Can execute actions, no memory or rationality |
 | **+ Level 1** | Context + Window Memory | Bounded perception of recent events |
-| **+ Level 2** | Salience Memory | Emotional encoding, consolidation, decay |
+| **+ Level 2** | Weighted Memory | Emotional encoding, weighted retrieval, consolidation, decay |
 | **+ Level 3** | Governance Broker | Rule enforcement: decisions must match beliefs |
 
 This enables controlled comparison studies: run Level 1 (no governance) vs Level 3 (full governance) to isolate which component resolves a specific behavioral bias.
@@ -182,18 +182,6 @@ examples/quickstart/                      - Progressive tutorial
 ```
 
 ---
-
-## Calibration & Validation (C&V)
-
-Post-hoc validation at three levels, following Grimm et al. (2005) pattern-oriented modelling:
-
-| Level | Scope | Core Metrics | What It Tests |
-|:---|:---|:---|:---|
-| **L1 Micro** | Individual agent | **CACR** (Construct-Action Coherence Rate), **R_H** (Hallucination Rate), **EBE** (Event-Based Evaluation) | Are individual decisions internally coherent with reported beliefs? |
-| **L2 Macro** | Population | **EPI** (Empirical Plausibility Index) - weighted match against empirical benchmarks | Do aggregate adoption rates match real-world data (e.g., NFIP insurance rates, USGS water use)? |
-| **L3 Cognitive** | Psychometric | **ICC** (Intraclass Correlation), **eta-squared** (effect size) | Does the LLM produce reliable, discriminable construct ratings? |
-
-Zero LLM calls for L1/L2 - operates entirely on audit CSV traces. See [C&V Framework docs](broker/validators/calibration/README.md).
 
 ---
 
@@ -238,7 +226,7 @@ runner = (
     .with_simulation(sim_engine)      # your domain SimulationEngine
     .with_skill_registry("config/skill_registry.yaml")
     .with_governance("strict", "config/agent_types.yaml")
-    .with_memory_engine(HumanCentricMemoryEngine())
+    .with_memory_engine(HumanCentricMemoryEngine(ranking_mode="weighted"))
     .with_seed(42)
     .build()
 )
@@ -272,7 +260,7 @@ for the full map.
 
 **Guides**: [Agent Assembly](docs/guides/agent_assembly.md) | [Customization](docs/guides/customization_guide.md) | [Multi-Agent Setup](docs/guides/multi_agent_setup_guide.md) | [Advanced Patterns](docs/guides/advanced_patterns.md) | [YAML Reference](docs/references/yaml_configuration_reference.md)
 
-**Architecture**: [System Overview](docs/architecture/architecture.md) | [Skill Pipeline](docs/architecture/skill_architecture.md) | [Governance Core](docs/modules/governance_core.md) | [Memory System](docs/modules/memory_components.md) | [C&V Framework](broker/validators/calibration/README.md)
+**Architecture**: [System Overview](docs/architecture/architecture.md) | [Skill Pipeline](docs/architecture/skill_architecture.md) | [Governance Core](docs/modules/governance_core.md) | [Memory System](docs/modules/memory_components.md)
 
 **Theory**: [Theoretical Basis](docs/modules/00_theoretical_basis_overview.md) | [Skill Registry](docs/modules/skill_registry.md)
 
@@ -281,7 +269,7 @@ for the full map.
 | I am a... | Start here |
 |:---|:---|
 | **Water researcher** wanting to try it | [Quickstart](docs/guides/quickstart_guide.md) -> [Run Examples](examples/README.md) -> [Experiment Design](docs/guides/experiment_design_guide.md) |
-| **Researcher** reproducing paper results | [Theory](docs/modules/00_theoretical_basis_overview.md) -> [Experiment Design](docs/guides/experiment_design_guide.md) -> [C&V Framework](broker/validators/calibration/README.md) |
+| **Researcher** reproducing paper results | [Theory](docs/modules/00_theoretical_basis_overview.md) -> [Experiment Design](docs/guides/experiment_design_guide.md) -> [Examples](examples/README.md) |
 | **Developer** extending the framework | [Architecture](docs/architecture/architecture.md) -> [Customization](docs/guides/customization_guide.md) -> [Agent Types](docs/guides/agent_type_specification_guide.md) |
 
 ---
@@ -306,6 +294,7 @@ If you use WAGF in your research, please cite:
 3. Park, J. S., et al. (2023). Generative Agents: Interactive Simulacra of Human Behavior. _ACM CHI_.
 4. Hung, C.-L. J., & Yang, Y. C. E. (2021). Assessing adaptive irrigation impacts on water scarcity in nonstationary environments. _Water Resources Research_, 57(7).
 5. Bubeck, P., Botzen, W. J. W., & Aerts, J. C. J. H. (2012). A review of risk perceptions and other factors that influence flood mitigation behavior. _Risk Analysis_, 32(9), 1481-1495.
+6. Oreskes, N., Shrader-Frechette, K., & Belitz, K. (1994). Verification, validation, and confirmation of numerical models in the earth sciences. _Science_, 263(5147), 641-646.
 
 ---
 

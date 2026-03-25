@@ -33,8 +33,8 @@
 
 ### 已驗證案例研究
 
-- **洪水家戶適應** — 100 個代理人使用保護動機理論 (PMT)，10 年模擬，Gemma 3（小型/中型/大型本地 LLM）
-- **洪水多代理人** — 400 個代理人（家戶 + 政府 + 保險），13 年模擬，波多馬克河流域
+- **洪水家戶適應** — 單代理人使用保護動機理論 (PMT)，13 年模擬，Gemma 3（4B/12B/27B 本地 LLM），帕塞伊克河流域
+- **洪水多代理人** — 402 個代理人（200 屋主 + 200 租戶 + 1 政府 + 1 保險），13 年模擬，帕塞伊克河流域
 - **灌溉水管理** — 78 個 CRSS 代理人，42 年模擬，科羅拉多河流域
 
 ---
@@ -168,18 +168,6 @@ examples/quickstart/                      — 漸進式教學
 
 ---
 
-## 校準與驗證 (C&V)
-
-事後驗證分三層，遵循 Grimm et al. (2005) 模式導向建模：
-
-| 層級 | 範圍 | 核心指標 | 測試目標 |
-|:---|:---|:---|:---|
-| **L1 微觀** | 個體代理人 | **CACR**（構念-行動一致率）、**R_H**（幻覺率）、**EBE**（基於事件的評估） | 個體決策是否與報告的心理構念一致？ |
-| **L2 宏觀** | 總體 | **EPI**（經驗合理性指數）— 與經驗基準的加權匹配 | 總體採用率是否符合真實數據（如 NFIP 保險率、USGS 用水量）？ |
-| **L3 認知** | 心理計量 | **ICC**（組內相關係數）、**eta-squared**（效果量） | LLM 是否在重複測試中產生可靠、可區分的構念評分？ |
-
-L1/L2 零 LLM 調用——純粹基於審計 CSV 軌跡運作。詳見 [C&V 框架文件](broker/validators/calibration/README.md)。
-
 ---
 
 ## 配置與擴展
@@ -247,7 +235,7 @@ runner.run()
 
 **指南**: [代理人組裝](docs/guides/agent_assembly_zh.md) | [自定義](docs/guides/customization_guide.md) | [多代理人設定](docs/guides/multi_agent_setup_guide.md) | [進階模式](docs/guides/advanced_patterns.md) | [YAML 參考](docs/references/yaml_configuration_reference.md)
 
-**架構**: [系統總覽](docs/architecture/architecture.md) | [技能管線](docs/architecture/skill_architecture.md) | [治理核心](docs/modules/governance_core_zh.md) | [記憶系統](docs/modules/memory_components_zh.md) | [C&V 框架](broker/validators/calibration/README.md)
+**架構**: [系統總覽](docs/architecture/architecture.md) | [技能管線](docs/architecture/skill_architecture.md) | [治理核心](docs/modules/governance_core_zh.md) | [記憶系統](docs/modules/memory_components_zh.md) |
 
 **理論**: [理論基礎](docs/modules/00_theoretical_basis_overview_zh.md) | [技能註冊表](docs/modules/skill_registry_zh.md)
 
@@ -256,7 +244,7 @@ runner.run()
 | 讀者類型 | 建議路徑 |
 |:---|:---|
 | **水資源研究者**（想試用） | [快速上手](docs/guides/quickstart_guide.md) → [執行範例](examples/README.md) → [實驗設計](docs/guides/experiment_design_guide.md) |
-| **研究者**（重現論文結果） | [理論](docs/modules/00_theoretical_basis_overview_zh.md) → [實驗設計](docs/guides/experiment_design_guide.md) → [C&V 框架](broker/validators/calibration/README.md) |
+| **研究者**（重現論文結果） | [理論](docs/modules/00_theoretical_basis_overview_zh.md) → [實驗設計](docs/guides/experiment_design_guide.md) → [範例](examples/README.md) |
 | **開發者**（擴展框架） | [架構](docs/architecture/architecture.md) → [自定義](docs/guides/customization_guide.md) → [代理人類型](docs/guides/agent_type_specification_guide.md) |
 
 ---
