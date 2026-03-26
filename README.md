@@ -2,9 +2,9 @@
 
 <div align="center">
 
-**Govern LLM-driven agents with domain rules, behavioral theory, and full audit trails.**
+**A governance layer for LLM-driven agent-based models in coupled human-water systems.**
 
-Built for water resources. Extensible to any domain.
+Every LLM decision passes through a validation pipeline — domain rules, behavioral theory checks, and retry with targeted feedback — before it can modify simulation state.
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -17,18 +17,17 @@ Built for water resources. Extensible to any domain.
 
 ## What is WAGF?
 
-Large Language Models (LLMs) can generate rich, human-like reasoning for agent-based models, but they also hallucinate, contradict themselves, and produce invalid actions. WAGF provides a **Governance Broker** that validates every LLM decision against domain rules before execution, turning unreliable LLM outputs into scientifically auditable agent behavior.
+WAGF is a governance layer for LLM-driven agent-based models. A **Governance Broker** validates every LLM decision against physical constraints, behavioral theories, and financial feasibility before execution. Invalid decisions trigger a retry loop with specific feedback — not just re-prompting. The result: auditable, reproducible agent behavior instead of raw LLM output.
+
+The framework ships with two water-sector reference implementations (flood adaptation and irrigation management) and can be extended to other ABM domains through a plugin system.
 
 ## Key Features
 
-- **Governance Pipeline** — 6-stage validation (Context → LLM → Parse → Validate → Approve/Retry → Execute) before any action reaches the simulation
-- **Cognitive Memory** — Weighted retrieval combining recency, importance, and context match, with emotional encoding, stochastic consolidation, and exponential decay
-- **Multi-Agent Institutions** — Government, insurance, and household agents with sequential decision-making and endogenous policy feedback
-- **Full Audit Trail** — Every decision, rejection, retry, and reasoning trace logged as structured JSONL/CSV
+- **Governance Pipeline** — 6-stage validation before any action reaches the simulation: Context → LLM → Parse → Validate → Approve/Retry → Execute
+- **Full Audit Trail** — Every decision, rejection, retry, and reasoning trace logged as structured JSONL/CSV for scientific review
 - **Domain Packs** — Add a new domain with 3 files: `skill_registry.yaml` + `agent_types.yaml` + `lifecycle_hooks.py`
-- **Model Agnostic** — Ollama (local GPU), OpenAI, Anthropic, Google Gemini, Azure
-- **Theory Integration** — Protection Motivation Theory, bounded rationality, dual-process cognition (pluggable via YAML)
-- **Research Ready** — Ablation modes (strict/relaxed/disabled), cross-model comparison, multi-seed reproducibility
+- **Pluggable Behavioral Theory** — Ships with Protection Motivation Theory (PMT); swap or extend via YAML configuration
+- **Research Ready** — Ablation modes (strict/relaxed/disabled), cross-model comparison across 6+ LLM families, multi-seed reproducibility
 
 ## Why Governance?
 
@@ -50,23 +49,17 @@ Large Language Models (LLMs) can generate rich, human-like reasoning for agent-b
 - [Ollama](https://ollama.com/download) for local LLM inference (optional; mock mode available)
 
 ```bash
-# 1. Clone and install
+# Clone and install
 git clone https://github.com/WenyuChiou/WAGF.git
 cd WAGF
 pip install -e ".[llm]"
 
-# 2. Try the mock demo (no Ollama needed)
+# Try the mock demo (no Ollama needed)
 python examples/quickstart/01_barebone.py
-python examples/quickstart/02_governance.py
 
-# 3. Run with a real LLM (requires Ollama)
+# Run with a real LLM
 ollama pull gemma3:4b
 python examples/single_agent/run_flood.py --model gemma3:4b --years 3 --agents 10
-
-# 4. Run the multi-agent flood experiment
-cd examples/multi_agent/flood
-python run_unified_experiment.py --model gemma3:4b --seed 42 --years 3 \
-    --mode balanced --agent-profiles data/agent_profiles_balanced.csv --gossip
 ```
 
 **Cloud LLM providers** (no local GPU needed):
@@ -78,6 +71,8 @@ python run_unified_experiment.py --model gemma3:4b --seed 42 --years 3 \
 ```
 
 ### What Happens at Every Step
+
+A concrete trace from the flood simulation:
 
 ```text
 Year 3, Agent #42 (low-income homeowner, high flood zone):
@@ -153,7 +148,7 @@ examples/quickstart/                   — Progressive tutorial
 
 ### Composable Agent Design
 
-Build agents of varying cognitive complexity:
+Build agents of varying cognitive complexity for controlled experiments:
 
 | Level | Add | Effect |
 |:---|:---|:---|
@@ -162,39 +157,27 @@ Build agents of varying cognitive complexity:
 | **+ Level 2** | Weighted Memory | Emotional encoding, consolidation, decay |
 | **+ Level 3** | Governance Broker | Decisions must pass domain rule validation |
 
+Run Level 1 (no governance) vs Level 3 (full governance) to isolate the effect of validation on agent behavior.
+
 ---
 
-## Case Studies
+## Reference Implementations
 
-| Case Study | Agents | Period | LLM | Domain |
+| Case Study | Agents | Period | Models Tested | Study Area |
 |:---|:---|:---|:---|:---|
-| **Flood Household (SA)** | Single-agent | 13 years | Gemma 3 (4B/12B/27B) | Passaic River Basin, NJ |
-| **Flood Multi-Agent (MA)** | 402 (200 owner + 200 renter + gov + ins) | 13 years | Gemma 3 4B | Passaic River Basin, NJ |
+| **Flood Household** | Single-agent | 13 years | Gemma 3 (4B/12B/27B) | Passaic River Basin, NJ |
+| **Flood Multi-Agent** | 402 (200 owner + 200 renter + gov + ins) | 13 years | Gemma 3 4B | Passaic River Basin, NJ |
 | **Irrigation** | 78 CRSS agents | 42 years | Gemma 3 4B, Ministral 3B, Gemma 3 12B | Colorado River Basin |
 
-The flood experiments use per-agent flood depth grids from hydrological simulation (2011–2023). The irrigation experiment uses historical CRSS inflow data. Cross-model experiments compare 6+ LLM families across 3–5 random seeds.
+The flood experiments use per-agent flood depth grids from hydrological simulation (2011–2023). The irrigation experiment reproduces the Hung & Yang (2021) Colorado River Simulation System setup with LLM-driven farmer agents. Cross-model experiments compare behavior across LLM families and sizes with 3–5 random seeds per configuration.
 
-| Surface | Description | Link |
+| Example | Description | Link |
 |:---|:---|:---|
-| **Quickstart** | Progressive tutorial | [Go](examples/quickstart/) |
-| **Minimal Template** | Scaffold for a new domain | [Go](examples/minimal/) |
-| **Single-Agent Flood** | Flood adaptation reference | [Go](examples/single_agent/) |
-| **Irrigation ABM** | Water allocation reference | [Go](examples/irrigation_abm/) |
-| **Multi-Agent Flood** | Institutional feedback reference | [Go](examples/multi_agent/flood/) |
-
----
-
-## How WAGF Differs
-
-| | WAGF | LangChain / LangGraph | AutoGen | Traditional ABM (PyCHAMP, NetLogo) |
-|:---|:---|:---|:---|:---|
-| Domain validation | 6-stage pipeline with typed feedback | No built-in domain validation | Agents validate via conversation | N/A (rule-based, no LLM) |
-| LLM reasoning | Yes + governance constraints | Yes, unconstrained | Yes, unconstrained | No |
-| Audit trail | Structured JSONL per decision | No standard format | Conversation logs | Varies |
-| Theory enforcement | PMT / pluggable via YAML | None | None | Hardcoded equations |
-| Retry with feedback | Targeted error → specific retry prompt | Generic retry | Re-conversation | N/A |
-| Memory system | Weighted retrieval + consolidation + decay | Vector store retrieval | Shared context window | Static variables |
-| Multi-agent institutions | Government → Insurance → Household | Generic agent roles | Generic agent roles | Predefined rules |
+| **Quickstart** | Progressive tutorial for the governance loop | [Go](examples/quickstart/) |
+| **Minimal Template** | Scaffold for adding a new domain | [Go](examples/minimal/) |
+| **Single-Agent Flood** | Flood adaptation with PMT | [Go](examples/single_agent/) |
+| **Irrigation ABM** | Water allocation under scarcity | [Go](examples/irrigation_abm/) |
+| **Multi-Agent Flood** | Institutional feedback (gov + ins + household) | [Go](examples/multi_agent/flood/) |
 
 ---
 
@@ -257,16 +240,6 @@ See [Customization Guide](docs/guides/customization_guide.md), [Experiment Desig
 |:---|:---|
 | **Researcher** wanting to try it | [Quickstart](docs/guides/quickstart_guide.md) → [Examples](examples/README.md) → [Experiment Design](docs/guides/experiment_design_guide.md) |
 | **Developer** extending the framework | [Architecture](docs/architecture/architecture.md) → [Customization](docs/guides/customization_guide.md) → [Domain Packs](docs/guides/domain_pack_guide.md) |
-
----
-
-## Roadmap
-
-- [ ] Structured function calling (replace text parsing for supported models)
-- [ ] Async/parallel agent execution
-- [ ] Web dashboard for experiment monitoring
-- [ ] Additional domain packs: urban heat, drought, wildfire
-- [ ] ODD protocol documentation generator
 
 ---
 
