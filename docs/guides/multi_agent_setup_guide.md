@@ -218,8 +218,8 @@ Each agent is created with an `AgentConfig` that specifies `agent_type`, which m
 match one of the top-level keys in `agent_types.yaml`:
 
 ```python
-from cognitive_governance.agents import BaseAgent, AgentConfig
-from cognitive_governance.agents.base import StateParam, Skill
+from broker.agents import BaseAgent, AgentConfig
+from broker.agents.base import StateParam, Skill
 
 def make_regulator():
     cfg = AgentConfig(

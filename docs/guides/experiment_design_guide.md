@@ -499,7 +499,7 @@ class YourLifecycleHooks:
 | `ImportanceMemoryEngine` | Weighted scoring | Experimental. Recency/importance/context weights. |
 | `WindowMemoryEngine` | FIFO only | Baseline. Fixed-size sliding window. |
 
-For WRR experiments, use `HumanCentricMemoryEngine` in basic ranking mode. Importance is computed as:
+For WRR experiments, use `HumanCentricMemoryEngine` in weighted ranking mode. Importance is computed as:
 
 ```
 importance = emotional_weight * source_weight

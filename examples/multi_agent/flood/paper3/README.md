@@ -695,7 +695,7 @@ python paper3/run_cv.py --mode prompt_sensitivity --model gemma3:4b
 
 **Check**: >= 75% pass rate. If FAIL, persona is not driving behavior; need prompt redesign.
 
-### Step 3: Primary Experiment (10 Seeds)
+### Step 3: `paper3_hybrid_v2` Experiment (3-Tier Institutional Design, 10 Seeds)
 
 ```bash
 # Run all seeds
@@ -757,7 +757,7 @@ paper3/results/
     prompt_sensitivity_report.json       # Prompt reordering test results
     aggregate_cv_table.csv               # Mean +/- std across seeds
 
-  paper3_primary/
+  paper3_hybrid_v2/
     seed_42/
       gemma3_4b_strict/
         raw/
@@ -793,7 +793,7 @@ paper3/results/
 
 | Component | LLM Calls | Time Estimate |
 |-----------|-----------|---------------|
-| Primary experiment (400 x 13 x 10 seeds) | 52,000 | ~7.2 hours |
+| `paper3_hybrid_v2` experiment (400 x 13 x 10 seeds) | 52,000 | ~7.2 hours |
 | Baseline traditional (no LLM) | 0 | ~minutes |
 | SI ablations (200 agents, 3 seeds each, 10 configs) | 83,200 | ~11.6 hours |
 | ICC probing (15 x 6 x 30) | 2,700 | ~22 minutes |
