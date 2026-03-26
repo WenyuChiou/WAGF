@@ -20,7 +20,7 @@ The `ContextBuilder` transforms raw data into a narrative structure understandab
       `S(m) = Wrec × Srec + Wimp × Simp + Wctx × Sctx`
       This allows high-importance (trauma) or situationally-relevant (tag-matched) memories to bypass simple recency decay.
 
-    **Note**: The `priority_schema` is an optional configuration in `agent_types.yaml`. It is **not used** in the WRR validation experiments, which rely on the `HumanCentricMemoryEngine` weighted ranking mode (recency + importance + context scoring) for memory retrieval. The priority schema is available for advanced experiments that need additional multi-factor retrieval.
+    **Note**: The `priority_schema` is an optional feature for advanced experiments. The default configuration uses the `HumanCentricMemoryEngine` weighted ranking mode for memory retrieval without priority schema.
 
     ```yaml
     # Optional — not used in WRR experiments

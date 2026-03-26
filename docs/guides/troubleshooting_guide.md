@@ -41,7 +41,7 @@ You see these log lines in sequence:
 [Governance:Fallout] CRITICAL: Max retries (3) reached for agent_42.
   - Final Choice Rejected: 'elevate_home'
   - Blocked By: ['Precondition failed: ...']
-  - Ratings: TP_LABEL=H | SE_LABEL=L
+  - Ratings: TP_LABEL=H | TP_LABEL=L
   - Agent Motivation: "I want to protect my house..."
   - Action: Proceeding with 'do_nothing' (Result: REJECTED)
 ```
@@ -121,7 +121,7 @@ or `status=REJECTED_FALLBACK`.
   ```yaml
   thinking_rules:
     - id: low_coping
-      construct: CA_LABEL
+      construct: CP_LABEL
       when_above: [VL, L]
       blocked_skills: [elevate_home]
       level: WARNING  # Changed from ERROR to WARNING
@@ -195,7 +195,7 @@ Or in the audit CSV: `failed_rules=precondition_violation`.
 **Symptom**
 
 ```
-[Broker:Retry] Missing required constructs ['TP_LABEL', 'CA_LABEL'] for agent_42
+[Broker:Retry] Missing required constructs ['TP_LABEL', 'CP_LABEL'] for agent_42
   (household), attempt 1/2
 ```
 
@@ -203,7 +203,7 @@ Or in the adapter log:
 
 ```
 [Adapter:Diagnostic] Warning: Missing constructs for 'household':
-  ['TP_LABEL', 'CA_LABEL', 'SE_LABEL']
+  ['TP_LABEL', 'CP_LABEL', 'TP_LABEL']
 ```
 
 **Root Causes**

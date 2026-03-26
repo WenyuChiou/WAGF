@@ -34,7 +34,7 @@ To understand how our agents "think" about the past, we follow a single event th
 | **Core Formula**      | `S(t) = I * e^(-λt)` | `S = W_r*R + W_i*I + W_c*C + W_rel*Rel - W_int*Int` | `PE = |Reality - Expectation|` | `S = 1 - P(Signature)`        |
 | **Design Philosophy** | **Availability Heuristic**.     | **Contextual Relevance** + Cognitive Interference. | **Active Inference**.            | **Bounded Rationality**.      |
 | **Goal**              | Remember "recent shocks".       | Remember "relevant history"; forget superseded info. | **Habit** until **Surprise**.    | **Context** without **Cost**. |
-| **Status**            | Production (WRR)                | **Production (WRR)** — primary engine | Deprecated (use v2 + plugin)     | Deprecated (use v2 + plugin)  |
+| **Status**            | Legacy (backward compatibility) | **Production (WRR)** — primary engine | Deprecated (use v2 + plugin)     | Deprecated (use v2 + plugin)  |
 
 #### **B. Parameter & Symbol Dictionary (Scale: 0.0 to 1.0):**
 

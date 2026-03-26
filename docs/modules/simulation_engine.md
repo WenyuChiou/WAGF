@@ -95,6 +95,20 @@ for year in range(params.years):
         memory.run_reflection(agents)
 ```
 
+### Lifecycle Hooks
+
+Domain-specific logic is injected through lifecycle hooks. Each hook is called at a specific point in the simulation loop:
+
+| Hook | When Called | Purpose |
+|:---|:---|:---|
+| `pre_year(year, env, agents)` | Before agent decisions each year | Update environment state, inject flood events, sync institutional policies |
+| `post_step(agent, result)` | After each agent decision | Update global state based on agent action (e.g., subsidy changes) |
+| `post_year(year, env, agents)` | After all agents have decided | Memory consolidation, reflection, social gossip, logging |
+
+Hooks are defined in each domain's `lifecycle_hooks.py`. For example, the flood multi-agent hooks handle flood detection, institutional policy updates, gossip propagation, and year-end reflection.
+
+---
+
 ## Multi-Phase Execution (Multi-Agent)
 
 In multi-agent simulations, the flat `for agent in agents` loop is replaced by the `PhaseOrchestrator` (`broker/components/phase_orchestrator.py`), which coordinates agents by role and dependency order.

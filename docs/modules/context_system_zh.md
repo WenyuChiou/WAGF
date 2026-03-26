@@ -20,7 +20,7 @@
       `S(m) = Wrec × Srec + Wimp × Simp + Wctx × Sctx`
       這確保了高重要性（創傷）或環境相關（標籤匹配）的記憶能戰勝時間衰減被注入。
 
-    **注意**：`priority_schema` 是 `agent_types.yaml` 中的可選配置。在 WRR 驗證實驗中 **未使用**，這些實驗依賴 `HumanCentricMemoryEngine` 基本排名模式（窗口 + 按衰減重要性的 top-k）進行記憶檢索。優先級架構可用於需要加權多因子檢索的進階實驗。
+    **注意**：`priority_schema` 是進階實驗的可選功能。預設配置使用 `HumanCentricMemoryEngine` 加權排名模式進行記憶檢索，無需優先級架構。
 
 3.  **當前感知 (Immediate Perception)**：
     - 當前年份的具體數值（水位、鄰居行動、政策變化）。
