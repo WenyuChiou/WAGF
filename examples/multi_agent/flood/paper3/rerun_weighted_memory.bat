@@ -49,7 +49,7 @@ if exist "paper3\results\paper3_ablation_flat_baseline\seed_42\gemma3_4b_strict\
     echo [%date% %time%] SKIP: Ablation B seed_42 already exists
 ) else (
     echo [%date% %time%] START: Ablation B seed_42
-    python run_unified_experiment.py --model gemma3:4b --seed 42 --years 13 --per-agent-depth --mode balanced --agent-profiles data/agent_profiles_balanced.csv --gossip --enable-custom-affordability --enable-financial-constraints --load-initial-memories --fixed-institutional-policy paper3/configs/fixed_policies/flat_baseline_traditional.yaml --output paper3/results/paper3_ablation_flat_baseline/seed_42
+    python run_unified_experiment.py --model gemma3:4b --seed 42 --years 13 --per-agent-depth --mode balanced --agent-profiles data/agent_profiles_balanced.csv --gossip --enable-news-media --enable-social-media --enable-communication --enable-custom-affordability --enable-financial-constraints --load-initial-memories --fixed-institutional-policy paper3/configs/fixed_policies/flat_baseline_traditional.yaml --output paper3/results/paper3_ablation_flat_baseline/seed_42
     echo [%date% %time%] DONE: Ablation B seed_42
 )
 
@@ -58,7 +58,7 @@ if exist "paper3\results\paper3_ablation_flat_baseline\seed_123\gemma3_4b_strict
     echo [%date% %time%] SKIP: Ablation B seed_123 already exists
 ) else (
     echo [%date% %time%] START: Ablation B seed_123
-    python run_unified_experiment.py --model gemma3:4b --seed 123 --years 13 --per-agent-depth --mode balanced --agent-profiles data/agent_profiles_balanced.csv --gossip --enable-custom-affordability --enable-financial-constraints --load-initial-memories --fixed-institutional-policy paper3/configs/fixed_policies/flat_baseline_traditional.yaml --output paper3/results/paper3_ablation_flat_baseline/seed_123
+    python run_unified_experiment.py --model gemma3:4b --seed 123 --years 13 --per-agent-depth --mode balanced --agent-profiles data/agent_profiles_balanced.csv --gossip --enable-news-media --enable-social-media --enable-communication --enable-custom-affordability --enable-financial-constraints --load-initial-memories --fixed-institutional-policy paper3/configs/fixed_policies/flat_baseline_traditional.yaml --output paper3/results/paper3_ablation_flat_baseline/seed_123
     echo [%date% %time%] DONE: Ablation B seed_123
 )
 
@@ -67,7 +67,7 @@ if exist "paper3\results\paper3_ablation_flat_baseline\seed_456\gemma3_4b_strict
     echo [%date% %time%] SKIP: Ablation B seed_456 already exists
 ) else (
     echo [%date% %time%] START: Ablation B seed_456
-    python run_unified_experiment.py --model gemma3:4b --seed 456 --years 13 --per-agent-depth --mode balanced --agent-profiles data/agent_profiles_balanced.csv --gossip --enable-custom-affordability --enable-financial-constraints --load-initial-memories --fixed-institutional-policy paper3/configs/fixed_policies/flat_baseline_traditional.yaml --output paper3/results/paper3_ablation_flat_baseline/seed_456
+    python run_unified_experiment.py --model gemma3:4b --seed 456 --years 13 --per-agent-depth --mode balanced --agent-profiles data/agent_profiles_balanced.csv --gossip --enable-news-media --enable-social-media --enable-communication --enable-custom-affordability --enable-financial-constraints --load-initial-memories --fixed-institutional-policy paper3/configs/fixed_policies/flat_baseline_traditional.yaml --output paper3/results/paper3_ablation_flat_baseline/seed_456
     echo [%date% %time%] DONE: Ablation B seed_456
 )
 
