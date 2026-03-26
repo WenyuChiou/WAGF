@@ -1,11 +1,11 @@
-# Calibration & Validation (C&V) Framework
+# Model Diagnostics Framework
 
 Generic, domain-agnostic validation pipeline for LLM-driven agent-based
 models.  Part of the **WAGF** (Water Agent Governance Framework) framework.
 
 ## Architecture
 
-The C&V framework validates LLM-ABM outputs at three hierarchical levels,
+The Model Diagnostics framework validates LLM-ABM outputs at three hierarchical levels,
 following Grimm et al. (2005) pattern-oriented modelling principles:
 
 ```text
@@ -393,7 +393,7 @@ If migrating from an earlier version:
 
 ## Batch Comparison
 
-Compare C&V metrics across experiment groups, seeds, or ablations:
+Compare Model Diagnostics metrics across experiment groups, seeds, or ablations:
 
 ```python
 reports = {

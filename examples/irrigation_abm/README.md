@@ -64,7 +64,7 @@ results/<run_name>/
 
 ---
 
-## 2. Production Results (v20)
+## 2. Production Results (v21)
 
 **Experiment**: 78 agents × 42 years, gemma3:4b, strict governance, seed 42.
 
@@ -84,10 +84,12 @@ results/<run_name>/
 
 ### Behavioral Diversity
 
-| Stage | H_norm | Meaning |
-| :---- | -----: | :------ |
-| Proposed (LLM choice) | 0.74 | Agents express diverse preferences |
-| Executed (after governance) | 0.39 | Governance compresses to feasible subset |
+| Condition | IBR | EHE |
+| :-------- | --: | --: |
+| Governed (with validators) | 38.2% | 0.687 |
+| No-validator baseline | 61.1% | 0.848 |
+
+Note: v20 results are deprecated due to the execute_skill base asymmetry bug. All analysis uses v21 data.
 
 ---
 

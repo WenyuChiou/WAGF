@@ -104,7 +104,7 @@ shared:
 
 ## 3. Custom Memory Engine
 
-### Production Configuration (HumanCentric basic ranking mode)
+### Production Configuration (HumanCentric weighted ranking mode)
 
 ```yaml
 your_agent_type:

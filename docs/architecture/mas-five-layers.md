@@ -189,7 +189,7 @@ class CognitiveMemory:
     working: List[MemoryItem]    # Recent, high-access
     episodic: List[MemoryItem]   # Long-term storage
 
-# cognitive_governance/memory/unified_engine.py
+# broker/memory/unified_engine.py
 class UnifiedCognitiveEngine:
     """v5 Memory engine with System 1/2 retrieval."""
 
@@ -262,7 +262,7 @@ class SkillBrokerEngine:
 #### Cognitive Constraints
 
 ```python
-# cognitive_governance/memory/config/cognitive_constraints.py
+# broker/memory/config/cognitive_constraints.py
 @dataclass
 class CognitiveConstraints:
     system1_memory_count: int = 5   # Cowan (2001): 4±1
@@ -694,7 +694,7 @@ broker/components/
 ├── skill_registry.py         # SkillRegistry
 └── skill_retriever.py        # SkillRetriever
 
-cognitive_governance/memory/
+broker/memory/
 ├── unified_engine.py         # UnifiedCognitiveEngine v5
 ├── retrieval.py              # AdaptiveRetrievalEngine
 ├── store.py                  # UnifiedMemoryStore
