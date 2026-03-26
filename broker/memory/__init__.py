@@ -52,14 +52,21 @@ from .config import (
     MINIMAL,
 )
 
-# Task-050A: Vector DB Integration
-try:
-    from .vector_db import VectorMemoryIndex, AgentVectorIndex
-    VECTOR_DB_AVAILABLE = True
-except ImportError:
-    VectorMemoryIndex = None  # type: ignore
-    AgentVectorIndex = None  # type: ignore
-    VECTOR_DB_AVAILABLE = False
+# Task-050A: Vector DB Integration (lazy — faiss may hang on some platforms)
+VectorMemoryIndex = None  # type: ignore
+AgentVectorIndex = None  # type: ignore
+VECTOR_DB_AVAILABLE = False
+
+def _load_vector_db():
+    """Lazy-load vector DB. Call only when explicitly needed."""
+    global VectorMemoryIndex, AgentVectorIndex, VECTOR_DB_AVAILABLE
+    try:
+        from .vector_db import VectorMemoryIndex as _V, AgentVectorIndex as _A
+        VectorMemoryIndex = _V
+        AgentVectorIndex = _A
+        VECTOR_DB_AVAILABLE = True
+    except (ImportError, Exception):
+        pass
 
 # Task-050B: Memory Persistence
 from .persistence import (
