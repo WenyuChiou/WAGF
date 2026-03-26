@@ -387,7 +387,7 @@ If migrating from an earlier version:
 - **Action required:** Explicitly provide `vignette_dir` when calling
   `PsychometricBattery(vignette_dir="path/to/your/domain/vignettes")`.
 - Example vignettes (flood domain) are in
-  `examples/multi_agent/flood/paper3/configs/vignettes/`.
+  `examples/multi_agent/flood/paper3/configs/scenarios/`.
 
 ---
 
