@@ -113,8 +113,8 @@ def load_traces(seed):
             for line in f:
                 d = json.loads(line)
                 # Extract key fields
-                sp = d.get("skill_proposal", {})
-                reasoning = sp.get("reasoning", {})
+                sp = d.get("skill_proposal") or {}
+                reasoning = sp.get("reasoning") or {}
                 approved = d.get("approved_skill", {})
                 sb = d.get("state_before", {})
 
