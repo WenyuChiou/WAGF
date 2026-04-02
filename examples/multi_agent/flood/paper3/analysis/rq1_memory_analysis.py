@@ -30,7 +30,7 @@ from scipy.optimize import curve_fit
 # PATHS
 # ============================================================
 BASE = Path(r"c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework")
-RESULT_DIR = BASE / "examples" / "multi_agent" / "flood" / "paper3" / "results" / "paper3_primary" / "seed_42" / "gemma3_4b_strict"
+RESULT_DIR = BASE / "examples" / "multi_agent" / "flood" / "paper3" / "results" / "paper3_hybrid_v2" / "seed_42" / "gemma3_4b_strict"
 RAW_DIR = RESULT_DIR / "raw"
 
 OWNER_TRACES = RAW_DIR / "household_owner_traces.jsonl"
