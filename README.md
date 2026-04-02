@@ -98,42 +98,13 @@ Year 3, Agent #42 (low-income homeowner, high flood zone):
 
 ## Architecture
 
-```text
-┌─────────────────────────────────────────────────┐
-│                Governance Broker                 │
-│                                                  │
-│  1. Context Assembly (memory + state + social)   │
-│  2. LLM Inference (any provider)                 │
-│  3. Output Parsing (JSON/enclosure extraction)   │
-│  4. Validation (Physical → Thinking → Personal   │
-│                  → Social → Semantic)             │
-│  5. Approve or Retry (with targeted feedback)    │
-│  6. Execute + Audit                              │
-│                                                  │
-│  If step 4 returns ERROR → back to step 2       │
-│  If step 4 returns WARNING → log and continue    │
-└─────────────────────────────────────────────────┘
+![WAGF Architecture](docs/architecture.png)
 
-┌─────────────────────────────────────────────────┐
-│             Execution Environment                │
-│                                                  │
-│  Lifecycle: pre_year → agent decisions →         │
-│             post_step → post_year → next year    │
-│                                                  │
-│  Domain config: skill_registry.yaml              │
-│                 agent_types.yaml                  │
-│                 lifecycle_hooks.py                │
-└─────────────────────────────────────────────────┘
+The framework operates in three layers:
 
-┌─────────────────────────────────────────────────┐
-│            Supporting Subsystems                  │
-│                                                  │
-│  Memory      Weighted retrieval, consolidation   │
-│  Context     Tiered prompt (core/historic/recent)│
-│  Social      Gossip, news media, social media    │
-│  Reflection  Periodic LLM-driven consolidation   │
-└─────────────────────────────────────────────────┘
-```
+1. **LLM Layer** — Agents propose actions via natural-language reasoning
+2. **Governed Layer** — Parser extracts structured output; Validator checks domain rules; Auditor logs traces. If validation fails (ERROR), the proposal returns to the LLM with targeted feedback
+3. **Execution Layer** — Approved actions modify the environment; Memory and Reflection feed back into the next decision cycle
 
 **Key entry points:**
 

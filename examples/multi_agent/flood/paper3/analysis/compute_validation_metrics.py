@@ -15,8 +15,8 @@ L2 Macro Metrics (aggregate):
 - 8 empirical benchmarks comparison
 
 Usage:
-    python compute_validation_metrics.py --traces paper3/results/paper3_primary/seed_42
-    python compute_validation_metrics.py --traces paper3/results/paper3_primary --all-seeds
+    python compute_validation_metrics.py --traces paper3/results/paper3_hybrid_v2/seed_42
+    python compute_validation_metrics.py --traces paper3/results/paper3_hybrid_v2 --all-seeds
 """
 
 import sys
