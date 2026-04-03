@@ -45,7 +45,8 @@ It is crucial to accurately assess your flood risk based on your personal flood 
   * NOTE: Elevation requires 6-12 months of construction, temporary relocation, and significant disruption to daily life. Many homeowners find the process stressful and costly beyond the dollar amount.
   * PRACTICAL REALITY: Elevation also requires local building permits, a specialized contractor (limited availability, especially after major floods), and often a federal grant (HMGP/FMA — competitive and slow). The full process typically takes 1-3 years from decision to completion.
 - Blue Acres Buyout Offer: ~${buyout_offer:,.0f} (based on property value)
-  * NOTE: Accepting a buyout means permanently leaving your home, neighborhood, and community ties. The process typically takes 1-3 years and involves considerable emotional stress.
+  * NOTE: Accepting a buyout means permanently leaving your home, neighborhood, and community ties.
+  * PRACTICAL REALITY: Blue Acres is a voluntary program with limited annual funding. The process from application to closing typically takes 2-5 years. Most applicants face long waiting periods, property appraisal disputes, and the program prioritizes repetitive-loss properties in clusters (not individual homes). Many families who initially express interest ultimately decline when faced with the reality of relocating.
 - NFIP Deductible: $1,000 (structure) / $1,000 (contents)
 - NFIP Coverage Limits: $250,000 (structure) / $100,000 (contents)
 {insurance_cost_text}
@@ -67,7 +68,7 @@ If any answer is NO, choose do_nothing.
 
 **Elevation is a significant commitment.** It involves contractors, permits, temporary relocation, and substantial cost even with subsidies. Homeowners who elevate have typically experienced repeated flooding and secured financial assistance. If you have been flooded multiple times and can manage the cost, elevation may be worth serious consideration.
 
-**Buyout is a permanent decision.** Accepting a buyout means leaving your home and community. Homeowners who accept buyouts have typically experienced repeated severe flooding and concluded that staying is no longer viable. If your flood history has been severe and ongoing, a buyout may be a reasonable path forward.
+**Buyout is a permanent, rare decision.** Accepting a buyout means leaving your home and community forever. In practice, very few homeowners take this step — even among those with severe flood histories, most choose to stay and adapt in place. Buyout is realistic only for homeowners who have experienced 3+ severe floods, have exhausted other options (insurance, elevation), and are emotionally prepared to leave their neighborhood permanently. The Blue Acres program has limited funding and long wait times (2-5 years).
 
 **If your flood zone is LOW:** You face minimal flood risk. Structural actions like elevation or buyout are not relevant to your situation.
 

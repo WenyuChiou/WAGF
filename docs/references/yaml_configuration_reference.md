@@ -402,7 +402,7 @@ The governance section can appear in two locations:
 
 Each profile contains two rule lists per agent type:
 
-- **`thinking_rules`** -- Behavioral construct checks (PMT appraisals, dual-appraisal coherence)
+- **`thinking_rules`** -- Behavioral construct checks (PMT appraisals, cognitive-appraisal coherence)
 - **`identity_rules`** -- Physical state precondition checks (irreversible actions, caps)
 
 #### 2.4.1 Top-Level Governance Structure

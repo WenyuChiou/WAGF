@@ -63,7 +63,7 @@ This document enables AI agents to quickly understand the Paper 3 design and fra
 |----|----------|-------------|------------|
 | RQ1 | Where do agents that reason through natural-language deliberation **converge with and diverge from** agents governed by survey-calibrated Bayesian probability in flood adaptation outcomes? | 3 converge (EH 1.3pp, BP 0.5pp, Renter FI 3.6pp) + 3 diverge (Owner FI 15.6pp, Renter RL 20.8pp, Renter DN 20.2pp); reasoning traces reveal adaptation deficit + intention-action gap | Dual time series + reasoning keyword taxonomy |
 | RQ2 | How do government subsidy and insurance pricing adjustments **alter household adaptation trajectories** compared to fixed-parameter institutional assumptions? | Aggregate NS (Owner p=0.47); equity channel: MG affordability blocking Full=100 vs Flat=247 (+147%); proposed vs executed gap: MG-Owner 44.5%→67.2% DN (+22.6pp) | Policy trajectory + equity 2×2 + proposed vs executed |
-| RQ3 | Among psychological constructs **not enforced by governance rules**, do LLM agents produce theory-consistent relationships between constructs and adaptation behavior? | SP→protection (p<10⁻²⁷⁹); PA→relocation for renters (p<10⁻⁵); MG-Owner trapped: highest PA (3.01) + lowest SP (2.55) | Construct-action profiles + 4-cell comparison |
+| RQ3 | How do psychological constructs **interact with deliberative reasoning** to shape adaptation decisions in language-based agents? | 5-step logic: (1) constructs semantically grounded, (2) SP/PA→behavior cross-sectional, (3) within-agent SP change→behavior change (chi²=129), (4) deliberative override (31% high-motivation inaction, 23.5% low-trust insurance), (5) MG-Owner trapped profile | Heatmap + SP-behavior change + override quadrant + 4-cell bubble |
 
 ### Traditional ABM (FLOODABM) Key Specs
 - **Decision model**: Bayesian regression → Bernoulli trial (u < p_action)
@@ -108,7 +108,25 @@ This document enables AI agents to quickly understand the Paper 3 design and fra
 
 5. **SP flood-dose response (ρ=0.458) but time trend weak (ρ=0.097)**: SP jumps Y1→Y2 then plateaus. Not gradual trust-building — more like cold-start artifact. → Report cross-sectional SP→behavior (strong), not temporal SP dynamics.
 
-### TODO Status (updated 2026-03-31)
+### RQ3 Logic Chain (finalized 2026-04-03)
+
+**Question**: How do psychological constructs interact with deliberative reasoning to shape adaptation decisions in language-based agents?
+
+**Step 1 — Construct Validity**: SP/PA labels match reasoning text semantics. SP=L distrust language 40.7% vs SP=H 22.2%. PA=H attachment words 85.9% vs PA=L 66.6%. Conclusion: constructs are grounded, not random labels.
+
+**Step 2 — Cross-Sectional Association**: SP→protection (p<10⁻²⁷⁹); PA→relocation for renters (p<10⁻⁵). Only unconstrained constructs (SP: 0 blocking rules, PA: does not constrain renter relocate).
+
+**Step 3 — Within-Agent Dynamics**: SP↑ → 34.5% switch to protective action vs SP-stable 19.6% (chi²=129, p<10⁻⁶). SP(t-1) predicts action(t) (chi²=140, p<10⁻⁴). Construct changes accompany behavior changes.
+
+**Step 4 — Deliberative Override**: (A) TP=H+SP=H → 31% still do_nothing (APPROVED, not blocked). Reasoning: cost burden, cumulative fatigue, rational prioritization. (B) SP=L → 23.5% buy insurance. Reasoning: pragmatic cost-benefit overrides distrust. Construct does not mechanically determine action — deliberation can override.
+
+**Step 5 — Group-Level Locking**: MG-Owner: SP=2.55 (lowest) + PA=3.01 (highest) → DN=67.2% (highest). Triple lock: low institutional trust + high place attachment + income-gated validator blocking.
+
+**Figure plan**: Fig 6 (a) SP/PA heatmap, (b) SP change→behavior change, (c) override quadrant (TP×SP→action%), (d) 4-cell bubble.
+
+**Discussion material** (NOT in RQ3 Results): selection vs feedback (divergence test p=0.116), event-aligned SP, CP reversal, TP path-dependence (84% vs 38%), memory doesn't drive SP change, persistent insurer PA decline.
+
+### TODO Status (updated 2026-04-03)
 - [x] Extract Traditional ABM results
 - [x] RQ2 ablation (Ablation B: fixed subsidy=50%, CRS=0%)
 - [x] Run 3 LLM-ABM seeds (42, 123, 456)

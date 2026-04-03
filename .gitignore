@@ -180,3 +180,7 @@ examples/multi_agent/flood/paper3/analysis/figures/working/
 examples/multi_agent/flood/paper3/analysis/.ai/
 examples/multi_agent/flood/paper3/nul
 paper/nature_water/'
+
+# Large data files
+examples/multi_agent/flood/input/census/
+examples/irrigation_abm/analysis/_b64_data.txt
