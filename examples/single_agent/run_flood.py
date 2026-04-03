@@ -1218,6 +1218,9 @@ if __name__ == "__main__":
     parser.add_argument("--memory-ranking-mode", type=str, default="legacy", choices=["legacy", "weighted"], help="Ranking logic for HumanCentricMemoryEngine (legacy=v1 decay, weighted=v2 unified scoring)")
     parser.add_argument("--initial-agents", type=str, default=None, help="Path to standard agent profiles CSV")
     parser.add_argument("--shuffle-skills", action="store_true", help="Enable skill ordering randomization to reduce positional bias (Task-060B)")
+    parser.add_argument("--thinking-mode", type=str, default=None,
+                        choices=["auto", "disabled", "enabled"],
+                        help="Control thinking mode for reasoning models (auto=strip tags, disabled=prevent thinking, enabled=keep tags)")
     parser.add_argument("--premium-rate", type=float, default=None,
                         help="Override insurance premium rate (default 0.02). "
                              "Use 0.04 for doubled-premium counterfactual.")
@@ -1237,7 +1240,9 @@ if __name__ == "__main__":
         LLM_CONFIG.num_ctx = args.num_ctx
     if args.num_predict is not None:
         LLM_CONFIG.num_predict = args.num_predict
-    
+    if args.thinking_mode is not None:
+        LLM_CONFIG.thinking_mode = args.thinking_mode
+
     # Generate random seed if not specified
     actual_seed = args.seed if args.seed is not None else random.randint(0, 1000000)
     random.seed(actual_seed)

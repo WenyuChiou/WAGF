@@ -127,11 +127,12 @@ class UnifiedAdapter(ModelAdapter):
         if not raw_output:
             return None
 
-        # Phase 46: Strip Qwen3 thinking tokens before parsing
-        # Qwen3 models wrap reasoning in <think>...</think> tags
-        raw_output = _THINK_TAG_RE.sub('', raw_output).strip()
-        if not raw_output:
-            return None  # Only thinking tokens, no actual response
+        # Strip thinking tokens (<think>...</think>) based on global config
+        from broker.utils.llm_utils import LLM_CONFIG
+        if LLM_CONFIG.should_strip_thinking():
+            raw_output = _THINK_TAG_RE.sub('', raw_output).strip()
+            if not raw_output:
+                return None  # Only thinking tokens, no actual response
 
         # 1. Phase 15: Enclosure Extraction (Priority)
         # Dynamic Delimiters (from YAML config) - Phase 23
