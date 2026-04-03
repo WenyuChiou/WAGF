@@ -846,7 +846,7 @@ def build_figure():
                            linewidth=0.4)
         )
     mead_handle  = plt.Line2D([0], [0], color='black', linewidth=1.2, label='LLM agent')
-    fql_handle   = plt.Line2D([0], [0], color=C_FQL,  linewidth=0.9, linestyle='--', label='Baseline (FQL)')
+    fql_handle   = plt.Line2D([0], [0], color=C_FQL,  linewidth=0.9, linestyle='--', label='Rule-based agent (FQL)')
     tier1_handle = plt.Line2D([0], [0], color='#CC3333', linewidth=0.8, linestyle='--', label='Tier 1 (1,075 ft)')
 
     all_handles = action_handles + [mead_handle, fql_handle, tier1_handle]
@@ -860,7 +860,7 @@ def build_figure():
         frameon=True,
         framealpha=0.90,
         facecolor='white',
-        edgecolor='#CCCCCC',
+        edgecolor='black',
         handlelength=0.9,
         handletextpad=0.3,
         columnspacing=0.5,
@@ -916,7 +916,10 @@ def build_figure():
         bbox_to_anchor=legend_cfg["bbox_to_anchor"],
         ncol=legend_cfg["ncol"],
         fontsize=5.8,
-        frameon=False,
+        frameon=True,
+        facecolor='white',
+        edgecolor='black',
+        framealpha=0.95,
         handlelength=0.7,
         handletextpad=0.25,
         columnspacing=0.40,
@@ -924,16 +927,7 @@ def build_figure():
         borderaxespad=0.0,
     )
 
-    note_cfg = get_irrigation_count_note_config()
-    fig.text(
-        note_cfg["x"],
-        note_cfg["y"],
-        note_cfg["text"],
-        ha='center',
-        va='center',
-        fontsize=note_cfg["fontsize"],
-        color=note_cfg["color"],
-    )
+    # Note about pie numbers removed per reviewer request
 
     label_kw = dict(fontsize=8, fontweight='bold', va='top', ha='left',
                     transform=fig.transFigure)
