@@ -63,6 +63,13 @@ class LLMConfig:
         "qwen3": {"append_suffix": "/no_think", "strip_think_tags": True},
     })
 
+    # Thinking mode control for reasoning models (Gemma 4, DeepSeek R1, Qwen3, etc.)
+    #   "auto"     = don't modify LLM call, strip <think> tags from output (default, backward compat)
+    #   "disabled" = actively disable thinking (set think=false in Ollama options + strip tags)
+    #   "enabled"  = keep thinking tokens in output for audit/analysis
+    thinking_mode: str = "auto"
+    thinking_budget_tokens: Optional[int] = None  # Optional: limit thinking token count
+
     def to_ollama_params(self) -> Dict[str, Any]:
         """Convert config to Ollama parameter dict, excluding None values."""
         params = {
@@ -96,6 +103,20 @@ class LLMConfig:
                 if suffix and suffix not in prompt:
                     prompt = prompt + "\n" + suffix
         return prompt, max_retries
+
+    def should_strip_thinking(self) -> bool:
+        """Whether to strip <think> tags from LLM output before parsing."""
+        return self.thinking_mode in ("auto", "disabled")
+
+    def apply_thinking_control(self, model: str, options: dict) -> dict:
+        """Add thinking-mode options to Ollama API request."""
+        if self.thinking_mode == "disabled":
+            options["think"] = False
+            if self.thinking_budget_tokens is not None:
+                options["think_budget"] = 0
+        elif self.thinking_mode == "enabled" and self.thinking_budget_tokens:
+            options["think_budget"] = self.thinking_budget_tokens
+        return options
 
 
 # Global instance - modify this to change default behavior
@@ -139,6 +160,8 @@ def _load_global_config() -> LLMConfig:
             timeout_large_model=global_llm.get("timeout_large_model", 600),
             large_model_patterns=patterns,
             model_quirks=quirks,
+            thinking_mode=global_llm.get("thinking_mode", "auto"),
+            thinking_budget_tokens=global_llm.get("thinking_budget_tokens"),
         )
     except Exception as e:
         _LOGGER.warning(f"Could not load global LLM config: {e}. Using defaults.")
@@ -238,7 +261,10 @@ def _invoke_ollama_direct(model: str, prompt: str, params: Dict[str, Any], verbo
     # Phase 47: Global Disable of Strict JSON Mode
     # User Request: "Turn it off for all" to fix DeepSeek R1 <think> tokens.
     # We rely on the prompt to enforce JSON structure.
-    
+
+    # Apply thinking mode control to Ollama options
+    options = LLM_CONFIG.apply_thinking_control(model, options)
+
     data = {
         "model": model,
         "prompt": prompt,
@@ -394,15 +420,15 @@ def create_llm_invoke(model: str, verbose: bool = False, overrides: Optional[Dic
                     if debug_llm:
                         _LOGGER.debug(f" [LLM:Output] Raw Content: {repr(content[:200] if content else '')}...")
                     
-                    # Phase 46: Strip Qwen3 thinking tokens before empty check
-                    # Qwen3 models wrap reasoning in <think>...</think> tags
+                    # Strip thinking tokens (<think>...</think>) based on config
                     import re
                     stripped_content = content
-                    if content:
-                        # Remove thinking blocks to get actual response
+                    if content and LLM_CONFIG.should_strip_thinking():
                         stripped_content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
                         if debug_llm and stripped_content != content.strip():
-                            _LOGGER.debug(f" [LLM:ThinkStrip] Removed thinking tokens, extracted: {repr(stripped_content[:100])}...")
+                            _LOGGER.debug(f" [LLM:ThinkStrip] Removed thinking tokens (mode={LLM_CONFIG.thinking_mode}), extracted: {repr(stripped_content[:100])}...")
+                    elif content:
+                        stripped_content = content.strip()
                     
                     if stripped_content and stripped_content.strip():
                         return content, LLMStats(retries=llm_retries, success=True, empty_content_retries=empty_content_retries)  # Return full content for logging
