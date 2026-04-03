@@ -81,24 +81,24 @@ skills:
     conflicts_with:
       - buy_contents_insurance
 
-  # ── Government Skills ───────────────────────────────────────────────
-  - skill_id: increase_subsidy
+  # ── Government Skills (5-level) ─────────────────────────────────────
+  - skill_id: large_increase_subsidy
     description: "Increase elevation subsidy rate by 5%"
     eligible_agent_types: ["government", "nj_government"]
     preconditions: []
     institutional_constraints: {}
     allowed_state_changes:
       - subsidy_rate
-    implementation_mapping: "increase_subsidy"
+    implementation_mapping: "large_increase_subsidy"
 
-  - skill_id: decrease_subsidy
-    description: "Decrease elevation subsidy rate by 5%"
+  - skill_id: small_increase_subsidy
+    description: "Increase elevation subsidy rate by 2.5%"
     eligible_agent_types: ["government", "nj_government"]
     preconditions: []
     institutional_constraints: {}
     allowed_state_changes:
       - subsidy_rate
-    implementation_mapping: "decrease_subsidy"
+    implementation_mapping: "small_increase_subsidy"
 
   - skill_id: maintain_subsidy
     description: "Keep current elevation subsidy rate unchanged"
@@ -108,24 +108,42 @@ skills:
     allowed_state_changes: []
     implementation_mapping: "maintain_subsidy"
 
-  # ── Insurance (CRS) Skills ─────────────────────────────────────────
+  - skill_id: small_decrease_subsidy
+    description: "Decrease elevation subsidy rate by 2.5%"
+    eligible_agent_types: ["government", "nj_government"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes:
+      - subsidy_rate
+    implementation_mapping: "small_decrease_subsidy"
+
+  - skill_id: large_decrease_subsidy
+    description: "Decrease elevation subsidy rate by 5%"
+    eligible_agent_types: ["government", "nj_government"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes:
+      - subsidy_rate
+    implementation_mapping: "large_decrease_subsidy"
+
+  # ── Insurance (CRS) Skills (5-level) ───────────────────────────────
+  - skill_id: significantly_improve_crs
+    description: "Significantly improve CRS class — increase community premium discount by 5%"
+    eligible_agent_types: ["insurance", "fema_nfip"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes:
+      - crs_discount
+    implementation_mapping: "significantly_improve_crs"
+
   - skill_id: improve_crs
-    description: "Improve CRS class — increase community premium discount by 5%"
+    description: "Improve CRS class — increase community premium discount by 2.5%"
     eligible_agent_types: ["insurance", "fema_nfip"]
     preconditions: []
     institutional_constraints: {}
     allowed_state_changes:
       - crs_discount
     implementation_mapping: "improve_crs"
-
-  - skill_id: reduce_crs
-    description: "Reduce CRS class — decrease community premium discount by 5%"
-    eligible_agent_types: ["insurance", "fema_nfip"]
-    preconditions: []
-    institutional_constraints: {}
-    allowed_state_changes:
-      - crs_discount
-    implementation_mapping: "reduce_crs"
 
   - skill_id: maintain_crs
     description: "Maintain current CRS class and discount level"
@@ -134,3 +152,21 @@ skills:
     institutional_constraints: {}
     allowed_state_changes: []
     implementation_mapping: "maintain_crs"
+
+  - skill_id: reduce_crs
+    description: "Reduce CRS class — decrease community premium discount by 2.5%"
+    eligible_agent_types: ["insurance", "fema_nfip"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes:
+      - crs_discount
+    implementation_mapping: "reduce_crs"
+
+  - skill_id: significantly_reduce_crs
+    description: "Significantly reduce CRS class — decrease community premium discount by 5%"
+    eligible_agent_types: ["insurance", "fema_nfip"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes:
+      - crs_discount
+    implementation_mapping: "significantly_reduce_crs"

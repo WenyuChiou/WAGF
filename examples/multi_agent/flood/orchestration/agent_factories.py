@@ -13,9 +13,11 @@ def create_government_agent() -> BaseAgent:
         objectives=[],
         constraints=[],
         skills=[
-            Skill("increase_subsidy", "Raise subsidy rate", "subsidy_rate", "increase"),
-            Skill("decrease_subsidy", "Lower subsidy rate", "subsidy_rate", "decrease"),
-            Skill("maintain_subsidy", "Keep current rate", None, "none")
+            Skill("large_increase_subsidy", "Raise subsidy rate by 5%", "subsidy_rate", "increase"),
+            Skill("small_increase_subsidy", "Raise subsidy rate by 2.5%", "subsidy_rate", "increase"),
+            Skill("maintain_subsidy", "Keep current rate", None, "none"),
+            Skill("small_decrease_subsidy", "Lower subsidy rate by 2.5%", "subsidy_rate", "decrease"),
+            Skill("large_decrease_subsidy", "Lower subsidy rate by 5%", "subsidy_rate", "decrease"),
         ],
         perception=[
             PerceptionSource("environment", "env", ["year", "flood_occurred"])
@@ -38,9 +40,11 @@ def create_insurance_agent() -> BaseAgent:
         objectives=[],
         constraints=[],
         skills=[
-            Skill("improve_crs", "Improve CRS class discount", "crs_discount", "increase"),
-            Skill("reduce_crs", "Reduce CRS class discount", "crs_discount", "decrease"),
-            Skill("maintain_crs", "Keep current CRS class", None, "none")
+            Skill("significantly_improve_crs", "Improve CRS discount by 5%", "crs_discount", "increase"),
+            Skill("improve_crs", "Improve CRS discount by 2.5%", "crs_discount", "increase"),
+            Skill("maintain_crs", "Keep current CRS class", None, "none"),
+            Skill("reduce_crs", "Reduce CRS discount by 2.5%", "crs_discount", "decrease"),
+            Skill("significantly_reduce_crs", "Reduce CRS discount by 5%", "crs_discount", "decrease"),
         ],
         perception=[
             PerceptionSource("environment", "env", ["year", "flood_occurred"])

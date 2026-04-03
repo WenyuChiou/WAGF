@@ -345,7 +345,8 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         # Extract boolean flags (elevated, relocated, has_insurance, has_efficient_system, etc.)
         # so that _inject_filtered_skills can enforce precondition-based blocking.
         personal = context.get("personal", {})
-        context["state"] = {k: v for k, v in personal.items() if isinstance(v, bool)}
+        context["state"] = {k: v for k, v in personal.items()
+                            if isinstance(v, (bool, int, float, str)) and k != "name"}
 
         env_context = kwargs.get("env_context", {})
         if (not env_context) and self.hub is not None and getattr(self.hub, "environment", None):
