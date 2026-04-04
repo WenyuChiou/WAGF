@@ -53,7 +53,7 @@ class LLMConfig:
     # Timeout settings — configurable instead of hardcoded model-name checks
     timeout: int = 120                   # Default timeout (seconds) for standard models
     timeout_large_model: int = 600       # Extended timeout for large/slow models
-    large_model_patterns: tuple = ("27b", "30b", "32b", "70b")  # Patterns that trigger extended timeout
+    large_model_patterns: tuple = ("26b", "27b", "30b", "32b", "70b")  # Patterns that trigger extended timeout
 
     # Model-specific quirks — configurable instead of hardcoded if-chains
     # Keys are substring patterns matched against model name (case-insensitive).
