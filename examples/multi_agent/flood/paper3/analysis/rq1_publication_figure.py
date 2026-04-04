@@ -21,6 +21,7 @@ import json
 import os
 import sys
 import warnings
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -32,6 +33,12 @@ from scipy import stats
 from collections import defaultdict
 
 warnings.filterwarnings("ignore", category=FutureWarning)
+
+STYLE_DIR = Path(__file__).resolve().parents[1] / "figures" / "scripts"
+if str(STYLE_DIR) not in sys.path:
+    sys.path.append(str(STYLE_DIR))
+
+from paper3_style import FIGURE_WIDTH, OKABE_ITO, add_panel_label, apply_style, save_figure
 
 # ===========================================================================
 # Paths
@@ -256,23 +263,22 @@ for action, row_i, col_i, label, letter in PANELS:
 # ===========================================================================
 safe_print("\n[4] Generating publication figure...")
 
-# Style
-plt.rcParams.update({
-    "font.family": "sans-serif",
-    "font.sans-serif": ["Arial", "Helvetica", "DejaVu Sans"],
-    "font.size": 10,
-    "axes.labelsize": 10,
-    "axes.titlesize": 11,
-    "xtick.labelsize": 9,
-    "ytick.labelsize": 9,
-    "legend.fontsize": 9,
-    "figure.dpi": 150,
-})
+apply_style()
+plt.rcParams.update(
+    {
+        "axes.labelsize": 8,
+        "axes.titlesize": 8,
+        "xtick.labelsize": 7,
+        "ytick.labelsize": 7,
+        "legend.fontsize": 7,
+    }
+)
 
-C_TRAD = "#D55E00"  # vermillion (colorblind-safe)
-C_LLM = "#0072B2"   # blue (colorblind-safe)
+C_TRAD = OKABE_ITO["black"]
+C_LLM = OKABE_ITO["blue"]
+C_BAND = OKABE_ITO["sky_blue"]
 
-fig, axes = plt.subplots(2, 3, figsize=(14, 8))
+fig, axes = plt.subplots(2, 3, figsize=(FIGURE_WIDTH, 4.6))
 
 for panel_idx, (action, row_i, col_i, label, letter) in enumerate(PANELS):
     ax = axes[row_i, col_i]
@@ -283,24 +289,24 @@ for panel_idx, (action, row_i, col_i, label, letter) in enumerate(PANELS):
     llm_m = llm_mean.loc[common_years, action].values
     llm_s = llm_std.loc[common_years, action].values
 
-    # Traditional ABM: dashed red line
-    ax.plot(x, trad_vals * 100, linestyle="--", color=C_TRAD, linewidth=1.8,
+    # Traditional ABM: dashed black line
+    ax.plot(x, trad_vals * 100, linestyle="--", color=C_TRAD, linewidth=1.5,
             marker="s", markersize=4, markerfacecolor="white", markeredgecolor=C_TRAD,
             markeredgewidth=1.2, label="Traditional ABM", zorder=3)
 
     # LLM-ABM: solid blue line with shading
-    ax.plot(x, llm_m * 100, linestyle="-", color=C_LLM, linewidth=1.8,
+    ax.plot(x, llm_m * 100, linestyle="-", color=C_LLM, linewidth=1.5,
             marker="o", markersize=4, markerfacecolor="white", markeredgecolor=C_LLM,
             markeredgewidth=1.2, label=f"LLM-ABM (n={n_seeds})", zorder=3)
 
     if n_seeds > 1:
         ax.fill_between(x, (llm_m - llm_s) * 100, (llm_m + llm_s) * 100,
-                        alpha=0.18, color=C_LLM, zorder=1)
+                        alpha=0.25, color=C_BAND, zorder=1)
 
-    # Panel title with letter
+    # Panel title
     agent_label = "Owner" if row_i == 0 else "Renter"
-    ax.set_title(f"{letter} {agent_label}: {label}", fontsize=11, fontweight="bold",
-                 loc="left", pad=8)
+    ax.set_title(f"{agent_label}: {label}", loc="left", pad=6)
+    add_panel_label(ax, letter, fontsize=10)
 
     # Axes
     ax.set_ylabel("Action Rate (%)")
@@ -314,8 +320,8 @@ for panel_idx, (action, row_i, col_i, label, letter) in enumerate(PANELS):
     y_max = max(np.max(trad_vals), np.max(llm_m + llm_s)) * 100
     ax.set_ylim(bottom=0, top=max(y_max * 1.25, 5))
 
-    # Grid
-    ax.grid(True, alpha=0.2, linewidth=0.5)
+    # Light y-grid only
+    ax.grid(axis="y", alpha=0.18, linewidth=0.5)
     ax.set_axisbelow(True)
 
     # Annotation: MAD + classification
@@ -334,7 +340,7 @@ for panel_idx, (action, row_i, col_i, label, letter) in enumerate(PANELS):
 
     # Place annotation in top-right area
     ax.text(0.97, 0.95, ann_text, transform=ax.transAxes,
-            fontsize=9, verticalalignment="top", horizontalalignment="right",
+            fontsize=7, verticalalignment="top", horizontalalignment="right",
             bbox=dict(boxstyle="round,pad=0.3", facecolor="white",
                       edgecolor="gray", alpha=0.85))
 
@@ -344,12 +350,12 @@ for panel_idx, (action, row_i, col_i, label, letter) in enumerate(PANELS):
                   edgecolor="gray", framealpha=0.9)
 
 # Adjust layout
-fig.tight_layout(h_pad=3.0, w_pad=2.5)
+fig.tight_layout(h_pad=2.0, w_pad=1.4)
 
 # Save
-fig_path = os.path.join(ANALYSIS_DIR, "rq1_publication_figure.png")
-fig.savefig(fig_path, dpi=300, bbox_inches="tight", facecolor="white")
-safe_print(f"  Saved figure: {fig_path}")
+output_stem = Path(BASE) / "paper3" / "figures" / "main" / "fig3_rq1_trajectories"
+save_figure(fig, output_stem)
+safe_print(f"  Saved figure: {output_stem}.png/.pdf")
 plt.close(fig)
 
 
