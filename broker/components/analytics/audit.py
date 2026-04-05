@@ -2,6 +2,7 @@ from datetime import datetime
 from dataclasses import dataclass
 import json
 import csv
+import threading
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from broker.utils.logging import setup_logger
@@ -60,6 +61,7 @@ class GenericAuditWriter:
         # Buffer for JSONL writes (Performance Optimization)
         self._jsonl_buffer: Dict[str, List[str]] = {}
         self._jsonl_buffer_size = 1  # Flush every trace for real-time observability
+        self._write_lock = threading.Lock()  # Thread safety for workers > 1
     
     def _get_file_path(self, agent_type: str) -> Path:
         """Get or create file path for agent type (JSONL traces in raw/ subdir)."""
@@ -151,27 +153,29 @@ class GenericAuditWriter:
             jsonl_trace = {**trace, 'raw_output': raw[:500] + '...[truncated]'}
         json_line = json.dumps(jsonl_trace, ensure_ascii=False, default=str) + '\n'
         
-        if agent_type not in self._jsonl_buffer:
-            self._jsonl_buffer[agent_type] = []
-        self._jsonl_buffer[agent_type].append(json_line)
-        
-        # Flush buffer when threshold reached
-        if len(self._jsonl_buffer[agent_type]) >= self._jsonl_buffer_size:
-            self._flush_jsonl_buffer(agent_type, file_path)
-        
-        # Buffer for CSV
-        if agent_type not in self._trace_buffer:
-            self._trace_buffer[agent_type] = []
-        self._trace_buffer[agent_type].append(trace)
+        with self._write_lock:
+            if agent_type not in self._jsonl_buffer:
+                self._jsonl_buffer[agent_type] = []
+            self._jsonl_buffer[agent_type].append(json_line)
+
+            # Flush buffer when threshold reached
+            if len(self._jsonl_buffer[agent_type]) >= self._jsonl_buffer_size:
+                self._flush_jsonl_buffer(agent_type, file_path)
+
+            # Buffer for CSV
+            if agent_type not in self._trace_buffer:
+                self._trace_buffer[agent_type] = []
+            self._trace_buffer[agent_type].append(trace)
     
     def finalize(self) -> Dict[str, Any]:
         """Write summary and export CSVs."""
         self.summary["finalized_at"] = datetime.now().isoformat()
         
         # Flush remaining JSONL buffers before closing
-        for agent_type in list(self._jsonl_buffer.keys()):
-            file_path = self._get_file_path(agent_type)
-            self._flush_jsonl_buffer(agent_type, file_path)
+        with self._write_lock:
+            for agent_type in list(self._jsonl_buffer.keys()):
+                file_path = self._get_file_path(agent_type)
+                self._flush_jsonl_buffer(agent_type, file_path)
         
         # Export summary JSON
         summary_path = self.output_dir / "audit_summary.json"

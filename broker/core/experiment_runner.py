@@ -218,16 +218,20 @@ class ExperimentRunner:
 
         summary_path = self.config.output_dir / "governance_summary.json"
 
-        # Phase 32: Create Reproducibility Manifest
+        # Phase 32: Create Reproducibility Manifest (enhanced per WRR reviewer feedback)
         import shutil
         import json
+        import sys
+        from datetime import datetime
+
         manifest = {
             "model": self.config.model,
             "seed": self.config.seed,
             "num_years": iterations,
             "governance_profile": self.config.governance_profile,
-            "agent_types_config": str(self.broker.model_adapter.config_path) if hasattr(self.broker.model_adapter, 'config_path') else "unknown"
+            "agent_types_config": str(self.broker.model_adapter.config_path) if hasattr(self.broker.model_adapter, 'config_path') else "unknown",
         }
+        manifest.update(self._collect_reproducibility_metadata())
 
         # Copy configuration for future audit (with CLI overrides applied)
         if hasattr(self.broker.model_adapter, 'config_path') and self.broker.model_adapter.config_path:
@@ -263,6 +267,75 @@ class ExperimentRunner:
             json.dump(manifest, f, indent=2)
 
         self.broker.auditor.save_summary(summary_path)
+
+    def _collect_reproducibility_metadata(self) -> dict:
+        """Collect model digest, git state, and config hashes for reproducibility."""
+        metadata = {}
+
+        # 1. Query Ollama for model digest
+        try:
+            import requests
+            r = requests.post(
+                "http://localhost:11434/api/show",
+                json={"name": self.config.model},
+                timeout=5,
+            )
+            if r.status_code == 200:
+                info = r.json()
+                metadata["model_digest"] = info.get("digest") or info.get("modified_at", "unknown")
+                details = info.get("details", {})
+                metadata["model_family"] = details.get("family", "unknown")
+                metadata["model_parameter_size"] = details.get("parameter_size", "unknown")
+                metadata["model_quantization"] = details.get("quantization_level", "unknown")
+        except Exception:
+            metadata["model_digest"] = "unavailable"
+
+        # 2. Capture git state
+        try:
+            import subprocess
+            commit = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL
+            ).decode().strip()
+            dirty = subprocess.check_output(
+                ["git", "status", "--porcelain"], stderr=subprocess.DEVNULL
+            ).decode().strip()
+            metadata["git_commit"] = commit
+            metadata["git_dirty"] = len(dirty) > 0
+        except Exception:
+            metadata["git_commit"] = "unavailable"
+            metadata["git_dirty"] = None
+
+        # 3. LLM config snapshot
+        try:
+            from broker.utils.llm_utils import LLM_CONFIG
+            metadata["thinking_mode"] = LLM_CONFIG.thinking_mode
+            metadata["temperature"] = LLM_CONFIG.temperature
+            metadata["top_p"] = LLM_CONFIG.top_p
+            metadata["num_ctx"] = LLM_CONFIG.num_ctx
+            metadata["num_predict"] = LLM_CONFIG.num_predict
+        except Exception:
+            pass
+
+        # 4. Hash config files
+        try:
+            import hashlib
+            config_path = getattr(self.broker.model_adapter, "config_path", None)
+            if config_path:
+                from pathlib import Path
+                cp = Path(config_path)
+                if cp.exists():
+                    h = hashlib.sha256(cp.read_bytes()).hexdigest()[:12]
+                    metadata["config_hash"] = h
+        except Exception:
+            pass
+
+        # 5. Timestamp and Python version
+        import sys
+        from datetime import datetime
+        metadata["timestamp"] = datetime.now().isoformat()
+        metadata["python_version"] = sys.version.split()[0]
+
+        return metadata
 
     def _apply_state_changes(self, agent: BaseAgent, result: Any):
         """Update agent attributes and memory from execution results.
