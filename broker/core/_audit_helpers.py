@@ -15,6 +15,20 @@ from ..interfaces.skill_types import (
 from ..utils.logging import logger
 
 
+def _classify_decision_source(approved_skill) -> str:
+    """Classify how the final action was determined."""
+    if approved_skill is None:
+        return "parse_failure"
+    status = approved_skill.approval_status
+    if status == "APPROVED":
+        return "llm_reasoned"
+    elif status == "REJECTED_FALLBACK":
+        return "fallback_default"
+    elif status == "REJECTED":
+        return "validator_rejected"
+    return "unknown"
+
+
 class AuditMixin:
     """Mixin providing audit trace writing and state management helpers."""
 
@@ -61,6 +75,8 @@ class AuditMixin:
             "year": env_context.get("current_year") if env_context else None,
             "seed": seed,
             "agent_id": agent_id,
+            "model": getattr(self, '_model_name', 'unknown'),
+            "decision_source": _classify_decision_source(approved_skill),
             "validated": all_valid,
             "_audit_priority": audit_priority,
             "input": prompt,

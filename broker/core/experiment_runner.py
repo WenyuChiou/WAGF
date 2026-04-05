@@ -132,6 +132,9 @@ class ExperimentRunner:
         run_id = f"exp_{random.randint(1000, 9999)}"
         logger.info(f"Starting Experiment: {self.config.experiment_name} | Model: {self.config.model}")
 
+        # Inject model name into broker for audit trace enrichment
+        self.broker._model_name = self.config.model
+
         # 0. Fool-proof Schema Validation
         # ... (keep existing validation code)
         if hasattr(self.broker, 'model_adapter') and getattr(self.broker.model_adapter, 'agent_config', None):

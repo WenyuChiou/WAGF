@@ -794,7 +794,7 @@ def plot_adaptation_cumulative_state(csv_path: Path, output_dir: Path, agents_co
 
 
 # --- 6. Main Runner ---
-def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5, seed: Optional[int] = None, memory_seed: int = 42, flood_mode: str = "fixed", survey_mode: bool = False, governance_mode: str = "strict", use_priority_schema: bool = False, stress_test: str = None, memory_ranking_mode: str = "legacy", initial_agents_path: str = None, shuffle_skills: bool = False):
+def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_count: int = 100, custom_output: str = None, verbose: bool = False, memory_engine_type: str = "window", workers: int = 1, window_size: int = 5, seed: Optional[int] = None, memory_seed: int = 42, flood_mode: str = "fixed", survey_mode: bool = False, governance_mode: str = "strict", use_priority_schema: bool = False, stress_test: str = None, memory_ranking_mode: str = "legacy", initial_agents_path: str = None, shuffle_skills: bool = False, default_skill: str = None):
     print(f"--- Llama {agents_count}-Agent {years}-Year Benchmark (Final Parity Edition) ---")
     
     # 1. Load Registry & Prompt Template
@@ -802,6 +802,9 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     registry_path = base_path / "skill_registry.yaml"
     registry = SkillRegistry()
     registry.register_from_yaml(str(registry_path))
+    if default_skill:
+        registry.set_default_skill(default_skill)
+        print(f" [Config] Default skill overridden: {default_skill}")
 
     # Disabled mode: clear preconditions so hallucinations pass through (no retry)
     if governance_mode == "disabled":
@@ -1224,6 +1227,9 @@ if __name__ == "__main__":
     parser.add_argument("--premium-rate", type=float, default=None,
                         help="Override insurance premium rate (default 0.02). "
                              "Use 0.04 for doubled-premium counterfactual.")
+    parser.add_argument("--default-skill", type=str, default=None,
+                        help="Override default fallback skill (e.g., buy_insurance). "
+                             "Default: from skill_registry.yaml (do_nothing)")
     args = parser.parse_args()
 
     # Apply LLM config from command line
@@ -1265,5 +1271,6 @@ if __name__ == "__main__":
         stress_test=args.stress_test,
         memory_ranking_mode=args.memory_ranking_mode,
         initial_agents_path=args.initial_agents,
-        shuffle_skills=args.shuffle_skills
+        shuffle_skills=args.shuffle_skills,
+        default_skill=args.default_skill
     )
