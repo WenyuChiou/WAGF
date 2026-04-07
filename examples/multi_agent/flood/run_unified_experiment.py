@@ -193,7 +193,16 @@ def run_unified_experiment():
                         help="Disable all governance validators (skip rule checks). For SI-7 ablation.")
     parser.add_argument("--seed", type=int, default=None,
                         help="Random seed for reproducibility")
+    parser.add_argument("--thinking-mode", type=str, default=None,
+                        choices=["auto", "disabled", "enabled"],
+                        help="Control thinking mode for reasoning models (auto=strip tags, disabled=prevent thinking, enabled=keep tags)")
     args = parser.parse_args()
+
+    # Apply thinking mode
+    if args.thinking_mode is not None:
+        from broker.utils.llm_utils import LLM_CONFIG
+        LLM_CONFIG.thinking_mode = args.thinking_mode
+        print(f"[INFO] Thinking mode set to: {args.thinking_mode}")
 
     # Set random seed for reproducibility
     if args.seed is not None:
