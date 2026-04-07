@@ -149,73 +149,77 @@ class ExperimentRunner:
         # Determine total iterations (backward compatible)
         iterations = self.config.num_steps or self.config.num_years
 
-        for step in range(1, iterations + 1):
-            self._current_year = step # internal tracker
-            # Environment update (Attempt advance_step first, fallback to advance_year)
-            if hasattr(self.sim_engine, 'advance_step'):
-                env = self.sim_engine.advance_step()
-            else:
-                env = self.sim_engine.advance_year() if self.sim_engine else {}
-
-            # Ensure current_year is in env (Standardized)
-            if env is None: env = {}
-            if "current_year" not in env:
-                env["current_year"] = step
-
-            # Print status using generic term if steps used, otherwise year
-            term = "Step" if self.config.num_steps else "Year"
-            logger.info(f"--- {term} {step} ---")
-
-            # --- Lifecycle Hook: Pre-Step / Pre-Year ---
-            # Dual trigger for generic compatibility
-            if "pre_step" in self.hooks:
-                self.hooks["pre_step"](step, env, self.agents)
-            if "pre_year" in self.hooks:
-                self.hooks["pre_year"](step, env, self.agents)
-
-            # Filter only active agents (Generic approach)
-            active_agents = [
-                a for a in self.agents.values()
-                if getattr(a, 'is_active', True)
-            ]
-
-            # Partition agents into phases (if phase_order configured)
-            if self.config.phase_order:
-                agent_phases = self._partition_by_phase(active_agents)
-            else:
-                agent_phases = [active_agents]  # Single phase (backward compatible)
-
-            # Execute each phase sequentially, agents within phase sequential or parallel
-            for phase_agents in agent_phases:
-                if not phase_agents:
-                    continue
-                if self.config.workers > 1:
-                    results = self._run_agents_parallel(phase_agents, run_id, llm_invoke, env)
+        try:
+            for step in range(1, iterations + 1):
+                self._current_year = step # internal tracker
+                # Environment update (Attempt advance_step first, fallback to advance_year)
+                if hasattr(self.sim_engine, 'advance_step'):
+                    env = self.sim_engine.advance_step()
                 else:
-                    results = self._run_agents_sequential(phase_agents, run_id, llm_invoke, env)
+                    env = self.sim_engine.advance_year() if self.sim_engine else {}
 
-                # Apply results and trigger post-step hooks
-                for agent, result in results:
-                    if result.outcome in (SkillOutcome.REJECTED, SkillOutcome.UNCERTAIN):
-                        # REJECTED: no state change, no memory — only audit trace
+                # Ensure current_year is in env (Standardized)
+                if env is None: env = {}
+                if "current_year" not in env:
+                    env["current_year"] = step
+
+                # Print status using generic term if steps used, otherwise year
+                term = "Step" if self.config.num_steps else "Year"
+                logger.info(f"--- {term} {step} ---")
+
+                # --- Lifecycle Hook: Pre-Step / Pre-Year ---
+                # Dual trigger for generic compatibility
+                if "pre_step" in self.hooks:
+                    self.hooks["pre_step"](step, env, self.agents)
+                if "pre_year" in self.hooks:
+                    self.hooks["pre_year"](step, env, self.agents)
+
+                # Filter only active agents (Generic approach)
+                active_agents = [
+                    a for a in self.agents.values()
+                    if getattr(a, 'is_active', True)
+                ]
+
+                # Partition agents into phases (if phase_order configured)
+                if self.config.phase_order:
+                    agent_phases = self._partition_by_phase(active_agents)
+                else:
+                    agent_phases = [active_agents]  # Single phase (backward compatible)
+
+                # Execute each phase sequentially, agents within phase sequential or parallel
+                for phase_agents in agent_phases:
+                    if not phase_agents:
+                        continue
+                    if self.config.workers > 1:
+                        results = self._run_agents_parallel(phase_agents, run_id, llm_invoke, env)
+                    else:
+                        results = self._run_agents_sequential(phase_agents, run_id, llm_invoke, env)
+
+                    # Apply results and trigger post-step hooks
+                    for agent, result in results:
+                        if result.outcome in (SkillOutcome.REJECTED, SkillOutcome.UNCERTAIN):
+                            # REJECTED: no state change, no memory — only audit trace
+                            if "post_step" in self.hooks:
+                                self.hooks["post_step"](agent, result)
+                            continue
+                        if result.execution_result and result.execution_result.success:
+                            self._apply_state_changes(agent, result)
                         if "post_step" in self.hooks:
                             self.hooks["post_step"](agent, result)
-                        continue
-                    if result.execution_result and result.execution_result.success:
-                        self._apply_state_changes(agent, result)
-                    if "post_step" in self.hooks:
-                        self.hooks["post_step"](agent, result)
 
-            # --- Lifecycle Hook: Post-Step-End / Post-Year ---
-            # Dual trigger for generic compatibility
-            if "post_step_end" in self.hooks:
-                self.hooks["post_step_end"](step, self.agents)
-            if "post_year" in self.hooks:
-                self.hooks["post_year"](step, self.agents)
+                # --- Lifecycle Hook: Post-Step-End / Post-Year ---
+                # Dual trigger for generic compatibility
+                if "post_step_end" in self.hooks:
+                    self.hooks["post_step_end"](step, self.agents)
+                if "post_year" in self.hooks:
+                    self.hooks["post_year"](step, self.agents)
 
-            self._finalize_step(step)
+                self._finalize_step(step)
+        finally:
+            self._finalize_experiment(iterations)
 
-        # 4. Finalize Experiment
+    def _finalize_experiment(self, iterations: int):
+        """Finalize outputs even if the run exits early."""
         if hasattr(self.broker.audit_writer, 'finalize'):
             self.broker.audit_writer.finalize()
 
@@ -224,8 +228,6 @@ class ExperimentRunner:
         # Phase 32: Create Reproducibility Manifest (enhanced per WRR reviewer feedback)
         import shutil
         import json
-        import sys
-        from datetime import datetime
 
         manifest = {
             "model": self.config.model,
@@ -262,7 +264,7 @@ class ExperimentRunner:
 
                     with open(self.config.output_dir / "config_snapshot.yaml", 'w', encoding='utf-8') as f:
                         yaml.dump(config_data, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
-                except Exception as e:
+                except Exception:
                     # Fallback to simple copy if YAML processing fails
                     shutil.copy(config_src, self.config.output_dir / "config_snapshot.yaml")
 
@@ -416,87 +418,90 @@ class ExperimentRunner:
         """Execute agent steps sequentially. Default mode."""
         results = []
         for agent in agents:
-            self.step_counter += 1
+            try:
+                self.step_counter += 1
 
-            # [Efficiency Hub] Cognitive Cache Check
-            ctx_builder = self.broker.context_builder
-            # Build context early to compute hash
-            context = ctx_builder.build(agent.id, env_context=env)
-            context_hash = self.efficiency.compute_hash(context)
+                # [Efficiency Hub] Cognitive Cache Check
+                ctx_builder = self.broker.context_builder
+                # Build context early to compute hash
+                context = ctx_builder.build(agent.id, env_context=env)
+                context_hash = self.efficiency.compute_hash(context)
 
-            cached_data = self.efficiency.get(context_hash)
-            if cached_data:
-                logger.info(f"[Efficiency] Cache HIT for {agent.id} (Hash={context_hash[:8]}). Bypassing LLM.")
-                # Reconstruct result from cache
+                cached_data = self.efficiency.get(context_hash)
+                if cached_data:
+                    logger.info(f"[Efficiency] Cache HIT for {agent.id} (Hash={context_hash[:8]}). Bypassing LLM.")
+                    # Reconstruct result from cache
 
-                # Restore reasoning metadata to ensure AuditWriter can find appraisals
-                cached_proposal = cached_data.get("skill_proposal") or {}
-                proposal = SkillProposal(
-                    skill_name=cached_proposal.get("skill_name", "do_nothing"),
-                    agent_id=agent.id,
-                    reasoning=cached_proposal.get("reasoning", {}),
-                    agent_type=cached_proposal.get("agent_type", "default")
-                )
-
-                # Basic reconstruction (Logic here should match SkillBrokerResult structure)
-                result = SkillBrokerResult(
-                    outcome=SkillOutcome(cached_data.get("outcome", "APPROVED")),
-                    skill_proposal=proposal, # Restore proposal for audit
-                    approved_skill=ApprovedSkill(
-                        skill_name=cached_data.get("approved_skill", {}).get("skill_name", "do_nothing"),
+                    # Restore reasoning metadata to ensure AuditWriter can find appraisals
+                    cached_proposal = cached_data.get("skill_proposal") or {}
+                    proposal = SkillProposal(
+                        skill_name=cached_proposal.get("skill_name", "do_nothing"),
                         agent_id=agent.id,
-                        approval_status="APPROVED",
-                        execution_mapping=cached_data.get("approved_skill", {}).get("mapping", "sim.noop")
-                    ),
-                    execution_result=ExecutionResult(
-                        success=True,
-                        state_changes=cached_data.get("execution_result", {}).get("state_changes", {})
-                    ),
-                    validation_errors=[],
-                    retry_count=0
-                )
-                if hasattr(self.broker, "_run_validators"):
-                    cached_proposal_obj = SkillProposal(
-                        skill_name=cached_data.get("approved_skill", {}).get("skill_name", "do_nothing"),
-                        agent_id=agent.id,
-                        reasoning=cached_data.get("skill_proposal", {}).get("reasoning", {}),
-                        agent_type=getattr(agent, 'agent_type', 'default')
+                        reasoning=cached_proposal.get("reasoning", {}),
+                        agent_type=cached_proposal.get("agent_type", "default")
                     )
-                    # Wrap context the same way process_step() does for custom validators
-                    cache_validation_context = {
-                        "agent_state": context,
-                        "agent_type": getattr(agent, 'agent_type', 'default'),
-                        "env_state": env,
-                        **context.get("state", {}),
-                        **env
-                    }
-                    val_results = self.broker._run_validators(cached_proposal_obj, cache_validation_context)
-                    if not all(v.valid for v in val_results):
-                        logger.warning(f"[Efficiency] Cache HIT for {agent.id} INVALIDATED by governance. Re-running.")
-                        self.efficiency.invalidate(context_hash)
+
+                    # Basic reconstruction (Logic here should match SkillBrokerResult structure)
+                    result = SkillBrokerResult(
+                        outcome=SkillOutcome(cached_data.get("outcome", "APPROVED")),
+                        skill_proposal=proposal, # Restore proposal for audit
+                        approved_skill=ApprovedSkill(
+                            skill_name=cached_data.get("approved_skill", {}).get("skill_name", "do_nothing"),
+                            agent_id=agent.id,
+                            approval_status="APPROVED",
+                            execution_mapping=cached_data.get("approved_skill", {}).get("mapping", "sim.noop")
+                        ),
+                        execution_result=ExecutionResult(
+                            success=True,
+                            state_changes=cached_data.get("execution_result", {}).get("state_changes", {})
+                        ),
+                        validation_errors=[],
+                        retry_count=0
+                    )
+                    if hasattr(self.broker, "_run_validators"):
+                        cached_proposal_obj = SkillProposal(
+                            skill_name=cached_data.get("approved_skill", {}).get("skill_name", "do_nothing"),
+                            agent_id=agent.id,
+                            reasoning=cached_data.get("skill_proposal", {}).get("reasoning", {}),
+                            agent_type=getattr(agent, 'agent_type', 'default')
+                        )
+                        # Wrap context the same way process_step() does for custom validators
+                        cache_validation_context = {
+                            "agent_state": context,
+                            "agent_type": getattr(agent, 'agent_type', 'default'),
+                            "env_state": env,
+                            **context.get("state", {}),
+                            **env
+                        }
+                        val_results = self.broker._run_validators(cached_proposal_obj, cache_validation_context)
+                        if not all(v.valid for v in val_results):
+                            logger.warning(f"[Efficiency] Cache HIT for {agent.id} INVALIDATED by governance. Re-running.")
+                            self.efficiency.invalidate(context_hash)
+                        else:
+                            results.append((agent, result))
+                            continue
                     else:
                         results.append((agent, result))
                         continue
-                else:
-                    results.append((agent, result))
-                    continue
 
-            result = self.broker.process_step(
-                agent_id=agent.id,
-                step_id=self.step_counter,
-                run_id=run_id,
-                seed=self.config.seed + self.step_counter,
-                llm_invoke=self.get_llm_invoke(getattr(agent, 'agent_type', 'default')),
-                agent_type=getattr(agent, 'agent_type', 'default'),
-                env_context=env
-            )
+                result = self.broker.process_step(
+                    agent_id=agent.id,
+                    step_id=self.step_counter,
+                    run_id=run_id,
+                    seed=self.config.seed + self.step_counter,
+                    llm_invoke=self.get_llm_invoke(getattr(agent, 'agent_type', 'default')),
+                    agent_type=getattr(agent, 'agent_type', 'default'),
+                    env_context=env
+                )
 
-            # Store validated result in cache
-            if result.outcome in [SkillOutcome.APPROVED, SkillOutcome.RETRY_SUCCESS]:
-                # We store the raw_output or structured decision
-                self.efficiency.put(context_hash, result.to_dict())
+                # Store validated result in cache
+                if result.outcome in [SkillOutcome.APPROVED, SkillOutcome.RETRY_SUCCESS]:
+                    # We store the raw_output or structured decision
+                    self.efficiency.put(context_hash, result.to_dict())
 
-            results.append((agent, result))
+                results.append((agent, result))
+            except Exception as e:
+                logger.error(f"[Sequential] Agent {agent.id} failed: {e}")
         return results
 
     def _run_agents_parallel(self, agents: List, run_id: str, llm_invoke: Callable, env: Dict) -> List:

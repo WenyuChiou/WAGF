@@ -403,3 +403,41 @@ class TestInactiveAgents:
         # Only a1 should be processed
         assert broker.process_step.call_count == 1
         assert broker.process_step.call_args[1]["agent_id"] == "a1"
+
+
+# ---------------------------------------------------------------------------
+# Exception handling
+# ---------------------------------------------------------------------------
+
+class TestExceptionHandling:
+    """Tests for per-agent exception isolation and cleanup."""
+
+    def test_sequential_agent_exception_does_not_abort_run(self, tmp_path):
+        agents = {
+            "a1": _make_agent("a1"),
+            "a2": _make_agent("a2"),
+            "a3": _make_agent("a3"),
+        }
+        broker = _make_mock_broker()
+
+        def process_step_side_effect(agent_id, **kwargs):
+            if agent_id == "a2":
+                raise RuntimeError("simulated agent failure")
+            return _make_approved_result(agent_id)
+
+        broker.process_step.side_effect = process_step_side_effect
+
+        config = ExperimentConfig(num_years=1, output_dir=tmp_path)
+        runner = ExperimentRunner(
+            broker=broker,
+            sim_engine=MagicMock(advance_year=lambda: {}),
+            agents=agents,
+            config=config,
+        )
+
+        runner.run(llm_invoke=MagicMock())
+
+        processed_ids = [call.kwargs["agent_id"] for call in broker.process_step.call_args_list]
+        assert processed_ids == ["a1", "a2", "a3"]
+        broker.audit_writer.finalize.assert_called_once()
+        broker.auditor.save_summary.assert_called_once()
