@@ -39,7 +39,7 @@ def apply_style() -> None:
     )
 
 
-def add_panel_label(ax, label: str) -> None:
+def add_panel_label(ax, label: str, *, fontsize: float = 10) -> None:
     ax.text(
         0.0,
         1.02,
@@ -47,6 +47,7 @@ def add_panel_label(ax, label: str) -> None:
         transform=ax.transAxes,
         ha="left",
         va="bottom",
+        fontsize=fontsize,
         fontweight="bold",
     )
 
