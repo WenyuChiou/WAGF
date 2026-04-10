@@ -1,20 +1,76 @@
 shared:
   rating_scale: VL=Very Low, L=Low, M=Medium, H=High, VH=Very High
-  criteria_definitions: 'Protection Motivation Theory (PMT) Constructs:
+  criteria_definitions: 'Protection Motivation Theory (PMT) Constructs. Rate each
+    based on YOUR specific situation, not a generic assumption. Use the level anchors
+    below.
 
-    - TP (Threat Perception): How serious do you perceive the flood risk? Consider
-    likelihood and potential severity.
+    - TP (Threat Perception): How serious do you perceive the flood risk?
 
-    - CP (Coping Perception): How confident are you that mitigation options (insurance,
-    elevation, buyout) are effective and affordable?
+      * VL: No flood risk concern (LOW zone, no history)
+
+      * L: Minor concern (infrequent flooding, minimal damage)
+
+      * M: Moderate concern (baseline for flood-prone area, typical residents)
+
+      * H: Serious concern (recent severe flood or multiple events)
+
+      * VH: Extreme concern (catastrophic damage, imminent threat)
+
+    - CP (Coping Perception): How CAPABLE are you of taking effective protective
+    action (afford it, execute it, benefit from it)?
+
+      * VL: Cannot afford or execute any protective action
+
+      * L: Can only afford minimal action (basic insurance)
+
+      * M: Baseline — can afford insurance, elevation is a stretch
+
+      * H: Can realistically afford and execute elevation or buyout
+
+      * VH: Full financial and practical capacity for any adaptation
 
     - SP (Stakeholder Perception): How much do you trust institutions (NJDEP, FEMA/NFIP)
     to provide reliable support?
 
-    - SC (Social Capital): How connected are you with neighbors? Are they taking protective
+      * VL: No trust in government or insurance institutions
+
+      * L: Low trust, expect programs to fail or be unfair
+
+      * M: Baseline — cautiously willing to work with institutions
+
+      * H: Trust institutions to deliver on their promises
+
+      * VH: Full confidence in institutional support
+
+    - SC (Social Capital): How connected are you with neighbors taking protective
     actions?
 
-    - PA (Place Attachment): How emotionally attached are you to your home and community?
+      * VL: Isolated, no neighbor connections
+
+      * L: Minimal neighbor contact
+
+      * M: Baseline — know neighbors, occasional interaction
+
+      * H: Close neighbor network, share flood information
+
+      * VH: Tight community, coordinated protective action
+
+    - PA (Place Attachment): How emotionally attached are you to your home AND COMMUNITY?
+    Attachment should reflect genuine roots, not just ownership. A single-generation
+    resident is typically M (Medium), not H.
+
+      * VL: Recently moved, minimal local ties, would relocate easily
+
+      * L: Established but could relocate without major loss
+
+      * M: BASELINE for most 1-2 generation residents; some attachment but pragmatic
+      about relocation if needed
+
+      * H: Strong community roots (3+ generations, long-term family presence, central
+      role in community)
+
+      * VH: Deeply rooted identity (5+ generations, irreplaceable family heritage,
+      unthinkable to leave)
 
     '
   response_format:

@@ -45,7 +45,7 @@ It is crucial to accurately assess your flood risk based on your personal flood 
   * NOTE: Elevation requires 6-12 months of construction, temporary relocation, and significant disruption to daily life. Many homeowners find the process stressful and costly beyond the dollar amount.
   * PRACTICAL REALITY: Elevation also requires local building permits, a specialized contractor (limited availability, especially after major floods), and often a federal grant (HMGP/FMA — competitive and slow). The full process typically takes 1-3 years from decision to completion.
 - Blue Acres Buyout Offer: ~${buyout_offer:,.0f} (based on property value)
-  * NOTE: Accepting a buyout means permanently leaving your home, neighborhood, and community ties.
+  * NOTE: Accepting a buyout means relocating to a different area. Whether this represents a significant loss depends on your actual community ties (see PA definition).
   * PRACTICAL REALITY: Blue Acres is a voluntary program with limited annual funding. The process from application to closing typically takes 2-5 years. Most applicants face long waiting periods, property appraisal disputes, and the program prioritizes repetitive-loss properties in clusters (not individual homes). Many families who initially express interest ultimately decline when faced with the reality of relocating.
 - NFIP Deductible: $1,000 (structure) / $1,000 (contents)
 - NFIP Coverage Limits: $250,000 (structure) / $100,000 (contents)
