@@ -109,14 +109,30 @@ class LLMConfig:
         return self.thinking_mode in ("auto", "disabled")
 
     def apply_thinking_control(self, model: str, options: dict) -> dict:
-        """Add thinking-mode options to Ollama API request."""
-        if self.thinking_mode == "disabled":
-            options["think"] = False
-            if self.thinking_budget_tokens is not None:
-                options["think_budget"] = 0
-        elif self.thinking_mode == "enabled" and self.thinking_budget_tokens:
+        """Deprecated shim: kept for backward compatibility. Use get_think_flag() instead.
+
+        Note: Ollama's `think` parameter is a TOP-LEVEL request field, NOT inside
+        options. This method historically put it in options (a no-op). Use
+        get_think_flag() to retrieve the top-level flag, and add it to the request
+        dict at the call site.
+        """
+        if self.thinking_mode == "enabled" and self.thinking_budget_tokens:
             options["think_budget"] = self.thinking_budget_tokens
         return options
+
+    def get_think_flag(self) -> Optional[bool]:
+        """Return the value for Ollama's top-level `think` request field.
+
+        Returns:
+            True  → enable thinking
+            False → disable thinking
+            None  → leave unset (use Ollama default)
+        """
+        if self.thinking_mode == "enabled":
+            return True
+        if self.thinking_mode == "disabled":
+            return False
+        return None  # auto → don't touch the flag
 
 
 # Global instance - modify this to change default behavior
@@ -262,7 +278,7 @@ def _invoke_ollama_direct(model: str, prompt: str, params: Dict[str, Any], verbo
     # User Request: "Turn it off for all" to fix DeepSeek R1 <think> tokens.
     # We rely on the prompt to enforce JSON structure.
 
-    # Apply thinking mode control to Ollama options
+    # Apply thinking budget (if any) into options; think flag is top-level (below)
     options = LLM_CONFIG.apply_thinking_control(model, options)
 
     data = {
@@ -270,8 +286,15 @@ def _invoke_ollama_direct(model: str, prompt: str, params: Dict[str, Any], verbo
         "prompt": prompt,
         "stream": False,
         "format": None, # DISABLED globally for Reasoning Model compatibility
-        "options": options
+        "options": options,
     }
+
+    # Ollama's `think` parameter is a TOP-LEVEL request field, not inside options.
+    think_flag = LLM_CONFIG.get_think_flag()
+    if think_flag is not None:
+        data["think"] = think_flag
+        if verbose:
+            _LOGGER.debug(f" [LLM:Direct] Setting top-level think={think_flag} for model '{model}'")
     
     try:
         # Config-driven timeout: large/slow models get extended timeout
