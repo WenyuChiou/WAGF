@@ -84,6 +84,25 @@ shared:
       type: text
       required: false
 global_config:
+  # Memory write policy (MA flood ratchet fix, 2026-04-11).
+  # Memory write policy (MA flood ratchet fix, broker-level generalization 2026-04-11).
+  # Field names correspond to MemoryContentType enum values. Setting to false
+  # causes the PolicyFilteredMemoryEngine to silently drop writes of that type.
+  # Omitting this block entirely falls back to LEGACY_POLICY (pre-fix behavior)
+  # for reproducibility of older experiments. See .ai/broker_memory_governance_architecture.md.
+  memory_write_policy:
+    # Safe content types (default allowed)
+    allow_external_event: true
+    allow_agent_action: true
+    allow_social_observation: true
+    allow_institutional_state: true
+    allow_institutional_reflection: true
+    allow_initial_factual: true
+    # Risky content types ??default denied under CLEAN_POLICY
+    allow_agent_self_report: false         # block the rationalization ratchet
+    allow_agent_reflection_quote: false    # block memory-of-memory quoting
+    allow_initial_narrative: false         # drop first-person PA/SP seed memories
+
   memory:
     window_size: 5
     consolidation_threshold: 0.6

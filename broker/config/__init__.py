@@ -16,6 +16,12 @@ from .agent_types import (
     get_default_registry,
     create_default_registry,
 )
+from .memory_policy import (
+    MemoryWritePolicy,
+    LEGACY_POLICY,
+    CLEAN_POLICY,
+    load_from_config as load_memory_policy,
+)
 
 __all__ = [
     # Schema validation
@@ -34,4 +40,9 @@ __all__ = [
     "ConstructDefinition",
     "get_default_registry",
     "create_default_registry",
+    # Memory write policy (MA flood ratchet fix)
+    "MemoryWritePolicy",
+    "LEGACY_POLICY",
+    "CLEAN_POLICY",
+    "load_memory_policy",
 ]

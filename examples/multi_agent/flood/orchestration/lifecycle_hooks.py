@@ -4,6 +4,7 @@ import logging
 from broker.agents import BaseAgent
 from broker import MemoryEngine
 from broker.interfaces.skill_types import SkillOutcome
+from broker.components.memory.content_types import MemoryContentType
 from examples.multi_agent.flood.environment.hazard import FloodEvent, HazardModule, VulnerabilityModule, YearMapping
 from examples.multi_agent.flood.components.media_channels import MediaHub
 from examples.multi_agent.flood.orchestration.disaster_sim import depth_to_qualitative_description
@@ -574,7 +575,12 @@ class MultiAgentHooks:
                     (f"Year {current_year}: Set subsidy rate to {self.env['subsidy_rate']:.0%} "
                      f"(was {current:.0%}). Elevated: {self.env.get('elevated_count', '?')}/{self.env.get('total_households', '?')}. "
                      f"Budget remaining: {self.env['govt_budget_pct']:.0f}%."),
-                    metadata={"source": "personal", "importance": 0.6, "category": "policy_decision"}
+                    metadata={
+                        "source": "personal",
+                        "importance": 0.6,
+                        "category": "policy_decision",
+                        "content_type": MemoryContentType.INSTITUTIONAL_STATE.value,
+                    }
                 )
             # Sync state to agent so traces capture changes
             agent.dynamic_state["subsidy_rate"] = self.env["subsidy_rate"]
@@ -638,7 +644,12 @@ class MultiAgentHooks:
                      f"(was {current_crs:.0%}). Effective premium: {self.env['premium_rate']:.3%}. "
                      f"Loss ratio: {loss_ratio:.2f}. CRS Class: {self.env['crs_class']}. "
                      f"Insured: {self.env.get('insured_count', '?')}/{self.env.get('total_households', '?')}."),
-                    metadata={"source": "personal", "importance": 0.6, "category": "policy_decision"}
+                    metadata={
+                        "source": "personal",
+                        "importance": 0.6,
+                        "category": "policy_decision",
+                        "content_type": MemoryContentType.INSTITUTIONAL_STATE.value,
+                    }
                 )
             # Sync state to agent so traces capture changes
             agent.dynamic_state["crs_discount"] = self.env["crs_discount"]
@@ -725,6 +736,9 @@ class MultiAgentHooks:
             # Store last decision for tracking
             agent.dynamic_state["last_decision"] = decision
 
+            # Site 3 (primary ratchet source): writing the LLM's own first-person
+            # reasoning back to memory causes self-reinforcing construct labels in
+            # subsequent years.
             if reasoning:
                 reason = reasoning.get("reasoning", "")
                 if not reason:
@@ -737,8 +751,12 @@ class MultiAgentHooks:
                         mem_engine.add_memory(
                             agent.id,
                             f"I decided to {decision} because {reason}",
-                            metadata={"source": "personal", "type": "reasoning",
-                                      "category": "decision_reasoning"}
+                            metadata={
+                                "source": "personal",
+                                "type": "reasoning",
+                                "category": "decision_reasoning",
+                                "content_type": MemoryContentType.AGENT_SELF_REPORT.value,
+                            }
                         )
 
             # Store GameMaster resolution as memory (if available)
@@ -829,8 +847,13 @@ class MultiAgentHooks:
                         f"${damage:,.0f} in damages. This is my {flood_count} flood event. "
                         f"My total cumulative damage is now ${cum_damage:,.0f}."
                     ),
-                    metadata={"emotion": "fear", "source": "personal", "importance": 0.8,
-                              "category": "flood_experience"}
+                    metadata={
+                        "emotion": "fear",
+                        "source": "personal",
+                        "importance": 0.8,
+                        "category": "flood_experience",
+                        "content_type": MemoryContentType.EXTERNAL_EVENT.value,
+                    }
                 )
 
         # --- Memory-mediated TP: Track years_since_flood and add absence memories ---
@@ -869,8 +892,13 @@ class MultiAgentHooks:
                             f"Year {year}: No flooding occurred in my area this year. "
                             f"It has been {yrs} year{'s' if yrs != 1 else ''} since my last flood."
                         ),
-                        metadata={"emotion": "neutral", "source": "personal",
-                                  "importance": importance, "category": "flood_experience"}
+                        metadata={
+                            "emotion": "neutral",
+                            "source": "personal",
+                            "importance": importance,
+                            "category": "flood_experience",
+                            "content_type": MemoryContentType.EXTERNAL_EVENT.value,
+                        }
                     )
 
         # Store important messages as memories
@@ -896,8 +924,12 @@ class MultiAgentHooks:
                     memory_engine.add_memory(
                         agent.id,
                         f"Year {year}: {summary}",
-                        metadata={"source": "neighbor", "importance": 0.35,
-                                  "category": "social_observation"}
+                        metadata={
+                            "source": "neighbor",
+                            "importance": 0.35,
+                            "category": "social_observation",
+                            "content_type": MemoryContentType.SOCIAL_OBSERVATION.value,
+                        }
                     )
 
         if community_depth_ft > 0 or self.agent_flood_depths:
@@ -1061,7 +1093,12 @@ class MultiAgentHooks:
                                 memory_engine.add_memory(
                                     str(agent.id),
                                     f"[Reflection Y{year}] {insight.summary}",
-                                    {"importance": insight.importance, "type": "reflection", "source": "reflection"},
+                                    {
+                                        "importance": insight.importance,
+                                        "type": "reflection",
+                                        "source": "reflection",
+                                        "content_type": MemoryContentType.INSTITUTIONAL_REFLECTION.value,
+                                    },
                                 )
         # --- End MA Reflection Integration ---
 
@@ -1157,11 +1194,6 @@ class MultiAgentHooks:
         if ds.get("elevated"):
             parts.append("Home elevated.")
 
-        # Include top retrieved memory snippet for synthesis
-        if stratified_memories:
-            snippet = str(stratified_memories[0])[:100]
-            parts.append(f"Key memory: {snippet}")
-
         generated_reflection = " ".join(parts)
 
         # Add the generated reflection as a new memory
@@ -1173,7 +1205,8 @@ class MultiAgentHooks:
                 "emotion": "major",
                 "importance": 0.45,   # Below flood memories (0.80) and decisions (0.50)
                 "type": "reflection",
-                "context": "year_end_review"
+                "context": "year_end_review",
+                "content_type": MemoryContentType.AGENT_ACTION.value,
             }
         )
         print(f" [REFLECTION] Agent {agent_id} generated a year-end reflection.")

@@ -237,6 +237,16 @@ class ExperimentRunner:
             "agent_types_config": str(self.broker.model_adapter.config_path) if hasattr(self.broker.model_adapter, 'config_path') else "unknown",
         }
         manifest.update(self._collect_reproducibility_metadata())
+        # Memory write policy snapshot (populated if the engine is wrapped by
+        # PolicyFilteredMemoryEngine). This captures the policy and dropped-count
+        # summary so the audit trace explains any "missing" memories unambiguously.
+        try:
+            from broker.components.memory.policy_filter import PolicyFilteredMemoryEngine
+            if isinstance(self.memory_engine, PolicyFilteredMemoryEngine):
+                manifest["memory_write_policy"] = self.memory_engine.stats()
+        except Exception:
+            # Never let manifest enrichment fail the experiment
+            pass
 
         # Copy configuration for future audit (with CLI overrides applied)
         if hasattr(self.broker.model_adapter, 'config_path') and self.broker.model_adapter.config_path:
