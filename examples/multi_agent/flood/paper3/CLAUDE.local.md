@@ -6,7 +6,7 @@ This document enables AI agents to quickly understand the Paper 3 design and fra
 
 ### What This Paper Does
 
-- Uses LLM (Gemma 3 4B) to simulate 400 households' flood adaptation decisions
+- Uses LLM (**Gemma 4 e4b** — pivoted from Gemma 3 4B, 2026-04-10) to simulate 400 households' flood adaptation decisions
 - 13-year simulation in Passaic River Basin, NJ
 - 3-tier governance: Government → Insurance → Households
 - Claims **structural plausibility** not prediction accuracy
@@ -14,6 +14,95 @@ This document enables AI agents to quickly understand the Paper 3 design and fra
 ### Target Journal
 
 **Water Resources Research (WRR)**
+
+---
+
+## Gemma 4 Pivot Status (updated 2026-04-11 — memory policy fix)
+
+**Primary model:** Gemma 4 e4b (8B, Q4_K_M). Gemma 3 4B kept only for cross-model comparison in Discussion.
+
+### Pivot rationale
+- Broker `think` flag bug fixed (commit `fc6c599`): `--thinking-mode disabled` now actually routes to Ollama top-level `think=false`. All prior Gemma 4 runs had uncontrolled thinking.
+- PA prompt criteria added (commit `145198c`): explicit VL/L/M/H/VH anchors + buyout emotional priming removed from owner prompt.
+- Per-agent exception isolation fix (`ac7faea`): experiment won't abort on single LLM failure.
+- Conservatism Diagnostic module (`591eeb8`): CCA/CSI/ACI/ESRR metrics for model comparison.
+- **Memory write policy fix (2026-04-11, this document)**: `broker/config/memory_policy.py` + `examples/multi_agent/flood/orchestration/lifecycle_hooks.py` gating. Blocks the rationalization ratchet (LLM self-report → memory → self-read → self-reinforce loop) that caused Gemma 4 Renter PA drift from 22% Y1 to 87% Y13. Also drops first-person PA/SP narrative seeds at initial memory load. See `.ai/broker_memory_policy_design.md` for full audit.
+
+### Experiment status (updated 2026-04-11 after batch abort + fix)
+
+| Run | Condition | Seed | Policy | Status | Path |
+|---|---|---|---|---|---|
+| baseline | Full | 42 | LEGACY | ✅ COMPLETE (preserved as ratchet baseline) | `paper3_gemma4_e4b/seed_42/gemma4_e4b_strict/` |
+| 1 | Full | 42 | CLEAN | ⏳ PENDING (batch 1/6, ablation match) | `paper3_gemma4_e4b_clean/seed_42/` |
+| 2 | Full | 123 | CLEAN | ⏳ PENDING (batch 2/6, primary) | `paper3_gemma4_e4b_clean/seed_123/` |
+| 3 | Full | 456 | CLEAN | ⏳ PENDING (batch 3/6, primary) | `paper3_gemma4_e4b_clean/seed_456/` |
+| 4 | Ablation B (flat) | 42 | CLEAN | ⏳ PENDING (batch 4/6) | `paper3_gemma4_ablation_flat_clean/seed_42/` |
+| 5 | Ablation B (flat) | 123 | CLEAN | ⏳ PENDING (batch 5/6) | `paper3_gemma4_ablation_flat_clean/seed_123/` |
+| 6 | Ablation B (flat) | 456 | CLEAN | ⏳ PENDING (batch 6/6) | `paper3_gemma4_ablation_flat_clean/seed_456/` |
+
+Launcher: `examples/multi_agent/flood/paper3/run_gemma4_ma_pivot_clean.bat` (~102 hr total / ~4.25 days, must be started from CMD by user).
+
+**Ratchet ablation comparison**: once batch 1 completes, `paper3_gemma4_e4b/seed_42/` (LEGACY) vs `paper3_gemma4_e4b_clean/seed_42/` (CLEAN) is a matched-seed, matched-config comparison that isolates the memory policy effect. This becomes the Paper 3 Appendix ablation evidence for the rationalization ratchet framework contribution.
+
+### Prior aborted batch (2026-04-11)
+The earlier `run_gemma4_ma_pivot_full.bat` was started at 2026-04-10 and reached seed_123 Full Year 1 (~258/400 agents) before being deliberately killed so the memory policy fix could be applied. Partial seed_123 data was removed; log archived to `paper3/logs/gemma4_pivot_batch_legacy_aborted_2026-04-11.log`. The original `.bat` is retained for historical reference but should NOT be rerun — use the `_clean` variant.
+
+### Cross-model verdict table (seed_42, Gemma 3 vs Gemma 4 post-fix)
+
+| Finding | Gemma 3 4B | Gemma 4 e4b | Verdict |
+|---|---|---|---|
+| CP reversal | 3.6% / do_nothing 83.9% | 8.0% / do_nothing 79.8% | **persists** (not G3 artifact) |
+| PA saturation | 17% H+VH (gradient intact) | 94.6% H+VH (saturated) | **G4 biased** (structural) |
+| Deliberative override | Case A 30.1%, Case B 22.4% | Case A 11.1%, Case B 11.8% | **weakened in G4** |
+| MG-Owner trapping | 67.0% vs 56.4% (+10.6pp) | 64.2% vs 35.8% (+28.4pp) | **amplified in G4** |
+
+Source: `paper3/analysis/gemma4_rerun_vs_gemma3.md`.
+
+### Broker-Level Memory Governance (2026-04-11, landed)
+
+The earlier MA-scoped ratchet fix was promoted to a broker-level facility so any future MA experiment inherits the protection automatically. See `broker/components/memory/README.md` for the author-facing quickstart and `.ai/broker_memory_governance_architecture.md` for the architecture overview.
+
+Key components:
+- `broker/components/memory/content_types.py` — `MemoryContentType` enum (9 members: 6 safe + 3 risky)
+- `broker/components/memory/policy_filter.py` — `PolicyFilteredMemoryEngine` proxy wrapping any memory engine
+- `broker/components/memory/policy_classifier.py` — domain-neutral `classify()` helper
+- `broker/components/memory/initial_loader.py` — reusable `load_initial_memories_from_json()` helper
+- `broker/config/memory_policy.py` — refactored `MemoryWritePolicy` with `allow_*` content-type-aware fields
+- `broker/core/experiment_builder.py` — `with_memory_write_policy()` fluent method
+- `examples/multi_agent/flood/memory/content_type_mapping.py` — the ONLY flood-domain-specific file, defines `FLOOD_CATEGORY_TO_CONTENT_TYPE`
+
+Enforcement contract: every `add_memory` call tagged with `content_type` in metadata is classified by the proxy and either forwarded or silently dropped based on the active `MemoryWritePolicy`. `CLEAN_POLICY` (default for new configs) blocks `AGENT_SELF_REPORT`, `AGENT_REFLECTION_QUOTE`, and `INITIAL_NARRATIVE`. `LEGACY_POLICY` allows all nine types (used for reproducing pre-2026-04-11 experiments). The reproducibility manifest now includes a `memory_write_policy` section with policy dict + per-type drop/allow counts for auditable drops.
+
+Smoke verified 2026-04-11: 6-agent × 2-year run under `CLEAN_POLICY` produced `dropped_counts={"agent_self_report": 12, "initial_narrative": 12}` and `allowed_counts={"external_event": 34, "initial_factual": 18, "social_observation": 12, "agent_action": 12, "institutional_state": 4, "institutional_reflection": 4}`. Grep for `"I decided to.*because"`, `"I have deep emotional ties"`, and `"I trust government programs"` across the smoke output returned empty. Factual seeds (`"I experienced flooding"`, etc.) present in traces as expected.
+
+Test coverage: 77 broker-level tests + 32 refactored MA flood tests + the existing 308 flood suite = 417 passes, with 1 pre-existing unrelated failure in `test_fig6_rq3_construct_profiles.py`.
+
+### PA Handling Strategy (2026-04-10) — Survey-Grounded PA
+
+**Problem**: Gemma 4 LLM-reported PA saturates at 94% H+VH in full MA context. 8-variant calibration test shows this is context-cumulative (model bias + context reinforcement), not prompt-fixable. V0 (current production) is already the best composite (0.601) and no variant beats it. Do not tune PA prompts further.
+
+- Minimal context (Y1, no memory/gossip/governance): V0 → mean 3.43, SD 0.82, 23% H+VH (reasonable).
+- Full MA context (13yr, 2600 decisions): V0 → 94.6% H+VH (saturated).
+- LLM PA vs generations: Spearman +0.69 (strong).
+- LLM PA vs survey `pa_score`: Spearman −0.17 (negative, unusable).
+
+**Solution**: Switch PA variable source from LLM audit (`PA_LABEL`) to survey ground truth (`pa_score` in `agent_profiles_balanced.csv`). Justification:
+
+1. `pa_score` is a survey-derived continuous variable (1–5, mean 3.08, SD 0.82, full distribution) computed from the 755-household NJ survey used to build agent profiles. It is the actual PA ground truth — LLM-reported PA was only a redundant re-derivation.
+2. PA is a relatively static construct; loss of LLM year-to-year variation is negligible (Gemma 3 PA was also nearly static).
+3. Other constructs (TP/CP/SP/SC) remain LLM-sourced — they are dynamic and context-dependent, so profile static values would wash out within-agent variation.
+4. The LLM-vs-survey PA divergence becomes a **methodology finding**, not a limitation: language models can recover the observable proxy (`generations`, ρ=+0.69) but cannot reconstruct the latent affective component of place attachment from demographic profile features. 8-variant calibration is the evidence.
+
+**Impact on RQ3** — remains 5-step (no downgrade):
+- Step 1 Construct Validity: applies to SP and LLM PA (as diagnostic); survey PA has external survey validity by construction.
+- Step 2 Cross-Sectional: SP → protection (LLM); PA → relocation for renters (**survey `pa_score`**, previously unusable in G4).
+- Step 3 Within-Agent: SP dynamics only (LLM). Note that survey PA is static; within-agent PA dynamics are not analyzed.
+- Step 4 Deliberative Override: report G3 vs G4 contrast (Case A 30% vs 11%, Case B 22% vs 12%) — weakens in G4 but still a finding.
+- Step 5 MG-Owner Triple-Lock: **restored** — MG-Owner has lowest SP (LLM) + highest survey `pa_score` + highest DN rate + affordability validator blocking. Triple-lock mechanism intact with survey-grounded PA.
+
+**LLM vs survey PA divergence** is reported as an additional finding in Discussion: evidence that LLM cognitive constructs can be biased even when the model receives calibrated survey inputs — use for "framework validation" section and as a concrete example of the "what language models can and cannot read from profiles" caveat.
+
+Reference: `.ai/pa_prompt_calibration_plan.md`, `paper3/analysis/pa_prompt_calibration_results.md`, `paper3/analysis/gemma4_rerun_vs_gemma3.md`, memory `gemma4_pa_saturation.md`.
 
 ---
 
@@ -98,7 +187,7 @@ This document enables AI agents to quickly understand the Paper 3 design and fra
 
 ### Counterintuitive Findings (2026-03-31) — Must Address in Paper
 
-1. **CP reversal**: CP=H agents are MORE passive (97.3% do_nothing) than CP=M (59.5%). Opposite of PMT prediction. Cause: Gemma 3 4B interprets "high coping" as "I can cope with status quo" not "I'm capable of taking protective action." Only 3.6% of decisions report CP=H (vs 72% CP=M). → **Limitation section**, not finding.
+1. **CP reversal**: CP=H agents are MORE passive than CP=M. Opposite of PMT prediction. In Gemma 3: CP=H share 3.6%, do_nothing 83.9%. In **Gemma 4** (post-fix): CP=H share 8.0%, do_nothing 79.8% — **still present**. Updated interpretation (2026-04-10): not a Gemma 3 artifact. Cross-model persistence suggests semantic interpretation of "high coping" as "I can cope with status quo" is robust across model scales. → **Limitation section** + cross-model contrast point, not primary finding.
 
 2. **Gossip transmits inaction norms**: Gossip citation RR=0.75 (negative association with protection). First-movers cite gossip 43.9% vs never-adopters 66.9%. Social channels implemented but not causally driving protection. → Frame as "descriptive norm exposure" in Discussion.
 
@@ -108,36 +197,46 @@ This document enables AI agents to quickly understand the Paper 3 design and fra
 
 5. **SP flood-dose response (ρ=0.458) but time trend weak (ρ=0.097)**: SP jumps Y1→Y2 then plateaus. Not gradual trust-building — more like cold-start artifact. → Report cross-sectional SP→behavior (strong), not temporal SP dynamics.
 
-### RQ3 Logic Chain (finalized 2026-04-03)
+### RQ3 Logic Chain (5-step, survey-grounded PA — updated 2026-04-10)
 
 **Question**: How do psychological constructs interact with deliberative reasoning to shape adaptation decisions in language-based agents?
 
-**Step 1 — Construct Validity**: SP/PA labels match reasoning text semantics. SP=L distrust language 40.7% vs SP=H 22.2%. PA=H attachment words 85.9% vs PA=L 66.6%. Conclusion: constructs are grounded, not random labels.
+**PA source rule**: SP/CP/SC/TP use LLM audit values (dynamic). PA uses survey `pa_score` from `agent_profiles_balanced.csv` (static, ground truth). LLM `PA_LABEL` retained only as diagnostic for the LLM-vs-survey divergence finding.
 
-**Step 2 — Cross-Sectional Association**: SP→protection (p<10⁻²⁷⁹); PA→relocation for renters (p<10⁻⁵). Only unconstrained constructs (SP: 0 blocking rules, PA: does not constrain renter relocate).
+**Step 1 — Construct Validity**: SP labels match reasoning text semantics (LLM construct → reasoning keyword alignment). Survey PA has external validity by construction (756-household NJ survey). Re-run on G4 data; expected intact.
 
-**Step 3 — Within-Agent Dynamics**: SP↑ → 34.5% switch to protective action vs SP-stable 19.6% (chi²=129, p<10⁻⁶). SP(t-1) predicts action(t) (chi²=140, p<10⁻⁴). Construct changes accompany behavior changes.
+**Step 2 — Cross-Sectional Association**: SP → protection (LLM construct, p<10⁻²⁷⁹ in G3 — retest on G4); PA → relocation for renters (**survey `pa_score`**, p<10⁻⁵ in G3 — restored for G4 via survey source). Both are unconstrained constructs (SP: no validator blocking; PA: does not gate renter relocation).
 
-**Step 4 — Deliberative Override**: (A) TP=H+SP=H → 31% still do_nothing (APPROVED, not blocked). Reasoning: cost burden, cumulative fatigue, rational prioritization. (B) SP=L → 23.5% buy insurance. Reasoning: pragmatic cost-benefit overrides distrust. Construct does not mechanically determine action — deliberation can override.
+**Step 3 — Within-Agent Dynamics**: SP↑ → protective action switch (chi²=129 in G3); SP(t-1) predicts action(t) (chi²=140 in G3). Retest on G4. PA within-agent dynamics not analyzed — survey PA is static per agent.
 
-**Step 5 — Group-Level Locking**: MG-Owner: SP=2.55 (lowest) + PA=3.01 (highest) → DN=67.2% (highest). Triple lock: low institutional trust + high place attachment + income-gated validator blocking.
+**Step 4 — Deliberative Override**: (A) TP=H+SP=H → still do_nothing rate. (B) SP=L → insurance rate. G3: 31% / 22.4%. G4 seed_42: 11.1% / 11.8% (**weakens in G4**). Report as cross-model contrast: stronger models show tighter construct-action coupling. Still a finding, but framed as coupling-strengthens-with-capability.
 
-**Figure plan**: Fig 6 (a) SP/PA heatmap, (b) SP change→behavior change, (c) override quadrant (TP×SP→action%), (d) 4-cell bubble.
+**Step 5 — Group-Level Triple Lock**: MG-Owner has lowest SP (LLM, dynamic) + highest survey `pa_score` (static, ground truth) + highest DN rate + affordability validator blocking. Four-channel locking mechanism. G3 gap: +10.6pp; G4 gap: +28.4pp (**amplified in G4**). Use survey PA for the attachment channel, not LLM PA.
 
-**Discussion material** (NOT in RQ3 Results): selection vs feedback (divergence test p=0.116), event-aligned SP, CP reversal, TP path-dependence (84% vs 38%), memory doesn't drive SP change, persistent insurer PA decline.
+**Additional finding (new)** — LLM vs survey PA divergence: LLM PA correlates +0.69 with `generations` but −0.17 with survey `pa_score` across all 8 prompt variants tested. Language models reconstruct observable proxies (generational depth) from demographic profiles but cannot recover latent affective attachment. Report in Discussion as a concrete calibration finding — a methodology contribution, not a limitation.
 
-### TODO Status (updated 2026-04-03)
+**Figure plan**: Fig 6 (a) SP/survey-PA heatmap, (b) SP change→behavior change (within-agent), (c) cross-model override quadrant (G3 vs G4 side-by-side), (d) 4-cell triple-lock bubble (SP × survey PA × DN). New diagnostic panel: LLM PA saturation trajectory vs survey PA distribution (for Discussion, NOT Fig 6).
+
+**Discussion material**: CP reversal persists in G4 (not G3 artifact — updated 2026-04-10); MG amplification in G4; deliberative override attenuation as model-capability effect; LLM PA vs survey PA divergence as a methodology contribution; framework implication that construct grounding should prefer calibrated inputs over LLM re-derivation when possible.
+
+### TODO Status (updated 2026-04-10 — Gemma 4 pivot)
 - [x] Extract Traditional ABM results
-- [x] RQ2 ablation (Ablation B: fixed subsidy=50%, CRS=0%)
-- [x] Run 3 LLM-ABM seeds (42, 123, 456)
-- [x] Reasoning trace analysis (keyword taxonomy, 15,600 decisions)
-- [x] Construct dynamics analysis (SP, PA, SC, CP, TP × 13yr × 4cell)
+- [x] RQ2 ablation on Gemma 3 (Ablation B: fixed subsidy=50%, CRS=0%)
+- [x] Run Gemma 3 3 seeds (42, 123, 456) — kept for cross-model comparison only
+- [x] Reasoning trace analysis on Gemma 3 (legacy)
+- [x] Construct dynamics analysis on Gemma 3 (legacy)
+- [x] Broker think flag bug fix (`fc6c599`) + PA prompt criteria (`145198c`) + runner exception isolation (`ac7faea`)
+- [x] PA prompt 8-variant calibration (concluded: not prompt-fixable, structural G4 limit)
+- [x] Gemma 4 seed_42 Full (re-run with think=false)
+- [ ] **Gemma 4 pivot batch** (5 runs, `run_gemma4_ma_pivot_full.bat`, ~85 hr — user starts in CMD)
+- [ ] Re-run Phase 3 analysis scripts on G4 data (Codex task — pending batch complete)
+- [ ] Cross-model summary `gemma3_vs_gemma4_full_pivot.md` (Codex)
 - [ ] Reconcile MG definition in Methods (LLM=individual, Traditional=tract-level)
-- [ ] Write Section 4.3 RQ2 (proposed vs executed + equity channel)
-- [ ] Write Section 4.4 RQ3 (SP→behavior + PA→RL + MG-Owner profile)
-- [ ] Write Section 4.5 Cross-Seed Robustness
-- [ ] Fix/create 8 figures per expert review
-- [ ] Write Discussion + Conclusions
+- [ ] Rewrite Section 4.3 RQ2 on G4 (proposed vs executed + equity channel)
+- [ ] Rewrite Section 4.4 RQ3 on G4 (5-step with survey-grounded PA; G3 vs G4 contrast; new LLM-vs-survey PA finding)
+- [ ] Rewrite Section 4.5 Cross-Seed Robustness on G4
+- [ ] Regenerate 8 figures on G4 data
+- [ ] Rewrite Discussion + Conclusions (cross-model robustness section)
 
 ---
 
@@ -372,4 +471,4 @@ structure informed by a 3-expert panel (behavioral, water resources, LLM enginee
 
 ---
 
-*Last updated: 2026-03-31*
+*Last updated: 2026-04-11 — Memory write policy fix deployed; Gemma 4 pivot ready to restart under CLEAN policy via run_gemma4_ma_pivot_clean.bat*

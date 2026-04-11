@@ -7,6 +7,8 @@ from typing import Dict, List, Any, Optional, Callable
 from pathlib import Path
 
 from broker.agents import BaseAgent
+from broker.components.memory.content_types import MemoryContentType
+from broker.config.memory_policy import MemoryWritePolicy
 from ..components.memory.engine import MemoryEngine, WindowMemoryEngine
 from ..utils.logging import logger
 from .experiment_runner import ExperimentConfig, ExperimentRunner
@@ -27,6 +29,7 @@ class ExperimentBuilder:
         self.output_base = Path("results")
         self.ctx_builder = None
         self.memory_engine = None
+        self._memory_write_policy = None
         self.verbose = False
         self.hooks = {}
         self.workers = 1  # PR: Multiprocessing Core - default to sequential
@@ -94,6 +97,39 @@ class ExperimentBuilder:
 
     def with_memory_engine(self, engine: MemoryEngine):
         self.memory_engine = engine
+        return self
+
+    def with_memory_write_policy(
+        self,
+        policy: "MemoryWritePolicy",
+        domain_mapping: "Optional[Dict[str, MemoryContentType]]" = None,
+    ) -> "ExperimentBuilder":
+        """Install a PolicyFilteredMemoryEngine wrapper around the configured
+        memory engine. Must be called AFTER with_memory_engine().
+
+        Args:
+            policy: The MemoryWritePolicy instance to enforce.
+            domain_mapping: Optional per-domain category -> content type dict.
+                Future MA experiments pass their own mapping here so the
+                classifier recognizes their category vocabulary.
+
+        Returns:
+            Self, for fluent chaining.
+
+        Raises:
+            RuntimeError if with_memory_engine() was not called first.
+        """
+        from broker.components.memory.policy_filter import PolicyFilteredMemoryEngine
+
+        if self.memory_engine is None:
+            raise RuntimeError(
+                "with_memory_write_policy() requires a memory engine. "
+                "Call with_memory_engine() first."
+            )
+        self.memory_engine = PolicyFilteredMemoryEngine(
+            self.memory_engine, policy, domain_mapping=domain_mapping,
+        )
+        self._memory_write_policy = policy
         return self
 
     def with_semantic_thresholds(self, low: float, high: float):

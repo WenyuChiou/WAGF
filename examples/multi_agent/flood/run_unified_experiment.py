@@ -33,13 +33,19 @@ from broker import (
     InteractionHub,
     create_social_graph
 )
+from broker.config import load_memory_policy
 from broker.components.context.providers import PerceptionAwareProvider
 from broker.components.context.tiered import load_prompt_templates
+from broker.components.memory import (
+    PolicyFilteredMemoryEngine,
+    load_initial_memories_from_json,
+)
 from broker.components.memory.engine import create_memory_engine
 from broker.simulation.environment import TieredEnvironment
 from broker.agents import BaseAgent, AgentConfig, StateParam, Skill, PerceptionSource
 from examples.multi_agent.flood.environment.hazard import HazardModule, VulnerabilityModule, YearMapping
 from examples.multi_agent.flood.components.media_channels import MediaHub
+from examples.multi_agent.flood.memory.content_type_mapping import FLOOD_CATEGORY_TO_CONTENT_TYPE
 
 # Local imports from multi_agent directory
 MULTI_AGENT_DIR = Path(__file__).parent
@@ -48,7 +54,6 @@ from generate_agents import generate_agents_random, load_survey_agents, Househol
 from initial_memory import generate_all_memories, get_agent_memories_text
 from orchestration.agent_factories import create_government_agent, create_insurance_agent, wrap_household
 from orchestration.lifecycle_hooks import MultiAgentHooks
-import json
 
 
 def _load_profiles_from_csv(csv_path: str) -> List[HouseholdProfile]:
@@ -990,25 +995,28 @@ def run_unified_experiment():
     elif args.mode == "survey" and args.load_initial_memories:
         initial_memories_path = MULTI_AGENT_DIR / "data" / "initial_memories.json"
 
+    # Load memory write policy from agent config. Absent block → LEGACY_POLICY
+    # so existing configs reproduce pre-fix behavior exactly.
+    # --- Broker-level memory write governance ---
+    memory_policy = load_memory_policy(agent_cfg._config.get("global_config", {}))
+    print(f"[INFO] Memory write policy: {memory_policy.to_dict()}")
+
+    # Wrap memory engine with PolicyFilteredMemoryEngine. All subsequent writes
+    # (initial seeding, lifecycle hooks, etc.) are enforced uniformly.
+    memory_engine = PolicyFilteredMemoryEngine(
+        memory_engine, memory_policy, domain_mapping=FLOOD_CATEGORY_TO_CONTENT_TYPE,
+    )
+
+    # Load initial memories via broker helper
     if initial_memories_path and initial_memories_path.exists():
         print(f"[INFO] Loading initial memories from {initial_memories_path}")
-        with open(initial_memories_path, 'r', encoding='utf-8') as f:
-            initial_memories = json.load(f)
-        # Inject initial memories into memory engine
-        for agent_id, memories in initial_memories.items():
-            if agent_id in all_agents:
-                for mem in memories:
-                    memory_engine.add_memory(
-                        agent_id,
-                        mem["content"],
-                        metadata={
-                            "category": mem.get("category", "general"),
-                            "importance": mem.get("importance", 0.5),
-                            "source": mem.get("source", "survey"),
-                            "year": 0  # Initial memories are pre-simulation
-                        }
-                    )
-        print(f"[INFO] Loaded initial memories for {len(initial_memories)} agents")
+        report = load_initial_memories_from_json(
+            memory_engine,
+            initial_memories_path,
+            agent_id_filter=set(all_agents.keys()),
+            domain_mapping=FLOOD_CATEGORY_TO_CONTENT_TYPE,
+        )
+        print(f"[INFO] {report.summary()}")
     elif initial_memories_path:
         print(f"[WARN] Initial memories file not found: {initial_memories_path}")
         if args.mode == "balanced":
