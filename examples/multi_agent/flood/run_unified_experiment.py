@@ -201,6 +201,11 @@ def run_unified_experiment():
     parser.add_argument("--thinking-mode", type=str, default=None,
                         choices=["auto", "disabled", "enabled"],
                         help="Control thinking mode for reasoning models (auto=strip tags, disabled=prevent thinking, enabled=keep tags)")
+    parser.add_argument("--memory-policy-preset", type=str, default=None,
+                        choices=["legacy", "clean"],
+                        help="Override memory write policy from yaml. "
+                             "legacy=allow all writes (ratchet active, for baseline runs). "
+                             "clean=block self-report/narrative (ratchet fix, default in yaml).")
     args = parser.parse_args()
 
     # Apply thinking mode
@@ -1015,10 +1020,18 @@ def run_unified_experiment():
     elif args.mode == "survey" and args.load_initial_memories:
         initial_memories_path = MULTI_AGENT_DIR / "data" / "initial_memories.json"
 
-    # Load memory write policy from agent config. Absent block → LEGACY_POLICY
-    # so existing configs reproduce pre-fix behavior exactly.
     # --- Broker-level memory write governance ---
-    memory_policy = load_memory_policy(agent_cfg._config.get("global_config", {}))
+    # CLI --memory-policy-preset overrides yaml config if set.
+    if args.memory_policy_preset == "legacy":
+        from broker.config.memory_policy import LEGACY_POLICY
+        memory_policy = LEGACY_POLICY
+        print("[INFO] Memory write policy: LEGACY (forced via --memory-policy-preset legacy)")
+    elif args.memory_policy_preset == "clean":
+        from broker.config.memory_policy import CLEAN_POLICY
+        memory_policy = CLEAN_POLICY
+        print("[INFO] Memory write policy: CLEAN (forced via --memory-policy-preset clean)")
+    else:
+        memory_policy = load_memory_policy(agent_cfg._config.get("global_config", {}))
     print(f"[INFO] Memory write policy: {memory_policy.to_dict()}")
 
     # Wrap memory engine with PolicyFilteredMemoryEngine. All subsequent writes
