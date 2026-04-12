@@ -997,6 +997,21 @@ def run_unified_experiment():
                 if candidate.exists():
                     initial_memories_path = candidate
                     break
+        if initial_memories_path is None:
+            import warnings
+            warnings.warn(
+                "BALANCED MODE: No initial memories file found. "
+                "Checked: data/initial_memories_balanced.json, paper3/output/initial_memories_balanced.json. "
+                "Agents will start with EMPTY memory. This significantly affects Y1 PA calibration. "
+                "Generate with: python paper3/prepare_balanced_agents.py "
+                "or specify --initial-memories-file explicitly.",
+                UserWarning,
+                stacklevel=1,
+            )
+            print(
+                "[WARNING] *** NO INITIAL MEMORIES LOADED — agents start with empty memory. ***\n"
+                "[WARNING] *** Y1 construct distributions will differ from calibrated baselines. ***"
+            )
     elif args.mode == "survey" and args.load_initial_memories:
         initial_memories_path = MULTI_AGENT_DIR / "data" / "initial_memories.json"
 
