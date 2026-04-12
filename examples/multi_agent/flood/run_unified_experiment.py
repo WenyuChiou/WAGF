@@ -988,10 +988,15 @@ def run_unified_experiment():
         if args.initial_memories_file:
             initial_memories_path = Path(args.initial_memories_file)
         else:
-            # Default path for balanced mode
-            default_mem = MULTI_AGENT_DIR / "paper3" / "output" / "initial_memories_balanced.json"
-            if default_mem.exists():
-                initial_memories_path = default_mem
+            # Default path for balanced mode — check data/ first (production),
+            # then paper3/output/ (legacy fallback from prepare_balanced_agents.py)
+            for candidate in [
+                MULTI_AGENT_DIR / "data" / "initial_memories_balanced.json",
+                MULTI_AGENT_DIR / "paper3" / "output" / "initial_memories_balanced.json",
+            ]:
+                if candidate.exists():
+                    initial_memories_path = candidate
+                    break
     elif args.mode == "survey" and args.load_initial_memories:
         initial_memories_path = MULTI_AGENT_DIR / "data" / "initial_memories.json"
 
