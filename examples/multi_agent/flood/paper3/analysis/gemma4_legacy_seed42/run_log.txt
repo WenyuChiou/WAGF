@@ -1,0 +1,108 @@
+=== compute_validation_metrics.py ===
+return_code=0
+wall_time_sec=3.86
+csv_rows=benchmark_comparison.csv:16
+log_file=compute_validation_metrics.log
+
+=== rq1_traditional_comparison.py ===
+return_code=0
+wall_time_sec=6.82
+csv_rows=rq1_owner_comparison.csv:13; rq1_renter_comparison.csv:13
+log_file=rq1_traditional_comparison.log
+
+=== rq1_tp_decay_within_agent.py ===
+return_code=0
+wall_time_sec=2.41
+csv_rows=rq1_tp_decay_within_agent.csv:12
+log_file=rq1_tp_decay_within_agent.log
+
+=== rq2_institutional_analysis.py ===
+return_code=0
+wall_time_sec=9.77
+csv_rows=rq2_ablation_chi2_tests.csv:26; rq2_ablation_comparison.csv:26; rq2_policy_trajectory.csv:13
+log_file=rq2_institutional_analysis.log
+
+=== rq2_proposed_vs_executed.py ===
+return_code=0
+wall_time_sec=0.57
+csv_rows=rq2_4cell_proposed_vs_executed.csv:28
+log_file=rq2_proposed_vs_executed.log
+
+=== rq2_equity_figure.py ===
+return_code=0
+wall_time_sec=1.27
+csv_rows=rq2_equity_summary.csv:4
+log_file=rq2_equity_figure.log
+
+=== rq3_construct_dynamics.py ===
+return_code=0
+wall_time_sec=2.09
+csv_rows=rq3_construct_action_profiles.csv:6; rq3_construct_stats.csv:8; rq3_sp_pa_yearly.csv:585
+log_file=rq3_construct_dynamics.log
+
+=== rq3_unconstrained_constructs.py ===
+return_code=0
+wall_time_sec=1.35
+csv_rows=rq3_unconstrained_constructs.csv:140
+log_file=rq3_unconstrained_constructs.log
+
+=== rq3_crosslayer_analysis.py ===
+return_code=0
+wall_time_sec=3.61
+csv_rows=rq3_crosslayer_analysis.csv:19
+log_file=rq3_crosslayer_analysis.log
+
+=== rq3_pmt_dynamics.py ===
+return_code=0
+wall_time_sec=2.37
+csv_rows=rq3_action_exhaustion.csv:13; rq3_cp_by_income.csv:5; rq3_tp_by_cumflood.csv:6; rq3_tp_cp_gap.csv:13; rq3_tp_decay.csv:5
+log_file=rq3_pmt_dynamics.log
+
+=== rq3_social_analysis.py ===
+return_code=0
+wall_time_sec=3.78
+csv_rows=none
+log_file=rq3_social_analysis.log
+
+=== 4cell_behavior_analysis.py ===
+return_code=0
+wall_time_sec=1.11
+csv_rows=none
+log_file=4cell_behavior_analysis.log
+
+=== 4cell_tp_decay_analysis.py ===
+return_code=0
+wall_time_sec=2.02
+csv_rows=rq1_tp_decay_by_group.csv:16
+log_file=4cell_tp_decay_analysis.log
+
+=== rq3_feedback_rigorous.py ===
+return_code=0
+wall_time_sec=3.3
+csv_rows=rq3_feedback_rigorous.csv:117
+log_file=rq3_feedback_rigorous.log
+
+=== rq3_construct_action_feedback.py ===
+return_code=0
+wall_time_sec=1.3
+csv_rows=rq3_construct_action_feedback.csv:14
+log_file=rq3_construct_action_feedback.log
+
+=== analyze_memory_content_dynamics.py ===
+return_code=0
+wall_time_sec=2.36
+csv_rows=memory_dynamics/memory_size_by_year.csv:52; memory_dynamics/memory_content_type_by_year.csv:99; memory_dynamics/memory_category_by_year.csv:146; memory_dynamics/memory_rationalization_phrases_by_year.csv:156; memory_dynamics/memory_new_writes_by_decision_year.csv:52
+log_file=analyze_memory_content_dynamics.log
+
+=== analyze_skill_proposal_reasoning.py ===
+return_code=0
+wall_time_sec=1.84
+csv_rows=reasoning_taxonomy/reason_text_length_by_year.csv:26000; reasoning_taxonomy/reason_vocabulary_by_construct.csv:221; reasoning_taxonomy/reason_vocabulary_by_mg.csv:442; reasoning_taxonomy/audit_scores_by_year.csv:26; reasoning_taxonomy/reasoning_phrase_detection_by_year.csv:182
+log_file=analyze_skill_proposal_reasoning.log
+
+=== analyze_institutional_rationale.py ===
+return_code=0
+wall_time_sec=0.55
+csv_rows=institutional_rationale/institutional_trajectory.csv:26; institutional_rationale/institutional_rationale_text.csv:26; institutional_rationale/institutional_rationale_categories_by_year.csv:63
+warnings=25 (see institutional_rationale_report.md)
+log_file=analyze_institutional_rationale.log

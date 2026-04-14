@@ -24,6 +24,9 @@ import matplotlib.ticker as mtick
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
+_PAPER3_OVERRIDE = os.environ.get("PAPER3_TRACE_DIR")
+_PAPER3_OUTPUT_OVERRIDE = os.environ.get("PAPER3_OUTPUT_DIR")
+
 # ---------------------------------------------------------------------------
 # Safe print for cp950 console
 # ---------------------------------------------------------------------------
@@ -41,19 +44,19 @@ print = safe_print
 # Paths
 # ---------------------------------------------------------------------------
 BASE = r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\multi_agent\flood"
-SEEDS = [42, 123, 456]
+SEEDS = [int(os.path.basename(os.path.dirname(os.path.normpath(_PAPER3_OVERRIDE))).replace("seed_", ""))] if _PAPER3_OVERRIDE else [42, 123, 456]
 
-FULL_DIR_TPL = os.path.join(BASE, "paper3", "results", "paper3_hybrid_v2",
+FULL_DIR_TPL = os.path.normpath(_PAPER3_OVERRIDE) if _PAPER3_OVERRIDE else os.path.join(BASE, "paper3", "results", "paper3_hybrid_v2",
                             "seed_{seed}", "gemma3_4b_strict")
 FLAT_DIR_TPL = os.path.join(BASE, "paper3", "results", "paper3_ablation_flat_baseline",
                             "seed_{seed}", "gemma3_4b_strict")
 
 PROFILES_PATH = os.path.join(BASE, "data", "agent_profiles_balanced.csv")
 
-OUTPUT_DIR = os.path.join(BASE, "paper3", "results", "paper3_hybrid_v2", "analysis")
+OUTPUT_DIR = os.path.normpath(_PAPER3_OUTPUT_OVERRIDE) if _PAPER3_OUTPUT_OVERRIDE else os.path.join(BASE, "paper3", "results", "paper3_hybrid_v2", "analysis")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-TABLES_DIR = os.path.join(BASE, "paper3", "analysis", "tables")
+TABLES_DIR = os.path.normpath(_PAPER3_OUTPUT_OVERRIDE) if _PAPER3_OUTPUT_OVERRIDE else os.path.join(BASE, "paper3", "analysis", "tables")
 os.makedirs(TABLES_DIR, exist_ok=True)
 
 OUTPUT_FIG = os.path.join(OUTPUT_DIR, "rq2_equity_figure.png")
@@ -226,7 +229,7 @@ all_gov_subsidy = {}  # year -> list of values across seeds
 all_gov_crs = {}
 
 for seed in SEEDS:
-    full_dir = FULL_DIR_TPL.format(seed=seed)
+    full_dir = FULL_DIR_TPL if _PAPER3_OVERRIDE else FULL_DIR_TPL.format(seed=seed)
     raw_dir = os.path.join(full_dir, "raw")
 
     gov_path = os.path.join(raw_dir, "government_traces.jsonl")
@@ -267,7 +270,7 @@ flat_audits = []
 
 for seed in SEEDS:
     # Full
-    full_dir = FULL_DIR_TPL.format(seed=seed)
+    full_dir = FULL_DIR_TPL if _PAPER3_OVERRIDE else FULL_DIR_TPL.format(seed=seed)
     audit_path = os.path.join(full_dir, "household_owner_governance_audit.csv")
     if os.path.exists(audit_path):
         df = load_audit_csv(audit_path)

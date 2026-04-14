@@ -7,18 +7,23 @@ import pandas as pd
 import numpy as np
 from scipy.stats import chi2_contingency
 from pathlib import Path
+import os
 import warnings
 warnings.filterwarnings("ignore")
 
+_PAPER3_OVERRIDE = os.environ.get("PAPER3_TRACE_DIR")
+_PAPER3_OUTPUT_OVERRIDE = os.environ.get("PAPER3_OUTPUT_DIR")
+
 # Paths
 BASE = Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\multi_agent\flood\paper3")
-RESULTS = BASE / "results" / "paper3_hybrid_v2"
+RESULTS = Path(os.path.normpath(_PAPER3_OVERRIDE)).parent.parent if _PAPER3_OVERRIDE else BASE / "results" / "paper3_hybrid_v2"
 PROFILES = BASE / "data" / "agent_initialization_complete.csv"
-OUT_DIR = BASE / "analysis" / "tables"
+OUT_DIR = Path(os.path.normpath(_PAPER3_OUTPUT_OVERRIDE)) if _PAPER3_OUTPUT_OVERRIDE else BASE / "analysis" / "tables"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-SEEDS = ["seed_42", "seed_123", "seed_456"]
+SEEDS = [Path(os.path.normpath(_PAPER3_OVERRIDE)).parent.name] if _PAPER3_OVERRIDE else ["seed_42", "seed_123", "seed_456"]
 AGENT_TYPES = ["household_owner", "household_renter"]
+MODEL_DIR = Path(os.path.normpath(_PAPER3_OVERRIDE)).name if _PAPER3_OVERRIDE else "gemma3_4b_strict"
 
 # Load profiles for MG status
 profiles = pd.read_csv(PROFILES)
@@ -29,7 +34,7 @@ agent_mg = profiles.set_index("agent_id")["mg_status"].to_dict()
 frames = []
 for seed in SEEDS:
     for atype in AGENT_TYPES:
-        fpath = RESULTS / seed / "gemma3_4b_strict" / f"{atype}_governance_audit.csv"
+        fpath = RESULTS / seed / MODEL_DIR / f"{atype}_governance_audit.csv"
         if fpath.exists():
             df = pd.read_csv(fpath)
             df["seed"] = seed

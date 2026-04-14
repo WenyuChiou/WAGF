@@ -10,15 +10,19 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 from scipy import stats
+import os
 
 warnings.filterwarnings("ignore")
 
 # ── Paths ──
 BASE = Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\multi_agent\flood\paper3")
-RESULTS = BASE / "results" / "paper3_hybrid_v2"
+_PAPER3_OVERRIDE = os.environ.get("PAPER3_TRACE_DIR")
+_PAPER3_OUTPUT_OVERRIDE = os.environ.get("PAPER3_OUTPUT_DIR")
+RESULTS = Path(os.path.normpath(_PAPER3_OVERRIDE)).parent.parent if _PAPER3_OVERRIDE else BASE / "results" / "paper3_hybrid_v2"
 PROFILES = BASE / "data" / "agent_initialization_complete.csv"
-SEEDS = [42, 123, 456]
-OUTPUT_TABLE = BASE / "analysis" / "tables" / "rq1_tp_decay_by_group.csv"
+SEEDS = [int(Path(os.path.normpath(_PAPER3_OVERRIDE)).parent.name.replace("seed_", ""))] if _PAPER3_OVERRIDE else [42, 123, 456]
+OUTPUT_TABLE = (Path(os.path.normpath(_PAPER3_OUTPUT_OVERRIDE)) if _PAPER3_OUTPUT_OVERRIDE else BASE / "analysis" / "tables") / "rq1_tp_decay_by_group.csv"
+MODEL_DIR = Path(os.path.normpath(_PAPER3_OVERRIDE)).name if _PAPER3_OVERRIDE else "gemma3_4b_strict"
 
 TP_MAP = {"VL": 1, "L": 2, "M": 3, "H": 4, "VH": 5}
 
@@ -30,7 +34,7 @@ def load_profiles():
 
 def load_audit_and_traces(seed):
     """Load audit CSVs and trace JSONLs for one seed, extract flood status per agent-year."""
-    seed_dir = RESULTS / f"seed_{seed}" / "gemma3_4b_strict"
+    seed_dir = RESULTS / f"seed_{seed}" / MODEL_DIR
 
     # Load audit CSVs
     owner_audit = pd.read_csv(seed_dir / "household_owner_governance_audit.csv")

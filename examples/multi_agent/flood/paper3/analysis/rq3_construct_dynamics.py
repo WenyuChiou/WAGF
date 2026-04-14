@@ -20,15 +20,18 @@ from pathlib import Path
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
+_PAPER3_OVERRIDE = os.environ.get("PAPER3_TRACE_DIR")
+_PAPER3_OUTPUT_OVERRIDE = os.environ.get("PAPER3_OUTPUT_DIR")
+
 # ── Paths ──────────────────────────────────────────────────────────────
 BASE = Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\multi_agent\flood\paper3")
-RESULTS = BASE / "results" / "paper3_hybrid_v2"
-TABLES = BASE / "analysis" / "tables"
+RESULTS = Path(os.path.normpath(_PAPER3_OVERRIDE)).parent.parent if _PAPER3_OVERRIDE else BASE / "results" / "paper3_hybrid_v2"
+TABLES = Path(os.path.normpath(_PAPER3_OUTPUT_OVERRIDE)) if _PAPER3_OUTPUT_OVERRIDE else BASE / "analysis" / "tables"
 TABLES.mkdir(parents=True, exist_ok=True)
 
-SEEDS = ["seed_42", "seed_123", "seed_456"]
+SEEDS = [Path(os.path.normpath(_PAPER3_OVERRIDE)).parent.name] if _PAPER3_OVERRIDE else ["seed_42", "seed_123", "seed_456"]
 AGENT_TYPES = ["household_owner", "household_renter"]
-MODEL = "gemma3_4b_strict"
+MODEL = Path(os.path.normpath(_PAPER3_OVERRIDE)).name if _PAPER3_OVERRIDE else "gemma3_4b_strict"
 
 AGENT_INIT = BASE / "data" / "agent_initialization_complete.csv"
 

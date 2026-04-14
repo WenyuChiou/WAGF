@@ -34,13 +34,16 @@ from collections import defaultdict
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
+_PAPER3_OVERRIDE = os.environ.get("PAPER3_TRACE_DIR")
+_PAPER3_OUTPUT_OVERRIDE = os.environ.get("PAPER3_OUTPUT_DIR")
+
 # ===========================================================================
 # Paths
 # ===========================================================================
 BASE = r"c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\multi_agent\flood"
-RESULT_DIR = os.path.join(BASE, "paper3", "results", "paper3_hybrid_v2", "seed_42", "gemma3_4b_strict")
+RESULT_DIR = os.path.normpath(_PAPER3_OVERRIDE) if _PAPER3_OVERRIDE else os.path.join(BASE, "paper3", "results", "paper3_hybrid_v2", "seed_42", "gemma3_4b_strict")
 RAW_DIR = os.path.join(RESULT_DIR, "raw")
-ANALYSIS_DIR = os.path.join(BASE, "paper3", "results", "paper3_hybrid_v2", "seed_42", "analysis")
+ANALYSIS_DIR = os.path.normpath(_PAPER3_OUTPUT_OVERRIDE) if _PAPER3_OUTPUT_OVERRIDE else os.path.join(BASE, "paper3", "results", "paper3_hybrid_v2", "seed_42", "analysis")
 os.makedirs(ANALYSIS_DIR, exist_ok=True)
 
 # Ablation A paths (replay: mirrors Full policy trajectory)
@@ -53,7 +56,7 @@ ABLATION_B_RAW_DIR = os.path.join(ABLATION_B_DIR, "raw")
 FLAT_BASELINE_POLICY_PATH = os.path.join(BASE, "paper3", "configs", "fixed_policies", "flat_baseline_traditional.yaml")
 
 # Tables output directory
-TABLES_DIR = os.path.join(BASE, "paper3", "analysis", "tables")
+TABLES_DIR = os.path.normpath(_PAPER3_OUTPUT_OVERRIDE) if _PAPER3_OUTPUT_OVERRIDE else os.path.join(BASE, "paper3", "analysis", "tables")
 os.makedirs(TABLES_DIR, exist_ok=True)
 
 PROFILES_PATH = os.path.join(BASE, "data", "agent_profiles_balanced.csv")
@@ -1338,15 +1341,16 @@ safe_print("     POOLED ANALYSIS: seeds 42, 123, 456")
 safe_print("=" * 80)
 
 # --- Multi-seed loader ---
-POOL_SEEDS = [42, 123, 456]
-FULL_EXP_DIR = os.path.join(BASE, "paper3", "results", "paper3_hybrid_v2")
+POOL_SEEDS = [int(os.path.basename(os.path.dirname(RESULT_DIR)).replace("seed_", ""))] if _PAPER3_OVERRIDE else [42, 123, 456]
+FULL_EXP_DIR = os.path.dirname(os.path.dirname(RESULT_DIR)) if _PAPER3_OVERRIDE else os.path.join(BASE, "paper3", "results", "paper3_hybrid_v2")
 FLAT_EXP_DIR = os.path.join(BASE, "paper3", "results", "paper3_ablation_flat_baseline")
+POOL_MODEL_DIR = os.path.basename(RESULT_DIR) if _PAPER3_OVERRIDE else "gemma3_4b_strict"
 
 def load_pooled_traces(exp_dir, seeds, filename):
     """Load and concatenate traces from multiple seeds."""
     all_traces = []
     for seed in seeds:
-        path = os.path.join(exp_dir, f"seed_{seed}", "gemma3_4b_strict", "raw", filename)
+        path = os.path.join(exp_dir, f"seed_{seed}", POOL_MODEL_DIR, "raw", filename)
         if os.path.exists(path):
             traces = load_jsonl(path)
             all_traces.extend(traces)
@@ -1359,7 +1363,7 @@ def load_pooled_audit(exp_dir, seeds, filename):
     """Load and concatenate audit CSVs from multiple seeds."""
     dfs = []
     for seed in seeds:
-        path = os.path.join(exp_dir, f"seed_{seed}", "gemma3_4b_strict", filename)
+        path = os.path.join(exp_dir, f"seed_{seed}", POOL_MODEL_DIR, filename)
         if os.path.exists(path):
             df = pd.read_csv(path, encoding="utf-8-sig")
             df["seed"] = seed
@@ -1688,7 +1692,7 @@ else:
     fig.suptitle("RQ2 Ablation B: Full (3-Tier Endogenous) vs Flat Baseline — Pooled 3 Seeds (N=7,800 each)",
                  fontsize=13, fontweight="bold", y=1.01)
     fig.tight_layout()
-    pooled_analysis_dir = os.path.join(BASE, "paper3", "results", "paper3_hybrid_v2", "analysis")
+    pooled_analysis_dir = os.path.normpath(_PAPER3_OUTPUT_OVERRIDE) if _PAPER3_OUTPUT_OVERRIDE else os.path.join(BASE, "paper3", "results", "paper3_hybrid_v2", "analysis")
     os.makedirs(pooled_analysis_dir, exist_ok=True)
     fig_path = os.path.join(pooled_analysis_dir, "rq2_ablation_b_pooled.png")
     fig.savefig(fig_path, dpi=150, bbox_inches="tight")
