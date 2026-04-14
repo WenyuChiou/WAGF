@@ -22,14 +22,23 @@ import pandas as pd
 from pathlib import Path
 from scipy import stats
 
+_PAPER3_OVERRIDE = os.environ.get("PAPER3_TRACE_DIR")
+_PAPER3_OUTPUT_OVERRIDE = os.environ.get("PAPER3_OUTPUT_DIR")
+
 # ── Config ──────────────────────────────────────────────────────────────
-BASE = Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework"
-            r"\examples\multi_agent\flood\paper3\results\paper3_hybrid_v2")
-SEEDS = ["seed_42", "seed_123", "seed_456"]
-MODEL = "gemma3_4b_strict"
+if _PAPER3_OVERRIDE:
+    _TRACE_DIR = Path(os.path.normpath(_PAPER3_OVERRIDE))
+    BASE = _TRACE_DIR.parent.parent
+    SEEDS = [_TRACE_DIR.parent.name]
+    MODEL = _TRACE_DIR.name
+else:
+    BASE = Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework"
+                r"\examples\multi_agent\flood\paper3\results\paper3_hybrid_v2")
+    SEEDS = ["seed_42", "seed_123", "seed_456"]
+    MODEL = "gemma3_4b_strict"
 AGENT_TYPES = ["household_owner", "household_renter"]
 TP_MAP = {"VL": 1, "L": 2, "M": 3, "H": 4, "VH": 5}
-OUT_DIR = BASE.parent.parent / "analysis" / "tables"
+OUT_DIR = Path(os.path.normpath(_PAPER3_OUTPUT_OVERRIDE)) if _PAPER3_OUTPUT_OVERRIDE else BASE.parent.parent / "analysis" / "tables"
 MAX_WINDOW = 4  # track t=0 through t+3 (4 time points)
 
 

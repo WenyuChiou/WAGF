@@ -16,23 +16,47 @@ import warnings
 import pandas as pd
 import numpy as np
 from scipy import stats
+import builtins
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
+_PAPER3_OVERRIDE = os.environ.get("PAPER3_TRACE_DIR")
+_PAPER3_OUTPUT_OVERRIDE = os.environ.get("PAPER3_OUTPUT_DIR")
+
+_orig_print = builtins.print
+def safe_print(*args, **kwargs):
+    try:
+        _orig_print(*args, **kwargs)
+    except UnicodeEncodeError:
+        text = " ".join(str(a) for a in args)
+        _orig_print(text.encode("ascii", errors="replace").decode(), **kwargs)
+
+print = safe_print
+
+_orig_chi2_contingency = stats.chi2_contingency
+def safe_chi2_contingency(*args, **kwargs):
+    try:
+        return _orig_chi2_contingency(*args, **kwargs)
+    except ValueError:
+        return np.nan, np.nan, 0, None
+
+stats.chi2_contingency = safe_chi2_contingency
+
 # ── Paths ──────────────────────────────────────────────────────────────────
-BASE = "C:/Users/wenyu/Desktop/Lehigh/governed_broker_framework/examples/multi_agent/flood/paper3/results/paper3_hybrid_v2"
+BASE = os.path.normpath(_PAPER3_OVERRIDE).replace("\\", "/").rsplit("/", 2)[0] if _PAPER3_OVERRIDE else "C:/Users/wenyu/Desktop/Lehigh/governed_broker_framework/examples/multi_agent/flood/paper3/results/paper3_hybrid_v2"
 PROFILE_PATH = "C:/Users/wenyu/Desktop/Lehigh/governed_broker_framework/examples/multi_agent/flood/paper3/data/agent_initialization_complete.csv"
-OUT_DIR = "C:/Users/wenyu/Desktop/Lehigh/governed_broker_framework/examples/multi_agent/flood/paper3/analysis/tables"
+OUT_DIR = os.path.normpath(_PAPER3_OUTPUT_OVERRIDE).replace("\\", "/") if _PAPER3_OUTPUT_OVERRIDE else "C:/Users/wenyu/Desktop/Lehigh/governed_broker_framework/examples/multi_agent/flood/paper3/analysis/tables"
 os.makedirs(OUT_DIR, exist_ok=True)
 
-SEEDS = ["seed_42", "seed_123", "seed_456"]
+SEEDS = [os.path.normpath(_PAPER3_OVERRIDE).replace("\\", "/").rsplit("/", 1)[0].split("/")[-1]] if _PAPER3_OVERRIDE else ["seed_42", "seed_123", "seed_456"]
 LABEL_MAP = {"VL": 1, "L": 2, "M": 3, "H": 4, "VH": 5}
 CONSTRUCTS = ["construct_TP_LABEL", "construct_CP_LABEL", "construct_SP_LABEL",
               "construct_SC_LABEL", "construct_PA_LABEL"]
 
 # ── Load & clean ───────────────────────────────────────────────────────────
 def load_audit(seed, agent_type):
-    path = f"{BASE}/{seed}/gemma3_4b_strict/household_{agent_type}_governance_audit.csv"
+    model_dir = os.path.normpath(_PAPER3_OVERRIDE).replace("\\", "/").split("/")[-1] if _PAPER3_OVERRIDE else "gemma3_4b_strict"
+    path = f"{BASE}/{seed}/{model_dir}/household_{agent_type}_governance_audit.csv"
     df = pd.read_csv(path, encoding="utf-8-sig")
     df["seed"] = seed
     df["agent_type"] = agent_type

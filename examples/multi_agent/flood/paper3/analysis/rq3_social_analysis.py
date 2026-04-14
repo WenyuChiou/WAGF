@@ -40,15 +40,24 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 
+_PAPER3_OVERRIDE = os.environ.get("PAPER3_TRACE_DIR")
+_PAPER3_OUTPUT_OVERRIDE = os.environ.get("PAPER3_OUTPUT_DIR")
+
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
 BASE = Path(r"c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework")
-RESULT_DIR = BASE / "examples" / "multi_agent" / "flood" / "paper3" / "results" / "paper3_hybrid_v2" / "seed_42"
-RAW_DIR = RESULT_DIR / "gemma3_4b_strict" / "raw"
-AUDIT_DIR = RESULT_DIR / "gemma3_4b_strict"
+if _PAPER3_OVERRIDE:
+    TRACE_DIR = Path(os.path.normpath(_PAPER3_OVERRIDE))
+    RESULT_DIR = TRACE_DIR.parent
+    RAW_DIR = TRACE_DIR / "raw"
+    AUDIT_DIR = TRACE_DIR
+else:
+    RESULT_DIR = BASE / "examples" / "multi_agent" / "flood" / "paper3" / "results" / "paper3_hybrid_v2" / "seed_42"
+    RAW_DIR = RESULT_DIR / "gemma3_4b_strict" / "raw"
+    AUDIT_DIR = RESULT_DIR / "gemma3_4b_strict"
 DATA_DIR = BASE / "examples" / "multi_agent" / "flood" / "data"
-OUT_DIR = RESULT_DIR / "analysis"
+OUT_DIR = Path(os.path.normpath(_PAPER3_OUTPUT_OVERRIDE)) if _PAPER3_OUTPUT_OVERRIDE else RESULT_DIR / "analysis"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 OWNER_TRACES = RAW_DIR / "household_owner_traces.jsonl"

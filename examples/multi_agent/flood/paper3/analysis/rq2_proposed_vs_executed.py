@@ -11,13 +11,17 @@ import pandas as pd
 import os
 from pathlib import Path
 
-BASE = Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\multi_agent\flood\paper3")
-RESULTS = BASE / "results" / "paper3_hybrid_v2"
-PROFILES = BASE / "data" / "agent_initialization_complete.csv"
-OUT_CSV = BASE / "analysis" / "tables" / "rq2_4cell_proposed_vs_executed.csv"
+_PAPER3_OVERRIDE = os.environ.get("PAPER3_TRACE_DIR")
+_PAPER3_OUTPUT_OVERRIDE = os.environ.get("PAPER3_OUTPUT_DIR")
 
-SEEDS = ["seed_42", "seed_123", "seed_456"]
+BASE = Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\multi_agent\flood\paper3")
+RESULTS = Path(os.path.normpath(_PAPER3_OVERRIDE)).parent.parent if _PAPER3_OVERRIDE else BASE / "results" / "paper3_hybrid_v2"
+PROFILES = BASE / "data" / "agent_initialization_complete.csv"
+OUT_CSV = (Path(os.path.normpath(_PAPER3_OUTPUT_OVERRIDE)) if _PAPER3_OUTPUT_OVERRIDE else BASE / "analysis" / "tables") / "rq2_4cell_proposed_vs_executed.csv"
+
+SEEDS = [Path(os.path.normpath(_PAPER3_OVERRIDE)).parent.name] if _PAPER3_OVERRIDE else ["seed_42", "seed_123", "seed_456"]
 AGENT_TYPES = ["household_owner", "household_renter"]
+MODEL_DIR = Path(os.path.normpath(_PAPER3_OVERRIDE)).name if _PAPER3_OVERRIDE else "gemma3_4b_strict"
 
 # Load agent profiles for MG status
 profiles = pd.read_csv(PROFILES, usecols=["agent_id", "cell", "mg", "tenure"])
@@ -28,7 +32,7 @@ print(f"  Cells: {profiles['cell'].value_counts().to_dict()}")
 frames = []
 for seed in SEEDS:
     for atype in AGENT_TYPES:
-        csv_path = RESULTS / seed / "gemma3_4b_strict" / f"{atype}_governance_audit.csv"
+        csv_path = RESULTS / seed / MODEL_DIR / f"{atype}_governance_audit.csv"
         if not csv_path.exists():
             print(f"  WARNING: missing {csv_path}")
             continue

@@ -106,6 +106,19 @@ Reference: `.ai/pa_prompt_calibration_plan.md`, `paper3/analysis/pa_prompt_calib
 
 ---
 
+## EXECUTED-ONLY rule (2026-04-14 — applies to all Paper 3 analysis)
+
+**Every headline result in Paper 3 uses the EXECUTED decision, never the proposed decision.** Headline means: any number that appears in a table, figure, CSV column, or narrative claim in Section 4 (Results) and the abstract.
+
+- **Use**: `approved_skill.skill_name` in the JSONL trace, `final_skill` column in `*_governance_audit.csv`, `state_after` fields (`has_insurance`, `elevated`, `relocated`, `cumulative_damage`, `cumulative_oop`). These reflect what the 3-tier governance architecture actually produced after Government → Insurance → Household validator rounds.
+- **Do NOT use as headline**: `skill_proposal.skill_name` or `proposed_skill` from governance_audit. These represent what the LLM first suggested before any validator check. They can be inspected only as part of a dedicated robustness/sanity footnote (e.g. "we confirmed the MG-Owner gap is not a validator artifact by checking that the proposal-stage gap is also 22.7pp").
+- **Rationale**: (1) WAGF's framework claim is that 3-tier governance SHAPES household action — what matters is the action after all three tiers have acted. (2) Traditional FLOODABM reports only the Bernoulli-sampled outcome (no separate "proposal" step), so cross-paradigm comparison (RQ1) must use LLM executed decisions to stay apples-to-apples. (3) Empirical benchmarks (NFIP uptake, elevation rates, buyout rates) describe what households actually did, not what they considered.
+- **Reasoning text is exempt from the rule**: construct labels (TP/CP/SP/SC/PA) and free-text `*_REASON` fields are captured at the proposal stage but are still the "correct" record of the LLM's deliberation, because validators do not rewrite reasoning. When joining reasoning text to an outcome variable, the outcome must still be the executed action, not the proposed action.
+- **Existing writeups that need to honour this rule**: `paper3/analysis/gemma4_legacy_clean_comprehensive_report.md` Section 5.5 (Validator-layer contribution) should be labeled as a robustness check, not a headline. RQ2 narrative cannot use the prior "validators create equity gap" framing from G3 — in G4 both LEGACY and CLEAN runs show the MG-Owner gap originating at the LLM proposal stage, and the headline should report the executed gap directly.
+- **Cross-references**: `.ai/codex_task_gemma4_legacy_clean_comprehensive.md` Rule 0 (highest priority), memory `gemma4_clean_vs_legacy_asymmetry.md`.
+
+---
+
 ## Key Concepts
 
 | Term | Meaning |

@@ -1,0 +1,265 @@
+{
+  "l1": {
+    "cacr": 0.9138,
+    "r_h": 0.0,
+    "ebe": 1.0889,
+    "ebe_max": 2.3219,
+    "ebe_ratio": 0.469,
+    "total_decisions": 5200,
+    "coherent_decisions": 4719,
+    "hallucinations": 0,
+    "action_distribution": {
+      "elevate": 34,
+      "relocate": 36,
+      "buyout": 1,
+      "buy_insurance": 2954,
+      "do_nothing": 2175
+    },
+    "cacr_decomposition": {
+      "cacr_raw": 0.9096,
+      "cacr_final": 0.9087,
+      "retry_rate": 0.0956,
+      "fallback_rate": 0.0004,
+      "total_proposals": 5164,
+      "quadrant_cacr": {
+        "TP_high_CP_low": 0.8694,
+        "TP_low_CP_low": 0.9932,
+        "TP_low_CP_high": 0.9918,
+        "TP_high_CP_high": 0.8387
+      }
+    }
+  },
+  "l2": {
+    "epi": 0.6115,
+    "benchmark_results": {
+      "insurance_rate_sfha": {
+        "value": 0.7534,
+        "range": [
+          0.3,
+          0.6
+        ],
+        "in_range": false,
+        "weight": 1.0,
+        "description": "Insurance uptake rate in SFHA zones"
+      },
+      "insurance_rate_all": {
+        "value": 0.565,
+        "range": [
+          0.15,
+          0.55
+        ],
+        "in_range": false,
+        "weight": 0.8,
+        "description": "Overall insurance uptake rate"
+      },
+      "elevation_rate": {
+        "value": 0.055,
+        "range": [
+          0.1,
+          0.35
+        ],
+        "in_range": false,
+        "weight": 1.0,
+        "description": "Cumulative elevation rate"
+      },
+      "buyout_rate": {
+        "value": 0.0675,
+        "range": [
+          0.05,
+          0.25
+        ],
+        "in_range": true,
+        "weight": 0.8,
+        "description": "Cumulative buyout/relocation rate"
+      },
+      "do_nothing_rate_postflood": {
+        "value": 0.2061,
+        "range": [
+          0.35,
+          0.65
+        ],
+        "in_range": false,
+        "weight": 1.5,
+        "description": "Inaction rate among recently flooded"
+      },
+      "mg_adaptation_gap": {
+        "value": 0.18,
+        "range": [
+          0.05,
+          0.3
+        ],
+        "in_range": true,
+        "weight": 2.0,
+        "description": "Adaptation gap between MG and NMG (composite: any protective action)"
+      },
+      "renter_uninsured_rate": {
+        "value": 0.2018,
+        "range": [
+          0.15,
+          0.4
+        ],
+        "in_range": true,
+        "weight": 1.0,
+        "description": "Uninsured rate among renters in flood zones"
+      },
+      "insurance_lapse_rate": {
+        "value": 0.1857,
+        "range": [
+          0.15,
+          0.3
+        ],
+        "in_range": true,
+        "weight": 1.0,
+        "description": "Annual insurance lapse rate"
+      },
+      "govt_final_subsidy": {
+        "value": 0.55,
+        "range": [
+          0.4,
+          0.75
+        ],
+        "in_range": true,
+        "weight": 1.0,
+        "description": "Final government subsidy rate"
+      },
+      "govt_avg_subsidy": {
+        "value": 0.5462,
+        "range": [
+          0.45,
+          0.7
+        ],
+        "in_range": true,
+        "weight": 1.0,
+        "description": "Average government subsidy rate across simulation"
+      },
+      "govt_decrease_count": {
+        "value": 0.0,
+        "range": [
+          1.0,
+          5.0
+        ],
+        "in_range": false,
+        "weight": 1.0,
+        "description": "Government decrease decisions (must decrease at least once)"
+      },
+      "govt_change_count": {
+        "value": 1.0,
+        "range": [
+          3.0,
+          8.0
+        ],
+        "in_range": false,
+        "weight": 0.8,
+        "description": "Total government subsidy changes per simulation"
+      },
+      "ins_final_crs": {
+        "value": 0.25,
+        "range": [
+          0.05,
+          0.25
+        ],
+        "in_range": true,
+        "weight": 1.0,
+        "description": "Final CRS discount"
+      },
+      "ins_avg_crs": {
+        "value": 0.1827,
+        "range": [
+          0.03,
+          0.2
+        ],
+        "in_range": true,
+        "weight": 1.0,
+        "description": "Average CRS discount across simulation"
+      },
+      "ins_improve_count": {
+        "value": 3.0,
+        "range": [
+          1.0,
+          5.0
+        ],
+        "in_range": true,
+        "weight": 0.8,
+        "description": "Number of CRS improvement decisions per simulation"
+      },
+      "insurance_trajectory_change": {
+        "value": 0.0654,
+        "range": [
+          -0.4,
+          0.1
+        ],
+        "in_range": true,
+        "weight": 0.0,
+        "description": "Relative change in overall insurance rate Y1→Y13"
+      }
+    },
+    "benchmarks_in_range": 10,
+    "total_benchmarks": 16,
+    "supplementary": {
+      "rejection_rate_overall": 0.0517,
+      "rejection_rate_mg": 0.0538,
+      "rejection_rate_nmg": 0.0496,
+      "rejection_gap_mg_minus_nmg": 0.0042,
+      "constrained_non_adaptation_rate": 0.0502,
+      "total_rejected": 269,
+      "total_decisions": 5200
+    }
+  },
+  "cgr": {
+    "n_grounded": 5164,
+    "n_skipped": 36,
+    "cgr_tp_exact": 0.3832,
+    "cgr_tp_adjacent": 0.7978,
+    "kappa_tp": 0.4667,
+    "kappa_tp_unweighted": 0.2186,
+    "tp_confusion": {
+      "VH_vs_H": 239,
+      "VL_vs_L": 644,
+      "M_vs_H": 419,
+      "VH_vs_VH": 1022,
+      "VL_vs_M": 802,
+      "M_vs_M": 144,
+      "H_vs_H": 804,
+      "L_vs_M": 80,
+      "H_vs_VH": 743,
+      "L_vs_L": 9,
+      "VL_vs_H": 103,
+      "M_vs_VH": 115,
+      "VL_vs_VH": 17,
+      "L_vs_H": 4,
+      "H_vs_M": 16,
+      "L_vs_VH": 3
+    },
+    "cgr_cp_exact": 0.0931,
+    "cgr_cp_adjacent": 0.4959,
+    "kappa_cp": 0.0469,
+    "kappa_cp_unweighted": -0.0034,
+    "cp_confusion": {
+      "VL_vs_M": 941,
+      "L_vs_M": 928,
+      "L_vs_L": 142,
+      "VL_vs_L": 357,
+      "L_vs_H": 78,
+      "VH_vs_M": 1310,
+      "H_vs_L": 58,
+      "M_vs_M": 273,
+      "H_vs_M": 550,
+      "VH_vs_H": 158,
+      "VH_vs_L": 100,
+      "VL_vs_H": 113,
+      "M_vs_L": 57,
+      "M_vs_H": 29,
+      "VL_vs_VL": 18,
+      "H_vs_H": 48,
+      "L_vs_VL": 1,
+      "VL_vs_VH": 2,
+      "VL_vs_m": 1
+    }
+  },
+  "traces_path": "examples\\multi_agent\\flood\\paper3\\results\\paper3_gemma4_e4b_legacy\\seed_42\\gemma4_e4b_strict",
+  "seed": 42,
+  "model": "unknown",
+  "pass_all": true,
+  "l1_pass": true,
+  "l2_pass": true
+}

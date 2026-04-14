@@ -26,6 +26,9 @@ from collections import defaultdict
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
+_PAPER3_OVERRIDE = os.environ.get("PAPER3_TRACE_DIR")
+_PAPER3_OUTPUT_OVERRIDE = os.environ.get("PAPER3_OUTPUT_DIR")
+
 # ===========================================================================
 # Paths
 # ===========================================================================
@@ -38,15 +41,23 @@ TRAD_ALL_YEARS = os.path.join(TRAD_DEC_DIR, "action_share_owner_renter_tract_all
 
 # LLM-ABM seeds
 LLM_SEEDS = {}
-for seed in [42, 123, 456, 789]:
-    seed_dir = os.path.join(BASE, "paper3", "results", "paper3_hybrid_v2", f"seed_{seed}", "gemma3_4b_strict", "raw")
+if _PAPER3_OVERRIDE:
+    trace_dir = os.path.normpath(_PAPER3_OVERRIDE)
+    seed_name = os.path.basename(os.path.dirname(trace_dir))
+    seed_value = int(seed_name.replace("seed_", ""))
+    seed_dir = os.path.join(trace_dir, "raw")
     if os.path.exists(os.path.join(seed_dir, "household_owner_traces.jsonl")):
-        LLM_SEEDS[seed] = seed_dir
+        LLM_SEEDS[seed_value] = seed_dir
+else:
+    for seed in [42, 123, 456, 789]:
+        seed_dir = os.path.join(BASE, "paper3", "results", "paper3_hybrid_v2", f"seed_{seed}", "gemma3_4b_strict", "raw")
+        if os.path.exists(os.path.join(seed_dir, "household_owner_traces.jsonl")):
+            LLM_SEEDS[seed] = seed_dir
 
 # Output
-TABLES_DIR = os.path.join(BASE, "paper3", "analysis", "tables")
+TABLES_DIR = os.path.normpath(_PAPER3_OUTPUT_OVERRIDE) if _PAPER3_OUTPUT_OVERRIDE else os.path.join(BASE, "paper3", "analysis", "tables")
 os.makedirs(TABLES_DIR, exist_ok=True)
-ANALYSIS_DIR = os.path.join(BASE, "paper3", "results", "paper3_hybrid_v2", "analysis")
+ANALYSIS_DIR = os.path.normpath(_PAPER3_OUTPUT_OVERRIDE) if _PAPER3_OUTPUT_OVERRIDE else os.path.join(BASE, "paper3", "results", "paper3_hybrid_v2", "analysis")
 os.makedirs(ANALYSIS_DIR, exist_ok=True)
 
 # ===========================================================================

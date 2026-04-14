@@ -8,13 +8,16 @@ import json
 import os
 from collections import defaultdict, Counter
 
+_PAPER3_OVERRIDE = os.environ.get("PAPER3_TRACE_DIR")
+_PAPER3_OUTPUT_OVERRIDE = os.environ.get("PAPER3_OUTPUT_DIR")
+
 # Paths
 BASE = r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework"
-RAW_DIR = os.path.join(BASE, "examples", "multi_agent", "flood", "paper3",
+RAW_DIR = os.path.join(os.path.normpath(_PAPER3_OVERRIDE), "raw") if _PAPER3_OVERRIDE else os.path.join(BASE, "examples", "multi_agent", "flood", "paper3",
                        "results", "paper3_hybrid_v2", "seed_42", "gemma3_4b_strict", "raw")
 OWNER_FILE = os.path.join(RAW_DIR, "household_owner_traces.jsonl")
 RENTER_FILE = os.path.join(RAW_DIR, "household_renter_traces.jsonl")
-OUTPUT_FILE = os.path.join(BASE, "examples", "multi_agent", "flood", "paper3",
+OUTPUT_FILE = os.path.join(os.path.normpath(_PAPER3_OUTPUT_OVERRIDE), "4cell_behavior_distribution.md") if _PAPER3_OUTPUT_OVERRIDE else os.path.join(BASE, "examples", "multi_agent", "flood", "paper3",
                            "analysis", "working", "reviews", "4cell_behavior_distribution.md")
 
 # Data structures
@@ -111,7 +114,8 @@ print(f"Total records processed: {n_owner + n_renter:,}")
 lines = []
 lines.append("# 4-Cell Household Behavior Distribution Analysis")
 lines.append("")
-lines.append(f"**Source**: `seed_42/gemma3_4b_strict` | **Total records**: {n_owner + n_renter:,}")
+source_label = os.path.normpath(_PAPER3_OVERRIDE).replace("\\", "/") if _PAPER3_OVERRIDE else "seed_42/gemma3_4b_strict"
+lines.append(f"**Source**: `{source_label}` | **Total records**: {n_owner + n_renter:,}")
 lines.append("")
 
 # Summary table

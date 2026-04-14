@@ -35,6 +35,9 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 from matplotlib.colors import LinearSegmentedColormap
 
+_PAPER3_OVERRIDE = os.environ.get("PAPER3_TRACE_DIR")
+_PAPER3_OUTPUT_OVERRIDE = os.environ.get("PAPER3_OUTPUT_DIR")
+
 
 # ---------------------------------------------------------------------------
 # Windows-safe print
@@ -52,14 +55,14 @@ def safe_print(*args, **kwargs):
 # ---------------------------------------------------------------------------
 BASE = Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework")
 FLOOD_DIR = BASE / "examples" / "multi_agent" / "flood"
-RESULT_BASE = FLOOD_DIR / "paper3" / "results" / "paper3_hybrid_v2"
+RESULT_BASE = Path(os.path.normpath(_PAPER3_OVERRIDE)).parent.parent if _PAPER3_OVERRIDE else FLOOD_DIR / "paper3" / "results" / "paper3_hybrid_v2"
 DATA_DIR = FLOOD_DIR / "data"
-FIG_DIR = RESULT_BASE / "analysis"
-TABLE_DIR = FLOOD_DIR / "paper3" / "analysis" / "tables"
+FIG_DIR = Path(os.path.normpath(_PAPER3_OUTPUT_OVERRIDE)) if _PAPER3_OUTPUT_OVERRIDE else RESULT_BASE / "analysis"
+TABLE_DIR = Path(os.path.normpath(_PAPER3_OUTPUT_OVERRIDE)) if _PAPER3_OUTPUT_OVERRIDE else FLOOD_DIR / "paper3" / "analysis" / "tables"
 FIG_DIR.mkdir(parents=True, exist_ok=True)
 TABLE_DIR.mkdir(parents=True, exist_ok=True)
 
-SEEDS = [42, 123, 456]
+SEEDS = [int(Path(os.path.normpath(_PAPER3_OVERRIDE)).parent.name.replace("seed_", ""))] if _PAPER3_OVERRIDE else [42, 123, 456]
 PROFILES_CSV = DATA_DIR / "agent_profiles_balanced.csv"
 
 LABEL_MAP = {"VL": 1, "L": 2, "M": 3, "H": 4, "VH": 5}
@@ -106,7 +109,7 @@ def load_traces(seed):
     traces = []
     for role in ("owner", "renter"):
         path = (
-            RESULT_BASE / f"seed_{seed}" / "gemma3_4b_strict" / "raw"
+            RESULT_BASE / f"seed_{seed}" / (Path(os.path.normpath(_PAPER3_OVERRIDE)).name if _PAPER3_OVERRIDE else "gemma3_4b_strict") / "raw"
             / f"household_{role}_traces.jsonl"
         )
         with open(path, "r", encoding="utf-8") as f:
