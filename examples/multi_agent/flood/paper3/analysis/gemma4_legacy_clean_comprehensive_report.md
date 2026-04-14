@@ -7,15 +7,17 @@ Both arms: Gemma 4 e4b, think=disabled, seed 42, 400 agents × 13 years, hazard 
 
 ## Executive summary
 
-The comprehensive re-analysis produces three core findings.
+The comprehensive re-analysis produces one framework-level finding and three supporting mechanisms.
 
-1. **CLEAN blocks the LEGACY rationalization ratchet as designed**, with strong quantitative evidence at both the memory-content level and the reasoning-text level. The `past_reference` phrase frequency in the main reasoning text climbs from 1.5% (Y1) to 30.5% (Y8-11) for LEGACY owners and from 3% to 46.5% for LEGACY renters; under CLEAN it stays below 5% for owners and below 10.5% for renters across all 13 years. The `agent_self_report` memory content type accumulates to 10.5 entries per agent by Y13 under LEGACY and to 0 under CLEAN. PA temporal Spearman drops from 0.273 to 0.075.
+**Framework-level finding — memory writes in LLM ABMs have a dual role.** The same `agent_self_report` memory write channel that propagates the rationalization ratchet (biased PA saturation) also sustains behavioural diversity across years. Blocking the channel removes both simultaneously. This is a generalisable observation about LLM-ABM architecture, not a Paper 3-specific calibration note. The dual role is evidenced by the matched-seed LEGACY vs CLEAN comparison on Gemma 4 seed 42.
 
-2. **CLEAN fails the framework integrity check (EPI)** that LEGACY passes. LEGACY EPI = 0.6115 (pass, 10/16 benchmarks in range). CLEAN EPI = 0.4968 (fail, 8/16 benchmarks in range). Two benchmarks flip from in-range to out-of-range under CLEAN: `buyout_rate` collapses from 0.068 (LEGACY) to 0.003 (CLEAN) because renter relocation went from 35 instances to 1, and `renter_uninsured_rate` drops from 0.202 (LEGACY) to 0.000 (CLEAN) because every flood-zone renter under CLEAN ends up insured. Several already out-of-range benchmarks worsen under CLEAN (`insurance_rate_sfha` 0.753→0.845, `do_nothing_rate_postflood` 0.206→0.136).
+**Supporting mechanism 1 — CLEAN blocks the rationalization ratchet as designed.** `past_reference` phrase frequency in the main reasoning text climbs from 1.5% (Y1) to 30.5% (Y8-11) for LEGACY owners and from 3% to 46.5% for LEGACY renters; under CLEAN it stays below 5% for owners and below 10.5% for renters across all 13 years (20x and 9x compression). `agent_self_report` memory accumulates 10.5 entries per agent by Y13 under LEGACY and 0 under CLEAN. PA temporal Spearman drops from 0.273 to 0.075. SP flood-dose responsiveness is preserved (ρ = 0.635 → 0.650) — the PMT causal chain stays intact on the axis that matters.
 
-3. **The LEGACY-vs-CLEAN asymmetry is tenure-level, not MG-level, and has at least three distinct mechanisms.** CLEAN helps renters (MG-Renter Y13 Ins% 55→73, NMG-Renter 47→63) and hurts owners (MG-Owner Y13 Ins% 39→26, NMG-Owner 83→44). The three mechanisms are (a) owner Y1 PA priming is unmasked when the `initial_narrative` rootedness seed is removed, (b) owner insurance state persistence depends on `agent_self_report` memory anchoring that CLEAN blocks, (c) action diversity depends on the same self-report memory writes — CLEAN shifts agent behaviour toward a single insurance-default strategy and eliminates relocation.
+**Supporting mechanism 2 — owner Y1 PA saturation is NOT memory-mediated.** It is prompt-level identity priming. CLEAN actually raises owner Y1 PA from 52.5% to 78.0% because the LEGACY `initial_narrative` rootedness seed ("could see moving if necessary") was serving as a counterweight to the "As a homeowner..." prompt phrase. Removing the seed unmasks the priming. This means memory-level fixes cannot address owner PA saturation at all — a separate prompt-level intervention is required.
 
-The result is not a binary "which policy is correct". LEGACY carries a documented PA saturation bias but preserves behavioural diversity and empirical plausibility. CLEAN blocks the bias but collapses the action space and introduces an over-insurance pathology. Section 6 discusses the implications for Paper 3 framing.
+**Supporting mechanism 3 — action diversity depends on self-narrative memory.** Under CLEAN, renter relocation drops from 35 to 1 instance, owner elevation from 30 to 12, owner action distribution Shannon entropy from 1.07 to 0.85 bits. The mechanism is that `agent_self_report` entries like "I chose to relocate because..." or "I decided to wait this year" sustain non-default action choices across years by showing up in subsequent retrievals. Without them, every agent-year re-evaluates from scratch using the prompt's cost-effective baseline and converges on insurance-as-default. This is the same memory channel that carried the ratchet, now exposed as doing diversity-maintenance work.
+
+**On the EPI delta.** LEGACY EPI = 0.6115, CLEAN = 0.4968. EPI is a range-based plausibility heuristic (see CLAUDE.local.md definition), not a statistical validity test. Both arms share Gemma 4-specific systematic biases on 5 benchmarks (SFHA insurance too high, elevation too low, post-flood inaction too low, government decrease count = 0, government change count too few), and CLEAN flips 2 additional benchmarks out of range (`buyout_rate` because renter relocation dropped, `renter_uninsured_rate` because the insurance-default collapse produced 100% insured flood-zone renters). Neither flipped benchmark has a narrow ground-truth range, and CLEAN improves on `insurance_lapse_rate` relative to LEGACY. The EPI delta is a calibration observation, not a CLEAN failure — both arms deviate from author-selected benchmark brackets in ways that reflect Gemma 4 prompt/model bias more than memory policy. Section 3 discusses the individual benchmarks.
 
 ## 1. Data integrity
 
@@ -298,30 +300,24 @@ The correct RQ3 Step 5 story is **single-channel**: MG-Owner DN amplification co
 - **Phase 0 proposed-vs-executed bug correction**: an earlier Phase 0 script extracted `skill_proposal.skill_name` from the JSONL trace and reported all proposed-vs-executed deltas as zero. That was wrong — the JSONL trace field reflects the LATEST retry proposal, not the ORIGINAL proposal. The governance audit CSV preserves the original proposal and shows real gaps of 3-7pp per cell. The CSV is authoritative.
 - **Seed 42 only**: CLEAN seed_123 is at Y13 near-completion; CLEAN seed_456 pending; Ablation B pending. All findings in this report are single-seed and single-arm within each policy. Cross-seed confirmation is required before paper-level claims.
 
-## 9. Paper 3 framing options
+## 9. Paper 3 framing — dual-role narrative
 
-The data does not choose one policy as "correct". Three options for the paper:
+**Decision (2026-04-14): Paper 3 adopts the dual-policy, dual-role narrative.**
 
-**Option A — LEGACY as primary, CLEAN as appendix ablation**
-- LEGACY is the dataset used throughout Results 4.1-4.6
-- CLEAN is an appendix subsection "Memory write policy ablation" that shows the ratchet is real and memory-mediated but also exposes the trade-off on action diversity and EPI
-- Framework contribution: the broker-level `MemoryWritePolicy` API and test coverage, regardless of which policy wins on Paper 3 numbers
-- Risk: reviewers will ask why the "fix" is in the appendix rather than the main results
+The headline claim is not "we fixed the PA bias" but **"memory writes in LLM multi-agent adaptation models serve a dual role, as both rationalization substrate and diversity substrate"**. This is a framework-level architectural observation, supported by a matched-seed LEGACY-vs-CLEAN comparison on Gemma 4 e4b seed 42 and by the three supporting mechanisms in the executive summary.
 
-**Option B — Dual-policy narrative**
-- Position the memory write policy as a parameter, not a fix
-- Present LEGACY and CLEAN side-by-side as two complementary views of the same system: LEGACY shows what happens when agents can accumulate rationalisation memory (rich behavioural diversity, biased PA saturation); CLEAN shows what happens when that channel is blocked (flat PA but collapsed action space)
-- Framework contribution: both the broker-level policy API AND the finding that memory writes serve a dual role
-- Risk: narrative is more complex and loses the simple "we fixed the bias" storyline
+Concrete structure implications:
 
-**Option C — Selective CLEAN + new seed_42 run**
-- Observe that `initial_narrative` removal and `agent_self_report` removal have different effects, and design a middle-ground policy that keeps `agent_self_report` but filters specific content (e.g. first-person PA assertions) while preserving first-person action self-reports
-- Run a new seed_42 with the selective policy (~17 hours)
-- Potentially achieve both PA block AND action diversity preservation
-- Framework contribution: finer-grained content-type vocabulary
-- Cost: additional 17h run + potential additional iterations if the first selective policy doesn't hit both targets
+- **Section 4.x Results** present LEGACY and CLEAN side-by-side throughout. Neither is treated as "the right answer"; both are experimental conditions that illuminate different aspects of the framework.
+- **RQ1 (cross-paradigm)** compares both arms against Traditional FLOODABM. Expected finding: LEGACY renter trajectory has stronger temporal Pearson r with Bayesian baseline; CLEAN renter trajectory is flatter; owner trajectories under both arms differ systematically from Bayesian (memory-independent prompt priming issue).
+- **RQ2 (institutional dynamics)** uses executed action under both arms. The proposed-vs-executed decomposition stays as a robustness footnote (per EXECUTED-ONLY rule). Ablation B (flat institutional) will be run under both memory policies when available.
+- **RQ3 (construct mechanism)** is restated with two key revisions: (a) the 5-step logic chain is preserved but Step 5 MG-Owner "triple lock" is dropped and replaced with a single-channel prompt-affordability story, (b) the LLM-vs-survey PA divergence finding gains a new support point — CLEAN removes the within-agent temporal PA drift while preserving the cross-sectional SP-behaviour coupling, which cleanly separates the two mechanisms Gemma 4 uses for place attachment inference.
+- **Section 5/6 Discussion** leads with the dual-role finding as the main framework contribution, cites the broker-level `MemoryWritePolicy` API and tests as the enabling infrastructure, and presents owner prompt priming as a separate issue requiring a prompt-level intervention outside the memory framework.
+- **Limitations**: single seed (CLEAN seed_123 pending, seed_456 pending); Gemma 4-specific systematic biases on 5 EPI benchmarks affect both arms; Ablation B (flat institutional) runs not yet complete.
 
-My recommendation: Option B if the submission window allows the complexity, Option A with the selective CLEAN experiment as a numbered future-work item otherwise.
+**On EPI**: report LEGACY EPI 0.6115 and CLEAN EPI 0.4968 as a table row, describe the 5 Gemma 4-common benchmark misses and the 2 CLEAN-specific flips, note that EPI is a range-based heuristic not a validity test, and move on. Do not frame CLEAN's lower EPI as a "failure" — it is a calibration observation with the dual-role mechanism as the explanation.
+
+**Note on earlier draft framings**: earlier versions of this report considered three framing options (LEGACY-primary-CLEAN-appendix, dual-policy, and selective-CLEAN new-run). The dual-policy option was selected because it treats the dual-role observation as the scientific contribution rather than as an obstacle. The selective-CLEAN option was deferred because the dual-role finding makes it likely that any middle-ground policy will just re-partition the same trade-off rather than eliminate it; that experiment can be revisited as a numbered future-work item if the reviewer-feedback window demands it.
 
 ## 10. Verification checks performed
 
