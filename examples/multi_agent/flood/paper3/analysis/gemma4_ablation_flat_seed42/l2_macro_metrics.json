@@ -1,0 +1,177 @@
+{
+  "epi": 0.3248,
+  "benchmarks_in_range": 4,
+  "total_benchmarks": 16,
+  "benchmark_results": {
+    "insurance_rate_sfha": {
+      "value": 0.7717,
+      "range": [
+        0.3,
+        0.6
+      ],
+      "in_range": false,
+      "weight": 1.0,
+      "description": "Insurance uptake rate in SFHA zones"
+    },
+    "insurance_rate_all": {
+      "value": 0.5175,
+      "range": [
+        0.15,
+        0.55
+      ],
+      "in_range": true,
+      "weight": 0.8,
+      "description": "Overall insurance uptake rate"
+    },
+    "elevation_rate": {
+      "value": 0.045,
+      "range": [
+        0.1,
+        0.35
+      ],
+      "in_range": false,
+      "weight": 1.0,
+      "description": "Cumulative elevation rate"
+    },
+    "buyout_rate": {
+      "value": 0.01,
+      "range": [
+        0.05,
+        0.25
+      ],
+      "in_range": false,
+      "weight": 0.8,
+      "description": "Cumulative buyout/relocation rate"
+    },
+    "do_nothing_rate_postflood": {
+      "value": 0.1793,
+      "range": [
+        0.35,
+        0.65
+      ],
+      "in_range": false,
+      "weight": 1.5,
+      "description": "Inaction rate among recently flooded"
+    },
+    "mg_adaptation_gap": {
+      "value": 0.08,
+      "range": [
+        0.05,
+        0.3
+      ],
+      "in_range": true,
+      "weight": 2.0,
+      "description": "Adaptation gap between MG and NMG (composite: any protective action)"
+    },
+    "renter_uninsured_rate": {
+      "value": 0.0275,
+      "range": [
+        0.15,
+        0.4
+      ],
+      "in_range": false,
+      "weight": 1.0,
+      "description": "Uninsured rate among renters in flood zones"
+    },
+    "insurance_lapse_rate": {
+      "value": 0.2376,
+      "range": [
+        0.15,
+        0.3
+      ],
+      "in_range": true,
+      "weight": 1.0,
+      "description": "Annual insurance lapse rate"
+    },
+    "govt_final_subsidy": {
+      "value": null,
+      "range": [
+        0.4,
+        0.75
+      ],
+      "in_range": false,
+      "weight": 1.0,
+      "description": "Final government subsidy rate"
+    },
+    "govt_avg_subsidy": {
+      "value": null,
+      "range": [
+        0.45,
+        0.7
+      ],
+      "in_range": false,
+      "weight": 1.0,
+      "description": "Average government subsidy rate across simulation"
+    },
+    "govt_decrease_count": {
+      "value": 0.0,
+      "range": [
+        1.0,
+        5.0
+      ],
+      "in_range": false,
+      "weight": 1.0,
+      "description": "Government decrease decisions (must decrease at least once)"
+    },
+    "govt_change_count": {
+      "value": 0.0,
+      "range": [
+        3.0,
+        8.0
+      ],
+      "in_range": false,
+      "weight": 0.8,
+      "description": "Total government subsidy changes per simulation"
+    },
+    "ins_final_crs": {
+      "value": null,
+      "range": [
+        0.05,
+        0.25
+      ],
+      "in_range": false,
+      "weight": 1.0,
+      "description": "Final CRS discount"
+    },
+    "ins_avg_crs": {
+      "value": null,
+      "range": [
+        0.03,
+        0.2
+      ],
+      "in_range": false,
+      "weight": 1.0,
+      "description": "Average CRS discount across simulation"
+    },
+    "ins_improve_count": {
+      "value": 0.0,
+      "range": [
+        1.0,
+        5.0
+      ],
+      "in_range": false,
+      "weight": 0.8,
+      "description": "Number of CRS improvement decisions per simulation"
+    },
+    "insurance_trajectory_change": {
+      "value": -0.0413,
+      "range": [
+        -0.4,
+        0.1
+      ],
+      "in_range": true,
+      "weight": 0.0,
+      "description": "Relative change in overall insurance rate Y1→Y13"
+    }
+  },
+  "pass": false,
+  "supplementary": {
+    "rejection_rate_overall": 0.0365,
+    "rejection_rate_mg": 0.0338,
+    "rejection_rate_nmg": 0.0392,
+    "rejection_gap_mg_minus_nmg": -0.0054,
+    "constrained_non_adaptation_rate": 0.0356,
+    "total_rejected": 190,
+    "total_decisions": 5200
+  }
+}

@@ -1,0 +1,131 @@
+=== Run started 2026-04-16T17:12:35 ===
+TRACE=examples/multi_agent/flood/paper3/results/paper3_gemma4_ablation_flat_clean/seed_456/gemma4_e4b_strict
+OUTPUT=examples/multi_agent/flood/paper3/analysis/gemma4_ablation_flat_seed456
+LOGS=examples\multi_agent\flood\paper3\analysis\gemma4_ablation_flat_seed456\logs_20260416_171235
+
+script=compute_validation_metrics.py
+return_code=0
+wall_time_seconds=3.24
+modified_files=none
+csv_rows=none
+issues=WARNING: 2 traces with UNKNOWN TP/CP labels excluded from CACR || WARNING: 1 traces with UNKNOWN TP/CP labels excluded from CACR || C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\multi_agent\flood\paper3\analysis\validation\benchmarks\flood.py:137: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)` || C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\multi_agent\flood\paper3\analysis\validation\benchmarks\flood.py:146: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)` || C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\multi_agent\flood\paper3\analysis\validation\benchmarks\flood.py:155: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)` || C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\multi_agent\flood\paper3\analysis\validation\benchmarks\flood.py:162: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)` || C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\multi_agent\flood\paper3\analysis\validation\benchmarks\flood.py:163: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)` || C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\multi_agent\flood\paper3\analysis\validation\benchmarks\flood.py:199: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)` || C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\multi_agent\flood\paper3\analysis\validation\benchmarks\flood.py:213: FutureWarning: Downcasting object dtype arrays on .fillna, .ffill, .bfill is deprecated and will change in a future version. Call result.infer_objects(copy=False) instead. To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
+
+script=rq1_traditional_comparison.py
+return_code=0
+wall_time_seconds=2.29
+modified_files=rq1_owner_comparison.csv; rq1_renter_comparison.csv; rq1_trad_vs_llm_trajectories.png
+csv_rows=rq1_owner_comparison.csv:13; rq1_renter_comparison.csv:13
+issues=C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\multi_agent\flood\paper3\analysis\rq1_traditional_comparison.py:315: ConstantInputWarning: An input array is constant; the correlation coefficient is not defined.
+
+script=rq1_tp_decay_within_agent.py
+return_code=0
+wall_time_seconds=1.88
+modified_files=rq1_owner_comparison.csv; rq1_renter_comparison.csv; rq1_tp_decay_within_agent.csv; rq1_trad_vs_llm_trajectories.png
+csv_rows=rq1_owner_comparison.csv:13; rq1_renter_comparison.csv:13; rq1_tp_decay_within_agent.csv:12
+issues=none
+
+script=rq2_institutional_analysis.py
+return_code=1
+wall_time_seconds=1.03
+modified_files=rq1_tp_decay_within_agent.csv
+csv_rows=rq1_tp_decay_within_agent.csv:12
+issues=Traceback (most recent call last): || FileNotFoundError: [Errno 2] No such file or directory: 'examples\\multi_agent\\flood\\paper3\\results\\paper3_gemma4_ablation_flat_clean\\seed_456\\gemma4_e4b_strict\\raw\\government_traces.jsonl'
+
+script=rq2_proposed_vs_executed.py
+return_code=0
+wall_time_seconds=0.47
+modified_files=rq2_4cell_proposed_vs_executed.csv
+csv_rows=rq2_4cell_proposed_vs_executed.csv:16
+issues=none
+
+script=rq2_equity_figure.py
+return_code=0
+wall_time_seconds=1.15
+modified_files=rq2_4cell_proposed_vs_executed.csv; rq2_equity_figure.png; rq2_equity_summary.csv
+csv_rows=rq2_4cell_proposed_vs_executed.csv:16; rq2_equity_summary.csv:4
+issues=none
+
+script=rq3_construct_dynamics.py
+return_code=0
+wall_time_seconds=1.80
+modified_files=rq2_equity_figure.png; rq2_equity_summary.csv; rq3_construct_action_profiles.csv; rq3_construct_stats.csv; rq3_sp_pa_yearly.csv
+csv_rows=rq2_equity_summary.csv:4; rq3_construct_action_profiles.csv:4; rq3_construct_stats.csv:7; rq3_sp_pa_yearly.csv:585
+issues=none
+
+script=rq3_unconstrained_constructs.py
+return_code=0
+wall_time_seconds=1.10
+modified_files=rq3_construct_action_profiles.csv; rq3_construct_stats.csv; rq3_sp_pa_yearly.csv; rq3_unconstrained_constructs.csv
+csv_rows=rq3_construct_action_profiles.csv:4; rq3_construct_stats.csv:7; rq3_sp_pa_yearly.csv:585; rq3_unconstrained_constructs.csv:101
+issues=none
+
+script=rq3_crosslayer_analysis.py
+return_code=0
+wall_time_seconds=2.74
+modified_files=rq3_crosslayer_analysis.csv; rq3_unconstrained_constructs.csv
+csv_rows=rq3_crosslayer_analysis.csv:19; rq3_unconstrained_constructs.csv:101
+issues=Main reasoning: My default priority is maintaining daily life, which favors 'do_nothing' (Decision 1). However, the confluence of being in a HIGH zone, having strong neighborhood warnings this year, and having a history of significant flooding (even if the specific
+
+script=rq3_pmt_dynamics.py
+return_code=0
+wall_time_seconds=2.01
+modified_files=rq3_action_exhaustion.csv; rq3_cp_by_income.csv; rq3_crosslayer_analysis.csv; rq3_fig1_pmt_dynamics_4panel.png; rq3_fig2_pmt_action_heatmap.png; rq3_fig3_tp_decay.png; rq3_tp_by_cumflood.csv; rq3_tp_cp_gap.csv; rq3_tp_decay.csv
+csv_rows=rq3_action_exhaustion.csv:13; rq3_cp_by_income.csv:5; rq3_crosslayer_analysis.csv:19; rq3_tp_by_cumflood.csv:6; rq3_tp_cp_gap.csv:13; rq3_tp_decay.csv:5
+issues=C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\multi_agent\flood\paper3\analysis\rq3_pmt_dynamics.py:468: RuntimeWarning: Mean of empty slice || C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\multi_agent\flood\paper3\analysis\rq3_pmt_dynamics.py:613: RuntimeWarning: Mean of empty slice
+
+script=rq3_social_analysis.py
+return_code=0
+wall_time_seconds=2.98
+modified_files=rq3_action_exhaustion.csv; rq3_channel_citation_rates.png; rq3_channel_flood_experience.png; rq3_cp_by_income.csv; rq3_decision_correlation.png; rq3_entropy.png; rq3_fig1_pmt_dynamics_4panel.png; rq3_fig2_pmt_action_heatmap.png; rq3_fig3_tp_decay.png; rq3_firstmover_channels.png; rq3_kaplan_meier.png; rq3_morans_i.png; rq3_tp_by_cumflood.csv; rq3_tp_cp_gap.csv; rq3_tp_decay.csv
+csv_rows=rq3_action_exhaustion.csv:13; rq3_cp_by_income.csv:5; rq3_tp_by_cumflood.csv:6; rq3_tp_cp_gap.csv:13; rq3_tp_decay.csv:5
+issues=none
+
+script=4cell_behavior_analysis.py
+return_code=0
+wall_time_seconds=0.77
+modified_files=4cell_behavior_distribution.md; rq3_channel_citation_rates.png; rq3_channel_flood_experience.png; rq3_decision_correlation.png; rq3_entropy.png; rq3_firstmover_channels.png; rq3_kaplan_meier.png; rq3_morans_i.png
+csv_rows=none
+issues=none
+
+script=4cell_tp_decay_analysis.py
+return_code=0
+wall_time_seconds=1.75
+modified_files=4cell_behavior_distribution.md; rq1_tp_decay_by_group.csv; rq3_firstmover_channels.png
+csv_rows=rq1_tp_decay_by_group.csv:16
+issues=none
+
+script=rq3_construct_action_feedback.py
+return_code=0
+wall_time_seconds=1.06
+modified_files=rq1_tp_decay_by_group.csv; rq3_construct_action_feedback.csv
+csv_rows=rq1_tp_decay_by_group.csv:16; rq3_construct_action_feedback.csv:13
+issues=none
+
+script=rq3_feedback_rigorous.py
+return_code=0
+wall_time_seconds=2.58
+modified_files=rq3_construct_action_feedback.csv; rq3_feedback_rigorous.csv
+csv_rows=rq3_construct_action_feedback.csv:13; rq3_feedback_rigorous.csv:111
+issues=none
+
+script=analyze_memory_content_dynamics.py
+return_code=0
+wall_time_seconds=1.48
+modified_files=memory_dynamics\memory_category_by_year.csv; memory_dynamics\memory_content_dynamics_report.md; memory_dynamics\memory_content_type_by_year.csv; memory_dynamics\memory_new_writes_by_decision_year.csv; memory_dynamics\memory_rationalization_phrases_by_year.csv; memory_dynamics\memory_size_by_year.csv; rq3_feedback_rigorous.csv
+csv_rows=memory_category_by_year.csv:152; memory_content_type_by_year.csv:124; memory_new_writes_by_decision_year.csv:52; memory_rationalization_phrases_by_year.csv:156; memory_size_by_year.csv:52; rq3_feedback_rigorous.csv:111
+issues=none
+
+script=analyze_skill_proposal_reasoning.py
+return_code=0
+wall_time_seconds=1.41
+modified_files=memory_dynamics\memory_category_by_year.csv; memory_dynamics\memory_content_dynamics_report.md; memory_dynamics\memory_content_type_by_year.csv; memory_dynamics\memory_new_writes_by_decision_year.csv; memory_dynamics\memory_rationalization_phrases_by_year.csv; memory_dynamics\memory_size_by_year.csv; reasoning_taxonomy\audit_scores_by_year.csv; reasoning_taxonomy\reason_text_length_by_year.csv; reasoning_taxonomy\reason_vocabulary_by_construct.csv; reasoning_taxonomy\reason_vocabulary_by_mg.csv; reasoning_taxonomy\reasoning_phrase_detection_by_year.csv; reasoning_taxonomy\skill_proposal_reasoning_report.md
+csv_rows=memory_category_by_year.csv:152; memory_content_type_by_year.csv:124; memory_new_writes_by_decision_year.csv:52; memory_rationalization_phrases_by_year.csv:156; memory_size_by_year.csv:52; audit_scores_by_year.csv:26; reason_text_length_by_year.csv:26000; reason_vocabulary_by_construct.csv:468; reason_vocabulary_by_mg.csv:936; reasoning_phrase_detection_by_year.csv:182
+issues=none
+
+script=analyze_institutional_rationale.py
+return_code=1
+wall_time_seconds=0.36
+modified_files=reasoning_taxonomy\audit_scores_by_year.csv; reasoning_taxonomy\reason_text_length_by_year.csv; reasoning_taxonomy\reason_vocabulary_by_construct.csv; reasoning_taxonomy\reason_vocabulary_by_mg.csv; reasoning_taxonomy\reasoning_phrase_detection_by_year.csv; reasoning_taxonomy\skill_proposal_reasoning_report.md
+csv_rows=audit_scores_by_year.csv:26; reason_text_length_by_year.csv:26000; reason_vocabulary_by_construct.csv:468; reason_vocabulary_by_mg.csv:936; reasoning_phrase_detection_by_year.csv:182
+issues=Traceback (most recent call last): || outputs, warnings = build_outputs(trace_dir, output_dir) || return io.open(self, mode, buffering, encoding, errors, newline) || FileNotFoundError: [Errno 2] No such file or directory: 'examples\\multi_agent\\flood\\paper3\\results\\paper3_gemma4_ablation_flat_clean\\seed_456\\gemma4_e4b_strict\\raw\\government_traces.jsonl'
+
