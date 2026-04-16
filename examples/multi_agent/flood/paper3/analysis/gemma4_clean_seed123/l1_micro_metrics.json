@@ -1,0 +1,86 @@
+{
+  "combined": {
+    "cacr": 0.9219,
+    "r_h": 0.0,
+    "ebe": 1.0171,
+    "ebe_max": 2.3219,
+    "ebe_ratio": 0.438,
+    "total_decisions": 5200,
+    "coherent_decisions": 4789,
+    "hallucinations": 0,
+    "action_distribution": {
+      "buy_insurance": 2749,
+      "do_nothing": 2441,
+      "elevate": 8,
+      "relocate": 2
+    },
+    "cacr_decomposition": {
+      "cacr_raw": 0.9205,
+      "cacr_final": 0.9186,
+      "retry_rate": 0.066,
+      "fallback_rate": 0.0,
+      "total_proposals": 5195,
+      "quadrant_cacr": {
+        "TP_high_CP_low": 0.8709,
+        "TP_low_CP_high": 1.0,
+        "TP_low_CP_low": 1.0,
+        "TP_high_CP_high": 1.0
+      }
+    }
+  },
+  "owner": {
+    "cacr": 0.878,
+    "r_h": 0.0,
+    "ebe": 1.018,
+    "ebe_max": 2.0,
+    "ebe_ratio": 0.509,
+    "total_decisions": 2600,
+    "coherent_decisions": 2281,
+    "hallucinations": 0,
+    "action_distribution": {
+      "do_nothing": 1441,
+      "buy_insurance": 1151,
+      "elevate": 8
+    },
+    "cacr_decomposition": null
+  },
+  "renter": {
+    "cacr": 0.9657,
+    "r_h": 0.0,
+    "ebe": 0.9698,
+    "ebe_max": 1.585,
+    "ebe_ratio": 0.6119,
+    "total_decisions": 2600,
+    "coherent_decisions": 2508,
+    "hallucinations": 0,
+    "action_distribution": {
+      "do_nothing": 1000,
+      "buy_insurance": 1598,
+      "relocate": 2
+    },
+    "cacr_decomposition": null
+  },
+  "thresholds": {
+    "CACR": ">=0.75",
+    "R_H": "<=0.10",
+    "EBE": "0.1<ratio<0.9"
+  },
+  "pass": {
+    "CACR": true,
+    "R_H": true,
+    "EBE": true
+  },
+  "cacr_decomposition": {
+    "cacr_raw": 0.9205,
+    "cacr_final": 0.9186,
+    "retry_rate": 0.066,
+    "fallback_rate": 0.0,
+    "total_proposals": 5195,
+    "quadrant_cacr": {
+      "TP_high_CP_low": 0.8709,
+      "TP_low_CP_high": 1.0,
+      "TP_low_CP_low": 1.0,
+      "TP_high_CP_high": 1.0
+    }
+  }
+}
