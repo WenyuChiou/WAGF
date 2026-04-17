@@ -90,6 +90,15 @@ def load_decisions() -> pd.DataFrame:
                 skill_proposal = trace.get("skill_proposal") or {}
                 reasoning = skill_proposal.get("reasoning") or {}
                 action = trace.get("approved_skill", {}).get("skill_name", "")
+                # Owner traces carry per-construct *_REASON keys. Renter traces
+                # only provide an integrated `reasoning` prose field (the adapter
+                # does not split it per construct). When *_REASON is missing we
+                # fall back to the integrated prose so Step 1 construct validity
+                # still measures keyword coverage. Flagged in rq3 report.
+                main_reason = reasoning.get("reasoning", "") or ""
+                tp_reason = reasoning.get("TP_REASON") or main_reason
+                sp_reason = reasoning.get("SP_REASON") or main_reason
+                pa_reason = reasoning.get("PA_REASON") or main_reason
                 rows.append(
                     {
                         "arm": arm,
@@ -104,9 +113,10 @@ def load_decisions() -> pd.DataFrame:
                         "tp_label": reasoning.get("TP_LABEL"),
                         "sp_label": reasoning.get("SP_LABEL"),
                         "pa_label_llm": reasoning.get("PA_LABEL"),
-                        "tp_reason": reasoning.get("TP_REASON", ""),
-                        "sp_reason": reasoning.get("SP_REASON", ""),
-                        "pa_reason": reasoning.get("PA_REASON", ""),
+                        "tp_reason": tp_reason,
+                        "sp_reason": sp_reason,
+                        "pa_reason": pa_reason,
+                        "reason_source": "per_construct" if reasoning.get("TP_REASON") else "integrated_prose",
                         "y13_has_insurance": bool(state_after.get("has_insurance")) if int(trace.get("year")) == 13 else pd.NA,
                         "y13_cum_oop": float(state_after.get("cumulative_oop") or 0.0) if int(trace.get("year")) == 13 else pd.NA,
                     }
@@ -123,7 +133,14 @@ def step1_construct_validity(df: pd.DataFrame) -> pd.DataFrame:
     }
     rows: list[dict[str, object]] = []
     for (arm, agent_type), group in df.groupby(["arm", "agent_type"]):
-        entry: dict[str, object] = {"arm": arm, "agent_type": agent_type, "n_decisions": len(group)}
+        entry: dict[str, object] = {
+            "arm": arm,
+            "agent_type": agent_type,
+            "n_decisions": len(group),
+            "reason_source": (
+                group["reason_source"].mode().iat[0] if "reason_source" in group.columns and not group.empty else "unknown"
+            ),
+        }
         for column_name, (source_col, pattern) in patterns.items():
             entry[column_name] = group[source_col].fillna("").str.contains(pattern).mean()
         rows.append(entry)

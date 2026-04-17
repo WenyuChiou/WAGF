@@ -2,20 +2,20 @@
 
 ## Step 1 Construct Validity
 
-| arm          | agent_type   |   n_decisions |   TP_flood_risk_pct |   SP_government_trust_pct |   PA_home_attachment_pct |
-|:-------------|:-------------|--------------:|--------------------:|--------------------------:|-------------------------:|
-| CLN_Flat_123 | owner        |          2599 |            0.888419 |                  0.433244 |                 0.896114 |
-| CLN_Flat_123 | renter       |          2600 |            0        |                  0        |                 0        |
-| CLN_Flat_42  | owner        |          2600 |            0.871154 |                  0.398077 |                 0.901154 |
-| CLN_Flat_42  | renter       |          2600 |            0        |                  0        |                 0        |
-| CLN_Flat_456 | owner        |          2600 |            0.906538 |                  0.45     |                 0.880769 |
-| CLN_Flat_456 | renter       |          2600 |            0        |                  0        |                 0        |
-| CLN_Full_123 | owner        |          2600 |            0.901923 |                  0.234615 |                 0.895    |
-| CLN_Full_123 | renter       |          2600 |            0        |                  0        |                 0        |
-| CLN_Full_42  | owner        |          2600 |            0.881538 |                  0.267308 |                 0.891154 |
-| CLN_Full_42  | renter       |          2600 |            0        |                  0        |                 0        |
-| LEG_Full_42  | owner        |          2600 |            0.798846 |                  0.204231 |                 0.872692 |
-| LEG_Full_42  | renter       |          2600 |            0        |                  0        |                 0        |
+| arm          | agent_type   |   n_decisions | reason_source    |   TP_flood_risk_pct |   SP_government_trust_pct |   PA_home_attachment_pct |
+|:-------------|:-------------|--------------:|:-----------------|--------------------:|--------------------------:|-------------------------:|
+| CLN_Flat_123 | owner        |          2599 | per_construct    |            0.888419 |               0.433244    |                 0.896114 |
+| CLN_Flat_123 | renter       |          2600 | integrated_prose |            0.943077 |               0.000384615 |                 0.468462 |
+| CLN_Flat_42  | owner        |          2600 | per_construct    |            0.871154 |               0.398077    |                 0.901154 |
+| CLN_Flat_42  | renter       |          2600 | integrated_prose |            0.936538 |               0.00153846  |                 0.464615 |
+| CLN_Flat_456 | owner        |          2600 | per_construct    |            0.906538 |               0.45        |                 0.880769 |
+| CLN_Flat_456 | renter       |          2600 | integrated_prose |            0.958077 |               0           |                 0.478462 |
+| CLN_Full_123 | owner        |          2600 | per_construct    |            0.901923 |               0.234615    |                 0.895    |
+| CLN_Full_123 | renter       |          2600 | integrated_prose |            0.941154 |               0.00192308  |                 0.444615 |
+| CLN_Full_42  | owner        |          2600 | per_construct    |            0.881538 |               0.267308    |                 0.891154 |
+| CLN_Full_42  | renter       |          2600 | integrated_prose |            0.938846 |               0.00884615  |                 0.447308 |
+| LEG_Full_42  | owner        |          2600 | per_construct    |            0.798846 |               0.204231    |                 0.872692 |
+| LEG_Full_42  | renter       |          2600 | integrated_prose |            0.898846 |               0.0215385   |                 0.714615 |
 
 ## Step 2 Cross-Sectional Tables
 

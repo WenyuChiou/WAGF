@@ -28,24 +28,38 @@ This document enables AI agents to quickly understand the Paper 3 design and fra
 - Conservatism Diagnostic module (`591eeb8`): CCA/CSI/ACI/ESRR metrics for model comparison.
 - **Memory write policy fix (2026-04-11, this document)**: `broker/config/memory_policy.py` + `examples/multi_agent/flood/orchestration/lifecycle_hooks.py` gating. Blocks the rationalization ratchet (LLM self-report → memory → self-read → self-reinforce loop) that caused Gemma 4 Renter PA drift from 22% Y1 to 87% Y13. Also drops first-person PA/SP narrative seeds at initial memory load. See `.ai/broker_memory_policy_design.md` for full audit.
 
-### Experiment status (updated 2026-04-11 after batch abort + fix)
+### Experiment status — ALL 6 ARMS COMPLETE (2026-04-17)
 
-| Run | Condition | Seed | Policy | Status | Path |
-|---|---|---|---|---|---|
-| baseline | Full | 42 | LEGACY | ✅ COMPLETE (preserved as ratchet baseline) | `paper3_gemma4_e4b/seed_42/gemma4_e4b_strict/` |
-| 1 | Full | 42 | CLEAN | ⏳ PENDING (batch 1/6, ablation match) | `paper3_gemma4_e4b_clean/seed_42/` |
-| 2 | Full | 123 | CLEAN | ⏳ PENDING (batch 2/6, primary) | `paper3_gemma4_e4b_clean/seed_123/` |
-| 3 | Full | 456 | CLEAN | ⏳ PENDING (batch 3/6, primary) | `paper3_gemma4_e4b_clean/seed_456/` |
-| 4 | Ablation B (flat) | 42 | CLEAN | ⏳ PENDING (batch 4/6) | `paper3_gemma4_ablation_flat_clean/seed_42/` |
-| 5 | Ablation B (flat) | 123 | CLEAN | ⏳ PENDING (batch 5/6) | `paper3_gemma4_ablation_flat_clean/seed_123/` |
-| 6 | Ablation B (flat) | 456 | CLEAN | ⏳ PENDING (batch 6/6) | `paper3_gemma4_ablation_flat_clean/seed_456/` |
+| Run | Condition | Seed | Policy | Status | Path | Commit |
+|---|---|---|---|---|---|---|
+| baseline | Full | 42 | LEGACY | ✅ COMPLETE | `paper3_gemma4_e4b_legacy/seed_42/gemma4_e4b_strict/` | `14b55a6` |
+| 1 | Full | 42 | CLEAN | ✅ COMPLETE | `paper3_gemma4_e4b_clean/seed_42/` | `14b55a6` |
+| 2 | Full | 123 | CLEAN | ✅ COMPLETE | `paper3_gemma4_e4b_clean/seed_123/` | `14b55a6` |
+| 3 | Full | 456 | CLEAN | ❌ INTERRUPTED + CLEANED | (deleted, not rerun) | — |
+| 4 | Ablation B (flat) | 42 | CLEAN | ✅ COMPLETE | `paper3_gemma4_ablation_flat_clean/seed_42/` | `5609508` |
+| 5 | Ablation B (flat) | 123 | CLEAN | ✅ COMPLETE | `paper3_gemma4_ablation_flat_clean/seed_123/` | `5609508` |
+| 6 | Ablation B (flat) | 456 | CLEAN | ✅ COMPLETE | `paper3_gemma4_ablation_flat_clean/seed_456/` | `5609508` |
 
-Launcher: `examples/multi_agent/flood/paper3/run_gemma4_ma_pivot_clean.bat` (~102 hr total / ~4.25 days, must be started from CMD by user).
+**Preliminary results COMPLETE**. Analysis pipeline (15 Phase 1 + 3 Phase 2 scripts + 3 RQ-deep scripts) has been run on all 6 complete arms. Deep 6-arm synthesis with Pearson r, Mann-Whitney, chi-squared, ANOVA+Tukey HSD is in `paper3/analysis/deep_synthesis/`. Contribution positioning in `paper3/analysis/PAPER3_POSITIONING.md` (start here for Section 4 drafting). Navigation in `paper3/analysis/INDEX.md`.
 
-**Ratchet ablation comparison**: once batch 1 completes, `paper3_gemma4_e4b/seed_42/` (LEGACY) vs `paper3_gemma4_e4b_clean/seed_42/` (CLEAN) is a matched-seed, matched-config comparison that isolates the memory policy effect. This becomes the Paper 3 Appendix ablation evidence for the rationalization ratchet framework contribution.
+CLEAN Full seed_456 was interrupted mid-Year-3 on 2026-04-14 and the partial data was deleted. It has not been rerun — the 2-seed CLEAN Full (42, 123) is treated as sufficient, with single-seed status flagged as a limitation.
 
-### Prior aborted batch (2026-04-11)
-The earlier `run_gemma4_ma_pivot_full.bat` was started at 2026-04-10 and reached seed_123 Full Year 1 (~258/400 agents) before being deliberately killed so the memory policy fix could be applied. Partial seed_123 data was removed; log archived to `paper3/logs/gemma4_pivot_batch_legacy_aborted_2026-04-11.log`. The original `.bat` is retained for historical reference but should NOT be rerun — use the `_clean` variant.
+Original launchers `run_gemma4_ma_pivot_clean.bat`, `run_gemma4_full_experiment.bat`, `run_gemma4_ablation_b_only.bat` are retained for reproducibility but should not be rerun. Paper 3 data is frozen.
+
+### Dual-role narrative decision (2026-04-14)
+
+Paper 3 adopts the dual-role narrative: memory writes serve BOTH rationalization substrate (carrying the PA ratchet that inflates LLM PA from 32% to 91% by Y13 under LEGACY) AND action-diversity substrate (sustaining non-default action choices). Blocking them (CLEAN) compresses ratchet phrase frequency from ~30% to ~1-5% but also collapses renter relocation from 36 instances to 1-2 and owner elevation from 34 to 8-12. LEGACY and CLEAN are presented side-by-side in Section 4 Results as two experimental conditions that illuminate different aspects of the framework, not as fix-vs-broken. See Section 9 of `paper3/analysis/gemma4_legacy_clean_comprehensive_report.md` for the full framing argument.
+
+### EXECUTED-ONLY rule (highest-priority analysis rule)
+
+See the standalone section "EXECUTED-ONLY rule (2026-04-14)" earlier in this file. Every headline number uses `approved_skill` / `final_skill` / `state_after`. Proposed-skill fields are reserved for one explicit robustness footnote (Section 5.5 of `gemma4_legacy_clean_comprehensive_report.md`) and nowhere else.
+
+### Analysis pipeline entry points
+
+- `paper3/analysis/PAPER3_POSITIONING.md` — 8-section contribution catalog (start here)
+- `paper3/analysis/INDEX.md` — navigation map for all 484 analysis files
+- `paper3/analysis/deep_synthesis/DEEP_SYNTHESIS_REPORT.md` — 10-section 6-arm narrative synthesis
+- `paper3/analysis/deep_synthesis/rq_deep/rq{1,2,3}_*_report.md` — three RQ-specific deep-analysis reports
 
 ### Cross-model verdict table (seed_42, Gemma 3 vs Gemma 4 post-fix)
 
@@ -232,7 +246,7 @@ Reference: `.ai/pa_prompt_calibration_plan.md`, `paper3/analysis/pa_prompt_calib
 
 **Discussion material**: CP reversal persists in G4 (not G3 artifact — updated 2026-04-10); MG amplification in G4; deliberative override attenuation as model-capability effect; LLM PA vs survey PA divergence as a methodology contribution; framework implication that construct grounding should prefer calibrated inputs over LLM re-derivation when possible.
 
-### TODO Status (updated 2026-04-10 — Gemma 4 pivot)
+### TODO Status (updated 2026-04-17 — preliminary results complete)
 - [x] Extract Traditional ABM results
 - [x] RQ2 ablation on Gemma 3 (Ablation B: fixed subsidy=50%, CRS=0%)
 - [x] Run Gemma 3 3 seeds (42, 123, 456) — kept for cross-model comparison only
@@ -241,15 +255,17 @@ Reference: `.ai/pa_prompt_calibration_plan.md`, `paper3/analysis/pa_prompt_calib
 - [x] Broker think flag bug fix (`fc6c599`) + PA prompt criteria (`145198c`) + runner exception isolation (`ac7faea`)
 - [x] PA prompt 8-variant calibration (concluded: not prompt-fixable, structural G4 limit)
 - [x] Gemma 4 seed_42 Full (re-run with think=false)
-- [ ] **Gemma 4 pivot batch** (5 runs, `run_gemma4_ma_pivot_full.bat`, ~85 hr — user starts in CMD)
-- [ ] Re-run Phase 3 analysis scripts on G4 data (Codex task — pending batch complete)
-- [ ] Cross-model summary `gemma3_vs_gemma4_full_pivot.md` (Codex)
+- [x] **Gemma 4 pivot batch** — all 6 arms complete 2026-04-16 (LEGACY Full 42, CLEAN Full 42/123, CLEAN Flat 42/123/456; CLEAN Full 456 interrupted and cleaned, not rerun)
+- [x] Re-run Phase 1 + Phase 2 + RQ-deep analysis scripts on G4 data (commits `14b55a6`, `9fd89ba`, `4b595f3`, `5609508`, `d28ac74`)
+- [x] Dual-role narrative framing decision (commit `14f705f`, 2026-04-14)
+- [x] EXECUTED-ONLY rule propagated across CLAUDE.local.md + memory + Codex briefs (commit `14f705f`)
+- [x] RQ3 Step 1 renter construct validity parser fix (integrated_prose fallback; 2026-04-17)
+- [x] Paper 3 positioning document `PAPER3_POSITIONING.md` + `INDEX.md` (Codex, 2026-04-17)
 - [ ] Reconcile MG definition in Methods (LLM=individual, Traditional=tract-level)
-- [ ] Rewrite Section 4.3 RQ2 on G4 (proposed vs executed + equity channel)
-- [ ] Rewrite Section 4.4 RQ3 on G4 (5-step with survey-grounded PA; G3 vs G4 contrast; new LLM-vs-survey PA finding)
-- [ ] Rewrite Section 4.5 Cross-Seed Robustness on G4
-- [ ] Regenerate 8 figures on G4 data
-- [ ] Rewrite Discussion + Conclusions (cross-model robustness section)
+- [ ] Draft Section 4 Results (unblocked; data + positioning doc ready)
+- [ ] Regenerate 6 figures from `deep_synthesis/figures/*.csv` (matplotlib)
+- [ ] Prof Yang review of preliminary results before Section 4 drafting
+- [ ] Rewrite Discussion + Conclusions drawing on dual-role framework contribution
 
 ---
 
