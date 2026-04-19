@@ -50,6 +50,23 @@ class MemoryEngine(ABC):
         """
         pass
 
+    def retrieve_content_only(
+        self,
+        agent: BaseAgent,
+        query: Optional[str] = None,
+        top_k: int = 3,
+        **kwargs,
+    ) -> List[str]:
+        """Compatibility helper that extracts plain text from retrieve() results."""
+        memories = self.retrieve(agent, query=query, top_k=top_k, **kwargs)
+        result = []
+        for memory in memories:
+            if isinstance(memory, dict):
+                result.append(str(memory.get("content", "")))
+            else:
+                result.append(str(memory))
+        return result
+
     @abstractmethod
     def clear(self, agent_id: str):
         """Reset memory for an agent."""
@@ -105,7 +122,7 @@ class MemoryEngine(ABC):
             List of (memory_content, MemoryScore) tuples, sorted by score descending.
             MemoryScore is None if no scorer is configured.
         """
-        memories = self.retrieve(agent, query=query, top_k=top_k * 2, **kwargs)
+        memories = self.retrieve_content_only(agent, query=query, top_k=top_k * 2, **kwargs)
 
         if not self._scorer:
             return [(m, None) for m in memories[:top_k]]

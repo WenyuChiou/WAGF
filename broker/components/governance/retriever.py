@@ -111,7 +111,10 @@ class SkillRetriever:
                 keywords[str(k).lower()] = keywords.get(str(k).lower(), 0) + 0.5
                 keywords[str(v).lower()] = keywords.get(str(v).lower(), 0) + 0.5
         elif isinstance(memory, list):
-            mems_to_process = memory
+            mems_to_process = [
+                m.get("content", str(m)) if isinstance(m, dict) else m
+                for m in memory
+            ]
 
         if mems_to_process:
             mem_text = " ".join(map(str, mems_to_process)).lower()
