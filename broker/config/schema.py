@@ -1,10 +1,23 @@
 ﻿from __future__ import annotations
 
+import warnings
 from pathlib import Path
 from typing import Dict, List, Optional, Literal, Any
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+# Silence the pydantic shadowing warning for the ``construct`` field on
+# RuleCondition / GovernanceRule. "construct" is a domain term (cognitive
+# constructs like TP / WSA / SC) used in 3000+ YAML condition rows;
+# renaming would break all consumers. The field shadows the deprecated
+# pydantic BaseModel.construct() classmethod (replaced by model_construct
+# in pydantic 2), so keeping the field name carries no functional risk.
+warnings.filterwarnings(
+    "ignore",
+    message=r'Field name "construct" in "(RuleCondition|GovernanceRule)"',
+    category=UserWarning,
+)
 
 
 class MemoryConfig(BaseModel):
@@ -144,7 +157,14 @@ class RuleCondition(BaseModel):
     Single condition in a multi-condition governance rule.
 
     Task-041 Phase 3: Supports construct ratings and variable comparisons.
+
+    The ``construct`` field shadows pydantic's ``BaseModel.construct()`` classmethod.
+    We silence the shadow warning with ``protected_namespaces=()`` because
+    "construct" is a domain term (a cognitive construct like TP / WSA) used
+    pervasively in YAML configs and renaming would break 3000+ consumer sites.
     """
+    model_config = ConfigDict(extra="allow", protected_namespaces=())
+
     construct: Optional[str] = Field(
         default=None,
         description="Construct to check (e.g., TP_LABEL, WSA_LABEL, BUDGET_UTIL)"
@@ -166,15 +186,18 @@ class RuleCondition(BaseModel):
         description="Single value for comparison operators (==, <, >, etc.)"
     )
 
-    model_config = ConfigDict(extra="allow")
-
 
 class GovernanceRule(BaseModel):
     """
     Enhanced governance rule with multi-condition support.
 
     Task-041 Phase 3: Supports both legacy single-construct and new multi-condition rules.
+
+    Uses ``protected_namespaces=()`` for the same reason as ``RuleCondition``:
+    the ``construct`` field is a domain term used pervasively in YAML configs.
     """
+    model_config = ConfigDict(extra="allow", protected_namespaces=())
+
     id: str
     category: Optional[str] = Field(
         default="thinking",
@@ -193,8 +216,6 @@ class GovernanceRule(BaseModel):
     message: Optional[str] = None
     # Task-041: Add framework field for multi-framework support
     framework: Optional[Literal["pmt", "utility", "financial", "generic", "cognitive_appraisal"]] = None
-
-    model_config = ConfigDict(extra="allow")
 
 
 class GovernanceProfile(BaseModel):

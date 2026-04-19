@@ -13,6 +13,26 @@ MCP Role (if used):
 - MCP is ONLY for execution substrate (tool access, sandbox, logging)
 - MCP does NOT participate in governance or decision-making
 - MCP is NOT exposed to LLM agents
+
+Validator pipeline (maps 1:1 to Nature Water Methods v4 six-step sequence):
+  1. Schema validation          — AgentValidator schema check + registry schema
+  2. Action legality            — AgentValidator + governance/type_validator
+  3. Physical feasibility       — domain bundle (water/validator_bundles)
+  4. Institutional compliance   — institutional/social/economic validators
+                                  (grouped under one Methods step, three code labels)
+  5. Magnitude plausibility     — numeric bounds, ADVISORY ONLY (execution resamples)
+  6. Theory consistency         — thinking_validator + PMT/WSA-ACA built-ins
+
+Retry termination (implemented in _retry_loop.py):
+- Up to 3 revision attempts per proposal.
+- Early exit when the SAME deterministic rule set blocks consecutive retries.
+- On termination, registry default skill executes (maintain_demand for irrigation,
+  do_nothing for flood), ensuring simulation advances.
+
+Steps 1-4 and 6 are BINDING (rejection on failure). Step 5 is ADVISORY —
+out-of-range magnitudes are corrected at execution time via bounded Gaussian
+resampling rather than rejected. The audit trail records advisory flags
+alongside binding rejections so reviewers can distinguish the two.
 """
 from typing import Callable, Dict, List, Optional, Any
 from datetime import datetime
