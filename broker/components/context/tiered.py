@@ -96,6 +96,15 @@ class BaseAgentContextBuilder(ContextBuilder):
     @staticmethod
     def _format_memory(memory_val) -> str:
         """Format memory (list, dict with episodic/semantic/core, or scalar) into a prompt string."""
+        def format_memory_item(memory_item) -> str:
+            if isinstance(memory_item, dict):
+                content = str(memory_item.get("content", "")).strip()
+                emotion = str(memory_item.get("emotion", "routine")).upper()
+                if content:
+                    return f"- [{emotion}] {content}"
+                return f"- [{emotion}]"
+            return f"- {memory_item}"
+
         if isinstance(memory_val, dict) and "episodic" in memory_val:
             lines = []
             core = memory_val.get("core", {})
@@ -105,13 +114,24 @@ class BaseAgentContextBuilder(ContextBuilder):
                 lines.append("CORE: " + " ".join(f"{k}={v}" for k, v in core.items()))
             if semantic:
                 lines.append("HISTORIC:")
-                lines.extend(f"  - {m}" for m in semantic)
+                lines.extend(f"  {format_memory_item(m)}" for m in semantic)
             if episodic:
                 lines.append("RECENT:")
-                lines.extend(f"  - {m}" for m in episodic)
+                lines.extend(f"  {format_memory_item(m)}" for m in episodic)
             return "\n".join(lines) if lines else "No memories yet."
         elif isinstance(memory_val, list):
-            return "\n".join(f"- {m}" for m in memory_val) if memory_val else "No memories yet."
+            if not memory_val:
+                return "No memories yet."
+            ordered = sorted(
+                memory_val,
+                key=lambda item: (
+                    item.get("final_score", item.get("importance", 0.0)) if isinstance(item, dict) else 0.0,
+                    item.get("importance", 0.0) if isinstance(item, dict) else 0.0,
+                    item.get("timestamp", 0) if isinstance(item, dict) else 0,
+                ),
+                reverse=True,
+            )
+            return "\n".join(format_memory_item(m) for m in ordered)
         elif memory_val:
             return str(memory_val)
         return "No memories yet."

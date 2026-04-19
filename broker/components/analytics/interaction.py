@@ -324,6 +324,9 @@ class InteractionHub:
         """
         gossip = []
 
+        def memory_content(item):
+            return item.get("content", str(item)) if isinstance(item, dict) else str(item)
+
         # Gossip from memory engine
         if self.memory_engine:
             neighbor_ids = self.graph.get_neighbors(agent_id)
@@ -353,7 +356,7 @@ class InteractionHub:
                         mems_list = neighbor_mems
 
                     if mems_list:
-                        gossip.append(f"Neighbor {nid} mentioned: '{mems_list[0]}'")
+                        gossip.append(f"Neighbor {nid} mentioned: '{memory_content(mems_list[0])}'")
 
         # Visible neighbor actions (observational learning)
         visible_actions = self.get_visible_neighbor_actions(agent_id, agents)

@@ -50,6 +50,30 @@ PAST_EVENTS = [
     "News outlets have reported a possible trend of increasing flood frequency and severity in recent years"
 ]
 
+
+def _memory_texts(items: List[Any]) -> List[str]:
+    texts = []
+    for item in items or []:
+        if isinstance(item, dict):
+            texts.append(str(item.get("content", "")))
+        else:
+            texts.append(str(item))
+    return texts
+
+
+def _flood_memory_metadata(*, flood_event: bool = False, action_name: Optional[str] = None, reflection: bool = False) -> Dict[str, Any]:
+    if reflection:
+        return {"emotion": "major", "importance": 0.7, "source": "personal"}
+    if flood_event:
+        return {"emotion": "critical", "importance": 0.9, "source": "personal"}
+    if action_name in {"elevate_house", "relocate"}:
+        return {"emotion": "major", "importance": 0.7, "source": "personal"}
+    if action_name == "buy_insurance":
+        return {"emotion": "positive", "importance": 0.6, "source": "personal"}
+    if action_name:
+        return {"emotion": "routine", "importance": 0.1, "source": "personal"}
+    return {"emotion": "routine", "importance": 0.1, "source": "personal"}
+
 # Schema Definition for Group C (Pillar 3)
 # DEPRECATED: Now moved to agent_types.yaml for user configuration
 # FLOOD_PRIORITY_SCHEMA = { ... }
@@ -387,7 +411,11 @@ class FinalParityHook:
 
             # Consolidate and Add ONCE to preserve window history
             consolidated_mem = " | ".join(yearly_memories)
-            self.runner.memory_engine.add_memory(agent.id, consolidated_mem)
+            self.runner.memory_engine.add_memory(
+                agent.id,
+                consolidated_mem,
+                _flood_memory_metadata(flood_event=flood_event),
+            )
 
     def post_step(self, agent, result):
         year = self.sim.current_year
@@ -465,8 +493,10 @@ class FinalParityHook:
                 agent.trust_in_neighbors = max(0.0, min(1.0, trust_nb))
 
             # Retrieve memory for logging (Parity)
-            mem_items = self.runner.memory_engine.retrieve(agent, top_k=5)
-            # Memory engine returns list of strings. Join with | for CSV parity.
+            if hasattr(self.runner.memory_engine, "retrieve_content_only"):
+                mem_items = self.runner.memory_engine.retrieve_content_only(agent, top_k=5)
+            else:
+                mem_items = _memory_texts(self.runner.memory_engine.retrieve(agent, top_k=5))
             mem_str = " | ".join(mem_items)
             
             # Note: Reflection is now handled in BATCH mode after the agent loop.
@@ -547,7 +577,10 @@ class FinalParityHook:
                 if hasattr(mem_engine, 'retrieve_stratified'):
                     memories = mem_engine.retrieve_stratified(agent_id, total_k=10)
                 else:
-                    memories = mem_engine.retrieve(agent, top_k=10)
+                    if hasattr(mem_engine, "retrieve_content_only"):
+                        memories = mem_engine.retrieve_content_only(agent, top_k=10)
+                    else:
+                        memories = _memory_texts(mem_engine.retrieve(agent, top_k=10))
                 if memories:
                     ctx = self.reflection_engine.extract_agent_context(agent, year)
                     candidates.append({"agent_id": agent_id, "memories": memories, "context": ctx})
@@ -583,7 +616,11 @@ class FinalParityHook:
                                 self.runner.memory_engine.add_memory(
                                     agent_id,
                                     f"Consolidated Reflection: {insight.summary}",
-                                    {"significance": insight.importance, "emotion": "major", "source": "personal", "type": "reflection"}
+                                    {
+                                        **_flood_memory_metadata(reflection=True),
+                                        "importance": insight.importance,
+                                        "type": "reflection",
+                                    }
                                 )
                     except Exception as e:
                         print(f" [Reflection:Batch:Error] Batch {i//batch_size+1} failed: {e}")

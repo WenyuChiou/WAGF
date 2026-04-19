@@ -382,7 +382,20 @@ class HumanCentricMemoryEngine(MemoryEngine):
                 overflow = len(sorted_lt) - self._max_longterm
                 self.longterm[agent_id] = sorted_lt[overflow:]
     
-    def retrieve(self, agent: BaseAgent, query: Optional[str] = None, top_k: int = 5, contextual_boosters: Optional[Dict[str, float]] = None, **kwargs) -> List[str]:
+    @staticmethod
+    def _memory_payload(memory: Dict[str, Any], final_score: Optional[float] = None) -> Dict[str, Any]:
+        payload = {
+            "content": memory.get("content", ""),
+            "emotion": memory.get("emotion", "routine"),
+            "importance": memory.get("importance", 0.1),
+            "source": memory.get("source", "abstract"),
+            "timestamp": memory.get("timestamp", 0),
+        }
+        if final_score is not None:
+            payload["final_score"] = final_score
+        return payload
+
+    def retrieve(self, agent: BaseAgent, query: Optional[str] = None, top_k: int = 5, contextual_boosters: Optional[Dict[str, float]] = None, **kwargs) -> List[Dict[str, Any]]:
         """Retrieve memories using dual mode: Legacy (v1) or Weighted (v2)."""
         
         if agent.id not in self.working:
@@ -429,13 +442,16 @@ class HumanCentricMemoryEngine(MemoryEngine):
              )
              
              significant = []
+             seen_significant = set()
              for m in top_significant:
-                 if m["content"] not in recent_texts and m["content"] not in significant:
-                     significant.append(m["content"])
+                 if m["content"] not in recent_texts and m["content"] not in seen_significant:
+                     significant.append(self._memory_payload(m, round(float(m.get("decayed_importance", m.get("importance", 0.0))), 4)))
+                     seen_significant.add(m["content"])
                  if len(significant) >= self.top_k_significant:
                      break
-            
-             return significant + recent_texts
+
+             recent_payload = [self._memory_payload(m) for m in recent]
+             return significant + recent_payload
 
         # --- MODE 2: WEIGHTED (v2 Model for Stress Test) ---
         else:
@@ -492,10 +508,10 @@ class HumanCentricMemoryEngine(MemoryEngine):
                 )
                 logger.debug(f"  Final Score: {final_score:.2f}")
 
-                scored_memories.append((mem["content"], final_score))
+                scored_memories.append((mem, final_score))
             
             top_k_memories = heapq.nlargest(top_k, scored_memories, key=lambda x: x[1])
-            return [content for content, score in top_k_memories]
+            return [self._memory_payload(mem, round(float(score), 4)) for mem, score in top_k_memories]
 
     def retrieve_stratified(
         self,
