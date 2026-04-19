@@ -124,7 +124,8 @@ class FinalContextBuilder(TieredContextBuilder):
             
         context = super().build(agent_id, **kwargs)
         personal = context.get('personal', {})
-        personal['memory'] = personal_memory # Override the default top_k=3 from hub
+        context['memory'] = personal_memory
+        personal['memory'] = personal_memory
         
         # 2. Extract state for verbalization
         # 2. Extract state for verbalization - USE LIVE AGENT STATE for parity
@@ -161,23 +162,6 @@ class FinalContextBuilder(TieredContextBuilder):
         if elevated:
             all_skills = [s for s in all_skills if s != "elevate_house"]
         context['available_skills'] = all_skills
-        mem_val = personal.get('memory', [])
-        if isinstance(mem_val, dict):
-            # Flatten tiered memory for prompt
-            lines = []
-            if mem_val.get("core"):
-                core_str = " ".join([f"{k}={v}" for k, v in mem_val["core"].items()])
-                lines.append(f"CORE: {core_str}")
-            if mem_val.get("semantic"):
-                lines.append("HISTORIC:")
-                lines.extend([f"  - {m}" for m in mem_val["semantic"]])
-            if mem_val.get("episodic"):
-                lines.append("RECENT:")
-                lines.extend([f"  - {m}" for m in mem_val["episodic"]])
-            personal['memory'] = "\n".join(lines) if lines else "No memory available"
-        elif isinstance(mem_val, list):
-            personal['memory'] = "\n".join([f"- {m}" for m in mem_val])
-        
         # 5. Options Text Formatting (with anti-positional-bias shuffle, Task-060B)
         options = [
             ("buy_insurance", "Buy flood insurance (Lower cost, provides partial financial protection but does not reduce physical damage.)"),
