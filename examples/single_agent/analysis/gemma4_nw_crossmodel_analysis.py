@@ -33,6 +33,7 @@ MODELS = [
     "gemma3_27b",
     "gemma4_e2b",
     "gemma4_e4b",
+    "gemma4_26b",
 ]
 MODEL_LABELS = {
     "gemma3_4b": "Gemma 3 4B",
@@ -43,6 +44,7 @@ MODEL_LABELS = {
     "ministral3_14b": "Ministral 3 14B",
     "gemma4_e2b": "Gemma 4 e2b",
     "gemma4_e4b": "Gemma 4 e4b",
+    "gemma4_26b": "Gemma 4 26B",
 }
 CONDITIONS = {
     "governed": ("JOH_FINAL", "Group_C"),

@@ -12,6 +12,8 @@ Generated from `household_governance_audit.csv` pooled across `Run_1` to `Run_5`
 | Gemma 3 27B | governed | 4989 | 0.0% | 0.675 | 53.2% | 9.3% | 0.2% | 37.3% | 0.0% | 34.7% | 46.1% | 14.4% | 4.8% | 0.0% | 0.5% |
 | Gemma 3 4B | disabled | 4662 | 8.2% | 0.736 | 47.4% | 10.2% | 1.6% | 40.8% | 4.6% | 12.7% | 47.1% | 30.9% | 4.7% | 0.0% | 0.0% |
 | Gemma 3 4B | governed | 4468 | 0.9% | 0.756 | 52.2% | 10.6% | 2.9% | 34.2% | 4.7% | 13.9% | 48.9% | 28.2% | 4.2% | 1.1% | 8.3% |
+| Gemma 4 26B | disabled | 4982 | 2.3% | 0.463 | 10.7% | 9.2% | 0.1% | 80.0% | 6.6% | 58.0% | 15.0% | 10.7% | 9.7% | 0.0% | 0.0% |
+| Gemma 4 26B | governed | 4982 | 0.0% | 0.497 | 13.1% | 9.2% | 0.1% | 77.6% | 6.7% | 58.7% | 14.4% | 10.5% | 9.7% | 0.0% | 2.2% |
 | Gemma 4 e2b | disabled | 4646 | 0.1% | 0.601 | 72.4% | 10.4% | 2.0% | 15.2% | 0.0% | 17.3% | 66.3% | 16.4% | 0.0% | 0.0% | 0.0% |
 | Gemma 4 e2b | governed | 4629 | 0.0% | 0.613 | 71.7% | 10.4% | 2.3% | 15.7% | 0.1% | 17.1% | 66.2% | 16.5% | 0.0% | 0.0% | 0.1% |
 | Gemma 4 e4b | disabled | 3943 | 5.2% | 0.479 | 79.7% | 9.7% | 0.5% | 10.1% | 0.0% | 1.5% | 14.6% | 72.6% | 11.4% | 0.0% | 0.0% |
@@ -35,6 +37,7 @@ Notes:
 | Gemma 3 12B | 0.0% | 0.0% | 0.0% | 0.427 | 0.467 | 0.040 | 1.0000 |
 | Gemma 3 27B | 0.0% | 0.4% | 0.4% | 0.674 | 0.644 | -0.030 | 0.0075 |
 | Gemma 3 4B | 0.9% | 8.2% | 7.3% | 0.749 | 0.728 | -0.021 | 0.0079 |
+| Gemma 4 26B | 0.0% | 2.3% | 2.3% | 0.496 | 0.462 | -0.034 | 0.0075 |
 | Gemma 4 e2b | 0.0% | 0.1% | 0.1% | 0.612 | 0.601 | -0.012 | 0.0720 |
 | Gemma 4 e4b | 0.0% | 5.3% | 5.3% | 0.355 | 0.477 | 0.123 | 0.0108 |
 | Ministral 3 14B | 0.0% | 1.1% | 1.1% | 0.694 | 0.747 | 0.053 | 0.0075 |
@@ -90,7 +93,7 @@ python examples/single_agent/analysis/model_conservatism_report.py --results-dir
 Output:
 
 ```text
-Found 79 experiment runs
+Found 89 experiment runs
 
 ====================================================================================================
 Model                Cond            N     CCA     CSI     ACI    ESRR  TP H+VH% Top Action         Warnings
@@ -101,6 +104,8 @@ gemma3_27b           disabled     4949   0.187   0.015   0.321   0.029     18.7%
 gemma3_27b           governed     4989   0.192  -0.038   0.292   0.024     19.2% buy_insurance      CCA=0.17: model severely under-reports threat; CCA=0.18: model severely under-reports threat
 gemma3_4b            disabled     4662   0.358  -0.130   0.272   0.014     35.6% buy_insurance      CCA=0.29: model severely under-reports threat; CCA=0.31: model under-reports threat
 gemma3_4b            governed     4468   0.325  -0.107   0.251   0.032     32.4% buy_insurance      CCA=0.30: model under-reports threat; CCA=0.31: model under-reports threat
+gemma4_26b           disabled     4982   0.205  -0.145   0.491   0.021     20.5% do_nothing         ACI=0.51: action over-concentration; ACI=0.52: action over-concentration
+gemma4_26b           governed     4982   0.202  -0.171   0.452   0.020     20.2% do_nothing         ACI=0.50: action over-concentration; ACI=0.52: action over-concentration
 gemma4_e2b           disabled     4646   0.164  -0.332   0.399   0.028     16.4% buy_insurance      CCA=0.16: model severely under-reports threat; CCA=0.17: model severely under-reports threat
 gemma4_e2b           governed     4629   0.166  -0.324   0.388   0.029     16.5% buy_insurance      CCA=0.15: model severely under-reports threat; CCA=0.16: model severely under-reports threat
 gemma4_e4b           disabled     3943   0.840  -0.038   0.523   0.006     84.0% buy_insurance      ACI=0.50: action over-concentration; ACI=0.54: action over-concentration
@@ -120,10 +125,12 @@ Metric Guide:
   ESRR = Extreme Scenario Response Rate [0-1]: strong actions in severe scenarios
 
 [stderr]
-C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\broker\config\schema.py:142: UserWarning: Field name "construct" in "RuleCondition" shadows an attribute in parent "BaseModel"
-  class RuleCondition(BaseModel):
-C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\broker\config\schema.py:172: UserWarning: Field name "construct" in "GovernanceRule" shadows an attribute in parent "BaseModel"
-  class GovernanceRule(BaseModel):
+[Config] Agent type configuration not found: C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\broker\utils\agent_types.yaml
+  Tip: Ensure the file exists and the path is correct.
+  Use: AgentTypeConfig.load('path/to/agent_types.yaml')
+[Config] Agent type configuration not found: C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\broker\utils\agent_types.yaml
+  Tip: Ensure the file exists and the path is correct.
+  Use: AgentTypeConfig.load('path/to/agent_types.yaml')
 ```
 
 ## Key Findings for NW Discussion
