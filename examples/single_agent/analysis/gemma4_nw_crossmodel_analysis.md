@@ -16,7 +16,7 @@ Generated from `household_governance_audit.csv` pooled across `Run_1` to `Run_5`
 | Gemma 4 26B | governed | 4982 | 0.0% | 0.497 | 13.1% | 9.2% | 0.1% | 77.6% | 6.7% | 58.7% | 14.4% | 10.5% | 9.7% | 0.0% | 2.2% |
 | Gemma 4 e2b | disabled | 4646 | 0.1% | 0.601 | 72.4% | 10.4% | 2.0% | 15.2% | 0.0% | 17.3% | 66.3% | 16.4% | 0.0% | 0.0% | 0.0% |
 | Gemma 4 e2b | governed | 4629 | 0.0% | 0.613 | 71.7% | 10.4% | 2.3% | 15.7% | 0.1% | 17.1% | 66.2% | 16.5% | 0.0% | 0.0% | 0.1% |
-| Gemma 4 e4b | disabled | 3943 | 5.2% | 0.479 | 79.7% | 9.7% | 0.5% | 10.1% | 0.0% | 1.5% | 14.6% | 72.6% | 11.4% | 0.0% | 0.0% |
+| Gemma 4 e4b | disabled | 4920 | 5.5% | 0.512 | 77.4% | 9.8% | 0.4% | 12.4% | 0.0% | 1.7% | 18.8% | 70.4% | 9.2% | 0.0% | 0.0% |
 | Gemma 4 e4b | governed | 4924 | 0.0% | 0.356 | 86.3% | 9.7% | 0.4% | 3.6% | 0.0% | 1.4% | 14.8% | 73.1% | 10.8% | 0.0% | 4.7% |
 | Ministral 3 14B | disabled | 4345 | 1.1% | 0.748 | 60.4% | 13.5% | 4.0% | 22.1% | 7.8% | 24.8% | 44.3% | 21.5% | 1.7% | 0.0% | 0.0% |
 | Ministral 3 14B | governed | 4634 | 0.0% | 0.695 | 62.1% | 10.2% | 2.3% | 25.4% | 11.2% | 28.0% | 41.3% | 18.0% | 1.5% | 0.0% | 5.3% |
@@ -39,7 +39,7 @@ Notes:
 | Gemma 3 4B | 0.9% | 8.2% | 7.3% | 0.749 | 0.728 | -0.021 | 0.0079 |
 | Gemma 4 26B | 0.0% | 2.3% | 2.3% | 0.496 | 0.462 | -0.034 | 0.0075 |
 | Gemma 4 e2b | 0.0% | 0.1% | 0.1% | 0.612 | 0.601 | -0.012 | 0.0720 |
-| Gemma 4 e4b | 0.0% | 5.3% | 5.3% | 0.355 | 0.477 | 0.123 | 0.0108 |
+| Gemma 4 e4b | 0.0% | 5.5% | 5.5% | 0.355 | 0.504 | 0.149 | 0.0075 |
 | Ministral 3 14B | 0.0% | 1.1% | 1.1% | 0.694 | 0.747 | 0.053 | 0.0075 |
 | Ministral 3 3B | 0.1% | 2.4% | 2.4% | 0.698 | 0.763 | 0.065 | 0.0097 |
 | Ministral 3 8B | 0.0% | 1.6% | 1.6% | 0.632 | 0.679 | 0.047 | 0.0097 |
@@ -69,18 +69,18 @@ Interpretation: less high-threat inaction, more insurance uptake, a harsher TP p
 
 | Metric | Gemma 3 4B | Gemma 4 e4b | Difference (Gemma 4 - Gemma 3, pp) |
 |---|---:|---:|---:|
-| IBR | 8.2% | 5.2% | -3.0 |
-| Action `buy_insurance` | 47.4% | 79.7% | 32.3 |
-| Action `elevate_house` | 10.2% | 9.7% | -0.5 |
-| Action `relocate` | 1.6% | 0.5% | -1.2 |
-| Action `do_nothing` | 40.8% | 10.1% | -30.7 |
+| IBR | 8.2% | 5.5% | -2.7 |
+| Action `buy_insurance` | 47.4% | 77.4% | 30.0 |
+| Action `elevate_house` | 10.2% | 9.8% | -0.4 |
+| Action `relocate` | 1.6% | 0.4% | -1.2 |
+| Action `do_nothing` | 40.8% | 12.4% | -28.4 |
 | TP `VL` | 4.6% | 0.0% | -4.6 |
-| TP `L` | 12.7% | 1.5% | -11.2 |
-| TP `M` | 47.1% | 14.6% | -32.5 |
-| TP `H` | 30.9% | 72.6% | 41.7 |
-| TP `VH` | 4.7% | 11.4% | 6.6 |
+| TP `L` | 12.7% | 1.7% | -11.0 |
+| TP `M` | 47.1% | 18.8% | -28.3 |
+| TP `H` | 30.9% | 70.4% | 39.5 |
+| TP `VH` | 4.7% | 9.2% | 4.4 |
 
-Interpretation: less high-threat inaction, more insurance uptake, a harsher TP profile, conservatism diagnostics show CCA=0.840, ACI=0.523, ESRR=0.006.
+Interpretation: less high-threat inaction, more insurance uptake, a harsher TP profile, conservatism diagnostics show CCA=0.795, ACI=0.496, ESRR=0.005.
 
 ## Conservatism Analysis
 
@@ -93,7 +93,7 @@ python examples/single_agent/analysis/model_conservatism_report.py --results-dir
 Output:
 
 ```text
-Found 89 experiment runs
+Found 90 experiment runs
 
 ====================================================================================================
 Model                Cond            N     CCA     CSI     ACI    ESRR  TP H+VH% Top Action         Warnings
@@ -108,7 +108,7 @@ gemma4_26b           disabled     4982   0.205  -0.145   0.491   0.021     20.5%
 gemma4_26b           governed     4982   0.202  -0.171   0.452   0.020     20.2% do_nothing         ACI=0.50: action over-concentration; ACI=0.52: action over-concentration
 gemma4_e2b           disabled     4646   0.164  -0.332   0.399   0.028     16.4% buy_insurance      CCA=0.16: model severely under-reports threat; CCA=0.17: model severely under-reports threat
 gemma4_e2b           governed     4629   0.166  -0.324   0.388   0.029     16.5% buy_insurance      CCA=0.15: model severely under-reports threat; CCA=0.16: model severely under-reports threat
-gemma4_e4b           disabled     3943   0.840  -0.038   0.523   0.006     84.0% buy_insurance      ACI=0.50: action over-concentration; ACI=0.54: action over-concentration
+gemma4_e4b           disabled     4920   0.795  -0.079   0.496   0.005     79.5% buy_insurance      ACI=0.50: action over-concentration; ACI=0.54: action over-concentration
 gemma4_e4b           governed     4924   0.839  -0.048   0.645   0.004     83.9% buy_insurance      ACI=0.63: action over-concentration; ACI=0.65: action over-concentration
 ministral3_14b       disabled     4345   0.232  -0.043   0.253   0.091     23.2% buy_insurance      CCA=0.19: model severely under-reports threat; CCA=0.20: model severely under-reports threat
 ministral3_14b       governed     4634   0.195  -0.165   0.306   0.032     19.4% buy_insurance      CCA=0.19: model severely under-reports threat; CCA=0.20: model severely under-reports threat
@@ -136,7 +136,7 @@ Metric Guide:
 ## Key Findings for NW Discussion
 
 - Gemma 4 e2b keeps a governance effect: pooled IBR falls from 0.1% to 0.0% (per-seed dIBR=0.1%, p=0.0720).
-- Gemma 4 e4b keeps a governance effect: pooled IBR falls from 5.2% to 0.0% (per-seed dIBR=5.3%, p=0.0108).
-- Behavioral diversity remains high for Gemma 4: governed/disabled EHE is 0.613/0.601 for Gemma 4 e2b and 0.356/0.479 for Gemma 4 e4b.
+- Gemma 4 e4b keeps a governance effect: pooled IBR falls from 5.5% to 0.0% (per-seed dIBR=5.5%, p=0.0075).
+- Behavioral diversity remains high for Gemma 4: governed/disabled EHE is 0.613/0.601 for Gemma 4 e2b and 0.356/0.512 for Gemma 4 e4b.
 - Against Gemma 3 4B, governed Gemma 4 e4b reduces `do_nothing` by -30.7 pp and shifts behavior toward insurance/elevation, lowering pooled IBR by -0.9 pp.
 - Conservatism diagnostics suggest Gemma 4 governed variants are not simply frozen into `do_nothing`: Gemma 4 e2b has ACI=0.388 and ESRR=0.029, while Gemma 4 e4b has ACI=0.645 and ESRR=0.004.
