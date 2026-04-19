@@ -105,10 +105,24 @@ def test_context_builder_injects_salience_markers():
 
     prompt = builder.format_prompt(context)
 
-    assert "[CRITICAL] flood damage" in prompt
-    assert "[POSITIVE] bought insurance" in prompt
-    assert "[ROUTINE] no flood this year" in prompt
-    assert prompt.index("[CRITICAL]") < prompt.index("[POSITIVE]") < prompt.index("[ROUTINE]")
+    # Prompt must match V1 bare-bullet format (no [TAG] markers).
+    # Rationale (2026-04-19): explicit salience tags drove Gemma-3 4B
+    # Y1 elevate rate 25→70% with identical memory content — small LLMs
+    # over-weight prompt-structure cues. Salience is preserved via
+    # retrieval ORDERING (highest importance first), not text tags.
+    assert "flood damage" in prompt
+    assert "bought insurance" in prompt
+    assert "no flood this year" in prompt
+    # No bracket markers leak into prompt
+    assert "[CRITICAL]" not in prompt
+    assert "[POSITIVE]" not in prompt
+    assert "[ROUTINE]" not in prompt
+    # Salience preserved via ORDERING (critical first, routine last)
+    assert (
+        prompt.index("flood damage")
+        < prompt.index("bought insurance")
+        < prompt.index("no flood this year")
+    )
 
 
 def test_audit_reads_real_emotion_from_memory_dict():
