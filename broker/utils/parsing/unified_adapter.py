@@ -91,6 +91,78 @@ class UnifiedAdapter(ModelAdapter):
             return get_preprocessor(p_cfg)
         return self._preprocessor
 
+    def _get_authoritative_alias_map(self, agent_type: str, parsing_cfg: Dict[str, Any]) -> Dict[str, str]:
+        """
+        Build an exact alias map from YAML-declared actions.
+
+        Some alias agent types (for example, ``government`` and ``insurance`` in the
+        flood config) declare themselves as aliases for a base type in their
+        description while omitting a subset of the base type's action aliases.
+        For parser exact-match resolution, the YAML declaration is authoritative, so
+        we merge the local actions with any aliased base agent actions before
+        falling back to fuzzy matching.
+        """
+        authoritative_aliases: Dict[str, str] = {}
+        canonical_aliases: Dict[str, str] = {}
+
+        def add_actions(actions: List[Dict[str, Any]]) -> None:
+            for action in actions or []:
+                canonical = action.get("id")
+                if not canonical:
+                    continue
+                for raw_alias in action.get("aliases", []):
+                    alias = str(raw_alias).strip().lower()
+                    if not alias:
+                        continue
+                    authoritative_aliases[alias] = canonical
+                canonical_key = str(canonical).strip().lower()
+                if canonical_key:
+                    canonical_aliases.setdefault(canonical_key, canonical)
+
+        add_actions(parsing_cfg.get("actions", []))
+
+        agent_cfg = self.agent_config.get(agent_type) or {}
+        description = str(agent_cfg.get("description", ""))
+        alias_match = re.search(r"alias for ([a-zA-Z0-9_]+)", description, re.IGNORECASE)
+        if alias_match:
+            base_agent_type = alias_match.group(1)
+            base_parsing_cfg = self.agent_config.get_parsing_config(base_agent_type) or {}
+            add_actions(base_parsing_cfg.get("actions", []))
+
+        return {**canonical_aliases, **authoritative_aliases}
+
+    def _resolve_exact_text_decision(
+        self,
+        decision_val: str,
+        agent_type: str,
+        parsing_cfg: Dict[str, Any],
+        alias_map: Dict[str, str],
+    ) -> Optional[str]:
+        """Resolve an exact text decision before attempting substring-based matching."""
+        if not isinstance(decision_val, str):
+            return None
+
+        decision_clean = decision_val.strip().lower()
+        if not decision_clean:
+            return None
+
+        authoritative_alias_map = self._get_authoritative_alias_map(agent_type, parsing_cfg)
+        lookup_keys = [
+            decision_clean,
+            decision_clean.replace("-", "_").replace(" ", "_"),
+            decision_clean.replace("-", " ").replace("_", " "),
+        ]
+
+        for key in lookup_keys:
+            if key in authoritative_alias_map:
+                return authoritative_alias_map[key]
+
+        for key in lookup_keys:
+            if key in alias_map:
+                return alias_map[key]
+
+        return None
+
     def parse_output(self, raw_output: str, context: Dict[str, Any]) -> Optional[SkillProposal]:
         """
         Parse LLM output into SkillProposal.
@@ -236,6 +308,13 @@ class UnifiedAdapter(ModelAdapter):
                             if digit_match and digit_match.group(1) in skill_map:
                                 skill_name = skill_map[digit_match.group(1)]
                             else:
+                                skill_name = self._resolve_exact_text_decision(
+                                    decision_val,
+                                    agent_type,
+                                    parsing_cfg,
+                                    alias_map,
+                                )
+                            if not skill_name:
                                 # Search for skill names in string (Fuzzy match)
                                 decision_norm = decision_val.lower().replace("_", " ").replace("-", " ")
                                 for skill in valid_skills:

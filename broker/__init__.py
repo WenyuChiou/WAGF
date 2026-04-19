@@ -52,3 +52,14 @@ import broker.domains  # noqa: F401, E402
 # Backward-compat aliases
 GovernedBroker = SkillBrokerEngine
 AuditWriter = GenericAuditWriter
+
+__all__ = [
+    "ExperimentBuilder",
+    "HumanCentricMemoryEngine",
+    "InteractionHub",
+    "MemoryEngine",
+    "TieredContextBuilder",
+    "WindowMemoryEngine",
+    "create_social_graph",
+    "load_agents_from_csv",
+]
