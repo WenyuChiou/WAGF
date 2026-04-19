@@ -38,11 +38,14 @@ RUNS = [f'Run_{i}' for i in range(1, 6)]  # Run_1..Run_5; missing runs skipped a
 
 # Models sorted by parameter count
 MODEL_CONFIG = [
+    ('gemma4_e2b',     'Gemma-4 e2b',   'Gemma-4'),
     ('ministral3_3b',  'Ministral 3B',  'Ministral'),
     ('gemma3_4b',      'Gemma-3 4B',    'Gemma-3'),
+    ('gemma4_e4b',     'Gemma-4 e4b',   'Gemma-4'),
     ('ministral3_8b',  'Ministral 8B',  'Ministral'),
     ('gemma3_12b',     'Gemma-3 12B',   'Gemma-3'),
     ('ministral3_14b', 'Ministral 14B', 'Ministral'),
+    ('gemma4_26b',     'Gemma-4 26B',   'Gemma-4'),
     ('gemma3_27b',     'Gemma-3 27B',   'Gemma-3'),
 ]
 
@@ -243,8 +246,8 @@ def main():
     fig, ax = plt.subplots(figsize=(4.5, 3.8))
 
     # Marker styles per family
-    FAMILY_MARKER = {'Gemma-3': 'o', 'Ministral': 's'}
-    FAMILY_SIZE = {'Gemma-3': 55, 'Ministral': 55}
+    FAMILY_MARKER = {'Gemma-3': 'o', 'Ministral': 's', 'Gemma-4': '^'}
+    FAMILY_SIZE = {'Gemma-3': 55, 'Ministral': 55, 'Gemma-4': 60}
 
     # Draw arrows: no-validator → governed (orange → blue)
     for i in range(n):
@@ -268,7 +271,10 @@ def main():
                    marker=mk, edgecolors='white', linewidths=0.6, zorder=3)
 
     # Model labels (offset from governed point)
-    PARAM_LABELS = ['3B', '4B', '8B', '12B', '14B', '27B']
+    # Match MODEL_CONFIG order. Labels must align 1:1 with the filtered result list.
+    PARAM_LABELS = [label for _, label, _ in MODEL_CONFIG]
+    # Use short size tag if label is long
+    PARAM_LABELS = [lbl.split()[-1] if len(lbl) < 14 else lbl for lbl in PARAM_LABELS]
     for i in range(n):
         ax.annotate(PARAM_LABELS[i], (gov_ibr[i], gov_ehe[i]),
                     textcoords='offset points', xytext=(6, -2),
@@ -296,6 +302,8 @@ def main():
                linewidths=0.6, label='LLM (no validator)')
     ax.scatter([], [], c='#888888', s=40, marker='o', edgecolors='white',
                linewidths=0.6, label='Gemma-3 (flood)')
+    ax.scatter([], [], c='#888888', s=40, marker='^', edgecolors='white',
+               linewidths=0.6, label='Gemma-4 (flood)')
     ax.scatter([], [], c='#888888', s=40, marker='s', edgecolors='white',
                linewidths=0.6, label='Ministral (flood)')
     ax.scatter([], [], c='#888888', s=40, marker='D', edgecolors='white',
