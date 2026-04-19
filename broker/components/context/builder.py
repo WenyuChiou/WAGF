@@ -1,4 +1,4 @@
-﻿"""Context builder entrypoint with base interfaces and re-exports."""
+"""Context builder entrypoint with base interfaces and re-exports."""
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, List
 import string
