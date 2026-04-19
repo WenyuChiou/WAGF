@@ -97,12 +97,21 @@ class BaseAgentContextBuilder(ContextBuilder):
     def _format_memory(memory_val) -> str:
         """Format memory (list, dict with episodic/semantic/core, or scalar) into a prompt string."""
         def format_memory_item(memory_item) -> str:
+            # Prompt must match V1 format (bare bullet, no salience tags).
+            # Rationale (2026-04-19): even an innocuous-looking "[ROUTINE]"
+            # prefix on seed memories drove Gemma-3 4B's Y1 elevate rate
+            # from 25% to 70% with identical content. The tag introduces
+            # prompt-structure cues that small LLMs over-weight. Memory
+            # salience remains expressed through RETRIEVAL ORDERING
+            # (see sort by final_score/importance below) — critical
+            # memories appear first in the bullet list, so an attentive
+            # LLM can prioritise them without explicit labels leaking
+            # into the text. This preserves the V1 prompt contract while
+            # still benefiting from the upstream metadata-preserving
+            # memory pipeline.
             if isinstance(memory_item, dict):
                 content = str(memory_item.get("content", "")).strip()
-                emotion = str(memory_item.get("emotion", "routine")).upper()
-                if content:
-                    return f"- [{emotion}] {content}"
-                return f"- [{emotion}]"
+                return f"- {content}" if content else "-"
             return f"- {memory_item}"
 
         if isinstance(memory_val, dict) and "episodic" in memory_val:
