@@ -8,11 +8,29 @@ from broker.components.context.providers import MemoryProvider
 
 @pytest.fixture
 def minimal_agents():
-    """Minimal agent dict for testing."""
+    """Minimal agent dict for testing.
+
+    `fixed_attributes` and `dynamic_state` are real dicts (not auto-generated
+    MagicMocks) so that providers that call ``agent.fixed_attributes.get(...)``
+    receive the declared default rather than a MagicMock. Without this, a
+    downstream provider that does ``income > 0`` raises TypeError when income
+    is an auto-mock.
+    """
     agent = MagicMock()
     agent.agent_type = "irrigation_farmer"
     agent.state = {"income": 50000, "savings": 20000}
     agent.attributes = {"risk_tolerance": 0.5}
+    # Providers.py uses hasattr() fallbacks that auto-vivify on a plain
+    # MagicMock; pin numeric attributes to real values so downstream
+    # arithmetic and comparisons do not hit MagicMock-vs-int TypeErrors.
+    agent.fixed_attributes = {
+        "rcv_building": 0,
+        "rcv_contents": 0,
+        "income": 50000,
+    }
+    agent.dynamic_state = {}
+    agent.rcv_building = 0
+    agent.rcv_contents = 0
     return {"agent_001": agent}
 
 

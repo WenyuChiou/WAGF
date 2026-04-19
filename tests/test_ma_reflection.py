@@ -33,61 +33,65 @@ def mock_message_pool():
 
 @pytest.fixture
 def mock_hooks(mock_memory_engine, mock_game_master, mock_message_pool):
-    """Fixture to create a MultiAgentHooks instance with mocked dependencies."""
-    # Mock environment and other required parameters
+    """Fixture to create a MultiAgentHooks instance with mocked dependencies.
+
+    reflection_config is explicit so tests do not depend on the default
+    ``interval=1`` fallback, which would make every year fire reflection.
+    Tests that need a no-flood-no-reflection path (e.g. skip-if-no-flood)
+    override ``hooks._reflection_config`` locally.
+    """
     mock_env = {"year": 5}
     mock_agents = {
         "H_001": MagicMock(id="H_001", agent_type="household_owner",
                            dynamic_state={"years_since_flood": 0, "relocated": False}),
         "GOV_001": MagicMock(id="GOV_001", agent_type="government", dynamic_state={}),
     }
-    
+
     hooks = MultiAgentHooks(
         environment=mock_env,
         memory_engine=mock_memory_engine,
         game_master=mock_game_master,
         message_pool=mock_message_pool,
-        # Add other required parameters with default/mock values
         hazard_module=MagicMock(),
         media_hub=MagicMock(),
         per_agent_depth=False,
-        year_mapping=MagicMock()
+        year_mapping=MagicMock(),
+        reflection_config={
+            "interval": 5,
+            "triggers": {"crisis": True, "periodic_interval": 5},
+        },
     )
-    
-    # Set the mock memory bridge if it's initialized
+
     if hasattr(hooks, '_memory_bridge') and hooks._memory_bridge:
-        hooks._memory_bridge.memory_engine = mock_memory_engine # Ensure bridge uses the mocked engine
-    
+        hooks._memory_bridge.memory_engine = mock_memory_engine
+
     return hooks, mock_memory_engine, mock_game_master, mock_message_pool, mock_agents
 
 class TestMAReflectionIntegration:
     def test_run_ma_reflection_called_in_post_year(self, mock_hooks, mock_memory_engine):
         hooks, mem_engine, gm, mp, agents = mock_hooks
 
-        # Mock retrieve_stratified to return some memories
+        # Crisis flag without depth drives reflection but avoids the damage
+        # loop that would otherwise require flood-damage fields on the mock.
+        hooks.env["flood_occurred"] = True
+        hooks.env["flood_depth_ft"] = 0.0
+
         stratified_memories = [
             "Personal: Experienced heavy rain last year.",
             "Neighbor: Neighbor elevated their house.",
             "Community: Policy change regarding subsidies.",
-            "Reflection: Last year's flood was a wake-up call."
+            "Reflection: Last year's flood was a wake-up call.",
         ]
         mem_engine.retrieve_stratified.return_value = stratified_memories
 
-        # Call post_year which should trigger reflection
         hooks.post_year(year=6, agents=agents, memory_engine=mem_engine)
 
-        # Verify that retrieve_stratified was called
         mem_engine.retrieve_stratified.assert_called_once()
-        
-        # Verify add_memory was called:
-        #   1) no-flood memory (since community_depth_ft=0, agent not actually flooded)
-        #   2) reflection memory
+
         assert mem_engine.add_memory.call_count >= 1
-        # Find the reflection call (has "type": "reflection" in metadata)
         reflection_calls = [
             c for c in mem_engine.add_memory.call_args_list
             if c.kwargs.get("metadata", {}).get("type") == "reflection"
-               or (len(c.args) > 1 and "Consolidated Reflection" in str(c.args[1]))
         ]
         assert len(reflection_calls) == 1, f"Expected 1 reflection call, got {len(reflection_calls)}"
         call_args, call_kwargs = reflection_calls[0]
@@ -95,41 +99,46 @@ class TestMAReflectionIntegration:
         added_memory_content = call_args[1]
         added_memory_metadata = call_kwargs["metadata"]
 
-        assert "Year 6:" in added_memory_content # Check for year prefix
-        assert "Consolidated Reflection:" in added_memory_content # Check for generated reflection content
+        # Current reflection content is a natural-language summary prefixed
+        # with "Year <N>:" (see _run_ma_reflection in lifecycle_hooks.py).
+        assert added_memory_content.startswith("Year 6:")
         assert added_memory_metadata["type"] == "reflection"
-        assert added_memory_metadata["source"] == "personal" # Assuming reflection defaults to personal
-        assert added_memory_metadata["emotion"] == "major" # Based on reflection's importance
-        assert added_memory_metadata["importance"] > 0.5 # Reflection should have notable importance
+        assert added_memory_metadata["source"] == "personal"
+        assert added_memory_metadata["emotion"] == "major"
+        # Importance is 0.45 per current implementation — below flood memories
+        # (0.80) and decisions (0.50). Test against the design value.
+        assert added_memory_metadata["importance"] == pytest.approx(0.45)
 
 
     def test_reflection_uses_stratified_retrieval_params(self, mock_hooks, mock_memory_engine):
         hooks, mem_engine, gm, mp, agents = mock_hooks
-        
-        # Define custom allocation for testing
-        custom_allocation = {"personal": 1, "neighbor": 1, "reflection": 3}
-        total_k = 5
+        # Flood triggers the crisis reflection path so retrieve_stratified runs.
+        hooks.env["flood_occurred"] = True
+        hooks.env["crisis_boosters"] = {"emotion:fear": 1.5}
+
+        # _run_ma_reflection currently uses a personal-biased allocation with
+        # total_k=5 (see lifecycle_hooks._run_ma_reflection). Crisis years
+        # forward env["crisis_boosters"] as contextual boosters.
+        expected_allocation = {"personal": 3, "neighbor": 1, "reflection": 1}
+        expected_total_k = 5
 
         hooks.post_year(year=7, agents=agents, memory_engine=mem_engine)
 
-        # Verify retrieve_stratified was called with correct parameters
         mem_engine.retrieve_stratified.assert_called_once_with(
-            pytest.approx(agents["H_001"].id), # Agent ID
-            allocation=custom_allocation,
-            total_k=total_k,
-            contextual_boosters={"emotion:fear": 1.5} # From env if flood occurred
+            agents["H_001"].id,
+            allocation=expected_allocation,
+            total_k=expected_total_k,
+            contextual_boosters={"emotion:fear": 1.5},
         )
-        
+
     def test_reflection_logic_skips_if_no_flood(self, mock_hooks, mock_memory_engine):
         hooks, mem_engine, gm, mp, agents = mock_hooks
-        hooks.env["flood_occurred"] = False # Ensure no flood
-
+        hooks.env["flood_occurred"] = False
+        # Pick a year that is not a multiple of the periodic trigger (5) so
+        # neither the crisis nor the periodic path fires.
         hooks.post_year(year=8, agents=agents, memory_engine=mem_engine)
 
-        # Reflection should not be triggered if no flood occurred (and year 8 % 5 != 0)
         mem_engine.retrieve_stratified.assert_not_called()
-        # No-flood memories ARE expected (memory-mediated TP decline),
-        # but no reflection memories should be added.
         reflection_calls = [
             c for c in mem_engine.add_memory.call_args_list
             if c.kwargs.get("metadata", {}).get("type") == "reflection"

@@ -43,7 +43,13 @@ def test_execute_skill_increase_demand():
 
 
 def test_execute_skill_decrease_demand():
-    """execute_skill with decrease_demand subtracts magnitude_pct% of water_right."""
+    """execute_skill with decrease_demand subtracts magnitude_pct% of the current request.
+
+    v21 fix (irrigation_env.py:672): the change base is the current request
+    (demand intention) rather than the water right, because using water_right
+    would cause double curtailment when update_agent_request re-applies the
+    shortage ratio.
+    """
     env = _make_env_with_agent(water_right=100_000)
     skill = ApprovedSkill(
         skill_name="decrease_demand",
@@ -55,10 +61,11 @@ def test_execute_skill_decrease_demand():
     result = env.execute_skill(skill)
     assert result.success
     state = env.get_agent_state("TestAgent")
-    # Initial request = 80_000; change = 10% of 100_000 = 10_000
-    # P1 taper: utilisation=0.8, taper=(0.8-0.1)/(1-0.1)=7/9
-    # new_req = 80_000 - 10_000 * 7/9 ≈ 72_222.22
-    assert abs(state["request"] - (80_000 - 10_000 * 7 / 9)) < 0.01
+    # Initial request = 80_000; change = 10% of current 80_000 = 8_000
+    # Utilisation = 80_000 / 100_000 = 0.8
+    # P1 taper: (utilisation - MIN_UTIL) / (1 - MIN_UTIL) = (0.8-0.1)/0.9 = 7/9
+    # new_req = 80_000 - 8_000 * 7/9 ≈ 73_777.78
+    assert abs(state["request"] - (80_000 - 8_000 * 7 / 9)) < 0.01
 
 
 def test_build_regret_feedback_formats_shortfall():
