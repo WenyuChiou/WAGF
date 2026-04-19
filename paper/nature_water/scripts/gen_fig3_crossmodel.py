@@ -242,86 +242,162 @@ def main():
         print(f"  Governed:     EHE={irr_gov_ehe:.3f}, IBR={irr_gov_ibr:.1f}%")
         print(f"  No validator: EHE={irr_dis_ehe:.3f}, IBR={irr_dis_ibr:.1f}%")
 
-    # ── Figure: EHE × IBR scatter with arrows ─────────────────────────────
-    fig, ax = plt.subplots(figsize=(4.5, 3.8))
+    # ── Figure: broken-axis EHE × IBR scatter ──────────────────────────────
+    # Left panel: flood-model cluster (IBR 0-10%)
+    # Right panel: irrigation (IBR 35-45%)
+    # Broken x-axis with "//" cut marks visually separates the two regimes
+    # so flood-model labels do not collide and irrigation is not stranded in
+    # the middle of a mostly-empty plot.
+    fig, (ax_flood, ax_irr) = plt.subplots(
+        1, 2, figsize=(6.0, 3.8),
+        gridspec_kw={'width_ratios': [3.0, 1.6], 'wspace': 0.08},
+        sharey=True,
+    )
 
     # Marker styles per family
     FAMILY_MARKER = {'Gemma-3': 'o', 'Ministral': 's', 'Gemma-4': '^'}
     FAMILY_SIZE = {'Gemma-3': 55, 'Ministral': 55, 'Gemma-4': 60}
 
-    # Draw arrows: no-validator → governed (orange → blue)
-    for i in range(n):
-        dx = gov_ibr[i] - dis_ibr[i]
-        dy = gov_ehe[i] - dis_ehe[i]
-        ax.annotate('', xy=(gov_ibr[i], gov_ehe[i]),
-                    xytext=(dis_ibr[i], dis_ehe[i]),
-                    arrowprops=dict(arrowstyle='->', color='#666666',
-                                    lw=1.0, shrinkA=4, shrinkB=4))
+    # ---- Left panel: flood cross-model cluster ----
+    for ax in (ax_flood,):
+        # Arrows: no-validator → governed
+        for i in range(n):
+            ax.annotate('', xy=(gov_ibr[i], gov_ehe[i]),
+                        xytext=(dis_ibr[i], dis_ehe[i]),
+                        arrowprops=dict(arrowstyle='->', color='#888888',
+                                        lw=0.8, shrinkA=3, shrinkB=3))
+        # No-validator points (orange)
+        for i in range(n):
+            mk = FAMILY_MARKER[families[i]]
+            ax.scatter(dis_ibr[i], dis_ehe[i], c=DIS_COLOR,
+                       s=FAMILY_SIZE[families[i]], marker=mk,
+                       edgecolors='white', linewidths=0.6, zorder=3)
+        # Governed points (blue)
+        for i in range(n):
+            mk = FAMILY_MARKER[families[i]]
+            ax.scatter(gov_ibr[i], gov_ehe[i], c=GOV_COLOR,
+                       s=FAMILY_SIZE[families[i]], marker=mk,
+                       edgecolors='white', linewidths=0.6, zorder=3)
 
-    # Plot no-validator points (orange)
-    for i in range(n):
-        mk = FAMILY_MARKER[families[i]]
-        ax.scatter(dis_ibr[i], dis_ehe[i], c=DIS_COLOR, s=FAMILY_SIZE[families[i]],
-                   marker=mk, edgecolors='white', linewidths=0.6, zorder=3)
-
-    # Plot governed points (blue)
-    for i in range(n):
-        mk = FAMILY_MARKER[families[i]]
-        ax.scatter(gov_ibr[i], gov_ehe[i], c=GOV_COLOR, s=FAMILY_SIZE[families[i]],
-                   marker=mk, edgecolors='white', linewidths=0.6, zorder=3)
-
-    # Model labels (offset from governed point)
-    # Match MODEL_CONFIG order. Labels must align 1:1 with the filtered result list.
+    # Model labels with manual offsets to disambiguate the upper-left cluster
     PARAM_LABELS = [label for _, label, _ in MODEL_CONFIG]
-    # Use short size tag if label is long
     PARAM_LABELS = [lbl.split()[-1] if len(lbl) < 14 else lbl for lbl in PARAM_LABELS]
+
+    # Offset table tuned to spread overlapping labels. Offsets in (dx, dy)
+    # points; keys must match PARAM_LABELS values.
+    LABEL_OFFSET = {
+        '4B':  (7,  4),
+        '3B':  (7, -8),
+        '8B':  (7,  0),
+        '12B': (7, -8),
+        '14B': (7,  8),
+        '27B': (7,  0),
+        'e2b': (7,  6),
+        'e4b': (7, -2),
+        '26B': (7, -6),
+    }
     for i in range(n):
-        ax.annotate(PARAM_LABELS[i], (gov_ibr[i], gov_ehe[i]),
-                    textcoords='offset points', xytext=(6, -2),
-                    fontsize=6, color='#444444', va='center')
+        lbl = PARAM_LABELS[i]
+        dx, dy = LABEL_OFFSET.get(lbl, (6, -2))
+        ax_flood.annotate(lbl, (gov_ibr[i], gov_ehe[i]),
+                          textcoords='offset points', xytext=(dx, dy),
+                          fontsize=6, color='#333333', va='center',
+                          fontweight='bold' if lbl in ('e2b', 'e4b', '26B') else 'normal')
 
-    # Irrigation point (diamond markers)
+    # ---- Right panel: irrigation ----
     if has_irr:
-        ax.annotate('', xy=(irr_gov_ibr, irr_gov_ehe),
-                    xytext=(irr_dis_ibr, irr_dis_ehe),
-                    arrowprops=dict(arrowstyle='->', color='#666666',
-                                    lw=1.0, shrinkA=4, shrinkB=4))
-        ax.scatter(irr_dis_ibr, irr_dis_ehe, c=DIS_COLOR, s=70,
-                   marker='D', edgecolors='white', linewidths=0.6, zorder=3)
-        ax.scatter(irr_gov_ibr, irr_gov_ehe, c=GOV_COLOR, s=70,
-                   marker='D', edgecolors='white', linewidths=0.6, zorder=3)
-        ax.annotate('Irrigation\n(Gemma-3 4B)', (irr_gov_ibr, irr_gov_ehe),
-                    textcoords='offset points', xytext=(8, -6),
-                    fontsize=6, color='#444444', va='top',
-                    fontstyle='italic')
+        ax_irr.annotate('', xy=(irr_gov_ibr, irr_gov_ehe),
+                        xytext=(irr_dis_ibr, irr_dis_ehe),
+                        arrowprops=dict(arrowstyle='->', color='#888888',
+                                        lw=0.8, shrinkA=3, shrinkB=3))
+        ax_irr.scatter(irr_dis_ibr, irr_dis_ehe, c=DIS_COLOR, s=70,
+                       marker='D', edgecolors='white', linewidths=0.6, zorder=3)
+        ax_irr.scatter(irr_gov_ibr, irr_gov_ehe, c=GOV_COLOR, s=70,
+                       marker='D', edgecolors='white', linewidths=0.6, zorder=3)
+        ax_irr.annotate('Gemma-3 4B', (irr_gov_ibr, irr_gov_ehe),
+                        textcoords='offset points', xytext=(-30, -12),
+                        fontsize=6, color='#333333', va='top',
+                        fontstyle='italic')
 
-    # Legend entries
-    ax.scatter([], [], c=GOV_COLOR, s=40, marker='o', edgecolors='white',
-               linewidths=0.6, label='Governed LLM')
-    ax.scatter([], [], c=DIS_COLOR, s=40, marker='o', edgecolors='white',
-               linewidths=0.6, label='LLM (no validator)')
-    ax.scatter([], [], c='#888888', s=40, marker='o', edgecolors='white',
-               linewidths=0.6, label='Gemma-3 (flood)')
-    ax.scatter([], [], c='#888888', s=40, marker='^', edgecolors='white',
-               linewidths=0.6, label='Gemma-4 (flood)')
-    ax.scatter([], [], c='#888888', s=40, marker='s', edgecolors='white',
-               linewidths=0.6, label='Ministral (flood)')
-    ax.scatter([], [], c='#888888', s=40, marker='D', edgecolors='white',
-               linewidths=0.6, label='Irrigation')
+    # ── Broken-axis visual cue ────────────────────────────────────────────
+    # Hide inner spines so the break is obvious
+    ax_flood.spines['right'].set_visible(False)
+    ax_irr.spines['left'].set_visible(False)
+    ax_irr.tick_params(axis='y', which='both', left=False, labelleft=False)
 
-    ax.legend(loc='upper right', frameon=True, framealpha=0.9,
-              edgecolor='#cccccc', fontsize=6, markerscale=0.8)
+    # Diagonal // break markers at the seam. Using figure-relative coords
+    # so the marker aspect ratio is correct regardless of subplot width.
+    d_x, d_y = 0.006, 0.015
+    kwargs = dict(transform=ax_flood.transAxes, color='k', clip_on=False, lw=0.8)
+    # Left panel right edge: top and bottom corners
+    ax_flood.plot((1 - d_x, 1 + d_x), (-d_y, +d_y), **kwargs)
+    ax_flood.plot((1 - d_x, 1 + d_x), (1 - d_y, 1 + d_y), **kwargs)
+    # Right panel left edge: top and bottom corners
+    kwargs.update(transform=ax_irr.transAxes)
+    ax_irr.plot((-d_x * 1.5, +d_x * 1.5), (-d_y, +d_y), **kwargs)
+    ax_irr.plot((-d_x * 1.5, +d_x * 1.5), (1 - d_y, 1 + d_y), **kwargs)
 
-    ax.set_xlabel('Irrational behaviour rate, IBR (%)')
-    ax.set_ylabel('Behavioural diversity (EHE)')
+    # Axis labels
+    ax_flood.set_ylabel('Behavioural diversity (EHE)')
+    fig.text(0.5, -0.01, 'Irrational behaviour rate, IBR (%)',
+             ha='center', va='bottom', fontsize=BASE_FONT)
 
-    # Axis limits with padding
-    all_ibr = list(dis_ibr) + list(gov_ibr) + ([irr_dis_ibr, irr_gov_ibr] if has_irr else [])
+    # Axis limits — right panel now covers irrigation's full range
+    # (governed 38.2, no-validator 61.1 with headroom)
+    ax_flood.set_xlim(-0.6, 10.0)
+    if has_irr:
+        ax_irr.set_xlim(34, 66)
     all_ehe = list(dis_ehe) + list(gov_ehe) + ([irr_dis_ehe, irr_gov_ehe] if has_irr else [])
-    ax.set_xlim(min(all_ibr) - 0.8, max(all_ibr) * 1.12)
-    ax.set_ylim(min(all_ehe) - 0.05, max(all_ehe) + 0.06)
+    ax_flood.set_ylim(min(all_ehe) - 0.05, max(all_ehe) + 0.06)
 
-    plt.tight_layout()
+    # X-ticks
+    ax_flood.set_xticks([0, 2, 4, 6, 8, 10])
+    if has_irr:
+        ax_irr.set_xticks([38, 50, 61])
+
+    # ── Legend in a two-block layout: colour (condition) + shape (family) ──
+    # Colour legend (condition)
+    cond_handles = [
+        plt.scatter([], [], c=GOV_COLOR, s=40, marker='o',
+                    edgecolors='white', linewidths=0.6,
+                    label='Governed LLM'),
+        plt.scatter([], [], c=DIS_COLOR, s=40, marker='o',
+                    edgecolors='white', linewidths=0.6,
+                    label='LLM (no validator)'),
+    ]
+    shape_handles = [
+        plt.scatter([], [], c='#888888', s=40, marker='o',
+                    edgecolors='white', linewidths=0.6, label='Gemma-3 (flood)'),
+        plt.scatter([], [], c='#888888', s=40, marker='^',
+                    edgecolors='white', linewidths=0.6, label='Gemma-4 (flood)'),
+        plt.scatter([], [], c='#888888', s=40, marker='s',
+                    edgecolors='white', linewidths=0.6, label='Ministral (flood)'),
+        plt.scatter([], [], c='#888888', s=40, marker='D',
+                    edgecolors='white', linewidths=0.6, label='Irrigation'),
+    ]
+
+    # Stack both legends ABOVE the plot area: condition (colour) on the
+    # top row, family/domain (shape) directly below it. Separating the two
+    # legends keeps the colour-vs-shape semantics unambiguous without the
+    # overlap that occurred when they shared the same y band.
+    leg_cond = fig.legend(
+        handles=cond_handles, loc='upper left',
+        bbox_to_anchor=(0.10, 0.99),
+        title='Condition (colour)', title_fontsize=6.5,
+        frameon=True, framealpha=0.9, edgecolor='#cccccc',
+        fontsize=6, markerscale=0.8, borderpad=0.3,
+        ncol=2, columnspacing=0.8,
+    )
+    fig.legend(
+        handles=shape_handles, loc='upper left',
+        bbox_to_anchor=(0.45, 0.99),
+        title='Family / domain (shape)', title_fontsize=6.5,
+        frameon=True, framealpha=0.9, edgecolor='#cccccc',
+        fontsize=6, markerscale=0.8, borderpad=0.3,
+        ncol=4, columnspacing=0.6,
+    )
+
+    plt.subplots_adjust(bottom=0.14, top=0.82)
 
     # ── Save ──────────────────────────────────────────────────────────────
     for ext in ['png', 'pdf']:

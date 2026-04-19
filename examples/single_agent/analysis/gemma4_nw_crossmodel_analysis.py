@@ -97,6 +97,33 @@ def normalized_entropy(distribution: dict[str, float], k: int) -> float:
     return entropy / math.log2(k)
 
 
+def compute_ibr_components(work: pd.DataFrame) -> tuple[float, dict]:
+    """IBR = (R1 + R3 + R4) / total * 100. R5 tracked but excluded per EDT2."""
+    total = len(work)
+    if total == 0:
+        return 0.0, {"R1": 0, "R3": 0, "R4": 0, "R5_excluded": 0, "total": 0}
+
+    tp = work["tp_norm"].astype(str).str.strip().str.upper()
+    action = work["action_norm"]
+    # elevated column ??match compute_flood_metrics handling
+    if "elevated" in work.columns:
+        elevated = work["elevated"].astype(bool)
+    else:
+        elevated = pd.Series(False, index=work.index)
+
+    high = tp.isin(["H", "VH"])
+    low  = tp.isin(["VL", "L"])
+
+    r1 = int((high & (action == "do_nothing")).sum())
+    r3 = int((low  & (action == "relocate")).sum())
+    r4 = int((low  & (action == "elevate_house")).sum())
+    r5 = int((elevated & (action == "elevate_house")).sum())
+
+    # Return FRACTION (0..1); downstream format_pct() multiplies by 100.
+    ibr_frac = (r1 + r3 + r4) / total
+    return ibr_frac, {"R1": r1, "R3": r3, "R4": r4, "R5_excluded": r5, "total": total}
+
+
 def summarize_pooled_metrics(df: pd.DataFrame) -> dict[str, Any]:
     if df.empty:
         return {
@@ -119,8 +146,7 @@ def summarize_pooled_metrics(df: pd.DataFrame) -> dict[str, Any]:
     }
     tp_distribution = {tp: float((work["tp_norm"] == tp).sum()) / n for tp in TP_ORDER}
 
-    high_threat = work["tp_norm"].isin(["H", "VH"])
-    ibr = float((high_threat & (work["action_norm"] == "do_nothing")).sum()) / n
+    ibr, ibr_components = compute_ibr_components(work)
     ehe = normalized_entropy(action_distribution, k=len(ACTION_ORDER))
     rejection_rate = float((work["status"].astype(str).str.upper() != "APPROVED").sum()) / n
     retry_count = pd.to_numeric(work["retry_count"], errors="coerce").fillna(0)
@@ -134,12 +160,16 @@ def summarize_pooled_metrics(df: pd.DataFrame) -> dict[str, Any]:
         "tp_distribution": tp_distribution,
         "rejection_rate": rejection_rate,
         "retry_rate": retry_rate,
+        "ibr_components": ibr_components,
     }
 
 
 def summarize_seed_metrics(df: pd.DataFrame) -> dict[str, float]:
     pooled = summarize_pooled_metrics(df)
-    return {"ibr": pooled["ibr"], "ehe": pooled["ehe"], "n": pooled["n"]}
+    metrics = {"ibr": pooled["ibr"], "ehe": pooled["ehe"], "n": pooled["n"]}
+    if "ibr_components" in pooled:
+        metrics.update(pooled["ibr_components"])
+    return metrics
 
 
 def load_run_data(results_dir: Path) -> list[RunData]:
@@ -174,6 +204,9 @@ def build_summary_tables(run_data: list[RunData]) -> tuple[pd.DataFrame, pd.Data
                     "condition": condition,
                     "n": pooled["n"],
                     "ibr": pooled["ibr"],
+                    "r1": pooled["ibr_components"]["R1"],
+                    "r3": pooled["ibr_components"]["R3"],
+                    "r4": pooled["ibr_components"]["R4"],
                     "ehe": pooled["ehe"],
                     "rejection_rate": pooled["rejection_rate"],
                     "retry_rate": pooled["retry_rate"],
@@ -192,6 +225,9 @@ def build_summary_tables(run_data: list[RunData]) -> tuple[pd.DataFrame, pd.Data
                         "run": item.run,
                         "n": seed["n"],
                         "ibr": seed["ibr"],
+                        "r1": seed["R1"],
+                        "r3": seed["R3"],
+                        "r4": seed["R4"],
                         "ehe": seed["ehe"],
                     }
                 )
@@ -306,9 +342,9 @@ def parse_conservatism_for_models(raw_output: str, model_names: list[str]) -> di
 
 def render_summary_table(pooled_df: pd.DataFrame) -> str:
     header = (
-        "| Model | Condition | N | IBR | EHE | buy_insurance | elevate_house | relocate | do_nothing | "
+        "| Model | Condition | N | IBR | R1 | R3 | R4 | EHE | buy_insurance | elevate_house | relocate | do_nothing | "
         "TP VL | TP L | TP M | TP H | TP VH | Rejection | Retry |\n"
-        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"
     )
     lines = [header]
     for _, row in pooled_df.sort_values(["model", "condition"]).iterrows():
@@ -320,6 +356,9 @@ def render_summary_table(pooled_df: pd.DataFrame) -> str:
                     row["condition"],
                     str(int(row["n"])),
                     format_pct(row["ibr"]),
+                    str(int(row["r1"])),
+                    str(int(row["r3"])),
+                    str(int(row["r4"])),
                     format_float(row["ehe"]),
                     format_pct(row["action_buy_insurance"]),
                     format_pct(row["action_elevate_house"]),
@@ -492,7 +531,7 @@ def generate_report(results_dir: Path, output_path: Path) -> str:
         render_summary_table(pooled_df),
         "",
         "Notes:",
-        "- `IBR` is the pooled share of decisions with `construct_TP_LABEL` in `{H, VH}` and `final_skill = do_nothing`.",
+        '- `IBR` is the percentage of decisions violating PMT rules R1+R3+R4 (R5 tracked separately, excluded per EDT2 definition). R1 = high-threat inaction (TP in {H,VH} AND final_skill=do_nothing); R3 = low-threat relocation (TP in {VL,L} AND final_skill=relocate); R4 = low-threat elevation (TP in {VL,L} AND final_skill=elevate_house).',
         "- `EHE` is normalized Shannon entropy over `buy_insurance`, `elevate_house`, `relocate`, and `do_nothing`.",
         "- Rejection rate counts `status != APPROVED`. Retry rate counts `retry_count > 0`.",
         "",

@@ -38,9 +38,18 @@ from matplotlib.colorbar import ColorbarBase
 REPO = Path(__file__).resolve().parents[3]
 SA_RESULTS = REPO / "examples" / "single_agent" / "results"
 
+# ── Model selection (overridable via FIG3_MODEL / FIG3_OUT env vars) ──────
+# FIG3_MODEL   : directory name under JOH_FINAL/*/Group_C (e.g. gemma3_4b, gemma4_26b)
+# FIG3_LABEL   : short pretty label used in figure caption-side text (optional)
+# FIG3_OUT     : output basename WITHOUT extension (default Fig3_flood_case)
+import os as _os
+MODEL_KEY   = _os.environ.get("FIG3_MODEL", "gemma3_4b")
+MODEL_LABEL = _os.environ.get("FIG3_LABEL", MODEL_KEY.replace("_", " "))
+OUT_BASENAME = _os.environ.get("FIG3_OUT", "Fig3_flood_case")
+
 RULEBASED_DIR  = SA_RESULTS / "rulebased"
-DISABLED_DIR   = SA_RESULTS / "JOH_ABLATION_DISABLED" / "gemma3_4b" / "Group_C_disabled"
-GOV_DIR        = SA_RESULTS / "JOH_FINAL" / "gemma3_4b" / "Group_C"
+DISABLED_DIR   = SA_RESULTS / "JOH_ABLATION_DISABLED" / MODEL_KEY / "Group_C_disabled"
+GOV_DIR        = SA_RESULTS / "JOH_FINAL" / MODEL_KEY / "Group_C"
 
 OUT_DIR = REPO / "paper" / "nature_water" / "figures"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -488,25 +497,28 @@ def draw_panel_a(axes, data: dict):
                     zorder=5,
                 )
 
-    # Legend inside first panel (axes[0]) — abbreviated, compact
+    # Legend placed ABOVE the middle subplot (centered over the 3-subplot row).
+    # Previously the legend sat inside axes[0] at 'upper right' and overlapped
+    # the Year 1-3 bars of the Governed LLM subplot; moving it out of the
+    # plotting area recovers that data region.
     handles_leg = [
         mpatches.Patch(facecolor=PROT_COLORS[s], edgecolor='white',
                        linewidth=0.4, label=PROT_ABBREV[s])
         for s in PROT_STATES
     ]
-    legend_cfg = get_panel_a_legend_config()
-    axes[legend_cfg['target_axis_index']].legend(
+    axes[1].legend(
         handles=handles_leg,
-        loc=legend_cfg['loc'],
+        loc='lower center',
+        bbox_to_anchor=(0.5, 1.12),
         fontsize=BASE_FONT - 1,
         frameon=True, framealpha=0.9,
-        facecolor='white', edgecolor='black',
-        handlelength=0.6,
-        handletextpad=0.2,
-        labelspacing=0.1,
-        columnspacing=0.5,
-        borderpad=0.2,
-        ncol=2,
+        facecolor='white', edgecolor='#888888',
+        handlelength=0.8,
+        handletextpad=0.3,
+        labelspacing=0.2,
+        columnspacing=0.8,
+        borderpad=0.3,
+        ncol=5,
     )
 
     # Panel label 'a' — added in generate_figure() for alignment
@@ -1161,15 +1173,16 @@ def generate_figure():
     ax_a3 = fig.add_subplot(gs_row1[0, 2], sharey=ax_a1)
     draw_panel_a([ax_a1, ax_a2, ax_a3], data)
 
-    # ── Panel (b) — TA×CA pie matrices ────────────────────────────────
-    df_dis = _prepare_pie_df(data['disabled'][:1], 'yearly_decision')
-    df_gov = _prepare_pie_df(data['gov'][:1], 'yearly_decision')
+    # ── Panel (b) — TA×CA pie matrices (aggregated across all seeds) ─
+    df_dis = _prepare_pie_df(data['disabled'], 'yearly_decision')
+    df_gov = _prepare_pie_df(data['gov'], 'yearly_decision')
 
     viol_cmap = mcolors.LinearSegmentedColormap.from_list(
         'viol', [(1, 1, 1), (1, 0.92, 0.78), (1, 0.72, 0.42),
                  (0.92, 0.45, 0.10), (0.75, 0.15, 0.05)],
         N=256)
-    VIOL_MAX = 100
+    n_runs = max(len(data['disabled']), len(data['gov']), 1)
+    VIOL_MAX = 100 * n_runs
     viol_norm = mcolors.Normalize(vmin=0, vmax=VIOL_MAX)
 
     ax_b1 = fig.add_subplot(gs_row2[0, 0])
@@ -1199,7 +1212,7 @@ def generate_figure():
 
     # ── Save ────────────────────────────────────────────────────────────────
     for fmt in ['png', 'pdf']:
-        out = OUT_DIR / f"Fig3_flood_case.{fmt}"
+        out = OUT_DIR / f"{OUT_BASENAME}.{fmt}"
         fig.savefig(out, dpi=300, bbox_inches='tight', facecolor='white')
         print(f"  Saved: {out}")
 
