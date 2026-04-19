@@ -957,8 +957,26 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     )
 
     # Inject PrioritySchemaProvider if enabled (Separation for Group C)
-    # Inject PrioritySchemaProvider if enabled (Separation for Group C)
     if use_priority_schema:
+        # 2026-04-19 SAFETY WARNING (broker/INVARIANTS.md Invariant 5):
+        # This flag injects a "### [CRITICAL FACTORS (Focus Here)]" block
+        # into every prompt. Empirically observed to shift Gemma-3 4B Y1
+        # elevate rate from 25% (V1 paper baseline) to 73% with identical
+        # memory content — a massive attention-prompt artifact.
+        # Use ONLY for explicit Group C priority-schema experiments; do
+        # NOT enable by default on cross-model comparison runs or you will
+        # re-confound the 2026-04-19 pipeline investigation.
+        import sys
+        print(
+            "[WARNING] --use-priority-schema is ENABLED. This injects a "
+            "'[CRITICAL FACTORS (Focus Here)]' prompt block that dramatically "
+            "changes LLM attention and produces systematically different "
+            "action distributions vs runs without the flag. See MEMORY.md "
+            "'Priority-schema confound (2026-04-19)'. If you are doing a "
+            "cross-model comparison with JOH_FINAL/gemma3_4b-style baselines, "
+            "you probably want the flag OFF.",
+            file=sys.stderr,
+        )
         print("[Experimental] Injecting PrioritySchemaProvider (Pillar 3)")
         
         # Load schema from YAML (or fallback to empty if missing)
