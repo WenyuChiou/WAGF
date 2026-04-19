@@ -1,4 +1,4 @@
-﻿"""
+"""
 Memory template generation for agent initialization (flood domain).
 
 Generates seed memories from survey-derived agent profiles for flood

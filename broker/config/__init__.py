@@ -1,4 +1,4 @@
-﻿from .schema import (
+from .schema import (
     AgentTypeConfig,
     MemoryConfig,
     GovernanceRule,
