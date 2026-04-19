@@ -22,6 +22,9 @@ _EXPORT_MAP = {
     "create_drift_observables": ("observable", "create_drift_observables"),
     "create_flood_observables": ("observable", "create_flood_observables"),
     "create_rate_metric": ("observable", "create_rate_metric"),
+    # Framework invariant enforcement — see broker/INVARIANTS.md Invariant 2.
+    "detect_audit_sentinels": ("audit", "detect_audit_sentinels"),
+    "detect_audit_sentinels_in_csv": ("audit", "detect_audit_sentinels_in_csv"),
 }
 
 __all__ = list(_EXPORT_MAP)
