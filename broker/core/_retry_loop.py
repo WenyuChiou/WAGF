@@ -4,6 +4,23 @@ Extracted from SkillBrokerEngine to reduce file size.  These methods
 access ``self.*`` attributes defined on SkillBrokerEngine; this is the
 standard Python mixin pattern where the mixin is always combined with
 the host class via multiple inheritance.
+
+Retry semantics (corresponds to Nature Water Methods v4 "up to three
+attempts; same deterministic rule blocks consecutive attempts" clause):
+
+- ``_governance_retry_loop`` drives up to ``self.max_retries`` (default 3)
+  revision attempts after a binding validator rejection.
+- Early exit fires when the BLOCKING RULE SET is identical between two
+  consecutive retries AND every blocker in that set is deterministic.
+  Non-deterministic blockers (e.g., stochastic magnitude rechecks) do not
+  trigger early exit because the agent may succeed on a subsequent draw.
+- On termination (exhausted retries OR early exit), the registry default
+  skill executes (maintain_demand for irrigation, do_nothing for flood).
+- Every retry, including fallback execution, is recorded in the audit
+  trail with status ``REJECTED``, ``REJECTED_FALLBACK``, or ``APPROVED``.
+
+Distinct from the LLM format/parse retry loop above, which retries on
+malformed LLM output (parse failures), not on governance rejections.
 """
 from typing import Callable, Dict, List, Optional
 
