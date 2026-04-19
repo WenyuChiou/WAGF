@@ -387,13 +387,11 @@ class TestDomainGenericity:
 class TestMemoryTypeContract:
     """Invariant 1: retrieve() must preserve metadata.
 
-    These tests are currently skipped because Codex Fix B (retrieve()
-    signature change to List[Dict]) is in-flight on feat/memory-pipeline-v2.
-    Unskip after that branch merges to main.
+    Activated after Codex Fix B landed on feat/memory-pipeline-v2 (commit
+    129e33a). HumanCentricMemoryEngine.retrieve() now returns List[Dict].
     """
 
-    @pytest.mark.skip(reason="Activate after Codex Fix B merges — Invariant 1")
-    def test_retrieve_returns_list_of_dicts_with_metadata(self):
+    def test_humancentric_retrieve_returns_list_of_dicts_with_metadata(self):
         from broker.components.memory.engines.humancentric import (
             HumanCentricMemoryEngine,
         )
@@ -406,7 +404,33 @@ class TestMemoryTypeContract:
         retrieved = engine.retrieve(agent, top_k=5)
         assert len(retrieved) >= 1
         first = retrieved[0]
-        assert isinstance(first, dict), "retrieve() must return List[Dict]"
-        assert "content" in first
-        assert "emotion" in first
-        assert first["emotion"] == "critical"
+        assert isinstance(first, dict), (
+            f"retrieve() must return List[Dict], got {type(first).__name__}"
+        )
+        assert "content" in first, (
+            f"retrieved memory missing 'content' key: {first}"
+        )
+        assert "emotion" in first, (
+            f"retrieved memory missing 'emotion' key: {first}"
+        )
+        assert first["emotion"] == "critical", (
+            f"critical emotion not preserved through retrieve; got {first['emotion']!r}"
+        )
+
+    def test_retrieve_content_only_returns_list_of_strings(self):
+        """Backwards-compat shim: retrieve_content_only() must return
+        plain List[str] for callers that explicitly want strings."""
+        from broker.components.memory.engines.humancentric import (
+            HumanCentricMemoryEngine,
+        )
+        engine = HumanCentricMemoryEngine()
+        agent = SimpleNamespace(id="Agent_1", memory=[], memory_config={})
+        engine.add_memory_for_agent(
+            agent, "routine event — uneventful day",
+            metadata={"emotion": "routine", "importance": 0.1, "source": "personal"},
+        )
+        content = engine.retrieve_content_only(agent, top_k=5)
+        assert len(content) >= 1
+        assert all(isinstance(c, str) for c in content), (
+            f"retrieve_content_only must return List[str]"
+        )
