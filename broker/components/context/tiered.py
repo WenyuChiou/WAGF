@@ -131,15 +131,22 @@ class BaseAgentContextBuilder(ContextBuilder):
         elif isinstance(memory_val, list):
             if not memory_val:
                 return "No memories yet."
-            ordered = sorted(
-                memory_val,
-                key=lambda item: (
-                    item.get("final_score", item.get("importance", 0.0)) if isinstance(item, dict) else 0.0,
-                    item.get("importance", 0.0) if isinstance(item, dict) else 0.0,
-                    item.get("timestamp", 0) if isinstance(item, dict) else 0,
-                ),
-                reverse=True,
-            )
+            # Sort by salience DESC, but keep timestamp ASCENDING within
+            # ties so equal-importance memories preserve chronological
+            # (insertion) order — matches V1 behaviour for Y1 all-routine
+            # seed memories. Using bare `reverse=True` on tuple would
+            # reverse timestamp too, which scrambles load order.
+            def _sort_key(item):
+                if not isinstance(item, dict):
+                    return (0.0, 0.0, 0)
+                salience = item.get("final_score", item.get("importance", 0.0))
+                importance = item.get("importance", 0.0)
+                timestamp = item.get("timestamp", 0)
+                # Negate salience/importance for descending; keep timestamp
+                # ascending (natural order for equal salience).
+                return (-salience, -importance, timestamp)
+
+            ordered = sorted(memory_val, key=_sort_key)
             return "\n".join(format_memory_item(m) for m in ordered)
         elif memory_val:
             return str(memory_val)
