@@ -114,8 +114,32 @@ broker/core/experiment.py              — ExperimentRunner + Builder API
 broker/validators/governance/          — 6 validator implementations
 broker/components/memory/              — Memory engine ABC + implementations
 broker/components/context/             — Context assembly chain
+broker/components/cognitive/           — Reflection engine + cognitive trace
+broker/components/governance/          — Skill registry + temporal_rules/
 examples/quickstart/                   — Progressive tutorial
 ```
+
+### Reflection Module
+
+Year-end reflection consolidates recent memories into structured insights,
+which are written back into agent memory at `emotion="major"` and surface in
+subsequent retrievals. Reflection is YAML-driven — present-moment reflection
+questions, multi-modal triggers (crisis / periodic / post-decision /
+institutional change), and reflection interval are defined per domain in
+`agent_types.yaml` under `global_config.reflection`. Three present-moment
+question types cover risk salience, social comparison, and cost-safety
+trade-offs.
+
+The framework reserves a fourth dimension — **temporal coherence** — for
+conditional extension: when a sequence-level rule (M1 appraisal-history
+coherence, M2 behavioural inertia, or M3 evidence-grounded irreversibility)
+triggers, a targeted temporal question is injected into the agent's
+reflection prompt. In the current release these temporal questions are
+specified at the design level but not live-injected; empirical evaluation is
+reserved for follow-up work. See `broker/components/cognitive/reflection.py`
+for the engine, `broker/components/governance/temporal_rules/` for the
+sequence-level rule framework, and `.ai/reflection_taxonomy_design_2026-04-19.md`
+for the full design specification.
 
 ### Composable Agent Design
 

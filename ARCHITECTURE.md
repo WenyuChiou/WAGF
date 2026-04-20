@@ -348,8 +348,56 @@ Key changes:
 
 ---
 
+## Reflection Module
+
+The reflection engine at `broker/components/cognitive/reflection.py` performs
+year-end consolidation of agent memories into structured insights. It operates
+on a multi-modal trigger model, a YAML-driven question taxonomy, and a
+domain-adapter protocol for cross-domain portability.
+
+### Trigger modes (`agent_types.yaml → global_config.reflection.triggers`)
+
+| Mode                    | Fires when                                       |
+|-------------------------|--------------------------------------------------|
+| `crisis`                | Domain-salient event occurs (e.g., flood year)  |
+| `periodic_interval`     | Every K years regardless of events               |
+| `decision_types`        | Agent just executed one of the listed skills    |
+| `institutional_threshold` | Policy metric change exceeds the threshold    |
+
+### Question categories
+
+Three **present-moment** question classes are specified per `agent_type` in
+the YAML:
+
+1. **Risk salience** — what risks feel most urgent now
+2. **Social comparison** — have neighbours' choices influenced thinking
+3. **Value trade-off** — cost-vs-safety balance
+
+The framework reserves a fourth **temporal-coherence** question class,
+conditionally injected when sequence-level rules (M1/M2/M3 — see
+`broker/components/governance/temporal_rules/`) trigger. Temporal questions
+are specified in `agent_types.yaml` under `reflection.temporal_questions`;
+live injection is deferred to follow-up work.
+
+### Domain adapter (`DomainReflectionAdapter`)
+
+Defined at `broker/components/cognitive/adapters.py`. Concrete adapter for
+flood at `examples/single_agent/adapters/flood_adapter.py`. New domains plug
+in by implementing `compute_importance()` and `classify_emotion()` callbacks;
+framework code is never domain-specific.
+
+### Full design specification
+
+The complete reflection taxonomy, V2 temporal extension path, edge-case
+handling, and cross-domain integration guidelines are documented in
+`.ai/reflection_taxonomy_design_2026-04-19.md`.
+
+---
+
 ## Related Documents
 
+- [Reflection Taxonomy Design](.ai/reflection_taxonomy_design_2026-04-19.md) — current + V2 extension spec
+- [Framework Invariants](broker/INVARIANTS.md) — architectural contracts
 - [Task-029 Migration Guide](.tasks/handoff/task-029-migration-guide.md)
 - [Task-029 Audit Report](.tasks/handoff/task-029-audit-report.md)
 - [MA Experiment Guide](examples/multi_agent/README.md)
