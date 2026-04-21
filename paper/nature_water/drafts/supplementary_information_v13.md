@@ -568,4 +568,44 @@ At the end of each simulated year, the reflection engine (`broker/components/cog
 
 ---
 
+## Supplementary Note 11. Sequence-Level Rule Framework and Post-Hoc Diagnostic
+
+This note documents the sequence-level rule framework introduced in Methods (Framework Extension to Sequence-Level Rules) and the post-hoc diagnostic results referenced in the main text. Framework code is at `broker/components/governance/temporal_rules/`; flood-domain adapter at `examples/single_agent/adapters/flood_temporal_adapter.py`.
+
+### 11.1 Architecture
+
+The framework provides a `TemporalRule` protocol and a `DomainTemporalAdapter` protocol. A rule's `check` method receives the current agent-year observation, the list of prior observations in the agent's history, and an adapter that supplies three domain-specific predicates: `is_salient_event(memory)`, `is_irreversible(skill)`, and `low_appraisal_set()`. A `NullTemporalAdapter` implementation is provided as a safety default (returns False / empty set for all queries) and passes all rules without triggering; it is used in unit tests (`broker/tests/test_temporal_rules.py`) to verify that no domain-specific token leaks into the framework layer.
+
+### 11.2 Rule definitions
+
+**M1 — Appraisal–History Coherence** (window K = 3 years). Fires when at least one memory retrieved within the prior K years is classified as salient by the adapter AND the current-year appraisal label is in the adapter's low set. Theory: availability heuristic (Tversky and Kahneman, 1973); post-flood risk perception decay over 3–5 years (Bubeck and Botzen, 2018).
+
+**M2 — Behavioural Inertia** (window N = 5 years). Fires when the agent has chosen the same final skill for N consecutive years AND the appraisal label has varied by at least two ordinal levels across the window (`high_volatility` evaluated by adapter). Rule is explicitly conservative: stable action under stable environment is NOT flagged. Theory: cognitive inertia (Polites and Karahanna, 2012); adaptive management review cycles (Pahl-Wostl, 2007).
+
+**M3 — Evidence-Grounded Irreversibility** (year-one only). Fires when the agent executes an irreversible action in year 1 AND no salient event appears in the agent's seed memory. Theory: real options theory (Dixit and Pindyck, 1994); precautionary principle (Gollier and Treich, 2003).
+
+### 11.3 Post-hoc diagnostic protocol
+
+The `TemporalRuleEvaluator` accepts an iterable of audit rows (dicts), groups by agent ID, sorts each agent's trajectory by year, and applies each rule at each year with the prior years as history. Violations are aggregated per model and condition. Trigger rates are reported per decision (not per agent-window) for methodological consistency across rules.
+
+### 11.4 Design principles for reflection feedback (reserved for live enforcement)
+
+Live enforcement of M1–M3 would inject structured reflection questions at year-end rather than block at decision time. Five design principles (following the existing reflection-engine conventions): (1) descriptive not prescriptive — open questions rather than instructions; (2) first-person framing; (3) specific reference to cited year and event class; (4) length ≤ 60 words per insight; (5) `emotion = major` to enable retrieval surfacing without overriding direct experience. Rate limiting: ≤ 2 temporal-question injections per agent-year; cooldown stops injection after 3 consecutive trigger-years for the same rule (if agent behaviour has not changed despite reflection feedback, continued injection is assumed ineffective). Design specification: `.ai/reflection_taxonomy_design_2026-04-19.md`.
+
+### 11.5 Why reflection, not block-and-retry
+
+The validator pipeline enforces R1–R4 by intercepting the proposal, returning it to the LLM with targeted feedback, and retrying until compliance is achieved (Methods: Broker Architecture). This architecture is appropriate for point-in-time rules where the violation is evaluable at proposal time. Temporal rules, by contrast, require observation of a completed trajectory segment and cannot be checked at pre-execution time without introducing a timing paradox: the trajectory to be evaluated does not yet exist. Furthermore, block-and-retry loops are known to risk LLM prompt-structure artefacts, as documented elsewhere in the broker development log (the 2026-04-19 priority-schema prompt-augmentation incident). Reflection-mode feedback, in contrast, injects a structured memory item that is read only during subsequent retrieval; it is a natural extension of the existing reflection-engine output mechanism and carries no pre-execution timing risk. For these reasons, live enforcement of M1–M3 is designed to enter the pipeline via the reflection engine's year-end hook rather than via the validator retry loop.
+
+### 11.6 Empirical results
+
+Post-hoc trigger rates are reported in Supplementary Table 7. Pre-fix (V1) runs yielded zero M1 triggers across all 9 models because the memory pipeline emitted `emotion = "neutral"` for every retrieved memory, rendering salient past events invisible to the rule. Post-fix (V2) runs register M1 triggers in the Gemma-4 family at 0.5–2.9% of decisions, demonstrating that the memory salience fix is a prerequisite for temporal-coherence diagnostics to be meaningful. M3 trigger rates drop substantially in V2 for Gemma-4 e4b (48% → 0.3%), consistent with the interpretation that priority-schema prompt augmentation in V1 had artificially inflated year-one commitment behaviour (see Methods: Retry Compliance Pattern Analysis and Supplementary Table 8). These results serve as motivation for follow-up work on live reflection-mode enforcement rather than as claims about agent irrationality per se.
+
+### 11.7 Placeholder for Supplementary Tables 7 and 8
+
+**Supplementary Table 7.** Post-hoc temporal-rule trigger rates across all nine model configurations × two conditions × five seeds. Columns: model, condition, runs, total decisions, M1 / M2 / M3 trigger counts and rates (% of decisions). V1 and V2 rows side-by-side where applicable. *[Generated by `examples/single_agent/analysis/compute_temporal_diagnostics.py`; final table populated after Gemma-4 V2 rerun completes.]*
+
+**Supplementary Table 8.** Retry compliance pattern analysis for the Gemma-4 family. Columns: model, condition, total retries, Pattern A count and %, Pattern B count and %, Pattern C count and %. Pattern definitions per Methods: Retry Compliance Pattern Analysis. *[Preview for Gemma-4 e4b governed (V2, N = 405 R1 retries): Pattern A 22%, Pattern B 58%, Pattern C 20%; e4b disabled and 26B rows populated after rerun completes.]*
+
+---
+
 **End of Supplementary Information**
