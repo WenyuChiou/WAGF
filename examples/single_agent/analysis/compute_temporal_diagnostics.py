@@ -50,6 +50,11 @@ CONDITIONS: Dict[str, Tuple[str, str]] = {
     "disabled": ("JOH_ABLATION_DISABLED", "Group_C_disabled"),
 }
 
+CONDITIONS_V2: Dict[str, Tuple[str, str]] = {
+    "governed": ("JOH_FINAL_v2", "Group_C"),
+    "disabled": ("JOH_ABLATION_DISABLED_v2", "Group_C_disabled"),
+}
+
 
 def _load_audit(csv_path: Path) -> List[Dict]:
     if not csv_path.exists():
@@ -86,12 +91,28 @@ def main() -> int:
         "ministral3_3b", "ministral3_8b", "ministral3_14b",
         "gemma4_e2b", "gemma4_e4b", "gemma4_26b",
     ])
+    parser.add_argument(
+        "--gemma4-pipeline",
+        choices=["v1", "v2"],
+        default="v2",
+        help="Which Gemma-4 dataset to scan: v1 (JOH_FINAL) or v2 (JOH_FINAL_v2).",
+    )
     args = parser.parse_args()
 
     evaluator = TemporalRuleEvaluator(DEFAULT_RULES, FloodTemporalAdapter())
 
+    gemma4_models = {"gemma4_e2b", "gemma4_e4b", "gemma4_26b"}
+    v1_models = [m for m in args.models if m not in gemma4_models]
+    v2_candidate_models = [m for m in args.models if m in gemma4_models]
+
+    discovered: List[Tuple[str, str, str, Path]] = []
+    if v1_models:
+        discovered.extend(discover_runs(args.results_root, v1_models, CONDITIONS))
+    if v2_candidate_models:
+        conds = CONDITIONS if args.gemma4_pipeline == "v1" else CONDITIONS_V2
+        discovered.extend(discover_runs(args.results_root, v2_candidate_models, conds))
+
     rows: List[Dict] = []
-    discovered = discover_runs(args.results_root, args.models, CONDITIONS)
     for model, cond, run, csv in discovered:
         audit_rows = _load_audit(csv)
         if not audit_rows:
