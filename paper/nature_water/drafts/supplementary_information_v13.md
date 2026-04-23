@@ -293,14 +293,14 @@ For LLM (no validator) agents, threat and coping appraisals are inferred from fr
 | | Governed LLM | 5 | 0.0 ± 0.0 | 0 | 0 | 0 | 0.795 ± 0.019 |
 | Gemma-3 27B | LLM (no validator) | 3 | 0.4 ± 0.3 | 11 | 0 | 0 | 0.662 ± 0.019 |
 | | Governed LLM | 5 | 0.0 ± 0.0 | 0 | 0 | 0 | 0.681 ± 0.020 |
-| Gemma-4 e2b | LLM (no validator) | 5 | 0.1 ± 0.1 | 3 | 0 | 1 | 0.601 ± 0.012 |
-| | Governed LLM | 5 | 0.0 ± 0.0 | 0 | 0 | 0 | 0.612 ± 0.015 |
-| Gemma-4 e4b | LLM (no validator) | 5 | 5.5 ± 1.0 | 269 | 0 | 0 | 0.504 ± 0.068 |
-| | Governed LLM | 5 | 0.0 ± 0.0 | 0 | 0 | 0 | 0.355 ± 0.017 |
-| Gemma-4 26B | LLM (no validator) | 5 | 2.3 ± 0.9 | 114 | 0 | 0 | 0.462 ± 0.021 |
-| | Governed LLM | 5 | 0.0 ± 0.0 | 0 | 0 | 0 | 0.496 ± 0.009 |
+| Gemma-4 e2b | LLM (no validator) | 5 | 0.2 ± 0.1 | 5 | 1 | 0 | 0.576 ± 0.035 |
+| | Governed LLM | 5 | 0.0 ± 0.0 | 0 | 0 | 0 | 0.556 ± 0.017 |
+| Gemma-4 e4b | LLM (no validator) | 5 | 7.9 ± 2.2 | 389 | 0 | 0 | 0.653 ± 0.012 |
+| | Governed LLM | 5 | 0.5 ± 0.4 | 23 | 0 | 0 | 0.633 ± 0.012 |
+| Gemma-4 26B | LLM (no validator) | 5 | 9.3 ± 1.6 | 465 | 0 | 0 | 0.347 ± 0.066 |
+| | Governed LLM | 5 | 0.1 ± 0.1 | 6 | 0 | 0 | 0.471 ± 0.016 |
 
-*R1 = high-threat inaction (do_nothing when TP ≥ H); R3 = low-threat relocation (relocate when TP ≤ L); R4 = low-threat elevation (elevate when TP ≤ L). Counts are seed totals across all 5 runs. EHE = normalized Shannon entropy H/log₂(4), where 0 = monoculture and 1 = uniform. All three Gemma-4 governed rows showed zero violations in every seed (100% validator capture rate); R3/R4 violations were absent across the entire Gemma-4 family regardless of condition, indicating that Gemma-4 base models do not exhibit low-threat over-reaction errors that characterise some smaller LLMs.*
+*R1 = high-threat inaction (do_nothing when TP ≥ H); R3 = low-threat relocation (relocate when TP ≤ L); R4 = low-threat elevation (elevate when TP ≤ L). Counts are seed totals across all 5 runs. EHE = normalized Shannon entropy H/log₂(4), where 0 = monoculture and 1 = uniform. The Gemma-4 family shows IBR concentrated almost entirely in R1 (high-threat inaction), with R3 and R4 near zero in every seed and condition, indicating that Gemma-4 base models do not exhibit low-threat over-reaction errors; the residual R3 = 1 entry in the e2b no-validator row reflects a single seed-level event rather than a systematic pattern.*
 
 **Supplementary Table 6. Governance effect on IBR and EHE (paired t-test across matched seeds).**
 
@@ -312,13 +312,13 @@ For LLM (no validator) agents, threat and coping appraisals are inferred from fr
 | Gemma-3 12B | 4 | +0.25 | [−0.15, +0.66] | 0.139 | −0.099 | [−0.317, +0.120] | 0.247 |
 | Ministral 14B | 3 | +3.61 | [+2.75, +4.46] | 0.003 | −0.072 | [−0.131, −0.013] | 0.035 |
 | Gemma-3 27B | 3 | +0.37 | [−0.26, +1.00] | 0.127 | +0.023 | [−0.000, +0.047] | 0.051 |
-| Gemma-4 e2b | 5 | +0.11 | — | 0.072 | +0.011 | — | — |
-| Gemma-4 e4b | 5 | +5.50 | — | 0.008 | −0.149 | — | — |
-| Gemma-4 26B | 5 | +2.30 | — | 0.008 | +0.034 | — | — |
+| Gemma-4 e2b | 5 | +0.16 | [+0.02, +0.30] | 0.034 | −0.020 | [−0.065, +0.025] | 0.280 |
+| Gemma-4 e4b | 5 | +7.45 | [+4.96, +9.94] | 0.001 | −0.021 | [−0.030, −0.011] | 0.003 |
+| Gemma-4 26B | 5 | +9.18 | [+7.35, +11.01] | <0.001 | +0.124 | [+0.053, +0.195] | 0.008 |
 
-*ΔIBR = (no validator) − (with validators); positive = validators reduce IBR. ΔEHE = (with validators) − (no validator). 95% CIs from paired t-distribution where seed counts permit; Gemma-4 rows are from the pooled cross-model analysis (`gemma4_nw_crossmodel_analysis.md`). Seven of nine models show significant IBR reduction (p < 0.05); the two non-significant pairs (Gemma-3 12B, Gemma-4 e2b) are near-zero baseline cases with little room for reduction. ΔEHE: Gemma-4 e4b is the exception with a larger magnitude change (−0.149, with-validators less diverse); Gemma-4 26B shows a small EHE gain (+0.034) consistent with validators enabling rather than constraining options at 26B scale. All flood experiments use with-validators agents with HumanCentric memory and the same validator pipeline.
+*ΔIBR = (no validator) − (with validators); positive = validators reduce IBR. ΔEHE = (with validators) − (no validator). 95% CIs from paired t-distribution (df = 4 for 5-seed rows, df = 2–3 for 3–4-seed rows). Eight of nine models show significant IBR reduction (p < 0.05); the remaining non-significant pair (Gemma-3 12B) is a near-zero baseline case with little room for reduction. ΔEHE: Ministral 3B, Ministral 8B, Ministral 14B, and Gemma-4 e4b show small significant EHE reductions under validators; Gemma-4 26B shows a significant EHE gain (+0.124, p = 0.008), consistent with validators enabling rather than constraining options at 26B scale where the base model has sufficient capacity to represent diverse adaptive strategies. All flood experiments use the same governance prompts and HumanCentric memory; only validator enforcement differs between the two conditions.
 
-**Decision distribution patterns.** Gemma-3 4B shows the largest IBR gap in the Gemma-3 family (+7.66 pp), driven by R1 violations (383 without validators vs. 38 with); Gemma-4 e4b shows a comparable 5.50 pp reduction. Ministral 3B distributes violations across all three rules. Gemma-3 12B and Gemma-4 e2b are near-null cases (IBR < 0.3% in both conditions), floor-effect outcomes where there is little violation to reduce. In the Ministral family, three of three models show significant EHE reduction under validators (Ministral 3B, 8B, 14B), suggesting that validators moderately narrow behavioural diversity in that family. The three Gemma-3 models show non-significant EHE changes. Gemma-4 e2b is approximately flat on EHE, while Gemma-4 e4b stands out with a larger EHE reduction (−0.149) coupled with the IBR reduction above; this combination matches the pattern Hung and Yang (2021) describe for rule-constrained agents in demand-management settings.
+**Decision distribution patterns.** Gemma-4 26B shows the largest IBR gap in the nine-model grid (+9.18 pp), driven entirely by R1 violations (465 without validators vs. 6 with). Gemma-4 e4b shows the next-largest reduction (+7.45 pp, R1 389 vs. 23), and Gemma-3 4B (+7.66 pp) is comparable. Ministral 3B distributes violations across all three rules. Gemma-3 12B and Gemma-4 e2b are near-null cases (IBR < 0.3% in both conditions), floor-effect outcomes where there is little violation to reduce. In the Ministral family, three of three models show significant EHE reduction under validators (Ministral 3B, 8B, 14B), suggesting that validators moderately narrow behavioural diversity in that family. The three Gemma-3 models show non-significant EHE changes. Within the Gemma-4 family, EHE moves in opposite directions with scale: e2b is flat, e4b shows a small reduction (−0.021, p = 0.003), and 26B shows a significant gain (+0.124, p = 0.008). This scale-dependent reversal is consistent with institutions-as-enablers: at sufficient model capacity, validators open rather than close the adaptive option space, whereas at intermediate scale they trim a narrow subset of options that the rules prohibit.
 
 ### Supplementary Figure 1
 
@@ -566,6 +566,10 @@ The WAGF implementation includes a cognitive dual-process module (System 1 / Sys
 
 At the end of each simulated year, the reflection engine (`broker/components/cognitive/reflection.py`) consolidates retained memories into a "Consolidated Reflection" insight, which is written back into memory with *wₑ* = "major" and a dynamically computed importance derived from the domain adapter. This provides an event-sensitive mechanism for long-horizon salience: agents with recent flood exposure accumulate year-over-year reflections that surface to retrieval, while agents without notable events accumulate reflections at lower importance. The reflection engine is active in all experiments reported here.
 
+### 10.7 Prompt-regime choice and reproducibility note
+
+All nine flood-model configurations reported in this study use an identical prompt regime with no optional attention-directing preamble. During an early broker development cycle, an exploratory flag (`--use-priority-schema`) injected a bracketed "critical factors" header into the user prompt; we subsequently observed that this augmentation shifted small-LLM year-one action distributions by more than forty percentage points despite identical memory content, because the header acted as a directive rather than a neutral frame. The flag is not used in any result reported here, and its presence is asserted false by a startup check in the runner (`examples/single_agent/run_flood.py`). Framework invariants against prompt-structure artefacts of this type are documented at `broker/INVARIANTS.md` with associated CI tests.
+
 ---
 
 ## Supplementary Note 11. Sequence-Level Rule Framework and Post-Hoc Diagnostic
@@ -598,13 +602,44 @@ The validator pipeline enforces R1–R4 by intercepting the proposal, returning 
 
 ### 11.6 Empirical results
 
-Post-hoc trigger rates are reported in Supplementary Table 7. Pre-fix (V1) runs yielded zero M1 triggers across all 9 models because the memory pipeline emitted `emotion = "neutral"` for every retrieved memory, rendering salient past events invisible to the rule. Post-fix (V2) runs register M1 triggers in the Gemma-4 family at 0.5–2.9% of decisions, demonstrating that the memory salience fix is a prerequisite for temporal-coherence diagnostics to be meaningful. M3 trigger rates drop substantially in V2 for Gemma-4 e4b (48% → 0.3%), consistent with the interpretation that priority-schema prompt augmentation in V1 had artificially inflated year-one commitment behaviour (see Methods: Retry Compliance Pattern Analysis and Supplementary Table 8). These results serve as motivation for follow-up work on live reflection-mode enforcement rather than as claims about agent irrationality per se.
+Post-hoc trigger rates across the nine-model × two-condition grid are presented in Supplementary Table 7. Three patterns stand out. First, M1 (appraisal–history coherence) is inactive across every non-Gemma-4 model (0.00% in all twelve rows) but fires at 1.0–1.6% in the two smaller Gemma-4 variants and at 33–38% in Gemma-4 26B. The large-scale M1 signal indicates that 26B agents frequently classify the current-year threat as low despite a salient flood memory within the prior three-year window — a pattern worth live diagnostic surfacing but absent from smaller-scale or earlier-family base models. Second, M2 (behavioural inertia) is markedly reduced by validators in Gemma-4 26B (6.20% → 0.52%) and Gemma-3 4B (4.72% → 3.05%), modestly reduced in Gemma-3 27B (0.51% → 0.20%), and essentially flat elsewhere. Third, M3 (year-one irreversibility without prior salient evidence) is a persistent background rate that point-in-time validators do not target: it is highest in Gemma-4 e2b (≈11–12% in both conditions) and Ministral 3B (5.9–7.7%), and is absent in Gemma-3 27B and Gemma-4 26B. These patterns support the framework proposition that point-in-time validators and sequence-level rules address non-overlapping aspects of irrational behaviour: validators close the appraisal-to-action gap at each decision, while sequence-level rules surface cross-decision coherence failures. Live enforcement via reflection-mode feedback rather than block-and-retry is the architecturally natural extension and is reserved for follow-up work (Section 11.5).
 
-### 11.7 Placeholder for Supplementary Tables 7 and 8
+### 11.7 Supplementary Tables 7 and 8
 
-**Supplementary Table 7.** Post-hoc temporal-rule trigger rates across all nine model configurations × two conditions × five seeds. Columns: model, condition, runs, total decisions, M1 / M2 / M3 trigger counts and rates (% of decisions). V1 and V2 rows side-by-side where applicable. *[Generated by `examples/single_agent/analysis/compute_temporal_diagnostics.py`; final table populated after Gemma-4 V2 rerun completes.]*
+**Supplementary Table 7.** Post-hoc temporal-rule trigger counts and rates across all nine model configurations × two conditions × five seeds. Generated by `examples/single_agent/analysis/compute_temporal_diagnostics.py`.
 
-**Supplementary Table 8.** Retry compliance pattern analysis for the Gemma-4 family. Columns: model, condition, total retries, Pattern A count and %, Pattern B count and %, Pattern C count and %. Pattern definitions per Methods: Retry Compliance Pattern Analysis. *[Preview for Gemma-4 e4b governed (V2, N = 405 R1 retries): Pattern A 22%, Pattern B 58%, Pattern C 20%; e4b disabled and 26B rows populated after rerun completes.]*
+| Model | Condition | Runs | Decisions | M1 n | M1 % | M2 n | M2 % | M3 n | M3 % |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Gemma-3 4B | LLM (no validator) | 5 | 4,662 | 0 | 0.00 | 221 | 4.72 | 113 | 2.42 |
+| | Governed LLM | 5 | 4,468 | 0 | 0.00 | 136 | 3.05 | 125 | 2.82 |
+| Gemma-3 12B | LLM (no validator) | 5 | 4,661 | 0 | 0.00 | 3 | 0.06 | 57 | 1.21 |
+| | Governed LLM | 5 | 4,840 | 0 | 0.00 | 5 | 0.10 | 56 | 1.16 |
+| Gemma-3 27B | LLM (no validator) | 5 | 4,949 | 0 | 0.00 | 25 | 0.51 | 0 | 0.00 |
+| | Governed LLM | 5 | 4,989 | 0 | 0.00 | 10 | 0.20 | 0 | 0.00 |
+| Ministral 3B | LLM (no validator) | 5 | 3,410 | 0 | 0.00 | 111 | 3.21 | 261 | 7.68 |
+| | Governed LLM | 5 | 3,674 | 0 | 0.00 | 189 | 5.10 | 216 | 5.87 |
+| Ministral 8B | LLM (no validator) | 5 | 4,482 | 0 | 0.00 | 138 | 3.09 | 77 | 1.73 |
+| | Governed LLM | 5 | 4,195 | 0 | 0.00 | 150 | 3.57 | 72 | 1.72 |
+| Ministral 14B | LLM (no validator) | 5 | 4,345 | 0 | 0.00 | 74 | 1.70 | 74 | 1.70 |
+| | Governed LLM | 5 | 4,634 | 0 | 0.00 | 96 | 2.07 | 54 | 1.17 |
+| Gemma-4 e2b | LLM (no validator) | 5 | 3,755 | 55 | 1.46 | 14 | 0.37 | 451 | 12.01 |
+| | Governed LLM | 5 | 4,019 | 63 | 1.57 | 16 | 0.40 | 449 | 11.19 |
+| Gemma-4 e4b | LLM (no validator) | 5 | 4,907 | 47 | 0.96 | 0 | 0.00 | 9 | 0.18 |
+| | Governed LLM | 5 | 4,921 | 64 | 1.30 | 0 | 0.00 | 14 | 0.28 |
+| Gemma-4 26B | LLM (no validator) | 5 | 5,000 | 1,663 | 33.26 | 310 | 6.20 | 0 | 0.00 |
+| | Governed LLM | 5 | 4,999 | 1,905 | 38.11 | 26 | 0.52 | 0 | 0.00 |
+
+*Decision counts are seed totals across the 5 runs per condition. Rates are seed-averaged. Counts near zero reflect genuine absence rather than missing data; for example, Gemma-3 27B never triggers M3 because the model does not commit to irreversible year-one actions without prior cues, while Gemma-4 26B never triggers M3 for the same reason.*
+
+**Supplementary Table 8.** Retry compliance pattern analysis for the Gemma-4 family under the Governed LLM condition. Pattern definitions per Methods: Retry Compliance Pattern Analysis. Generated by `examples/single_agent/analysis/compute_retry_compliance.py`.
+
+| Model | Retries (N) | Pattern A: TP ↓ + action retained | Pattern B: TP held + action ↑ | Pattern C: both change | Other |
+|---|---:|---:|---:|---:|---:|
+| Gemma-4 e2b | 9 | 2 (22.2%) | 4 (44.4%) | 3 (33.3%) | 0 (0.0%) |
+| Gemma-4 e4b | 411 | 90 (21.9%) | 212 (51.6%) | 84 (20.4%) | 25 (6.1%) |
+| Gemma-4 26B | 383 | 24 (6.3%) | 333 (86.9%) | 20 (5.2%) | 6 (1.6%) |
+
+*Retries = rows with `retry_count > 0` in the audit trace. The original pre-retry action is recovered from the validator's error payload (which embeds the blocked action name in the rule-violation string); the final threat label and final action are read from the approved post-retry row. "Other" = format retries with no rule interception, or non-standard change patterns such as a lateral action change at a maintained threat label. Pattern B dominates at 26B (87% of 383 retries), consistent with canonical Protection Motivation Theory where heightened threat appraisal licenses protective action intensity; the e4b family mixes Pattern B (52%) with Patterns A (22%) and C (20%), indicating that smaller-capacity models split between canonical PMT upgrade and motivated-reappraisal downgrade strategies when validators intercept a proposal.*
 
 ---
 
