@@ -566,10 +566,6 @@ The WAGF implementation includes a cognitive dual-process module (System 1 / Sys
 
 At the end of each simulated year, the reflection engine (`broker/components/cognitive/reflection.py`) consolidates retained memories into a "Consolidated Reflection" insight, which is written back into memory with *wₑ* = "major" and a dynamically computed importance derived from the domain adapter. This provides an event-sensitive mechanism for long-horizon salience: agents with recent flood exposure accumulate year-over-year reflections that surface to retrieval, while agents without notable events accumulate reflections at lower importance. The reflection engine is active in all experiments reported here.
 
-### 10.7 Prompt-regime choice and reproducibility note
-
-All nine flood-model configurations reported in this study use an identical prompt regime with no optional attention-directing preamble. During an early broker development cycle, an exploratory flag (`--use-priority-schema`) injected a bracketed "critical factors" header into the user prompt; we subsequently observed that this augmentation shifted small-LLM year-one action distributions by more than forty percentage points despite identical memory content, because the header acted as a directive rather than a neutral frame. The flag is not used in any result reported here, and its presence is asserted false by a startup check in the runner (`examples/single_agent/run_flood.py`). Framework invariants against prompt-structure artefacts of this type are documented at `broker/INVARIANTS.md` with associated CI tests.
-
 ---
 
 ## Supplementary Note 11. Sequence-Level Rule Framework and Post-Hoc Diagnostic
@@ -598,7 +594,7 @@ Live enforcement of M1–M3 would inject structured reflection questions at year
 
 ### 11.5 Why reflection, not block-and-retry
 
-The validator pipeline enforces R1–R4 by intercepting the proposal, returning it to the LLM with targeted feedback, and retrying until compliance is achieved (Methods: Broker Architecture). This architecture is appropriate for point-in-time rules where the violation is evaluable at proposal time. Temporal rules, by contrast, require observation of a completed trajectory segment and cannot be checked at pre-execution time without introducing a timing paradox: the trajectory to be evaluated does not yet exist. Furthermore, block-and-retry loops are known to risk LLM prompt-structure artefacts, as documented elsewhere in the broker development log (the 2026-04-19 priority-schema prompt-augmentation incident). Reflection-mode feedback, in contrast, injects a structured memory item that is read only during subsequent retrieval; it is a natural extension of the existing reflection-engine output mechanism and carries no pre-execution timing risk. For these reasons, live enforcement of M1–M3 is designed to enter the pipeline via the reflection engine's year-end hook rather than via the validator retry loop.
+The validator pipeline enforces R1–R4 by intercepting the proposal, returning it to the LLM with targeted feedback, and retrying until compliance is achieved (Methods: Broker Architecture). This architecture is appropriate for point-in-time rules where the violation is evaluable at proposal time. Temporal rules, by contrast, require observation of a completed trajectory segment and cannot be checked at pre-execution time without introducing a timing paradox: the trajectory to be evaluated does not yet exist. Reflection-mode feedback, in contrast, injects a structured memory item that is read only during subsequent retrieval; it is a natural extension of the existing reflection-engine output mechanism and carries no pre-execution timing risk. For these reasons, live enforcement of M1–M3 is designed to enter the pipeline via the reflection engine's year-end hook rather than via the validator retry loop.
 
 ### 11.6 Empirical results
 
