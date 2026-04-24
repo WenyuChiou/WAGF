@@ -311,9 +311,16 @@ class IrrigationLifecycleHooks:
             skill = dec.get("skill") if isinstance(dec, dict) else dec
             appr = dec.get("appraisals", {}) if isinstance(dec, dict) else {}
 
-            # Retrieve memory for logging
+            # Retrieve memory for logging (memory_engine.retrieve returns List[Dict]
+            # with content/timestamp/importance/emotion; coerce to string before join)
             mem_items = self.runner.memory_engine.retrieve(agent, top_k=5)
-            mem_str = " | ".join(mem_items) if isinstance(mem_items, list) else str(mem_items)
+            if isinstance(mem_items, list):
+                mem_str = " | ".join(
+                    (m.get("content", "") if isinstance(m, dict) else str(m))
+                    for m in mem_items
+                )
+            else:
+                mem_str = str(mem_items)
 
             profile = self.profiles.get(aid)
             self.logs.append({
