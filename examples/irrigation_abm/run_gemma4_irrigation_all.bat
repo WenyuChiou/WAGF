@@ -9,7 +9,7 @@ cd /d "%~dp0"
 
 echo [%date% %time%] ============================================
 echo [%date% %time%]  Gemma-4 irrigation batch master launcher
-echo [%date% %time%]  Model order: e2b -> e4b (5 seeds each, 2 conditions)
+echo [%date% %time%]  Model order: e2b then e4b (5 seeds each, 2 conditions)
 echo [%date% %time%] ============================================
 
 REM --- Pre-flight: confirm priority-schema flag not present anywhere ---
