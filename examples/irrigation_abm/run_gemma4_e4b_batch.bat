@@ -15,16 +15,16 @@ for %%S in (42 43 44 45 46) do (
         echo [%date% %time%] SKIP: production_gemma4_e4b_seed%%S already exists
     ) else (
         echo [%date% %time%] START: governed gemma4:e4b seed=%%S
-        python run_experiment.py --model gemma4:e4b --years 42 --real --seed %%S --output results/production_v21_42yr_gemma4_e4b_seed%%S --num-ctx 8192 --num-predict 4096
-        echo [%date% %time%] DONE: governed gemma4:e4b seed=%%S
+        python run_experiment.py --model gemma4:e4b --years 42 --real --seed %%S --output results/production_v21_42yr_gemma4_e4b_seed%%S --num-ctx 8192 --num-predict 4096 > "results\production_v21_42yr_gemma4_e4b_seed%%S.stdout.log" 2>&1
+        echo [%date% %time%] DONE: governed gemma4:e4b seed=%%S exit=%errorlevel%
     )
 
     if exist "results\ungoverned_v21_42yr_gemma4_e4b_seed%%S\simulation_log.csv" (
         echo [%date% %time%] SKIP: ungoverned_gemma4_e4b_seed%%S already exists
     ) else (
         echo [%date% %time%] START: ungoverned gemma4:e4b seed=%%S
-        python run_ungoverned_experiment.py --model gemma4:e4b --years 42 --real --seed %%S --output results/ungoverned_v21_42yr_gemma4_e4b_seed%%S --num-ctx 8192 --num-predict 4096
-        echo [%date% %time%] DONE: ungoverned gemma4:e4b seed=%%S
+        python run_ungoverned_experiment.py --model gemma4:e4b --years 42 --real --seed %%S --output results/ungoverned_v21_42yr_gemma4_e4b_seed%%S --num-ctx 8192 --num-predict 4096 > "results\ungoverned_v21_42yr_gemma4_e4b_seed%%S.stdout.log" 2>&1
+        echo [%date% %time%] DONE: ungoverned gemma4:e4b seed=%%S exit=%errorlevel%
     )
 )
 
