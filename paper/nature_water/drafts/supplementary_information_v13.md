@@ -287,12 +287,12 @@ For LLM (no validator) agents, threat and coping appraisals are inferred from fr
 | | Governed LLM | 5 | 0.9 ± 0.9 | 38 | 0 | 0 | 0.861 ± 0.045 |
 | Ministral 8B | LLM (no validator) | 5 | 2.9 ± 0.6 | 70 | 12 | 46 | 0.797 ± 0.024 |
 | | Governed LLM | 5 | 0.0 ± 0.1 | 1 | 0 | 0 | 0.769 ± 0.019 |
-| Gemma-3 12B | LLM (no validator) | 4 | 0.3 ± 0.2 | 0 | 0 | 10 | 0.585 ± 0.077 |
-| | Governed LLM | 5 | 0.0 ± 0.0 | 0 | 0 | 1 | 0.495 ± 0.056 |
-| Ministral 14B | LLM (no validator) | 3 | 3.6 ± 0.3 | 34 | 18 | 41 | 0.876 ± 0.026 |
-| | Governed LLM | 5 | 0.0 ± 0.0 | 0 | 0 | 0 | 0.795 ± 0.019 |
-| Gemma-3 27B | LLM (no validator) | 3 | 0.4 ± 0.3 | 11 | 0 | 0 | 0.662 ± 0.019 |
-| | Governed LLM | 5 | 0.0 ± 0.0 | 0 | 0 | 0 | 0.681 ± 0.020 |
+| Gemma-3 12B | LLM (no validator) | 5 | 0.3 ± 0.2 | 0 | 0 | 13 | 0.467 ± 0.044 |
+| | Governed LLM | 5 | 0.0 ± 0.0 | 0 | 0 | 1 | 0.427 ± 0.037 |
+| Ministral 14B | LLM (no validator) | 5 | 3.8 ± 0.4 | 48 | 36 | 80 | 0.747 ± 0.024 |
+| | Governed LLM | 5 | 0.0 ± 0.0 | 0 | 0 | 0 | 0.694 ± 0.017 |
+| Gemma-3 27B | LLM (no validator) | 5 | 0.4 ± 0.2 | 22 | 0 | 0 | 0.644 ± 0.029 |
+| | Governed LLM | 5 | 0.0 ± 0.0 | 0 | 0 | 0 | 0.674 ± 0.013 |
 | Gemma-4 e2b | LLM (no validator) | 5 | 0.2 ± 0.1 | 5 | 1 | 0 | 0.576 ± 0.035 |
 | | Governed LLM | 5 | 0.0 ± 0.0 | 0 | 0 | 0 | 0.556 ± 0.017 |
 | Gemma-4 e4b | LLM (no validator) | 5 | 7.9 ± 2.2 | 389 | 0 | 0 | 0.653 ± 0.012 |
@@ -309,14 +309,14 @@ For LLM (no validator) agents, threat and coping appraisals are inferred from fr
 | Ministral 3B | 5 | +7.59 | [+6.20, +8.98] | <0.001 | −0.023 | [−0.040, −0.006] | 0.020 |
 | Gemma-3 4B | 5 | +7.66 | [+7.01, +8.30] | <0.001 | +0.047 | [−0.061, +0.155] | 0.295 |
 | Ministral 8B | 5 | +2.85 | [+2.13, +3.57] | <0.001 | −0.028 | [−0.053, −0.003] | 0.037 |
-| Gemma-3 12B | 4 | +0.25 | [−0.15, +0.66] | 0.139 | −0.099 | [−0.317, +0.120] | 0.247 |
-| Ministral 14B | 3 | +3.61 | [+2.75, +4.46] | 0.003 | −0.072 | [−0.131, −0.013] | 0.035 |
-| Gemma-3 27B | 3 | +0.37 | [−0.26, +1.00] | 0.127 | +0.023 | [−0.000, +0.047] | 0.051 |
+| Gemma-3 12B | 5 | +0.26 | [−0.01, +0.54] | 0.056 | −0.040 | [−0.138, +0.058] | 0.319 |
+| Ministral 14B | 5 | +3.78 | [+3.34, +4.21] | <0.001 | −0.053 | [−0.068, −0.037] | <0.001 |
+| Gemma-3 27B | 5 | +0.44 | [+0.16, +0.73] | 0.013 | +0.030 | [−0.008, +0.067] | 0.092 |
 | Gemma-4 e2b | 5 | +0.16 | [+0.02, +0.30] | 0.034 | −0.020 | [−0.065, +0.025] | 0.280 |
 | Gemma-4 e4b | 5 | +7.45 | [+4.96, +9.94] | 0.001 | −0.021 | [−0.030, −0.011] | 0.003 |
 | Gemma-4 26B | 5 | +9.18 | [+7.35, +11.01] | <0.001 | +0.124 | [+0.053, +0.195] | 0.008 |
 
-*ΔIBR = (no validator) − (with validators); positive = validators reduce IBR. ΔEHE = (with validators) − (no validator). 95% CIs from paired t-distribution (df = 4 for 5-seed rows, df = 2–3 for 3–4-seed rows). Eight of nine models show significant IBR reduction (p < 0.05); the remaining non-significant pair (Gemma-3 12B) is a near-zero baseline case with little room for reduction. ΔEHE: Ministral 3B, Ministral 8B, Ministral 14B, and Gemma-4 e4b show small significant EHE reductions under validators; Gemma-4 26B shows a significant EHE gain (+0.124, p = 0.008), consistent with validators enabling rather than constraining options at 26B scale where the base model has sufficient capacity to represent diverse adaptive strategies. All flood experiments use the same governance prompts and HumanCentric memory; only validator enforcement differs between the two conditions.
+*ΔIBR = (no validator) − (with validators); positive = validators reduce IBR. ΔEHE = (with validators) − (no validator). 95% CIs from paired t-distribution (df = 4; n = 5 per condition per model). Eight of nine models show significant IBR reduction (p < 0.05); the remaining non-significant pair (Gemma-3 12B) is a near-zero baseline case with little room for reduction. ΔEHE: Ministral 3B, Ministral 8B, Ministral 14B, and Gemma-4 e4b show small significant EHE reductions under validators; Gemma-4 26B shows a significant EHE gain (+0.124, p = 0.008), consistent with validators enabling rather than constraining options at 26B scale where the base model has sufficient capacity to represent diverse adaptive strategies. All flood experiments use the same governance prompts and HumanCentric memory; only validator enforcement differs between the two conditions.
 
 **Decision distribution patterns.** Gemma-4 26B shows the largest IBR gap in the nine-model grid (+9.18 pp), driven entirely by R1 violations (465 without validators vs. 6 with). Gemma-4 e4b shows the next-largest reduction (+7.45 pp, R1 389 vs. 23), and Gemma-3 4B (+7.66 pp) is comparable. Ministral 3B distributes violations across all three rules. Gemma-3 12B and Gemma-4 e2b are near-null cases (IBR < 0.3% in both conditions), floor-effect outcomes where there is little violation to reduce. In the Ministral family, three of three models show significant EHE reduction under validators (Ministral 3B, 8B, 14B), suggesting that validators moderately narrow behavioural diversity in that family. The three Gemma-3 models show non-significant EHE changes. Within the Gemma-4 family, EHE moves in opposite directions with scale: e2b is flat, e4b shows a small reduction (−0.021, p = 0.003), and 26B shows a significant gain (+0.124, p = 0.008). This scale-dependent reversal is consistent with institutions-as-enablers: at sufficient model capacity, validators open rather than close the adaptive option space, whereas at intermediate scale they trim a narrow subset of options that the rules prohibit.
 
