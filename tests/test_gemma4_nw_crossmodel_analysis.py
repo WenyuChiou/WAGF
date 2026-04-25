@@ -47,8 +47,14 @@ def test_summarize_pooled_metrics_counts_ibr_ehe_and_rates():
 
     summary = mod.summarize_pooled_metrics(df)
 
+    # Production IBR per Methods + MEMORY.md = R1+R3+R4 (R5 excluded).
+    # Fixture violations:
+    #   row 1: TP=H, action=do_nothing       -> R1 (high-threat inaction)
+    #   row 3: TP=L, action=elevate_house    -> R4 (low-threat elevation)
+    # row 2 (TP=VH, action=buy_insurance) and row 4 (TP=M, action=relocate)
+    # are not R1/R3/R4 violations. IBR = 2/4 = 0.5.
     assert summary["n"] == 4
-    assert summary["ibr"] == 0.25
+    assert summary["ibr"] == 0.5
     assert round(summary["ehe"], 6) == 1.0
     assert summary["rejection_rate"] == 0.25
     assert summary["retry_rate"] == 0.5
