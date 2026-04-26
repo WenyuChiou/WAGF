@@ -26,19 +26,24 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-REPO = Path(__file__).resolve().parents[5]
+REPO = Path(__file__).resolve().parents[4]
 
 
 def find_run_dirs(root: Path) -> List[Path]:
-    """A run dir contains either reproducibility_manifest.json or simulation_log.csv."""
+    """A run dir contains reproducibility_manifest.json OR simulation_log.csv
+    OR any *_governance_audit.csv. Includes `root` itself if it qualifies."""
     out = []
-    for p in root.rglob("*"):
-        if p.is_dir() and (
+    candidates = [root] + [p for p in root.rglob("*") if p.is_dir()]
+    for p in candidates:
+        if not p.is_dir():
+            continue
+        if (
             (p / "reproducibility_manifest.json").exists()
             or (p / "simulation_log.csv").exists()
+            or list(p.glob("*_governance_audit.csv"))
         ):
             out.append(p)
-    return sorted(out)
+    return sorted(set(out))
 
 
 def load_manifest(run_dir: Path) -> Optional[Dict]:
@@ -84,8 +89,12 @@ def check_run(run_dir: Path) -> Dict:
     has_data = sim_log.exists() and sim_log.stat().st_size > 0
     findings = []
 
+    try:
+        rel_path = str(run_dir.relative_to(REPO))
+    except ValueError:
+        rel_path = str(run_dir)
     record = {
-        "path": str(run_dir.relative_to(REPO)),
+        "path": rel_path,
         "manifest_present": manifest is not None,
         "data_complete": has_data,
         "manifest_git_commit": None,
