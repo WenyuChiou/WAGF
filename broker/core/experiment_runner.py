@@ -380,11 +380,17 @@ class ExperimentRunner:
         action_desc = result.approved_skill.skill_name.replace("_", " ").capitalize()
         timestamp_prefix = f"Year {self._current_year}: " if hasattr(self, '_current_year') else ""
         memory_content = f"{timestamp_prefix}Decided to: {action_desc}"
+        if result.approved_skill.skill_name in {"elevate_house", "relocate"}:
+            memory_metadata = {"emotion": "major", "importance": 0.7, "source": "personal"}
+        elif result.approved_skill.skill_name == "buy_insurance":
+            memory_metadata = {"emotion": "positive", "importance": 0.6, "source": "personal"}
+        else:
+            memory_metadata = {"emotion": "routine", "importance": 0.1, "source": "personal"}
 
         if hasattr(self.memory_engine, 'add_memory_for_agent'):
-            self.memory_engine.add_memory_for_agent(agent, memory_content)
+            self.memory_engine.add_memory_for_agent(agent, memory_content, memory_metadata)
         else:
-            self.memory_engine.add_memory(agent.id, memory_content)
+            self.memory_engine.add_memory(agent.id, memory_content, memory_metadata)
 
     def _partition_by_phase(self, agents: List) -> List[List]:
         """Partition agents into ordered phases based on config.phase_order.

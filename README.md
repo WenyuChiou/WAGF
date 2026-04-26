@@ -28,6 +28,7 @@ The framework ships with two water-sector reference implementations (flood adapt
 - **Domain Packs** — Add a new domain with 3 files: `skill_registry.yaml` + `agent_types.yaml` + `lifecycle_hooks.py`
 - **Pluggable Behavioral Theory** — Ships with Protection Motivation Theory (PMT); swap or extend via YAML configuration
 - **Research Ready** — Ablation modes (strict/relaxed/disabled), cross-model comparison across 6+ LLM families, multi-seed reproducibility
+- **AI-assisted Workflow** — 5 bundled [Claude Code skills](docs/skills/wagf-skills.md) (`wagf-quickstart`, `wagf-experiment-designer`, `llm-agent-audit-trace-analyzer`, `model-coupling-contract-checker`, `abm-reproducibility-checker`) walk a new researcher from `git clone` to paper-ready metrics without reading the manual first
 
 ## Why Governance?
 
@@ -42,6 +43,30 @@ The framework ships with two water-sector reference implementations (flood adapt
 ---
 
 ## Quick Start
+
+### AI-assisted setup (recommended for first-time users)
+
+Open this repo in [Claude Code](https://claude.ai/code) and say:
+
+> "I just cloned WAGF, help me set this up."
+
+The `wagf-quickstart` skill walks you through environment check, a
+2-minute smoke test, and your first experiment in ~10 minutes (plus
+LLM run time). Four additional skills cover the full research
+lifecycle:
+
+| Need | Skill |
+|------|-------|
+| Plan an experiment | `wagf-experiment-designer` |
+| Analyse audit traces | `llm-agent-audit-trace-analyzer` |
+| Verify external-model coupling | `model-coupling-contract-checker` |
+| Pre-submission audit | `abm-reproducibility-checker` |
+
+See [`docs/skills/wagf-skills.md`](docs/skills/wagf-skills.md) for the
+full chooser. The skills are bundled in `.claude/skills/` and load
+automatically when you open the repo in Claude Code.
+
+### Manual setup
 
 ### Prerequisites
 
@@ -114,8 +139,32 @@ broker/core/experiment.py              — ExperimentRunner + Builder API
 broker/validators/governance/          — 6 validator implementations
 broker/components/memory/              — Memory engine ABC + implementations
 broker/components/context/             — Context assembly chain
+broker/components/cognitive/           — Reflection engine + cognitive trace
+broker/components/governance/          — Skill registry + temporal_rules/
 examples/quickstart/                   — Progressive tutorial
 ```
+
+### Reflection Module
+
+Year-end reflection consolidates recent memories into structured insights,
+which are written back into agent memory at `emotion="major"` and surface in
+subsequent retrievals. Reflection is YAML-driven — present-moment reflection
+questions, multi-modal triggers (crisis / periodic / post-decision /
+institutional change), and reflection interval are defined per domain in
+`agent_types.yaml` under `global_config.reflection`. Three present-moment
+question types cover risk salience, social comparison, and cost-safety
+trade-offs.
+
+The framework reserves a fourth dimension — **temporal coherence** — for
+conditional extension: when a sequence-level rule (M1 appraisal-history
+coherence, M2 behavioural inertia, or M3 evidence-grounded irreversibility)
+triggers, a targeted temporal question is injected into the agent's
+reflection prompt. In the current release these temporal questions are
+specified at the design level but not live-injected; empirical evaluation is
+reserved for follow-up work. See `broker/components/cognitive/reflection.py`
+for the engine, `broker/components/governance/temporal_rules/` for the
+sequence-level rule framework, and `.ai/reflection_taxonomy_design_2026-04-19.md`
+for the full design specification.
 
 ### Composable Agent Design
 

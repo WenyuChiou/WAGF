@@ -50,6 +50,30 @@ PAST_EVENTS = [
     "News outlets have reported a possible trend of increasing flood frequency and severity in recent years"
 ]
 
+
+def _memory_texts(items: List[Any]) -> List[str]:
+    texts = []
+    for item in items or []:
+        if isinstance(item, dict):
+            texts.append(str(item.get("content", "")))
+        else:
+            texts.append(str(item))
+    return texts
+
+
+def _flood_memory_metadata(*, flood_event: bool = False, action_name: Optional[str] = None, reflection: bool = False) -> Dict[str, Any]:
+    if reflection:
+        return {"emotion": "major", "importance": 0.7, "source": "personal"}
+    if flood_event:
+        return {"emotion": "critical", "importance": 0.9, "source": "personal"}
+    if action_name in {"elevate_house", "relocate"}:
+        return {"emotion": "major", "importance": 0.7, "source": "personal"}
+    if action_name == "buy_insurance":
+        return {"emotion": "positive", "importance": 0.6, "source": "personal"}
+    if action_name:
+        return {"emotion": "routine", "importance": 0.1, "source": "personal"}
+    return {"emotion": "routine", "importance": 0.1, "source": "personal"}
+
 # Schema Definition for Group C (Pillar 3)
 # DEPRECATED: Now moved to agent_types.yaml for user configuration
 # FLOOD_PRIORITY_SCHEMA = { ... }
@@ -100,7 +124,8 @@ class FinalContextBuilder(TieredContextBuilder):
             
         context = super().build(agent_id, **kwargs)
         personal = context.get('personal', {})
-        personal['memory'] = personal_memory # Override the default top_k=3 from hub
+        context['memory'] = personal_memory
+        personal['memory'] = personal_memory
         
         # 2. Extract state for verbalization
         # 2. Extract state for verbalization - USE LIVE AGENT STATE for parity
@@ -137,23 +162,6 @@ class FinalContextBuilder(TieredContextBuilder):
         if elevated:
             all_skills = [s for s in all_skills if s != "elevate_house"]
         context['available_skills'] = all_skills
-        mem_val = personal.get('memory', [])
-        if isinstance(mem_val, dict):
-            # Flatten tiered memory for prompt
-            lines = []
-            if mem_val.get("core"):
-                core_str = " ".join([f"{k}={v}" for k, v in mem_val["core"].items()])
-                lines.append(f"CORE: {core_str}")
-            if mem_val.get("semantic"):
-                lines.append("HISTORIC:")
-                lines.extend([f"  - {m}" for m in mem_val["semantic"]])
-            if mem_val.get("episodic"):
-                lines.append("RECENT:")
-                lines.extend([f"  - {m}" for m in mem_val["episodic"]])
-            personal['memory'] = "\n".join(lines) if lines else "No memory available"
-        elif isinstance(mem_val, list):
-            personal['memory'] = "\n".join([f"- {m}" for m in mem_val])
-        
         # 5. Options Text Formatting (with anti-positional-bias shuffle, Task-060B)
         options = [
             ("buy_insurance", "Buy flood insurance (Lower cost, provides partial financial protection but does not reduce physical damage.)"),
@@ -387,7 +395,11 @@ class FinalParityHook:
 
             # Consolidate and Add ONCE to preserve window history
             consolidated_mem = " | ".join(yearly_memories)
-            self.runner.memory_engine.add_memory(agent.id, consolidated_mem)
+            self.runner.memory_engine.add_memory(
+                agent.id,
+                consolidated_mem,
+                _flood_memory_metadata(flood_event=flood_event),
+            )
 
     def post_step(self, agent, result):
         year = self.sim.current_year
@@ -465,8 +477,10 @@ class FinalParityHook:
                 agent.trust_in_neighbors = max(0.0, min(1.0, trust_nb))
 
             # Retrieve memory for logging (Parity)
-            mem_items = self.runner.memory_engine.retrieve(agent, top_k=5)
-            # Memory engine returns list of strings. Join with | for CSV parity.
+            if hasattr(self.runner.memory_engine, "retrieve_content_only"):
+                mem_items = self.runner.memory_engine.retrieve_content_only(agent, top_k=5)
+            else:
+                mem_items = _memory_texts(self.runner.memory_engine.retrieve(agent, top_k=5))
             mem_str = " | ".join(mem_items)
             
             # Note: Reflection is now handled in BATCH mode after the agent loop.
@@ -547,7 +561,10 @@ class FinalParityHook:
                 if hasattr(mem_engine, 'retrieve_stratified'):
                     memories = mem_engine.retrieve_stratified(agent_id, total_k=10)
                 else:
-                    memories = mem_engine.retrieve(agent, top_k=10)
+                    if hasattr(mem_engine, "retrieve_content_only"):
+                        memories = mem_engine.retrieve_content_only(agent, top_k=10)
+                    else:
+                        memories = _memory_texts(mem_engine.retrieve(agent, top_k=10))
                 if memories:
                     ctx = self.reflection_engine.extract_agent_context(agent, year)
                     candidates.append({"agent_id": agent_id, "memories": memories, "context": ctx})
@@ -583,7 +600,11 @@ class FinalParityHook:
                                 self.runner.memory_engine.add_memory(
                                     agent_id,
                                     f"Consolidated Reflection: {insight.summary}",
-                                    {"significance": insight.importance, "emotion": "major", "source": "personal", "type": "reflection"}
+                                    {
+                                        **_flood_memory_metadata(reflection=True),
+                                        "importance": insight.importance,
+                                        "type": "reflection",
+                                    }
                                 )
                     except Exception as e:
                         print(f" [Reflection:Batch:Error] Batch {i//batch_size+1} failed: {e}")
@@ -936,8 +957,26 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     )
 
     # Inject PrioritySchemaProvider if enabled (Separation for Group C)
-    # Inject PrioritySchemaProvider if enabled (Separation for Group C)
     if use_priority_schema:
+        # 2026-04-19 SAFETY WARNING (broker/INVARIANTS.md Invariant 5):
+        # This flag injects a "### [CRITICAL FACTORS (Focus Here)]" block
+        # into every prompt. Empirically observed to shift Gemma-3 4B Y1
+        # elevate rate from 25% (V1 paper baseline) to 73% with identical
+        # memory content — a massive attention-prompt artifact.
+        # Use ONLY for explicit Group C priority-schema experiments; do
+        # NOT enable by default on cross-model comparison runs or you will
+        # re-confound the 2026-04-19 pipeline investigation.
+        import sys
+        print(
+            "[WARNING] --use-priority-schema is ENABLED. This injects a "
+            "'[CRITICAL FACTORS (Focus Here)]' prompt block that dramatically "
+            "changes LLM attention and produces systematically different "
+            "action distributions vs runs without the flag. See MEMORY.md "
+            "'Priority-schema confound (2026-04-19)'. If you are doing a "
+            "cross-model comparison with JOH_FINAL/gemma3_4b-style baselines, "
+            "you probably want the flag OFF.",
+            file=sys.stderr,
+        )
         print("[Experimental] Injecting PrioritySchemaProvider (Pillar 3)")
         
         # Load schema from YAML (or fallback to empty if missing)

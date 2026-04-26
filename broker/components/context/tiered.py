@@ -96,6 +96,24 @@ class BaseAgentContextBuilder(ContextBuilder):
     @staticmethod
     def _format_memory(memory_val) -> str:
         """Format memory (list, dict with episodic/semantic/core, or scalar) into a prompt string."""
+        def format_memory_item(memory_item) -> str:
+            # Prompt must match V1 format (bare bullet, no salience tags).
+            # Rationale (2026-04-19): even an innocuous-looking "[ROUTINE]"
+            # prefix on seed memories drove Gemma-3 4B's Y1 elevate rate
+            # from 25% to 70% with identical content. The tag introduces
+            # prompt-structure cues that small LLMs over-weight. Memory
+            # salience remains expressed through RETRIEVAL ORDERING
+            # (see sort by final_score/importance below) — critical
+            # memories appear first in the bullet list, so an attentive
+            # LLM can prioritise them without explicit labels leaking
+            # into the text. This preserves the V1 prompt contract while
+            # still benefiting from the upstream metadata-preserving
+            # memory pipeline.
+            if isinstance(memory_item, dict):
+                content = str(memory_item.get("content", "")).strip()
+                return f"- {content}" if content else "-"
+            return f"- {memory_item}"
+
         if isinstance(memory_val, dict) and "episodic" in memory_val:
             lines = []
             core = memory_val.get("core", {})
@@ -105,13 +123,31 @@ class BaseAgentContextBuilder(ContextBuilder):
                 lines.append("CORE: " + " ".join(f"{k}={v}" for k, v in core.items()))
             if semantic:
                 lines.append("HISTORIC:")
-                lines.extend(f"  - {m}" for m in semantic)
+                lines.extend(f"  {format_memory_item(m)}" for m in semantic)
             if episodic:
                 lines.append("RECENT:")
-                lines.extend(f"  - {m}" for m in episodic)
+                lines.extend(f"  {format_memory_item(m)}" for m in episodic)
             return "\n".join(lines) if lines else "No memories yet."
         elif isinstance(memory_val, list):
-            return "\n".join(f"- {m}" for m in memory_val) if memory_val else "No memories yet."
+            if not memory_val:
+                return "No memories yet."
+            # Sort by salience DESC, but keep timestamp ASCENDING within
+            # ties so equal-importance memories preserve chronological
+            # (insertion) order — matches V1 behaviour for Y1 all-routine
+            # seed memories. Using bare `reverse=True` on tuple would
+            # reverse timestamp too, which scrambles load order.
+            def _sort_key(item):
+                if not isinstance(item, dict):
+                    return (0.0, 0.0, 0)
+                salience = item.get("final_score", item.get("importance", 0.0))
+                importance = item.get("importance", 0.0)
+                timestamp = item.get("timestamp", 0)
+                # Negate salience/importance for descending; keep timestamp
+                # ascending (natural order for equal salience).
+                return (-salience, -importance, timestamp)
+
+            ordered = sorted(memory_val, key=_sort_key)
+            return "\n".join(format_memory_item(m) for m in ordered)
         elif memory_val:
             return str(memory_val)
         return "No memories yet."
