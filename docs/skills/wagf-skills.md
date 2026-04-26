@@ -8,6 +8,7 @@ analysis scripts; none reimplements WAGF logic.
 
 | If you want to … | Load skill |
 |---|---|
+| **Onboard** — first time using WAGF, walk me through setup | `wagf-quickstart` |
 | **Plan** a new experiment matrix from a research question | `wagf-experiment-designer` |
 | **Analyse** existing audit traces into paper-ready metrics | `llm-agent-audit-trace-analyzer` |
 | **Verify** the contract between agents and an external model | `model-coupling-contract-checker` |
@@ -17,6 +18,31 @@ For paper writing, Zotero, citations, generic coding delegation, or
 literature review, use the user-level skills (`academic-writing-skills`,
 `research-hub`, `verify-references`, `codex-delegate`,
 `gemini-delegate`). WAGF skills do NOT duplicate those.
+
+## Skill 0: `wagf-quickstart` (entry point)
+
+**Trigger phrases**: "I just cloned WAGF", "set up WAGF", "first WAGF
+run", "I'm new to this", "where do I start with WAGF", or opening a
+Claude Code session in a freshly-cloned WAGF repo without a clear
+task.
+
+**Inputs**: none (the skill prompts the user as it walks the four
+phases).
+
+**Outputs**: `.wagf-quickstart-status.json` (resume-state file);
+hands off artefacts to the lifecycle skills.
+
+**Workflow**: 4 phases:
+1. Environment check (~3 min) via
+   `.claude/skills/wagf-quickstart/scripts/check_env.py`.
+2. Smoke test (~5 min) via `examples/quickstart/0[12]_*.py`.
+3. First experiment (~30 min) — hand off to
+   `wagf-experiment-designer` with sensible defaults.
+4. First analysis (~5 min after run) — hand off to
+   `llm-agent-audit-trace-analyzer`.
+
+**Refusal protocol**: refuses to skip phases, pretend env is fine when
+`check_env.py` says no, or auto-fill the user's research question.
 
 ## Skill 1: `wagf-experiment-designer`
 
@@ -104,20 +130,22 @@ reserved list; refuses to GREEN if `pytest broker/ tests/` fails.
 
 ## Why these and not others
 
-WAGF intentionally has only four skills. Adding more risks
-duplicating user-level skills (`academic-writing-skills`,
-`research-hub`) or front-loading guidance for a domain-pack API
-that is not yet stable.
+WAGF intentionally has five skills (1 onboarding + 4 lifecycle).
+Adding more risks duplicating user-level skills
+(`academic-writing-skills`, `research-hub`) or front-loading guidance
+for a domain-pack API that is not yet stable.
 
-A fifth skill, `wagf-domain-pack-builder`, was scoped in the Codex
+A sixth skill, `wagf-domain-pack-builder`, was scoped in the Codex
 brief but deferred until the broker-layer domain genericity
 violations identified by the 2026-04-24 audit Phase 1 are fixed
 (`reflection.py:198-213` flood-specific importance, `registry.py:28-31`
 hardcoded `do_nothing` default). Otherwise that skill would invent
 domain assumptions silently.
 
-## Composing the four skills (typical flow)
+## Composing the five skills (typical flow)
 
+0. **Onboard** with `wagf-quickstart` (first time only) → environment
+   check + smoke test + handoff to step 1.
 1. **Plan** with `wagf-experiment-designer` →
    `.research/wagf_experiment_matrix.yml`.
 2. **Run** the experiment via the bat in
