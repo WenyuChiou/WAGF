@@ -14,7 +14,9 @@ def test_v3_2_full_integration():
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
         memory_engine = HierarchicalMemoryEngine(window_size=1, semantic_top_k=1)
-    retriever = SkillRetriever(top_n=2)
+    # Pass global_skills explicitly — Phase 6A removed the legacy
+    # ['do_nothing'] auto-fallback so the broker is domain-agnostic.
+    retriever = SkillRetriever(top_n=2, global_skills=["do_nothing"])
     registry = SkillRegistry()
     
     # Skills

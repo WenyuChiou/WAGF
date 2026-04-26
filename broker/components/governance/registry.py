@@ -31,7 +31,12 @@ class SkillRegistry:
     
     def __init__(self):
         self.skills: Dict[str, SkillDefinition] = {}
+        # Backward-compat default; YAML should override via top-level
+        # `default_skill:` key. Tracked explicitly so we can warn when
+        # callers rely on the flood-flavoured legacy fallback.
         self._default_skill: str = "do_nothing"
+        self._default_skill_explicit: bool = False
+        self._default_skill_warning_emitted: bool = False
     
     def register(self, skill: SkillDefinition) -> None:
         """Register a skill definition."""
@@ -80,6 +85,7 @@ class SkillRegistry:
         if default_id:
             if default_id in self.skills:
                 self._default_skill = default_id
+                self._default_skill_explicit = True
             else:
                 logger.warning(
                     f"YAML default_skill='{default_id}' not found in registry. "
@@ -95,13 +101,30 @@ class SkillRegistry:
         return skill_id in self.skills
     
     def get_default_skill(self) -> str:
-        """Get the default fallback skill."""
+        """Get the default fallback skill.
+
+        If no domain YAML has declared `default_skill:` (and no caller
+        has invoked `set_default_skill`), emit a one-time warning. This
+        surfaces the broker's flood-flavoured legacy fallback to any
+        new domain that forgot to declare its own default.
+        """
+        if not self._default_skill_explicit and not self._default_skill_warning_emitted:
+            logger.warning(
+                "SkillRegistry default_skill not declared in YAML; falling "
+                "back to legacy '%s'. New domains MUST set 'default_skill:' "
+                "at the top level of skill_registry.yaml. See "
+                "examples/irrigation_abm/config/skill_registry.yaml for "
+                "reference.",
+                self._default_skill,
+            )
+            self._default_skill_warning_emitted = True
         return self._default_skill
     
     def set_default_skill(self, skill_id: str) -> None:
         """Set the default fallback skill."""
         if skill_id in self.skills:
             self._default_skill = skill_id
+            self._default_skill_explicit = True
     
     def check_eligibility(self, skill_id: str, agent_type: str) -> ValidationResult:
         """Check if an agent type is eligible to use a skill."""

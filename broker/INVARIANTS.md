@@ -121,14 +121,23 @@ Modules under `broker/components/` and `broker/core/` MUST be domain-agnostic. D
 4. Default skill names (e.g., `do_nothing`, `maintain`) MUST come from configuration, not from `broker/components/governance/registry.py` constants.
 
 ### Detection / enforcement
-- `test_domain_genericity` — greps `broker/components/` and `broker/core/` for known domain tokens; allow-lists explicit exceptions.
-- Code review: any new feature in `broker/` must pass the grep check.
+- `tests/test_domain_genericity.py` — Phase 6A landing tests covering registry default + retriever fallback. Future iterations should expand the grep-style sweep to `broker/components/` and `broker/core/` against an allow-list.
+- Code review: any new feature in `broker/` must pass the domain-token check.
 
-### Known current state
-- `broker/components/cognitive/reflection.py:198-213` — flood-specific importance calculation hardcoded (checks `flood_count`, `insurance`, `elevation`). **Will be moved behind `DomainReflectionAdapter` in Phase D.**
-- `broker/components/prompt_templates/memory_templates.py` — class is entirely flood-specific (flood_zone, flood_experience). Acceptable if renamed to `flood_memory_templates.py` and moved to a domain subfolder.
-- `broker/core/agent_initializer.py:52-56` — `AgentProfile` dataclass has flood-specific fields (elevated, insured, flood_count) as backwards-compat. Document as tech debt; plan deprecation once domain adapters land.
-- `broker/components/governance/registry.py:34` — `_default_skill = "do_nothing"` hardcode assumes flood-like action set. **Will be fixed in Phase D** to accept config-driven domain default.
+### Known current state (updated 2026-04-26 by Phase 6A landing)
+
+**Phase 6A landed (deprecation-warn or fixed)**:
+- `broker/components/governance/registry.py` — `_default_skill` now tracks `_default_skill_explicit`; `get_default_skill()` emits one-time warning when YAML did not declare `default_skill:`. All 9 existing example domains already declare it (verified). Behavior preserved.
+- `broker/components/governance/retriever.py:23` — was `["do_nothing"]`; now empty list with one-time warning if instantiated without `global_skills`. Production path unaffected (broker engine wires `global_skills` from `agent_types_config.get_global_skills`).
+- `broker/core/experiment_runner.py` (6 cache-fallback sites) — was hardcoded `"do_nothing"`; now reads `self.broker.skill_registry.get_default_skill()`. Irrigation cache misses now fall back to `maintain_demand` instead of `do_nothing`.
+- `broker/components/cognitive/reflection.py:403` — legacy flood-specific importance fallback now emits one-time deprecation warning naming the offending keywords (`flood_count`, `elevate_house`, `relocate`, `buy_insurance`, `do_nothing`) and pointing callers at `DomainReflectionAdapter`. **TODO(v22)**: extract into `FloodReflectionAdapter` under `broker/domains/water/`.
+
+**Deferred to v22 (still real leaks; see Phase 6 sweep findings 2026-04-26)**:
+- `broker/components/social/perception.py:41-67` — `PERCENTAGE_FIELDS` and `COMMUNITY_OBSERVABLE_FIELDS` hardcode flood metrics (`insurance_penetration_rate`, `elevation_penetration_rate`, `relocation_rate`, `neighbors_elevated`, `neighbors_relocated`). Needs adapter pattern; non-trivial refactor (~150 lines).
+- `broker/components/cognitive/reflection.py:302-309` — agent-status text generator hardcodes `elevated`, `insured`, `flood_count` literals. Needs `AgentContext` protocol redesign.
+- `broker/components/prompt_templates/memory_templates.py` — entire class is flood-specific (flood_zone, flood_experience, FEMA). Move to `broker/domains/water/` plus introduce a domain-pluggable template registry.
+- `broker/domains/water/validator_bundles.py:35-61` — broker code imports from `examples/irrigation_abm/` and `examples/governed_flood/`, violating "examples plug into broker, not the reverse". Architectural fix.
+- `broker/core/agent_initializer.py:52-56, 515` — `AgentProfile` dataclass + unified-context-builder field extraction hardcode `["elevated", "insured", "relocated", "savings", "income"]`. Needs config-driven extraction list.
 
 ---
 
