@@ -28,6 +28,7 @@ WAGF 是 LLM 驅動代理人模型的治理層。**治理仲裁器 (Governance B
 - **領域包** — 新增領域只需 3 個檔案：`skill_registry.yaml` + `agent_types.yaml` + `lifecycle_hooks.py`
 - **可插拔行為理論** — 內建保護動機理論 (PMT)；可透過 YAML 配置替換或擴展
 - **研究就緒** — 消融模式（strict/relaxed/disabled）、6+ 個 LLM 系列的跨模型比較、多種子可重現性
+- **AI 輔助工作流** — 內建 5 個 [Claude Code skills](docs/skills/wagf-skills.md)（`wagf-quickstart`、`wagf-experiment-designer`、`llm-agent-audit-trace-analyzer`、`model-coupling-contract-checker`、`abm-reproducibility-checker`），新研究者從 `git clone` 到產出論文等級指標可不必先讀手冊
 
 ## 為什麼需要治理？
 
