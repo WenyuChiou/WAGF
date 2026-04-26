@@ -1066,7 +1066,7 @@ class MultiAgentHooks:
                         self._run_ma_reflection(agent.id, year, agents, self.memory_engine, flood_occurred)
 
                 # Government/Insurance reflection (institutional trigger)
-                from broker.components.cognitive.reflection import ReflectionEngine, ReflectionTrigger
+                from broker.components.cognitive.reflection import ReflectionEngine, ReflectionTrigger, _memory_text
                 reflection_engine = ReflectionEngine(adapter=self._flood_adapter)
                 for agent in agents.values():
                     if getattr(agent, "agent_type", "") in ("government", "insurance"):
@@ -1084,7 +1084,7 @@ class MultiAgentHooks:
                                 context, memories, year
                             )
                             insight = reflection_engine.parse_reflection_response(
-                                f"As a {base_type} agent, I observe: " + "; ".join(memories[:2]),
+                                f"As a {base_type} agent, I observe: " + "; ".join(_memory_text(m) for m in memories[:2]),
                                 len(memories),
                                 year,
                             )

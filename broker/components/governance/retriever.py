@@ -4,9 +4,12 @@ Skill Retriever - Implements RAG-based skill selection.
 This component selects the most relevant skills for an agent based on its
 current context (state, memory, perception) to avoid prompt bloat.
 """
+import logging
 import re
 from typing import List, Dict, Any, Optional
 from broker.interfaces.skill_types import SkillDefinition
+
+logger = logging.getLogger(__name__)
 
 class SkillRetriever:
     """
@@ -20,7 +23,19 @@ class SkillRetriever:
                  full_disclosure_agent_types: Optional[List[str]] = None):
         self.top_n = top_n
         self.min_score = min_score
-        self.global_skills = global_skills or ["do_nothing"]
+        # Empty default (was ["do_nothing"]); the broker engine wires
+        # global_skills from agent_types config. Falling back to a flood-
+        # specific skill silently broke domains like irrigation.
+        if global_skills is None:
+            logger.warning(
+                "SkillRetriever instantiated without global_skills; will not "
+                "surface a domain-specific fallback. Pass global_skills via "
+                "SkillBrokerEngine config (see "
+                "broker/config/agent_types_config.py:get_global_skills)."
+            )
+            self.global_skills: List[str] = []
+        else:
+            self.global_skills = list(global_skills)
         # Agent types that always receive full skill list (no filtering)
         self.full_disclosure_agent_types = full_disclosure_agent_types or []
         # Weights for different context sources

@@ -451,7 +451,7 @@ class ExperimentRunner:
                     # Restore reasoning metadata to ensure AuditWriter can find appraisals
                     cached_proposal = cached_data.get("skill_proposal") or {}
                     proposal = SkillProposal(
-                        skill_name=cached_proposal.get("skill_name", "do_nothing"),
+                        skill_name=(cached_proposal.get("skill_name") or self.broker.skill_registry.get_default_skill()),
                         agent_id=agent.id,
                         reasoning=cached_proposal.get("reasoning", {}),
                         agent_type=cached_proposal.get("agent_type", "default")
@@ -462,7 +462,7 @@ class ExperimentRunner:
                         outcome=SkillOutcome(cached_data.get("outcome", "APPROVED")),
                         skill_proposal=proposal, # Restore proposal for audit
                         approved_skill=ApprovedSkill(
-                            skill_name=cached_data.get("approved_skill", {}).get("skill_name", "do_nothing"),
+                            skill_name=(cached_data.get("approved_skill", {}).get("skill_name") or self.broker.skill_registry.get_default_skill()),
                             agent_id=agent.id,
                             approval_status="APPROVED",
                             execution_mapping=cached_data.get("approved_skill", {}).get("mapping", "sim.noop")
@@ -476,7 +476,7 @@ class ExperimentRunner:
                     )
                     if hasattr(self.broker, "_run_validators"):
                         cached_proposal_obj = SkillProposal(
-                            skill_name=cached_data.get("approved_skill", {}).get("skill_name", "do_nothing"),
+                            skill_name=(cached_data.get("approved_skill", {}).get("skill_name") or self.broker.skill_registry.get_default_skill()),
                             agent_id=agent.id,
                             reasoning=cached_data.get("skill_proposal", {}).get("reasoning", {}),
                             agent_type=getattr(agent, 'agent_type', 'default')
@@ -536,7 +536,7 @@ class ExperimentRunner:
 
                 cached_proposal = cached_data.get("skill_proposal") or {}
                 proposal = SkillProposal(
-                    skill_name=cached_proposal.get("skill_name", "do_nothing"),
+                    skill_name=(cached_proposal.get("skill_name") or self.broker.skill_registry.get_default_skill()),
                     agent_id=agent.id,
                     reasoning=cached_proposal.get("reasoning", {}),
                     agent_type=cached_proposal.get("agent_type", "default")
@@ -546,7 +546,7 @@ class ExperimentRunner:
                     outcome=SkillOutcome(cached_data.get("outcome", "APPROVED")),
                     skill_proposal=proposal,
                     approved_skill=ApprovedSkill(
-                        skill_name=cached_data.get("approved_skill", {}).get("skill_name", "do_nothing"),
+                        skill_name=(cached_data.get("approved_skill", {}).get("skill_name") or self.broker.skill_registry.get_default_skill()),
                         agent_id=agent.id,
                         approval_status="APPROVED",
                         execution_mapping=cached_data.get("approved_skill", {}).get("mapping", "sim.noop")
@@ -560,7 +560,7 @@ class ExperimentRunner:
                 )
                 if hasattr(self.broker, "_run_validators"):
                     cached_proposal_obj = SkillProposal(
-                        skill_name=cached_data.get("approved_skill", {}).get("skill_name", "do_nothing"),
+                        skill_name=(cached_data.get("approved_skill", {}).get("skill_name") or self.broker.skill_registry.get_default_skill()),
                         agent_id=agent.id,
                         reasoning=cached_data.get("skill_proposal", {}).get("reasoning", {}),
                         agent_type=getattr(agent, 'agent_type', 'default')

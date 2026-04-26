@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from broker.core.experiment import ExperimentBuilder
 from broker.components.memory.engine import HumanCentricMemoryEngine
-from broker.components.cognitive.reflection import ReflectionEngine
+from broker.components.cognitive.reflection import ReflectionEngine, _memory_text
 from broker.components.governance.registry import SkillRegistry
 from broker.components.social.graph import NeighborhoodGraph
 from broker.components.analytics.interaction import InteractionHub
@@ -232,7 +232,7 @@ class LifecycleHooks:
 
             # Retrieve memory for logging (research reproducibility)
             mem_items = self.runner.memory_engine.retrieve(agent, top_k=5)
-            mem_str = " | ".join(mem_items)
+            mem_str = " | ".join(_memory_text(m) for m in (mem_items or []))
 
             dec = self.yearly_decisions.get((agent.id, year), {})
             skill = dec.get("skill") if isinstance(dec, dict) else dec
