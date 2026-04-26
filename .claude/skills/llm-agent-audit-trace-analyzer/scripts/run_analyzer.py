@@ -27,30 +27,71 @@ REPO = Path(__file__).resolve().parents[5]
 
 
 def discover_runs(root: Path) -> List[Tuple[str, str, str, Path]]:
-    """Return [(model, condition, run_id, dir), ...]."""
+    """Return [(model, condition, run_id, dir), ...].
+
+    Discovers any directory containing a `*_governance_audit.csv` file
+    (e.g., household_, simple_agent_, irrigation_farmer_). Falls back
+    to also accepting a directory whose parent is `root` itself.
+    """
     out = []
-    for p in sorted(root.rglob("household_governance_audit.csv")):
+    seen = set()
+    # Glob for any *_governance_audit.csv anywhere under root.
+    for p in sorted(root.rglob("*_governance_audit.csv")):
         d = p.parent
+        if d in seen:
+            continue
+        seen.add(d)
         # Heuristic: model = grandparent name; condition = parent name; run = self
-        parts = d.relative_to(root).parts if root in d.parents else d.parts
-        # Walk up to extract; tolerate varying nesting depth.
         run_id = d.name
-        cond = d.parent.name if d.parent != root else "unknown"
-        model = d.parent.parent.name if d.parent.parent != root else "unknown"
+        cond = d.parent.name if d.parent != root else "default"
+        model = d.parent.parent.name if d.parent.parent != root else "default"
+        if d == root:
+            run_id, cond, model = root.name, "default", "default"
         out.append((model, cond, run_id, d))
     return out
 
 
+def per_run_metrics_simple(run_dir: Path) -> Dict:
+    """Generic metrics for any *_governance_audit.csv (skill-agnostic).
+
+    Used when a run directory is not flood/irrigation but a custom
+    domain (e.g., the quickstart's simple_agent). Reports total
+    decisions, approval rate, and skill distribution.
+    """
+    csv_paths = list(run_dir.glob("*_governance_audit.csv"))
+    if not csv_paths:
+        return {}
+    df = pd.read_csv(csv_paths[0], encoding="utf-8-sig")
+    if df.empty:
+        return {}
+    n = len(df)
+    approved = float((df.get("status", "").astype(str).str.upper() == "APPROVED").sum()) / n
+    skill_col = "final_skill" if "final_skill" in df.columns else "proposed_skill"
+    skill_counts = df[skill_col].astype(str).value_counts().to_dict() if skill_col in df.columns else {}
+    return {
+        "n_decisions": n,
+        "approval_rate": approved,
+        "skill_distribution": skill_counts,
+    }
+
+
 def per_run_metrics(run_dir: Path, domain: str) -> Dict:
     """Compute IBR/EHE/rejection_rate/retry_rate per the canonical formulas."""
-    csv_path = run_dir / "household_governance_audit.csv"
-    if not csv_path.exists():
+    # Try domain-specific name first, then fall back to any *_governance_audit.csv
+    candidates = list(run_dir.glob("*_governance_audit.csv"))
+    if not candidates:
         return {}
+    csv_path = candidates[0]
     df = pd.read_csv(csv_path, encoding="utf-8-sig")
     if df.empty:
         return {}
 
     n = len(df)
+    # If the expected domain construct column is missing, fall back to generic.
+    expected_col = "construct_TP_LABEL" if domain == "flood" else "construct_WSA_LABEL"
+    if expected_col not in df.columns:
+        return per_run_metrics_simple(run_dir)
+
     if domain == "flood":
         tp = df["construct_TP_LABEL"].astype(str).str.upper()
         act = df["final_skill"].astype(str).str.lower().replace({"relocated": "relocate"})
@@ -114,17 +155,23 @@ def write_artefacts(rows: List[Dict], out_dir: Path, domain: str) -> None:
         summary.write_text("# Governance summary\n\nNo runs found.\n", encoding="utf-8")
         return
 
-    # Per (model, condition) aggregate
-    agg = df.groupby(["model", "condition"]).agg(
-        n_runs=("run_id", "nunique"),
-        n_decisions=("n_decisions", "sum"),
-        ibr_mean=("ibr", "mean"),
-        ibr_sd=("ibr", lambda s: s.std(ddof=1) if len(s) > 1 else 0.0),
-        ehe_mean=("ehe", "mean"),
-        ehe_sd=("ehe", lambda s: s.std(ddof=1) if len(s) > 1 else 0.0),
-        rej_mean=("rejection_rate", "mean"),
-        retry_mean=("retry_rate", "mean"),
-    ).reset_index()
+    # Build aggregate spec dynamically based on available columns
+    # (some runs are simple-domain and lack ibr/ehe).
+    agg_spec = {"n_runs": ("run_id", "nunique"),
+                "n_decisions": ("n_decisions", "sum")}
+    if "ibr" in df.columns:
+        agg_spec["ibr_mean"] = ("ibr", "mean")
+        agg_spec["ibr_sd"] = ("ibr", lambda s: s.std(ddof=1) if len(s) > 1 else 0.0)
+    if "ehe" in df.columns:
+        agg_spec["ehe_mean"] = ("ehe", "mean")
+        agg_spec["ehe_sd"] = ("ehe", lambda s: s.std(ddof=1) if len(s) > 1 else 0.0)
+    if "rejection_rate" in df.columns:
+        agg_spec["rej_mean"] = ("rejection_rate", "mean")
+    if "retry_rate" in df.columns:
+        agg_spec["retry_mean"] = ("retry_rate", "mean")
+    if "approval_rate" in df.columns and "rejection_rate" not in df.columns:
+        agg_spec["approval_mean"] = ("approval_rate", "mean")
+    agg = df.groupby(["model", "condition"]).agg(**agg_spec).reset_index()
 
     lines = [
         f"# Governance summary ({domain}) — {datetime.now().strftime('%Y-%m-%d %H:%M')}",
@@ -148,16 +195,28 @@ def write_artefacts(rows: List[Dict], out_dir: Path, domain: str) -> None:
     else:
         lines.append("Single-condition data; no governed-vs-disabled comparison computed.")
 
-    lines += ["", "## Metrics table", "",
-              "| Model | Condition | Runs | IBR mean ± sd | EHE mean ± sd | Rej rate | Retry rate |",
-              "|---|---|---:|---:|---:|---:|---:|"]
-    for _, r in agg.iterrows():
-        lines.append(
-            f"| {r['model']} | {r['condition']} | {int(r['n_runs'])} "
-            f"| {100*r['ibr_mean']:.1f}% ± {100*r['ibr_sd']:.1f}% "
-            f"| {r['ehe_mean']:.3f} ± {r['ehe_sd']:.3f} "
-            f"| {100*r['rej_mean']:.1f}% | {100*r['retry_mean']:.1f}% |"
-        )
+    has_ibr = "ibr_mean" in agg.columns
+    if has_ibr:
+        lines += ["", "## Metrics table", "",
+                  "| Model | Condition | Runs | IBR mean ± sd | EHE mean ± sd | Rej rate | Retry rate |",
+                  "|---|---|---:|---:|---:|---:|---:|"]
+        for _, r in agg.iterrows():
+            lines.append(
+                f"| {r['model']} | {r['condition']} | {int(r['n_runs'])} "
+                f"| {100*r['ibr_mean']:.1f}% ± {100*r['ibr_sd']:.1f}% "
+                f"| {r['ehe_mean']:.3f} ± {r['ehe_sd']:.3f} "
+                f"| {100*r.get('rej_mean', 0):.1f}% | {100*r.get('retry_mean', 0):.1f}% |"
+            )
+    else:
+        lines += ["", "## Metrics table (simple-domain mode — IBR/EHE not applicable)", "",
+                  "| Model | Condition | Runs | n_decisions | Approval rate |",
+                  "|---|---|---:|---:|---:|"]
+        for _, r in agg.iterrows():
+            lines.append(
+                f"| {r['model']} | {r['condition']} | {int(r['n_runs'])} "
+                f"| {int(r['n_decisions'])} "
+                f"| {100*r.get('approval_mean', 0):.1f}% |"
+            )
     lines += ["", "## Caveats", ""]
     # Find missing seeds, partial runs, etc.
     for (m, c), grp in df.groupby(["model", "condition"]):
