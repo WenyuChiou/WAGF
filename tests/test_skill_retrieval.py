@@ -3,7 +3,9 @@ from broker.components.governance.retriever import SkillRetriever
 from broker.interfaces.skill_types import SkillDefinition
 
 def test_retrieval_logic():
-    retriever = SkillRetriever(top_n=2)
+    # Pass global_skills explicitly — Phase 6A removed the legacy
+    # ['do_nothing'] auto-fallback so the broker is domain-agnostic.
+    retriever = SkillRetriever(top_n=2, global_skills=["do_nothing"])
     
     skills = [
         SkillDefinition(

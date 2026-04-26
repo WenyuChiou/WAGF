@@ -401,6 +401,21 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
             return self.adapter.compute_importance(ctx_dict, base_importance)
 
         # --- Legacy fallback (flood-specific, backward compatible) ---
+        # TODO(v22): extract this block into a FloodReflectionAdapter under
+        # broker/domains/water/ so the broker layer carries no flood-domain
+        # keywords. The DomainReflectionAdapter interface (see top of file)
+        # already exists; flood/irrigation experiments just need to wire it.
+        if not getattr(self, "_legacy_importance_warned", False):
+            logger.warning(
+                "compute_dynamic_importance: no DomainReflectionAdapter set; "
+                "falling back to flood-domain hardcoded importance scoring "
+                "(keywords: flood_count, elevate_house, relocate, buy_insurance, "
+                "do_nothing). New domains must supply a DomainReflectionAdapter "
+                "(see broker.components.cognitive.reflection.DomainReflectionAdapter). "
+                "This legacy fallback will move to broker/domains/water/ in v22."
+            )
+            self._legacy_importance_warned = True
+
         importance = base_importance
 
         flood_count = getattr(context, "flood_count", 0) if not isinstance(context, dict) else context.get("flood_count", 0)
