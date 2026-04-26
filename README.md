@@ -43,6 +43,30 @@ The framework ships with two water-sector reference implementations (flood adapt
 
 ## Quick Start
 
+### AI-assisted setup (recommended for first-time users)
+
+Open this repo in [Claude Code](https://claude.ai/code) and say:
+
+> "I just cloned WAGF, help me set this up."
+
+The `wagf-quickstart` skill walks you through environment check, a
+2-minute smoke test, and your first experiment in ~10 minutes (plus
+LLM run time). Four additional skills cover the full research
+lifecycle:
+
+| Need | Skill |
+|------|-------|
+| Plan an experiment | `wagf-experiment-designer` |
+| Analyse audit traces | `llm-agent-audit-trace-analyzer` |
+| Verify external-model coupling | `model-coupling-contract-checker` |
+| Pre-submission audit | `abm-reproducibility-checker` |
+
+See [`docs/skills/wagf-skills.md`](docs/skills/wagf-skills.md) for the
+full chooser. The skills are bundled in `.claude/skills/` and load
+automatically when you open the repo in Claude Code.
+
+### Manual setup
+
 ### Prerequisites
 
 - Python 3.10+

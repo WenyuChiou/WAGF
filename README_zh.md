@@ -43,6 +43,25 @@ WAGF 是 LLM 驅動代理人模型的治理層。**治理仲裁器 (Governance B
 
 ## 快速上手
 
+### AI 輔助設定（首次使用者推薦）
+
+在 [Claude Code](https://claude.ai/code) 開啟此 repo，輸入：
+
+> 「I just cloned WAGF, help me set this up.」
+
+`wagf-quickstart` skill 會帶你做環境檢查、2 分鐘 smoke test、並啟動第一個實驗（約 10 分鐘 + LLM 執行時間）。另外四個 skill 涵蓋完整研究流程：
+
+| 需求 | Skill |
+|------|-------|
+| 規劃實驗 | `wagf-experiment-designer` |
+| 分析 audit traces | `llm-agent-audit-trace-analyzer` |
+| 驗證外部模型耦合 | `model-coupling-contract-checker` |
+| 投稿前 reproducibility 稽核 | `abm-reproducibility-checker` |
+
+完整 skill 對照表見 [`docs/skills/wagf-skills.md`](docs/skills/wagf-skills.md)。所有 skill 都打包在 `.claude/skills/`，在 Claude Code 開啟此 repo 時會自動載入。
+
+### 手動設定
+
 ### 前置需求
 
 - Python 3.10+
