@@ -28,6 +28,7 @@ The framework ships with two water-sector reference implementations (flood adapt
 - **Domain Packs** — Add a new domain with 3 files: `skill_registry.yaml` + `agent_types.yaml` + `lifecycle_hooks.py`
 - **Pluggable Behavioral Theory** — Ships with Protection Motivation Theory (PMT); swap or extend via YAML configuration
 - **Research Ready** — Ablation modes (strict/relaxed/disabled), cross-model comparison across 6+ LLM families, multi-seed reproducibility
+- **AI-assisted Workflow** — 5 bundled [Claude Code skills](docs/skills/wagf-skills.md) (`wagf-quickstart`, `wagf-experiment-designer`, `llm-agent-audit-trace-analyzer`, `model-coupling-contract-checker`, `abm-reproducibility-checker`) walk a new researcher from `git clone` to paper-ready metrics without reading the manual first
 
 ## Why Governance?
 
