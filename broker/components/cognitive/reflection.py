@@ -25,6 +25,13 @@ from .adapters import DomainReflectionAdapter
 
 logger = setup_logger(__name__)
 
+
+def _memory_text(m: Any) -> str:
+    """Coerce a memory item (dict from humancentric engine, or legacy str) to text."""
+    if isinstance(m, dict):
+        return str(m.get("content", ""))
+    return str(m)
+
 if TYPE_CHECKING:
     from cognitive_governance.v1_prototype.reflection import (
         ReflectionTemplate,
@@ -230,9 +237,9 @@ class ReflectionEngine:
         """
         if not memories:
             return ""
-        
-        memories_text = "\n".join([f"- {m}" for m in memories])
-        
+
+        memories_text = "\n".join([f"- {_memory_text(m)}" for m in memories])
+
         return f"""You are reflecting on your experiences from the past {self.reflection_interval} year(s).
 
 **Your Recent Memories:**
@@ -284,7 +291,7 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
         if not memories:
             return ""
 
-        memories_text = "\n".join([f"- {m}" for m in memories])
+        memories_text = "\n".join([f"- {_memory_text(m)}" for m in memories])
 
         identity_lines = [f"You are {context.agent_id}"]
         if context.name:
@@ -337,7 +344,7 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
             agent_id = item.get("agent_id", "Unknown")
             ctx = item.get("context")
             memories = item.get("memories", [])
-            mem_text = " ".join(memories) if memories else "(No memories)"
+            mem_text = " ".join(_memory_text(m) for m in memories) if memories else "(No memories)"
 
             if ctx:
                 identity = f"[{ctx.agent_type}"
@@ -561,7 +568,7 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
         for item in batch_data:
             agent_id = item.get("agent_id", "Unknown")
             memories = item.get("memories", [])
-            mem_text = " ".join(memories) if memories else "(No memories recorded)"
+            mem_text = " ".join(_memory_text(m) for m in memories) if memories else "(No memories recorded)"
             lines.append(f"{agent_id} Memories: {mem_text}")
         
         lines.append("\n### Output Requirement")

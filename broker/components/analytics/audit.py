@@ -4,10 +4,103 @@ import json
 import csv
 import threading
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Iterable, Tuple
 from broker.utils.logging import setup_logger
 
 logger = setup_logger(__name__)
+
+
+# -----------------------------------------------------------------------------
+# Framework invariant enforcement — see broker/INVARIANTS.md (Invariant 2).
+#
+# Columns listed here carry semantic signals from the memory / cognitive /
+# social pipelines. If ANY of them shows a single constant value across an
+# entire experiment, the most likely cause is a pipeline leak where the
+# upstream dict was never populated and the audit wrote a default placeholder
+# masquerading as real data (as happened on 2026-04-19 NW flood runs).
+#
+# The minimum row count threshold avoids false positives on tiny sanity runs.
+# -----------------------------------------------------------------------------
+
+# Columns whose constancy is suspicious (and the placeholder value they tend
+# to silently degrade to). Empty-string / False / 0.0 constants below are the
+# ones that should have triggered an alarm in the 2026-04-19 post-mortem.
+_SUSPICIOUS_COLUMN_DEFAULTS: Dict[str, Tuple[Any, ...]] = {
+    # Memory pipeline — see INVARIANTS.md Invariant 1 + 2
+    "mem_top_emotion": ("neutral", ""),
+    "mem_top_source": ("personal", ""),
+    "mem_surprise": (0.0, 0),
+    "mem_cognitive_system": ("",),
+    # Cognitive module — dormant in V1, should fire WARNING until V2 lands
+    "cog_is_novel_state": (False,),
+    "cog_surprise_value": (0.0, 0),
+    "cog_margin_to_switch": (0.0, 0),
+    "cog_system_mode": ("",),
+    # Social pipeline — quieter but same failure pattern is possible
+    "social_gossip_count": (0,),
+    "social_network_density": (0.0, 0),
+}
+
+_SENTINEL_MIN_ROWS = 50  # fewer than this → skip (tiny sanity runs)
+
+
+def detect_audit_sentinels(
+    rows: Iterable[Dict[str, Any]],
+    columns: Optional[Dict[str, Tuple[Any, ...]]] = None,
+    min_rows: int = _SENTINEL_MIN_ROWS,
+) -> List[str]:
+    """Scan audit rows for columns that appear to be silently masking absent data.
+
+    Returns a list of human-readable warning strings, ONE per suspect column.
+    Empty list means no suspects found. Safe to call on any list of audit
+    dicts (from live run OR post-hoc CSV re-read).
+
+    A column is flagged when:
+        (a) we have at least ``min_rows`` observations, AND
+        (b) every row has the same value, AND
+        (c) that value matches a known placeholder default.
+
+    This function intentionally does NOT raise — callers decide whether a
+    warning is a hard-fail (CI test) or soft-warn (production finalize).
+    """
+    columns_map = columns or _SUSPICIOUS_COLUMN_DEFAULTS
+    rows_list = list(rows)
+    if len(rows_list) < min_rows:
+        return []
+
+    warnings: List[str] = []
+    for column, placeholders in columns_map.items():
+        values = {row.get(column) for row in rows_list if column in row}
+        if not values:
+            continue
+        if len(values) == 1:
+            only_value = next(iter(values))
+            if only_value in placeholders:
+                warnings.append(
+                    f"[AuditInvariant] Column '{column}' is constant "
+                    f"({only_value!r}) across {len(rows_list)} rows — likely "
+                    f"pipeline leak (upstream never populated, audit wrote "
+                    f"placeholder default). See broker/INVARIANTS.md Invariant 2."
+                )
+    return warnings
+
+
+def detect_audit_sentinels_in_csv(csv_path: str, min_rows: int = _SENTINEL_MIN_ROWS) -> List[str]:
+    """Convenience wrapper: read a *.csv and run detect_audit_sentinels on its rows.
+
+    Usage: post-hoc triage of an experiment CSV to see if it matches the
+    2026-04-19 failure pattern. Requires pandas if available, falls back to
+    csv.DictReader.
+    """
+    try:
+        import pandas as pd  # type: ignore
+
+        df = pd.read_csv(csv_path, encoding="utf-8-sig")
+        rows = df.to_dict(orient="records")
+    except Exception:
+        with open(csv_path, newline="", encoding="utf-8-sig") as fh:
+            rows = list(csv.DictReader(fh))
+    return detect_audit_sentinels(rows, min_rows=min_rows)
 
 
 @dataclass
@@ -62,7 +155,20 @@ class GenericAuditWriter:
         self._jsonl_buffer: Dict[str, List[str]] = {}
         self._jsonl_buffer_size = 1  # Flush every trace for real-time observability
         self._write_lock = threading.Lock()  # Thread safety for workers > 1
-    
+
+        # Track which aggregate dict keys have been observed across all traces
+        # so we can emit a one-time WARNING at first-trace time if any are
+        # absent (they would otherwise silently degrade to hardcoded defaults
+        # — see INVARIANTS.md Invariant 2 and the 2026-04-19 NW flood
+        # post-mortem).
+        self._expected_aggregates: Dict[str, str] = {
+            "memory_audit":    "mem_* columns (retrieved_count, top_emotion, etc.)",
+            "social_audit":    "social_* columns (gossip, neighbor_count, etc.)",
+            "cognitive_audit": "cog_* columns (surprise, novel_state, etc.)",
+            "rule_breakdown":  "rules_* columns (personal_hit, social_hit, etc.)",
+        }
+        self._startup_warned: bool = False
+
     def _get_file_path(self, agent_type: str) -> Path:
         """Get or create file path for agent type (JSONL traces in raw/ subdir)."""
         if agent_type not in self._files:
@@ -78,6 +184,25 @@ class GenericAuditWriter:
         validation_results: Optional[List] = None
     ) -> None:
         """Write a generic trace for any agent type."""
+        # Framework invariant check — on first trace, warn once if any
+        # expected aggregate dict key is absent (would cause silent
+        # degradation to hardcoded column defaults). See INVARIANTS.md §2.
+        if not self._startup_warned:
+            absent = [
+                f"'{key}' (would populate: {cols})"
+                for key, cols in self._expected_aggregates.items()
+                if key not in trace
+            ]
+            if absent:
+                logger.warning(
+                    f"[AuditInvariant] First trace for '{agent_type}' is "
+                    f"missing upstream aggregate dict(s): {absent}. CSV "
+                    f"columns derived from these keys will carry hardcoded "
+                    f"default placeholders. See broker/INVARIANTS.md §2 "
+                    f"and _RESERVED_DICT_KEYS in framework invariant tests."
+                )
+            self._startup_warned = True
+
         # Ensure required fields
         trace.setdefault("timestamp", datetime.now().isoformat())
         trace.setdefault("agent_type", agent_type)
@@ -185,7 +310,15 @@ class GenericAuditWriter:
         # Export CSVs
         for agent_type, traces in self._trace_buffer.items():
             self._export_csv(agent_type, traces)
-            
+
+        # Framework invariant check — see broker/INVARIANTS.md Invariant 2.
+        # Warn (not raise) if any semantic signal column is silently constant,
+        # which is the 2026-04-19 NW flood failure pattern.
+        for agent_type, traces in self._trace_buffer.items():
+            warnings_found = detect_audit_sentinels(traces)
+            for warning in warnings_found:
+                logger.warning(f"[Audit:{agent_type}] {warning}")
+
         logger.info(f"[Audit] Finalized. Summary: {summary_path}")
         return self.summary
     

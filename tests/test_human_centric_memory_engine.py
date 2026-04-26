@@ -51,7 +51,8 @@ class TestHumanCentricMemoryEngine(unittest.TestCase):
         print("\n--- Test Retrieve Without Boosters ---")
         # When no boosters are applied, retrieval should be based on recency and importance.
         # The order can shift when timestamps advance or consolidation occurs, so we assert on set.
-        retrieved = self.engine.retrieve(self.agent, top_k=3, contextual_boosters=None)
+        # retrieve() returns List[Dict] per Invariant 1; use retrieve_content_only() for legacy string assertions.
+        retrieved = self.engine.retrieve_content_only(self.agent, top_k=3, contextual_boosters=None)
         print(f"Retrieved without boosters: {retrieved}")
 
         expected = {
@@ -65,7 +66,7 @@ class TestHumanCentricMemoryEngine(unittest.TestCase):
         print("\n--- Test Retrieve With Fear Booster ---")
         # Simulate a flood event (boost "emotion:fear" memories)
         contextual_boosters = {"emotion:fear": 5.0} # A strong boost
-        retrieved = self.engine.retrieve(self.agent, top_k=3, contextual_boosters=contextual_boosters)
+        retrieved = self.engine.retrieve_content_only(self.agent, top_k=3, contextual_boosters=contextual_boosters)
         print(f"Retrieved with fear booster: {retrieved}")
 
         # Expectation: "emotion:fear" memories should be heavily prioritized.
@@ -90,7 +91,7 @@ class TestHumanCentricMemoryEngine(unittest.TestCase):
         print("\n--- Test Retrieve With No Matching Booster ---")
         # Boost an emotion that none of the current memories have explicitly tagged (they default to routine)
         contextual_boosters = {"emotion:joy": 10.0}
-        retrieved = self.engine.retrieve(self.agent, top_k=3, contextual_boosters=contextual_boosters)
+        retrieved = self.engine.retrieve_content_only(self.agent, top_k=3, contextual_boosters=contextual_boosters)
         print(f"Retrieved with no matching booster: {retrieved}")
         
         # Should behave identically to no boosters, as the 'joy' tag won't match any memory's emotion.
@@ -189,7 +190,7 @@ class TestContextualResonance(unittest.TestCase):
         ]
 
         # Query about "flood" should boost flood-related memories
-        retrieved = self.engine.retrieve(
+        retrieved = self.engine.retrieve_content_only(
             agent, query="flood damage", top_k=2, contextual_boosters=None
         )
         # Both flood-related memories should rank above the traffic one
@@ -289,7 +290,7 @@ class TestInterferenceForgetting(unittest.TestCase):
             },
         ]
 
-        retrieved = self.engine.retrieve(agent, top_k=2, contextual_boosters=None)
+        retrieved = self.engine.retrieve_content_only(agent, top_k=2, contextual_boosters=None)
         # The newer flood memory should appear; the older flood memory
         # should be penalized by interference from the newer similar one
         self.assertIn("Another flood damaged my basement again this year.", retrieved)
@@ -397,7 +398,7 @@ class TestCombinedRelevanceAndInterference(unittest.TestCase):
             {"content": "Sunny vacation at beach.", "metadata": {"importance": 0.5}},
         ]
 
-        retrieved = engine.retrieve(agent, query="flood basement damage", top_k=2)
+        retrieved = engine.retrieve_content_only(agent, query="flood basement damage", top_k=2)
         # "Recent flood" should rank #1 (high relevance, no interference)
         # "Old flood" should be suppressed by interference despite relevance
         self.assertEqual(retrieved[0], "Recent flood damaged basement.")

@@ -58,13 +58,27 @@ class AuditMixin:
         audit_priority = [f"reason_{f.lower()}" for f in log_fields]
 
         # Build memory_audit from pre-retrieval data for audit CSV
+        normalized_memories = []
+        for memory in memory_pre:
+            if isinstance(memory, dict):
+                normalized_memories.append(
+                    {
+                        "content": memory.get("content", ""),
+                        "emotion": memory.get("emotion", "neutral"),
+                        "importance": memory.get("importance", 0.0),
+                        "source": memory.get("source", "personal"),
+                        "timestamp": memory.get("timestamp"),
+                        "final_score": memory.get("final_score"),
+                    }
+                )
+            else:
+                normalized_memories.append(
+                    {"content": memory, "emotion": "neutral", "importance": 0.0, "source": "personal"}
+                )
+
         memory_audit = {
             "retrieved_count": len(memory_pre),
-            "memories": [
-                {"content": m, "emotion": "neutral", "source": "personal"}
-                if isinstance(m, str) else m
-                for m in memory_pre
-            ],
+            "memories": normalized_memories,
             "retrieval_mode": "humancentric" if memory_pre else "",
         }
 

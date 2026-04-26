@@ -38,9 +38,21 @@ class MemoryEngine(ABC):
         pass
 
     @abstractmethod
-    def retrieve(self, agent: BaseAgent, query: Optional[str] = None, top_k: int = 3, **kwargs) -> List[str]:
+    def retrieve(self, agent: BaseAgent, query: Optional[str] = None, top_k: int = 3, **kwargs) -> List[Dict[str, Any]]:
         """
         Retrieve relevant memories for an agent.
+
+        Returns a list of memory records, each a dict with at least:
+            - content (str)
+            - emotion (str)
+            - importance (float)
+            - source (str)
+            - timestamp (int)
+            - final_score (float, optional)
+
+        Per `broker/INVARIANTS.md` Invariant 1, all subclasses must preserve
+        metadata end-to-end. Use `retrieve_content_only()` for legacy
+        plain-string consumers.
 
         Args:
             agent: The agent instance (for accessing custom_attributes/demographics).
@@ -49,6 +61,23 @@ class MemoryEngine(ABC):
             **kwargs: Additional context (e.g., world_state).
         """
         pass
+
+    def retrieve_content_only(
+        self,
+        agent: BaseAgent,
+        query: Optional[str] = None,
+        top_k: int = 3,
+        **kwargs,
+    ) -> List[str]:
+        """Compatibility helper that extracts plain text from retrieve() results."""
+        memories = self.retrieve(agent, query=query, top_k=top_k, **kwargs)
+        result = []
+        for memory in memories:
+            if isinstance(memory, dict):
+                result.append(str(memory.get("content", "")))
+            else:
+                result.append(str(memory))
+        return result
 
     @abstractmethod
     def clear(self, agent_id: str):
@@ -105,7 +134,7 @@ class MemoryEngine(ABC):
             List of (memory_content, MemoryScore) tuples, sorted by score descending.
             MemoryScore is None if no scorer is configured.
         """
-        memories = self.retrieve(agent, query=query, top_k=top_k * 2, **kwargs)
+        memories = self.retrieve_content_only(agent, query=query, top_k=top_k * 2, **kwargs)
 
         if not self._scorer:
             return [(m, None) for m in memories[:top_k]]
