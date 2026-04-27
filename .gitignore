@@ -67,6 +67,10 @@ toy_output/
 .pytest_cache/
 .coverage
 htmlcov/
+.tmp/
+.pytest_tmp/
+broker/_audit_tmp_*/
+.wagf-quickstart-status.json
 
 # Local Skills (Antigravity)
 skills/
