@@ -23,7 +23,7 @@ The framework ships with two water-sector reference implementations (flood adapt
 
 ## Key Features
 
-- **Governance Pipeline** — 6-stage validation before any action reaches the simulation: Context → LLM → Parse → Validate → Approve/Retry → Execute
+- **Governance Pipeline** — six-step validation before any action reaches the simulation: Context → LLM → Parse → Validate → Approve/Retry → Execute
 - **Full Audit Trail** — Every decision, rejection, retry, and reasoning trace logged as structured JSONL/CSV for scientific review
 - **Domain Packs** — Add a new domain with 3 files: `skill_registry.yaml` + `agent_types.yaml` + `lifecycle_hooks.py`
 - **Pluggable Behavioral Theory** — Ships with Protection Motivation Theory (PMT); swap or extend via YAML configuration
@@ -39,6 +39,13 @@ The framework ships with two water-sector reference implementations (flood adapt
 | **Context overflow** | Can't dump full history into prompt | Weighted memory retrieval (top-k by recency + importance + context) |
 | **Opaque decisions** | No audit trail for scientific review | Structured JSONL traces: input, reasoning, validation, outcome |
 | **Unsafe mutation** | LLM modifies simulation state directly | Broker-gated execution: validated skills run by engine, not LLM |
+
+> **Terminology note** — This codebase uses `skill` for what the
+> Nature Water paper calls an **action** (e.g., `increase_demand`,
+> `elevate_house`). They refer to the same concept: a registered,
+> validated decision option. The `skill` naming is implementation
+> legacy and is kept throughout the source tree (`SkillRegistry`,
+> `skill_registry.yaml`).
 
 ---
 
@@ -134,7 +141,7 @@ The framework operates in three layers:
 **Key entry points:**
 
 ```text
-broker/core/skill_broker_engine.py     — 6-stage governance pipeline
+broker/core/skill_broker_engine.py     — six-step governance pipeline
 broker/core/experiment.py              — ExperimentRunner + Builder API
 broker/validators/governance/          — 6 validator implementations
 broker/components/memory/              — Memory engine ABC + implementations
