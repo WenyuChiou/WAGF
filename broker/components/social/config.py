@@ -319,22 +319,22 @@ def _get_filtered_neighbors(
     """
     Get neighbors filtered by a condition.
 
-    Currently supported filter functions:
-    - "has_insurance": Only includes agents with has_insurance=True
+    Phase 6B-4 (2026-05-04): filter dispatch goes through `FilterRegistry`
+    so domain packages can plug in new filter names. The default
+    flood-domain `has_insurance` filter is registered at
+    `broker/components/social/__init__.py` import time. Unknown filter
+    names fall back to "include all neighbors" (legacy behavior) but
+    emit a one-time warning naming the missed filter.
     """
+    from broker.components.social.filter_registry import FilterRegistry
+
     neighbors = []
+    filter_callable = FilterRegistry.get(filter_fn) if filter_fn else None
 
     for a_id, agent in agents_dict.items():
         if a_id == agent_id:
             continue
-
-        # Apply filter
-        if filter_fn == "has_insurance":
-            has_insurance = _get_agent_attr(agent, "has_insurance", False)
-            if has_insurance:
-                neighbors.append(a_id)
-        else:
-            # No filter or unknown filter - include all
+        if filter_callable is None or filter_callable(agent):
             neighbors.append(a_id)
 
     return neighbors
