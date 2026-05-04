@@ -597,3 +597,45 @@ class TestIntegration:
         assert spec.graph_type == "filtered_global"
         assert spec.filter_fn == "has_insurance"
         assert set(neighbors) == {"H1", "H3"}
+
+
+class TestFilterRegistry:
+    """Phase 6B-4: FilterRegistry plugin pattern for neighbor filters."""
+
+    def test_default_has_insurance_filter_registered(self):
+        """has_insurance filter is registered at package import time."""
+        from broker.components.social.filter_registry import FilterRegistry
+        assert "has_insurance" in FilterRegistry.names()
+        fn = FilterRegistry.get("has_insurance")
+        assert fn is not None and callable(fn)
+
+    def test_filter_registry_round_trip(self):
+        """Register a custom filter, look it up, then clean up."""
+        from broker.components.social.filter_registry import FilterRegistry
+
+        def has_water_right(agent):
+            if isinstance(agent, dict):
+                return bool(agent.get("water_right_acft", 0) > 0)
+            return bool(getattr(agent, "water_right_acft", 0) > 0)
+
+        FilterRegistry.register("has_water_right", has_water_right)
+        assert "has_water_right" in FilterRegistry.names()
+        # Use it
+        assert FilterRegistry.get("has_water_right")({"water_right_acft": 100}) is True
+        assert FilterRegistry.get("has_water_right")({"water_right_acft": 0}) is False
+        # Cleanup so other tests are deterministic
+        FilterRegistry._filters.pop("has_water_right", None)
+
+    def test_unknown_filter_returns_none(self):
+        """Unknown name returns None (caller falls back to include-all)."""
+        from broker.components.social.filter_registry import FilterRegistry
+        assert FilterRegistry.get("nonexistent_filter_xyz") is None
+        assert FilterRegistry.get(None) is None
+        assert FilterRegistry.get("") is None
+
+    def test_filter_registry_rejects_non_callable(self):
+        """register() guards against non-callable values."""
+        import pytest
+        from broker.components.social.filter_registry import FilterRegistry
+        with pytest.raises(ValueError, match="must be callable"):
+            FilterRegistry.register("bad_fn", "not_a_callable")
