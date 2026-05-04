@@ -23,7 +23,7 @@ WAGF 是 LLM 驅動代理人模型的治理層。**治理仲裁器 (Governance B
 
 ## 核心特色
 
-- **治理管線** — 任何動作到達模擬前的 6 階段驗證：上下文 → LLM → 解析 → 驗證 → 核准/重試 → 執行
+- **治理管線** — 任何動作到達模擬前的六步驟驗證：上下文 → LLM → 解析 → 驗證 → 核准/重試 → 執行
 - **完整審計軌跡** — 每個決策、拒絕、重試及推理軌跡均以結構化 JSONL/CSV 記錄，供科學審查
 - **領域包** — 新增領域只需 3 個檔案：`skill_registry.yaml` + `agent_types.yaml` + `lifecycle_hooks.py`
 - **可插拔行為理論** — 內建保護動機理論 (PMT)；可透過 YAML 配置替換或擴展
@@ -39,6 +39,11 @@ WAGF 是 LLM 驅動代理人模型的治理層。**治理仲裁器 (Governance B
 | **上下文溢出** | 無法將完整歷史塞入提示詞 | 加權記憶檢索（依近期性 + 重要性 + 上下文取 top-k） |
 | **不透明決策** | 無供科學審查的審計軌跡 | 結構化 JSONL 軌跡：輸入、推理、驗證、結果 |
 | **不安全修改** | LLM 直接修改模擬狀態 | 仲裁器閘控執行：驗證通過的技能由引擎執行，非 LLM |
+
+> **術語對照** — 程式碼裡稱為 `skill` 的概念，在 Nature Water
+> 論文裡稱為 **action**（例如 `increase_demand`、`elevate_house`）。
+> 兩者指同一件事：一個已註冊、經驗證的決策選項。`skill` 是早期
+> 實作命名，貫穿整個原始碼樹（`SkillRegistry`、`skill_registry.yaml`）。
 
 ---
 
@@ -158,7 +163,7 @@ python examples/single_agent/run_flood.py --model gemma3:4b --years 3 --agents 1
 **關鍵入口檔案：**
 
 ```text
-broker/core/skill_broker_engine.py     — 6 階段治理管線
+broker/core/skill_broker_engine.py     — 六步驟治理管線
 broker/core/experiment.py              — ExperimentRunner + Builder API
 broker/validators/governance/          — 6 類驗證器實作
 broker/components/memory/              — 記憶引擎 ABC + 各實作
