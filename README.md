@@ -21,6 +21,20 @@ WAGF is a governance layer for LLM-driven agent-based models. A **Governance Bro
 
 The framework ships with two water-sector reference implementations (flood adaptation and irrigation management) and can be extended to other ABM domains through a plugin system.
 
+## How does WAGF compare to other frameworks?
+
+WAGF sits in a different layer of the stack than tools you may already know. The closest analogues are rule-based ABM platforms (Mesa, NetLogo); WAGF extends them from rule-based to LLM-driven agents while preserving pre-execution validation.
+
+| Framework type | Example | What it does | What WAGF does differently |
+|:---|:---|:---|:---|
+| LLM provider SDK | Anthropic SDK, OpenAI SDK | Wraps API calls | Domain validators + audit pipeline on top of any provider |
+| RAG framework | LangChain, LlamaIndex | Augments LLM with retrieved context | Validates the LLM's *output*, not just its input |
+| Agent orchestration | LangGraph, AutoGen, CrewAI | Multi-step LLM tool-use loops | Mandatory governance gate before any state mutation; not just tool dispatch |
+| Rule-based ABM | Mesa, NetLogo | Agent-based simulation with hand-coded rules | Same simulation rigor, but with LLM agents whose decisions are constrained by behavioral theory |
+| **WAGF** ⭐ | (this) | **Governance layer for LLM-driven agent-based models** | Validation-as-first-class, retry-with-feedback, audit-trail-as-scientific-artifact |
+
+In short: WAGF is not a chatbot framework, not a retrieval tool, not an LLM SDK. It is a research-grade scaffolding for running ABM experiments with LLM agents whose every decision must satisfy domain physics, behavioral theory, and institutional constraints — and whose audit trace is reproducible enough to ship as paper supplementary material.
+
 ## Key Features
 
 - **Governance Pipeline** — six-step validation before any action reaches the simulation: Context → LLM → Parse → Validate → Approve/Retry → Execute
