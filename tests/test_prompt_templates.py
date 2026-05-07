@@ -16,7 +16,15 @@ assert SPEC.loader is not None
 SPEC.loader.exec_module(MEMORY_TEMPLATES_MODULE)
 
 MemoryTemplate = MEMORY_TEMPLATES_MODULE.MemoryTemplate
+# Phase 6B-2: MemoryTemplateProvider was relocated to
+# broker.domains.water.flood_memory_templates and is exposed at the
+# canonical memory_templates module via PEP 562 __getattr__. The
+# spec-loaded module above triggers __getattr__ from the loaded copy,
+# but the resolved class returns instances of the *canonical*
+# MemoryTemplate, not the spec-loaded one. Use the canonical class
+# for isinstance checks.
 MemoryTemplateProvider = MEMORY_TEMPLATES_MODULE.MemoryTemplateProvider
+from broker.components.prompt_templates.memory_templates import MemoryTemplate as _CanonicalMemoryTemplate
 
 
 def test_prompt_templates_public_exports_are_declared():
@@ -42,7 +50,8 @@ def test_generate_all_returns_non_empty_templates_for_defaultish_profile():
     memories = MemoryTemplateProvider.generate_all(profile)
 
     assert len(memories) == 6
-    assert all(isinstance(memory, MemoryTemplate) for memory in memories)
+    # Phase 6B-2: provider returns canonical MemoryTemplate instances
+    assert all(isinstance(memory, _CanonicalMemoryTemplate) for memory in memories)
     assert all(memory.content.strip() for memory in memories)
 
 

@@ -27,3 +27,14 @@ __all__ = [
     "IRRIGATION_SOCIAL_CHECKS",
     "ALL_IRRIGATION_CHECKS",
 ]
+
+# Phase 6B-1: register checks with the broker's plugin registry so
+# `validator_bundles.build_domain_validators("irrigation")` no longer
+# needs to import from this example package directly.
+try:
+    from broker.components.governance.validator_registry import ValidatorRegistry
+    ValidatorRegistry.register("irrigation", "physical", list(IRRIGATION_PHYSICAL_CHECKS))
+    ValidatorRegistry.register("irrigation", "social", list(IRRIGATION_SOCIAL_CHECKS))
+except ImportError:
+    # Broker not available (rare; e.g., reading this module standalone) — skip.
+    pass
