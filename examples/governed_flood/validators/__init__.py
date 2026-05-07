@@ -15,3 +15,15 @@ from .flood_validators import (
     flood_state_consistency,
     calculate_social_pressure,
 )
+
+# Phase 6B-1: register checks with the broker's plugin registry so
+# `validator_bundles.build_domain_validators("flood")` no longer needs
+# to import from this example package directly.
+try:
+    from broker.components.governance.validator_registry import ValidatorRegistry
+    ValidatorRegistry.register("flood", "physical", list(FLOOD_PHYSICAL_CHECKS))
+    ValidatorRegistry.register("flood", "personal", list(FLOOD_PERSONAL_CHECKS))
+    ValidatorRegistry.register("flood", "social", list(FLOOD_SOCIAL_CHECKS))
+    ValidatorRegistry.register("flood", "semantic", list(FLOOD_SEMANTIC_CHECKS))
+except ImportError:
+    pass
