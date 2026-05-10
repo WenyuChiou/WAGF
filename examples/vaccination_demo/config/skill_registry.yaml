@@ -1,0 +1,68 @@
+# Vaccination Decision-Making Skill Registry — WAGF non-water reference example
+# Demonstrates the Health Belief Model (Rosenstock 1974, Carpenter 2010) applied
+# to vaccination intent: individuals weigh perceived susceptibility / severity /
+# benefits / barriers / self-efficacy / cues to action.
+#
+# Phase 6C-v2/v3 reference: this skill registry is consumed by
+# broker.components.governance.SkillRegistry without any domain-specific
+# branch — just standard YAML.
+
+domain: vaccination
+default_skill: delay   # fallback when validator rejects all proposals
+
+skills:
+  - skill_id: get_vaccinated
+    description: "Receive a single dose of the recommended vaccine this year. Provides partial-to-high protection against infection and severe outcomes."
+    eligible_agent_types: ["individual"]
+    preconditions:
+      - "not vaccinated_recently"   # 6-month rolling check enforced by validator
+    institutional_constraints:
+      annual: true
+      cost_type: "free"
+      magnitude_type: "binary"
+    allowed_state_changes:
+      - vaccinated
+      - weeks_since_dose
+    implementation_mapping: "sim.administer_dose"
+    output_schema:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: integer, enum: [1, 2, 3] }
+    conflicts_with: []
+
+  - skill_id: delay
+    description: "Postpone the vaccination decision this year — wait for more information about safety, efficacy, or outbreak conditions before acting."
+    eligible_agent_types: ["individual"]
+    preconditions: []
+    institutional_constraints:
+      annual: true
+      cost_type: "free"
+      magnitude_type: "binary"
+    allowed_state_changes:
+      - weeks_since_consideration
+    implementation_mapping: "sim.noop"
+    output_schema:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: integer, enum: [1, 2, 3] }
+    conflicts_with: []
+
+  - skill_id: refuse
+    description: "Decline vaccination this year. May be motivated by perceived low susceptibility, fear of side effects, or distrust of public health messaging."
+    eligible_agent_types: ["individual"]
+    preconditions: []
+    institutional_constraints:
+      annual: true
+      cost_type: "free"
+      magnitude_type: "binary"
+    allowed_state_changes:
+      - has_refused
+    implementation_mapping: "sim.noop"
+    output_schema:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: integer, enum: [1, 2, 3] }
+    conflicts_with: []
