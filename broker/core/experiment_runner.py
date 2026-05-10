@@ -380,12 +380,32 @@ class ExperimentRunner:
         action_desc = result.approved_skill.skill_name.replace("_", " ").capitalize()
         timestamp_prefix = f"Year {self._current_year}: " if hasattr(self, '_current_year') else ""
         memory_content = f"{timestamp_prefix}Decided to: {action_desc}"
-        if result.approved_skill.skill_name in {"elevate_house", "relocate"}:
-            memory_metadata = {"emotion": "major", "importance": 0.7, "source": "personal"}
-        elif result.approved_skill.skill_name == "buy_insurance":
-            memory_metadata = {"emotion": "positive", "importance": 0.6, "source": "personal"}
-        else:
-            memory_metadata = {"emotion": "routine", "importance": 0.1, "source": "personal"}
+        # Phase 6C-v2 (2026-05-10): delegate per-skill emotion/importance
+        # to DomainPack instead of hardcoding flood skill names. Flood
+        # pack returns the same (major, 0.7) / (positive, 0.6) values
+        # the pre-refactor block used; non-flood skills fall through to
+        # the routine 0.1 default below.
+        memory_metadata = None
+        try:
+            from broker.domains.registry import DomainPackRegistry
+            domain_name = (
+                getattr(self.config, "domain", None)
+                or getattr(self, "_domain", None)
+            )
+            pack = DomainPackRegistry.get_or_default(domain_name)
+            pack_metadata = pack.skill_emotion_metadata(
+                result.approved_skill.skill_name
+            )
+            if pack_metadata:
+                memory_metadata = dict(pack_metadata)
+                memory_metadata.setdefault("source", "personal")
+        except ImportError:
+            pass
+
+        if memory_metadata is None:
+            memory_metadata = {
+                "emotion": "routine", "importance": 0.1, "source": "personal"
+            }
 
         if hasattr(self.memory_engine, 'add_memory_for_agent'):
             self.memory_engine.add_memory_for_agent(agent, memory_content, memory_metadata)

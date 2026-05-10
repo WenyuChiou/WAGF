@@ -92,17 +92,15 @@ class IrrigationDomainPack:
     # ─── Skills ────────────────────────────────────────────────────
 
     def skill_emotion_metadata(self, skill_name: str) -> Dict[str, Any]:
-        # Irrigation skills are demand-axis modifications without
-        # one-time irreversible cost. Map to "routine" so audit memory
-        # emotion stays consistent with the irrigation worldview.
-        decrease_skills = {"decrease_small", "decrease_large"}
-        increase_skills = {"increase_small", "increase_large"}
-        if skill_name in decrease_skills:
-            return {"emotion": "important", "importance": 0.65}
-        if skill_name in increase_skills:
-            return {"emotion": "major", "importance": 0.75}
-        if skill_name == "maintain_demand":
-            return {"emotion": "minor", "importance": 0.40}
+        # Irrigation pre-refactor (experiment_runner.py:387-388 fall-through
+        # branch): all non-flood-specific skills got the same "routine"
+        # tag with importance 0.1. To preserve byte-identical memory
+        # tagging across v21 / v22 datasets, irrigation pack returns {}
+        # here and the broker code applies the routine 0.1 default. If
+        # we later diversify irrigation memory importance (e.g., make
+        # decrease during drought = "major"), it should be a separate
+        # opt-in change with its own SI footnote, not a side-effect of
+        # the DomainPack refactor.
         return {}
 
     def extreme_actions(self) -> Set[str]:
