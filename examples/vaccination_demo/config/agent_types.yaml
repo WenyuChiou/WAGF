@@ -68,7 +68,12 @@ shared:
     delimiter_start: "<<<DECISION_START>>>"
     delimiter_end: "<<<DECISION_END>>>"
     fields:
-      # HBM 4-field schema (matches gemma3:4b's stable parse limit)
+      # HBM 4-field schema (matches gemma3:4b's stable parse limit).
+      # Phase 6C-v4 cycle 4: these fields are auto-rendered into the prompt
+      # via the broker-filled {response_format} placeholder (see
+      # broker/components/response_format.py:ResponseFormatBuilder.build).
+      # DO NOT hand-write a JSON example in the prompt template — let the
+      # broker derive it from this list so YAML and prompt stay in sync.
       - { key: "reasoning", type: "text", required: true, description: "Explain your thought process in 2-3 sentences BEFORE choosing." }
       - {
           key: "susceptibility_assessment",
@@ -84,7 +89,12 @@ shared:
           construct: "SELF_EFFICACY_LABEL",
           reason_hint: "One sentence on your confidence to seek and complete vaccination.",
         }
-      # Decision after reasoning + appraisals
+      - {
+          key: "decision",
+          type: "choice",
+          required: true,
+          description: "Numeric ID, choose ONE from: 1, 2, or 3 (1=get_vaccinated, 2=delay, 3=refuse)",
+        }
 
 # =============================================================================
 # INDIVIDUAL — vaccination decision-maker

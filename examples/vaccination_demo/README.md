@@ -79,7 +79,12 @@ After completion, inspect:
 1. **Skills** — `config/skill_registry.yaml` (decision options)
 2. **Agent persona** — `config/agent_types.yaml` (framework choice +
    reflection questions)
-3. **Prompt template** — `config/prompts/<agent_type>.txt`
+3. **Prompt template** — `config/prompts/<agent_type>.txt`. Use the
+   broker-filled `{response_format}` placeholder rather than a
+   hand-written inline JSON example — the JSON shape is auto-derived from
+   `shared.response_format.fields` so YAML and prompt stay in sync. The
+   hand-roll pattern caused the Finding 4 typo-bug surfaced in Phase 6C-v4
+   (`susceptibility_appraisal` vs `susceptibility_assessment`).
 4. **Validator checks** — `validators/<domain>_validators.py` (Python
    functions, ~80 LOC total in this PoC)
 5. **DomainPack** — `adapters/<domain>_pack.py` (the 13-method facade,
