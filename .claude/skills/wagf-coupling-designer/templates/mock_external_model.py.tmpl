@@ -1,0 +1,104 @@
+"""Deterministic mock external model for <<DOMAIN_NAME>>.
+
+Copy this class into the domain lifecycle hook while the real external
+model is still unavailable. Keep the input and output keys identical to
+the coupling contract.
+"""
+
+from __future__ import annotations
+
+import math
+import random
+from typing import Any, Dict, Mapping, Optional
+
+
+class MockExternalModel:
+    """Synthetic contract test double for <<EXTERNAL_MODEL_NAME>>."""
+
+    def __init__(
+        self,
+        seed: int = 42,
+        base_outputs: Optional[Mapping[str, float]] = None,
+    ) -> None:
+        self.seed = seed
+        self.rng = random.Random(seed)
+        self.step_index = 0
+        self.last_good: Dict[str, float] = dict(base_outputs or {})
+
+    def reset(self, seed: Optional[int] = None) -> None:
+        """Reset deterministic state between seeds or scenarios."""
+        if seed is not None:
+            self.seed = seed
+        self.rng = random.Random(self.seed)
+        self.step_index = 0
+        self.last_good = {}
+
+    def step(self, inputs: Mapping[str, Any]) -> Dict[str, Any]:
+        """Return the same OUTPUT keys declared in the contract."""
+        # TODO: Replace these placeholders with contract input names.
+        agent_decision = float(inputs.get("<<AGENT_DECISION_VARIABLE>>", 0.0))
+        year = int(inputs.get("<<YEAR_VARIABLE>>", self.step_index))
+        scenario = str(inputs.get("<<SCENARIO_VARIABLE>>", "baseline"))
+
+        # TODO: Replace this synthetic response with domain-shaped logic.
+        # The formula is deterministic and monotonic in agent_decision.
+        noise = self.rng.uniform(-0.02, 0.02)
+        stress = self._clip(0.50 + agent_decision + noise, 0.0, 1.0)
+
+        outputs = {
+            "<<OUTPUT_VAR_1>>": self._range_value(
+                name="<<OUTPUT_VAR_1>>",
+                base=<<OUTPUT_1_BASE>>,
+                slope=<<OUTPUT_1_SLOPE>>,
+                driver=stress,
+                lower=<<OUTPUT_1_MIN>>,
+                upper=<<OUTPUT_1_MAX>>,
+            ),
+            "<<OUTPUT_VAR_2>>": self._range_value(
+                name="<<OUTPUT_VAR_2>>",
+                base=<<OUTPUT_2_BASE>>,
+                slope=<<OUTPUT_2_SLOPE>>,
+                driver=stress,
+                lower=<<OUTPUT_2_MIN>>,
+                upper=<<OUTPUT_2_MAX>>,
+            ),
+            "external_model_status": "ok",
+            "mock_year": year,
+            "mock_scenario": scenario,
+        }
+        self._validate_finite(outputs)
+        self.last_good = {
+            key: value for key, value in outputs.items() if isinstance(value, float)
+        }
+        self.step_index += 1
+        return outputs
+
+    def _range_value(
+        self, name: str, base: float, slope: float, driver: float, lower: float, upper: float
+    ) -> float:
+        # TODO: Replace <<VAR_RANGES>> with the contract's physical ranges.
+        value = base + slope * driver
+        return self._clip(value, lower, upper)
+
+    @staticmethod
+    def _clip(value: float, lower: float, upper: float) -> float:
+        return max(lower, min(upper, value))
+
+    @staticmethod
+    def _validate_finite(outputs: Mapping[str, Any]) -> None:
+        for key, value in outputs.items():
+            if isinstance(value, float) and not math.isfinite(value):
+                raise ValueError(f"Mock output {key} is not finite: {value!r}")
+
+
+"""
+Usage example:
+
+mock = MockExternalModel(seed=42)
+outputs = mock.step({
+    "<<AGENT_DECISION_VARIABLE>>": 0.08,
+    "<<YEAR_VARIABLE>>": 2030,
+    "<<SCENARIO_VARIABLE>>": "dry",
+})
+assert set(outputs) >= {"<<OUTPUT_VAR_1>>", "<<OUTPUT_VAR_2>>"}
+"""
