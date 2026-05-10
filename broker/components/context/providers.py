@@ -571,6 +571,11 @@ class FinancialCostProvider(ContextProvider):
     type to compute personalized cost estimates.
 
     Reference: Paper 3 Section 3.3 (Financial information in prompt)
+
+    Phase 6C-v3 (2026-05-10): a relocation copy lives at
+    :class:`broker.domains.water.providers.FinancialCostProvider`. Both
+    are byte-identical; future Phase 6C-v4 will switch the canonical
+    location to the water module via a circular-import-safe shim.
     """
 
     # Baseline elevation costs by feet (pre-subsidy, average US)
