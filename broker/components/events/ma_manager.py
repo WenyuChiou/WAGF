@@ -269,23 +269,60 @@ class MAEventManager(EnvironmentEventManager):
                 self._sync_event_to_env(env, event)
 
     def _sync_event_to_env(self, env: Any, event: EnvironmentEvent) -> None:
-        """Sync a single event to environment state."""
+        """Sync a single event to environment state.
+
+        Phase 6C-v2 (2026-05-10): event_type → handler dispatch is now
+        plugin-driven via DomainPack.event_handlers(). FloodDomainPack
+        registers handlers for "flood", "no_flood", "subsidy_change",
+        "premium_change" that produce identical mutations to the
+        pre-refactor if/elif chain. New domains register their own
+        event types (e.g. {"outbreak": ..., "vaccine_rollout": ...})
+        without editing this file.
+        """
         gs = env.global_state
 
-        if event.event_type == "flood":
-            gs["flood_occurred"] = event.data.get("occurred", True)
-            gs["flood_depth_m"] = event.data.get("depth_m", 0)
-            gs["flood_depth_ft"] = event.data.get("depth_ft", 0)
-        elif event.event_type == "no_flood":
-            gs["flood_occurred"] = False
-            gs["flood_depth_m"] = 0
-            gs["flood_depth_ft"] = 0
-        elif event.event_type == "subsidy_change":
-            gs["subsidy_rate"] = event.data.get("new_value", gs.get("subsidy_rate", 0.5))
-            gs["govt_message"] = event.description
-        elif event.event_type == "premium_change":
-            gs["premium_rate"] = event.data.get("new_value", gs.get("premium_rate", 0.02))
-            gs["insurance_message"] = event.description
+        # Resolve domain — try env.domain attr, then fall back to scanning
+        # registered domains for one whose handlers cover this event type.
+        try:
+            from broker.domains.registry import DomainPackRegistry
+
+            domain_name = getattr(env, "domain", None)
+            if domain_name is None:
+                # Scan all registered domains for a handler covering this
+                # event type. First match wins. Preserves prior behaviour
+                # where flood event types were handled regardless of which
+                # domain was active.
+                for name in DomainPackRegistry.domains():
+                    pack = DomainPackRegistry.get(name)
+                    if pack and event.event_type in pack.event_handlers():
+                        handler = pack.event_handlers()[event.event_type]
+                        handler(event, gs)
+                        return
+                # No handler found across any domain — silent skip
+                # (matches pre-refactor: unknown event_type fell through).
+                return
+
+            pack = DomainPackRegistry.get_or_default(domain_name)
+            handler = pack.event_handlers().get(event.event_type)
+            if handler is not None:
+                handler(event, gs)
+        except ImportError:
+            # Fallback: pre-refactor hardcoded chain. Removed once all
+            # callers confirmed migrated.
+            if event.event_type == "flood":
+                gs["flood_occurred"] = event.data.get("occurred", True)
+                gs["flood_depth_m"] = event.data.get("depth_m", 0)
+                gs["flood_depth_ft"] = event.data.get("depth_ft", 0)
+            elif event.event_type == "no_flood":
+                gs["flood_occurred"] = False
+                gs["flood_depth_m"] = 0
+                gs["flood_depth_ft"] = 0
+            elif event.event_type == "subsidy_change":
+                gs["subsidy_rate"] = event.data.get("new_value", gs.get("subsidy_rate", 0.5))
+                gs["govt_message"] = event.description
+            elif event.event_type == "premium_change":
+                gs["premium_rate"] = event.data.get("new_value", gs.get("premium_rate", 0.02))
+                gs["insurance_message"] = event.description
 
     def get_events_by_type(
         self,
