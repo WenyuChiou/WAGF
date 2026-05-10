@@ -200,7 +200,14 @@ class ReflectionEngine:
             return decision in trigger_config.decision_types
 
         if trigger == ReflectionTrigger.INSTITUTIONAL:
-            if agent_type not in ("government", "insurance"):
+            # Phase 6C-v3 (2026-05-10): institutional agent-type set is
+            # configurable via ``ReflectionEngine.institutional_agent_types``
+            # (constructor arg) instead of hardcoded ("government",
+            # "insurance"). New domains supply their own set.
+            institutional_types = getattr(
+                self, "_institutional_agent_types", ("government", "insurance"),
+            )
+            if agent_type not in institutional_types:
                 return False
             policy_change = abs(context.get("policy_change_magnitude", 0.0))
             return policy_change > trigger_config.institutional_threshold
@@ -375,6 +382,16 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
 
             if ctx:
                 identity = f"[{ctx.agent_type}"
+                # Phase 6C-v3 (2026-05-10): batch-prompt trait labels stay
+                # on the legacy attribute-read path because they need
+                # short labels ("elevated") not full sentences ("your
+                # house is elevated"). The individual prompt path uses
+                # DomainPack.reflection_status_text() (long form, was
+                # migrated in Phase 6C-v2). Adding a separate
+                # ``DomainPack.reflection_trait_labels()`` method is a
+                # follow-up Phase 6C-v4 task — for now ctx attribute
+                # reads work because non-flood domains' AgentReflectionContext
+                # falls through to defaults (elevated=False etc.).
                 traits = []
                 if getattr(ctx, 'elevated', False):
                     traits.append("elevated")
