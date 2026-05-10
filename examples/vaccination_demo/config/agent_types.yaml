@@ -95,11 +95,63 @@ individual:
   prompt_template_file: prompts/individual.txt
   inherit_shared: true
 
+  # ---------------------------------------------------------------------------
+  # Action declarations — REQUIRED so parser.get_valid_actions("individual")
+  # returns non-empty. Without this block the LLM output is silently
+  # rejected because no skill name matches an empty allowlist (Phase 6C-v4
+  # Finding 5 root cause discovered 2026-05-10).
+  # ---------------------------------------------------------------------------
+  actions:
+    - id: get_vaccinated
+      aliases: ["1", "get_vaccinated", "vaccinate", "[get_vaccinated]"]
+      description: >
+        Receive a single dose of the seasonal vaccine this year.
+    - id: delay
+      aliases: ["2", "delay", "wait", "postpone", "[delay]"]
+      description: >
+        Postpone the decision; reconsider next year after observing
+        more information.
+    - id: refuse
+      aliases: ["3", "refuse", "decline", "skip", "[refuse]"]
+      description: >
+        Decline vaccination this year.
+
   # Construct overrides (HBM-specific labels)
   constructs:
     primary: ["SUSCEPTIBILITY_LABEL"]
     secondary: ["SELF_EFFICACY_LABEL"]
     all: ["SUSCEPTIBILITY_LABEL", "SELF_EFFICACY_LABEL"]
+
+  # ---------------------------------------------------------------------------
+  # Parsing config — REQUIRED to extract HBM constructs from LLM JSON.
+  # Each construct (SUSCEPTIBILITY_LABEL, SELF_EFFICACY_LABEL) maps to its
+  # JSON key in the LLM response + a regex for the label value. Without
+  # this block the parser cannot extract appraisal labels and the agent
+  # validator rejects every response (Phase 6C-v4 Finding 5 secondary
+  # root cause).
+  # ---------------------------------------------------------------------------
+  parsing:
+    decision_keywords: ["decision", "choice", "action", "selected_action"]
+    default_skill: "delay"
+    strict_mode: true
+    preprocessor:
+      { type: "smart_repair", quote_values: ["VL", "L", "M", "H", "VH"] }
+    proximity_window: 35
+    constructs:
+      SUSCEPTIBILITY_LABEL:
+        keywords: ["susceptibility_assessment", "perceived_susceptibility", "susceptibility"]
+        regex: "(?i)\\b(VL|L|M|H|VH)\\b"
+      SUSCEPTIBILITY_REASON:
+        keywords: ["susceptibility_assessment", "perceived_susceptibility", "susceptibility"]
+        regex: ".*"
+      SELF_EFFICACY_LABEL:
+        keywords: ["self_efficacy_assessment", "perceived_self_efficacy", "self_efficacy"]
+        regex: "(?i)\\b(VL|L|M|H|VH)\\b"
+      SELF_EFFICACY_REASON:
+        keywords: ["self_efficacy_assessment", "perceived_self_efficacy", "self_efficacy"]
+        regex: ".*"
+
+  log_fields: ["susceptibility_assessment", "self_efficacy_assessment"]
 
   # Domain-specific YAML validator rules (Tier 2 thinking validators).
   # These ride alongside the Python check functions in
