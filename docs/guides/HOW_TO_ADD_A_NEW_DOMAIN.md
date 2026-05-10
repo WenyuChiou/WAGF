@@ -409,6 +409,27 @@ These 6 BLOCKERs were surfaced by the `examples/vaccination_demo/` PoC on 2026-0
 
 If your smoke run produces 0 traces and the error doesn't match any row above, run with the in-built diagnostic by checking the `[Adapter:Error]` block in stdout. The diagnostic was added in Phase 6C-v4 (commit `bd86634`) specifically to make new-domain debugging tractable.
 
+### One-command scaffolding (Phase 6C-v4 cycle 4, 2026-05-10)
+
+You almost never want to hand-write the directory + YAML + DomainPack from scratch. Generate a minimal working skeleton with one command:
+
+```bash
+python -m broker.tools.scaffold_domain energy_consumer \
+    --output examples/energy_demo \
+    --skills "increase_use,maintain_use,decrease_use"
+```
+
+This writes 10 files (12 with `--framework custom`) that already:
+
+- Pass `validate_prompt` clean on first run (no manual sync needed)
+- Use the broker-filled `{response_format}` placeholder (no hand-rolled JSON to drift)
+- Include all 6 required YAML blocks identified by the Phase 6C-v4 BLOCKER inventory
+- Wire up DomainPack registration, validator registry, and a stub `run_experiment.py`
+
+Pass `--framework custom` to also scaffold a `cognition/` package with framework-registration boilerplate (use this when your domain needs a NEW psychological model like HBM, TPB, etc.). Otherwise the default uses pre-registered PMT and skips `cognition/` entirely.
+
+Next, edit `config/prompts/agent.txt`, the DomainPack adapter, and `run_experiment.py` to describe your specific domain. The scaffold is a starting point — not a finished example.
+
 ### Pre-flight check before first run (Phase 6C-v4 cycle 3, 2026-05-10)
 
 Before running your first experiment, run the static validator to catch the 6 BLOCKERs at config time:
