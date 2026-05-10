@@ -301,3 +301,92 @@ class TestSummary:
         assert s["num_phases"] == 4
         assert len(s["phases"]) == 4
         assert s["phases"][0]["phase"] == "institutional"
+
+
+# ---------------------------------------------------------------------------
+# Domain-agnostic mode (Phase 6C-v4 G1a, 2026-05-10)
+# ---------------------------------------------------------------------------
+
+class TestDomainAgnostic:
+    """Verify PhaseOrchestrator works without flood-specific defaults.
+
+    Reference: docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md — multi-agent path
+    should not require a domain author to enumerate every agent_type in
+    YAML just to get a working baseline.
+    """
+
+    def test_agent_types_none_selects_all(self):
+        """None sentinel auto-discovers all agents regardless of type."""
+        orch = PhaseOrchestrator(phases=[
+            PhaseConfig(
+                phase=ExecutionPhase.CUSTOM,
+                agent_types=None,
+                ordering="sequential",
+            ),
+        ])
+        agents = {
+            "v1": make_agent("vaccination_individual"),
+            "v2": make_agent("vaccination_individual"),
+            "h1": make_agent("household_owner"),
+            "t1": make_agent("traffic_commuter"),
+        }
+        plan = orch.get_execution_plan(agents)
+        assert len(plan) == 1
+        ids = plan[0][1]
+        assert set(ids) == {"v1", "v2", "h1", "t1"}
+
+    def test_agent_types_empty_skips_phase(self):
+        """[] keeps existing skip semantics (agent-less coordinator phases)."""
+        orch = PhaseOrchestrator(phases=[
+            PhaseConfig(
+                phase=ExecutionPhase.RESOLUTION,
+                agent_types=[],
+            ),
+        ])
+        plan = orch.get_execution_plan({"v1": make_agent("anything")})
+        assert plan[0][1] == []
+
+    def test_generic_phases_works_for_non_water_domain(self):
+        """_generic_phases() runs custom agent_types without configuration."""
+        orch = PhaseOrchestrator(phases=PhaseOrchestrator._generic_phases())
+        agents = {
+            "v1": make_agent("vaccination_individual"),
+            "e1": make_agent("energy_consumer"),
+        }
+        plan = orch.get_execution_plan(agents)
+        # 3 phases: CUSTOM (all agents) + RESOLUTION (empty) + OBSERVATION (empty)
+        assert len(plan) == 3
+        custom_ids = next(ids for phase, ids in plan if phase == ExecutionPhase.CUSTOM)
+        assert set(custom_ids) == {"v1", "e1"}
+
+    def test_from_domain_flood_uses_default_phases(self):
+        """from_domain('flood') keeps flood 4-phase backward compat."""
+        orch = PhaseOrchestrator.from_domain("flood")
+        assert len(orch.phases) == 4
+        inst_pc = orch.get_phase_config(ExecutionPhase.INSTITUTIONAL)
+        assert "government" in inst_pc.agent_types
+
+    def test_from_domain_none_uses_default_phases(self):
+        """from_domain(None) preserves prior backward compat (flood default)."""
+        orch = PhaseOrchestrator.from_domain(None)
+        assert len(orch.phases) == 4
+
+    def test_from_domain_vaccination_uses_generic_phases(self):
+        """from_domain('vaccination') yields generic phases."""
+        orch = PhaseOrchestrator.from_domain("vaccination")
+        assert len(orch.phases) == 3
+        # First phase should be the agent execution phase with None
+        custom_pc = orch.phases[0]
+        assert custom_pc.agent_types is None
+
+    def test_from_domain_generic_executes_arbitrary_agent_types(self):
+        """Full flow: from_domain('any_new_domain') + arbitrary agents → all run."""
+        orch = PhaseOrchestrator.from_domain("traffic")
+        agents = {
+            "c1": make_agent("commuter"),
+            "v1": make_agent("vehicle"),
+            "s1": make_agent("traffic_signal"),
+        }
+        plan = orch.get_execution_plan(agents)
+        agent_phase_ids = plan[0][1]
+        assert set(agent_phase_ids) == {"c1", "v1", "s1"}

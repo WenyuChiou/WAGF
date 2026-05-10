@@ -399,3 +399,48 @@ def get_spec_for_type_key(type_key: str) -> Optional[SocialGraphSpec]:
 def list_all_type_keys() -> List[str]:
     """Get list of all defined type keys."""
     return list(AGENT_SOCIAL_SPECS.keys())
+
+
+def register_social_spec(
+    agent_type: str,
+    spec: SocialGraphSpec,
+    overwrite: bool = False,
+) -> None:
+    """Register a SocialGraphSpec for a new agent type (Phase 6C-v4 G1b).
+
+    The pre-populated ``AGENT_SOCIAL_SPECS`` covers the water-domain agent
+    vocabulary (household_*, government, insurance). Non-water domains
+    (vaccination, traffic, energy, etc.) should register their own
+    agent-type-specific specs at import time — typically inside the
+    domain's ``__init__.py`` after :func:`broker.domains.registry.register`.
+
+    Args:
+        agent_type: Agent type key, lowercase. Must match what
+            ``get_social_spec(agent).agent_type`` returns at runtime.
+        spec: SocialGraphSpec describing the agent's social network.
+        overwrite: If False (default) and the key already exists, raises
+            ``ValueError`` to prevent silently shadowing water-domain
+            entries. Set True to intentionally replace.
+
+    Raises:
+        ValueError: If ``agent_type`` already registered and
+            ``overwrite=False``.
+
+    Examples:
+        >>> # In examples/vaccination_demo/__init__.py
+        >>> from broker.components.social.config import (
+        ...     register_social_spec, SocialGraphSpec,
+        ... )
+        >>> register_social_spec(
+        ...     "individual",
+        ...     SocialGraphSpec(graph_type="spatial", radius=3),
+        ... )
+    """
+    agent_type_lower = agent_type.lower()
+    if agent_type_lower in AGENT_SOCIAL_SPECS and not overwrite:
+        raise ValueError(
+            f"agent_type '{agent_type_lower}' already registered "
+            f"({AGENT_SOCIAL_SPECS[agent_type_lower]!r}). "
+            f"Pass overwrite=True to replace."
+        )
+    AGENT_SOCIAL_SPECS[agent_type_lower] = spec

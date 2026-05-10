@@ -40,13 +40,21 @@ class PhaseConfig:
 
     Args:
         phase: Which execution phase
-        agent_types: Agent types included in this phase
+        agent_types: Agent types included in this phase. Three possible values:
+            - ``None`` — auto-discover ALL agents in the experiment regardless
+              of agent_type. Use this for domain-agnostic phases when the
+              domain's agent vocabulary is not known at config time.
+            - ``[]`` (empty list, default) — SKIP this phase (no agents
+              execute). Used by agent-less phases like RESOLUTION /
+              OBSERVATION that only run coordinator logic.
+            - ``["type_a", "type_b", ...]`` — explicit allow-list. Only
+              agents whose ``agent_type`` is in the list execute.
         ordering: How agents execute within the phase
         max_workers: Parallelism for 'parallel' ordering
         depends_on: Phases that must complete before this one
     """
     phase: ExecutionPhase
-    agent_types: List[str] = field(default_factory=list)
+    agent_types: Optional[List[str]] = field(default_factory=list)
     ordering: str = "sequential"   # "sequential" | "parallel" | "random"
     max_workers: int = 1
     depends_on: List[ExecutionPhase] = field(default_factory=list)

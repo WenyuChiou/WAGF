@@ -409,6 +409,75 @@ These 6 BLOCKERs were surfaced by the `examples/vaccination_demo/` PoC on 2026-0
 
 If your smoke run produces 0 traces and the error doesn't match any row above, run with the in-built diagnostic by checking the `[Adapter:Error]` block in stdout. The diagnostic was added in Phase 6C-v4 (commit `bd86634`) specifically to make new-domain debugging tractable.
 
+### Pre-flight check before first run (Phase 6C-v4 cycle 3, 2026-05-10)
+
+Before running your first experiment, run the static validator to catch the 6 BLOCKERs at config time:
+
+```bash
+python -m broker.tools.validate_prompt examples/<your_domain>/config/agent_types.yaml
+```
+
+Exit codes:
+
+- `0` — clean (or only WARN-level issues)
+- `1` — at least one ERROR (will produce 0 valid LLM decisions if run)
+
+The CLI checks:
+
+1. Each agent type declares `actions:` (either top-level or nested under `parsing.actions`)
+2. Every `response_format.fields[].construct` has a matching `parsing.constructs:` entry
+3. Inline JSON example keys in the prompt match `response_format.fields[].key` (catches the Finding 4 typo case — `susceptibility_appraisal` vs `susceptibility_assessment`)
+4. Every `{placeholder}` in the prompt is either broker-filled or YAML-declared (WARN; many domains intentionally fill custom placeholders via lifecycle hooks)
+5. The `prompt_template_file` path actually resolves (handles both `yaml-dir-relative` and `example-root-relative` conventions)
+
+To restrict checking to one agent type:
+
+```bash
+python -m broker.tools.validate_prompt agent_types.yaml --agent-type household_owner
+```
+
+Use `--strict` to fail on warnings as well as errors (useful in CI).
+
+### Multi-agent orchestration: `from_domain()`
+
+Multi-agent experiments use `PhaseOrchestrator` for execution ordering. The default `PhaseOrchestrator()` returns the flood-specific 4-phase template (government / insurance → household_* → resolution → observation). For non-water domains use `from_domain()`:
+
+```python
+from broker.components.orchestration.phases import PhaseOrchestrator
+
+# Flood (or omit domain — backward-compat default)
+orch = PhaseOrchestrator.from_domain("flood")
+
+# Anything else: vaccination, traffic, energy, ...
+orch = PhaseOrchestrator.from_domain("vaccination")
+```
+
+`from_domain("<any-non-flood-string>")` returns a 3-phase template with `agent_types=None` in the first phase, meaning **auto-discover all agents** regardless of `agent_type`. This is what makes a fresh non-water domain Just Work without enumerating every agent_type in YAML.
+
+If you need fully custom phase ordering, write a phase YAML and load it via `PhaseOrchestrator.from_yaml(...)`.
+
+### Custom social specs: `register_social_spec()`
+
+If your domain's agents have different social graph topology than the water-domain defaults (spatial + household_* / global + government), register them at domain import time:
+
+```python
+# In examples/<your_domain>/__init__.py
+from broker.components.social.config import (
+    register_social_spec, SocialGraphSpec,
+)
+
+register_social_spec(
+    "vaccination_individual",
+    SocialGraphSpec(graph_type="spatial", radius=3),
+)
+register_social_spec(
+    "energy_consumer",
+    SocialGraphSpec(graph_type="global"),
+)
+```
+
+Without registration, unknown agent types fall back to `DEFAULT_SOCIAL_SPEC` (spatial, radius=2). The fallback works but is rarely what a domain author wants — register explicitly for clarity.
+
 ## What you DO NOT have to do
 
 - ✗ Edit `broker/components/cognitive/reflection.py` — DomainPack handles it

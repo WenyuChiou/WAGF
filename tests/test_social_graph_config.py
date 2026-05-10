@@ -639,3 +639,68 @@ class TestFilterRegistry:
         from broker.components.social.filter_registry import FilterRegistry
         with pytest.raises(ValueError, match="must be callable"):
             FilterRegistry.register("bad_fn", "not_a_callable")
+
+
+# ==============================================================================
+# Phase 6C-v4 G1b — register_social_spec public API (2026-05-10)
+# ==============================================================================
+
+
+class TestRegisterSocialSpec:
+    """Verify domains can register their own agent-type social specs."""
+
+    def teardown_method(self):
+        """Clean test entries so other tests are unaffected."""
+        for key in ("vaccination_individual", "energy_consumer",
+                    "test_collision_type"):
+            AGENT_SOCIAL_SPECS.pop(key, None)
+
+    def test_register_new_agent_type(self):
+        """Non-water domain can register custom spec."""
+        from broker.components.social.config import register_social_spec
+        spec = SocialGraphSpec(graph_type="spatial", radius=3)
+        register_social_spec("vaccination_individual", spec)
+        assert "vaccination_individual" in AGENT_SOCIAL_SPECS
+        retrieved = AGENT_SOCIAL_SPECS["vaccination_individual"]
+        assert retrieved.graph_type == "spatial"
+        assert retrieved.radius == 3
+
+    def test_register_lowercases_key(self):
+        """Keys stored lowercased so case-insensitive lookups still work."""
+        from broker.components.social.config import register_social_spec
+        spec = SocialGraphSpec(graph_type="global")
+        register_social_spec("Energy_Consumer", spec)
+        assert "energy_consumer" in AGENT_SOCIAL_SPECS
+        assert "Energy_Consumer" not in AGENT_SOCIAL_SPECS
+
+    def test_register_blocks_silent_overwrite(self):
+        """Default behavior: ValueError on duplicate key to prevent
+        accidental shadowing of water-domain entries."""
+        from broker.components.social.config import register_social_spec
+        spec1 = SocialGraphSpec(graph_type="spatial", radius=1)
+        register_social_spec("test_collision_type", spec1)
+        with pytest.raises(ValueError, match="already registered"):
+            register_social_spec("test_collision_type",
+                                 SocialGraphSpec(graph_type="global"))
+
+    def test_register_overwrite_true_replaces(self):
+        """overwrite=True intentionally replaces existing entry."""
+        from broker.components.social.config import register_social_spec
+        register_social_spec("test_collision_type",
+                             SocialGraphSpec(graph_type="spatial", radius=1))
+        register_social_spec("test_collision_type",
+                             SocialGraphSpec(graph_type="global"),
+                             overwrite=True)
+        assert AGENT_SOCIAL_SPECS["test_collision_type"].graph_type == "global"
+
+    def test_get_social_spec_after_register(self):
+        """Registered spec is picked up by get_social_spec() for matching agents."""
+        from broker.components.social.config import register_social_spec
+        register_social_spec(
+            "vaccination_individual",
+            SocialGraphSpec(graph_type="random", max_connections=5),
+        )
+        agent = MockAgent(id="v1", agent_type="vaccination_individual")
+        spec = get_social_spec(agent)
+        assert spec.graph_type == "random"
+        assert spec.max_connections == 5
