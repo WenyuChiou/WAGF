@@ -298,18 +298,33 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
             identity_lines[0] += f" ({context.name})"
         identity_lines[0] += f", a {context.agent_type} agent in Year {current_year}."
 
-        if context.agent_type == "household":
-            status_parts = []
-            if context.elevated:
-                status_parts.append("your house is elevated")
-            if context.insured:
-                status_parts.append("you have flood insurance")
-            if context.flood_count > 0:
-                status_parts.append(f"you've been flooded {context.flood_count} time(s)")
-            if context.mg_status:
-                status_parts.append("you have limited resources")
-            if status_parts:
-                identity_lines.append(f"Current status: {', '.join(status_parts)}.")
+        # Phase 6C-v2 (2026-05-10): delegate domain-specific status text to
+        # the registered DomainPack instead of hardcoding flood fields.
+        # FloodDomainPack.reflection_status_text reproduces the prior
+        # behaviour byte-identically; new domains supply their own.
+        try:
+            from broker.domains.registry import DomainPackRegistry
+            domain_name = getattr(context, "domain", None) or context.agent_type
+            pack = DomainPackRegistry.get_or_default(domain_name)
+            status_line = pack.reflection_status_text(context)
+            if status_line:
+                identity_lines.append(status_line)
+        except ImportError:
+            # Fallback to legacy hardcoded block if DomainPack layer not
+            # available (e.g. in partial-bring-up tests). Will be removed
+            # once all callers have migrated.
+            if context.agent_type == "household":
+                status_parts = []
+                if context.elevated:
+                    status_parts.append("your house is elevated")
+                if context.insured:
+                    status_parts.append("you have flood insurance")
+                if context.flood_count > 0:
+                    status_parts.append(f"you've been flooded {context.flood_count} time(s)")
+                if context.mg_status:
+                    status_parts.append("you have limited resources")
+                if status_parts:
+                    identity_lines.append(f"Current status: {', '.join(status_parts)}.")
 
         identity_block = "\n".join(identity_lines)
 
