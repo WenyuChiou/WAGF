@@ -222,10 +222,10 @@ class IrrigationLifecycleHooks:
                 "current_request": ctx.get("current_request", 0),
                 "curtailment_ratio": ctx.get("curtailment_ratio", 0),
                 "shortage_tier": ctx.get("shortage_tier", 0),
-                "drought_index": ctx.get("drought_index", 0.5),  # Phase C: wet-period exemption
+                # Removed: drought_index — broker auto-injects from env_context (was duplicate, fired Governance:Diagnostic)
                 "cluster": ctx.get("cluster", "unknown"),
                 "basin": ctx.get("basin", "unknown"),
-                "total_basin_demand": ctx.get("total_basin_demand", 0),
+                # Removed: total_basin_demand — broker auto-injects from env_context (was duplicate, fired Governance:Diagnostic)
                 "loop_year": year,  # use "loop_year" to avoid collision with env_context["year"] (CRSS calendar year)
             }
             for key, value in validator_fields.items():
