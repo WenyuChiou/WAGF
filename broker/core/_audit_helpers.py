@@ -29,6 +29,29 @@ def _classify_decision_source(approved_skill) -> str:
     return "unknown"
 
 
+def _safe_rule_breakdown(all_validation_history) -> Dict[str, int]:
+    """Compute rule-category hit counts safely.
+
+    Phase 6C W8: previously the audit trace omitted ``rule_breakdown``
+    entirely, so audit CSV ``rules_*_hit`` columns were silent
+    placeholders. We now populate from the validation history. Lazy
+    import of ``get_rule_breakdown`` avoids a startup circular import
+    between ``broker.core`` and ``broker.validators.governance``.
+
+    Falls back to a zeroed dict if anything goes wrong, so a producer
+    error never breaks the audit write path.
+    """
+    try:
+        from ..validators.governance import get_rule_breakdown
+        results = []
+        for v in all_validation_history or []:
+            results.extend(v if isinstance(v, list) else [v])
+        return get_rule_breakdown(results)
+    except Exception as exc:
+        logger.warning(f"[Audit] rule_breakdown computation failed: {exc}")
+        return {"personal": 0, "social": 0, "thinking": 0, "physical": 0, "semantic": 0}
+
+
 class AuditMixin:
     """Mixin providing audit trace writing and state management helpers."""
 
@@ -99,6 +122,11 @@ class AuditMixin:
             "memory_pre": memory_pre,
             "memory_post": memory_post,
             "memory_audit": memory_audit,
+            # Phase 6C W8: populate rule_breakdown so audit CSV's rules_*_hit
+            # columns carry real validator-category counts instead of placeholder
+            # zeros. Imported lazily here to avoid a startup-time circular
+            # import (governance pkg imports core types).
+            "rule_breakdown": _safe_rule_breakdown(all_validation_history),
             "environment_context": env_context or {},
             "state_before": context.get("state", {}),
             "state_after": self._merge_state_after(context.get("state", {}), execution_result),
