@@ -1,0 +1,323 @@
+# How to add a new domain to WAGF
+
+This guide walks through plugging a non-water topic — e.g., **vaccination decision-making** — into the WAGF framework. After Phase 6C-v2 (2026-05-10), adding a new domain requires **one class** (a `DomainPack`) and **one registration call**. Zero edits to `broker/`.
+
+## Prerequisites
+
+- Python 3.10+, the WAGF repo cloned, `pip install -e .` run.
+- A model/LLM you can call (the irrigation example uses `gemma3:4b` via Ollama; small smoke tests use `gemma3:1b`).
+- Familiarity with the existing irrigation example at `examples/irrigation_abm/` is the fastest way to get the gestalt.
+
+## Architectural overview
+
+WAGF treats each domain as a **plug-in** built from these registry-driven layers:
+
+| Layer | What it does | Where it lives |
+|---|---|---|
+| **DomainPack** | Single facade for all domain-specific behavior (reflection text, emotion classification, event handlers, etc.) | Your example package, registered to `DomainPackRegistry` |
+| **Skill registry** | YAML-driven list of available skills with preconditions and conflicts | `examples/<your_domain>/config/skill_registry.yaml` |
+| **Validator checks** | Python functions that veto invalid skill proposals | `examples/<your_domain>/validators/` |
+| **Validator rules** | YAML-driven cross-field veto rules | `examples/<your_domain>/config/agent_types.yaml` |
+| **Memory engine** | Choice of memory engine (window / humancentric / hierarchical) | YAML, references engines registered in `MemoryEngineRegistry` |
+| **Prompt template** | The chat template that frames each turn for the LLM | `examples/<your_domain>/config/prompts/<agent_type>.txt` |
+| **Lifecycle hooks** | Year-by-year orchestration (env update → agent context → reflection → memory) | `examples/<your_domain>/run_experiment.py` |
+
+The broker pipeline calls into your `DomainPack` for any domain-specific decision; everything else is YAML-driven. **No `broker/` edits.**
+
+## 7-step walkthrough — vaccination decision example
+
+We'll build a minimal vaccination-decision ABM. Agents are individuals deciding whether to vaccinate based on perceived risk (Health Belief Model), social pressure, and recent outbreak signals.
+
+### Step 1 — Scaffold the example directory
+
+```
+examples/vaccination_abm/
+├── __init__.py                # registers DomainPack
+├── adapters/
+│   ├── __init__.py
+│   ├── vaccination_adapter.py # importance/emotion (~100 LOC)
+│   └── vaccination_pack.py    # DomainPack subclass (~150 LOC)
+├── config/
+│   ├── agent_types.yaml       # agent personas + reflection questions
+│   ├── skill_registry.yaml    # skills + preconditions
+│   └── prompts/
+│       └── individual.txt     # LLM prompt template
+├── validators/
+│   ├── __init__.py            # registers checks with ValidatorRegistry
+│   └── vaccination_validators.py  # check functions (~80-200 LOC)
+└── run_experiment.py          # lifecycle hooks + main entry (~80-200 LOC)
+```
+
+Copy `examples/irrigation_abm/` as a starting skeleton, then strip out water-specific files.
+
+### Step 2 — Define skills in `config/skill_registry.yaml`
+
+```yaml
+domain: vaccination
+default_skill: delay     # falls back here when validator rejects all options
+
+skills:
+  - skill_id: get_vaccinated
+    description: "Receive a single vaccine dose"
+    eligible_agent_types: ["individual"]
+    preconditions:
+      - "not vaccinated"   # framework's state-gate filters this out post-vaccination
+    institutional_constraints:
+      once_only: false      # can re-vaccinate (boosters)
+    allowed_state_changes:
+      - vaccinated
+
+  - skill_id: delay
+    description: "Wait for more information before deciding"
+    eligible_agent_types: ["individual"]
+    preconditions: []
+    institutional_constraints:
+      cost_type: "free"
+
+  - skill_id: refuse
+    description: "Decline vaccination"
+    eligible_agent_types: ["individual"]
+    preconditions: []
+    institutional_constraints:
+      cost_type: "free"
+```
+
+### Step 3 — Define agent personas in `config/agent_types.yaml`
+
+```yaml
+domain: vaccination
+
+global_config:
+  memory:
+    engine: humancentric
+    config:
+      window_size: 5
+      consolidation_threshold: 0.6
+      decay_rate: 0.1
+
+  reflection:
+    interval: 1
+    batch_size: 10
+    persona_instruction: "Summarize each agent's vaccination journey..."
+    questions:
+      - "Has your perceived risk of infection changed this year?"
+      - "Have your friends and family influenced your stance?"
+      - "What information would change your mind?"
+    triggers:
+      crisis: true
+      periodic_interval: 3
+      decision_types: [get_vaccinated, refuse]
+
+individual:
+  agent_type: individual
+  psychological_framework: hbm   # Health Belief Model — define your own or reuse pmt/utility/generic
+  prompt_template_file: config/prompts/individual.txt
+
+  response_format:
+    schema_version: "v1"
+    fields:
+      - name: RISK_LABEL
+        type: string
+        enum: [VL, L, M, H, VH]
+      - name: EFFICACY_LABEL
+        type: string
+        enum: [VL, L, M, H, VH]
+      - name: CHOICE
+        type: string
+        enum: [get_vaccinated, delay, refuse]
+```
+
+### Step 4 — Implement validator checks
+
+```python
+# examples/vaccination_abm/validators/vaccination_validators.py
+
+from broker.interfaces.skill_types import ValidationResult
+
+def vaccinated_no_revaccinate_in_short_window(skill_name, rules, context):
+    """Block re-vaccination if last dose < 6 months ago."""
+    if skill_name != "get_vaccinated":
+        return []
+    weeks_since = context.get("weeks_since_dose", 999)
+    if weeks_since < 26:  # 6 months
+        return [ValidationResult(
+            valid=False,
+            validator_name="vaccinated_no_revaccinate_in_short_window",
+            errors=["Vaccination too recent (less than 6 months ago)."],
+            metadata={"category": "physical", "rule_id": "physical_short_window"}
+        )]
+    return []
+
+VACCINATION_PHYSICAL_CHECKS = (vaccinated_no_revaccinate_in_short_window,)
+```
+
+```python
+# examples/vaccination_abm/validators/__init__.py
+
+from broker.components.governance.validator_registry import ValidatorRegistry
+from .vaccination_validators import VACCINATION_PHYSICAL_CHECKS
+
+ValidatorRegistry.register("vaccination", "physical", list(VACCINATION_PHYSICAL_CHECKS))
+```
+
+### Step 5 — Implement `DomainPack`
+
+```python
+# examples/vaccination_abm/adapters/vaccination_pack.py
+
+from typing import Any, Dict, List, Optional, Set
+from broker.domains.protocol import DomainPack, EventHandler
+
+
+def _handle_outbreak(event, gs):
+    gs["infection_pressure"] = event.data.get("severity", 0.5)
+    gs["outbreak_message"] = event.description
+
+
+def _handle_vaccine_rollout(event, gs):
+    gs["vaccine_supply"] = event.data.get("doses", 0)
+    gs["rollout_message"] = event.description
+
+
+class VaccinationDomainPack:
+    """DomainPack for vaccination decision-making example."""
+
+    name: str = "vaccination"
+
+    # ─── Reflection ───────────────────────────────────────────────
+    def reflection_status_text(self, context: Any) -> Optional[str]:
+        if getattr(context, "agent_type", None) != "individual":
+            return None
+        parts = []
+        if getattr(context, "vaccinated", False):
+            weeks = getattr(context, "weeks_since_dose", 0)
+            parts.append(f"you received your last dose {weeks} weeks ago")
+        else:
+            parts.append("you are unvaccinated")
+        if getattr(context, "had_infection", False):
+            parts.append("you've recovered from a prior infection")
+        return f"Current status: {', '.join(parts)}." if parts else None
+
+    def reflection_questions(self) -> List[str]:
+        return []  # uses agent_types.yaml questions
+
+    def reflection_persona(self) -> Optional[str]:
+        return None
+
+    # ─── Memory / importance / emotion ─────────────────────────────
+    def importance_profiles(self) -> Dict[str, float]:
+        return {
+            "first_outbreak": 0.95,
+            "side_effect_event": 0.88,
+            "stable_year": 0.55,
+        }
+
+    def compute_importance(self, context: Any, base: float = 0.7) -> float:
+        importance = base
+        if context.get("outbreak_severity", 0) > 0.6:
+            importance = self.importance_profiles()["first_outbreak"]
+        return min(1.0, max(0.0, importance))
+
+    def classify_emotion(self, decision: str, context: Any) -> str:
+        if decision == "get_vaccinated" and context.get("outbreak_severity", 0) > 0.6:
+            return "critical"
+        if decision == "refuse":
+            return "major"
+        return "minor"
+
+    def emotional_keywords(self) -> Dict[str, str]:
+        return {"outbreak": "critical", "side_effect": "major"}
+
+    def retrieval_weights(self) -> Dict[str, float]:
+        return {"W_recency": 0.40, "W_importance": 0.40, "W_context": 0.20}
+
+    # ─── Skills ────────────────────────────────────────────────────
+    def skill_emotion_metadata(self, skill_name: str) -> Dict[str, Any]:
+        return {
+            "get_vaccinated": {"emotion": "major", "importance": 0.85, "source": "personal"},
+            "refuse":         {"emotion": "major", "importance": 0.70, "source": "personal"},
+            "delay":          {"emotion": "minor", "importance": 0.40, "source": "personal"},
+        }.get(skill_name, {})
+
+    def extreme_actions(self) -> Set[str]:
+        return set()  # vaccination has no irreversible one-way actions
+
+    # ─── Events ────────────────────────────────────────────────────
+    def event_handlers(self) -> Dict[str, EventHandler]:
+        return {
+            "outbreak": _handle_outbreak,
+            "vaccine_rollout": _handle_vaccine_rollout,
+        }
+
+    # ─── Context provider hooks ────────────────────────────────────
+    def mg_barrier_text(self, profile: Dict[str, Any]) -> str:
+        return ""  # no MG-specific narrative for this minimal example
+
+    # ─── Validators / templates ────────────────────────────────────
+    def builtin_checks(self) -> Dict[str, List]:
+        return {}   # already registered via ValidatorRegistry
+
+    def initial_memory_templates(self, profile: Dict[str, Any]) -> List[Any]:
+        return []
+```
+
+### Step 6 — Register the pack at import time
+
+```python
+# examples/vaccination_abm/__init__.py
+
+"""Vaccination decision-making ABM."""
+from broker.domains.registry import DomainPackRegistry
+from examples.vaccination_abm.adapters.vaccination_pack import VaccinationDomainPack
+
+DomainPackRegistry.register("vaccination", VaccinationDomainPack())
+```
+
+### Step 7 — Run a smoke test
+
+```bash
+python examples/vaccination_abm/run_experiment.py \
+    --model gemma3:1b --years 3 --agents 5 --seed 42 \
+    --output results/smoke_vacc
+```
+
+Verify:
+- ✅ No `[Governance:Diagnostic] Key collision` warnings (you used distinct YAML field names)
+- ✅ No `[DomainPack] No pack registered for 'vaccination'` warning (your `__init__.py` registered)
+- ✅ `results/smoke_vacc/individual_governance_audit.csv` has `proposed_skill / final_skill / status` columns
+- ✅ At least one trace shows `validator_rejected` (your check fires correctly)
+- ✅ Reflection prompts include "you are unvaccinated" (your `reflection_status_text` is wired)
+
+## Common pitfalls
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| All traces have `proposed_skill = default_skill_name` | YAML missing `default_skill:` | Add to `skill_registry.yaml` top level |
+| `[DomainPack] No pack registered` warning | Pack class not imported / not registered | Verify `examples/<your_domain>/__init__.py` runs at startup |
+| Reflection prompt has no domain text | `reflection_status_text` returns `None` for your agent_type | Check the `getattr(context, "agent_type", None) == "individual"` gate |
+| `rules_*_hit` columns are 0 | Validator checks don't set `metadata["category"]` | Add `metadata={"category": "physical"}` (or appropriate slot) to ValidationResult |
+| Audit `state_before` missing your key fields | Your env-state dict and your agent-state dict have key collisions | Use distinct names (e.g., `agent_outbreak_severity` for agent state, `outbreak_severity` for env) |
+| LLM proposes invalid skill names | Skill registry / prompt mismatch | Ensure prompt's enum matches `skill_registry.yaml` skill_ids |
+
+## What you DO NOT have to do
+
+- ✗ Edit `broker/components/cognitive/reflection.py` — DomainPack handles it
+- ✗ Edit `broker/core/experiment_runner.py` — DomainPack handles it
+- ✗ Edit `broker/components/events/ma_manager.py` — DomainPack handles it
+- ✗ Edit `broker/domains/water/validator_bundles.py` — registry handles it
+- ✗ Edit `broker/components/context/providers.py` — DomainPack handles it
+
+## Reference
+
+- `examples/irrigation_abm/` — reference implementation (water demand)
+- `examples/governed_flood/` — reference implementation (flood adaptation)
+- `broker/domains/protocol.py` — DomainPack Protocol contract
+- `broker/domains/default.py` — DefaultDomainPack no-op fallback
+- `broker/domains/registry.py` — DomainPackRegistry semantics
+- `tests/test_domain_pack_contract.py` — regression tests; copy/paste pattern for your own pack
+- `.ai/domain_pack_design_2026-05-10.md` — full architectural rationale
+
+## Asking for help
+
+Open an issue at the WAGF repo with the tag `new-domain` and your example
+package as a tarball. Include the smoke test output and which step failed.

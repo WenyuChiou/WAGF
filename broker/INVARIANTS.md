@@ -180,6 +180,27 @@ When a refactoring PR lands that *could* change experimental behavior, record th
 
 **Audit detail**: `.claude/projects/.../memory/phase6abc_irrigation_behavior_audit_2026-05-10.md` (author's local memory).
 
+### v2 → v3 (Phase 6C-v3, 2026-05-10) — STILL FULLY COMPARABLE
+
+**New refactor commits** between v2 (PR #11 merged 2026-05-07) and v3 (this PR):
+`99f1eaa` (Group A AgentProfile cascade), `3f0b2af` (Group H ThinkingValidator strict registration), `ab1163e` (Group B partial institutional_agent_types), `9280a7e` (Group D perception filter fields injectable), `a0607aa` (Group C partial FinancialCostProvider water-domain copy).
+
+**Verification suite** (2026-05-10):
+- `pytest tests/ broker/`: 1955 pass, no regression vs v2 baseline.
+- 3-domain integration smoke (`gemma3:4b 2yr`):
+  - Irrigation 6 rows main vs worktree: schema identical, decisions identical (6/6 APPROVED), validator firing identical, 1/6 LLM stochastic skill variance.
+  - SA flood 200 rows: schema identical, 200/200 APPROVED in both, 4 unique skills in both, ~3% LLM variance, REJECTED rate 0/200 (P=0.17 vs v21 0.87% prior).
+  - MA flood 204 rows across 4 agent types: schema identical, all decisions match (APPROVED/REJECTED counts within 2/130 for owner), 1.5-2.9% LLM variance per agent type.
+- 3-agent independent verification (response quality / data integrity / statistical envelope): all return positive verdicts. SA flood n=200 sits inside v21 Y1-Y2 envelope on every skill. Zero hallucinations, zero schema regression, zero new sentinels.
+
+**Verdict**: Phase 6C-v3 is **byte-identical for paper-relevant behaviour** on irrigation, SA flood (Paper 1b reference), and MA flood (Paper 3). v21 5-seed dataset and post-v3 datasets are fully cross-comparable. No paper re-run required.
+
+**Outstanding caveats** (do NOT affect Paper 1b/3 metrics):
+- ~20 BLOCKERs deferred to Phase 6C-v4 (calibration validators, agent_validator affordability allowlist, reflection.py legacy paths, etc.). All either have deprecation warnings already, or are post-hoc analysis tools, or only affect new non-water domains. Tracked in `.ai/phase6c_v3_full_plan_2026-05-10.md`.
+- SAflood `mem_top_emotion=neutral` / `mem_top_source=personal` constant — pre-existing in v2 baseline, NOT introduced by v3. Separate fix scope.
+
+**Audit detail**: 3-agent verification reports + smoke artifacts at `.ai/smoke_test_2026-05-10/`; planning + per-finding rationale at `.ai/phase6c_v3_full_plan_2026-05-10.md`.
+
 ---
 
 ## References

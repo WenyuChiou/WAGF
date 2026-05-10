@@ -60,33 +60,56 @@ def _ensure_flood_registered() -> None:
 
 
 def build_domain_validators(domain: Optional[str]) -> list:
-    """Return builtin validator instances for a water-domain name.
+    """Return builtin validator instances for any registered domain.
 
-    Domain-specific checks come from the ValidatorRegistry plugin
-    registry. The flood-specific ThinkingValidator extreme_actions
-    parameter is preserved here because it is a validator-class kwarg
-    rather than a check-list import.
+    Phase 6C-v2 (2026-05-10): the ``if domain == "irrigation"/"flood"``
+    chain is replaced with a registry-driven query. Domain-specific
+    ``extreme_actions`` come from the registered ``DomainPack`` so the
+    irrigation/flood branches no longer need to be hardcoded here.
+
+    The lazy ``_ensure_*_registered`` helpers are kept for backward
+    compatibility with entrypoints that don't pre-import the example
+    package (Phase 6B-1 fallback). They remain water-specific because
+    they target ``examples.irrigation_abm.validators`` and
+    ``examples.governed_flood.validators`` directly.
     """
     resolved = (domain or "").strip().lower() or None
 
+    if resolved is None:
+        return _empty_validators()
+
+    # Backward-compat: if domain matches a known water example whose
+    # validators package hasn't been imported yet, trigger the lazy
+    # import so the registry is populated before we query it.
     if resolved == "irrigation":
         _ensure_irrigation_registered()
-        return [
-            PersonalValidator(builtin_checks=[]),
-            PhysicalValidator(builtin_checks=ValidatorRegistry.get_checks("irrigation", "physical")),
-            ThinkingValidator(builtin_checks=[]),
-            SocialValidator(builtin_checks=ValidatorRegistry.get_checks("irrigation", "social")),
-            SemanticGroundingValidator(builtin_checks=[]),
-        ]
-
-    if resolved == "flood":
+    elif resolved == "flood":
         _ensure_flood_registered()
-        return [
-            PersonalValidator(builtin_checks=ValidatorRegistry.get_checks("flood", "personal")),
-            PhysicalValidator(builtin_checks=ValidatorRegistry.get_checks("flood", "physical")),
-            ThinkingValidator(extreme_actions={"relocate", "elevate_house"}),
-            SocialValidator(builtin_checks=ValidatorRegistry.get_checks("flood", "social")),
-            SemanticGroundingValidator(builtin_checks=ValidatorRegistry.get_checks("flood", "semantic")),
-        ]
 
-    return _empty_validators()
+    if not ValidatorRegistry.has_domain(resolved):
+        # Unknown domain — return empty validators (broker continues
+        # with YAML rules only). DefaultDomainPack would do the same.
+        return _empty_validators()
+
+    # Pull extreme_actions from the registered DomainPack (replaces
+    # the irrigation/flood branch difference).
+    extreme: set = set()
+    try:
+        from broker.domains.registry import DomainPackRegistry
+        pack = DomainPackRegistry.get_or_default(resolved)
+        extreme = pack.extreme_actions()
+    except ImportError:
+        # Pre-Phase-6C-v2 fallback: hardcode flood's extreme_actions.
+        if resolved == "flood":
+            extreme = {"relocate", "elevate_house"}
+
+    return [
+        PersonalValidator(builtin_checks=ValidatorRegistry.get_checks(resolved, "personal")),
+        PhysicalValidator(builtin_checks=ValidatorRegistry.get_checks(resolved, "physical")),
+        ThinkingValidator(
+            builtin_checks=ValidatorRegistry.get_checks(resolved, "thinking"),
+            extreme_actions=extreme,
+        ),
+        SocialValidator(builtin_checks=ValidatorRegistry.get_checks(resolved, "social")),
+        SemanticGroundingValidator(builtin_checks=ValidatorRegistry.get_checks(resolved, "semantic")),
+    ]
