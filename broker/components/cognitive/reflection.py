@@ -200,7 +200,14 @@ class ReflectionEngine:
             return decision in trigger_config.decision_types
 
         if trigger == ReflectionTrigger.INSTITUTIONAL:
-            if agent_type not in ("government", "insurance"):
+            # Phase 6C-v3 (2026-05-10): institutional agent-type set is
+            # configurable via ``ReflectionEngine.institutional_agent_types``
+            # (constructor arg) instead of hardcoded ("government",
+            # "insurance"). New domains supply their own set.
+            institutional_types = getattr(
+                self, "_institutional_agent_types", ("government", "insurance"),
+            )
+            if agent_type not in institutional_types:
                 return False
             policy_change = abs(context.get("policy_change_magnitude", 0.0))
             return policy_change > trigger_config.institutional_threshold
@@ -298,7 +305,34 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
             identity_lines[0] += f" ({context.name})"
         identity_lines[0] += f", a {context.agent_type} agent in Year {current_year}."
 
-        if context.agent_type == "household":
+        # Phase 6C-v2 (2026-05-10): delegate domain-specific status text to
+        # registered DomainPacks. Scan all packs and use the first one
+        # that returns a non-None status_text — packs gate eligibility
+        # internally (e.g. FloodDomainPack checks agent_type=="household").
+        #
+        # Fallback policy: when no registered pack returns text (e.g. in
+        # unit tests that don't import examples), fall back to the legacy
+        # hardcoded flood block keyed on agent_type. This guarantees
+        # byte-identical behaviour for test suites that exercise the
+        # reflection engine without setting up a pack registry.
+        status_handled = False
+        try:
+            from broker.domains.registry import DomainPackRegistry
+            for name in DomainPackRegistry.domains():
+                pack = DomainPackRegistry.get(name)
+                if pack is None:
+                    continue
+                status_line = pack.reflection_status_text(context)
+                if status_line:
+                    identity_lines.append(status_line)
+                    status_handled = True
+                    break
+        except ImportError:
+            pass
+
+        if not status_handled and context.agent_type == "household":
+            # Legacy fallback — same code as pre-refactor reflection.py:301.
+            # Removed once all run paths confirmed to register a flood pack.
             status_parts = []
             if context.elevated:
                 status_parts.append("your house is elevated")
@@ -348,6 +382,16 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
 
             if ctx:
                 identity = f"[{ctx.agent_type}"
+                # Phase 6C-v3 (2026-05-10): batch-prompt trait labels stay
+                # on the legacy attribute-read path because they need
+                # short labels ("elevated") not full sentences ("your
+                # house is elevated"). The individual prompt path uses
+                # DomainPack.reflection_status_text() (long form, was
+                # migrated in Phase 6C-v2). Adding a separate
+                # ``DomainPack.reflection_trait_labels()`` method is a
+                # follow-up Phase 6C-v4 task — for now ctx attribute
+                # reads work because non-flood domains' AgentReflectionContext
+                # falls through to defaults (elevated=False etc.).
                 traits = []
                 if getattr(ctx, 'elevated', False):
                     traits.append("elevated")

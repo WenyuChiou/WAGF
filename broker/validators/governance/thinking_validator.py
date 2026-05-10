@@ -118,8 +118,33 @@ class ThinkingValidator(BaseValidator):
             extreme_actions: Domain-specific actions blocked when threat
                 perception is low.  Empty by default (domain-agnostic).
                 Configured per domain in ``agent_types.yaml``.
+
+        Raises:
+            ValueError: if ``framework`` is non-empty and not registered
+                via :func:`register_framework_metadata`. Phase 6C-v3
+                (2026-05-10): without registered metadata, label
+                comparisons would silently fall back to PMT's VL/L/M/H/VH
+                ordinal scale even if the new framework uses a different
+                scale — a silent-wrong-answer bug. We now fail loudly.
         """
         self.framework = framework.lower()
+        # Phase 6C-v3 strict registration check. PMT / utility / financial
+        # ship pre-registered by broker.domains.water; new domains must call
+        # register_framework_metadata("<name>", constructs, label_order, ...)
+        # before constructing the validator. We allow blank framework=""
+        # for YAML-only callers.
+        if self.framework and self.framework not in FRAMEWORK_LABEL_ORDERS:
+            registered = sorted(FRAMEWORK_LABEL_ORDERS.keys())
+            raise ValueError(
+                f"ThinkingValidator framework '{self.framework}' is not "
+                f"registered. Call broker.validators.governance.thinking_validator"
+                f".register_framework_metadata('{self.framework}', constructs, "
+                f"label_order, label_mappings) from your domain pack's "
+                f"__init__.py before constructing ThinkingValidator(framework="
+                f"'{self.framework}'). Otherwise label comparisons will "
+                f"silently use the PMT ordinal scale, producing wrong "
+                f"validation outcomes. Currently registered: {registered}."
+            )
         self._label_order = FRAMEWORK_LABEL_ORDERS.get(self.framework, _DEFAULT_LABEL_ORDER)
         self._constructs = FRAMEWORK_CONSTRUCTS.get(self.framework, {})
         self._extreme_actions = extreme_actions or set()

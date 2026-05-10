@@ -43,7 +43,7 @@ import logging
 import random
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Protocol, Tuple, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Protocol, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -100,12 +100,16 @@ class AgentProfile:
     """
     Unified agent profile for SA/MA experiments.
 
-    This is a consolidated profile structure that supports both simple CSV
-    initialization and full survey-based PMT/psychological scores.
+    Phase 6C-v3 (2026-05-10): flood-specific fields (``flood_zone``,
+    ``elevated``, ``has_insurance``, etc.) moved to
+    :class:`broker.domains.water.agent_profile.FloodAgentProfile`.
+    Base ``AgentProfile`` carries only domain-neutral demographic,
+    psychometric, and spatial fields plus an ``extensions`` dict for
+    domain-specific data.
 
-    Domain-specific fields (flood_zone, elevated, etc.) are kept for
-    backward compatibility with existing experiments.  New domains should
-    use the ``extensions`` dict instead.
+    New domains should subclass this class (mirroring ``FloodAgentProfile``)
+    or use ``extensions: Dict`` for sparse / per-agent data that doesn't
+    warrant a typed field.
     """
 
     # --- Identity ---
@@ -139,36 +143,17 @@ class AgentProfile:
     sc_score: float = 3.0  # Social Capital
     pa_score: float = 3.0  # Place Attachment
 
-    # --- Domain-specific fields (flood, kept for backward compat) ---
-    flood_experience: bool = False
-    flood_frequency: int = 0
-    sfha_awareness: bool = False
-    flood_zone: str = "MEDIUM"  # HIGH, MEDIUM, LOW
-    flood_depth: float = 0.0
-
-    # --- Dynamic State (initial, flood-domain) ---
-    elevated: bool = False
-    has_insurance: bool = False
-    relocated: bool = False
-    cumulative_damage: float = 0.0
-
-    # --- Spatial ---
+    # --- Spatial (domain-neutral) ---
     grid_x: int = 0
     grid_y: int = 0
     longitude: float = 0.0
     latitude: float = 0.0
 
-    # --- Asset Values ---
-    rcv_building: float = 0.0  # Replacement cost - building ($)
-    rcv_contents: float = 0.0  # Replacement cost - contents ($)
-
-    # --- Extensions (for domain-specific data — preferred for new domains) ---
+    # --- Extensions (for domain-specific sparse data — preferred for
+    #     simple add-ons; subclass AgentProfile for typed structured fields) ---
     extensions: Dict[str, Any] = field(default_factory=dict)
 
-    # --- Narrative metadata (flood-domain) ---
-    recent_flood_text: str = ""
-    insurance_type: str = ""
-    post_flood_action: str = ""
+    # --- Raw source data ---
     raw_data: Dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -196,9 +181,16 @@ class AgentProfile:
 
 
 class CSVLoader:
-    """Load agent profiles from simple CSV file."""
+    """Load agent profiles from simple CSV file.
 
-    # Default column mappings (can be overridden in config)
+    Phase 6C-v3 (2026-05-10): flood-specific column aliases moved to
+    :class:`broker.domains.water.csv_loader.FloodCSVLoader`. Base
+    DEFAULT_COLUMNS is now domain-neutral; subclass and extend for
+    domain-specific columns.
+    """
+
+    # Default column mappings (domain-neutral). Domain subclasses extend
+    # via class-level merge in their own ``DEFAULT_COLUMNS``.
     DEFAULT_COLUMNS = {
         "agent_id": ["agent_id", "id", "AgentID"],
         "family_size": ["family_size", "household_size", "FamilySize"],
@@ -211,11 +203,12 @@ class CSVLoader:
         "sp_score": ["sp_score", "SP", "stakeholder_perception"],
         "sc_score": ["sc_score", "SC", "social_capital"],
         "pa_score": ["pa_score", "PA", "place_attachment"],
-        "flood_experience": ["flood_experience", "has_flood_experience"],
-        "flood_zone": ["flood_zone", "zone"],
-        "has_insurance": ["has_insurance", "insurance"],
-        "elevated": ["elevated", "is_elevated"],
     }
+
+    # Subclass hook: if non-empty, _parse_row will populate these
+    # fields onto the profile from the CSV row. Domain CSVLoader
+    # subclasses set this to their domain-specific field list.
+    _DOMAIN_EXTRA_FIELDS: List[str] = []
 
     def __init__(self, column_mappings: Optional[Dict[str, List[str]]] = None):
         self.column_mappings = column_mappings or self.DEFAULT_COLUMNS
@@ -245,10 +238,20 @@ class CSVLoader:
         logger.info(f"Loaded {len(profiles)} valid agent profiles")
         return profiles
 
+    # Subclass hook: profile class to instantiate. FloodCSVLoader sets
+    # this to FloodAgentProfile so flood-specific fields populate.
+    _PROFILE_CLASS = AgentProfile
+
     def _parse_row(
         self, idx: int, row: pd.Series, config: Dict[str, Any]
     ) -> Optional[AgentProfile]:
-        """Parse a single CSV row into AgentProfile."""
+        """Parse a single CSV row into a profile instance.
+
+        Phase 6C-v3 (2026-05-10): base CSVLoader produces a domain-neutral
+        :class:`AgentProfile`. Domain CSVLoader subclasses override
+        ``_PROFILE_CLASS`` and ``_populate_domain_fields`` to add
+        domain-specific column reads.
+        """
 
         def get_val(field: str, default: Any = None) -> Any:
             col = self._find_column(row.index.tolist(), field)
@@ -266,7 +269,7 @@ class CSVLoader:
         tenure = "Owner" if str(tenure_raw).lower() in ["owner", "mortgage", "own_free"] else "Renter"
         housing_status = "rent" if tenure == "Renter" else "mortgage"
 
-        return AgentProfile(
+        profile = self._PROFILE_CLASS(
             agent_id=str(agent_id),
             record_id=f"CSV_{idx:04d}",
             family_size=int(get_val("family_size", 3)),
@@ -280,12 +283,25 @@ class CSVLoader:
             sp_score=float(get_val("sp_score", 3.0)),
             sc_score=float(get_val("sc_score", 3.0)),
             pa_score=float(get_val("pa_score", 3.0)),
-            flood_experience=bool(get_val("flood_experience", False)),
-            flood_zone=str(get_val("flood_zone", "MEDIUM")),
-            has_insurance=bool(get_val("has_insurance", False)),
-            elevated=bool(get_val("elevated", False)),
             raw_data=row.to_dict(),
         )
+
+        # Subclass hook: domain CSV loaders populate flood-specific
+        # (or other domain) fields after the base profile is built.
+        self._populate_domain_fields(profile, get_val)
+
+        return profile
+
+    def _populate_domain_fields(
+        self, profile: AgentProfile, get_val: Callable
+    ) -> None:
+        """Hook for domain subclasses to add domain-specific field reads.
+
+        Default implementation is a no-op; ``FloodCSVLoader`` and other
+        domain subclasses override to read their fields from the CSV
+        row via the supplied ``get_val`` lookup.
+        """
+        return None
 
     def _find_column(
         self, columns: List[str], field: str
@@ -433,10 +449,33 @@ class SyntheticLoader:
 
         return profiles
 
+    # Subclass hook: profile class to instantiate. FloodSyntheticLoader
+    # sets this to FloodAgentProfile so flood-specific synthetic fields
+    # populate via _populate_domain_fields.
+    _PROFILE_CLASS = AgentProfile
+
+    # Domain-neutral spatial defaults. Flood/other domains override
+    # via subclass to inject geographic priors (e.g., flood-zone
+    # probabilities, geographic bounding box for synthetic coords).
+    _SPATIAL_BBOX = {
+        "x_min": 0, "x_max": 1000,
+        "y_min": 0, "y_max": 1000,
+        "lon_min": 0.0, "lon_max": 0.0,    # 0/0 → no geographic bias
+        "lat_min": 0.0, "lat_max": 0.0,
+    }
+
     def _generate_profile(
         self, idx: int, is_mg: bool, is_owner: bool, tract_id: str
     ) -> AgentProfile:
-        """Generate a single synthetic profile."""
+        """Generate a single synthetic profile.
+
+        Phase 6C-v3 (2026-05-10): flood-specific synthesis (flood_zone
+        probability mix, NJ-Passaic coordinate range) moved to
+        :class:`broker.domains.water.synthetic_loader.FloodSyntheticLoader`.
+        Base implementation produces a domain-neutral profile; subclass
+        and override ``_populate_domain_fields`` for domain-specific
+        synthetic state.
+        """
         params = self.PMT_PARAMS["mg" if is_mg else "nmg"]
 
         # Generate PMT scores
@@ -453,20 +492,11 @@ class SyntheticLoader:
             income_idx = np.random.choice([4, 5, 6, 7, 8], p=[0.1, 0.2, 0.25, 0.25, 0.2])
         income_bracket, income = self.INCOME_BRACKETS[income_idx]
 
-        # Generate flood zone
-        if is_mg:
-            flood_zone = np.random.choice(
-                ["HIGH", "MEDIUM", "LOW"], p=[0.4, 0.4, 0.2]
-            )
-        else:
-            flood_zone = np.random.choice(
-                ["HIGH", "MEDIUM", "LOW"], p=[0.2, 0.4, 0.4]
-            )
-
         tenure = "Owner" if is_owner else "Renter"
         housing_status = "mortgage" if is_owner else "rent"
 
-        return AgentProfile(
+        bbox = self._SPATIAL_BBOX
+        profile = self._PROFILE_CLASS(
             agent_id=f"H{idx + 1:04d}",
             record_id=f"SYN_{idx:04d}",
             family_size=np.random.choice([1, 2, 3, 4, 5], p=[0.15, 0.25, 0.30, 0.20, 0.10]),
@@ -485,17 +515,24 @@ class SyntheticLoader:
             sp_score=round(sp, 2),
             sc_score=round(sc, 2),
             pa_score=round(pa, 2),
-            flood_experience=random.random() < 0.25,
-            flood_frequency=np.random.choice([0, 1, 2, 3]) if random.random() < 0.25 else 0,
-            sfha_awareness=random.random() < 0.6,
-            flood_zone=flood_zone,
-            flood_depth=round(random.uniform(0.1, 2.0), 3),
-            has_insurance=random.random() < 0.15,
-            grid_x=random.randint(0, 456),
-            grid_y=random.randint(0, 410),
-            longitude=round(-74.3 + random.uniform(0, 0.1), 6),
-            latitude=round(40.9 + random.uniform(0, 0.1), 6),
+            grid_x=random.randint(bbox["x_min"], bbox["x_max"]),
+            grid_y=random.randint(bbox["y_min"], bbox["y_max"]),
+            longitude=round(bbox["lon_min"] + random.uniform(0, bbox["lon_max"] - bbox["lon_min"]), 6),
+            latitude=round(bbox["lat_min"] + random.uniform(0, bbox["lat_max"] - bbox["lat_min"]), 6),
         )
+
+        # Subclass hook: domain synthetic loaders populate flood-specific
+        # (or other domain) fields after the base profile is built.
+        self._populate_domain_fields(profile, is_mg, is_owner)
+
+        return profile
+
+    def _populate_domain_fields(
+        self, profile: AgentProfile, is_mg: bool, is_owner: bool
+    ) -> None:
+        """Hook for domain subclasses to populate domain-specific
+        synthetic fields. Default no-op."""
+        return None
 
 
 # =============================================================================
@@ -634,18 +671,39 @@ def initialize_agents(
     # Step 1: Load profiles based on mode
     logger.info(f"Initializing agents (mode={mode}, seed={seed})")
 
+    # Phase 6C-v3 (2026-05-10): domain-specific loader subclasses
+    # registered via config["domain"]. Default "flood" for backward
+    # compat (most existing code is flood); a vaccination/traffic/etc.
+    # domain provides its own subclass via config or registers a
+    # custom loader factory.
+    domain_name = config.get("domain", "flood")
+
+    def _resolve_csv_loader_class():
+        if domain_name == "flood":
+            from broker.domains.water.loaders import FloodCSVLoader
+            return FloodCSVLoader
+        return CSVLoader
+
+    def _resolve_synthetic_loader_class():
+        if domain_name == "flood":
+            from broker.domains.water.loaders import FloodSyntheticLoader
+            return FloodSyntheticLoader
+        return SyntheticLoader
+
     if mode == "survey":
         if path is None:
             raise ValueError("Survey mode requires a path to survey file")
-        loader = SurveyLoader(domain=config.get("domain", "flood"))
+        loader = SurveyLoader(domain=domain_name)
         profiles = loader.load(Path(path), config)
     elif mode == "csv":
         if path is None:
             raise ValueError("CSV mode requires a path to CSV file")
-        loader = CSVLoader(column_mappings=config.get("column_mappings"))
+        loader_cls = _resolve_csv_loader_class()
+        loader = loader_cls(column_mappings=config.get("column_mappings"))
         profiles = loader.load(Path(path), config)
     elif mode == "synthetic":
-        loader = SyntheticLoader(seed=seed)
+        loader_cls = _resolve_synthetic_loader_class()
+        loader = loader_cls(seed=seed)
         profiles = loader.load(None, config)
     else:
         raise ValueError(f"Unknown mode: {mode}. Must be 'survey', 'csv', or 'synthetic'")
@@ -657,10 +715,12 @@ def initialize_agents(
             for profile in profiles:
                 position = enricher.assign_position(profile)
                 profile.extensions["position"] = position
-                # Populate flood-domain fields for backward compat
-                if hasattr(position, "zone_name"):
+                # Phase 6C-v3 (2026-05-10): only write flood-domain
+                # fields onto the profile if it actually has them. New
+                # domains can read position from `profile.extensions`.
+                if hasattr(profile, "flood_zone") and hasattr(position, "zone_name"):
                     profile.flood_zone = position.zone_name
-                if hasattr(position, "base_depth_m"):
+                if hasattr(profile, "flood_depth") and hasattr(position, "base_depth_m"):
                     profile.flood_depth = position.base_depth_m
         elif key == "value" and hasattr(enricher, "generate"):
             logger.info(f"Applying value enricher: {type(enricher).__name__}")

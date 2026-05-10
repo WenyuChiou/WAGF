@@ -79,6 +79,14 @@ class ValidatorRegistry:
         return sorted(cls._registry.keys())
 
     @classmethod
+    def has_domain(cls, domain: str) -> bool:
+        """Phase 6C-v2: True if any slot has been registered for *domain*.
+        Used by ``build_domain_validators()`` to decide between the
+        plugin-driven path and the empty-validators fallback without
+        hardcoding domain names."""
+        return domain in cls._registry and any(cls._registry[domain].values())
+
+    @classmethod
     def clear(cls) -> None:
         """Reset registry. Tests use this between fixtures."""
         cls._registry.clear()
