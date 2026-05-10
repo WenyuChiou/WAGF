@@ -127,13 +127,17 @@ class FloodDomainPack:
     # ─── Skills ────────────────────────────────────────────────────
 
     def skill_emotion_metadata(self, skill_name: str) -> Dict[str, Any]:
-        """Reproduces ``experiment_runner.py:383-388`` flood skill→emotion mapping."""
+        """Reproduces ``experiment_runner.py:383-388`` flood skill→emotion
+        mapping byte-identically (importance values 0.7 and 0.6 match
+        the pre-refactor literals)."""
         if skill_name in {"elevate_house", "relocate"}:
-            return {"emotion": "major", "importance": 0.85}
+            return {"emotion": "major", "importance": 0.7, "source": "personal"}
         if skill_name == "buy_insurance":
-            return {"emotion": "positive", "importance": 0.70}
-        # buyout_program is a flood skill but not in the legacy mapping
-        # — leaving as default to match pre-refactor behaviour.
+            return {"emotion": "positive", "importance": 0.6, "source": "personal"}
+        # buyout_program and other flood skills fall through to the
+        # broker's default "routine" tag (importance 0.1) — preserves
+        # pre-refactor behaviour where only the 3 explicitly-named
+        # skills got special tags.
         return {}
 
     def extreme_actions(self) -> Set[str]:
