@@ -701,15 +701,44 @@ class FinancialCostProvider(ContextProvider):
         # >= 2 is fully allowed.
         # Only show to uninsured agents (already-insured agents need no discouragement).
         # Uses descriptive-statistics framing to avoid RLHF moral-harm reflex.
+        #
+        # Phase 6C-v2 (2026-05-10): geographic body text comes from the
+        # registered DomainPack so the broker code stays domain-agnostic.
+        # FloodDomainPack returns the Passaic-specific narrative; new
+        # domains return their own (or empty string for no MG-specific
+        # injection).
         if (is_mg and flood_count == 1
                 and not flooded_this_year and not has_insurance):
-            personal["mg_barrier_text"] = (
-                "- **Insurance Enrollment Context**: Among households with your "
-                "income profile and community background in the Passaic River Basin "
-                "who have experienced one prior flood, carrying NFIP flood insurance "
-                "is uncommon — many face enrollment barriers including documentation "
-                "requirements, upfront costs, and distrust of federal programs."
-            )
+            barrier_text = ""
+            try:
+                from broker.domains.registry import DomainPackRegistry
+                # Scan registered domains for one that produces MG text.
+                # First non-empty wins. Lets flood pack handle this without
+                # the broker needing to know which domain is "active".
+                for _name in DomainPackRegistry.domains():
+                    _pack = DomainPackRegistry.get(_name)
+                    if _pack is None:
+                        continue
+                    candidate = _pack.mg_barrier_text(personal)
+                    if candidate:
+                        barrier_text = candidate
+                        break
+            except ImportError:
+                pass
+
+            if not barrier_text:
+                # Legacy fallback for partial bring-up: hardcoded Passaic
+                # text (matches pre-refactor behaviour byte-for-byte).
+                # Removed once all run paths confirm a flood pack is
+                # registered.
+                barrier_text = (
+                    "- **Insurance Enrollment Context**: Among households with your "
+                    "income profile and community background in the Passaic River Basin "
+                    "who have experienced one prior flood, carrying NFIP flood insurance "
+                    "is uncommon — many face enrollment barriers including documentation "
+                    "requirements, upfront costs, and distrust of federal programs."
+                )
+            personal["mg_barrier_text"] = barrier_text
         else:
             personal["mg_barrier_text"] = ""
 
