@@ -84,47 +84,140 @@ skills:
 
 ### Step 3 — Define agent personas in `config/agent_types.yaml`
 
-```yaml
-domain: vaccination
+**Critical**: this YAML is the single biggest source of confusion for new-domain users. The minimal example below shows ALL required blocks — leaving any out causes silent parser / validator failures (Phase 6C-v4 finding inventory at the end of this doc).
 
+```yaml
+# =============================================================================
+# GLOBAL CONFIGURATION
+# =============================================================================
 global_config:
   memory:
-    engine: humancentric
-    config:
-      window_size: 5
-      consolidation_threshold: 0.6
-      decay_rate: 0.1
+    window_size: 5
+    consolidation_threshold: 0.6
+    decay_rate: 0.1
 
   reflection:
     interval: 1
-    batch_size: 10
+    batch_size: 5
     persona_instruction: "Summarize each agent's vaccination journey..."
     questions:
-      - "Has your perceived risk of infection changed this year?"
-      - "Have your friends and family influenced your stance?"
-      - "What information would change your mind?"
+      - "Has your perceived susceptibility to infection changed this year?"
+      - "Did the perceived benefits outweigh the barriers?"
     triggers:
       crisis: true
-      periodic_interval: 3
+      periodic_interval: 2
       decision_types: [get_vaccinated, refuse]
 
-individual:
-  agent_type: individual
-  psychological_framework: hbm   # Health Belief Model — define your own or reuse pmt/utility/generic
-  prompt_template_file: config/prompts/individual.txt
+  llm:
+    model: "command-line-override"
+    num_ctx: 4096
+    num_predict: 1024
+    max_retries: 2
+
+  governance:
+    max_retries: 3
+    domain: vaccination               # REQUIRED — must match skill_registry.yaml domain
+
+# =============================================================================
+# SHARED — rating scale + response schema seen by ALL agent types
+# =============================================================================
+shared:
+  rating_scale: |
+    ### RATING SCALE (You MUST use EXACTLY one of these codes):
+    VL = Very Low | L = Low | M = Medium | H = High | VH = Very High
 
   response_format:
-    schema_version: "v1"
+    delimiter_start: "<<<DECISION_START>>>"
+    delimiter_end: "<<<DECISION_END>>>"
     fields:
-      - name: RISK_LABEL
-        type: string
-        enum: [VL, L, M, H, VH]
-      - name: EFFICACY_LABEL
-        type: string
-        enum: [VL, L, M, H, VH]
-      - name: CHOICE
-        type: string
-        enum: [get_vaccinated, delay, refuse]
+      # Each `key` MUST match what the LLM emits in JSON AND what the
+      # parser extracts. Mismatches between `key` here and the JSON
+      # example in your prompt template cause silent parser rejection.
+      - { key: "reasoning", type: "text", required: true,
+          description: "Explain your thought process in 2-3 sentences." }
+      - {
+          key: "susceptibility_assessment",          # ← JSON key in LLM output
+          type: "appraisal",                          # ← {label, reason} pair
+          required: true,
+          construct: "SUSCEPTIBILITY_LABEL",          # ← label extracted to this key in reasoning dict
+          reason_hint: "One sentence on how likely you feel to be infected.",
+        }
+      - {
+          key: "self_efficacy_assessment",
+          type: "appraisal",
+          required: true,
+          construct: "SELF_EFFICACY_LABEL",
+          reason_hint: "One sentence on your confidence to vaccinate.",
+        }
+
+# =============================================================================
+# AGENT TYPE — individual
+# =============================================================================
+individual:
+  agent_type: individual
+  psychological_framework: hbm                # ← MUST be pre-registered (see Step 4)
+  prompt_template_file: prompts/individual.txt   # ← relative to THIS yaml's dir
+  inherit_shared: true
+
+  # ---------------------------------------------------------------------------
+  # actions: REQUIRED. Without this block parser.get_valid_actions("individual")
+  # returns [] and every LLM output is silently rejected. skill_registry.yaml's
+  # `eligible_agent_types: ["individual"]` is NOT auto-translated here.
+  # ---------------------------------------------------------------------------
+  actions:
+    - id: get_vaccinated
+      aliases: ["1", "get_vaccinated", "vaccinate", "[get_vaccinated]"]
+      description: >
+        Receive a single dose of the seasonal vaccine this year.
+    - id: delay
+      aliases: ["2", "delay", "wait", "postpone", "[delay]"]
+      description: >
+        Postpone the decision; reconsider next year.
+    - id: refuse
+      aliases: ["3", "refuse", "decline", "skip", "[refuse]"]
+      description: >
+        Decline vaccination this year.
+
+  # ---------------------------------------------------------------------------
+  # parsing: REQUIRED. The `constructs:` block tells the parser HOW to extract
+  # appraisal labels from nested JSON. Without it, the agent_validator rejects
+  # responses with "missing required fields".
+  # ---------------------------------------------------------------------------
+  parsing:
+    decision_keywords: ["decision", "choice", "action", "selected_action"]
+    default_skill: "delay"                    # ← must match skill_registry.yaml default_skill
+    strict_mode: true
+    preprocessor:
+      { type: "smart_repair", quote_values: ["VL", "L", "M", "H", "VH"] }
+    proximity_window: 35
+
+    constructs:
+      SUSCEPTIBILITY_LABEL:
+        keywords: ["susceptibility_assessment", "perceived_susceptibility", "susceptibility"]
+        regex: "(?i)\\b(VL|L|M|H|VH)\\b"
+      SUSCEPTIBILITY_REASON:
+        keywords: ["susceptibility_assessment", "perceived_susceptibility", "susceptibility"]
+        regex: ".*"
+      SELF_EFFICACY_LABEL:
+        keywords: ["self_efficacy_assessment", "perceived_self_efficacy", "self_efficacy"]
+        regex: "(?i)\\b(VL|L|M|H|VH)\\b"
+      SELF_EFFICACY_REASON:
+        keywords: ["self_efficacy_assessment", "perceived_self_efficacy", "self_efficacy"]
+        regex: ".*"
+
+  # log_fields: which appraisal keys to surface in audit CSV `reason_*` columns
+  log_fields: ["susceptibility_assessment", "self_efficacy_assessment"]
+
+  # (Optional) Tier-2 thinking rules — YAML-driven HBM coherence checks
+  # consumed by ThinkingValidator. Add only the rules you want to enforce.
+  rules:
+    - id: high_susceptibility_high_efficacy_no_refuse
+      level: ERROR
+      blocked_skills: [refuse]
+      conditions:
+        - { type: construct, field: SUSCEPTIBILITY_LABEL, operator: "in", values: ["H", "VH"] }
+        - { type: construct, field: SELF_EFFICACY_LABEL, operator: "in", values: ["H", "VH"] }
+      message: "HBM coherence: high susceptibility + high self-efficacy should not lead to refusal."
 ```
 
 ### Step 4 — Implement validator checks
@@ -290,6 +383,8 @@ Verify:
 
 ## Common pitfalls
 
+### Setup-time pitfalls
+
 | Symptom | Cause | Fix |
 |---|---|---|
 | All traces have `proposed_skill = default_skill_name` | YAML missing `default_skill:` | Add to `skill_registry.yaml` top level |
@@ -298,6 +393,21 @@ Verify:
 | `rules_*_hit` columns are 0 | Validator checks don't set `metadata["category"]` | Add `metadata={"category": "physical"}` (or appropriate slot) to ValidationResult |
 | Audit `state_before` missing your key fields | Your env-state dict and your agent-state dict have key collisions | Use distinct names (e.g., `agent_outbreak_severity` for agent state, `outbreak_severity` for env) |
 | LLM proposes invalid skill names | Skill registry / prompt mismatch | Ensure prompt's enum matches `skill_registry.yaml` skill_ids |
+
+### Parser / validator pitfalls (Phase 6C-v4 findings)
+
+These 6 BLOCKERs were surfaced by the `examples/vaccination_demo/` PoC on 2026-05-10 and fixed in Phase 6C-v4. They are the single most common reason a freshly-scaffolded new domain produces 0 valid LLM decisions:
+
+| # | Symptom | Root cause | Fix |
+|---|---|---|---|
+| 1 | `ValueError: slot must be one of (physical, personal, social, semantic, ...)` when registering Python checks | `ValidatorRegistry` does not accept `"thinking"` as a slot — thinking-validator checks come from YAML `rules:` block, not the registry | Either move thinking checks into `agent_types.yaml: rules:` (preferred), or use the YAML-driven path. Python `BuiltinCheck` callables can only register under physical/personal/social/semantic slots. |
+| 2 | Prompt template renders with `[N/A]` literals | Unfilled custom `{placeholder}` — broker only auto-fills `{narrative_persona}, {memory}, {skills}, {rating_scale}` and any agent-attribute `{xxx}` | Use only the 4 standard placeholders; for custom narrative, set agent attributes (e.g. `agent.water_situation_text`) in your lifecycle hook |
+| 3 | Logs say `Empty/Null response received` but Ollama responds (verify via curl) | The log message conflated LLM-empty with parser-side rejection. Post-v4 the broker distinguishes: `LLM returned empty response (...)` vs `LLM responded (N chars) but parser rejected — see [Adapter:Error] diagnostic above` | If you see the second message, look at the `[Adapter:Error]` diagnostic block which shows `raw_output`, `parse_layer reached`, `expected keys`, `valid skills for this agent_type`. The diagnostic names the exact gap. |
+| 4 | `[Adapter:Error]` diagnostic says LLM JSON keys don't match expected | YAML `shared.response_format.fields[].key` (e.g. `susceptibility_assessment`) must match the EXACT key the LLM emits in JSON (per your prompt example) | Sync prompt template's JSON example keys with YAML schema keys. Currently manual; v5 will auto-derive `{response_format}` from YAML to eliminate this risk. |
+| 5 | `[Adapter:Error]` diagnostic shows `valid skills for this agent_type: []` | Missing `actions:` block under your agent type in `agent_types.yaml` | Add `actions:` block listing every skill ID + aliases. `skill_registry.yaml`'s `eligible_agent_types` is NOT auto-translated. See Step 3 example above. |
+| 6 | `[Governance:Initial] ... missing required fields: <appraisal_key>, ...` even though LLM JSON contains those keys | Missing `parsing.constructs:` block. Parser doesn't know to extract `appraisal_key.label` → `APPRAISAL_LABEL` construct without this mapping | Add `parsing:` block with `constructs:` mapping each construct name to its JSON key + label regex. See Step 3 example above. |
+
+If your smoke run produces 0 traces and the error doesn't match any row above, run with the in-built diagnostic by checking the `[Adapter:Error]` block in stdout. The diagnostic was added in Phase 6C-v4 (commit `bd86634`) specifically to make new-domain debugging tractable.
 
 ## What you DO NOT have to do
 
@@ -311,11 +421,13 @@ Verify:
 
 - `examples/irrigation_abm/` — reference implementation (water demand)
 - `examples/governed_flood/` — reference implementation (flood adaptation)
+- `examples/vaccination_demo/` — first non-water reference example (HBM-based, ~600 LOC)
 - `broker/domains/protocol.py` — DomainPack Protocol contract
 - `broker/domains/default.py` — DefaultDomainPack no-op fallback
 - `broker/domains/registry.py` — DomainPackRegistry semantics
 - `tests/test_domain_pack_contract.py` — regression tests; copy/paste pattern for your own pack
 - `.ai/domain_pack_design_2026-05-10.md` — full architectural rationale
+- `.ai/vaccination_poc_findings_2026-05-10.md` — 6-BLOCKER inventory + lessons learned
 
 ## Asking for help
 
