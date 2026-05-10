@@ -16,9 +16,6 @@ First, assess your perceived SUSCEPTIBILITY to infection this season.
 Then, assess your SELF-EFFICACY to actually obtain vaccination.
 
 Available actions: {skills}
-- 1 = get_vaccinated (receive a dose this year)
-- 2 = delay (wait for more information; reconsider next year)
-- 3 = refuse (decline vaccination this year)
 
 {rating_scale}
 
@@ -26,11 +23,4 @@ Please respond using the EXACT JSON format below.
 - Use EXACTLY one of: VL, L, M, H, VH for each appraisal label.
 - "decision" MUST be the NUMERIC ID (1, 2, or 3).
 
-<<<DECISION_START>>>
-{{
-  "reasoning": "Explain your thought process in 2-3 sentences.",
-  "susceptibility_assessment": {{"label": "VL/L/M/H/VH", "reason": "One sentence on perceived susceptibility."}},
-  "self_efficacy_assessment": {{"label": "VL/L/M/H/VH", "reason": "One sentence on perceived self-efficacy."}},
-  "decision": "<numeric ID 1/2/3>"
-}}
-<<<DECISION_END>>>
+{response_format}
