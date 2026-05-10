@@ -87,7 +87,7 @@ python -m broker.tools.scaffold_domain irrigation \
   --skills "increase_demand,maintain_demand,decrease_demand"
 ```
 
-Then add a secondary choice field in `config/agent_types.yaml`, such as `magnitude_pct`, and validate it in `validators/<domain>_validators.py`.
+Then add a `secondary_choice` field in `config/agent_types.yaml`, such as `magnitude_pct`, and validate it in `validators/<domain>_validators.py`.
 
 Use this only when the magnitude is necessary for the research question or external model. If the magnitude is just "small vs large", Pattern 1 is cheaper and more robust.
 
