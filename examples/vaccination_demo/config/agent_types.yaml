@@ -1,0 +1,120 @@
+# Vaccination Decision-Making — Agent Types Configuration
+# WAGF non-water reference example. Demonstrates the Health Belief Model
+# (HBM; Rosenstock 1974; Carpenter 2010) as an alternative cognitive
+# framework to PMT.
+#
+# Phase 6C-v3 reference: every block here is consumed by stock broker
+# config loaders without any domain-specific branch. The
+# `psychological_framework: hbm` line triggers ThinkingValidator
+# framework resolution at runtime — HBM must be pre-registered via
+# `register_framework_metadata("hbm", ...)` in
+# examples/vaccination_demo/cognition/__init__.py (Phase 6C-v3 Group H
+# strict registration check).
+
+global_config:
+  memory:
+    window_size: 5
+    consolidation_threshold: 0.6
+    consolidation_probability: 0.7
+    top_k_significant: 2
+    decay_rate: 0.1
+
+  reflection:
+    interval: 1
+    batch_size: 5
+    importance_boost: 0.85
+    persona_instruction: "Summarize each agent's vaccination journey into a 2-sentence 'Lesson Learned'. Speak in FIRST PERSON (e.g., 'I realized...') and reflect the agent's HBM appraisals."
+    questions:
+      - "Has your perceived susceptibility to infection changed this year?"
+      - "Did the perceived benefits of vaccination outweigh the barriers you experienced?"
+      - "What information or events would have changed your decision?"
+    triggers:
+      crisis: true                     # Triggered by outbreak event
+      periodic_interval: 2             # Every 2 years
+      decision_types:
+        - get_vaccinated
+        - refuse
+      institutional_threshold: 0.05
+    method: hybrid
+
+  llm:
+    model: "command-line-override"
+    num_ctx: 4096
+    num_predict: 1024
+    max_retries: 2
+
+  governance:
+    max_retries: 3
+    max_reports_per_retry: 3
+    domain: vaccination
+
+  # --- Vaccination environment parameters ---
+  vaccination_system:
+    simulation_start: 2024
+    vaccine_supply_default: 1000     # doses per year
+    outbreak_schedule:
+      - { year: 2, severity: 0.6 }   # Year 2 moderate outbreak
+    side_effect_base_rate: 0.02      # 2% nuisance side-effects
+
+# =============================================================================
+# SHARED DEFINITIONS
+# =============================================================================
+shared:
+  rating_scale: |
+    ### RATING SCALE (You MUST use EXACTLY one of these codes):
+    VL = Very Low | L = Low | M = Medium | H = High | VH = Very High
+
+  response_format:
+    delimiter_start: "<<<DECISION_START>>>"
+    delimiter_end: "<<<DECISION_END>>>"
+    fields:
+      # HBM 4-field schema (matches gemma3:4b's stable parse limit)
+      - { key: "reasoning", type: "text", required: true, description: "Explain your thought process in 2-3 sentences BEFORE choosing." }
+      - {
+          key: "susceptibility_assessment",
+          type: "appraisal",
+          required: true,
+          construct: "SUSCEPTIBILITY_LABEL",
+          reason_hint: "One sentence on how likely you feel to be infected.",
+        }
+      - {
+          key: "self_efficacy_assessment",
+          type: "appraisal",
+          required: true,
+          construct: "SELF_EFFICACY_LABEL",
+          reason_hint: "One sentence on your confidence to seek and complete vaccination.",
+        }
+      # Decision after reasoning + appraisals
+
+# =============================================================================
+# INDIVIDUAL — vaccination decision-maker
+# =============================================================================
+individual:
+  agent_type: individual
+  psychological_framework: hbm
+  prompt_template_file: prompts/individual.txt
+  inherit_shared: true
+
+  # Construct overrides (HBM-specific labels)
+  constructs:
+    primary: ["SUSCEPTIBILITY_LABEL"]
+    secondary: ["SELF_EFFICACY_LABEL"]
+    all: ["SUSCEPTIBILITY_LABEL", "SELF_EFFICACY_LABEL"]
+
+  # Domain-specific YAML validator rules (Tier 2 thinking validators).
+  # These ride alongside the Python check functions in
+  # examples/vaccination_demo/validators/vaccination_validators.py.
+  rules:
+    - id: high_susceptibility_high_efficacy_no_refuse
+      level: ERROR
+      blocked_skills: [refuse]
+      conditions:
+        - { type: construct, field: SUSCEPTIBILITY_LABEL, operator: "in", values: ["H", "VH"] }
+        - { type: construct, field: SELF_EFFICACY_LABEL, operator: "in", values: ["H", "VH"] }
+      message: "HBM coherence: high perceived susceptibility plus high self-efficacy should not lead to refusal."
+    - id: low_susceptibility_no_get_vaccinated
+      level: WARNING
+      blocked_skills: [get_vaccinated]
+      conditions:
+        - { type: construct, field: SUSCEPTIBILITY_LABEL, operator: "in", values: ["VL"] }
+      message: "HBM coherence: very low perceived susceptibility plus immediate vaccination is unusual — worth reflecting on motive."
