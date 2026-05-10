@@ -1,0 +1,64 @@
+"""Pattern B adapter: call an in-process Python external model."""
+
+from __future__ import annotations
+
+import math
+from typing import Any, Dict, Mapping, Optional
+
+# TODO: Replace with the real library import.
+# from <<EXTERNAL_LIBRARY_MODULE>> import <<EXTERNAL_MODEL_CLASS>>
+
+
+class PythonLibraryAdapter:
+    """Thin wrapper around an importable model API."""
+
+    def __init__(self, model_path: Optional[str] = None, seed: int = 42) -> None:
+        self.model_path = model_path or "<<MODEL_FILE_PATH>>"
+        self.seed = seed
+        self.model = self._build_model()
+
+    def _build_model(self) -> Any:
+        # TODO: Pass model file path, calibration files, and hyperparameters.
+        # return <<EXTERNAL_MODEL_CLASS>>(path=self.model_path, seed=self.seed)
+        raise NotImplementedError("Wire the real external model constructor.")
+
+    def reset(self, seed: Optional[int] = None) -> None:
+        if seed is not None:
+            self.seed = seed
+        # TODO: Prefer model.reset(seed=...) when the library supports it.
+        if hasattr(self.model, "reset"):
+            self.model.reset(seed=self.seed)
+        else:
+            self.model = self._build_model()
+
+    def step(self, inputs: Mapping[str, Any]) -> Dict[str, Any]:
+        model_inputs = self._pack_inputs(inputs)
+        # TODO: Replace predict() with step(), simulate(), or model-specific API.
+        raw_outputs = self.model.predict(model_inputs)
+        outputs = self._unpack_outputs(raw_outputs)
+        self._validate(outputs)
+        return outputs
+
+    def _pack_inputs(self, inputs: Mapping[str, Any]) -> Dict[str, Any]:
+        # TODO: Match per-step input shape from the coupling contract.
+        return {
+            "<<MODEL_INPUT_1>>": float(inputs["<<AGENT_DECISION_VARIABLE>>"]),
+            "<<MODEL_INPUT_2>>": int(inputs["<<YEAR_VARIABLE>>"]),
+            "<<MODEL_INPUT_3>>": str(inputs.get("<<SCENARIO_VARIABLE>>", "baseline")),
+        }
+
+    def _unpack_outputs(self, raw_outputs: Any) -> Dict[str, Any]:
+        # TODO: Replace dict access with the real output object shape.
+        return {
+            "<<OUTPUT_VAR_1>>": float(raw_outputs["<<OUTPUT_VAR_1>>"]),
+            "<<OUTPUT_VAR_2>>": float(raw_outputs["<<OUTPUT_VAR_2>>"]),
+            "external_model_status": "ok",
+        }
+
+    def _validate(self, outputs: Mapping[str, Any]) -> None:
+        for key in ("<<OUTPUT_VAR_1>>", "<<OUTPUT_VAR_2>>"):
+            value = outputs[key]
+            if not isinstance(value, (int, float)):
+                raise TypeError(f"{key} must be numeric, got {type(value).__name__}")
+            if not math.isfinite(float(value)):
+                raise ValueError(f"{key} is not finite: {value!r}")

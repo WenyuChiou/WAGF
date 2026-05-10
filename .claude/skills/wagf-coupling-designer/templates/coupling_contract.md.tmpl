@@ -1,0 +1,117 @@
+# Coupling contract: <<DOMAIN_NAME>> agent -> <<EXTERNAL_MODEL_NAME>>
+
+<!-- Fill this before writing the real adapter. Keep names identical to
+the adapter input/output keys so the contract can become a test fixture. -->
+
+## Scope
+
+- WAGF domain: <<DOMAIN_NAME>>
+- Agent type(s): <<AGENT_TYPES>>
+- External model: <<EXTERNAL_MODEL_NAME>>
+- Coupling pattern: <<PATTERN_LETTER_AND_NAME>>
+- Contract version: <<CONTRACT_VERSION>>
+- Source files surveyed: <<SCHEMA_OR_MODEL_FILES>>
+- Owner of adapter: <<OWNER_NAME>>
+
+## Cadence
+
+- Agent decision: <<AGENT_TIMESTEP>>
+- External model: <<MODEL_TIMESTEP>>
+- Sync points: <<SYNC_DESCRIPTION>>
+- Agent sees model outputs from: <<SAME_STEP_OR_PREVIOUS_STEP>>
+- Aggregation rule when timesteps differ: <<AGGREGATION_RULE>>
+
+<!-- Example: annual agent decision; daily reservoir model; sum daily
+diversion to annual delivered volume; expose year-end elevation next
+year. -->
+
+## Inputs (agent -> model)
+
+| Variable | Type | Unit | Range | Mapping from skill_id |
+|---|---|---|---|---|
+| <<VAR_1>> | <<TYPE>> | <<UNIT>> | <<RANGE>> | <<SKILL_MAPPING>> |
+| <<VAR_2>> | <<TYPE>> | <<UNIT>> | <<RANGE>> | <<SKILL_MAPPING>> |
+| <<VAR_3>> | <<TYPE>> | <<UNIT>> | <<RANGE>> | <<SKILL_MAPPING>> |
+
+## Input mapping notes
+
+- Agent decision variable: <<AGENT_DECISION_VARIABLE>>
+- Environment fields consumed: <<ENVIRONMENT_FIELDS>>
+- Conversion owned by: <<CONVERSION_OWNER>>
+- Decimal-vs-whole-percent convention: <<PERCENT_CONVENTION>>
+- Per-agent vs aggregate convention: <<AGENT_OR_AGGREGATE_CONVENTION>>
+
+## Outputs (model -> agent context)
+
+| Variable | Type | Unit | Range | Sink |
+|---|---|---|---|---|
+| <<OUTPUT_1>> | <<TYPE>> | <<UNIT>> | <<RANGE>> | <<AGENT_CONTEXT_OR_ENV_OR_LOG>> |
+| <<OUTPUT_2>> | <<TYPE>> | <<UNIT>> | <<RANGE>> | <<AGENT_CONTEXT_OR_ENV_OR_LOG>> |
+| <<OUTPUT_3>> | <<TYPE>> | <<UNIT>> | <<RANGE>> | <<AGENT_CONTEXT_OR_ENV_OR_LOG>> |
+
+## Output visibility notes
+
+- Visible to same-step decision: <<YES_OR_NO_WITH_REASON>>
+- Visible to next-step decision: <<YES_OR_NO_WITH_REASON>>
+- Logged only fields: <<LOG_ONLY_FIELDS>>
+- Dropped fields: <<DROPPED_FIELDS_AND_REASON>>
+
+## Failure modes
+
+- Timeout > <<TIMEOUT_SEC>>s: <<RESPONSE>>
+- Model crash or raised exception: <<RESPONSE>>
+- NaN or inf output: <<RESPONSE>>
+- Out-of-range output: <<RESPONSE>>
+- Wrong shape or type: <<RESPONSE>>
+- Missing input file or lookup key: <<RESPONSE>>
+- Duplicate rows or duplicate keys: <<RESPONSE>>
+
+<!-- Allowed responses: fail_loud, last_good with warning, quarantine.
+Never silently zero-fill. -->
+
+## Units audit checklist
+
+- [ ] Percent values declare decimal fraction vs whole percent: <<CHECK_1>>
+- [ ] Absolute values are not mixed with deltas: <<CHECK_2>>
+- [ ] Time units match cadence and aggregation rule: <<CHECK_3>>
+- [ ] Currency declares base year and nominal/real convention: <<CHECK_4>>
+- [ ] Spatial units are declared and converted once: <<CHECK_5>>
+- [ ] Agent-level values are not mixed with aggregate values: <<CHECK_6>>
+- [ ] Categorical encodings declare allowed labels and ordering: <<CHECK_7>>
+- [ ] Probability horizon is declared: <<CHECK_8>>
+
+## Mock fidelity
+
+- MockExternalModel returns: <<MOCK_BEHAVIOR>>
+- Mock preserves these contract properties: <<MOCK_PRESERVED_PROPERTIES>>
+- Mock does not preserve: <<MOCK_LIMITATIONS>>
+- Seed behavior: <<MOCK_SEED_BEHAVIOR>>
+- Divergence test from real: <<TEST_PLAN>>
+
+## Adapter scaffold
+
+- Template used: <<ADAPTER_TEMPLATE_PATH>>
+- Real external model import/path: <<REAL_MODEL_PATH>>
+- Initialization policy: <<INIT_ONCE_OR_PER_SEED_OR_PER_STEP>>
+- Reset semantics: <<RESET_SEMANTICS>>
+- Threading assumption: <<THREADING_ASSUMPTION>>
+
+## Smoke test
+
+```bash
+<<SMOKE_TEST_COMMAND>>
+```
+
+Expected observations:
+
+- <<EXPECTED_OUTPUT_1>>
+- <<EXPECTED_OUTPUT_2>>
+- <<EXPECTED_FAILURE_CASE>>
+
+## Handoff to checker
+
+Run the completed contract through:
+
+```text
+.claude/skills/model-coupling-contract-checker/SKILL.md
+```
