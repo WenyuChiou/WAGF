@@ -161,6 +161,27 @@ Every PR that touches `broker/` should have the INVARIANTS.md row of the review 
 
 ---
 
+## Cross-version comparability log
+
+When a refactoring PR lands that *could* change experimental behavior, record the audit lineage here so future paper reproducibility manifests can cite it.
+
+### v21 dataset ↔ v22 (post-Phase-6A/6B/6C) — audit 2026-05-10
+
+**Datasets**: irrigation v21 5-seed Gemma-3 4B baseline (B1 RERUN COMPLETE 2026-04-28) and Gemma-4 e2b/e4b 5-seed cross-model batches.
+
+**Refactoring commits between v21 baseline runs and current main**: `16dee6a` (Phase 6A registry/retriever/runner/reflection narrowing), `f9ea845` (Phase 6B-1 ValidatorRegistry), `1e2a748` (Phase 6B-4 FilterRegistry), `3f32e1f` (Phase 6B-2 flood memory templates relocate), `4b20320` (Phase 6C W7+W8: drought_index/total_basin_demand collision fix + rule_breakdown population).
+
+**Audit verdict** (independent code-reviewer agent, 2026-05-10): all 5 commits are **behavior-preserving for irrigation**. Specifically:
+- `16dee6a` Phase 6A `do_nothing → registry.get_default_skill()` change at `experiment_runner.py:454,465,479,539,549,563` is on a cache-hit fallback path that is unreachable in normal runs (`SkillBrokerResult.to_dict()` always serializes a real `skill_name`).
+- `f9ea845`/`1e2a748`/`3f32e1f` are flood-only paths irrigation never enters.
+- `4b20320` only affects audit CSV column population (`rules_*_hit` from placeholder zeros to real values); IBR (`compute_ibr.py`) and EHE read only `proposed_skill / final_skill / status / wsa_label / aca_label`, none of which are changed.
+
+**Implication**: v21 5-seed Gemma-3 4B baseline and current Gemma-4 e4b cross-model batch are **fully cross-comparable** for Paper 1b's task #85 (cross-model EDT2 + paired-t). No re-run, no SI robustness footnote required. If a reviewer asks, cite this audit row.
+
+**Audit detail**: `.claude/projects/.../memory/phase6abc_irrigation_behavior_audit_2026-05-10.md` (author's local memory).
+
+---
+
 ## References
 
 - `broker/tests/test_framework_invariants.py` — executable encoding of these invariants
