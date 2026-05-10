@@ -27,6 +27,13 @@ from broker.interfaces.perception import (
 )
 
 
+# Phase 6C-v3 (2026-05-10): module-level field lists are now flood-domain
+# DEFAULTS preserved for backward compatibility. New domains pass their
+# own field lists to ``HouseholdPerceptionFilter(...)`` constructor or
+# subclass it. Audit finding W12 (silent-corrupt risk): a non-flood
+# domain whose context happens to contain matching key names would
+# silently lose data; opt-in injection avoids that.
+
 # Fields containing exact dollar amounts to remove for household perception
 DOLLAR_AMOUNT_FIELDS = [
     "damage_amount",
@@ -86,16 +93,54 @@ class HouseholdPerceptionFilter:
     - Keeps only "my_" prefixed personal observables
     """
 
-    def __init__(self, config: Optional[PerceptionConfig] = None):
+    def __init__(
+        self,
+        config: Optional[PerceptionConfig] = None,
+        dollar_fields: Optional[List[str]] = None,
+        percentage_fields: Optional[List[str]] = None,
+        community_observable_fields: Optional[List[str]] = None,
+        neighbor_action_fields: Optional[List[str]] = None,
+    ):
         """Initialize the household perception filter.
 
         Args:
             config: Optional perception configuration. Defaults to qualitative mode.
+            dollar_fields: Field names containing exact dollar amounts to
+                strip from household context. Defaults to flood-domain
+                ``DOLLAR_AMOUNT_FIELDS`` for backward compat. New domains
+                pass their own list (or ``[]`` for none).
+            percentage_fields: Field names containing exact percentages.
+                Defaults to flood-domain ``PERCENTAGE_FIELDS``.
+            community_observable_fields: Field names removed for MG
+                agents. Defaults to flood-domain ``COMMUNITY_OBSERVABLE_FIELDS``.
+            neighbor_action_fields: Field names converted to qualitative
+                neighbor descriptions. Defaults to flood-domain
+                ``NEIGHBOR_ACTION_FIELDS``.
+
+        Phase 6C-v3 (2026-05-10): the field lists were previously
+        module-level constants only; now they're constructor-injectable
+        so non-flood domains don't silently lose data on key collisions.
         """
         self.config = config or PerceptionConfig(mode=PerceptionMode.QUALITATIVE)
         self._depth_descriptor = FLOOD_DEPTH_DESCRIPTORS
         self._damage_descriptor = DAMAGE_SEVERITY_DESCRIPTORS
         self._neighbor_descriptor = NEIGHBOR_COUNT_DESCRIPTORS
+        self._dollar_fields = (
+            list(dollar_fields) if dollar_fields is not None
+            else list(DOLLAR_AMOUNT_FIELDS)
+        )
+        self._percentage_fields = (
+            list(percentage_fields) if percentage_fields is not None
+            else list(PERCENTAGE_FIELDS)
+        )
+        self._community_observable_fields = (
+            list(community_observable_fields) if community_observable_fields is not None
+            else list(COMMUNITY_OBSERVABLE_FIELDS)
+        )
+        self._neighbor_action_fields = (
+            list(neighbor_action_fields) if neighbor_action_fields is not None
+            else list(NEIGHBOR_ACTION_FIELDS)
+        )
 
     @property
     def agent_type(self) -> str:
@@ -129,20 +174,21 @@ class HouseholdPerceptionFilter:
                 filtered["damage_severity"] = self._damage_descriptor.describe(damage_ratio)
             # If property_value is 0 or negative, skip damage_severity (undefined ratio)
 
-        # Convert neighbor action counts to qualitative
-        for field in NEIGHBOR_ACTION_FIELDS:
+        # Convert neighbor action counts to qualitative (instance-configured
+        # list — Phase 6C-v3)
+        for field in self._neighbor_action_fields:
             if field in filtered:
                 count = filtered.get(field, 0)
                 filtered[f"{field}_description"] = self._neighbor_descriptor.describe(count)
                 del filtered[field]
 
-        # Remove exact dollar amounts
-        for field in DOLLAR_AMOUNT_FIELDS:
+        # Remove exact dollar amounts (instance-configured)
+        for field in self._dollar_fields:
             if field in filtered:
                 del filtered[field]
 
-        # Remove exact percentages
-        for field in PERCENTAGE_FIELDS:
+        # Remove exact percentages (instance-configured)
+        for field in self._percentage_fields:
             if field in filtered:
                 del filtered[field]
 
@@ -193,7 +239,7 @@ class HouseholdPerceptionFilter:
                     if obs_key.startswith("my_"):
                         filtered_obs[obs_key] = obs_val
                     # Remove community-wide observables
-                    elif obs_key in COMMUNITY_OBSERVABLE_FIELDS:
+                    elif obs_key in self._community_observable_fields:
                         continue
                     # Keep other observables (e.g., type-specific)
                     else:
@@ -203,10 +249,10 @@ class HouseholdPerceptionFilter:
             elif key.startswith("my_"):
                 filtered[key] = value
             # Remove community-wide observables at top level
-            elif key in COMMUNITY_OBSERVABLE_FIELDS:
+            elif key in self._community_observable_fields:
                 continue
             # Remove description versions of community observables
-            elif key.endswith("_description") and key.replace("_description", "") in NEIGHBOR_ACTION_FIELDS:
+            elif key.endswith("_description") and key.replace("_description", "") in self._neighbor_action_fields:
                 continue
             # Keep other fields
             else:
