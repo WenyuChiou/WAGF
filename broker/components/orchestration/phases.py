@@ -54,7 +54,14 @@ class PhaseOrchestrator:
 
     @staticmethod
     def _default_phases() -> List[PhaseConfig]:
-        """Default 4-phase execution order for flood MAS."""
+        """Default 4-phase execution order for flood MAS.
+
+        .. note::
+            Flood-domain default. Pre-populates HOUSEHOLD with the six known
+            flood household sub-types and INSTITUTIONAL with government /
+            insurance. For non-water domains use :meth:`_generic_phases`,
+            :meth:`from_yaml`, or :meth:`from_domain` instead.
+        """
         return [
             PhaseConfig(
                 phase=ExecutionPhase.INSTITUTIONAL,
@@ -81,6 +88,64 @@ class PhaseOrchestrator:
                 depends_on=[ExecutionPhase.RESOLUTION],
             ),
         ]
+
+    @staticmethod
+    def _generic_phases() -> List[PhaseConfig]:
+        """Domain-agnostic default — single agent phase + resolution/observation.
+
+        Uses :class:`PhaseConfig` with ``agent_types=None`` (auto-discover) so
+        the orchestrator runs ALL agents regardless of agent_type vocabulary.
+        Use this when you don't want flood-specific household/government
+        defaults and don't have a domain-tailored YAML phase config yet.
+
+        Added 2026-05-10 (Phase 6C-v4 G1a) to remove the flood-only assumption
+        baked into ``_default_phases()``.
+        """
+        return [
+            PhaseConfig(
+                phase=ExecutionPhase.CUSTOM,
+                agent_types=None,  # auto-discover all agents
+                ordering="sequential",
+            ),
+            PhaseConfig(
+                phase=ExecutionPhase.RESOLUTION,
+                agent_types=[],
+                depends_on=[ExecutionPhase.CUSTOM],
+            ),
+            PhaseConfig(
+                phase=ExecutionPhase.OBSERVATION,
+                agent_types=[],
+                depends_on=[ExecutionPhase.RESOLUTION],
+            ),
+        ]
+
+    @classmethod
+    def from_domain(
+        cls,
+        domain: Optional[str] = None,
+        seed: int = 42,
+        saga_coordinator: Optional[Any] = None,
+    ) -> "PhaseOrchestrator":
+        """Construct an orchestrator with domain-appropriate default phases.
+
+        Args:
+            domain: Domain name (e.g. "flood", "irrigation", "vaccination").
+                ``"flood"`` (or ``None`` for backward compat) → flood 4-phase
+                defaults via ``_default_phases``. Any other value (including
+                non-water domains) → ``_generic_phases`` so new domains work
+                out-of-the-box without YAML.
+            seed: Random seed for "random" ordering inside phases.
+            saga_coordinator: Optional saga coordinator.
+
+        Returns:
+            A configured PhaseOrchestrator. To override phase structure
+            entirely, use :meth:`from_yaml` or pass ``phases=`` to ``__init__``.
+        """
+        if domain is None or domain.lower() == "flood":
+            return cls(phases=cls._default_phases(), seed=seed,
+                       saga_coordinator=saga_coordinator)
+        return cls(phases=cls._generic_phases(), seed=seed,
+                   saga_coordinator=saga_coordinator)
 
     def _validate_phases(self) -> None:
         """Validate phase configuration consistency."""
@@ -235,7 +300,18 @@ class PhaseOrchestrator:
         pc: PhaseConfig,
         agents: Dict[str, Any],
     ) -> List[str]:
-        """Select agents matching the phase's agent_types."""
+        """Select agents matching the phase's agent_types.
+
+        Semantics per PhaseConfig.agent_types:
+        - ``None`` → auto-discover ALL agents (domain-agnostic mode)
+        - ``[]``   → skip phase (agent-less, e.g. RESOLUTION / OBSERVATION)
+        - non-empty list → explicit allow-list by agent_type
+        """
+        # None sentinel: include all agents — used by generic / domain-agnostic
+        # default phases so PhaseOrchestrator works without prior knowledge of
+        # the domain's agent_type vocabulary (Phase 6C-v4 G1a, 2026-05-10).
+        if pc.agent_types is None:
+            return list(agents.keys())
         if not pc.agent_types:
             return []
         return [
