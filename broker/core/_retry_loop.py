@@ -93,8 +93,25 @@ class RetryMixin:
                     })
 
                 if skill_proposal is None:
-                    msg = "Response was empty or unparsable. Please output a valid JSON decision."
-                    logger.warning(f" [Broker:Retry] Empty/Null response received (Attempt {initial_attempts}/{max_initial_attempts})")
+                    # Phase 6C-v4 Finding 3: distinguish actual empty LLM
+                    # response from parser-side rejection. The parse_output
+                    # in model_adapter logs the parser-side diagnostic at
+                    # ERROR level just before returning None; this log
+                    # message is downstream and was conflating the two.
+                    raw_len = len(raw_output) if isinstance(raw_output, str) else 0
+                    if raw_len == 0:
+                        msg = "Response was empty or unparsable. Please output a valid JSON decision."
+                        logger.warning(
+                            f" [Broker:Retry] LLM returned empty response (Attempt "
+                            f"{initial_attempts}/{max_initial_attempts}) — model timed out or refused."
+                        )
+                    else:
+                        msg = "Response was unparsable. Please output a valid JSON decision matching the expected format."
+                        logger.warning(
+                            f" [Broker:Retry] LLM responded ({raw_len} chars) but parser rejected "
+                            f"(Attempt {initial_attempts}/{max_initial_attempts}) — see "
+                            f"[Adapter:Error] diagnostic above for cause."
+                        )
                     format_retry_count += 1
                     self.auditor.log_parse_error()
                     prompt = self.model_adapter.format_retry_prompt(prompt, [msg])

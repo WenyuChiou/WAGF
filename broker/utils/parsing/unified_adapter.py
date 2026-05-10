@@ -614,9 +614,37 @@ class UnifiedAdapter(ModelAdapter):
 
         if not skill_name:
             if strict_mode:
-                msg = f"STRICT_MODE: Failed to parse any valid decision for agent '{agent_id}'. Default fallback disabled."
+                # Phase 6C-v4 Finding 3+5: surface diagnostic context so
+                # new-domain users see WHY the parser failed, not just
+                # the misleading "Empty/Null response" log downstream.
+                # Three things matter for debugging:
+                #   (a) raw_output excerpt — did LLM actually respond?
+                #   (b) parse_layer reached — which extraction step ran?
+                #   (c) parsing_warnings — what each step complained about
+                raw_excerpt = (raw_output or "")[:300].replace("\n", "\\n")
+                expected_keys = []
+                try:
+                    response_format = self.agent_config._config.get("shared", {}).get("response_format", {})
+                    expected_keys = [f.get("key", "") for f in response_format.get("fields", []) if f.get("key")]
+                except Exception:
+                    pass
+                msg = (
+                    f"STRICT_MODE: Failed to parse any valid decision for agent "
+                    f"'{agent_id}'. Default fallback disabled."
+                )
+                diag = (
+                    f"\n   parse_layer reached: {parse_layer or '(none — no enclosure / JSON / keyword matched)'}"
+                    f"\n   raw_output (300 chars): {raw_excerpt!r}"
+                    f"\n   expected keys in response_format.fields: {expected_keys}"
+                    f"\n   parsing_warnings: {parsing_warnings}"
+                    f"\n   valid skills for this agent_type: {list(valid_skills)[:6]}"
+                    f"\n   Common causes:"
+                    f"\n     - YAML response_format.fields keys (e.g. 'X_assessment') don't match prompt JSON example keys (e.g. 'X_appraisal')"
+                    f"\n     - Prompt's JSON example missing required 'decision' field or using non-numeric value"
+                    f"\n     - LLM returned text but no enclosure delimiter / JSON block / skill keyword detected"
+                )
                 parsing_warnings.append(msg)
-                logger.error(f" [Adapter:Error] {msg}")
+                logger.error(f" [Adapter:Error] {msg}{diag}")
                 return None # Return None to trigger retry/abort in Broker
             else:
                 skill_name = parsing_cfg.get("default_skill", "do_nothing")
