@@ -1,0 +1,206 @@
+# Multi-agent vaccination — 3 agent types (Phase 6E target).
+#
+# Phase 6C-v4 BLOCKER inventory (.ai/vaccination_poc_findings_2026-05-10.md):
+#   EVERY agent_type block below must have actions, parsing.constructs,
+#   log_fields. shared.response_format.fields[].construct entries must have
+#   a matching parsing.constructs row.
+#
+# Cross-agent state flows via env dict (see lifecycle_hooks.py); the
+# TieredContextBuilder dynamic_whitelist in run_experiment.py declares
+# which env keys reach prompts as {placeholder} substitutions.
+
+global_config:
+  memory:
+    window_size: 4
+    consolidation_threshold: 0.6
+    consolidation_probability: 0.7
+    top_k_significant: 2
+    decay_rate: 0.1
+
+  reflection:
+    interval: 1
+    batch_size: 5
+    importance_boost: 0.85
+    persona_instruction: >
+      Summarize this agent's decisions and information signals
+      this year in first person, 2-3 sentences.
+    questions:
+      - "Did the broader public health signal align with your decision?"
+      - "Have your perceptions of the situation changed?"
+    triggers:
+      periodic_interval: 2
+
+  llm:
+    model: "command-line-override"
+    num_ctx: 4096
+    num_predict: 1024
+    max_retries: 2
+
+  governance:
+    max_retries: 3
+    max_reports_per_retry: 3
+    domain: vaccination_ma
+
+# =============================================================================
+# SHARED — all agent types use the same response shape (works for all 3
+# because every agent emits reasoning + ONE appraisal + a numeric decision).
+# =============================================================================
+shared:
+  rating_scale: |
+    ### RATING SCALE (You MUST use EXACTLY one of these codes):
+    VL = Very Low | L = Low | M = Medium | H = High | VH = Very High
+
+  response_format:
+    delimiter_start: "<<<DECISION_START>>>"
+    delimiter_end: "<<<DECISION_END>>>"
+    fields:
+      - { key: "reasoning", type: "text", required: true,
+          description: "Explain your thought process in 2-3 sentences BEFORE choosing." }
+      - {
+          key: "appraisal",
+          type: "appraisal",
+          required: true,
+          construct: "APPRAISAL_LABEL",
+          reason_hint: "One sentence on your primary appraisal of the situation.",
+        }
+      - {
+          key: "decision",
+          type: "choice",
+          required: true,
+          description: "Numeric ID 1, 2, or 3 — see Available actions list.",
+        }
+
+# =============================================================================
+# health_authority — institutional agent. Sends advisory signal each year.
+# Reads aggregate community state (vaccination_rate, recent_outbreak).
+# =============================================================================
+health_authority:
+  agent_type: health_authority
+  psychological_framework: pmt   # Threat-protective framing for advisory choice
+  prompt_template_file: prompts/health_authority.txt
+  inherit_shared: true
+
+  actions:
+    - id: advisory_none
+      aliases: ["1", "advisory_none", "none", "[1]"]
+      description: No advisory.
+    - id: advisory_mild
+      aliases: ["2", "advisory_mild", "mild", "[2]"]
+      description: Mild advisory.
+    - id: advisory_strong
+      aliases: ["3", "advisory_strong", "strong", "[3]"]
+      description: Strong advisory.
+
+  constructs:
+    primary: ["APPRAISAL_LABEL"]
+    secondary: []
+    all: ["APPRAISAL_LABEL"]
+
+  parsing:
+    decision_keywords: ["decision", "choice", "action"]
+    default_skill: "advisory_none"
+    strict_mode: true
+    preprocessor:
+      { type: "smart_repair", quote_values: ["VL", "L", "M", "H", "VH"] }
+    proximity_window: 35
+    constructs:
+      APPRAISAL_LABEL:
+        keywords: ["appraisal"]
+        regex: "(?i)\\b(VL|L|M|H|VH)\\b"
+      APPRAISAL_REASON:
+        keywords: ["appraisal"]
+        regex: ".*"
+
+  log_fields: ["appraisal"]
+
+  rules: []
+
+# =============================================================================
+# community_org — intermediary. Reads health_authority advisory, decides
+# outreach intensity. Influences individual perceived susceptibility / barrier.
+# =============================================================================
+community_org:
+  agent_type: community_org
+  psychological_framework: pmt
+  prompt_template_file: prompts/community_org.txt
+  inherit_shared: true
+
+  actions:
+    - id: org_none
+      aliases: ["1", "org_none", "none", "[1]"]
+      description: No outreach.
+    - id: org_education
+      aliases: ["2", "org_education", "education", "[2]"]
+      description: Education campaign.
+    - id: org_clinic
+      aliases: ["3", "org_clinic", "clinic", "[3]"]
+      description: Mobile clinic.
+
+  constructs:
+    primary: ["APPRAISAL_LABEL"]
+    secondary: []
+    all: ["APPRAISAL_LABEL"]
+
+  parsing:
+    decision_keywords: ["decision", "choice", "action"]
+    default_skill: "org_none"
+    strict_mode: true
+    preprocessor:
+      { type: "smart_repair", quote_values: ["VL", "L", "M", "H", "VH"] }
+    proximity_window: 35
+    constructs:
+      APPRAISAL_LABEL:
+        keywords: ["appraisal"]
+        regex: "(?i)\\b(VL|L|M|H|VH)\\b"
+      APPRAISAL_REASON:
+        keywords: ["appraisal"]
+        regex: ".*"
+
+  log_fields: ["appraisal"]
+
+  rules: []
+
+# =============================================================================
+# individual — citizen. Reads advisory_strength + community_support, decides
+# vaccination action. Reuses HBM cognitive framework (registered in cognition/).
+# =============================================================================
+individual:
+  agent_type: individual
+  psychological_framework: hbm
+  prompt_template_file: prompts/individual.txt
+  inherit_shared: true
+
+  actions:
+    - id: get_vaccinated
+      aliases: ["1", "get_vaccinated", "vaccinate", "[1]"]
+      description: Receive a dose.
+    - id: delay
+      aliases: ["2", "delay", "wait", "[2]"]
+      description: Postpone decision.
+    - id: refuse
+      aliases: ["3", "refuse", "decline", "[3]"]
+      description: Decline.
+
+  constructs:
+    primary: ["APPRAISAL_LABEL"]
+    secondary: []
+    all: ["APPRAISAL_LABEL"]
+
+  parsing:
+    decision_keywords: ["decision", "choice", "action"]
+    default_skill: "delay"
+    strict_mode: true
+    preprocessor:
+      { type: "smart_repair", quote_values: ["VL", "L", "M", "H", "VH"] }
+    proximity_window: 35
+    constructs:
+      APPRAISAL_LABEL:
+        keywords: ["appraisal"]
+        regex: "(?i)\\b(VL|L|M|H|VH)\\b"
+      APPRAISAL_REASON:
+        keywords: ["appraisal"]
+        regex: ".*"
+
+  log_fields: ["appraisal"]
+
+  rules: []
