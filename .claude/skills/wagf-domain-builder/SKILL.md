@@ -179,15 +179,30 @@ point.
 5. **`run_experiment.py` ExperimentBuilder wiring** — the
    scaffolded `run_experiment.py` is intentionally a TODO stub
    (just prints "TODO: replace this stub" and exits). Replace it
-   with a working entry point using
-   `examples/vaccination_demo/run_experiment.py` as the canonical
-   reference. Key elements to copy: `ExperimentBuilder` import,
-   synthetic agent generator OR real-data loader, environment /
-   lifecycle-hooks instantiation, `builder.run()` invocation with
-   the audit writer enabled. If your domain has coupling (S2/S3),
-   inject the `MockExternalModel` / real adapter into the
-   environment object at this step. Without this edit, S6 cannot
-   produce an audit CSV — it'll just print TODO and exit.
+   with a working entry point.
+
+   **Single-agent path**: use `examples/vaccination_demo/run_experiment.py`
+   as the canonical reference. Key elements: `ExperimentBuilder`
+   import, synthetic agent generator OR real-data loader,
+   `with_simulation(env)` instantiation, `builder.run()` invocation.
+   If coupling (S2/S3) is present, inject the `MockExternalModel` /
+   real adapter into the environment object at this step.
+
+   **Multi-agent path**: read `references/multi_agent_walkthrough.md`
+   in full before starting edit 5. The wiring is materially
+   different — uses `with_lifecycle_hooks(pre_year, post_step,
+   post_year)` instead of `with_simulation`, requires a
+   `dynamic_whitelist` declared with `TieredContextBuilder`, needs
+   `with_phase_order([[t1], [t2], [t3]])` for execution ordering,
+   and has the **dual-dict gotcha** (Phase 6E Finding #3 — the
+   `self.env = env` aliasing requirement in `pre_year`) that
+   silently breaks cross-agent state propagation if missed. The
+   canonical reference is `examples/vaccination_ma_demo/`. The
+   walkthrough doc covers all 5 multi-agent-specific additions, the
+   gotcha, and a per-symptom BLOCKER table.
+
+   Without this edit, S6 cannot produce an audit CSV — the stub
+   just prints TODO and exits.
 
 After EACH edit (1-4), automatically run:
 ```bash
@@ -301,7 +316,8 @@ References (you read these to guide stages):
 - `references/domain_articulation_questions.md` — S0 interview script
 - `references/skills_design_patterns.md` — S1 patterns + decision tree
 - `references/cognitive_framework_chooser.md` — S0 Q5 framework picker
-- `references/edit_pass_checklist.md` — S5 detailed walkthrough
+- `references/edit_pass_checklist.md` — S5 detailed walkthrough (single-agent path)
+- `references/multi_agent_walkthrough.md` — S5 multi-agent path: lifecycle_hooks + dynamic_whitelist + with_phase_order + the dual-dict gotcha. Read in FULL before guiding any multi-agent S5 edit-5 (Phase 6E pre-merge audit P2 → resolved 2026-05-11).
 - `references/stage_outputs.md` — per-stage verify-done table
 
 ## Hand-off rules
