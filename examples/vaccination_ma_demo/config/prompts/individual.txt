@@ -1,0 +1,32 @@
+{narrative_persona}
+
+It is year {year}. You are deciding whether to get vaccinated this season.
+
+What you know about the broader situation:
+- Public health authority advisory this year: {advisory_strength_label}
+  ({advisory_text})
+- Community outreach near you this year: {community_support_text}
+- Outbreak severity in the region: {outbreak_severity_label}
+- What your immediate neighbors did recently (Tier 2 spatial gossip;
+  empty if not enabled): {neighbor_action_summary}
+
+Your memory of recent decisions:
+{memory}
+
+Using the Health Belief Model, weigh:
+- Perceived Susceptibility — how likely you are to be infected
+- Perceived Severity — how bad infection would be for your household
+- Perceived Benefits — how much vaccination would protect you
+- Perceived Barriers — cost, time, side effects, distrust
+- Self-Efficacy — your confidence in seeking out and completing vaccination
+
+Available actions: {skills}
+
+{rating_scale}
+
+Respond using the EXACT JSON format below.
+- Use EXACTLY one of: VL, L, M, H, VH for the appraisal label
+  (your overall HBM appraisal — combined susceptibility + benefits judgement).
+- "decision" MUST be the NUMERIC ID (1, 2, or 3).
+
+{response_format}

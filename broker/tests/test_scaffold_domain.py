@@ -80,6 +80,36 @@ class TestGenSkillRegistry:
         assert data["default_skill"] == "a"
         assert len(data["skills"]) == 2
 
+    def test_uses_skill_id_field(self):
+        """Phase 6E Finding #2 regression: skill_registry.yaml MUST use
+        `skill_id:` to match broker/components/governance/registry.py:70's
+        `skill_data['skill_id']` lookup. Earlier versions used `id:` which
+        broker rejected with KeyError at runtime."""
+        text = gen_skill_registry("energy", ["a", "b", "c"])
+        data = yaml.safe_load(text)
+        for entry in data["skills"]:
+            assert "skill_id" in entry, (
+                f"scaffolded skill_registry entry must use 'skill_id' key, "
+                f"got keys: {list(entry.keys())}"
+            )
+            assert "id" not in entry, (
+                "scaffolded skill_registry must NOT use bare 'id' key — "
+                "that's the actions block convention, not the skill registry"
+            )
+
+    def test_parses_via_skill_registry(self, tmp_path):
+        """End-to-end: scaffold YAML → write to disk → load via the same
+        parser broker uses at experiment build time. Catches the exact
+        Finding #2 KeyError class of bugs."""
+        from broker.components.governance.registry import SkillRegistry
+
+        text = gen_skill_registry("energy", ["a", "b"])
+        p = tmp_path / "skill_registry.yaml"
+        p.write_text(text, encoding="utf-8")
+
+        reg = SkillRegistry()
+        reg.register_from_yaml(str(p))  # raises if scaffold output is invalid
+
 
 class TestGenDomainPack:
     def test_class_name_camelcase(self):

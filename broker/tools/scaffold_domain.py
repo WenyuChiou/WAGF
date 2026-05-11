@@ -114,8 +114,14 @@ def gen_readme(domain: str, skills: List[str]) -> str:
 
 
 def gen_skill_registry(domain: str, skills: List[str]) -> str:
+    # `skill_registry.yaml` uses `skill_id:` (different from `agent_types.yaml`
+    # actions which use `id:`). Phase 6E Finding #2: an earlier version of
+    # this scaffold emitted `id:` and the broker's
+    # GovernanceRegistry.register_from_yaml raised KeyError('skill_id') at
+    # build time. Keep this aligned with the parser at
+    # broker/components/governance/registry.py:70.
     skill_yaml = "\n".join(
-        (f"  - id: {s}\n"
+        (f"  - skill_id: {s}\n"
          f"    domain: {domain}\n"
          f"    description: TODO — describe what skill '{s}' does.\n"
          f'    eligible_agent_types: ["agent"]')
