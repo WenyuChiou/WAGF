@@ -499,6 +499,86 @@ register_social_spec(
 
 Without registration, unknown agent types fall back to `DEFAULT_SOCIAL_SPEC` (spatial, radius=2). The fallback works but is rarely what a domain author wants — register explicitly for clarity.
 
+### Building a multi-agent domain (Phase 6E, 2026-05-10)
+
+The single-agent walkthrough above (`examples/vaccination_demo/`) is the easier path. Multi-agent domains (multiple agent types interacting via cross-agent state) need a few extra wiring steps — proven end-to-end by the `examples/vaccination_ma_demo/` reference (3 agent types: health_authority → community_org → individual).
+
+**The cross-agent coupling pattern (the load-bearing one)**:
+
+WAGF multi-agent uses an **env-dict-whitelist** pattern. There is NO direct agent-to-agent method call. Instead:
+
+1. A lifecycle hook's `pre_year` / `post_step` writes cross-agent state to a shared `env` dict (e.g. `env["advisory_strength_label"] = "strong"`).
+2. The `TieredContextBuilder` is constructed with `dynamic_whitelist=[...keys...]`. Whitelisted keys are auto-injected into EVERY agent's context.
+3. Each agent's prompt template references the keys as `{placeholder}` substitutions.
+
+This pipeline (`env → whitelist → context → template_vars → SafeFormatter`) has **zero flood-specific branching in broker/** per Phase 6E Phase 1 trace audit. The whitelist literal in your domain's `run_experiment.py` IS the abstraction point — declaring `crop_yield`, `advisory_strength`, `commute_congestion`, or any other domain-specific cross-agent variable is one-line.
+
+**Concrete pattern (from `examples/vaccination_ma_demo/run_experiment.py`)**:
+
+```python
+from broker.components.context.tiered import TieredContextBuilder, load_prompt_templates
+
+# Cross-agent state keys — must match keys the lifecycle hook writes
+# AND placeholders the prompt templates reference
+DYNAMIC_WHITELIST = [
+    "year",
+    "advisory_strength_label",
+    "advisory_text",
+    "outbreak_severity_label",
+    "community_support_text",
+]
+
+ctx_builder = TieredContextBuilder(
+    agents=agents,
+    # hub omitted (or hub=None) for non-spatial domains — no
+    # InteractionHub means no gossip / neighbor sharing
+    memory_engine=memory_engine,
+    yaml_path=str(CONFIG_YAML),
+    dynamic_whitelist=DYNAMIC_WHITELIST,
+    prompt_templates=load_prompt_templates(str(CONFIG_YAML)),
+)
+
+runner = (
+    ExperimentBuilder()
+    .with_agents(agents)
+    .with_lifecycle_hooks(
+        pre_year=hooks.pre_year,
+        post_step=hooks.post_step,
+        post_year=lambda year, ags: hooks.post_year(year, ags, memory_engine),
+    )
+    .with_context_builder(ctx_builder)
+    .with_phase_order(
+        [["health_authority"], ["community_org"], ["individual"]]
+    )
+    # ... rest of builder chain
+).build()
+```
+
+**`with_phase_order([[t1], [t2], [t3]])`** — agents whose `agent_type` matches `t1` execute first; their `post_step` writes new env values; then `t2`'s context_builder reads those values before deciding. Within a phase, agents execute in the order they appear in the agent dict. This is what gives you "institutional → intermediary → citizen" cross-tier information flow.
+
+**CRITICAL — the dual-dict gotcha (Phase 6E Finding #3)**:
+
+When you DON'T provide a `.with_simulation(env)` engine, `ExperimentRunner` creates a fresh `env = {}` at the start of each year and passes it to your `pre_year(year, env, agents)`. If your lifecycle hook keeps its own `self.env` dict separately, **mid-year writes to `self.env` won't propagate to `ctx_builder`** because `ctx_builder` reads from the runner's `env`, not yours.
+
+The fix is one line — alias `self.env = env` in pre_year so the two are the same dict for the rest of the year:
+
+```python
+def pre_year(self, year, env, agents):
+    # First sync any persistent state we carried over from last year:
+    env.update(self.env)
+    # Then ALIAS self.env to runner's env — post_step writes now land
+    # directly in the dict ctx_builder reads.
+    self.env = env
+    self.env["year"] = year
+    # ... rest of pre_year
+```
+
+Flood Paper 3 doesn't hit this because it uses `.with_simulation(TieredEnvironment(...))` which returns a persistent env dict that `advance_year` mutates in place. For multi-agent domains WITHOUT a simulation engine, use the aliasing pattern above.
+
+**Reference**: `examples/vaccination_ma_demo/` — full multi-agent reference example. `lifecycle_hooks.py:pre_year` is the canonical aliasing implementation. `.ai/ma_vaccination_findings_2026-05-10.md` documents the Phase 6E build's 3 BLOCKERs (the aliasing pattern is Finding #3).
+
+**Skill registry schema asymmetry**: `skill_registry.yaml` uses `- skill_id: <id>` (different from `agent_types.yaml` actions block which uses `- id: <id>`). This is an artefact of WAGF's history. The `validate_prompt` CLI does not check skill_registry.yaml's schema; the broker raises `KeyError('skill_id')` at experiment-build time if you use the wrong field. Phase 6C-v4 `scaffold_domain` was patched in Phase 6E to emit the correct field; if you hand-write a skill_registry.yaml, use `skill_id:`.
+
 ## What you DO NOT have to do
 
 - ✗ Edit `broker/components/cognitive/reflection.py` — DomainPack handles it
@@ -517,7 +597,10 @@ Without registration, unknown agent types fall back to `DEFAULT_SOCIAL_SPEC` (sp
 - `broker/domains/registry.py` — DomainPackRegistry semantics
 - `tests/test_domain_pack_contract.py` — regression tests; copy/paste pattern for your own pack
 - `.ai/domain_pack_design_2026-05-10.md` — full architectural rationale
-- `.ai/vaccination_poc_findings_2026-05-10.md` — 6-BLOCKER inventory + lessons learned
+- `.ai/vaccination_poc_findings_2026-05-10.md` — 6-BLOCKER inventory + lessons learned (single-agent)
+- `examples/vaccination_ma_demo/` — multi-agent reference example (3 agent types via env-dict-whitelist pattern)
+- `.ai/ma_vaccination_findings_2026-05-10.md` — Phase 6E multi-agent BLOCKER inventory (3 findings)
+- `tests/test_multi_agent_coupling.py` — integration tests covering Findings #1 and #3
 
 ## Asking for help
 

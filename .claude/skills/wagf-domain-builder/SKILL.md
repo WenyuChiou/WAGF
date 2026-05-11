@@ -38,12 +38,18 @@ Do NOT use this skill for:
   also valid standalone).
 - Auditing finished traces → `llm-agent-audit-trace-analyzer`.
 
-## Scope (v1)
+## Scope (v1.1, updated 2026-05-10 per Phase 6E)
 
-- **Single-agent domains only.** Multi-agent is deferred until
-  PhaseOrchestrator is wired into ExperimentRunner. If the user
-  describes a multi-agent setup, surface the deferral and offer
-  to build the single-agent version first.
+- **Single-agent or multi-agent domains.** Multi-agent path validated
+  end-to-end by `examples/vaccination_ma_demo/` (3 agent types, env-dict-
+  whitelist cross-agent coupling, `with_phase_order` ordering). For
+  multi-agent, also read `docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md`
+  "Building a multi-agent domain" section — covers the dual-dict
+  gotcha (Phase 6E Finding #3) the scaffold doesn't auto-handle.
+- The scaffolded `run_experiment.py` is a single-agent template. For
+  multi-agent, the S5 edit-5 step (ExperimentBuilder wiring) is larger:
+  copy from `examples/vaccination_ma_demo/run_experiment.py` rather than
+  the single-agent demo.
 - **Cognitive framework**: PMT / Utility / Financial (pre-
   registered), HBM (registered in vaccination_demo as the non-
   water reference), or custom (scaffolded by
