@@ -7,6 +7,8 @@ What you know about the broader situation:
   ({advisory_text})
 - Community outreach near you this year: {community_support_text}
 - Outbreak severity in the region: {outbreak_severity_label}
+- What your immediate neighbors did recently (Tier 2 spatial gossip;
+  empty if not enabled): {neighbor_action_summary}
 
 Your memory of recent decisions:
 {memory}
