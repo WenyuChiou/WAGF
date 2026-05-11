@@ -107,10 +107,16 @@ def build_synthetic_agents(n_individuals: int, seed: int) -> Dict[str, BaseAgent
         agents[co_cfg.name] = co
 
     # --- N× individual -----------------------------------------------
+    # Grid positions assigned in a 10x10 lattice for Tier 2 spatial gossip.
+    # Positions are stored on `agent.dynamic_state["grid_x"]` / "grid_y"
+    # so SpatialNeighborhoodGraph can look them up via the same convention
+    # as flood Paper 3 households.
     for i in range(n_individuals):
         age_bracket = rng.choice(["18-34", "35-54", "55-74", "75+"])
         trust = round(rng.uniform(0.2, 0.95), 2)
         high_risk = age_bracket in ("55-74", "75+") or rng.random() < 0.15
+        grid_x = rng.randint(0, 9)
+        grid_y = rng.randint(0, 9)
         ind_cfg = AgentConfig(
             name=f"IND_{i+1:03d}",
             agent_type="individual",
@@ -131,9 +137,49 @@ def build_synthetic_agents(n_individuals: int, seed: int) -> Dict[str, BaseAgent
         )
         ind.is_high_risk_group = high_risk
         ind.trust_in_authority = trust
+        ind.dynamic_state["grid_x"] = grid_x
+        ind.dynamic_state["grid_y"] = grid_y
         agents[ind_cfg.name] = ind
 
     return agents
+
+
+def _build_spatial_hub(agents, memory_engine):
+    """Tier 2: construct InteractionHub with SpatialNeighborhoodGraph.
+
+    Each `individual` agent gets a spatial position from
+    `agent.dynamic_state[grid_x|grid_y]`. The graph connects individuals
+    within radius=3 grid cells. Returns None if no individuals have
+    positions (Tier 1 fallback).
+    """
+    from broker.components.social.graph import SpatialNeighborhoodGraph
+    from broker.components.analytics.interaction import InteractionHub
+
+    individual_positions = {}
+    for aid, agent in agents.items():
+        if agent.agent_type != "individual":
+            continue
+        gx = agent.dynamic_state.get("grid_x")
+        gy = agent.dynamic_state.get("grid_y")
+        if gx is None or gy is None:
+            continue
+        individual_positions[aid] = (gx, gy)
+
+    if not individual_positions:
+        return None
+
+    graph = SpatialNeighborhoodGraph(
+        agent_ids=list(individual_positions.keys()),
+        positions=individual_positions,
+        radius=3.0,
+    )
+    # spatial_observables: attribute names to aggregate over neighbors.
+    # `vaccinated` is the canonical health-behavior observable.
+    return InteractionHub(
+        graph=graph,
+        memory_engine=memory_engine,
+        spatial_observables=["vaccinated"],
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -159,6 +205,15 @@ def main() -> None:
     p.add_argument("--num-ctx", type=int, default=4096)
     p.add_argument("--num-predict", type=int, default=1024)
     p.add_argument("--verbose", action="store_true")
+    p.add_argument(
+        "--tier2-gossip",
+        action="store_true",
+        help=(
+            "Enable spatial gossip via InteractionHub + "
+            "SpatialNeighborhoodGraph (Tier 2 validation). Default off — "
+            "Tier 1 uses env-dict-whitelist broadcast only."
+        ),
+    )
     args = p.parse_args()
 
     # ---- Agents -----------------------------------------------------
@@ -172,10 +227,19 @@ def main() -> None:
     # ---- Context builder with dynamic whitelist ---------------------
     # This is the Phase 1 verdict's abstraction point — env keys named
     # below reach every agent's prompt as {placeholder} substitutions.
+    # ---- Optional Tier 2 spatial gossip wiring ----------------------
+    hub = _build_spatial_hub(agents, memory_engine) if args.tier2_gossip else None
+    if args.tier2_gossip and hub is None:
+        print("[WARN] --tier2-gossip requested but no individuals with grid "
+              "positions found; falling back to Tier 1 broadcast mode.")
+
     ctx_builder = TieredContextBuilder(
         agents=agents,
-        # hub omitted — no InteractionHub means no spatial gossip / neighbor
-        # sharing; the env-dict-whitelist below is the cross-agent channel.
+        # Tier 1 (default): hub=None — env-dict-whitelist broadcast only.
+        # Tier 2 (--tier2-gossip): hub built above — adds spatial neighbor
+        # observability (vaccinated_pct from neighbors) to individuals'
+        # context via SocialProvider, on top of broadcast env state.
+        hub=hub,
         memory_engine=memory_engine,
         yaml_path=str(CONFIG_YAML),
         dynamic_whitelist=DYNAMIC_WHITELIST,
@@ -212,10 +276,11 @@ def main() -> None:
     n_ha = 1
     n_co = 2
     n_ind = args.agents
+    tier = "Tier 2 (spatial gossip)" if (args.tier2_gossip and hub) else "Tier 1 (broadcast)"
     print(
         f"--- vaccination_ma_demo PoC | {args.model} | "
         f"{n_ha} HA + {n_co} CO + {n_ind} individuals | "
-        f"{args.years} years | seed={args.seed} ---"
+        f"{args.years} years | seed={args.seed} | {tier} ---"
     )
     runner.run()
     print(f"--- Complete! Results in {args.output} ---")

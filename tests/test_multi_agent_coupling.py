@@ -128,6 +128,43 @@ class TestEnvDictAliasingPattern:
 
 
 # ---------------------------------------------------------------------------
+# Phase 6E Tier 2 finding (2026-05-11): neighbor summary cold-start text
+# ---------------------------------------------------------------------------
+
+
+class TestNeighborSummaryColdStartDomainNeutral:
+    """`InteractionHub.get_neighbor_action_summary` cold-start text was
+    'major flood protection actions' which leaked flood vocabulary into
+    non-water multi-agent prompts (Phase 6E Tier 2 finding, vaccination_ma
+    smoke 2026-05-11). Regression guard: cold-start string must avoid
+    flood-domain terms."""
+
+    def test_cold_start_text_no_flood_vocabulary(self):
+        from broker.components.analytics.interaction import InteractionHub
+        from broker.components.social.graph import SpatialNeighborhoodGraph
+
+        graph = SpatialNeighborhoodGraph(
+            agent_ids=["A1", "A2"],
+            positions={"A1": (0, 0), "A2": (1, 1)},
+            radius=3.0,
+        )
+        hub = InteractionHub(graph=graph)
+
+        class _Agent:
+            agent_type = "individual"
+            dynamic_state: dict = {}
+
+        agents = {"A1": _Agent(), "A2": _Agent()}
+        summary = hub.get_neighbor_action_summary("A1", agents)
+
+        for term in ("flood", "elevated", "buyout", "insurance"):
+            assert term.lower() not in summary.lower(), (
+                f"cold-start leaked flood-domain term '{term}': {summary!r}"
+            )
+        assert summary, "cold-start should provide a non-empty social-norm anchor"
+
+
+# ---------------------------------------------------------------------------
 # Phase 1 trace verdict: cross-agent state pipeline is domain-generic
 # ---------------------------------------------------------------------------
 

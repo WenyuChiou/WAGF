@@ -21,3 +21,33 @@ try:
     DomainPackRegistry.register("vaccination_ma", VaccinationMADomainPack())
 except ImportError:
     pass
+
+# 4. Register social specs (Tier 2 — spatial gossip).
+# Tier 1 demo (broadcast-only) works via DEFAULT_SOCIAL_SPEC fallback;
+# Tier 2 (run_experiment.py constructs InteractionHub +
+# SpatialNeighborhoodGraph) needs explicit per-type specs so every agent
+# type has a known graph topology. Phase 6C-v4 G1b register_social_spec
+# API.
+try:
+    from broker.components.social.config import (
+        register_social_spec, SocialGraphSpec,
+    )
+    # Individuals: see neighbors within 3 grid cells (spatial gossip).
+    register_social_spec(
+        "individual",
+        SocialGraphSpec(graph_type="spatial", radius=3),
+        overwrite=True,
+    )
+    # Institutional types: global view (aggregate, not local).
+    register_social_spec(
+        "health_authority",
+        SocialGraphSpec(graph_type="global"),
+        overwrite=True,
+    )
+    register_social_spec(
+        "community_org",
+        SocialGraphSpec(graph_type="global"),
+        overwrite=True,
+    )
+except ImportError:
+    pass
