@@ -8,11 +8,37 @@ analysis scripts; none reimplements WAGF logic.
 
 | If you want to … | Load skill |
 |---|---|
-| **Onboard** — first time using WAGF, walk me through setup | `wagf-quickstart` |
-| **Plan** a new experiment matrix from a research question | `wagf-experiment-designer` |
+| **Build a new domain from scratch** — I have a research question + maybe an external model | `wagf-domain-builder` |
+| **Design the coupling** between WAGF agents and my external simulator | `wagf-coupling-designer` |
+| **Onboard** — first time using the EXISTING reference examples (flood / irrigation / vaccination) | `wagf-quickstart` |
+| **Plan** a new experiment matrix from a research question on a working domain | `wagf-experiment-designer` |
 | **Analyse** existing audit traces into paper-ready metrics | `llm-agent-audit-trace-analyzer` |
-| **Verify** the contract between agents and an external model | `model-coupling-contract-checker` |
+| **Verify** the contract between agents and an external model (audit existing coupling) | `model-coupling-contract-checker` |
 | **Audit** an experiment folder before submission | `abm-reproducibility-checker` |
+
+### Lifecycle map
+
+```
+[blank repo + research question]
+        ↓
+   wagf-domain-builder (S0-S7)     ← builds the domain
+   ├─ S2/S3/S7: hands off to
+   │   wagf-coupling-designer (C0-C4) ← designs the external-model interface
+   │            └─ C4: hands off to
+   │                model-coupling-contract-checker  ← audits the coupling
+   │
+   └─ S7: hands off to
+       wagf-experiment-designer    ← plans the experiment matrix
+                  ↓
+             [run experiment]
+                  ↓
+       llm-agent-audit-trace-analyzer ← analyses the traces
+                  ↓
+       abm-reproducibility-checker    ← pre-submission audit
+```
+
+`wagf-quickstart` is a separate path for users running the EXISTING reference
+examples (not building a new domain).
 
 For paper writing, Zotero, citations, generic coding delegation, or
 literature review, use the user-level skills (`academic-writing-skills`,
@@ -128,19 +154,75 @@ manifest + git-blame cross-reference; refuses to treat unmasked
 sentinels as benign unless on `broker/INVARIANTS.md` Invariant 4
 reserved list; refuses to GREEN if `pytest broker/ tests/` fails.
 
-## Why these and not others
+## Skill 5: `wagf-domain-builder` (Phase 6D, 2026-05-10)
 
-WAGF intentionally has five skills (1 onboarding + 4 lifecycle).
+**Trigger phrases**: "I want to build a WAGF model for <my domain>",
+"help me set up a new domain", "I'm new to WAGF and have a research
+question about X", "scaffold a domain from scratch".
+
+**Inputs**: research question (1-2 sentences), optional external
+model identity, working LLM endpoint.
+
+**Outputs**: `.research/<domain>_brief.md`, full directory at
+`examples/<domain>_demo/`, edited prompt / DomainPack / validators /
+YAML rules, audit CSV from mock smoke at `results/smoke_<seed>/`.
+
+**Reuses**: `broker.tools.scaffold_domain` (cycle 4),
+`broker.tools.validate_prompt` (cycle 3); hands off to
+`wagf-coupling-designer` for S2/S3/S7 stages if coupling is needed;
+hands off to `wagf-experiment-designer` after S7.
+
+**Refusal protocol**: refuses to skip S0 interview questions, pick
+the cognitive framework for the user, advance past S5 with stale
+validate_prompt errors, build multi-agent (v1 single-agent only),
+or bypass the mock smoke (S6) when coupling is present.
+
+## Skill 6: `wagf-coupling-designer` (Phase 6D, 2026-05-10)
+
+**Trigger phrases**: "I want to couple my WAGF agents to <my
+simulator>", "help me design the WAGF↔X interface", "draft a
+coupling contract", "scaffold the external model adapter",
+"I have a Python / R / CSV-based model and want WAGF to drive it".
+
+**Inputs**: domain name, external model identity (name + language /
+runtime), decision variables, output variables, cadence, reset
+semantics.
+
+**Outputs**: `.coupling/contract.md` (7 required sections),
+`lifecycle_hooks.py` with `MockExternalModel`,
+`adapters/external_model_adapter.py` (pattern-specific).
+
+**Reuses**: pattern A (CSV replay) and pattern B (Python library)
+templates from `references/coupling_patterns/`; pairs with
+`model-coupling-contract-checker` (this skill DRAFTS the contract;
+that skill AUDITS it).
+
+**Refusal protocol**: refuses to guess units, skip failure-mode
+questions, advance past C1 without a complete contract, bypass the
+mock smoke before real-model cutover, or claim mock fidelity
+matches real model.
+
+**v1 scope**: patterns A + B only (~80% of PhD use cases).
+C (subprocess) / D (REST) / E (co-process) deferred to v2.
+
+## Why these specific seven
+
+WAGF now has 7 skills covering the full lifecycle from blank repo
+to submitted paper:
+
+| Skill | Lifecycle slot |
+|---|---|
+| `wagf-domain-builder` | NEW: from blank to working domain |
+| `wagf-coupling-designer` | NEW: from working domain to coupled simulator |
+| `wagf-quickstart` | Onboarding on EXISTING reference examples |
+| `wagf-experiment-designer` | Plan the experiment matrix |
+| `model-coupling-contract-checker` | Audit coupling (sister of designer) |
+| `llm-agent-audit-trace-analyzer` | Post-run trace analysis |
+| `abm-reproducibility-checker` | Pre-submission gate |
+
 Adding more risks duplicating user-level skills
-(`academic-writing-skills`, `research-hub`) or front-loading guidance
-for a domain-pack API that is not yet stable.
-
-A sixth skill, `wagf-domain-pack-builder`, was scoped in the Codex
-brief but deferred until the broker-layer domain genericity
-violations identified by the 2026-04-24 audit Phase 1 are fixed
-(`reflection.py:198-213` flood-specific importance, `registry.py:28-31`
-hardcoded `do_nothing` default). Otherwise that skill would invent
-domain assumptions silently.
+(`academic-writing-skills`, `research-hub`). Each existing skill
+owns a distinct lifecycle slot — there is no functional overlap.
 
 ## Composing the five skills (typical flow)
 

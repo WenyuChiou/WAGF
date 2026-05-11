@@ -1,0 +1,70 @@
+"""Pattern A adapter: replay external-model outputs from CSV or NetCDF."""
+
+from __future__ import annotations
+
+import csv
+from pathlib import Path
+from typing import Any, Dict, Mapping, Tuple
+
+
+class FileReplayAdapter:
+    """Lookup by (year, scenario) and apply an agent perturbation."""
+
+    def __init__(self, path: str, failure_policy: str = "fail_loud") -> None:
+        # TODO: Replace with the real CSV or NetCDF path.
+        self.path = Path(path or "<<REPLAY_FILE_PATH>>")
+        self.failure_policy = failure_policy
+        self.cache: Dict[Tuple[int, str], Dict[str, float]] = {}
+        self.last_good: Dict[str, Any] = {}
+        self._load()
+
+    def _load(self) -> None:
+        if not self.path.exists():
+            raise FileNotFoundError(f"Replay file not found: {self.path}")
+        # TODO: For NetCDF, replace this CSV loader with xarray.open_dataset().
+        with self.path.open(newline="", encoding="utf-8") as handle:
+            for row in csv.DictReader(handle):
+                year = int(row["<<YEAR_COLUMN>>"])
+                scenario = row["<<SCENARIO_COLUMN>>"]
+                key = (year, scenario)
+                if key in self.cache:
+                    raise ValueError(f"Duplicate replay key: {key}")
+                self.cache[key] = {
+                    # TODO: Replace column names and units from the contract.
+                    "<<OUTPUT_VAR_1>>": float(row["<<OUTPUT_COLUMN_1>>"]),
+                    "<<OUTPUT_VAR_2>>": float(row["<<OUTPUT_COLUMN_2>>"]),
+                }
+
+    def step(self, inputs: Mapping[str, Any]) -> Dict[str, Any]:
+        year = int(inputs["<<YEAR_VARIABLE>>"])
+        scenario = str(inputs.get("<<SCENARIO_VARIABLE>>", "baseline"))
+        perturb = float(inputs.get("<<AGENT_OFFSET_VARIABLE>>", 0.0))
+        raw, status = self._lookup(year, scenario)
+        payload: Dict[str, float] = {
+            "<<OUTPUT_VAR_1>>": self._apply_offset(raw["<<OUTPUT_VAR_1>>"], perturb),
+            "<<OUTPUT_VAR_2>>": raw["<<OUTPUT_VAR_2>>"],
+        }
+        # Cache numeric payload only — never the status string — so that on
+        # a subsequent miss the last_good fallback returns float-typed values
+        # consistent with the contract's output schema.
+        self.last_good = dict(payload)
+        return {**payload, "external_model_status": status}
+
+    def _lookup(self, year: int, scenario: str) -> tuple[Dict[str, float], str]:
+        """Return (numeric payload dict, status string).
+
+        Status is 'ok' on a cache hit, 'fallback_last_good' when serving a
+        cached payload from a prior step, or the lookup raises on a miss
+        with no fallback configured.
+        """
+        key = (year, scenario)
+        if key not in self.cache:
+            # TODO: Choose fail_loud or last_good in the coupling contract.
+            if self.failure_policy == "last_good" and self.last_good:
+                return dict(self.last_good), "fallback_last_good"
+            raise KeyError(f"No replay row for {key}")
+        return self.cache[key], "ok"
+
+    def _apply_offset(self, value: float, perturb: float) -> float:
+        # TODO: Replace with linear, saturating, clipped, or diagnostic semantics.
+        return value * (1.0 + perturb)
