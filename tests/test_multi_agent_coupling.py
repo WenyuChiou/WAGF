@@ -163,9 +163,30 @@ class TestDynamicWhitelistIsDomainGeneric:
             "transit_advisory",
         ])
 
-        # No exceptions — provider treats keys as opaque string list.
-        for p in (p1, p2, p3):
-            assert hasattr(p, "provide") or hasattr(p, "build")
+        # Substantive check: each provider must actually accept its
+        # respective env_context payload and propagate the whitelisted
+        # keys into the context dict — not just have the right method
+        # signature.
+        for provider, env, expected_keys in [
+            (p1, {"advisory_strength_label": "strong",
+                  "community_support_text": "clinic open",
+                  "outbreak_severity_label": "severe"},
+             {"advisory_strength_label", "community_support_text",
+              "outbreak_severity_label"}),
+            (p2, {"grid_load_label": "high",
+                  "tariff_signal": "peak",
+                  "neighbor_avg_usage": "above avg"},
+             {"grid_load_label", "tariff_signal", "neighbor_avg_usage"}),
+            (p3, {"commute_congestion_label": "heavy",
+                  "transit_advisory": "delayed"},
+             {"commute_congestion_label", "transit_advisory"}),
+        ]:
+            context: dict = {}
+            provider.provide("agent_id", {}, context, env_context=env)
+            assert set(context.keys()) >= expected_keys, (
+                f"provider {provider.whitelist} did not propagate "
+                f"all expected keys: got {sorted(context.keys())}"
+            )
 
     def test_whitelist_provider_passes_keys_through(self):
         """The env-context-to-template-var path is identity for whitelisted
