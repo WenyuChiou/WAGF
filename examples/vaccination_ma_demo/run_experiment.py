@@ -174,7 +174,8 @@ def main() -> None:
     # below reach every agent's prompt as {placeholder} substitutions.
     ctx_builder = TieredContextBuilder(
         agents=agents,
-        hub=None,  # No InteractionHub — no spatial gossip / neighbor sharing
+        # hub omitted — no InteractionHub means no spatial gossip / neighbor
+        # sharing; the env-dict-whitelist below is the cross-agent channel.
         memory_engine=memory_engine,
         yaml_path=str(CONFIG_YAML),
         dynamic_whitelist=DYNAMIC_WHITELIST,
