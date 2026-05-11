@@ -275,9 +275,16 @@ The skill MUST refuse to:
    default with an explicit note that it can be changed later.
 3. **Advance past S5 with stale validate_prompt errors.** Each of
    the 4 edits must end with a clean validate_prompt run.
-4. **Build multi-agent.** v1 is single-agent only. If the user's
-   domain is multi-agent, surface the deferral and offer to build
-   the single-agent skeleton first.
+4. **Build multi-agent without surfacing the dual-dict gotcha.** v1.1
+   supports multi-agent, but the user MUST be directed to the
+   `docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md` "Building a multi-agent
+   domain" section before starting S5 edit-5 (ExperimentBuilder
+   wiring). Specifically confirm they understand: (a) the
+   `self.env = env` aliasing requirement in `pre_year`, (b) the
+   `with_phase_order` ordering, and (c) the env-dict-whitelist
+   pattern matches their cross-agent coupling shape. Refuse to
+   proceed to S6 smoke without that confirmation — silent failures
+   here are the Phase 6E Finding #3 class.
 5. **Hand off to `wagf-quickstart` at any point.** That skill is
    for a different lifecycle stage (running existing examples).
    Cross-referencing is fine; routing the user there mid-build
@@ -325,17 +332,22 @@ The skill is ready when:
   green mock smoke run.
 - For input "I have a vaccination domain but no external model",
   same outcome but with S2 / S3 / S7 skipped cleanly.
-- For input "I want to build a multi-agent flood model", refuses
-  multi-agent v1 scope and offers to build the single-agent
-  version.
+- For input "I want to build a multi-agent flood model", surfaces
+  the HOW_TO multi-agent section (covers the dual-dict gotcha + env-
+  dict-whitelist pattern + `with_phase_order`), points the user at
+  `examples/vaccination_ma_demo/` as the canonical reference, and
+  proceeds with S0-S7 — the multi-agent branching expands S5 edit-5
+  scope but the rest of the flow is unchanged.
 - For input "Just scaffold me an energy domain quickly, skip the
   questions", refuses to skip S0 and explains why each question
   matters.
 
 ## Future extensions (v2)
 
-- Multi-agent variant (waits for PhaseOrchestrator → ExperimentRunner
-  wiring).
+- Tier 2 multi-agent: spatial gossip via `InteractionHub` +
+  `SpatialNeighborhoodGraph` + per-individual community state. v1.1
+  proved broadcast-style multi-agent works; spatial coupling has the
+  existing API surface but isn't yet end-to-end-validated for non-water.
 - "Migrate existing ABM to WAGF" entry point — different journey
   shape: start from existing code, not a blank page.
 - "Replace cognitive framework" entry point — for users who built

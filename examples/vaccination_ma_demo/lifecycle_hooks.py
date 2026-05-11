@@ -130,7 +130,11 @@ class VaccinationMAHooks:
                 agent.dynamic_state["last_decision"] = "fallback"
             return
 
-        decision = result.skill_proposal.skill_name
+        # Read EXECUTED skill (per WAGF EXECUTED-ONLY convention from
+        # Paper 3 — MEMORY.md). For approved outcomes the proposed and
+        # executed skill are equal, but the canonical field is approved_skill
+        # so future readers don't confuse this with proposal-stage reasoning.
+        decision = result.approved_skill.skill_name
 
         if agent.agent_type == "health_authority":
             self._handle_health_authority(decision, agent)

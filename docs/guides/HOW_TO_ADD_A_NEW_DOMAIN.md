@@ -518,14 +518,21 @@ This pipeline (`env → whitelist → context → template_vars → SafeFormatte
 ```python
 from broker.components.context.tiered import TieredContextBuilder, load_prompt_templates
 
-# Cross-agent state keys — must match keys the lifecycle hook writes
-# AND placeholders the prompt templates reference
+# Cross-agent state keys — must match EVERY key the lifecycle hook
+# writes AND EVERY placeholder the prompt templates reference. The full
+# vaccination_ma list has 9 keys; this is just a representative slice.
+# A key in your prompt template but missing from this list will render
+# as the literal string "{key}" in the prompt — confusing for small LLMs
+# and silent at runtime (the only signal is `validate_prompt` WARN).
 DYNAMIC_WHITELIST = [
     "year",
     "advisory_strength_label",
     "advisory_text",
     "outbreak_severity_label",
     "community_support_text",
+    # ...add EVERY cross-agent placeholder your prompts reference.
+    # See examples/vaccination_ma_demo/run_experiment.py for the full
+    # 9-key list.
 ]
 
 ctx_builder = TieredContextBuilder(
