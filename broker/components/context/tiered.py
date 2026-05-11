@@ -270,7 +270,7 @@ class TieredContextBuilder(BaseAgentContextBuilder):
     def __init__(
         self,
         agents: Dict[str, Any],
-        hub: InteractionHub,
+        hub: Optional["InteractionHub"] = None,
         skill_registry: Optional[Any] = None,
         global_news: List[str] = None,
         media_hub: Optional[Any] = None,
