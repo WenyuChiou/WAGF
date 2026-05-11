@@ -138,7 +138,14 @@ import time so `get_social_spec(agent)` doesn't fall back to the
 catch-all `DEFAULT_SOCIAL_SPEC`:
 
 ```python
-# In examples/<your_domain>/__init__.py (Tier 2 only — Tier 1 doesn't need)
+# In examples/<your_domain>/__init__.py
+# REGISTER UNCONDITIONALLY (not gated on Tier 1 vs Tier 2). Tier 1
+# happens to work without these calls because get_social_spec() falls
+# back to DEFAULT_SOCIAL_SPEC (spatial radius=2), but Tier 2 silently
+# produces wrong graph topology if missing. The canonical
+# `examples/vaccination_ma_demo/__init__.py` calls register_social_spec
+# at import time regardless of tier — copy that pattern, don't skip it
+# for Tier 1.
 from broker.components.social.config import (
     register_social_spec, SocialGraphSpec,
 )
@@ -155,10 +162,13 @@ register_social_spec(
 )
 ```
 
-Phase 6C-v4 G1b API. Tier 1 broadcast-only demo works without this
-(default spatial radius=2 is harmless when no InteractionHub is wired).
-Required for Tier 2 (spatial gossip) so `SpatialNeighborhoodGraph`
-knows each agent type's expected topology.
+Phase 6C-v4 G1b API. Failure mode differs by tier: Tier 1
+(broadcast-only) tolerates missing calls because no `InteractionHub`
+consumes the spec — the default fallback is harmless. Tier 2
+(`InteractionHub` + `SpatialNeighborhoodGraph` wired) silently builds
+the wrong graph topology when an agent type is missing — neighbors
+appear for types you didn't intend and don't appear for types you did.
+Best practice: register every non-default agent type from the start.
 
 ### 5. (Optional) `InteractionHub` + `SpatialNeighborhoodGraph` for Tier 2
 
@@ -195,10 +205,18 @@ cold-start string in year 1).
 ## The dual-dict gotcha (Phase 6E Finding #3 — MUST READ)
 
 `ExperimentRunner` creates a fresh `env = {}` at the start of every
-year when no `with_simulation(env)` is configured. If your lifecycle
-hook keeps its OWN `self.env` dict and only `env.update(self.env)` once
-in `pre_year`, mid-year writes to `self.env` from `post_step` won't
-propagate to subsequent agents' context_builder reads.
+year when no `with_simulation(env)` is configured (see
+`broker/core/experiment_runner.py:159` — `env = self.sim_engine.advance_year()
+if self.sim_engine else {}`). The runner then pre-populates
+`env["current_year"] = step` at line 162 BEFORE your `pre_year` hook is
+called, so when your hook receives `env` it has exactly that one key
+already in it (not strictly empty). The vaccination_ma_demo hook writes
+its own `env["year"]` separately for prompt-template convenience; if
+your prompts use `{current_year}` instead, no whitelist entry is needed
+for it. If your lifecycle hook keeps its OWN `self.env` dict and only
+`env.update(self.env)` once in `pre_year`, mid-year writes to
+`self.env` from `post_step` won't propagate to subsequent agents'
+context_builder reads.
 
 **The fix is one line.** In `pre_year`, AFTER the update, alias
 `self.env = env` so the two dicts become the same object for the rest
@@ -234,20 +252,28 @@ Run from `examples/<your_domain>_demo/` unless noted.
    template. Don't write from scratch.
 2. Edit `synth_agents()` for your N agent types (grid_x/grid_y only for
    Tier 2 spatial; not needed Tier 1).
-3. Edit lifecycle_hooks.py to write the cross-agent keys your domain
-   needs. Per-agent-type if/elif branches in `post_step`.
-4. Edit `DYNAMIC_WHITELIST` in run_experiment.py to list EVERY key the
+3. **Create `lifecycle_hooks.py`** — `broker.tools.scaffold_domain`
+   does NOT emit this file for non-coupling domains; you must add it
+   yourself. Easiest path: copy
+   `examples/vaccination_ma_demo/lifecycle_hooks.py` into your domain
+   dir, rename the class (e.g. `VaccinationMAHooks` →
+   `MyDomainHooks`), and update the `setdefault` keys in `__init__` to
+   your domain's cross-agent state vocabulary.
+4. Edit `lifecycle_hooks.py` to write the cross-agent keys your domain
+   needs. Per-agent-type if/elif branches in `post_step`. Make sure
+   `pre_year` does `self.env = env` aliasing.
+5. Edit `DYNAMIC_WHITELIST` in run_experiment.py to list EVERY key the
    prompts reference.
-5. Edit `with_phase_order([[t1], [t2], [t3]])` to declare your execution
+6. Edit `with_phase_order([[t1], [t2], [t3]])` to declare your execution
    tiers.
-6. (Tier 2 only) Build SpatialNeighborhoodGraph + InteractionHub; pass
+7. (Tier 2 only) Build SpatialNeighborhoodGraph + InteractionHub; pass
    `hub=hub` to TieredContextBuilder.
-7. Verify config: `python -m broker.tools.validate_prompt
+8. Verify config: `python -m broker.tools.validate_prompt
    examples/<domain>_demo/config/agent_types.yaml` — expect OK clean.
-8. Smoke: `python examples/<domain>_demo/run_experiment.py --model
+9. Smoke: `python examples/<domain>_demo/run_experiment.py --model
    gemma3:1b --years 2 --agents N --seed 42 --output results/smoke_42`
-9. Inspect: audit CSVs split per agent_type, all APPROVED, traces
-   show cross-agent state actually rendered in prompts.
+10. Inspect: audit CSVs split per agent_type, all APPROVED, traces
+    show cross-agent state actually rendered in prompts.
 
 ## Common multi-agent BLOCKERs (with fix path)
 
@@ -280,6 +306,6 @@ Hand off to `wagf-experiment-designer` once these pass.
 - `examples/multi_agent/flood/` — Paper 3 (4 agent types: government, insurance, household_owner, household_renter)
 - `docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md` "Building a multi-agent domain" section
 - `tests/test_multi_agent_coupling.py` — integration tests including dual-dict aliasing pattern
-- `broker/components/context/tiered.py:270` — TieredContextBuilder signature with Optional hub
+- `broker/components/context/tiered.py:270-288` — TieredContextBuilder.__init__ full signature; `hub: Optional[InteractionHub] = None` is line 273
 - `broker/components/social/config.py:register_social_spec` — Phase 6C-v4 G1b API
 - `broker/components/analytics/interaction.py:170` — get_neighbor_action_summary (Tier 2)
