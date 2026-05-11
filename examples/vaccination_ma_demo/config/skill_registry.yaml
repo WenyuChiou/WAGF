@@ -1,0 +1,48 @@
+domain: vaccination_ma
+default_skill: delay
+skills:
+- domain: vaccination_ma
+  description: Issue no public health advisory this year.
+  eligible_agent_types:
+  - health_authority
+  skill_id: advisory_none
+- domain: vaccination_ma
+  description: Issue a mild advisory (information campaign, no mandate language).
+  eligible_agent_types:
+  - health_authority
+  skill_id: advisory_mild
+- domain: vaccination_ma
+  description: Issue a strong advisory (mandate-adjacent language).
+  eligible_agent_types:
+  - health_authority
+  skill_id: advisory_strong
+- domain: vaccination_ma
+  description: No active outreach this year.
+  eligible_agent_types:
+  - community_org
+  skill_id: org_none
+- domain: vaccination_ma
+  description: Run an education campaign (raises individual perceived susceptibility).
+  eligible_agent_types:
+  - community_org
+  skill_id: org_education
+- domain: vaccination_ma
+  description: Open a mobile clinic (lowers individual perceived barrier).
+  eligible_agent_types:
+  - community_org
+  skill_id: org_clinic
+- domain: vaccination_ma
+  description: Receive a vaccine dose this year.
+  eligible_agent_types:
+  - individual
+  skill_id: get_vaccinated
+- domain: vaccination_ma
+  description: Postpone the decision; reconsider next year after more information.
+  eligible_agent_types:
+  - individual
+  skill_id: delay
+- domain: vaccination_ma
+  description: Decline vaccination this year.
+  eligible_agent_types:
+  - individual
+  skill_id: refuse
