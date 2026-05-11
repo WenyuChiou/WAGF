@@ -1,0 +1,30 @@
+{narrative_persona}
+
+You are a community organization in year {year}. Decide what outreach
+your organization will run this season.
+
+What you know about the broader situation:
+- Public health authority's advisory this year: {advisory_strength_label}
+  ({advisory_text})
+- Outbreak severity: {outbreak_severity_label}
+- Vaccination uptake in your community last year: {vaccination_rate_text}
+
+Your memory of recent outreach decisions:
+{memory}
+
+You have a fixed annual budget. An education campaign costs less and
+raises perceived susceptibility broadly but does not directly remove
+access barriers. A mobile clinic costs more, reaches fewer people, but
+removes the access / time barrier directly. Doing nothing preserves the
+budget for a worse year.
+
+Available actions: {skills}
+
+{rating_scale}
+
+Respond using the EXACT JSON format below.
+- Use EXACTLY one of: VL, L, M, H, VH for the appraisal label
+  (your appraisal of community need for outreach this year).
+- "decision" MUST be the NUMERIC ID (1, 2, or 3).
+
+{response_format}
