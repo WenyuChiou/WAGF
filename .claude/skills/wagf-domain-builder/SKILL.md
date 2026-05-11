@@ -360,10 +360,13 @@ The skill is ready when:
 
 ## Future extensions (v2)
 
-- Tier 2 multi-agent: spatial gossip via `InteractionHub` +
-  `SpatialNeighborhoodGraph` + per-individual community state. v1.1
-  proved broadcast-style multi-agent works; spatial coupling has the
-  existing API surface but isn't yet end-to-end-validated for non-water.
+- Tier 2 multi-agent NOW VALIDATED for vaccination_ma_demo
+  (2026-05-11 — `--tier2-gossip` mode, 8 individuals, gemma3:1b, all
+  10 traces APPROVED, `{neighbor_action_summary}` renders correctly).
+  Future v2 work: formalise the Tier 2 onboarding path in this skill's
+  S5 stage so users opting into spatial gossip get the InteractionHub
+  + SpatialNeighborhoodGraph wiring as part of the normal flow rather
+  than reading `references/multi_agent_walkthrough.md` separately.
 - "Migrate existing ABM to WAGF" entry point — different journey
   shape: start from existing code, not a blank page.
 - "Replace cognitive framework" entry point — for users who built
