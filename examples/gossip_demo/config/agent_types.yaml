@@ -1,0 +1,211 @@
+# gossip_demo agent types (Phase 6F).
+#
+# Three agent types replicating Paper 3's institutional-intermediary-citizen
+# pattern but in a social-media context: platform_moderator (institutional) →
+# influencer (intermediary, content producer) → casual_user (citizen).
+#
+# Cadence: simulation "year" reinterpreted as day. 30-day horizon typical;
+# 5-day smoke for fast validation.
+#
+# Every block conforms to Phase 6C-v4 6-BLOCKER prevention requirements:
+# explicit `actions:`, `parsing.constructs:`, `log_fields:`, response_format
+# fields, etc.
+
+global_config:
+  memory:
+    window_size: 7              # 1-week sliding window for daily cadence
+    consolidation_threshold: 0.7
+    consolidation_probability: 0.8
+    top_k_significant: 3
+    decay_rate: 0.15            # Higher than yearly (faster news cycle)
+
+  reflection:
+    interval: 7                 # weekly reflection (NOT daily — would explode LLM cost)
+    batch_size: 5
+    importance_boost: 0.85
+    persona_instruction: >
+      Summarize this agent's recent posting / engagement decisions in
+      first person, 2-3 sentences, reflecting their stance on community
+      issues and platform dynamics.
+    questions:
+      - "Did your recent posts align with your audience's sentiment?"
+      - "Have your perceptions of the platform's moderation changed?"
+    triggers:
+      periodic_interval: 7
+
+  llm:
+    model: "command-line-override"
+    num_ctx: 4096
+    num_predict: 1024
+    max_retries: 2
+
+  governance:
+    max_retries: 3
+    max_reports_per_retry: 3
+    domain: gossip
+
+# =============================================================================
+# SHARED — all 3 agent types share response shape
+# =============================================================================
+shared:
+  rating_scale: |
+    ### RATING SCALE (You MUST use EXACTLY one of these codes):
+    VL = Very Low | L = Low | M = Medium | H = High | VH = Very High
+
+  response_format:
+    delimiter_start: "<<<DECISION_START>>>"
+    delimiter_end: "<<<DECISION_END>>>"
+    fields:
+      - { key: "reasoning", type: "text", required: true,
+          description: "Explain your thought process in 2-3 sentences BEFORE choosing." }
+      - {
+          key: "appraisal",
+          type: "appraisal",
+          required: true,
+          construct: "APPRAISAL_LABEL",
+          reason_hint: "One sentence on your primary appraisal of the situation.",
+        }
+      - {
+          key: "decision",
+          type: "choice",
+          required: true,
+          description: "Numeric ID 1, 2, 3, or 4 — see Available actions list.",
+        }
+
+# =============================================================================
+# platform_moderator — institutional layer
+# =============================================================================
+platform_moderator:
+  agent_type: platform_moderator
+  psychological_framework: pmt   # threat-protective framing of moderation choice
+  prompt_template_file: prompts/platform_moderator.txt
+  inherit_shared: true
+
+  actions:
+    - id: boost_signal
+      aliases: ["1", "boost_signal", "boost", "[1]"]
+      description: Boost trending topic.
+    - id: demote_misinfo
+      aliases: ["2", "demote_misinfo", "demote", "[2]"]
+      description: Demote misinformation.
+    - id: warn_community
+      aliases: ["3", "warn_community", "warn", "[3]"]
+      description: Issue advisory.
+    - id: do_nothing
+      aliases: ["4", "do_nothing", "none", "[4]"]
+      description: No action.
+
+  constructs:
+    primary: ["APPRAISAL_LABEL"]
+    secondary: []
+    all: ["APPRAISAL_LABEL"]
+
+  parsing:
+    decision_keywords: ["decision", "choice", "action"]
+    default_skill: "do_nothing"
+    strict_mode: true
+    preprocessor:
+      { type: "smart_repair", quote_values: ["VL", "L", "M", "H", "VH"] }
+    proximity_window: 35
+    constructs:
+      APPRAISAL_LABEL:
+        keywords: ["appraisal"]
+        regex: "(?i)\\b(VL|L|M|H|VH)\\b"
+      APPRAISAL_REASON:
+        keywords: ["appraisal"]
+        regex: ".*"
+
+  log_fields: ["appraisal"]
+  rules: []
+
+# =============================================================================
+# influencer — intermediary content producer
+# =============================================================================
+influencer:
+  agent_type: influencer
+  psychological_framework: pmt
+  prompt_template_file: prompts/influencer.txt
+  inherit_shared: true
+
+  actions:
+    - id: post_neutral
+      aliases: ["1", "post_neutral", "neutral", "[1]"]
+      description: Routine post.
+    - id: post_polarizing
+      aliases: ["2", "post_polarizing", "polarizing", "[2]"]
+      description: Polarizing post.
+    - id: share_trending
+      aliases: ["3", "share_trending", "share", "[3]"]
+      description: Share trending.
+    - id: stay_silent
+      aliases: ["4", "stay_silent", "silent", "[4]"]
+      description: Post nothing.
+
+  constructs:
+    primary: ["APPRAISAL_LABEL"]
+    secondary: []
+    all: ["APPRAISAL_LABEL"]
+
+  parsing:
+    decision_keywords: ["decision", "choice", "action"]
+    default_skill: "stay_silent"
+    strict_mode: true
+    preprocessor:
+      { type: "smart_repair", quote_values: ["VL", "L", "M", "H", "VH"] }
+    proximity_window: 35
+    constructs:
+      APPRAISAL_LABEL:
+        keywords: ["appraisal"]
+        regex: "(?i)\\b(VL|L|M|H|VH)\\b"
+      APPRAISAL_REASON:
+        keywords: ["appraisal"]
+        regex: ".*"
+
+  log_fields: ["appraisal"]
+  rules: []
+
+# =============================================================================
+# casual_user — citizen layer
+# =============================================================================
+casual_user:
+  agent_type: casual_user
+  psychological_framework: pmt
+  prompt_template_file: prompts/casual_user.txt
+  inherit_shared: true
+
+  actions:
+    - id: share
+      aliases: ["1", "share", "[1]"]
+      description: Share a visible post.
+    - id: like
+      aliases: ["2", "like", "endorse", "[2]"]
+      description: Like a visible post.
+    - id: ignore
+      aliases: ["3", "ignore", "skip", "[3]"]
+      description: No engagement.
+    - id: report
+      aliases: ["4", "report", "flag", "[4]"]
+      description: Report a post.
+
+  constructs:
+    primary: ["APPRAISAL_LABEL"]
+    secondary: []
+    all: ["APPRAISAL_LABEL"]
+
+  parsing:
+    decision_keywords: ["decision", "choice", "action"]
+    default_skill: "ignore"
+    strict_mode: true
+    preprocessor:
+      { type: "smart_repair", quote_values: ["VL", "L", "M", "H", "VH"] }
+    proximity_window: 35
+    constructs:
+      APPRAISAL_LABEL:
+        keywords: ["appraisal"]
+        regex: "(?i)\\b(VL|L|M|H|VH)\\b"
+      APPRAISAL_REASON:
+        keywords: ["appraisal"]
+        regex: ".*"
+
+  log_fields: ["appraisal"]
+  rules: []
