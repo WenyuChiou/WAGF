@@ -11,7 +11,7 @@ For repo conventions (commit style, branch naming, test policy), see
 
 ---
 
-## Five WAGF skills are bundled with this repo
+## Seven WAGF skills are bundled with this repo
 
 The skills live in `.claude/skills/` and are loaded automatically when
 Claude Code is opened in this directory. Prefer these over generic
@@ -20,13 +20,15 @@ question matches a WAGF skill's trigger.
 
 | Need | Skill | Typical user phrasing |
 |------|-------|------------------------|
+| **Build a new domain** (Phase 6D) | `wagf-domain-builder` | "I want to build a WAGF model for X", "scaffold a new domain", "help me set up a new ABM" |
+| **Design external-model coupling** (Phase 6D) | `wagf-coupling-designer` | "couple my WAGF agents to my Python/CSV/REST simulator", "draft a coupling contract", "design the LLM↔model interface" |
 | **Onboarding / first run** | `wagf-quickstart` | "I just cloned WAGF, help me set this up", "first WAGF run", "where do I start" |
 | **Plan an experiment** | `wagf-experiment-designer` | "design an experiment", "plan an ablation", "compare strict vs disabled" |
 | **Analyse audit traces** | `llm-agent-audit-trace-analyzer` | "analyse these traces", "compute governance metrics", "summarize rejection and retry outcomes" |
 | **Verify external-model coupling** | `model-coupling-contract-checker` | "check ABM-model coupling", "audit feedback loop", "verify units between WAGF and X model" |
 | **Pre-submission audit** | `abm-reproducibility-checker` | "audit reproducibility", "prepare for submission", "check this experiment folder" |
 
-Full chooser table: `docs/skills/wagf-skills.md`.
+Full chooser table: `docs/skills/wagf-skills.md`. Note: `wagf-domain-builder` is the FIRST skill a researcher should invoke when starting a new domain from scratch (upstream of all others). `wagf-coupling-designer` is the design-time counterpart to `model-coupling-contract-checker` (which audits existing couplings).
 
 ## First-turn-of-session behaviour
 
@@ -81,9 +83,13 @@ Honour these refusals when relaying the skill's output to the user.
 | Path | What lives there |
 |------|------------------|
 | `broker/` | Framework core: governance pipeline, memory engines, validators, audit writer, lifecycle hooks. See `broker/INVARIANTS.md` for the 5 framework invariants. |
-| `examples/single_agent/` | Flood domain (Nature Water Paper 1b reference experiment). |
+| `broker/tools/` | Operator CLIs: `scaffold_domain` (one-command domain skeleton), `validate_prompt` (config-time BLOCKER pre-check). |
+| `examples/single_agent/` | Flood single-agent domain (Nature Water Paper 1b reference experiment). |
 | `examples/irrigation_abm/` | Irrigation domain (CRSS 78 agents × 42 yr). |
-| `examples/multi_agent/flood/` | Multi-agent flood (Paper 3). |
+| `examples/multi_agent/flood/` | Multi-agent flood (Paper 3, 400 agents × 13 yr). |
+| `examples/vaccination_demo/` | Single-agent non-water reference (HBM cognitive framework, Phase 6C-v4). |
+| `examples/vaccination_ma_demo/` | Multi-agent non-water reference (3 agent types, env-dict-whitelist coupling, optional `--tier2-gossip` spatial; Phase 6E). |
+| `examples/gossip_demo/` | Multi-agent social-media reference (community moderator + influencer + casual_user, daily cadence; Phase 6F). |
 | `examples/quickstart/` | Smoke-test scripts used by `wagf-quickstart` Phase 2. |
 | `paper/nature_water/` | NW paper drafts + figure scripts (gitignored). |
 | `tests/` and `broker/tests/` | pytest suites. Run `pytest tests/ broker/` before any commit. |
@@ -93,7 +99,7 @@ Honour these refusals when relaying the skill's output to the user.
 ## Active development conventions
 
 - All new code must keep `pytest tests/ broker/` green
-  (1947+ tests pass on the latest main).
+  (2098+ tests pass on the latest main as of Phase 6F, 2026-05-11).
 - Memory engine API: `retrieve()` returns `List[Dict]` per
   `broker/INVARIANTS.md` Invariant 1. Use
   `retrieve_content_only()` for legacy plain-string consumers.
@@ -104,6 +110,13 @@ Honour these refusals when relaying the skill's output to the user.
 - Directory naming should embed the relevant code commit hash, not
   just a version tag (the 2026-04-25 v21 dir-naming-vs-code-state
   mismatch motivated this convention).
+- **Multi-agent domain genericity** (Phase 6C-v4 → 6F validated):
+  the env-dict-whitelist coupling pattern + `with_phase_order`
+  execution ordering + `self.env = env` aliasing in `pre_year` is
+  proven for 4 distinct domains (flood, vaccination, vaccination_ma,
+  gossip). For new multi-agent domains, read
+  `.claude/skills/wagf-domain-builder/references/multi_agent_walkthrough.md`
+  before starting `lifecycle_hooks.py`.
 
 ## Do NOT do without explicit user approval
 
