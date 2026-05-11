@@ -1,6 +1,6 @@
 # WAGF Domain Builder References
 
-These references support `wagf-domain-builder`, the first-domain-build workflow for a researcher turning a research question into a runnable single-agent WAGF domain. They keep the main `SKILL.md` short while carrying the S0/S1/S5 detail needed to scaffold, edit, validate, and smoke-test a new domain.
+These references support `wagf-domain-builder`, the first-domain-build workflow for a researcher turning a research question into a runnable single-agent OR multi-agent WAGF domain. They keep the main `SKILL.md` short while carrying the S0/S1/S5 detail needed to scaffold, edit, validate, and smoke-test a new domain.
 
 Use them with `docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md`; do not duplicate that guide during execution. The guide is the canonical schema reference, while these files tell the skill what to ask, how to choose patterns, and where to stop.
 
@@ -11,7 +11,8 @@ Use them with `docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md`; do not duplicate that gu
 | `domain_articulation_questions.md` | S0 interview script for domain, decision, cadence, coupling, framework, scope, and baseline. |
 | `skills_design_patterns.md` | S1 patterns for translating a domain decision into 3-5 WAGF skill IDs. |
 | `cognitive_framework_chooser.md` | S0 Q5 chooser for PMT, Utility, Financial, HBM, TPB, or custom frameworks. |
-| `edit_pass_checklist.md` | S5 surgical edit checklist for prompt, DomainPack, validators, and YAML rules. |
+| `edit_pass_checklist.md` | S5 surgical edit checklist (single-agent path) for prompt, DomainPack, validators, YAML rules, and ExperimentBuilder wiring. |
+| `multi_agent_walkthrough.md` | S5 multi-agent path — lifecycle_hooks env-dict-whitelist writes, `with_phase_order` execution ordering, dual-dict gotcha (Phase 6E Finding #3), Tier 1 (broadcast) and Tier 2 (spatial gossip) variants. Read in full before any multi-agent edit-5. |
 | `stage_outputs.md` | One-page S0-S7 output table with verify-done checks. |
 | `README.md` | This index and routing map. |
 
@@ -42,5 +43,7 @@ Do not route a first-domain-build user to `.claude/skills/wagf-quickstart/SKILL.
 ## Reference Domains
 
 - `examples/vaccination_demo/`: first non-water single-agent reference, HBM-based.
-- `examples/irrigation_abm/`: scaling-action water-demand reference.
-- `examples/governed_flood/`: flood adaptation reference with categorical protective actions.
+- `examples/vaccination_ma_demo/`: multi-agent reference, 3 agent types (health_authority + community_org + individual), env-dict-whitelist coupling; supports `--tier2-gossip` for spatial neighbor observability.
+- `examples/irrigation_abm/`: scaling-action water-demand reference (single-agent).
+- `examples/governed_flood/`: flood adaptation reference with categorical protective actions (single-agent).
+- `examples/multi_agent/flood/`: Paper 3 multi-agent flood (4 agent types: government, insurance, household_owner, household_renter); production-scale reference.
