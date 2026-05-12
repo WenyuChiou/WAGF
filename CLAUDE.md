@@ -128,6 +128,40 @@ Honour these refusals when relaying the skill's output to the user.
   should stay in `examples/*/results/`.
 - Create new top-level directories without a stated need.
 
+## Permission overrides specific to WAGF repo
+
+Global `~/.claude/settings.json` denies several Bash patterns by
+default; this repo's `.claude/settings.local.json` overrides them.
+Stay inside these scopes:
+
+| Override allowed here | When OK | When NOT OK |
+|---|---|---|
+| `Bash(git merge:*)` | Feature branch into `main` of this repo. | Don't `git -C <other-repo>` to bypass another repo's deny rule. |
+| `Bash(rm:*)` | Scratch dirs, `.ai/` files, `examples/*/results/_tmp_*`, build artefacts. | NEVER `rm -rf broker/`, `examples/<live-batch>/results/`, `paper/`, `.claude/`. |
+| `Bash(taskkill:*)` | Specific PID first confirmed via `tasklist`. | Don't blanket-kill `ollama.exe` / `python.exe` — running irrigation/flood batches share those names. |
+| `Bash(curl:*)` | API checks against academic publisher domains. | Don't fetch arbitrary URLs without `--max-time` cap. |
+
+When in doubt, run the command without `--no-input` / dry-run first.
+
+## Project hooks (fire every session)
+
+- `UserPromptSubmit` → `hooks/run_ai_patch.js` (codex/gemini-edit
+  trigger; pass-through for normal prompts).
+- `PostToolUse` matcher `Edit|Write` → `hooks/hook_debug.py`
+  (diagnostic logger writes to `hooks/hook_debug.log`).
+- **Log rotation**: `hooks/hook_debug.log` grows unbounded. Truncate
+  manually when it exceeds ~10 MB (last known: 3.4 MB on 2026-05-12).
+
+## Settings state (this repo)
+
+General quarterly hygiene rule for `.claude/settings.local.json` lives
+in `~/.claude/CLAUDE.md`. Repo-specific state:
+
+- Last full cleanup: **2026-05-12** (332 → 261 allow entries, 78 KB → 23 KB).
+- Backup at `.claude/settings.local.json.bak_2026-05-12`.
+- Audit script: `~/.claude/scripts/audit_settings.py` (portable across
+  repos; run from this repo to inspect this repo's settings.local).
+
 ---
 
 ## Related files
