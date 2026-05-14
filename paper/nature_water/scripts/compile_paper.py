@@ -374,7 +374,7 @@ def compile_main_paper():
     # ==================== ABSTRACT ====================
     add_heading(doc, "Abstract", level=1)
 
-    abstract_md = (DRAFTS / "abstract_v10.md").read_text(encoding='utf-8')
+    abstract_md = (DRAFTS / "abstract_v15.md").read_text(encoding='utf-8')
     # Extract just the abstract body (between the --- markers)
     match = re.search(r'---\s*\n(.*?)\n---', abstract_md, re.DOTALL)
     if match:
@@ -390,9 +390,9 @@ def compile_main_paper():
 
     # ==================== MAIN SECTIONS ====================
     sections_files = [
-        "introduction_v10.md",
-        "section2_v11_results.md",
-        "section3_v11_discussion.md",
+        "introduction_v16.md",
+        "section2_v17_results.md",
+        "section3_v17_discussion.md",
     ]
 
     # Figure insertion map: after which section heading to insert which figure
@@ -400,54 +400,54 @@ def compile_main_paper():
     # Main text: 3 figures (framework, irrigation, flood)
     # Tables moved to Extended Data (not counted toward 4-item limit)
     figure_after_section = {
-        "introduction_v10.md": [
+        "introduction_v16.md": [
             (FIGURES_DIR / "Fig1_framework.png",
-             "**Figure 1. Water Agent Governance Framework architecture.** "
-             "At each decision step, an LLM agent receives contextual information "
-             "(personal state, social observations, system indicators) and proposes "
-             "an action with natural-language reasoning. The governance pipeline "
-             "validates the proposal through six sequential checks: schema validation, "
-             "action legality, physical feasibility, institutional compliance, "
-             "magnitude plausibility, and theory consistency. Failed proposals receive "
-             "structured feedback for revision (up to three attempts). "
-             "All domain-specific knowledge is expressed through declarative configuration "
-             "files (action registries, agent-type specifications, persona prompts), "
-             "making the architecture transferable across water domains without code changes.",
+             "**Figure 1. Water Agent Governance Framework architecture, illustrated for the household flood-adaptation case.** "
+             "At each annual step, the Context Builder assembles the available information for an LLM household agent "
+             "(flood zone, income, prior adaptation state, persona). The agent proposes an adaptation action "
+             "(do nothing, purchase insurance, elevate, or relocate) together with natural-language reasoning that names its threat and coping appraisals. "
+             "The Governance Layer screens the proposal: the Parser converts it to a structured candidate, the Validator runs the rule-check pipeline "
+             "(behavioural rules from Protection Motivation Theory — threat × coping coherence — and physical rules such as affordability and elevation lock), "
+             "and the Auditor records both a Parsing Log and a Rule-Check Log. "
+             "Approved actions execute before the stochastic flood event resolves in the Environment; the agent then observes its own adaptation outcome "
+             "and the choices of neighbours. These observations are stored in episodic memory (Memory & Retrieval) and distilled by year-end Reflection into semantic insights that condition next year's reasoning. "
+             "The same architecture applies to the irrigation case (Fig. 2) with the Validator's rule-check set swapped to dual-appraisal scarcity coherence (Water Shortage Appraisal × Adaptive Capacity Appraisal) "
+             "and the Environment to a Colorado River reservoir mass-balance model — observable (iii) in the Introduction.",
              Inches(6.0)),
         ],
-        "section2_v11_results.md": [
+        "section2_v17_results.md": [
             (FIGURES_DIR / "Fig2_irrigation_case.png",
-             "**Figure 2. Governance shapes water-resource reasoning in the irrigation domain** "
-             "(78 agents \u00d7 42 years, Gemma-3 4B, 5 seeds each). "
-             "(**a**) Action composition over time for governed (left, IBR = 38%) and "
-             "LLM (no validator) (right, IBR = 61%) conditions. "
-             "Stacked areas show ensemble-mean action shares across 5 seeds. "
-             "Black solid line: Lake Mead elevation (right axis); "
-             "grey dashed line: fuzzy Q-learning (FQL) baseline (Hung and Yang, 2021). "
-             "Red dashed line: Tier 1 shortage threshold (1,075 ft). "
-             "Grey shading: \u00b1 1 s.d. envelope around Mead elevation. "
-             "(**b**) 5\u00d75 pie matrices decomposing action distributions by "
-             "Water Shortage Appraisal (WSA, rows) and Adaptive Capacity Appraisal (ACA, columns). "
-             "Left: governed; right: LLM (no validator). "
-             "Pie sizes proportional to decision count (n). "
-             "Background shading indicates governance violation rate per cell. "
-             "Non-compliance concentrates at the high-WSA/high-ACA boundary, "
-             "where 51.2% of governed agents proposed demand increases (all rejected).",
+             "**Figure 2. Colorado River irrigation case** "
+             "(78 agents \u00d7 42 years from 1981 to 2022, Gemma-3 4B, 5 seeds each; setup follows the design tradition of Hung and Yang, 2021). "
+             "(**a**) Stacked-area decomposition of annual action shares for Governed LLM (left) and LLM (no validator) (right). "
+             "Categories: increase_large / increase_small / maintain / decrease_small / decrease_large. "
+             "Solid black line: LLM-agent Lake Mead elevation (right axis, ft); "
+             "dashed grey line: fuzzy Q-learning baseline Lake Mead elevation; "
+             "dashed red line: Tier 1 shortage threshold (1,075 ft); "
+             "grey shading: \u00b1 1 s.d. envelope around Mead elevation across 5 seeds. "
+             "(**b**) Non-compliance signature: violation rate (%) decomposed by Water Shortage Appraisal "
+             "(WSA = Very Low / Low / Moderate / High / Very High) and Adaptive Capacity Appraisal (ACA, same letters), "
+             "for Governed LLM (left) versus LLM (no validator) (right). "
+             "Cell inserts: action-share pie charts; small-number labels show the decision count per cell; "
+             "empty cells with no decisions are shaded grey. "
+             "Validators reduce violations in every quadrant except the high-WSA \u00d7 high-ACA intersection, "
+             "where 51.2% of with-validators proposals still attempt demand increases \u2014 consistent with anticipatory extraction in prior-appropriation systems (Libecap, 2011).",
              Inches(6.0)),
             (FIGURES_DIR / "Fig3_flood_case.png",
-             "**Figure 3. Governance effect on household flood-adaptation behaviour** "
-             "(100 agents \u00d7 10 years, Gemma-3 4B, 3 seeds each). "
-             "(**a**) Cumulative protection state over 10 years for three conditions: "
-             "governed LLM (left), rule-based PMT baseline (centre), and LLM (no validator) (right). "
-             "Stacked bars show population counts by protection state "
-             "(DN = do nothing, FI = flood insurance, HE = home elevation, "
-             "FI+HE = both, RL = relocation). "
-             "(**b**) 5\u00d75 pie matrices decomposing action distributions by "
-             "Threat Appraisal (TA, rows) and Coping Appraisal (CA, columns). "
-             "Left: LLM (no validator); right: governed LLM. "
-             "Background shading indicates governance violation rate per cell. "
-             "92% of governed agents self-assessed coping appraisal at a single level (M, moderate), "
-             "suggesting governance success in flood partially reflects cognitive compression.",
+             "**Figure 3. Household flood-adaptation case** "
+             "(100 agents \u00d7 10 years, Gemma-3 4B, 5 seeds each for LLM conditions, 3 for rule-based; "
+             "rule-based agent is our reimplementation in the style of Haer et al., 2017). "
+             "(**a**) Annual population counts by protective strategy for Governed LLM (left), "
+             "rule-based PMT agent (centre), and LLM (no validator) (right). "
+             "Stack categories: DN = do nothing, FI = flood insurance, HE = house elevation, "
+             "FI+HE = both, RL = relocation. Pink F markers indicate flood years (identical hydrology trace across conditions). "
+             "(**b**) Non-compliance signature: violation rate decomposed by Threat Appraisal "
+             "(TA = Very Low / Low / Moderate / High / Very High) and Coping Appraisal (CA, same letters), "
+             "for Governed LLM and LLM (no validator). "
+             "Cell inserts: action-share pies; the FI+HE composite is split into constituent actions for diversity computation (Methods \u00a7Strategy diversity metric). "
+             "Validators reduce the high-threat / moderate-coping violation count tenfold while preserving action-share diversity across cells; "
+             "92% of with-validators agents self-assessed coping at a single level (M, moderate), "
+             "suggesting that the validator effect in flood partially reflects compression of cognitive differentiation rather than genuinely diverse adaptive reasoning (see Discussion).",
              Inches(6.0)),
         ],
     }
@@ -507,7 +507,7 @@ def compile_main_paper():
                     add_figure(doc, fig_path, fig_caption, width=fig_width)
 
     # ==================== METHODS ====================
-    methods_md = (DRAFTS / "methods_v3.md").read_text(encoding='utf-8')
+    methods_md = (DRAFTS / "methods_v7.md").read_text(encoding='utf-8')
     elements = extract_body_and_tables(methods_md)
     render_elements(elements)
 
@@ -607,7 +607,7 @@ def compile_main_paper():
         fldChar2 = parse_xml(f'<w:fldChar {nsdecls("w")} w:fldCharType="end"/>')
         run3._element.append(fldChar2)
 
-    out_path = OUTPUT / "NatureWater_MainText_v21.docx"
+    out_path = OUTPUT / "NatureWater_MainText_v25.docx"
     doc.save(str(out_path))
     print(f"Main paper saved to: {out_path}")
     return out_path
@@ -645,7 +645,7 @@ def compile_si():
                          space_after=Pt(24))
 
     # Parse SI
-    si_md = (DRAFTS / "supplementary_information.md").read_text(encoding='utf-8')
+    si_md = (DRAFTS / "supplementary_information_v13.md").read_text(encoding='utf-8')
     elements = extract_body_and_tables(si_md)
 
     for etype, content in elements:
@@ -689,7 +689,7 @@ def compile_si():
     # Line numbers
     add_line_numbers(doc)
 
-    out_path = OUTPUT / "NatureWater_SI_v21.docx"
+    out_path = OUTPUT / "NatureWater_SI_v25.docx"
     doc.save(str(out_path))
     print(f"SI saved to: {out_path}")
     return out_path

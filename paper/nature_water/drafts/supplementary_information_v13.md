@@ -87,6 +87,44 @@ The governance pipeline validates each agent decision through validators organis
 
 *Notes: Behavioural governance rules (1–4) are derived from Protection Motivation Theory and constitute the paper's primary governance contribution. The same rules are applied post-hoc to compute IBR: rules 3 and 4 correspond to IBR violation types V1 (relocation under low threat) and V2 (elevation under low threat); rule 1 corresponds to V3 (inaction under extreme threat), which is excluded from the reported IBR because the pipeline intercepted all violations before execution (see Supplementary Note 5). Rule 2 operates at WARNING severity, which for small LLMs (≤ 4B parameters) produces no measurable behavioural change — a boundary condition of soft governance. Domain constraints (5–8) enforce feasibility checks standard in any flood ABM. Epistemic guardrails (9–12) address reasoning errors unique to LLM-based agents; these operate at WARNING severity and are not included in IBR computation.*
 
+**Supplementary Table 1b. Policy and theoretical justification for irrigation domain validators.**
+
+Each validator is anchored in a specific institutional rule, behavioural theory, or peer-reviewed empirical study. We do not introduce free-parameter constraints; the validator set is the operationalisation of pre-existing institutional and theoretical knowledge.
+
+| # | Validator | Primary justification | Citation |
+|---|-----------|------------------------|----------|
+| 1 | Water-right cap | Colorado River Compact (1922) prior-appropriation system; CRSS demand-node allocations | Maass (1962); Yang (2009); Hung & Yang (2021) |
+| 2 | Non-negative diversion | Physical conservation (mass balance) | — (axiom) |
+| 3 | Minimum utilisation floor | "Use it or lose it" provisions in Colorado River law (forfeiture for non-use) | Yang (2009) |
+| 4 | Demand-floor stabiliser | Empirical irrigation demand stability under drought (year-over-year demand floor) | Hung (2022) |
+| 5 | Demand-ceiling rule | Bureau of Reclamation demand-side aggregate constraints in CRSS operations | Loucks (2017) |
+| 6 | Drought severity tiers | 2007 Interim Guidelines + 2019 Drought Contingency Plans (Lower Basin Tier 1/2/3 cuts) | Loucks (2017); Hung & Yang (2021) |
+| 7 | Magnitude cap | Heuristic-based demand-adjustment magnitudes derived from CRSS persona clustering | Hyun & Yang (2019); Lin (2022) |
+| 8 | Supply-gap block | Carry-over irrigation behaviour under unmet demand (year-following-shortage moderation) | Hung (2022); Lin (2022) |
+| 9 | Curtailment awareness | Lower Basin curtailment hierarchy under shortage tiers | Loucks (2017); Hung (2022) |
+| 10 | Compact allocation | 1922 Colorado River Compact; 1948 Upper Colorado River Basin Compact | Maass (1962); Yang (2009) |
+| 11 | Consecutive-increase cap | Coupled human–natural-system feedback theory (memory of recent drought shapes adaptation) | Liu (2007); Sivapalan (2012); Di Baldassarre (2013) |
+| 12 | WSA–ACA coherence | Dual appraisal cognitive theory (water-shortage appraisal × adaptive-capacity appraisal); analogous to PMT structure for non-flood hazards | Schlüter (2017); Park et al. (2023) |
+
+**Supplementary Table 2b. Policy and theoretical justification for flood domain validators.**
+
+| # | Validator | Primary justification | Citation |
+|---|-----------|------------------------|----------|
+| 1 | Extreme-threat block (PMT) | Protection Motivation Theory: high threat perception predicts protective action propensity | Rogers (1983); Bubeck et al. (2012) |
+| 2 | Low-coping block (PMT) | Protection Motivation Theory: low coping appraisal suppresses costly adaptation | Rogers (1983); Bubeck & Botzen (2018) |
+| 3 | Relocation-threat-low (PMT) | Empirical: relocation occurs only under sustained high threat, not at low threat | Bubeck et al. (2012); Haer et al. (2017) |
+| 4 | Elevation-threat-low (PMT) | Empirical: elevation as costly protective action requires above-baseline threat appraisal | Bubeck et al. (2012); Haer et al. (2017) |
+| 5 | Re-elevation block (config) | Physical irreversibility of structural elevation; declared in skill-registry preconditions | — (axiom); FEMA P-312 |
+| 6 | Re-elevation block (code) | Defence-in-depth duplicate of rule 5 enforced in Python validator | — (engineering practice) |
+| 7 | Post-relocation block | Tenure logic: agent who relocated no longer owns property at risk | — (axiom) |
+| 8 | Elevation affordability | Income-constrained adaptation: elevation requires liquid savings ≥ FEMA-estimated cost | Haer et al. (2017); FEMA P-312 |
+| 9 | Majority-deviation warning | Social-proof effects in flood-adaptation ABMs: neighbour-network observation shapes choice | Castilla-Rho et al. (2017); Haer et al. (2017) |
+| 10 | Social-proof hallucination | LLM-specific guardrail: prevents fabricated neighbour-action references | Huang et al. (2025) |
+| 11 | Temporal grounding | LLM-specific guardrail: prevents fabricated past flood references | Huang et al. (2025) |
+| 12 | State consistency | LLM-specific guardrail: prevents reasoning that contradicts agent state | Huang et al. (2025) |
+
+*Notes: For both irrigation and flood, the validator set deliberately encodes only **independently established** institutional rules (Compact law, FEMA elevation cost data, NFIP eligibility) and **peer-reviewed** behavioural theories (PMT, dual appraisal, coupled human–natural feedback); we did not introduce post-hoc "validators" tuned to the experimental data. This separation is the basis of the minimum-intervention design framing in Methods §Broker Architecture: institutional rules act as guardrails against unambiguously irrational behaviour, leaving the remaining decision space (≥ 80% of the (cognition, action) cells) to LLM-driven reasoning.*
+
 ---
 
 ## Supplementary Note 3. LLM Prompt Templates
