@@ -2,6 +2,7 @@ from datetime import datetime
 from dataclasses import dataclass
 import json
 import csv
+import os
 import threading
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Iterable, Tuple
@@ -110,6 +111,232 @@ class AuditConfig:
     experiment_name: str = "simulation"
     log_level: str = "full"  # full, summary, errors_only
     clear_existing_traces: bool = True
+
+
+_CONSTRUCT_SUFFIXES = ("_LABEL", "_UTIL", "_GAP", "_IMPACT", "_APPETITE")
+
+
+def _sanitize_text(val: Any) -> Any:
+    """Sanitize text for CSV compatibility (strip newlines)."""
+    if not isinstance(val, str):
+        return val
+    return val.replace('\n', ' ').replace('\r', ' ').strip()
+
+
+def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert a single audit trace dict to a flat CSV row dict.
+
+    Extracted as a module-level function (Phase 6G, 2026-05-15) so the
+    `broker.tools.recover_csv_from_jsonl` CLI can reuse the exact same
+    row schema as the live audit writer's `_export_csv` method. Single
+    source of truth for trace → row mapping.
+    """
+    # 1. Base identity and timing
+    row = {
+        "step_id": t.get("step_id"),
+        "year": t.get("year"),
+        "timestamp": t.get("timestamp"),
+        "agent_id": t.get("agent_id"),
+        "status": (t.get("approved_skill") or {}).get("status", "UNKNOWN"),
+        "retry_count": t.get("retry_count", 0),
+        "validated": t.get("validated", True),
+    }
+
+    # 1.5. LLM-level retry info (for empty response tracking)
+    llm_stats = t.get("llm_stats") or {}
+    row["llm_retries"] = llm_stats.get("llm_retries", t.get("llm_retries", 0))
+    row["llm_success"] = llm_stats.get("llm_success", t.get("llm_success", True))
+
+    # 1.5b. R5-C: Token monitoring
+    row["prompt_tokens"] = llm_stats.get("prompt_tokens", 0)
+    row["response_tokens"] = llm_stats.get("response_tokens", 0)
+    row["num_ctx"] = llm_stats.get("num_ctx", 0)
+    row["context_utilization"] = llm_stats.get("context_utilization", 0.0)
+
+    # 1.6. Structural fault tracking (format/parsing issues fixed by retry)
+    row["format_retries"] = t.get("format_retries", 0)
+
+    # 2. Skill Logic (Proposed vs Approved)
+    skill_prop = t.get("skill_proposal") or {}
+    appr_skill = t.get("approved_skill") or {}
+    row["proposed_skill"] = skill_prop.get("skill_name")
+    row["final_skill"] = appr_skill.get("skill_name")
+    row["parsing_warnings"] = "|".join(skill_prop.get("parsing_warnings", []) or [])
+    row["raw_output"] = skill_prop.get("raw_output", t.get("raw_output", ""))
+
+    # 2.5. Parse Quality Metrics (Task-040 C4)
+    row["parse_layer"] = skill_prop.get("parse_layer", "")
+    row["parse_confidence"] = skill_prop.get("parse_confidence", 0.0)
+    row["construct_completeness"] = skill_prop.get("construct_completeness", 0.0)
+
+    # 2.6. Fallback Indicator (Task-040 C.1 + Phase 6G 2026-05-15 fix).
+    # Source of truth for fallback is the trace's top-level `fallback_activated`
+    # field (set by retry_loop on REJECTED_FALLBACK termination); we only fall
+    # back to status-string inference when the field is absent (older traces).
+    if "fallback_activated" in t:
+        row["fallback_activated"] = bool(t["fallback_activated"])
+    else:
+        status_value = row["status"]
+        row["fallback_activated"] = status_value in (
+            "FALLBACK", "fallback", "MODIFIED", "REJECTED_FALLBACK"
+        )
+
+    # 3. Reasoning (TP/CP Appraisal + Audits)
+    reasoning = skill_prop.get("reasoning", {})
+    if isinstance(reasoning, dict):
+        for k, v in reasoning.items():
+            if k == "demographic_audit" and isinstance(v, dict):
+                # Flatten Demographic Audit (Phase 21)
+                row["demo_score"] = v.get("score", 0.0)
+                row["demo_anchors"] = "|".join(v.get("cited_anchors", []))
+            elif k.lower() == "appraisal":
+                 # PROMOTE Appraisal to top level for CSV visibility
+                 row["appraisal"] = v
+            else:
+                row[f"reason_{k.lower()}"] = v
+    else:
+        row["reason_text"] = str(reasoning)
+
+    # 4. Validation Details (Which rule triggered)
+    issues = t.get("validation_issues", [])
+    if issues:
+        row["failed_rules"] = "|".join([str(i.get('rule_id', 'Unknown')) for i in issues])
+        row["error_messages"] = "|".join(["; ".join(i.get('errors', [])) for i in issues])
+    else:
+        row["failed_rules"] = ""
+        row["error_messages"] = ""
+
+    # 4b. Warning Details (Non-blocking governance observations)
+    warnings_list = t.get("validation_warnings_list", [])
+    if warnings_list:
+        row["warning_rules"] = "|".join([str(w.get('rule_id', 'Unknown')) for w in warnings_list])
+        row["warning_messages"] = "|".join(["; ".join(w.get('warnings', [])) for w in warnings_list])
+    else:
+        row["warning_rules"] = ""
+        row["warning_messages"] = ""
+
+    # 5. Memory Audit (E1) - Memory retrieval details
+    mem_audit = t.get("memory_audit", {})
+    if mem_audit:
+        row["mem_retrieved_count"] = mem_audit.get("retrieved_count", 0)
+        row["mem_cognitive_system"] = mem_audit.get("cognitive_system", "")
+        row["mem_surprise"] = mem_audit.get("surprise_value", 0.0)
+        row["mem_retrieval_mode"] = mem_audit.get("retrieval_mode", "")
+        memories = mem_audit.get("memories", [])
+        if memories:
+            emotions = [m.get("emotion", "neutral") for m in memories if isinstance(m, dict)]
+            sources = [m.get("source", "personal") for m in memories if isinstance(m, dict)]
+            row["mem_top_emotion"] = max(set(emotions), key=emotions.count) if emotions else ""
+            row["mem_top_source"] = max(set(sources), key=sources.count) if sources else ""
+        else:
+            row["mem_top_emotion"] = ""
+            row["mem_top_source"] = ""
+    else:
+        row["mem_retrieved_count"] = 0
+        row["mem_cognitive_system"] = ""
+        row["mem_surprise"] = 0.0
+        row["mem_retrieval_mode"] = ""
+        row["mem_top_emotion"] = ""
+        row["mem_top_source"] = ""
+
+    # 6. Social Audit (E2) - Social context details
+    social_audit = t.get("social_audit", {})
+    if social_audit:
+        row["social_gossip_count"] = len(social_audit.get("gossip_received", []))
+        visible = social_audit.get("visible_actions", {})
+        row["social_elevated_neighbors"] = visible.get("elevated_neighbors", 0)
+        row["social_relocated_neighbors"] = visible.get("relocated_neighbors", 0)
+        row["social_neighbor_count"] = social_audit.get("neighbor_count", 0)
+        row["social_network_density"] = social_audit.get("network_density", 0.0)
+    else:
+        row["social_gossip_count"] = 0
+        row["social_elevated_neighbors"] = 0
+        row["social_relocated_neighbors"] = 0
+        row["social_neighbor_count"] = 0
+        row["social_network_density"] = 0.0
+
+    # 7. Cognitive Audit (E3) - Cognitive state details
+    cog_audit = t.get("cognitive_audit", {})
+    if cog_audit:
+        row["cog_system_mode"] = cog_audit.get("system_mode", "")
+        row["cog_surprise_value"] = cog_audit.get("surprise", 0.0)
+        row["cog_is_novel_state"] = cog_audit.get("is_novel_state", False)
+        row["cog_margin_to_switch"] = cog_audit.get("margin_to_switch", 0.0)
+    else:
+        row["cog_system_mode"] = ""
+        row["cog_surprise_value"] = 0.0
+        row["cog_is_novel_state"] = False
+        row["cog_margin_to_switch"] = 0.0
+
+    # 8. Rule Breakdown (B.5) - Rules hit by category
+    rule_breakdown = t.get("rule_breakdown", {})
+    row["rules_personal_hit"] = rule_breakdown.get("personal", 0)
+    row["rules_social_hit"] = rule_breakdown.get("social", 0)
+    row["rules_thinking_hit"] = rule_breakdown.get("thinking", 0)
+    row["rules_physical_hit"] = rule_breakdown.get("physical", 0)
+    row["rules_semantic_hit"] = rule_breakdown.get("semantic", 0)
+
+    # 8b. Hallucination type from validation issues
+    hall_types = [i.get("hallucination_type") for i in issues if i.get("hallucination_type")]
+    row["hallucination_types"] = "|".join(hall_types) if hall_types else ""
+
+    # 9. Construct Tracking — dynamic extraction from reasoning dict.
+    reasoning_dict = skill_prop.get("reasoning", {}) if isinstance(skill_prop.get("reasoning"), dict) else {}
+    for key, val in reasoning_dict.items():
+        if any(key.endswith(suffix) for suffix in _CONSTRUCT_SUFFIXES):
+            row[f"construct_{key}"] = val
+
+    # 10. Rule Evaluation Details (Task-041 Phase 3)
+    rules_evaluated = t.get("rules_evaluated", [])
+    triggered_rules = t.get("triggered_rules", [])
+    row["rules_evaluated_count"] = len(rules_evaluated) if rules_evaluated else 0
+    row["rules_triggered"] = "|".join(triggered_rules) if triggered_rules else ""
+
+    # Condition match details (first 3 for CSV)
+    condition_results = t.get("condition_results", [])
+    for i in range(3):
+        if i < len(condition_results):
+            cond_result = condition_results[i]
+            row[f"condition_{i}_rule"] = cond_result.get("rule_id", "")
+            row[f"condition_{i}_matched"] = cond_result.get("matched", False)
+        else:
+            row[f"condition_{i}_rule"] = ""
+            row[f"condition_{i}_matched"] = ""
+
+    return {k: _sanitize_text(v) for k, v in row.items()}
+
+
+def compute_csv_fieldnames(rows: List[Dict[str, Any]],
+                           audit_priority: Optional[List[str]] = None) -> List[str]:
+    """Compute priority-ordered fieldname list given a batch of row dicts.
+
+    Mirrors the column ordering logic in GenericAuditWriter._export_csv so
+    crash-recovered CSVs match live-written CSVs column-for-column.
+    """
+    if not rows:
+        return []
+    all_keys_set: set = set().union(*(d.keys() for d in rows))
+    construct_cols = sorted(k for k in all_keys_set if k.startswith("construct_"))
+
+    priority_keys = [
+        "step_id", "year", "agent_id",
+        "proposed_skill", "final_skill", "status", "fallback_activated",
+        "retry_count", "format_retries", "validated", "failed_rules",
+        "parse_layer", "parse_confidence", "construct_completeness",
+        *construct_cols,
+        "rules_evaluated_count", "rules_triggered",
+        "mem_retrieved_count", "mem_cognitive_system", "mem_surprise",
+        "social_gossip_count", "social_elevated_neighbors", "social_neighbor_count",
+        "cog_system_mode", "cog_surprise_value", "cog_is_novel_state",
+        "rules_personal_hit", "rules_social_hit", "rules_thinking_hit",
+        "rules_physical_hit", "rules_semantic_hit", "hallucination_types",
+    ]
+    if audit_priority and isinstance(audit_priority, list):
+        priority_keys = ["step_id", "agent_id"] + audit_priority + [
+            k for k in priority_keys
+            if k not in ["step_id", "agent_id"] + audit_priority
+        ]
+    return priority_keys + [k for k in sorted(list(all_keys_set)) if k not in priority_keys]
 
 
 class GenericAuditWriter:
@@ -323,16 +550,26 @@ class GenericAuditWriter:
         return self.summary
     
     def _flush_jsonl_buffer(self, agent_type: str, file_path: Path) -> None:
-        """Flush buffered JSONL lines to disk."""
+        """Flush buffered JSONL lines to disk + fsync.
+
+        Phase 6G crash-resistance fix (2026-05-15): explicit os.fsync after
+        each flush so a process crash mid-year cannot lose recent traces in
+        the OS page cache. Per-call cost is ~1 ms on SSDs, negligible
+        against LLM inference time. Combined with the JSONL-to-CSV recovery
+        CLI (`broker.tools.recover_csv_from_jsonl`), this closes the
+        2026-05-13/14 14-hour-data-loss failure mode.
+        """
         if agent_type not in self._jsonl_buffer or not self._jsonl_buffer[agent_type]:
             return
-        
+
         import time
         max_retries = 3
         for attempt in range(max_retries):
             try:
                 with open(file_path, 'a', encoding='utf-8') as f:
                     f.writelines(self._jsonl_buffer[agent_type])
+                    f.flush()
+                    os.fsync(f.fileno())
                 self._jsonl_buffer[agent_type] = [] # Clear buffer
                 break
             except (OSError, IOError) as e:
@@ -356,223 +593,20 @@ class GenericAuditWriter:
         csv_path = self.output_dir / f"{agent_type}_governance_audit.csv"
         if not traces: return
 
-        flat_rows = []
-        for t in traces:
-            # [Previous row building logic remains the same...]
-            # ... abbreviated for clarify in replacement ...
-            # 1. Base identity and timing
-            row = {
-                "step_id": t.get("step_id"),
-                "year": t.get("year"),
-                "timestamp": t.get("timestamp"),
-                "agent_id": t.get("agent_id"),
-                "status": (t.get("approved_skill") or {}).get("status", "UNKNOWN"),
-                "retry_count": t.get("retry_count", 0),
-                "validated": t.get("validated", True),
-            }
-            
-            # 1.5. LLM-level retry info (for empty response tracking)
-            llm_stats = t.get("llm_stats") or {}
-            row["llm_retries"] = llm_stats.get("llm_retries", t.get("llm_retries", 0))
-            row["llm_success"] = llm_stats.get("llm_success", t.get("llm_success", True))
-
-            # 1.5b. R5-C: Token monitoring
-            row["prompt_tokens"] = llm_stats.get("prompt_tokens", 0)
-            row["response_tokens"] = llm_stats.get("response_tokens", 0)
-            row["num_ctx"] = llm_stats.get("num_ctx", 0)
-            row["context_utilization"] = llm_stats.get("context_utilization", 0.0)
-
-            # 1.6. Structural fault tracking (format/parsing issues fixed by retry)
-            row["format_retries"] = t.get("format_retries", 0)
-            
-            # 2. Skill Logic (Proposed vs Approved)
-            skill_prop = t.get("skill_proposal") or {}
-            appr_skill = t.get("approved_skill") or {}
-            row["proposed_skill"] = skill_prop.get("skill_name")
-            row["final_skill"] = appr_skill.get("skill_name")
-            row["parsing_warnings"] = "|".join(skill_prop.get("parsing_warnings", []) or [])
-            row["raw_output"] = skill_prop.get("raw_output", t.get("raw_output", ""))
-
-            # 2.5. Parse Quality Metrics (Task-040 C4)
-            row["parse_layer"] = skill_prop.get("parse_layer", "")
-            row["parse_confidence"] = skill_prop.get("parse_confidence", 0.0)
-            row["construct_completeness"] = skill_prop.get("construct_completeness", 0.0)
-
-            # 2.6. Fallback Indicator (Task-040 C.1)
-            status = row["status"]
-            row["fallback_activated"] = status in ("FALLBACK", "fallback", "MODIFIED")
-            
-            # 3. Reasoning (TP/CP Appraisal + Audits)
-            reasoning = skill_prop.get("reasoning", {})
-            if isinstance(reasoning, dict):
-                for k, v in reasoning.items():
-                    if k == "demographic_audit" and isinstance(v, dict):
-                        # Flatten Demographic Audit (Phase 21)
-                        row["demo_score"] = v.get("score", 0.0)
-                        row["demo_anchors"] = "|".join(v.get("cited_anchors", []))
-                    elif k.lower() == "appraisal":
-                         # PROMOTE Appraisal to top level for CSV visibility
-                         row["appraisal"] = v
-                    else:
-                        row[f"reason_{k.lower()}"] = v
-            else:
-                # Fallback: if reasoning is a string, check if it contains Appraisal logic
-                row["reason_text"] = str(reasoning)
-            
-            # 4. Validation Details (Which rule triggered)
-            issues = t.get("validation_issues", [])
-            if issues:
-                row["failed_rules"] = "|".join([str(i.get('rule_id', 'Unknown')) for i in issues])
-                row["error_messages"] = "|".join(["; ".join(i.get('errors', [])) for i in issues])
-            else:
-                row["failed_rules"] = ""
-                row["error_messages"] = ""
-
-            # 4b. Warning Details (Non-blocking governance observations)
-            warnings_list = t.get("validation_warnings_list", [])
-            if warnings_list:
-                row["warning_rules"] = "|".join([str(w.get('rule_id', 'Unknown')) for w in warnings_list])
-                row["warning_messages"] = "|".join(["; ".join(w.get('warnings', [])) for w in warnings_list])
-            else:
-                row["warning_rules"] = ""
-                row["warning_messages"] = ""
-
-            # 5. Memory Audit (E1) - Memory retrieval details
-            mem_audit = t.get("memory_audit", {})
-            if mem_audit:
-                row["mem_retrieved_count"] = mem_audit.get("retrieved_count", 0)
-                row["mem_cognitive_system"] = mem_audit.get("cognitive_system", "")
-                row["mem_surprise"] = mem_audit.get("surprise_value", 0.0)
-                row["mem_retrieval_mode"] = mem_audit.get("retrieval_mode", "")
-                # Extract top emotion/source from memories
-                memories = mem_audit.get("memories", [])
-                if memories:
-                    emotions = [m.get("emotion", "neutral") for m in memories if isinstance(m, dict)]
-                    sources = [m.get("source", "personal") for m in memories if isinstance(m, dict)]
-                    row["mem_top_emotion"] = max(set(emotions), key=emotions.count) if emotions else ""
-                    row["mem_top_source"] = max(set(sources), key=sources.count) if sources else ""
-                else:
-                    row["mem_top_emotion"] = ""
-                    row["mem_top_source"] = ""
-            else:
-                row["mem_retrieved_count"] = 0
-                row["mem_cognitive_system"] = ""
-                row["mem_surprise"] = 0.0
-                row["mem_retrieval_mode"] = ""
-                row["mem_top_emotion"] = ""
-                row["mem_top_source"] = ""
-
-            # 6. Social Audit (E2) - Social context details
-            social_audit = t.get("social_audit", {})
-            if social_audit:
-                row["social_gossip_count"] = len(social_audit.get("gossip_received", []))
-                visible = social_audit.get("visible_actions", {})
-                row["social_elevated_neighbors"] = visible.get("elevated_neighbors", 0)
-                row["social_relocated_neighbors"] = visible.get("relocated_neighbors", 0)
-                row["social_neighbor_count"] = social_audit.get("neighbor_count", 0)
-                row["social_network_density"] = social_audit.get("network_density", 0.0)
-            else:
-                row["social_gossip_count"] = 0
-                row["social_elevated_neighbors"] = 0
-                row["social_relocated_neighbors"] = 0
-                row["social_neighbor_count"] = 0
-                row["social_network_density"] = 0.0
-
-            # 7. Cognitive Audit (E3) - Cognitive state details
-            cog_audit = t.get("cognitive_audit", {})
-            if cog_audit:
-                row["cog_system_mode"] = cog_audit.get("system_mode", "")
-                row["cog_surprise_value"] = cog_audit.get("surprise", 0.0)
-                row["cog_is_novel_state"] = cog_audit.get("is_novel_state", False)
-                row["cog_margin_to_switch"] = cog_audit.get("margin_to_switch", 0.0)
-            else:
-                row["cog_system_mode"] = ""
-                row["cog_surprise_value"] = 0.0
-                row["cog_is_novel_state"] = False
-                row["cog_margin_to_switch"] = 0.0
-
-            # 8. Rule Breakdown (B.5) - Rules hit by category
-            rule_breakdown = t.get("rule_breakdown", {})
-            row["rules_personal_hit"] = rule_breakdown.get("personal", 0)
-            row["rules_social_hit"] = rule_breakdown.get("social", 0)
-            row["rules_thinking_hit"] = rule_breakdown.get("thinking", 0)
-            row["rules_physical_hit"] = rule_breakdown.get("physical", 0)
-            row["rules_semantic_hit"] = rule_breakdown.get("semantic", 0)
-
-            # 8b. Hallucination type from validation issues
-            hall_types = [i.get("hallucination_type") for i in issues if i.get("hallucination_type")]
-            row["hallucination_types"] = "|".join(hall_types) if hall_types else ""
-
-            # 9. Construct Tracking — dynamic extraction from reasoning dict.
-            # Captures any key matching known construct suffixes, regardless of domain.
-            reasoning = skill_prop.get("reasoning", {}) if isinstance(skill_prop.get("reasoning"), dict) else {}
-            _CONSTRUCT_SUFFIXES = ("_LABEL", "_UTIL", "_GAP", "_IMPACT", "_APPETITE")
-            for key, val in reasoning.items():
-                if any(key.endswith(suffix) for suffix in _CONSTRUCT_SUFFIXES):
-                    row[f"construct_{key}"] = val
-
-            # 10. Rule Evaluation Details (Task-041 Phase 3)
-            rules_evaluated = t.get("rules_evaluated", [])
-            triggered_rules = t.get("triggered_rules", [])
-            row["rules_evaluated_count"] = len(rules_evaluated) if rules_evaluated else 0
-            row["rules_triggered"] = "|".join(triggered_rules) if triggered_rules else ""
-
-            # Condition match details (first 3 for CSV)
-            condition_results = t.get("condition_results", [])
-            for i in range(3):
-                if i < len(condition_results):
-                    cond_result = condition_results[i]
-                    row[f"condition_{i}_rule"] = cond_result.get("rule_id", "")
-                    row[f"condition_{i}_matched"] = cond_result.get("matched", False)
-                else:
-                    row[f"condition_{i}_rule"] = ""
-                    row[f"condition_{i}_matched"] = ""
-
-            # Sanitize all values in row
-            sanitized_row = {k: self.sanitize_text(v) for k, v in row.items()}
-            flat_rows.append(sanitized_row)
+        flat_rows = [trace_to_csv_row(t) for t in traces]
 
         if not flat_rows: return
 
-        # Ensure consistent column ordering for user
-        # Collect construct columns dynamically from data (sorted for determinism)
-        all_keys_set = set().union(*(d.keys() for d in flat_rows))
-        construct_cols = sorted(k for k in all_keys_set if k.startswith("construct_"))
-
-        priority_keys = [
-            # Core identity
-            "step_id", "year", "agent_id",
-            # Skill decision
-            "proposed_skill", "final_skill", "status", "fallback_activated",
-            # Governance stats
-            "retry_count", "format_retries", "validated", "failed_rules",
-            # Parse quality
-            "parse_layer", "parse_confidence", "construct_completeness",
-            # Construct ratings — dynamically discovered
-            *construct_cols,
-            # Rule evaluation (Task-041 Phase 3)
-            "rules_evaluated_count", "rules_triggered",
-            # Memory audit (E1)
-            "mem_retrieved_count", "mem_cognitive_system", "mem_surprise",
-            # Social audit (E2)
-            "social_gossip_count", "social_elevated_neighbors", "social_neighbor_count",
-            # Cognitive audit (E3)
-            "cog_system_mode", "cog_surprise_value", "cog_is_novel_state",
-            # Rule breakdown (B.5)
-            "rules_personal_hit", "rules_social_hit", "rules_thinking_hit", "rules_physical_hit",
-            "rules_semantic_hit", "hallucination_types"
-        ]
-        
-        # Phase 12: Support custom priority keys from first trace if present
+        # Single source of truth for column ordering — shared with
+        # broker.tools.recover_csv_from_jsonl so crash-recovered CSVs are
+        # column-identical to live-finalized CSVs.
+        audit_priority = None
         if traces and "_audit_priority" in traces[0]:
-            custom_priority = traces[0]["_audit_priority"]
-            if isinstance(custom_priority, list):
-                # Put custom ones after the absolute core (step, agent) but before others
-                priority_keys = ["step_id", "agent_id"] + custom_priority + [k for k in priority_keys if k not in ["step_id", "agent_id"] + custom_priority]
+            cand = traces[0]["_audit_priority"]
+            if isinstance(cand, list):
+                audit_priority = cand
+        fieldnames = compute_csv_fieldnames(flat_rows, audit_priority=audit_priority)
 
-        # Sort keys to keep priority ones first
-        fieldnames = priority_keys + [k for k in sorted(list(all_keys_set)) if k not in priority_keys]
-        
         with open(csv_path, 'w', newline='', encoding='utf-8-sig') as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction='ignore', quoting=csv.QUOTE_ALL)
             writer.writeheader()
