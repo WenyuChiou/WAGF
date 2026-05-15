@@ -57,10 +57,12 @@ Every column in an audit CSV MUST correspond to one of:
 - `test_audit_no_hardcoded_sentinels_leak` — synthetic run asserts `mem_top_emotion` shows variety when input memories have variety.
 - `test_dormant_field_policy` — grep-scans that every audit column name has at least one writer in the codebase.
 - Runtime: `AuditWriter.finalize()` checks for suspicious constancy (same value across 100+ rows) and logs WARNING.
+- **Phase 6G (2026-05-15)**: audit CSV column ordering + per-row schema is computed by the module-level functions `trace_to_csv_row()` and `compute_csv_fieldnames()` in `broker/components/analytics/audit.py`. These are the single source of truth used by BOTH the live writer (`GenericAuditWriter._export_csv`) and the crash-recovery CLI (`broker.tools.recover_csv_from_jsonl`). Any schema change MUST update both consumers via the shared functions — drift between live-finalized CSV and crash-recovered CSV is enforced against by `tests/test_recover_csv_from_jsonl.py::test_recovered_csv_matches_live_finalize_schema`.
 
 ### Known current state
 - `broker/core/_audit_helpers.py:64` hardcodes `{"emotion": "neutral", "source": "personal"}` — being fixed by Codex Fix D on `feat/memory-pipeline-v2`.
 - `broker/components/analytics/audit.py:325-330, 351-359` hardcodes `cog_*` and `social_*` defaults to `0` / `False` / `""` when upstream dicts absent — **will be fixed in Phase D of this plan** by replacing with `None` sentinels and one-time WARNING.
+- `fallback_activated` column writer side: row-construction now reads `trace['fallback_activated']` when present, falling back to status-string inference for older traces. The retry_loop write side (Phase 6G #4a) is still pending and should populate the trace dict directly — see [[wagf-design-flaws-harness-engineering-audit-2026-05-14]].
 
 ---
 

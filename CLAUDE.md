@@ -83,7 +83,7 @@ Honour these refusals when relaying the skill's output to the user.
 | Path | What lives there |
 |------|------------------|
 | `broker/` | Framework core: governance pipeline, memory engines, validators, audit writer, lifecycle hooks. See `broker/INVARIANTS.md` for the 5 framework invariants. |
-| `broker/tools/` | Operator CLIs: `scaffold_domain` (one-command domain skeleton), `validate_prompt` (config-time BLOCKER pre-check). |
+| `broker/tools/` | Operator CLIs: `scaffold_domain` (one-command domain skeleton), `validate_prompt` (config-time BLOCKER pre-check), `recover_csv_from_jsonl` (post-crash CSV rebuild from streaming JSONL traces; Phase 6G). |
 | `examples/single_agent/` | Flood single-agent domain (Nature Water Paper 1b reference experiment). |
 | `examples/irrigation_abm/` | Irrigation domain (CRSS 78 agents × 42 yr). |
 | `examples/multi_agent/flood/` | Multi-agent flood (Paper 3, 400 agents × 13 yr). |
