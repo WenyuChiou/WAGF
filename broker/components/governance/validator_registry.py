@@ -21,7 +21,8 @@ from typing import Dict, List
 logger = logging.getLogger(__name__)
 
 # Slot taxonomy — one bucket per validator class that accepts builtin checks.
-VALID_SLOTS = ("physical", "personal", "social", "semantic", "temporal", "behavioural")
+VALID_SLOTS = ("physical", "personal", "social", "semantic", "temporal", "behavioural", "thinking")
+VALID_MODES = ("active", "shadow")
 
 
 class ValidatorRegistry:
@@ -35,6 +36,7 @@ class ValidatorRegistry:
         checks = ValidatorRegistry.get_checks("irrigation", "physical")
     """
     _registry: Dict[str, Dict[str, list]] = {}
+    _modes: Dict[str, Dict[str, str]] = {}
     _missing_warned: set = set()  # one-time-warning tracking per (domain, slot)
 
     @classmethod
@@ -51,6 +53,31 @@ class ValidatorRegistry:
             raise ValueError(f"ValidatorRegistry.register: slot must be one of {VALID_SLOTS}, got {slot!r}")
         d = domain.strip().lower()
         cls._registry.setdefault(d, {})[slot] = list(checks)
+
+    @classmethod
+    def set_validator_mode(cls, domain: str, slot: str, mode: str) -> None:
+        """Set enforcement mode for a validator slot in a domain.
+
+        Mutates the class-level ``_modes`` map. Tests that call this
+        MUST restore prior state (try/finally) or call
+        ``ValidatorRegistry.clear()`` in teardown — ``clear()`` resets
+        ``_modes`` along with ``_registry`` so mode settings do not
+        leak across tests in the same process.
+        """
+        if not domain or not isinstance(domain, str):
+            raise ValueError(f"ValidatorRegistry.set_validator_mode: domain must be a non-empty string, got {domain!r}")
+        if slot not in VALID_SLOTS:
+            raise ValueError(f"ValidatorRegistry.set_validator_mode: slot must be one of {VALID_SLOTS}, got {slot!r}")
+        if mode not in VALID_MODES:
+            raise ValueError(f"ValidatorRegistry.set_validator_mode: mode must be one of {VALID_MODES}, got {mode!r}")
+        d = domain.strip().lower()
+        cls._modes.setdefault(d, {})[slot] = mode
+
+    @classmethod
+    def get_validator_mode(cls, domain: str, slot: str) -> str:
+        """Return configured enforcement mode for (domain, slot)."""
+        d = (domain or "").strip().lower() or "default"
+        return cls._modes.get(d, {}).get(slot, "active")
 
     @classmethod
     def get_checks(cls, domain: str, slot: str) -> list:
@@ -90,4 +117,10 @@ class ValidatorRegistry:
     def clear(cls) -> None:
         """Reset registry. Tests use this between fixtures."""
         cls._registry.clear()
+        cls._modes.clear()
         cls._missing_warned.clear()
+
+
+def set_validator_mode(domain: str, slot: str, mode: str) -> None:
+    """Module-level helper for configuring validator shadow mode."""
+    ValidatorRegistry.set_validator_mode(domain, slot, mode)

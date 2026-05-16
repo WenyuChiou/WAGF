@@ -38,6 +38,11 @@ def _empty_validators() -> list:
     ]
 
 
+def _with_registered_mode(validator, domain: str, slot: str):
+    validator.set_mode(ValidatorRegistry.get_validator_mode(domain, slot))
+    return validator
+
+
 def _ensure_irrigation_registered() -> None:
     """Legacy fallback: if irrigation registry is empty, import the
     example's validators package to trigger its registration side-effect.
@@ -104,12 +109,28 @@ def build_domain_validators(domain: Optional[str]) -> list:
             extreme = {"relocate", "elevate_house"}
 
     return [
-        PersonalValidator(builtin_checks=ValidatorRegistry.get_checks(resolved, "personal")),
-        PhysicalValidator(builtin_checks=ValidatorRegistry.get_checks(resolved, "physical")),
-        ThinkingValidator(
+        _with_registered_mode(
+            PersonalValidator(builtin_checks=ValidatorRegistry.get_checks(resolved, "personal")),
+            resolved,
+            "personal",
+        ),
+        _with_registered_mode(
+            PhysicalValidator(builtin_checks=ValidatorRegistry.get_checks(resolved, "physical")),
+            resolved,
+            "physical",
+        ),
+        _with_registered_mode(ThinkingValidator(
             builtin_checks=ValidatorRegistry.get_checks(resolved, "thinking"),
             extreme_actions=extreme,
+        ), resolved, "thinking"),
+        _with_registered_mode(
+            SocialValidator(builtin_checks=ValidatorRegistry.get_checks(resolved, "social")),
+            resolved,
+            "social",
         ),
-        SocialValidator(builtin_checks=ValidatorRegistry.get_checks(resolved, "social")),
-        SemanticGroundingValidator(builtin_checks=ValidatorRegistry.get_checks(resolved, "semantic")),
+        _with_registered_mode(
+            SemanticGroundingValidator(builtin_checks=ValidatorRegistry.get_checks(resolved, "semantic")),
+            resolved,
+            "semantic",
+        ),
     ]

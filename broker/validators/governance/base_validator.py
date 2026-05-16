@@ -45,11 +45,24 @@ class BaseValidator(ABC):
     # Shared formatter instance (lenient mode - keeps placeholders if missing)
     _message_formatter = RetryMessageFormatter(strict_mode=False)
 
-    def __init__(self, builtin_checks: Optional[List[BuiltinCheck]] = None):
+    _valid_modes = {"active", "shadow"}
+
+    def __init__(
+        self,
+        builtin_checks: Optional[List[BuiltinCheck]] = None,
+        mode: str = "active",
+    ):
+        self.set_mode(mode)
         if builtin_checks is not None:
             self._builtin_checks = builtin_checks
         else:
             self._builtin_checks = self._default_builtin_checks()
+
+    def set_mode(self, mode: str) -> None:
+        """Set validator enforcement mode."""
+        if mode not in self._valid_modes:
+            raise ValueError(f"mode must be one of {sorted(self._valid_modes)}, got {mode!r}")
+        self.mode = mode
 
     def _default_builtin_checks(self) -> List[BuiltinCheck]:
         """Return default domain-specific checks.
@@ -95,23 +108,30 @@ class BaseValidator(ABC):
             if rule.evaluate(skill_name, context):
                 # Rule triggered - create result based on level
                 is_error = rule.level == "ERROR"
+                shadow_blocked = self.mode == "shadow" and is_error
 
                 # Format message with template interpolation
                 formatted_message = self._format_rule_message(rule, skill_name, context)
+                metadata = {
+                    "rule_id": rule.id,
+                    "rules_hit": [rule.id],
+                    "category": rule.category,
+                    "subcategory": rule.subcategory,
+                    "blocked_skill": skill_name,
+                    "level": rule.level
+                }
+                if shadow_blocked:
+                    metadata.update({
+                        "shadow_blocked": [rule.id],
+                        "would_block_level": rule.level,
+                    })
 
                 result = ValidationResult(
-                    valid=not is_error,
+                    valid=True if shadow_blocked else not is_error,
                     validator_name=self.__class__.__name__,
-                    errors=[formatted_message] if is_error else [],
-                    warnings=[formatted_message] if not is_error else [],
-                    metadata={
-                        "rule_id": rule.id,
-                        "rules_hit": [rule.id],
-                        "category": rule.category,
-                        "subcategory": rule.subcategory,
-                        "blocked_skill": skill_name,
-                        "level": rule.level
-                    }
+                    errors=[] if shadow_blocked else ([formatted_message] if is_error else []),
+                    warnings=[formatted_message] if (shadow_blocked or not is_error) else [],
+                    metadata=metadata
                 )
                 results.append(result)
 
