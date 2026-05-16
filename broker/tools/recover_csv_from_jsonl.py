@@ -31,7 +31,7 @@ import csv
 import json
 import sys
 from pathlib import Path
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Optional, Tuple
 
 from broker.components.analytics.audit import (
     trace_to_csv_row,
@@ -39,25 +39,59 @@ from broker.components.analytics.audit import (
 )
 
 
-def _read_jsonl_safely(path: Path) -> Tuple[List[Dict[str, Any]], int]:
+def _read_jsonl_safely_with_metadata(
+    path: Path,
+) -> Tuple[List[Dict[str, Any]], int, Optional[Dict[str, Any]]]:
     """Read JSONL line-by-line, tolerating a truncated final line.
 
-    Returns (parsed traces, skipped_line_count). Skipped lines are the
-    last-line-incomplete case (mid-write crash leaves a partial JSON
+    Returns (parsed traces, skipped_line_count, metadata). Skipped lines are
+    the last-line-incomplete case (mid-write crash leaves a partial JSON
     object). Mid-file malformed lines also get skipped with a warning.
     """
     traces: List[Dict[str, Any]] = []
     skipped = 0
+    metadata: Optional[Dict[str, Any]] = None
+    seen_json_record = False
     with open(path, "r", encoding="utf-8") as f:
-        for lineno, raw_line in enumerate(f, start=1):
+        for raw_line in f:
             stripped = raw_line.strip()
             if not stripped:
                 continue
             try:
-                traces.append(json.loads(stripped))
+                record = json.loads(stripped)
             except json.JSONDecodeError:
                 skipped += 1
+                continue
+            if not seen_json_record:
+                seen_json_record = True
+                # Only the literal first record, and only if it is a proper
+                # W2 metadata header (dict whose _metadata carries
+                # audit_schema_version), is treated as metadata. A real
+                # trace that happens to contain a _metadata key falls
+                # through to traces (code-review W2 hardening).
+                meta = record.get("_metadata") if isinstance(record, dict) else None
+                if isinstance(meta, dict) and "audit_schema_version" in meta:
+                    metadata = meta
+                    continue
+            traces.append(record)
+    return traces, skipped, metadata
+
+
+def _read_jsonl_safely(path: Path) -> Tuple[List[Dict[str, Any]], int]:
+    """Read JSONL traces, excluding a leading W2 _metadata record if present."""
+    traces, skipped, _metadata = _read_jsonl_safely_with_metadata(path)
     return traces, skipped
+
+
+def _schema_report(metadata: Optional[Dict[str, Any]]) -> str:
+    if metadata is None:
+        return "  schema: (no _metadata - pre-W2 trace)"
+    return (
+        "  schema: "
+        f"framework={metadata.get('framework_version', 'unknown')} "
+        f"audit_schema={metadata.get('audit_schema_version', 'unknown')} "
+        f"git={metadata.get('git_commit_short', 'unknown')}"
+    )
 
 
 def recover_csv(output_dir: Path) -> Dict[str, Any]:
@@ -77,12 +111,13 @@ def recover_csv(output_dir: Path) -> Dict[str, Any]:
 
     for jsonl_path in jsonl_files:
         agent_type = jsonl_path.stem.removesuffix("_traces")
-        traces, skipped = _read_jsonl_safely(jsonl_path)
+        traces, skipped, metadata = _read_jsonl_safely_with_metadata(jsonl_path)
         if not traces:
             summary[agent_type] = {
                 "csv_path": None,
                 "rows_recovered": 0,
                 "lines_skipped": skipped,
+                "metadata": metadata,
             }
             continue
 
@@ -106,6 +141,7 @@ def recover_csv(output_dir: Path) -> Dict[str, Any]:
             "csv_path": str(csv_path),
             "rows_recovered": len(flat_rows),
             "lines_skipped": skipped,
+            "metadata": metadata,
         }
     return summary
 
@@ -141,12 +177,14 @@ def main(argv: List[str] | None = None) -> int:
     for agent_type, info in summary.items():
         if info["csv_path"] is None:
             print(f"  [empty] {agent_type}: 0 rows ({info['lines_skipped']} lines skipped)")
+            print(_schema_report(info.get("metadata")))
             continue
         total_rows += info["rows_recovered"]
         print(
             f"  [OK] {agent_type}: {info['rows_recovered']:,} rows "
             f"({info['lines_skipped']} lines skipped) -> {Path(info['csv_path']).name}"
         )
+        print(_schema_report(info.get("metadata")))
     print(f"Total rows recovered: {total_rows:,}")
     return 0 if total_rows > 0 else 1
 

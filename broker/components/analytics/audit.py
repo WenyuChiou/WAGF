@@ -11,6 +11,50 @@ from broker.utils.logging import setup_logger
 logger = setup_logger(__name__)
 
 
+AUDIT_SCHEMA_VERSION = "1"  # bump when the CSV priority-key set changes
+
+
+def _git_commit_short() -> str:
+    """Short git hash of the working tree, or 'unavailable'.
+
+    Mirrors experiment_runner._collect_reproducibility_metadata git logic;
+    duplicated (not imported) to keep audit.py free of a core->core import
+    cycle.
+    """
+    try:
+        import subprocess
+
+        out = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL, timeout=5
+        ).decode().strip()
+        return out[:12] or "unavailable"
+    except Exception:
+        return "unavailable"
+
+
+def _framework_version() -> str:
+    try:
+        from broker import __version__
+
+        return __version__
+    except Exception:
+        try:
+            from importlib.metadata import version
+
+            return version("broker")
+        except Exception:
+            return "unknown"
+
+
+def audit_run_metadata() -> dict:
+    """The version stamp embedded in audit_summary.json and JSONL metadata."""
+    return {
+        "framework_version": _framework_version(),
+        "audit_schema_version": AUDIT_SCHEMA_VERSION,
+        "git_commit_short": _git_commit_short(),
+    }
+
+
 # -----------------------------------------------------------------------------
 # Framework invariant enforcement — see broker/INVARIANTS.md (Invariant 2).
 #
@@ -363,10 +407,12 @@ class GenericAuditWriter:
         
         # Track file handles per agent type
         self._files: Dict[str, Path] = {}
+        self._run_metadata = audit_run_metadata()
         
         # Summary stats per agent type
         self.summary = {
             "experiment_name": config.experiment_name,
+            **self._run_metadata,
             "agent_types": {},
             "total_traces": 0,
             "validation_errors": 0,
@@ -508,6 +554,14 @@ class GenericAuditWriter:
         with self._write_lock:
             if agent_type not in self._jsonl_buffer:
                 self._jsonl_buffer[agent_type] = []
+                metadata_record = {
+                    "_metadata": dict(self._run_metadata),
+                    "agent_type": agent_type,
+                }
+                metadata_line = json.dumps(
+                    metadata_record, ensure_ascii=False, default=str
+                ) + '\n'
+                self._jsonl_buffer[agent_type].append(metadata_line)
             self._jsonl_buffer[agent_type].append(json_line)
 
             # Flush buffer when threshold reached
