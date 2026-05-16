@@ -418,7 +418,8 @@ class GenericAuditWriter:
             "validation_errors": 0,
             "validation_warnings": 0,
             "structural_faults_fixed": 0,  # Format issues fixed by retry
-            "total_format_retries": 0      # Total format retry attempts
+            "total_format_retries": 0,     # Total format retry attempts
+            "validator_health": {}
         }
         
         # Buffer for CSV export
@@ -493,26 +494,40 @@ class GenericAuditWriter:
             seen_warnings = set()
 
             for r in validation_results:
+                metadata = getattr(r, "metadata", None) or {}
+                rid = metadata.get("rule_id", "Unknown")
+                vh = self.summary["validator_health"].setdefault(rid, {
+                    "rule_id": rid, "seen_count": 0, "fire_count": 0,
+                    "warn_count": 0, "error_path_count": 0,
+                })
+                vh["seen_count"] += 1
+                if not r.valid:
+                    vh["fire_count"] += 1
+                elif getattr(r, "warnings", None):
+                    vh["warn_count"] += 1
+                if metadata.get("error_path"):
+                    vh["error_path_count"] += 1
+
                 if not r.valid:
                     self.summary["validation_errors"] += 1
-                    issue_key = (r.metadata.get("rule_id", "Unknown"), tuple(r.errors))
+                    issue_key = (rid, tuple(r.errors))
                     if issue_key not in seen_issues:
                         issue = {
                             "validator": getattr(r, 'validator_name', 'Unknown'),
-                            "rule_id": r.metadata.get("rule_id", "Unknown"),
+                            "rule_id": rid,
                             "errors": r.errors
                         }
-                        if r.metadata.get("hallucination_type"):
-                            issue["hallucination_type"] = r.metadata["hallucination_type"]
+                        if metadata.get("hallucination_type"):
+                            issue["hallucination_type"] = metadata["hallucination_type"]
                         trace["validation_issues"].append(issue)
                         seen_issues.add(issue_key)
                 elif r.valid and hasattr(r, 'warnings') and r.warnings:
                     self.summary["validation_warnings"] += 1
-                    warn_key = (r.metadata.get("rule_id", "Unknown"), tuple(r.warnings))
+                    warn_key = (rid, tuple(r.warnings))
                     if warn_key not in seen_warnings:
                         trace["validation_warnings_list"].append({
                             "validator": getattr(r, 'validator_name', 'Unknown'),
-                            "rule_id": r.metadata.get("rule_id", "Unknown"),
+                            "rule_id": rid,
                             "warnings": r.warnings
                         })
                         seen_warnings.add(warn_key)
@@ -587,6 +602,22 @@ class GenericAuditWriter:
         summary_path = self.output_dir / "audit_summary.json"
         with open(summary_path, 'w', encoding='utf-8') as f:
             json.dump(self.summary, f, indent=2, ensure_ascii=False)
+
+        vh = self.summary.get("validator_health", {})
+        if vh:
+            import csv as _csv
+            vh_path = self.output_dir / "validator_health.csv"
+            cols = ["rule_id", "seen_count", "fire_count", "warn_count",
+                    "error_path_count", "fire_rate"]
+            with open(vh_path, "w", newline="", encoding="utf-8-sig") as f:
+                w = _csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")
+                w.writeheader()
+                for rid in sorted(vh):
+                    row = dict(vh[rid])
+                    seen = row.get("seen_count", 0) or 0
+                    row["fire_rate"] = round(row.get("fire_count", 0) / seen, 4) if seen else 0.0
+                    w.writerow(row)
+            logger.info(f"[Audit] Validator health: {vh_path}")
         
         # Export CSVs
         for agent_type, traces in self._trace_buffer.items():
