@@ -158,7 +158,8 @@ The framework operates in three layers:
 broker/core/skill_broker_engine.py     — six-step governance pipeline
 broker/core/experiment.py              — ExperimentRunner + Builder API
 broker/validators/governance/          — 6 validator implementations
-broker/components/memory/              — Memory engine ABC + implementations
+broker/components/memory/              — Memory engine ABC + implementations (production; extend this)
+broker/memory/                         — Research toolkit: persistence/checkpoint/replay (not the governance hot path; see ARCHITECTURE.md "Two memory trees")
 broker/components/context/             — Context assembly chain
 broker/components/cognitive/           — Reflection engine + cognitive trace
 broker/components/governance/          — Skill registry + temporal_rules/
