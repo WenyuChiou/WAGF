@@ -98,6 +98,36 @@ examples/                        # Domain-specific implementations
 
 ---
 
+## Two memory trees, and which to use
+
+The repository contains **two separate memory packages**. They are
+intentionally distinct and must not be merged:
+
+| Path | Role | Use when |
+|------|------|----------|
+| `broker/components/memory/` | **Production integration.** The memory engine ABC + implementations (`HumanCentric`, window, etc.) wired into the governance pipeline. Config-driven via `agent_types.yaml → memory_config`. | You are building or running a domain experiment. New domains extend **this** tree. |
+| `broker/memory/` | **Research toolkit.** Standalone persistence / checkpoint / replay utilities used by analysis scripts and reproducibility tooling. Not on the per-decision governance hot path. | You are writing offline analysis, checkpoint, or replay code. |
+
+**Why two trees:** the production engine is optimised for the
+per-decision retrieval contract (`retrieve()` returns `List[Dict]`, see
+`broker/INVARIANTS.md` Invariant 1); the research toolkit is optimised
+for whole-experiment serialization. Collapsing them would force one set
+of code to satisfy two incompatible contracts. A new contributor
+extending agent memory behaviour should almost always touch
+`broker/components/memory/` only.
+
+## External-model coupling
+
+`broker/` never imports from `examples/` (`broker/interfaces/
+enrichment.py`). External simulators couple to WAGF by implementing
+`broker/interfaces/environment_protocols.py::EnvironmentProtocol` (or
+its tiered/social variants) in Python. A non-Python model (R, CSV,
+REST) needs a thin Python adapter that satisfies the Protocol; the
+`wagf-coupling-designer` skill walks through writing that adapter.
+There is no hardcoded external-API integration inside `broker/`.
+
+---
+
 ## Extensible Design Patterns (v0.30+)
 
 ### 1. Protocol-Based Dependency Injection
