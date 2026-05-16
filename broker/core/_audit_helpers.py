@@ -115,6 +115,14 @@ class AuditMixin:
             "model": getattr(self, '_model_name', 'unknown'),
             "decision_source": _classify_decision_source(approved_skill),
             "validated": all_valid,
+            # Phase 6G #4a: write fallback_activated at source so the audit
+            # row-builder reads it directly instead of inferring from the
+            # status string. REJECTED_FALLBACK = retries exhausted and the
+            # registry default skill executed (genuine fallback activation).
+            "fallback_activated": (
+                approved_skill is not None
+                and approved_skill.approval_status == "REJECTED_FALLBACK"
+            ),
             "_audit_priority": audit_priority,
             "input": prompt,
             "raw_output": raw_output,
