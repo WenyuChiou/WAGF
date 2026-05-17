@@ -96,3 +96,30 @@ Flood replay: the agent decides mitigation; the adapter reads a
 pre-computed PRB depth grid for `(scenario, year, parcel_id)`; the model
 output is flood depth and damage. The contract must say whether
 mitigation reduces damage after replay or changes flood depth itself.
+
+Catastrophe model with cost feedback (the hardest single-agent case):
+the agent decides a protective action (insure / elevate / relocate / do
+nothing); the CAT model consumes that state plus a hazard draw and
+returns, per agent, `flood_damage` (USD), `insurance_payout` (USD), and
+`oop_cost = flood_damage − insurance_payout + premium_paid +
+deductible`. `oop_cost` and a "was I flooded" flag feed next year's
+risk-perception context — that is the decision loop. The contract MUST
+pin, in order: (1) the operation sequence `damage → payout → oop →
+risk-perception-input → memory` and which vintage each consumer reads
+(the agent prompt AND every validator must read post-payout `oop_cost`,
+not the gross figure — taxonomy E3); (2) that the `oop_cost` an agent
+reads at year *t+1* is the value the model produced for year *t*, with
+an ordering guarantee, not the `self.env = env` aliasing convention
+alone (E1); (3) exactly one consumer-of-record for `insurance_payout`
+and `flood_damage` so neither is double-credited into both the agent
+ledger and an aggregate (E2). If a feasibility validator reads a
+model-produced flag such as `condemned` (e.g., "cannot insure a
+condemned structure"), the contract must record that the flag is
+E1-current and the validator is scoped to the right agent type (E5).
+Multi-agent variants of this example (a shared insurance pool whose
+loss ratio resets every agent's premium — taxonomy E4) are out of v1
+scope; see the Multi-agent caveat in SKILL.md and the disaster-coupling
+worked example in
+`wagf-domain-builder/references/multi_agent_walkthrough.md`. Full
+taxonomy:
+`model-coupling-contract-checker/references/coupling_interaction_taxonomy.md`.

@@ -244,6 +244,56 @@ Symptoms when you forget:
 `tests/test_multi_agent_coupling.py::TestEnvDictAliasingPattern`
 documents both the correct pattern and the negative case for posterity.
 
+## Worked example: disaster-model coupling (the gotcha as a coupling bug)
+
+The dual-dict gotcha above is usually framed as a cross-agent state
+bug. It is the SAME bug as the coupling-layer stale-env failure
+(taxonomy E1), and a multi-agent disaster model is where it bites
+hardest. Worked end to end:
+
+Agent types: `household_owner`, `household_renter`, `insurance`,
+`nj_government`. Each year a catastrophe model returns, per household,
+`flood_damage`, `insurance_payout`, and
+`oop_cost = flood_damage − insurance_payout + premium_paid +
+deductible`; and an aggregate `pool_loss_ratio` (total payouts / total
+premiums) that resets next year's premium for every household.
+
+What goes wrong, mapped to the taxonomy
+(`model-coupling-contract-checker/references/coupling_interaction_taxonomy.md`):
+
+- **E1 (the dual-dict gotcha here).** The CAT model writes year-*t*
+  `oop_cost` into `self.env` during `post_step`. If `pre_year` did NOT
+  alias `self.env = env`, the year-*t+1* `context_builder` reads the
+  fresh runner `env` (without the just-written `oop_cost`), so every
+  household decides insurance on stale loss evidence. Population looks
+  like it "under-adapts" — a coupling bug masquerading as a finding.
+  Fix is the one-line alias above; until Gate-3 makes it a framework
+  contract, paste the E1 assertion from `wagf-coupling-designer`
+  SKILL.md C2.
+- **E3.** `insurance` agent computes `pool_loss_ratio` from per-household
+  payouts. That aggregation MUST run only after every household's
+  `damage → payout → oop` has resolved for the year; if it reads a
+  half-updated `self.env` mid-loop, the ratio mixes pre- and
+  post-payout numbers across households.
+- **E4 (multi-agent shared-state resolution).** Year with total claims
+  > pool: who is made whole, and does `nj_government` backstop fire?
+  Today this is ordered `env`-dict mutation in `post_step` — household
+  index 1's payout shrinks the pool the model sees for household 400,
+  as an artefact of agent processing order, and the resolution is NOT
+  in the audit trace. There is no framework guard; activating and
+  auditing the coordination layer is gated (Gate-4, post-Paper-1b).
+  Document the resolution rule explicitly in the coupling contract and
+  warn the user it is convention, not enforcement.
+- **E5.** A feasibility rule like "renter cannot elevate" or "cannot
+  insure a `condemned` structure" reads model-produced state. YAML
+  rules are agent-type-scoped via `get_base_type`; builtin Python
+  checks are NOT — an owner-only check can misfire on a renter. Keep
+  model-feasibility logic in YAML rules, or scope the builtin
+  explicitly, until builtin scoping ships (Gate-2/3).
+
+If you are building a multi-agent disaster coupling, read the full
+taxonomy first; the dual-dict alias fixes E1 only, not E3–E5.
+
 ## S5 edit-5 checklist (multi-agent)
 
 Run from `examples/<your_domain>_demo/` unless noted.

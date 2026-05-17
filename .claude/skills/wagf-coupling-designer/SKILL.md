@@ -57,6 +57,36 @@ C (subprocess CLI), D (REST API), E (long-running co-process). If the
 user's model fits C/D/E, surface the deferral and offer pattern B as
 a stop-gap (wrap the external call in a Python function).
 
+### Multi-agent coupling: read this first
+
+v1 **scaffolds single-agent couplings only**. Multi-agent
+code-emission is correctly deferred (the PhaseOrchestrator /
+coordination layer is not yet wired into `ExperimentRunner` — see the
+Phase-3/4 gating in the consolidated plan). This is NOT cosmetic: in a
+multi-agent coupling the external model returns a per-agent outcome AND
+a shared-state update (insurance pool, budget, common-pool resource)
+that loops back to every agent. That introduces exposure point **E4
+(multi-agent shared-state resolution)** which v1 cannot scaffold and
+which is, today, resolved by ad-hoc ordered `env`-dict mutation that is
+**not routed through the audit pipeline**.
+
+If the user's target is multi-agent:
+
+1. Still draft the single-agent contract here (E1, E2, E3 and E5 all
+   apply per-agent — only E4 is multi-agent-specific — and the
+   single-agent contract is the foundation).
+2. Explicitly warn the user that E4 is unscaffolded and that
+   hand-rolling cross-agent shared-state mutation will silently
+   reproduce the dormant-coordination-layer gap.
+3. Point them at the full taxonomy:
+   `model-coupling-contract-checker/references/coupling_interaction_taxonomy.md`
+   (E1–E5, disaster-model worked example, the multi-agent
+   amplification column) and at
+   `wagf-domain-builder/references/multi_agent_walkthrough.md` (the
+   `self.env = env` dual-dict contract + the disaster-coupling worked
+   example).
+4. Do NOT pretend v1 produced a multi-agent-safe coupling.
+
 ## Inputs
 
 Before C1 (contract drafting), the user must answer:
@@ -127,6 +157,35 @@ The mock must:
 - Generate values in plausible ranges (from contract).
 - Be deterministic given a seed.
 
+**Also emit the E1 temporal-sync assertion stub** (taxonomy E1 —
+`model-coupling-contract-checker/references/coupling_interaction_taxonomy.md`).
+The agent at step *t+1* must read the model outputs produced *for step
+t*; today this rests on the `pre_year` `self.env = env` aliasing
+convention with no framework guard (framework-enforced in Gate-3,
+post-Paper-1b). Until then, paste this guard into the lifecycle hook so
+a sync regression fails loudly instead of silently mis-training agents:
+
+```python
+# E1 temporal-sync guard (paste into pre_year, AFTER env.update + the
+# `self.env = env` aliasing line). Replace OUTPUT_KEY/STAMP with a
+# field the external model writes each step and the step it stamped.
+def _assert_model_outputs_current(self, year):
+    out = self.env.get("OUTPUT_KEY")
+    stamped = self.env.get("OUTPUT_KEY_step")  # model writes this
+    assert out is not None, (
+        f"E1: model output OUTPUT_KEY missing at year {year} "
+        f"(env-sync ordering bug — see coupling_interaction_taxonomy E1)"
+    )
+    assert stamped == year - 1 or stamped == year, (
+        f"E1: agent at year {year} sees OUTPUT_KEY stamped for "
+        f"step {stamped}, not the just-produced step "
+        f"(stale-env / Paper-3 dual-dict class bug)"
+    )
+```
+
+The mock's returned payload must include the `*_step` stamp so this
+guard is exercisable from the very first smoke run.
+
 Verify by running a 1-agent, 1-year smoke through WAGF that calls
 the mock — no real model yet. The smoke is the dev-loop unblocker:
 the user can iterate on prompts and validators while the real model
@@ -146,7 +205,10 @@ column names / unpacking logic).
 
 The adapter MUST share the same input/output schema as the mock so
 the rest of the WAGF wiring (lifecycle hooks, validators, prompt
-context) doesn't change when swapping mock for real.
+context) doesn't change when swapping mock for real. In particular the
+real adapter MUST keep emitting the `*_step` stamp the C2 E1 guard
+checks — a real model that drops the stamp silently disables the
+temporal-sync assertion.
 
 Output: `adapters/external_model_adapter.py` with TODOs marked.
 
