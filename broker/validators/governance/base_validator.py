@@ -28,6 +28,19 @@ BuiltinCheck = Callable[
 ]
 
 
+def scoped_to(*agent_types: str):
+    """Mark a builtin check as applicable only to these agent types
+    (or their base types). A check WITHOUT this marker applies to ALL
+    agent types (backward compatible)."""
+    norm = frozenset(t.strip().lower() for t in agent_types if t)
+
+    def _wrap(fn):
+        fn._wagf_agent_types = norm
+        return fn
+
+    return _wrap
+
+
 class BaseValidator(ABC):
     """
     Abstract base class for governance validators.
@@ -156,7 +169,17 @@ class BaseValidator(ABC):
                 results.append(result)
 
         # --- 2. Domain-specific built-in checks ---
+        agent_type = context.get("agent_type")
+        base_type = context.get("base_type")
+        scope_types = {
+            t.strip().lower()
+            for t in (agent_type, base_type)
+            if t is not None
+        }
         for check in self._builtin_checks:
+            declared = getattr(check, "_wagf_agent_types", None)
+            if declared and scope_types and not scope_types.intersection(declared):
+                continue
             for r in check(skill_name, rules, context):
                 if self.mode == "shadow" and not r.valid and r.errors:
                     results.append(self._to_shadow(r))
