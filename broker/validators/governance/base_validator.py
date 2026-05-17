@@ -12,6 +12,7 @@ When ``builtin_checks`` is *None* (default), subclasses provide their own
 domain defaults via ``_default_builtin_checks()``.
 Pass an empty list ``[]`` to disable all built-in checks and rely on YAML rules only.
 """
+import copy
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional, Callable
 from broker.interfaces.skill_types import ValidationResult
@@ -71,6 +72,25 @@ class BaseValidator(ABC):
         The base implementation returns an empty list (no built-in checks).
         """
         return []
+
+    def _to_shadow(self, result: ValidationResult) -> ValidationResult:
+        """Convert a blocking built-in result to shadow-mode shape."""
+        metadata = copy.deepcopy(result.metadata or {})
+        rid = metadata.get("rule_id") or f"{result.validator_name or self.__class__.__name__}:builtin"
+        metadata.update({
+            "shadow_blocked": [rid],
+            "would_block_level": "ERROR",
+        })
+        shadow_result = ValidationResult(
+            valid=True,
+            validator_name=result.validator_name,
+            errors=[],
+            warnings=list(result.warnings or []) + list(result.errors or []),
+            metadata=metadata,
+        )
+        if hasattr(result, "rule_violations"):
+            shadow_result.rule_violations = result.rule_violations
+        return shadow_result
 
     @property
     @abstractmethod
@@ -137,7 +157,11 @@ class BaseValidator(ABC):
 
         # --- 2. Domain-specific built-in checks ---
         for check in self._builtin_checks:
-            results.extend(check(skill_name, rules, context))
+            for r in check(skill_name, rules, context):
+                if self.mode == "shadow" and not r.valid and r.errors:
+                    results.append(self._to_shadow(r))
+                else:
+                    results.append(r)
 
         return results
 

@@ -142,3 +142,64 @@ def test_replay_shadow_fallback_counts_recorded_validation_issues(tmp_path: Path
     assert summary["trace_count"] == 2
     assert summary["rules"]["known_rule"]["fire_count"] == 2
     assert summary["rules"]["known_rule"]["fire_rate"] == 1.0
+
+
+def test_builtin_check_shadow_mode_becomes_non_blocking():
+    def builtin_check(skill_name, rules, context):
+        return [
+            ValidationResult(
+                valid=False,
+                errors=["blocked by builtin test"],
+                validator_name="X",
+                metadata={"rule_id": "builtin_rule"},
+            )
+        ]
+
+    active_validator = TriggerValidator(builtin_checks=[builtin_check])
+    active_results = active_validator.validate("any_skill", [], {})
+
+    assert active_results[0].valid is False
+
+    shadow_validator = TriggerValidator(builtin_checks=[builtin_check], mode="shadow")
+    shadow_results = shadow_validator.validate("any_skill", [], {})
+
+    assert shadow_results[0].valid is True
+    assert shadow_results[0].errors == []
+    assert "blocked by builtin test" in shadow_results[0].warnings
+    assert shadow_results[0].metadata["shadow_blocked"] == ["builtin_rule"]
+    assert shadow_results[0].metadata["would_block_level"] == "ERROR"
+
+
+def test_shadow_blocked_reaches_written_trace_and_replay_counts_it(tmp_path: Path):
+    """Real round-trip: blocking builtin -> _to_shadow -> write_trace ->
+    trace['shadow_blocked'] -> replay_shadow counts it. Exercises the
+    actual _to_shadow/audit handshake, not a hand-crafted result."""
+    from broker.components.analytics.audit import AuditConfig, GenericAuditWriter
+    from broker.tools.replay_shadow import _recorded_rule_ids
+
+    def builtin_check(skill_name, rules, context):
+        return [
+            ValidationResult(
+                valid=False,
+                errors=["blocked by builtin test"],
+                validator_name="X",
+                metadata={"rule_id": "builtin_rule"},
+            )
+        ]
+
+    shadow_validator = TriggerValidator(builtin_checks=[builtin_check], mode="shadow")
+    results = shadow_validator.validate("any_skill", [], {})
+    assert results[0].metadata["shadow_blocked"] == ["builtin_rule"]
+
+    writer = GenericAuditWriter(
+        AuditConfig(
+            output_dir=str(tmp_path),
+            experiment_name="shadow_trace_test",
+        )
+    )
+    trace = {"step_id": 1, "agent_id": "agent_1"}
+    writer.write_trace("agent", trace, validation_results=results)
+
+    assert trace["shadow_blocked"]
+    assert trace["shadow_blocked"][0]["rule_id"] == "builtin_rule"
+    assert "builtin_rule" in _recorded_rule_ids(trace)
