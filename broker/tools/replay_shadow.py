@@ -46,6 +46,7 @@ def _ids_from_value(value: Any) -> List[str]:
 def _recorded_rule_ids(trace: Dict[str, Any]) -> List[str]:
     rule_ids: List[str] = []
     rule_ids.extend(_ids_from_value(trace.get("validation_issues")))
+    rule_ids.extend(_ids_from_value(trace.get("shadow_blocked")))
     rule_ids.extend(_ids_from_value(trace.get("failed_rules")))
     metadata = trace.get("metadata")
     if isinstance(metadata, dict):

@@ -259,6 +259,14 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
         row["warning_rules"] = ""
         row["warning_messages"] = ""
 
+    # 4c. Shadow-blocked rules (W5: would-block under active mode,
+    # recorded non-blocking under shadow mode)
+    shadow_list = t.get("shadow_blocked", [])
+    if shadow_list:
+        row["shadow_blocked"] = "|".join([str(s.get('rule_id', 'Unknown')) for s in shadow_list])
+    else:
+        row["shadow_blocked"] = ""
+
     # 5. Memory Audit (E1) - Memory retrieval details
     mem_audit = t.get("memory_audit", {})
     if mem_audit:
@@ -365,7 +373,7 @@ def compute_csv_fieldnames(rows: List[Dict[str, Any]],
     priority_keys = [
         "step_id", "year", "agent_id",
         "proposed_skill", "final_skill", "status", "fallback_activated",
-        "retry_count", "format_retries", "validated", "failed_rules",
+        "retry_count", "format_retries", "validated", "failed_rules", "shadow_blocked",
         "parse_layer", "parse_confidence", "construct_completeness",
         *construct_cols,
         "rules_evaluated_count", "rules_triggered",
@@ -490,6 +498,9 @@ class GenericAuditWriter:
             trace["validation_issues"] = []
             seen_issues = set()
 
+            trace["shadow_blocked"] = []
+            seen_shadow = set()
+
             trace["validation_warnings_list"] = []
             seen_warnings = set()
 
@@ -507,6 +518,16 @@ class GenericAuditWriter:
                     vh["warn_count"] += 1
                 if metadata.get("error_path"):
                     vh["error_path_count"] += 1
+
+                if metadata.get("shadow_blocked"):
+                    for rid in metadata["shadow_blocked"]:
+                        if rid not in seen_shadow:
+                            trace["shadow_blocked"].append({
+                                "rule_id": rid,
+                                "validator": getattr(r, 'validator_name', 'Unknown'),
+                                "would_block_level": metadata.get("would_block_level", "ERROR"),
+                            })
+                            seen_shadow.add(rid)
 
                 if not r.valid:
                     self.summary["validation_errors"] += 1
@@ -534,6 +555,7 @@ class GenericAuditWriter:
         else:
             trace["validated"] = True
             trace["validation_issues"] = []
+            trace["shadow_blocked"] = []
             trace["validation_warnings_list"] = []
 
         
