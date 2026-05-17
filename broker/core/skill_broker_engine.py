@@ -510,6 +510,28 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
 
     def _run_validators(self, proposal: SkillProposal, context: Dict) -> List[ValidationResult]:
         """Run all validators on the skill proposal."""
+        if context is None:
+            context = {}
+
+        proposal_agent_type = getattr(proposal, "agent_type", None)
+        agent_type = context.get("agent_type")
+        if not agent_type and proposal_agent_type and proposal_agent_type != "default":
+            agent_type = proposal_agent_type
+
+        if agent_type:
+            scoped_context = dict(context)
+            scoped_context.setdefault("agent_type", agent_type)
+            if "base_type" not in scoped_context:
+                get_base_type = getattr(self.config, "get_base_type", None)
+                if callable(get_base_type):
+                    try:
+                        base_type = get_base_type(agent_type)
+                    except Exception:
+                        base_type = None
+                    if isinstance(base_type, str) and base_type:
+                        scoped_context["base_type"] = base_type
+            context = scoped_context
+
         results = []
         for validator in self.validators:
             result = validator.validate(proposal, context, self.skill_registry)

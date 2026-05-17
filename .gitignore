@@ -233,3 +233,6 @@ pytest_tmp/
 /tmp_mode*/
 /*mode700*/
 /*_probe/
+/codex*pytest*/
+/*pytest*temp*/
+/*pytest*basetemp*/
