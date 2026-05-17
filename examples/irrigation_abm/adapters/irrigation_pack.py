@@ -54,6 +54,13 @@ class IrrigationDomainPack:
     def __init__(self) -> None:
         self._inner = IrrigationAdapter()
 
+    def appraisal_grounding_map(self) -> Dict[str, Any]:
+        return {
+            "construct": "WSA_LABEL",
+            "shortage_tier_to_wsa": {0: "L", 1: "M", 2: "H", 3: "VH"},
+            "drought_index_bump_threshold": 0.6,
+        }
+
     # ─── Reflection ───────────────────────────────────────────────
 
     def reflection_status_text(self, context: Any) -> Optional[str]:
