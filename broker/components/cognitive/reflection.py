@@ -444,6 +444,23 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
                 ctx_dict = {"context": context}
             return self.adapter.compute_importance(ctx_dict, base_importance)
 
+        # First registered pack exposing compute_importance wins (mirrors the
+        # reflection_status_text convention above); multi-domain runs must
+        # ensure only one pack is eligible.
+        try:
+            from broker.domains.registry import DomainPackRegistry
+            for name in DomainPackRegistry.domains():
+                pack = DomainPackRegistry.get(name)
+                if pack is None:
+                    continue
+                fn = getattr(pack, "compute_importance", None)
+                if callable(fn):
+                    importance = fn(context, base_importance)
+                    if isinstance(importance, (int, float)):
+                        return round(min(1.0, max(0.0, importance)), 2)
+        except ImportError:
+            pass
+
         # --- Legacy fallback (flood-specific, backward compatible) ---
         # TODO(v22): extract this block into a FloodReflectionAdapter under
         # broker/domains/water/ so the broker layer carries no flood-domain

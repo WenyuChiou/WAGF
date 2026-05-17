@@ -46,7 +46,7 @@ class FloodAdapter:
     }
 
     def compute_importance(
-        self, context: Dict[str, Any], base: float = 0.9
+        self, context: Any, base: float = 0.9
     ) -> float:
         """Compute dynamic importance for flood-risk agents.
 
@@ -55,9 +55,9 @@ class FloodAdapter:
         """
         importance = base
 
-        flood_count = context.get("flood_count", 0)
-        mg_status = context.get("mg_status", False)
-        recent_decision = context.get("recent_decision", "")
+        flood_count = getattr(context, "flood_count", 0) if not isinstance(context, dict) else context.get("flood_count", 0)
+        mg_status = getattr(context, "mg_status", False) if not isinstance(context, dict) else context.get("mg_status", False)
+        recent_decision = getattr(context, "recent_decision", "") if not isinstance(context, dict) else context.get("recent_decision", "")
 
         # Flood-count scaling
         if flood_count == 1:

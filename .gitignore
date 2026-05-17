@@ -236,3 +236,4 @@ pytest_tmp/
 /codex*pytest*/
 /*pytest*temp*/
 /*pytest*basetemp*/
+/py_*probe*/
