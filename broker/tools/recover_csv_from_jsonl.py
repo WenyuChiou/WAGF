@@ -73,6 +73,10 @@ def _read_jsonl_safely_with_metadata(
                 if isinstance(meta, dict) and "audit_schema_version" in meta:
                     metadata = meta
                     continue
+            if not isinstance(record, dict):
+                # valid JSON but not a trace object (bare array/number/string)
+                skipped += 1
+                continue
             traces.append(record)
     return traces, skipped, metadata
 
