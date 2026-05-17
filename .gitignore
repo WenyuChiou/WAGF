@@ -213,3 +213,12 @@ paper/nature_water/'
 # Large data files
 examples/multi_agent/flood/input/census/
 examples/irrigation_abm/analysis/_b64_data.txt
+
+# OS-locked Python 3.14 pytest-temp / codex sandbox scratch (0o700 ACL,
+# undeletable without admin; never commit) + session scratch dir
+.pytest-codex-basetemp/
+py_mode700_probe/
+pytest_tmp_mode700/
+pytest_tmp_probe/
+.codex_tmp/
+.codex_tmp_write_bat.py
