@@ -518,6 +518,19 @@ class GenericAuditWriter:
                     vh["warn_count"] += 1
                 if metadata.get("error_path"):
                     vh["error_path_count"] += 1
+                _at = agent_type if agent_type else trace.get("agent_type", "Unknown")
+                _vbt = self.__dict__.setdefault("_validator_health_by_type", {})
+                vht = _vbt.setdefault(_at, {}).setdefault(rid, {
+                    "agent_type": _at, "rule_id": rid, "seen_count": 0,
+                    "fire_count": 0, "warn_count": 0, "error_path_count": 0,
+                })
+                vht["seen_count"] += 1
+                if not r.valid:
+                    vht["fire_count"] += 1
+                elif getattr(r, "warnings", None):
+                    vht["warn_count"] += 1
+                if metadata.get("error_path"):
+                    vht["error_path_count"] += 1
 
                 if metadata.get("shadow_blocked"):
                     for rid in metadata["shadow_blocked"]:
@@ -640,6 +653,46 @@ class GenericAuditWriter:
                     row["fire_rate"] = round(row.get("fire_count", 0) / seen, 4) if seen else 0.0
                     w.writerow(row)
             logger.info(f"[Audit] Validator health: {vh_path}")
+        vht_all = getattr(self, "_validator_health_by_type", {})
+        if vht_all:
+            import csv as _csv2
+            _recs = [rec for _inner in vht_all.values() for rec in _inner.values()]
+            _rule_fire = {}
+            for _rec in _recs:
+                _agg = _rule_fire.setdefault(_rec["rule_id"], {"seen": 0, "fire": 0})
+                _agg["seen"] += _rec.get("seen_count", 0)
+                _agg["fire"] += _rec.get("fire_count", 0)
+            vht_path = self.output_dir / "validator_health_by_agent_type.csv"
+            cols2 = ["agent_type", "rule_id", "seen_count", "fire_count",
+                     "warn_count", "error_path_count", "fire_rate", "dead_for_all"]
+            with open(vht_path, "w", newline="", encoding="utf-8-sig") as f:
+                w2 = _csv2.DictWriter(f, fieldnames=cols2, extrasaction="ignore")
+                w2.writeheader()
+                for rec in sorted(_recs, key=lambda r: (str(r.get("agent_type")), str(r.get("rule_id")))):
+                    rec = dict(rec)
+                    seen = rec.get("seen_count", 0) or 0
+                    rec["fire_rate"] = round(rec.get("fire_count", 0) / seen, 4) if seen else 0.0
+                    g = _rule_fire.get(rec["rule_id"], {"seen": 0, "fire": 0})
+                    rec["dead_for_all"] = bool(g["seen"] > 0 and g["fire"] == 0)
+                    w2.writerow(rec)
+            logger.info(f"[Audit] Validator health (per-agent-type): {vht_path}")
+            for _rid, g in sorted(_rule_fire.items()):
+                if g["seen"] > 0 and g["fire"] == 0:
+                    logger.warning(
+                        f"[Audit] DEAD VALIDATOR: rule '{_rid}' never fired "
+                        f"across {g['seen']} decisions (possible inert/misconfigured rule)"
+                    )
+                elif g["fire"] > 0:
+                    _inactive = sorted(
+                        str(r.get("agent_type")) for r in _recs
+                        if r.get("rule_id") == _rid and r.get("seen_count", 0) > 0
+                        and r.get("fire_count", 0) == 0
+                    )
+                    if _inactive:
+                        logger.info(
+                            f"[Audit] rule '{_rid}' inactive for agent-type(s) "
+                            f"{_inactive} (active elsewhere - likely scope-expected)"
+                        )
         
         # Export CSVs
         for agent_type, traces in self._trace_buffer.items():
