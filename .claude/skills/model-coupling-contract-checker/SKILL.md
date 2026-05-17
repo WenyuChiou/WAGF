@@ -60,17 +60,37 @@ If any of (1)–(5) is missing, ask. Do not guess.
    divides into the agent's decision step (e.g., daily reservoir →
    annual agent OK; weekly flood → annual agent requires aggregation
    rule).
-3. **Read-write ordering**: enumerate the per-step sequence
-   (e.g., agent decides → env updates → external runs → outcomes
-   propagate). Confirm no field is read before it's written.
-4. **Feedback-loop traps**:
-   - Does damage / cost / exposure get attributed to BOTH the agent
-     and the environment ledger (double counting)?
+3. **Temporal sync + intra-step ordering** (taxonomy E1, E3 — see
+   `references/coupling_interaction_taxonomy.md`): enumerate the
+   per-step sequence (agent decides → env updates → external runs →
+   outcomes propagate → context for next step). Confirm, as a positive
+   check (not only a refusal): (a) E1 — the value an agent reads at
+   step *t+1* is the model output produced *for step t*, with an
+   explicit ordering guarantee, not the `pre_year` `self.env = env`
+   aliasing convention alone; (b) E3 — the model-side operation order
+   (e.g. `damage → payout → oop → appraisal-input → memory`) is pinned
+   and documented, and every consumer (agent prompt, EACH validator,
+   audit trace) reads the same vintage of state. A validator reading a
+   different vintage than the prompt is an E3 failure even if E1 holds.
+4. **Feedback-loop traps** (taxonomy E2, E4, E5):
+   - E2 — does damage / cost / exposure get attributed to BOTH the
+     agent and the environment ledger (double counting)? One
+     consumer-of-record per ledger field.
    - Does an agent's action affect an external-model input that then
      loops back to that same agent's state in the same step (causing
      phantom acceleration)?
    - Are state mutations idempotent under retries? (If the agent
      retries, does the external model run twice?)
+   - E4 (multi-agent only) — when N agents feed one model that holds a
+     shared resource (insurance pool, budget, aquifer head, reservoir),
+     is there a declared, order-independent, **audited**
+     conflict-resolution rule? Ad-hoc ordered `env`-dict mutation in
+     `lifecycle_hooks.py` is NOT acceptable at >1 agent.
+   - E5 — list every validator whose verdict reads a model-produced
+     field; confirm that field is guaranteed current (E1) and the
+     validator is scoped to the correct agent type (note: builtin
+     Python checks are NOT agent-type-scoped today — flag any
+     model-feasibility builtin shared across agent types).
 5. **Missing / out-of-range handling**: confirm every external-model
    input has documented behaviour for missing values and
    out-of-physical-range values (e.g., negative demand → clip;
@@ -104,6 +124,11 @@ Write under `analysis/coupling/`:
 5. `## Feedback-loop audit` — for each loop (action → external →
    state → agent), state whether it double-counts, what the
    anti-double-counting guard is, and where it lives in code.
+   Explicitly answer the E1–E5 detection questions from
+   `references/coupling_interaction_taxonomy.md` (E1 temporal sync,
+   E2 double-count, E3 intra-step ordering, E4 multi-agent shared-state
+   resolution, E5 validator-depends-on-model-state); mark each
+   PASS / FAIL / N-A (single-agent).
 6. `## Failure-mode handling` — missing-value and out-of-range
    policies per input field.
 7. `## Caveats` — what was NOT checked (e.g., binary external models,
@@ -126,6 +151,16 @@ The skill MUST refuse to:
    anti-double-counting guard.
 5. Generate the report from the user's verbal description alone if a
    schema file exists; demand the schema.
+6. Approve a >1-agent coupling whose shared-state resolution (insurance
+   pool, budget, common-pool resource) is implicit ordered `env`-dict
+   mutation with no declared, order-independent, audited rule
+   (taxonomy E4).
+7. Approve a coupling where a validator's verdict reads a
+   model-produced field without (a) a guarantee that the field is
+   current (E1 temporal sync) and (b) confirmation the validator is
+   scoped to the correct
+   agent type (taxonomy E5; builtin Python checks are not
+   agent-type-scoped today).
 
 ## Bundled resources
 
@@ -138,6 +173,13 @@ The skill MUST refuse to:
 - `references/feedback_loop_traps.md` — catalogued historical
   feedback-loop bugs (v21 base-asymmetry, double-damage in CAT-model
   coupling, etc.) with detection recipes.
+- `references/coupling_interaction_taxonomy.md` — the five coupling
+  exposure points (E1 temporal sync, E2 double-count, E3 intra-step
+  ordering, E4 multi-agent shared-state resolution, E5
+  validator-depends-on-model-state), worked end-to-end on a disaster /
+  catastrophe model, with the cross-domain skeleton and a
+  convention-vs-framework-enforced honesty box. Workflow steps 3–4 and
+  Refusal Protocol items 3, 6, 7 derive from this.
 - `scripts/contract_diff.py` — diffs two YAML schemas and emits the
   field-level mismatch table.
 

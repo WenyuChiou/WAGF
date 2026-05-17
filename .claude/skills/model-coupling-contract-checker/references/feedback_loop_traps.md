@@ -113,7 +113,46 @@ RNG state, producing a different external trajectory.
 sampling uses Ollama's internal RNG. Document the seed derivation
 in `_collect_reproducibility_metadata`.
 
-## T7 (template — append new traps here)
+## T7: Disaster-model OOP/payout compound trap (E2 + E5)
+
+**Date discovered**: 2026-05-16 (taxonomy-derived; not yet observed in
+a shipped run — preventive entry).
+
+**System**: any agent layer ↔ catastrophe / flood-damage model that
+returns `flood_damage`, `insurance_payout`, `oop_cost` per agent and an
+aggregate `pool_loss_ratio`.
+
+**Bug**: two coupled defects that interact.
+1. (E2) `insurance_payout` reduces the agent's private `oop_cost` AND
+   is separately netted in a municipal/recovery ledger; the same payout
+   is credited twice, and because `pool_loss_ratio` is computed from
+   total payouts, the doubled value resets *next year's premium for
+   every agent* — the error compounds across the population, not just
+   one ledger.
+2. (E5) a feasibility validator ("cannot insure if `condemned` last
+   year") reads the model-produced `condemned` flag; if the env-sync is
+   off by one year (E1), governance enforces last-cycle condemnation —
+   blocking valid proposals or admitting invalid ones. Builtin Python
+   checks are not agent-type-scoped, so an owner-only condemnation
+   check can also misfire on renters.
+
+**Detection recipe**:
+1. Enumerate every consumer of `insurance_payout` and `flood_damage`;
+   confirm exactly one consumer-of-record per ledger field and that
+   `pool_loss_ratio` is computed from the consumer-of-record only.
+2. Confirm `condemned` (and any model flag a validator reads) is the
+   current step's value (E1) and the reading validator is scoped to the
+   agent type it applies to.
+3. In multi-agent, confirm the per-agent payout/OOP resolution fully
+   completes before the aggregate `pool_loss_ratio` is computed (E3
+   before E4).
+
+**Fix**: see `references/coupling_interaction_taxonomy.md` E2/E3/E5;
+framework-level enforcement is gated (E2 stays review-gated, E5
+agent-type scoping is Gate-2/3, E1 env-sync contract is Gate-3 —
+post-Paper-1b). Until then this is an audit-time catch.
+
+## T8 (template — append new traps here)
 
 **Date discovered**: YYYY-MM-DD
 **System**: ...
