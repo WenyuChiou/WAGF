@@ -222,3 +222,14 @@ pytest_tmp_mode700/
 pytest_tmp_probe/
 .codex_tmp/
 .codex_tmp_write_bat.py
+.pytest-tmp/
+mode700_probe/
+pytest_tmp/
+
+# robust root-anchored pytest/codex Py3.14-0o700 scratch glob (stop the
+# whack-a-mole; these are undeletable without admin, never commit)
+/.pytest-*/
+/pytest_tmp*/
+/tmp_mode*/
+/*mode700*/
+/*_probe/
