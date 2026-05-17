@@ -103,7 +103,7 @@ Schema fields, dataclasses, and code paths MUST be either production-live or exp
 
 ### Known current state (dormant items identified by 2026-04-19 audit)
 - `broker/components/cognitive/trace.py::CognitiveTrace` — dataclass defined, never populated. **Will be marked `@deprecated` in Phase D** with a pointer to the future V2 cognitive module.
-- `broker/components/cognitive/adapters.py::DomainReflectionAdapter` — protocol defined, zero implementations. Reflection.py hardcodes flood logic instead of using the adapter.
+- `broker/components/cognitive/adapters.py::DomainReflectionAdapter` — no longer dormant: `broker/components/cognitive/reflection.py::compute_dynamic_importance` delegates to the registered `DomainPack.compute_importance` when available. The hardcoded flood block remains only as a documented deprecated no-pack fallback during the transition window.
 - `broker/components/orchestration/phases.py:48` — `saga_coordinator` parameter unused. Must be removed or activated.
 - `broker/components/memory/engines/hierarchical.py::_consolidate` — no-op stub. Module already `@deprecated`; cleanup deferred to a separate hygiene pass.
 
