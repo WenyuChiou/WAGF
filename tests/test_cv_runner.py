@@ -10,7 +10,7 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from broker.validators.calibration.cv_runner import CVRunner, CVReport
+from broker.domains.water.calibration.cv_runner import CVRunner, CVReport
 
 
 # ---------------------------------------------------------------------------

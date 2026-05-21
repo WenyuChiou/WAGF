@@ -20,7 +20,7 @@ Usage::
         create_directional_prompt_builder,
         create_probe_parse_fn,
     )
-    from broker.validators.calibration import CalibrationProtocol
+    from broker.domains.water.calibration import CalibrationProtocol
 
     protocol = CalibrationProtocol.from_yaml("configs/calibration.yaml")
 

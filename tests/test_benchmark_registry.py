@@ -16,7 +16,7 @@ import json
 import pytest
 from pathlib import Path
 
-from broker.validators.calibration.benchmark_registry import (
+from broker.domains.water.calibration.benchmark_registry import (
     Benchmark,
     BenchmarkCategory,
     BenchmarkComparison,

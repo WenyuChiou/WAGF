@@ -16,7 +16,7 @@ from pathlib import Path
 sys.stdout.reconfigure(encoding="utf-8")
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
-from broker.validators.calibration.conservatism_diagnostic import (
+from broker.domains.water.calibration.conservatism_diagnostic import (
     run_conservatism_diagnostic,
     ConservatismReport,
 )

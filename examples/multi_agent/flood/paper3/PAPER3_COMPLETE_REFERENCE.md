@@ -309,7 +309,7 @@ Each year, for each household agent:
 
 **What**: For each agent-year observation, checks whether the reported TP/CP labels are consistent with the chosen action according to PMT theory.
 
-**How computed**: `MicroValidator.compute_cacr(df)` in `broker/validators/calibration/micro_validator.py`
+**How computed**: `MicroValidator.compute_cacr(df)` in `broker/domains/water/calibration/micro_validator.py`
 
 - Uses `PMTFramework.validate(appraisals, action)` to check each observation
 - Example: TP=VH, CP=H, action=do_nothing -> INCOHERENT (fails)
@@ -347,7 +347,7 @@ Each year, for each household agent:
 **How computed**:
 
 1. `compute_aggregate_rates(df)` in `paper3/analysis/empirical_benchmarks.py` extracts 8 metrics from audit CSV
-2. `BenchmarkRegistry.compare(observed, tolerance=0.3)` in `broker/validators/calibration/benchmark_registry.py` checks each metric against its empirical range
+2. `BenchmarkRegistry.compare(observed, tolerance=0.3)` in `broker/domains/water/calibration/benchmark_registry.py` checks each metric against its empirical range
 3. Range check: `observed in [rate_low * (1-tolerance), rate_high * (1+tolerance)]`
 4. EPI = sum(weight_i * within_range_i) / sum(weight_i) for all evaluated benchmarks
 
@@ -359,7 +359,7 @@ Each year, for each household agent:
 
 **What**: Test-retest reliability. Same persona + same scenario, asked 30 times -- how consistent are the responses?
 
-**How computed**: `compute_icc_2_1()` in `broker/validators/calibration/psychometric_battery.py`
+**How computed**: `compute_icc_2_1()` in `broker/domains/water/calibration/psychometric_battery.py`
 
 - ICC(2,1) two-way random effects model
 - Subjects = (archetype x vignette) combinations = 15 x 6 = 90
@@ -383,7 +383,7 @@ Each year, for each household agent:
 
 **What**: When a stimulus changes (e.g., flood depth increases), does the LLM output change in the expected direction (TP increases)?
 
-**How computed**: `DirectionalValidator.run_all()` in `broker/validators/calibration/directional_validator.py`
+**How computed**: `DirectionalValidator.run_all()` in `broker/domains/water/calibration/directional_validator.py`
 
 - 4 directional tests: flood_depth -> TP, income -> CP, neighbor_adoption -> SC, subsidy -> decision
 - 3 persona swap tests: income_swap, zone_swap, history_swap
@@ -739,7 +739,7 @@ STEP 8: Analysis Scripts (figures, tables)
 
 ## 9. Complete File Inventory
 
-### broker/validators/calibration/ (Generic Framework Layer)
+### broker/domains/water/calibration/ (Generic Framework Layer)
 
 | File | Lines | Purpose | Key Exports |
 |------|-------|---------|-------------|

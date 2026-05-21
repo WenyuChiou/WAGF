@@ -14,7 +14,7 @@ Key classes:
 
 Usage::
 
-    from broker.validators.calibration.benchmark_registry import (
+    from broker.domains.water.calibration.benchmark_registry import (
         BenchmarkRegistry, Benchmark, BenchmarkCategory,
     )
 
