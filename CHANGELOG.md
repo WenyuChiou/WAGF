@@ -65,6 +65,12 @@ flood-coupling-free.
   (signed changes via negative ranges; same-context ratios via
   `DescriptorMapping.denominator_field`) purely by declaring
   `perception_descriptors()` — no broker or filter edits.
+- **Perception filter assignment generic** (Item 5c): new
+  `DomainPack.passthrough_agent_types()` hook — the model builder
+  declares which agent types perceive raw numbers vs verbalized text.
+  The two flood-named pass-through filters collapse into one generic
+  `PassThroughPerceptionFilter`; `PerceptionFilterRegistry` hardcodes
+  no agent-type names. Default: every agent type verbalizes.
 
 ### Notes
 
