@@ -371,6 +371,11 @@ class CVRunner:
             ca_col=self._ca_col,
             decision_col=self._decision_col,
             start_year=self._start_year,
+            # Flood irreversible states. CVRunner is water-domain code
+            # (broker/domains/water/), so the flood mapping lives here
+            # rather than as a generic default in unified_rh (6H Item 8).
+            irreversible_states={"elevated": "elevat", "relocated": None},
+            exit_state_col="relocated",
         )
 
     def run_brc(

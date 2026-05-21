@@ -34,7 +34,7 @@ from broker.validators.posthoc.thinking_rule_posthoc import ThinkingRulePostHoc
 def _compute_physical_hallucinations(
     df: pd.DataFrame,
     irreversible_states: Optional[Dict[str, Optional[str]]] = None,
-    exit_state_col: str = "relocated",
+    exit_state_col: Optional[str] = None,
     decision_col: Optional[str] = None,
 ) -> pd.Series:
     """Detect physical hallucinations from state transitions.
@@ -52,10 +52,11 @@ def _compute_physical_hallucinations(
         contains the pattern is flagged as a physical hallucination.
         Use ``None`` as the pattern value to flag *any* active decision
         after the state becomes True (e.g. post-relocation).
-        Default: ``{"elevated": "elevat", "relocated": None}``.
-    exit_state_col : str
+        Default ``{}`` → no physical-hallucination detection (the caller,
+        a domain-specific runner, supplies its own mapping).
+    exit_state_col : str, optional
         Column marking the permanent exit state (agent leaves simulation).
-        Default: ``"relocated"``.
+        ``None`` → no exit filtering.
     decision_col : str, optional
         Column containing the per-year **action** (not cumulative state).
         If None, auto-detects ``yearly_decision`` then ``decision``.
@@ -63,7 +64,7 @@ def _compute_physical_hallucinations(
     Insurance renewal is excluded (annual renewable, not hallucination).
     """
     if irreversible_states is None:
-        irreversible_states = {"elevated": "elevat", "relocated": None}
+        irreversible_states = {}
 
     df_s = df.sort_values(["agent_id", "year"]).copy()
 
@@ -104,7 +105,7 @@ def compute_hallucination_rate(
     classifier: Optional[KeywordClassifier] = None,
     rule_checker: Optional[ThinkingRulePostHoc] = None,
     irreversible_states: Optional[Dict[str, Optional[str]]] = None,
-    exit_state_col: str = "relocated",
+    exit_state_col: Optional[str] = None,
 ) -> Dict[str, object]:
     """Compute unified R_H for a simulation DataFrame.
 
@@ -127,11 +128,12 @@ def compute_hallucination_rate(
     rule_checker : ThinkingRulePostHoc, optional
         Custom rule checker (default: standard V1/V2/V3).
     irreversible_states : dict, optional
-        Passed to ``_compute_physical_hallucinations``.
-        Default: ``{"elevated": "elevat", "relocated": None}``.
-    exit_state_col : str
+        Passed to ``_compute_physical_hallucinations``. Default ``{}``
+        (no physical-hallucination detection). A domain-specific runner
+        supplies its own mapping.
+    exit_state_col : str, optional
         Column marking permanent exit state used to filter active
-        observations.  Default: ``"relocated"``.
+        observations. ``None`` → no exit filtering.
 
     Returns
     -------
@@ -142,7 +144,7 @@ def compute_hallucination_rate(
         n_physical : int — count of physical hallucinations
         n_thinking : int — count of thinking violations
         n_active : int — total active agent-year observations
-        thinking_breakdown : dict — {V1: n, V2: n, V3: n}
+        thinking_breakdown : dict — {rule_id: count, ...} per-rule counts
         yearly_rh : list[float] — per-year R_H values
         yearly_hn : list[float] — per-year normalized entropy
         yearly_ebe : list[float] — per-year EBE values
@@ -151,7 +153,11 @@ def compute_hallucination_rate(
     if classifier is None:
         classifier = KeywordClassifier()
     if rule_checker is None:
-        rule_checker = ThinkingRulePostHoc()
+        # Transition rules cover the same state columns as the physical
+        # irreversible-state mapping.
+        rule_checker = ThinkingRulePostHoc(
+            transition_columns=list((irreversible_states or {}).keys())
+        )
 
     df = df.sort_values(["agent_id", "year"]).copy()
 
@@ -162,9 +168,13 @@ def compute_hallucination_rate(
         df["ta_level"] = "M"
         df["ca_level"] = "M"
 
-    # Identify active observations (not yet exited)
-    prev_exit = df.groupby("agent_id")[exit_state_col].shift(1).fillna(False).infer_objects(copy=False)
-    active_mask = ~prev_exit & (df["year"] >= start_year)
+    # Identify active observations (not yet exited). With no
+    # exit_state_col the domain has no permanent-exit state.
+    if exit_state_col and exit_state_col in df.columns:
+        prev_exit = df.groupby("agent_id")[exit_state_col].shift(1).fillna(False).infer_objects(copy=False)
+        active_mask = ~prev_exit & (df["year"] >= start_year)
+    else:
+        active_mask = df["year"] >= start_year
     df_active = df[active_mask].copy()
 
     n_active = len(df_active)
