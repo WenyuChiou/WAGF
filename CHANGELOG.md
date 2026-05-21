@@ -6,6 +6,60 @@ documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Phase 6H (DomainPack v2 + genericity hardening) — **Items 1–4 of 8**.
+Net-zero test regression vs v0.3.0 (full `broker/ tests/`: 11 failures,
+all pre-existing and identical before/after); real-model `gemma4:e4b`
+smoke green. Items 5–8 (perception filter, affordability validator,
+FinancialCostProvider dedup, thinking-validator rules) and the
+reflection status-text / importance fallbacks remain on the I5
+`TestDomainGenericity` KNOWN-DEBT allowlist — the framework is more
+generic but not yet flood-coupling-free.
+
+### Added
+
+- **DomainPack v2 contract** (Item 2): three hooks added to the
+  `DomainPack` Protocol — `perception_descriptors()`,
+  `perception_field_policy()`, `retrieval_policy()` — each with a no-op
+  default in `DefaultDomainPack`. `FloodDomainPack` / `IrrigationDomainPack`
+  / `VaccinationDomainPack` now subclass `DefaultDomainPack`, so future
+  protocol additions auto-default instead of breaking `isinstance`.
+- **Config-driven skill retrieval** (Item 3):
+  `AgentTypeConfig.get_retrieval_config()` resolves `top_n` / `min_score`
+  from `global_config.governance.retrieval` YAML and
+  `DomainPack.retrieval_policy()`; framework defaults unchanged
+  (top_n=3, min_score=0.05).
+- **Build-time `default_skill` enforcement** (Item 3):
+  `SkillRegistry.has_explicit_default_skill()`; `ExperimentBuilder.build()`
+  now fails fast — before any LLM call — when a domain never declared a
+  `default_skill:` (INVARIANTS.md §I5 rule 4).
+- **Domain-definable reflection questions** (Item 4):
+  `AgentTypeConfig.get_reflection_questions(agent_type)` resolves questions
+  from per-agent-type or domain-wide `agent_types.yaml`, or
+  `DomainPack.reflection_questions()` (previously a never-called hook).
+
+### Changed
+
+- **Calibration package relocated** (Item 1): the flood-PMT C&V package
+  moved `broker/validators/calibration/` → `broker/domains/water/calibration/`,
+  out of generic broker code. Pure import-path rename; all importers
+  repointed.
+- `REFLECTION_QUESTIONS` (the flood-agent-type dict in
+  `broker/components/cognitive/reflection.py`) replaced by a domain-neutral
+  `_DEFAULT_REFLECTION_QUESTIONS` generic fallback and removed from the
+  `broker.components.cognitive` public export;
+  `generate_personalized_reflection_prompt()` gains a `reflection_questions`
+  parameter.
+
+### Notes
+
+- **Existing experiments unaffected**: irrigation, single-agent flood and
+  governed_flood declare `reflection.questions` in YAML → reflection prompts
+  byte-identical; retriever / registry defaults preserve pre-6H behaviour.
+  MA flood (Paper 3, frozen) reflection now draws from `ma_agent_types.yaml`
+  rather than the removed hardcoded dict.
+
 ## [0.3.0] - 2026-05-20
 
 Major release: Phase 6A–6G framework genericity + audit hardening + multi-agent
