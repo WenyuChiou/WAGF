@@ -74,9 +74,15 @@ flood-coupling-free.
 - **Audit tool relocated** (Item 5d): the irrigation-bound
   `appraisal_grounding_audit` post-hoc CLI moved from `broker/tools/`
   to `broker/domains/water/tools/` — out of generic broker code. Zero
-  production importers; pure relocation. I5 KNOWN-DEBT allowlist down
-  to 4 entries (`agent_validator`, `thinking_rule_posthoc`,
-  `unified_rh`, `reflection.py`).
+  production importers; pure relocation.
+- **Affordability validation de-flooded** (Item 6): new
+  `DomainPack.affordability_constraints()` hook —
+  `AgentValidator.validate_affordability()` no longer hardcodes the
+  flood elevation cost model ($150k / 3x income / 50% subsidy); a
+  domain declares its own per-decision cost models, or none.
+  `agent_validator.py` is now domain-token-free. I5 KNOWN-DEBT
+  allowlist down to 3 entries (`thinking_rule_posthoc`, `unified_rh`,
+  `reflection.py`).
 
 ### Notes
 
