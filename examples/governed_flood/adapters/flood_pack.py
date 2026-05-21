@@ -232,3 +232,17 @@ class FloodDomainPack(DefaultDomainPack):
         here if a future MA-flood run wants institutional subtypes to
         see raw numbers."""
         return {"government", "insurance"}
+
+    def affordability_constraints(self) -> Dict[str, Any]:
+        """Flood elevation cost model — replaces the hardcoded
+        ``elevate_house`` rule in ``AgentValidator.validate_affordability()``
+        (Phase 6H Item 6). $150k base, 50% subsidy default, affordable
+        iff post-subsidy cost <= 3x annual income. Insurance
+        affordability stays prompt-level guidance (not a hard gate)."""
+        return {
+            "elevate_house": {
+                "base_cost": 150_000.0,
+                "income_multiplier": 3.0,
+                "default_subsidy_rate": 0.5,
+            },
+        }
