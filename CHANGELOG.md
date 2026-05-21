@@ -8,14 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Phase 6H (DomainPack v2 + genericity hardening) — **Items 1–4 of 8**.
+Phase 6H (DomainPack v2 + genericity hardening) — **Items 1–5 of 8**.
 Net-zero test regression vs v0.3.0 (full `broker/ tests/`: 11 failures,
 all pre-existing and identical before/after); real-model `gemma4:e4b`
-smoke green. Items 5–8 (perception filter, affordability validator,
-FinancialCostProvider dedup, thinking-validator rules) and the
-reflection status-text / importance fallbacks remain on the I5
-`TestDomainGenericity` KNOWN-DEBT allowlist — the framework is more
-generic but not yet flood-coupling-free.
+smoke green. Items 6–8 (affordability validator, FinancialCostProvider
+dedup, thinking-validator rules) and the reflection status-text /
+importance fallbacks remain on the I5 `TestDomainGenericity` KNOWN-DEBT
+allowlist — the framework is more generic but not yet
+flood-coupling-free.
 
 ### Added
 
@@ -51,6 +51,13 @@ generic but not yet flood-coupling-free.
   `broker.components.cognitive` public export;
   `generate_personalized_reflection_prompt()` gains a `reflection_questions`
   parameter.
+- **Perception filter de-flooded** (Item 5): `FLOOD_DEPTH_DESCRIPTORS`
+  and the flood field-lists moved out of generic broker code to
+  `examples/governed_flood/adapters/flood_perception.py`.
+  `HouseholdPerceptionFilter` is domain-neutral by default (strips /
+  verbalizes nothing); `PerceptionFilterRegistry` injects the active
+  DomainPack's `perception_descriptors()` / `perception_field_policy()`.
+  `interfaces/perception.py` is now flood-free and off the I5 allowlist.
 
 ### Notes
 
