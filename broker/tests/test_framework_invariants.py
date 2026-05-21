@@ -375,7 +375,10 @@ class TestDomainGenericity:
         # Each migrates in the Phase 6H DomainPack v2 refactor; removing an
         # entry MUST be paired with the migration, or the test regresses.
         "tools/appraisal_grounding_audit.py",        # KNOWN-DEBT(6H): irrigation-bound tool, hardcodes WSA_LABEL; -> broker/domains/water/tools/
-        "interfaces/perception.py",                  # KNOWN-DEBT(6H): FLOOD_DEPTH_DESCRIPTORS flood constant; -> broker/domains/water/
+        # (Phase 6H Item 5 DONE 2026-05-21: FLOOD_DEPTH_DESCRIPTORS relocated
+        #  to examples/governed_flood/adapters/flood_perception.py; the
+        #  HouseholdPerceptionFilter is DomainPack-wired -- interfaces/
+        #  perception.py is flood-free, entry removed.)
         # (Phase 6H Item 1 DONE 2026-05-21: validators/calibration/ relocated
         #  to broker/domains/water/calibration/ — entry removed, no longer in
         #  the generic-broker scan scope.)

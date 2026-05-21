@@ -28,8 +28,19 @@ from typing import Any, Dict, List, Optional, Set
 
 from broker.domains.default import DefaultDomainPack
 from broker.domains.protocol import BuiltinCheck, EventHandler
+from broker.interfaces.perception import (
+    DAMAGE_SEVERITY_DESCRIPTORS,
+    NEIGHBOR_COUNT_DESCRIPTORS,
+)
 
 from examples.governed_flood.adapters.flood_adapter import FloodAdapter
+from examples.governed_flood.adapters.flood_perception import (
+    COMMUNITY_OBSERVABLE_FIELDS,
+    DOLLAR_AMOUNT_FIELDS,
+    FLOOD_DEPTH_DESCRIPTORS,
+    NEIGHBOR_ACTION_FIELDS,
+    PERCENTAGE_FIELDS,
+)
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -193,3 +204,26 @@ class FloodDomainPack(DefaultDomainPack):
         # Provided via FloodMemoryTemplateProvider (Phase 6B-2);
         # broker.core.agent_initializer continues to use that path.
         return []
+
+    # ─── Perception (Phase 6H Item 5) ─────────────────────────────
+
+    def perception_descriptors(self) -> Dict[str, Any]:
+        """Numeric→qualitative descriptors for HouseholdPerceptionFilter,
+        keyed by role. `PerceptionFilterRegistry` injects these — replaces
+        the household filter's former hardcoded flood descriptors."""
+        return {
+            "depth": FLOOD_DEPTH_DESCRIPTORS,
+            "damage": DAMAGE_SEVERITY_DESCRIPTORS,
+            "neighbor": NEIGHBOR_COUNT_DESCRIPTORS,
+        }
+
+    def perception_field_policy(self) -> Dict[str, List[str]]:
+        """Field-name lists controlling what HouseholdPerceptionFilter
+        strips / aggregates — replaces the former module-level flood
+        constants in broker/components/social/perception.py."""
+        return {
+            "dollar_fields": list(DOLLAR_AMOUNT_FIELDS),
+            "percentage_fields": list(PERCENTAGE_FIELDS),
+            "community_observable_fields": list(COMMUNITY_OBSERVABLE_FIELDS),
+            "neighbor_action_fields": list(NEIGHBOR_ACTION_FIELDS),
+        }

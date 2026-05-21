@@ -15,10 +15,6 @@ from .social.perception import (
     GovernmentPerceptionFilter,
     InsurancePerceptionFilter,
     PerceptionFilterRegistry,
-    DOLLAR_AMOUNT_FIELDS,
-    PERCENTAGE_FIELDS,
-    COMMUNITY_OBSERVABLE_FIELDS,
-    NEIGHBOR_ACTION_FIELDS,
 )
 
 # Social graph configuration exports (Task-043)
@@ -60,10 +56,6 @@ __all__ = [
     "GovernmentPerceptionFilter",
     "InsurancePerceptionFilter",
     "PerceptionFilterRegistry",
-    "DOLLAR_AMOUNT_FIELDS",
-    "PERCENTAGE_FIELDS",
-    "COMMUNITY_OBSERVABLE_FIELDS",
-    "NEIGHBOR_ACTION_FIELDS",
     # Social graph (Task-043)
     "SocialGraphSpec",
     "AGENT_SOCIAL_SPECS",

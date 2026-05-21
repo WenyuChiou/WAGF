@@ -21,56 +21,15 @@ from broker.interfaces.perception import (
     PerceptionMode,
     DescriptorMapping,
     PerceptionConfig,
-    FLOOD_DEPTH_DESCRIPTORS,
-    DAMAGE_SEVERITY_DESCRIPTORS,
-    NEIGHBOR_COUNT_DESCRIPTORS,
 )
 
 
-# Phase 6C-v3 (2026-05-10): module-level field lists are now flood-domain
-# DEFAULTS preserved for backward compatibility. New domains pass their
-# own field lists to ``HouseholdPerceptionFilter(...)`` constructor or
-# subclass it. Audit finding W12 (silent-corrupt risk): a non-flood
-# domain whose context happens to contain matching key names would
-# silently lose data; opt-in injection avoids that.
-
-# Fields containing exact dollar amounts to remove for household perception
-DOLLAR_AMOUNT_FIELDS = [
-    "damage_amount",
-    "payout_amount",
-    "oop_cost",
-    "property_value",
-    "premium_cost",
-    "elevation_cost",
-]
-
-# Fields containing exact percentages to remove for household perception
-PERCENTAGE_FIELDS = [
-    "insurance_penetration_rate",
-    "elevation_penetration_rate",
-]
-
-# Community-wide observable fields (removed for MG agents)
-COMMUNITY_OBSERVABLE_FIELDS = [
-    "insurance_penetration_rate",
-    "elevation_penetration_rate",
-    "adaptation_rate",
-    "relocation_rate",
-    "community_flood_history",
-    "avg_community_damage",
-    "neighbor_insurance_rate",
-    "neighbor_elevation_rate",
-    "neighbors_insured",
-    "neighbors_elevated",
-    "neighbors_relocated",
-]
-
-# Neighbor action fields for qualitative conversion
-NEIGHBOR_ACTION_FIELDS = [
-    "neighbors_insured",
-    "neighbors_elevated",
-    "neighbors_relocated",
-]
+# Phase 6H Item 5: the flood-domain field-lists and depth descriptor that
+# used to live at this module level moved to
+# examples/governed_flood/adapters/flood_perception.py. HouseholdPerceptionFilter
+# is now domain-neutral — it strips and verbalizes nothing unless a
+# DomainPack supplies perception_field_policy() / perception_descriptors(),
+# which PerceptionFilterRegistry injects at construction.
 
 
 class HouseholdPerceptionFilter:
@@ -100,46 +59,42 @@ class HouseholdPerceptionFilter:
         percentage_fields: Optional[List[str]] = None,
         community_observable_fields: Optional[List[str]] = None,
         neighbor_action_fields: Optional[List[str]] = None,
+        descriptor_mappings: Optional[Dict[str, DescriptorMapping]] = None,
     ):
         """Initialize the household perception filter.
 
+        All arguments are optional and default to empty / no-op — the
+        filter is domain-neutral. The broker's PerceptionFilterRegistry
+        populates them from the active DomainPack (Phase 6H Item 5):
+
         Args:
             config: Optional perception configuration. Defaults to qualitative mode.
-            dollar_fields: Field names containing exact dollar amounts to
-                strip from household context. Defaults to flood-domain
-                ``DOLLAR_AMOUNT_FIELDS`` for backward compat. New domains
-                pass their own list (or ``[]`` for none).
-            percentage_fields: Field names containing exact percentages.
-                Defaults to flood-domain ``PERCENTAGE_FIELDS``.
-            community_observable_fields: Field names removed for MG
-                agents. Defaults to flood-domain ``COMMUNITY_OBSERVABLE_FIELDS``.
-            neighbor_action_fields: Field names converted to qualitative
-                neighbor descriptions. Defaults to flood-domain
-                ``NEIGHBOR_ACTION_FIELDS``.
-
-        Phase 6C-v3 (2026-05-10): the field lists were previously
-        module-level constants only; now they're constructor-injectable
-        so non-flood domains don't silently lose data on key collisions.
+            dollar_fields: Exact-dollar field names to strip. Default [].
+            percentage_fields: Exact-percentage field names to strip. Default [].
+            community_observable_fields: Fields removed for MG agents. Default [].
+            neighbor_action_fields: Count fields verbalized to qualitative
+                neighbour descriptions. Default [].
+            descriptor_mappings: Numeric->qualitative DescriptorMappings keyed
+                by role ("depth" / "damage" / "neighbor"). Absent role ->
+                that verbalization step is skipped.
         """
         self.config = config or PerceptionConfig(mode=PerceptionMode.QUALITATIVE)
-        self._depth_descriptor = FLOOD_DEPTH_DESCRIPTORS
-        self._damage_descriptor = DAMAGE_SEVERITY_DESCRIPTORS
-        self._neighbor_descriptor = NEIGHBOR_COUNT_DESCRIPTORS
-        self._dollar_fields = (
-            list(dollar_fields) if dollar_fields is not None
-            else list(DOLLAR_AMOUNT_FIELDS)
-        )
-        self._percentage_fields = (
-            list(percentage_fields) if percentage_fields is not None
-            else list(PERCENTAGE_FIELDS)
-        )
+        descriptor_mappings = descriptor_mappings or {}
+        # Numeric->qualitative descriptors keyed by role: "depth" / "damage"
+        # / "neighbor". Absent role -> that verbalization step is skipped.
+        self._depth_descriptor = descriptor_mappings.get("depth")
+        self._damage_descriptor = descriptor_mappings.get("damage")
+        self._neighbor_descriptor = descriptor_mappings.get("neighbor")
+        # Field-lists default to empty -> strip/verbalize nothing. The
+        # broker's PerceptionFilterRegistry fills these from the active
+        # DomainPack; a domain that wants no filtering simply omits them.
+        self._dollar_fields = list(dollar_fields) if dollar_fields else []
+        self._percentage_fields = list(percentage_fields) if percentage_fields else []
         self._community_observable_fields = (
-            list(community_observable_fields) if community_observable_fields is not None
-            else list(COMMUNITY_OBSERVABLE_FIELDS)
+            list(community_observable_fields) if community_observable_fields else []
         )
         self._neighbor_action_fields = (
-            list(neighbor_action_fields) if neighbor_action_fields is not None
-            else list(NEIGHBOR_ACTION_FIELDS)
+            list(neighbor_action_fields) if neighbor_action_fields else []
         )
 
     @property
@@ -159,14 +114,17 @@ class HouseholdPerceptionFilter:
         """
         filtered = dict(context)
 
-        # Convert flood depth to qualitative
-        if "depth_ft" in filtered:
+        # Verbalize depth — only when a DomainPack supplied a "depth"
+        # descriptor (dormant for domains that did not).
+        if "depth_ft" in filtered and self._depth_descriptor is not None:
             depth = filtered.get("depth_ft", 0.0)
             filtered["flood_depth_description"] = self._depth_descriptor.describe(depth)
             del filtered["depth_ft"]
 
-        # Convert damage ratio to severity description (only if both fields exist)
-        if "damage_amount" in filtered and "property_value" in filtered:
+        # Convert damage ratio to severity description (only if both
+        # fields exist and a "damage" descriptor was supplied)
+        if ("damage_amount" in filtered and "property_value" in filtered
+                and self._damage_descriptor is not None):
             damage = filtered.get("damage_amount", 0.0)
             property_val = filtered.get("property_value", 0.0)
             if property_val > 0:
@@ -174,13 +132,14 @@ class HouseholdPerceptionFilter:
                 filtered["damage_severity"] = self._damage_descriptor.describe(damage_ratio)
             # If property_value is 0 or negative, skip damage_severity (undefined ratio)
 
-        # Convert neighbor action counts to qualitative (instance-configured
-        # list — Phase 6C-v3)
-        for field in self._neighbor_action_fields:
-            if field in filtered:
-                count = filtered.get(field, 0)
-                filtered[f"{field}_description"] = self._neighbor_descriptor.describe(count)
-                del filtered[field]
+        # Verbalize neighbour-action counts (when a "neighbor" descriptor
+        # was supplied).
+        if self._neighbor_descriptor is not None:
+            for field in self._neighbor_action_fields:
+                if field in filtered:
+                    count = filtered.get(field, 0)
+                    filtered[f"{field}_description"] = self._neighbor_descriptor.describe(count)
+                    del filtered[field]
 
         # Remove exact dollar amounts (instance-configured)
         for field in self._dollar_fields:
@@ -337,6 +296,37 @@ class InsurancePerceptionFilter:
         return filtered
 
 
+def _household_filter_kwargs_from_domain_pack() -> Dict[str, Any]:
+    """HouseholdPerceptionFilter kwargs from the first registered
+    DomainPack — mirrors reflection.py's pack-scan. Empty dict when no
+    pack is registered (then the filter is a domain-neutral no-op)."""
+    try:
+        from broker.domains.registry import DomainPackRegistry
+    except ImportError:
+        return {}
+    # First pack with any non-empty perception config wins. Packs that
+    # inherit DefaultDomainPack without overriding the perception hooks
+    # return {} from both and are skipped, so the scan falls through to
+    # the next pack. In production exactly one domain-specific pack is
+    # registered per experiment, so ordering does not matter.
+    for name in DomainPackRegistry.domains():
+        pack = DomainPackRegistry.get(name)
+        if pack is None:
+            continue
+        policy = pack.perception_field_policy() or {}
+        descriptors = pack.perception_descriptors() or {}
+        if not policy and not descriptors:
+            continue
+        return {
+            "dollar_fields": policy.get("dollar_fields"),
+            "percentage_fields": policy.get("percentage_fields"),
+            "community_observable_fields": policy.get("community_observable_fields"),
+            "neighbor_action_fields": policy.get("neighbor_action_fields"),
+            "descriptor_mappings": descriptors or None,
+        }
+    return {}
+
+
 class PerceptionFilterRegistry:
     """Registry for perception filters.
 
@@ -365,8 +355,16 @@ class PerceptionFilterRegistry:
             self._register_default_filters()
 
     def _register_default_filters(self) -> None:
-        """Register the default perception filters."""
-        household_filter = HouseholdPerceptionFilter()
+        """Register the default perception filters.
+
+        The household filter is configured from the active DomainPack's
+        perception_field_policy() / perception_descriptors() (Phase 6H
+        Item 5). With no registered pack it is a domain-neutral no-op
+        filter — strips nothing, verbalizes nothing.
+        """
+        household_filter = HouseholdPerceptionFilter(
+            **_household_filter_kwargs_from_domain_pack()
+        )
         self.register("household", household_filter)
         self.register("government", GovernmentPerceptionFilter())
         self.register("insurance", InsurancePerceptionFilter())
@@ -415,7 +413,9 @@ class PerceptionFilterRegistry:
 
         if filter_instance is None:
             # Default to household filter for unknown types
-            filter_instance = self._default_filter or HouseholdPerceptionFilter()
+            filter_instance = self._default_filter or HouseholdPerceptionFilter(
+                **_household_filter_kwargs_from_domain_pack()
+            )
 
         return filter_instance.filter(context, agent)
 
@@ -430,9 +430,4 @@ __all__ = [
     "GovernmentPerceptionFilter",
     "InsurancePerceptionFilter",
     "PerceptionFilterRegistry",
-    # Field lists for customization
-    "DOLLAR_AMOUNT_FIELDS",
-    "PERCENTAGE_FIELDS",
-    "COMMUNITY_OBSERVABLE_FIELDS",
-    "NEIGHBOR_ACTION_FIELDS",
 ]

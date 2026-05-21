@@ -203,8 +203,8 @@ class DomainPack(Protocol):
 
     def perception_descriptors(self) -> Dict[str, Any]:
         """Numerical→qualitative descriptor mappings, keyed by the
-        context field they transform (e.g.
-        ``{"depth_ft": FLOOD_DEPTH_DESCRIPTORS}``). Values are
+        role they fill — recognised keys ``"depth"`` / ``"damage"`` /
+        ``"neighbor"`` for ``HouseholdPerceptionFilter``. Values are
         ``broker.interfaces.perception.DescriptorMapping`` instances
         (kept loose as ``Any`` here to avoid an import cycle).
 
