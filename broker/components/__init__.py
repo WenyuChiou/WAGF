@@ -12,8 +12,7 @@ Core components for the water agent governance framework:
 # Perception filter exports (Task-043)
 from .social.perception import (
     HouseholdPerceptionFilter,
-    GovernmentPerceptionFilter,
-    InsurancePerceptionFilter,
+    PassThroughPerceptionFilter,
     PerceptionFilterRegistry,
 )
 
@@ -53,8 +52,7 @@ __all__ = [
     "DomainReflectionAdapter",
     # Perception (Task-043)
     "HouseholdPerceptionFilter",
-    "GovernmentPerceptionFilter",
-    "InsurancePerceptionFilter",
+    "PassThroughPerceptionFilter",
     "PerceptionFilterRegistry",
     # Social graph (Task-043)
     "SocialGraphSpec",

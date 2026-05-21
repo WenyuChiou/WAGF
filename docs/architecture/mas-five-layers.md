@@ -142,9 +142,12 @@ class ObservableScope(Enum):
 
 | Filter | Input | Output | Example |
 |--------|-------|--------|---------|
-| `HouseholdPerceptionFilter` | `tp=0.85` | `"high threat"` | Qualitative |
-| `GovernmentPerceptionFilter` | `tp=0.85` | `tp=0.85` | Quantitative |
-| `InsurancePerceptionFilter` | `claims=[]` | Statistics | Aggregated |
+| `HouseholdPerceptionFilter` | `tp=0.85` | `"high threat"` | Qualitative (verbalized) |
+| `PassThroughPerceptionFilter` | `tp=0.85` | `tp=0.85` | Quantitative (raw) |
+
+Which agent type gets which filter is declared per domain by
+`DomainPack.passthrough_agent_types()` — every agent type verbalizes
+unless the DomainPack lists it as pass-through (Phase 6H Item 5c).
 
 ```python
 # broker/components/perception_filter.py

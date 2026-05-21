@@ -5,9 +5,14 @@ This module implements perception filters that transform raw context data
 into agent-appropriate representations. Different agent types see different
 information:
 
-- Household agents: See qualitative descriptors instead of exact numbers
-- Government agents: See full numerical data with community summaries
-- Insurance agents: See full numerical data focused on policyholders
+- Lay agents (e.g. households): qualitative descriptors instead of
+  exact numbers (HouseholdPerceptionFilter).
+- Expert / institutional agents: full numerical data
+  (PassThroughPerceptionFilter).
+
+Which agent type gets which filter is declared per domain by
+DomainPack.passthrough_agent_types() — no agent-type names are
+hardcoded in this module (Phase 6H Item 5c).
 
 Usage:
     registry = PerceptionFilterRegistry()
@@ -216,79 +221,42 @@ class HouseholdPerceptionFilter:
         return filtered
 
 
-class GovernmentPerceptionFilter:
-    """Perception filter for government agents.
+class PassThroughPerceptionFilter:
+    """Perception filter for expert / institutional agents (Phase 6H Item 5c).
 
-    Government sees full numerical data - no transformations applied.
-    Adds summary metadata to aid policy decision-making.
+    Preserves all numerical data — institutions and instruments perceive
+    precise figures, unlike lay agents who perceive qualitatively (see
+    :class:`HouseholdPerceptionFilter`). Whether a given agent type
+    verbalizes or passes raw numbers through is a per-agent-type modelling
+    choice a DomainPack declares via ``passthrough_agent_types()``.
+
+    Replaces the former flood-named GovernmentPerceptionFilter /
+    InsurancePerceptionFilter — both were pure pass-through plus a note.
     """
 
-    def __init__(self, config: Optional[PerceptionConfig] = None):
-        """Initialize the government perception filter.
+    def __init__(
+        self,
+        config: Optional[PerceptionConfig] = None,
+        agent_type: str = "default",
+    ):
+        """Initialize the pass-through perception filter.
 
         Args:
             config: Optional perception configuration. Defaults to quantitative mode.
+            agent_type: Agent type this filter is registered for.
         """
         self.config = config or PerceptionConfig(mode=PerceptionMode.QUANTITATIVE)
+        self._agent_type = agent_type
 
     @property
     def agent_type(self) -> str:
         """Agent type this filter applies to."""
-        return "government"
+        return self._agent_type
 
     def filter(self, context: Dict[str, Any], agent: Any = None) -> Dict[str, Any]:
-        """Keep all numerical data for government agent.
-
-        Args:
-            context: Raw context with numerical data
-            agent: Agent instance (unused for government)
-
-        Returns:
-            Context with all numerical data preserved plus summary note
-        """
+        """Keep all numerical data — expert agents see precise figures."""
         filtered = dict(context)
-
-        # Add summary note indicating full data access
-        filtered["_perception_note"] = "Full numerical data available for policy analysis"
-
-        return filtered
-
-
-class InsurancePerceptionFilter:
-    """Perception filter for insurance agents.
-
-    Insurance sees full numerical data focused on policyholder information.
-    Preserves all data needed for actuarial analysis.
-    """
-
-    def __init__(self, config: Optional[PerceptionConfig] = None):
-        """Initialize the insurance perception filter.
-
-        Args:
-            config: Optional perception configuration. Defaults to quantitative mode.
-        """
-        self.config = config or PerceptionConfig(mode=PerceptionMode.QUANTITATIVE)
-
-    @property
-    def agent_type(self) -> str:
-        """Agent type this filter applies to."""
-        return "insurance"
-
-    def filter(self, context: Dict[str, Any], agent: Any = None) -> Dict[str, Any]:
-        """Keep all numerical data for insurance agent.
-
-        Args:
-            context: Raw context with numerical data
-            agent: Agent instance (unused for insurance)
-
-        Returns:
-            Context with all numerical data preserved for actuarial analysis
-        """
-        filtered = dict(context)
-
-        # Add note indicating policyholder data focus
-        filtered["_perception_note"] = "Policyholder data available for actuarial analysis"
-
+        filtered["_perception_note"] = "Full numerical data available."
         return filtered
 
 
@@ -323,26 +291,46 @@ def _household_filter_kwargs_from_domain_pack() -> Dict[str, Any]:
     return {}
 
 
+def _passthrough_agent_types_from_domain_pack() -> set:
+    """Agent types declared pass-through (raw numbers) by any registered
+    DomainPack. Empty set when none — every agent type then verbalizes.
+    Verbalize is the safe default: verbalizing a precise perceiver only
+    loses precision, whereas passing raw numbers to a lay perceiver
+    manufactures a super-perceiver artifact (see Phase 6H Item 5c)."""
+    try:
+        from broker.domains.registry import DomainPackRegistry
+    except ImportError:
+        return set()
+    result: set = set()
+    for name in DomainPackRegistry.domains():
+        pack = DomainPackRegistry.get(name)
+        if pack is None:
+            continue
+        result |= set(pack.passthrough_agent_types() or set())
+    return result
+
+
 class PerceptionFilterRegistry:
     """Registry for perception filters.
 
     Manages perception filters for different agent types and provides
     a unified interface for filtering context data.
 
-    Default filters:
-    - household: HouseholdPerceptionFilter
-    - government: GovernmentPerceptionFilter
-    - insurance: InsurancePerceptionFilter
-
-    Unknown agent types default to household filter (qualitative perception).
+    Filters are built from the active DomainPack:
+    - verbalizing (HouseholdPerceptionFilter) — the default for every
+      agent type, and for unknown types;
+    - pass-through (PassThroughPerceptionFilter) — for the agent types a
+      DomainPack lists in ``passthrough_agent_types()``.
     """
 
     def __init__(self, register_defaults: bool = True):
         """Initialize the perception filter registry.
 
         Args:
-            register_defaults: If True, register default filters for
-                household, government, and insurance agent types.
+            register_defaults: If True, build filters from the active
+                DomainPack — the verbalizing household filter plus a
+                pass-through filter for each agent type the DomainPack
+                lists in passthrough_agent_types().
         """
         self._filters: Dict[str, Any] = {}
         self._default_filter: Optional[Any] = None
@@ -351,22 +339,25 @@ class PerceptionFilterRegistry:
             self._register_default_filters()
 
     def _register_default_filters(self) -> None:
-        """Register the default perception filters.
+        """Register perception filters from the active DomainPack.
 
-        The household filter is configured from the active DomainPack's
-        perception_field_policy() / perception_descriptors() (Phase 6H
-        Item 5). With no registered pack it is a domain-neutral no-op
-        filter — strips nothing, verbalizes nothing.
+        The verbalizing household filter (configured from the DomainPack's
+        perception_descriptors() / perception_field_policy()) is the
+        default — every agent type verbalizes unless the DomainPack lists
+        it in ``passthrough_agent_types()``, in which case it gets a
+        PassThroughPerceptionFilter (raw numbers). No agent-type names
+        are hardcoded here (Phase 6H Item 5c).
         """
-        household_filter = HouseholdPerceptionFilter(
+        verbalizing = HouseholdPerceptionFilter(
             **_household_filter_kwargs_from_domain_pack()
         )
-        self.register("household", household_filter)
-        self.register("government", GovernmentPerceptionFilter())
-        self.register("insurance", InsurancePerceptionFilter())
-
-        # Set household as default for unknown types
-        self._default_filter = household_filter
+        self.register("household", verbalizing)
+        for agent_type in _passthrough_agent_types_from_domain_pack():
+            self.register(
+                agent_type, PassThroughPerceptionFilter(agent_type=agent_type)
+            )
+        # Verbalizing filter is the default for any unlisted agent type.
+        self._default_filter = verbalizing
 
     def register(self, agent_type: str, filter_instance: Any) -> None:
         """Register a filter for an agent type.
@@ -423,7 +414,6 @@ class PerceptionFilterRegistry:
 
 __all__ = [
     "HouseholdPerceptionFilter",
-    "GovernmentPerceptionFilter",
-    "InsurancePerceptionFilter",
+    "PassThroughPerceptionFilter",
     "PerceptionFilterRegistry",
 ]

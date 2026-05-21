@@ -230,6 +230,20 @@ class DomainPack(Protocol):
         """
         ...
 
+    def passthrough_agent_types(self) -> Set[str]:
+        """Agent types whose perception is RAW numbers, not verbalized —
+        experts / institutions that legitimately reason with precise
+        figures (e.g. a regulator, an insurer). Every other agent type
+        verbalizes.
+
+        Default ``set()`` → every agent type verbalizes. Verbalize is the
+        safe default: verbalizing a precise perceiver only loses some
+        precision, whereas passing raw numbers to a lay perceiver
+        manufactures a super-perceiver artifact. The model builder
+        declares the expert exceptions here (Phase 6H Item 5c).
+        """
+        ...
+
     # ─── Retrieval tuning (Phase 6H DomainPack v2) ────────────────
 
     def retrieval_policy(self) -> Dict[str, Any]:

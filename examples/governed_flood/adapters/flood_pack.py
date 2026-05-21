@@ -219,3 +219,16 @@ class FloodDomainPack(DefaultDomainPack):
             "community_observable_fields": list(COMMUNITY_OBSERVABLE_FIELDS),
             "neighbor_action_fields": list(NEIGHBOR_ACTION_FIELDS),
         }
+
+    def passthrough_agent_types(self) -> Set[str]:
+        """Government and insurance are institutional agents — they
+        perceive raw numerical data (Phase 6H Item 5c). Households
+        verbalize (the default).
+
+        The MA-flood subtypes ``nj_government`` / ``fema_nfip`` are
+        deliberately NOT listed: pre-6H they fell through to the
+        verbalizing default, and MA flood (Paper 3) is frozen — keeping
+        them off this set preserves byte-identical perception. List them
+        here if a future MA-flood run wants institutional subtypes to
+        see raw numbers."""
+        return {"government", "insurance"}

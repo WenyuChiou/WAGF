@@ -93,6 +93,9 @@ class DefaultDomainPack:
     def perception_field_policy(self) -> Dict[str, List[str]]:
         return {}
 
+    def passthrough_agent_types(self) -> Set[str]:
+        return set()
+
     # ─── Retrieval tuning (Phase 6H DomainPack v2) ────────────────
 
     def retrieval_policy(self) -> Dict[str, Any]:

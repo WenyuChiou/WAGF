@@ -2,8 +2,7 @@
 import pytest
 from broker.components.social.perception import (
     HouseholdPerceptionFilter,
-    GovernmentPerceptionFilter,
-    InsurancePerceptionFilter,
+    PassThroughPerceptionFilter,
     PerceptionFilterRegistry,
 )
 from broker.interfaces.perception import (
@@ -319,7 +318,7 @@ class TestGovernmentSeesAllNumbers:
 
     def test_government_keeps_all_numbers(self):
         """Government filter preserves all numerical data."""
-        filter = GovernmentPerceptionFilter()
+        filter = PassThroughPerceptionFilter(agent_type="government")
 
         context = {
             "depth_ft": 3.2,
@@ -343,7 +342,7 @@ class TestGovernmentSeesAllNumbers:
 
     def test_government_adds_perception_note(self):
         """Government filter adds perception note."""
-        filter = GovernmentPerceptionFilter()
+        filter = PassThroughPerceptionFilter(agent_type="government")
 
         context = {"depth_ft": 2.5}
         result = filter.filter(context)
@@ -353,7 +352,7 @@ class TestGovernmentSeesAllNumbers:
 
     def test_government_agent_type(self):
         """Government filter reports correct agent type."""
-        filter = GovernmentPerceptionFilter()
+        filter = PassThroughPerceptionFilter(agent_type="government")
         assert filter.agent_type == "government"
 
 
@@ -362,7 +361,7 @@ class TestInsuranceSeesAllNumbers:
 
     def test_insurance_keeps_all_numbers(self):
         """Insurance filter preserves all numerical data."""
-        filter = InsurancePerceptionFilter()
+        filter = PassThroughPerceptionFilter(agent_type="insurance")
 
         context = {
             "damage_amount": 50000,
@@ -382,17 +381,17 @@ class TestInsuranceSeesAllNumbers:
 
     def test_insurance_adds_perception_note(self):
         """Insurance filter adds perception note."""
-        filter = InsurancePerceptionFilter()
+        filter = PassThroughPerceptionFilter(agent_type="insurance")
 
         context = {"premium_cost": 1800}
         result = filter.filter(context)
 
         assert "_perception_note" in result
-        assert "Policyholder" in result["_perception_note"] or "actuarial" in result["_perception_note"]
+        assert "Full numerical data" in result["_perception_note"]
 
     def test_insurance_agent_type(self):
         """Insurance filter reports correct agent type."""
-        filter = InsurancePerceptionFilter()
+        filter = PassThroughPerceptionFilter(agent_type="insurance")
         assert filter.agent_type == "insurance"
 
 
