@@ -239,6 +239,47 @@ class TestSkillDefinitionFields:
         assert isinstance(skill.allowed_state_changes, list)
 
 
+class TestExplicitDefaultSkill:
+    """Phase 6H Item 3: has_explicit_default_skill() — the signal
+    ExperimentBuilder.build() uses to fail fast when a domain never
+    declared a default_skill (INVARIANTS.md §I5 rule 4)."""
+
+    def test_bare_registry_has_no_explicit_default(self):
+        """A fresh registry with no YAML and no set_default_skill() call
+        is NOT explicit — it would fall back to the flood-flavoured
+        legacy 'do_nothing'."""
+        reg = SkillRegistry()
+        assert reg.has_explicit_default_skill() is False
+
+    def test_set_default_skill_marks_explicit(self):
+        """set_default_skill() with a registered skill marks it explicit."""
+        reg = SkillRegistry()
+        reg.register(SkillDefinition(
+            skill_id="maintain",
+            description="hold",
+            eligible_agent_types=["*"],
+            preconditions=[],
+            institutional_constraints={},
+            allowed_state_changes=[],
+            implementation_mapping="",
+        ))
+        assert reg.has_explicit_default_skill() is False
+        reg.set_default_skill("maintain")
+        assert reg.has_explicit_default_skill() is True
+
+    def test_set_default_skill_unregistered_stays_implicit(self):
+        """set_default_skill() with an unknown skill is a no-op — the
+        registry stays implicit (and build() would still fail fast)."""
+        reg = SkillRegistry()
+        reg.set_default_skill("not_registered")
+        assert reg.has_explicit_default_skill() is False
+
+    def test_yaml_declared_default_is_explicit(self, skill_registry):
+        """The single_agent skill_registry.yaml declares default_skill, so
+        a registry loaded from it is explicit."""
+        assert skill_registry.has_explicit_default_skill() is True
+
+
 # Run tests
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

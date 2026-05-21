@@ -102,8 +102,13 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
         else:
             global_skills = self.config.get_global_skills("default")
             full_disclosure = self.config.get_full_disclosure_agent_types()
+            # Phase 6H Item 3: top_n / min_score resolved from
+            # DomainPack.retrieval_policy() + YAML governance.retrieval,
+            # falling back to framework defaults (top_n=3, min_score=0.05).
+            retrieval_cfg = self.config.get_retrieval_config()
             self.skill_retriever = SkillRetriever(
-                top_n=3, 
+                top_n=retrieval_cfg.get("top_n", 3),
+                min_score=retrieval_cfg.get("min_score", 0.05),
                 global_skills=global_skills,
                 full_disclosure_agent_types=full_disclosure
             )

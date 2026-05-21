@@ -125,6 +125,18 @@ class SkillRegistry:
         if skill_id in self.skills:
             self._default_skill = skill_id
             self._default_skill_explicit = True
+
+    def has_explicit_default_skill(self) -> bool:
+        """True iff a default skill was explicitly declared — via a
+        YAML top-level ``default_skill:`` key or ``set_default_skill()``.
+
+        False means the registry would fall back to the broker's
+        flood-flavoured legacy ``do_nothing``. Callers that assemble an
+        experiment use this to fail fast at build time rather than let a
+        misconfigured domain silently corrupt rejected-proposal fallbacks
+        (Phase 6H Item 3 / INVARIANTS.md §I5 rule 4).
+        """
+        return self._default_skill_explicit
     
     def check_eligibility(self, skill_id: str, agent_type: str) -> ValidationResult:
         """Check if an agent type is eligible to use a skill."""
