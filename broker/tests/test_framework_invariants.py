@@ -284,9 +284,15 @@ class TestDormantFieldPolicy:
 # =============================================================================
 
 class TestDomainGenericity:
-    """Invariant 5: broker/components/ and broker/core/ must be
-    domain-agnostic. Domain-specific tokens belong in examples/<domain>/ or
-    behind adapter protocols."""
+    """Invariant 5: every generic broker/ subtree must be domain-agnostic.
+    The only non-generic trees are broker/domains/water/ (the domain home)
+    and broker/tests/. Domain-specific tokens belong in examples/<domain>/,
+    broker/domains/<domain>/, or behind adapter protocols.
+
+    (Before 2026-05-20 this scanned only components/ + core/ and used
+    lowercase ``WSA_label``/``ACA_label`` tokens that never matched the
+    uppercase production identifiers — the harness-engineering audit
+    surfaced both bugs.)"""
 
     # Known domain-specific tokens that MUST NOT appear in generic code.
     # Each entry pairs the token with a note about what domain it belongs to.
@@ -295,8 +301,8 @@ class TestDomainGenericity:
         "flood_zone": "flood domain",
         "flood_depth": "flood domain",
         "elevated": "flood domain",
-        "WSA_label": "irrigation domain",
-        "ACA_label": "irrigation domain",
+        "WSA_LABEL": "irrigation domain",
+        "ACA_LABEL": "irrigation domain",
         "drought_tier": "drought domain (future)",
     }
 
@@ -339,6 +345,41 @@ class TestDomainGenericity:
         "components/events/generators/impact.py",    # elevated neighbors event
         "core/unified_context_builder.py",           # elevated status render
         "core/_skill_filtering.py",                  # elevated precondition
+        # =====================================================================
+        # HARNESS-ENGINEERING AUDIT (2026-05-20): the I5 scan was extended
+        # from components/+core/ to ALL generic broker/ subtrees, and the
+        # WSA_label/ACA_label tokens were case-fixed to WSA_LABEL/ACA_LABEL.
+        # Both bugs had kept the entries below silently invisible. Triaged
+        # into two classes; full catalogue in
+        # .ai/2026/05/20/harness_audit_{A,B,C}_*.md.
+        # ---------------------------------------------------------------------
+        # FP — domain token appears ONLY in docstrings / comments / protocol
+        # path examples; the code itself is domain-agnostic. Permanent.
+        "interfaces/environment_protocols.py",       # FP: protocol path examples
+        "interfaces/event_generator.py",             # FP: docstring example
+        "memory/unified_engine.py",                  # FP: docstring example
+        "memory/strategies/base.py",                 # FP: generic strategy docstring
+        "memory/strategies/ema.py",                  # FP: generic strategy docstring + soft default
+        "memory/strategies/multidimensional.py",     # FP: generic strategy docstring
+        "memory/strategies/symbolic.py",             # FP: generic strategy docstring + soft default
+        "memory/strategies/hybrid.py",               # FP: generic strategy docstring + soft default
+        "governance/rule_types.py",                  # FP: docstring Example:: blocks
+        "simulation/state_manager.py",               # FP: docstring example
+        "simulation/environment.py",                 # FP: docstring examples
+        "validators/governance/base_validator.py",   # FP: comment construct examples
+        "config/schema.py",                          # FP: Field() description examples
+        "config/agent_types/base.py",                # FP: docstring example
+        "utils/retry_formatter.py",                  # FP: comment example
+        # ---------------------------------------------------------------------
+        # KNOWN-DEBT(6H) — genuine domain leak in generic broker/ code.
+        # Each migrates in the Phase 6H DomainPack v2 refactor; removing an
+        # entry MUST be paired with the migration, or the test regresses.
+        "tools/appraisal_grounding_audit.py",        # KNOWN-DEBT(6H): irrigation-bound tool, hardcodes WSA_LABEL; -> broker/domains/water/tools/
+        "interfaces/perception.py",                  # KNOWN-DEBT(6H): FLOOD_DEPTH_DESCRIPTORS flood constant; -> broker/domains/water/
+        "validators/calibration/",                   # KNOWN-DEBT(6H): whole flood-PMT calibration package (audit A P1 #3); -> broker/domains/water/calibration/
+        "validators/posthoc/thinking_rule_posthoc.py",  # KNOWN-DEBT(6H): hardcoded flood column reads; -> DomainPack-parameterize
+        "validators/posthoc/unified_rh.py",          # KNOWN-DEBT(6H): flood irreversible-state default dict; -> DomainPack-parameterize
+        "validators/agent/agent_validator.py",       # KNOWN-DEBT(6H): :282-286 cosmetic; audit A found real validate_affordability() leak :467-530
     ]
 
     def _is_allowlisted(self, path: Path) -> bool:
@@ -346,14 +387,25 @@ class TestDomainGenericity:
         return any(pat in path_str for pat in self._ALLOWLIST_PATTERNS)
 
     def _scan_generic_paths(self) -> List[Path]:
+        """Scan every generic broker/ subtree.
+
+        Per INVARIANTS.md §I5 the only non-generic trees are the domain
+        home (broker/domains/water/) and the test tree (broker/tests/);
+        everything else under broker/ must be domain-agnostic.
+        """
         results: List[Path] = []
-        for root in [BROKER_ROOT / "components", BROKER_ROOT / "core"]:
-            for path in root.rglob("*.py"):
-                if "__pycache__" in path.parts:
-                    continue
-                if self._is_allowlisted(path):
-                    continue
-                results.append(path)
+        skip_prefixes = (
+            str(BROKER_ROOT / "tests"),
+            str(BROKER_ROOT / "domains" / "water"),
+        )
+        for path in BROKER_ROOT.rglob("*.py"):
+            if "__pycache__" in path.parts:
+                continue
+            if str(path).startswith(skip_prefixes):
+                continue
+            if self._is_allowlisted(path):
+                continue
+            results.append(path)
         return results
 
     @pytest.mark.parametrize("token,domain", list(_DOMAIN_TOKENS.items()))

@@ -112,19 +112,20 @@ Schema fields, dataclasses, and code paths MUST be either production-live or exp
 ## Invariant 5 — Domain-genericity contract
 
 ### Contract
-Modules under `broker/components/` and `broker/core/` MUST be domain-agnostic. Domain-specific logic belongs in `examples/<domain>/` or behind `Adapter` protocol implementations.
+Every generic `broker/` subtree MUST be domain-agnostic. The only non-generic trees are `broker/domains/<domain>/` (the domain home) and `broker/tests/`. Domain-specific logic belongs in `examples/<domain>/`, `broker/domains/<domain>/`, or behind `Adapter` protocol implementations.
 
 ### Rules
-1. No field names like `elevated`, `flood_count`, `WSA`, `insurance`, `drought_tier` may appear in `broker/components/` or `broker/core/` Python code unless:
+1. No field names like `elevated`, `flood_count`, `WSA_LABEL`, `insurance`, `drought_tier` may appear in any generic `broker/` Python code unless:
    - Inside a `domain_adapters/` sub-directory, OR
    - Inside a generic `custom_attributes: Dict[str, Any]` pass-through field, OR
-   - On an explicit allow-list in `broker/tests/domain_tokens_allowlist.txt`.
+   - On the explicit `_ALLOWLIST_PATTERNS` list in `broker/tests/test_framework_invariants.py::TestDomainGenericity` with a justification comment.
 2. Emotion keyword maps, importance heuristics, and validator rule sets MUST be injectable via domain adapter protocols — never hardcoded with one domain's vocabulary in generic code.
 3. If a generic module has "default behavior for one particular domain" baked in, that behavior MUST be moved to an explicit default adapter that can be swapped.
 4. Default skill names (e.g., `do_nothing`, `maintain`) MUST come from configuration, not from `broker/components/governance/registry.py` constants.
 
 ### Detection / enforcement
-- `tests/test_domain_genericity.py` — Phase 6A landing tests covering registry default + retriever fallback. Future iterations should expand the grep-style sweep to `broker/components/` and `broker/core/` against an allow-list.
+- `tests/test_domain_genericity.py` — Phase 6A landing tests covering registry default + retriever fallback.
+- `broker/tests/test_framework_invariants.py::TestDomainGenericity` — parametrized grep-style sweep of every generic `broker/` subtree against `_DOMAIN_TOKENS`. The 2026-05-20 harness-engineering audit fixed two bugs in this guard: lowercase `WSA_label`/`ACA_label` tokens never matched production `WSA_LABEL`/`ACA_LABEL`, and the scan covered only `components/` + `core/`. Both fixed; the ~25 leaks that surfaced are frozen in `_ALLOWLIST_PATTERNS`, triaged FP (docstring/comment) or KNOWN-DEBT(6H) (real leak, migrates in Phase 6H DomainPack v2). Full catalogue: `.ai/2026/05/20/harness_audit_{A,B,C}_*.md`.
 - Code review: any new feature in `broker/` must pass the domain-token check.
 
 ### Known current state (updated 2026-04-26 by Phase 6A landing)
