@@ -11,7 +11,7 @@ import pytest
 import pandas as pd
 import numpy as np
 
-from broker.validators.calibration.micro_validator import (
+from broker.domains.water.calibration.micro_validator import (
     MicroValidator,
     CACRResult,
     EGSResult,

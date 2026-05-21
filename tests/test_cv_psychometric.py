@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 
-from broker.validators.calibration.psychometric_battery import (
+from broker.domains.water.calibration.psychometric_battery import (
     PsychometricBattery,
     Scenario,
     Vignette,

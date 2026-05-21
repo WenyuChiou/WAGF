@@ -838,7 +838,7 @@ The LLM approach achieves individual heterogeneity with lower specification burd
 
 ## 17. File Inventory
 
-### broker/validators/calibration/ (Generic Framework Layer)
+### broker/domains/water/calibration/ (Generic Framework Layer)
 
 | File | Lines | Key Exports |
 |------|-------|-------------|

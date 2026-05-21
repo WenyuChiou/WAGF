@@ -44,7 +44,7 @@ for _p in [str(_PROJECT_ROOT), str(_FLOOD_ROOT)]:
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from broker.validators.calibration.directional_validator import (  # noqa: E402
+from broker.domains.water.calibration.directional_validator import (  # noqa: E402
     chi_squared_test,
 )
 
@@ -198,7 +198,7 @@ Based on the scenario, your situation, and your memories, evaluate the threat an
     return prompt
 
 
-# chi_squared_test is imported from broker.validators.calibration.directional_validator
+# chi_squared_test is imported from broker.domains.water.calibration.directional_validator
 
 
 # ---------------------------------------------------------------------------
@@ -438,7 +438,7 @@ def run_prompt_sensitivity(
         Combined results from all tests.
     """
     from paper3.run_cv import create_probe_invoke
-    from broker.validators.calibration.psychometric_battery import PsychometricBattery
+    from broker.domains.water.calibration.psychometric_battery import PsychometricBattery
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)

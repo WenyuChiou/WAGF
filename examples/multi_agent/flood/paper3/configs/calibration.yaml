@@ -4,7 +4,7 @@
 # LLM-ABM flood adaptation experiment (Paper 3 — WRR).
 #
 # Usage:
-#   from broker.validators.calibration import CalibrationProtocol
+#   from broker.domains.water.calibration import CalibrationProtocol
 #   protocol = CalibrationProtocol.from_yaml("configs/calibration.yaml")
 #   report = protocol.run(
 #       simulate_fn=my_simulation,

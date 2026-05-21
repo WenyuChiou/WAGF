@@ -21,7 +21,7 @@ from typing import Dict, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from broker.validators.calibration.calibration_protocol import (
+from broker.domains.water.calibration.calibration_protocol import (
     AdjustmentRecommendation,
     CalibrationConfig,
     CalibrationProtocol,
@@ -34,12 +34,12 @@ from broker.validators.calibration.calibration_protocol import (
     StageReport,
     StageVerdict,
 )
-from broker.validators.calibration.benchmark_registry import (
+from broker.domains.water.calibration.benchmark_registry import (
     Benchmark,
     BenchmarkCategory,
     BenchmarkRegistry,
 )
-from broker.validators.calibration.directional_validator import (
+from broker.domains.water.calibration.directional_validator import (
     DirectionalTest,
     DirectionalValidator,
     SwapTest,

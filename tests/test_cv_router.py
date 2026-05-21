@@ -17,26 +17,26 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from broker.validators.calibration.validation_router import (
+from broker.domains.water.calibration.validation_router import (
     FeatureProfile,
     ValidationPlan,
     ValidationRouter,
     ValidatorSpec,
     ValidatorType,
 )
-from broker.validators.calibration.temporal_coherence import (
+from broker.domains.water.calibration.temporal_coherence import (
     ActionStabilityValidator,
 )
-from broker.validators.calibration.psychometric_battery import (
+from broker.domains.water.calibration.psychometric_battery import (
     PsychometricBattery,
     ProbeResponse,
     compute_icc_2_1,
 )
-from broker.validators.calibration.micro_validator import (
+from broker.domains.water.calibration.micro_validator import (
     MicroValidator,
     BRCResult,
 )
-from broker.validators.calibration.cv_runner import CVRunner, CVReport
+from broker.domains.water.calibration.cv_runner import CVRunner, CVReport
 
 
 # ---------------------------------------------------------------------------

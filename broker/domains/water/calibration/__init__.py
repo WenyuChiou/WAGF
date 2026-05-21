@@ -24,7 +24,7 @@ References:
 Part of WAGF C&V Framework (feature/calibration-validation).
 """
 
-from broker.validators.calibration.micro_validator import (
+from broker.domains.water.calibration.micro_validator import (
     MicroValidator,
     BRCResult,
     CACRResult,
@@ -34,34 +34,34 @@ from broker.validators.calibration.micro_validator import (
     EBEResult,
     MicroReport,
 )
-from broker.validators.calibration.distribution_matcher import (
+from broker.domains.water.calibration.distribution_matcher import (
     DistributionMatcher,
     DistributionTestResult,
     PEBAFeatures,
     MacroReport,
 )
-from broker.validators.calibration.temporal_coherence import (
+from broker.domains.water.calibration.temporal_coherence import (
     ActionStabilityValidator,
     TemporalCoherenceValidator,
     TransitionMatrix,
     TemporalReport,
     AgentTCSResult,
 )
-from broker.validators.calibration.validation_router import (
+from broker.domains.water.calibration.validation_router import (
     FeatureProfile,
     ValidationPlan,
     ValidationRouter,
     ValidatorSpec,
     ValidatorType,
 )
-from broker.validators.calibration.benchmark_registry import (
+from broker.domains.water.calibration.benchmark_registry import (
     Benchmark,
     BenchmarkCategory,
     BenchmarkComparison,
     BenchmarkRegistry,
     BenchmarkReport,
 )
-from broker.validators.calibration.directional_validator import (
+from broker.domains.water.calibration.directional_validator import (
     DirectionalValidator,
     DirectionalTest,
     DirectionalTestResult,
@@ -70,7 +70,7 @@ from broker.validators.calibration.directional_validator import (
     chi_squared_test,
     mann_whitney_u,
 )
-from broker.validators.calibration.calibration_protocol import (
+from broker.domains.water.calibration.calibration_protocol import (
     CalibrationProtocol,
     CalibrationConfig,
     CalibrationReport,
