@@ -106,6 +106,9 @@ class TestDefaultDomainPack:
     def test_perception_field_policy_is_empty(self):
         assert self.pack.perception_field_policy() == {}
 
+    def test_passthrough_agent_types_is_empty(self):
+        assert self.pack.passthrough_agent_types() == set()
+
     def test_retrieval_policy_is_empty(self):
         assert self.pack.retrieval_policy() == {}
 
@@ -297,6 +300,9 @@ class TestFloodDomainPackByteIdentical:
     # Extreme actions — preserves validator_bundles.py:87 kwarg
     def test_extreme_actions(self):
         assert self.pack.extreme_actions() == {"relocate", "elevate_house"}
+
+    def test_passthrough_agent_types(self):
+        assert self.pack.passthrough_agent_types() == {"government", "insurance"}
 
     # Event handlers — preserves ma_manager.py:275-289 chain
     def test_event_handlers_keys(self):

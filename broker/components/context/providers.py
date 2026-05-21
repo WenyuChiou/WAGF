@@ -469,7 +469,7 @@ class PerceptionAwareProvider(ContextProvider):
 
         Args:
             filter_registry: Registry of perception filters by agent type.
-                If None, creates default registry with household/government/insurance filters.
+                If None, creates a default registry built from the active DomainPack.
         """
         self._registry = filter_registry
         self._initialized = False
