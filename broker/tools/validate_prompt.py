@@ -12,6 +12,11 @@ runtime. Examples:
   missing the matching entry — parser cannot extract appraisal labels.
 * ``actions:`` block missing — parser's ``get_valid_actions`` returns ``[]``
   and the LLM's skill choice is silently rejected.
+* A governance profile declares thinking/identity rules constraining only a
+  subset of available skills — the agent may converge on the unconstrained
+  subset while governance silently looks effective elsewhere (harness-
+  engineering flaw 5 — Requisite Variety). Warn when per-profile skill
+  coverage is below 80%.
 
 Usage::
 
@@ -221,6 +226,113 @@ def resolve_prompt_path(yaml_path: Path, template_ref: str) -> Path:
 
 
 # ---------------------------------------------------------------------------
+# Skill->rule coverage (Phase 6G flaw 5 — Requisite Variety)
+# ---------------------------------------------------------------------------
+
+COVERAGE_THRESHOLD = 0.80
+
+
+def check_skill_rule_coverage(
+    cfg: Dict[str, Any], agent_type: str
+) -> List[Issue]:
+    """Compute per-profile skill->rule coverage; warn on requisite-variety gaps.
+
+    Closes harness-engineering flaw 5 (audit 2026-05-14): a DomainPack with
+    N skills but rules constraining only M < N skills lets agents converge
+    on the unconstrained subset while governance silently looks effective
+    on the constrained subset. The check warns when an actively-deployed
+    profile constrains fewer than ``COVERAGE_THRESHOLD`` (80%) of available
+    skill ids via ``thinking_rules`` + ``identity_rules`` ``blocked_skills``
+    lists. Profiles with zero rules (the disabled / no-governance baseline
+    used as an ablation control) are intentionally skipped.
+
+    Also flags ghost-skill references: ``blocked_skills`` entries pointing
+    at skill ids absent from the actions list (typo / stale rule that will
+    never fire at runtime).
+    """
+    issues: List[Issue] = []
+    block = cfg.get(agent_type)
+    if not isinstance(block, dict):
+        return issues
+
+    # Mirror the actions lookup in validate_agent_type so both top-level and
+    # parsing.actions conventions are supported.
+    actions = block.get("actions")
+    if not actions:
+        parsing_block = block.get("parsing", {})
+        if isinstance(parsing_block, dict):
+            actions = parsing_block.get("actions")
+    if not isinstance(actions, list):
+        return issues  # malformed actions already errored upstream
+
+    skill_ids: Set[str] = set()
+    for a in actions:
+        if isinstance(a, dict) and isinstance(a.get("id"), str):
+            skill_ids.add(a["id"])
+    if not skill_ids:
+        return issues
+
+    governance = block.get("governance", {})
+    if not isinstance(governance, dict):
+        return issues
+
+    for profile_name, profile in governance.items():
+        if not isinstance(profile, dict):
+            continue
+        thinking = profile.get("thinking_rules") or []
+        identity = profile.get("identity_rules") or []
+        all_rules = (
+            list(thinking) if isinstance(thinking, list) else []
+        ) + (
+            list(identity) if isinstance(identity, list) else []
+        )
+        if not all_rules:
+            # Intentional disabled / baseline profile — skip coverage check
+            continue
+
+        constrained: Set[str] = set()
+        for rule in all_rules:
+            if not isinstance(rule, dict):
+                continue
+            blocked = rule.get("blocked_skills") or []
+            if isinstance(blocked, list):
+                for s in blocked:
+                    if isinstance(s, str):
+                        constrained.add(s)
+
+        # Ghost-skill check: blocked_skills referencing ids not in actions
+        ghost = sorted(constrained - skill_ids)
+        if ghost:
+            issues.append(Issue(
+                "WARN",
+                f"yaml: {agent_type}.governance.{profile_name}",
+                f"rules reference skill id(s) not in actions list: {ghost}. "
+                "Possible typo or stale rule — these blocks will never fire "
+                "at runtime.",
+            ))
+
+        # Coverage check — skill_ids guaranteed non-empty by earlier guard
+        covered = constrained & skill_ids
+        coverage = len(covered) / len(skill_ids)
+        if coverage < COVERAGE_THRESHOLD:
+            uncovered = sorted(skill_ids - constrained)
+            issues.append(Issue(
+                "WARN",
+                f"yaml: {agent_type}.governance.{profile_name}",
+                f"skill->rule coverage {coverage * 100:.0f}% (< "
+                f"{int(COVERAGE_THRESHOLD * 100)}% requisite-variety "
+                f"threshold); {len(uncovered)} skill(s) unconstrained by "
+                f"any thinking_rule or identity_rule: {uncovered}. Agents "
+                "may converge on the unconstrained subset while governance "
+                "looks effective on the constrained subset. Add rules "
+                "covering these skills or document the deliberate omission. "
+                "(harness-engineering flaw 5 — Requisite Variety)",
+            ))
+
+    return issues
+
+
+# ---------------------------------------------------------------------------
 # Per-agent-type validation
 # ---------------------------------------------------------------------------
 
@@ -375,6 +487,9 @@ def validate_agent_type(
                 f"LLM will produce these keys but the parser will reject "
                 f"them as 'missing required fields'.",
             ))
+
+    # ---- Phase 6G flaw 5: skill->rule coverage (Requisite Variety) -------
+    issues.extend(check_skill_rule_coverage(cfg, agent_type))
 
     return issues
 

@@ -12,6 +12,8 @@ import pytest
 
 from broker.tools.validate_prompt import (
     BROKER_FILLED_PLACEHOLDERS,
+    COVERAGE_THRESHOLD,
+    check_skill_rule_coverage,
     extract_inline_json_keys,
     extract_placeholders,
     main,
@@ -301,3 +303,164 @@ def test_known_broker_placeholders_documented():
     expected = {"narrative_persona", "memory", "skills", "rating_scale",
                 "response_format", "options_text"}
     assert expected.issubset(BROKER_FILLED_PLACEHOLDERS)
+
+
+# ---------------------------------------------------------------------------
+# Phase 6G flaw 5: skill->rule coverage (Requisite Variety)
+# ---------------------------------------------------------------------------
+
+class TestSkillRuleCoverage:
+    """Closes harness-engineering flaw 5 — Requisite Variety check.
+
+    Per the audit (2026-05-14): a DomainPack with N skills but rules
+    constraining only M < N skills lets agents converge on the unconstrained
+    subset while governance silently looks effective on the constrained
+    subset.
+    """
+
+    @staticmethod
+    def _cfg(**governance):
+        """Build a minimal agent_type config with the given governance block."""
+        return {
+            "agent_x": {
+                "actions": [
+                    {"id": "skill_a"},
+                    {"id": "skill_b"},
+                    {"id": "skill_c"},
+                    {"id": "skill_d"},
+                ],
+                "governance": governance,
+            }
+        }
+
+    def test_full_coverage_no_warning(self):
+        """All 4 skills constrained by at least one rule → 100% → no WARN."""
+        cfg = self._cfg(strict={
+            "thinking_rules": [
+                {"id": "r1", "blocked_skills": ["skill_a", "skill_b"]},
+                {"id": "r2", "blocked_skills": ["skill_c", "skill_d"]},
+            ],
+        })
+        issues = check_skill_rule_coverage(cfg, "agent_x")
+        assert issues == [], f"expected no issues, got: {[i.format() for i in issues]}"
+
+    def test_seventy_five_percent_below_threshold_warns(self):
+        """3 of 4 skills covered = 75% < 80% threshold → WARN.
+
+        Documents the threshold contract: the check fires for any coverage
+        strictly below COVERAGE_THRESHOLD (0.80).
+        """
+        cfg = self._cfg(strict={
+            "thinking_rules": [
+                {"id": "r1", "blocked_skills": ["skill_a", "skill_b", "skill_c"]},
+            ],
+        })
+        assert COVERAGE_THRESHOLD == 0.80
+        issues = check_skill_rule_coverage(cfg, "agent_x")
+        warns = [i for i in issues if i.severity == "WARN"]
+        assert any("coverage 75%" in i.message for i in warns), \
+            f"expected 75% coverage warn, got: {[i.message for i in issues]}"
+
+    def test_partial_coverage_warns_with_uncovered_list(self):
+        """50% coverage warns and names the uncovered skills."""
+        cfg = self._cfg(strict={
+            "thinking_rules": [
+                {"id": "r1", "blocked_skills": ["skill_a", "skill_b"]},
+            ],
+        })
+        issues = check_skill_rule_coverage(cfg, "agent_x")
+        warns = [i for i in issues if i.severity == "WARN"]
+        assert len(warns) == 1
+        msg = warns[0].message
+        assert "coverage 50%" in msg
+        assert "skill_c" in msg and "skill_d" in msg
+        assert "Requisite Variety" in msg
+        assert warns[0].location == "yaml: agent_x.governance.strict"
+
+    def test_disabled_profile_skipped(self):
+        """Profile with empty rules (ablation baseline) is intentionally exempt."""
+        cfg = self._cfg(disabled={
+            "thinking_rules": [],
+            "identity_rules": [],
+        })
+        issues = check_skill_rule_coverage(cfg, "agent_x")
+        assert issues == [], f"disabled profile should not warn: {[i.format() for i in issues]}"
+
+    def test_ghost_skill_warns(self):
+        """Rule references a skill id not in actions → ghost-skill WARN."""
+        cfg = self._cfg(strict={
+            "thinking_rules": [
+                {"id": "r1", "blocked_skills": ["skill_a", "skill_b", "nonexistent"]},
+                {"id": "r2", "blocked_skills": ["skill_c", "skill_d"]},
+            ],
+        })
+        issues = check_skill_rule_coverage(cfg, "agent_x")
+        # Coverage is 100% (all 4 real skills covered) so only ghost warn fires
+        warns = [i for i in issues if i.severity == "WARN"]
+        ghost_warns = [w for w in warns if "nonexistent" in w.message]
+        assert len(ghost_warns) == 1
+        assert "typo" in ghost_warns[0].message.lower() or "stale" in ghost_warns[0].message.lower()
+
+    def test_identity_rules_also_count(self):
+        """identity_rules + thinking_rules both contribute to coverage."""
+        cfg = self._cfg(strict={
+            "thinking_rules": [
+                {"id": "r1", "blocked_skills": ["skill_a", "skill_b"]},
+            ],
+            "identity_rules": [
+                {"id": "i1", "blocked_skills": ["skill_c", "skill_d"]},
+            ],
+        })
+        issues = check_skill_rule_coverage(cfg, "agent_x")
+        assert issues == [], "identity_rules should contribute to coverage"
+
+    def test_multiple_profiles_evaluated_independently(self):
+        """A two-profile config warns only on the under-covered profile."""
+        cfg = self._cfg(
+            strict={
+                "thinking_rules": [
+                    {"id": "r1", "blocked_skills": ["skill_a", "skill_b",
+                                                     "skill_c", "skill_d"]},
+                ],
+            },
+            relaxed={
+                "thinking_rules": [
+                    {"id": "r2", "blocked_skills": ["skill_a"]},
+                ],
+            },
+        )
+        issues = check_skill_rule_coverage(cfg, "agent_x")
+        warns = [i for i in issues if i.severity == "WARN"]
+        strict_warns = [w for w in warns if "strict" in w.location]
+        relaxed_warns = [w for w in warns if "relaxed" in w.location]
+        assert strict_warns == [], f"strict (100%) should not warn: {strict_warns}"
+        assert len(relaxed_warns) == 1
+        assert "coverage 25%" in relaxed_warns[0].message
+
+    def test_no_governance_block_skipped(self):
+        """An agent_type with no governance block returns no issues."""
+        cfg = {"agent_x": {"actions": [{"id": "skill_a"}]}}
+        assert check_skill_rule_coverage(cfg, "agent_x") == []
+
+    def test_parsing_actions_location_supported(self):
+        """Skills declared under parsing.actions are also checked."""
+        cfg = {
+            "agent_x": {
+                "parsing": {
+                    "actions": [
+                        {"id": "skill_a"},
+                        {"id": "skill_b"},
+                    ],
+                },
+                "governance": {
+                    "strict": {
+                        "thinking_rules": [
+                            {"id": "r1", "blocked_skills": ["skill_a"]},
+                        ],
+                    },
+                },
+            }
+        }
+        issues = check_skill_rule_coverage(cfg, "agent_x")
+        warns = [i for i in issues if i.severity == "WARN"]
+        assert any("coverage 50%" in w.message for w in warns)
