@@ -302,6 +302,23 @@ class ExperimentBuilder:
         if not reg:
             reg = SkillRegistry()
 
+        # Phase 6H Item 3 (INVARIANTS.md §I5 rule 4): fail fast at build
+        # time if the domain never declared a default_skill. The broker's
+        # legacy "do_nothing" fallback is flood-specific — letting another
+        # domain inherit it silently corrupts rejected-proposal fallbacks.
+        # Caught here, before any LLM call or audit row is produced.
+        if not reg.has_explicit_default_skill():
+            raise ValueError(
+                "Skill registry has no explicit default_skill. Declare a "
+                "top-level 'default_skill:' in skill_registry.yaml, or call "
+                "registry.set_default_skill(...) before .build(). The "
+                "broker's legacy 'do_nothing' fallback is flood-specific "
+                "and would silently corrupt rejected-proposal fallbacks in "
+                "non-flood domains. Reference: "
+                "examples/irrigation_abm/config/skill_registry.yaml "
+                "(INVARIANTS.md §I5 rule 4)."
+            )
+
         # 2. Setup Memory Engine (Default to Window if not provided)
         mem_engine = self.memory_engine or WindowMemoryEngine(window_size=3)
         # Seed initial memory from agent profiles (if provided)

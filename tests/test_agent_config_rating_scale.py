@@ -171,3 +171,49 @@ government:
         """Irrigation config should resolve to the declared appraisal theory."""
         config = AgentTypeConfig.load("examples/irrigation_abm/config/agent_types.yaml", force_reload=True)
         assert config.get_framework_for_agent_type("irrigation_farmer") == "cognitive_appraisal"
+
+
+class TestAgentTypeConfigRetrievalPolicy:
+    """Phase 6H Item 3: get_retrieval_config() — skill-retrieval tuning
+    resolved from YAML governance.retrieval (DomainPack retrieval_policy()
+    path is exercised separately via the contract test)."""
+
+    def setup_method(self):
+        AgentTypeConfig._instance = None
+
+    def test_retrieval_config_defaults(self, tmp_path):
+        """No governance.retrieval block → framework defaults, byte-identical
+        to the pre-6H hardcoded SkillRetriever construction (top_n=3)."""
+        yaml_file = tmp_path / "t.yaml"
+        yaml_file.write_text("shared: {}\n")
+        config = AgentTypeConfig.load(str(yaml_file))
+        assert config.get_retrieval_config() == {"top_n": 3, "min_score": 0.05}
+
+    def test_retrieval_config_yaml_override(self, tmp_path):
+        """global_config.governance.retrieval overrides both knobs."""
+        yaml_file = tmp_path / "t.yaml"
+        yaml_file.write_text(
+            "global_config:\n"
+            "  governance:\n"
+            "    retrieval:\n"
+            "      top_n: 8\n"
+            "      min_score: 0.2\n"
+        )
+        config = AgentTypeConfig.load(str(yaml_file))
+        cfg = config.get_retrieval_config()
+        assert cfg["top_n"] == 8
+        assert cfg["min_score"] == 0.2
+
+    def test_retrieval_config_partial_override(self, tmp_path):
+        """A partial override keeps the framework default for the other key."""
+        yaml_file = tmp_path / "t.yaml"
+        yaml_file.write_text(
+            "global_config:\n"
+            "  governance:\n"
+            "    retrieval:\n"
+            "      top_n: 10\n"
+        )
+        config = AgentTypeConfig.load(str(yaml_file))
+        cfg = config.get_retrieval_config()
+        assert cfg["top_n"] == 10
+        assert cfg["min_score"] == 0.05  # framework default preserved

@@ -210,9 +210,72 @@ class AgentTypeConfig:
         merged = defaults.copy()
         merged.update(shared_refl) # Apply legacy shared
         merged.update(global_refl) # Apply new global
-        
+
         return merged
-    
+
+    def get_retrieval_config(self) -> dict:
+        """Get skill-retrieval tuning (Global YAML > Shared YAML > DomainPack > Default).
+
+        Returns dict with keys: ``top_n`` (int — candidate skills surfaced
+        to the LLM) and ``min_score`` (float — relevance cutoff).
+
+        Resolution order, lowest precedence first:
+          1. Framework defaults (top_n=3, min_score=0.05) — byte-identical
+             to the pre-6H hardcoded SkillRetriever construction.
+          2. DomainPack ``retrieval_policy()`` — a pack ships its own
+             defaults (Phase 6H v2 hook).
+          3. Legacy ``shared.governance.retrieval``.
+          4. ``global_config.governance.retrieval`` (most specific).
+        """
+        defaults = {"top_n": 3, "min_score": 0.05}
+
+        # DomainPack-supplied policy (domain selector lives under
+        # global_config.governance.domain).
+        pack_policy: dict = {}
+        domain = (
+            self._config.get("global_config", {})
+            .get("governance", {})
+            .get("domain")
+        )
+        if domain:
+            # Lazy import — keeps agent_config import-cycle-free.
+            from broker.domains.registry import DomainPackRegistry
+            pack_policy = (
+                DomainPackRegistry.get_or_default(domain).retrieval_policy()
+                or {}
+            )
+
+        global_ret = (
+            self._config.get("global_config", {})
+            .get("governance", {})
+            .get("retrieval", {})
+        ) or {}
+        shared_ret = (
+            self._config.get("shared", {})
+            .get("governance", {})
+            .get("retrieval", {})
+        ) or {}
+
+        merged = defaults.copy()
+        merged.update(pack_policy)   # DomainPack over framework default
+        merged.update(shared_ret)    # legacy shared over pack
+        merged.update(global_ret)    # global YAML over all
+
+        # Coerce + validate so a malformed config value fails here with a
+        # clear message, not later as a TypeError deep inside SkillRetriever
+        # (slice / comparison on a non-numeric top_n / min_score).
+        try:
+            merged["top_n"] = int(merged["top_n"])
+            merged["min_score"] = float(merged["min_score"])
+        except (TypeError, ValueError) as e:
+            raise ValueError(
+                "governance.retrieval: 'top_n' must be an int and "
+                "'min_score' must be a float — got "
+                f"top_n={merged.get('top_n')!r}, "
+                f"min_score={merged.get('min_score')!r}"
+            ) from e
+        return merged
+
     def get_valid_actions(self, agent_type: str) -> List[str]:
         """Get all valid action IDs and aliases for agent type."""
         cfg = self.get(agent_type)
