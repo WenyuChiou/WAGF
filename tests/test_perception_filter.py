@@ -5,9 +5,55 @@ from broker.components.social.perception import (
     GovernmentPerceptionFilter,
     InsurancePerceptionFilter,
     PerceptionFilterRegistry,
+)
+from broker.interfaces.perception import (
+    DAMAGE_SEVERITY_DESCRIPTORS,
+    NEIGHBOR_COUNT_DESCRIPTORS,
+)
+from examples.governed_flood.adapters.flood_perception import (
+    COMMUNITY_OBSERVABLE_FIELDS,
     DOLLAR_AMOUNT_FIELDS,
+    FLOOD_DEPTH_DESCRIPTORS,
+    NEIGHBOR_ACTION_FIELDS,
     PERCENTAGE_FIELDS,
 )
+
+
+
+# --- Phase 6H Item 5 test helpers -------------------------------------
+# HouseholdPerceptionFilter is domain-neutral by default now; these
+# helpers opt the tests into the flood configuration it used to hardcode.
+
+def _flood_filter(**kwargs):
+    """A flood-configured HouseholdPerceptionFilter."""
+    cfg = dict(
+        descriptor_mappings={
+            "depth": FLOOD_DEPTH_DESCRIPTORS,
+            "damage": DAMAGE_SEVERITY_DESCRIPTORS,
+            "neighbor": NEIGHBOR_COUNT_DESCRIPTORS,
+        },
+        dollar_fields=DOLLAR_AMOUNT_FIELDS,
+        percentage_fields=PERCENTAGE_FIELDS,
+        community_observable_fields=COMMUNITY_OBSERVABLE_FIELDS,
+        neighbor_action_fields=NEIGHBOR_ACTION_FIELDS,
+    )
+    cfg.update(kwargs)
+    return HouseholdPerceptionFilter(**cfg)
+
+
+@pytest.fixture(autouse=True)
+def _register_flood_pack():
+    """Register FloodDomainPack so a bare PerceptionFilterRegistry()
+    builds a flood-configured household filter (Phase 6H Item 5)."""
+    from broker.domains.registry import DomainPackRegistry
+    from examples.governed_flood.adapters.flood_pack import FloodDomainPack
+    saved = dict(DomainPackRegistry._packs)
+    DomainPackRegistry.register("flood", FloodDomainPack())
+    yield
+    # Restore via the public API (clear() is the documented test-reset).
+    DomainPackRegistry.clear()
+    for _name, _pack in saved.items():
+        DomainPackRegistry.register(_name, _pack)
 
 
 class TestFloodDepthToQualitative:
@@ -15,7 +61,7 @@ class TestFloodDepthToQualitative:
 
     def test_ankle_deep_water(self):
         """Depth 0.0-0.5 ft converts to ankle-deep water."""
-        filter = HouseholdPerceptionFilter()
+        filter = _flood_filter()
 
         context = {"depth_ft": 0.3, "property_value": 100000}
         result = filter.filter(context)
@@ -26,7 +72,7 @@ class TestFloodDepthToQualitative:
 
     def test_knee_deep_water(self):
         """Depth 0.5-2.0 ft converts to knee-deep water."""
-        filter = HouseholdPerceptionFilter()
+        filter = _flood_filter()
 
         context = {"depth_ft": 1.5, "property_value": 100000}
         result = filter.filter(context)
@@ -35,7 +81,7 @@ class TestFloodDepthToQualitative:
 
     def test_waist_deep_water(self):
         """Depth 2.0-4.0 ft converts to waist-deep water."""
-        filter = HouseholdPerceptionFilter()
+        filter = _flood_filter()
 
         context = {"depth_ft": 3.2, "property_value": 100000}
         result = filter.filter(context)
@@ -44,7 +90,7 @@ class TestFloodDepthToQualitative:
 
     def test_chest_deep_water(self):
         """Depth 4.0-8.0 ft converts to chest-deep water."""
-        filter = HouseholdPerceptionFilter()
+        filter = _flood_filter()
 
         context = {"depth_ft": 6.0, "property_value": 100000}
         result = filter.filter(context)
@@ -53,7 +99,7 @@ class TestFloodDepthToQualitative:
 
     def test_over_head_water(self):
         """Depth 8.0+ ft converts to over-head water."""
-        filter = HouseholdPerceptionFilter()
+        filter = _flood_filter()
 
         context = {"depth_ft": 10.5, "property_value": 100000}
         result = filter.filter(context)
@@ -62,7 +108,7 @@ class TestFloodDepthToQualitative:
 
     def test_boundary_values(self):
         """Test boundary values between ranges."""
-        filter = HouseholdPerceptionFilter()
+        filter = _flood_filter()
 
         # Exactly 0.5 should be knee-deep (range is [0.5, 2.0))
         result = filter.filter({"depth_ft": 0.5, "property_value": 100000})
@@ -78,7 +124,7 @@ class TestDamageRatioToQualitative:
 
     def test_minimal_damage(self):
         """Ratio 0.0-0.05 converts to minimal damage."""
-        filter = HouseholdPerceptionFilter()
+        filter = _flood_filter()
 
         context = {"damage_amount": 2000, "property_value": 100000}  # 2%
         result = filter.filter(context)
@@ -87,7 +133,7 @@ class TestDamageRatioToQualitative:
 
     def test_minor_damage(self):
         """Ratio 0.05-0.15 converts to minor damage."""
-        filter = HouseholdPerceptionFilter()
+        filter = _flood_filter()
 
         context = {"damage_amount": 10000, "property_value": 100000}  # 10%
         result = filter.filter(context)
@@ -96,7 +142,7 @@ class TestDamageRatioToQualitative:
 
     def test_moderate_damage(self):
         """Ratio 0.15-0.30 converts to moderate damage."""
-        filter = HouseholdPerceptionFilter()
+        filter = _flood_filter()
 
         context = {"damage_amount": 22000, "property_value": 100000}  # 22%
         result = filter.filter(context)
@@ -105,7 +151,7 @@ class TestDamageRatioToQualitative:
 
     def test_significant_damage(self):
         """Ratio 0.30-0.50 converts to significant damage."""
-        filter = HouseholdPerceptionFilter()
+        filter = _flood_filter()
 
         context = {"damage_amount": 40000, "property_value": 100000}  # 40%
         result = filter.filter(context)
@@ -114,7 +160,7 @@ class TestDamageRatioToQualitative:
 
     def test_devastating_damage(self):
         """Ratio 0.50+ converts to devastating damage."""
-        filter = HouseholdPerceptionFilter()
+        filter = _flood_filter()
 
         context = {"damage_amount": 75000, "property_value": 100000}  # 75%
         result = filter.filter(context)
@@ -123,7 +169,7 @@ class TestDamageRatioToQualitative:
 
     def test_dollar_amounts_removed(self):
         """Exact dollar amounts are removed from household context."""
-        filter = HouseholdPerceptionFilter()
+        filter = _flood_filter()
 
         context = {
             "damage_amount": 25000,
@@ -144,7 +190,7 @@ class TestMgHasLimitedObservables:
 
     def test_mg_agent_loses_community_stats(self):
         """MG agents cannot see community-wide statistics."""
-        filter = HouseholdPerceptionFilter()
+        filter = _flood_filter()
 
         # Create MG agent
         agent = type('Agent', (), {'is_mg': True})()
@@ -173,7 +219,7 @@ class TestMgHasLimitedObservables:
 
     def test_non_mg_agent_sees_all(self):
         """Non-MG agents see community observables."""
-        filter = HouseholdPerceptionFilter()
+        filter = _flood_filter()
 
         # Create non-MG agent
         agent = type('Agent', (), {'is_mg': False})()
@@ -191,7 +237,7 @@ class TestMgHasLimitedObservables:
 
     def test_mg_via_marginalized_group_attribute(self):
         """MG status detected via marginalized_group attribute."""
-        filter = HouseholdPerceptionFilter()
+        filter = _flood_filter()
 
         agent = type('Agent', (), {'marginalized_group': True})()
 
@@ -206,7 +252,7 @@ class TestMgHasLimitedObservables:
 
     def test_mg_agent_as_dict(self):
         """MG status detected when agent is a dict."""
-        filter = HouseholdPerceptionFilter()
+        filter = _flood_filter()
 
         agent = {"is_mg": True, "agent_id": "a1"}
 
@@ -225,7 +271,7 @@ class TestNeighborActionsQualitative:
 
     def test_none_of_neighbors(self):
         """Count 0 converts to 'none of your neighbors'."""
-        filter = HouseholdPerceptionFilter()
+        filter = _flood_filter()
 
         context = {"neighbors_insured": 0, "property_value": 100000}
         result = filter.filter(context)
@@ -235,7 +281,7 @@ class TestNeighborActionsQualitative:
 
     def test_few_neighbors(self):
         """Count 1-2 converts to 'a few of your neighbors'."""
-        filter = HouseholdPerceptionFilter()
+        filter = _flood_filter()
 
         context = {"neighbors_elevated": 2, "property_value": 100000}
         result = filter.filter(context)
@@ -244,7 +290,7 @@ class TestNeighborActionsQualitative:
 
     def test_some_neighbors(self):
         """Count 3-5 converts to 'some of your neighbors'."""
-        filter = HouseholdPerceptionFilter()
+        filter = _flood_filter()
 
         context = {"neighbors_relocated": 4, "property_value": 100000}
         result = filter.filter(context)
@@ -253,7 +299,7 @@ class TestNeighborActionsQualitative:
 
     def test_many_neighbors(self):
         """Count 6-10 converts to 'many of your neighbors'."""
-        filter = HouseholdPerceptionFilter()
+        filter = _flood_filter()
 
         context = {"neighbors_insured": 8, "property_value": 100000}
         result = filter.filter(context)
@@ -262,7 +308,7 @@ class TestNeighborActionsQualitative:
 
     def test_most_neighbors(self):
         """Count 11+ converts to 'most of your neighbors'."""
-        filter = HouseholdPerceptionFilter()
+        filter = _flood_filter()
 
         context = {"neighbors_elevated": 15, "property_value": 100000}
         result = filter.filter(context)
@@ -435,20 +481,33 @@ class TestUnknownTypeDefaultsToHousehold:
         assert "flood_depth_description" in result
         assert result["flood_depth_description"] == "knee-deep water"
 
+    def test_unknown_type_bare_filter_is_passthrough(self, monkeypatch):
+        """With NO DomainPack registered the unknown-type fallback is a
+        domain-neutral no-op filter — strips and verbalizes nothing.
+        Flood behaviour above is opt-in via FloodDomainPack (Phase 6H
+        Item 5); this test pins the bare contract."""
+        from broker.domains.registry import DomainPackRegistry
+        monkeypatch.setattr(DomainPackRegistry, "_packs", {})
+        registry = PerceptionFilterRegistry(register_defaults=False)
+        context = {"depth_ft": 1.0, "damage_amount": 5000, "property_value": 100000}
+        result = registry.filter_context("unknown", context)
+        assert "depth_ft" in result  # bare filter strips nothing
+        assert "flood_depth_description" not in result
+
 
 class TestHouseholdFilterEdgeCases:
     """Test edge cases for household perception filter."""
 
     def test_empty_context(self):
         """Empty context returns empty result."""
-        filter = HouseholdPerceptionFilter()
+        filter = _flood_filter()
         result = filter.filter({})
         # Empty context has no fields to transform
         assert result == {}
 
     def test_no_agent_provided(self):
         """Filter works without agent parameter."""
-        filter = HouseholdPerceptionFilter()
+        filter = _flood_filter()
 
         context = {"depth_ft": 1.5, "property_value": 100000}
         result = filter.filter(context)
@@ -457,7 +516,7 @@ class TestHouseholdFilterEdgeCases:
 
     def test_zero_property_value(self):
         """Handles zero property value without division error."""
-        filter = HouseholdPerceptionFilter()
+        filter = _flood_filter()
 
         context = {"damage_amount": 5000, "property_value": 0}
         # Should not raise ZeroDivisionError
@@ -470,7 +529,7 @@ class TestHouseholdFilterEdgeCases:
 
     def test_preserves_unknown_fields(self):
         """Fields not in removal lists are preserved."""
-        filter = HouseholdPerceptionFilter()
+        filter = _flood_filter()
 
         context = {
             "year": 5,
@@ -486,7 +545,7 @@ class TestHouseholdFilterEdgeCases:
 
     def test_household_agent_type_property(self):
         """Household filter reports correct agent type."""
-        filter = HouseholdPerceptionFilter()
+        filter = _flood_filter()
         assert filter.agent_type == "household"
 
 
@@ -530,7 +589,7 @@ class TestPercentageFieldsRemoval:
 
     def test_percentage_fields_removed(self):
         """Exact percentage fields are removed from household context."""
-        filter = HouseholdPerceptionFilter()
+        filter = _flood_filter()
 
         context = {
             "insurance_penetration_rate": 0.45,

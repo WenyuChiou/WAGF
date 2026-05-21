@@ -32,7 +32,6 @@ from .perception import (
     PerceptionConfig,
     PerceptionFilterProtocol,
     PerceptionFilterRegistryProtocol,
-    FLOOD_DEPTH_DESCRIPTORS,
     DAMAGE_SEVERITY_DESCRIPTORS,
     NEIGHBOR_COUNT_DESCRIPTORS,
 )
@@ -67,7 +66,6 @@ __all__ = [
     "PerceptionConfig",
     "PerceptionFilterProtocol",
     "PerceptionFilterRegistryProtocol",
-    "FLOOD_DEPTH_DESCRIPTORS",
     "DAMAGE_SEVERITY_DESCRIPTORS",
     "NEIGHBOR_COUNT_DESCRIPTORS",
     # Environment protocols (migrated from cognitive_governance)

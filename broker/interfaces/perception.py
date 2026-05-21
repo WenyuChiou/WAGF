@@ -118,19 +118,10 @@ class PerceptionFilterRegistryProtocol(Protocol):
         ...
 
 
-# Pre-defined descriptor mappings for common use cases
-FLOOD_DEPTH_DESCRIPTORS = DescriptorMapping(
-    field_name="flood_depth",
-    ranges=[
-        (0.0, 0.5, "ankle-deep water"),
-        (0.5, 2.0, "knee-deep water"),
-        (2.0, 4.0, "waist-deep water"),
-        (4.0, 8.0, "chest-deep water"),
-        (8.0, float('inf'), "over-head water"),
-    ],
-    unit="ft",
-)
-
+# Pre-defined generic (domain-neutral) descriptor mappings. A
+# domain-specific depth descriptor was relocated to its domain package
+# (Phase 6H Item 5); damage-severity and neighbour-count are
+# domain-agnostic and stay here.
 DAMAGE_SEVERITY_DESCRIPTORS = DescriptorMapping(
     field_name="damage_severity",
     ranges=[
@@ -160,8 +151,7 @@ __all__ = [
     "PerceptionConfig",
     "PerceptionFilterProtocol",
     "PerceptionFilterRegistryProtocol",
-    # Pre-defined mappings
-    "FLOOD_DEPTH_DESCRIPTORS",
+    # Pre-defined generic descriptor mappings
     "DAMAGE_SEVERITY_DESCRIPTORS",
     "NEIGHBOR_COUNT_DESCRIPTORS",
 ]
