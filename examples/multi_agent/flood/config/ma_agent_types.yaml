@@ -197,6 +197,16 @@ global_config:
     interval: 1
     batch_size: 10
     importance_boost: 0.9
+    # Phase 6H Item 4: domain-wide reflection questions for the MA-flood
+    # individual-reflection path. NOTE: lifecycle_hooks.py currently reads
+    # this global_config set for ALL institutional agents -- government and
+    # insurance share it. The get_reflection_questions() resolver does
+    # support per-agent-type `<type>.reflection.questions`, but wiring
+    # lifecycle_hooks to per-type resolution is a tracked follow-up.
+    questions:
+      - "Which communities or risk segments are most exposed this year?"
+      - "Are your programs and pricing reaching the households that need them?"
+      - "What single adjustment would most improve outcomes next year?"
     triggers:
       crisis: true
       periodic_interval: 5

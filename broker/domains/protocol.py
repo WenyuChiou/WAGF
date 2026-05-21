@@ -83,9 +83,15 @@ class DomainPack(Protocol):
         ...
 
     def reflection_questions(self) -> List[str]:
-        """Prompt questions for the reflection LLM call. Empty list →
-        broker falls back to ``agent_types.yaml`` ``reflection.questions``
-        or the legacy ``REFLECTION_QUESTIONS`` dict."""
+        """Prompt questions for the reflection LLM call.
+
+        Wired (Phase 6H Item 4) as step 4 of
+        ``AgentTypeConfig.get_reflection_questions(agent_type)`` — its
+        precedence is per-agent-type YAML → domain-wide YAML → this hook
+        → a domain-neutral generic fallback. A packaged domain may return
+        its questions here instead of declaring ``reflection.questions``
+        in ``agent_types.yaml``; empty list → defer to YAML / the
+        generic fallback."""
         ...
 
     def reflection_persona(self) -> Optional[str]:

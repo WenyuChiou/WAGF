@@ -1080,8 +1080,13 @@ class MultiAgentHooks:
                             memories = []
                         if memories:
                             context = ReflectionEngine.extract_agent_context(agent, year)
+                            # Phase 6H Item 4: reflection questions come from
+                            # agent_types.yaml (global_config.reflection.questions)
+                            # via self._reflection_config — no longer the
+                            # hardcoded flood REFLECTION_QUESTIONS dict.
                             prompt = reflection_engine.generate_personalized_reflection_prompt(
-                                context, memories, year
+                                context, memories, year,
+                                reflection_questions=self._reflection_config.get("questions") or None,
                             )
                             insight = reflection_engine.parse_reflection_response(
                                 f"As a {base_type} agent, I observe: " + "; ".join(_memory_text(m) for m in memories[:2]),

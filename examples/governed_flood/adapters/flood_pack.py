@@ -106,8 +106,9 @@ class FloodDomainPack(DefaultDomainPack):
         return f"Current status: {', '.join(status_parts)}."
 
     def reflection_questions(self) -> List[str]:
-        # Falls back to REFLECTION_QUESTIONS["household"] in reflection.py;
-        # not duplicated here.
+        # Empty → AgentTypeConfig.get_reflection_questions() resolves from
+        # agent_types.yaml reflection.questions, else the domain-neutral
+        # _DEFAULT_REFLECTION_QUESTIONS fallback in reflection.py.
         return []
 
     def reflection_persona(self) -> Optional[str]:

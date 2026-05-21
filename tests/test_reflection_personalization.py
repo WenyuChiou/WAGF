@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 from broker.components.cognitive.reflection import (
     ReflectionEngine,
     AgentReflectionContext,
-    REFLECTION_QUESTIONS,
+    _DEFAULT_REFLECTION_QUESTIONS,
 )
 
 
@@ -61,16 +61,17 @@ class TestPersonalizedPrompt:
         assert "flood insurance" in prompt
         assert "flooded 3 time" in prompt
 
-    def test_government_prompt_has_government_questions(self, engine):
+    def test_government_prompt_uses_generic_fallback_without_yaml(self, engine):
+        """Phase 6H Item 4: government reflection questions are no longer
+        hardcoded per agent type. Without resolver-supplied questions the
+        prompt carries the domain-neutral generic fallback — a domain
+        author supplies government-specific questions via
+        agent_types.yaml (government.reflection.questions)."""
         ctx = AgentReflectionContext(agent_id="GOV_1", agent_type="government")
         prompt = engine.generate_personalized_reflection_prompt(
             ctx, ["Year 5: Distributed grants"], 5
         )
-        assert (
-            "vulnerable" in prompt.lower()
-            or "equity" in prompt.lower()
-            or "subsidy" in prompt.lower()
-        )
+        assert _DEFAULT_REFLECTION_QUESTIONS[0] in prompt
 
     def test_empty_memories_returns_empty(self, engine):
         ctx = AgentReflectionContext(agent_id="H_001")
@@ -112,7 +113,29 @@ class TestPersonalizedBatchPrompt:
 
 
 class TestReflectionQuestions:
-    def test_all_types_have_questions(self):
-        for t in ["household", "government", "insurance"]:
-            assert t in REFLECTION_QUESTIONS
-            assert len(REFLECTION_QUESTIONS[t]) >= 2
+    """Phase 6H Item 4: the per-flood-agent-type hardcoded dict was
+    replaced by a domain-neutral generic fallback; questions are now
+    resolved per-domain via AgentTypeConfig.get_reflection_questions()."""
+
+    def test_default_questions_nonempty_and_domain_neutral(self):
+        assert len(_DEFAULT_REFLECTION_QUESTIONS) >= 2
+        joined = " ".join(_DEFAULT_REFLECTION_QUESTIONS).lower()
+        for flood_word in ("flood", "insurance", "premium", "elevat"):
+            assert flood_word not in joined, (
+                f"generic fallback must not carry domain wording: {flood_word!r}"
+            )
+
+    def test_individual_prompt_uses_passed_questions(self, engine):
+        ctx = AgentReflectionContext(agent_id="A1", name="A1", agent_type="farmer")
+        custom = ["Did your allocation match the inflow forecast?"]
+        prompt = engine.generate_personalized_reflection_prompt(
+            ctx, ["a memory"], 3, reflection_questions=custom
+        )
+        assert custom[0] in prompt
+
+    def test_individual_prompt_falls_back_to_generic(self, engine):
+        ctx = AgentReflectionContext(agent_id="A1", name="A1", agent_type="farmer")
+        prompt = engine.generate_personalized_reflection_prompt(
+            ctx, ["a memory"], 3
+        )
+        assert _DEFAULT_REFLECTION_QUESTIONS[0] in prompt

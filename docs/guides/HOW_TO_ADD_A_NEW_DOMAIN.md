@@ -100,6 +100,13 @@ global_config:
     interval: 1
     batch_size: 5
     persona_instruction: "Summarize each agent's vaccination journey..."
+    # Domain-wide reflection questions. For a multi-agent domain you may
+    # instead (or additionally) put a `reflection: {questions: [...]}`
+    # block under a specific agent type below — it overrides this global
+    # set for that type. Resolution order, highest first: per-agent-type
+    # YAML > global_config YAML > DomainPack.reflection_questions() >
+    # a domain-neutral generic fallback. No DomainPack code is required —
+    # editing this YAML is enough.
     questions:
       - "Has your perceived susceptibility to infection changed this year?"
       - "Did the perceived benefits outweigh the barriers?"
