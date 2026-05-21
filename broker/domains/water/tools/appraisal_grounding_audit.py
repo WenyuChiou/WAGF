@@ -14,7 +14,7 @@ catches qualitative inversions, not a self-consistent uniform down-shift
 where direction still tracks; that residual is the other approach's job.
 
 Usage:
-    python -m broker.tools.appraisal_grounding_audit <output_dir> --domain irrigation
+    python -m broker.domains.water.tools.appraisal_grounding_audit <output_dir> --domain irrigation
 """
 from __future__ import annotations
 

@@ -374,7 +374,9 @@ class TestDomainGenericity:
         # KNOWN-DEBT(6H) — genuine domain leak in generic broker/ code.
         # Each migrates in the Phase 6H DomainPack v2 refactor; removing an
         # entry MUST be paired with the migration, or the test regresses.
-        "tools/appraisal_grounding_audit.py",        # KNOWN-DEBT(6H): irrigation-bound tool, hardcodes WSA_LABEL; -> broker/domains/water/tools/
+        # (Phase 6H Item 5d DONE 2026-05-21: appraisal_grounding_audit.py
+        #  relocated to broker/domains/water/tools/ -- skip-listed,
+        #  entry removed.)
         # (Phase 6H Item 5 DONE 2026-05-21: FLOOD_DEPTH_DESCRIPTORS relocated
         #  to examples/governed_flood/adapters/flood_perception.py; the
         #  HouseholdPerceptionFilter is DomainPack-wired -- interfaces/

@@ -1,4 +1,4 @@
-"""Tests for broker.tools.appraisal_grounding_audit."""
+"""Tests for broker.domains.water.tools.appraisal_grounding_audit."""
 from __future__ import annotations
 
 import csv
@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 from broker.domains.registry import DomainPackRegistry
-from broker.tools import appraisal_grounding_audit
+from broker.domains.water.tools import appraisal_grounding_audit
 
 
 class GroundingPack:
