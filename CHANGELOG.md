@@ -71,6 +71,12 @@ flood-coupling-free.
   The two flood-named pass-through filters collapse into one generic
   `PassThroughPerceptionFilter`; `PerceptionFilterRegistry` hardcodes
   no agent-type names. Default: every agent type verbalizes.
+- **Audit tool relocated** (Item 5d): the irrigation-bound
+  `appraisal_grounding_audit` post-hoc CLI moved from `broker/tools/`
+  to `broker/domains/water/tools/` — out of generic broker code. Zero
+  production importers; pure relocation. I5 KNOWN-DEBT allowlist down
+  to 4 entries (`agent_validator`, `thinking_rule_posthoc`,
+  `unified_rh`, `reflection.py`).
 
 ### Notes
 
