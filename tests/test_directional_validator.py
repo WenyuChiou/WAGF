@@ -18,7 +18,7 @@ from collections import Counter
 from unittest.mock import MagicMock
 from typing import Dict, Tuple
 
-from broker.validators.calibration.directional_validator import (
+from broker.domains.water.calibration.directional_validator import (
     DirectionalTest,
     DirectionalTestResult,
     DirectionalReport,

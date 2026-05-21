@@ -376,7 +376,9 @@ class TestDomainGenericity:
         # entry MUST be paired with the migration, or the test regresses.
         "tools/appraisal_grounding_audit.py",        # KNOWN-DEBT(6H): irrigation-bound tool, hardcodes WSA_LABEL; -> broker/domains/water/tools/
         "interfaces/perception.py",                  # KNOWN-DEBT(6H): FLOOD_DEPTH_DESCRIPTORS flood constant; -> broker/domains/water/
-        "validators/calibration/",                   # KNOWN-DEBT(6H): whole flood-PMT calibration package (audit A P1 #3); -> broker/domains/water/calibration/
+        # (Phase 6H Item 1 DONE 2026-05-21: validators/calibration/ relocated
+        #  to broker/domains/water/calibration/ — entry removed, no longer in
+        #  the generic-broker scan scope.)
         "validators/posthoc/thinking_rule_posthoc.py",  # KNOWN-DEBT(6H): hardcoded flood column reads; -> DomainPack-parameterize
         "validators/posthoc/unified_rh.py",          # KNOWN-DEBT(6H): flood irreversible-state default dict; -> DomainPack-parameterize
         "validators/agent/agent_validator.py",       # KNOWN-DEBT(6H): :282-286 cosmetic; audit A found real validate_affordability() leak :467-530

@@ -25,7 +25,7 @@ Callback protocols:
 
 Usage::
 
-    from broker.validators.calibration.directional_validator import (
+    from broker.domains.water.calibration.directional_validator import (
         DirectionalValidator, DirectionalTest, SwapTest,
     )
 

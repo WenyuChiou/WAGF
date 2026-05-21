@@ -221,11 +221,11 @@ The PMT rule tables cover the full 5x5 matrix, so in practice this fallback shou
 ### 2.8 MODERATE: Two Parallel L1 Implementations
 
 **Severity**: Low-Medium
-**Files**: `compute_validation_metrics.py` (standalone L1), `broker/validators/calibration/micro_validator.py` (framework L1)
+**Files**: `compute_validation_metrics.py` (standalone L1), `broker/domains/water/calibration/micro_validator.py` (framework L1)
 
 There are two independent implementations of L1 validation:
 1. `compute_validation_metrics.py` -- standalone, uses hardcoded PMT rule dictionaries
-2. `broker/validators/calibration/micro_validator.py` -- framework-level, uses `PMTFramework.validate_action_coherence()`
+2. `broker/domains/water/calibration/micro_validator.py` -- framework-level, uses `PMTFramework.validate_action_coherence()`
 
 These could diverge. The standalone version (`compute_validation_metrics.py`) is the one actually used for Paper 3 validation, while the framework version is more general. However, if the PMT rules differ between the two, the reported CACR depends on which implementation runs.
 

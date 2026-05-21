@@ -70,7 +70,7 @@ The reported pilot results (ICC = 0.964, eta-squared = 0.33) are well above thre
 
 ### 2.6 Extensive Infrastructure
 
-The validation stack comprises approximately 8,400+ lines of code across generic framework modules (`broker/validators/calibration/`, ~6,469 lines) and domain-specific modules (`paper3/analysis/`, ~2,000+ lines). The separation of concerns -- generic `BenchmarkRegistry`, `PsychometricBattery`, and `MicroValidator` classes in the broker layer versus flood-specific `empirical_benchmarks.py`, `compute_validation_metrics.py`, and archetype configs in the paper3 layer -- is well-designed and promotes reusability.
+The validation stack comprises approximately 8,400+ lines of code across generic framework modules (`broker/domains/water/calibration/`, ~6,469 lines) and domain-specific modules (`paper3/analysis/`, ~2,000+ lines). The separation of concerns -- generic `BenchmarkRegistry`, `PsychometricBattery`, and `MicroValidator` classes in the broker layer versus flood-specific `empirical_benchmarks.py`, `compute_validation_metrics.py`, and archetype configs in the paper3 layer -- is well-designed and promotes reusability.
 
 ---
 
@@ -222,7 +222,7 @@ Implement at least one temporal benchmark, such as:
 - **Post-flood insurance spike**: Insurance uptake should increase in the 1-2 years following a flood event and then decay. This is one of the most robust empirical findings in the flood insurance literature (Gallagher, 2014; Atreya et al., 2013).
 - **Adaptation persistence**: Agents who elevate should not subsequently un-elevate (already checked by R_H, but could also be expressed as a temporal consistency benchmark).
 
-The `TemporalCoherenceValidator` in `broker/validators/calibration/temporal_coherence.py` (426 lines) appears to already support this; it simply needs to be wired into the L2 validation pipeline.
+The `TemporalCoherenceValidator` in `broker/domains/water/calibration/temporal_coherence.py` (426 lines) appears to already support this; it simply needs to be wired into the L2 validation pipeline.
 
 ### Priority 3: Document Benchmark Transferability [BEFORE SUBMISSION]
 
@@ -280,10 +280,10 @@ The L3 cognitive validation (ICC probing) is the strongest element of the framew
 | File | Absolute Path | Role |
 |------|---------------|------|
 | Standalone validation | `c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\multi_agent\flood\paper3\analysis\compute_validation_metrics.py` | L1+L2 computation from JSONL traces |
-| Framework micro validator | `c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\broker\validators\calibration\micro_validator.py` | Generic CACR/EGS computation |
+| Framework micro validator | `c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\broker\domains\water\calibration\micro_validator.py` | Generic CACR/EGS computation |
 | Framework R_H computation | `c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\broker\validators\posthoc\unified_rh.py` | Domain-agnostic R_H + EBE |
-| Framework benchmark registry | `c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\broker\validators\calibration\benchmark_registry.py` | Generic EPI engine |
+| Framework benchmark registry | `c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\broker\domains\water\calibration\benchmark_registry.py` | Generic EPI engine |
 | Domain benchmark definitions | `c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\multi_agent\flood\paper3\analysis\empirical_benchmarks.py` | Flood-specific 8 benchmarks |
-| Psychometric battery | `c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\broker\validators\calibration\psychometric_battery.py` | ICC/eta-squared probing |
+| Psychometric battery | `c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\broker\domains\water\calibration\psychometric_battery.py` | ICC/eta-squared probing |
 | Unit tests | `c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\multi_agent\flood\paper3\tests\test_decision_based_inference.py` | Decision-based inference tests |
 | Project reference | `c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\multi_agent\flood\paper3\PAPER3_COMPLETE_REFERENCE.md` | Full design specification |
