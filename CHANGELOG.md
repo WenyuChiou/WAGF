@@ -58,6 +58,13 @@ flood-coupling-free.
   verbalizes nothing); `PerceptionFilterRegistry` injects the active
   DomainPack's `perception_descriptors()` / `perception_field_policy()`.
   `interfaces/perception.py` is now flood-free and off the I5 allowlist.
+- **Verbalization fully generic** (Item 5b): the filter's `filter()`
+  body is now a single `{input_context_field: DescriptorMapping}`
+  lookup loop with zero domain knowledge — it maps numbers to words,
+  never computes. A model builder verbalizes any domain's numbers
+  (signed changes via negative ranges; same-context ratios via
+  `DescriptorMapping.denominator_field`) purely by declaring
+  `perception_descriptors()` — no broker or filter edits.
 
 ### Notes
 
