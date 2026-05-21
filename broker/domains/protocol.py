@@ -190,6 +190,23 @@ class DomainPack(Protocol):
         """
         ...
 
+    def affordability_constraints(self) -> Dict[str, Any]:
+        """Per-decision financial affordability cost models, keyed by
+        decision/skill name. Each value is a dict
+        ``{"base_cost": float, "income_multiplier": float,
+        "default_subsidy_rate": float}``: the decision is affordable iff
+        ``base_cost * (1 - subsidy_rate) <= income * income_multiplier``
+        (``subsidy_rate`` is read from agent/env state, falling back to
+        ``default_subsidy_rate``).
+
+        Consumed by ``AgentValidator.validate_affordability()`` (Tier 0,
+        opt-in via ``enable_financial_constraints``). Default ``{}`` →
+        the affordability check is a no-op; a decision the domain does
+        not list is unconstrained. Replaces the hardcoded flood
+        elevation cost model (Phase 6H Item 6).
+        """
+        ...
+
     # ─── Memory templates (initial agent memories) ────────────────
 
     def initial_memory_templates(self, profile: Dict[str, Any]) -> List[Any]:

@@ -386,7 +386,9 @@ class TestDomainGenericity:
         #  the generic-broker scan scope.)
         "validators/posthoc/thinking_rule_posthoc.py",  # KNOWN-DEBT(6H): hardcoded flood column reads; -> DomainPack-parameterize
         "validators/posthoc/unified_rh.py",          # KNOWN-DEBT(6H): flood irreversible-state default dict; -> DomainPack-parameterize
-        "validators/agent/agent_validator.py",       # KNOWN-DEBT(6H): :282-286 cosmetic; audit A found real validate_affordability() leak :467-530
+        # (Phase 6H Item 6 DONE 2026-05-21: validate_affordability()
+        #  de-flooded via DomainPack.affordability_constraints();
+        #  dead :282-286 debug comment removed -- entry removed.)
     ]
 
     def _is_allowlisted(self, path: Path) -> bool:

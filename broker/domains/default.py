@@ -96,6 +96,9 @@ class DefaultDomainPack:
     def passthrough_agent_types(self) -> Set[str]:
         return set()
 
+    def affordability_constraints(self) -> Dict[str, Any]:
+        return {}
+
     # ─── Retrieval tuning (Phase 6H DomainPack v2) ────────────────
 
     def retrieval_policy(self) -> Dict[str, Any]:

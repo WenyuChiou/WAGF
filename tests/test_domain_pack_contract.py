@@ -109,6 +109,9 @@ class TestDefaultDomainPack:
     def test_passthrough_agent_types_is_empty(self):
         assert self.pack.passthrough_agent_types() == set()
 
+    def test_affordability_constraints_is_empty(self):
+        assert self.pack.affordability_constraints() == {}
+
     def test_retrieval_policy_is_empty(self):
         assert self.pack.retrieval_policy() == {}
 
@@ -304,6 +307,13 @@ class TestFloodDomainPackByteIdentical:
     def test_passthrough_agent_types(self):
         assert self.pack.passthrough_agent_types() == {"government", "insurance"}
 
+    def test_affordability_constraints(self):
+        spec = self.pack.affordability_constraints()
+        assert set(spec) == {"elevate_house"}
+        assert spec["elevate_house"]["base_cost"] == 150_000.0
+        assert spec["elevate_house"]["income_multiplier"] == 3.0
+        assert spec["elevate_house"]["default_subsidy_rate"] == 0.5
+
     # Event handlers — preserves ma_manager.py:275-289 chain
     def test_event_handlers_keys(self):
         assert set(self.pack.event_handlers().keys()) == {
@@ -385,3 +395,49 @@ class TestHotPathsUseDomainPack:
             f"{module_path} no longer references DomainPackRegistry — "
             f"refactor may have regressed (Phase 6C-v2 hot-spot)."
         )
+
+
+class TestAffordabilityValidation:
+    """Phase 6H Item 6: AgentValidator.validate_affordability() reads the
+    active DomainPack's affordability_constraints() — no hardcoded flood
+    cost model. Flood byte-identical: $150k base, 50% subsidy default,
+    affordable iff post-subsidy cost <= 3x income."""
+
+    def setup_method(self):
+        from broker.domains.registry import DomainPackRegistry
+        self._saved_packs = dict(DomainPackRegistry._packs)
+        import examples.governed_flood  # noqa: F401 — registers FloodDomainPack
+
+    def teardown_method(self):
+        from broker.domains.registry import DomainPackRegistry
+        DomainPackRegistry.clear()
+        for _name, _pack in self._saved_packs.items():
+            DomainPackRegistry.register(_name, _pack)
+
+    @staticmethod
+    def _context(income):
+        return {
+            "agent_state": {"state": {"income": income, "subsidy_rate": 0.5}},
+            "env_state": {},
+        }
+
+    def test_elevation_unaffordable_for_low_income(self):
+        from broker.validators.agent.agent_validator import AgentValidator
+        v = AgentValidator(enable_financial_constraints=True)
+        # cost = 150000 * (1 - 0.5) = 75000; threshold = 10000 * 3 = 30000
+        ok, reason = v.validate_affordability("a", "elevate_house", self._context(10_000))
+        assert ok is False
+        assert reason and "elevate_house" in reason
+
+    def test_elevation_affordable_for_high_income(self):
+        from broker.validators.agent.agent_validator import AgentValidator
+        v = AgentValidator(enable_financial_constraints=True)
+        ok, _ = v.validate_affordability("a", "elevate_house", self._context(100_000))
+        assert ok is True
+
+    def test_unconstrained_decision_passes(self):
+        from broker.validators.agent.agent_validator import AgentValidator
+        v = AgentValidator(enable_financial_constraints=True)
+        # do_nothing is not in flood affordability_constraints -> no check
+        ok, reason = v.validate_affordability("a", "do_nothing", self._context(1))
+        assert ok is True and reason is None

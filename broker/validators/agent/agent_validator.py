@@ -26,6 +26,26 @@ from broker.utils.logging import setup_logger
 
 logger = setup_logger(__name__)
 
+
+def _affordability_constraints_from_domain_pack():
+    """Per-decision affordability cost models from the first registered
+    DomainPack with non-empty ``affordability_constraints()`` — mirrors
+    the perception / reflection pack-scan. Empty dict when none (the
+    affordability check is then a no-op). Phase 6H Item 6."""
+    try:
+        from broker.domains.registry import DomainPackRegistry
+    except ImportError:
+        return {}
+    for name in DomainPackRegistry.domains():
+        pack = DomainPackRegistry.get(name)
+        if pack is None:
+            continue
+        constraints = pack.affordability_constraints() or {}
+        if constraints:
+            return constraints
+    return {}
+
+
 class AgentValidator:
     """
     Generic validator for any agent type.
@@ -279,12 +299,6 @@ class AgentValidator:
         results = []
         rules = self.config.get_identity_rules(agent_type)
 
-        # DEBUG Task 015-V2: Track elevated state during elevate_house attempts
-        # (Debug print removed to reduce log noise)
-        # if decision == "elevate_house":
-        #    elevated_val = state.get("elevated")
-        #    print(f"[V2-DEBUG] {agent_id} chose elevate_house | elevated={elevated_val} (type={type(elevated_val).__name__ if elevated_val is not None else 'None'}) | rules={len(rules)}")
-
         for rule in rules:
             if not rule.blocked_skills: continue
             
@@ -470,18 +484,22 @@ class AgentValidator:
         decision: str,
         context: Dict[str, Any]
     ) -> Tuple[bool, Optional[str]]:
-        """
-        Tier 0: Financial affordability check.
+        """Tier 0: financial affordability check (domain-neutral).
 
-        Rules:
-        - elevate_house: cost after subsidy <= 3x annual income
-        - buy_insurance/buy_contents_insurance: annual premium <= 5% of income
+        A decision is affordable iff
+            base_cost * (1 - subsidy_rate) <= income * income_multiplier
+
+        The per-decision cost model comes from the active DomainPack's
+        ``affordability_constraints()``; a decision the domain does not
+        list is unconstrained. No decision names are hardcoded here
+        (Phase 6H Item 6). ``subsidy_rate`` is read from agent/env state,
+        falling back to the spec's ``default_subsidy_rate``.
         """
         if not context:
             return True, None
 
-        agent_type = context.get("agent_type")
-        if agent_type not in ["household_owner", "household_renter", "household"]:
+        spec = _affordability_constraints_from_domain_pack().get(decision)
+        if not spec:
             return True, None
 
         agent_state = context.get("agent_state", {})
@@ -507,26 +525,22 @@ class AgentValidator:
                 return float(default)
 
         income = get_number("income", 50000)
-        subsidy_rate = get_number("subsidy_rate", env.get("subsidy_rate", 0.5))
-        premium_rate = get_number("premium_rate", env.get("premium_rate", 0.02))
-        property_value = get_number("property_value", 0.0)
-        if not property_value:
-            property_value = get_number("rcv_building", 0.0) + get_number("rcv_contents", 0.0)
-        if not property_value:
-            property_value = 300000.0
+        subsidy_rate = get_number(
+            "subsidy_rate",
+            env.get("subsidy_rate", float(spec.get("default_subsidy_rate", 0.0))),
+        )
+        base_cost = float(spec.get("base_cost", 0.0))
+        # Fallback 1.0 (cost <= 100% income) is domain-neutral; the
+        # flood spec always supplies an explicit multiplier.
+        income_multiplier = float(spec.get("income_multiplier", 1.0))
 
-        if decision == "elevate_house":
-            cost = 150_000 * (1 - subsidy_rate)
-            if cost > income * 3.0:
-                return False, (
-                    f"AFFORDABILITY: Cannot afford elevation (${cost:,.0f} > 3x income ${income*3:,.0f})"
-                )
-
-        # Insurance affordability is handled via prompt-level guidance (insurance_cost_text)
-        # which tells the LLM the premium burden percentage and descriptive norms.
-        # This gives the LLM genuine judgment space — some agents may choose to buy
-        # insurance despite heavy burden (debt, fear after floods), which is realistic.
-
+        cost = base_cost * (1.0 - subsidy_rate)
+        threshold = income * income_multiplier
+        if cost > threshold:
+            return False, (
+                f"AFFORDABILITY: Cannot afford '{decision}' "
+                f"(${cost:,.0f} > {income_multiplier:g}x income ${threshold:,.0f})"
+            )
         return True, None
     
     def validate_response_format(
