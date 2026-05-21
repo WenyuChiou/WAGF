@@ -195,8 +195,13 @@ class AgentTypeConfig:
     
     def get_reflection_config(self) -> dict:
         """Get reflection configuration (Global > Shared > Default).
-        
-        Returns dict with keys: interval, batch_size, importance_boost
+
+        Documented keys: interval, batch_size, importance_boost. The
+        merge copies the WHOLE ``reflection`` YAML block, so any other
+        keys present (``persona_instruction``, ``triggers``, and
+        ``questions``) also pass through. For reflection questions
+        prefer :meth:`get_reflection_questions` — it adds per-agent-type
+        resolution and the DomainPack fallback.
         """
         defaults = {"interval": 1, "batch_size": 10, "importance_boost": 0.9}
         
@@ -275,6 +280,59 @@ class AgentTypeConfig:
                 f"min_score={merged.get('min_score')!r}"
             ) from e
         return merged
+
+    def get_reflection_questions(self, agent_type: str) -> List[str]:
+        """Resolve reflection questions for an agent type (Phase 6H Item 4).
+
+        A domain author customises reflection purely by editing
+        ``agent_types.yaml`` — no DomainPack code required. Precedence,
+        highest first:
+
+          1. ``<agent_type>.reflection.questions`` — per-agent-type YAML
+             (a multi-agent domain gives each agent type its own set).
+          2. ``global_config.reflection.questions`` — domain-wide YAML.
+          3. ``shared.reflection.questions`` — legacy domain-wide YAML.
+          4. ``DomainPack.reflection_questions()`` — programmatic,
+             domain-wide (for packaged domains).
+          5. ``[]`` — caller applies the generic
+             ``_DEFAULT_REFLECTION_QUESTIONS`` fallback.
+
+        Returns an empty list when nothing is configured; the reflection
+        prompt builders fall back to the domain-neutral default.
+
+        Note: an explicit empty ``questions: []`` does NOT suppress
+        reflection questions -- it is falsy, so resolution falls through
+        to the next scope (ultimately the generic default). To use the
+        generic default, omit the ``questions`` key entirely.
+        """
+        # 1. per-agent-type block
+        block = self.get(agent_type) if agent_type else {}
+        if isinstance(block, dict):
+            per_type = (block.get("reflection", {}) or {}).get("questions")
+            if per_type:
+                return list(per_type)
+        # 2-3. domain-wide YAML (global_config preferred, shared legacy)
+        for scope in ("global_config", "shared"):
+            q = (
+                (self._config.get(scope, {}) or {})
+                .get("reflection", {}) or {}
+            ).get("questions")
+            if q:
+                return list(q)
+        # 4. DomainPack hook (domain selector under global_config.governance)
+        domain = (
+            self._config.get("global_config", {})
+            .get("governance", {})
+            .get("domain")
+        )
+        if domain:
+            # Lazy import — keeps agent_config import-cycle-free.
+            from broker.domains.registry import DomainPackRegistry
+            pack_q = DomainPackRegistry.get_or_default(domain).reflection_questions()
+            if pack_q:
+                return list(pack_q)
+        # 5. nothing configured — caller applies the generic fallback
+        return []
 
     def get_valid_actions(self, agent_type: str) -> List[str]:
         """Get all valid action IDs and aliases for agent type."""

@@ -217,3 +217,55 @@ class TestAgentTypeConfigRetrievalPolicy:
         cfg = config.get_retrieval_config()
         assert cfg["top_n"] == 10
         assert cfg["min_score"] == 0.05  # framework default preserved
+
+
+class TestAgentTypeConfigReflectionQuestions:
+    """Phase 6H Item 4: get_reflection_questions() — per-agent-type and
+    domain-wide reflection questions resolved from agent_types.yaml."""
+
+    def setup_method(self):
+        AgentTypeConfig._instance = None
+
+    def test_per_agent_type_wins_over_domain_wide(self, tmp_path):
+        """A <agent_type>.reflection.questions block overrides the
+        global_config one — the multi-agent per-type case."""
+        yaml_file = tmp_path / "t.yaml"
+        yaml_file.write_text(
+            "global_config:\n"
+            "  reflection:\n"
+            "    questions:\n"
+            "      - domain-wide question\n"
+            "farmer:\n"
+            "  reflection:\n"
+            "    questions:\n"
+            "      - farmer-specific question\n"
+        )
+        config = AgentTypeConfig.load(str(yaml_file))
+        assert config.get_reflection_questions("farmer") == [
+            "farmer-specific question"
+        ]
+        # An agent type without its own block falls back to domain-wide.
+        assert config.get_reflection_questions("regulator") == [
+            "domain-wide question"
+        ]
+
+    def test_domain_wide_when_no_per_type(self, tmp_path):
+        yaml_file = tmp_path / "t.yaml"
+        yaml_file.write_text(
+            "global_config:\n"
+            "  reflection:\n"
+            "    questions:\n"
+            "      - domain-wide question\n"
+        )
+        config = AgentTypeConfig.load(str(yaml_file))
+        assert config.get_reflection_questions("farmer") == [
+            "domain-wide question"
+        ]
+
+    def test_empty_when_nothing_configured(self, tmp_path):
+        """No YAML questions, no domain → []; the caller then applies the
+        generic _DEFAULT_REFLECTION_QUESTIONS fallback."""
+        yaml_file = tmp_path / "t.yaml"
+        yaml_file.write_text("shared: {}\n")
+        config = AgentTypeConfig.load(str(yaml_file))
+        assert config.get_reflection_questions("farmer") == []

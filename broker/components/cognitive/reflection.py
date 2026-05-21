@@ -67,27 +67,19 @@ class AgentReflectionContext:
     custom_traits: Dict[str, Any] = field(default_factory=dict)
 
 
-# DEPRECATED: Hardcoded reflection questions per agent type.
-# New domains should define questions in their agent_types.yaml under
-# global_config.reflection.questions, which are passed to
-# generate_batch_reflection_prompt(reflection_questions=...).
-REFLECTION_QUESTIONS: Dict[str, List[str]] = {
-    "household": [
-        "What risks feel most urgent to your family right now?",
-        "Have your neighbors' choices influenced your thinking?",
-        "What trade-offs have you faced between cost and safety?",
-    ],
-    "government": [
-        "Which communities are most vulnerable right now?",
-        "Are current subsidy and grant programs reaching those who need them?",
-        "What policy adjustments would improve equity outcomes?",
-    ],
-    "insurance": [
-        "Which risk segments are underpriced or overpriced?",
-        "How has the claims pattern changed over time?",
-        "What adjustments to premium models are needed?",
-    ],
-}
+# Generic last-resort reflection questions -- deliberately domain-neutral
+# (no flood / water / insurance wording). Used ONLY when neither the
+# agent_types.yaml ``reflection.questions`` block (per-agent-type or
+# domain-wide) nor a DomainPack.reflection_questions() supplies any.
+# Domain authors define their own questions in agent_types.yaml; the
+# resolution order is implemented in
+# ``AgentTypeConfig.get_reflection_questions(agent_type)``.
+_DEFAULT_REFLECTION_QUESTIONS: List[str] = [
+    "What worked well in your decisions this period, and what did not?",
+    "Did your actions match the conditions you observed?",
+    "What pattern do you notice across recent events, and what would "
+    "you do differently?",
+]
 
 # Legacy flood-domain importance profiles — used by compute_dynamic_importance
 # fallback when no DomainReflectionAdapter is set.  New domains should use
@@ -286,7 +278,8 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
         self,
         context: AgentReflectionContext,
         memories: List[str],
-        current_year: int
+        current_year: int,
+        reflection_questions: Optional[List[str]] = None,
     ) -> str:
         """Generate a personalized reflection prompt with agent identity.
 
@@ -347,7 +340,10 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
 
         identity_block = "\n".join(identity_lines)
 
-        questions = REFLECTION_QUESTIONS.get(context.agent_type, REFLECTION_QUESTIONS["household"])
+        # Phase 6H Item 4: questions resolved by the caller via
+        # AgentTypeConfig.get_reflection_questions(agent_type); the generic
+        # fallback below is used only when the caller passes nothing.
+        questions = reflection_questions or _DEFAULT_REFLECTION_QUESTIONS
         q_text = "\n".join([f"- {q}" for q in questions])
 
         return f"""{identity_block}
