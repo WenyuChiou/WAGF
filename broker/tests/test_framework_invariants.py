@@ -384,8 +384,10 @@ class TestDomainGenericity:
         # (Phase 6H Item 1 DONE 2026-05-21: validators/calibration/ relocated
         #  to broker/domains/water/calibration/ — entry removed, no longer in
         #  the generic-broker scan scope.)
-        "validators/posthoc/thinking_rule_posthoc.py",  # KNOWN-DEBT(6H): hardcoded flood column reads; -> DomainPack-parameterize
-        "validators/posthoc/unified_rh.py",          # KNOWN-DEBT(6H): flood irreversible-state default dict; -> DomainPack-parameterize
+        # (Phase 6H Item 8 DONE 2026-05-21: thinking_rule_posthoc.py +
+        #  unified_rh.py de-flooded -- transition columns / irreversible
+        #  states are parameters; the water-domain CVRunner supplies the
+        #  flood values. Both entries removed.)
         # (Phase 6H Item 6 DONE 2026-05-21: validate_affordability()
         #  de-flooded via DomainPack.affordability_constraints();
         #  dead :282-286 debug comment removed -- entry removed.)
