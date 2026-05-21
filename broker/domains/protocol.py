@@ -192,3 +192,47 @@ class DomainPack(Protocol):
         initial memories injected. Replaces flood-specific
         ``FloodMemoryTemplateProvider`` (Phase 6B-2)."""
         ...
+
+    # ─── Perception (Phase 6H DomainPack v2) ──────────────────────
+
+    def perception_descriptors(self) -> Dict[str, Any]:
+        """Numerical→qualitative descriptor mappings, keyed by the
+        context field they transform (e.g.
+        ``{"depth_ft": FLOOD_DEPTH_DESCRIPTORS}``). Values are
+        ``broker.interfaces.perception.DescriptorMapping`` instances
+        (kept loose as ``Any`` here to avoid an import cycle).
+
+        Default ``{}`` → ``HouseholdPerceptionFilter`` applies no
+        domain-specific descriptor transform; the generic damage /
+        neighbour-count descriptors built into
+        ``broker/interfaces/perception.py`` are unaffected.
+
+        Consumed by ``PerceptionFilterRegistry`` (Phase 6H Item 5).
+        """
+        ...
+
+    def perception_field_policy(self) -> Dict[str, List[str]]:
+        """Field-name lists controlling what ``HouseholdPerceptionFilter``
+        strips or aggregates. Recognised keys: ``"dollar_fields"``,
+        ``"percentage_fields"``, ``"community_observable_fields"``,
+        ``"neighbor_action_fields"``.
+
+        Default ``{}`` → the filter strips nothing. A new domain opts in
+        explicitly, which avoids the silent-data-loss risk when an
+        unrelated domain's context happens to share a field name.
+        """
+        ...
+
+    # ─── Retrieval tuning (Phase 6H DomainPack v2) ────────────────
+
+    def retrieval_policy(self) -> Dict[str, Any]:
+        """Skill-retrieval tuning knobs. Recognised keys: ``"top_n"``
+        (int — how many candidate skills to surface to the LLM) and
+        ``"min_score"`` (float — relevance cutoff).
+
+        Default ``{}`` → broker uses its framework defaults. A domain
+        with many skills can widen ``top_n``; a domain with few can
+        leave it. Also overridable via ``agent_types.yaml``
+        ``governance.retrieval`` (Phase 6H Item 3).
+        """
+        ...

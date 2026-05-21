@@ -13,6 +13,8 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Optional, Set
 
+from broker.domains.default import DefaultDomainPack
+
 
 # ─────────────────────────────────────────────────────────────────────
 # Event handlers — translate event_type → env_state mutation.
@@ -36,8 +38,13 @@ def _handle_vaccine_rollout(event: Any, env_state: Dict[str, Any]) -> None:
 # ─────────────────────────────────────────────────────────────────────
 
 
-class VaccinationDomainPack:
-    """DomainPack for vaccination decision-making (HBM-based)."""
+class VaccinationDomainPack(DefaultDomainPack):
+    """DomainPack for vaccination decision-making (HBM-based).
+
+    Subclasses :class:`DefaultDomainPack` so any DomainPack method not
+    overridden below (incl. Phase 6H v2 additions) falls through to the
+    no-op default.
+    """
 
     name: str = "vaccination"
 
