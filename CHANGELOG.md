@@ -80,9 +80,14 @@ flood-coupling-free.
   `AgentValidator.validate_affordability()` no longer hardcodes the
   flood elevation cost model ($150k / 3x income / 50% subsidy); a
   domain declares its own per-decision cost models, or none.
-  `agent_validator.py` is now domain-token-free. I5 KNOWN-DEBT
-  allowlist down to 3 entries (`thinking_rule_posthoc`, `unified_rh`,
-  `reflection.py`).
+  `agent_validator.py` is now domain-token-free.
+- **Post-hoc validators de-flooded** (Item 8): `thinking_rule_posthoc.py`
+  V1/V2 (hardcoded `relocated`/`elevated` columns) collapse into a
+  generic per-column transition rule; `unified_rh.py` flood defaults
+  (`irreversible_states` / `exit_state_col`) removed — the values come
+  from the caller (the water-domain `CVRunner`). Both files de-flooded;
+  +7 unit tests (previously zero). I5 KNOWN-DEBT allowlist down to 1
+  entry (`reflection.py`).
 
 ### Notes
 
