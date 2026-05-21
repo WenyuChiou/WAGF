@@ -72,19 +72,21 @@ class HouseholdPerceptionFilter:
             dollar_fields: Exact-dollar field names to strip. Default [].
             percentage_fields: Exact-percentage field names to strip. Default [].
             community_observable_fields: Fields removed for MG agents. Default [].
-            neighbor_action_fields: Count fields verbalized to qualitative
-                neighbour descriptions. Default [].
+            neighbor_action_fields: Names of neighbour-count fields — used
+                ONLY to prune their `_description` outputs for MG agents.
+                Verbalization itself is driven by descriptor_mappings;
+                keep this list consistent with the neighbour entries there.
             descriptor_mappings: Numeric->qualitative DescriptorMappings keyed
-                by role ("depth" / "damage" / "neighbor"). Absent role ->
-                that verbalization step is skipped.
+                by INPUT context field (e.g. {"depth_ft": <mapping>}).
+                Absent field -> that verbalization step is skipped.
         """
         self.config = config or PerceptionConfig(mode=PerceptionMode.QUALITATIVE)
-        descriptor_mappings = descriptor_mappings or {}
-        # Numeric->qualitative descriptors keyed by role: "depth" / "damage"
-        # / "neighbor". Absent role -> that verbalization step is skipped.
-        self._depth_descriptor = descriptor_mappings.get("depth")
-        self._damage_descriptor = descriptor_mappings.get("damage")
-        self._neighbor_descriptor = descriptor_mappings.get("neighbor")
+        # Verbalization rules keyed by INPUT context field (Phase 6H
+        # Item 5b): {field: DescriptorMapping}. filter() applies each as
+        # a pure lookup -- it never computes a derived quantity itself.
+        self._descriptor_mappings = (
+            dict(descriptor_mappings) if descriptor_mappings else {}
+        )
         # Field-lists default to empty -> strip/verbalize nothing. The
         # broker's PerceptionFilterRegistry fills these from the active
         # DomainPack; a domain that wants no filtering simply omits them.
@@ -114,32 +116,26 @@ class HouseholdPerceptionFilter:
         """
         filtered = dict(context)
 
-        # Verbalize depth — only when a DomainPack supplied a "depth"
-        # descriptor (dormant for domains that did not).
-        if "depth_ft" in filtered and self._depth_descriptor is not None:
-            depth = filtered.get("depth_ft", 0.0)
-            filtered["flood_depth_description"] = self._depth_descriptor.describe(depth)
-            del filtered["depth_ft"]
-
-        # Convert damage ratio to severity description (only if both
-        # fields exist and a "damage" descriptor was supplied)
-        if ("damage_amount" in filtered and "property_value" in filtered
-                and self._damage_descriptor is not None):
-            damage = filtered.get("damage_amount", 0.0)
-            property_val = filtered.get("property_value", 0.0)
-            if property_val > 0:
-                damage_ratio = damage / property_val
-                filtered["damage_severity"] = self._damage_descriptor.describe(damage_ratio)
-            # If property_value is 0 or negative, skip damage_severity (undefined ratio)
-
-        # Verbalize neighbour-action counts (when a "neighbor" descriptor
-        # was supplied).
-        if self._neighbor_descriptor is not None:
-            for field in self._neighbor_action_fields:
-                if field in filtered:
-                    count = filtered.get(field, 0)
-                    filtered[f"{field}_description"] = self._neighbor_descriptor.describe(count)
-                    del filtered[field]
+        # Verbalize: numeric -> qualitative. One DescriptorMapping per
+        # INPUT context field (Phase 6H Item 5b). The filter only looks
+        # up -- never computes. Derived quantities (changes, deltas)
+        # arrive as fields the domain environment already produced; a
+        # same-context ratio is supported via `denominator_field`.
+        for in_field, mapping in self._descriptor_mappings.items():
+            if in_field not in filtered:
+                continue
+            value = filtered[in_field]
+            if mapping.denominator_field:
+                denom = filtered.get(mapping.denominator_field)
+                if denom is None or denom <= 0:
+                    # denominator missing / zero / negative -> the ratio
+                    # is undefined or nonsensical; skip (this matches the
+                    # prior flood semantics of `property_value > 0`).
+                    continue
+                value = value / denom
+            filtered[mapping.field_name] = mapping.describe(value)
+            if mapping.field_name != in_field:
+                del filtered[in_field]
 
         # Remove exact dollar amounts (instance-configured)
         for field in self._dollar_fields:

@@ -202,18 +202,19 @@ class DomainPack(Protocol):
     # ─── Perception (Phase 6H DomainPack v2) ──────────────────────
 
     def perception_descriptors(self) -> Dict[str, Any]:
-        """Numerical→qualitative descriptor mappings, keyed by the
-        role they fill — recognised keys ``"depth"`` / ``"damage"`` /
-        ``"neighbor"`` for ``HouseholdPerceptionFilter``. Values are
-        ``broker.interfaces.perception.DescriptorMapping`` instances
-        (kept loose as ``Any`` here to avoid an import cycle).
+        """Numeric→qualitative verbalization rules, keyed by the INPUT
+        context field each transforms (e.g. ``{"depth_ft": <mapping>}``).
+        Values are ``broker.interfaces.perception.DescriptorMapping``
+        instances (kept loose as ``Any`` here to avoid an import cycle).
 
-        Default ``{}`` → ``HouseholdPerceptionFilter`` applies no
-        domain-specific descriptor transform; the generic damage /
-        neighbour-count descriptors built into
-        ``broker/interfaces/perception.py`` are unaffected.
+        The perception filter applies each as a pure table lookup — it
+        never computes. A same-context ratio is expressed via the
+        mapping's ``denominator_field``; a temporal change (e.g. a
+        price rising/falling) is emitted as a context field by the
+        domain environment and verbalized like any other field.
 
-        Consumed by ``PerceptionFilterRegistry`` (Phase 6H Item 5).
+        Default ``{}`` → the filter verbalizes nothing (domain-neutral).
+        Consumed by ``PerceptionFilterRegistry`` (Phase 6H Item 5 / 5b).
         """
         ...
 

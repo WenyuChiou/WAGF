@@ -28,18 +28,14 @@ from typing import Any, Dict, List, Optional, Set
 
 from broker.domains.default import DefaultDomainPack
 from broker.domains.protocol import BuiltinCheck, EventHandler
-from broker.interfaces.perception import (
-    DAMAGE_SEVERITY_DESCRIPTORS,
-    NEIGHBOR_COUNT_DESCRIPTORS,
-)
 
 from examples.governed_flood.adapters.flood_adapter import FloodAdapter
 from examples.governed_flood.adapters.flood_perception import (
     COMMUNITY_OBSERVABLE_FIELDS,
     DOLLAR_AMOUNT_FIELDS,
-    FLOOD_DEPTH_DESCRIPTORS,
     NEIGHBOR_ACTION_FIELDS,
     PERCENTAGE_FIELDS,
+    PERCEPTION_DESCRIPTORS,
 )
 
 
@@ -208,14 +204,10 @@ class FloodDomainPack(DefaultDomainPack):
     # ─── Perception (Phase 6H Item 5) ─────────────────────────────
 
     def perception_descriptors(self) -> Dict[str, Any]:
-        """Numeric→qualitative descriptors for HouseholdPerceptionFilter,
-        keyed by role. `PerceptionFilterRegistry` injects these — replaces
-        the household filter's former hardcoded flood descriptors."""
-        return {
-            "depth": FLOOD_DEPTH_DESCRIPTORS,
-            "damage": DAMAGE_SEVERITY_DESCRIPTORS,
-            "neighbor": NEIGHBOR_COUNT_DESCRIPTORS,
-        }
+        """Numeric→qualitative verbalization rules for the household
+        perception filter, keyed by INPUT context field (Phase 6H
+        Item 5b). `PerceptionFilterRegistry` injects these."""
+        return dict(PERCEPTION_DESCRIPTORS)
 
     def perception_field_policy(self) -> Dict[str, List[str]]:
         """Field-name lists controlling what HouseholdPerceptionFilter
