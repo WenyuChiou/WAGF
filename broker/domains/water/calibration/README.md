@@ -93,7 +93,7 @@ The main entry point.  Supports two construction modes:
 **Explicit mode** — caller specifies framework, column names, and group:
 
 ```python
-from broker.validators.calibration.cv_runner import CVRunner
+from broker.domains.water.calibration.cv_runner import CVRunner
 
 runner = CVRunner(
     trace_path="results/simulation_log.csv",
@@ -128,7 +128,7 @@ report.save_json("cv_report.json")
 Auto-detects features and generates a validation plan:
 
 ```python
-from broker.validators.calibration.validation_router import ValidationRouter
+from broker.domains.water.calibration.validation_router import ValidationRouter
 
 profile = ValidationRouter.detect_features(config=config, df=df)
 plan = ValidationRouter.plan(profile)
@@ -152,7 +152,7 @@ The router's decision tree:
 Computes CACR and EGS from simulation trace DataFrames:
 
 ```python
-from broker.validators.calibration.micro_validator import MicroValidator
+from broker.domains.water.calibration.micro_validator import MicroValidator
 
 validator = MicroValidator(
     framework="pmt",
@@ -173,7 +173,7 @@ provide domain-specific terms.  An empty list disables keyword-based EGS.
 Population-level distributional tests (KS, Wasserstein, chi-squared, PEBA):
 
 ```python
-from broker.validators.calibration.distribution_matcher import DistributionMatcher
+from broker.domains.water.calibration.distribution_matcher import DistributionMatcher
 
 matcher = DistributionMatcher()
 report = matcher.compute_full_report(
@@ -191,7 +191,7 @@ installed (returns zero-valued results).
 Detects impossible construct transitions between consecutive years:
 
 ```python
-from broker.validators.calibration.temporal_coherence import (
+from broker.domains.water.calibration.temporal_coherence import (
     TemporalCoherenceValidator,
     ActionStabilityValidator,
 )
@@ -210,7 +210,7 @@ stability_report = stability.compute(df, start_year=2)
 Level 3 cognitive validation via standardized vignette probes:
 
 ```python
-from broker.validators.calibration.psychometric_battery import (
+from broker.domains.water.calibration.psychometric_battery import (
     PsychometricBattery,
     ProbeResponse,
 )
@@ -269,7 +269,7 @@ directory — callers must provide one.
 Domain-agnostic empirical benchmark comparison and EPI computation:
 
 ```python
-from broker.validators.calibration.benchmark_registry import (
+from broker.domains.water.calibration.benchmark_registry import (
     BenchmarkRegistry, Benchmark, BenchmarkCategory,
 )
 
@@ -296,7 +296,7 @@ print(f"EPI = {report.plausibility_score:.3f}")
 Generic sensitivity testing with directional probes and persona swaps:
 
 ```python
-from broker.validators.calibration.directional_validator import (
+from broker.domains.water.calibration.directional_validator import (
     DirectionalValidator, DirectionalTest,
 )
 
@@ -321,7 +321,7 @@ print(f"Pass rate = {report.pass_rate:.0%}")
 Also provides reusable statistical functions:
 
 ```python
-from broker.validators.calibration.directional_validator import (
+from broker.domains.water.calibration.directional_validator import (
     chi_squared_test, mann_whitney_u,
 )
 ```
@@ -331,7 +331,7 @@ from broker.validators.calibration.directional_validator import (
 Three-stage calibration orchestrator with callback-based architecture:
 
 ```python
-from broker.validators.calibration.calibration_protocol import (
+from broker.domains.water.calibration.calibration_protocol import (
     CalibrationProtocol,
 )
 
@@ -372,7 +372,7 @@ To use this framework with a new domain:
 
 6. **Run via `CVRunner`** in explicit or auto-detect mode.
 
-No changes to the `broker/validators/calibration/` code are needed.
+No changes to the `broker/domains/water/calibration/` code are needed.
 
 ---
 
@@ -382,7 +382,7 @@ No changes to the `broker/validators/calibration/` code are needed.
 
 If migrating from an earlier version:
 
-- The `broker/validators/calibration/vignettes/` directory has been removed.
+- The `broker/domains/water/calibration/vignettes/` directory has been removed.
 - `PsychometricBattery()` no longer has a default vignette directory.
 - **Action required:** Explicitly provide `vignette_dir` when calling
   `PsychometricBattery(vignette_dir="path/to/your/domain/vignettes")`.

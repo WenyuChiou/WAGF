@@ -40,31 +40,31 @@ logger = logging.getLogger(__name__)
 
 import pandas as pd
 
-from broker.validators.calibration.micro_validator import (
+from broker.domains.water.calibration.micro_validator import (
     MicroValidator,
     MicroReport,
     BRCResult,
 )
-from broker.validators.calibration.distribution_matcher import (
+from broker.domains.water.calibration.distribution_matcher import (
     DistributionMatcher,
     MacroReport,
 )
-from broker.validators.calibration.temporal_coherence import (
+from broker.domains.water.calibration.temporal_coherence import (
     ActionStabilityValidator,
     TemporalCoherenceValidator,
     TemporalReport,
 )
-from broker.validators.calibration.psychometric_battery import (
+from broker.domains.water.calibration.psychometric_battery import (
     PsychometricBattery,
     BatteryReport,
 )
-from broker.validators.calibration.validation_router import (
+from broker.domains.water.calibration.validation_router import (
     FeatureProfile,
     ValidationPlan,
     ValidationRouter,
     ValidatorType,
 )
-from broker.validators.calibration.benchmark_registry import (
+from broker.domains.water.calibration.benchmark_registry import (
     BenchmarkRegistry,
     BenchmarkReport,
 )

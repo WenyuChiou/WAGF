@@ -45,7 +45,7 @@ for _p in [str(_PROJECT_ROOT), str(_FLOOD_ROOT)]:
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from broker.validators.calibration.directional_validator import (  # noqa: E402
+from broker.domains.water.calibration.directional_validator import (  # noqa: E402
     chi_squared_test,
 )
 
@@ -155,7 +155,7 @@ def apply_swap(
     return modified
 
 
-# chi_squared_test is imported from broker.validators.calibration.directional_validator
+# chi_squared_test is imported from broker.domains.water.calibration.directional_validator
 
 
 def compare_distributions(
@@ -218,7 +218,7 @@ def run_persona_sensitivity(
         map_decision_to_action,
         parse_probe_response,
     )
-    from broker.validators.calibration.psychometric_battery import (
+    from broker.domains.water.calibration.psychometric_battery import (
         PsychometricBattery,
         Scenario,
     )

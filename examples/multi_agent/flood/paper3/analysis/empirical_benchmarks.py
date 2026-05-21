@@ -9,7 +9,7 @@ internal concordance). Empirical benchmarks test whether the emergent
 aggregate behavior falls within plausible real-world ranges.
 
 Uses the generic :class:`BenchmarkRegistry` from
-``broker.validators.calibration.benchmark_registry`` for benchmark
+``broker.domains.water.calibration.benchmark_registry`` for benchmark
 definition, comparison, and EPI computation.  This module provides the
 **flood-domain benchmarks** and the **metric computation function**.
 
@@ -27,7 +27,7 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
-from broker.validators.calibration.benchmark_registry import (
+from broker.domains.water.calibration.benchmark_registry import (
     Benchmark,
     BenchmarkCategory,
     BenchmarkComparison,

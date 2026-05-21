@@ -12,7 +12,7 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from broker.validators.calibration.temporal_coherence import (
+from broker.domains.water.calibration.temporal_coherence import (
     TemporalCoherenceValidator,
     TransitionMatrix,
     TemporalReport,

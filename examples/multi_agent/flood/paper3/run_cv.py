@@ -51,8 +51,8 @@ FLOOD_DIR = Path(__file__).resolve().parent.parent
 if str(FLOOD_DIR) not in sys.path:
     sys.path.insert(0, str(FLOOD_DIR))
 
-from broker.validators.calibration.cv_runner import CVRunner, CVReport
-from broker.validators.calibration.psychometric_battery import (
+from broker.domains.water.calibration.cv_runner import CVRunner, CVReport
+from broker.domains.water.calibration.psychometric_battery import (
     PsychometricBattery,
     ProbeResponse,
     Scenario,
@@ -723,14 +723,14 @@ def run_aggregate(
             report = CVReport(metadata=data.get("metadata", {}))
             # Populate summary fields from saved data
             if "level1_micro" in data:
-                from broker.validators.calibration.micro_validator import MicroReport
+                from broker.domains.water.calibration.micro_validator import MicroReport
                 report.micro = MicroReport(
                     cacr=data["level1_micro"].get("cacr", 0),
                     egs=data["level1_micro"].get("egs", 0),
                     n_observations=data["level1_micro"].get("n_observations", 0),
                 )
             if "level2_brc" in data:
-                from broker.validators.calibration.micro_validator import BRCResult
+                from broker.domains.water.calibration.micro_validator import BRCResult
                 report.brc = BRCResult(
                     brc=data["level2_brc"].get("brc", 0),
                     concordant=data["level2_brc"].get("concordant", 0),

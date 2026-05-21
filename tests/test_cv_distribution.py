@@ -11,7 +11,7 @@ import pytest
 import numpy as np
 import pandas as pd
 
-from broker.validators.calibration.distribution_matcher import (
+from broker.domains.water.calibration.distribution_matcher import (
     DistributionMatcher,
     DistributionTestResult,
     PEBAFeatures,

@@ -25,7 +25,7 @@ Design principles:
 
 Usage::
 
-    from broker.validators.calibration.calibration_protocol import (
+    from broker.domains.water.calibration.calibration_protocol import (
         CalibrationProtocol, CalibrationConfig,
     )
 
@@ -51,12 +51,12 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 
-from broker.validators.calibration.benchmark_registry import (
+from broker.domains.water.calibration.benchmark_registry import (
     BenchmarkRegistry,
     BenchmarkReport,
     Benchmark,
 )
-from broker.validators.calibration.directional_validator import (
+from broker.domains.water.calibration.directional_validator import (
     DirectionalValidator,
     DirectionalReport,
     DirectionalTest,
