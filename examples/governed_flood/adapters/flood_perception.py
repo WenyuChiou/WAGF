@@ -12,12 +12,19 @@ The generic ``DAMAGE_SEVERITY_DESCRIPTORS`` / ``NEIGHBOR_COUNT_DESCRIPTORS``
 stay in ``broker/interfaces/perception.py`` — they are domain-neutral and
 reusable; only the flood-specific depth descriptor moved here.
 """
-from broker.interfaces.perception import DescriptorMapping
+from typing import Optional
+
+from broker.interfaces.perception import (
+    DescriptorMapping,
+    DAMAGE_SEVERITY_DESCRIPTORS,
+    NEIGHBOR_COUNT_DESCRIPTORS,
+)
 
 
-# Numeric flood depth (ft) → qualitative descriptor.
+# Numeric flood depth (ft) → qualitative descriptor. field_name is the
+# OUTPUT context key the verbalize loop writes (Phase 6H Item 5b).
 FLOOD_DEPTH_DESCRIPTORS = DescriptorMapping(
-    field_name="flood_depth",
+    field_name="flood_depth_description",
     ranges=[
         (0.0, 0.5, "ankle-deep water"),
         (0.5, 2.0, "knee-deep water"),
@@ -67,8 +74,44 @@ NEIGHBOR_ACTION_FIELDS = [
 ]
 
 
+def _descriptor(
+    template: DescriptorMapping,
+    field_name: Optional[str] = None,
+    denominator_field: Optional[str] = None,
+) -> DescriptorMapping:
+    """Build a DescriptorMapping from a generic template, retargeting its
+    output field name and/or adding a same-context ratio denominator."""
+    return DescriptorMapping(
+        field_name=field_name or template.field_name,
+        ranges=template.ranges,
+        unit=template.unit,
+        denominator_field=denominator_field,
+    )
+
+
+# Verbalization rules for HouseholdPerceptionFilter, keyed by the INPUT
+# context field each transforms (Phase 6H Item 5b). damage_severity is a
+# same-context ratio (damage_amount / property_value).
+PERCEPTION_DESCRIPTORS = {
+    "depth_ft": FLOOD_DEPTH_DESCRIPTORS,
+    "damage_amount": _descriptor(
+        DAMAGE_SEVERITY_DESCRIPTORS, denominator_field="property_value"
+    ),
+    "neighbors_insured": _descriptor(
+        NEIGHBOR_COUNT_DESCRIPTORS, "neighbors_insured_description"
+    ),
+    "neighbors_elevated": _descriptor(
+        NEIGHBOR_COUNT_DESCRIPTORS, "neighbors_elevated_description"
+    ),
+    "neighbors_relocated": _descriptor(
+        NEIGHBOR_COUNT_DESCRIPTORS, "neighbors_relocated_description"
+    ),
+}
+
+
 __all__ = [
     "FLOOD_DEPTH_DESCRIPTORS",
+    "PERCEPTION_DESCRIPTORS",
     "DOLLAR_AMOUNT_FIELDS",
     "PERCENTAGE_FIELDS",
     "COMMUNITY_OBSERVABLE_FIELDS",

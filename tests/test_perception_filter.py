@@ -10,12 +10,14 @@ from broker.interfaces.perception import (
     DAMAGE_SEVERITY_DESCRIPTORS,
     NEIGHBOR_COUNT_DESCRIPTORS,
 )
+from broker.interfaces.perception import DescriptorMapping
 from examples.governed_flood.adapters.flood_perception import (
     COMMUNITY_OBSERVABLE_FIELDS,
     DOLLAR_AMOUNT_FIELDS,
     FLOOD_DEPTH_DESCRIPTORS,
     NEIGHBOR_ACTION_FIELDS,
     PERCENTAGE_FIELDS,
+    PERCEPTION_DESCRIPTORS,
 )
 
 
@@ -27,11 +29,7 @@ from examples.governed_flood.adapters.flood_perception import (
 def _flood_filter(**kwargs):
     """A flood-configured HouseholdPerceptionFilter."""
     cfg = dict(
-        descriptor_mappings={
-            "depth": FLOOD_DEPTH_DESCRIPTORS,
-            "damage": DAMAGE_SEVERITY_DESCRIPTORS,
-            "neighbor": NEIGHBOR_COUNT_DESCRIPTORS,
-        },
+        descriptor_mappings=dict(PERCEPTION_DESCRIPTORS),
         dollar_fields=DOLLAR_AMOUNT_FIELDS,
         percentage_fields=PERCENTAGE_FIELDS,
         community_observable_fields=COMMUNITY_OBSERVABLE_FIELDS,
@@ -600,3 +598,47 @@ class TestPercentageFieldsRemoval:
 
         for field in PERCENTAGE_FIELDS:
             assert field not in result, f"{field} should be removed"
+
+
+class TestGenericVerbalization:
+    """Phase 6H Item 5b: the filter verbalizes ANY domain's numbers — it
+    is a pure {input_field: DescriptorMapping} interpreter, no flood
+    knowledge. Proves a model builder can define their own."""
+
+    def test_non_flood_signed_change_verbalizes(self):
+        """A stock domain: a negative price change -> 'fell sharply',
+        through the same generic HouseholdPerceptionFilter."""
+        price_trend = DescriptorMapping(
+            field_name="price_trend",
+            ranges=[
+                (float("-inf"), -0.10, "prices fell sharply"),
+                (-0.10, -0.02, "prices fell"),
+                (-0.02, 0.02, "prices held steady"),
+                (0.02, 0.10, "prices rose"),
+                (0.10, float("inf"), "prices rose sharply"),
+            ],
+        )
+        f = HouseholdPerceptionFilter(
+            descriptor_mappings={"stock_change": price_trend}
+        )
+        assert f.filter({"stock_change": -0.15})["price_trend"] == "prices fell sharply"
+        assert f.filter({"stock_change": 0.0})["price_trend"] == "prices held steady"
+        assert f.filter({"stock_change": 0.20})["price_trend"] == "prices rose sharply"
+        # the raw number is dropped after verbalization
+        assert "stock_change" not in f.filter({"stock_change": -0.15})
+
+    def test_ratio_via_denominator_field(self):
+        """A same-context ratio: value / denominator_field, then mapped."""
+        burden = DescriptorMapping(
+            field_name="cost_burden",
+            ranges=[(0.0, 0.3, "affordable"), (0.3, 1.0, "stretched"),
+                    (1.0, float("inf"), "unaffordable")],
+            denominator_field="income",
+        )
+        f = HouseholdPerceptionFilter(descriptor_mappings={"cost": burden})
+        assert f.filter({"cost": 40, "income": 100})["cost_burden"] == "stretched"
+        # missing / zero / negative denominator -> ratio undefined or
+        # nonsensical -> skipped
+        assert "cost_burden" not in f.filter({"cost": 40, "income": 0})
+        assert "cost_burden" not in f.filter({"cost": 40})
+        assert "cost_burden" not in f.filter({"cost": 40, "income": -100})

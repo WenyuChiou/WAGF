@@ -10,7 +10,7 @@ Example:
     Household sees: "waist-deep water", "significant damage"
     Government sees: 3.2 ft, $35,000
 """
-from typing import Dict, Any, List, Protocol, Optional
+from typing import Dict, Any, List, Protocol, Optional, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -33,10 +33,16 @@ class DescriptorMapping:
         field_name: The output field name in context
         ranges: List of (min, max, descriptor) tuples
         unit: Unit of measurement (e.g., "ft", "$", "%")
+        denominator_field: optional context field; when set the
+            verbalized value is ``context[source] / context[denominator_field]``
+            (a same-context ratio, e.g. damage / property_value). A
+            pure stateless lookup — temporal changes still come in
+            as a pre-computed field from the domain environment.
     """
     field_name: str
-    ranges: List[tuple]  # [(min, max, descriptor), ...]
+    ranges: List[Tuple[float, float, str]]  # [(min, max, descriptor), ...]
     unit: str = ""
+    denominator_field: Optional[str] = None
 
     def describe(self, value: float) -> str:
         """Convert numerical value to descriptor.
