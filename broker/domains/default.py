@@ -84,3 +84,16 @@ class DefaultDomainPack:
 
     def initial_memory_templates(self, profile: Dict[str, Any]) -> List[Any]:
         return []
+
+    # ─── Perception (Phase 6H DomainPack v2) ──────────────────────
+
+    def perception_descriptors(self) -> Dict[str, Any]:
+        return {}
+
+    def perception_field_policy(self) -> Dict[str, List[str]]:
+        return {}
+
+    # ─── Retrieval tuning (Phase 6H DomainPack v2) ────────────────
+
+    def retrieval_policy(self) -> Dict[str, Any]:
+        return {}

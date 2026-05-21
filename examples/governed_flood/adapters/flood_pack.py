@@ -26,6 +26,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Set
 
+from broker.domains.default import DefaultDomainPack
 from broker.domains.protocol import BuiltinCheck, EventHandler
 
 from examples.governed_flood.adapters.flood_adapter import FloodAdapter
@@ -62,8 +63,13 @@ def _handle_premium_change(event: Any, gs: Dict[str, Any]) -> None:
 # DomainPack
 # ─────────────────────────────────────────────────────────────────────
 
-class FloodDomainPack:
-    """DomainPack for the flood-risk household example."""
+class FloodDomainPack(DefaultDomainPack):
+    """DomainPack for the flood-risk household example.
+
+    Subclasses :class:`DefaultDomainPack` so any DomainPack method not
+    overridden below (incl. Phase 6H v2 additions) falls through to the
+    no-op default.
+    """
 
     name: str = "flood"
 

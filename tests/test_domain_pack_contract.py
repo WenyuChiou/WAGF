@@ -98,6 +98,17 @@ class TestDefaultDomainPack:
     def test_initial_memory_templates_is_empty(self):
         assert self.pack.initial_memory_templates({}) == []
 
+    # ─── Phase 6H DomainPack v2 additions ─────────────────────────
+
+    def test_perception_descriptors_is_empty(self):
+        assert self.pack.perception_descriptors() == {}
+
+    def test_perception_field_policy_is_empty(self):
+        assert self.pack.perception_field_policy() == {}
+
+    def test_retrieval_policy_is_empty(self):
+        assert self.pack.retrieval_policy() == {}
+
 
 # ─────────────────────────────────────────────────────────────────────
 # 2. Registry semantics

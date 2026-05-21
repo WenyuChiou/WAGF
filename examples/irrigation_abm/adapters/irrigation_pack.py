@@ -41,13 +41,19 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Set
 
+from broker.domains.default import DefaultDomainPack
 from broker.domains.protocol import BuiltinCheck, EventHandler
 
 from examples.irrigation_abm.adapters.irrigation_adapter import IrrigationAdapter
 
 
-class IrrigationDomainPack:
-    """DomainPack for the irrigation water-resource example."""
+class IrrigationDomainPack(DefaultDomainPack):
+    """DomainPack for the irrigation water-resource example.
+
+    Subclasses :class:`DefaultDomainPack` so any DomainPack method not
+    overridden below (incl. Phase 6H v2 additions) falls through to the
+    no-op default.
+    """
 
     name: str = "irrigation"
 
