@@ -86,8 +86,16 @@ flood-coupling-free.
   generic per-column transition rule; `unified_rh.py` flood defaults
   (`irreversible_states` / `exit_state_col`) removed — the values come
   from the caller (the water-domain `CVRunner`). Both files de-flooded;
-  +7 unit tests (previously zero). I5 KNOWN-DEBT allowlist down to 1
-  entry (`reflection.py`).
+  +7 unit tests (previously zero).
+- **reflection.py de-flooded** (Item 9): the last generic-broker file
+  carrying flood coupling. The status-text / importance / batch-traits
+  fallbacks are removed — a new `DomainPack.reflection_trait_labels()`
+  hook plus the existing `reflection_status_text` / `compute_importance`
+  hooks cover them; `extract_agent_context` is domain-neutral (flood
+  data routes through `custom_traits`); the `AgentReflectionContext`
+  flood fields are removed. Shipped as an 8-layer stack. `reflection.py`
+  removed from the I5 allowlist — the KNOWN-DEBT(6H) block is fully
+  closed. **Phase 6H (Items 1-9) complete.**
 
 ### Notes
 
