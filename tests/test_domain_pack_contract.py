@@ -93,6 +93,9 @@ class TestDefaultDomainPack:
     def test_event_handlers_is_empty(self):
         assert self.pack.event_handlers() == {}
 
+    def test_agent_impact_handlers_is_empty(self):
+        assert self.pack.agent_impact_handlers() == {}
+
     def test_mg_barrier_text_is_empty(self):
         assert self.pack.mg_barrier_text({}) == ""
 
@@ -228,6 +231,9 @@ class TestIrrigationDomainPackByteIdentical:
 
     def test_irrigation_event_handlers_empty(self):
         assert self.pack.event_handlers() == {}
+
+    def test_irrigation_agent_impact_handlers_empty(self):
+        assert self.pack.agent_impact_handlers() == {}
 
     def test_irrigation_mg_barrier_text_empty(self):
         assert self.pack.mg_barrier_text({}) == ""
@@ -365,6 +371,45 @@ class TestFloodDomainPackByteIdentical:
         self.pack.event_handlers()["subsidy_change"](Event(), gs)
         assert gs["subsidy_rate"] == 0.8
         assert gs["govt_message"] == "Subsidy increased"
+
+    # Agent-impact handlers — preserves the ma_manager.py get_agent_impact
+    # flood event-type chain (Phase 6J-B)
+    def test_agent_impact_handlers_keys(self):
+        assert set(self.pack.agent_impact_handlers().keys()) == {
+            "flood", "flood_damage", "insurance_payout"
+        }
+
+    def test_impact_flood_handler_aggregates_depth(self):
+        class Event:
+            data = {"depth_m": 0.4}
+        handlers = self.pack.agent_impact_handlers()
+        impact = {}
+        handlers["flood"](Event(), impact)
+        assert impact["flooded"] is True
+        assert impact["depth_m"] == 0.4
+        # A second, deeper event takes the max.
+        class Deeper:
+            data = {"depth_m": 0.9}
+        handlers["flood"](Deeper(), impact)
+        assert impact["depth_m"] == 0.9
+
+    def test_impact_flood_damage_handler_sums(self):
+        class Event:
+            data = {"damage_amount": 25000, "oop_cost": 10000}
+        handlers = self.pack.agent_impact_handlers()
+        impact = {}
+        handlers["flood_damage"](Event(), impact)
+        handlers["flood_damage"](Event(), impact)
+        assert impact["damage_amount"] == 50000
+        assert impact["oop_cost"] == 20000
+
+    def test_impact_insurance_payout_handler_sums(self):
+        class Event:
+            data = {"payout_amount": 15000}
+        handlers = self.pack.agent_impact_handlers()
+        impact = {}
+        handlers["insurance_payout"](Event(), impact)
+        assert impact["payout_amount"] == 15000
 
     # MG barrier text — preserves providers.py:706-712 string
     def test_mg_barrier_text_contains_passaic(self):

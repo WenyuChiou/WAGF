@@ -73,6 +73,9 @@ class DefaultDomainPack:
     def event_handlers(self) -> Dict[str, EventHandler]:
         return {}
 
+    def agent_impact_handlers(self) -> Dict[str, EventHandler]:
+        return {}
+
     # ─── Context provider hooks ────────────────────────────────────
 
     def mg_barrier_text(self, profile: Dict[str, Any]) -> str:

@@ -43,7 +43,14 @@ from typing import (
 # ─────────────────────────────────────────────────────────────────────
 
 EventHandler = Callable[[Any, Dict[str, Any]], None]
-"""(event, env_state) -> None. Mutates env_state in place."""
+"""(event, state) -> None. Mutates ``state`` in place.
+
+Reused for two distinct dispatch surfaces:
+- :meth:`DomainPack.event_handlers` — ``state`` is the global environment
+  dict; a handler overwrites env keys.
+- :meth:`DomainPack.agent_impact_handlers` — ``state`` is a per-agent
+  impact accumulator; a handler aggregates (max / sum), not overwrites.
+"""
 
 BuiltinCheck = Callable[..., List[Any]]
 """(skill_name, rules, context) -> List[ValidationResult]. Re-typed in
@@ -173,6 +180,25 @@ class DomainPack(Protocol):
 
         New domains register their own event types (e.g., for
         vaccination: ``{"outbreak": ..., "vaccine_rollout": ...}``).
+        """
+        ...
+
+    def agent_impact_handlers(self) -> Dict[str, EventHandler]:
+        """Mapping of ``event_type → handler(event, impact_state)`` used to
+        aggregate per-agent impact, consumed by
+        ``MAEventManager.get_agent_impact()``.
+
+        Distinct from :meth:`event_handlers` (which mutates the *global*
+        environment state): these handlers aggregate the events that
+        affect a single agent into a per-agent impact dict. A handler
+        accumulates rather than overwrites — e.g. ``impact["damage"] =
+        impact.get("damage", 0.0) + event.data["damage"]``.
+
+        Replaces the hardcoded domain event-type chain in
+        ``broker/components/events/ma_manager.py:get_agent_impact()``.
+        Default empty ``{}`` → ``get_agent_impact`` returns ``{}``; a
+        domain supplies its hazard / damage / payout handlers via its
+        own pack (the water pack lives under ``broker/domains/water``).
         """
         ...
 
