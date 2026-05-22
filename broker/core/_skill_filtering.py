@@ -38,8 +38,8 @@ class SkillFilterMixin:
         action_ids = self._get_action_ids(agent_type)
         if not action_ids:
             return
-        # Respect pre-filtered available_skills from context builder (e.g.,
-        # run_flood.py removes elevate_house for already-elevated agents).
+        # Respect pre-filtered available_skills from context builder
+        # (e.g. a domain removes an already-completed one-way skill).
         # Only keep action_ids that the context builder left in place.
         pre_filtered = context.get("available_skills")
         if pre_filtered:

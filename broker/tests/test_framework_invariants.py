@@ -317,9 +317,6 @@ class TestDomainGenericity:
         # Historical/audit/report docs that DESCRIBE past domain leakage
         "_AUDIT_",
         "INVARIANTS.md",
-        # Memory template for flood is intentionally domain-bound; it should
-        # be migrated to a domain subfolder (tech debt). For now allow it.
-        "prompt_templates/memory_templates.py",
         # agent_initializer.py has historical flood fields in AgentProfile
         # dataclass; documented as tech debt in INVARIANTS.md.
         "core/agent_initializer.py",
@@ -327,11 +324,6 @@ class TestDomainGenericity:
         #  -- status-text / importance / batch-traits fallbacks removed,
         #  AgentReflectionContext flood fields removed, extract_agent_context
         #  domain-neutral. reflection.py is now token-free; entry removed.)
-        # adapters.py IS the DomainReflectionAdapter protocol — docstrings
-        # intentionally reference domain-specific examples (flood_count,
-        # drought_severity) to illustrate the abstraction boundary. This
-        # is the correct architectural pattern, not leakage.
-        "components/cognitive/adapters.py",
         # TECH-DEBT (2026-04-19 audit): files below contain flood-specific
         # token references discovered during framework audit. Each is
         # catalogued for future domain-adapter migration. Removing from
@@ -343,12 +335,8 @@ class TestDomainGenericity:
         #  FinancialCostProvider deleted from providers.py; the
         #  canonical copy lives at broker/domains/water/providers.py.
         #  providers.py is now token-free -- entry removed.)
-        "components/context/tiered.py",              # elevated state field
-        "components/memory/content_types.py",        # elevated in generic memory tag
-        "components/memory/engines/humancentric.py", # flood_depth test fixture
         "components/events/generators/impact.py",    # elevated neighbors event
         "core/unified_context_builder.py",           # elevated status render
-        "core/_skill_filtering.py",                  # elevated precondition
         # =====================================================================
         # HARNESS-ENGINEERING AUDIT (2026-05-20): the I5 scan was extended
         # from components/+core/ to ALL generic broker/ subtrees, and the

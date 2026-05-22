@@ -2,7 +2,7 @@
 Memory template generic contracts.
 
 Phase 6B-2 (2026-05-04): the prior contents of this file (a flood-domain
-MemoryTemplateProvider with FEMA / flood_zone / SFHA / NFIP logic) have
+MemoryTemplateProvider with domain-specific flood-risk logic) have
 been relocated to `broker/domains/water/flood_memory_templates.py` and
 renamed to `FloodMemoryTemplateProvider`. What remains here is the
 generic `MemoryTemplate` dataclass — the data contract the broker layer
