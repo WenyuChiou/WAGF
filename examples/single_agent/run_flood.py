@@ -38,6 +38,12 @@ from broker.interfaces.skill_types import ExecutionResult
 from broker.utils.llm_utils import create_legacy_invoke as create_llm_invoke
 from broker.utils.agent_config import GovernanceAuditor
 
+# Phase 6J-D (2026-05-22): import the flood example package so its
+# DomainPack + builtin validator checks both register before
+# build_domain_validators("flood") runs. Replaces the removed
+# _ensure_flood_registered reverse-import fallback.
+import examples.governed_flood  # noqa: F401 — registers FloodDomainPack + validators
+
 # --- 1. Research Constants (Parity with LLMABMPMT-Final.py) ---
 FLOOD_PROBABILITY = 0.2
 GRANT_PROBABILITY = 0.5

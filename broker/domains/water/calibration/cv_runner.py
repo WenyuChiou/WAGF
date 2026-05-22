@@ -69,6 +69,8 @@ from broker.domains.water.calibration.benchmark_registry import (
     BenchmarkReport,
 )
 from broker.validators.posthoc.unified_rh import compute_hallucination_rate
+from broker.validators.posthoc.keyword_classifier import KeywordClassifier
+from broker.domains.water.posthoc_keywords import TA_KEYWORDS, CA_KEYWORDS
 
 
 # ---------------------------------------------------------------------------
@@ -364,9 +366,16 @@ class CVRunner:
     def run_rh(self, df: Optional[pd.DataFrame] = None) -> Dict[str, Any]:
         """Run unified R_H + EBE computation."""
         data = df if df is not None else self.df
+        # Phase 6J-D (2026-05-22): KeywordClassifier no longer carries
+        # flood-PMT defaults; CVRunner is water-domain code and owns the
+        # dictionaries here.
+        classifier = KeywordClassifier(
+            ta_keywords=TA_KEYWORDS, ca_keywords=CA_KEYWORDS,
+        )
         return compute_hallucination_rate(
             data,
             group=self._group,
+            classifier=classifier,
             ta_col=self._ta_col,
             ca_col=self._ca_col,
             decision_col=self._decision_col,

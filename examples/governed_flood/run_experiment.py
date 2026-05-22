@@ -33,6 +33,16 @@ from broker.utils.llm_utils import create_legacy_invoke as create_llm_invoke
 from broker.utils.agent_config import GovernanceAuditor
 from broker import load_agents_from_csv
 
+# Phase 6J-D (2026-05-22): import the flood example package so its
+# DomainPack registration and builtin validator checks both run before
+# the experiment builds. This replaces the removed
+# ``_ensure_flood_registered`` reverse-import fallback in
+# ``broker/domains/water/validator_bundles.py``. Without this, running
+# the script as ``__main__`` skips ``examples/governed_flood/__init__.py``
+# and ``build_domain_validators("flood")`` falls back to no builtin
+# checks (YAML rules only).
+import examples.governed_flood  # noqa: F401 — registers FloodDomainPack + validators
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------

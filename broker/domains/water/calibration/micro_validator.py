@@ -43,6 +43,7 @@ from broker.core.psychometric import (
     get_framework,
 )
 from broker.validators.posthoc.keyword_classifier import KeywordClassifier
+from broker.domains.water.posthoc_keywords import TA_KEYWORDS, CA_KEYWORDS
 
 
 # ---------------------------------------------------------------------------
@@ -273,7 +274,11 @@ class MicroValidator:
         else:
             self._framework = framework
 
-        self._classifier = classifier or KeywordClassifier()
+        # Phase 6J-D (2026-05-22): KeywordClassifier no longer carries
+        # flood-PMT defaults; the water domain owns the dicts here.
+        self._classifier = classifier or KeywordClassifier(
+            ta_keywords=TA_KEYWORDS, ca_keywords=CA_KEYWORDS,
+        )
         self._ta_col = ta_col
         self._ca_col = ca_col
         self._decision_col = decision_col
