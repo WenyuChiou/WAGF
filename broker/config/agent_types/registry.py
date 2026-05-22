@@ -9,15 +9,12 @@ Part of Task-040: SA/MA Unified Architecture (Part 14.5)
 import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Set
-import copy
 import yaml
 
 from broker.config.agent_types.base import (
     AgentTypeDefinition,
     AgentCategory,
     PsychologicalFramework,
-    DEFAULT_PMT_CONSTRUCTS,
-    DEFAULT_UTILITY_CONSTRUCTS,
 )
 
 
@@ -348,37 +345,15 @@ class AgentTypeRegistry:
 
 
 def create_default_registry() -> AgentTypeRegistry:
-    """
-    Create a registry with default household types (water domain).
-
-    .. deprecated::
-        This function provides water-domain defaults for backward compatibility.
-        New domains should use ``AgentTypeRegistry()`` with YAML config via
-        ``ExperimentBuilder.with_governance()``.
-
-    Returns:
-        AgentTypeRegistry with default household types
-    """
-    registry = AgentTypeRegistry()
-
-    # Default household owner type
-    owner_type = AgentTypeDefinition(
-        type_id="household",
-        category=AgentCategory.HOUSEHOLD,
-        psychological_framework=PsychologicalFramework.PMT,
-        constructs=copy.deepcopy(DEFAULT_PMT_CONSTRUCTS),
-        eligible_skills=["buy_insurance", "elevate_house", "buyout_program", "relocate", "do_nothing"],
-        description="Default household agent type (owner)",
+    """Fail fast because agent-type defaults are domain-owned."""
+    # Phase 6J-C (2026-05-22): the prior registry baked domain-specific
+    # household PMT defaults into generic config code.
+    raise RuntimeError(
+        "There is no generic default agent-type registry. Pass an explicit "
+        "AgentTypeRegistry or use "
+        "broker.domains.water.agent_type_defaults."
+        "create_water_agent_type_registry()."
     )
-    registry.register(owner_type)
-
-    # Alias for backward compatibility
-    owner_alias = copy.deepcopy(owner_type)
-    owner_alias.type_id = "household_owner"
-    owner_alias.parent = "household"
-    registry.register(owner_alias)
-
-    return registry
 
 
 # Global default registry instance
@@ -389,10 +364,14 @@ def get_default_registry() -> AgentTypeRegistry:
     """
     Get the global default registry instance.
 
-    Creates a default registry on first call.
+    Phase 6J-C (2026-05-22): raises ``RuntimeError`` via
+    ``create_default_registry()`` — there is no generic domain-neutral
+    registry. Use
+    ``broker.domains.water.agent_type_defaults.create_water_agent_type_registry()``
+    for the water domain, or pass an explicit ``AgentTypeRegistry``.
 
-    Returns:
-        The global AgentTypeRegistry instance
+    Raises:
+        RuntimeError: always — agent-type defaults are domain-owned.
     """
     global _default_registry
     if _default_registry is None:

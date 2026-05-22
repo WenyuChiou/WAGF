@@ -123,6 +123,27 @@ class TestFallbackParsing:
         assert proposal is not None
         assert proposal.skill_name is not None
 
+    def test_missing_parse_default_raises(self):
+        """Parse failure requires an explicit parsing.default_skill."""
+        adapter = UnifiedAdapter(
+            agent_type="household",
+            config_path="tests/fixtures/missing_agent_types.yaml",
+        )
+        adapter.agent_config._config = {
+            "household": {
+                "parsing": {
+                    "strict_mode": False,
+                    "actions": [{"id": "custom_action", "aliases": []}],
+                },
+            },
+        }
+
+        with pytest.raises(ValueError, match=r"household.*parsing\.default_skill.*agent_types\.yaml"):
+            adapter.parse_output(
+                "No usable action appears here.",
+                {"agent_id": "test_agent", "agent_type": "household"},
+            )
+
 
 class TestDeepSeekPreprocessor:
     """Test DeepSeek-specific preprocessing."""

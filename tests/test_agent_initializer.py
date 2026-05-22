@@ -134,7 +134,7 @@ class TestCSVMode:
         profiles, memories, stats = initialize_agents(
             mode="csv",
             path=sample_csv_path,
-            config={},
+            config={"domain": "flood"},
         )
 
         assert len(profiles) == 5
@@ -145,7 +145,7 @@ class TestCSVMode:
         profiles, _, _ = initialize_agents(
             mode="csv",
             path=sample_csv_path,
-            config={},
+            config={"domain": "flood"},
         )
 
         # Check first agent
@@ -171,7 +171,7 @@ class TestCSVMode:
         profiles, _, _ = initialize_agents(
             mode="csv",
             path=minimal_csv_path,
-            config={},
+            config={"domain": "flood"},
         )
 
         assert len(profiles) == 3
@@ -187,7 +187,7 @@ class TestCSVMode:
         _, _, stats = initialize_agents(
             mode="csv",
             path=sample_csv_path,
-            config={},
+            config={"domain": "flood"},
         )
 
         assert stats["total_agents"] == 5
@@ -203,7 +203,7 @@ class TestCSVMode:
             initialize_agents(
                 mode="csv",
                 path=tmp_path / "nonexistent.csv",
-                config={},
+                config={"domain": "flood"},
             )
 
     def test_csv_mode_requires_path(self):
@@ -212,7 +212,7 @@ class TestCSVMode:
             initialize_agents(
                 mode="csv",
                 path=None,
-                config={},
+                config={"domain": "flood"},
             )
 
 
@@ -229,7 +229,7 @@ class TestSyntheticMode:
         profiles, _, stats = initialize_agents(
             mode="synthetic",
             path=None,
-            config={"n_agents": 50},
+            config={"domain": "flood", "n_agents": 50},
         )
 
         assert len(profiles) == 50
@@ -240,7 +240,7 @@ class TestSyntheticMode:
         profiles, _, stats = initialize_agents(
             mode="synthetic",
             path=None,
-            config={"n_agents": 1000, "mg_ratio": 0.20},
+            config={"domain": "flood", "n_agents": 1000, "mg_ratio": 0.20},
             seed=42,
         )
 
@@ -252,7 +252,7 @@ class TestSyntheticMode:
         profiles, _, stats = initialize_agents(
             mode="synthetic",
             path=None,
-            config={"n_agents": 1000, "owner_ratio": 0.70},
+            config={"domain": "flood", "n_agents": 1000, "owner_ratio": 0.70},
             seed=42,
         )
 
@@ -264,13 +264,13 @@ class TestSyntheticMode:
         p1, _, _ = initialize_agents(
             mode="synthetic",
             path=None,
-            config={"n_agents": 10},
+            config={"domain": "flood", "n_agents": 10},
             seed=123,
         )
         p2, _, _ = initialize_agents(
             mode="synthetic",
             path=None,
-            config={"n_agents": 10},
+            config={"domain": "flood", "n_agents": 10},
             seed=123,
         )
 
@@ -285,13 +285,13 @@ class TestSyntheticMode:
         p1, _, _ = initialize_agents(
             mode="synthetic",
             path=None,
-            config={"n_agents": 10},
+            config={"domain": "flood", "n_agents": 10},
             seed=111,
         )
         p2, _, _ = initialize_agents(
             mode="synthetic",
             path=None,
-            config={"n_agents": 10},
+            config={"domain": "flood", "n_agents": 10},
             seed=222,
         )
 
@@ -307,7 +307,7 @@ class TestSyntheticMode:
         profiles, _, _ = initialize_agents(
             mode="synthetic",
             path=None,
-            config={"n_agents": 100},
+            config={"domain": "flood", "n_agents": 100},
             seed=42,
         )
 
@@ -323,7 +323,7 @@ class TestSyntheticMode:
         profiles, _, _ = initialize_agents(
             mode="synthetic",
             path=None,
-            config={"n_agents": 500, "mg_ratio": 0.50},
+            config={"domain": "flood", "n_agents": 500, "mg_ratio": 0.50},
             seed=42,
         )
 
@@ -354,7 +354,7 @@ class TestEnricherApplication:
         profiles, _, _ = initialize_agents(
             mode="synthetic",
             path=None,
-            config={"n_agents": 10, "mg_ratio": 0.50},
+            config={"domain": "flood", "n_agents": 10, "mg_ratio": 0.50},
             enrichers={"position": sample_enricher},
             seed=42,
         )
@@ -377,7 +377,7 @@ class TestEnricherApplication:
         profiles, _, _ = initialize_agents(
             mode="synthetic",
             path=None,
-            config={"n_agents": 10},
+            config={"domain": "flood", "n_agents": 10},
             enrichers={"value": value_enricher},
             seed=42,
         )
@@ -395,7 +395,7 @@ class TestEnricherApplication:
         profiles, _, _ = initialize_agents(
             mode="synthetic",
             path=None,
-            config={"n_agents": 10},
+            config={"domain": "flood", "n_agents": 10},
             enrichers={
                 "position": sample_enricher,
                 "value": value_enricher,
@@ -419,7 +419,7 @@ class TestEnricherApplication:
         profiles, _, _ = initialize_agents(
             mode="synthetic",
             path=None,
-            config={"n_agents": 5},
+            config={"domain": "flood", "n_agents": 5},
             enrichers={"custom": CustomEnricher()},
             seed=42,
         )
@@ -441,7 +441,7 @@ class TestMemoryGeneration:
         profiles, memories, _ = initialize_agents(
             mode="synthetic",
             path=None,
-            config={"n_agents": 10},
+            config={"domain": "flood", "n_agents": 10},
             seed=42,
         )
 
@@ -456,7 +456,7 @@ class TestMemoryGeneration:
         profiles, memories, _ = initialize_agents(
             mode="synthetic",
             path=None,
-            config={"n_agents": 100},
+            config={"domain": "flood", "n_agents": 100},
             seed=42,
         )
 
@@ -481,7 +481,7 @@ class TestMemoryGeneration:
         profiles, memories, _ = initialize_agents(
             mode="synthetic",
             path=None,
-            config={"n_agents": 5},
+            config={"domain": "flood", "n_agents": 5},
             enrichers={"memory": CustomMemoryEnricher()},
             seed=42,
         )
@@ -544,13 +544,22 @@ class TestAgentProfile:
 class TestErrorHandling:
     """Tests for error handling."""
 
+    def test_domain_is_required(self):
+        """Agent initialization must not infer a water-domain loader."""
+        with pytest.raises(KeyError, match=r"config\['domain'\]"):
+            initialize_agents(
+                mode="synthetic",
+                path=None,
+                config={"n_agents": 1},
+            )
+
     def test_invalid_mode_raises_error(self):
         """Invalid mode should raise ValueError."""
         with pytest.raises(ValueError, match="Unknown mode"):
             initialize_agents(
                 mode="invalid_mode",
                 path=None,
-                config={},
+                config={"domain": "flood"},
             )
 
     def test_survey_mode_requires_path(self):
@@ -559,7 +568,7 @@ class TestErrorHandling:
             initialize_agents(
                 mode="survey",
                 path=None,
-                config={},
+                config={"domain": "flood"},
             )
 
 
@@ -576,7 +585,7 @@ class TestIntegration:
         profiles, memories, stats = initialize_agents(
             mode="csv",
             path=sample_csv_path,
-            config={},
+            config={"domain": "flood"},
             enrichers={
                 "position": sample_enricher,
                 "value": value_enricher,
@@ -603,7 +612,12 @@ class TestIntegration:
         profiles, memories, stats = initialize_agents(
             mode="synthetic",
             path=None,
-            config={"n_agents": 100, "mg_ratio": 0.25, "owner_ratio": 0.60},
+            config={
+                "domain": "flood",
+                "n_agents": 100,
+                "mg_ratio": 0.25,
+                "owner_ratio": 0.60,
+            },
             enrichers={
                 "position": sample_enricher,
                 "value": value_enricher,

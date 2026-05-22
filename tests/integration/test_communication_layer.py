@@ -75,7 +75,7 @@ class TestFullPipeline:
         }
 
         # --- 1. Phase Orchestrator: determine execution order ---
-        orchestrator = PhaseOrchestrator()
+        orchestrator = PhaseOrchestrator.from_domain("flood")
         plan = orchestrator.get_execution_plan(agents)
         assert len(plan) == 4
 
@@ -116,6 +116,10 @@ class TestFullPipeline:
             resource_limits={"govt_budget": 200_000},
             message_pool=pool,
             strategy_type="conflict_aware",
+            type_priorities={
+                "household_mg_owner": 50,
+                "household_owner": 10,
+            },
         )
 
         # Households submit competing proposals

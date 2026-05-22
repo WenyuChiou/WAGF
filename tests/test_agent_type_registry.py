@@ -465,33 +465,30 @@ agent_types:
 class TestDefaultRegistry:
     """Test default registry functions."""
 
-    def test_create_default_registry(self):
-        """Test creating default registry."""
-        registry = create_default_registry()
+    def test_create_default_registry_fails_fast(self):
+        """Generic registry factory has no domain-specific defaults."""
+        with pytest.raises(RuntimeError, match="no generic default agent-type registry"):
+            create_default_registry()
 
-        assert len(registry) >= 1
-        assert registry.has_type("household")
-
-    def test_get_default_registry_singleton(self):
-        """Test that get_default_registry returns singleton."""
+    def test_get_default_registry_fails_fast(self):
+        """Global default lookup surfaces the same fail-fast."""
         reset_default_registry()
+        with pytest.raises(RuntimeError, match="no generic default agent-type registry"):
+            get_default_registry()
 
-        reg1 = get_default_registry()
-        reg2 = get_default_registry()
-
-        assert reg1 is reg2
-
-    def test_reset_default_registry(self):
-        """Test resetting default registry."""
-        reg1 = get_default_registry()
+    def test_reset_default_registry_keeps_fail_fast(self):
+        """Resetting the singleton does not recreate water defaults."""
         reset_default_registry()
-        reg2 = get_default_registry()
+        with pytest.raises(RuntimeError, match="no generic default agent-type registry"):
+            get_default_registry()
 
-        assert reg1 is not reg2
+    def test_water_household_default_has_pmt(self):
+        """Water owns the legacy household PMT registry."""
+        from broker.domains.water.agent_type_defaults import (
+            create_water_agent_type_registry,
+        )
 
-    def test_default_household_has_pmt(self):
-        """Test default household uses PMT framework."""
-        registry = create_default_registry()
+        registry = create_water_agent_type_registry()
         defn = registry.get("household")
 
         assert defn.psychological_framework == PsychologicalFramework.PMT

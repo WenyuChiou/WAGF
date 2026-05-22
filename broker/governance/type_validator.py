@@ -16,7 +16,6 @@ from broker.config.agent_types import (
     AgentTypeDefinition,
     ValidationConfig,
     ValidationRuleRef,
-    get_default_registry,
 )
 
 
@@ -45,9 +44,14 @@ class TypeValidator:
         Initialize TypeValidator.
 
         Args:
-            registry: AgentTypeRegistry instance. If None, uses default registry.
+            registry: AgentTypeRegistry instance.
         """
-        self.registry = registry or get_default_registry()
+        if registry is None:
+            raise ValueError(
+                "TypeValidator requires an explicit AgentTypeRegistry; there "
+                "is no generic default registry."
+            )
+        self.registry = registry
 
     def validate(
         self,

@@ -84,6 +84,13 @@ class MockGlobalGraph:
         return [a for a in self.agent_ids if a != agent_id]
 
 
+@pytest.fixture(autouse=True)
+def water_specs():
+    from broker.domains.water.social_specs import register_water_social_specs
+
+    register_water_social_specs()
+
+
 # ==============================================================================
 # Test SocialGraphSpec
 # ==============================================================================

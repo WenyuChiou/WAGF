@@ -517,12 +517,12 @@ class TestIntegrationWithAgentTypeRegistry:
 
     def test_framework_from_registry(self):
         """Test getting framework via registry integration."""
-        from broker.config.agent_types import (
-            get_default_registry,
-            PsychologicalFramework as PFEnum,
+        from broker.config.agent_types import PsychologicalFramework as PFEnum
+        from broker.domains.water.agent_type_defaults import (
+            create_water_agent_type_registry,
         )
 
-        registry = get_default_registry()
+        registry = create_water_agent_type_registry()
         defn = registry.get("household")
 
         # Get the framework enum value

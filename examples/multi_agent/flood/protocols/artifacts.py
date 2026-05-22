@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 
-from broker.interfaces.artifacts import AgentArtifact
+from broker.interfaces.artifacts import AgentArtifact, register_artifact_routing
 
 
 # ---------------------------------------------------------------------------
@@ -116,3 +116,9 @@ class HouseholdIntention(AgentArtifact):
         if not (0.0 <= self.confidence <= 1.0):
             errors.append(f"confidence out of range: {self.confidence}")
         return errors
+
+
+# Phase 6J-C (2026-05-22): artifact routing is domain-owned.
+register_artifact_routing("PolicyArtifact", "POLICY_ANNOUNCEMENT", "government")
+register_artifact_routing("MarketArtifact", "MARKET_UPDATE", "insurance")
+register_artifact_routing("HouseholdIntention", "NEIGHBOR_WARNING", "household")

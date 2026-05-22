@@ -31,12 +31,10 @@ class SkillRegistry:
     
     def __init__(self):
         self.skills: Dict[str, SkillDefinition] = {}
-        # Backward-compat default; YAML should override via top-level
-        # `default_skill:` key. Tracked explicitly so we can warn when
-        # callers rely on the flood-flavoured legacy fallback.
-        self._default_skill: str = "do_nothing"
+        # Phase 6J-C (2026-05-22): domain defaults must come from YAML or
+        # set_default_skill(), never from a generic broker fallback.
+        self._default_skill: Optional[str] = None
         self._default_skill_explicit: bool = False
-        self._default_skill_warning_emitted: bool = False
     
     def register(self, skill: SkillDefinition) -> None:
         """Register a skill definition."""
@@ -89,7 +87,7 @@ class SkillRegistry:
             else:
                 logger.warning(
                     f"YAML default_skill='{default_id}' not found in registry. "
-                    f"Using fallback '{self._default_skill}'"
+                    "No default skill configured."
                 )
     
     def get(self, skill_id: str) -> Optional[SkillDefinition]:
@@ -104,20 +102,16 @@ class SkillRegistry:
         """Get the default fallback skill.
 
         If no domain YAML has declared `default_skill:` (and no caller
-        has invoked `set_default_skill`), emit a one-time warning. This
-        surfaces the broker's flood-flavoured legacy fallback to any
-        new domain that forgot to declare its own default.
+        has invoked `set_default_skill`), fail before the broker silently
+        invents a domain fallback.
         """
-        if not self._default_skill_explicit and not self._default_skill_warning_emitted:
-            logger.warning(
-                "SkillRegistry default_skill not declared in YAML; falling "
-                "back to legacy '%s'. New domains MUST set 'default_skill:' "
-                "at the top level of skill_registry.yaml. See "
+        if self._default_skill is None:
+            raise ValueError(
+                "SkillRegistry has no default_skill configured. Declare a "
+                "top-level 'default_skill:' in skill_registry.yaml. See "
                 "examples/irrigation_abm/config/skill_registry.yaml for "
-                "reference.",
-                self._default_skill,
+                "an example."
             )
-            self._default_skill_warning_emitted = True
         return self._default_skill
     
     def set_default_skill(self, skill_id: str) -> None:
@@ -130,10 +124,9 @@ class SkillRegistry:
         """True iff a default skill was explicitly declared — via a
         YAML top-level ``default_skill:`` key or ``set_default_skill()``.
 
-        False means the registry would fall back to the broker's
-        flood-flavoured legacy ``do_nothing``. Callers that assemble an
-        experiment use this to fail fast at build time rather than let a
-        misconfigured domain silently corrupt rejected-proposal fallbacks
+        False means the registry has no configured fallback. Callers that
+        assemble an experiment use this to fail fast at build time rather
+        than let rejected-proposal fallback handling discover the gap late
         (Phase 6H Item 3 / INVARIANTS.md §I5 rule 4).
         """
         return self._default_skill_explicit

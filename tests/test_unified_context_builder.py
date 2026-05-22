@@ -176,7 +176,11 @@ def mock_skill_registry():
 @pytest.fixture
 def agent_type_registry():
     """Create a real agent type registry with default types."""
-    return create_default_registry()
+    from broker.domains.water.agent_type_defaults import (
+        create_water_agent_type_registry,
+    )
+
+    return create_water_agent_type_registry()
 
 
 # =============================================================================

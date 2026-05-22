@@ -3,6 +3,9 @@
 Tests the generic AgentArtifact ABC in broker/interfaces/artifacts.py
 and the flood-domain subclasses in examples/multi_agent/flood/protocols/artifacts.py.
 """
+import importlib
+
+import broker.interfaces.artifacts as artifact_routes
 from broker.interfaces.artifacts import AgentArtifact, ArtifactEnvelope
 from broker.interfaces.coordination import MessageType
 from examples.multi_agent.flood.protocols.artifacts import (
@@ -29,6 +32,21 @@ def test_subclass_has_artifact_type():
                        budget_remaining=1000.0, target_adoption_rate=0.6)
     assert p.artifact_type() == "PolicyArtifact"
     assert isinstance(p, AgentArtifact)
+
+
+def test_generic_artifact_routing_starts_empty():
+    reloaded = importlib.reload(artifact_routes)
+
+    assert reloaded._TYPE_MAP == {}
+    assert reloaded._SENDER_MAP == {}
+
+    reloaded.register_artifact_routing(
+        "PolicyArtifact", "POLICY_ANNOUNCEMENT", "government"
+    )
+    reloaded.register_artifact_routing("MarketArtifact", "MARKET_UPDATE", "insurance")
+    reloaded.register_artifact_routing(
+        "HouseholdIntention", "NEIGHBOR_WARNING", "household"
+    )
 
 
 # ---------------------------------------------------------------------------
