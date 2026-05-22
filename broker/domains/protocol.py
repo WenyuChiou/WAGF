@@ -100,6 +100,18 @@ class DomainPack(Protocol):
         config or default."""
         ...
 
+    def reflection_trait_labels(self, context: Any) -> List[str]:
+        """Short trait labels (e.g. ``["repeat customer", "low balance"]``)
+        for the compact batch reflection prompt — distinct from
+        ``reflection_status_text``, which returns a full sentence for the
+        individual prompt.
+
+        Default ``[]`` → the batch prompt shows only the generic identity
+        line. Replaces the hardcoded flood traits block in
+        ``broker/components/cognitive/reflection.py`` (Phase 6H Item 9).
+        """
+        ...
+
     # ─── Memory / importance / emotion ────────────────────────────
 
     def importance_profiles(self) -> Dict[str, float]:

@@ -14,6 +14,19 @@ def engine():
     return ReflectionEngine()
 
 
+@pytest.fixture(scope="session")
+def flood_pack():
+    """Ensure FloodDomainPack is registered so the reflection hooks
+    resolve to flood behaviour (Phase 6H Item 9).
+
+    No teardown: registration is a process-global import side effect.
+    `import examples.governed_flood` fires `register()` once per process
+    (sys.modules cache); clearing it on teardown would permanently
+    unregister the pack for every later test, since the cached re-import
+    cannot re-fire the registration."""
+    import examples.governed_flood  # noqa: F401 — registers FloodDomainPack
+
+
 class TestAgentReflectionContext:
     def test_extract_from_agent(self, engine):
         agent = MagicMock()
@@ -80,7 +93,7 @@ class TestPersonalizedPrompt:
 
 
 class TestPersonalizedBatchPrompt:
-    def test_batch_includes_identity_tags(self, engine):
+    def test_batch_includes_identity_tags(self, engine, flood_pack):
         batch = [
             {
                 "agent_id": "H_001",

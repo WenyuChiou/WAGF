@@ -121,6 +121,24 @@ class FloodDomainPack(DefaultDomainPack):
     def reflection_persona(self) -> Optional[str]:
         return None
 
+    def reflection_trait_labels(self, context: Any) -> List[str]:
+        """Short flood trait labels for the compact batch reflection
+        prompt — reproduces the hardcoded reflection.py batch traits
+        block byte-identically (Phase 6H Item 9). Note ``flooded {n}x``
+        (the batch short form), distinct from the status-text
+        ``flooded {n} time(s)`` long form."""
+        labels: List[str] = []
+        if getattr(context, "elevated", False):
+            labels.append("elevated")
+        if getattr(context, "insured", False):
+            labels.append("insured")
+        flood_count = getattr(context, "flood_count", 0)
+        if flood_count > 0:
+            labels.append(f"flooded {flood_count}x")
+        if getattr(context, "mg_status", False):
+            labels.append("MG")
+        return labels
+
     # ─── Memory / importance / emotion (delegate to existing adapter) ─
 
     def importance_profiles(self) -> Dict[str, float]:

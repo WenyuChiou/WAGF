@@ -39,6 +39,9 @@ class DefaultDomainPack:
     def reflection_persona(self) -> Optional[str]:
         return None
 
+    def reflection_trait_labels(self, context: Any) -> List[str]:
+        return []
+
     # ─── Memory / importance / emotion ────────────────────────────
 
     def importance_profiles(self) -> Dict[str, float]:
