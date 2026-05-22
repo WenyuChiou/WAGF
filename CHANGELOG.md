@@ -175,6 +175,30 @@ flood-coupling-free.
     across generic `broker/`). `flood_occurred` / `flood_event` /
     `flood_depth_m` still leak outside `ma_manager.py` → deferred to
     Phase 6J-E. Net-zero gate regression.
+- **Phase 6J-C — domain-bias defaults → fail-fast or domain-housed**:
+  eight sites where generic `broker/` silently inherited flood defaults.
+  - Fail-fast (an unconfigured domain now raises a clear error):
+    `SkillRegistry._default_skill` `"do_nothing"` → `None`,
+    `get_default_skill()` raises `ValueError` (the build-time
+    `has_explicit_default_skill()` check fires first, so configured
+    domains never hit it); `unified_adapter.py` parse-failure fallback
+    raises if `parsing.default_skill` is absent; `agent_initializer.py`
+    requires `SurveyLoader.domain` / `initialize_agents config["domain"]`
+    (were default `"flood"`); `create_default_registry()` raises
+    `RuntimeError` and `TypeValidator` requires an explicit registry;
+    `PriorityResolution.type_priorities` defaults to `{}` (was a flood
+    agent-type priority table).
+  - Domain-housed (flood content relocated under `broker/domains/water/`):
+    new `agent_type_defaults.py` (`create_water_agent_type_registry()`),
+    `phase_layouts.py` (`water_default_phases()` — `PhaseOrchestrator`
+    now defaults to the generic 3-phase layout), `social_specs.py`
+    (`register_water_social_specs()` — `AGENT_SOCIAL_SPECS` starts
+    empty). `interfaces/artifacts.py` `_ensure_default_routing()`
+    removed; the three flood artifact mappings register from the flood
+    example at import.
+  - The four reference domains already declare `default_skill` /
+    `parsing.default_skill` in YAML. Net-zero gate regression;
+    real-model `governed_flood` smoke ran end-to-end clean.
 
 ### Notes
 
