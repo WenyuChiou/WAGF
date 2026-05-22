@@ -124,7 +124,10 @@ def compute_hallucination_rate(
     start_year : int
         First year to include (default 2, skipping initialization year).
     classifier : KeywordClassifier, optional
-        Custom classifier (default: standard PMT keywords).
+        Custom classifier. Default is Tier-1/1.5-only (no keyword
+        dictionaries — Phase 6J-D); supply
+        ``KeywordClassifier(ta_keywords=..., ca_keywords=...)`` for
+        Tier-2 narrative matching.
     rule_checker : ThinkingRulePostHoc, optional
         Custom rule checker (default: standard V1/V2/V3).
     irreversible_states : dict, optional

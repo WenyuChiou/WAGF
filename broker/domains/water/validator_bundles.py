@@ -5,15 +5,18 @@ This module isolates water-specific builtin validator wiring from the generic
 governance entrypoint so `broker.validators.governance` does not import
 example packages directly.
 
-Phase 6B-1 (2026-05-04): domain-specific check tuples now come from the
+Phase 6B-1 (2026-05-04): domain-specific check tuples come from the
 `ValidatorRegistry` plugin registry. Example packages register their
-checks at their own `validators/__init__.py` import time. To preserve
-backward compatibility with entrypoints that don't pre-import the
-example's validators package, this module retains a one-time legacy
-fallback that lazy-imports the example's checks IF the registry is
-empty for the requested domain. Once a domain's `validators/__init__.py`
-runs (which it will, because run_experiment.py or its imports trigger
-it), the registry is populated and subsequent calls skip the fallback.
+checks at their own `validators/__init__.py` import time.
+
+Phase 6J-D (2026-05-22): removed the legacy ``_ensure_*_registered``
+lazy fallback that reverse-imported from ``examples/*/validators`` —
+``broker/domains/water/`` must not import from ``examples/``. Each
+example package ``__init__.py`` now imports its ``validators``
+submodule on import, and every ``run_*.py`` entrypoint imports the
+example package early. A domain whose checks have not been registered
+by the time ``build_domain_validators`` runs returns
+``_empty_validators()`` (the YAML rule path is unaffected).
 """
 
 from typing import List, Optional
@@ -43,27 +46,6 @@ def _with_registered_mode(validator, domain: str, slot: str):
     return validator
 
 
-def _ensure_irrigation_registered() -> None:
-    """Legacy fallback: if irrigation registry is empty, import the
-    example's validators package to trigger its registration side-effect.
-    Future code should make example imports happen at startup, not via
-    this fallback."""
-    if not ValidatorRegistry.get_checks("irrigation", "physical"):
-        try:
-            import examples.irrigation_abm.validators  # noqa: F401 -- side-effect
-        except ImportError:
-            pass
-
-
-def _ensure_flood_registered() -> None:
-    """Same as _ensure_irrigation_registered but for flood."""
-    if not ValidatorRegistry.get_checks("flood", "physical"):
-        try:
-            import examples.governed_flood.validators  # noqa: F401 -- side-effect
-        except ImportError:
-            pass
-
-
 def build_domain_validators(domain: Optional[str]) -> list:
     """Return builtin validator instances for any registered domain.
 
@@ -72,24 +54,17 @@ def build_domain_validators(domain: Optional[str]) -> list:
     ``extreme_actions`` come from the registered ``DomainPack`` so the
     irrigation/flood branches no longer need to be hardcoded here.
 
-    The lazy ``_ensure_*_registered`` helpers are kept for backward
-    compatibility with entrypoints that don't pre-import the example
-    package (Phase 6B-1 fallback). They remain water-specific because
-    they target ``examples.irrigation_abm.validators`` and
-    ``examples.governed_flood.validators`` directly.
+    Phase 6J-D (2026-05-22): the reverse-importing ``_ensure_*_registered``
+    fallbacks were removed. Each example package's ``__init__.py``
+    imports its ``validators`` submodule on import, and each
+    ``run_*.py`` entrypoint imports the example package early — so by
+    the time this function runs, the requested domain's checks are
+    already registered. An empty domain returns ``_empty_validators()``.
     """
     resolved = (domain or "").strip().lower() or None
 
     if resolved is None:
         return _empty_validators()
-
-    # Backward-compat: if domain matches a known water example whose
-    # validators package hasn't been imported yet, trigger the lazy
-    # import so the registry is populated before we query it.
-    if resolved == "irrigation":
-        _ensure_irrigation_registered()
-    elif resolved == "flood":
-        _ensure_flood_registered()
 
     if not ValidatorRegistry.has_domain(resolved):
         # Unknown domain — return empty validators (broker continues

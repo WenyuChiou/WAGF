@@ -9,7 +9,15 @@ def test_governance_module_has_no_direct_example_imports():
 
 
 def test_water_domain_exposes_validator_builder():
+    # Phase 6J-D (2026-05-22): the lazy ``_ensure_*_registered``
+    # reverse-import fallback was removed, so this test must register
+    # the example checks itself by importing the example packages —
+    # otherwise ``build_domain_validators`` returns ``_empty_validators()``
+    # and ``len(...) == 5`` passes vacuously (5 empty wrappers).
+    import examples.governed_flood  # noqa: F401 — registers FloodDomainPack + checks
+    import examples.irrigation_abm  # noqa: F401 — registers IrrigationDomainPack + checks
     from broker.domains.water.validator_bundles import build_domain_validators
+    from broker.validators.governance.physical_validator import PhysicalValidator
 
     irrigation_validators = build_domain_validators("irrigation")
     flood_validators = build_domain_validators("flood")
@@ -18,6 +26,16 @@ def test_water_domain_exposes_validator_builder():
     assert len(irrigation_validators) == 5
     assert len(flood_validators) == 5
     assert len(generic_validators) == 5
+
+    # Guard against the vacuous-pass case: a populated domain's
+    # PhysicalValidator must carry at least one builtin check; an
+    # unconfigured (generic) one must not.
+    flood_pv = next(v for v in flood_validators if isinstance(v, PhysicalValidator))
+    irrigation_pv = next(v for v in irrigation_validators if isinstance(v, PhysicalValidator))
+    generic_pv = next(v for v in generic_validators if isinstance(v, PhysicalValidator))
+    assert flood_pv._builtin_checks, "flood physical checks must register on package import"
+    assert irrigation_pv._builtin_checks, "irrigation physical checks must register on package import"
+    assert not generic_pv._builtin_checks, "generic builder must carry no domain checks"
 
 
 def test_validator_registry_returns_empty_for_unknown_domain():

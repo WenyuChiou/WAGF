@@ -1,34 +1,29 @@
 """
 Keyword-based construct classifier for post-hoc trace analysis.
 
-**FLOOD DOMAIN (PMT)**: Default keyword dictionaries extract Threat
-Perception (TP) and Coping Perception (CP) labels from flood household
-adaptation traces using Protection Motivation Theory terminology.
-
-**IRRIGATION DOMAIN (WSA/ACA)**: For irrigation traces, supply custom
-keyword dictionaries via ``ta_keywords`` and ``ca_keywords`` constructor
-parameters, or use Tier 1 only (explicit label regex) which is
-domain-agnostic.
+Generic, domain-agnostic. Tier 1 (explicit label regex) + Tier 1.5
+(qualifier precedence) work for any structured label output. Tier 2
+(keyword matching) requires keyword dictionaries supplied by the caller
+— the broker carries no domain-specific defaults (Phase 6J-D,
+2026-05-22). The water-domain PMT keyword dictionaries previously
+hardcoded here live at
+``broker/domains/water/posthoc_keywords.py``.
 
 Three-tier strategy:
 
     Tier 1   — Explicit label regex: ``VH``, ``H``, ``M``, ``L``, ``VL``
                (domain-agnostic — works for any structured label output)
     Tier 1.5 — Qualifier precedence: detects "low risk", "moderate concern"
-               framing and overrides naive keyword hits (fixes negation
-               problem where "low risk of flooding" would match H keyword
-               "risk of flood")
-    Tier 2   — Keyword matching from curated dictionaries
-               (default dictionaries are PMT/flood-specific)
+               framing and overrides naive keyword hits (fixes the
+               negation problem where e.g. "low risk of X" would match
+               an H keyword "risk of X")
+    Tier 2   — Keyword matching from caller-supplied dictionaries
+               (omit ``ta_keywords`` / ``ca_keywords`` to skip Tier 2 and
+               run domain-agnostic Tier-1/1.5-only classification)
 
-This formalizes the SQ1 analysis methodology (``master_report.py``) into
-a reusable module.  Tier 1 catches structured labels emitted by governed
-pipelines (Groups B/C); Tier 2 handles unstructured narratives (Group A).
-
-Domain Mapping:
-    Flood:      TP (Threat Perception) / CP (Coping Perception)   — PMT
-    Irrigation: WSA (Water Scarcity Assessment) / ACA (Adaptive
-                Capacity Assessment) — Dual Appraisal Framework
+Tier 1 catches structured labels emitted by governed pipelines
+(Groups B/C); Tier 2 handles unstructured narratives (Group A) when a
+domain supplies its keyword vocabulary.
 
 References:
     Rogers, R. W. (1975). A protection motivation theory of fear appeals
@@ -41,64 +36,22 @@ import re
 from typing import Dict, List, Optional
 
 
-# PMT keyword dictionaries — curated from literature review (FLOOD DOMAIN)
-# For irrigation domain (WSA/ACA), override via KeywordClassifier constructor.
-TA_KEYWORDS: Dict[str, List[str]] = {
-    "H": [
-        # Perceived Severity (Rogers, 1975; Maddux & Rogers, 1983)
-        "severe", "critical", "extreme", "catastrophic", "significant harm",
-        "dangerous", "bad", "devastating",
-        # Perceived Susceptibility / Vulnerability
-        "susceptible", "likely", "high risk", "exposed", "probability",
-        "chance", "vulnerable", "vulnerability",
-        # Fear Arousal — adjective and noun forms (Witte, 1992)
-        "afraid", "anxious", "anxiety", "worried", "worry",
-        "concerned", "concern", "frightened",
-        "emergency", "flee",
-        # Threat salience — common LLM narrative expressions
-        "significant risk", "significant threat", "significant concern",
-        "ongoing risk", "ongoing threat", "persistent risk", "persistent threat",
-        "real risk", "real threat", "serious risk", "serious threat",
-        "substantial risk", "substantial threat",
-        "growing risk", "growing threat", "growing concern",
-        "increasing risk", "increasing threat",
-        "heightened risk", "heightened threat",
-        "flood risk", "risk of flood", "threat of flood",
-    ],
-    "L": [
-        "minimal", "safe", "none", "low", "unlikely", "no risk",
-        "protected", "secure",
-    ],
-}
-
-CA_KEYWORDS: Dict[str, List[str]] = {
-    "H": [
-        "grant", "subsidy", "effective", "capable", "confident", "support",
-        "benefit", "protection", "affordable", "successful", "prepared",
-        "mitigate", "action plan",
-    ],
-    "L": [
-        "expensive", "costly", "unable", "uncertain", "weak", "unaffordable",
-        "insufficient", "debt", "financial burden",
-    ],
-}
-
-
 class KeywordClassifier:
-    """Two-tier construct classifier (default: PMT/flood; extensible to other domains).
+    """Three-tier construct classifier (domain-agnostic).
 
-    Default keyword dictionaries are tuned for **flood domain PMT** constructs
-    (TP/CP).  For **irrigation domain** (WSA/ACA) or other domains, supply
-    custom keyword dictionaries or rely on Tier 1 (label regex) only.
+    Tier 1 (explicit label regex) and Tier 1.5 (qualifier precedence)
+    are domain-agnostic. Tier 2 (keyword matching) is opt-in: pass
+    domain-specific keyword dictionaries to enable it; omit them to
+    run Tier-1/1.5 only. Water-domain dictionaries live at
+    ``broker.domains.water.posthoc_keywords``.
 
     Parameters
     ----------
     ta_keywords : dict, optional
-        Override threat-appraisal keyword dict (default: ``TA_KEYWORDS``).
-        For irrigation: supply WSA-specific keywords.
+        Threat-appraisal keyword dict (``{"H": [...], "L": [...]}``).
+        ``None`` (default) skips Tier 2 for threat classification.
     ca_keywords : dict, optional
-        Override coping-appraisal keyword dict (default: ``CA_KEYWORDS``).
-        For irrigation: supply ACA-specific keywords.
+        Coping-appraisal keyword dict. ``None`` skips Tier 2 for coping.
     """
 
     def __init__(
@@ -106,8 +59,10 @@ class KeywordClassifier:
         ta_keywords: Optional[Dict[str, List[str]]] = None,
         ca_keywords: Optional[Dict[str, List[str]]] = None,
     ):
-        self.ta_keywords = ta_keywords or TA_KEYWORDS
-        self.ca_keywords = ca_keywords or CA_KEYWORDS
+        # Phase 6J-D (2026-05-22): no flood-PMT default; ``None`` is a
+        # legitimate Tier-1/1.5-only mode.
+        self.ta_keywords = ta_keywords
+        self.ca_keywords = ca_keywords
 
     # ------------------------------------------------------------------
     # Core classification
@@ -137,7 +92,7 @@ class KeywordClassifier:
         text: str,
         keywords: Optional[Dict[str, List[str]]] = None,
     ) -> str:
-        """Classify free text into a PMT level.
+        """Classify free text into a construct level (``VH``/``H``/``M``/``L``/``VL``).
 
         Three-tier strategy:
 
