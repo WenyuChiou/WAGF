@@ -304,6 +304,18 @@ class TestDomainGenericity:
         "WSA_LABEL": "irrigation domain",
         "ACA_LABEL": "irrigation domain",
         "drought_tier": "drought domain (future)",
+        # Phase 6J-B (2026-05-22): ma_manager.py event dispatch de-flooded
+        # — the get_agent_impact flood event-type chain moved to
+        # FloodDomainPack.agent_impact_handlers(). These two tokens are
+        # now clean across generic broker/ and guard that work.
+        "flooded": "flood domain",
+        "flood_damage": "flood domain",
+        # NOTE: flood_occurred / flood_event / flood_depth_m still leak
+        # outside ma_manager.py (events/generators/flood.py, memory/
+        # initial_loader.py, memory/policy_classifier.py, memory/
+        # universal.py, interfaces/simulation_protocols.py) — adding them
+        # is deferred to Phase 6J-E, which de-floods those sites and
+        # finalises the token set.
     }
 
     # Files/paths where domain tokens are allowed — e.g., examples/, domain

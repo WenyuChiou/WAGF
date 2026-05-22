@@ -67,6 +67,35 @@ def _handle_premium_change(event: Any, gs: Dict[str, Any]) -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────
+# Per-agent impact handlers — extracted verbatim from the flood
+# event-type chain in broker/components/events/ma_manager.py:get_agent_impact.
+# These AGGREGATE into a per-agent impact dict (max for depth, sum for
+# dollar amounts) rather than overwriting global env state.
+# ─────────────────────────────────────────────────────────────────────
+
+def _impact_flood(event: Any, impact: Dict[str, Any]) -> None:
+    impact["flooded"] = True
+    impact["depth_m"] = max(
+        impact.get("depth_m", 0.0), event.data.get("depth_m", 0)
+    )
+
+
+def _impact_flood_damage(event: Any, impact: Dict[str, Any]) -> None:
+    impact["damage_amount"] = (
+        impact.get("damage_amount", 0.0) + event.data.get("damage_amount", 0)
+    )
+    impact["oop_cost"] = (
+        impact.get("oop_cost", 0.0) + event.data.get("oop_cost", 0)
+    )
+
+
+def _impact_insurance_payout(event: Any, impact: Dict[str, Any]) -> None:
+    impact["payout_amount"] = (
+        impact.get("payout_amount", 0.0) + event.data.get("payout_amount", 0)
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────
 # DomainPack
 # ─────────────────────────────────────────────────────────────────────
 
@@ -188,6 +217,15 @@ class FloodDomainPack(DefaultDomainPack):
             "no_flood": _handle_no_flood,
             "subsidy_change": _handle_subsidy_change,
             "premium_change": _handle_premium_change,
+        }
+
+    def agent_impact_handlers(self) -> Dict[str, EventHandler]:
+        """Replaces the flood event-type chain in
+        ``ma_manager.py:get_agent_impact()`` (Phase 6J-B)."""
+        return {
+            "flood": _impact_flood,
+            "flood_damage": _impact_flood_damage,
+            "insurance_payout": _impact_insurance_payout,
         }
 
     # ─── Context provider hooks ────────────────────────────────────

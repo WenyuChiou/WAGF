@@ -21,6 +21,12 @@ from broker.components.events.ma_manager import (
     MAEventManager,
     EventPhase,
 )
+# Registers FloodDomainPack at import time — MAEventManager.sync_to_environment
+# and get_agent_impact dispatch event→state mutation through
+# DomainPack.event_handlers() / agent_impact_handlers() (Phase 6J-B), so the
+# flood-domain handlers must be registered for the flood-shaped assertions
+# below to hold when this module runs in isolation.
+import examples.governed_flood  # noqa: F401
 
 
 def _flood_impact_config() -> ImpactEventConfig:

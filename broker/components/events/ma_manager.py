@@ -11,6 +11,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from broker.interfaces.event_generator import EnvironmentEvent, EventScope
+from broker.domains.protocol import EventHandler
+from broker.domains.registry import DomainPackRegistry
 from .manager import EnvironmentEventManager
 
 
@@ -245,12 +247,11 @@ class MAEventManager(EnvironmentEventManager):
     ) -> None:
         """Sync event data to TieredEnvironment.
 
-        Updates env.global_state with event summaries:
-        - flood_occurred: bool
-        - flood_depth_m: float
-        - subsidy_rate: float
-        - premium_rate: float
-        - etc.
+        Updates ``env.global_state`` with event summaries. The exact keys
+        written are domain-specific — each registered ``DomainPack``
+        supplies them via ``event_handlers()`` (e.g. the water domain
+        writes hazard-occurrence and policy-rate keys). Generic code
+        here names none.
 
         Args:
             env: TieredEnvironment instance
@@ -271,58 +272,37 @@ class MAEventManager(EnvironmentEventManager):
     def _sync_event_to_env(self, env: Any, event: EnvironmentEvent) -> None:
         """Sync a single event to environment state.
 
-        Phase 6C-v2 (2026-05-10): event_type → handler dispatch is now
-        plugin-driven via DomainPack.event_handlers(). FloodDomainPack
-        registers handlers for "flood", "no_flood", "subsidy_change",
-        "premium_change" that produce identical mutations to the
-        pre-refactor if/elif chain. New domains register their own
-        event types (e.g. {"outbreak": ..., "vaccine_rollout": ...})
-        without editing this file.
+        Phase 6C-v2 (2026-05-10): event_type → handler dispatch is
+        plugin-driven via ``DomainPack.event_handlers()``. A domain pack
+        registers handlers for its own event types; generic code here
+        names no domain. Phase 6J-B (2026-05-22): the pre-refactor
+        hardcoded flood fallback chain was removed — an event type that
+        no registered domain handles is silently skipped.
         """
         gs = env.global_state
 
         # Resolve domain — try env.domain attr, then fall back to scanning
         # registered domains for one whose handlers cover this event type.
-        try:
-            from broker.domains.registry import DomainPackRegistry
+        domain_name = getattr(env, "domain", None)
+        if domain_name is None:
+            # Scan all registered domains for a handler covering this
+            # event type. First match wins. Preserves prior behaviour
+            # where a domain's event types were handled regardless of
+            # which domain was active.
+            for name in DomainPackRegistry.domains():
+                pack = DomainPackRegistry.get(name)
+                if pack and event.event_type in pack.event_handlers():
+                    handler = pack.event_handlers()[event.event_type]
+                    handler(event, gs)
+                    return
+            # No handler found across any domain — silent skip
+            # (matches pre-refactor: unknown event_type fell through).
+            return
 
-            domain_name = getattr(env, "domain", None)
-            if domain_name is None:
-                # Scan all registered domains for a handler covering this
-                # event type. First match wins. Preserves prior behaviour
-                # where flood event types were handled regardless of which
-                # domain was active.
-                for name in DomainPackRegistry.domains():
-                    pack = DomainPackRegistry.get(name)
-                    if pack and event.event_type in pack.event_handlers():
-                        handler = pack.event_handlers()[event.event_type]
-                        handler(event, gs)
-                        return
-                # No handler found across any domain — silent skip
-                # (matches pre-refactor: unknown event_type fell through).
-                return
-
-            pack = DomainPackRegistry.get_or_default(domain_name)
-            handler = pack.event_handlers().get(event.event_type)
-            if handler is not None:
-                handler(event, gs)
-        except ImportError:
-            # Fallback: pre-refactor hardcoded chain. Removed once all
-            # callers confirmed migrated.
-            if event.event_type == "flood":
-                gs["flood_occurred"] = event.data.get("occurred", True)
-                gs["flood_depth_m"] = event.data.get("depth_m", 0)
-                gs["flood_depth_ft"] = event.data.get("depth_ft", 0)
-            elif event.event_type == "no_flood":
-                gs["flood_occurred"] = False
-                gs["flood_depth_m"] = 0
-                gs["flood_depth_ft"] = 0
-            elif event.event_type == "subsidy_change":
-                gs["subsidy_rate"] = event.data.get("new_value", gs.get("subsidy_rate", 0.5))
-                gs["govt_message"] = event.description
-            elif event.event_type == "premium_change":
-                gs["premium_rate"] = event.data.get("new_value", gs.get("premium_rate", 0.02))
-                gs["insurance_message"] = event.description
+        pack = DomainPackRegistry.get_or_default(domain_name)
+        handler = pack.event_handlers().get(event.event_type)
+        if handler is not None:
+            handler(event, gs)
 
     def get_events_by_type(
         self,
@@ -340,32 +320,47 @@ class MAEventManager(EnvironmentEventManager):
 
         return events
 
-    def get_agent_impact(self, agent_id: str) -> Dict[str, Any]:
-        """Get aggregated impact data for an agent."""
-        impact = {
-            "flooded": False,
-            "depth_m": 0.0,
-            "damage_amount": 0.0,
-            "payout_amount": 0.0,
-            "oop_cost": 0.0,
-        }
+    @staticmethod
+    def _resolve_impact_handlers() -> Dict[str, EventHandler]:
+        """Merge ``agent_impact_handlers()`` across every registered
+        domain. First-registered domain wins on an event-type collision,
+        mirroring the domain-scan order in :meth:`_sync_event_to_env`."""
+        handlers: Dict[str, EventHandler] = {}
+        for name in DomainPackRegistry.domains():
+            pack = DomainPackRegistry.get(name)
+            if pack is None:
+                continue
+            for event_type, handler in pack.agent_impact_handlers().items():
+                handlers.setdefault(event_type, handler)
+        return handlers
 
-        for domain, events in self._current_events.items():
+    def get_agent_impact(self, agent_id: str) -> Dict[str, Any]:
+        """Aggregate per-agent impact across all current events.
+
+        Phase 6J-B (2026-05-22): the hardcoded flood event-type chain
+        was replaced by ``DomainPack.agent_impact_handlers()`` dispatch.
+        The impact dict shape is now domain-defined — a domain's handlers
+        populate it. With no domain registered (or no event affecting the
+        agent) the result is an empty dict; callers MUST read keys with
+        ``.get(key, default)`` — an absent key means zero/False, not an
+        error.
+        """
+        impact: Dict[str, Any] = {}
+        # _resolve_impact_handlers re-scans the registry on every call.
+        # Acceptable: MAEventManager is a test-only path (no production
+        # lifecycle caller). Cache the merged table if it is ever wired
+        # into a production loop.
+        handlers = self._resolve_impact_handlers()
+        if not handlers:
+            return impact
+
+        for events in self._current_events.values():
             for event in events:
                 if not event.affects_agent(agent_id):
                     continue
-
-                if event.event_type == "flood":
-                    impact["flooded"] = True
-                    impact["depth_m"] = max(
-                        impact["depth_m"],
-                        event.data.get("depth_m", 0)
-                    )
-                elif event.event_type == "flood_damage":
-                    impact["damage_amount"] += event.data.get("damage_amount", 0)
-                    impact["oop_cost"] += event.data.get("oop_cost", 0)
-                elif event.event_type == "insurance_payout":
-                    impact["payout_amount"] += event.data.get("payout_amount", 0)
+                handler = handlers.get(event.event_type)
+                if handler is not None:
+                    handler(event, impact)
 
         return impact
 

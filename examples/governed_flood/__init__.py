@@ -14,5 +14,9 @@ try:
     DomainPackRegistry.register("flood", FloodDomainPack())
 except ImportError:
     # During partial bring-up, broker.domains may not yet be importable.
-    # Silent skip preserves prior behaviour.
+    # Silent skip preserves prior behaviour. NOTE: this guard is
+    # legitimate — examples/ can be imported before broker/ is on the
+    # path. It is NOT the same as the unreachable broker-to-broker
+    # ImportError fallback removed from ma_manager.py in Phase 6J-B;
+    # do not delete this one by analogy.
     pass
