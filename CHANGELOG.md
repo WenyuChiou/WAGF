@@ -134,6 +134,24 @@ flood-coupling-free.
   gate: net-zero regression (3 pre-existing failures, all in
   `test_nature_water_figure_helpers.py`, unrelated; verified by
   isolating the figure-script working-tree edits).
+- **Phase 6J-A — soft-default-to-PMT eliminated** (guard hardening for
+  genericity couplings the 7-token I5 scan cannot see):
+  - `interfaces/rating_scales.py` — `FrameworkType.GENERIC` was a literal
+    alias to the flood PMT `RatingScale` object; it is now a standalone
+    domain-neutral 5-level Likert scale. `RatingScaleRegistry.get()` /
+    `get_by_name()` fall back to GENERIC (not PMT) for an unknown
+    framework.
+  - `interfaces/context_types.py` — `UniversalContext.framework` defaults
+    to GENERIC (was PMT), and `from_dict()` deserialises a missing
+    framework key to GENERIC.
+  - `core/unified_context_builder.py` — `_get_framework_for_type` no
+    longer silently infers a framework from the agent-type name without
+    notice: the deprecated name-substring heuristic now emits a one-time
+    warning and explicit `psychological_framework:` declaration is
+    expected. `governed_flood` / `single_agent` `household` types now
+    declare `psychological_framework: pmt` explicitly.
+  - New `TestNoSilentDomainDefault` — a behavioural I5 guard (a silent
+    fallback cannot be grepped). Net-zero gate regression.
 
 ### Notes
 
