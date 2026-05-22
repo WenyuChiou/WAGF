@@ -85,6 +85,7 @@ shared:
 # =============================================================================
 household:
   description: "Household agents making adaptation decisions based on PMT"
+  psychological_framework: pmt   # Phase 6J-A: explicit (was inferred from the "household" name substring)
   llm_params:
     # Inherits num_ctx/num_predict from global_config.llm
     # temperature: 1.0    # Higher = more diverse, Lower = more deterministic

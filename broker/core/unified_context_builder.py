@@ -38,6 +38,11 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Phase 6J-A: agent types whose psychological framework was resolved via the
+# deprecated name-substring heuristic (no explicit declaration) — warned once
+# each, to keep log noise bounded.
+_WARNED_UNDECLARED_FRAMEWORK: set = set()
+
 
 class AgentTypeContextProvider(ContextProvider):
     """
@@ -450,9 +455,35 @@ class UnifiedContextBuilder:
                 try:
                     return PsychologicalFrameworkType(fw_str.lower())
                 except ValueError:
-                    pass
+                    # A framework WAS declared but is not a recognised
+                    # PsychologicalFrameworkType — distinct from the
+                    # "nothing declared" case below (Phase 6J-A).
+                    if agent_type not in _WARNED_UNDECLARED_FRAMEWORK:
+                        _WARNED_UNDECLARED_FRAMEWORK.add(agent_type)
+                        logger.warning(
+                            "Agent type %r declares psychological_framework "
+                            "%r, which is not a recognised framework "
+                            "(pmt / utility / financial / cognitive_appraisal "
+                            "/ generic); falling back to the deprecated "
+                            "name-substring heuristic.",
+                            agent_type, fw_str,
+                        )
 
-        # Default mapping based on common agent types
+        # No `psychological_framework:` declared for this agent type.
+        # Phase 6J-A: warn once — generic broker code should not infer a
+        # psychological framework from the agent-type name. The substring
+        # heuristic below is DEPRECATED (kept so existing undeclared configs
+        # keep resolving identically); declare the framework explicitly in
+        # agent_types.yaml. Full removal of the heuristic is a follow-up pass.
+        if agent_type not in _WARNED_UNDECLARED_FRAMEWORK:
+            _WARNED_UNDECLARED_FRAMEWORK.add(agent_type)
+            logger.warning(
+                "Agent type %r has no `psychological_framework` declared in "
+                "agent_types.yaml; falling back to the deprecated name-substring "
+                "heuristic. Declare it explicitly (pmt / utility / financial / "
+                "cognitive_appraisal / generic).",
+                agent_type,
+            )
         type_lower = agent_type.lower()
         if "household" in type_lower or "resident" in type_lower:
             return PsychologicalFrameworkType.PMT
@@ -461,7 +492,7 @@ class UnifiedContextBuilder:
         elif "insurance" in type_lower or "finance" in type_lower:
             return PsychologicalFrameworkType.FINANCIAL
 
-        return PsychologicalFrameworkType.PMT  # Default
+        return PsychologicalFrameworkType.PMT  # deprecated heuristic default
 
     def _get_constructs_for_type(self, agent_type: str) -> Dict[str, Any]:
         """
