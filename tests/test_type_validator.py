@@ -99,6 +99,11 @@ def validator(registry):
 class TestSkillEligibility:
     """Test skill eligibility checking."""
 
+    def test_registry_is_required(self):
+        """Type validation must not load a water-domain registry implicitly."""
+        with pytest.raises(ValueError, match="AgentTypeRegistry"):
+            TypeValidator()
+
     def test_eligible_skill_passes(self, validator):
         """Eligible skill should not produce validation errors."""
         context = {"state": {}, "reasoning": {}}
@@ -343,8 +348,8 @@ class TestValidateAllIntegration:
         categories = set(r.metadata.get("category", "") for r in results)
         assert "thinking" in categories or "type" in categories
 
-    def test_validate_all_uses_default_registry(self):
-        """validate_all should use default registry when none provided."""
+    def test_validate_all_requires_explicit_registry(self):
+        """Type validation has no implicit domain registry."""
         reset_default_registry()
 
         context = {
@@ -352,14 +357,11 @@ class TestValidateAllIntegration:
             "reasoning": {},
         }
 
-        # This should not raise even without explicit registry
-        results = validate_all(
-            "do_nothing", [], context,
-            agent_type="household"  # Default registry has "household"
-        )
-
-        # Should complete without error
-        assert isinstance(results, list)
+        with pytest.raises(ValueError, match="AgentTypeRegistry"):
+            validate_all(
+                "do_nothing", [], context,
+                agent_type="household",
+            )
 
     def test_rule_breakdown_includes_type_category(self, registry):
         """get_rule_breakdown should count type category."""

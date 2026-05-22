@@ -45,28 +45,20 @@ def orchestrator():
 # ---------------------------------------------------------------------------
 
 class TestDefaultPhases:
-    def test_has_four_phases(self, orchestrator):
-        assert len(orchestrator.phases) == 4
+    def test_has_generic_three_phases(self, orchestrator):
+        assert len(orchestrator.phases) == 3
 
     def test_phase_order(self, orchestrator):
         phases = [p.phase for p in orchestrator.phases]
         assert phases == [
-            ExecutionPhase.INSTITUTIONAL,
-            ExecutionPhase.HOUSEHOLD,
+            ExecutionPhase.CUSTOM,
             ExecutionPhase.RESOLUTION,
             ExecutionPhase.OBSERVATION,
         ]
 
-    def test_institutional_includes_gov_and_ins(self, orchestrator):
-        pc = orchestrator.get_phase_config(ExecutionPhase.INSTITUTIONAL)
-        assert "government" in pc.agent_types
-        assert "insurance" in pc.agent_types
-
-    def test_household_includes_all_subtypes(self, orchestrator):
-        pc = orchestrator.get_phase_config(ExecutionPhase.HOUSEHOLD)
-        assert "household_owner" in pc.agent_types
-        assert "household_renter" in pc.agent_types
-        assert "household_mg_owner" in pc.agent_types
+    def test_custom_phase_auto_discovers_agent_types(self, orchestrator):
+        pc = orchestrator.get_phase_config(ExecutionPhase.CUSTOM)
+        assert pc.agent_types is None
 
     def test_resolution_has_no_agents(self, orchestrator):
         pc = orchestrator.get_phase_config(ExecutionPhase.RESOLUTION)
@@ -84,35 +76,22 @@ class TestDefaultPhases:
 class TestExecutionPlan:
     def test_plan_includes_all_phases(self, orchestrator, agents):
         plan = orchestrator.get_execution_plan(agents)
-        assert len(plan) == 4
+        assert len(plan) == 3
 
-    def test_institutional_before_household(self, orchestrator, agents):
+    def test_custom_before_resolution(self, orchestrator, agents):
         plan = orchestrator.get_execution_plan(agents)
         phase_order = [p for p, _ in plan]
-        inst_idx = phase_order.index(ExecutionPhase.INSTITUTIONAL)
-        hh_idx = phase_order.index(ExecutionPhase.HOUSEHOLD)
-        assert inst_idx < hh_idx
+        custom_idx = phase_order.index(ExecutionPhase.CUSTOM)
+        res_idx = phase_order.index(ExecutionPhase.RESOLUTION)
+        assert custom_idx < res_idx
 
-    def test_institutional_agents_correct(self, orchestrator, agents):
+    def test_custom_phase_includes_all_agents(self, orchestrator, agents):
         plan = orchestrator.get_execution_plan(agents)
-        inst_phase = next(
-            (ids for phase, ids in plan if phase == ExecutionPhase.INSTITUTIONAL),
+        custom_phase = next(
+            (ids for phase, ids in plan if phase == ExecutionPhase.CUSTOM),
             [],
         )
-        assert "gov_1" in inst_phase
-        assert "ins_1" in inst_phase
-        assert "hh_1" not in inst_phase
-
-    def test_household_agents_correct(self, orchestrator, agents):
-        plan = orchestrator.get_execution_plan(agents)
-        hh_phase = next(
-            (ids for phase, ids in plan if phase == ExecutionPhase.HOUSEHOLD),
-            [],
-        )
-        assert "hh_1" in hh_phase
-        assert "hh_2" in hh_phase
-        assert "hh_3" in hh_phase
-        assert "gov_1" not in hh_phase
+        assert set(custom_phase) == set(agents)
 
     def test_resolution_phase_empty(self, orchestrator, agents):
         plan = orchestrator.get_execution_plan(agents)
@@ -128,12 +107,12 @@ class TestExecutionPlan:
 # ---------------------------------------------------------------------------
 
 class TestGetPhaseAgents:
-    def test_get_institutional_agents(self, orchestrator, agents):
-        ids = orchestrator.get_phase_agents(ExecutionPhase.INSTITUTIONAL, agents)
-        assert set(ids) == {"gov_1", "ins_1"}
+    def test_get_custom_agents(self, orchestrator, agents):
+        ids = orchestrator.get_phase_agents(ExecutionPhase.CUSTOM, agents)
+        assert set(ids) == set(agents)
 
     def test_get_unknown_phase_returns_empty(self, orchestrator, agents):
-        ids = orchestrator.get_phase_agents(ExecutionPhase.CUSTOM, agents)
+        ids = orchestrator.get_phase_agents(ExecutionPhase.INSTITUTIONAL, agents)
         assert ids == []
 
 
@@ -298,9 +277,9 @@ class TestValidation:
 class TestSummary:
     def test_summary_structure(self, orchestrator):
         s = orchestrator.summary()
-        assert s["num_phases"] == 4
-        assert len(s["phases"]) == 4
-        assert s["phases"][0]["phase"] == "institutional"
+        assert s["num_phases"] == 3
+        assert len(s["phases"]) == 3
+        assert s["phases"][0]["phase"] == "custom"
 
 
 # ---------------------------------------------------------------------------

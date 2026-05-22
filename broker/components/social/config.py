@@ -79,40 +79,8 @@ class SocialGraphSpec:
             )
 
 
-# Pre-defined social graph specifications by agent type
-AGENT_SOCIAL_SPECS: Dict[str, SocialGraphSpec] = {
-    # Household NMG (Non-Marginalized Group) - larger spatial network
-    "household_nmg_owner": SocialGraphSpec(
-        graph_type="spatial",
-        radius=2,
-    ),
-    "household_nmg_renter": SocialGraphSpec(
-        graph_type="spatial",
-        radius=2,
-    ),
-
-    # Household MG (Marginalized Group) - smaller spatial network
-    # Smaller radius represents mobility constraints
-    "household_mg_owner": SocialGraphSpec(
-        graph_type="spatial",
-        radius=1,
-    ),
-    "household_mg_renter": SocialGraphSpec(
-        graph_type="spatial",
-        radius=1,
-    ),
-
-    # Government agent - sees all agents
-    "government": SocialGraphSpec(
-        graph_type="global",
-    ),
-
-    # Insurance agent - sees only policyholders
-    "insurance": SocialGraphSpec(
-        graph_type="filtered_global",
-        filter_fn="has_insurance",
-    ),
-}
+# Phase 6J-C (2026-05-22): domains register agent-type social specs.
+AGENT_SOCIAL_SPECS: Dict[str, SocialGraphSpec] = {}
 
 # Default spec for unknown agent types
 DEFAULT_SOCIAL_SPEC = SocialGraphSpec(
@@ -408,19 +376,16 @@ def register_social_spec(
 ) -> None:
     """Register a SocialGraphSpec for a new agent type (Phase 6C-v4 G1b).
 
-    The pre-populated ``AGENT_SOCIAL_SPECS`` covers the water-domain agent
-    vocabulary (household_*, government, insurance). Non-water domains
-    (vaccination, traffic, energy, etc.) should register their own
-    agent-type-specific specs at import time — typically inside the
-    domain's ``__init__.py`` after :func:`broker.domains.registry.register`.
+    Domains register their own agent-type-specific specs at import time,
+    typically inside their ``__init__.py`` after domain setup.
 
     Args:
         agent_type: Agent type key, lowercase. Must match what
             ``get_social_spec(agent).agent_type`` returns at runtime.
         spec: SocialGraphSpec describing the agent's social network.
         overwrite: If False (default) and the key already exists, raises
-            ``ValueError`` to prevent silently shadowing water-domain
-            entries. Set True to intentionally replace.
+            ``ValueError`` to prevent silently shadowing existing entries.
+            Set True to intentionally replace.
 
     Raises:
         ValueError: If ``agent_type`` already registered and

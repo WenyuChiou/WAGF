@@ -132,38 +132,9 @@ def register_artifact_routing(artifact_type: str, message_type_name: str,
     _SENDER_MAP[artifact_type] = sender_type
 
 
-# --- Default routing maps (populated by domain modules via register_artifact_routing) ---
-# Importing MessageType at module level would create a circular import,
-# so we lazy-populate these on first use.
+# --- Routing maps (populated by domain modules via register_artifact_routing) ---
 _TYPE_MAP: Dict[str, Any] = {}
 _SENDER_MAP: Dict[str, str] = {}
-
-
-def _ensure_default_routing() -> None:
-    """Populate default routing maps if empty.
-
-    Called internally; domain modules should call register_artifact_routing()
-    to add their own mappings.
-    """
-    if not _TYPE_MAP:
-        from broker.interfaces.coordination import MessageType
-        _TYPE_MAP.update({
-            "PolicyArtifact": MessageType.POLICY_ANNOUNCEMENT,
-            "MarketArtifact": MessageType.MARKET_UPDATE,
-            "HouseholdIntention": MessageType.NEIGHBOR_WARNING,
-        })
-        _SENDER_MAP.update({
-            "PolicyArtifact": "government",
-            "MarketArtifact": "insurance",
-            "HouseholdIntention": "household",
-        })
-
-
-# Ensure defaults on import (lazy — only resolves MessageType when first accessed)
-try:
-    _ensure_default_routing()
-except ImportError:
-    pass  # coordination module not yet available; will populate on first use
 
 
 # Stable broker-facing fallbacks. Domain implementations may subclass

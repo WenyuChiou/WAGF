@@ -67,8 +67,7 @@ class DomainPackRegistry:
         :class:`DefaultDomainPack` if absent or ``name is None``.
 
         Emits a one-time WARNING per unknown name so silent
-        misconfigurations surface quickly. Mirrors the ``warn-once``
-        pattern from ``SkillRegistry.get_default_skill()`` (Phase 6A).
+        misconfigurations surface quickly.
         """
         if not name:
             return cls._default

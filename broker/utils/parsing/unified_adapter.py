@@ -52,7 +52,6 @@ class UnifiedAdapter(ModelAdapter):
             # Smart defaults if 'parsing' block is missing from YAML
             parsing_cfg = {
                 "decision_keywords": ["final decision:", "decision:", "decide:"],
-                "default_skill": "do_nothing",
                 "constructs": {}
             }
 
@@ -647,7 +646,13 @@ class UnifiedAdapter(ModelAdapter):
                 logger.error(f" [Adapter:Error] {msg}{diag}")
                 return None # Return None to trigger retry/abort in Broker
             else:
-                skill_name = parsing_cfg.get("default_skill", "do_nothing")
+                skill_name = parsing_cfg.get("default_skill")
+                if not skill_name:
+                    raise ValueError(
+                        f"Parse failure for agent_type '{agent_type}' has no "
+                        "fallback skill. Add 'parsing.default_skill' to "
+                        "agent_types.yaml."
+                    )
                 parse_layer = "default"
                 parsing_warnings.append(f"Default skill '{skill_name}' used.")
 

@@ -122,8 +122,11 @@ class TestConflictDetector:
 # ---------------------------------------------------------------------------
 
 class TestPriorityResolution:
-    def test_higher_priority_approved_first(self):
-        strategy = PriorityResolution()
+    def test_explicit_type_priority_approved_first(self):
+        strategy = PriorityResolution({
+            "government": 100,
+            "household_owner": 10,
+        })
         conflict = ResourceConflict(
             resource_key="govt_budget", total_requested=600_000,
             available=500_000, competing_agents=["gov_1", "hh_1"],
@@ -143,6 +146,26 @@ class TestPriorityResolution:
         assert gov_res.approved is True
         assert hh_res.approved is False
         assert "Insufficient" in hh_res.denial_reason
+
+    def test_default_uses_proposal_priority(self):
+        strategy = PriorityResolution()
+        conflict = ResourceConflict(
+            resource_key="govt_budget", total_requested=600_000,
+            available=300_000, competing_agents=["gov_1", "hh_1"],
+        )
+        proposals = [
+            make_proposal("gov_1", "government", "allocate_budget",
+                          {"govt_budget": 300_000}, priority=1),
+            make_proposal("hh_1", "household_owner", "apply_for_subsidy",
+                          {"govt_budget": 300_000}, priority=9),
+        ]
+
+        resolutions = strategy.resolve(conflict, proposals)
+
+        gov_res = next(r for r in resolutions if r.agent_id == "gov_1")
+        hh_res = next(r for r in resolutions if r.agent_id == "hh_1")
+        assert hh_res.approved is True
+        assert gov_res.approved is False
 
     def test_equal_priority_fcfs(self):
         strategy = PriorityResolution()

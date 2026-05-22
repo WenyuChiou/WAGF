@@ -26,6 +26,9 @@ def register() -> None:
     from .thinking_checks import register_water_metadata
     register_water_metadata()
 
+    from .social_specs import register_water_social_specs
+    register_water_social_specs()
+
 
 # Also register on import (for backward compatibility when imported directly)
 register()

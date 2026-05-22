@@ -7,7 +7,6 @@ Phase 6A landing tests — see broker/INVARIANTS.md Invariant 6.
 """
 from __future__ import annotations
 
-import logging
 from pathlib import Path
 
 import pytest
@@ -19,25 +18,11 @@ from broker.components.governance.retriever import SkillRetriever
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_registry_default_warns_without_yaml(caplog):
-    """Empty registry returns the legacy 'do_nothing' fallback but
-    emits a one-time warning telling the caller to declare default_skill
-    in skill_registry.yaml."""
+def test_registry_default_raises_without_yaml():
+    """Empty registries must not inherit a water-domain fallback skill."""
     reg = SkillRegistry()
-    with caplog.at_level(logging.WARNING, logger="broker.components.governance.registry"):
-        result = reg.get_default_skill()
-    assert result == "do_nothing"  # backward-compat preserved
-    assert any(
-        "default_skill not declared" in rec.message for rec in caplog.records
-    ), "Expected a warning about missing default_skill in YAML"
-
-    # Warning fires only once per registry instance
-    caplog.clear()
-    with caplog.at_level(logging.WARNING, logger="broker.components.governance.registry"):
+    with pytest.raises(ValueError, match="default_skill.*skill_registry.yaml"):
         reg.get_default_skill()
-    assert not any(
-        "default_skill not declared" in rec.message for rec in caplog.records
-    ), "Warning should be one-time per registry instance"
 
 
 def test_registry_default_from_irrigation_yaml():

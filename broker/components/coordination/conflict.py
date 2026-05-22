@@ -122,11 +122,6 @@ class ResolutionStrategy(ABC):
 class PriorityResolution(ResolutionStrategy):
     """Resolve conflicts by agent priority (higher priority wins).
 
-    Default priority order:
-    - Government/Institutional agents: priority 100
-    - MG households: priority 50
-    - NMG households: priority 10
-
     When priority is equal, first-come-first-served by list order.
 
     Args:
@@ -135,16 +130,8 @@ class PriorityResolution(ResolutionStrategy):
     """
 
     def __init__(self, type_priorities: Optional[Dict[str, int]] = None):
-        self.type_priorities = type_priorities or {
-            "government": 100,
-            "insurance": 90,
-            "household_mg_owner": 50,
-            "household_mg_renter": 50,
-            "household_nmg_owner": 10,
-            "household_nmg_renter": 10,
-            "household_owner": 10,
-            "household_renter": 10,
-        }
+        # Phase 6J-C (2026-05-22): proposal priority is the generic default.
+        self.type_priorities = type_priorities or {}
 
     def resolve(
         self,

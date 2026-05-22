@@ -317,7 +317,7 @@ class CSVLoader:
 class SurveyLoader:
     """Load agent profiles from survey data (Excel/CSV with PMT scores)."""
 
-    def __init__(self, domain: str = "flood"):
+    def __init__(self, domain: str):
         self.domain = domain
 
     def load(self, path: Path, config: Dict[str, Any]) -> List[AgentProfile]:
@@ -671,12 +671,15 @@ def initialize_agents(
     # Step 1: Load profiles based on mode
     logger.info(f"Initializing agents (mode={mode}, seed={seed})")
 
-    # Phase 6C-v3 (2026-05-10): domain-specific loader subclasses
-    # registered via config["domain"]. Default "flood" for backward
-    # compat (most existing code is flood); a vaccination/traffic/etc.
-    # domain provides its own subclass via config or registers a
-    # custom loader factory.
-    domain_name = config.get("domain", "flood")
+    # Phase 6J-C (2026-05-22): loader selection must be explicit. A
+    # missing domain silently selected a domain-specific loader before.
+    try:
+        domain_name = config["domain"]
+    except KeyError as exc:
+        raise KeyError(
+            "initialize_agents requires config['domain'] so loader selection "
+            "is explicit."
+        ) from exc
 
     def _resolve_csv_loader_class():
         if domain_name == "flood":

@@ -47,47 +47,18 @@ class PhaseOrchestrator:
         seed: int = 42,
         saga_coordinator: Optional[Any] = None,
     ):
-        self.phases = phases or self._default_phases()
+        self.phases = phases or self._generic_phases()
         self._rng = random.Random(seed)
         self.saga_coordinator = saga_coordinator
         self._validate_phases()
 
     @staticmethod
     def _default_phases() -> List[PhaseConfig]:
-        """Default 4-phase execution order for flood MAS.
-
-        .. note::
-            Flood-domain default. Pre-populates HOUSEHOLD with the six known
-            flood household sub-types and INSTITUTIONAL with government /
-            insurance. For non-water domains use :meth:`_generic_phases`,
-            :meth:`from_yaml`, or :meth:`from_domain` instead.
+        """Compatibility wrapper for the water-domain phase layout.
         """
-        return [
-            PhaseConfig(
-                phase=ExecutionPhase.INSTITUTIONAL,
-                agent_types=["government", "insurance"],
-                ordering="sequential",
-            ),
-            PhaseConfig(
-                phase=ExecutionPhase.HOUSEHOLD,
-                agent_types=[
-                    "household_owner", "household_renter",
-                    "household_nmg_owner", "household_nmg_renter",
-                    "household_mg_owner", "household_mg_renter",
-                ],
-                ordering="sequential",
-            ),
-            PhaseConfig(
-                phase=ExecutionPhase.RESOLUTION,
-                agent_types=[],  # No agents — GM/Coordinator handles this
-                depends_on=[ExecutionPhase.INSTITUTIONAL, ExecutionPhase.HOUSEHOLD],
-            ),
-            PhaseConfig(
-                phase=ExecutionPhase.OBSERVATION,
-                agent_types=[],  # No agents — observable state updates
-                depends_on=[ExecutionPhase.RESOLUTION],
-            ),
-        ]
+        from broker.domains.water.phase_layouts import water_default_phases
+
+        return water_default_phases()
 
     @staticmethod
     def _generic_phases() -> List[PhaseConfig]:
@@ -142,7 +113,9 @@ class PhaseOrchestrator:
             entirely, use :meth:`from_yaml` or pass ``phases=`` to ``__init__``.
         """
         if domain is None or domain.lower() == "flood":
-            return cls(phases=cls._default_phases(), seed=seed,
+            from broker.domains.water.phase_layouts import water_default_phases
+
+            return cls(phases=water_default_phases(), seed=seed,
                        saga_coordinator=saga_coordinator)
         return cls(phases=cls._generic_phases(), seed=seed,
                    saga_coordinator=saga_coordinator)
