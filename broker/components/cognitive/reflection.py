@@ -244,23 +244,21 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
 
     @staticmethod
     def extract_agent_context(agent, year: int = 0) -> AgentReflectionContext:
-        """Extract reflection context from an agent object.
+        """Extract a domain-neutral reflection context from an agent.
 
-        Flood-domain backward compatibility: hardcoded fields (elevated,
-        insured, flood_count) are retained for existing experiments.
-        New domains should use ``custom_traits`` for domain-specific data.
+        Builds only generic identity fields. Domain-specific data goes in
+        ``custom_traits`` — a domain populates it at its own reflection
+        call site (Phase 6H Item 9; this method no longer reads any
+        flood-specific agent attribute).
         """
         return AgentReflectionContext(
             agent_id=getattr(agent, 'id', str(agent)),
             agent_type=getattr(agent, 'agent_type', 'household'),
             name=getattr(agent, 'name', ''),
-            elevated=getattr(agent, 'elevated', False),
-            insured=getattr(agent, 'insured', False),
-            flood_count=sum(1 for f in getattr(agent, 'flood_history', []) if f),
             years_in_sim=year,
             mg_status=getattr(agent, 'mg_status', False),
             recent_decision=getattr(agent, 'last_decision', ''),
-            custom_traits=getattr(agent, 'custom_traits', {}),
+            custom_traits=dict(getattr(agent, 'custom_traits', {}) or {}),
         )
 
     def generate_personalized_reflection_prompt(

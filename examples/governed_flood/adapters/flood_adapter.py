@@ -5,12 +5,11 @@ Extracted from the original hardcoded reflection logic. The broker-side
 importance fallback (IMPORTANCE_PROFILES) was removed in Phase 6H Item 9;
 importance scoring now lives in FloodDomainPack.compute_importance.
 
-Context fields expected (from AgentReflectionContext or dict):
-    flood_count  : int   — number of floods experienced
-    mg_status    : bool  — marginalized group flag
-    recent_decision : str — last skill chosen (e.g. "elevate_house")
-    elevated     : bool  — house is elevated
-    insured      : bool  — has flood insurance
+Context fields read by compute_importance:
+    flood_count  : int   — number of floods experienced; read from
+                           context.custom_traits (Phase 6H Item 9)
+    mg_status    : bool  — marginalized group flag (generic field)
+    recent_decision : str — last skill chosen (generic field)
 """
 
 from __future__ import annotations
@@ -56,9 +55,20 @@ class FloodAdapter:
         """
         importance = base
 
-        flood_count = getattr(context, "flood_count", 0) if not isinstance(context, dict) else context.get("flood_count", 0)
-        mg_status = getattr(context, "mg_status", False) if not isinstance(context, dict) else context.get("mg_status", False)
-        recent_decision = getattr(context, "recent_decision", "") if not isinstance(context, dict) else context.get("recent_decision", "")
+        # flood_count is routed through custom_traits (Phase 6H Item 9 —
+        # extract_agent_context no longer sets a top-level field). Read
+        # custom_traits first, falling back to a top-level key for any
+        # legacy caller. mg_status / recent_decision stay generic fields.
+        if isinstance(context, dict):
+            _traits = context.get("custom_traits") or {}
+            flood_count = _traits.get("flood_count", context.get("flood_count", 0))
+            mg_status = context.get("mg_status", False)
+            recent_decision = context.get("recent_decision", "")
+        else:
+            _traits = getattr(context, "custom_traits", None) or {}
+            flood_count = _traits.get("flood_count", getattr(context, "flood_count", 0))
+            mg_status = getattr(context, "mg_status", False)
+            recent_decision = getattr(context, "recent_decision", "")
 
         # Flood-count scaling
         if flood_count == 1:
@@ -91,7 +101,10 @@ class FloodAdapter:
         if decision in self.emotional_keywords:
             return self.emotional_keywords[decision]
 
-        flood_count = context.get("flood_count", 0)
+        # flood_count via custom_traits (custom_traits-first, top-level
+        # fallback) — kept symmetric with compute_importance (6H Item 9).
+        _traits = context.get("custom_traits") or {}
+        flood_count = _traits.get("flood_count", context.get("flood_count", 0))
         if flood_count > 0 and decision == "do_nothing":
             return "major"  # doing nothing after a flood is significant
         return "minor"

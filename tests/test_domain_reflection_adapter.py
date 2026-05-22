@@ -129,3 +129,18 @@ def test_registered_generic_pack_compute_importance_is_used():
         )
 
     assert result == 0.42
+
+
+def test_compute_importance_reads_flood_count_from_custom_traits():
+    """Phase 6H Item 9 L6: flood_count is routed through custom_traits,
+    not a top-level dataclass field. compute_dynamic_importance asdict()s
+    the context before dispatch, so FloodAdapter must read flood_count
+    from the nested custom_traits dict -- regression guard for the L6
+    'flood_count seen as 0' bug."""
+    from examples.governed_flood.adapters.flood_adapter import FloodAdapter
+
+    engine = ReflectionEngine(adapter=FloodAdapter())
+    # flood_count lives in custom_traits only; the dataclass field is 0.
+    ctx = AgentReflectionContext(agent_id="H1", custom_traits={"flood_count": 1})
+    # flood_count == 1 -> the first_flood profile (0.95), not the base.
+    assert engine.compute_dynamic_importance(ctx) == 0.95

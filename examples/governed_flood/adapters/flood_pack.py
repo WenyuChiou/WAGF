@@ -86,23 +86,25 @@ class FloodDomainPack(DefaultDomainPack):
     # ─── Reflection ───────────────────────────────────────────────
 
     def reflection_status_text(self, context: Any) -> Optional[str]:
-        """Reproduces ``reflection.py:301-313`` flood status block.
+        """Flood status line for the individual reflection prompt.
 
-        Returns a single line ``"Current status: ..."`` summarising the
-        agent's elevated/insured/flood_count/mg_status flags. Returns
-        ``None`` if no flags are set (matches pre-refactor behaviour
-        where the block emitted nothing if all flags were False/0).
+        Summarises the agent's elevated / insured / flood_count /
+        mg_status flags into ``"Current status: ..."``. Returns ``None``
+        if no flag is set. The elevated/insured/flood_count values are
+        read from ``context.custom_traits`` (Phase 6H Item 9 — the flood
+        example populates them there; mg_status stays a generic field).
         """
         # Match the original gate: only emit for "household" agent_type.
         if getattr(context, "agent_type", None) != "household":
             return None
 
+        traits = getattr(context, "custom_traits", None) or {}
         status_parts = []
-        if getattr(context, "elevated", False):
+        if traits.get("elevated", False):
             status_parts.append("your house is elevated")
-        if getattr(context, "insured", False):
+        if traits.get("insured", False):
             status_parts.append("you have flood insurance")
-        flood_count = getattr(context, "flood_count", 0)
+        flood_count = traits.get("flood_count", 0)
         if flood_count > 0:
             status_parts.append(f"you've been flooded {flood_count} time(s)")
         if getattr(context, "mg_status", False):
@@ -123,16 +125,17 @@ class FloodDomainPack(DefaultDomainPack):
 
     def reflection_trait_labels(self, context: Any) -> List[str]:
         """Short flood trait labels for the compact batch reflection
-        prompt — reproduces the hardcoded reflection.py batch traits
-        block byte-identically (Phase 6H Item 9). Note ``flooded {n}x``
-        (the batch short form), distinct from the status-text
-        ``flooded {n} time(s)`` long form."""
+        prompt. ``flooded {n}x`` short form (distinct from the status-text
+        ``flooded {n} time(s)`` long form). elevated/insured/flood_count
+        are read from ``context.custom_traits`` (Phase 6H Item 9);
+        mg_status stays a generic field."""
+        traits = getattr(context, "custom_traits", None) or {}
         labels: List[str] = []
-        if getattr(context, "elevated", False):
+        if traits.get("elevated", False):
             labels.append("elevated")
-        if getattr(context, "insured", False):
+        if traits.get("insured", False):
             labels.append("insured")
-        flood_count = getattr(context, "flood_count", 0)
+        flood_count = traits.get("flood_count", 0)
         if flood_count > 0:
             labels.append(f"flooded {flood_count}x")
         if getattr(context, "mg_status", False):
