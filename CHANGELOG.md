@@ -232,6 +232,41 @@ flood-coupling-free.
     end-to-end clean with 70 governance rule violations fired —
     confirming flood builtin checks register via the new
     package-import path.
+- **Phase 6J-E — finalise the I5 guard + record Phase 6J in INVARIANTS**:
+  - `broker/tests/test_framework_invariants.py::TestDomainGenericity`
+    `_DOMAIN_TOKENS` widened from 9 → 21. The three tokens deferred
+    from 6J-B (`flood_occurred` / `flood_event` / `flood_depth_m`) plus
+    nine flood / drought / irrigation infrastructure + skill
+    identifiers (`NFIP` / `FEMA` / `PRB` / `SFHA` / `CRSS` /
+    `shortage_tier` / `drought_index` / `buyout` / `buyout_program`).
+    Seven of those were verified clean across generic `broker/`;
+    NFIP / FEMA surface only in docstring "Literature:" references
+    (allowlisted as FP). The 6J-B-deferred trio each had real leak
+    sites in the memory subsystem + the flood-specific hazard
+    generator (`events/generators/flood.py`, `memory/initial_loader.py`,
+    `memory/policy_classifier.py`, `memory/universal.py`) —
+    allowlisted as `TECH-DEBT(6K)` for the next domain-plugin pass.
+    `simulation_protocols.py` docstring example de-flooded inline.
+    Deferred token tail (documented inline): `threat_appraisal` /
+    `coping_appraisal` and the skill-name set (`elevate_house` /
+    `buy_insurance` / `relocate` / `maintain_demand`) — too noisy
+    without a separate PMT-schema relocation phase. `do_nothing`
+    explicitly evaluated and rejected.
+  - Deferred doc/code nits from the 6J-A and 6J-C reviewer rounds
+    applied: dead `if fallback_skill and` guard removed from
+    `skill_broker_engine.py` (6J-C made it unreachable);
+    `PhaseOrchestrator.__init__` Args docstring updated to describe
+    the new generic 3-phase default; `SkillRegistry.get_default_skill()`
+    gains an explicit `Raises:` clause.
+  - `broker/INVARIANTS.md` §I5 "Known current state" rewritten —
+    removed the three stale "Deferred to v22" entries (all closed by
+    Phase 6H DomainPack v2 work, verified) and the
+    `validator_bundles.py` reverse-import entry (closed by 6J-D);
+    added a Phase 6J A/B/C/D/E summary and called out the
+    PMT / skill-name token tail deferred to a future phase.
+  - Net-zero gate regression. `TestDomainGenericity` 21/21 green
+    (was 9/9 pre-6J-E). No real-model smoke needed — the only
+    broker-pipeline change is the proven-dead guard cleanup.
 
 ### Notes
 
