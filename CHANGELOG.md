@@ -94,8 +94,16 @@ flood-coupling-free.
   hooks cover them; `extract_agent_context` is domain-neutral (flood
   data routes through `custom_traits`); the `AgentReflectionContext`
   flood fields are removed. Shipped as an 8-layer stack. `reflection.py`
-  removed from the I5 allowlist — the KNOWN-DEBT(6H) block is fully
-  closed. **Phase 6H (Items 1-9) complete.**
+  removed from the I5 allowlist.
+- **FinancialCostProvider dedup + de-flood** (Item 7): the provider
+  existed in two copies — a flood-coupled generic copy in
+  `broker/components/context/providers.py` and a code-identical
+  water-domain copy. The generic copy is deleted; the water copy is
+  canonical. `tiered.py`'s default context builder no longer
+  instantiates it; MA flood — the only consumer — wires it via
+  `extend_providers`. `providers.py` removed from the I5 allowlist.
+- **Phase 6H (Items 1-9) complete** — `broker/` is de-flood-coupled
+  across every Phase 6H surface; the I5 KNOWN-DEBT(6H) block is empty.
 
 ### Notes
 
