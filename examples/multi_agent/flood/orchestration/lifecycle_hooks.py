@@ -1080,6 +1080,10 @@ class MultiAgentHooks:
                             memories = []
                         if memories:
                             context = ReflectionEngine.extract_agent_context(agent, year)
+                            # No flood custom_traits injection here: this
+                            # branch is government/insurance only, and
+                            # FloodDomainPack.reflection_status_text gates
+                            # on agent_type == 'household' (Phase 6H Item 9).
                             # Phase 6H Item 4: reflection questions come from
                             # agent_types.yaml (global_config.reflection.questions)
                             # via self._reflection_config — no longer the

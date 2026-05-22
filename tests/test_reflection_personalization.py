@@ -29,13 +29,12 @@ def flood_pack():
 
 class TestAgentReflectionContext:
     def test_extract_from_agent(self, engine):
+        """extract_agent_context builds a domain-neutral context
+        (Phase 6H Item 9) — generic identity only, no flood fields."""
         agent = MagicMock()
         agent.id = "H_001"
         agent.agent_type = "household"
         agent.name = "Chen"
-        agent.elevated = True
-        agent.insured = False
-        agent.flood_history = [True, False, True]
         agent.mg_status = False
         agent.last_decision = "buy_insurance"
         agent.custom_traits = {}
@@ -43,16 +42,19 @@ class TestAgentReflectionContext:
         ctx = ReflectionEngine.extract_agent_context(agent, year=5)
         assert ctx.agent_id == "H_001"
         assert ctx.agent_type == "household"
-        assert ctx.elevated is True
-        assert ctx.flood_count == 2
+        assert ctx.name == "Chen"
         assert ctx.years_in_sim == 5
+        assert ctx.recent_decision == "buy_insurance"
+        # Flood fields are NOT populated by extract_agent_context — a
+        # domain adds them to custom_traits at its own call site.
+        assert ctx.custom_traits == {}
 
     def test_extract_missing_attrs_defaults(self, engine):
         agent = MagicMock(spec=[])
         agent.id = "X_001"
         ctx = ReflectionEngine.extract_agent_context(agent, year=1)
         assert ctx.agent_type == "household"
-        assert ctx.flood_count == 0
+        assert ctx.custom_traits == {}
 
 
 class TestPersonalizedPrompt:
@@ -60,10 +62,8 @@ class TestPersonalizedPrompt:
         ctx = AgentReflectionContext(
             agent_id="H_005",
             agent_type="household",
-            elevated=True,
-            insured=True,
-            flood_count=3,
             mg_status=False,
+            custom_traits={"elevated": True, "insured": True, "flood_count": 3},
         )
         prompt = engine.generate_personalized_reflection_prompt(
             ctx, ["Year 3: Got flooded", "Year 4: Bought insurance"], 5
@@ -101,8 +101,7 @@ class TestPersonalizedBatchPrompt:
                 "context": AgentReflectionContext(
                     agent_id="H_001",
                     agent_type="household",
-                    elevated=True,
-                    flood_count=2,
+                    custom_traits={"elevated": True, "flood_count": 2},
                 ),
             },
             {

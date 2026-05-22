@@ -567,6 +567,17 @@ class FinalParityHook:
                         memories = _memory_texts(mem_engine.retrieve(agent, top_k=10))
                 if memories:
                     ctx = self.reflection_engine.extract_agent_context(agent, year)
+                    # Flood-domain reflection fields routed through
+                    # custom_traits (Phase 6H Item 9 — extract_agent_context
+                    # is now domain-neutral; FloodDomainPack reads these).
+                    ctx.custom_traits = {
+                        **ctx.custom_traits,
+                        "elevated": getattr(agent, "elevated", False),
+                        "insured": getattr(agent, "insured", False),
+                        "flood_count": sum(
+                            1 for f in getattr(agent, "flood_history", []) if f
+                        ),
+                    }
                     candidates.append({"agent_id": agent_id, "memories": memories, "context": ctx})
 
             if candidates:

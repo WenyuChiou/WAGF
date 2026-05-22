@@ -253,28 +253,22 @@ class TestFloodDomainPackByteIdentical:
     def test_reflection_status_text_household_only(self):
         class Ctx:
             agent_type = "irrigation_farmer"
-            elevated = True
-            insured = True
-            flood_count = 3
             mg_status = False
+            custom_traits = {"elevated": True, "insured": True, "flood_count": 3}
         assert self.pack.reflection_status_text(Ctx()) is None
 
     def test_reflection_status_text_household_with_no_flags(self):
         class Ctx:
             agent_type = "household"
-            elevated = False
-            insured = False
-            flood_count = 0
             mg_status = False
+            custom_traits = {}
         assert self.pack.reflection_status_text(Ctx()) is None
 
     def test_reflection_status_text_household_full(self):
         class Ctx:
             agent_type = "household"
-            elevated = True
-            insured = True
-            flood_count = 2
             mg_status = True
+            custom_traits = {"elevated": True, "insured": True, "flood_count": 2}
         out = self.pack.reflection_status_text(Ctx())
         # Same field ordering as pre-refactor (lines 303-310)
         assert out == (
@@ -289,16 +283,16 @@ class TestFloodDomainPackByteIdentical:
         short labels, `{n}x` form, append-if-truthy order."""
         class Full:
             agent_type = "household"
-            elevated = True
-            insured = True
-            flood_count = 3
             mg_status = True
+            custom_traits = {"elevated": True, "insured": True, "flood_count": 3}
         assert self.pack.reflection_trait_labels(Full()) == [
             "elevated", "insured", "flooded 3x", "MG",
         ]
 
         class Empty:
             agent_type = "household"
+            mg_status = False
+            custom_traits = {}
         assert self.pack.reflection_trait_labels(Empty()) == []
 
     # Skill emotion — reproduces experiment_runner.py:383-388 literals
