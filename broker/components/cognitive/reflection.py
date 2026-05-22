@@ -4,14 +4,16 @@ Reflection Engine - Cognitive consolidation for long-term memory resilience.
 Implements "Year-End Reflection" to combat memory erosion (the Goldfish Effect).
 Inspired by Park et al. (2023) Generative Agents reflection architecture.
 
-Domain-agnostic via the ``DomainReflectionAdapter`` pattern:
-- Attach a domain adapter (FloodAdapter, IrrigationAdapter, etc.) to
-  override importance scoring and prompt generation.
-- Without an adapter, the legacy flood-domain fallback is used for
-  backward compatibility.
-- New domains should define reflection questions in ``agent_types.yaml``
-  (``global_config.reflection.questions``) rather than using the
-  hardcoded ``REFLECTION_QUESTIONS`` dict.
+Domain-agnostic via the ``DomainReflectionAdapter`` pattern and the
+``DomainPack`` reflection hooks:
+- Attach a domain adapter (FloodAdapter, IrrigationAdapter, etc.) or
+  register a DomainPack to supply importance scoring, status/trait text,
+  and reflection questions.
+- With neither, the engine is domain-neutral: prompts carry only the
+  generic identity line and importance is the base score (the legacy
+  flood-domain fallbacks were removed in Phase 6H Items 4 and 9).
+- New domains define reflection questions in ``agent_types.yaml`` or via
+  ``DomainPack.reflection_questions()``.
 """
 from typing import Dict, Any, List, Optional, Callable, TYPE_CHECKING
 from dataclasses import dataclass, field
