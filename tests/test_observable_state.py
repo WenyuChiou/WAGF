@@ -106,7 +106,7 @@ class TestMetricFactories:
 
     def test_flood_observables_factory(self):
         """create_flood_observables returns valid metrics."""
-        from broker.components.analytics.observable import create_flood_observables
+        from broker.domains.water.observables import create_flood_observables
 
         metrics = create_flood_observables()
         assert len(metrics) >= 4
@@ -152,9 +152,8 @@ class TestMetricFactories:
 
     def test_flood_observables_compute_correctly(self):
         """Flood observables compute correct rates."""
-        from broker.components.analytics.observable import (
-            ObservableStateManager, create_flood_observables
-        )
+        from broker.components.analytics.observable import ObservableStateManager
+        from broker.domains.water.observables import create_flood_observables
 
         manager = ObservableStateManager()
         manager.register_many(create_flood_observables())

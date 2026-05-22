@@ -68,6 +68,12 @@ def sample_enricher():
         flood_probability: float
 
     class MockPositionEnricher:
+        # Phase 6I-B: a position enricher declares profile_field_map to
+        # copy PositionData attributes onto typed profile fields. Generic
+        # broker code stays domain-token-free; the water-domain mapping
+        # lives here (mirrors a real water position enricher).
+        profile_field_map = {"zone_name": "flood_zone", "base_depth_m": "flood_depth"}
+
         def assign_position(self, profile: Any) -> MockPositionData:
             # Assign based on MG status
             if profile.is_mg:

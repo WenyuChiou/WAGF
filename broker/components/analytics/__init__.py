@@ -20,7 +20,6 @@ _EXPORT_MAP = {
     "ObservableStateManager": ("observable", "ObservableStateManager"),
     "SafeExpressionEvaluator": ("feedback", "SafeExpressionEvaluator"),
     "create_drift_observables": ("observable", "create_drift_observables"),
-    "create_flood_observables": ("observable", "create_flood_observables"),
     "create_rate_metric": ("observable", "create_rate_metric"),
     # Framework invariant enforcement — see broker/INVARIANTS.md Invariant 2.
     "detect_audit_sentinels": ("audit", "detect_audit_sentinels"),

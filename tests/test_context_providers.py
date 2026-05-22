@@ -6,9 +6,9 @@ from broker.components.context.providers import (
 )
 from broker.components.analytics.observable import (
     ObservableStateManager,
-    create_flood_observables,
     create_rate_metric,
 )
+from broker.domains.water.observables import create_flood_observables
 from broker.interfaces.observable_state import ObservableScope
 from broker.interfaces.event_generator import (
     EnvironmentEvent,

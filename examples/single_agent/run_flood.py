@@ -953,7 +953,14 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     if premium_rate != 0.02:
         print(f" [Counterfactual] Insurance premium rate: {premium_rate} (baseline: 0.02)")
     graph = NeighborhoodGraph(list(agents.keys()), k=4)
-    hub = InteractionHub(graph)
+    from broker.domains.water.interaction_specs import (
+        FLOOD_ACTION_LABELS, FLOOD_VISIBLE_ACTION_SPECS,
+    )
+    hub = InteractionHub(
+        graph,
+        action_labels=FLOOD_ACTION_LABELS,
+        visible_action_specs=FLOOD_VISIBLE_ACTION_SPECS,
+    )
     ctx_builder = FinalContextBuilder(
         agents=agents,
         hub=hub,

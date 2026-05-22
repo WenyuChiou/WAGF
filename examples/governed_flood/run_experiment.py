@@ -372,7 +372,14 @@ def main():
 
     # --- Context builder (with social graph) ---
     graph = NeighborhoodGraph(list(agents.keys()), k=4)
-    hub = InteractionHub(graph)
+    from broker.domains.water.interaction_specs import (
+        FLOOD_ACTION_LABELS, FLOOD_VISIBLE_ACTION_SPECS,
+    )
+    hub = InteractionHub(
+        graph,
+        action_labels=FLOOD_ACTION_LABELS,
+        visible_action_specs=FLOOD_VISIBLE_ACTION_SPECS,
+    )
     ctx_builder = TieredContextBuilder(
         agents=agents, hub=hub,
         skill_registry=registry,

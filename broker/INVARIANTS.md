@@ -125,7 +125,7 @@ Every generic `broker/` subtree MUST be domain-agnostic. The only non-generic tr
 
 ### Detection / enforcement
 - `tests/test_domain_genericity.py` — Phase 6A landing tests covering registry default + retriever fallback.
-- `broker/tests/test_framework_invariants.py::TestDomainGenericity` — parametrized grep-style sweep of every generic `broker/` subtree against `_DOMAIN_TOKENS`. The 2026-05-20 harness-engineering audit fixed two bugs in this guard: lowercase `WSA_label`/`ACA_label` tokens never matched production `WSA_LABEL`/`ACA_LABEL`, and the scan covered only `components/` + `core/`. Both fixed; the ~25 leaks that surfaced are frozen in `_ALLOWLIST_PATTERNS`, triaged FP (docstring/comment) or KNOWN-DEBT(6H) (real leak, migrates in Phase 6H DomainPack v2). Full catalogue: `.ai/2026/05/20/harness_audit_{A,B,C}_*.md`.
+- `broker/tests/test_framework_invariants.py::TestDomainGenericity` — parametrized grep-style sweep of every generic `broker/` subtree against `_DOMAIN_TOKENS`. The 2026-05-20 harness-engineering audit fixed two bugs in this guard: lowercase `WSA_label`/`ACA_label` tokens never matched production `WSA_LABEL`/`ACA_LABEL`, and the scan covered only `components/` + `core/`. Both fixed; the ~25 leaks that surfaced were frozen in `_ALLOWLIST_PATTERNS`, triaged FP (docstring/comment) or KNOWN-DEBT (real leak). Phase 6H (DomainPack v2) and Phase 6I closed **every** real-code KNOWN-DEBT entry — the allowlist now holds only docstring/comment false positives; no generic `broker/` file carries a live domain-token leak. Full catalogue: `.ai/2026/05/20/harness_audit_{A,B,C}_*.md`.
 - Code review: any new feature in `broker/` must pass the domain-token check.
 
 ### Known current state (updated 2026-04-26 by Phase 6A landing)
@@ -141,7 +141,8 @@ Every generic `broker/` subtree MUST be domain-agnostic. The only non-generic tr
 - `broker/components/cognitive/reflection.py:302-309` — agent-status text generator hardcodes `elevated`, `insured`, `flood_count` literals. Needs `AgentContext` protocol redesign.
 - `broker/components/prompt_templates/memory_templates.py` — entire class is flood-specific (flood_zone, flood_experience, FEMA). Move to `broker/domains/water/` plus introduce a domain-pluggable template registry.
 - `broker/domains/water/validator_bundles.py:35-61` — broker code imports from `examples/irrigation_abm/` and `examples/governed_flood/`, violating "examples plug into broker, not the reverse". Architectural fix.
-- `broker/core/agent_initializer.py:52-56, 515` — `AgentProfile` dataclass + unified-context-builder field extraction hardcode `["elevated", "insured", "relocated", "savings", "income"]`. Needs config-driven extraction list.
+
+**Closed by Phase 6I (2026-05-22)** — the agent_initializer / unified-context-builder field-extraction leak (`["elevated", "insured", "relocated", ...]`) is resolved: the position field-write uses a generic `enricher.profile_field_map` (6I-B) and `unified_context_builder` core_state extraction is domain-neutral (6I-F).
 
 ---
 

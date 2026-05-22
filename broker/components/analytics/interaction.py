@@ -16,17 +16,16 @@ if TYPE_CHECKING:
     from cognitive_governance.v1_prototype.observation import EnvironmentObserver
 
 
-def _action_label(action: str) -> str:
-    """Convert a skill_id to a human-readable past-tense label."""
-    _MAP = {
-        "do_nothing": "took no action",
-        "buy_insurance": "bought flood insurance",
-        "buy_contents_insurance": "bought contents insurance",
-        "elevate_house": "elevated their home",
-        "buyout_program": "applied for buyout",
-        "relocate": "relocated",
-    }
-    return _MAP.get(action, action.replace("_", " "))
+def _action_label(action: str, label_map: Optional[Dict[str, str]] = None) -> str:
+    """Convert a skill_id to a human-readable past-tense label.
+
+    Domain-neutral: with no `label_map` the skill_id is prettified
+    (underscores -> spaces). A domain supplies its own skill->prose map
+    (e.g. ``broker.domains.water.interaction_specs.FLOOD_ACTION_LABELS``).
+    """
+    if label_map and action in label_map:
+        return label_map[action]
+    return action.replace("_", " ")
 
 
 class InteractionHub:
@@ -47,6 +46,10 @@ class InteractionHub:
         # Phase 8: SDK observer support
         social_observer: Optional["SocialObserver"] = None,
         environment_observer: Optional["EnvironmentObserver"] = None,
+        # Phase 6I-C: domain vocabulary supplied by the caller (no flood
+        # tokens in generic broker code).
+        action_labels: Optional[Dict[str, str]] = None,
+        visible_action_specs: Optional[List[Dict[str, Any]]] = None,
     ):
         if graph is None and social_graph is None:
             raise ValueError("InteractionHub requires a social graph")
@@ -57,6 +60,11 @@ class InteractionHub:
         # SDK observers (None = use legacy logic)
         self.social_observer = social_observer
         self.environment_observer = environment_observer
+        # Domain vocabulary (None => domain-neutral defaults). A flood
+        # experiment passes the structures from
+        # broker.domains.water.interaction_specs.
+        self.action_labels = action_labels or {}
+        self.visible_action_specs = visible_action_specs or []
 
     def get_spatial_context(self, agent_id: str, agents: Dict[str, Any]) -> Dict[str, Any]:
         """Tier 1 (Spatial): Aggregated observation of neighbors."""
@@ -77,15 +85,26 @@ class InteractionHub:
 
     def get_visible_neighbor_actions(self, agent_id: str, agents: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
-        Get visible physical actions of neighbors (e.g., elevation, relocation).
+        Get visible physical actions of neighbors.
 
-        Real-world grounding: Households can observe neighbors' physical changes
-        like house elevation construction or moving trucks, even without direct
-        conversation (observational learning per PubMed 29148082).
+        Real-world grounding: agents can observe neighbors' physical
+        changes (e.g. house elevation construction, a moving truck) even
+        without direct conversation (observational learning per
+        PubMed 29148082).
+
+        Domain-neutral: which neighbour state attributes are observable
+        is declared by `visible_action_specs` passed to the constructor.
+        Each spec is a dict ``{"state_keys": [...], "action": str,
+        "description": str}``; a neighbour is flagged when ANY listed
+        state key is truthy on its ``dynamic_state`` or as a direct
+        attribute. With no specs this returns an empty list.
 
         Returns:
             List of visible action dicts
         """
+        if not self.visible_action_specs:
+            return []
+
         neighbor_ids = self.graph.get_neighbors(agent_id)
         visible_actions = []
 
@@ -96,32 +115,15 @@ class InteractionHub:
 
             dstate = getattr(neighbor, 'dynamic_state', {}) or {}
 
-            # Check for elevated status (visible: construction/raised foundation)
-            if dstate.get('elevated', False) or getattr(neighbor, 'elevated', False):
-                visible_actions.append({
-                    "neighbor_id": nid,
-                    "action": "elevated_house",
-                    "description": f"Neighbor {nid} has elevated their house",
-                })
-
-            # Check for relocated status (visible: moving truck/empty house)
-            if dstate.get('relocated', False) or getattr(neighbor, 'relocated', False):
-                visible_actions.append({
-                    "neighbor_id": nid,
-                    "action": "relocated",
-                    "description": f"Neighbor {nid} has moved away",
-                })
-
-            # Check for insurance (visible sign/sticker)
-            # Flood ABM uses 'has_insurance'; legacy uses 'has_flood_insurance'
-            if (dstate.get('has_insurance', False)
-                    or getattr(neighbor, 'has_flood_insurance', False)
-                    or getattr(neighbor, 'has_insurance', False)):
-                visible_actions.append({
-                    "neighbor_id": nid,
-                    "action": "insured",
-                    "description": f"Neighbor {nid} appears to have flood insurance",
-                })
+            for spec in self.visible_action_specs:
+                state_keys = spec.get("state_keys", [])
+                if any(dstate.get(k, False) or getattr(neighbor, k, False)
+                       for k in state_keys):
+                    visible_actions.append({
+                        "neighbor_id": nid,
+                        "action": spec.get("action", ""),
+                        "description": spec.get("description", "").format(nid=nid),
+                    })
 
         return visible_actions
 
@@ -191,7 +193,7 @@ class InteractionHub:
             dstate = getattr(neighbor, 'dynamic_state', {}) or {}
             last = dstate.get("last_decision")
             if last:
-                label = _action_label(last)
+                label = _action_label(last, self.action_labels)
                 action_counts[label] = action_counts.get(label, 0) + 1
 
         if not action_counts:
@@ -377,7 +379,7 @@ class InteractionHub:
         personal_memory = self.memory_engine.retrieve(agent, query=query, top_k=3) if self.memory_engine else []
         
         # [GENERALIZATION] Gather all non-private attributes for the personal block
-        # This removes domain-specific hardcoding (like 'elevated') from the core hub.
+        # This removes domain-specific attribute hardcoding from the core hub.
         personal = {
             "id": agent_id,
             "memory": personal_memory,
@@ -399,9 +401,9 @@ class InteractionHub:
             if not k.startswith('_') and isinstance(v, (str, int, float, bool)) and k not in ["memory", "id"]:
                 personal[k] = v
 
-        # 2a. Include fixed_attributes (demographics, RCV, flood zone, PMT scores)
-        # These must be in `personal` for prompt template variables like
-        # {rcv_building}, {income}, {flood_zone} to resolve correctly.
+        # 2a. Include fixed_attributes (demographics, asset values, domain
+        # risk attributes, construct scores). These must be in `personal`
+        # for prompt template variables (e.g. {income}) to resolve.
         if hasattr(agent, 'fixed_attributes') and isinstance(agent.fixed_attributes, dict):
             for k, v in agent.fixed_attributes.items():
                 if isinstance(v, (str, int, float, bool)):

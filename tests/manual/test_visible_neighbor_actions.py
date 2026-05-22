@@ -7,6 +7,7 @@ if str(ROOT) not in sys.path:
 
 from broker.components.analytics.interaction import InteractionHub
 from broker.components.social.graph import RandomGraph
+from broker.domains.water.interaction_specs import FLOOD_VISIBLE_ACTION_SPECS
 
 class MockAgent:
     def __init__(self, aid, elevated=False, relocated=False, insured=False):
@@ -23,7 +24,7 @@ agents = {
 }
 
 graph = RandomGraph(list(agents.keys()), p=1.0)
-hub = InteractionHub(graph=graph)
+hub = InteractionHub(graph=graph, visible_action_specs=FLOOD_VISIBLE_ACTION_SPECS)
 ctx = hub.get_social_context('A1', agents)
 
 actions = ctx.get("visible_actions", [])

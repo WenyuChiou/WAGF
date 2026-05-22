@@ -297,11 +297,13 @@ class ObservableStateProvider(ContextProvider):
     - Type-level metrics (agent's type group)
 
     Usage:
-        from broker.components.analytics.observable import ObservableStateManager
+        from broker.components.analytics.observable import (
+            ObservableStateManager, create_rate_metric,
+        )
         from .providers import ObservableStateProvider
 
         manager = ObservableStateManager()
-        manager.register_many(create_flood_observables())
+        manager.register_many(domain_observable_metrics)  # see broker/domains/<domain>/
         provider = ObservableStateProvider(manager)
 
         # Add to context builder
