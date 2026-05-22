@@ -199,6 +199,39 @@ flood-coupling-free.
   - The four reference domains already declare `default_skill` /
     `parsing.default_skill` in YAML. Net-zero gate regression;
     real-model `governed_flood` smoke ran end-to-end clean.
+- **Phase 6J-D — `keyword_classifier` defaults + reverse-import fix**:
+  - `TA_KEYWORDS` / `CA_KEYWORDS` flood-PMT dictionaries relocated
+    from generic `broker/validators/posthoc/keyword_classifier.py` to
+    new `broker/domains/water/posthoc_keywords.py`. The generic
+    `KeywordClassifier` no longer falls back to flood defaults —
+    `None` is now a legitimate Tier-1/1.5-only (domain-agnostic) mode;
+    Tier 2 keyword matching runs only when a caller supplies its own
+    dictionaries. Water-domain callers (`micro_validator.py`,
+    `cv_runner.py`) construct the classifier with the relocated dicts
+    explicitly.
+  - `broker/domains/water/validator_bundles.py` reverse-import fix:
+    removed `_ensure_irrigation_registered` / `_ensure_flood_registered`
+    — the lazy fallback that did `import examples.irrigation_abm.validators`
+    / `import examples.governed_flood.validators` when the registry was
+    empty. `broker/domains/water/` must not import from `examples/`.
+    Replacement: each example package's `__init__.py` now imports its
+    `.validators` submodule on package import (own try/except guard);
+    the two flood entrypoints that did not previously pre-import their
+    example package (`governed_flood/run_experiment.py`,
+    `single_agent/run_flood.py`) add a top-level
+    `import examples.governed_flood`. The irrigation entrypoint
+    already pre-imported its validators; MA flood uses bespoke
+    validators and does not call `build_domain_validators`.
+  - `test_domain_validator_dispatch.py::test_water_domain_exposes_validator_builder`
+    hardened: previously asserted only `len(...) == 5`, which would
+    pass vacuously after the lazy-fallback removal (`_empty_validators()`
+    also returns 5 wrappers); now imports both example packages
+    explicitly and asserts the populated `PhysicalValidator` carries
+    non-empty `_builtin_checks` (and the generic one does not).
+  - Net-zero gate regression. Real-model `governed_flood` smoke ran
+    end-to-end clean with 70 governance rule violations fired —
+    confirming flood builtin checks register via the new
+    package-import path.
 
 ### Notes
 
