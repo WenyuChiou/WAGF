@@ -35,6 +35,7 @@ from broker import (
 )
 from broker.config import load_memory_policy
 from broker.components.context.providers import PerceptionAwareProvider
+from broker.domains.water.providers import FinancialCostProvider
 from broker.components.context.tiered import load_prompt_templates
 from broker.components.memory import (
     PolicyFilteredMemoryEngine,
@@ -1263,7 +1264,10 @@ def run_unified_experiment():
                 ], # Phase 2 PR2: Allow institutional influence
                 prompt_templates=load_prompt_templates(str(MULTI_AGENT_DIR / "config" / "ma_agent_types.yaml")),
                 enable_financial_constraints=args.enable_financial_constraints,
-                extend_providers=[PerceptionAwareProvider()],  # LAST: perception filter
+                # FinancialCostProvider: Phase 6H Item 7 — was in the
+                # generic tiered default list; now domain-wired here
+                # (financial first, perception filter LAST).
+                extend_providers=[FinancialCostProvider(), PerceptionAwareProvider()],
             )
         )
         .with_governance(

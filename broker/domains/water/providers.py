@@ -7,9 +7,10 @@ flood-specific — ELEVATION_COST_BASE keyed by feet, BUYOUT_OFFER_FRACTION,
 NFIP renewal fatigue narrative, MG barrier text, premium escalation
 warnings — so it lives with the rest of the water domain.
 
-A backward-compat re-export shim remains at the original location so
-existing flood-domain callers keep working with a one-time
-DeprecationWarning.
+Phase 6H Item 7 (2026-05-22): the flood-coupled generic copy in
+``broker/components/context/providers.py`` was deleted — this is now
+the single canonical copy. The generic default context builder no
+longer instantiates it; MA flood wires it via ``extend_providers``.
 
 New domains define their own analogous providers in
 ``broker/domains/<name>/providers.py`` (or in their example package).

@@ -339,7 +339,10 @@ class TestDomainGenericity:
         # adapter implementation, or the test will regress.
         "components/analytics/interaction.py",       # elevated/flood observations
         "components/analytics/observable.py",        # elevated neighbors
-        "components/context/providers.py",           # flood_zone custom_attr
+        # (Phase 6H Item 7 DONE 2026-05-22: the flood-coupled
+        #  FinancialCostProvider deleted from providers.py; the
+        #  canonical copy lives at broker/domains/water/providers.py.
+        #  providers.py is now token-free -- entry removed.)
         "components/context/tiered.py",              # elevated state field
         "components/memory/content_types.py",        # elevated in generic memory tag
         "components/memory/engines/humancentric.py", # flood_depth test fixture
