@@ -104,6 +104,13 @@ flood-coupling-free.
   `extend_providers`. `providers.py` removed from the I5 allowlist.
 - **Phase 6H (Items 1-9) complete** — `broker/` is de-flood-coupled
   across every Phase 6H surface; the I5 KNOWN-DEBT(6H) block is empty.
+- **Phase 6I-A** (in progress): closing the pre-6H I5 allowlist debt.
+  6I-A reworded 6 doc-only flood examples (docstrings / comments) to
+  domain-neutral wording — `memory/content_types.py`,
+  `memory/engines/humancentric.py`, `core/_skill_filtering.py`,
+  `components/context/tiered.py`, `prompt_templates/memory_templates.py`,
+  `cognitive/adapters.py` — and removed their 6 allowlist entries.
+  6I-B..F (5 real-code de-flood items) remain.
 
 ### Notes
 
