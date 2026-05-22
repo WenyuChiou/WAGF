@@ -376,7 +376,7 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         context["agent_type"] = getattr(agent, "agent_type", "default") if agent else "default"
 
         # Populate state dict for identity rule evaluation (Pillar 1).
-        # Extract boolean flags (elevated, relocated, has_insurance, has_efficient_system, etc.)
+        # Extract boolean flags (whatever boolean state keys the domain set).
         # so that _inject_filtered_skills can enforce precondition-based blocking.
         personal = context.get("personal", {})
         context["state"] = {k: v for k, v in personal.items()

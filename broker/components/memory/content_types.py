@@ -31,7 +31,7 @@ class MemoryContentType(str, Enum):
 
     SOCIAL_OBSERVATION = "social_observation"
     """Aggregated observation of neighbors or peer group behavior.
-    Example: "3 of my 4 neighbors elevated their homes this year." """
+    Example: "3 of my 4 neighbors adopted the new measure this year." """
 
     INSTITUTIONAL_STATE = "institutional_state"
     """Institutional agent recording a state change it made.

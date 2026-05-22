@@ -1,8 +1,9 @@
 """
 Domain Reflection Adapters — Plugin interface for domain-specific reflection & memory.
 
-Decouples the ReflectionEngine from domain-specific concepts (flood_count, drought_severity,
-etc.) by defining a Protocol that any domain can implement. The core engine delegates
+Decouples the ReflectionEngine from domain-specific concepts (per-domain
+event counts, severity indices, etc.) by defining a Protocol that any
+domain can implement. The core engine delegates
 importance computation, emotional classification, and retrieval weight configuration
 to the active adapter.
 
@@ -48,7 +49,7 @@ class DomainReflectionAdapter(Protocol):
         """Compute dynamic importance from domain-specific agent context.
 
         Args:
-            context: Dict of domain-specific fields (e.g. flood_count, supply_ratio).
+            context: Dict of domain-specific fields (e.g. event_count, supply_ratio).
             base: Default importance when no domain rule matches.
 
         Returns:

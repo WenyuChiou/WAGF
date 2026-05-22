@@ -687,7 +687,7 @@ class HumanCentricMemoryEngine(MemoryEngine):
         surprise strategy is configured, returns 0.0 (no surprise).
 
         The observation structure depends on the attached strategy:
-        - EMASurpriseStrategy: ``{"flood_depth": 2.5}``
+        - EMASurpriseStrategy: ``{<stimulus_key>: 2.5}`` (key set at construction time)
         - SymbolicSurpriseStrategy: multi-key numeric dict
         - DecisionConsistencySurprise: ``{"action": "increase_demand"}``
 
