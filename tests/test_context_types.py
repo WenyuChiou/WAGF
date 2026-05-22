@@ -161,7 +161,9 @@ class TestUniversalContext:
 
         assert ctx.agent_id == "agent_001"
         assert ctx.agent_type == "default"
-        assert ctx.framework == PsychologicalFrameworkType.PMT
+        # Phase 6J-A: an undeclared framework defaults to the domain-neutral
+        # GENERIC framework, not the flood PMT framework.
+        assert ctx.framework == PsychologicalFrameworkType.GENERIC
 
     def test_full_context(self):
         """Test creating fully populated context."""

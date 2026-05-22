@@ -793,7 +793,9 @@ class AgentTypeConfig:
         try:
             return RatingScaleRegistry.get_by_name(framework).levels
         except KeyError:
-            return ["VL", "L", "M", "H", "VH"]  # PMT default
+            # Domain-neutral generic 5-level Likert fallback (Phase 6J-A —
+            # not a flood-PMT default).
+            return ["VL", "L", "M", "H", "VH"]
 
     def get_framework_for_agent_type(self, agent_type: str) -> str:
         """
@@ -803,6 +805,10 @@ class AgentTypeConfig:
             Framework name: "pmt", "utility", "financial", or "generic"
         """
         cfg = self.get(agent_type)
+        # TODO(Phase 6J-A part 2): flip this default to "generic" once the
+        # flood example YAMLs declare `psychological_framework: pmt`
+        # explicitly — until then an undeclared flood agent type must keep
+        # resolving to PMT.
         return cfg.get("psychological_framework", "pmt")
 
     def get_rating_scale_for_agent_type(self, agent_type: str) -> str:
