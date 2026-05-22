@@ -55,8 +55,9 @@ class TestDynamicImportance:
         """A flood-flagged context no longer changes the score — the
         hardcoded flood-keyword block was removed (Phase 6H Item 9)."""
         flagged = AgentReflectionContext(
-            agent_id="H1", flood_count=5, mg_status=True,
+            agent_id="H1", mg_status=True,
             recent_decision="elevate_house",
+            custom_traits={"flood_count": 5},
         )
         plain = AgentReflectionContext(agent_id="H2")
         assert (
@@ -94,8 +95,11 @@ class TestDynamicImportance:
 
             def compute_importance(self, context, base=0.9):
                 # .get() raises on a raw dataclass, works on a dict
-                return context.get("flood_count", 0) * 0.1
+                traits = context.get("custom_traits") or {}
+                return traits.get("flood_count", 0) * 0.1
 
         DomainPackRegistry.register("dict_pack", _DictPack())
-        ctx = AgentReflectionContext(agent_id="H1", flood_count=3)
+        ctx = AgentReflectionContext(
+            agent_id="H1", custom_traits={"flood_count": 3}
+        )
         assert engine.compute_dynamic_importance(ctx) == 0.3

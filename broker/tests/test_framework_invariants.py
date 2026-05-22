@@ -323,9 +323,10 @@ class TestDomainGenericity:
         # agent_initializer.py has historical flood fields in AgentProfile
         # dataclass; documented as tech debt in INVARIANTS.md.
         "core/agent_initializer.py",
-        # Reflection.py has flood logic; migration to DomainReflectionAdapter
-        # is scheduled for Phase D. For now allow but document.
-        "components/cognitive/reflection.py",
+        # (Phase 6H Item 9 DONE 2026-05-21: reflection.py fully de-flooded
+        #  -- status-text / importance / batch-traits fallbacks removed,
+        #  AgentReflectionContext flood fields removed, extract_agent_context
+        #  domain-neutral. reflection.py is now token-free; entry removed.)
         # adapters.py IS the DomainReflectionAdapter protocol — docstrings
         # intentionally reference domain-specific examples (flood_count,
         # drought_severity) to illustrate the abstraction boundary. This

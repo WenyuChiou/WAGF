@@ -37,9 +37,9 @@ def _context(
 ) -> AgentReflectionContext:
     return AgentReflectionContext(
         agent_id="H1",
-        flood_count=flood_count,
         mg_status=mg_status,
         recent_decision=recent_decision,
+        custom_traits={"flood_count": flood_count},
     )
 
 
@@ -48,15 +48,16 @@ def _expected_flood_matrix(ctx: AgentReflectionContext, base: float) -> float:
     legacy fallback, removed in Phase 6H Item 9. Inlined here so the
     FloodDomainPack byte-identical guard survives the fallback's removal."""
     imp = base
-    if ctx.flood_count == 1:
+    flood_count = ctx.custom_traits.get("flood_count", 0)
+    if flood_count == 1:
         imp = 0.95
-    elif ctx.flood_count > 2:
+    elif flood_count > 2:
         imp = 0.75
     if ctx.mg_status:
         imp = max(imp, 0.90)
     if ctx.recent_decision in ("elevate_house", "relocate", "buy_insurance"):
         imp = max(imp, 0.80)
-    if (not ctx.mg_status and ctx.flood_count == 0
+    if (not ctx.mg_status and flood_count == 0
             and ctx.recent_decision in ("do_nothing", "")):
         imp = min(imp, 0.60)
     return round(min(1.0, max(0.0, imp)), 2)
