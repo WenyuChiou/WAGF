@@ -310,12 +310,41 @@ class TestDomainGenericity:
         # now clean across generic broker/ and guard that work.
         "flooded": "flood domain",
         "flood_damage": "flood domain",
-        # NOTE: flood_occurred / flood_event / flood_depth_m still leak
-        # outside ma_manager.py (events/generators/flood.py, memory/
-        # initial_loader.py, memory/policy_classifier.py, memory/
-        # universal.py, interfaces/simulation_protocols.py) — adding them
-        # is deferred to Phase 6J-E, which de-floods those sites and
-        # finalises the token set.
+        # Phase 6J-E (2026-05-22): finalises the token set. The three
+        # tokens deferred from 6J-B are added with TECH-DEBT(6K)
+        # allowlist entries for the leak sites — the memory subsystem +
+        # the flood-specific events/generators/flood.py file relocate
+        # in a future "memory plugin" phase. simulation_protocols.py was
+        # de-flooded (docstring example → generic).
+        "flood_occurred": "flood domain",
+        "flood_event": "flood domain",
+        "flood_depth_m": "flood domain",
+        # Flood / water-domain infrastructure identifiers — currently
+        # surface only in docstring "Literature:" references inside
+        # generic agents/providers; the code itself is domain-agnostic.
+        "NFIP": "flood domain (US National Flood Insurance Program)",
+        "FEMA": "flood domain (US Federal Emergency Management Agency)",
+        # Flood / drought / irrigation infrastructure + construct
+        # identifiers that are currently CLEAN across generic broker/
+        # (verified by Phase 6J-E grep). Adding them locks the
+        # cleanliness so a future regression is caught at gate time.
+        "PRB": "flood domain (Passaic River Basin)",
+        "SFHA": "flood domain (Special Flood Hazard Area, FEMA)",
+        "CRSS": "irrigation domain (Colorado River Simulation System)",
+        "shortage_tier": "irrigation domain (USBR DCP shortage tiers)",
+        "drought_index": "drought domain",
+        "buyout": "flood domain skill",
+        "buyout_program": "flood domain skill",
+        # NOTE: deferred to a future pass — too noisy to add now without
+        # a much larger fix or allowlist surface:
+        #   threat_appraisal / coping_appraisal (PMT field names live
+        #     in generic schemas.py + response_format.py + unified_rh.py
+        #     defaults — need a PMT-schema relocation phase),
+        #   elevate_house / buy_insurance / relocate / maintain_demand
+        #     (skill names referenced in many generic memory/validator
+        #     docstrings, comments, and protocol examples).
+        #   do_nothing — explicitly evaluated and rejected (too common
+        #     a phrase to enforce as a domain token).
     }
 
     # Files/paths where domain tokens are allowed — e.g., examples/, domain
@@ -374,6 +403,20 @@ class TestDomainGenericity:
         "config/schema.py",                          # FP: Field() description examples
         "config/agent_types/base.py",                # FP: docstring example
         "utils/retry_formatter.py",                  # FP: comment example
+        # Phase 6J-E (2026-05-22) FP additions — docstring "Literature:" /
+        # documented-reference text only; the code is domain-agnostic.
+        "agents/base.py",                            # FP: NFIP/FEMA in docstring Literature reference
+        "components/context/providers.py",           # FP: NFIP in DYNAMO Literature reference
+        # Phase 6J-E (2026-05-22) TECH-DEBT(6K) — real domain leak in
+        # generic broker code; the memory subsystem and the flood-specific
+        # hazard generator need a DomainPack-style plugin pass (Phase 6K).
+        # Removing these MUST be paired with that work, or the I5 test
+        # regresses on the now-added flood_event / flood_depth_m /
+        # flood_occurred tokens.
+        "components/events/generators/flood.py",     # TECH-DEBT(6K): whole-file flood-specific hazard generator → relocate to broker/domains/water/event_generators.py
+        "components/memory/initial_loader.py",       # TECH-DEBT(6K): hardcoded {flood_experience, flood_event, damage} whitelist → derive from policy_classifier rules
+        "components/memory/policy_classifier.py",    # TECH-DEBT(6K): _DEFAULT_RULES dict pre-populated with flood categories → DomainPack hook
+        "components/memory/universal.py",            # TECH-DEBT(6K): stimulus_key falls back to "flood_depth_m" → require explicit / accept None
         # ---------------------------------------------------------------------
         # KNOWN-DEBT(6H) — genuine domain leak in generic broker/ code.
         # Each migrates in the Phase 6H DomainPack v2 refactor; removing an

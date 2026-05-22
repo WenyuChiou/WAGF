@@ -382,8 +382,11 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
             # agent's state is recalculated (instead of a full no-op that
             # freezes state).
             if self.simulation_engine:
+                # Phase 6J-E (2026-05-22): get_default_skill() now raises
+                # if unconfigured (Phase 6J-C), so the only branch left to
+                # guard is whether the configured id is actually registered.
                 fallback_skill = self.skill_registry.get_default_skill()
-                if fallback_skill and self.skill_registry.exists(fallback_skill):
+                if self.skill_registry.exists(fallback_skill):
                     fallback = ApprovedSkill(
                         skill_name=fallback_skill,
                         agent_id=approved_skill.agent_id,
