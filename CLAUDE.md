@@ -128,18 +128,32 @@ Honour these refusals when relaying the skill's output to the user.
   should stay in `examples/*/results/`.
 - Create new top-level directories without a stated need.
 
-## Permission overrides specific to WAGF repo
+## Bash command permissions in this repo
 
-Global `~/.claude/settings.json` denies several Bash patterns by
-default; this repo's `.claude/settings.local.json` overrides them.
-Stay inside these scopes:
+The permission floor is set by `~/.claude/settings.json`. Its `deny`
+rules are **absolute** — a `deny` cannot be overridden by an `allow`
+in any file, including this repo's `.claude/settings.local.json`
+(deny always wins). So the `Bash(...)` entries in that local `allow`
+list do nothing against a global `deny`; don't rely on them.
 
-| Override allowed here | When OK | When NOT OK |
+Current floor (as of 2026-05-22):
+
+- **`deny` — hard-blocked everywhere, including here:** `git merge`,
+  `git push --force` / `-f`, `git reset --hard`, `git checkout --`,
+  `git clean -f`, `git branch -D`. If one is genuinely needed the user
+  runs it themselves (`! <command>`). Note `deny` matches the command
+  prefix, so `git -C <other-repo> merge …` is NOT caught — never use
+  `-C` to slip a denied command past the rule.
+- **`ask` — prompts on each use:** `rm`. Available, but every call
+  surfaces a confirmation.
+
+Usage guidance for the commands that ARE available — stay in scope:
+
+| Command | When OK | When NOT OK |
 |---|---|---|
-| `Bash(git merge:*)` | Feature branch into `main` of this repo. | Don't `git -C <other-repo>` to bypass another repo's deny rule. |
-| `Bash(rm:*)` | Scratch dirs, `.ai/` files, `examples/*/results/_tmp_*`, build artefacts. | NEVER `rm -rf broker/`, `examples/<live-batch>/results/`, `paper/`, `.claude/`. |
-| `Bash(taskkill:*)` | Specific PID first confirmed via `tasklist`. | Don't blanket-kill `ollama.exe` / `python.exe` — running irrigation/flood batches share those names. |
-| `Bash(curl:*)` | API checks against academic publisher domains. | Don't fetch arbitrary URLs without `--max-time` cap. |
+| `rm` (prompts) | Scratch dirs, `.ai/` files, `examples/*/results/_tmp_*`, build artefacts. | NEVER `rm -rf broker/`, `examples/<live-batch>/results/`, `paper/`, `.claude/`. |
+| `taskkill` | Specific PID first confirmed via `tasklist`. | Don't blanket-kill `ollama.exe` / `python.exe` — running irrigation/flood batches share those names. |
+| `curl` | API checks against academic publisher domains. | Don't fetch arbitrary URLs without `--max-time` cap. |
 
 When in doubt, run the command without `--no-input` / dry-run first.
 
