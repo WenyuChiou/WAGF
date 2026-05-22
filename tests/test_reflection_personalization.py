@@ -56,7 +56,7 @@ class TestAgentReflectionContext:
 
 
 class TestPersonalizedPrompt:
-    def test_household_prompt_contains_identity(self, engine):
+    def test_household_prompt_contains_identity(self, engine, flood_pack):
         ctx = AgentReflectionContext(
             agent_id="H_005",
             agent_type="household",
