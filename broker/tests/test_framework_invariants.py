@@ -489,3 +489,46 @@ class TestMemoryTypeContract:
         assert all(isinstance(c, str) for c in content), (
             f"retrieve_content_only must return List[str]"
         )
+
+
+# =============================================================================
+# T6: No silent domain default — Invariant 5 (Phase 6J-A)
+# =============================================================================
+
+class TestNoSilentDomainDefault:
+    """Invariant 5 corollary: when a domain / framework is not declared,
+    generic broker code must resolve to the domain-neutral GENERIC
+    framework — never silently to the flood PMT framework.
+
+    The I5 token scan (TestDomainGenericity) catches a *named* leak; this
+    catches a *behavioural* one (a silent fallback can't be grepped)."""
+
+    def test_generic_rating_scale_is_not_the_pmt_object(self):
+        """RatingScaleRegistry.GENERIC must be a standalone scale, not an
+        alias of the flood PMT scale object."""
+        from broker.interfaces.rating_scales import (
+            RatingScaleRegistry, FrameworkType,
+        )
+        generic = RatingScaleRegistry.get(FrameworkType.GENERIC)
+        pmt = RatingScaleRegistry.get(FrameworkType.PMT)
+        assert generic is not pmt
+        assert generic.framework == FrameworkType.GENERIC
+
+    def test_unknown_framework_falls_back_to_generic_not_pmt(self):
+        """An unregistered framework name must resolve to GENERIC."""
+        from broker.interfaces.rating_scales import (
+            RatingScaleRegistry, FrameworkType,
+        )
+        scale = RatingScaleRegistry.get_by_name("some_unregistered_domain")
+        assert scale.framework == FrameworkType.GENERIC
+
+    def test_universal_context_defaults_to_generic_framework(self):
+        """A UniversalContext with no declared framework — constructed or
+        deserialised — must default to GENERIC, not PMT."""
+        from broker.interfaces.context_types import (
+            UniversalContext, PsychologicalFrameworkType,
+        )
+        ctx = UniversalContext(agent_id="probe")
+        assert ctx.framework == PsychologicalFrameworkType.GENERIC
+        ctx2 = UniversalContext.from_dict({"agent_id": "probe"})
+        assert ctx2.framework == PsychologicalFrameworkType.GENERIC
