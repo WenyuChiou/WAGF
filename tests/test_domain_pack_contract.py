@@ -62,6 +62,10 @@ class TestDefaultDomainPack:
     def test_reflection_persona_is_none(self):
         assert self.pack.reflection_persona() is None
 
+    def test_reflection_trait_labels_is_empty(self):
+        assert self.pack.reflection_trait_labels(None) == []
+        assert self.pack.reflection_trait_labels(object()) == []
+
     def test_importance_profiles_is_empty(self):
         assert self.pack.importance_profiles() == {}
 
@@ -279,6 +283,23 @@ class TestFloodDomainPackByteIdentical:
             "you've been flooded 2 time(s), "
             "you have limited resources."
         )
+
+    def test_reflection_trait_labels(self):
+        """Byte-identical to the pre-refactor batch traits block —
+        short labels, `{n}x` form, append-if-truthy order."""
+        class Full:
+            agent_type = "household"
+            elevated = True
+            insured = True
+            flood_count = 3
+            mg_status = True
+        assert self.pack.reflection_trait_labels(Full()) == [
+            "elevated", "insured", "flooded 3x", "MG",
+        ]
+
+        class Empty:
+            agent_type = "household"
+        assert self.pack.reflection_trait_labels(Empty()) == []
 
     # Skill emotion — reproduces experiment_runner.py:383-388 literals
     def test_elevate_house_emotion(self):

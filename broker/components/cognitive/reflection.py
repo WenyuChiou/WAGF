@@ -378,25 +378,22 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
 
             if ctx:
                 identity = f"[{ctx.agent_type}"
-                # Phase 6C-v3 (2026-05-10): batch-prompt trait labels stay
-                # on the legacy attribute-read path because they need
-                # short labels ("elevated") not full sentences ("your
-                # house is elevated"). The individual prompt path uses
-                # DomainPack.reflection_status_text() (long form, was
-                # migrated in Phase 6C-v2). Adding a separate
-                # ``DomainPack.reflection_trait_labels()`` method is a
-                # follow-up Phase 6C-v4 task — for now ctx attribute
-                # reads work because non-flood domains' AgentReflectionContext
-                # falls through to defaults (elevated=False etc.).
+                # Domain trait labels via the active DomainPack
+                # (Phase 6H Item 9 — replaces the hardcoded flood traits
+                # block). Pack-scan mirrors the reflection_status_text
+                # path used by the individual prompt above.
                 traits = []
-                if getattr(ctx, 'elevated', False):
-                    traits.append("elevated")
-                if getattr(ctx, 'insured', False):
-                    traits.append("insured")
-                if getattr(ctx, 'flood_count', 0) > 0:
-                    traits.append(f"flooded {ctx.flood_count}x")
-                if getattr(ctx, 'mg_status', False):
-                    traits.append("MG")
+                try:
+                    from broker.domains.registry import DomainPackRegistry
+                    for _name in DomainPackRegistry.domains():
+                        _pack = DomainPackRegistry.get(_name)
+                        if _pack is None:
+                            continue
+                        traits = _pack.reflection_trait_labels(ctx)
+                        if traits:
+                            break
+                except ImportError:
+                    pass
                 if traits:
                     identity += f", {', '.join(traits)}"
                 identity += "]"
