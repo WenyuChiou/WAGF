@@ -397,16 +397,22 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
         Returns:
             Importance score in [0.0, 1.0].
         """
+        # Normalise context to a dict ONCE — domain compute_importance
+        # implementations expect a mapping. The adapter path always did
+        # this; the pack-scan below previously passed the raw context,
+        # which broke a dict-only adapter (e.g. IrrigationAdapter calls
+        # context.get(...)) when handed an AgentReflectionContext
+        # dataclass. Both paths now share the normalised dict (6H Item 9).
+        if hasattr(context, "__dataclass_fields__"):
+            from dataclasses import asdict
+            ctx_dict = asdict(context)
+        elif isinstance(context, dict):
+            ctx_dict = context
+        else:
+            ctx_dict = {"context": context}
+
         # --- Adapter path (domain-agnostic) ---
         if self.adapter is not None:
-            # Convert dataclass to dict if needed
-            if hasattr(context, "__dataclass_fields__"):
-                from dataclasses import asdict
-                ctx_dict = asdict(context)
-            elif isinstance(context, dict):
-                ctx_dict = context
-            else:
-                ctx_dict = {"context": context}
             return self.adapter.compute_importance(ctx_dict, base_importance)
 
         # First registered pack exposing compute_importance wins (mirrors the
@@ -420,7 +426,7 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
                     continue
                 fn = getattr(pack, "compute_importance", None)
                 if callable(fn):
-                    importance = fn(context, base_importance)
+                    importance = fn(ctx_dict, base_importance)
                     if isinstance(importance, (int, float)):
                         return round(min(1.0, max(0.0, importance)), 2)
         except ImportError:

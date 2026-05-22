@@ -81,3 +81,21 @@ class TestDynamicImportance:
         DomainPackRegistry.register("t9", _Pack())
         ctx = AgentReflectionContext(agent_id="H1")
         assert engine.compute_dynamic_importance(ctx) == 0.42
+
+    def test_pack_path_normalises_dataclass_context(self, engine, no_packs):
+        """A dict-only pack.compute_importance receives a normalised dict
+        even when the caller passes an AgentReflectionContext dataclass —
+        the pack-scan path normalises like the adapter path. Was a latent
+        AttributeError (IrrigationAdapter calls context.get(...))."""
+        from broker.domains.registry import DomainPackRegistry
+
+        class _DictPack:
+            name = "dict_pack"
+
+            def compute_importance(self, context, base=0.9):
+                # .get() raises on a raw dataclass, works on a dict
+                return context.get("flood_count", 0) * 0.1
+
+        DomainPackRegistry.register("dict_pack", _DictPack())
+        ctx = AgentReflectionContext(agent_id="H1", flood_count=3)
+        assert engine.compute_dynamic_importance(ctx) == 0.3
