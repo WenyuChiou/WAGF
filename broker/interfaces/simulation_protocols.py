@@ -33,7 +33,7 @@ class SimulationEngineProtocol(Protocol):
 
     Returns:
         Dict with at minimum {"current_year": int}.
-        Additional keys are domain-specific (e.g., flood_event, drought_level).
+        Additional keys are domain-specific (e.g., hazard event, policy level).
     """
 
     def advance_year(self) -> Dict[str, Any]:

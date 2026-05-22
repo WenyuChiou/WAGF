@@ -36,8 +36,10 @@ class PhaseOrchestrator:
     the implicit dictionary-order execution in ExperimentRunner.
 
     Args:
-        phases: List of PhaseConfig definitions. If None, uses default
-            4-phase ordering (institutional → household → resolution → observation).
+        phases: List of PhaseConfig definitions. If None, uses the
+            generic 3-phase layout (CUSTOM → RESOLUTION → OBSERVATION).
+            For the water-domain 4-phase layout use from_domain("flood")
+            or pass phases= explicitly.
         seed: Random seed for deterministic "random" ordering.
     """
 

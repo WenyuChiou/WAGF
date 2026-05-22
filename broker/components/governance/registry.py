@@ -104,6 +104,9 @@ class SkillRegistry:
         If no domain YAML has declared `default_skill:` (and no caller
         has invoked `set_default_skill`), fail before the broker silently
         invents a domain fallback.
+
+        Raises:
+            ValueError: if no default skill is configured (Phase 6J-C).
         """
         if self._default_skill is None:
             raise ValueError(
