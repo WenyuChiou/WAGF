@@ -54,15 +54,14 @@ class ReflectionInsight:
 class AgentReflectionContext:
     """Agent identity context for personalized reflection prompts.
 
-    Domain-specific fields (elevated, insured, flood_count) are kept
-    for backward compatibility.  New domains should use custom_traits.
+    Domain-neutral: generic identity fields plus ``custom_traits`` for
+    domain-specific data. The former domain-specific context fields were
+    removed in Phase 6H Item 9 — a domain routes such data through
+    ``custom_traits``.
     """
     agent_id: str
-    agent_type: str = "household"          # household | government | insurance
+    agent_type: str = "household"          # household | government | institution
     name: str = ""                         # Display name if available
-    elevated: bool = False                 # flood-domain backward compat
-    insured: bool = False                  # flood-domain backward compat
-    flood_count: int = 0                   # flood-domain backward compat
     years_in_sim: int = 0                  # Agent age in simulation
     mg_status: bool = False                # Marginalized group
     recent_decision: str = ""              # Last skill chosen
@@ -109,7 +108,7 @@ class ReflectionEngine:
     
     At defined intervals (e.g., end of year), prompts the LLM to synthesize
     past episodic memories into high-level "Lessons Learned". These insights
-    are then stored with elevated importance scores to ensure long-term retention.
+    are then stored with raised importance scores to ensure long-term retention.
     """
     
     def __init__(
