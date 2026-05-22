@@ -509,12 +509,16 @@ class UnifiedContextBuilder:
                 elif isinstance(m, dict):
                     memories.append(m.get("content", str(m)))
 
-            # Extract core state from personal context
-            core_state = {}
+            # Extract core state from personal context. Domain-neutral:
+            # every primitive personal attribute is carried into core
+            # (Phase 6I-F de-flood — previously a hardcoded list of
+            # flood-domain state keys).
             personal = ctx_dict.get("personal", {})
-            for key in ["elevated", "insured", "relocated", "savings", "income"]:
-                if key in personal:
-                    core_state[key] = personal[key]
+            core_state = {
+                k: v for k, v in personal.items()
+                if k not in ("id", "memory")
+                and isinstance(v, (str, int, float, bool))
+            }
 
             return MemoryContext(
                 core=core_state,

@@ -23,6 +23,18 @@ from broker.components.events.ma_manager import (
 )
 
 
+def _flood_impact_config() -> ImpactEventConfig:
+    """Flood-domain ImpactEventConfig. The generator itself is
+    domain-agnostic (Phase 6I-E de-flood); a flood caller supplies the
+    ``elevated`` mitigation attribute, the +3 ft BFE reduction, and the
+    ``flood_damage`` event label."""
+    return ImpactEventConfig(
+        mitigation_field="elevated",
+        mitigation_intensity_reduction=3.0,
+        damage_event_type="flood_damage",
+    )
+
+
 class MockHazardModule:
     """Mock hazard module for testing."""
 
@@ -108,7 +120,7 @@ class TestImpactEventGenerator:
     def test_generates_damage_events_from_hazard(self):
         """Damage events generated from hazard events."""
         generator = ImpactEventGenerator(
-            config=ImpactEventConfig(),
+            config=_flood_impact_config(),
         )
 
         # Create hazard event
@@ -144,7 +156,7 @@ class TestImpactEventGenerator:
 
     def test_no_payout_without_insurance(self):
         """No payout event when agent has no insurance."""
-        generator = ImpactEventGenerator()
+        generator = ImpactEventGenerator(config=_flood_impact_config())
 
         hazard_events = [
             EnvironmentEvent(
@@ -177,7 +189,7 @@ class TestImpactEventGenerator:
 
     def test_elevation_reduces_damage(self):
         """Elevated properties have reduced damage."""
-        generator = ImpactEventGenerator()
+        generator = ImpactEventGenerator(config=_flood_impact_config())
 
         hazard_events = [
             EnvironmentEvent(

@@ -317,26 +317,26 @@ class TestDomainGenericity:
         # Historical/audit/report docs that DESCRIBE past domain leakage
         "_AUDIT_",
         "INVARIANTS.md",
-        # agent_initializer.py has historical flood fields in AgentProfile
-        # dataclass; documented as tech debt in INVARIANTS.md.
-        "core/agent_initializer.py",
         # (Phase 6H Item 9 DONE 2026-05-21: reflection.py fully de-flooded
         #  -- status-text / importance / batch-traits fallbacks removed,
         #  AgentReflectionContext flood fields removed, extract_agent_context
         #  domain-neutral. reflection.py is now token-free; entry removed.)
-        # TECH-DEBT (2026-04-19 audit): files below contain flood-specific
-        # token references discovered during framework audit. Each is
-        # catalogued for future domain-adapter migration. Removing from
-        # this allow-list MUST be paired with the corresponding domain
-        # adapter implementation, or the test will regress.
-        "components/analytics/interaction.py",       # elevated/flood observations
-        "components/analytics/observable.py",        # elevated neighbors
         # (Phase 6H Item 7 DONE 2026-05-22: the flood-coupled
         #  FinancialCostProvider deleted from providers.py; the
         #  canonical copy lives at broker/domains/water/providers.py.
         #  providers.py is now token-free -- entry removed.)
-        "components/events/generators/impact.py",    # elevated neighbors event
-        "core/unified_context_builder.py",           # elevated status render
+        # (Phase 6I DONE 2026-05-22: the last 4 real-code TECH-DEBT
+        #  entries from the 2026-04-19 audit + agent_initializer.py are
+        #  de-flooded -- agent_initializer position field-write uses a
+        #  generic enricher.profile_field_map (6I-B); InteractionHub
+        #  visible-action / action-label vocabulary is caller-supplied
+        #  via broker.domains.water.interaction_specs (6I-C);
+        #  create_flood_observables relocated to
+        #  broker/domains/water/observables.py (6I-D); ImpactEventGenerator
+        #  generalised -- mitigation field / event labels are config (6I-E);
+        #  unified_context_builder core_state keys are domain-neutral
+        #  (6I-F). All five entries removed; the I5 allowlist now holds
+        #  only docstring/comment false positives.)
         # =====================================================================
         # HARNESS-ENGINEERING AUDIT (2026-05-20): the I5 scan was extended
         # from components/+core/ to ALL generic broker/ subtrees, and the

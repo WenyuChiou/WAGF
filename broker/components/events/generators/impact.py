@@ -20,13 +20,32 @@ if TYPE_CHECKING:
 
 @dataclass
 class ImpactEventConfig:
-    """Configuration for impact event generation."""
+    """Configuration for impact event generation.
+
+    The generator is domain-agnostic: it turns a hazard intensity
+    (``depth_ft`` in the hazard event payload) into damage / payout
+    events. Domain specifics — the agent mitigation attribute, the
+    event-type labels — are supplied here by the caller (Phase 6I-E
+    de-flood). A flood model, for example, names its structure-elevation
+    attribute as ``mitigation_field``, sets the freeboard reduction as
+    ``mitigation_intensity_reduction``, and labels damage events with its
+    own ``damage_event_type``.
+    """
     domain: str = "impact"
     update_frequency: str = "on_demand"  # Triggered after hazard events
-    # NFIP-like defaults
+    # Generic insurance / payout defaults (override per domain).
     coverage_limit: float = 250_000
     deductible: float = 2_000
     payout_ratio: float = 1.0
+    # Hazard-mitigation model: when set, this agent attribute (truthy =>
+    # mitigated) reduces the effective hazard intensity by
+    # ``mitigation_intensity_reduction``. Left None, the simplified curve
+    # applies the raw intensity with no mitigation.
+    mitigation_field: Optional[str] = None
+    mitigation_intensity_reduction: float = 0.0
+    # Event-type labels emitted by the generator (domain-configurable).
+    damage_event_type: str = "hazard_damage"
+    payout_event_type: str = "insurance_payout"
     # Damage thresholds for severity
     damage_thresholds: Dict[str, float] = None
 
@@ -188,14 +207,16 @@ class ImpactEventGenerator:
         - damage_ratio: Damage as fraction of property value
         """
         # Get agent properties
-        if isinstance(agent, dict):
-            property_value = agent.get("property_value", 300_000)
-            elevated = agent.get("elevated", False)
-            has_insurance = agent.get("has_insurance", False)
-        else:
-            property_value = getattr(agent, "property_value", 300_000)
-            elevated = getattr(agent, "elevated", False)
-            has_insurance = getattr(agent, "has_insurance", False)
+        mitigation_field = self._config.mitigation_field
+
+        def _read(attr, default):
+            if isinstance(agent, dict):
+                return agent.get(attr, default)
+            return getattr(agent, attr, default)
+
+        property_value = _read("property_value", 300_000)
+        has_insurance = _read("has_insurance", False)
+        mitigated = bool(_read(mitigation_field, False)) if mitigation_field else False
 
         # Use CatastropheModule if available
         if self._catastrophe:
@@ -210,7 +231,7 @@ class ImpactEventGenerator:
         return self._simplified_impact(
             depth_ft=depth_ft,
             property_value=property_value,
-            elevated=elevated,
+            mitigated=mitigated,
             has_insurance=has_insurance,
         )
 
@@ -218,13 +239,16 @@ class ImpactEventGenerator:
         self,
         depth_ft: float,
         property_value: float,
-        elevated: bool,
+        mitigated: bool,
         has_insurance: bool,
     ) -> Dict[str, float]:
         """Simplified impact calculation when no module available."""
-        # Simple depth-damage curve (linear approximation)
-        if elevated:
-            effective_depth = max(0, depth_ft - 3.0)  # BFE+1ft reduction
+        # Simple depth-damage curve (linear approximation). A mitigated
+        # agent (e.g. a structure raised above the hazard datum) sees a
+        # reduced effective intensity per
+        # ImpactEventConfig.mitigation_intensity_reduction.
+        if mitigated:
+            effective_depth = max(0, depth_ft - self._config.mitigation_intensity_reduction)
         else:
             effective_depth = depth_ft
 
@@ -267,10 +291,10 @@ class ImpactEventGenerator:
         severity = self._damage_to_severity(damage)
 
         return EnvironmentEvent(
-            event_type="flood_damage",
+            event_type=self._config.damage_event_type,
             severity=severity,
             scope=EventScope.AGENT,
-            description=f"Flood damage of ${damage:,.0f}",
+            description=f"Damage of ${damage:,.0f}",
             data={
                 "damage_amount": damage,
                 "damage_ratio": impact["damage_ratio"],
@@ -294,7 +318,7 @@ class ImpactEventGenerator:
         payout = impact["payout_amount"]
 
         return EnvironmentEvent(
-            event_type="insurance_payout",
+            event_type=self._config.payout_event_type,
             severity=EventSeverity.INFO,
             scope=EventScope.AGENT,
             description=f"Insurance payout of ${payout:,.0f}",

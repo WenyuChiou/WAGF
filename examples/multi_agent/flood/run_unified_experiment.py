@@ -1102,7 +1102,16 @@ def run_unified_experiment():
             channels.append("social_media")
         print(f"[INFO] Media channels enabled: {', '.join(channels)}")
 
-    hub = InteractionHub(graph=graph, memory_engine=memory_engine, environment=tiered_env)
+    from broker.domains.water.interaction_specs import (
+        FLOOD_ACTION_LABELS, FLOOD_VISIBLE_ACTION_SPECS,
+    )
+    hub = InteractionHub(
+        graph=graph,
+        memory_engine=memory_engine,
+        environment=tiered_env,
+        action_labels=FLOOD_ACTION_LABELS,
+        visible_action_specs=FLOOD_VISIBLE_ACTION_SPECS,
+    )
 
     # 3d. Communication Layer (Task-060D)
     message_pool = None

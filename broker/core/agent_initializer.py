@@ -100,8 +100,8 @@ class AgentProfile:
     """
     Unified agent profile for SA/MA experiments.
 
-    Phase 6C-v3 (2026-05-10): flood-specific fields (``flood_zone``,
-    ``elevated``, ``has_insurance``, etc.) moved to
+    Phase 6C-v3 (2026-05-10): domain-specific hazard / insurance fields
+    moved to the typed water-domain subclass
     :class:`broker.domains.water.agent_profile.FloodAgentProfile`.
     Base ``AgentProfile`` carries only domain-neutral demographic,
     psychometric, and spatial fields plus an ``extensions`` dict for
@@ -469,9 +469,9 @@ class SyntheticLoader:
     ) -> AgentProfile:
         """Generate a single synthetic profile.
 
-        Phase 6C-v3 (2026-05-10): flood-specific synthesis (flood_zone
-        probability mix, NJ-Passaic coordinate range) moved to
-        :class:`broker.domains.water.synthetic_loader.FloodSyntheticLoader`.
+        Phase 6C-v3 (2026-05-10): domain-specific synthesis (hazard-zone
+        probability mix, regional coordinate range) moved to the
+        water-domain ``FloodSyntheticLoader``.
         Base implementation produces a domain-neutral profile; subclass
         and override ``_populate_domain_fields`` for domain-specific
         synthetic state.
@@ -712,16 +712,21 @@ def initialize_agents(
     for key, enricher in enrichers.items():
         if key == "position" and hasattr(enricher, "assign_position"):
             logger.info(f"Applying position enricher: {type(enricher).__name__}")
+            # The position object always lands in profile.extensions["position"];
+            # any domain can read it from there. An enricher may additionally
+            # declare `profile_field_map` ({position_attr: profile_attr}) to
+            # copy position attributes onto typed fields of a profile
+            # subclass — e.g. a water enricher maps the position's zone and
+            # depth attributes onto the typed water-profile fields. Generic
+            # broker code stays domain-token-free (Phase 6I-B de-flood;
+            # previously a hardcoded water-field write block).
+            field_map = getattr(enricher, "profile_field_map", {}) or {}
             for profile in profiles:
                 position = enricher.assign_position(profile)
                 profile.extensions["position"] = position
-                # Phase 6C-v3 (2026-05-10): only write flood-domain
-                # fields onto the profile if it actually has them. New
-                # domains can read position from `profile.extensions`.
-                if hasattr(profile, "flood_zone") and hasattr(position, "zone_name"):
-                    profile.flood_zone = position.zone_name
-                if hasattr(profile, "flood_depth") and hasattr(position, "base_depth_m"):
-                    profile.flood_depth = position.base_depth_m
+                for src_attr, dst_attr in field_map.items():
+                    if hasattr(profile, dst_attr) and hasattr(position, src_attr):
+                        setattr(profile, dst_attr, getattr(position, src_attr))
         elif key == "value" and hasattr(enricher, "generate"):
             logger.info(f"Applying value enricher: {type(enricher).__name__}")
             for profile in profiles:

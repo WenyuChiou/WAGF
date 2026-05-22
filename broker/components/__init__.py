@@ -35,7 +35,6 @@ from .context.providers import (
 # Observable state exports (Task-041)
 from .analytics.observable import (
     ObservableStateManager,
-    create_flood_observables,
     create_rate_metric,
 )
 
@@ -66,7 +65,6 @@ __all__ = [
     "EnvironmentEventProvider",
     # Observable state (Task-041)
     "ObservableStateManager",
-    "create_flood_observables",
     "create_rate_metric",
     # Event manager (Task-042)
     "EnvironmentEventManager",
