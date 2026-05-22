@@ -1,8 +1,9 @@
 """
 Flood-Risk Domain Adapter.
 
-Extracted from the original hardcoded logic in reflection_engine.py:337-364
-and IMPORTANCE_PROFILES at reflection_engine.py:67-74.
+Extracted from the original hardcoded reflection logic. The broker-side
+importance fallback (IMPORTANCE_PROFILES) was removed in Phase 6H Item 9;
+importance scoring now lives in FloodDomainPack.compute_importance.
 
 Context fields expected (from AgentReflectionContext or dict):
     flood_count  : int   — number of floods experienced

@@ -1,10 +1,15 @@
-"""Tests for dynamic reflection importance scoring (Task-057C)."""
+"""Tests for ReflectionEngine.compute_dynamic_importance.
+
+Phase 6H Item 9: the legacy flood-keyword importance fallback
+(``IMPORTANCE_PROFILES``) was removed. Importance now resolves via an
+attached DomainReflectionAdapter → the first registered DomainPack that
+exposes ``compute_importance`` → the generic ``base_importance``.
+"""
 import pytest
 
 from broker.components.cognitive.reflection import (
     ReflectionEngine,
     AgentReflectionContext,
-    IMPORTANCE_PROFILES,
 )
 
 
@@ -13,38 +18,66 @@ def engine():
     return ReflectionEngine()
 
 
+@pytest.fixture
+def no_packs():
+    """Run with an empty DomainPackRegistry, restored afterwards.
+
+    Snapshots and restores the pack OBJECTS directly (not via re-import),
+    so the teardown is correct regardless of import ordering — unlike a
+    fixture that relies on `import` to re-register, which cannot re-fire
+    once the module is in sys.modules."""
+    from broker.domains.registry import DomainPackRegistry
+    saved_packs = dict(DomainPackRegistry._packs)
+    saved_warned = set(DomainPackRegistry._missing_warned)
+    DomainPackRegistry._packs.clear()
+    DomainPackRegistry._missing_warned.clear()
+    yield
+    DomainPackRegistry._packs.clear()
+    DomainPackRegistry._packs.update(saved_packs)
+    DomainPackRegistry._missing_warned.clear()
+    DomainPackRegistry._missing_warned.update(saved_warned)
+
+
 class TestDynamicImportance:
-    def test_first_flood_highest(self, engine):
-        ctx = AgentReflectionContext(agent_id="H1", flood_count=1)
-        imp = engine.compute_dynamic_importance(ctx)
-        assert imp == 0.95
+    def test_no_domain_returns_base(self, engine, no_packs):
+        """No adapter and no pack → the generic base score, rounded."""
+        ctx = AgentReflectionContext(agent_id="H1")
+        assert engine.compute_dynamic_importance(ctx, base_importance=0.9) == 0.9
+        assert engine.compute_dynamic_importance(ctx, base_importance=0.42) == 0.42
 
-    def test_repeated_floods_diminish(self, engine):
-        ctx = AgentReflectionContext(agent_id="H1", flood_count=5)
-        imp = engine.compute_dynamic_importance(ctx)
-        assert imp == 0.75
+    def test_no_domain_score_clamped(self, engine, no_packs):
+        """The base score is clamped to [0.0, 1.0]."""
+        ctx = AgentReflectionContext(agent_id="H1")
+        assert engine.compute_dynamic_importance(ctx, base_importance=5.0) == 1.0
+        assert engine.compute_dynamic_importance(ctx, base_importance=-1.0) == 0.0
 
-    def test_stable_year_lowest(self, engine):
-        ctx = AgentReflectionContext(agent_id="H1", flood_count=0, recent_decision="do_nothing")
-        imp = engine.compute_dynamic_importance(ctx)
-        assert imp == 0.6
+    def test_no_flood_keyword_scoring(self, engine, no_packs):
+        """A flood-flagged context no longer changes the score — the
+        hardcoded flood-keyword block was removed (Phase 6H Item 9)."""
+        flagged = AgentReflectionContext(
+            agent_id="H1", flood_count=5, mg_status=True,
+            recent_decision="elevate_house",
+        )
+        plain = AgentReflectionContext(agent_id="H2")
+        assert (
+            engine.compute_dynamic_importance(flagged, base_importance=0.5)
+            == engine.compute_dynamic_importance(plain, base_importance=0.5)
+            == 0.5
+        )
 
-    def test_mg_agent_boost(self, engine):
-        ctx = AgentReflectionContext(agent_id="H1", mg_status=True)
-        imp = engine.compute_dynamic_importance(ctx)
-        assert imp >= 0.9
+    def test_registered_pack_delegates(self, engine, no_packs):
+        """With a DomainPack registered, compute_dynamic_importance
+        delegates to pack.compute_importance. (Generic single-pack
+        registration — the FloodDomainPack delegation path is covered
+        by test_domain_reflection_adapter.py.)"""
+        from broker.domains.registry import DomainPackRegistry
 
-    def test_post_action_boost(self, engine):
-        ctx = AgentReflectionContext(agent_id="H1", recent_decision="elevate_house")
-        imp = engine.compute_dynamic_importance(ctx)
-        assert imp >= 0.8
+        class _Pack:
+            name = "t9"
 
-    def test_importance_bounded(self, engine):
-        ctx = AgentReflectionContext(agent_id="H1", flood_count=1, mg_status=True)
-        imp = engine.compute_dynamic_importance(ctx)
-        assert 0.0 <= imp <= 1.0
+            def compute_importance(self, context, base=0.9):
+                return 0.42
 
-    def test_profiles_dict_exists(self):
-        assert "first_flood" in IMPORTANCE_PROFILES
-        assert "stable_year" in IMPORTANCE_PROFILES
-        assert all(0.0 <= v <= 1.0 for v in IMPORTANCE_PROFILES.values())
+        DomainPackRegistry.register("t9", _Pack())
+        ctx = AgentReflectionContext(agent_id="H1")
+        assert engine.compute_dynamic_importance(ctx) == 0.42

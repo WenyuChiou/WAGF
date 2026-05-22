@@ -43,10 +43,23 @@ def _context(
     )
 
 
-def _legacy_importance(ctx: AgentReflectionContext, base: float) -> float:
-    engine = ReflectionEngine()
-    engine._legacy_importance_warned = True
-    return engine.compute_dynamic_importance(ctx, base_importance=base)
+def _expected_flood_matrix(ctx: AgentReflectionContext, base: float) -> float:
+    """The flood importance matrix — was the broker `compute_dynamic_importance`
+    legacy fallback, removed in Phase 6H Item 9. Inlined here so the
+    FloodDomainPack byte-identical guard survives the fallback's removal."""
+    imp = base
+    if ctx.flood_count == 1:
+        imp = 0.95
+    elif ctx.flood_count > 2:
+        imp = 0.75
+    if ctx.mg_status:
+        imp = max(imp, 0.90)
+    if ctx.recent_decision in ("elevate_house", "relocate", "buy_insurance"):
+        imp = max(imp, 0.80)
+    if (not ctx.mg_status and ctx.flood_count == 0
+            and ctx.recent_decision in ("do_nothing", "")):
+        imp = min(imp, 0.60)
+    return round(min(1.0, max(0.0, imp)), 2)
 
 
 def test_flood_domain_pack_importance_matches_legacy_matrix():
@@ -61,7 +74,7 @@ def test_flood_domain_pack_importance_matches_legacy_matrix():
         ):
             ctx = _context(flood_count, mg_status, recent_decision)
 
-            assert pack.compute_importance(ctx, base) == _legacy_importance(ctx, base)
+            assert pack.compute_importance(ctx, base) == _expected_flood_matrix(ctx, base)
 
 
 def test_registered_flood_pack_delegates_without_legacy_warning(caplog):
@@ -83,7 +96,10 @@ def test_registered_flood_pack_delegates_without_legacy_warning(caplog):
     assert not getattr(engine, "_legacy_importance_warned", False)
 
 
-def test_no_registered_pack_uses_legacy_fallback_and_warns_once(caplog):
+def test_no_registered_pack_returns_base_score(caplog):
+    """Phase 6H Item 9: with no registered DomainPack and no adapter,
+    compute_dynamic_importance returns the generic base score — the
+    legacy flood-keyword fallback and its one-time warning were removed."""
     ctx = _context(1, False, "")
 
     with isolated_domain_packs():
@@ -92,13 +108,10 @@ def test_no_registered_pack_uses_legacy_fallback_and_warns_once(caplog):
             logging.WARNING,
             logger="broker.components.cognitive.reflection",
         )
+        result = engine.compute_dynamic_importance(ctx, base_importance=0.7)
 
-        first = engine.compute_dynamic_importance(ctx)
-        second = engine.compute_dynamic_importance(ctx)
-
-    assert first == 0.95
-    assert second == 0.95
-    assert caplog.text.count(LEGACY_WARNING) == 1
+    assert result == 0.7
+    assert LEGACY_WARNING not in caplog.text
 
 
 def test_registered_generic_pack_compute_importance_is_used():

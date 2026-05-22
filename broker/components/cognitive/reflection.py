@@ -81,19 +81,6 @@ _DEFAULT_REFLECTION_QUESTIONS: List[str] = [
     "you do differently?",
 ]
 
-# Legacy flood-domain importance profiles — used by compute_dynamic_importance
-# fallback when no DomainReflectionAdapter is set.  New domains should use
-# FloodAdapter or IrrigationAdapter instead.
-IMPORTANCE_PROFILES: Dict[str, float] = {
-    "first_flood": 0.95,      # First flood experience -> very memorable
-    "repeated_flood": 0.75,   # Repeated floods -> diminishing impact
-    "post_action": 0.80,      # Just took a major action (elevate/relocate)
-    "stable_year": 0.60,      # Nothing major happened
-    "denied_action": 0.85,    # Governance denial -> memorable frustration
-    "mg_agent": 0.90,         # MG agents retain reflections more (limited info)
-}
-
-
 class ReflectionTrigger(Enum):
     """Types of events that can trigger reflection."""
     CRISIS = "crisis"
@@ -395,13 +382,15 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
     ) -> float:
         """Compute variable importance based on agent state.
 
-        If a DomainReflectionAdapter is attached, delegates to it.
-        Otherwise falls back to the legacy flood-specific logic for
-        backward compatibility.
+        Resolution order (Phase 6H Item 9): an attached
+        DomainReflectionAdapter → the first registered DomainPack that
+        exposes ``compute_importance`` → the generic ``base_importance``.
+        The legacy flood-keyword fallback was removed; a domain supplies
+        importance scoring via its DomainPack or adapter.
 
         Args:
             context: AgentReflectionContext dataclass **or** plain dict.
-            base_importance: Default importance when no rule matches.
+            base_importance: Default importance when no domain supplies one.
 
         Returns:
             Importance score in [0.0, 1.0].
@@ -435,45 +424,12 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
         except ImportError:
             pass
 
-        # --- Legacy fallback (flood-specific, backward compatible) ---
-        # TODO(v22): extract this block into a FloodReflectionAdapter under
-        # broker/domains/water/ so the broker layer carries no flood-domain
-        # keywords. The DomainReflectionAdapter interface (see top of file)
-        # already exists; flood/irrigation experiments just need to wire it.
-        if not getattr(self, "_legacy_importance_warned", False):
-            logger.warning(
-                "compute_dynamic_importance: no DomainReflectionAdapter set; "
-                "falling back to flood-domain hardcoded importance scoring "
-                "(keywords: flood_count, elevate_house, relocate, buy_insurance, "
-                "do_nothing). New domains must supply a DomainReflectionAdapter "
-                "(see broker.components.cognitive.reflection.DomainReflectionAdapter). "
-                "This legacy fallback will move to broker/domains/water/ in v22."
-            )
-            self._legacy_importance_warned = True
-
-        importance = base_importance
-
-        flood_count = getattr(context, "flood_count", 0) if not isinstance(context, dict) else context.get("flood_count", 0)
-        mg_status = getattr(context, "mg_status", False) if not isinstance(context, dict) else context.get("mg_status", False)
-        recent_decision = getattr(context, "recent_decision", "") if not isinstance(context, dict) else context.get("recent_decision", "")
-
-        if flood_count == 1:
-            importance = IMPORTANCE_PROFILES["first_flood"]
-        elif flood_count > 2:
-            importance = IMPORTANCE_PROFILES["repeated_flood"]
-
-        if mg_status:
-            importance = max(importance, IMPORTANCE_PROFILES["mg_agent"])
-
-        if recent_decision in ("elevate_house", "relocate", "buy_insurance"):
-            importance = max(importance, IMPORTANCE_PROFILES["post_action"])
-
-        if (not mg_status
-                and flood_count == 0
-                and recent_decision in ("do_nothing", "")):
-            importance = min(importance, IMPORTANCE_PROFILES["stable_year"])
-
-        return round(min(1.0, max(0.0, importance)), 2)
+        # No adapter and no DomainPack supplied an importance score →
+        # the generic base score. The legacy flood-keyword fallback
+        # (IMPORTANCE_PROFILES) was removed in Phase 6H Item 9; a domain
+        # supplies scoring via its DomainPack.compute_importance or a
+        # DomainReflectionAdapter.
+        return round(min(1.0, max(0.0, base_importance)), 2)
 
     def parse_reflection_response(
         self,
