@@ -172,8 +172,22 @@ Use numeric scores (0.0-1.0) for budget allocation.""",
 C = Conservative | M = Moderate | A = Aggressive"""
         )
 
-        # Generic fallback (same as PMT for backward compatibility)
-        cls._scales[FrameworkType.GENERIC.value] = cls._scales[FrameworkType.PMT.value]
+        # Generic: domain-neutral 5-level Likert scale. A standalone scale
+        # object — NOT an alias to the PMT scale (Phase 6J-A de-flood:
+        # "generic" must not silently carry the flood PMT framework).
+        cls._scales[FrameworkType.GENERIC.value] = RatingScale(
+            framework=FrameworkType.GENERIC,
+            levels=["VL", "L", "M", "H", "VH"],
+            labels={
+                "VL": "Very Low",
+                "L": "Low",
+                "M": "Medium",
+                "H": "High",
+                "VH": "Very High"
+            },
+            template="""### RATING SCALE:
+VL = Very Low | L = Low | M = Medium | H = High | VH = Very High"""
+        )
 
         cls._initialized = True
 
@@ -191,7 +205,10 @@ C = Conservative | M = Moderate | A = Aggressive"""
     @classmethod
     def get(cls, framework: Union[FrameworkType, str]) -> RatingScale:
         """
-        Get rating scale for framework, defaulting to PMT.
+        Get rating scale for framework.
+
+        An unregistered framework falls back to the domain-neutral GENERIC
+        scale (Phase 6J-A — previously fell back to the flood PMT scale).
 
         Args:
             framework: The framework type
@@ -201,7 +218,7 @@ C = Conservative | M = Moderate | A = Aggressive"""
         """
         cls._ensure_defaults()
         key = _normalize_framework_key(framework)
-        return cls._scales.get(key, cls._scales[FrameworkType.PMT.value])
+        return cls._scales.get(key, cls._scales[FrameworkType.GENERIC.value])
 
     @classmethod
     def get_by_name(cls, framework_name: str) -> RatingScale:
@@ -212,7 +229,8 @@ C = Conservative | M = Moderate | A = Aggressive"""
             framework_name: Framework name (e.g., "pmt", "utility")
 
         Returns:
-            RatingScale for the framework, defaulting to PMT
+            RatingScale for the framework; an unknown name falls back to
+            the domain-neutral GENERIC scale (Phase 6J-A).
         """
         cls._ensure_defaults()
         try:

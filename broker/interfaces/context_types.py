@@ -217,8 +217,11 @@ class UniversalContext:
     agent_name: str = ""
     agent_roles: List[str] = field(default_factory=list)  # Multi-identity support
 
-    # Framework metadata (from AgentTypeRegistry)
-    framework: PsychologicalFrameworkType = PsychologicalFrameworkType.PMT
+    # Framework metadata (from AgentTypeRegistry). Defaults to the
+    # domain-neutral GENERIC framework — a context with no declared
+    # framework must not silently inherit the flood PMT framework
+    # (Phase 6J-A de-flood).
+    framework: PsychologicalFrameworkType = PsychologicalFrameworkType.GENERIC
     constructs: Dict[str, Any] = field(default_factory=dict)
 
     # State layers (tiered)
@@ -386,8 +389,10 @@ class UniversalContext:
         Returns:
             UniversalContext instance
         """
-        # Parse framework
-        framework_str = data.get("framework", "pmt")
+        # Parse framework. A dict with no "framework" key deserialises to
+        # the domain-neutral GENERIC framework — consistent with the
+        # UniversalContext.framework field default (Phase 6J-A de-flood).
+        framework_str = data.get("framework", "generic")
         try:
             framework = PsychologicalFrameworkType(framework_str.lower())
         except ValueError:

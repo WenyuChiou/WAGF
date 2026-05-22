@@ -27,6 +27,9 @@ class ResponseFormatBuilder:
         self,
         config: Dict[str, Any],
         shared_config: Dict[str, Any] = None,
+        # TODO(Phase 6J-A part 2): flip default to "generic" once flood
+        # YAMLs declare their framework explicitly (paired with
+        # AgentTypeConfig.get_framework_for_agent_type).
         framework: str = "pmt",
         scale_registry: Optional["RatingScaleRegistry"] = None,
     ):
@@ -80,7 +83,9 @@ class ResponseFormatBuilder:
         except (ValueError, KeyError):
             pass
 
-        # 3. Default PMT fallback
+        # 3. Domain-neutral fallback — the generic 5-level Likert scale
+        #    (Phase 6J-A: this is the GENERIC framework's scale, not a
+        #    flood-PMT default).
         return "VL/L/M/H/VH"
 
     def build(self, valid_choices_text: str = "1, 2, or 3") -> str:

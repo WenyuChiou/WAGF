@@ -152,9 +152,13 @@ class TestRatingScaleRegistry:
         assert scale.framework == FrameworkType.FINANCIAL
         assert scale.levels == ["C", "M", "A"]
 
-    def test_get_generic_defaults_to_pmt(self):
+    def test_get_generic_is_standalone_scale(self):
+        # Phase 6J-A: GENERIC is a standalone domain-neutral 5-level Likert
+        # scale — NOT an alias of the flood PMT scale object.
         scale = RatingScaleRegistry.get(FrameworkType.GENERIC)
+        assert scale.framework == FrameworkType.GENERIC
         assert scale.levels == ["VL", "L", "M", "H", "VH"]
+        assert scale is not RatingScaleRegistry.get(FrameworkType.PMT)
 
     def test_get_by_name_pmt(self):
         scale = RatingScaleRegistry.get_by_name("pmt")
@@ -167,9 +171,14 @@ class TestRatingScaleRegistry:
         scale = RatingScaleRegistry.get_by_name("Utility")
         assert scale.framework == FrameworkType.UTILITY
 
-    def test_get_by_name_invalid_defaults_pmt(self):
+    def test_get_by_name_invalid_defaults_generic(self):
+        # Phase 6J-A: an unknown framework falls back to the domain-neutral
+        # GENERIC scale, not the flood PMT scale.
         scale = RatingScaleRegistry.get_by_name("unknown")
-        assert scale.framework == FrameworkType.PMT
+        assert scale.framework == FrameworkType.GENERIC
+        # GENERIC is a standalone scale object, not an alias of PMT.
+        assert scale is not RatingScaleRegistry.get(FrameworkType.PMT)
+        assert scale.levels == ["VL", "L", "M", "H", "VH"]
 
     def test_pmt_template_content(self):
         scale = RatingScaleRegistry.get(FrameworkType.PMT)
