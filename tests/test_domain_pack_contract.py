@@ -401,7 +401,7 @@ class TestHotPathsUseDomainPack:
         "broker/core/experiment_runner.py",                 # W2
         "broker/components/events/ma_manager.py",           # W5
         "broker/domains/water/validator_bundles.py",        # C5
-        "broker/components/context/providers.py",           # C2
+        "broker/domains/water/providers.py",                # C2 (6H Item 7: FinancialCostProvider relocated to water)
     ])
     def test_module_imports_domain_pack_registry(self, module_path):
         with open(module_path, "r", encoding="utf-8") as f:

@@ -20,7 +20,6 @@ from .providers import (
     InstitutionalProvider,
     DynamicStateProvider,
     NarrativeProvider,
-    FinancialCostProvider,
 )
 from broker.components.memory.engine import MemoryEngine
 from broker.components.analytics.interaction import InteractionHub
@@ -295,7 +294,6 @@ class TieredContextBuilder(BaseAgentContextBuilder):
             AttributeProvider(),
             MemoryProvider(memory_engine),
             NarrativeProvider(),
-            FinancialCostProvider(),
         ]
 
         # Only add social/institutional providers when hub is available
