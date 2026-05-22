@@ -104,13 +104,36 @@ flood-coupling-free.
   `extend_providers`. `providers.py` removed from the I5 allowlist.
 - **Phase 6H (Items 1-9) complete** — `broker/` is de-flood-coupled
   across every Phase 6H surface; the I5 KNOWN-DEBT(6H) block is empty.
-- **Phase 6I-A** (in progress): closing the pre-6H I5 allowlist debt.
-  6I-A reworded 6 doc-only flood examples (docstrings / comments) to
-  domain-neutral wording — `memory/content_types.py`,
-  `memory/engines/humancentric.py`, `core/_skill_filtering.py`,
-  `components/context/tiered.py`, `prompt_templates/memory_templates.py`,
-  `cognitive/adapters.py` — and removed their 6 allowlist entries.
-  6I-B..F (5 real-code de-flood items) remain.
+- **Phase 6I — I5 allowlist debt closed**. 6I-A reworded 6 doc-only
+  flood examples (docstrings / comments) to domain-neutral wording.
+  6I-B..F de-flooded the last 5 real-code allowlist entries:
+  - **6I-B** `core/agent_initializer.py` — the position enricher's
+    hardcoded `flood_zone`/`flood_depth` profile-write is replaced by a
+    generic `enricher.profile_field_map` ({position_attr: profile_attr})
+    loop; a domain enricher declares the mapping.
+  - **6I-C** `components/analytics/interaction.py` — `InteractionHub`
+    no longer hardcodes flood skill labels or `elevated`/`relocated`/
+    insurance neighbour checks. `action_labels` and
+    `visible_action_specs` are caller-supplied; the flood values move to
+    `broker/domains/water/interaction_specs.py` and the flood example
+    runners pass them.
+  - **6I-D** `components/analytics/observable.py` — `create_flood_observables()`
+    relocated to `broker/domains/water/observables.py`; re-exports
+    dropped from `observable.py`, `analytics/__init__.py`,
+    `components/__init__.py`.
+  - **6I-E** `components/events/generators/impact.py` —
+    `ImpactEventGenerator` generalised: the mitigation attribute name,
+    the freeboard reduction, and the damage/payout event-type labels
+    are `ImpactEventConfig` fields (defaults domain-neutral). A flood
+    caller supplies the flood values.
+  - **6I-F** `core/unified_context_builder.py` — `MemoryContext.core`
+    extraction no longer hardcodes a flood key list; it carries every
+    primitive personal attribute.
+  All 5 entries removed from the I5 `_ALLOWLIST_PATTERNS`; the allowlist
+  now holds only docstring/comment false positives. Full `broker/ tests/`
+  gate: net-zero regression (3 pre-existing failures, all in
+  `test_nature_water_figure_helpers.py`, unrelated; verified by
+  isolating the figure-script working-tree edits).
 
 ### Notes
 
