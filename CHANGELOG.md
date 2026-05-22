@@ -152,6 +152,29 @@ flood-coupling-free.
     declare `psychological_framework: pmt` explicitly.
   - New `TestNoSilentDomainDefault` — a behavioural I5 guard (a silent
     fallback cannot be grepped). Net-zero gate regression.
+- **Phase 6J-B — `ma_manager.py` event dispatch de-flooded**:
+  - `_sync_event_to_env` — removed the dead `try/except ImportError`
+    block whose `except` branch held a hardcoded flood event-type
+    if/elif chain. The guarded import (`broker.domains.registry`) is an
+    internal broker import that cannot raise ImportError, so the
+    fallback was unreachable. The import moved to module top.
+  - `get_agent_impact` — replaced a hardcoded flood event-type chain
+    (`flood`/`flood_damage`/`insurance_payout`) with dispatch through a
+    new `DomainPack.agent_impact_handlers()` hook. Handlers aggregate
+    (max for depth, sum for dollar amounts) into a per-agent impact
+    dict; generic code starts empty, `FloodDomainPack` supplies the
+    three handlers. Aggregation is byte-identical to the old chain;
+    the method now returns `{}` (not a 5-key pre-seeded dict) when no
+    domain/event matches — `MAEventManager` has no production-lifecycle
+    caller, so no caller is affected.
+  - New Protocol method `DomainPack.agent_impact_handlers()` +
+    `DefaultDomainPack` no-op (`{}`). The `EventHandler` type alias
+    docstring now distinguishes its global-env vs per-agent-impact
+    dispatch surfaces.
+  - I5 `_DOMAIN_TOKENS` gains `flooded` + `flood_damage` (now clean
+    across generic `broker/`). `flood_occurred` / `flood_event` /
+    `flood_depth_m` still leak outside `ma_manager.py` → deferred to
+    Phase 6J-E. Net-zero gate regression.
 
 ### Notes
 
