@@ -413,3 +413,23 @@ class DomainPack(Protocol):
         ``governance.population`` (Phase 6L-B).
         """
         ...
+
+    # ─── Policy event severity tiers (Phase 6L-C 2026-05-23) ──────
+
+    def policy_event_tiers(self) -> Dict[str, float]:
+        """Severity-tier cutoffs consumed by
+        :class:`broker.components.events.generators.policy.PolicyEventGenerator`
+        when classifying a policy-change magnitude into
+        ``EventSeverity.{SEVERE, MODERATE, MINOR, INFO}``.
+
+        Recognised keys (all floats, lowercase severity names):
+        ``severe`` / ``moderate`` / ``minor``. A ``|change_pct|`` at or
+        above each threshold maps to that severity; below all three →
+        INFO. Defaults preserve the pre-6L-C hardcoded
+        0.20 / 0.10 / 0.05 cutoffs.
+
+        Default ``{}`` → ``PolicyEventConfig`` constructor defaults
+        apply. Also overridable via ``agent_types.yaml``
+        ``governance.policy_event_tiers`` (Phase 6L-C).
+        """
+        ...
