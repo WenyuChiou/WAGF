@@ -443,6 +443,105 @@ class AgentTypeConfig:
             ) from e
         return merged
 
+    def get_policy_event_tiers_config(self) -> dict:
+        """Get PolicyEventGenerator severity-tier cutoffs (Global YAML >
+        Shared YAML > DomainPack > Default). Phase 6L-C (2026-05-23).
+
+        Returns dict with keys (all floats): ``severe`` / ``moderate``
+        / ``minor`` — the ``|change_pct|`` lower bounds for each
+        :class:`broker.interfaces.event_generator.EventSeverity`
+        member. Coercion happens here so a malformed YAML value fails
+        with a clear message rather than a runtime comparison error
+        inside ``_determine_severity``.
+
+        Resolution order, lowest precedence first:
+          1. Framework defaults — byte-identical to the pre-6L-C
+             hardcoded thresholds (severe=0.20, moderate=0.10,
+             minor=0.05).
+          2. DomainPack ``policy_event_tiers()`` — a pack ships its
+             own tiers.
+          3. Legacy ``shared.governance.policy_event_tiers``.
+          4. ``global_config.governance.policy_event_tiers``.
+
+        Mirrors :meth:`get_retrieval_config` / :meth:`get_drift_config`
+        / :meth:`get_population_governance_config` (Phase 6H Item 3
+        template).
+        """
+        defaults = {"severe": 0.20, "moderate": 0.10, "minor": 0.05}
+
+        # DomainPack-supplied tiers.
+        pack_tiers: dict = {}
+        domain = (
+            self._config.get("global_config", {})
+            .get("governance", {})
+            .get("domain")
+        )
+        if domain:
+            # Lazy import — keeps agent_config import-cycle-free.
+            from broker.domains.registry import DomainPackRegistry
+            pack_tiers = (
+                DomainPackRegistry.get_or_default(domain).policy_event_tiers()
+                or {}
+            )
+
+        global_tiers = (
+            self._config.get("global_config", {})
+            .get("governance", {})
+            .get("policy_event_tiers", {})
+        ) or {}
+        shared_tiers = (
+            self._config.get("shared", {})
+            .get("governance", {})
+            .get("policy_event_tiers", {})
+        ) or {}
+
+        merged = defaults.copy()
+        merged.update(pack_tiers)    # DomainPack over framework default
+        merged.update(shared_tiers)  # legacy shared over pack
+        merged.update(global_tiers)  # global YAML over all
+
+        # Coerce + validate so a malformed config value fails here
+        # with a clear message, not later inside _determine_severity.
+        try:
+            for k in defaults:
+                merged[k] = float(merged[k])
+        except (TypeError, ValueError) as e:
+            got = {k: merged.get(k) for k in defaults}
+            raise ValueError(
+                "governance.policy_event_tiers: every tier cutoff must "
+                f"be a float — got {got}"
+            ) from e
+        # Sanity 1: every tier must be non-negative. ``_determine_severity``
+        # compares ``abs(change_pct) >= tier``; a negative tier would
+        # fire SEVERE on every non-zero change without triggering the
+        # monotonicity guard below (negatives can still be sorted).
+        if any(merged[k] < 0 for k in defaults):
+            got = {k: merged.get(k) for k in defaults}
+            raise ValueError(
+                "governance.policy_event_tiers: every tier cutoff must "
+                f"be >= 0 — got {got}"
+            )
+        # Sanity 2: tiers should be monotonically non-increasing
+        # (severe >= moderate >= minor). Equal adjacent tiers are
+        # explicitly permitted (the higher branch wins and the lower
+        # one becomes a documented dead branch); strictly-inverted
+        # configurations are rejected because the comparison ladder
+        # in ``_determine_severity`` would produce a confusing
+        # classification (a 15% change with severe=0.10/moderate=0.20
+        # would fire SEVERE instead of MODERATE).
+        if not (merged["severe"] >= merged["moderate"] >= merged["minor"]):
+            raise ValueError(
+                "governance.policy_event_tiers: tiers must satisfy "
+                "severe >= moderate >= minor — got "
+                f"severe={merged['severe']}, "
+                f"moderate={merged['moderate']}, "
+                f"minor={merged['minor']}"
+            )
+        # Strip any YAML extras so downstream consumers see only the
+        # three canonical keys and cannot be surprised by stale
+        # entries that ``_determine_severity`` would silently ignore.
+        return {k: merged[k] for k in defaults}
+
     def get_reflection_questions(self, agent_type: str) -> List[str]:
         """Resolve reflection questions for an agent type (Phase 6H Item 4).
 

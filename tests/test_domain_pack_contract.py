@@ -114,6 +114,11 @@ class TestDefaultDomainPack:
         # apply.
         assert self.pack.population_governance_policy() == {}
 
+    def test_policy_event_tiers_is_empty(self):
+        # Phase 6L-C: DefaultDomainPack returns {} — PolicyEventConfig
+        # default severity_tiers (0.20 / 0.10 / 0.05) apply.
+        assert self.pack.policy_event_tiers() == {}
+
     def test_mg_barrier_text_is_empty(self):
         assert self.pack.mg_barrier_text({}) == ""
 
@@ -268,6 +273,11 @@ class TestIrrigationDomainPackByteIdentical:
         # Phase 6L-B: irrigation does not yet override population-
         # governance defaults; inherits the {} default.
         assert self.pack.population_governance_policy() == {}
+
+    def test_irrigation_policy_event_tiers_empty(self):
+        # Phase 6L-C: irrigation does not yet override PolicyEvent
+        # severity tiers; inherits the {} default.
+        assert self.pack.policy_event_tiers() == {}
 
     def test_irrigation_mg_barrier_text_empty(self):
         assert self.pack.mg_barrier_text({}) == ""
@@ -482,6 +492,12 @@ class TestFloodDomainPackByteIdentical:
         # CrossAgentValidator / CouncilValidator constructor defaults
         # apply.
         assert self.pack.population_governance_policy() == {}
+
+    def test_policy_event_tiers_inherits_default(self):
+        # Phase 6L-C: flood domain does not yet override PolicyEvent
+        # severity-tier cutoffs; inherits the {} default so
+        # PolicyEventConfig defaults (0.20 / 0.10 / 0.05) apply.
+        assert self.pack.policy_event_tiers() == {}
 
     # MG barrier text — preserves providers.py:706-712 string
     def test_mg_barrier_text_contains_passaic(self):

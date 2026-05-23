@@ -5,7 +5,7 @@ Generates events when government or insurance agents make policy changes
 (subsidy rate changes, premium adjustments, etc.).
 """
 from typing import List, Dict, Any, Optional
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from broker.interfaces.event_generator import (
     EnvironmentEvent,
@@ -15,11 +15,30 @@ from broker.interfaces.event_generator import (
 )
 
 
+def _default_severity_tiers() -> Dict[str, float]:
+    """Phase 6L-C (2026-05-23): default severity-tier cutoffs that
+    ``_determine_severity`` consumes. Keys are lowercase severity
+    names (matching :class:`EventSeverity` members); values are the
+    ``|change_pct|`` lower bounds. A policy change >= ``severe`` →
+    SEVERE; >= ``moderate`` → MODERATE; >= ``minor`` → MINOR; else
+    INFO. These are the pre-6L-C hardcoded thresholds, preserved
+    byte-identically as defaults."""
+    return {"severe": 0.20, "moderate": 0.10, "minor": 0.05}
+
+
 @dataclass
 class PolicyEventConfig:
     """Configuration for policy event generation."""
     domain: str = "policy"
     update_frequency: str = "per_step"  # After each agent step
+    # Phase 6L-C (2026-05-23): severity-tier cutoffs are now
+    # configurable. A domain that wants tighter / looser
+    # major/moderate/minor cuts can override via
+    # ``DomainPack.policy_event_tiers()`` or
+    # ``agent_types.yaml`` ``governance.policy_event_tiers``.
+    severity_tiers: Dict[str, float] = field(
+        default_factory=_default_severity_tiers
+    )
 
 
 class PolicyEventGenerator:
@@ -182,11 +201,15 @@ class PolicyEventGenerator:
 
         change_pct = abs(new_val - old_val) / abs(old_val)
 
-        if change_pct >= 0.20:  # 20%+ change
+        # Phase 6L-C (2026-05-23): tier cuts come from config so a
+        # domain can declare its own salience thresholds. Defaults
+        # preserve the pre-6L-C hardcoded 0.20 / 0.10 / 0.05 cutoffs.
+        tiers = self._config.severity_tiers
+        if change_pct >= tiers["severe"]:
             return EventSeverity.SEVERE
-        elif change_pct >= 0.10:  # 10-20% change
+        elif change_pct >= tiers["moderate"]:
             return EventSeverity.MODERATE
-        elif change_pct >= 0.05:  # 5-10% change
+        elif change_pct >= tiers["minor"]:
             return EventSeverity.MINOR
         else:
             return EventSeverity.INFO

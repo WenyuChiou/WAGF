@@ -124,3 +124,8 @@ class DefaultDomainPack:
 
     def population_governance_policy(self) -> Dict[str, Any]:
         return {}
+
+    # ─── Policy event severity tiers (Phase 6L-C) ─────────────────
+
+    def policy_event_tiers(self) -> Dict[str, float]:
+        return {}

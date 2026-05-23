@@ -423,6 +423,157 @@ class TestAgentTypeConfigPopulationGovernance:
             config.get_population_governance_config()
 
 
+class TestAgentTypeConfigPolicyEventTiers:
+    """Phase 6L-C: get_policy_event_tiers_config() — PolicyEventGenerator
+    severity-tier cutoffs resolved from YAML
+    governance.policy_event_tiers. Mirrors the
+    get_retrieval_config / get_drift_config /
+    get_population_governance_config pattern."""
+
+    def setup_method(self):
+        AgentTypeConfig._instance = None
+
+    def test_policy_event_tiers_defaults(self, tmp_path):
+        """No governance.policy_event_tiers block → PolicyEventConfig
+        defaults (severe=0.20, moderate=0.10, minor=0.05)
+        byte-identical to the pre-6L-C hardcoded thresholds."""
+        yaml_file = tmp_path / "t.yaml"
+        yaml_file.write_text("shared: {}\n")
+        config = AgentTypeConfig.load(str(yaml_file))
+        cfg = config.get_policy_event_tiers_config()
+        assert cfg == {"severe": 0.20, "moderate": 0.10, "minor": 0.05}
+
+    def test_policy_event_tiers_yaml_override(self, tmp_path):
+        """global_config.governance.policy_event_tiers overrides every
+        tier."""
+        yaml_file = tmp_path / "t.yaml"
+        yaml_file.write_text(
+            "global_config:\n"
+            "  governance:\n"
+            "    policy_event_tiers:\n"
+            "      severe: 0.25\n"
+            "      moderate: 0.15\n"
+            "      minor: 0.07\n"
+        )
+        config = AgentTypeConfig.load(str(yaml_file))
+        cfg = config.get_policy_event_tiers_config()
+        assert cfg["severe"] == 0.25
+        assert cfg["moderate"] == 0.15
+        assert cfg["minor"] == 0.07
+
+    def test_policy_event_tiers_partial_override(self, tmp_path):
+        """A partial override keeps framework defaults for un-set tiers."""
+        yaml_file = tmp_path / "t.yaml"
+        yaml_file.write_text(
+            "global_config:\n"
+            "  governance:\n"
+            "    policy_event_tiers:\n"
+            "      severe: 0.30\n"
+        )
+        config = AgentTypeConfig.load(str(yaml_file))
+        cfg = config.get_policy_event_tiers_config()
+        assert cfg["severe"] == 0.30
+        assert cfg["moderate"] == 0.10
+        assert cfg["minor"] == 0.05
+
+    def test_policy_event_tiers_threads_to_generator(self, tmp_path):
+        """End-to-end: get_policy_event_tiers_config()'s dict maps onto
+        ``PolicyEventConfig(severity_tiers=...)`` and the generator's
+        ``_determine_severity`` reads the overridden cutoffs."""
+        from broker.components.events.generators.policy import (
+            PolicyEventConfig,
+            PolicyEventGenerator,
+        )
+        from broker.interfaces.event_generator import EventSeverity
+        yaml_file = tmp_path / "t.yaml"
+        yaml_file.write_text(
+            "global_config:\n"
+            "  governance:\n"
+            "    policy_event_tiers:\n"
+            "      severe: 0.30\n"
+            "      moderate: 0.15\n"
+            "      minor: 0.06\n"
+        )
+        config = AgentTypeConfig.load(str(yaml_file))
+        tiers = config.get_policy_event_tiers_config()
+        gen = PolicyEventGenerator(PolicyEventConfig(severity_tiers=tiers))
+        # A 25% change is now MODERATE (above 0.15, below 0.30) where it
+        # would have been SEVERE (above 0.20) under the pre-6L-C
+        # hardcoded thresholds.
+        assert gen._determine_severity(
+            {"old_value": 1.0, "new_value": 1.25}
+        ) == EventSeverity.MODERATE
+
+    def test_policy_event_tiers_malformed_value_raises_clear_error(self, tmp_path):
+        """Non-numeric tier in YAML must fail at config-load time with
+        a clear ``governance.policy_event_tiers`` message."""
+        yaml_file = tmp_path / "t.yaml"
+        yaml_file.write_text(
+            "global_config:\n"
+            "  governance:\n"
+            "    policy_event_tiers:\n"
+            "      severe: 'not-a-float'\n"
+        )
+        config = AgentTypeConfig.load(str(yaml_file))
+        with pytest.raises(ValueError, match="governance.policy_event_tiers"):
+            config.get_policy_event_tiers_config()
+
+    def test_policy_event_tiers_non_monotonic_raises(self, tmp_path):
+        """``severe`` must be >= ``moderate`` must be >= ``minor`` —
+        otherwise the comparison ladder in ``_determine_severity``
+        produces a confusing classification. Catch this at config-load
+        time with a clear message."""
+        yaml_file = tmp_path / "t.yaml"
+        yaml_file.write_text(
+            "global_config:\n"
+            "  governance:\n"
+            "    policy_event_tiers:\n"
+            "      severe: 0.10\n"
+            "      moderate: 0.20\n"
+            "      minor: 0.05\n"
+        )
+        config = AgentTypeConfig.load(str(yaml_file))
+        with pytest.raises(ValueError, match="monotonic|severe >= moderate"):
+            config.get_policy_event_tiers_config()
+
+    def test_policy_event_tiers_negative_raises(self, tmp_path):
+        """A negative tier would silently misclassify every non-zero
+        change as that severity (since ``abs(change_pct) >= negative``
+        is always true). Catch at config-load time."""
+        yaml_file = tmp_path / "t.yaml"
+        yaml_file.write_text(
+            "global_config:\n"
+            "  governance:\n"
+            "    policy_event_tiers:\n"
+            "      severe: -0.05\n"
+            "      moderate: -0.10\n"
+            "      minor: -0.15\n"
+        )
+        config = AgentTypeConfig.load(str(yaml_file))
+        with pytest.raises(ValueError, match=">= 0"):
+            config.get_policy_event_tiers_config()
+
+    def test_policy_event_tiers_strips_unknown_keys(self, tmp_path):
+        """A YAML config with an extra key beyond the canonical three
+        is silently stripped — the returned dict carries only
+        ``severe`` / ``moderate`` / ``minor`` so downstream consumers
+        cannot accidentally consume a value ``_determine_severity``
+        ignores."""
+        yaml_file = tmp_path / "t.yaml"
+        yaml_file.write_text(
+            "global_config:\n"
+            "  governance:\n"
+            "    policy_event_tiers:\n"
+            "      severe: 0.25\n"
+            "      moderate: 0.15\n"
+            "      minor: 0.07\n"
+            "      extreme: 0.50\n"
+        )
+        config = AgentTypeConfig.load(str(yaml_file))
+        cfg = config.get_policy_event_tiers_config()
+        assert set(cfg.keys()) == {"severe", "moderate", "minor"}
+
+
 class TestAgentTypeConfigReflectionQuestions:
     """Phase 6H Item 4: get_reflection_questions() — per-agent-type and
     domain-wide reflection questions resolved from agent_types.yaml."""
