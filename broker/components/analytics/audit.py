@@ -291,19 +291,29 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
         row["mem_top_emotion"] = ""
         row["mem_top_source"] = ""
 
-    # 6. Social Audit (E2) - Social context details
+    # 6. Social Audit (E2) - Social context details.
+    # Phase 6N-A (2026-05-23): `visible_actions` is a dict whose keys come
+    # from the domain's social context provider — each domain supplies
+    # whatever ``<skill>_neighbors`` count it wants to surface. Iterate
+    # the dict instead of hardcoding skill names so the audit writer
+    # stays domain-neutral. Downstream column names are still
+    # ``social_<key>``; existing per-domain CSVs reproduce byte-identical
+    # because each domain still emits the same dict keys it did before.
+    # Broker-owned column names (must NOT be reused as visible_actions
+    # dict keys by domains): ``gossip_count`` / ``neighbor_count`` /
+    # ``network_density``. The loop runs AFTER the broker-owned writes
+    # so a domain that accidentally collides on these key names cannot
+    # silently overwrite them.
     social_audit = t.get("social_audit", {})
     if social_audit:
         row["social_gossip_count"] = len(social_audit.get("gossip_received", []))
-        visible = social_audit.get("visible_actions", {})
-        row["social_elevated_neighbors"] = visible.get("elevated_neighbors", 0)
-        row["social_relocated_neighbors"] = visible.get("relocated_neighbors", 0)
         row["social_neighbor_count"] = social_audit.get("neighbor_count", 0)
         row["social_network_density"] = social_audit.get("network_density", 0.0)
+        visible = social_audit.get("visible_actions", {})
+        for vkey, vval in visible.items():
+            row[f"social_{vkey}"] = vval
     else:
         row["social_gossip_count"] = 0
-        row["social_elevated_neighbors"] = 0
-        row["social_relocated_neighbors"] = 0
         row["social_neighbor_count"] = 0
         row["social_network_density"] = 0.0
 
@@ -378,7 +388,7 @@ def compute_csv_fieldnames(rows: List[Dict[str, Any]],
         *construct_cols,
         "rules_evaluated_count", "rules_triggered",
         "mem_retrieved_count", "mem_cognitive_system", "mem_surprise",
-        "social_gossip_count", "social_elevated_neighbors", "social_neighbor_count",
+        "social_gossip_count", "social_neighbor_count",
         "cog_system_mode", "cog_surprise_value", "cog_is_novel_state",
         "rules_personal_hit", "rules_social_hit", "rules_thinking_hit",
         "rules_physical_hit", "rules_semantic_hit", "hallucination_types",

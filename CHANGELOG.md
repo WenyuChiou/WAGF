@@ -415,6 +415,38 @@ flood-coupling-free.
     6L-A / 6L-B / 6L-C / 6L-E are plumbing / docs and did not
     require smoke per the Phase 6L plan.
 
+- **Phase 6N-A — `audit.py` social-context block de-flooded** (2026-05-23).
+  A leak surfaced during the Phase 6M+README review round: the audit
+  writer's social-context CSV block (`broker/components/analytics/audit.py`
+  §6) hardcoded `elevated_neighbors` / `relocated_neighbors` reads from
+  `visible_actions`, emitting `social_elevated_neighbors` /
+  `social_relocated_neighbors` columns directly. The token guard never
+  caught this because those two tokens were not in `_DOMAIN_TOKENS`.
+  Migrated to a dynamic `social_<key>` pass-through — `audit.py` now
+  iterates the `visible_actions` dict and writes `social_<vkey>` for
+  whatever the domain supplies. The flood-domain output CSV is
+  byte-identical for rows where `social_audit` is populated (flood
+  still puts `elevated_neighbors` / `relocated_neighbors` in
+  `visible_actions`); a vaccination or gossip domain would now
+  naturally produce `social_vaccinated_neighbors` etc. without touching
+  `broker/`. For rows where `social_audit` is absent the two
+  flood-specific columns are no longer defaulted to `0` — they're
+  simply omitted (column set-union in `compute_csv_fieldnames`
+  preserves CSV header completeness across mixed rows; downstream
+  analysis uses named column access only). The visible-actions loop
+  runs AFTER the broker-owned `gossip_count` / `neighbor_count` /
+  `network_density` writes so a domain that collides on those key
+  names cannot silently overwrite them. Hardcoded column names removed from
+  `compute_csv_fieldnames` priority list and from the `else`-branch
+  placeholders. `_DOMAIN_TOKENS` widened with the two tokens (count
+  23 → 25). `TestDormantFieldPolicy._AUDIT_AGGREGATE_KEYS["social_audit"]`
+  updated to drop the two flood column names from its documented column
+  set (they are now domain-dynamic). Verification: `pytest broker/ tests/`
+  net-zero regression vs the post-6M baseline (5 pre-existing failures
+  unchanged); `TestDomainGenericity` 25/25 green; `test_audit_modular`
+  (which feeds flood-style keys) still asserts
+  `row["social_elevated_neighbors"] == "3"` and passes.
+
 - **Phase 6M — close the last Phase 6L deferral (PMT schema extraction)**.
   A fresh investigation (three Explore agents, 2026-05-23) inverted the
   6L plan's risk profile: `broker/interfaces/schemas.py::ReasoningSchema`
