@@ -118,7 +118,16 @@ def compute_hallucination_rate(
     group : str
         ``"A"``, ``"B"``, or ``"C"`` — affects keyword threshold.
     ta_col, ca_col : str
-        Columns with threat/coping appraisal text.
+        Columns with threat/coping appraisal text. Phase 6M-A
+        (2026-05-23): the defaults (``"threat_appraisal"`` /
+        ``"coping_appraisal"``) are PMT-flavoured for backwards
+        compatibility — non-PMT domains MUST pass their own column
+        names. If the supplied (or default) column names are absent
+        from ``df.columns`` the function degrades gracefully —
+        ``ta_level`` / ``ca_level`` get filled with ``"M"`` (see
+        the column-existence guard ~50 lines below), so the
+        backwards-compat defaults cannot silently misclassify a
+        non-PMT DataFrame.
     decision_col : str
         Column with yearly decision.
     start_year : int

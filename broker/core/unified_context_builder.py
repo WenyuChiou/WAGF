@@ -509,7 +509,14 @@ class UnifiedContextBuilder:
             if type_def and type_def.constructs:
                 return type_def.constructs
 
-        # Default PMT constructs
+        # Phase 6M-A (2026-05-23): PMT-flavoured fallback constructs.
+        # Non-PMT domains override by declaring their own
+        # ``constructs:`` block in the agent-type config that feeds
+        # this builder. The TP/CP literals here are the legacy
+        # water-domain default — preserved as the no-config
+        # fallback so existing flood / irrigation paths keep
+        # working byte-identically, not because they are the
+        # generic-broker recommendation.
         return {
             "TP_LABEL": {"name": "Threat Perception", "values": ["VL", "L", "M", "H", "VH"]},
             "CP_LABEL": {"name": "Coping Perception", "values": ["VL", "L", "M", "H", "VH"]},

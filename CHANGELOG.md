@@ -400,9 +400,11 @@ flood-coupling-free.
     docstring deferral note. Closes audit-B P1 items 6 + 7 + 8.
   - **Phase 6L-E — INVARIANTS + CHANGELOG close-out**: this entry
     plus the §I5 "Closed by Phase 6L" block. The "Deferred to Phase
-    6L (knobs)" bullet from the 6K block is removed; the deferral
-    list now reads Phase 6M (PMT schema extraction) + skill-name
-    docstring (intentionally not pursued) only.
+    6L (knobs)" bullet from the 6K block is removed; at 6L close-out
+    the deferral list read Phase 6M (PMT schema extraction) +
+    skill-name docstring (intentionally not pursued) — Phase 6M
+    has since shipped (see below); only the skill-name-docstring
+    deferral remains.
   - Verification across all five sub-phases: `pytest broker/ tests/`
     net-zero regression (5 pre-existing failures unchanged across
     the chain); `TestDomainGenericity` 21/21 green; real-model
@@ -412,6 +414,51 @@ flood-coupling-free.
     46-55 seen across 6K-A (48) / 6K-B (55) / 6K-C (48) smokes.
     6L-A / 6L-B / 6L-C / 6L-E are plumbing / docs and did not
     require smoke per the Phase 6L plan.
+
+- **Phase 6M — close the last Phase 6L deferral (PMT schema extraction)**.
+  A fresh investigation (three Explore agents, 2026-05-23) inverted the
+  6L plan's risk profile: `broker/interfaces/schemas.py::ReasoningSchema`
+  was **dead code** (0 imports, 0 instantiations, 0 type annotations across
+  `broker/`, `examples/`, `tests/`), the response-format builder was
+  already YAML-driven, and three non-PMT reference domains
+  (`vaccination_demo` / `vaccination_ma_demo` / `gossip_demo`) already
+  plug in without touching the schema. So Phase 6M shrank from a
+  Pydantic class-hierarchy refactor to a surgical metadata + token-guard
+  cleanup.
+  - **Phase 6M-A — surgical cleanup**: deleted the `ReasoningSchema`
+    class outright (replaced with a deletion-marker comment recording
+    the verification methodology + where a future PMT-specific reference
+    would live at `broker/domains/water/schemas.py`).
+    `SkillProposalSchema.reasoning`'s field description simultaneously
+    de-PMTed from `"PMT appraisals"` to
+    `"Construct appraisals (domain-defined keys)"` so the now-canonical
+    construct-agnostic payload channel doesn't carry a PMT label.
+    `_DOMAIN_TOKENS` widened with `threat_appraisal` + `coping_appraisal`
+    (21 → 23). Three tail mentions in generic `broker/` FP-allowlisted
+    with per-entry justifications (`components/response_format.py`
+    docstring examples, `interfaces/schemas.py` deletion-marker comment,
+    `validators/posthoc/unified_rh.py` backwards-compat
+    `ta_col`/`ca_col` defaults with a docstring caveat; the existing
+    column-existence guard at `unified_rh.py:177` is the safety net —
+    a non-PMT caller with missing columns drops to the `"M"` mid-scale
+    sentinel rather than misclassifying). Light clarifying comments on
+    `broker/config/agent_types/base.py::DEFAULT_PMT_CONSTRUCTS` and
+    `broker/core/unified_context_builder.py`'s PMT fallback constructs
+    label both as water-domain defaults (not generic recommendations).
+    No Pydantic hierarchy refactor; no caller migration.
+  - **Phase 6M-B — INVARIANTS + CHANGELOG close-out**: §I5 "Closed by
+    Phase 6M" block recording the reframing finding (dead-code deletion,
+    not hierarchy refactor) + token expansion + FP-allowlist bookkeeping;
+    the 6L "Deferred to Phase 6M (PMT schema)" bullet removed. The
+    deferral list now reads only the skill-name-docstring item
+    (intentionally not pursued — `elevate_house` / `buy_insurance` /
+    `relocate` / `maintain_demand` are kept as grounded docstring
+    examples; the I5 guard intentionally does NOT enforce these).
+  - Verification: `pytest broker/ tests/` net-zero regression
+    (5 pre-existing failures unchanged); `TestDomainGenericity` 23/23
+    green at the new token count. No real-model smoke required — pure
+    metadata + docstring + token-guard change with zero broker-pipeline
+    behaviour impact.
 
 ### Notes
 

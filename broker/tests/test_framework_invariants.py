@@ -338,14 +338,22 @@ class TestDomainGenericity:
         "drought_index": "drought domain",
         "buyout": "flood domain skill",
         "buyout_program": "flood domain skill",
-        # NOTE: deferred to a future pass — too noisy to add now without
-        # a much larger fix or allowlist surface:
-        #   threat_appraisal / coping_appraisal (PMT field names live
-        #     in generic schemas.py + response_format.py + unified_rh.py
-        #     defaults — need a PMT-schema relocation phase),
+        # Phase 6M-A (2026-05-23): PMT-construct field names — the
+        # last deferred-from-6J-E tokens. The Phase 6L deferral plan
+        # imagined a Pydantic class-hierarchy refactor, but the Phase
+        # 6M Explore found `ReasoningSchema` was dead code (0 imports,
+        # 0 instantiations) and the remaining mentions were docstring
+        # examples + a posthoc backwards-compat default. Tokens added
+        # now; the residual live mentions are FP-allowlisted below
+        # (each with a comment justifying why).
+        "threat_appraisal": "flood domain (PMT construct field)",
+        "coping_appraisal": "flood domain (PMT construct field)",
+        # NOTE: still deferred:
         #   elevate_house / buy_insurance / relocate / maintain_demand
         #     (skill names referenced in many generic memory/validator
-        #     docstrings, comments, and protocol examples).
+        #     docstrings, comments, and protocol examples — Phase 6J-E
+        #     Explore verified ZERO live code references; keeping the
+        #     grounded examples aids readability).
         #   do_nothing — explicitly evaluated and rejected (too common
         #     a phrase to enforce as a domain token).
     }
@@ -411,6 +419,15 @@ class TestDomainGenericity:
         #  references NFIP / FEMA by name, and ``components/context/providers.py``
         #  DYNAMO Literature reference no longer names NFIP. Both files
         #  are now NFIP/FEMA-token-free; entries removed.)
+        # Phase 6M-A (2026-05-23) FP additions — the PMT-construct
+        # tokens (``threat_appraisal`` / ``coping_appraisal``) added to
+        # the guard above carry tail mentions in three generic files;
+        # each is either a docstring example, a deletion-marker
+        # comment, or a documented backwards-compat default. None
+        # is live PMT-coupled production code post-6M-A:
+        "components/response_format.py",             # FP: docstring `Usage:` + construct-mapping examples (the builder body is YAML-driven; see Phase 6M Explore notes)
+        "interfaces/schemas.py",                     # FP: deletion-marker comment recording where ``ReasoningSchema`` previously lived (Phase 6M-A removed the dead class)
+        "validators/posthoc/unified_rh.py",          # FP: PMT-flavoured ``ta_col``/``ca_col`` defaults retained for backwards compat with a docstring caveat — graceful-degradation guard at ~line 177 catches misuse on non-PMT DataFrames
         # Phase 6K-A (2026-05-22) closed the three memory-subsystem
         # TECH-DEBT(6K) entries via DomainPack.memory_policy().
         # Phase 6K-B (2026-05-22) closed the fourth: the whole-file
