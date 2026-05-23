@@ -44,11 +44,38 @@ MESSAGE_IMPORTANCE_MAP = {
 }
 
 
+# Phase 6L-D (2026-05-23): defaults for resolution importance — the
+# asymmetric 0.6 / 0.75 split is a deliberate behavioural claim
+# ("Denials are more memorable"; see the inline comment in
+# ``store_resolution``). The values are exposed as a knob via
+# ``MemoryBridge(importance_policy=...)`` / ``DomainPack.bridge_importance_policy()``
+# / ``governance.memory.resolution_importance_policy`` YAML so a
+# non-flood domain can declare a different ratio, but the asymmetry
+# itself stays the documented design rationale — do not tune blindly.
+_DEFAULT_RESOLUTION_IMPORTANCE: Dict[str, float] = {
+    "approved": 0.6,
+    "denied": 0.75,
+}
+
+
 class MemoryBridge:
     """Converts Communication Layer outputs into agent memories."""
 
-    def __init__(self, memory_engine: MemoryEngine):
+    def __init__(
+        self,
+        memory_engine: MemoryEngine,
+        importance_policy: Optional[Dict[str, float]] = None,
+    ):
+        # Phase 6L-D (2026-05-23): ``importance_policy`` is the new
+        # knob; ``None`` preserves the pre-6L-D byte-identical
+        # 0.6 / 0.75 defaults. Callers wire YAML / DomainPack via
+        # ``AgentTypeConfig.get_bridge_importance_config()``.
         self.memory_engine = memory_engine
+        self._importance_policy = (
+            importance_policy
+            if importance_policy is not None
+            else dict(_DEFAULT_RESOLUTION_IMPORTANCE)
+        )
 
     def store_resolution(self, resolution: ActionResolution, year: int = 0) -> None:
         """Store a GameMaster resolution as agent memory.
@@ -77,11 +104,14 @@ class MemoryBridge:
         if resolution.approved:
             content = f"{prefix}{resolution.event_statement}"
             emotion = "positive"
-            importance = 0.6
+            importance = self._importance_policy.get("approved", 0.6)
         else:
             content = f"{prefix}My request to {resolution.original_proposal.skill_name} was denied. {resolution.denial_reason}"
             emotion = "shift"
-            importance = 0.75  # Denials are more memorable
+            # Denials are more memorable — the asymmetric default is a
+            # deliberate behavioural claim, not a free knob. See the
+            # module-level ``_DEFAULT_RESOLUTION_IMPORTANCE`` docstring.
+            importance = self._importance_policy.get("denied", 0.75)
 
         self.memory_engine.add_memory(
             resolution.agent_id,

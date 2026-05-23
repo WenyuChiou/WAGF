@@ -1209,6 +1209,9 @@ def run_unified_experiment():
         interaction_hub=hub,
         fixed_policy_schedule=fixed_policy_schedule,
         reflection_config=reflection_config,
+        # Phase 6L-D (2026-05-23): YAML / DomainPack resolution-importance
+        # override threads to MemoryBridge via LifecycleHooks.
+        bridge_importance_policy=agent_cfg.get_bridge_importance_config(),
     )
 
     if args.per_agent_depth:
