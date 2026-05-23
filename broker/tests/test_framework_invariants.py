@@ -319,9 +319,12 @@ class TestDomainGenericity:
         "flood_occurred": "flood domain",
         "flood_event": "flood domain",
         "flood_depth_m": "flood domain",
-        # Flood / water-domain infrastructure identifiers — currently
-        # surface only in docstring "Literature:" references inside
-        # generic agents/providers; the code itself is domain-agnostic.
+        # Flood / water-domain infrastructure identifiers — after
+        # Phase 6K-D the only remaining occurrence in generic broker
+        # is broker/simulation/environment.py's docstring (already
+        # FP-allowlisted below). The tokens stay here so any future
+        # re-introduction into generic broker code is caught at gate
+        # time.
         "NFIP": "flood domain (US National Flood Insurance Program)",
         "FEMA": "flood domain (US Federal Emergency Management Agency)",
         # Flood / drought / irrigation infrastructure + construct
@@ -403,10 +406,11 @@ class TestDomainGenericity:
         "config/schema.py",                          # FP: Field() description examples
         "config/agent_types/base.py",                # FP: docstring example
         "utils/retry_formatter.py",                  # FP: comment example
-        # Phase 6J-E (2026-05-22) FP additions — docstring "Literature:" /
-        # documented-reference text only; the code is domain-agnostic.
-        "agents/base.py",                            # FP: NFIP/FEMA in docstring Literature reference
-        "components/context/providers.py",           # FP: NFIP in DYNAMO Literature reference
+        # (Phase 6K-D (2026-05-22) closed both 6J-E FP entries —
+        #  ``agents/base.py`` constraint-class docstring no longer
+        #  references NFIP / FEMA by name, and ``components/context/providers.py``
+        #  DYNAMO Literature reference no longer names NFIP. Both files
+        #  are now NFIP/FEMA-token-free; entries removed.)
         # Phase 6K-A (2026-05-22) closed the three memory-subsystem
         # TECH-DEBT(6K) entries via DomainPack.memory_policy().
         # Phase 6K-B (2026-05-22) closed the fourth: the whole-file

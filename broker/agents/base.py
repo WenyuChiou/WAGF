@@ -79,7 +79,9 @@ class Constraint:
     """
     User-defined constraint on actions.
 
-    Literature: NFIP regulations, FEMA HMGP rules
+    Literature: domain-specific regulatory rules (e.g. flood-insurance
+    or disaster-mitigation programs; see broker.domains.water for an
+    example wiring).
     """
     name: str
     param: str                      # Which param this constrains

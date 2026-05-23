@@ -528,8 +528,9 @@ class InsuranceInfoProvider(ContextProvider):
     have symmetric cost information for all adaptation options (not just
     elevation grants).
 
-    Literature: DYNAMO model (de Ruig et al. 2023) uses NFIP actuarial
-    premium structure as input to agent decisions.
+    Literature: DYNAMO model (de Ruig et al. 2023) injects actuarial
+    premium structure into agent decisions; this provider is the broker
+    analogue — the domain supplies a ``premium_calculator`` callable.
 
     Reference: Task-060A Insurance Premium Disclosure
     """
