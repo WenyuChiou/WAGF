@@ -2,7 +2,7 @@
 
 <div align="center">
 
-**LLM 驅動代理人模型的治理層，應用於人類-水資源耦合系統。**
+**LLM 驅動代理人模型的治理層。** 起初為人類-水資源耦合系統而建；目前框架已可外掛新領域 — 參考包涵蓋水資源（洪水/灌溉）、疫苗接種、社群媒體三類。
 
 每個 LLM 決策都會經過驗證管線——領域規則、行為理論檢查、附帶針對性反饋的重試——才能修改模擬狀態。
 
@@ -19,7 +19,7 @@
 
 WAGF 是 LLM 驅動代理人模型的治理層。**治理仲裁器 (Governance Broker)** 在每個 LLM 決策執行前，依據物理約束、行為理論和財務可行性進行驗證。無效決策觸發附帶具體反饋的重試迴路——不只是重新提示。最終結果：可審計、可重現的代理人行為，而非原始 LLM 輸出。
 
-本框架附帶兩個水資源領域的參考實作（洪水適應與灌溉管理），並可透過外掛系統擴展至其他 ABM 領域。
+本框架附帶五個參考實作，涵蓋四種行為理論：水資源（保護動機理論驅動的洪水適應、雙評估驅動的灌溉管理）、疫苗接種決策（健康信念模型，單代理人與多代理人）、社群媒體動態（耳語傳播）。領域層為可插拔式 — `broker/` 內建一個不變式測試，確保框架核心沒有任何領域識別碼洩漏。
 
 ## WAGF 跟其他框架（如 LangChain、Mesa）有何不同？
 
@@ -40,9 +40,9 @@ WAGF 處於不同的技術層次。最接近的同類是規則式 ABM 平台（M
 - **治理管線** — 任何動作到達模擬前的六步驟驗證：上下文 → LLM → 解析 → 驗證 → 核准/重試 → 執行
 - **完整審計軌跡** — 每個決策、拒絕、重試及推理軌跡均以結構化 JSONL/CSV 記錄，供科學審查
 - **領域包** — 新增領域只需 3 個檔案：`skill_registry.yaml` + `agent_types.yaml` + `lifecycle_hooks.py`
-- **可插拔行為理論** — 內建保護動機理論 (PMT)；可透過 YAML 配置替換或擴展
+- **框架可參數化的行為理論** — `broker/` 內無硬編碼理論；參考包涵蓋保護動機理論（洪水）、雙評估（灌溉）、健康信念模型（疫苗）、社群動態（耳語）。新理論透過 YAML 宣告即可
 - **研究就緒** — 消融模式（strict/relaxed/disabled）、6+ 個 LLM 系列的跨模型比較、多種子可重現性
-- **AI 輔助工作流** — 內建 5 個 [Claude Code skills](docs/skills/wagf-skills.md)（`wagf-quickstart`、`wagf-experiment-designer`、`llm-agent-audit-trace-analyzer`、`model-coupling-contract-checker`、`abm-reproducibility-checker`），新研究者從 `git clone` 到產出論文等級指標可不必先讀手冊
+- **AI 輔助工作流** — 內建 7 個 [Claude Code skills](docs/skills/wagf-skills.md)（`wagf-quickstart`、`wagf-domain-builder`、`wagf-coupling-designer`、`wagf-experiment-designer`、`llm-agent-audit-trace-analyzer`、`model-coupling-contract-checker`、`abm-reproducibility-checker`），新研究者從 `git clone` 到產出論文等級指標可不必先讀手冊
 
 ## 為什麼需要治理？
 
@@ -74,6 +74,8 @@ WAGF 處於不同的技術層次。最接近的同類是規則式 ABM 平台（M
 | 需求 | Skill |
 |------|-------|
 | 規劃實驗 | `wagf-experiment-designer` |
+| 建立新領域 | `wagf-domain-builder` |
+| 設計外部模型耦合 | `wagf-coupling-designer` |
 | 分析 audit traces | `llm-agent-audit-trace-analyzer` |
 | 驗證外部模型耦合 | `model-coupling-contract-checker` |
 | 投稿前 reproducibility 稽核 | `abm-reproducibility-checker` |
@@ -202,13 +204,16 @@ examples/quickstart/                   — 漸進式教學
 
 ## 參考實作
 
-| 案例研究 | 代理人 | 期間 | 測試模型 | 研究區域 |
+| 案例研究 | 行為理論 | 代理人 | 期間 | 領域 |
 |:---|:---|:---|:---|:---|
-| **洪水家戶** | 單代理人 | 13 年 | Gemma 3 (4B/12B/27B) | 帕塞伊克河流域，紐澤西州 |
-| **洪水多代理人** | 402（200 屋主 + 200 租戶 + 政府 + 保險） | 13 年 | Gemma 3 4B | 帕塞伊克河流域，紐澤西州 |
-| **灌溉** | 78 個 CRSS 代理人 | 42 年 | Gemma 3 4B, Ministral 3B, Gemma 3 12B | 科羅拉多河流域 |
+| **洪水（單）** | PMT | 單代理人 | 13 年 | 帕塞伊克河流域，紐澤西州（水資源） |
+| **洪水（多）** | PMT + 制度 | 402（200 屋主 + 200 租戶 + 政府 + 保險） | 13 年 | 帕塞伊克河流域，紐澤西州（水資源） |
+| **灌溉** | 雙評估（WSA × ACA） | 78 個 CRSS 代理人 | 42 年 | 科羅拉多河流域（水資源） |
+| **疫苗接種（單）** | 健康信念模型 | 5 個合成代理人 | 2 年 | 公共衛生概念驗證 |
+| **疫苗接種（多）** | HBM + 諮詢層級 | 1 衛生主管 + 2 社區組織 + N 個人 | 5 年 | 公共衛生概念驗證 |
+| **耳語（社群媒體）** | 社群動態 | 1 版主 + K 影響者 + N 用戶 | 每日 | 社群媒體概念驗證 |
 
-洪水實驗使用來自水文模擬（2011-2023）的逐代理人洪水深度網格。灌溉實驗以 LLM 驅動的農民代理人重現 Hung & Yang (2021) 的科羅拉多河模擬系統設定。跨模型實驗在每個配置下以 3-5 個隨機種子比較不同 LLM 系列及規模的行為。
+兩個洪水實驗使用來自水文模擬（2011-2023）的逐代理人洪水深度網格。灌溉實驗以 LLM 驅動的農民代理人重現 Hung & Yang (2021) 的科羅拉多河模擬系統設定。跨模型實驗在每個配置下以 3-5 個隨機種子比較不同 LLM 系列及規模的行為。後三個非水資源 demo（疫苗單／多、耳語）是較小的概念驗證參考包，用於演示非水資源插入路徑與多代理人耦合模式 — 不是研究級 ABM。
 
 | 範例 | 說明 | 連結 |
 |:---|:---|:---|
@@ -217,12 +222,15 @@ examples/quickstart/                   — 漸進式教學
 | **單代理人洪水** | 使用 PMT 的洪水適應 | [前往](examples/single_agent/) |
 | **灌溉 ABM** | 稀缺條件下的水資源分配 | [前往](examples/irrigation_abm/) |
 | **多代理人洪水** | 制度回饋（政府 + 保險 + 家戶） | [前往](examples/multi_agent/flood/) |
+| **疫苗接種（單）** | 非水資源單代理人參考（HBM） | [前往](examples/vaccination_demo/) |
+| **疫苗接種（多）** | 非水資源多代理人參考（3 種代理人類型、env-dict-whitelist 耦合） | [前往](examples/vaccination_ma_demo/) |
+| **耳語（社群媒體）** | 每日節奏多代理人參考（版主 + 影響者 + 用戶） | [前往](examples/gossip_demo/) |
 
 ---
 
 ## 配置與擴展
 
-所有領域特定值均從 YAML 載入。`broker/` 中零硬編碼領域邏輯。
+所有領域特定值均從 YAML 載入。`broker/` 中零硬編碼領域邏輯 — 由 `TestDomainGenericity` 不變式測試強制執行（參見 [`broker/INVARIANTS.md` §I5](broker/INVARIANTS.md#invariant-5--domain-genericity-contract)）。
 
 | 您想變更的內容 | 僅 YAML | 需要 Python |
 |:---|:---:|:---:|
@@ -239,6 +247,8 @@ examples/quickstart/                   — 漸進式教學
 1. `skill_registry.yaml` — 可用動作及其前置條件
 2. `agent_types.yaml` — 人設定義、構念標籤、治理規則
 3. `lifecycle_hooks.py` — 繼承 `BaseLifecycleHooks` 處理環境轉換
+
+*可選* — 若需自訂記憶分類、驗證器規則、漂移偵測器閾值或其他框架旋鈕，亦可繼承 `DomainPack` 並透過 `DomainPackRegistry.register(name, pack)` 註冊。預設 pack 為九個 hook（memory / drift / retrieval / perception / population-governance / policy-event-tiers / bridge-importance / event-handlers / agent-impact-handlers）提供 no-op stub，所以簡單領域可跳過此步驟。最小 DomainPack 範例參見 `examples/vaccination_demo/adapters/vaccination_pack.py`。
 
 ### 程式化 API
 
