@@ -2,7 +2,7 @@
 
 <div align="center">
 
-**A governance layer for LLM-driven agent-based models in coupled human-water systems.**
+**A governance layer for LLM-driven agent-based models.** Originally built for coupled human-water systems; the framework is domain-pluggable — reference packs ship for water (flood / irrigation), vaccination, and social-media domains.
 
 Every LLM decision passes through a validation pipeline — domain rules, behavioral theory checks, and retry with targeted feedback — before it can modify simulation state.
 
@@ -19,7 +19,7 @@ Every LLM decision passes through a validation pipeline — domain rules, behavi
 
 WAGF is a governance layer for LLM-driven agent-based models. A **Governance Broker** validates every LLM decision against physical constraints, behavioral theories, and financial feasibility before execution. Invalid decisions trigger a retry loop with specific feedback — not just re-prompting. The result: auditable, reproducible agent behavior instead of raw LLM output.
 
-The framework ships with two water-sector reference implementations (flood adaptation and irrigation management) and can be extended to other ABM domains through a plugin system.
+The framework ships with five reference implementations spanning four behavioral theories: water (flood adaptation via Protection Motivation Theory, irrigation via dual-appraisal), vaccination decision-making (Health Belief Model, single- and multi-agent), and social-media dynamics (gossip propagation). The domain layer is pluggable — `broker/` carries an invariant test that no domain identifier leaks into the framework core.
 
 ## How does WAGF compare to other frameworks?
 
@@ -40,9 +40,9 @@ In short: WAGF is not a chatbot framework, not a retrieval tool, not an LLM SDK.
 - **Governance Pipeline** — six-step validation before any action reaches the simulation: Context → LLM → Parse → Validate → Approve/Retry → Execute
 - **Full Audit Trail** — Every decision, rejection, retry, and reasoning trace logged as structured JSONL/CSV for scientific review
 - **Domain Packs** — Add a new domain with 3 files: `skill_registry.yaml` + `agent_types.yaml` + `lifecycle_hooks.py`
-- **Pluggable Behavioral Theory** — Ships with Protection Motivation Theory (PMT); swap or extend via YAML configuration
+- **Framework-parametric Behavioral Theory** — no hardcoded theory in `broker/`; reference packs ship for Protection Motivation Theory (flood), dual-appraisal (irrigation), Health Belief Model (vaccination), and social dynamics (gossip). Declare your own framework in YAML
 - **Research Ready** — Ablation modes (strict/relaxed/disabled), cross-model comparison across 6+ LLM families, multi-seed reproducibility
-- **AI-assisted Workflow** — 5 bundled [Claude Code skills](docs/skills/wagf-skills.md) (`wagf-quickstart`, `wagf-experiment-designer`, `llm-agent-audit-trace-analyzer`, `model-coupling-contract-checker`, `abm-reproducibility-checker`) walk a new researcher from `git clone` to paper-ready metrics without reading the manual first
+- **AI-assisted Workflow** — 7 bundled [Claude Code skills](docs/skills/wagf-skills.md) (`wagf-quickstart`, `wagf-domain-builder`, `wagf-coupling-designer`, `wagf-experiment-designer`, `llm-agent-audit-trace-analyzer`, `model-coupling-contract-checker`, `abm-reproducibility-checker`) walk a new researcher from `git clone` to paper-ready metrics without reading the manual first
 
 ## Why Governance?
 
@@ -79,6 +79,8 @@ lifecycle:
 | Need | Skill |
 |------|-------|
 | Plan an experiment | `wagf-experiment-designer` |
+| Build a new domain | `wagf-domain-builder` |
+| Design external-model coupling | `wagf-coupling-designer` |
 | Analyse audit traces | `llm-agent-audit-trace-analyzer` |
 | Verify external-model coupling | `model-coupling-contract-checker` |
 | Pre-submission audit | `abm-reproducibility-checker` |
@@ -205,13 +207,16 @@ Run Level 1 (no governance) vs Level 3 (full governance) to isolate the effect o
 
 ## Reference Implementations
 
-| Case Study | Agents | Period | Models Tested | Study Area |
+| Case Study | Behavioral Theory | Agents | Period | Domain |
 |:---|:---|:---|:---|:---|
-| **Flood Household** | Single-agent | 13 years | Gemma 3 (4B/12B/27B) | Passaic River Basin, NJ |
-| **Flood Multi-Agent** | 402 (200 owner + 200 renter + gov + ins) | 13 years | Gemma 3 4B | Passaic River Basin, NJ |
-| **Irrigation** | 78 CRSS agents | 42 years | Gemma 3 4B, Ministral 3B, Gemma 3 12B | Colorado River Basin |
+| **Flood (single)** | PMT | Single-agent | 13 yr | Passaic River Basin, NJ (water) |
+| **Flood (multi)** | PMT + institutional | 402 (200 owner + 200 renter + gov + ins) | 13 yr | Passaic River Basin, NJ (water) |
+| **Irrigation** | Dual-appraisal (WSA × ACA) | 78 CRSS agents | 42 yr | Colorado River Basin (water) |
+| **Vaccination (single)** | Health Belief Model | 5 synthetic agents | 2 yr | Public-health proof-of-concept |
+| **Vaccination (multi)** | HBM + advisory hierarchy | 1 health-authority + 2 org + N individuals | 5 yr | Public-health proof-of-concept |
+| **Gossip (social media)** | Social dynamics | 1 moderator + K influencer + N user | Daily | Social-media proof-of-concept |
 
-The flood experiments use per-agent flood depth grids from hydrological simulation (2011–2023). The irrigation experiment reproduces the Hung & Yang (2021) Colorado River Simulation System setup with LLM-driven farmer agents. Cross-model experiments compare behavior across LLM families and sizes with 3–5 random seeds per configuration.
+The two flood experiments use per-agent flood depth grids from hydrological simulation (2011–2023). The irrigation experiment reproduces the Hung & Yang (2021) Colorado River Simulation System setup with LLM-driven farmer agents. Cross-model experiments compare behavior across LLM families and sizes with 3–5 random seeds per configuration. The three non-water demos (vaccination single/multi and gossip) are smaller proof-of-concept reference packs that exercise the non-water plug-in path and the multi-agent coupling patterns — they are not research-grade ABMs.
 
 | Example | Description | Link |
 |:---|:---|:---|
@@ -220,12 +225,15 @@ The flood experiments use per-agent flood depth grids from hydrological simulati
 | **Single-Agent Flood** | Flood adaptation with PMT | [Go](examples/single_agent/) |
 | **Irrigation ABM** | Water allocation under scarcity | [Go](examples/irrigation_abm/) |
 | **Multi-Agent Flood** | Institutional feedback (gov + ins + household) | [Go](examples/multi_agent/flood/) |
+| **Vaccination (single)** | Non-water single-agent reference (HBM) | [Go](examples/vaccination_demo/) |
+| **Vaccination (multi)** | Non-water multi-agent reference (3 agent types, env-dict-whitelist) | [Go](examples/vaccination_ma_demo/) |
+| **Gossip (social media)** | Daily-cadence multi-agent reference (moderator + influencer + user) | [Go](examples/gossip_demo/) |
 
 ---
 
 ## Configuration & Extension
 
-All domain-specific values load from YAML. Zero hardcoded domain logic in `broker/`.
+All domain-specific values load from YAML. Zero hardcoded domain logic in `broker/` — enforced by the `TestDomainGenericity` invariant ([`broker/INVARIANTS.md` §I5](broker/INVARIANTS.md#invariant-5--domain-genericity-contract)).
 
 | What You Want to Change | YAML Only | Python Required |
 |:---|:---:|:---:|
@@ -242,6 +250,8 @@ All domain-specific values load from YAML. Zero hardcoded domain logic in `broke
 1. `skill_registry.yaml` — available actions and preconditions
 2. `agent_types.yaml` — persona definitions, construct labels, governance rules
 3. `lifecycle_hooks.py` — subclass `BaseLifecycleHooks` for environment transitions
+
+*Optional* — to customise memory categories, validator rules, drift-detector thresholds, or other framework knobs, also subclass `DomainPack` and register via `DomainPackRegistry.register(name, pack)`. The default pack provides no-op stubs for nine hooks (memory / drift / retrieval / perception / population-governance / policy-event-tiers / bridge-importance / event-handlers / agent-impact-handlers), so simple domains skip this. See `examples/vaccination_demo/adapters/vaccination_pack.py` for a minimal DomainPack.
 
 ### Programmatic API
 
