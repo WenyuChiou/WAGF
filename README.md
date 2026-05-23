@@ -19,7 +19,7 @@ Every LLM decision passes through a validation pipeline — domain rules, behavi
 
 WAGF is a governance layer for LLM-driven agent-based models. A **Governance Broker** validates every LLM decision against physical constraints, behavioral theories, and financial feasibility before execution. Invalid decisions trigger a retry loop with specific feedback — not just re-prompting. The result: auditable, reproducible agent behavior instead of raw LLM output.
 
-The framework ships with five reference implementations spanning four behavioral theories: water (flood adaptation via Protection Motivation Theory, irrigation via dual-appraisal), vaccination decision-making (Health Belief Model, single- and multi-agent), and social-media dynamics (gossip propagation). The domain layer is pluggable — `broker/` carries an invariant test that no domain identifier leaks into the framework core.
+The framework ships with five reference implementations spanning four behavioral theories: water (flood adaptation via Protection Motivation Theory, irrigation via dual-appraisal), vaccination decision-making (Health Belief Model, single- and multi-agent), and social-media dynamics (gossip propagation). The domain layer is pluggable — new domains plug in via YAML + a `DomainPack` subclass without modifying `broker/`.
 
 ## How does WAGF compare to other frameworks?
 
@@ -233,7 +233,7 @@ The two flood experiments use per-agent flood depth grids from hydrological simu
 
 ## Configuration & Extension
 
-All domain-specific values load from YAML. Zero hardcoded domain logic in `broker/` — enforced by the `TestDomainGenericity` invariant ([`broker/INVARIANTS.md` §I5](broker/INVARIANTS.md#invariant-5--domain-genericity-contract)).
+All domain-specific values load from YAML. Domain-specific logic lives in `examples/<domain>/` and `broker/domains/<domain>/`; `broker/` itself remains framework-only.
 
 | What You Want to Change | YAML Only | Python Required |
 |:---|:---:|:---:|
