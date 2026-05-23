@@ -114,3 +114,8 @@ class DefaultDomainPack:
 
     def retrieval_policy(self) -> Dict[str, Any]:
         return {}
+
+    # ─── Population drift monitoring (Phase 6L-A) ─────────────────
+
+    def drift_policy(self) -> Dict[str, Any]:
+        return {}

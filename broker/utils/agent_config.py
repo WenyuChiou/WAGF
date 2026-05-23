@@ -281,6 +281,89 @@ class AgentTypeConfig:
             ) from e
         return merged
 
+    def get_drift_config(self) -> dict:
+        """Get population-drift-monitor tuning (Global YAML > Shared
+        YAML > DomainPack > Default). Phase 6L-A (2026-05-22).
+
+        Returns dict with keys: ``entropy_threshold`` /
+        ``stagnation_threshold`` / ``collapse_threshold`` /
+        ``jaccard_stagnation_threshold`` (floats) and
+        ``history_window`` (int). Coercion happens here so a malformed
+        YAML value fails with a clear message rather than a TypeError
+        deep inside DriftDetector.
+
+        Resolution order, lowest precedence first:
+          1. Framework defaults (entropy=0.5, stagnation=0.6,
+             collapse=0.9, jaccard_stagnation=0.8, history_window=5)
+             — byte-identical to the pre-6L-A
+             :class:`broker.components.analytics.drift.DriftDetector`
+             constructor defaults.
+          2. DomainPack ``drift_policy()`` — a pack ships its own
+             defaults.
+          3. Legacy ``shared.governance.drift``.
+          4. ``global_config.governance.drift`` (most specific).
+
+        Mirrors :meth:`get_retrieval_config` (Phase 6H Item 3 template).
+        """
+        defaults = {
+            "entropy_threshold": 0.5,
+            "stagnation_threshold": 0.6,
+            "collapse_threshold": 0.9,
+            "jaccard_stagnation_threshold": 0.8,
+            "history_window": 5,
+        }
+
+        # DomainPack-supplied policy (domain selector under
+        # global_config.governance.domain — same path as retrieval).
+        pack_policy: dict = {}
+        domain = (
+            self._config.get("global_config", {})
+            .get("governance", {})
+            .get("domain")
+        )
+        if domain:
+            # Lazy import — keeps agent_config import-cycle-free.
+            from broker.domains.registry import DomainPackRegistry
+            pack_policy = (
+                DomainPackRegistry.get_or_default(domain).drift_policy()
+                or {}
+            )
+
+        global_drift = (
+            self._config.get("global_config", {})
+            .get("governance", {})
+            .get("drift", {})
+        ) or {}
+        shared_drift = (
+            self._config.get("shared", {})
+            .get("governance", {})
+            .get("drift", {})
+        ) or {}
+
+        merged = defaults.copy()
+        merged.update(pack_policy)    # DomainPack over framework default
+        merged.update(shared_drift)   # legacy shared over pack
+        merged.update(global_drift)   # global YAML over all
+
+        # Coerce + validate so malformed config fails with a clear
+        # message, not later as a TypeError inside DriftDetector.
+        try:
+            for k in (
+                "entropy_threshold",
+                "stagnation_threshold",
+                "collapse_threshold",
+                "jaccard_stagnation_threshold",
+            ):
+                merged[k] = float(merged[k])
+            merged["history_window"] = int(merged["history_window"])
+        except (TypeError, ValueError) as e:
+            raise ValueError(
+                "governance.drift: all threshold keys must be float "
+                "and history_window must be int — got "
+                f"{ {k: merged.get(k) for k in defaults} }"
+            ) from e
+        return merged
+
     def get_reflection_questions(self, agent_type: str) -> List[str]:
         """Resolve reflection questions for an agent type (Phase 6H Item 4).
 
