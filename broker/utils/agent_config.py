@@ -357,10 +357,89 @@ class AgentTypeConfig:
                 merged[k] = float(merged[k])
             merged["history_window"] = int(merged["history_window"])
         except (TypeError, ValueError) as e:
+            got = {k: merged.get(k) for k in defaults}
             raise ValueError(
                 "governance.drift: all threshold keys must be float "
-                "and history_window must be int — got "
-                f"{ {k: merged.get(k) for k in defaults} }"
+                f"and history_window must be int — got {got}"
+            ) from e
+        return merged
+
+    def get_population_governance_config(self) -> dict:
+        """Get population-governance threshold tuning (Global YAML >
+        Shared YAML > DomainPack > Default). Phase 6L-B (2026-05-22).
+
+        Returns dict with keys (all floats): ``echo_threshold``,
+        ``entropy_threshold``, ``deadlock_threshold`` (the three
+        :class:`broker.validators.governance.cross_agent_validator.CrossAgentValidator`
+        knobs) and ``quorum_threshold`` (the
+        :class:`broker.validators.agent.council.CouncilValidator`
+        MAJORITY-mode quorum). Coercion happens here so a malformed
+        YAML value fails with a clear message rather than a TypeError
+        deep inside the validators.
+
+        Resolution order, lowest precedence first:
+          1. Framework defaults — byte-identical to the pre-6L-B
+             ``CrossAgentValidator(...)`` and
+             ``CouncilValidator(..., consensus_mode='MAJORITY')``
+             constructor defaults.
+          2. DomainPack ``population_governance_policy()``.
+          3. Legacy ``shared.governance.population``.
+          4. ``global_config.governance.population`` (most specific).
+
+        Mirrors :meth:`get_retrieval_config` and
+        :meth:`get_drift_config` (Phase 6H Item 3 template).
+        """
+        defaults = {
+            "echo_threshold": 0.8,
+            "entropy_threshold": 0.5,
+            "deadlock_threshold": 0.5,
+            "quorum_threshold": 0.5,
+        }
+
+        # DomainPack-supplied policy (domain selector under
+        # global_config.governance.domain — same path as retrieval / drift).
+        pack_policy: dict = {}
+        domain = (
+            self._config.get("global_config", {})
+            .get("governance", {})
+            .get("domain")
+        )
+        if domain:
+            # Lazy import — keeps agent_config import-cycle-free.
+            from broker.domains.registry import DomainPackRegistry
+            pack_policy = (
+                DomainPackRegistry.get_or_default(domain)
+                .population_governance_policy()
+                or {}
+            )
+
+        global_pop = (
+            self._config.get("global_config", {})
+            .get("governance", {})
+            .get("population", {})
+        ) or {}
+        shared_pop = (
+            self._config.get("shared", {})
+            .get("governance", {})
+            .get("population", {})
+        ) or {}
+
+        merged = defaults.copy()
+        merged.update(pack_policy)   # DomainPack over framework default
+        merged.update(shared_pop)    # legacy shared over pack
+        merged.update(global_pop)    # global YAML over all
+
+        # Coerce + validate so a malformed config value fails here with
+        # a clear message, not later as a TypeError inside the
+        # CrossAgentValidator / CouncilValidator comparisons.
+        try:
+            for k in defaults:
+                merged[k] = float(merged[k])
+        except (TypeError, ValueError) as e:
+            got = {k: merged.get(k) for k in defaults}
+            raise ValueError(
+                "governance.population: every threshold must be a float "
+                f"— got {got}"
             ) from e
         return merged
 

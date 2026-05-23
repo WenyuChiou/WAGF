@@ -318,6 +318,111 @@ class TestAgentTypeConfigDriftPolicy:
             config.get_drift_config()
 
 
+class TestAgentTypeConfigPopulationGovernance:
+    """Phase 6L-B: get_population_governance_config() — CrossAgentValidator
+    + CouncilValidator thresholds resolved from YAML
+    governance.population. Mirrors the get_retrieval_config /
+    get_drift_config pattern."""
+
+    def setup_method(self):
+        AgentTypeConfig._instance = None
+
+    def test_population_config_defaults(self, tmp_path):
+        """No governance.population block → CrossAgentValidator +
+        CouncilValidator constructor defaults. Byte-identical to
+        ``CrossAgentValidator(0.8, 0.5, 0.5)`` +
+        ``CouncilValidator(..., quorum_threshold=0.5)``."""
+        yaml_file = tmp_path / "t.yaml"
+        yaml_file.write_text("shared: {}\n")
+        config = AgentTypeConfig.load(str(yaml_file))
+        cfg = config.get_population_governance_config()
+        assert cfg["echo_threshold"] == 0.8
+        assert cfg["entropy_threshold"] == 0.5
+        assert cfg["deadlock_threshold"] == 0.5
+        assert cfg["quorum_threshold"] == 0.5
+
+    def test_population_config_yaml_override(self, tmp_path):
+        """global_config.governance.population overrides every knob."""
+        yaml_file = tmp_path / "t.yaml"
+        yaml_file.write_text(
+            "global_config:\n"
+            "  governance:\n"
+            "    population:\n"
+            "      echo_threshold: 0.7\n"
+            "      entropy_threshold: 0.4\n"
+            "      deadlock_threshold: 0.6\n"
+            "      quorum_threshold: 0.667\n"
+        )
+        config = AgentTypeConfig.load(str(yaml_file))
+        cfg = config.get_population_governance_config()
+        assert cfg["echo_threshold"] == 0.7
+        assert cfg["entropy_threshold"] == 0.4
+        assert cfg["deadlock_threshold"] == 0.6
+        assert cfg["quorum_threshold"] == pytest.approx(0.667)
+
+    def test_population_config_partial_override(self, tmp_path):
+        """A partial override keeps framework defaults for un-set keys."""
+        yaml_file = tmp_path / "t.yaml"
+        yaml_file.write_text(
+            "global_config:\n"
+            "  governance:\n"
+            "    population:\n"
+            "      quorum_threshold: 0.667\n"
+        )
+        config = AgentTypeConfig.load(str(yaml_file))
+        cfg = config.get_population_governance_config()
+        assert cfg["quorum_threshold"] == pytest.approx(0.667)
+        assert cfg["echo_threshold"] == 0.8
+        assert cfg["entropy_threshold"] == 0.5
+        assert cfg["deadlock_threshold"] == 0.5
+
+    def test_population_config_threads_to_validators(self, tmp_path):
+        """End-to-end: get_population_governance_config()'s dict maps
+        kwarg-for-kwarg onto CrossAgentValidator + CouncilValidator."""
+        from broker.validators.governance.cross_agent_validator import (
+            CrossAgentValidator,
+        )
+        from broker.validators.agent.council import CouncilValidator
+        yaml_file = tmp_path / "t.yaml"
+        yaml_file.write_text(
+            "global_config:\n"
+            "  governance:\n"
+            "    population:\n"
+            "      echo_threshold: 0.75\n"
+            "      quorum_threshold: 0.667\n"
+        )
+        config = AgentTypeConfig.load(str(yaml_file))
+        cfg = config.get_population_governance_config()
+        cross = CrossAgentValidator(
+            echo_threshold=cfg["echo_threshold"],
+            entropy_threshold=cfg["entropy_threshold"],
+            deadlock_threshold=cfg["deadlock_threshold"],
+        )
+        council = CouncilValidator(
+            validators=[],
+            quorum_threshold=cfg["quorum_threshold"],
+        )
+        assert cross.echo_threshold == 0.75
+        assert cross.entropy_threshold == 0.5
+        assert cross.deadlock_threshold == 0.5
+        assert council.quorum_threshold == pytest.approx(0.667)
+
+    def test_population_config_malformed_value_raises_clear_error(self, tmp_path):
+        """Non-numeric threshold in YAML must fail at config-load time
+        with a clear ``governance.population`` message — not later as
+        a TypeError inside the validators."""
+        yaml_file = tmp_path / "t.yaml"
+        yaml_file.write_text(
+            "global_config:\n"
+            "  governance:\n"
+            "    population:\n"
+            "      quorum_threshold: 'not-a-float'\n"
+        )
+        config = AgentTypeConfig.load(str(yaml_file))
+        with pytest.raises(ValueError, match="governance.population"):
+            config.get_population_governance_config()
+
+
 class TestAgentTypeConfigReflectionQuestions:
     """Phase 6H Item 4: get_reflection_questions() — per-agent-type and
     domain-wide reflection questions resolved from agent_types.yaml."""
