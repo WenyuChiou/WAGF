@@ -219,6 +219,105 @@ class TestAgentTypeConfigRetrievalPolicy:
         assert cfg["min_score"] == 0.05  # framework default preserved
 
 
+class TestAgentTypeConfigDriftPolicy:
+    """Phase 6L-A: get_drift_config() — population-drift-monitor knobs
+    resolved from YAML governance.drift. Mirrors the get_retrieval_config
+    pattern (Phase 6H Item 3 template)."""
+
+    def setup_method(self):
+        AgentTypeConfig._instance = None
+
+    def test_drift_config_defaults(self, tmp_path):
+        """No governance.drift block → DriftDetector constructor defaults.
+        Byte-identical to the pre-6L-A
+        ``DriftDetector(entropy_threshold=0.5, stagnation_threshold=0.6,
+        collapse_threshold=0.9, jaccard_stagnation_threshold=0.8,
+        history_window=5)``."""
+        yaml_file = tmp_path / "t.yaml"
+        yaml_file.write_text("shared: {}\n")
+        config = AgentTypeConfig.load(str(yaml_file))
+        cfg = config.get_drift_config()
+        assert cfg["entropy_threshold"] == 0.5
+        assert cfg["stagnation_threshold"] == 0.6
+        assert cfg["collapse_threshold"] == 0.9
+        assert cfg["jaccard_stagnation_threshold"] == 0.8
+        assert cfg["history_window"] == 5
+
+    def test_drift_config_yaml_override(self, tmp_path):
+        """global_config.governance.drift overrides every knob it sets."""
+        yaml_file = tmp_path / "t.yaml"
+        yaml_file.write_text(
+            "global_config:\n"
+            "  governance:\n"
+            "    drift:\n"
+            "      entropy_threshold: 0.4\n"
+            "      stagnation_threshold: 0.7\n"
+            "      collapse_threshold: 0.95\n"
+            "      jaccard_stagnation_threshold: 0.75\n"
+            "      history_window: 8\n"
+        )
+        config = AgentTypeConfig.load(str(yaml_file))
+        cfg = config.get_drift_config()
+        assert cfg["entropy_threshold"] == 0.4
+        assert cfg["stagnation_threshold"] == 0.7
+        assert cfg["collapse_threshold"] == 0.95
+        assert cfg["jaccard_stagnation_threshold"] == 0.75
+        assert cfg["history_window"] == 8
+
+    def test_drift_config_partial_override(self, tmp_path):
+        """A partial override keeps framework defaults for un-set keys."""
+        yaml_file = tmp_path / "t.yaml"
+        yaml_file.write_text(
+            "global_config:\n"
+            "  governance:\n"
+            "    drift:\n"
+            "      collapse_threshold: 0.85\n"
+        )
+        config = AgentTypeConfig.load(str(yaml_file))
+        cfg = config.get_drift_config()
+        assert cfg["collapse_threshold"] == 0.85
+        # Unmentioned keys keep defaults.
+        assert cfg["entropy_threshold"] == 0.5
+        assert cfg["history_window"] == 5
+
+    def test_drift_config_threads_to_drift_detector(self, tmp_path):
+        """End-to-end: the dict returned by get_drift_config maps
+        kwarg-for-kwarg onto DriftDetector.__init__."""
+        from broker.components.analytics.drift import DriftDetector
+        yaml_file = tmp_path / "t.yaml"
+        yaml_file.write_text(
+            "global_config:\n"
+            "  governance:\n"
+            "    drift:\n"
+            "      entropy_threshold: 0.3\n"
+            "      history_window: 7\n"
+        )
+        config = AgentTypeConfig.load(str(yaml_file))
+        cfg = config.get_drift_config()
+        detector = DriftDetector(**cfg)
+        assert detector.entropy_threshold == 0.3
+        assert detector.history_window == 7
+        # Un-overridden defaults preserved.
+        assert detector.stagnation_threshold == 0.6
+        assert detector.collapse_threshold == 0.9
+
+    def test_drift_config_malformed_value_raises_clear_error(self, tmp_path):
+        """A non-numeric threshold in YAML must fail at get_drift_config
+        time with a clear ``governance.drift`` message — not later as a
+        TypeError deep inside DriftDetector. Covers the coerce/validate
+        branch."""
+        yaml_file = tmp_path / "t.yaml"
+        yaml_file.write_text(
+            "global_config:\n"
+            "  governance:\n"
+            "    drift:\n"
+            "      entropy_threshold: 'not-a-float'\n"
+        )
+        config = AgentTypeConfig.load(str(yaml_file))
+        with pytest.raises(ValueError, match="governance.drift"):
+            config.get_drift_config()
+
+
 class TestAgentTypeConfigReflectionQuestions:
     """Phase 6H Item 4: get_reflection_questions() — per-agent-type and
     domain-wide reflection questions resolved from agent_types.yaml."""

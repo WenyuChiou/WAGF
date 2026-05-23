@@ -103,6 +103,11 @@ class TestDefaultDomainPack:
         # beyond the truly-generic _DEFAULT_RULES).
         assert self.pack.memory_policy() is None
 
+    def test_drift_policy_is_empty(self):
+        # Phase 6L-A: DefaultDomainPack returns {} — DriftDetector
+        # constructor defaults (entropy 0.5, stagnation 0.6, etc.) apply.
+        assert self.pack.drift_policy() == {}
+
     def test_mg_barrier_text_is_empty(self):
         assert self.pack.mg_barrier_text({}) == ""
 
@@ -247,6 +252,11 @@ class TestIrrigationDomainPackByteIdentical:
         # overrides today; the inherited default of None keeps generic
         # behaviour.
         assert self.pack.memory_policy() is None
+
+    def test_irrigation_drift_policy_empty(self):
+        # Phase 6L-A: irrigation does not yet override DriftDetector
+        # defaults; inherits the {} default.
+        assert self.pack.drift_policy() == {}
 
     def test_irrigation_mg_barrier_text_empty(self):
         assert self.pack.mg_barrier_text({}) == ""
@@ -448,6 +458,12 @@ class TestFloodDomainPackByteIdentical:
     def test_memory_policy_stimulus_key_is_flood_depth_m(self):
         bundle = self.pack.memory_policy()
         assert bundle.stimulus_key == "flood_depth_m"
+
+    def test_drift_policy_inherits_default(self):
+        # Phase 6L-A: flood domain does not yet override drift defaults;
+        # inherits the {} default from DefaultDomainPack so DriftDetector
+        # constructor defaults apply.
+        assert self.pack.drift_policy() == {}
 
     # MG barrier text — preserves providers.py:706-712 string
     def test_mg_barrier_text_contains_passaic(self):

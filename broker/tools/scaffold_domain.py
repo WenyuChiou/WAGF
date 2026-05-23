@@ -361,9 +361,9 @@ def gen_domain_pack(domain: str) -> str:
         class {class_name}(DefaultDomainPack):
             \"\"\"DomainPack for the {domain} domain.
 
-            See broker/domains/protocol.py for the full method list — there are
-            13 methods total but most have sensible no-op defaults you can
-            ignore at first.
+            See broker/domains/protocol.py for the full method list — most
+            hooks have sensible no-op defaults from DefaultDomainPack you
+            can ignore at first.
             \"\"\"
 
             # --- Identity / labels --------------------------------------------------

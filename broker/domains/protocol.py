@@ -366,3 +366,24 @@ class DomainPack(Protocol):
         ``governance.retrieval`` (Phase 6H Item 3).
         """
         ...
+
+    # ─── Population drift monitoring (Phase 6L-A 2026-05-22) ──────
+
+    def drift_policy(self) -> Dict[str, Any]:
+        """Population-level drift-monitor thresholds. Recognised keys
+        (all floats unless noted): ``entropy_threshold`` (Shannon-entropy
+        bits below which a LOW_ENTROPY alert fires), ``stagnation_threshold``
+        (fraction of agents whose recent decisions are jaccard-stagnant
+        above which HIGH_STAGNATION fires), ``collapse_threshold``
+        (dominant-action fraction above which MODE_COLLAPSE fires),
+        ``jaccard_stagnation_threshold`` (per-agent jaccard above which
+        the agent counts as stagnant), and ``history_window`` (int,
+        recent-decision history length feeding the jaccard calc).
+
+        Default ``{}`` → broker uses the
+        :class:`broker.components.analytics.drift.DriftDetector`
+        constructor defaults (entropy 0.5, stagnation 0.6, collapse 0.9,
+        jaccard 0.8, history 5). Also overridable via
+        ``agent_types.yaml`` ``governance.drift`` (Phase 6L-A).
+        """
+        ...
