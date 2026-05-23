@@ -1138,7 +1138,20 @@ def run_unified_experiment():
     cross_validator = None
     if args.enable_cross_validation:
         from broker.validators.governance.cross_agent_validator import CrossAgentValidator
-        cross_validator = CrossAgentValidator()
+        # Phase 6L-B (2026-05-22): thresholds come from
+        # ``governance.population`` YAML / DomainPack via
+        # ``get_population_governance_config()``; the quorum_threshold
+        # key is consumed elsewhere (CouncilValidator) and ignored
+        # here. TODO(6L-B): the flood runner does not yet construct
+        # CouncilValidator, so the YAML quorum_threshold currently has
+        # no live effect for flood — wire it when CouncilValidator is
+        # adopted (single-line read of _pop_cfg['quorum_threshold']).
+        _pop_cfg = agent_cfg.get_population_governance_config()
+        cross_validator = CrossAgentValidator(
+            echo_threshold=_pop_cfg["echo_threshold"],
+            entropy_threshold=_pop_cfg["entropy_threshold"],
+            deadlock_threshold=_pop_cfg["deadlock_threshold"],
+        )
         if game_master:
             game_master.cross_validator = cross_validator
         print("[INFO] Cross-agent validation ENABLED (echo chamber + deadlock detection)")

@@ -387,3 +387,29 @@ class DomainPack(Protocol):
         ``agent_types.yaml`` ``governance.drift`` (Phase 6L-A).
         """
         ...
+
+    # ─── Population-governance thresholds (Phase 6L-B 2026-05-22) ─
+
+    def population_governance_policy(self) -> Dict[str, Any]:
+        """Population-level governance thresholds bundled into one hook.
+        Recognised keys (all floats):
+        - ``echo_threshold`` — fraction above which a single skill being
+          chosen by the cohort flags an echo-chamber alert (default
+          0.8); consumed by
+          :class:`broker.validators.governance.cross_agent_validator.CrossAgentValidator`.
+        - ``entropy_threshold`` — Shannon entropy bits below which the
+          population's decision diversity flags a low-entropy alert
+          (default 0.5); also CrossAgentValidator.
+        - ``deadlock_threshold`` — rejection rate above which the cohort
+          flags a governance-deadlock alert (default 0.5);
+          CrossAgentValidator.
+        - ``quorum_threshold`` — fraction of sub-validators that must
+          approve for the ``MAJORITY`` mode of
+          :class:`broker.validators.agent.council.CouncilValidator` to
+          approve (default 0.5; set 2/3 ≈ 0.667 for super-majority).
+
+        Default ``{}`` → broker uses the class constructor defaults.
+        Also overridable via ``agent_types.yaml``
+        ``governance.population`` (Phase 6L-B).
+        """
+        ...

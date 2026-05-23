@@ -108,6 +108,12 @@ class TestDefaultDomainPack:
         # constructor defaults (entropy 0.5, stagnation 0.6, etc.) apply.
         assert self.pack.drift_policy() == {}
 
+    def test_population_governance_policy_is_empty(self):
+        # Phase 6L-B: DefaultDomainPack returns {} — CrossAgentValidator
+        # / CouncilValidator constructor defaults (0.8 / 0.5 / 0.5 / 0.5)
+        # apply.
+        assert self.pack.population_governance_policy() == {}
+
     def test_mg_barrier_text_is_empty(self):
         assert self.pack.mg_barrier_text({}) == ""
 
@@ -257,6 +263,11 @@ class TestIrrigationDomainPackByteIdentical:
         # Phase 6L-A: irrigation does not yet override DriftDetector
         # defaults; inherits the {} default.
         assert self.pack.drift_policy() == {}
+
+    def test_irrigation_population_governance_policy_empty(self):
+        # Phase 6L-B: irrigation does not yet override population-
+        # governance defaults; inherits the {} default.
+        assert self.pack.population_governance_policy() == {}
 
     def test_irrigation_mg_barrier_text_empty(self):
         assert self.pack.mg_barrier_text({}) == ""
@@ -464,6 +475,13 @@ class TestFloodDomainPackByteIdentical:
         # inherits the {} default from DefaultDomainPack so DriftDetector
         # constructor defaults apply.
         assert self.pack.drift_policy() == {}
+
+    def test_population_governance_policy_inherits_default(self):
+        # Phase 6L-B: flood domain does not yet override population-
+        # governance defaults; inherits the {} default so
+        # CrossAgentValidator / CouncilValidator constructor defaults
+        # apply.
+        assert self.pack.population_governance_policy() == {}
 
     # MG barrier text — preserves providers.py:706-712 string
     def test_mg_barrier_text_contains_passaic(self):

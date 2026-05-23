@@ -119,3 +119,8 @@ class DefaultDomainPack:
 
     def drift_policy(self) -> Dict[str, Any]:
         return {}
+
+    # ─── Population-governance thresholds (Phase 6L-B) ────────────
+
+    def population_governance_policy(self) -> Dict[str, Any]:
+        return {}
