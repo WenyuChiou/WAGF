@@ -407,13 +407,13 @@ class TestDomainGenericity:
         # documented-reference text only; the code is domain-agnostic.
         "agents/base.py",                            # FP: NFIP/FEMA in docstring Literature reference
         "components/context/providers.py",           # FP: NFIP in DYNAMO Literature reference
-        # Phase 6K-A (2026-05-22) — the three memory-subsystem
-        # TECH-DEBT(6K) entries closed: a new DomainPack.memory_policy()
-        # hook supplies category_rules, external_event_whitelist, and
-        # stimulus_key. The fourth TECH-DEBT entry
-        # (events/generators/flood.py) closes in Phase 6K-B (file
-        # relocation to broker/domains/water/event_generators/).
-        "components/events/generators/flood.py",     # TECH-DEBT(6K-B): whole-file flood-specific hazard generator → relocate to broker/domains/water/event_generators/
+        # Phase 6K-A (2026-05-22) closed the three memory-subsystem
+        # TECH-DEBT(6K) entries via DomainPack.memory_policy().
+        # Phase 6K-B (2026-05-22) closed the fourth: the whole-file
+        # flood-specific hazard generator relocated from
+        # ``broker/components/events/generators/flood.py`` to
+        # ``broker/domains/water/event_generators/flood.py``. All four
+        # 6K allowlist entries are now removed.
         # ---------------------------------------------------------------------
         # KNOWN-DEBT(6H) — genuine domain leak in generic broker/ code.
         # Each migrates in the Phase 6H DomainPack v2 refactor; removing an

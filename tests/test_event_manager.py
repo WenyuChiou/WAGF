@@ -6,7 +6,7 @@ from broker.interfaces.event_generator import (
     EventScope,
 )
 from broker.components.events.manager import EnvironmentEventManager
-from broker.components.events.generators.flood import (
+from broker.domains.water.event_generators.flood import (
     FloodEventGenerator,
     FloodConfig,
 )

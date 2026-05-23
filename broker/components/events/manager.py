@@ -18,7 +18,9 @@ class EnvironmentEventManager:
 
     Usage:
         manager = EnvironmentEventManager()
-        manager.register("flood", FloodEventGenerator())
+        # MyHazardEventGenerator / MarketEventGenerator are placeholders
+        # for any domain-specific EnvironmentEventGenerator subclass.
+        manager.register("hazard", MyHazardEventGenerator())
         manager.register("market", MarketEventGenerator())
 
         # In simulation loop:
