@@ -46,6 +46,7 @@ class MultiAgentHooks:
         interaction_hub: Optional[Any] = None,    # InteractionHub for gossip storage
         fixed_policy_schedule: Optional[Dict[int, Dict[str, float]]] = None,  # RQ2 ablation
         reflection_config: Optional[Dict] = None,  # from global_config.reflection
+        bridge_importance_policy: Optional[Dict[str, float]] = None,  # Phase 6L-D
     ):
         self.env = environment
         self.memory_engine = memory_engine
@@ -74,7 +75,14 @@ class MultiAgentHooks:
         self.drift_detector = drift_detector
         self.social_graph = social_graph
         self._interaction_hub = interaction_hub
-        self._memory_bridge = MemoryBridge(memory_engine) if memory_engine else None
+        # Phase 6L-D (2026-05-23): thread the resolution-importance
+        # policy from agent_cfg.get_bridge_importance_config() through
+        # to MemoryBridge so YAML overrides take effect at the live
+        # call site, not just at the accessor.
+        self._memory_bridge = (
+            MemoryBridge(memory_engine, importance_policy=bridge_importance_policy)
+            if memory_engine else None
+        )
         self.fixed_policy_schedule = fixed_policy_schedule
 
         # --- Institutional state tracking (C&V: trajectory validation) ---

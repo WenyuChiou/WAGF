@@ -196,14 +196,50 @@ class AgentTypeConfig:
     def get_reflection_config(self) -> dict:
         """Get reflection configuration (Global > Shared > Default).
 
-        Documented keys: interval, batch_size, importance_boost. The
-        merge copies the WHOLE ``reflection`` YAML block, so any other
-        keys present (``persona_instruction``, ``triggers``, and
-        ``questions``) also pass through. For reflection questions
-        prefer :meth:`get_reflection_questions` — it adds per-agent-type
-        resolution and the DomainPack fallback.
+        Documented top-level keys: ``interval``, ``batch_size``,
+        ``importance_boost`` (the
+        :class:`broker.components.cognitive.reflection.ReflectionEngine`
+        ``insight_importance_boost`` kwarg), and Phase 6L-D
+        (2026-05-23) ``base_importance`` (the
+        :meth:`ReflectionEngine.compute_dynamic_importance` fallback
+        when no DomainPack adapter supplies one).
+
+        Documented sub-blocks:
+        - ``triggers``: read by
+          :meth:`ReflectionEngine.load_trigger_config`; carries
+          ``crisis`` / ``periodic_interval`` / ``decision_types`` /
+          ``institutional_threshold`` (default 0.05) / ``method`` /
+          ``batch_size`` / ``importance_boost`` (default 0.85; this is
+          ``ReflectionTriggerConfig.importance_boost``, distinct from
+          the top-level ``importance_boost`` above).
+        - ``persona_instruction``, ``questions`` — pre-existing
+          reflection-prompt knobs; for reflection questions prefer
+          :meth:`get_reflection_questions` (per-agent-type +
+          DomainPack fallback).
+
+        The merge copies the WHOLE ``reflection`` YAML block, so any
+        documented or future key passes through automatically. Cognitive
+        knobs stay YAML-only by user direction (Phase 6L plan) — no
+        DomainPack hook for reflection.
+
+        Note (Phase 6L-D): ``base_importance`` is surfaced in the
+        defaults dict and pass-through-merged from YAML, but no
+        production caller currently threads it into
+        ``ReflectionEngine.compute_dynamic_importance(base_importance=...)``.
+        End-to-end wiring is deferred — the accessor declares the
+        interface so YAML edits do not silently no-op; the call-site
+        update lands when a non-default value is genuinely needed.
         """
-        defaults = {"interval": 1, "batch_size": 10, "importance_boost": 0.9}
+        defaults = {
+            "interval": 1,
+            "batch_size": 10,
+            "importance_boost": 0.9,
+            # Phase 6L-D (2026-05-23): surfaced so callers reading
+            # ``get_reflection_config()`` know the key is recognised
+            # and can override it via YAML. Matches the constructor
+            # default of ``ReflectionEngine.compute_dynamic_importance``.
+            "base_importance": 0.9,
+        }
         
         # 1. Global Config
         global_refl = self._config.get("global_config", {}).get("reflection", {}) or {}
@@ -540,6 +576,94 @@ class AgentTypeConfig:
         # Strip any YAML extras so downstream consumers see only the
         # three canonical keys and cannot be surprised by stale
         # entries that ``_determine_severity`` would silently ignore.
+        return {k: merged[k] for k in defaults}
+
+    def get_bridge_importance_config(self) -> dict:
+        """Get MemoryBridge resolution-importance policy (Global YAML >
+        Shared YAML > DomainPack > Default). Phase 6L-D (2026-05-23).
+
+        Returns dict with keys (floats): ``approved`` (default 0.6) and
+        ``denied`` (default 0.75). The ``denied >= approved`` asymmetry
+        is the documented "denials more memorable" behavioural claim
+        from ``MemoryBridge.store_resolution`` — domains should preserve
+        it unless they have an explicit rationale to invert.
+
+        Resolution order, lowest precedence first:
+          1. Framework defaults (approved=0.6, denied=0.75) —
+             byte-identical to the pre-6L-D
+             ``MemoryBridge.store_resolution`` literals.
+          2. DomainPack ``bridge_importance_policy()``.
+          3. Legacy ``shared.governance.memory.resolution_importance_policy``.
+          4. ``global_config.governance.memory.resolution_importance_policy``.
+
+        Mirrors :meth:`get_retrieval_config` / :meth:`get_drift_config`
+        / :meth:`get_population_governance_config` /
+        :meth:`get_policy_event_tiers_config` (Phase 6H Item 3
+        template).
+        """
+        defaults = {"approved": 0.6, "denied": 0.75}
+
+        # DomainPack-supplied policy.
+        pack_policy: dict = {}
+        domain = (
+            self._config.get("global_config", {})
+            .get("governance", {})
+            .get("domain")
+        )
+        if domain:
+            # Lazy import — keeps agent_config import-cycle-free.
+            from broker.domains.registry import DomainPackRegistry
+            pack_policy = (
+                DomainPackRegistry.get_or_default(domain)
+                .bridge_importance_policy()
+                or {}
+            )
+
+        global_pol = (
+            self._config.get("global_config", {})
+            .get("governance", {})
+            .get("memory", {})
+            .get("resolution_importance_policy", {})
+        ) or {}
+        shared_pol = (
+            self._config.get("shared", {})
+            .get("governance", {})
+            .get("memory", {})
+            .get("resolution_importance_policy", {})
+        ) or {}
+
+        merged = defaults.copy()
+        merged.update(pack_policy)   # DomainPack over framework default
+        merged.update(shared_pol)    # legacy shared over pack
+        merged.update(global_pol)    # global YAML over all
+
+        # Coerce + validate so a malformed config value fails here
+        # with a clear message, not later inside MemoryBridge.
+        try:
+            for k in defaults:
+                merged[k] = float(merged[k])
+        except (TypeError, ValueError) as e:
+            got = {k: merged.get(k) for k in defaults}
+            raise ValueError(
+                "governance.memory.resolution_importance_policy: "
+                f"every value must be a float — got {got}"
+            ) from e
+        # Asymmetry guard: the 'denied > approved' (denials more
+        # memorable) split is the documented design rationale —
+        # equal values are permitted but strict inversion requires
+        # an explicit domain rationale. Catch the inversion at
+        # config-load time with a clear message rather than silently
+        # flipping the rationale at runtime.
+        if merged["denied"] < merged["approved"]:
+            raise ValueError(
+                "governance.memory.resolution_importance_policy: "
+                f"'denied' ({merged['denied']}) must be >= 'approved' "
+                f"({merged['approved']}); inverting the 'denials more "
+                "memorable' asymmetry requires an explicit domain "
+                "rationale (see MemoryBridge.store_resolution)."
+            )
+        # Strip any YAML extras so downstream consumers see only the
+        # two canonical keys.
         return {k: merged[k] for k in defaults}
 
     def get_reflection_questions(self, agent_type: str) -> List[str]:

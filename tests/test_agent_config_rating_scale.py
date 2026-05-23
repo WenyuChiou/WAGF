@@ -574,6 +574,156 @@ class TestAgentTypeConfigPolicyEventTiers:
         assert set(cfg.keys()) == {"severe", "moderate", "minor"}
 
 
+class TestAgentTypeConfigBridgeImportance:
+    """Phase 6L-D: get_bridge_importance_config() — MemoryBridge
+    resolution-importance policy resolved from
+    governance.memory.resolution_importance_policy. Mirrors the
+    get_retrieval_config / get_drift_config /
+    get_population_governance_config / get_policy_event_tiers_config
+    pattern."""
+
+    def setup_method(self):
+        AgentTypeConfig._instance = None
+
+    def test_bridge_importance_defaults(self, tmp_path):
+        """No governance.memory block → MemoryBridge constructor
+        defaults (approved=0.6, denied=0.75). Byte-identical to the
+        pre-6L-D hardcoded literals — preserves the documented
+        'Denials are more memorable' asymmetry."""
+        yaml_file = tmp_path / "t.yaml"
+        yaml_file.write_text("shared: {}\n")
+        config = AgentTypeConfig.load(str(yaml_file))
+        cfg = config.get_bridge_importance_config()
+        assert cfg == {"approved": 0.6, "denied": 0.75}
+
+    def test_bridge_importance_yaml_override(self, tmp_path):
+        """global_config.governance.memory.resolution_importance_policy
+        overrides both keys."""
+        yaml_file = tmp_path / "t.yaml"
+        yaml_file.write_text(
+            "global_config:\n"
+            "  governance:\n"
+            "    memory:\n"
+            "      resolution_importance_policy:\n"
+            "        approved: 0.7\n"
+            "        denied: 0.85\n"
+        )
+        config = AgentTypeConfig.load(str(yaml_file))
+        cfg = config.get_bridge_importance_config()
+        assert cfg == {"approved": 0.7, "denied": 0.85}
+
+    def test_bridge_importance_threads_to_memory_bridge(self, tmp_path):
+        """End-to-end: get_bridge_importance_config()'s dict maps onto
+        ``MemoryBridge(importance_policy=...)`` and store_resolution
+        reads the overridden values."""
+        from unittest.mock import MagicMock
+        from broker.components.memory.bridge import MemoryBridge
+        from broker.interfaces.coordination import (
+            ActionResolution,
+            ActionProposal,
+        )
+
+        yaml_file = tmp_path / "t.yaml"
+        yaml_file.write_text(
+            "global_config:\n"
+            "  governance:\n"
+            "    memory:\n"
+            "      resolution_importance_policy:\n"
+            "        approved: 0.5\n"
+            "        denied: 0.95\n"
+        )
+        config = AgentTypeConfig.load(str(yaml_file))
+        cfg = config.get_bridge_importance_config()
+
+        engine = MagicMock()
+        bridge = MemoryBridge(engine, importance_policy=cfg)
+        # The asymmetric default + caller-supplied policy both threaded
+        # through; the stored importance reflects the YAML override.
+        assert bridge._importance_policy == {"approved": 0.5, "denied": 0.95}
+
+    def test_bridge_importance_malformed_value_raises_clear_error(self, tmp_path):
+        """Non-numeric value in YAML must fail at config-load time
+        with a clear ``governance.memory.resolution_importance_policy``
+        message."""
+        yaml_file = tmp_path / "t.yaml"
+        yaml_file.write_text(
+            "global_config:\n"
+            "  governance:\n"
+            "    memory:\n"
+            "      resolution_importance_policy:\n"
+            "        approved: 'not-a-float'\n"
+        )
+        config = AgentTypeConfig.load(str(yaml_file))
+        with pytest.raises(
+            ValueError, match="governance.memory.resolution_importance_policy"
+        ):
+            config.get_bridge_importance_config()
+
+
+class TestAgentTypeConfigReflectionConfig:
+    """Phase 6L-D: get_reflection_config() extension to cover the
+    trigger sub-block + base_importance. The reflection knobs ride on
+    the existing YAML path (cognitive knobs stay YAML-only per Phase
+    6L plan — no DomainPack hook for reflection)."""
+
+    def setup_method(self):
+        AgentTypeConfig._instance = None
+
+    def test_reflection_defaults_include_base_importance(self, tmp_path):
+        """No reflection block → defaults include the new
+        ``base_importance`` key surfaced by Phase 6L-D."""
+        yaml_file = tmp_path / "t.yaml"
+        yaml_file.write_text("shared: {}\n")
+        config = AgentTypeConfig.load(str(yaml_file))
+        cfg = config.get_reflection_config()
+        assert cfg["base_importance"] == 0.9
+        # Pre-6L-D keys still present and at their byte-identical defaults.
+        assert cfg["interval"] == 1
+        assert cfg["batch_size"] == 10
+        assert cfg["importance_boost"] == 0.9
+
+    def test_reflection_triggers_pass_through(self, tmp_path):
+        """A ``triggers:`` sub-block under ``global_config.reflection``
+        passes through the merge (the whole reflection block is
+        merged). Callers that route through
+        :meth:`ReflectionEngine.load_trigger_config` then read these
+        knobs."""
+        yaml_file = tmp_path / "t.yaml"
+        yaml_file.write_text(
+            "global_config:\n"
+            "  reflection:\n"
+            "    base_importance: 0.85\n"
+            "    triggers:\n"
+            "      institutional_threshold: 0.10\n"
+            "      importance_boost: 0.95\n"
+        )
+        config = AgentTypeConfig.load(str(yaml_file))
+        cfg = config.get_reflection_config()
+        assert cfg["base_importance"] == 0.85
+        assert cfg["triggers"]["institutional_threshold"] == 0.10
+        assert cfg["triggers"]["importance_boost"] == 0.95
+
+    def test_reflection_load_trigger_config_consumes_yaml(self, tmp_path):
+        """End-to-end: the merged reflection dict can be fed to
+        ``ReflectionEngine.load_trigger_config`` and the returned
+        ``ReflectionTriggerConfig`` carries the YAML overrides."""
+        from broker.components.cognitive.reflection import ReflectionEngine
+
+        yaml_file = tmp_path / "t.yaml"
+        yaml_file.write_text(
+            "global_config:\n"
+            "  reflection:\n"
+            "    triggers:\n"
+            "      institutional_threshold: 0.12\n"
+            "      importance_boost: 0.90\n"
+        )
+        config = AgentTypeConfig.load(str(yaml_file))
+        refl_cfg = config.get_reflection_config()
+        trigger_cfg = ReflectionEngine.load_trigger_config(refl_cfg)
+        assert trigger_cfg.institutional_threshold == 0.12
+        assert trigger_cfg.importance_boost == 0.90
+
+
 class TestAgentTypeConfigReflectionQuestions:
     """Phase 6H Item 4: get_reflection_questions() — per-agent-type and
     domain-wide reflection questions resolved from agent_types.yaml."""

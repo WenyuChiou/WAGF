@@ -129,3 +129,8 @@ class DefaultDomainPack:
 
     def policy_event_tiers(self) -> Dict[str, float]:
         return {}
+
+    # ─── MemoryBridge resolution importance (Phase 6L-D) ──────────
+
+    def bridge_importance_policy(self) -> Dict[str, float]:
+        return {}

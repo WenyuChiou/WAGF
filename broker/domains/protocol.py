@@ -433,3 +433,23 @@ class DomainPack(Protocol):
         ``governance.policy_event_tiers`` (Phase 6L-C).
         """
         ...
+
+    # ─── MemoryBridge resolution importance (Phase 6L-D 2026-05-23) ─
+
+    def bridge_importance_policy(self) -> Dict[str, float]:
+        """Per-domain override of the
+        :class:`broker.components.memory.bridge.MemoryBridge` resolution
+        importance values. Recognised keys (floats):
+        ``approved`` (default 0.6) and ``denied`` (default 0.75; the
+        higher value reflects the deliberate "denials more memorable"
+        behavioural claim — see the inline comment in
+        ``MemoryBridge.store_resolution``).
+
+        Default ``{}`` → bridge constructor defaults apply. Also
+        overridable via ``agent_types.yaml``
+        ``governance.memory.resolution_importance_policy``
+        (Phase 6L-D). Domains should preserve the
+        ``denied >= approved`` asymmetry unless they have an explicit
+        rationale to invert it.
+        """
+        ...

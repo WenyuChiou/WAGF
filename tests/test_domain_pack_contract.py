@@ -119,6 +119,11 @@ class TestDefaultDomainPack:
         # default severity_tiers (0.20 / 0.10 / 0.05) apply.
         assert self.pack.policy_event_tiers() == {}
 
+    def test_bridge_importance_policy_is_empty(self):
+        # Phase 6L-D: DefaultDomainPack returns {} — MemoryBridge
+        # constructor defaults (approved=0.6, denied=0.75) apply.
+        assert self.pack.bridge_importance_policy() == {}
+
     def test_mg_barrier_text_is_empty(self):
         assert self.pack.mg_barrier_text({}) == ""
 
@@ -278,6 +283,11 @@ class TestIrrigationDomainPackByteIdentical:
         # Phase 6L-C: irrigation does not yet override PolicyEvent
         # severity tiers; inherits the {} default.
         assert self.pack.policy_event_tiers() == {}
+
+    def test_irrigation_bridge_importance_policy_empty(self):
+        # Phase 6L-D: irrigation does not yet override MemoryBridge
+        # resolution importance values; inherits the {} default.
+        assert self.pack.bridge_importance_policy() == {}
 
     def test_irrigation_mg_barrier_text_empty(self):
         assert self.pack.mg_barrier_text({}) == ""
@@ -498,6 +508,12 @@ class TestFloodDomainPackByteIdentical:
         # severity-tier cutoffs; inherits the {} default so
         # PolicyEventConfig defaults (0.20 / 0.10 / 0.05) apply.
         assert self.pack.policy_event_tiers() == {}
+
+    def test_bridge_importance_policy_inherits_default(self):
+        # Phase 6L-D: flood domain does not yet override the MemoryBridge
+        # asymmetric 0.6/0.75 default; the inline 'Denials are more
+        # memorable' design rationale stays the documented choice.
+        assert self.pack.bridge_importance_policy() == {}
 
     # MG barrier text — preserves providers.py:706-712 string
     def test_mg_barrier_text_contains_passaic(self):
