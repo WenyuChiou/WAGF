@@ -48,6 +48,59 @@ _GENERIC_LABEL_MAPPINGS: Dict[str, str] = {
 }
 
 
+# ──────────────────────────────────────────────────────────────────────
+# Per-framework thinking-check registry (Phase 6K-C 2026-05-22)
+# ──────────────────────────────────────────────────────────────────────
+# Domain packs register their framework-specific builtin checks here at
+# import time (e.g. broker.domains.water registers PMT / Utility /
+# Financial checks). ThinkingValidator(framework="pmt") then queries
+# this registry for the default builtin_checks list. Empty for an
+# unregistered framework — pass builtin_checks=[] (or rely on
+# YAML rules) for genuinely-YAML-only domains.
+# ──────────────────────────────────────────────────────────────────────
+
+_THINKING_CHECKS_BY_FRAMEWORK: Dict[str, List[BuiltinCheck]] = {}
+
+
+def register_thinking_checks(framework: str, checks: List[BuiltinCheck]) -> None:
+    """Register a list of framework-specific builtin thinking checks.
+
+    Phase 6K-C (2026-05-22): the PMT / Utility / Financial rule bodies
+    previously hardcoded in ThinkingValidator._validate_pmt etc.
+    relocated to broker.domains.water.thinking_checks; the water
+    domain calls this function once at import time per framework.
+    Re-registering the same framework REPLACES its check list so
+    repeated register() calls (e.g. from test setup) stay
+    idempotent.
+    """
+    _THINKING_CHECKS_BY_FRAMEWORK[framework] = list(checks)
+
+
+def normalize_label(label: Optional[str], framework: str) -> str:
+    """Module-level helper: normalize a free-text label to the
+    framework's canonical token (``VL``/``L``/``M``/``H``/``VH`` for
+    the default scale, or whatever the framework registered via
+    :func:`register_framework_metadata`). Returns ``"M"`` for empty
+    input. Phase 6K-C (2026-05-22): extracted from the instance method
+    so relocated rule bodies (in broker.domains.water) can call it
+    without needing a ThinkingValidator reference.
+    """
+    if not label:
+        return "M"
+    label = str(label).upper().strip()
+    mappings = _LABEL_MAPPINGS.get(framework, _GENERIC_LABEL_MAPPINGS)
+    return mappings.get(label, label)
+
+
+def has_rule_for(rules: List[GovernanceRule], rule_id_prefix: str) -> bool:
+    """Module-level helper: True iff any thinking-category rule's
+    ``id`` starts with ``rule_id_prefix``. Phase 6K-C (2026-05-22):
+    extracted from the instance method for the same reason as
+    :func:`normalize_label`.
+    """
+    return any(r.id.startswith(rule_id_prefix) for r in rules if r.category == "thinking")
+
+
 def register_framework_metadata(
     name: str,
     constructs: dict,
@@ -155,42 +208,28 @@ class ThinkingValidator(BaseValidator):
         return "thinking"
 
     def _default_builtin_checks(self) -> List[BuiltinCheck]:
-        """Default built-in framework checks: PMT + Utility + Financial.
+        """Default built-in framework checks for ``self.framework``.
 
-        These are instance-bound closures so they can access ``self`` for
-        label normalization and rule deduplication helpers.  Pass
-        ``builtin_checks=[]`` to disable defaults and rely on YAML rules only.
+        Phase 6K-C (2026-05-22): defaults now come from the
+        ``_THINKING_CHECKS_BY_FRAMEWORK`` registry that domain packs
+        populate at import time (see
+        :func:`register_thinking_checks`). The PMT / Utility /
+        Financial rule bodies that previously lived as
+        ``_validate_pmt`` / ``_validate_utility`` / ``_validate_financial``
+        instance methods now live in
+        ``broker.domains.water.thinking_checks``.
+
+        Returns every registered check across all frameworks (not just
+        ``self.framework``) so per-call ``context.get("framework", ...)``
+        overrides keep working — each check short-circuits internally
+        when the context framework does not match its own. With nothing
+        registered the list is empty and callers fall back to YAML
+        rules only.
         """
-        return [
-            self._builtin_pmt_check,
-            self._builtin_utility_check,
-            self._builtin_financial_check,
-        ]
-
-    # Wrappers that conform to BuiltinCheck signature (skill, rules, ctx)
-    def _builtin_pmt_check(
-        self, skill_name: str, rules: List[GovernanceRule], context: Dict[str, Any]
-    ) -> List[ValidationResult]:
-        framework = context.get("framework", self.framework)
-        if framework != "pmt":
-            return []
-        return self._validate_pmt(skill_name, rules, context)
-
-    def _builtin_utility_check(
-        self, skill_name: str, rules: List[GovernanceRule], context: Dict[str, Any]
-    ) -> List[ValidationResult]:
-        framework = context.get("framework", self.framework)
-        if framework != "utility":
-            return []
-        return self._validate_utility(skill_name, rules, context)
-
-    def _builtin_financial_check(
-        self, skill_name: str, rules: List[GovernanceRule], context: Dict[str, Any]
-    ) -> List[ValidationResult]:
-        framework = context.get("framework", self.framework)
-        if framework != "financial":
-            return []
-        return self._validate_financial(skill_name, rules, context)
+        checks: List[BuiltinCheck] = []
+        for fw_checks in _THINKING_CHECKS_BY_FRAMEWORK.values():
+            checks.extend(fw_checks)
+        return checks
 
     def validate(
         self,
@@ -214,6 +253,21 @@ class ThinkingValidator(BaseValidator):
         Returns:
             List of ValidationResult objects
         """
+        # Phase 6K-C (2026-05-22): inject ``framework`` + ``_extreme_actions``
+        # into the context so registered builtin checks (which now live in
+        # the domain pack — see broker.domains.water.thinking_checks) can
+        # read them without holding a reference to the validator. The
+        # relocated free-function checks each hardcode their own framework
+        # name as the ``.get("framework", ...)`` fallback, so without this
+        # injection a caller that omits ``framework`` from context (legal —
+        # the broker context builder always sets it, but unit tests may
+        # not) would have every check evaluate past its own short-circuit.
+        # A caller-supplied value in context still wins.
+        if "framework" not in context:
+            context = {**context, "framework": self.framework}
+        if self._extreme_actions and "_extreme_actions" not in context:
+            context = {**context, "_extreme_actions": self._extreme_actions}
+
         # Step 1 + 3: Base class handles YAML rules + builtin_checks
         results = super().validate(skill_name, rules, context)
 
@@ -415,212 +469,21 @@ class ThinkingValidator(BaseValidator):
 
         return False
 
-    def _validate_pmt(
-        self,
-        skill_name: str,
-        rules: List[GovernanceRule],
-        context: Dict[str, Any]
-    ) -> List[ValidationResult]:
-        """PMT-specific validation (backward compatible)."""
-        results = []
-        reasoning = context.get("reasoning", {})
-        tp_label = self._normalize_label(reasoning.get("TP_LABEL", "M"), "pmt")
-        cp_label = self._normalize_label(reasoning.get("CP_LABEL", "M"), "pmt")
-
-        # Built-in: High TP + High CP should not do nothing
-        if tp_label in ("H", "VH") and cp_label in ("H", "VH"):
-            if skill_name == "do_nothing":
-                results.append(ValidationResult(
-                    valid=False,
-                    validator_name="ThinkingValidator",
-                    errors=["High threat + high coping should lead to protective action"],
-                    warnings=[],
-                    metadata={
-                        "rule_id": "builtin_high_tp_cp_action",
-                        "category": "thinking",
-                        "subcategory": "pmt",
-                        "framework": "pmt",
-                        "hallucination_type": "thinking",
-                        "tp_label": tp_label,
-                        "cp_label": cp_label
-                    }
-                ))
-
-        # Built-in: VH threat + adequate coping requires action
-        # Allow do_nothing when TP=VH but CP=VL/L (fatalism / resource constraint)
-        # This reflects the empirically documented "risk perception paradox"
-        # (Wachinger et al. 2013; Bubeck et al. 2012)
-        if tp_label == "VH" and cp_label in ("M", "H", "VH") and skill_name == "do_nothing":
-            if not self._has_rule_for(rules, "extreme_threat"):
-                results.append(ValidationResult(
-                    valid=False,
-                    validator_name="ThinkingValidator",
-                    errors=["Very High threat with adequate coping requires protective action"],
-                    warnings=[],
-                    metadata={
-                        "rule_id": "builtin_extreme_threat_action",
-                        "category": "thinking",
-                        "subcategory": "pmt",
-                        "framework": "pmt",
-                        "hallucination_type": "thinking",
-                        "tp_label": tp_label,
-                        "cp_label": cp_label
-                    }
-                ))
-
-        # Built-in: Low TP should not justify extreme measures
-        if tp_label in ("VL", "L") and self._extreme_actions:
-            if skill_name in self._extreme_actions:
-                if not self._has_rule_for(rules, "low_tp_blocks"):
-                    results.append(ValidationResult(
-                        valid=False,
-                        validator_name="ThinkingValidator",
-                        errors=[f"Low threat ({tp_label}) does not justify {skill_name}"],
-                        warnings=[],
-                        metadata={
-                            "rule_id": "builtin_low_tp_extreme_action",
-                            "category": "thinking",
-                            "subcategory": "pmt",
-                            "framework": "pmt",
-                            "hallucination_type": "thinking",
-                            "tp_label": tp_label,
-                            "blocked_action": skill_name
-                        }
-                    ))
-
-        return results
-
-    def _validate_utility(
-        self,
-        skill_name: str,
-        rules: List[GovernanceRule],
-        context: Dict[str, Any]
-    ) -> List[ValidationResult]:
-        """Utility framework validation for government agents."""
-        results = []
-        reasoning = context.get("reasoning", {})
-        budget_util = self._normalize_label(reasoning.get("BUDGET_UTIL", "M"), "utility")
-        equity_gap = self._normalize_label(reasoning.get("EQUITY_GAP", "M"), "utility")
-
-        # Built-in: High budget impact + high equity gap should trigger action
-        if budget_util == "H" and equity_gap == "H":
-            if skill_name == "maintain_policy":
-                results.append(ValidationResult(
-                    valid=False,
-                    validator_name="ThinkingValidator",
-                    errors=["High budget impact with high equity gap requires policy change"],
-                    warnings=[],
-                    metadata={
-                        "rule_id": "builtin_high_utility_action",
-                        "category": "thinking",
-                        "subcategory": "utility",
-                        "framework": "utility",
-                        "budget_util": budget_util,
-                        "equity_gap": equity_gap
-                    }
-                ))
-
-        # Built-in: Low budget utility should not justify expensive policies
-        if budget_util == "L":
-            expensive_actions = {"increase_subsidy", "launch_campaign"}
-            if skill_name in expensive_actions:
-                if not self._has_rule_for(rules, "low_budget_blocks"):
-                    results.append(ValidationResult(
-                        valid=False,
-                        validator_name="ThinkingValidator",
-                        errors=[f"Low budget utility ({budget_util}) does not justify {skill_name}"],
-                        warnings=[],
-                        metadata={
-                            "rule_id": "builtin_low_budget_expensive_action",
-                            "category": "thinking",
-                            "subcategory": "utility",
-                            "framework": "utility",
-                            "budget_util": budget_util,
-                            "blocked_action": skill_name
-                        }
-                    ))
-
-        return results
-
-    def _validate_financial(
-        self,
-        skill_name: str,
-        rules: List[GovernanceRule],
-        context: Dict[str, Any]
-    ) -> List[ValidationResult]:
-        """Financial framework validation for insurance agents."""
-        results = []
-        reasoning = context.get("reasoning", {})
-        risk_appetite = self._normalize_label(reasoning.get("RISK_APPETITE", "M"), "financial")
-        solvency = self._normalize_label(reasoning.get("SOLVENCY_IMPACT", "M"), "financial")
-
-        # Built-in: High solvency concern with conservative risk should not expand
-        if solvency == "A" and risk_appetite == "C":  # A = high impact, C = conservative
-            expansion_actions = {"expand_coverage", "lower_premium"}
-            if skill_name in expansion_actions:
-                results.append(ValidationResult(
-                    valid=False,
-                    validator_name="ThinkingValidator",
-                    errors=["High solvency concern with conservative risk does not justify expansion"],
-                    warnings=[],
-                    metadata={
-                        "rule_id": "builtin_solvency_conservative_expansion",
-                        "category": "thinking",
-                        "subcategory": "financial",
-                        "framework": "financial",
-                        "risk_appetite": risk_appetite,
-                        "solvency_impact": solvency
-                    }
-                ))
-
-        # Built-in: Aggressive risk appetite should not maintain conservative positions
-        if risk_appetite == "A":  # Aggressive
-            conservative_actions = {"restrict_coverage", "raise_premium"}
-            if skill_name in conservative_actions:
-                if not self._has_rule_for(rules, "aggressive_conservative"):
-                    results.append(ValidationResult(
-                        valid=False,
-                        validator_name="ThinkingValidator",
-                        errors=[f"Aggressive risk appetite conflicts with conservative action {skill_name}"],
-                        warnings=[],
-                        metadata={
-                            "rule_id": "builtin_aggressive_conservative_conflict",
-                            "category": "thinking",
-                            "subcategory": "financial",
-                            "framework": "financial",
-                            "risk_appetite": risk_appetite,
-                            "blocked_action": skill_name
-                        }
-                    ))
-
-        return results
-
     def _normalize_label(self, label: Optional[str], framework: str = None) -> str:
+        """Normalize label to standard format for the given framework.
+
+        Phase 6K-C (2026-05-22): thin wrapper around the module-level
+        :func:`normalize_label` helper so subclasses and external
+        callers that already use the instance method keep working.
+        New code should call :func:`normalize_label` directly.
         """
-        Normalize label to standard format for the given framework.
-
-        Uses mappings registered by domain packs via ``register_framework_metadata()``.
-        Falls back to generic VL/L/M/H/VH mappings for unknown frameworks.
-
-        Args:
-            label: Raw label string
-            framework: Framework to use for normalization (defaults to self.framework)
-
-        Returns:
-            Normalized label string
-        """
-        if not label:
-            return "M"  # Default to Medium/Moderate
-        label = str(label).upper().strip()
-
-        fw = framework or self.framework
-        mappings = _LABEL_MAPPINGS.get(fw, _GENERIC_LABEL_MAPPINGS)
-
-        return mappings.get(label, label)
+        return normalize_label(label, framework or self.framework)
 
     def _has_rule_for(self, rules: List[GovernanceRule], rule_id_prefix: str) -> bool:
-        """Check if a rule covering this constraint already exists."""
-        return any(r.id.startswith(rule_id_prefix) for r in rules if r.category == "thinking")
+        """Phase 6K-C (2026-05-22): thin wrapper around the module-level
+        :func:`has_rule_for` helper. New code should call the module
+        function directly."""
+        return has_rule_for(rules, rule_id_prefix)
 
     def _compare_labels(self, label1: str, label2: str, framework: str = None) -> int:
         """
