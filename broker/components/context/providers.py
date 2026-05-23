@@ -377,11 +377,13 @@ class EnvironmentEventProvider(ContextProvider):
 
     Usage:
         from broker.components.events.manager import EnvironmentEventManager
-        from broker.components.events.generators.flood import FloodEventGenerator
         from .providers import EnvironmentEventProvider
 
         event_manager = EnvironmentEventManager()
-        event_manager.register("flood", FloodEventGenerator())
+        # MyHazardEventGenerator is a placeholder for any domain-specific
+        # EnvironmentEventGenerator subclass (e.g. FloodEventGenerator
+        # at broker.domains.water.event_generators.flood).
+        event_manager.register("hazard", MyHazardEventGenerator())
         provider = EnvironmentEventProvider(event_manager)
 
         # Add to context builder

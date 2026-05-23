@@ -10,6 +10,12 @@ read_only: true
 
 This inventory treats `broker/components/*` as one architectural cluster and the other top-level `broker/*` directories as a second cluster, per the task spec. Counts exclude `__pycache__/`, no tests were run, and all import, dead-code, and consumer signals below come from static analysis of the repository on 2026-04-18.
 
+> **Note (Phase 6K-B, 2026-05-22):** several files listed below have been
+> relocated since this snapshot — most relevantly,
+> `broker/components/events/generators/flood.py` is now at
+> `broker/domains/water/event_generators/flood.py` (the whole-file
+> flood-specific hazard generator moved into the water domain).
+
 A few structural themes stand out before the tables. First, the codebase is not a single broker package but a layered accretion: the restructured `broker.components.*` core, legacy or domain-facing top-level broker packages, a separate research-oriented `broker.memory` toolkit, and flat provider adapters at repo root. Second, example code consumes only a subset of that surface area, so several packages look framework-internal even when they remain large. Third, package boundaries are uneven: some sub-packages present a clean `__init__.py` facade, while others are bypassed by deep imports from example code.
 
 Methodologically, this phase uses static signals only: AST parsing, import-edge reconstruction, export extraction from `__init__.py`, simple call-site scans for dead-code candidates, and grep-style test counting via `def test_`. That makes the inventory strong on structure and coupling, but intentionally conservative on runtime behavior. Anything loaded via YAML, reflection, provider factories, or string-selected registry lookups may appear less connected here than it is during execution.
