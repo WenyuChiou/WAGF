@@ -10,11 +10,18 @@ read_only: true
 
 This inventory treats `broker/components/*` as one architectural cluster and the other top-level `broker/*` directories as a second cluster, per the task spec. Counts exclude `__pycache__/`, no tests were run, and all import, dead-code, and consumer signals below come from static analysis of the repository on 2026-04-18.
 
-> **Note (Phase 6K-B, 2026-05-22):** several files listed below have been
-> relocated since this snapshot — most relevantly,
-> `broker/components/events/generators/flood.py` is now at
-> `broker/domains/water/event_generators/flood.py` (the whole-file
-> flood-specific hazard generator moved into the water domain).
+> **Note (Phase 6K-B / 6K-C, 2026-05-22):** several files listed below
+> have been relocated or substantially refactored since this snapshot.
+> - **6K-B:** `broker/components/events/generators/flood.py` is now at
+>   `broker/domains/water/event_generators/flood.py` (whole-file
+>   flood-specific hazard generator moved into the water domain).
+> - **6K-C:** the PMT / Utility / Financial builtin rule bodies that
+>   were instance methods on
+>   `broker.validators.governance.thinking_validator.ThinkingValidator`
+>   (`_validate_pmt` / `_validate_utility` / `_validate_financial`)
+>   relocated to `broker/domains/water/thinking_checks.py` as free
+>   functions. The inventory's line counts for both files are stale
+>   for the snapshot below.
 
 A few structural themes stand out before the tables. First, the codebase is not a single broker package but a layered accretion: the restructured `broker.components.*` core, legacy or domain-facing top-level broker packages, a separate research-oriented `broker.memory` toolkit, and flat provider adapters at repo root. Second, example code consumes only a subset of that surface area, so several packages look framework-internal even when they remain large. Third, package boundaries are uneven: some sub-packages present a clean `__init__.py` facade, while others are bypassed by deep imports from example code.
 
