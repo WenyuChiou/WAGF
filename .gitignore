@@ -208,7 +208,10 @@ examples/multi_agent/flood/paper3/analysis/working/
 examples/multi_agent/flood/paper3/analysis/figures/working/
 examples/multi_agent/flood/paper3/analysis/.ai/
 examples/multi_agent/flood/paper3/nul
-paper/nature_water/'
+# (redundant `paper/nature_water/` entry removed 2026-05-23 — line 148's
+# top-level `paper/` already covers it; the previous version of this
+# line carried a trailing-apostrophe typo that may have neutralised the
+# pattern on some Git versions.)
 
 # Large data files
 examples/multi_agent/flood/input/census/
