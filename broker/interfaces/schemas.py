@@ -18,7 +18,7 @@ class SkillProposalSchema(BaseModel):
     """
     skill_name: str = Field(..., min_length=1, description="Abstract behavior name")
     agent_id: str = Field(..., min_length=1, description="Agent identifier")
-    reasoning: Dict[str, Any] = Field(default_factory=dict, description="PMT appraisals")
+    reasoning: Dict[str, Any] = Field(default_factory=dict, description="Construct appraisals (domain-defined keys)")
     agent_type: str = Field(default="default", description="Agent type for multi-agent scenarios")
     confidence: float = Field(default=1.0, ge=0.0, le=1.0, description="Confidence score")
     raw_output: str = Field(default="", description="Original LLM output")
@@ -43,21 +43,18 @@ class SkillProposalSchema(BaseModel):
     }
 
 
-class ReasoningSchema(BaseModel):
-    """
-    Schema for PMT-based reasoning structure.
-    
-    This is domain-specific but provides a template for structured reasoning.
-    """
-    threat_appraisal: Optional[str] = Field(None, alias="threat")
-    coping_appraisal: Optional[str] = Field(None, alias="coping")
-    strategy: Optional[str] = None
-    confidence: Optional[str] = None
-    
-    model_config = {
-        "extra": "allow",  # Allow domain-specific fields
-        "populate_by_name": True
-    }
+# Phase 6M-A (2026-05-23): the former ``ReasoningSchema`` Pydantic
+# template lived here with PMT-flavored ``threat_appraisal`` /
+# ``coping_appraisal`` field names. It was dead code (verified by
+# Phase 6M Explore: zero imports / instantiations / type annotations
+# anywhere in broker/, examples/, or tests/). Deleted to remove the
+# last PMT-construct identifier from generic broker/interfaces/.
+# Reasoning payloads now flow through the construct-agnostic
+# ``SkillProposalSchema.reasoning: Dict[str, Any]`` field, and the
+# response-format builder reads construct names from YAML
+# (``agent_types.yaml`` ``response_format.fields``). A future
+# PMT-specific reference can be re-created at
+# ``broker/domains/water/schemas.py`` if a caller genuinely needs it.
 
 
 class ValidationResultSchema(BaseModel):
