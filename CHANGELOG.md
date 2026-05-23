@@ -267,6 +267,88 @@ flood-coupling-free.
   - Net-zero gate regression. `TestDomainGenericity` 21/21 green
     (was 9/9 pre-6J-E). No real-model smoke needed — the only
     broker-pipeline change is the proven-dead guard cleanup.
+- **Phase 6K — inner-layer domain coupling teardown** (the work that
+  6J's outer-boundary cleanup explicitly deferred). After 6K closes,
+  a new domain (HBM cognitive, utility-maximisation,
+  information-cascade) can register its own DomainPack, its own
+  thinking checks via `register_thinking_checks(framework, [...])`,
+  and its own `memory_policy()` bundle — and run through the broker
+  pipeline without touching anything under `broker/`. Five
+  sub-phases:
+  - **Phase 6K-A — memory subsystem → `DomainPack.memory_policy()`
+    bundle**: a single new hook supplies category_rules,
+    external_event_whitelist, stimulus_key, and default_content_type.
+    `policy_classifier._DEFAULT_RULES` no longer carries the 5
+    flood/insurance category keys (relocated to
+    `FloodDomainPack.memory_policy()`); `initial_loader.py` no
+    longer hardcodes the `("flood_experience", "flood_event",
+    "damage")` whitelist; `universal.py` raises `ValueError` instead
+    of silently falling back to `stimulus_key="flood_depth_m"`.
+    `PolicyFilteredMemoryEngine` gains a `domain=` kwarg so runtime
+    writes see the bundle. Three `TECH-DEBT(6K)` I5 allowlist
+    entries closed.
+  - **Phase 6K-B — `events/generators/flood.py` relocation**: the
+    whole 205-line flood hazard generator moved from generic
+    `broker/components/events/generators/flood.py` to
+    `broker/domains/water/event_generators/flood.py` (R100 verbatim
+    rename). Sibling generators (`hazard.py` / `impact.py` /
+    `policy.py`) stay generic. Docstring examples in
+    `providers.py` / `manager.py` genericized to
+    `MyHazardEventGenerator` placeholders. Fourth and final
+    `TECH-DEBT(6K)` entry closed; all four 6K allowlist debts cleared.
+  - **Phase 6K-C — `ThinkingValidator` rules → per-framework
+    registry**: the 7 hardcoded PMT / Utility / Financial rule
+    bodies (`_validate_pmt` / `_validate_utility` /
+    `_validate_financial` instance methods + their three wrapper
+    methods, ~165 LOC) relocated to
+    `broker/domains/water/thinking_checks.py` as free functions.
+    New `_THINKING_CHECKS_BY_FRAMEWORK` registry + public
+    `register_thinking_checks(framework, checks)` function;
+    `_default_builtin_checks()` returns ALL registered checks across
+    frameworks (each check short-circuits internally on
+    `context["framework"]`). Module-level `normalize_label` +
+    `has_rule_for` helpers extracted; instance methods become thin
+    backward-compat wrappers. `validate()` injects `framework` +
+    `_extreme_actions` into context before dispatching. Naturally
+    addresses audit-B P1 items 1-3 (hardcoded PMT label triples,
+    `"do_nothing"` / `"maintain_policy"` / `"expand_coverage"`
+    skill literals, utility label thresholds — all migrated with
+    the rules).
+  - **Phase 6K-D — residual NFIP/FEMA docstring cleanup**: the
+    planned `BUYOUT_OFFER_FRACTION` / `premium_escalation_pct`
+    migration (audit-B P1 item 11) was found to already be complete
+    — Phase 6H Item 7 had relocated those constants when it moved
+    `FinancialCostProvider` out of generic broker. Pivoted to
+    tightening the residual `Literature: NFIP regulations, FEMA HMGP
+    rules` docstring on `agents/base.py::Constraint` and the
+    `Literature: DYNAMO model ... NFIP actuarial premium structure`
+    docstring on `providers.py::InsurancePremiumProvider`. Both
+    classes are genuinely generic (Constraint takes arbitrary
+    name/param/bounds; InsurancePremiumProvider takes a
+    domain-supplied `premium_calculator` callable). Both files are
+    now NFIP/FEMA-token-free; the two 6J-E FP allowlist entries
+    dropped. NFIP/FEMA stay in `_DOMAIN_TOKENS` (catch any future
+    re-introduction).
+  - **Phase 6K-E — INVARIANTS + CHANGELOG close-out**: `INVARIANTS.md`
+    §I5 records Phase 6K under "Known current state" with a
+    sub-phase A/B/C/D summary mirroring the 6J style; explicit
+    deferrals to **Phase 6L** (8 magic-constant tuning knobs:
+    `retriever.py` top_n/min_score, `drift.py` thresholds,
+    `reflection.py` importance constants, `bridge.py` resolution-event
+    importance, `council.py` quorum, `cross_agent_validator.py`
+    thresholds) and **Phase 6M** (PMT schema extraction:
+    `ReasoningSchema` `threat_appraisal`/`coping_appraisal` field
+    names → framework-parametric base) are recorded. Skill-name
+    docstring cleanup (`elevate_house` / `buy_insurance` /
+    `relocate` / `maintain_demand`) is deliberately NOT pursued —
+    Explore verified zero live-code references; keeping the
+    grounded examples aids readability.
+  - Verification across all five sub-phases: `pytest broker/ tests/`
+    net-zero regression (5 pre-existing failures unchanged);
+    `TestDomainGenericity` 21/21 green; real-model `governed_flood`
+    smoke (gemma3:1b, 2 yr, 6 agents) ran end-to-end clean for 6K-A
+    (48 rule violations), 6K-B (55), 6K-C (48). 6K-D and 6K-E are
+    pure docstring/INVARIANTS edits — no smoke required.
 
 ### Notes
 
