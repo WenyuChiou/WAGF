@@ -200,8 +200,12 @@ class TestDormantFieldPolicy:
             "mem_retrieval_mode", "mem_top_emotion", "mem_top_source",
         ],
         "social_audit": [
-            "social_gossip_count", "social_elevated_neighbors",
-            "social_relocated_neighbors", "social_neighbor_count",
+            # Phase 6N-A (2026-05-23): the visible-actions columns are
+            # now domain-dynamic (audit.py iterates the dict and writes
+            # ``social_<key>`` for whatever the domain supplies). Only
+            # the three columns produced unconditionally regardless of
+            # domain are tracked here as static columns.
+            "social_gossip_count", "social_neighbor_count",
             "social_network_density",
         ],
         "cognitive_audit": [
@@ -348,6 +352,15 @@ class TestDomainGenericity:
         # (each with a comment justifying why).
         "threat_appraisal": "flood domain (PMT construct field)",
         "coping_appraisal": "flood domain (PMT construct field)",
+        # Phase 6N-A (2026-05-23): the audit writer's social-context
+        # block (audit.py §6) used to hardcode ``elevated_neighbors`` /
+        # ``relocated_neighbors`` keys when reading the visible-actions
+        # dict — flood-domain skill names baked into a generic
+        # writer. Migrated to a dynamic ``social_<key>`` pass-through
+        # so domain-specific keys flow without hardcoding. Tokens
+        # added now to lock the cleanliness.
+        "elevated_neighbors": "flood domain (social context key)",
+        "relocated_neighbors": "flood domain (social context key)",
         # NOTE: still deferred:
         #   elevate_house / buy_insurance / relocate / maintain_demand
         #     (skill names referenced in many generic memory/validator
