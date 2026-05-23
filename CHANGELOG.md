@@ -349,6 +349,69 @@ flood-coupling-free.
     smoke (gemma3:1b, 2 yr, 6 agents) ran end-to-end clean for 6K-A
     (48 rule violations), 6K-B (55), 6K-C (48). 6K-D and 6K-E are
     pure docstring/INVARIANTS edits — no smoke required.
+- **Phase 6L — audit-B P1 magic-constant knobs → YAML / DomainPack**
+  (the "tuning surfaces" effort Phase 6K explicitly deferred). Every
+  remaining audit-B P1 magic constant now has a YAML override path
+  AND a `DomainPack` hook, wired via the canonical 4-tier precedence
+  stack (defaults → `DomainPack` → shared YAML → global YAML)
+  established by Phase 6H Item 3. Defaults are byte-identical to the
+  pre-6L hardcoded literals — no behavioural change unless a caller
+  explicitly overrides. Five sub-phases:
+  - **Phase 6L-A — `DriftDetector` knobs**: new
+    `DomainPack.drift_policy()` hook + `DefaultDomainPack` returns
+    `{}` + `AgentTypeConfig.get_drift_config()` accessor. Wires the
+    5 `DriftDetector` thresholds (`entropy_threshold` /
+    `stagnation_threshold` / `collapse_threshold` /
+    `jaccard_stagnation_threshold` / `history_window`) to YAML
+    `governance.drift`. Lowest-risk sub-phase by design (no
+    production caller; validates the template extends cleanly).
+    Closes audit-B P1 item 5.
+  - **Phase 6L-B — Population-governance thresholds**: single
+    `DomainPack.population_governance_policy()` hook bundles the
+    `CrossAgentValidator` echo / entropy / deadlock thresholds and
+    the `MajorityCouncilValidator` quorum. The
+    `MajorityCouncilValidator` `>= 0.5` quorum literal extracted to
+    a `quorum_threshold: float = 0.5` constructor kwarg. New
+    `get_population_governance_config()` accessor; `run_unified_experiment.py`
+    wired at the `CrossAgentValidator` construction site. Closes
+    audit-B P1 items 9 + 10.
+  - **Phase 6L-C — `PolicyEventGenerator` severity tiers**: the
+    hardcoded `0.20` / `0.10` / `0.05` tier cuts extracted to
+    `PolicyEventConfig.severity_tiers` dict (default-factory
+    pattern, fresh per instantiation). New
+    `DomainPack.policy_event_tiers()` hook + `get_policy_event_tiers_config()`
+    accessor with sanity guards (every tier `>= 0`; monotonic
+    `severe >= moderate >= minor`) so malformed overrides fail
+    loudly at config-load time. Closes audit-B P1 item 12.
+  - **Phase 6L-D — Cognitive hot-path knobs**: `MemoryBridge`
+    resolution importance (`approved=0.6` / `denied=0.75`) relocated
+    to module-level `_DEFAULT_RESOLUTION_IMPORTANCE` dict +
+    `MemoryBridge.__init__(importance_policy=...)` kwarg + new
+    `DomainPack.bridge_importance_policy()` hook +
+    `get_bridge_importance_config()` accessor; the "denials more
+    memorable" asymmetry preserved with an inline doc + an accessor
+    guard rejecting `denied < approved`. `MultiAgentHooks` +
+    `run_unified_experiment.py` threaded so YAML overrides reach the
+    live MA-flood MemoryBridge. Reflection knobs (`base_importance`,
+    `triggers.institutional_threshold` / `triggers.importance_boost`)
+    ride the existing `get_reflection_config()` YAML pass-through —
+    cognitive knobs stay YAML-only per Phase 6L plan (no DomainPack
+    hook for reflection); `base_importance` is declare-only with a
+    docstring deferral note. Closes audit-B P1 items 6 + 7 + 8.
+  - **Phase 6L-E — INVARIANTS + CHANGELOG close-out**: this entry
+    plus the §I5 "Closed by Phase 6L" block. The "Deferred to Phase
+    6L (knobs)" bullet from the 6K block is removed; the deferral
+    list now reads Phase 6M (PMT schema extraction) + skill-name
+    docstring (intentionally not pursued) only.
+  - Verification across all five sub-phases: `pytest broker/ tests/`
+    net-zero regression (5 pre-existing failures unchanged across
+    the chain); `TestDomainGenericity` 21/21 green; real-model
+    `governed_flood` smoke (gemma3:1b, 2 yr, 6 agents) ran end-to-end
+    clean for 6L-D (the cognitive hot-path sub-phase) with 46
+    governance rule violations — within the natural variance band
+    46-55 seen across 6K-A (48) / 6K-B (55) / 6K-C (48) smokes.
+    6L-A / 6L-B / 6L-C / 6L-E are plumbing / docs and did not
+    require smoke per the Phase 6L plan.
 
 ### Notes
 
