@@ -81,6 +81,11 @@ class UniversalCognitiveEngine:
         # Task-034: Persistence support
         persistence: Optional["MemoryPersistence"] = None,
         auto_persist: bool = True,
+        # Phase 6K-A (2026-05-22): when ``stimulus_key`` is omitted, a
+        # registered DomainPack can supply it via
+        # ``memory_policy().stimulus_key``. Caller-supplied
+        # ``stimulus_key`` still wins.
+        domain: Optional[str] = None,
     ):
         # Import here to avoid circular dependency
         from .engine import HumanCentricMemoryEngine
@@ -125,8 +130,33 @@ class UniversalCognitiveEngine:
             self.stimulus_key = None
             self.ema_predictor = None
         else:
+            # Phase 6K-A (2026-05-22): no silent water-domain default.
+            # ``stimulus_key`` is required for scalar mode; the
+            # constructor docstring has always declared it REQUIRED.
+            # A caller that omits it previously silently locked to the
+            # water-domain key — pretending to track EMA surprise on an
+            # env field the caller's domain may not even emit, and
+            # holding the engine in SYSTEM_1 forever. A registered
+            # DomainPack may supply the key via memory_policy().
+            if not stimulus_key and domain:
+                try:
+                    from broker.domains.registry import DomainPackRegistry
+                    bundle = DomainPackRegistry.get_or_default(domain).memory_policy()
+                    if bundle is not None and bundle.stimulus_key:
+                        stimulus_key = bundle.stimulus_key
+                except ImportError:
+                    pass  # guard against circular import during early load
             if not stimulus_key:
-                stimulus_key = "flood_depth_m"
+                raise ValueError(
+                    "UniversalCognitiveEngine requires `stimulus_key` for "
+                    "scalar mode. Supply it via the constructor argument, "
+                    "via the YAML `memory.stimulus_key` key, or pass "
+                    "`sensory_cortex=[...]` to use symbolic mode. The "
+                    "previous silent water-domain default was removed in "
+                    "Phase 6K-A; supply the key from "
+                    "`DomainPack.memory_policy().stimulus_key` or pass it "
+                    "directly."
+                )
             self.stimulus_key = stimulus_key
             self.ema_predictor = EMAPredictor(alpha=ema_alpha, initial_value=0.0)
 

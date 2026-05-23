@@ -32,8 +32,9 @@ to the pre-refactor hardcodes — verified by regression tests in
 """
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import (
-    Any, Callable, Dict, List, Optional, Protocol, Set,
+    Any, Callable, Dict, List, Optional, Protocol, Set, Tuple,
     runtime_checkable,
 )
 
@@ -55,6 +56,42 @@ Reused for two distinct dispatch surfaces:
 BuiltinCheck = Callable[..., List[Any]]
 """(skill_name, rules, context) -> List[ValidationResult]. Re-typed in
 ValidatorRegistry; here we keep loose to avoid an import cycle."""
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Memory policy bundle (Phase 6K-A 2026-05-22)
+# ─────────────────────────────────────────────────────────────────────
+
+@dataclass
+class MemoryPolicyBundle:
+    """Domain-specific memory-subsystem policy supplied by a
+    :class:`DomainPack`. Consumed by:
+
+    - :func:`broker.components.memory.policy_classifier.classify`
+      (``category_rules`` overrides the generic default rule set).
+    - :func:`broker.components.memory.initial_loader.load_initial_memories_from_json`
+      (``external_event_whitelist`` controls which categories may keep
+      ``MemoryContentType.EXTERNAL_EVENT`` at seed time; everything else
+      downgrades to the loader's ``default_content_type``).
+    - :class:`broker.components.memory.universal.UniversalCognitiveEngine`
+      (``stimulus_key`` supplies the EMA surprise key when the caller
+      did not pass one).
+
+    ``category_rules`` values are :class:`MemoryContentType` members but
+    typed as ``Any`` here to keep this protocol module decoupled from
+    ``broker.components.memory`` (otherwise the import is circular —
+    ``broker.components.memory.policy_classifier`` queries
+    ``DomainPackRegistry`` for the bundle).
+    """
+
+    # Dict[str, MemoryContentType] — values are MemoryContentType members
+    # at runtime; typed Any to avoid the circular import.
+    category_rules: Dict[str, Any] = field(default_factory=dict)
+    external_event_whitelist: Tuple[str, ...] = ()
+    stimulus_key: Optional[str] = None
+    # Optional override for the per-loader default; left None means
+    # "use the loader's own argument default".
+    default_content_type: Optional[Any] = None
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -199,6 +236,23 @@ class DomainPack(Protocol):
         Default empty ``{}`` → ``get_agent_impact`` returns ``{}``; a
         domain supplies its hazard / damage / payout handlers via its
         own pack (the water pack lives under ``broker/domains/water``).
+        """
+        ...
+
+    # ─── Memory policy (Phase 6K-A) ───────────────────────────────
+
+    def memory_policy(self) -> Optional[MemoryPolicyBundle]:
+        """Domain-specific memory-subsystem policy.
+
+        Phase 6K-A (2026-05-22): one hook covers three previously-
+        hardcoded flood literals in generic ``broker/components/memory/``:
+        the ``policy_classifier._DEFAULT_RULES`` category map, the
+        ``initial_loader`` EXTERNAL_EVENT whitelist, and the
+        ``universal.py`` EMA ``stimulus_key`` fallback. Returning
+        ``None`` (the default) means "use the generic, domain-neutral
+        behaviour" — no category overrides, empty whitelist, no
+        stimulus-key default (the cognitive engine requires the caller
+        to pass one).
         """
         ...
 

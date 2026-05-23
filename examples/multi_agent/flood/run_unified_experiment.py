@@ -117,10 +117,14 @@ def build_memory_engine(mem_cfg: Dict[str, Any], engine_type: str = "universal")
             semantic_top_k=mem_cfg.get("top_k_significant", 3),
         )
     if engine_type == "universal":
+        # Phase 6K-A (2026-05-22): stimulus_key must be explicit; the
+        # previous silent water-domain default was removed from generic
+        # broker code. The flood example domain supplies it here.
         return create_memory_engine(
             engine_type="universal",
             scorer=scorer,
             arousal_threshold=mem_cfg.get("arousal_threshold", 1.0),
+            stimulus_key=mem_cfg.get("stimulus_key", "flood_depth_m"),
         )
     return WindowMemoryEngine(
         window_size=mem_cfg.get("window_size", 3),

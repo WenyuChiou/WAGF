@@ -76,6 +76,11 @@ class DefaultDomainPack:
     def agent_impact_handlers(self) -> Dict[str, EventHandler]:
         return {}
 
+    # ─── Memory policy (Phase 6K-A) ───────────────────────────────
+
+    def memory_policy(self):  # -> Optional[MemoryPolicyBundle]
+        return None
+
     # ─── Context provider hooks ────────────────────────────────────
 
     def mg_barrier_text(self, profile: Dict[str, Any]) -> str:

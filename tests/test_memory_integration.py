@@ -17,12 +17,15 @@ def test_v3_integration_flow():
     """
     
     # 1. Setup Engine
+    # Phase 6K-A (2026-05-22): stimulus_key must be supplied explicitly;
+    # the previous silent water-domain default was removed.
     engine = create_memory_engine(
         engine_type="universal",
         window_size=3,
         arousal_threshold=0.5,
         ema_alpha=0.5,       # Fast learning
-        ranking_mode="dynamic"
+        ranking_mode="dynamic",
+        stimulus_key="flood_depth_m",
     )
     
     agent = MockAgent()

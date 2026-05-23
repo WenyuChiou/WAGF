@@ -13,6 +13,27 @@ from broker.components.memory.policy_filter import PolicyFilteredMemoryEngine
 from broker.config.memory_policy import CLEAN_POLICY, LEGACY_POLICY
 
 
+@pytest.fixture(autouse=True)
+def _register_flood_pack():
+    """Phase 6K-A (2026-05-22): registers FloodDomainPack so
+    ``memory_policy()`` bundle (category_rules + external_event_whitelist)
+    is available for tests that pass ``domain="flood"``. Uses an autouse
+    fixture (not a module-level import) because other tests in the suite
+    occasionally clear ``DomainPackRegistry`` and a cached
+    ``import examples.governed_flood`` would not re-trigger registration.
+    Saves and restores the prior registry state, mirroring
+    ``tests/test_perception_filter.py::_register_flood_pack``.
+    """
+    from broker.domains.registry import DomainPackRegistry
+    from examples.governed_flood.adapters.flood_pack import FloodDomainPack
+    saved = dict(DomainPackRegistry._packs)
+    DomainPackRegistry.register("flood", FloodDomainPack())
+    yield
+    DomainPackRegistry.clear()
+    for _name, _pack in saved.items():
+        DomainPackRegistry.register(_name, _pack)
+
+
 class MockEngine:
     def __init__(self):
         self.add_calls = []
@@ -68,6 +89,7 @@ class TestLoadAgainstRawEngine:
             inner,
             sample_memories_file,
             agent_id_filter={"H0001", "H0002"},
+            domain="flood",
             domain_mapping=FLOOD_MAPPING,
         )
         assert report.loaded_count == 6
@@ -81,6 +103,7 @@ class TestLoadAgainstRawEngine:
             inner,
             sample_memories_file,
             agent_id_filter={"H0001", "H0002"},
+            domain="flood",
             domain_mapping=FLOOD_MAPPING,
         )
         for call in inner.add_calls:
@@ -108,6 +131,7 @@ class TestLoadAgainstRawEngine:
             inner,
             sample_memories_file,
             agent_id_filter={"H0001", "H0002"},
+            domain="flood",
             domain_mapping=FLOOD_MAPPING,
         )
         assert report.classified_by_type["external_event"] == 2
@@ -123,6 +147,7 @@ class TestLoadAgainstPolicyProxy:
             proxy,
             sample_memories_file,
             agent_id_filter={"H0001", "H0002"},
+            domain="flood",
             domain_mapping=FLOOD_MAPPING,
         )
         assert report.loaded_count == 3
@@ -136,6 +161,7 @@ class TestLoadAgainstPolicyProxy:
             proxy,
             sample_memories_file,
             agent_id_filter={"H0001", "H0002"},
+            domain="flood",
             domain_mapping=FLOOD_MAPPING,
         )
         assert report.loaded_count == 6
@@ -150,6 +176,7 @@ class TestLoadAgainstPolicyProxy:
             proxy,
             sample_memories_file,
             agent_id_filter={"H0001", "H0002"},
+            domain="flood",
             domain_mapping=FLOOD_MAPPING,
         )
         assert report.dropped_counts == {"initial_narrative": 3}
@@ -161,6 +188,7 @@ class TestLoadAgainstPolicyProxy:
             proxy,
             sample_memories_file,
             agent_id_filter={"H0001", "H0002"},
+            domain="flood",
             domain_mapping=FLOOD_MAPPING,
         )
         assert report.total_agents_loaded == 2
@@ -174,6 +202,7 @@ class TestReport:
             proxy,
             sample_memories_file,
             agent_id_filter={"H0001", "H0002"},
+            domain="flood",
             domain_mapping=FLOOD_MAPPING,
         )
         summary = report.summary()

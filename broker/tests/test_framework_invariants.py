@@ -407,16 +407,13 @@ class TestDomainGenericity:
         # documented-reference text only; the code is domain-agnostic.
         "agents/base.py",                            # FP: NFIP/FEMA in docstring Literature reference
         "components/context/providers.py",           # FP: NFIP in DYNAMO Literature reference
-        # Phase 6J-E (2026-05-22) TECH-DEBT(6K) — real domain leak in
-        # generic broker code; the memory subsystem and the flood-specific
-        # hazard generator need a DomainPack-style plugin pass (Phase 6K).
-        # Removing these MUST be paired with that work, or the I5 test
-        # regresses on the now-added flood_event / flood_depth_m /
-        # flood_occurred tokens.
-        "components/events/generators/flood.py",     # TECH-DEBT(6K): whole-file flood-specific hazard generator → relocate to broker/domains/water/event_generators.py
-        "components/memory/initial_loader.py",       # TECH-DEBT(6K): hardcoded {flood_experience, flood_event, damage} whitelist → derive from policy_classifier rules
-        "components/memory/policy_classifier.py",    # TECH-DEBT(6K): _DEFAULT_RULES dict pre-populated with flood categories → DomainPack hook
-        "components/memory/universal.py",            # TECH-DEBT(6K): stimulus_key falls back to "flood_depth_m" → require explicit / accept None
+        # Phase 6K-A (2026-05-22) — the three memory-subsystem
+        # TECH-DEBT(6K) entries closed: a new DomainPack.memory_policy()
+        # hook supplies category_rules, external_event_whitelist, and
+        # stimulus_key. The fourth TECH-DEBT entry
+        # (events/generators/flood.py) closes in Phase 6K-B (file
+        # relocation to broker/domains/water/event_generators/).
+        "components/events/generators/flood.py",     # TECH-DEBT(6K-B): whole-file flood-specific hazard generator → relocate to broker/domains/water/event_generators/
         # ---------------------------------------------------------------------
         # KNOWN-DEBT(6H) — genuine domain leak in generic broker/ code.
         # Each migrates in the Phase 6H DomainPack v2 refactor; removing an
