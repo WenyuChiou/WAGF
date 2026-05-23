@@ -56,12 +56,21 @@ class InitialLoadReport:
         return " ".join(parts)
 
 
+# Sentinel for distinguishing "caller did not pass default_content_type"
+# from "caller passed INITIAL_FACTUAL explicitly", so a domain pack's
+# bundle.default_content_type can override the function default but not
+# silently override an explicit caller choice.
+_DEFAULT_CT_UNSET = object()
+
+
 def load_initial_memories_from_json(
     memory_engine: Any,
     json_path: Path,
     agent_id_filter: Optional[Set[str]] = None,
+    domain: Optional[str] = None,
     domain_mapping: Optional[Dict[str, MemoryContentType]] = None,
-    default_content_type: MemoryContentType = MemoryContentType.INITIAL_FACTUAL,
+    external_event_whitelist: Optional[tuple] = None,
+    default_content_type: Any = _DEFAULT_CT_UNSET,
 ) -> InitialLoadReport:
     """Load per-agent initial memories from a JSON file and inject them
     into the given memory engine.
@@ -75,19 +84,56 @@ def load_initial_memories_from_json(
         agent_id_filter: If provided, only load memories for agents whose
             id is in this set. Memories for other agents are skipped
             (counted in the report).
-        domain_mapping: Optional per-domain category -> content type map.
-            Consulted to classify each memory before tagging it. If None,
-            the default rules in policy_classifier are used.
-        default_content_type: Fallback content type used to tag any memory
-            whose category has no classification hit. Defaults to
-            INITIAL_FACTUAL which is allowed under both CLEAN and LEGACY
-            policy - safe.
+        domain: Optional domain name. When supplied, the loader queries
+            ``DomainPackRegistry.get_or_default(domain).memory_policy()``
+            and uses its ``category_rules`` (as a fallback for
+            ``domain_mapping``) and its ``external_event_whitelist``
+            (as a fallback for the kwarg of the same name). Phase 6K-A
+            (2026-05-22).
+        domain_mapping: Optional per-call category → content-type
+            override. When supplied, overrides any bundle mapping.
+        external_event_whitelist: Tuple of category names allowed to
+            keep ``MemoryContentType.EXTERNAL_EVENT`` at seed time;
+            categories outside this set whose classification resolves
+            to EXTERNAL_EVENT get downgraded to ``default_content_type``
+            (the "fail open, not closed" guard from the module
+            docstring). Phase 6K-A (2026-05-22) — previously a
+            hardcoded water-domain tuple; the values now come from the
+            bundle (see FloodDomainPack.memory_policy()). None →
+            bundle lookup; if still None → empty tuple (every
+            EXTERNAL_EVENT downgrades).
+        default_content_type: Fallback content type used to tag any
+            memory whose category has no classification hit. Defaults
+            to INITIAL_FACTUAL which is allowed under both CLEAN and
+            LEGACY policy — safe.
 
     Returns:
         InitialLoadReport with loaded/dropped counts per content type.
         The dropped_counts field is populated by reading the proxy's
         stats() if available; otherwise it remains empty.
     """
+    # Phase 6K-A (2026-05-22): resolve whitelist + default_content_type
+    # from the DomainPack bundle when the caller did not pass them
+    # explicitly. An explicit caller-supplied value always wins; passing
+    # the empty tuple explicitly disables the whitelist (every
+    # EXTERNAL_EVENT downgrades).
+    bundle = None
+    if domain:
+        try:
+            from broker.domains.registry import DomainPackRegistry
+            bundle = DomainPackRegistry.get_or_default(domain).memory_policy()
+        except ImportError:
+            pass  # guard against circular import during early load
+    if external_event_whitelist is None:
+        external_event_whitelist = (
+            bundle.external_event_whitelist if bundle is not None else ()
+        )
+    if default_content_type is _DEFAULT_CT_UNSET:
+        if bundle is not None and bundle.default_content_type is not None:
+            default_content_type = bundle.default_content_type
+        else:
+            default_content_type = MemoryContentType.INITIAL_FACTUAL
+
     json_path = Path(json_path)
     with open(json_path, "r", encoding="utf-8") as f:
         initial_memories = json.load(f)
@@ -110,11 +156,13 @@ def load_initial_memories_from_json(
         for mem in memories:
             category = mem.get("category", "general")
             content_type = classify(
-                {"category": category}, domain_mapping=domain_mapping
+                {"category": category},
+                domain_mapping=domain_mapping,
+                domain=domain,
             )
             if (
                 content_type is MemoryContentType.EXTERNAL_EVENT
-                and category not in ("flood_experience", "flood_event", "damage")
+                and category not in external_event_whitelist
             ):
                 content_type = default_content_type
 

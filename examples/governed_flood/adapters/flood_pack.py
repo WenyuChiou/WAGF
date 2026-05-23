@@ -26,8 +26,9 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Set
 
+from broker.components.memory.content_types import MemoryContentType
 from broker.domains.default import DefaultDomainPack
-from broker.domains.protocol import BuiltinCheck, EventHandler
+from broker.domains.protocol import BuiltinCheck, EventHandler, MemoryPolicyBundle
 
 from examples.governed_flood.adapters.flood_adapter import FloodAdapter
 from examples.governed_flood.adapters.flood_perception import (
@@ -227,6 +228,28 @@ class FloodDomainPack(DefaultDomainPack):
             "flood_damage": _impact_flood_damage,
             "insurance_payout": _impact_insurance_payout,
         }
+
+    # ─── Memory policy (Phase 6K-A) ───────────────────────────────
+
+    def memory_policy(self) -> MemoryPolicyBundle:
+        """Replaces three flood literals previously hardcoded in
+        generic ``broker/components/memory/`` (Phase 6K-A 2026-05-22):
+        the ``policy_classifier._DEFAULT_RULES`` flood category keys,
+        the ``initial_loader`` EXTERNAL_EVENT whitelist, and the
+        ``universal.py`` EMA ``stimulus_key`` fallback."""
+        return MemoryPolicyBundle(
+            category_rules={
+                "flood_experience": MemoryContentType.EXTERNAL_EVENT,
+                "flood_event": MemoryContentType.EXTERNAL_EVENT,
+                "damage": MemoryContentType.EXTERNAL_EVENT,
+                "insurance_claim": MemoryContentType.INITIAL_FACTUAL,
+                "insurance_history": MemoryContentType.INITIAL_FACTUAL,
+            },
+            external_event_whitelist=(
+                "flood_experience", "flood_event", "damage",
+            ),
+            stimulus_key="flood_depth_m",
+        )
 
     # ─── Context provider hooks ────────────────────────────────────
 

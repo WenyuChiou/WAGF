@@ -69,11 +69,11 @@ class TestClassifyCategory:
     @pytest.mark.parametrize(
         ("category", "expected"),
         [
-            ("flood_experience", MemoryContentType.EXTERNAL_EVENT),
-            ("flood_event", MemoryContentType.EXTERNAL_EVENT),
-            ("damage", MemoryContentType.EXTERNAL_EVENT),
-            ("insurance_claim", MemoryContentType.INITIAL_FACTUAL),
-            ("insurance_history", MemoryContentType.INITIAL_FACTUAL),
+            # Phase 6K-A (2026-05-22): only framework-agnostic categories
+            # remain in the generic _DEFAULT_RULES. Flood-specific keys
+            # (flood_experience / flood_event / damage / insurance_*)
+            # moved to FloodDomainPack.memory_policy().category_rules;
+            # they are exercised by ``test_water_domain_categories``.
             ("social_observation", MemoryContentType.SOCIAL_OBSERVATION),
             ("neighbor_observation", MemoryContentType.SOCIAL_OBSERVATION),
             ("policy_decision", MemoryContentType.INSTITUTIONAL_STATE),
@@ -82,6 +82,31 @@ class TestClassifyCategory:
     )
     def test_default_rules(self, category, expected):
         assert classify({"category": category}) == expected
+
+    @pytest.mark.parametrize(
+        ("category", "expected"),
+        [
+            ("flood_experience", MemoryContentType.EXTERNAL_EVENT),
+            ("flood_event", MemoryContentType.EXTERNAL_EVENT),
+            ("damage", MemoryContentType.EXTERNAL_EVENT),
+            ("insurance_claim", MemoryContentType.INITIAL_FACTUAL),
+            ("insurance_history", MemoryContentType.INITIAL_FACTUAL),
+        ],
+    )
+    def test_water_domain_categories(self, category, expected):
+        """Phase 6K-A (2026-05-22): water-domain category rules are
+        supplied by ``FloodDomainPack.memory_policy()``. Passing
+        ``domain='flood'`` to ``classify`` triggers the bundle lookup.
+
+        Re-registers the pack here (not at import) because other tests
+        in the suite may have cleared ``DomainPackRegistry`` and a
+        cached ``import examples.governed_flood`` would not re-trigger
+        the registration side-effect.
+        """
+        from broker.domains.registry import DomainPackRegistry
+        from examples.governed_flood.adapters.flood_pack import FloodDomainPack
+        DomainPackRegistry.register("flood", FloodDomainPack())
+        assert classify({"category": category}, domain="flood") == expected
 
     def test_domain_mapping_overrides_default(self):
         domain = {"flood_event": MemoryContentType.AGENT_SELF_REPORT}

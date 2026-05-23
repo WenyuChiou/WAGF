@@ -1089,6 +1089,9 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         # Load global memory settings
         global_mem = global_cfg.get('memory', {})
 
+        # Phase 6K-A (2026-05-22): stimulus_key required for scalar
+        # universal-engine mode; the previous silent water-domain
+        # default was removed from generic broker code.
         memory_engine = create_memory_engine(
             engine_type="universal",
             window_size=window_size,
@@ -1104,6 +1107,7 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
             ranking_mode="dynamic",
             arousal_threshold=final_mem_cfg.get("arousal_threshold", 0.5),
             ema_alpha=final_mem_cfg.get("ema_alpha", 0.3),
+            stimulus_key=final_mem_cfg.get("stimulus_key", "flood_depth_m"),
             seed=memory_seed  # Configurable via --memory-seed (default=42 for experiment alignment)
         )
         print(f" Using UniversalCognitiveEngine (v3 Surprise Engine, window={window_size})")

@@ -28,6 +28,11 @@ class PolicyFilteredMemoryEngine:
         policy: The MemoryWritePolicy to enforce.
         domain_mapping: Optional per-domain category -> content type dict.
             Passed to the classifier on every add_memory call.
+        domain: Optional domain name. Phase 6K-A (2026-05-22): when
+            supplied, the classifier pulls
+            ``DomainPackRegistry.get_or_default(domain).memory_policy().category_rules``
+            as a fallback for ``domain_mapping``. A caller-supplied
+            ``domain_mapping`` still wins.
     """
 
     def __init__(
@@ -35,10 +40,12 @@ class PolicyFilteredMemoryEngine:
         inner: Any,
         policy: MemoryWritePolicy,
         domain_mapping: Optional[Dict[str, MemoryContentType]] = None,
+        domain: Optional[str] = None,
     ):
         self._inner = inner
         self._policy = policy
         self._domain_mapping = domain_mapping
+        self._domain = domain
         self._dropped_counts: Dict[str, int] = defaultdict(int)
         self._allowed_counts: Dict[str, int] = defaultdict(int)
 
@@ -76,7 +83,11 @@ class PolicyFilteredMemoryEngine:
         }
 
     def _should_allow(self, metadata: Optional[Dict[str, Any]]) -> bool:
-        content_type = classify(metadata, domain_mapping=self._domain_mapping)
+        content_type = classify(
+            metadata,
+            domain_mapping=self._domain_mapping,
+            domain=self._domain,
+        )
         if self._policy.allows(content_type):
             self._allowed_counts[content_type.value] += 1
             return True

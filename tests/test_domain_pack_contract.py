@@ -96,6 +96,13 @@ class TestDefaultDomainPack:
     def test_agent_impact_handlers_is_empty(self):
         assert self.pack.agent_impact_handlers() == {}
 
+    def test_memory_policy_is_none(self):
+        # Phase 6K-A: DefaultDomainPack returns None — generic memory
+        # subsystem falls back to its safe domain-agnostic behaviour
+        # (empty whitelist, no stimulus-key default, no category rules
+        # beyond the truly-generic _DEFAULT_RULES).
+        assert self.pack.memory_policy() is None
+
     def test_mg_barrier_text_is_empty(self):
         assert self.pack.mg_barrier_text({}) == ""
 
@@ -234,6 +241,12 @@ class TestIrrigationDomainPackByteIdentical:
 
     def test_irrigation_agent_impact_handlers_empty(self):
         assert self.pack.agent_impact_handlers() == {}
+
+    def test_irrigation_memory_policy_is_none(self):
+        # Phase 6K-A: irrigation domain has no memory-subsystem
+        # overrides today; the inherited default of None keeps generic
+        # behaviour.
+        assert self.pack.memory_policy() is None
 
     def test_irrigation_mg_barrier_text_empty(self):
         assert self.pack.mg_barrier_text({}) == ""
@@ -410,6 +423,31 @@ class TestFloodDomainPackByteIdentical:
         impact = {}
         handlers["insurance_payout"](Event(), impact)
         assert impact["payout_amount"] == 15000
+
+    # Memory policy — preserves the three flood literals previously
+    # hardcoded in generic broker/components/memory/ (Phase 6K-A).
+    def test_memory_policy_returns_bundle(self):
+        bundle = self.pack.memory_policy()
+        assert bundle is not None
+
+    def test_memory_policy_category_rules_have_flood_keys(self):
+        from broker.components.memory.content_types import MemoryContentType
+        bundle = self.pack.memory_policy()
+        assert bundle.category_rules["flood_experience"] is MemoryContentType.EXTERNAL_EVENT
+        assert bundle.category_rules["flood_event"] is MemoryContentType.EXTERNAL_EVENT
+        assert bundle.category_rules["damage"] is MemoryContentType.EXTERNAL_EVENT
+        assert bundle.category_rules["insurance_claim"] is MemoryContentType.INITIAL_FACTUAL
+        assert bundle.category_rules["insurance_history"] is MemoryContentType.INITIAL_FACTUAL
+
+    def test_memory_policy_external_event_whitelist(self):
+        bundle = self.pack.memory_policy()
+        assert set(bundle.external_event_whitelist) == {
+            "flood_experience", "flood_event", "damage",
+        }
+
+    def test_memory_policy_stimulus_key_is_flood_depth_m(self):
+        bundle = self.pack.memory_policy()
+        assert bundle.stimulus_key == "flood_depth_m"
 
     # MG barrier text — preserves providers.py:706-712 string
     def test_mg_barrier_text_contains_passaic(self):
