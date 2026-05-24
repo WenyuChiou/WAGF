@@ -1,0 +1,84 @@
+# vaccination_demo — 5-year outbreak + supply + side-effect news schedule
+#
+# Phase L3-1D (2026-05-24): replaces the L3-1A
+# ``VaccinationEnvironment.OUTBREAK_SCHEDULE = {2: 0.65}`` placeholder
+# with a defensible 5-year arc anchored on the COVID-19 2020-2024
+# timeline. The intent is showcase-grade narrative honesty, not
+# epidemiological calibration — the broker uses these signals to
+# stress the HBM constructs (SUSCEPTIBILITY / SEVERITY / CUES_TO_ACTION
+# rise with severity; BARRIERS rises with limited supply / side-effect
+# news; BENEFITS reflects vaccine availability + efficacy maturity).
+#
+# Each year carries five fields:
+#   outbreak_severity  : continuous [0.0, 1.0]; > 0.4 triggers
+#                        ``outbreak_active = True``
+#   outbreak_label     : low / moderate / severe (recomputed from
+#                        severity at runtime; persisted here for
+#                        narrative consistency with the description)
+#   vaccine_supply     : absent / limited / constrained / ample
+#                        (drives CUES_TO_ACTION + BARRIERS)
+#   side_effect_signal : none / unknown / sporadic / amplified /
+#                        familiar (drives BARRIERS perception)
+#   description        : one-line plain-language anchor to the
+#                        corresponding COVID-19 calendar year
+#
+# Citations (showcase-defensible, not paper-grade):
+# - WHO COVID-19 Dashboard timeline (case-rate-by-month for severity
+#   ranking).
+# - CDC COVID-19 Vaccination Distribution Tracker (supply states by
+#   2020-Q4 through 2022-Q4).
+# - Pew Research (2022) "Public Trust in Government 2022" — used to
+#   inform the side-effect-signal narrative trajectory (rumour cycles
+#   peaked 2021-Q2 through 2022-Q1; familiarity-driven trust recovery
+#   by 2023+).
+
+schedule:
+  1:
+    outbreak_severity: 0.90
+    outbreak_label: severe
+    vaccine_supply: absent
+    side_effect_signal: unknown
+    description: |
+      Pandemic onset — high case rate, hospitals strained, no vaccine
+      yet available, agents weigh non-pharmaceutical actions (delay,
+      refuse) against the threat alone. Mirrors 2020 calendar year.
+  2:
+    outbreak_severity: 0.75
+    outbreak_label: severe
+    vaccine_supply: limited
+    side_effect_signal: sporadic
+    description: |
+      Vaccine rollout begins under emergency authorisation — supply
+      limited and prioritised; sporadic rare-adverse-event news
+      circulates in social media; CUES_TO_ACTION rises sharply.
+      Mirrors 2021 calendar year.
+  3:
+    outbreak_severity: 0.55
+    outbreak_label: moderate
+    vaccine_supply: ample
+    side_effect_signal: amplified
+    description: |
+      Variant wave with broad-spectrum mandates lifted in many places;
+      vaccine supply now ample but side-effect rumour amplification
+      raises BARRIERS perception. Booster decisions emerge for the
+      already-vaccinated. Mirrors 2022 calendar year.
+  4:
+    outbreak_severity: 0.30
+    outbreak_label: low
+    vaccine_supply: ample
+    side_effect_signal: familiar
+    description: |
+      Endemic transition — case rates fall, ample supply, side-effect
+      profile familiar from two years of data; BENEFITS perception
+      stabilises; agents who have not vaccinated face lower threat
+      pressure. Mirrors 2023 calendar year.
+  5:
+    outbreak_severity: 0.20
+    outbreak_label: low
+    vaccine_supply: ample
+    side_effect_signal: familiar
+    description: |
+      Post-emergency steady state — outbreak risk low but seasonal;
+      vaccination treated like annual flu; agents decide on
+      maintenance / habituated grounds rather than crisis grounds.
+      Mirrors 2024 calendar year.

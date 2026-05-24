@@ -1,6 +1,11 @@
 {narrative_persona}
 
-It is time to consider your annual vaccination decision. Free seasonal vaccination is available locally.
+It is year {current_year} of an ongoing outbreak. {outbreak_description}
+
+Current situation:
+  - Outbreak severity: {outbreak_severity_label}
+  - Vaccine supply locally: {vaccine_supply_label}
+  - Side-effect signal in your community: {side_effect_signal}
 
 Your memory of recent events:
 {memory}
