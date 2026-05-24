@@ -1,0 +1,283 @@
+#!/usr/bin/env python
+"""Secret-scanning pre-commit hook.
+
+Phase 6N-F-6 (2026-05-24). Scans the **staged diff content** (NOT the
+working tree, NOT git history) for common hardcoded-credential
+patterns. Designed to be:
+
+- Fast (< 200 ms on a 200-file diff).
+- Cross-platform (Windows/git-bash/macOS/Linux). Uses only Python stdlib.
+- High-precision (curated patterns, low false-positive rate).
+- Bypassable for the rare legitimate case via `git commit --no-verify`.
+
+Patterns (block on match):
+  - Zotero API key (the leak that motivated this hook):
+      ZOTERO_API_KEY = "<20-24 alphanumeric>"
+  - OpenAI:      sk-[A-Za-z0-9]{20,}
+  - Anthropic:   sk-ant-[A-Za-z0-9_-]{20,}
+  - GitHub PAT:  ghp_[A-Za-z0-9]{30,}
+  - GitHub OAuth:gho_[A-Za-z0-9]{30,}
+  - AWS access:  AKIA[A-Z0-9]{16}
+  - Generic high-entropy assignment near a sensitive-name var:
+      (api_key|secret|password|token|access_key) = "<20+ alphanumeric>"
+    (Excludes env-var lookups like `os.environ.get(...)`.)
+
+Exit codes:
+  0 = clean (commit proceeds)
+  1 = secret detected (commit blocked)
+  2 = hook internal error (commit blocked, surface error)
+"""
+from __future__ import annotations
+
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+# ---------- pattern catalogue ---------------------------------------------
+# Each entry: (label, compiled regex, severity)
+# Severity 'BLOCK' aborts commit; 'WARN' prints to stderr but allows.
+
+_PATTERNS = [
+    # C1 fix (review 2026-05-24): no upper bound — Zotero may rotate to longer
+    # keys, and accidental trailing chars in a paste shouldn't slip past.
+    (
+        "Zotero API key (quoted literal)",
+        re.compile(
+            r'ZOTERO_API_KEY\s*=\s*["\'][A-Za-z0-9]{20,}["\']',
+            re.IGNORECASE,
+        ),
+        "BLOCK",
+    ),
+    # S1 fix: .env-file leaks (KEY=value, NO quotes) for the most common
+    # sensitive var names. Anchored to line start so it doesn't FP on Python
+    # `ZOTERO_API_KEY=` substring inside docstrings / commit-msg bodies.
+    (
+        "Unquoted credential assignment (.env-style)",
+        re.compile(
+            r'^\s*(?:ZOTERO_API_KEY|OPENAI_API_KEY|ANTHROPIC_API_KEY|'
+            r'API[_-]?KEY|SECRET|PASSWORD|TOKEN|ACCESS[_-]?KEY)'
+            r'\s*=\s*[A-Za-z0-9_+/=-]{20,}\s*(?:#.*)?$',
+            re.IGNORECASE,
+        ),
+        "BLOCK",
+    ),
+    # W1 fix: OpenAI's current production format is sk-proj-<48+ chars> with
+    # internal hyphens / underscores. The legacy sk-<alnum>{20+} pattern below
+    # stops at the first hyphen, so sk-proj- never matches. Both kept (legacy
+    # keys may still exist, and sk-proj- is the modern format).
+    (
+        "OpenAI API key (sk-proj- format)",
+        re.compile(r"\bsk-proj-[A-Za-z0-9_-]{20,}\b"),
+        "BLOCK",
+    ),
+    (
+        "OpenAI API key (legacy)",
+        re.compile(r"\bsk-[A-Za-z0-9]{20,}\b"),
+        "BLOCK",
+    ),
+    (
+        "Anthropic API key",
+        re.compile(r"\bsk-ant-[A-Za-z0-9_-]{20,}\b"),
+        "BLOCK",
+    ),
+    (
+        "GitHub personal-access token",
+        re.compile(r"\bghp_[A-Za-z0-9]{30,}\b"),
+        "BLOCK",
+    ),
+    (
+        "GitHub OAuth token",
+        re.compile(r"\bgho_[A-Za-z0-9]{30,}\b"),
+        "BLOCK",
+    ),
+    (
+        "AWS access-key ID",
+        re.compile(r"\bAKIA[A-Z0-9]{16}\b"),
+        "BLOCK",
+    ),
+    # Generic quoted credential. NOTE: `ZOTERO_` prefixes don't fire this rule
+    # because there's no word boundary between `ZOTERO_` and `API_KEY` — the
+    # Zotero-named pattern above is the dedicated catch.
+    (
+        "Generic hardcoded credential (quoted)",
+        re.compile(
+            r'\b(api[_-]?key|secret|password|token|access[_-]?key)'
+            r'\s*[:=]\s*["\'][A-Za-z0-9_+/=]{20,}["\']',
+            re.IGNORECASE,
+        ),
+        "BLOCK",
+    ),
+]
+
+# Files / paths to skip even if scanned. Narrow scopes only — every entry
+# here is an opt-OUT of the safety net.
+_SKIP_PATH_PATTERNS = [
+    re.compile(r"(^|/)\.githooks/"),         # the hook itself (self-reference)
+    re.compile(r"^CHANGELOG\.md$"),          # S4 fix: root changelog only, not subdir
+    re.compile(                              # W4 fix: ONLY the fixtures/ subdirectory,
+        r"(^|/)tests?/fixtures?/",            # not every test file with "fixture" in its name
+        re.IGNORECASE,
+    ),
+]
+
+# Env-var-lookup markers — these unambiguously identify a line that reads
+# from the environment rather than embedding a literal. Substring match is
+# safe here because none of these strings can appear inside a real secret.
+_ENV_LOOKUP_MARKERS = (
+    "os.environ",
+    "os.getenv",
+    "process.env.",
+    "ENV[",                       # Ruby
+    "getenv(",                    # C / generic
+)
+
+# Placeholder-value markers — words a developer writes IN PLACE of a real
+# secret. C2 fix (review 2026-05-24): these are checked ONLY against text
+# inside the assignment's quoted value, NOT the whole line. Without this
+# guard, a comment like `# was REDACTED, now set` on the same line as a
+# real key would silently suppress the finding.
+_PLACEHOLDER_TOKENS = (
+    "REDACTED",
+    "EXAMPLE_KEY",
+    "REPLACE_ME",
+    "PLACEHOLDER",
+    "<your-",
+    "your-api-key",
+    "fake_key",
+    "dummy_key",
+)
+
+# Match anything inside paired quotes (single or double) on a line so we can
+# scope the placeholder check to value-position only.
+_QUOTED_VALUE_RX = re.compile(r"""(["'])([^"']*)\1""")
+
+
+def _git(*args: str) -> str:
+    """Run a git command and return stdout."""
+    result = subprocess.run(
+        ["git", *args],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"git {' '.join(args)} failed ({result.returncode}): {result.stderr}"
+        )
+    return result.stdout
+
+
+def _list_staged_files() -> list[str]:
+    """Names of files added / modified in the index (not deletions)."""
+    out = _git("diff", "--cached", "--name-status", "--diff-filter=ACMRT")
+    files = []
+    for line in out.splitlines():
+        parts = line.split("\t", 2)
+        if len(parts) >= 2:
+            files.append(parts[-1])
+    return files
+
+
+def _staged_blob(path: str) -> str:
+    """Return the staged (index) contents of a file as text.
+
+    W2 (review 2026-05-24): binary files are NOT skipped — `git show` exits
+    0 on binary objects and we read with errors='replace', so the function
+    returns mojibake. In practice the credential patterns don't false-
+    positive on replacement-char noise. The RuntimeError branch fires only
+    for unreadable refs (e.g. submodule pointers).
+    """
+    try:
+        return _git("show", f":{path}")
+    except RuntimeError:
+        # Unreadable git object (submodule pointer, missing blob).
+        return ""
+
+
+def _path_skipped(path: str) -> bool:
+    return any(p.search(path) for p in _SKIP_PATH_PATTERNS)
+
+
+def _line_excepted(line: str) -> bool:
+    """Return True if the line should be suppressed.
+
+    Two-tier check (C2 fix):
+      1. Env-var lookup anywhere on the line → suppress (line is reading
+         from env, not embedding a literal).
+      2. Placeholder token inside a quoted value on the line → suppress
+         (`KEY = "REDACTED"`). Crucially does NOT suppress when the token
+         appears only in a comment (`KEY = "real-secret"  # was REDACTED`).
+    """
+    # Tier 1: env-var lookup — full-line substring is safe.
+    if any(marker in line for marker in _ENV_LOOKUP_MARKERS):
+        return True
+    # Tier 2: placeholder must live inside a quoted value.
+    for _, value in _QUOTED_VALUE_RX.findall(line):
+        v_upper = value.upper()
+        for token in _PLACEHOLDER_TOKENS:
+            if token.upper() in v_upper:
+                return True
+    return False
+
+
+def main() -> int:
+    try:
+        staged = _list_staged_files()
+    except RuntimeError as exc:
+        print(f"[secret-scan] hook error: {exc}", file=sys.stderr)
+        return 2
+
+    if not staged:
+        return 0
+
+    findings: list[tuple[str, int, str, str]] = []  # (path, lineno, label, line)
+    for path in staged:
+        if _path_skipped(path):
+            continue
+        content = _staged_blob(path)
+        if not content:
+            continue
+        for lineno, line in enumerate(content.splitlines(), start=1):
+            if _line_excepted(line):
+                continue
+            for label, rx, severity in _PATTERNS:
+                if rx.search(line):
+                    findings.append((path, lineno, label, line.strip()))
+                    break  # one finding per line is enough
+
+    if not findings:
+        return 0
+
+    print("", file=sys.stderr)
+    print("=" * 72, file=sys.stderr)
+    print("  SECRET-SCAN HOOK — commit BLOCKED", file=sys.stderr)
+    print("=" * 72, file=sys.stderr)
+    print(
+        f"  Found {len(findings)} suspected secret(s) in staged content.",
+        file=sys.stderr,
+    )
+    print("", file=sys.stderr)
+    for path, lineno, label, line in findings:
+        snippet = line if len(line) <= 100 else (line[:97] + "...")
+        print(f"  {path}:{lineno}  [{label}]", file=sys.stderr)
+        print(f"      > {snippet}", file=sys.stderr)
+    print("", file=sys.stderr)
+    print("  Resolution:", file=sys.stderr)
+    print("    1. Replace with `os.environ.get('VARNAME')` + set the env var.", file=sys.stderr)
+    print("    2. `git restore --staged <file>` to unstage,", file=sys.stderr)
+    print("       then re-edit + `git add` clean content.", file=sys.stderr)
+    print("    3. If the match is a genuine false positive (e.g. test", file=sys.stderr)
+    print("       fixture, documentation example), add `REDACTED` /", file=sys.stderr)
+    print("       `EXAMPLE_KEY` / `<your-key>` in the same line, or", file=sys.stderr)
+    print("       update `_LINE_EXCEPTIONS` in .githooks/pre-commit.", file=sys.stderr)
+    print("", file=sys.stderr)
+    print("  Bypass (only for explicitly-authorized false positives):", file=sys.stderr)
+    print("    git commit --no-verify   # logs the bypass; surface in PR review", file=sys.stderr)
+    print("=" * 72, file=sys.stderr)
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

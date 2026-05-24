@@ -31,6 +31,20 @@ python examples/quickstart/01_barebone.py
 pytest tests/core/ -v
 ```
 
+### Enable the repo-tracked pre-commit hook
+
+One-time setup, run once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+This activates `.githooks/pre-commit`, a stdlib-only secret scanner that
+blocks commits containing hardcoded API keys (Zotero, OpenAI, Anthropic,
+GitHub PAT, AWS) on the staged diff. Full pattern catalogue + bypass
+instructions in [`.githooks/README.md`](.githooks/README.md). The hook
+does not block the working tree or git history — only what's staged.
+
 ## Development Workflow
 
 1. **Fork** the repository on GitHub
