@@ -43,11 +43,14 @@ from paper3_style import FIGURE_WIDTH, OKABE_ITO, add_panel_label, apply_style, 
 # ===========================================================================
 # Paths
 # ===========================================================================
-BASE = r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\multi_agent\flood"
-TRAD_CSV = os.path.join(
-    r"C:\Users\wenyu\OneDrive - Lehigh University\Desktop\Lehigh\NSF-project\ABM\paper\draft\mg_sensitivity\FLOODABM",
-    "outputs", "baseline", "baseline", "decisions",
-    "action_share_owner_renter_tract_all_years.csv",
+BASE = str(Path(__file__).resolve().parents[2])
+TRAD_CSV = os.environ.get(
+    "TRAD_ABM_CSV",
+    os.path.join(
+        BASE,
+        "paper3", "data", "traditional_abm",
+        "action_share_owner_renter_tract_all_years.csv",
+    ),
 )
 
 SEEDS = [42, 123, 456]

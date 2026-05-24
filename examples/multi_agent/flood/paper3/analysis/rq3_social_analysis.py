@@ -46,7 +46,7 @@ _PAPER3_OUTPUT_OVERRIDE = os.environ.get("PAPER3_OUTPUT_DIR")
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
-BASE = Path(r"c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework")
+BASE = Path(__file__).resolve().parents[5]
 if _PAPER3_OVERRIDE:
     TRACE_DIR = Path(os.path.normpath(_PAPER3_OVERRIDE))
     RESULT_DIR = TRACE_DIR.parent

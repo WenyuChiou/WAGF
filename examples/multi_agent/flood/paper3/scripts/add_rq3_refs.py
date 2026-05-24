@@ -4,8 +4,10 @@ import sys, time, os
 sys.stdout.reconfigure(encoding="utf-8")
 from pyzotero import zotero
 
-ZOTERO_API_KEY = os.environ.get("ZOTERO_API_KEY", "hLGhkxO20sXiKpMF62mGDeG2")
+ZOTERO_API_KEY = os.environ.get("ZOTERO_API_KEY")
 ZOTERO_LIBRARY_ID = os.environ.get("ZOTERO_LIBRARY_ID", "14772686")
+if not ZOTERO_API_KEY:
+    raise RuntimeError("Set ZOTERO_API_KEY before running this Zotero helper.")
 COLLECTION = "XZ22GHJA"  # Paper3-WRR-LLM-Flood-ABM
 
 zot = zotero.Zotero(ZOTERO_LIBRARY_ID, "user", ZOTERO_API_KEY)

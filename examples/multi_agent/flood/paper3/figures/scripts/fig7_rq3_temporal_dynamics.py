@@ -18,17 +18,13 @@ from scipy import stats
 warnings.filterwarnings("ignore")
 
 # ── Paths ──────────────────────────────────────────────────────────────
-BASE = Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework"
-            r"\examples\multi_agent\flood\paper3\results\paper3_hybrid_v2")
+_PAPER3_DIR = Path(__file__).resolve().parents[2]
+BASE = _PAPER3_DIR / "results" / "paper3_hybrid_v2"
 SEEDS = [42, 123, 456]
 MODEL = "gemma3_4b_strict"
 AGENT_TYPES = ["household_owner", "household_renter"]
-TABLE_OUT = Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework"
-                 r"\examples\multi_agent\flood\paper3\analysis\tables"
-                 r"\rq3_temporal_trajectories.csv")
-FIG_OUT = Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework"
-               r"\examples\multi_agent\flood\paper3\figures\main"
-               r"\fig7_rq3_temporal_dynamics")
+TABLE_OUT = _PAPER3_DIR / "analysis" / "tables" / "rq3_temporal_trajectories.csv"
+FIG_OUT = _PAPER3_DIR / "figures" / "main" / "fig7_rq3_temporal_dynamics"
 
 # ── Label map ──────────────────────────────────────────────────────────
 LABEL_MAP = {"VL": 1, "L": 2, "M": 3, "H": 4, "VH": 5}

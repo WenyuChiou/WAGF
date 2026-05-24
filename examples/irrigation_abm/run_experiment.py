@@ -727,7 +727,7 @@ def main():
 
 def parse_args():
     p = argparse.ArgumentParser(
-        description="Irrigation ABM Experiment (Hung 2021 — WAGF Pipeline)"
+        description="Irrigation ABM Experiment (Hung 2021 - WAGF Pipeline)"
     )
     p.add_argument("--model", default="gemma3:1b")
     p.add_argument("--years", type=int, default=5)
@@ -741,7 +741,7 @@ def parse_args():
     p.add_argument("--num-ctx", type=int, default=None)
     p.add_argument("--num-predict", type=int, default=None)
     p.add_argument("--rebalance-clusters", action="store_true",
-                   help="Rebalance cluster assignment so each cluster has ≥15%% of agents")
+                   help="Rebalance cluster assignment so each cluster has >=15%% of agents")
     p.add_argument("--no-magnitude", action="store_true",
                    help="Disable magnitude_pct output (reduces context size)")
     p.add_argument("--pilot-phase", type=str, default=None,

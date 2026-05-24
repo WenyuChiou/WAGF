@@ -7,7 +7,7 @@ REM markers, audit preserves real metadata. Branch head b1d3deb.
 REM
 REM Expected wall time: ~5 hrs (73 min/run × 4 runs).
 
-set BASE=C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework
+for %%I in ("%~dp0..\..") do set "BASE=%%~fI"
 set PROFILES=examples\single_agent\agent_initial_profiles.csv
 
 cd /d %BASE%

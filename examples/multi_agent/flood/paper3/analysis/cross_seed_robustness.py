@@ -42,7 +42,7 @@ def safe_print(*args, **kwargs):
 # ============================================================
 # PATHS
 # ============================================================
-BASE = Path(r"c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework")
+BASE = Path(__file__).resolve().parents[5]
 FLOOD_DIR = BASE / "examples" / "multi_agent" / "flood"
 HYBRID_DIR = FLOOD_DIR / "paper3" / "results" / "paper3_hybrid_v2"
 ABLATION_DIR = FLOOD_DIR / "paper3" / "results" / "paper3_ablation_flat_baseline"

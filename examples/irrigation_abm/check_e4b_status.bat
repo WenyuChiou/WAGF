@@ -3,7 +3,7 @@ REM ============================================================
 REM   One-shot codex monitor of e4b seed46 recovery
 REM   Double-click for instant status, or schedule via Task Scheduler
 REM ============================================================
-SET "REPO=C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework"
+for %%I in ("%~dp0..\..") do SET "REPO=%%~fI"
 cd /d "%REPO%"
 for /f "tokens=2 delims==" %%I in ('"wmic os get LocalDateTime /value | findstr LocalDateTime"') do set "DT=%%I"
 SET "TS=%DT:~0,8%_%DT:~8,6%"

@@ -1,10 +1,13 @@
 """Add buyout/PA governance references to Zotero for Paper 3."""
+import os
 import sys
 sys.stdout.reconfigure(encoding='utf-8')
 from pyzotero import zotero
 
-ZOTERO_API_KEY = "hLGhkxO20sXiKpMF62mGDeG2"
-ZOTERO_LIBRARY_ID = "14772686"
+ZOTERO_API_KEY = os.environ.get("ZOTERO_API_KEY")
+ZOTERO_LIBRARY_ID = os.environ.get("ZOTERO_LIBRARY_ID", "14772686")
+if not ZOTERO_API_KEY:
+    raise RuntimeError("Set ZOTERO_API_KEY before running this Zotero helper.")
 zot = zotero.Zotero(ZOTERO_LIBRARY_ID, "user", ZOTERO_API_KEY)
 
 # Collection keys

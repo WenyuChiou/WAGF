@@ -13,7 +13,7 @@ param(
 
 $ErrorActionPreference = "Continue"
 
-$BASE = "C:/Users/wenyu/Desktop/Lehigh/governed_broker_framework"
+$BASE = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $BASELINE_SCRIPT = "ref/LLMABMPMT-Final.py"
 $RUNNER_SCRIPT = "examples/single_agent/run_flood.py"
 $PROFILES = "examples/single_agent/agent_initial_profiles.csv"

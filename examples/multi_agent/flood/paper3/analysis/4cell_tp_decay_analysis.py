@@ -15,7 +15,7 @@ import os
 warnings.filterwarnings("ignore")
 
 # ── Paths ──
-BASE = Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\multi_agent\flood\paper3")
+BASE = Path(__file__).resolve().parents[1]
 _PAPER3_OVERRIDE = os.environ.get("PAPER3_TRACE_DIR")
 _PAPER3_OUTPUT_OVERRIDE = os.environ.get("PAPER3_OUTPUT_DIR")
 RESULTS = Path(os.path.normpath(_PAPER3_OVERRIDE)).parent.parent if _PAPER3_OVERRIDE else BASE / "results" / "paper3_hybrid_v2"

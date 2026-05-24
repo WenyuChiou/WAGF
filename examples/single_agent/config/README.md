@@ -38,4 +38,4 @@ Edit these only after the three files above make sense:
 This config surface is for the single-agent flood benchmark only. The
 single-agent irrigation config lives separately under:
 
-- [../../irrigation_abm/config/](/c:/Users/wenyu/Desktop/Lehigh/governed_broker_framework/examples/irrigation_abm/config)
+- [../../irrigation_abm/config/](../../irrigation_abm/config/)

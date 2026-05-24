@@ -11,7 +11,7 @@ REM Expected wall time: ~5 hours (30 min/run x 10 runs).
 REM Output: JOH_FINAL_v2/ and JOH_ABLATION_DISABLED_v2/
 REM (V1 preserved at JOH_FINAL/ and JOH_ABLATION_DISABLED/).
 
-set BASE=C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework
+for %%I in ("%~dp0..\..") do set "BASE=%%~fI"
 set PROFILES=examples\single_agent\agent_initial_profiles.csv
 set MODEL=gemma4:e2b
 set TAG=gemma4_e2b

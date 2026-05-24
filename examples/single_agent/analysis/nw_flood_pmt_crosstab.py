@@ -13,7 +13,7 @@ from pathlib import Path
 from collections import Counter
 
 # ── 0. PATHS & CONSTANTS ─────────────────────────────────────────────
-BASE = Path(r"C:/Users/wenyu/Desktop/Lehigh/governed_broker_framework/examples/single_agent/results/JOH_FINAL/gemma3_4b")
+BASE = Path(__file__).resolve().parents[1] / "results" / "JOH_FINAL" / "gemma3_4b"
 
 gov_b_files = [BASE / f"Group_B/Run_{i}/household_governance_audit.csv" for i in range(1, 4)]
 gov_c_files = [BASE / f"Group_C/Run_{i}/household_governance_audit.csv" for i in range(1, 4)]

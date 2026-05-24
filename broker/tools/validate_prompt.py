@@ -119,6 +119,21 @@ def extract_placeholders(template: str) -> Set[str]:
     return set(_PLACEHOLDER_RE.findall(masked))
 
 
+def collect_template_vars(value: Any) -> Set[str]:
+    """Return YAML-declared lifecycle/context template variable names.
+
+    Domains can declare ``template_vars`` as either a list of names or a
+    mapping of name -> description/default. The validator treats those names as
+    intentionally supplied by lifecycle hooks, context providers, or agent
+    state rather than response_format fields.
+    """
+    if isinstance(value, list):
+        return {v for v in value if isinstance(v, str)}
+    if isinstance(value, dict):
+        return {k for k in value if isinstance(k, str)}
+    return set()
+
+
 # ---------------------------------------------------------------------------
 # Inline JSON key extraction (best-effort)
 # ---------------------------------------------------------------------------
@@ -456,7 +471,11 @@ def validate_agent_type(
 
     # ---- placeholder coverage -------------------------------------------
     placeholders = extract_placeholders(template)
-    known_keys = BROKER_FILLED_PLACEHOLDERS | field_keys
+    template_var_keys = (
+        collect_template_vars(shared.get("template_vars"))
+        | collect_template_vars(block.get("template_vars"))
+    )
+    known_keys = BROKER_FILLED_PLACEHOLDERS | field_keys | template_var_keys
     unknown = sorted(p for p in placeholders if p not in known_keys)
     if unknown:
         issues.append(Issue(

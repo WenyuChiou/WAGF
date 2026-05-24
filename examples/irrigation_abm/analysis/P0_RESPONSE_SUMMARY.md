@@ -268,7 +268,7 @@ Wilson score binomial CIs and one-sample proportion tests.
 ## Completed Analyses
 
 ### 1. Irrigation EHE Bootstrap Analysis
-**File**: `C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\irrigation_abm\analysis\nw_bootstrap_ci.py`
+**File**: `examples/irrigation_abm/analysis/nw_bootstrap_ci.py`
 
 **Results**:
 ```
@@ -299,7 +299,7 @@ Permutation Test:
 ---
 
 ### 2. Flood CACR Null Model Computation
-**File**: `C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\multi_agent\flood\paper3\analysis\compute_cacr_null_model.py`
+**File**: `examples/multi_agent/flood/paper3/analysis/compute_cacr_null_model.py`
 
 **Results**:
 ```

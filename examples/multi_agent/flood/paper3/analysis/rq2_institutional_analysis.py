@@ -21,6 +21,7 @@ import os
 import sys
 import re
 import warnings
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -40,7 +41,7 @@ _PAPER3_OUTPUT_OVERRIDE = os.environ.get("PAPER3_OUTPUT_DIR")
 # ===========================================================================
 # Paths
 # ===========================================================================
-BASE = r"c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\multi_agent\flood"
+BASE = str(Path(__file__).resolve().parents[2])
 RESULT_DIR = os.path.normpath(_PAPER3_OVERRIDE) if _PAPER3_OVERRIDE else os.path.join(BASE, "paper3", "results", "paper3_hybrid_v2", "seed_42", "gemma3_4b_strict")
 RAW_DIR = os.path.join(RESULT_DIR, "raw")
 ANALYSIS_DIR = os.path.normpath(_PAPER3_OUTPUT_OVERRIDE) if _PAPER3_OUTPUT_OVERRIDE else os.path.join(BASE, "paper3", "results", "paper3_hybrid_v2", "seed_42", "analysis")

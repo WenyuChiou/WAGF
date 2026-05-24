@@ -125,10 +125,10 @@ Metric Guide:
   ESRR = Extreme Scenario Response Rate [0-1]: strong actions in severe scenarios
 
 [stderr]
-[Config] Agent type configuration not found: C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\broker\utils\agent_types.yaml
+[Config] Agent type configuration not found: <repo-root>\broker\utils\agent_types.yaml
   Tip: Ensure the file exists and the path is correct.
   Use: AgentTypeConfig.load('path/to/agent_types.yaml')
-[Config] Agent type configuration not found: C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\broker\utils\agent_types.yaml
+[Config] Agent type configuration not found: <repo-root>\broker\utils\agent_types.yaml
   Tip: Ensure the file exists and the path is correct.
   Use: AgentTypeConfig.load('path/to/agent_types.yaml')
 ```

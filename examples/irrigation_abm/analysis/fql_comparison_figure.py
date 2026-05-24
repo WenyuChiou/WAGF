@@ -9,6 +9,7 @@ FQL (Hung & Yang 2021) has a binary action space (increase/decrease);
 computing EHE for it is not meaningful.
 """
 import sys
+import os
 sys.stdout.reconfigure(encoding='utf-8')
 
 import matplotlib
@@ -22,9 +23,10 @@ from collections import Counter
 import math
 
 # ── Paths ──
-MAIN_RESULTS = Path(__file__).resolve().parents[3] / "examples" / "irrigation_abm" / "results"
-FQL_RESULTS = Path(r"C:\Users\wenyu\Desktop\Lehigh\wagf-fql-baseline\examples\irrigation_abm\results\fql_raw")
-OUT_DIR = Path(r"C:\Users\wenyu\Desktop\Lehigh\wagf-fql-baseline\examples\irrigation_abm\analysis\figures")
+IRRIGATION_DIR = Path(__file__).resolve().parents[1]
+MAIN_RESULTS = IRRIGATION_DIR / "results"
+FQL_RESULTS = Path(os.environ.get("FQL_RESULTS_DIR", IRRIGATION_DIR / "results" / "fql_raw"))
+OUT_DIR = Path(os.environ.get("FQL_FIGURE_DIR", IRRIGATION_DIR / "analysis" / "figures"))
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 seeds = [42, 43, 44]

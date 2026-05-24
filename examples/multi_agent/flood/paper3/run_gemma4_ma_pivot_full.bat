@@ -8,7 +8,7 @@ REM Total estimated time: ~85 hr (~3.5 days)
 REM thinking_mode=disabled now correctly routes top-level (fc6c599)
 REM PA criteria added (145198c) — does NOT fully fix G4 saturation but keeps latest prompt
 
-set BASE=C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework
+for %%I in ("%~dp0..\..\..\..") do set "BASE=%%~fI"
 set COMMON_ARGS=--model gemma4:e4b --years 13 --per-agent-depth --mode balanced --agent-profiles data/agent_profiles_balanced.csv --gossip --enable-news-media --enable-social-media --enable-communication --enable-custom-affordability --enable-financial-constraints --load-initial-memories --thinking-mode disabled
 
 cd /d %BASE%\examples\multi_agent\flood

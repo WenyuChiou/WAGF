@@ -90,9 +90,9 @@ This directory is the primary single-agent flood benchmark.
 It is not the irrigation workspace, and it is not the multi-agent flood paper
 workspace. Related locations:
 
-- Single-agent irrigation reference: [examples/irrigation_abm/](/c:/Users/wenyu/Desktop/Lehigh/governed_broker_framework/examples/irrigation_abm)
-- Multi-agent flood reference: [examples/multi_agent/flood/](/c:/Users/wenyu/Desktop/Lehigh/governed_broker_framework/examples/multi_agent/flood)
-- Nature Water manuscript workspace: [paper/nature_water/](/c:/Users/wenyu/Desktop/Lehigh/governed_broker_framework/paper/nature_water)
+- Single-agent irrigation reference: [examples/irrigation_abm/](../irrigation_abm/)
+- Multi-agent flood reference: [examples/multi_agent/flood/](../multi_agent/flood/)
+- Nature Water manuscript workspace: [paper/nature_water/](../../paper/nature_water/)
 
 ---
 
@@ -102,4 +102,4 @@ workspace. Related locations:
 - `analysis/` contains both reusable metrics code and paper-side helper scripts.
 - `results/` contains benchmark outputs and should be treated as experiment data,
   not framework core.
-- The flood compact demo lives separately in [examples/governed_flood/](/c:/Users/wenyu/Desktop/Lehigh/governed_broker_framework/examples/governed_flood).
+- The flood compact demo lives separately in [examples/governed_flood/](../governed_flood/).

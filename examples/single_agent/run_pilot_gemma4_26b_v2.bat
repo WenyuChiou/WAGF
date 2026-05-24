@@ -7,7 +7,7 @@ REM
 REM Expected wall time: ~14 hrs (3-4 hr/run × 4 runs).
 REM Recommend running overnight AFTER gemma3_4b pilot completes.
 
-set BASE=C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework
+for %%I in ("%~dp0..\..") do set "BASE=%%~fI"
 set PROFILES=examples\single_agent\agent_initial_profiles.csv
 
 cd /d %BASE%

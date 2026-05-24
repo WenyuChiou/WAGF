@@ -5,13 +5,14 @@ Nature Water Paper — Insight B / R2: Structured Non-Compliance at Institutiona
 import pandas as pd
 import numpy as np
 from collections import Counter
+from pathlib import Path
 
 # ── Load data ──
-base = "C:/Users/wenyu/Desktop/Lehigh/governed_broker_framework/examples/irrigation_abm/results"
+base = Path(__file__).resolve().parents[1] / "results"
 
 gov_dfs = []
 for s in [42, 43, 44]:
-    path = f"{base}/production_v20_42yr_seed{s}/irrigation_farmer_governance_audit.csv"
+    path = base / f"production_v20_42yr_seed{s}" / "irrigation_farmer_governance_audit.csv"
     df = pd.read_csv(path, encoding='utf-8')
     df['seed'] = s
     df['condition'] = 'governed'
@@ -19,7 +20,7 @@ for s in [42, 43, 44]:
 
 ungov_dfs = []
 for s in [42, 43, 44]:
-    path = f"{base}/ungoverned_v20_42yr_seed{s}/irrigation_farmer_governance_audit.csv"
+    path = base / f"ungoverned_v20_42yr_seed{s}" / "irrigation_farmer_governance_audit.csv"
     df = pd.read_csv(path, encoding='utf-8')
     df['seed'] = s
     df['condition'] = 'ungoverned'

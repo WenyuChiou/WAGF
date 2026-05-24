@@ -8,13 +8,14 @@ Data: paper3_hybrid_v2 seed_42 gemma3_4b_strict traces.
 import json
 import os
 from collections import defaultdict
+from pathlib import Path
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 
 # ── paths ──────────────────────────────────────────────────────────────
-BASE = r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework"
+BASE = str(Path(__file__).resolve().parents[5])
 RAW = os.path.join(
     BASE,
     "examples", "multi_agent", "flood", "paper3", "results",

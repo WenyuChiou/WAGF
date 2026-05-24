@@ -244,6 +244,34 @@ def test_validate_unknown_placeholder_warns(tmp_path: Path):
         f"expected unknown-placeholder WARN, got: {[i.message for i in issues]}"
 
 
+def test_validate_yaml_declared_template_vars_are_known(tmp_path: Path):
+    """shared.template_vars declares lifecycle/context placeholders."""
+    yaml_path = tmp_path / "agent_types.yaml"
+    prompt = tmp_path / "p.txt"
+    prompt.write_text("{narrative_persona} {lifecycle_message}", encoding="utf-8")
+    yaml_path.write_text(textwrap.dedent("""
+        shared:
+          template_vars:
+            - lifecycle_message
+        individual:
+          agent_type: individual
+          prompt_template_file: p.txt
+          actions:
+            - id: dummy
+              aliases: ["1"]
+          parsing:
+            default_skill: "dummy"
+            strict_mode: true
+    """).strip(), encoding="utf-8")
+
+    import yaml
+    cfg = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+    issues = validate_agent_type(cfg, "individual", yaml_path)
+    warns = [i for i in issues if i.severity == "WARN"]
+    assert not any("lifecycle_message" in i.message for i in warns), \
+        f"expected declared template var to be accepted, got: {[i.message for i in issues]}"
+
+
 def test_validate_parsing_actions_location(tmp_path: Path):
     """flood multi-agent puts actions inside parsing — also valid."""
     yaml_path = tmp_path / "agent_types.yaml"

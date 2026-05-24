@@ -96,7 +96,7 @@ runner 目前支援多種初始化模式：
 它不是 `Nature Water` 稿件 workspace，也不是單代理洪水基準案例。相關位置如下：
 
 - 單代理洪水基準案例：[examples/single_agent/](../single_agent/)
-- Nature Water 稿件 workspace：[paper/nature_water/](/c:/Users/wenyu/Desktop/Lehigh/governed_broker_framework/paper/nature_water)
+- Nature Water 稿件 workspace：[paper/nature_water/](../../../paper/nature_water/)
 - 多代理洪水論文 workspace：[paper3/](paper3/)
 
 ---

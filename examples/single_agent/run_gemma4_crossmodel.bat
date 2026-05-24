@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-set BASE=C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework
+for %%I in ("%~dp0..\..") do set "BASE=%%~fI"
 set PROFILES=examples\single_agent\agent_initial_profiles.csv
 set SEED=42
 

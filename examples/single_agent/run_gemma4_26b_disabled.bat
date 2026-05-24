@@ -11,7 +11,7 @@ REM Existing NW cross-model ablation has all 8 models except gemma4:26b.
 REM This batch closes that gap so Paper 1b cross-model comparison can
 REM report 9 models.
 
-set BASE=C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework
+for %%I in ("%~dp0..\..") do set "BASE=%%~fI"
 set PROFILES=examples\single_agent\agent_initial_profiles.csv
 
 cd /d %BASE%

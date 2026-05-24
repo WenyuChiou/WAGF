@@ -392,9 +392,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process full Qualtrics survey for Paper 3")
     parser.add_argument(
         "--input", type=str,
-        default="C:/Users/wenyu/OneDrive - Lehigh University/Desktop/Lehigh/NSF-project/"
-                "questionniare/Results/Formal_test/processed_data/cleaned_complete_data_977.xlsx",
-        help="Path to Qualtrics Excel file",
+        default=None,
+        help="Path to private Qualtrics Excel file",
     )
     parser.add_argument(
         "--output", type=str,
@@ -406,6 +405,8 @@ if __name__ == "__main__":
         help="Include all respondents (not just NJ)",
     )
     args = parser.parse_args()
+    if not args.input:
+        parser.error("--input is required because raw Qualtrics exports are not part of the public repository")
 
     script_dir = Path(__file__).resolve().parent.parent.parent.parent.parent
     output_path = script_dir / args.output

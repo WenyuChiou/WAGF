@@ -8,7 +8,7 @@ REM
 REM Total expected: ~48 hours wall-clock (e2b 5hr + e4b 8hr + 26b 35hr).
 REM Progress log: each sub-bat's stdout will be captured.
 
-set BASE=C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework
+for %%I in ("%~dp0..\..") do set "BASE=%%~fI"
 cd /d %BASE%
 
 echo ============================================
