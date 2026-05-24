@@ -19,6 +19,13 @@ flood-coupling-free.
 
 ### Added
 
+- **Phase 6N-F-6 — repo-tracked secret-scan pre-commit hook** (2026-05-24). Installs `.githooks/pre-commit` (stdlib-only Python; zero new deps) and `.githooks/README.md`, with a one-line install pointer added to `CONTRIBUTING.md` ("Enable the repo-tracked pre-commit hook"). Activated per clone via `git config core.hooksPath .githooks`. Scans the **staged diff content** of every commit for hardcoded credential patterns and blocks the commit when a match is found.
+  - **Patterns (all BLOCK)**: Zotero API key (`ZOTERO_API_KEY = "<20-24 alnum>"`), OpenAI (`sk-...`), Anthropic (`sk-ant-...`), GitHub PAT (`ghp_...`), GitHub OAuth (`gho_...`), AWS access key (`AKIA[A-Z0-9]{16}`), generic credential (`(api_key|secret|password|token|access_key) = "<20+ alnum>"`).
+  - **False-positive controls**: `_LINE_EXCEPTIONS` skips lines containing `os.environ`, `os.getenv`, `process.env.`, `<your-`, `REDACTED`, `EXAMPLE_KEY`, `your-api-key`; `_SKIP_PATH_PATTERNS` skips `.githooks/` itself, `CHANGELOG.md` (historical incident notes), and `tests/*fixture*` paths. The generic pattern excludes env-var lookups so a clean `KEY = os.environ.get(...)` line passes.
+  - **Smoke verified**: a staged `ZOTERO_API_KEY = "FAKEFAKE1234abcd5678EFGH"` line gets caught with the exact rule ID "Zotero API key (literal hex)"; a clean `os.environ.get(...)` line commits through.
+  - **Why**: a Zotero API key was committed across 8 commits between 2026-02 and 2026-05 (rotation tracked separately in the `8c6e48c` commit body). This hook is the canonical preventive control. Bypass remains available via `git commit --no-verify` (left visible to PR review).
+  - **Scope**: this is a fast first-line-of-defence, not a full repo-history scanner; CI-side gitleaks / detect-secrets remains the canonical second line.
+
 - **DomainPack v2 contract** (Item 2): three hooks added to the
   `DomainPack` Protocol — `perception_descriptors()`,
   `perception_field_policy()`, `retrieval_policy()` — each with a no-op
