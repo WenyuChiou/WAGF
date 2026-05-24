@@ -5,10 +5,14 @@ References:
 1. NEW: Xian, Lin & Kunreuther (2017) - Optimal house elevation
 2. UPDATE: FEMA P-312 (DDNND9DJ) - Add Paper3-WRR tag + note + collection
 """
+import os
+
 from pyzotero import zotero
 
-ZOTERO_API_KEY = "hLGhkxO20sXiKpMF62mGDeG2"
-ZOTERO_LIBRARY_ID = "14772686"
+ZOTERO_API_KEY = os.environ.get("ZOTERO_API_KEY")
+ZOTERO_LIBRARY_ID = os.environ.get("ZOTERO_LIBRARY_ID", "14772686")
+if not ZOTERO_API_KEY:
+    raise RuntimeError("Set ZOTERO_API_KEY before running this Zotero helper.")
 
 # Paper3 collections
 METHODS = "D7WBAFPU"        # Methodology-LLM-ABM

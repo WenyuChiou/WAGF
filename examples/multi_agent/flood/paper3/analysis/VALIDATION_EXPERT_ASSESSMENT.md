@@ -3,7 +3,7 @@
 **Date**: 2026-02-10
 **Reviewed by**: Panel of 5 expert reviewers (ABM validation, computational social science, flood risk, psychometrics, WRR standards)
 **Target journal**: Water Resources Research (WRR)
-**Codebase**: `c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework`
+**Codebase**: WAGF repository root
 
 ---
 

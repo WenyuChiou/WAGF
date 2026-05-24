@@ -2,6 +2,27 @@
 # SHARED DEFINITIONS
 # =============================================================================
 shared:
+  # Prompt variables supplied by lifecycle hooks, context providers, shared
+  # config, or agent state rather than by response_format fields.
+  template_vars:
+    - criteria_definitions
+    - elevation_status_text
+    - flood_experience_summary
+    - flood_proximity_qualifier
+    - flood_zone
+    - govt_message
+    - household_size
+    - income_range
+    - insurance_message
+    - insurance_status
+    - residency_generations
+    - buyout_pending
+    - elevated_count
+    - insured_count
+    - mg_count
+    - recent_claims
+    - total_households
+
   rating_scale: "VL=Very Low, L=Low, M=Medium, H=High, VH=Very High"
   criteria_definitions: |
     Protection Motivation Theory (PMT) Constructs:

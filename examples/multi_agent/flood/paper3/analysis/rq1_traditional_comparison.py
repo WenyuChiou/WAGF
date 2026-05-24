@@ -15,6 +15,7 @@ import json
 import os
 import sys
 import warnings
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -32,8 +33,11 @@ _PAPER3_OUTPUT_OVERRIDE = os.environ.get("PAPER3_OUTPUT_DIR")
 # ===========================================================================
 # Paths
 # ===========================================================================
-BASE = r"c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\multi_agent\flood"
-TRAD_BASE = r"c:\Users\wenyu\OneDrive - Lehigh University\Desktop\Lehigh\NSF-project\ABM\paper\draft\mg_sensitivity\FLOODABM"
+BASE = str(Path(__file__).resolve().parents[2])
+TRAD_BASE = os.environ.get(
+    "TRAD_ABM_BASE",
+    os.path.join(BASE, "paper3", "data", "traditional_abm"),
+)
 
 # Traditional ABM
 TRAD_DEC_DIR = os.path.join(TRAD_BASE, "outputs", "baseline", "baseline", "decisions")

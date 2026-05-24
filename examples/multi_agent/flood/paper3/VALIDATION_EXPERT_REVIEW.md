@@ -279,11 +279,11 @@ The L3 cognitive validation (ICC probing) is the strongest element of the framew
 
 | File | Absolute Path | Role |
 |------|---------------|------|
-| Standalone validation | `c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\multi_agent\flood\paper3\analysis\compute_validation_metrics.py` | L1+L2 computation from JSONL traces |
-| Framework micro validator | `c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\broker\domains\water\calibration\micro_validator.py` | Generic CACR/EGS computation |
-| Framework R_H computation | `c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\broker\validators\posthoc\unified_rh.py` | Domain-agnostic R_H + EBE |
-| Framework benchmark registry | `c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\broker\domains\water\calibration\benchmark_registry.py` | Generic EPI engine |
-| Domain benchmark definitions | `c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\multi_agent\flood\paper3\analysis\empirical_benchmarks.py` | Flood-specific 8 benchmarks |
-| Psychometric battery | `c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\broker\domains\water\calibration\psychometric_battery.py` | ICC/eta-squared probing |
-| Unit tests | `c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\multi_agent\flood\paper3\tests\test_decision_based_inference.py` | Decision-based inference tests |
-| Project reference | `c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\multi_agent\flood\paper3\PAPER3_COMPLETE_REFERENCE.md` | Full design specification |
+| Standalone validation | `examples/multi_agent/flood/paper3/analysis/compute_validation_metrics.py` | L1+L2 computation from JSONL traces |
+| Framework micro validator | `broker/domains/water/calibration/micro_validator.py` | Generic CACR/EGS computation |
+| Framework R_H computation | `broker/validators/posthoc/unified_rh.py` | Domain-agnostic R_H + EBE |
+| Framework benchmark registry | `broker/domains/water/calibration/benchmark_registry.py` | Generic EPI engine |
+| Domain benchmark definitions | `examples/multi_agent/flood/paper3/analysis/empirical_benchmarks.py` | Flood-specific 8 benchmarks |
+| Psychometric battery | `broker/domains/water/calibration/psychometric_battery.py` | ICC/eta-squared probing |
+| Unit tests | `examples/multi_agent/flood/paper3/tests/test_decision_based_inference.py` | Decision-based inference tests |
+| Project reference | `examples/multi_agent/flood/paper3/PAPER3_COMPLETE_REFERENCE.md` | Full design specification |

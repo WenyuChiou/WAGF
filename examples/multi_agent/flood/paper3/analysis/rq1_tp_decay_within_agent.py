@@ -32,8 +32,7 @@ if _PAPER3_OVERRIDE:
     SEEDS = [_TRACE_DIR.parent.name]
     MODEL = _TRACE_DIR.name
 else:
-    BASE = Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework"
-                r"\examples\multi_agent\flood\paper3\results\paper3_hybrid_v2")
+    BASE = Path(__file__).resolve().parents[1] / "results" / "paper3_hybrid_v2"
     SEEDS = ["seed_42", "seed_123", "seed_456"]
     MODEL = "gemma3_4b_strict"
 AGENT_TYPES = ["household_owner", "household_renter"]

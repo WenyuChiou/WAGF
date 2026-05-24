@@ -29,7 +29,7 @@ from scipy.optimize import curve_fit
 # ============================================================
 # PATHS
 # ============================================================
-BASE = Path(r"c:\Users\wenyu\Desktop\Lehigh\governed_broker_framework")
+BASE = Path(__file__).resolve().parents[5]
 RESULT_DIR = BASE / "examples" / "multi_agent" / "flood" / "paper3" / "results" / "paper3_hybrid_v2" / "seed_42" / "gemma3_4b_strict"
 RAW_DIR = RESULT_DIR / "raw"
 

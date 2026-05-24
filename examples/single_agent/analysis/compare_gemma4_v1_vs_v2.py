@@ -22,7 +22,7 @@ Outputs
 
 Usage
 -----
-    cd C:/Users/wenyu/Desktop/Lehigh/governed_broker_framework
+    cd <repo-root>
     python examples/single_agent/analysis/compare_gemma4_v1_vs_v2.py
 
 Safe to rerun. Tolerates missing V2 data (reports which runs are incomplete).

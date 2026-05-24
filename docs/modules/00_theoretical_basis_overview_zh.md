@@ -1,6 +1,6 @@
 ﻿# 系統理論與架構詳解 (System Theory & Architecture Master Map)
 
-![Cognitive Architecture Diagram](/c:/Users/wenyu/.gemini/antigravity/brain/9793af22-8e51-4316-9d6b-59ba45b8fe7a/cognitive_architecture_diagram_1768778927249.png)
+![Cognitive Architecture Diagram](../architecture/cognitive_architecture_diagram.png)
 
 這份文檔詳細解釋了框架中使用的每一個**專有名詞 (Term)**、其背後的**學術理論 (Theory)**、對應的**程式模組 (Module)**，以及整個系統是如何串聯運作的。
 

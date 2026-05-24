@@ -53,7 +53,7 @@ def safe_print(*args, **kwargs):
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
-BASE = Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework")
+BASE = Path(__file__).resolve().parents[5]
 FLOOD_DIR = BASE / "examples" / "multi_agent" / "flood"
 RESULT_BASE = Path(os.path.normpath(_PAPER3_OVERRIDE)).parent.parent if _PAPER3_OVERRIDE else FLOOD_DIR / "paper3" / "results" / "paper3_hybrid_v2"
 DATA_DIR = FLOOD_DIR / "data"

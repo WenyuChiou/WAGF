@@ -12,9 +12,10 @@ import numpy as np
 import os
 import re
 from collections import Counter
+from pathlib import Path
 
 # ─── File paths ──────────────────────────────────────────────────────────
-BASE = "C:/Users/wenyu/Desktop/Lehigh/governed_broker_framework/examples/single_agent/results/JOH_FINAL/gemma3_4b"
+BASE = str(Path(__file__).resolve().parents[1] / "results" / "JOH_FINAL" / "gemma3_4b")
 
 governed_files = []
 for grp in ["Group_B", "Group_C"]:

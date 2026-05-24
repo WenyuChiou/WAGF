@@ -14,6 +14,7 @@ import json
 import os
 import sys
 import warnings
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -43,7 +44,7 @@ print = safe_print
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
-BASE = r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\multi_agent\flood"
+BASE = str(Path(__file__).resolve().parents[2])
 SEEDS = [int(os.path.basename(os.path.dirname(os.path.normpath(_PAPER3_OVERRIDE))).replace("seed_", ""))] if _PAPER3_OVERRIDE else [42, 123, 456]
 
 FULL_DIR_TPL = os.path.normpath(_PAPER3_OVERRIDE) if _PAPER3_OVERRIDE else os.path.join(BASE, "paper3", "results", "paper3_hybrid_v2",

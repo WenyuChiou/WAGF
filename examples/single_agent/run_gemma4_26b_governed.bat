@@ -8,7 +8,7 @@ REM
 REM Seeds 42-46 mirror the DISABLED batch so the paired comparison is clean.
 REM Expected wall time ~17 hr (3-4 hr/seed on 26B with GPU+CPU split).
 
-set BASE=C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework
+for %%I in ("%~dp0..\..") do set "BASE=%%~fI"
 set PROFILES=examples\single_agent\agent_initial_profiles.csv
 
 cd /d %BASE%

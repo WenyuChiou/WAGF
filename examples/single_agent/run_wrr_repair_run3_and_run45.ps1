@@ -5,7 +5,7 @@ param(
 
 $ErrorActionPreference = "Continue"
 
-$BASE = "C:/Users/wenyu/Desktop/Lehigh/governed_broker_framework"
+$BASE = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $BASELINE_SCRIPT = "ref/LLMABMPMT-Final.py"
 $RUNNER_SCRIPT = "examples/single_agent/run_flood.py"
 $PROFILES = "examples/single_agent/agent_initial_profiles.csv"
@@ -54,7 +54,12 @@ function Stop-StrayExperimentProcs {
 function Restart-Ollama {
     cmd /c "taskkill /IM ollama.exe /F" | Out-Null
     Start-Sleep -Seconds 2
-    Start-Process -FilePath "C:\Users\wenyu\AppData\Local\Programs\Ollama\ollama.exe" -ArgumentList "serve" | Out-Null
+    $ollama = (Get-Command ollama.exe -ErrorAction SilentlyContinue).Source
+    if ($ollama) {
+        Start-Process -FilePath $ollama -ArgumentList "serve" | Out-Null
+    } else {
+        Write-Warning "ollama.exe not found on PATH; start Ollama manually before retrying."
+    }
     Start-Sleep -Seconds 2
 }
 

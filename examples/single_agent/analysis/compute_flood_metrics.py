@@ -10,8 +10,9 @@ Handles:
 import pandas as pd
 import numpy as np
 import os
+from pathlib import Path
 
-BASE = "C:/Users/wenyu/Desktop/Lehigh/governed_broker_framework/examples/single_agent/results"
+BASE = str(Path(__file__).resolve().parents[1] / "results")
 MODELS = ["gemma3_4b", "gemma3_12b", "gemma3_27b", "ministral3_3b", "ministral3_8b", "ministral3_14b"]
 RUNS = ["Run_1", "Run_2", "Run_3", "Run_4", "Run_5"]
 K = 4  # do_nothing, buy_insurance, elevate_house, relocate

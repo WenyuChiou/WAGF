@@ -10,7 +10,7 @@ import pandas as pd
 from pathlib import Path
 from scipy import stats
 
-BASE = Path("C:/Users/wenyu/Desktop/Lehigh/governed_broker_framework/examples/irrigation_abm/results")
+BASE = Path(__file__).resolve().parents[1] / "results"
 SEEDS = [42, 43, 44]
 CONDITIONS = {
     "Governed":   [BASE / "production_v20_42yr_seed{}".format(s) / "simulation_log.csv" for s in SEEDS],

@@ -32,7 +32,7 @@ REM   4. run_unified_experiment.py loads policy and forwards to MultiAgentHooks
 REM   5. pytest paper3/tests/test_memory_write_policy.py passes (33 tests)
 REM   6. Legacy paper3_gemma4_e4b/seed_42/ exists and is untouched
 
-set BASE=C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework
+for %%I in ("%~dp0..\..\..\..") do set "BASE=%%~fI"
 set COMMON_ARGS=--model gemma4:e4b --years 13 --per-agent-depth --mode balanced --agent-profiles data/agent_profiles_balanced.csv --gossip --enable-news-media --enable-social-media --enable-communication --enable-custom-affordability --enable-financial-constraints --load-initial-memories --thinking-mode disabled
 
 cd /d %BASE%\examples\multi_agent\flood

@@ -25,8 +25,9 @@ _PAPER3_OVERRIDE = os.environ.get("PAPER3_TRACE_DIR")
 _PAPER3_OUTPUT_OVERRIDE = os.environ.get("PAPER3_OUTPUT_DIR")
 
 # ── Paths ──────────────────────────────────────────────────────────────────
-BASE = Path(os.path.normpath(_PAPER3_OVERRIDE)).parent.parent if _PAPER3_OVERRIDE else Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\multi_agent\flood\paper3\results\paper3_hybrid_v2")
-OUT_DIR = Path(os.path.normpath(_PAPER3_OUTPUT_OVERRIDE)) if _PAPER3_OUTPUT_OVERRIDE else Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework\examples\multi_agent\flood\paper3\analysis\tables")
+_PAPER3_DIR = Path(__file__).resolve().parents[1]
+BASE = Path(os.path.normpath(_PAPER3_OVERRIDE)).parent.parent if _PAPER3_OVERRIDE else _PAPER3_DIR / "results" / "paper3_hybrid_v2"
+OUT_DIR = Path(os.path.normpath(_PAPER3_OUTPUT_OVERRIDE)) if _PAPER3_OUTPUT_OVERRIDE else _PAPER3_DIR / "analysis" / "tables"
 SEEDS = [int(Path(os.path.normpath(_PAPER3_OVERRIDE)).parent.name.replace("seed_", ""))] if _PAPER3_OVERRIDE else [42, 123, 456]
 TYPES = ["household_owner", "household_renter"]
 LABEL_MAP = {"VL": 1, "L": 2, "M": 3, "H": 4, "VH": 5}

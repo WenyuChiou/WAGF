@@ -17,6 +17,7 @@ import pandas as pd
 import numpy as np
 from scipy import stats
 import builtins
+from pathlib import Path
 
 warnings.filterwarnings("ignore", category=FutureWarning)
 
@@ -43,9 +44,10 @@ def safe_chi2_contingency(*args, **kwargs):
 stats.chi2_contingency = safe_chi2_contingency
 
 # ── Paths ──────────────────────────────────────────────────────────────────
-BASE = os.path.normpath(_PAPER3_OVERRIDE).replace("\\", "/").rsplit("/", 2)[0] if _PAPER3_OVERRIDE else "C:/Users/wenyu/Desktop/Lehigh/governed_broker_framework/examples/multi_agent/flood/paper3/results/paper3_hybrid_v2"
-PROFILE_PATH = "C:/Users/wenyu/Desktop/Lehigh/governed_broker_framework/examples/multi_agent/flood/paper3/data/agent_initialization_complete.csv"
-OUT_DIR = os.path.normpath(_PAPER3_OUTPUT_OVERRIDE).replace("\\", "/") if _PAPER3_OUTPUT_OVERRIDE else "C:/Users/wenyu/Desktop/Lehigh/governed_broker_framework/examples/multi_agent/flood/paper3/analysis/tables"
+_PAPER3_DIR = Path(__file__).resolve().parents[1]
+BASE = os.path.normpath(_PAPER3_OVERRIDE).replace("\\", "/").rsplit("/", 2)[0] if _PAPER3_OVERRIDE else str(_PAPER3_DIR / "results" / "paper3_hybrid_v2").replace("\\", "/")
+PROFILE_PATH = str(_PAPER3_DIR / "data" / "agent_initialization_complete.csv").replace("\\", "/")
+OUT_DIR = os.path.normpath(_PAPER3_OUTPUT_OVERRIDE).replace("\\", "/") if _PAPER3_OUTPUT_OVERRIDE else str(_PAPER3_DIR / "analysis" / "tables").replace("\\", "/")
 os.makedirs(OUT_DIR, exist_ok=True)
 
 SEEDS = [os.path.normpath(_PAPER3_OVERRIDE).replace("\\", "/").rsplit("/", 1)[0].split("/")[-1]] if _PAPER3_OVERRIDE else ["seed_42", "seed_123", "seed_456"]

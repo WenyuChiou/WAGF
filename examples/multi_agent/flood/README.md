@@ -100,7 +100,7 @@ It is not the Nature Water manuscript workspace, and it is not the single-agent
 flood benchmark. Related locations:
 
 - Single-agent flood benchmark: [examples/single_agent/](../single_agent/)
-- Nature Water manuscript workspace: [paper/nature_water/](/c:/Users/wenyu/Desktop/Lehigh/governed_broker_framework/paper/nature_water)
+- Nature Water manuscript workspace: [paper/nature_water/](../../../paper/nature_water/)
 - MA flood paper workspace: [paper3/](paper3/)
 
 ---

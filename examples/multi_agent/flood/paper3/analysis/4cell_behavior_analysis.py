@@ -7,12 +7,13 @@ approval rates, adaptation trends, rejection reasons, and MG vs NMG gaps.
 import json
 import os
 from collections import defaultdict, Counter
+from pathlib import Path
 
 _PAPER3_OVERRIDE = os.environ.get("PAPER3_TRACE_DIR")
 _PAPER3_OUTPUT_OVERRIDE = os.environ.get("PAPER3_OUTPUT_DIR")
 
 # Paths
-BASE = r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework"
+BASE = str(Path(__file__).resolve().parents[5])
 RAW_DIR = os.path.join(os.path.normpath(_PAPER3_OVERRIDE), "raw") if _PAPER3_OVERRIDE else os.path.join(BASE, "examples", "multi_agent", "flood", "paper3",
                        "results", "paper3_hybrid_v2", "seed_42", "gemma3_4b_strict", "raw")
 OWNER_FILE = os.path.join(RAW_DIR, "household_owner_traces.jsonl")

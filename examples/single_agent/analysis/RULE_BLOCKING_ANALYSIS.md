@@ -343,13 +343,13 @@ governance:
 ## Files Referenced
 
 **Input Files**:
-1. `C:/Users/wenyu/Desktop/Lehigh/governed_broker_framework/examples/single_agent/results/JOH_FINAL/gemma3_4b/Group_B/Run_1/simulation_log.csv` (1,000 rows)
-2. `C:/Users/wenyu/Desktop/Lehigh/governed_broker_framework/examples/single_agent/results/JOH_FINAL/gemma3_4b/Group_B/Run_1/household_governance_audit.csv` (855 rows)
-3. `C:/Users/wenyu/Desktop/Lehigh/governed_broker_framework/examples/single_agent/results/JOH_FINAL/gemma3_4b/Group_B/Run_1/config_snapshot.yaml` (configuration)
-4. `C:/Users/wenyu/Desktop/Lehigh/governed_broker_framework/examples/single_agent/results/JOH_FINAL/gemma3_4b/Group_A/Run_1/simulation_log.csv` (ungoverned baseline, 1,000 rows)
+1. `examples/single_agent/results/JOH_FINAL/gemma3_4b/Group_B/Run_1/simulation_log.csv` (1,000 rows)
+2. `examples/single_agent/results/JOH_FINAL/gemma3_4b/Group_B/Run_1/household_governance_audit.csv` (855 rows)
+3. `examples/single_agent/results/JOH_FINAL/gemma3_4b/Group_B/Run_1/config_snapshot.yaml` (configuration)
+4. `examples/single_agent/results/JOH_FINAL/gemma3_4b/Group_A/Run_1/simulation_log.csv` (ungoverned baseline, 1,000 rows)
 
 **Output File**:
-- `C:/Users/wenyu/Desktop/Lehigh/governed_broker_framework/examples/single_agent/analysis/RULE_BLOCKING_ANALYSIS.md` (this document)
+- `examples/single_agent/analysis/RULE_BLOCKING_ANALYSIS.md` (this document)
 
 ---
 

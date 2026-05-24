@@ -27,13 +27,11 @@ if _PAPER3_OVERRIDE:
     SEEDS = [int(_TRACE_DIR.parent.name.replace("seed_", ""))]
     MODEL = _TRACE_DIR.name
 else:
-    BASE = Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework"
-                r"\examples\multi_agent\flood\paper3\results\paper3_hybrid_v2")
+    BASE = Path(__file__).resolve().parents[1] / "results" / "paper3_hybrid_v2"
     SEEDS = [42, 123, 456]
     MODEL = "gemma3_4b_strict"
 AGENT_TYPES = ["household_owner", "household_renter"]
-OUT_DIR = Path(os.path.normpath(_PAPER3_OUTPUT_OVERRIDE)) if _PAPER3_OUTPUT_OVERRIDE else Path(r"C:\Users\wenyu\Desktop\Lehigh\governed_broker_framework"
-               r"\examples\multi_agent\flood\paper3\analysis\tables")
+OUT_DIR = Path(os.path.normpath(_PAPER3_OUTPUT_OVERRIDE)) if _PAPER3_OUTPUT_OVERRIDE else Path(__file__).resolve().parents[1] / "analysis" / "tables"
 
 # ---------- keyword sets ---------------------------------------------------
 INST_KW = re.compile(
