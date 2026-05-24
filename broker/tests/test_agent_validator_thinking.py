@@ -178,3 +178,44 @@ test_agent:
     )
     assert matched[0].valid is True
     assert matched[0].warnings == ["[Rule: legacy_field_shape_rule] Legacy field-shape rule fired"]
+
+
+def test_rule_set_uses_validator_config_normalization_map(tmp_path: Path):
+    """Thinking rules must use the validator's config path, not global defaults."""
+    yaml_path = tmp_path / "agent_types_custom_norm.yaml"
+    yaml_path.write_text(
+        """
+global_config: {}
+shared:
+  normalization_map: {EXTREME: VH}
+test_agent:
+  agent_type: test_agent
+  actions:
+    - { id: act, aliases: [act, "1"], description: "act" }
+    - { id: wait, aliases: [wait, "2"], description: "wait" }
+  thinking_rules:
+    - id: custom_norm_rule
+      level: ERROR
+      blocked_skills: [act]
+      conditions:
+        - { construct: TEST_LABEL, operator: "in", values: ["VH"] }
+      message: "Custom normalization fired"
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    validator = AgentValidator(config_path=str(yaml_path))
+    results = validator.validate_thinking(
+        agent_type="test_agent",
+        agent_id="Agent_CUSTOM",
+        decision="act",
+        state={},
+        reasoning={"TEST_LABEL": "extreme"},
+    )
+    matched = [
+        r for r in results
+        if r.metadata.get("rule_id") == "custom_norm_rule"
+    ]
+    assert len(matched) == 1
+    assert matched[0].valid is False
+    assert matched[0].errors == ["[Rule: custom_norm_rule] Custom normalization fired"]

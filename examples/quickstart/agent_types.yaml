@@ -2,6 +2,9 @@
 # Agent types are top-level keys (not nested under 'agent_types:')
 
 shared:
+  template_vars:
+    - situation
+
   rating_scale: |
     ### RATING SCALE:
     VL = Very Low | L = Low | M = Medium | H = High | VH = Very High
@@ -46,11 +49,13 @@ simple_agent:
         aliases: ["2", "do nothing", "wait", "DN"]
   governance:
     strict:
+      documented_unconstrained_skills:
+        - do_nothing
       thinking_rules:
         - id: already_protected
           description: "Cannot take_action if already protected"
           conditions:
-            - construct: "protected"
+            - field: "protected"
               operator: "=="
               value: 1
           blocked_skills: [take_action]

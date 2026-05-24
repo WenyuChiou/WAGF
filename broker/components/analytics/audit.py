@@ -516,7 +516,15 @@ class GenericAuditWriter:
 
             for r in validation_results:
                 metadata = getattr(r, "metadata", None) or {}
-                rid = metadata.get("rule_id", "Unknown")
+                rid = metadata.get("rule_id")
+                if (
+                    not rid
+                    and r.valid
+                    and not getattr(r, "warnings", None)
+                    and not metadata.get("shadow_blocked")
+                ):
+                    continue
+                rid = rid or "Unknown"
                 vh = self.summary["validator_health"].setdefault(rid, {
                     "rule_id": rid, "seen_count": 0, "fire_count": 0,
                     "warn_count": 0, "error_path_count": 0,

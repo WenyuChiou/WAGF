@@ -754,6 +754,7 @@ def create_context_builder(
         prompt_templates=templates,
         memory_engine=memory_engine,
         semantic_thresholds=semantic_thresholds,
+        yaml_path=yaml_path,
         max_prompt_tokens=max_prompt_tokens,
     )
 
