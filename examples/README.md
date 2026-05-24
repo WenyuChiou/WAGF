@@ -49,9 +49,10 @@ Everything else in `examples/` is secondary teaching support, a compact demo, or
 | 2 | **[single_agent/](single_agent/)** | SA water reference | Full single-agent flood benchmark |
 | 3 | **[irrigation_abm/](irrigation_abm/)** | SA water reference | Colorado River irrigation case |
 | 4 | **[multi_agent/flood/](multi_agent/flood/)** | MA water reference | Institutional multi-agent flood study |
-| 5 | **[governed_flood/](governed_flood/)** | Teaching demo | Compact flood-sector demo |
-| 6 | **[multi_agent_simple/](multi_agent_simple/)** | Tutorial | Tiny phase-ordering example |
-| 7 | **[minimal_nonwater/](minimal_nonwater/)** | Secondary reference | Small proof of non-water configurability |
+| 5 | **[governed_flood/](governed_flood/)** | Teaching demo + broker test fixture | Compact flood-sector demo (also the FloodDomainPack source for several broker tests; kept as load-bearing fixture) |
+| 6 | **[vaccination_demo/](vaccination_demo/)** | Non-water Tier-2 showcase | HBM-driven vaccination decisions; 25 agents × 5 yr COVID-19 schedule; 3 seeds × 2 models |
+| 7 | **[vaccination_ma_demo/](vaccination_ma_demo/)** | Non-water multi-agent reference | 3 agent types (health_authority + community_org + individual); env-dict-whitelist coupling |
+| 8 | **[gossip_demo/](gossip_demo/)** | Non-water social-media reference | Daily-cadence multi-agent (moderator + influencer + user) |
 
 ---
 
@@ -78,24 +79,19 @@ Everything else in `examples/` is secondary teaching support, a compact demo, or
 | :--- | :--- | :--- |
 | **[quickstart/](quickstart/)** | Teaches the core governance loop progressively | Maintained |
 | **[minimal/](minimal/)** | Official starting scaffold for a new ABM domain | Maintained |
-| **[multi_agent_simple/](multi_agent_simple/)** | Small multi-agent teaching example with phase ordering | Maintained tutorial |
+### Non-Water Reference Implementations
+
+| Directory | Why it exists | Maintenance status |
+| :--- | :--- | :--- |
+| **[vaccination_demo/](vaccination_demo/)** | Non-water Tier-2 showcase — HBM-driven vaccination decisions, literature-grounded population, 5-year COVID-19 outbreak schedule | Tier-2 showcase (L3-1 2026-05-24) |
+| **[vaccination_ma_demo/](vaccination_ma_demo/)** | Multi-agent counterpart to vaccination_demo — health authority + community org + individual | PoC reference |
+| **[gossip_demo/](gossip_demo/)** | Daily-cadence social-media multi-agent reference (moderator + influencer + casual user) | PoC reference |
 
 ### Secondary Teaching / Demonstration Examples
 
 | Directory | Why it exists | Maintenance status |
 | :--- | :--- | :--- |
-| **[governed_flood/](governed_flood/)** | Compact flood-sector teaching demo for full governance | Maintained demo |
-| **[minimal_nonwater/](minimal_nonwater/)** | Small proof that the core is configurable beyond water | Secondary reference |
-
-### Archive / Legacy
-
-| Directory | Why it exists | Maintenance status |
-| :--- | :--- | :--- |
-| **[archive/](archive/)** | Historical experiments and superseded implementations | Archived |
-
-`archive/` contains deprecated examples such as `finance`, `ma_legacy`,
-`single_agent_modular`, and `unified_flood`. They remain for provenance, not as
-recommended starting points.
+| **[governed_flood/](governed_flood/)** | Compact flood-sector teaching demo for full governance — also the canonical `FloodDomainPack` source for `broker/tests/test_initial_loader.py` + `broker/tests/test_memory_content_types.py` (kept as broker test fixture, not removable) | Maintained demo + broker test fixture |
 
 ---
 

@@ -8,8 +8,9 @@ social graphs, interaction hubs, cross-type governance, and scaling patterns.
 [Quickstart Guide](quickstart_guide.md) (Tiers 1 and 2) and want to build
 simulations with heterogeneous agent populations.
 
-**Reference example**: `examples/multi_agent_simple/` — a self-contained 7-agent
-experiment (1 regulator + 6 farmers) that demonstrates every concept in this guide.
+**Reference examples**:
+- `examples/vaccination_ma_demo/` — 3 agent types (health_authority + community_org + individual), env-dict-whitelist cross-agent coupling, daily/yearly cadence. The lighter-weight reference for the patterns in this guide.
+- `examples/multi_agent/flood/` — Paper 3 multi-agent flood (402 agents × 13 yr; production-grade governance). The full-scale reference.
 
 ---
 
@@ -79,7 +80,7 @@ The progression path is:
 ```
 01_barebone.py        -> 1 agent, 2 skills, no governance
 02_governance.py      -> 1 agent, 2 skills, identity rule + retry
-multi_agent_simple/   -> 7 agents, 5 skills, 2 types, phase ordering  <-- THIS GUIDE
+vaccination_ma_demo/  -> 3 agent types (health_authority + community_org + individual), env-dict coupling  <-- THIS GUIDE
 ```
 
 ---
@@ -1228,21 +1229,25 @@ When debugging a multi-agent experiment, check these items in order:
 
 ## Appendix: Complete Multi-Agent Example
 
-The full working example is at `examples/multi_agent_simple/`. The directory
+The full working example is at `examples/vaccination_ma_demo/`. The directory
 structure is:
 
 ```
-examples/multi_agent_simple/
-    run.py                  # Main experiment script
-    agent_types.yaml        # Agent type definitions + governance rules
-    skill_registry.yaml     # Skill definitions per type
+examples/vaccination_ma_demo/
+    run_experiment.py       # Main experiment script
+    lifecycle_hooks.py      # Cross-agent state injection (env-dict whitelist)
+    config/agent_types.yaml # 3 agent type definitions + governance rules
+    config/skill_registry.yaml
+    adapters/               # DomainPack subclass
+    cognition/              # HBM construct registration
+    validators/             # Domain check functions
     results/                # Output directory (created on run)
 ```
 
 To run the example:
 
 ```bash
-python examples/multi_agent_simple/run.py
+python examples/vaccination_ma_demo/run_experiment.py --model gemma3:4b --years 2
 ```
 
 Expected output:
