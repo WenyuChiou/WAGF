@@ -79,7 +79,7 @@ docs/                      # Documentation
 
 ### Adding a New Domain Example
 
-1. Copy `examples/minimal/` as your starting point
+1. Scaffold a new domain via `python -m broker.tools.scaffold_domain <domain-name>` (or invoke the `wagf-domain-builder` Claude Code skill which walks you through the same scaffold + the cognitive-framework choice)
 2. Modify `agent_types.yaml` (prompts, constructs, governance rules)
 3. Modify `skill_registry.yaml` (domain-specific skills)
 4. Write your simulation engine implementing `execute_skill(approved_skill)`

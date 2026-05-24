@@ -15,11 +15,11 @@ External ABM developers can later adapt the same workflow to non-water domains b
 Copy the minimal template to bootstrap your experiment:
 
 ```bash
-cp -r examples/minimal examples/your_domain
+python -m broker.tools.scaffold_domain your_domain --output examples/your_domain
 cd examples/your_domain
 ```
 
-See `examples/minimal/README.md` for a checklist of what to customize.
+See the `wagf-domain-builder` Claude Code skill (`SKILL.md` + `references/edit_pass_checklist.md`) for a checklist of what to customize.
 
 ---
 
@@ -561,7 +561,7 @@ results/<run_name>/
 
 ## Single-Agent Mode (No Social Network)
 
-If your domain does NOT require neighbor interactions, you can skip the social layer entirely. The `examples/minimal/` template demonstrates this pattern — zero social imports.
+If your domain does NOT require neighbor interactions, you can skip the social layer entirely. The scaffold produced by `broker.tools.scaffold_domain` demonstrates this pattern — zero social imports by default.
 
 **Pattern: No InteractionHub**
 
@@ -620,7 +620,6 @@ sim: SimulationEngineProtocol = YourSimulation(...)
 
 | Experiment | Theory | Agents | Horizon | Key Files |
 |-----------|--------|--------|---------|-----------|
-| `examples/minimal/` | Generic | 3 agents | 5 years | [README](../../examples/minimal/README.md) |
 | `examples/governed_flood/` | PMT (Rogers, 1983) | 100 households | 10 years | [README](../../examples/governed_flood/README.md) |
 | `examples/irrigation_abm/` | Dual-Appraisal (Hung & Yang, 2021) | 78 CRSS users | 42 years | [README](../../examples/irrigation_abm/README.md) |
 | `examples/single_agent/` | PMT (full ablation) | 100 households | 10 years | Groups A/B/C validation |

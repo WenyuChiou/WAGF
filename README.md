@@ -2,7 +2,7 @@
 
 <div align="center">
 
-**A governance layer for LLM-driven agent-based models.** Originally built for coupled human-water systems; the framework is domain-pluggable — reference packs ship for water (flood / irrigation), vaccination, and social-media domains.
+**A governance layer for LLM-driven agent-based models.** Originally built for coupled human-water systems; the framework is domain-pluggable — reference packs ship for water (flood / irrigation) plus a non-water Tier-2 showcase (vaccination).
 
 Every LLM decision passes through a validation pipeline — domain rules, behavioral theory checks, and retry with targeted feedback — before it can modify simulation state.
 
@@ -19,7 +19,7 @@ Every LLM decision passes through a validation pipeline — domain rules, behavi
 
 WAGF is a governance layer for LLM-driven agent-based models. A **Governance Broker** validates every LLM decision against physical constraints, behavioral theories, and financial feasibility before execution. Invalid decisions trigger a retry loop with specific feedback — not just re-prompting. The result: auditable, reproducible agent behavior instead of raw LLM output.
 
-The framework ships with five reference implementations spanning four behavioral theories: water (flood adaptation via Protection Motivation Theory, irrigation via dual-appraisal), vaccination decision-making (Health Belief Model, single- and multi-agent), and social-media dynamics (gossip propagation). The domain layer is pluggable — new domains plug in via YAML + a `DomainPack` subclass without modifying `broker/`.
+The framework ships with four reference implementations spanning three behavioral theories: water (flood adaptation via Protection Motivation Theory, irrigation via dual-appraisal), and vaccination decision-making (Health Belief Model). The domain layer is pluggable — new domains plug in via YAML + a `DomainPack` subclass without modifying `broker/`.
 
 ## How does WAGF compare to other frameworks?
 
@@ -40,7 +40,7 @@ In short: WAGF is not a chatbot framework, not a retrieval tool, not an LLM SDK.
 - **Governance Pipeline** — six-step validation before any action reaches the simulation: Context → LLM → Parse → Validate → Approve/Retry → Execute
 - **Full Audit Trail** — Every decision, rejection, retry, and reasoning trace logged as structured JSONL/CSV for scientific review
 - **Domain Packs** — Add a new domain with 3 files: `skill_registry.yaml` + `agent_types.yaml` + `lifecycle_hooks.py`
-- **Framework-parametric Behavioral Theory** — no hardcoded theory in `broker/`; reference packs ship for Protection Motivation Theory (flood), dual-appraisal (irrigation), Health Belief Model (vaccination), and social dynamics (gossip). Declare your own framework in YAML
+- **Framework-parametric Behavioral Theory** — no hardcoded theory in `broker/`; reference packs ship for Protection Motivation Theory (flood), dual-appraisal (irrigation), and Health Belief Model (vaccination). Declare your own framework in YAML
 - **Research Ready** — Ablation modes (strict/relaxed/disabled), cross-model comparison across 6+ LLM families, multi-seed reproducibility
 - **AI-assisted Workflow** — 7 bundled [Claude Code skills](docs/skills/wagf-skills.md) (`wagf-quickstart`, `wagf-domain-builder`, `wagf-coupling-designer`, `wagf-experiment-designer`, `llm-agent-audit-trace-analyzer`, `model-coupling-contract-checker`, `abm-reproducibility-checker`) walk a new researcher from `git clone` to paper-ready metrics without reading the manual first
 
@@ -213,21 +213,16 @@ Run Level 1 (no governance) vs Level 3 (full governance) to isolate the effect o
 | **Flood (multi)** | PMT + institutional | 402 (200 owner + 200 renter + gov + ins) | 13 yr | Passaic River Basin, NJ (water) |
 | **Irrigation** | Dual-appraisal (WSA × ACA) | 78 CRSS agents | 42 yr | Colorado River Basin (water) |
 | **Vaccination (single)** | Health Belief Model (6 constructs) | 25 literature-grounded agents | 5 yr | Public-health Tier-2 showcase (3 seeds × 2 models) |
-| **Vaccination (multi)** | HBM + advisory hierarchy | 1 health-authority + 2 org + N individuals | 5 yr | Public-health proof-of-concept |
-| **Gossip (social media)** | Social dynamics | 1 moderator + K influencer + N user | Daily | Social-media proof-of-concept |
 
-The two flood experiments use per-agent flood depth grids from hydrological simulation (2011–2023). The irrigation experiment reproduces the Hung & Yang (2021) Colorado River Simulation System setup with LLM-driven farmer agents. Cross-model experiments compare behavior across LLM families and sizes with 3–5 random seeds per configuration. The three non-water demos (vaccination single/multi and gossip) are smaller proof-of-concept reference packs that exercise the non-water plug-in path and the multi-agent coupling patterns — they are not research-grade ABMs.
+The two flood experiments use per-agent flood depth grids from hydrological simulation (2011–2023). The irrigation experiment reproduces the Hung & Yang (2021) Colorado River Simulation System setup with LLM-driven farmer agents. Cross-model experiments compare behavior across LLM families and sizes with 3–5 random seeds per configuration. The vaccination_demo entry is a Tier-2 non-water showcase — 25 literature-grounded synthetic agents over a 5-year COVID-19-anchored outbreak schedule — not paper-grade calibrated, but engineering-equivalent to the water case studies.
 
 | Example | Description | Link |
 |:---|:---|:---|
 | **Quickstart** | Progressive tutorial for the governance loop | [Go](examples/quickstart/) |
-| **Minimal Template** | Scaffold for adding a new domain | [Go](examples/minimal/) |
 | **Single-Agent Flood** | Flood adaptation with PMT | [Go](examples/single_agent/) |
 | **Irrigation ABM** | Water allocation under scarcity | [Go](examples/irrigation_abm/) |
 | **Multi-Agent Flood** | Institutional feedback (gov + ins + household) | [Go](examples/multi_agent/flood/) |
 | **Vaccination (single)** | Non-water Tier-2 showcase (HBM, 25 agents, 5-yr COVID-19 schedule, 3 seeds × 2 models) | [Go](examples/vaccination_demo/) |
-| **Vaccination (multi)** | Non-water multi-agent reference (3 agent types, env-dict-whitelist) | [Go](examples/vaccination_ma_demo/) |
-| **Gossip (social media)** | Daily-cadence multi-agent reference (moderator + influencer + user) | [Go](examples/gossip_demo/) |
 
 ---
 

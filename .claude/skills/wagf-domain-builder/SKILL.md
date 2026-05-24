@@ -41,14 +41,14 @@ Do NOT use this skill for:
 ## Scope (v1.1, updated 2026-05-10 per Phase 6E)
 
 - **Single-agent or multi-agent domains.** Multi-agent path validated
-  end-to-end by `examples/vaccination_ma_demo/` (3 agent types, env-dict-
+  end-to-end by `examples/multi_agent/flood/` (Paper 3 production-grade, env-dict-
   whitelist cross-agent coupling, `with_phase_order` ordering). For
   multi-agent, also read `docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md`
   "Building a multi-agent domain" section — covers the dual-dict
   gotcha (Phase 6E Finding #3) the scaffold doesn't auto-handle.
 - The scaffolded `run_experiment.py` is a single-agent template. For
   multi-agent, the S5 edit-5 step (ExperimentBuilder wiring) is larger:
-  copy from `examples/vaccination_ma_demo/run_experiment.py` rather than
+  copy from `examples/multi_agent/flood/run_unified_experiment.py` rather than
   the single-agent demo.
 - **Cognitive framework**: PMT / Utility / Financial (pre-
   registered), HBM (registered in vaccination_demo as the non-
@@ -204,7 +204,7 @@ point.
    and has the **dual-dict gotcha** (Phase 6E Finding #3 — the
    `self.env = env` aliasing requirement in `pre_year`) that
    silently breaks cross-agent state propagation if missed. The
-   canonical reference is `examples/vaccination_ma_demo/`. The
+   canonical reference is `examples/multi_agent/flood/`. The
    walkthrough doc covers all 5 multi-agent-specific additions, the
    gotcha, and a per-symptom BLOCKER table.
 
@@ -358,7 +358,7 @@ The skill is ready when:
 - For input "I want to build a multi-agent flood model", surfaces
   the HOW_TO multi-agent section (covers the dual-dict gotcha + env-
   dict-whitelist pattern + `with_phase_order`), points the user at
-  `examples/vaccination_ma_demo/` as the canonical reference, and
+  `examples/multi_agent/flood/` as the canonical reference, and
   proceeds with S0-S7 — the multi-agent branching expands S5 edit-5
   scope but the rest of the flow is unchanged.
 - For input "Just scaffold me an energy domain quickly, skip the
@@ -367,7 +367,7 @@ The skill is ready when:
 
 ## Future extensions (v2)
 
-- Tier 2 multi-agent NOW VALIDATED for vaccination_ma_demo
+- Tier 2 multi-agent VALIDATED on examples/multi_agent/flood/ (Paper 3 production)
   (2026-05-11 — `--tier2-gossip` mode, 8 individuals, gemma3:1b, all
   10 traces APPROVED, `{neighbor_action_summary}` renders correctly).
   Future v2 work: formalise the Tier 2 onboarding path in this skill's

@@ -6,7 +6,7 @@ single-agent template scaffolded by `broker.tools.scaffold_domain`. This
 doc is the canonical reference for that multi-agent path. The
 single-agent path stays in `edit_pass_checklist.md`.
 
-Canonical reference example: `examples/vaccination_ma_demo/` — proven
+Canonical reference example: `examples/multi_agent/flood/` — proven
 working with 3 agent types (institutional → intermediary → individual)
 end-to-end against gemma3:1b on 2026-05-10. Copy this skeleton; don't
 write from scratch.
@@ -24,7 +24,7 @@ Tier 1 (broadcast comm via env-dict-whitelist): proven to work for ≤6
 agent types, ≤200 agents.
 
 Tier 2 (+ spatial gossip via InteractionHub +
-SpatialNeighborhoodGraph): proven for vaccination_ma_demo
+SpatialNeighborhoodGraph): proven for multi_agent/flood reference
 `--tier2-gossip` mode 2026-05-11.
 
 ## The 5 things multi-agent needs that single-agent doesn't
@@ -64,7 +64,7 @@ class MyDomainHooks:
             # update per-individual state
 ```
 
-Read `examples/vaccination_ma_demo/lifecycle_hooks.py` for the canonical
+Read `examples/multi_agent/flood/lifecycle_hooks.py` for the canonical
 shape. It's ~190 LOC and contains every pattern any multi-agent domain
 needs.
 
@@ -143,7 +143,7 @@ catch-all `DEFAULT_SOCIAL_SPEC`:
 # happens to work without these calls because get_social_spec() falls
 # back to DEFAULT_SOCIAL_SPEC (spatial radius=2), but Tier 2 silently
 # produces wrong graph topology if missing. The canonical
-# `examples/vaccination_ma_demo/__init__.py` calls register_social_spec
+# `examples/multi_agent/flood/__init__.py` calls register_social_spec
 # at import time regardless of tier — copy that pattern, don't skip it
 # for Tier 1.
 from broker.components.social.config import (
@@ -210,7 +210,7 @@ year when no `with_simulation(env)` is configured (see
 if self.sim_engine else {}`). The runner then pre-populates
 `env["current_year"] = step` at line 162 BEFORE your `pre_year` hook is
 called, so when your hook receives `env` it has exactly that one key
-already in it (not strictly empty). The vaccination_ma_demo hook writes
+already in it (not strictly empty). The multi_agent/flood reference hook writes
 its own `env["year"]` separately for prompt-template convenience; if
 your prompts use `{current_year}` instead, no whitelist entry is needed
 for it. If your lifecycle hook keeps its OWN `self.env` dict and only
@@ -298,14 +298,14 @@ taxonomy first; the dual-dict alias fixes E1 only, not E3–E5.
 
 Run from `examples/<your_domain>_demo/` unless noted.
 
-1. Copy `examples/vaccination_ma_demo/run_experiment.py` as your
+1. Copy `examples/multi_agent/flood/run_experiment.py` as your
    template. Don't write from scratch.
 2. Edit `synth_agents()` for your N agent types (grid_x/grid_y only for
    Tier 2 spatial; not needed Tier 1).
 3. **Create `lifecycle_hooks.py`** — `broker.tools.scaffold_domain`
    does NOT emit this file for non-coupling domains; you must add it
    yourself. Easiest path: copy
-   `examples/vaccination_ma_demo/lifecycle_hooks.py` into your domain
+   `examples/multi_agent/flood/lifecycle_hooks.py` into your domain
    dir, rename the class (e.g. `VaccinationMAHooks` →
    `MyDomainHooks`), and update the `setdefault` keys in `__init__` to
    your domain's cross-agent state vocabulary.
@@ -352,7 +352,7 @@ Hand off to `wagf-experiment-designer` once these pass.
 
 ## Reference
 
-- `examples/vaccination_ma_demo/` — canonical 3-agent-type demo
+- `examples/multi_agent/flood/` — canonical 3-agent-type demo
 - `examples/multi_agent/flood/` — Paper 3 (4 agent types: government, insurance, household_owner, household_renter)
 - `docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md` "Building a multi-agent domain" section
 - `tests/test_multi_agent_coupling.py` — integration tests including dual-dict aliasing pattern

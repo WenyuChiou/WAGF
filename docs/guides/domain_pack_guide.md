@@ -60,7 +60,7 @@ Examples:
 
 When adding a new water-sector domain:
 
-1. Copy `examples/minimal/` to a new experiment directory.
+1. Scaffold a new experiment directory via `python -m broker.tools.scaffold_domain <domain-name> --output examples/<domain-name>` (or use the `wagf-domain-builder` skill).
 2. Define your constructs and actions in YAML.
 3. Reuse generic validators first.
 4. Add Python-level validators only for domain logic that cannot be expressed cleanly in YAML.

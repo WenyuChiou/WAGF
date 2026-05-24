@@ -88,8 +88,6 @@ Honour these refusals when relaying the skill's output to the user.
 | `examples/irrigation_abm/` | Irrigation domain (CRSS 78 agents × 42 yr). |
 | `examples/multi_agent/flood/` | Multi-agent flood (Paper 3, 400 agents × 13 yr). |
 | `examples/vaccination_demo/` | Single-agent non-water reference (HBM cognitive framework, Phase 6C-v4). |
-| `examples/vaccination_ma_demo/` | Multi-agent non-water reference (3 agent types, env-dict-whitelist coupling, optional `--tier2-gossip` spatial; Phase 6E). |
-| `examples/gossip_demo/` | Multi-agent social-media reference (community moderator + influencer + casual_user, daily cadence; Phase 6F). |
 | `examples/quickstart/` | Smoke-test scripts used by `wagf-quickstart` Phase 2. |
 | `paper/nature_water/` | NW paper drafts + figure scripts (gitignored). |
 | `tests/` and `broker/tests/` | pytest suites. Run `pytest tests/ broker/` before any commit. |
