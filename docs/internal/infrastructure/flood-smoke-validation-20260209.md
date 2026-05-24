@@ -35,4 +35,3 @@
 ## Result
 - Flood smoke test passed for all required execution paths (A/B/C).
 - Main experiment can proceed with canonical script:
-  - `examples/single_agent/run_wrr_v6_flood.ps1`
