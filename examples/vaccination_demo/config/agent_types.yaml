@@ -275,6 +275,12 @@ individual:
       message: "HBM coherence: high perceived susceptibility + high severity + high self-efficacy should not lead to refusal."
     - id: low_susceptibility_no_get_vaccinated
       level: WARNING
+      # Post-Phase-6N-D-1: WARNING rules with blocked_skills are now
+      # correctly log-only. The named skill still passes (valid=True);
+      # the rule fire shows up in the audit CSV's warnings column for
+      # post-hoc review. L3-1C originally stripped blocked_skills here
+      # to work around the pre-6N-D-1 broker bug; restored 2026-05-24.
+      blocked_skills: [get_vaccinated]
       conditions:
         - { type: construct, field: SUSCEPTIBILITY_LABEL, operator: "in", values: ["VL"] }
       message: "HBM coherence: very low perceived susceptibility plus immediate vaccination is unusual — worth reflecting on motive."
@@ -282,6 +288,8 @@ individual:
     # both = inert combination, worth flagging when no action follows.
     - id: high_barriers_high_self_efficacy_no_action_required
       level: WARNING
+      # Post-Phase-6N-D-1: log-only (valid=True); see comment above.
+      blocked_skills: [delay, refuse]
       conditions:
         - { type: construct, field: BARRIERS_LABEL,       operator: "in", values: ["H", "VH"] }
         - { type: construct, field: SELF_EFFICACY_LABEL,  operator: "in", values: ["H", "VH"] }
@@ -291,6 +299,8 @@ individual:
     # support.
     - id: low_severity_low_benefits_get_vaccinated
       level: WARNING
+      # Post-Phase-6N-D-1: log-only (valid=True); see comment above.
+      blocked_skills: [get_vaccinated]
       conditions:
         - { type: construct, field: SEVERITY_LABEL,  operator: "in", values: ["VL", "L"] }
         - { type: construct, field: BENEFITS_LABEL,  operator: "in", values: ["VL", "L"] }
