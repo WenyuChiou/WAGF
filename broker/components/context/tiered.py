@@ -198,8 +198,44 @@ class BaseAgentContextBuilder(ContextBuilder):
             rating_scale = agent_cfg.get_shared("rating_scale", "")
             if rating_scale:
                 template_vars["rating_scale"] = rating_scale
-        except Exception:
-            pass
+
+            # Phase 6N-B (2026-05-23): inject the YAML-defined JSON schema
+            # into the prompt's ``{response_format}`` placeholder so a
+            # single-agent (no-Hub) domain doesn't fall through to
+            # ``SafeFormatter``'s ``[N/A]`` default. Previously only
+            # ``TieredContextBuilder`` (used when an InteractionHub is
+            # provided) did this injection — the
+            # ``BaseAgentContextBuilder`` fallback path left the LLM with
+            # no schema example, surfacing as 100% parse failure when a
+            # prompt asked for more than the LLM could improvise (L3-1B
+            # vaccination_demo smoke #1 & #2 fell into this). The fix
+            # mirrors the Tiered injection at lines ~543-562 below.
+            agent_config = agent_cfg.get(agent_type)
+            if agent_config:
+                from broker.components.response_format import ResponseFormatBuilder
+                shared_config = {
+                    "response_format": agent_cfg.get_shared("response_format", {}),
+                }
+                rfb = ResponseFormatBuilder(agent_config, shared_config)
+                # Build ``valid_choices_text`` from the FLAT skill-id list,
+                # not from ``skills_str`` — Phase 6N-B reviewer W1. The
+                # ``ResponseFormatBuilder`` only embeds this text in a
+                # fallback "choose ONE from: ..." hint when a choice-type
+                # field has no explicit ``desc``; a multi-line
+                # ``skills_str`` (with descriptions) would render that
+                # fallback malformed. The clean comma-joined id list
+                # mirrors what ``TieredContextBuilder`` builds for the
+                # same call site (lines ~570-589).
+                skill_ids = context.get("available_skills", []) or []
+                vct = ", ".join(skill_ids) if skill_ids else "1, 2, or 3"
+                response_format_block = rfb.build(valid_choices_text=vct)
+                if response_format_block:
+                    template_vars["response_format"] = response_format_block
+        except Exception as e:
+            logger.warning(
+                f"[Context:Warning] BaseAgentContextBuilder failed to inject "
+                f"rating_scale/response_format: {e}"
+            )
 
         formatted = SafeFormatter().format(template, **template_vars)
         token_estimate = len(formatted) // 4

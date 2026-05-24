@@ -415,6 +415,44 @@ flood-coupling-free.
     6L-A / 6L-B / 6L-C / 6L-E are plumbing / docs and did not
     require smoke per the Phase 6L plan.
 
+- **Phase 6N-B — two broker bugs caught during L3-1B vaccination_demo smoke** (2026-05-23).
+  Both surfaced during the iteration arc on L3-1B's 6-construct HBM
+  prompt expansion. Neither was in the L3-1B scope; both warranted a
+  proper broker fix rather than a caller-side workaround.
+  - **Bug 1**: `BaseAgentContextBuilder.format_prompt` (parent of
+    `TieredContextBuilder`) did NOT inject the YAML-defined
+    `{response_format}` JSON schema into prompts. Only the Tiered
+    subclass did. Any single-agent / no-Hub domain whose prompt
+    template carried `{response_format}` fell through to
+    `SafeFormatter`'s `[N/A]` default and the LLM had no schema
+    example. The L3-1B vaccination_demo smoke #1/#2 hit 0-1/10
+    APPROVED because of this. Fixed by adding the same try/except
+    injection block (lifted from `TieredContextBuilder.format_prompt`
+    lines ~543-562) into `BaseAgentContextBuilder.format_prompt` at
+    `broker/components/context/tiered.py:~195`. Tiered subclass keeps
+    its own injection for the keys it builds locally
+    (`valid_choices_text` from skill provider) — they don't conflict
+    because Tiered's `format_prompt` overrides Base's entirely. The
+    L3-1B smoke #3 went 10/10 APPROVED with this fix, and smoke #5
+    (post-Phase 6N-B) re-verified — also 10/10.
+  - **Bug 2**: `broker/utils/parsing/unified_adapter.py:~463` captured
+    the LLM-emitted LABEL string via `match.group(1)` from a
+    `re.IGNORECASE` regex. The match worked case-insensitively but the
+    captured group preserved whatever case the LLM wrote. A chatty
+    `gemma3:1b` emitting `"m"` instead of `"M"` therefore produced
+    mixed-case labels in the audit CSV — `['M', 'm']` etc. —
+    silently breaking downstream governance rules like
+    `in ['H', 'VH']` that miss case variants. Fixed by calling
+    `.upper()` on the captured group; the LABEL ordinal alphabet
+    (VL/L/M/H/VH) is canonical uppercase by contract. Smoke #5
+    verified zero lowercase leaks across all 6 HBM construct columns.
+  - Test coverage:
+    `broker/tests/test_context_builder_response_format.py` carries
+    three regression tests (Bug 1 functional, Bug 2 inline regex,
+    Bug 2 grep-based contract). Net-zero pytest regression
+    confirmed; 5 pre-existing failures unchanged.
+  - `INVARIANTS.md` §I5 records both as `Closed by Phase 6N-B`.
+
 - **Phase 6N-A — `audit.py` social-context block de-flooded** (2026-05-23).
   A leak surfaced during the Phase 6M+README review round: the audit
   writer's social-context CSV block (`broker/components/analytics/audit.py`
