@@ -209,7 +209,7 @@ examples/quickstart/                   — 漸進式教學
 | **洪水（單）** | PMT | 單代理人 | 13 年 | 帕塞伊克河流域，紐澤西州（水資源） |
 | **洪水（多）** | PMT + 制度 | 402（200 屋主 + 200 租戶 + 政府 + 保險） | 13 年 | 帕塞伊克河流域，紐澤西州（水資源） |
 | **灌溉** | 雙評估（WSA × ACA） | 78 個 CRSS 代理人 | 42 年 | 科羅拉多河流域（水資源） |
-| **疫苗接種（單）** | 健康信念模型 | 5 個合成代理人 | 2 年 | 公共衛生概念驗證 |
+| **疫苗接種（單）** | 健康信念模型 (6 constructs) | 25 個文獻錨定代理人 | 5 年 | 公共衛生 Tier-2 showcase（3 seeds × 2 models） |
 | **疫苗接種（多）** | HBM + 諮詢層級 | 1 衛生主管 + 2 社區組織 + N 個人 | 5 年 | 公共衛生概念驗證 |
 | **耳語（社群媒體）** | 社群動態 | 1 版主 + K 影響者 + N 用戶 | 每日 | 社群媒體概念驗證 |
 
@@ -222,7 +222,7 @@ examples/quickstart/                   — 漸進式教學
 | **單代理人洪水** | 使用 PMT 的洪水適應 | [前往](examples/single_agent/) |
 | **灌溉 ABM** | 稀缺條件下的水資源分配 | [前往](examples/irrigation_abm/) |
 | **多代理人洪水** | 制度回饋（政府 + 保險 + 家戶） | [前往](examples/multi_agent/flood/) |
-| **疫苗接種（單）** | 非水資源單代理人參考（HBM） | [前往](examples/vaccination_demo/) |
+| **疫苗接種（單）** | 非水資源 Tier-2 showcase（HBM、25 agents、5 年 COVID-19 schedule、3 seeds × 2 models） | [前往](examples/vaccination_demo/) |
 | **疫苗接種（多）** | 非水資源多代理人參考（3 種代理人類型、env-dict-whitelist 耦合） | [前往](examples/vaccination_ma_demo/) |
 | **耳語（社群媒體）** | 每日節奏多代理人參考（版主 + 影響者 + 用戶） | [前往](examples/gossip_demo/) |
 
