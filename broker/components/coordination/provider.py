@@ -66,6 +66,17 @@ class MessagePoolProvider:
             formatted.append(entry)
 
         context["messages"] = formatted
+        if formatted:
+            local = context.setdefault("local", {})
+            social = local.setdefault("social", [])
+            if not isinstance(social, list):
+                social = [str(social)] if social else []
+                local["social"] = social
+            social.extend(
+                f"[{entry['from']} {entry['type']}] {entry['content']}"
+                for entry in formatted
+            )
+            local["messages"] = formatted
 
         if formatted:
             logger.debug(
