@@ -459,7 +459,19 @@ class UnifiedAdapter(ModelAdapter):
                                         # 1. Try full regex match (prefix + label)
                                         match = re.search(regex, v, re.IGNORECASE)
                                         if match and match.groups():
-                                            reasoning[name] = match.group(1)
+                                            # Phase 6N-B (2026-05-23): the regex matches
+                                            # case-insensitively via re.IGNORECASE but
+                                            # match.group(1) preserves whatever case the
+                                            # LLM emitted — a chatty model writes "m"
+                                            # instead of "M" and the audit CSV ends up
+                                            # with mixed case like ['M', 'm']. For
+                                            # LABEL constructs the ordinal alphabet
+                                            # (VL/L/M/H/VH) is canonical uppercase by
+                                            # contract; upper-casing here closes the
+                                            # silent-drift gap where downstream rule
+                                            # conditions like in ['H','VH']
+                                            # miss case variants.
+                                            reasoning[name] = match.group(1).upper()
                                         else:
                                             # 2. Try to find any of the labels from the capture group alternatives
                                             # This handles cases where the key is already identified, but the value is a string containing the label
@@ -473,19 +485,36 @@ class UnifiedAdapter(ModelAdapter):
                                                     # Sort by length descending to match "Very High" before "High"
                                                     alternatives.sort(key=len, reverse=True)
 
-                                                    # First try direct match
+                                                    # First try direct match.
+                                                    # Phase 6N-B reviewer W2: uppercase
+                                                    # the assigned alt for LABEL
+                                                    # constructs (this whole branch is
+                                                    # already inside "_LABEL" in name).
+                                                    # The current YAML patterns
+                                                    # use canonical uppercase alternatives
+                                                    # so .upper() is idempotent today,
+                                                    # but a future regex with lowercase
+                                                    # alternatives would otherwise drift
+                                                    # apart from the primary-path
+                                                    # .upper() at line ~474.
                                                     matched = False
                                                     for alt in alternatives:
                                                         if alt.lower() in v.lower():
-                                                            reasoning[name] = alt
+                                                            reasoning[name] = alt.upper()
                                                             matched = True
                                                             break
 
-                                                    # If not matched, try normalization
+                                                    # If not matched, try normalization.
+                                                    # normalize_construct_value returns
+                                                    # the canonical alternative (already
+                                                    # uppercase for our LABEL patterns),
+                                                    # but .upper() here matches the
+                                                    # primary-path discipline so the same
+                                                    # invariant holds across both branches.
                                                     if not matched:
                                                         normalized = normalize_construct_value(v, alternatives, custom_mapping=custom_mapping)
                                                         if normalized.upper() in [a.upper() for a in alternatives]:
-                                                            reasoning[name] = normalized
+                                                            reasoning[name] = normalized.upper()
                                                         # else: Leave empty, let CONSTRUCT EXTRACTION handle it
                                                 else:
                                                     # No alternatives to match against, try normalization
