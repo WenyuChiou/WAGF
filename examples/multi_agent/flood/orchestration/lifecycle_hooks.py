@@ -1160,6 +1160,10 @@ class MultiAgentHooks:
         flood_occurred: bool,
     ):
         """Orchestrates the MA reflection process for a given agent."""
+
+        agent = agents.get(agent_id)
+        if agent is None:
+            return
         
         # Define allocation for stratified retrieval (can be customized)
         # This ensures a mix of memory types are considered for reflection.
@@ -1170,23 +1174,26 @@ class MultiAgentHooks:
         }
         total_k = 5
         
-        # Retrieve memories using stratified approach
-        # Use context boosters if available (e.g., crisis emotion)
-        stratified_memories = memory_engine.retrieve_stratified(
-            agent_id,
-            allocation=retrieval_allocation,
-            total_k=total_k, # Retrieve up to 5 memories for reflection context
-            contextual_boosters=self.env.get("crisis_boosters") if flood_occurred else None
-        )
+        contextual_boosters = self.env.get("crisis_boosters") if flood_occurred else None
+        try:
+            # Prefer source-stratified retrieval when the selected memory engine supports it.
+            retrieved_memories = memory_engine.retrieve_stratified(
+                agent_id,
+                allocation=retrieval_allocation,
+                total_k=total_k,
+                contextual_boosters=contextual_boosters,
+            )
+        except (AttributeError, NotImplementedError):
+            retrieved_memories = memory_engine.retrieve(
+                agent,
+                top_k=total_k,
+                contextual_boosters=contextual_boosters,
+            )
 
-        if not stratified_memories:
+        if not retrieved_memories:
             return # No memories to reflect on
 
         # --- Generate Personalized Reflection from Agent State ---
-        agent = agents.get(agent_id)
-        if agent is None:
-            return
-
         ds = agent.dynamic_state
         parts = [f"Year {year}:"]
 

@@ -378,7 +378,10 @@ def compute_csv_fieldnames(rows: List[Dict[str, Any]],
     if not rows:
         return []
     all_keys_set: set = set().union(*(d.keys() for d in rows))
-    construct_cols = sorted(k for k in all_keys_set if k.startswith("construct_"))
+    construct_cols = sorted(
+        k for k in all_keys_set
+        if k.startswith("construct_") and k != "construct_completeness"
+    )
 
     priority_keys = [
         "step_id", "year", "agent_id",
