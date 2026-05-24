@@ -88,11 +88,25 @@ class RuleCondition:
             return False
 
     def _get_value_from_context(self, context: dict) -> Any:
-        """Extract value from nested context based on condition type."""
+        """Extract value from nested context based on condition type.
+
+        Phase 6N-D-2 (2026-05-24): construct LABEL extraction applies
+        defensive ``.upper().strip()`` normalisation for string values.
+        Today this is a no-op because the upstream
+        ``unified_adapter.py:474`` already canonicalises captures
+        (Phase 6N-B). But any caller that bypasses the unified adapter
+        — test fixtures, direct LLM-output injection, third-party
+        tooling — would otherwise return raw LLM case and silently
+        miss ``in ['H', 'VH']`` comparisons. Mirrors the normalisation
+        applied by ``BaseValidator._evaluate_single_condition`` via
+        ``ThinkingValidator.normalize_label`` so the two condition
+        evaluators stay in sync.
+        """
         if self.type == "construct":
             # Look in reasoning dict
             reasoning = context.get("reasoning", {})
-            return reasoning.get(self.field)
+            raw = reasoning.get(self.field)
+            return raw.upper().strip() if isinstance(raw, str) else raw
         elif self.type == "precondition":
             # Look in state dict
             state = context.get("state", {})
