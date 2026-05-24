@@ -269,9 +269,9 @@ individual:
       level: ERROR
       blocked_skills: [refuse]
       conditions:
-        - { type: construct, field: SUSCEPTIBILITY_LABEL, operator: "in", values: ["H", "VH"] }
-        - { type: construct, field: SEVERITY_LABEL,        operator: "in", values: ["H", "VH"] }
-        - { type: construct, field: SELF_EFFICACY_LABEL,  operator: "in", values: ["H", "VH"] }
+        - { construct: SUSCEPTIBILITY_LABEL, values: ["H", "VH"] }
+        - { construct: SEVERITY_LABEL,       values: ["H", "VH"] }
+        - { construct: SELF_EFFICACY_LABEL,  values: ["H", "VH"] }
       message: "HBM coherence: high perceived susceptibility + high severity + high self-efficacy should not lead to refusal."
     - id: low_susceptibility_no_get_vaccinated
       level: WARNING
@@ -280,9 +280,13 @@ individual:
       # the rule fire shows up in the audit CSV's warnings column for
       # post-hoc review. L3-1C originally stripped blocked_skills here
       # to work around the pre-6N-D-1 broker bug; restored 2026-05-24.
+      # Phase 6N-E (2026-05-24): conditions rewritten to canonical
+      # `construct: X` short shape (was verbose RuleCondition-style
+      # `field: X` which silently never matched in the production
+      # evaluator at agent_validator.py:418).
       blocked_skills: [get_vaccinated]
       conditions:
-        - { type: construct, field: SUSCEPTIBILITY_LABEL, operator: "in", values: ["VL"] }
+        - { construct: SUSCEPTIBILITY_LABEL, values: ["VL"] }
       message: "HBM coherence: very low perceived susceptibility plus immediate vaccination is unusual — worth reflecting on motive."
     # NEW L3-1C: high efficacy should overcome typical barriers; high
     # both = inert combination, worth flagging when no action follows.
@@ -291,8 +295,8 @@ individual:
       # Post-Phase-6N-D-1: log-only (valid=True); see comment above.
       blocked_skills: [delay, refuse]
       conditions:
-        - { type: construct, field: BARRIERS_LABEL,       operator: "in", values: ["H", "VH"] }
-        - { type: construct, field: SELF_EFFICACY_LABEL,  operator: "in", values: ["H", "VH"] }
+        - { construct: BARRIERS_LABEL,      values: ["H", "VH"] }
+        - { construct: SELF_EFFICACY_LABEL, values: ["H", "VH"] }
       message: "HBM coherence note: high self-efficacy is supposed to overcome perceived barriers — inaction here is worth reflecting on."
     # NEW L3-1C: low motivation (low severity + low efficacy) but action
     # = mismatch. Catches LLMs that vaccinate-by-default without HBM
@@ -302,8 +306,8 @@ individual:
       # Post-Phase-6N-D-1: log-only (valid=True); see comment above.
       blocked_skills: [get_vaccinated]
       conditions:
-        - { type: construct, field: SEVERITY_LABEL,  operator: "in", values: ["VL", "L"] }
-        - { type: construct, field: BENEFITS_LABEL,  operator: "in", values: ["VL", "L"] }
+        - { construct: SEVERITY_LABEL, values: ["VL", "L"] }
+        - { construct: BENEFITS_LABEL, values: ["VL", "L"] }
       message: "HBM coherence note: low severity + low benefits + get_vaccinated has no clear HBM driver — verify reasoning trace."
     # NEW L3-1C: strong external cue (outbreak news, doctor / family
     # advice) but refuse = explicitly overriding the social/medical
@@ -312,6 +316,6 @@ individual:
       level: ERROR
       blocked_skills: [refuse]
       conditions:
-        - { type: construct, field: CUES_TO_ACTION_LABEL, operator: "in", values: ["H", "VH"] }
-        - { type: construct, field: BARRIERS_LABEL,       operator: "in", values: ["VL", "L"] }
+        - { construct: CUES_TO_ACTION_LABEL, values: ["H", "VH"] }
+        - { construct: BARRIERS_LABEL,       values: ["VL", "L"] }
       message: "HBM coherence: high cues-to-action (outbreak news / doctor advice) + low barriers + refuse is inconsistent — strong external pressure with no documented obstacle should not lead to refusal."

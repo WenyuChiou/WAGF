@@ -223,14 +223,22 @@ individual:
   # silently ignored (Phase 6N-C 2026-05-23 finding: the vaccination_demo
   # PoC's original `rules:` block was dead config for the entire PoC
   # lifetime until renamed).
+  # Each condition uses the canonical short shape
+  # `{ construct: X, values: [...] }`. Phase 6N-E 2026-05-24 finding:
+  # the verbose `RuleCondition`-flavoured shape
+  # `{ type: construct, field: X, operator: "in", values: [...] }` is
+  # silently treated as dead config by `agent_validator.py::_run_rule_set`
+  # — `cond.get("construct")` returns None for that shape. The
+  # post-Phase-6N-E defensive evaluator falls back to `cond.get("field")`
+  # but new YAML should use the canonical short shape below.
   thinking_rules:
     - id: high_susceptibility_high_severity_high_efficacy_no_refuse
       level: ERROR
       blocked_skills: [refuse]
       conditions:
-        - { type: construct, field: SUSCEPTIBILITY_LABEL, operator: "in", values: ["H", "VH"] }
-        - { type: construct, field: SEVERITY_LABEL,       operator: "in", values: ["H", "VH"] }
-        - { type: construct, field: SELF_EFFICACY_LABEL,  operator: "in", values: ["H", "VH"] }
+        - { construct: SUSCEPTIBILITY_LABEL, values: ["H", "VH"] }
+        - { construct: SEVERITY_LABEL,       values: ["H", "VH"] }
+        - { construct: SELF_EFFICACY_LABEL,  values: ["H", "VH"] }
       message: "HBM coherence: high susceptibility + high severity + high self-efficacy should not lead to refusal."
 ```
 
