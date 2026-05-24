@@ -1,14 +1,21 @@
 # vaccination_demo — WAGF non-water reference example
 
-> **What this is**: a minimal proof-of-concept showing that WAGF
+> **What this is**: a Tier-2 showcase demonstrating that WAGF
 > (originally built for water-resource modelling) plugs cleanly into a
 > non-water domain.  Vaccination decision-making, framed by the **Health
 > Belief Model** (Rosenstock 1974; Carpenter 2010), with 3 actions
-> (`get_vaccinated`, `delay`, `refuse`).
+> (`get_vaccinated`, `delay`, `refuse`).  As of L3-1A (2026-05-23), the
+> agent population is sampled from **literature-grounded distributions**
+> (US Census 2020 ACS age + Pew Research 2024 trust-in-public-health
+> + CDC high-risk-group probability) — see
+> [`data/persona_distributions.yaml`](data/persona_distributions.yaml).
 >
-> **What this is NOT**: a research-grade vaccination ABM.  We use 5
-> synthetic agents and a 2-year outbreak schedule.  No real survey data,
-> no comparison with established public-health benchmarks.
+> **What this is NOT**: a paper-grade calibrated vaccination ABM.  No
+> IRB-approved primary survey behind the agent population (the
+> distributions are honest reference points, not fitted survey data);
+> no comparison with established public-health intervention benchmarks
+> (no CDC vaccination-rate target validation).  See the Limitations
+> section below.
 
 ## Why this example exists
 
@@ -46,6 +53,8 @@ PoC; the smoke run takes ~15 min wallclock).
 ollama pull gemma3:1b   # 815 MB
 
 cd <repo-root>
+# Minimal fast smoke (5 agents, ~3 min). Omit --agents to use the
+# L3-1A default of 25 (Tier-2 showcase scope; ~10-15 min on gemma3:1b).
 python examples/vaccination_demo/run_experiment.py \
     --model gemma3:1b \
     --years 3 \
