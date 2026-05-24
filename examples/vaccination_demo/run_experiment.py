@@ -34,6 +34,7 @@ import examples.vaccination_demo  # noqa: F401 -- side-effect
 
 from broker.agents import BaseAgent, AgentConfig
 from broker.agents.base import StateParam, Skill
+from broker.components.context.builder import TieredContextBuilder
 from broker.components.memory.engine import WindowMemoryEngine
 from broker.core.experiment import ExperimentBuilder
 from broker.interfaces.skill_types import ExecutionResult
@@ -232,6 +233,31 @@ def main() -> None:
     script_dir = Path(__file__).resolve().parent
     agents = build_synthetic_individuals(args.agents, args.seed)
     sim = VaccinationEnvironment(agents)
+    agent_cfg_path = script_dir / "config" / "agent_types.yaml"
+
+    # L3-1B fix (2026-05-23): explicit TieredContextBuilder so the
+    # ``{response_format}`` placeholder in `config/prompts/individual.txt`
+    # gets populated with the YAML-defined JSON schema. The default
+    # builder returned by ``create_context_builder()`` without a hub is
+    # a plain ``BaseAgentContextBuilder`` that does NOT inject
+    # ``response_format`` — the placeholder then falls through to
+    # ``SafeFormatter``'s ``[N/A]`` default, leaving the LLM with no
+    # schema example. Irrigation pins ``TieredContextBuilder(hub=None)``
+    # for the same reason; vaccination_demo mirrors that.
+    mem_engine = WindowMemoryEngine(window_size=5)
+    prompt_template = (script_dir / "config" / "prompts" / "individual.txt").read_text(
+        encoding="utf-8"
+    )
+    ctx_builder = TieredContextBuilder(
+        agents=agents,
+        hub=None,
+        prompt_templates={
+            "individual": prompt_template,
+            "default": prompt_template,
+        },
+        yaml_path=str(agent_cfg_path),
+        memory_engine=mem_engine,
+    )
 
     runner = (
         ExperimentBuilder()
@@ -240,8 +266,9 @@ def main() -> None:
         .with_agents(agents)
         .with_simulation(sim)
         .with_skill_registry(str(script_dir / "config" / "skill_registry.yaml"))
-        .with_memory_engine(WindowMemoryEngine(window_size=5))
-        .with_governance("strict", str(script_dir / "config" / "agent_types.yaml"))
+        .with_memory_engine(mem_engine)
+        .with_context_builder(ctx_builder)
+        .with_governance("strict", str(agent_cfg_path))
         .with_exact_output(args.output)
         .with_workers(1)
         .with_seed(args.seed)

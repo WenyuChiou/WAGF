@@ -12,8 +12,14 @@ Using the **Health Belief Model**, weigh:
 - Perceived Barriers — cost, time, side effects, distrust
 - Self-Efficacy — your confidence in seeking out and completing vaccination
 
-First, assess your perceived SUSCEPTIBILITY to infection this season.
-Then, assess your SELF-EFFICACY to actually obtain vaccination.
+Work through the six HBM constructs in order before choosing an action:
+  1. SUSCEPTIBILITY — how likely you feel to be infected this season.
+  2. SEVERITY — how bad infection would be for your household.
+  3. BENEFITS — how much vaccination would actually protect you.
+  4. BARRIERS — cost, time, side-effect risk, trust in the vaccine.
+  5. SELF-EFFICACY — your confidence in obtaining and completing it.
+  6. CUES TO ACTION — whether external signals (outbreak news,
+     doctor / family advice) are nudging you toward action.
 
 Available actions: {skills}
 
