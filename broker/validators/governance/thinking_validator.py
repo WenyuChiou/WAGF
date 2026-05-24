@@ -327,18 +327,28 @@ class ThinkingValidator(BaseValidator):
                 )
 
             if violated:
+                # Phase 6N-D-1 (2026-05-24): respect rule.level so WARNING
+                # rules don't block-and-retry. Previously hardcoded
+                # valid=False regardless of level → any WARNING rule with
+                # `blocked_skills` silently blocked like ERROR. Mirrors
+                # BaseValidator.validate() lines 143-159 contract:
+                # ERROR → valid=False, errors=[msg], warnings=[]
+                # WARNING → valid=True,  errors=[],    warnings=[msg]
                 rule_message = getattr(rule, 'message', '') or f"Rule {rule.id} violated"
+                rule_level = getattr(rule, 'level', 'ERROR')
+                is_error = rule_level == 'ERROR'
                 results.append(ValidationResult(
-                    valid=False,
+                    valid=not is_error,
                     validator_name="ThinkingValidator",
-                    errors=[rule_message],
-                    warnings=[],
+                    errors=[rule_message] if is_error else [],
+                    warnings=[rule_message] if not is_error else [],
                     metadata={
                         "rule_id": rule.id,
                         "category": "thinking",
                         "framework": framework,
                         "conditions_matched": matched_conditions,
-                        "blocked_skill": skill_name
+                        "blocked_skill": skill_name,
+                        "level": rule_level,
                     }
                 ))
 
