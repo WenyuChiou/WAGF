@@ -587,6 +587,19 @@ class UnifiedAdapter(ModelAdapter):
                                 g_start = start_search + val_match.start()
                                 g_end = start_search + val_match.end()
 
+                                # Phase 6N-D-4 (2026-05-24): whitelist filter.
+                                # The free-text fallback scans reasoning prose,
+                                # and ``(VL|L|M|H|VH)`` matches the bare
+                                # ``m`` between ``'`` and ``space`` inside
+                                # contractions like ``I'm``. Smoke #6 of L3-1C
+                                # caught a 1/45 leak; flood Group_C paper data
+                                # has 2/8918. Reject any capture whose
+                                # upper-cased form is not in the canonical
+                                # ordinal alphabet so contraction-letter
+                                # captures never reach the audit CSV.
+                                if temp_val.upper() not in {"VL", "L", "M", "H", "VH"}:
+                                    continue
+
                                 # Only accept if it's NOT just an item in an echoed list
                                 if not is_list_item(cleaned_target, g_start, g_end, self.config):
                                     reasoning[key] = normalize_construct_value(temp_val, custom_mapping=custom_mapping)
