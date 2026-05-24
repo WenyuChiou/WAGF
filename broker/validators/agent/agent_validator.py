@@ -415,7 +415,19 @@ class AgentValidator:
                     matches = []
                     for cond in rule.conditions:
                         if isinstance(cond, dict):
-                            construct_name = cond.get("construct")
+                            # Phase 6N-E (2026-05-24): accept both the
+                            # canonical short shape `construct: X` (used
+                            # by irrigation, governed_flood, MA flood)
+                            # AND the verbose `RuleCondition`-flavoured
+                            # shape `field: X` (which L3-1C's
+                            # vaccination_demo copy-pasted from
+                            # broker/governance/rule_types.py). Without
+                            # this fallback, any YAML written in the
+                            # verbose shape produced silently-dead
+                            # rules — `cond.get("construct")` returned
+                            # None, `get_label(None)` returned "", and
+                            # the rule never fired.
+                            construct_name = cond.get("construct") or cond.get("field")
                             if "operator" in cond and "value" in cond:
                                 # Numeric Comparison (for Finance/Generic)
                                 actual_val = state.get(construct_name, reasoning.get(construct_name, 0.0))

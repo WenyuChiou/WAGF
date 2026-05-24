@@ -107,17 +107,18 @@ File: `config/agent_types.yaml`.
 
 Add 1-2 coherence rules under the agent type's `thinking_rules:` block (NOT `rules:` — Phase 6N-C 2026-05-23 finding: the broker's `get_thinking_rules()` loader at `broker/utils/agent_config.py:859` only recognises `thinking_rules` or `coherence_rules`; a `rules:` block is silently ignored). Tie each rule to framework constructs, and use `ERROR` for behavior you want governance to block. Use `WARNING` only for audit notes; small LLMs show about 0% behavior effect from warnings per `MEMORY.md`.
 
+Each condition must use the **canonical short shape** `{ construct: X, values: [...] }` (Phase 6N-E 2026-05-24 finding: the verbose `RuleCondition`-flavoured shape `{ type: construct, field: X, operator: "in", values: [...] }` is silently treated as dead config by `agent_validator.py::_run_rule_set` because `cond.get("construct")` returns None for that shape; the post-Phase-6N-E defensive evaluator falls back to `cond.get("field")` but new YAML should use the canonical short shape):
+
 ```yaml
 thinking_rules:
   - id: high_susceptibility_high_severity_high_efficacy_no_refuse
     level: ERROR
     blocked_skills: [refuse]
-```
-
-```yaml
     conditions:
-      - { type: construct, field: SUSCEPTIBILITY_LABEL, operator: "in", values: ["H", "VH"] }
-      - { type: construct, field: SELF_EFFICACY_LABEL, operator: "in", values: ["H", "VH"] }
+      - { construct: SUSCEPTIBILITY_LABEL, values: ["H", "VH"] }
+      - { construct: SEVERITY_LABEL,       values: ["H", "VH"] }
+      - { construct: SELF_EFFICACY_LABEL,  values: ["H", "VH"] }
+    message: "High susceptibility + high severity + high self-efficacy should not lead to refusal."
 ```
 
 Validate:
