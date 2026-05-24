@@ -131,14 +131,19 @@ Three checks demonstrate WAGF's three-tier governance:
 1. **Physical (state-precondition)** —
    `vaccination_recent_dose_no_revaccinate` blocks `get_vaccinated`
    when `weeks_since_dose < 26`.  Mirrors the seasonal-cycle protocol.
-2. **Thinking — HBM coherence (BLOCKING)** —
-   `vaccination_high_susceptibility_high_efficacy_no_refuse` blocks
-   `refuse` when the LLM rated `SUSCEPTIBILITY=H/VH` and
-   `SELF_EFFICACY=H/VH`.  Detects inconsistent reasoning.
-3. **Thinking — HBM coherence (WARNING)** —
-   `vaccination_low_susceptibility_no_immediate_action` flags
-   `get_vaccinated` when `SUSCEPTIBILITY=VL`.  Not blocking — could
-   be altruistic; the audit still records the unusual combination.
+2. **Thinking — HBM coherence (BLOCKING, ERROR)** — 5 rules live in
+   `config/agent_types.yaml` under `thinking_rules:` (L3-1C 2026-05-23,
+   expanded from 2 → 5 covering all 6 HBM constructs):
+   - `high_susceptibility_high_severity_high_efficacy_no_refuse`
+     blocks `refuse` when all three are H/VH (clearest irrationality).
+   - `high_cues_low_barriers_refuse_inconsistent` blocks `refuse` when
+     external pressure is high and no documented barrier exists.
+3. **Thinking — HBM coherence (WARNING, log-only)** — 3 rules logged
+   to the audit CSV without blocking (small-LLM behaviour-influence
+   per `MEMORY.md` is ~0% for WARNING; included for post-hoc audit):
+   `low_susceptibility_no_get_vaccinated`,
+   `high_barriers_high_self_efficacy_no_action_required`,
+   `low_severity_low_benefits_get_vaccinated`.
 
 ## Known caveats (Phase 6C-v3 outstanding)
 

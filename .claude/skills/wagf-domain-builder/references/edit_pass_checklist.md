@@ -71,7 +71,7 @@ Common pitfall: forgetting to override `name`. The DomainPack registry then repo
 
 File: `validators/<domain>_validators.py`.
 
-Replace the placeholder check with 2-3 real physical, personal, social, semantic, temporal, or behavioural checks. Do not register thinking checks in Python; thinking-level coherence belongs in YAML `rules:`.
+Replace the placeholder check with 2-3 real physical, personal, social, semantic, temporal, or behavioural checks. Do not register thinking checks in Python; thinking-level coherence belongs in YAML `thinking_rules:` (NOT `rules:` — the broker's `get_thinking_rules()` at `broker/utils/agent_config.py:859` recognises only `thinking_rules` or `coherence_rules`).
 
 ```python
 def no_recent_revaccination(skill_proposal, context):
@@ -105,11 +105,11 @@ Common pitfall: registering slot `thinking` in Python. The valid Python slots ar
 
 File: `config/agent_types.yaml`.
 
-Add 1-2 coherence rules under the agent type's `rules:` block. Tie each rule to framework constructs, and use `ERROR` for behavior you want governance to block. Use `WARNING` only for audit notes; small LLMs show about 0% behavior effect from warnings per `MEMORY.md`.
+Add 1-2 coherence rules under the agent type's `thinking_rules:` block (NOT `rules:` — Phase 6N-C 2026-05-23 finding: the broker's `get_thinking_rules()` loader at `broker/utils/agent_config.py:859` only recognises `thinking_rules` or `coherence_rules`; a `rules:` block is silently ignored). Tie each rule to framework constructs, and use `ERROR` for behavior you want governance to block. Use `WARNING` only for audit notes; small LLMs show about 0% behavior effect from warnings per `MEMORY.md`.
 
 ```yaml
-rules:
-  - id: high_susceptibility_high_efficacy_no_refuse
+thinking_rules:
+  - id: high_susceptibility_high_severity_high_efficacy_no_refuse
     level: ERROR
     blocked_skills: [refuse]
 ```

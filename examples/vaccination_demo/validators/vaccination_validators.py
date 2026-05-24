@@ -7,9 +7,25 @@ They are registered with :class:`ValidatorRegistry` in this package's
 ``__init__.py`` so the broker's :func:`validate_all` picks them up at
 runtime — no edits to broker/ source code.
 
-Each check sets ``metadata['category']`` so that the audit CSV's
-``rules_*_hit`` columns (Phase 6C W8 fix) get populated correctly on
-rejection.
+L3-1C (2026-05-23) design choice: Python checks cover only the PHYSICAL
+slot (state-precondition / immutability) because the
+``ValidatorRegistry`` slot policy (see ``__init__.py``) rejects
+``thinking`` as a registered slot — HBM coherence rules live in YAML
+at ``../config/agent_types.yaml`` under the ``thinking_rules:`` key
+(NOT ``rules:`` — Phase 6N-C reviewer caught this: the broker's
+``get_thinking_rules()`` at ``broker/utils/agent_config.py:859``
+recognises only ``thinking_rules`` or ``coherence_rules``; the
+original PoC's ``rules:`` block was silently dead config). Consumed by
+``ThinkingValidator._validate_yaml_rules``. An earlier draft of this
+file mirrored the YAML coherence rules with 5 Python check functions,
+but they would have been dead code (never registered, never invoked).
+Stripped to the single physical check so the file matches the broker's
+actual slot architecture; the L3-1C 5 coherence rules live in YAML and
+are exercised end-to-end by the L3-1B smoke flow.
+
+The single physical check sets ``metadata['category']='physical'`` so
+the audit CSV's ``rules_physical_hit`` column (Phase 6C W8 fix) gets
+populated correctly on rejection.
 """
 from __future__ import annotations
 
@@ -19,9 +35,10 @@ from broker.governance.rule_types import GovernanceRule
 from broker.interfaces.skill_types import ValidationResult
 
 
-# ─────────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------
 # PHYSICAL — state-precondition / immutability rules
-# ─────────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------
+
 
 def vaccination_recent_dose_no_revaccinate(
     skill_name: str, rules: List[GovernanceRule], context: Dict[str, Any]
@@ -30,6 +47,9 @@ def vaccination_recent_dose_no_revaccinate(
 
     Standard public-health guidance is one seasonal dose per cycle.
     Re-vaccination inside that window is wasteful and rarely recommended.
+    This is a STATE-precondition (reads ``weeks_since_dose`` from the
+    agent's dynamic state, not from the LLM's HBM reasoning), so it
+    lives in Python rather than as a YAML construct rule.
     """
     if skill_name != "get_vaccinated":
         return []
@@ -61,81 +81,10 @@ def vaccination_recent_dose_no_revaccinate(
     return []
 
 
-# ─────────────────────────────────────────────────────────────────────
-# THINKING — HBM construct coherence
-# ─────────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------
+# Registry tuples consumed by ValidatorRegistry (see __init__.py)
+# ---------------------------------------------------------------------
 
-def vaccination_high_susceptibility_high_efficacy_no_refuse(
-    skill_name: str, rules: List[GovernanceRule], context: Dict[str, Any]
-) -> List[ValidationResult]:
-    """Block ``refuse`` when SUSCEPTIBILITY is high AND SELF_EFFICACY is high.
-
-    Per HBM, an individual who perceives high infection risk AND has
-    confidence in their ability to vaccinate is unlikely to refuse on
-    coherent grounds.  This catches cases where the LLM provides
-    inconsistent reasoning (e.g., reasoning text endorses vaccination
-    but action says refuse).
-    """
-    if skill_name != "refuse":
-        return []
-    reasoning = context.get("reasoning", {}) or {}
-    susc = str(reasoning.get("SUSCEPTIBILITY_LABEL", "")).upper().strip()
-    eff = str(reasoning.get("SELF_EFFICACY_LABEL", "")).upper().strip()
-    high_set = {"H", "VH"}
-    if susc in high_set and eff in high_set:
-        return [
-            ValidationResult(
-                valid=False,
-                validator_name="vaccination_high_susceptibility_high_efficacy_no_refuse",
-                errors=[
-                    f"HBM coherence: SUSCEPTIBILITY={susc} + SELF_EFFICACY={eff} "
-                    "do not support refusal. Reconsider with explicit barriers."
-                ],
-                metadata={
-                    "category": "thinking",
-                    "rule_id": "hbm_susc_eff_no_refuse",
-                },
-            )
-        ]
-    return []
-
-
-def vaccination_low_susceptibility_no_immediate_action(
-    skill_name: str, rules: List[GovernanceRule], context: Dict[str, Any]
-) -> List[ValidationResult]:
-    """Warning when SUSCEPTIBILITY=VL leads to ``get_vaccinated``.
-
-    Not blocking: low-susceptibility individuals sometimes vaccinate for
-    altruistic / household-protection reasons, which is a legitimate HBM
-    cue-to-action.  But the audit trace should flag the case for review.
-    """
-    if skill_name != "get_vaccinated":
-        return []
-    reasoning = context.get("reasoning", {}) or {}
-    susc = str(reasoning.get("SUSCEPTIBILITY_LABEL", "")).upper().strip()
-    if susc == "VL":
-        return [
-            ValidationResult(
-                valid=True,    # warning, not blocking
-                validator_name="vaccination_low_susceptibility_no_immediate_action",
-                warnings=[
-                    "HBM coherence note: SUSCEPTIBILITY=VL with immediate "
-                    "vaccination is unusual — likely altruistic / cue-to-action."
-                ],
-                metadata={
-                    "category": "thinking",
-                    "rule_id": "hbm_low_susc_vaccinate",
-                },
-            )
-        ]
-    return []
-
-
-# Tuples consumed by ValidatorRegistry
 VACCINATION_PHYSICAL_CHECKS = (
     vaccination_recent_dose_no_revaccinate,
-)
-VACCINATION_THINKING_CHECKS = (
-    vaccination_high_susceptibility_high_efficacy_no_refuse,
-    vaccination_low_susceptibility_no_immediate_action,
 )

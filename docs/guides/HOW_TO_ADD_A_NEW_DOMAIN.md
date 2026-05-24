@@ -217,14 +217,21 @@ individual:
 
   # (Optional) Tier-2 thinking rules — YAML-driven HBM coherence checks
   # consumed by ThinkingValidator. Add only the rules you want to enforce.
-  rules:
-    - id: high_susceptibility_high_efficacy_no_refuse
+  # IMPORTANT: the loader is `get_thinking_rules()` at
+  # broker/utils/agent_config.py:859 — it recognises ONLY the keys
+  # `thinking_rules` and `coherence_rules`. A plain `rules:` block is
+  # silently ignored (Phase 6N-C 2026-05-23 finding: the vaccination_demo
+  # PoC's original `rules:` block was dead config for the entire PoC
+  # lifetime until renamed).
+  thinking_rules:
+    - id: high_susceptibility_high_severity_high_efficacy_no_refuse
       level: ERROR
       blocked_skills: [refuse]
       conditions:
         - { type: construct, field: SUSCEPTIBILITY_LABEL, operator: "in", values: ["H", "VH"] }
-        - { type: construct, field: SELF_EFFICACY_LABEL, operator: "in", values: ["H", "VH"] }
-      message: "HBM coherence: high susceptibility + high self-efficacy should not lead to refusal."
+        - { type: construct, field: SEVERITY_LABEL,       operator: "in", values: ["H", "VH"] }
+        - { type: construct, field: SELF_EFFICACY_LABEL,  operator: "in", values: ["H", "VH"] }
+      message: "HBM coherence: high susceptibility + high severity + high self-efficacy should not lead to refusal."
 ```
 
 ### Step 4 — Implement validator checks
@@ -407,7 +414,7 @@ These 6 BLOCKERs were surfaced by the `examples/vaccination_demo/` PoC on 2026-0
 
 | # | Symptom | Root cause | Fix |
 |---|---|---|---|
-| 1 | `ValueError: slot must be one of (physical, personal, social, semantic, ...)` when registering Python checks | `ValidatorRegistry` does not accept `"thinking"` as a slot — thinking-validator checks come from YAML `rules:` block, not the registry | Either move thinking checks into `agent_types.yaml: rules:` (preferred), or use the YAML-driven path. Python `BuiltinCheck` callables can only register under physical/personal/social/semantic slots. |
+| 1 | `ValueError: slot must be one of (physical, personal, social, semantic, ...)` when registering Python checks | `ValidatorRegistry` does not accept `"thinking"` as a slot — thinking-validator checks come from YAML `thinking_rules:` block, not the registry | Move thinking checks into `agent_types.yaml: thinking_rules:` (preferred — NOT `rules:`; the loader `get_thinking_rules()` at `broker/utils/agent_config.py:859` only recognises `thinking_rules` or `coherence_rules`. A bare `rules:` block is silently dead config — Phase 6N-C 2026-05-23 finding). Python `BuiltinCheck` callables can only register under physical/personal/social/semantic slots. |
 | 2 | Prompt template renders with `[N/A]` literals | Unfilled custom `{placeholder}` — broker only auto-fills `{narrative_persona}, {memory}, {skills}, {rating_scale}` and any agent-attribute `{xxx}` | Use only the 4 standard placeholders; for custom narrative, set agent attributes (e.g. `agent.water_situation_text`) in your lifecycle hook |
 | 3 | Logs say `Empty/Null response received` but Ollama responds (verify via curl) | The log message conflated LLM-empty with parser-side rejection. Post-v4 the broker distinguishes: `LLM returned empty response (...)` vs `LLM responded (N chars) but parser rejected — see [Adapter:Error] diagnostic above` | If you see the second message, look at the `[Adapter:Error]` diagnostic block which shows `raw_output`, `parse_layer reached`, `expected keys`, `valid skills for this agent_type`. The diagnostic names the exact gap. |
 | 4 | `[Adapter:Error]` diagnostic says LLM JSON keys don't match expected | YAML `shared.response_format.fields[].key` (e.g. `susceptibility_assessment`) must match the EXACT key the LLM emits in JSON (per your prompt example) | Sync prompt template's JSON example keys with YAML schema keys. Currently manual; v5 will auto-derive `{response_format}` from YAML to eliminate this risk. |
