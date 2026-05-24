@@ -83,14 +83,14 @@ python examples/governed_flood/run_experiment.py --model gemma3:4b --years 5
 - Custom adapter for output parsing
 - YAML-driven skill registry and agent configuration
 
-**To build your own domain**, copy `examples/minimal/` as the official template:
+**To build your own domain**, scaffold via `python -m broker.tools.scaffold_domain <domain-name>` (or invoke the `wagf-domain-builder` Claude Code skill):
 
 - `run_experiment.py` - ExperimentBuilder setup
 - `adapters/` - Domain-specific output parsing
 - `validators/` - Domain-specific governance rules
 - `config/` - Agent types and skill definitions (YAML)
 
-**Source:** `examples/minimal/` (official starter scaffold)
+**Source:** `broker.tools.scaffold_domain` CLI (official starter scaffold) + `wagf-domain-builder` skill walkthrough
 
 ---
 

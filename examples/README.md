@@ -45,14 +45,11 @@ Everything else in `examples/` is secondary teaching support, a compact demo, or
 | # | Example | Type | What You Learn |
 | :-- | :--- | :--- | :--- |
 | 0 | **[quickstart/](quickstart/)** | Tutorial | Core governance loop with mock LLM, no Ollama needed |
-| 1 | **[minimal/](minimal/)** | Template | Copy this to start a new ABM domain |
 | 2 | **[single_agent/](single_agent/)** | SA water reference | Full single-agent flood benchmark |
 | 3 | **[irrigation_abm/](irrigation_abm/)** | SA water reference | Colorado River irrigation case |
 | 4 | **[multi_agent/flood/](multi_agent/flood/)** | MA water reference | Institutional multi-agent flood study |
 | 5 | **[governed_flood/](governed_flood/)** | Teaching demo + broker test fixture | Compact flood-sector demo (also the FloodDomainPack source for several broker tests; kept as load-bearing fixture) |
 | 6 | **[vaccination_demo/](vaccination_demo/)** | Non-water Tier-2 showcase | HBM-driven vaccination decisions; 25 agents × 5 yr COVID-19 schedule; 3 seeds × 2 models |
-| 7 | **[vaccination_ma_demo/](vaccination_ma_demo/)** | Non-water multi-agent reference | 3 agent types (health_authority + community_org + individual); env-dict-whitelist coupling |
-| 8 | **[gossip_demo/](gossip_demo/)** | Non-water social-media reference | Daily-cadence multi-agent (moderator + influencer + user) |
 
 ---
 
@@ -78,14 +75,11 @@ Everything else in `examples/` is secondary teaching support, a compact demo, or
 | Directory | Why it exists | Maintenance status |
 | :--- | :--- | :--- |
 | **[quickstart/](quickstart/)** | Teaches the core governance loop progressively | Maintained |
-| **[minimal/](minimal/)** | Official starting scaffold for a new ABM domain | Maintained |
 ### Non-Water Reference Implementations
 
 | Directory | Why it exists | Maintenance status |
 | :--- | :--- | :--- |
 | **[vaccination_demo/](vaccination_demo/)** | Non-water Tier-2 showcase — HBM-driven vaccination decisions, literature-grounded population, 5-year COVID-19 outbreak schedule | Tier-2 showcase (L3-1 2026-05-24) |
-| **[vaccination_ma_demo/](vaccination_ma_demo/)** | Multi-agent counterpart to vaccination_demo — health authority + community org + individual | PoC reference |
-| **[gossip_demo/](gossip_demo/)** | Daily-cadence social-media multi-agent reference (moderator + influencer + casual user) | PoC reference |
 
 ### Secondary Teaching / Demonstration Examples
 

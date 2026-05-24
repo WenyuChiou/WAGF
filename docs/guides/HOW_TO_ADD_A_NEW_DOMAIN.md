@@ -523,7 +523,7 @@ Without registration, unknown agent types fall back to `DEFAULT_SOCIAL_SPEC` (sp
 
 ### Building a multi-agent domain (Phase 6E, 2026-05-10)
 
-The single-agent walkthrough above (`examples/vaccination_demo/`) is the easier path. Multi-agent domains (multiple agent types interacting via cross-agent state) need a few extra wiring steps — proven end-to-end by the `examples/vaccination_ma_demo/` reference (3 agent types: health_authority → community_org → individual).
+The single-agent walkthrough above (`examples/vaccination_demo/`) is the easier path. Multi-agent domains (multiple agent types interacting via cross-agent state) need a few extra wiring steps — see `examples/multi_agent/flood/` (Paper 3 multi-agent flood, 402 agents × 13 yr, production-grade reference) for the canonical multi-agent pattern.
 
 **The cross-agent coupling pattern (the load-bearing one)**:
 
@@ -535,7 +535,7 @@ WAGF multi-agent uses an **env-dict-whitelist** pattern. There is NO direct agen
 
 This pipeline (`env → whitelist → context → template_vars → SafeFormatter`) has **zero flood-specific branching in broker/** per Phase 6E Phase 1 trace audit. The whitelist literal in your domain's `run_experiment.py` IS the abstraction point — declaring `crop_yield`, `advisory_strength`, `commute_congestion`, or any other domain-specific cross-agent variable is one-line.
 
-**Concrete pattern (from `examples/vaccination_ma_demo/run_experiment.py`)**:
+**Concrete pattern (from `examples/multi_agent/flood/run_unified_experiment.py`)**:
 
 ```python
 from broker.components.context.tiered import TieredContextBuilder, load_prompt_templates
@@ -553,7 +553,7 @@ DYNAMIC_WHITELIST = [
     "outbreak_severity_label",
     "community_support_text",
     # ...add EVERY cross-agent placeholder your prompts reference.
-    # See examples/vaccination_ma_demo/run_experiment.py for the full
+    # See examples/multi_agent/flood/run_unified_experiment.py for the full
     # 9-key list.
 ]
 
@@ -604,7 +604,7 @@ def pre_year(self, year, env, agents):
 
 Flood Paper 3 doesn't hit this because it uses `.with_simulation(TieredEnvironment(...))` which returns a persistent env dict that `advance_year` mutates in place. For multi-agent domains WITHOUT a simulation engine, use the aliasing pattern above.
 
-**Reference**: `examples/vaccination_ma_demo/` — full multi-agent reference example. `lifecycle_hooks.py:pre_year` is the canonical aliasing implementation. `.ai/ma_vaccination_findings_2026-05-10.md` documents the Phase 6E build's 3 BLOCKERs (the aliasing pattern is Finding #3).
+**Reference**: `examples/multi_agent/flood/` — Paper 3 multi-agent flood (production-grade). The `lifecycle_hooks` directory carries the canonical aliasing implementation. The vaccination_ma_demo/ reference that previously documented Phase 6E was removed in Phase 6N-F (2026-05-24); the aliasing pattern itself is unchanged.
 
 **Skill registry schema asymmetry**: `skill_registry.yaml` uses `- skill_id: <id>` (different from `agent_types.yaml` actions block which uses `- id: <id>`). This is an artefact of WAGF's history. The `validate_prompt` CLI does not check skill_registry.yaml's schema; the broker raises `KeyError('skill_id')` at experiment-build time if you use the wrong field. Phase 6C-v4 `scaffold_domain` was patched in Phase 6E to emit the correct field; if you hand-write a skill_registry.yaml, use `skill_id:`.
 
@@ -627,7 +627,7 @@ Flood Paper 3 doesn't hit this because it uses `.with_simulation(TieredEnvironme
 - `tests/test_domain_pack_contract.py` — regression tests; copy/paste pattern for your own pack
 - `.ai/domain_pack_design_2026-05-10.md` — full architectural rationale
 - `.ai/vaccination_poc_findings_2026-05-10.md` — 6-BLOCKER inventory + lessons learned (single-agent)
-- `examples/vaccination_ma_demo/` — multi-agent reference example (3 agent types via env-dict-whitelist pattern)
+- `examples/multi_agent/flood/` — Paper 3 multi-agent reference (production-grade)
 - `.ai/ma_vaccination_findings_2026-05-10.md` — Phase 6E multi-agent BLOCKER inventory (3 findings)
 - `tests/test_multi_agent_coupling.py` — integration tests covering Findings #1 and #3
 

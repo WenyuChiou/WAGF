@@ -27,9 +27,6 @@
 | **[multi_agent/flood/](multi_agent/flood/)** | 402 | 有 | 進階 | HumanCentric | 活躍（Paper 3） |
 | **[governed_flood/](governed_flood/)** | 100 | 無 | 僅嚴格 | HumanCentric | 教學示例 + broker 測試 fixture |
 | **[vaccination_demo/](vaccination_demo/)** | 25 | 無 | 嚴格 | window | Tier-2 showcase（L3-1 2026-05-24，非水）|
-| **[vaccination_ma_demo/](vaccination_ma_demo/)** | 1+2+N | 有 | 嚴格 | window | PoC（非水 multi-agent） |
-| **[gossip_demo/](gossip_demo/)** | 1+K+N | 有 | 嚴格 | window | PoC（社群媒體） |
-| **[minimal/](minimal/)** | -- | -- | -- | -- | 領域 scaffold |
 
 ---
 
