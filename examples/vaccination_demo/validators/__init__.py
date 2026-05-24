@@ -4,8 +4,11 @@ NOTE on slot policy (Phase 6C-v3 discovery):
 ``ValidatorRegistry`` validates that ``slot`` is one of
 ``{physical, personal, social, semantic, temporal, behavioural}``.
 ``thinking`` is NOT a registered slot — thinking-validator checks come
-from YAML rules in ``agent_types.yaml`` (consumed by
-``ThinkingValidator._validate_yaml_rules``) rather than from
+from YAML rules in ``agent_types.yaml`` under the ``thinking_rules:``
+key (NOT ``rules:`` — the loader at
+``broker/utils/agent_config.py:859`` only recognises
+``thinking_rules`` or ``coherence_rules``). Consumed by
+``ThinkingValidator._validate_yaml_rules`` rather than by
 ``ValidatorRegistry``.  This module therefore only registers physical
 checks; HBM coherence rules live in ``config/agent_types.yaml``.
 """

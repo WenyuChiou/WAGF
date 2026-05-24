@@ -116,7 +116,7 @@ platform_moderator:
         regex: ".*"
 
   log_fields: ["appraisal"]
-  rules: []
+  thinking_rules: []
 
 # =============================================================================
 # influencer — intermediary content producer
@@ -162,7 +162,7 @@ influencer:
         regex: ".*"
 
   log_fields: ["appraisal"]
-  rules: []
+  thinking_rules: []
 
 # =============================================================================
 # casual_user — citizen layer
@@ -208,4 +208,4 @@ casual_user:
         regex: ".*"
 
   log_fields: ["appraisal"]
-  rules: []
+  thinking_rules: []

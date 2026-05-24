@@ -172,10 +172,17 @@ point.
    social / semantic / temporal / behavioural checks. **No
    thinking-level checks here** — those go in YAML rules (the
    Phase 6C-v4 Finding 1 trap).
-4. **YAML thinking rules** (`config/agent_types.yaml`, `rules:`
-   block) — 1-2 coherence rules at ERROR level. WARNING-level
-   rules have ~0% behavior effect on small LLMs (per MEMORY.md);
-   use ERROR for actual enforcement.
+4. **YAML thinking rules** (`config/agent_types.yaml`,
+   `thinking_rules:` block — NOT `rules:`; the broker's
+   `get_thinking_rules()` loader at
+   `broker/utils/agent_config.py:859` only recognises
+   `thinking_rules` or `coherence_rules`. A bare `rules:`
+   block is silently dead config — Phase 6N-C 2026-05-23
+   finding from the vaccination_demo PoC, which had used the
+   wrong key for its entire lifetime.) 1-2 coherence rules at
+   ERROR level. WARNING-level rules have ~0% behavior effect
+   on small LLMs (per MEMORY.md); use ERROR for actual
+   enforcement.
 5. **`run_experiment.py` ExperimentBuilder wiring** — the
    scaffolded `run_experiment.py` is intentionally a TODO stub
    (just prints "TODO: replace this stub" and exits). Replace it

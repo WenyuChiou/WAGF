@@ -253,17 +253,55 @@ individual:
   # Domain-specific YAML validator rules (Tier 2 thinking validators).
   # These ride alongside the Python check functions in
   # examples/vaccination_demo/validators/vaccination_validators.py.
-  rules:
-    - id: high_susceptibility_high_efficacy_no_refuse
+  # L3-1C (2026-05-23): expanded from 2 → 5 rules exercising the
+  # post-L3-1B 6/6 HBM constructs. Each rule names the construct(s)
+  # it gates by; level distinguishes ERROR (blocking + retry) from
+  # WARNING (logged, non-blocking). The physical recent_dose block
+  # is enforced by the Python check in
+  # examples/vaccination_demo/validators/vaccination_validators.py
+  # (state-precondition; not easily expressible as a YAML construct
+  # condition).
+  thinking_rules:
+    # Tightened from L3-1B 2-construct form: adding SEVERITY makes the
+    # block trigger only on the clearest irrationality (high susc + high
+    # sev + high efficacy → refuse). Older 2-construct form was too eager.
+    - id: high_susceptibility_high_severity_high_efficacy_no_refuse
       level: ERROR
       blocked_skills: [refuse]
       conditions:
         - { type: construct, field: SUSCEPTIBILITY_LABEL, operator: "in", values: ["H", "VH"] }
-        - { type: construct, field: SELF_EFFICACY_LABEL, operator: "in", values: ["H", "VH"] }
-      message: "HBM coherence: high perceived susceptibility plus high self-efficacy should not lead to refusal."
+        - { type: construct, field: SEVERITY_LABEL,        operator: "in", values: ["H", "VH"] }
+        - { type: construct, field: SELF_EFFICACY_LABEL,  operator: "in", values: ["H", "VH"] }
+      message: "HBM coherence: high perceived susceptibility + high severity + high self-efficacy should not lead to refusal."
     - id: low_susceptibility_no_get_vaccinated
       level: WARNING
-      blocked_skills: [get_vaccinated]
       conditions:
         - { type: construct, field: SUSCEPTIBILITY_LABEL, operator: "in", values: ["VL"] }
       message: "HBM coherence: very low perceived susceptibility plus immediate vaccination is unusual — worth reflecting on motive."
+    # NEW L3-1C: high efficacy should overcome typical barriers; high
+    # both = inert combination, worth flagging when no action follows.
+    - id: high_barriers_high_self_efficacy_no_action_required
+      level: WARNING
+      conditions:
+        - { type: construct, field: BARRIERS_LABEL,       operator: "in", values: ["H", "VH"] }
+        - { type: construct, field: SELF_EFFICACY_LABEL,  operator: "in", values: ["H", "VH"] }
+      message: "HBM coherence note: high self-efficacy is supposed to overcome perceived barriers — inaction here is worth reflecting on."
+    # NEW L3-1C: low motivation (low severity + low efficacy) but action
+    # = mismatch. Catches LLMs that vaccinate-by-default without HBM
+    # support.
+    - id: low_severity_low_benefits_get_vaccinated
+      level: WARNING
+      conditions:
+        - { type: construct, field: SEVERITY_LABEL,  operator: "in", values: ["VL", "L"] }
+        - { type: construct, field: BENEFITS_LABEL,  operator: "in", values: ["VL", "L"] }
+      message: "HBM coherence note: low severity + low benefits + get_vaccinated has no clear HBM driver — verify reasoning trace."
+    # NEW L3-1C: strong external cue (outbreak news, doctor / family
+    # advice) but refuse = explicitly overriding the social/medical
+    # signal. Block + retry.
+    - id: high_cues_low_barriers_refuse_inconsistent
+      level: ERROR
+      blocked_skills: [refuse]
+      conditions:
+        - { type: construct, field: CUES_TO_ACTION_LABEL, operator: "in", values: ["H", "VH"] }
+        - { type: construct, field: BARRIERS_LABEL,       operator: "in", values: ["VL", "L"] }
+      message: "HBM coherence: high cues-to-action (outbreak news / doctor advice) + low barriers + refuse is inconsistent — strong external pressure with no documented obstacle should not lead to refusal."

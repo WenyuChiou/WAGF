@@ -2,7 +2,7 @@
 
 Use this during S0 Q5. Do not pick the framework silently; surface the options and ask the user which one matches their theory.
 
-The framework controls three things: appraisal fields in `agent_types.yaml`, thinking rules under `rules:`, and whether S4 uses `--framework custom`.
+The framework controls three things: appraisal fields in `agent_types.yaml`, thinking rules under `thinking_rules:` (NOT `rules:` — Phase 6N-C 2026-05-23 finding: the broker's `get_thinking_rules()` loader recognises only the keys `thinking_rules` or `coherence_rules`; a `rules:` block is silently dead config), and whether S4 uses `--framework custom`.
 
 ## PMT - Protection Motivation Theory
 
