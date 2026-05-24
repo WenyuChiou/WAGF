@@ -52,6 +52,56 @@ def _safe_rule_breakdown(all_validation_history) -> Dict[str, int]:
         return {"personal": 0, "social": 0, "thinking": 0, "physical": 0, "semantic": 0}
 
 
+def _safe_social_audit(context: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract structured social-context audit fields from a prompt context.
+
+    The social pipeline feeds neighbor observations, gossip, visible actions,
+    and communication messages into prompts through ``context["local"]``. This
+    helper mirrors that data into the audit trace so MA social-behavior analyses
+    can read structured columns instead of reverse-parsing prompt text.
+    """
+    try:
+        local = context.get("local", {}) if isinstance(context, dict) else {}
+        if not isinstance(local, dict):
+            return {}
+
+        spatial = local.get("spatial", {}) if isinstance(local.get("spatial", {}), dict) else {}
+        social = local.get("social", [])
+        if isinstance(social, str):
+            gossip_received = [social] if social else []
+        elif isinstance(social, list):
+            gossip_received = [str(item) for item in social if item]
+        else:
+            gossip_received = []
+
+        visible_counts: Dict[str, int] = {}
+        visible_actions = local.get("visible_actions", [])
+        if isinstance(visible_actions, list):
+            for action in visible_actions:
+                if not isinstance(action, dict):
+                    continue
+                action_id = action.get("action") or action.get("skill") or action.get("decision")
+                if action_id:
+                    visible_counts[str(action_id)] = visible_counts.get(str(action_id), 0) + 1
+
+        audit = {
+            "gossip_received": gossip_received,
+            "neighbor_count": spatial.get("neighbor_count", local.get("neighbor_count", 0)),
+            "network_density": spatial.get("network_density", local.get("network_density", 0.0)),
+            "visible_actions": visible_counts,
+        }
+
+        for key in ("observable_attrs", "neighbor_action_summary", "messages"):
+            if key in local:
+                audit[key] = local[key]
+        if "messages" in context:
+            audit["messages"] = context["messages"]
+        return audit
+    except Exception as exc:
+        logger.warning(f"[Audit] social_audit extraction failed: {exc}")
+        return {}
+
+
 class AuditMixin:
     """Mixin providing audit trace writing and state management helpers."""
 
@@ -130,6 +180,7 @@ class AuditMixin:
             "memory_pre": memory_pre,
             "memory_post": memory_post,
             "memory_audit": memory_audit,
+            "social_audit": _safe_social_audit(context),
             # Phase 6C W8: populate rule_breakdown so audit CSV's rules_*_hit
             # columns carry real validator-category counts instead of placeholder
             # zeros. Imported lazily here to avoid a startup-time circular

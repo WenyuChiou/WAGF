@@ -1124,6 +1124,7 @@ def run_unified_experiment():
         from broker.components.coordination.messages import MessagePool
         from broker.components.coordination.coordinator import GameMaster, PassthroughStrategy
         message_pool = MessagePool(social_graph=graph)
+        message_pool.register_agents(all_agents)
         game_master = GameMaster(
             strategy=PassthroughStrategy(),
             message_pool=message_pool,
@@ -1219,6 +1220,14 @@ def run_unified_experiment():
 
     
     # 5. Build Experiment
+    extend_providers = [FinancialCostProvider()]
+    if message_pool:
+        from broker.components.coordination.provider import MessagePoolProvider
+        extend_providers.append(MessagePoolProvider(message_pool))
+    # Perception filter remains last so all injected context, including
+    # communication messages, is filtered consistently by agent type.
+    extend_providers.append(PerceptionAwareProvider())
+
     builder = (
         ExperimentBuilder()
         .with_model(args.model)
@@ -1296,7 +1305,7 @@ def run_unified_experiment():
                 # FinancialCostProvider: Phase 6H Item 7 — was in the
                 # generic tiered default list; now domain-wired here
                 # (financial first, perception filter LAST).
-                extend_providers=[FinancialCostProvider(), PerceptionAwareProvider()],
+                extend_providers=extend_providers,
             )
         )
         .with_governance(
