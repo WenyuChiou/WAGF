@@ -126,10 +126,10 @@ def build_memory_engine(mem_cfg: Dict[str, Any], engine_type: str = "universal")
             arousal_threshold=mem_cfg.get("arousal_threshold", 1.0),
             stimulus_key=mem_cfg.get("stimulus_key", "flood_depth_m"),
         )
-    return WindowMemoryEngine(
-        window_size=mem_cfg.get("window_size", 3),
-        scorer=scorer,
-    )
+    engine = WindowMemoryEngine(window_size=mem_cfg.get("window_size", 3))
+    if scorer is not None:
+        engine.scorer = scorer
+    return engine
 
 
 # =============================================================================
