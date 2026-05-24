@@ -26,10 +26,36 @@ from typing import Dict
 # HBM construct metadata
 # ─────────────────────────────────────────────────────────────────────
 
+# L3-1B (2026-05-23): expanded from 2 to 6 constructs.
+# Carpenter (2010) meta-analysis (J. Health Communication 25(8):661-669,
+# 18 studies pooled): mean weighted odds ratios rank the original four
+# HBM constructs BARRIERS 3.00 > BENEFITS 2.54 > SEVERITY 2.18 >
+# SUSCEPTIBILITY 2.00, with CUES_TO_ACTION 1.73 as the weakest of the
+# five Rosenstock-1974 constructs. SELF_EFFICACY was added in the
+# Extended HBM (Bandura 1977) and is not directly ranked in Carpenter's
+# original five-construct analysis; we retain it in ``primary`` per the
+# Extended-HBM literature convention because the existing
+# thinking-validator rules depend on it. CUES_TO_ACTION → ``secondary``
+# because Carpenter reports it less consistently in primary studies
+# (often unmeasured); it's carried as a contextual signal rather than a
+# load-bearing predictor.
 HBM_CONSTRUCTS: Dict[str, list] = {
-    "primary": ["SUSCEPTIBILITY_LABEL"],
-    "secondary": ["SELF_EFFICACY_LABEL"],
-    "all": ["SUSCEPTIBILITY_LABEL", "SELF_EFFICACY_LABEL"],
+    "primary": [
+        "SUSCEPTIBILITY_LABEL",
+        "SEVERITY_LABEL",
+        "BENEFITS_LABEL",
+        "BARRIERS_LABEL",
+        "SELF_EFFICACY_LABEL",
+    ],
+    "secondary": ["CUES_TO_ACTION_LABEL"],
+    "all": [
+        "SUSCEPTIBILITY_LABEL",
+        "SEVERITY_LABEL",
+        "BENEFITS_LABEL",
+        "BARRIERS_LABEL",
+        "SELF_EFFICACY_LABEL",
+        "CUES_TO_ACTION_LABEL",
+    ],
 }
 
 # HBM shares PMT's 5-level VL–VH ordinal scale (lower = lower belief).

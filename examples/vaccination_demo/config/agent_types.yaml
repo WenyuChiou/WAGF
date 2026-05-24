@@ -68,12 +68,22 @@ shared:
     delimiter_start: "<<<DECISION_START>>>"
     delimiter_end: "<<<DECISION_END>>>"
     fields:
-      # HBM 4-field schema (matches gemma3:4b's stable parse limit).
-      # Phase 6C-v4 cycle 4: these fields are auto-rendered into the prompt
-      # via the broker-filled {response_format} placeholder (see
+      # HBM 8-field schema (L3-1B 2026-05-23 expansion — was 4-field per
+      # Phase 6C-v4 cycle 4 gemma3:4b stable parse limit; raised to 8
+      # because the L3-1A scope upgrades the default model to gemma3:4b
+      # for production runs and uses gemma3:1b only for fast smoke. If
+      # gemma3:1b parse-failure rate spikes, fall back to the 4-field
+      # schema for that model by overriding via --num-predict or a
+      # model-specific config; the construct list expansion in
+      # ``cognition/hbm_framework.py`` does NOT depend on all 6 being
+      # parsed every call — partial extraction is acceptable and shows
+      # up in the audit CSV's ``construct_completeness`` column).
+      # These fields are auto-rendered into the prompt via the
+      # broker-filled {response_format} placeholder (see
       # broker/components/response_format.py:ResponseFormatBuilder.build).
-      # DO NOT hand-write a JSON example in the prompt template — let the
-      # broker derive it from this list so YAML and prompt stay in sync.
+      # DO NOT hand-write a JSON example in the prompt template — let
+      # the broker derive it from this list so YAML and prompt stay in
+      # sync.
       - { key: "reasoning", type: "text", required: true, description: "Explain your thought process in 2-3 sentences BEFORE choosing." }
       - {
           key: "susceptibility_assessment",
@@ -82,12 +92,51 @@ shared:
           construct: "SUSCEPTIBILITY_LABEL",
           reason_hint: "One sentence on how likely you feel to be infected.",
         }
+      # L3-1B (2026-05-23, post-reviewer): severity / benefits / barriers
+      # are ``required: true`` — they're 3 of Carpenter 2010's 5 primary
+      # predictors and the smoke #3 run with explicit TieredContextBuilder
+      # showed gemma3:1b emits all 6 reliably when the JSON schema example
+      # is injected via ``{response_format}``. Only cues_to_action stays
+      # ``required: false`` — Carpenter ranks it 5th (OR 1.73, weakest of
+      # the original 5) and reports it less consistently in primary
+      # studies. The audit ``construct_completeness`` column shows how
+      # many of the 6 were actually emitted per call. If a future smaller
+      # model breaks parse reliability, flip severity/benefits/barriers
+      # back to required: false as the fallback.
+      - {
+          key: "severity_assessment",
+          type: "appraisal",
+          required: true,
+          construct: "SEVERITY_LABEL",
+          reason_hint: "One sentence on how bad infection would be for your household.",
+        }
+      - {
+          key: "benefits_assessment",
+          type: "appraisal",
+          required: true,
+          construct: "BENEFITS_LABEL",
+          reason_hint: "One sentence on how much vaccination would protect you.",
+        }
+      - {
+          key: "barriers_assessment",
+          type: "appraisal",
+          required: true,
+          construct: "BARRIERS_LABEL",
+          reason_hint: "One sentence on the cost / time / side-effect / trust concerns you face.",
+        }
       - {
           key: "self_efficacy_assessment",
           type: "appraisal",
           required: true,
           construct: "SELF_EFFICACY_LABEL",
           reason_hint: "One sentence on your confidence to seek and complete vaccination.",
+        }
+      - {
+          key: "cues_to_action_assessment",
+          type: "appraisal",
+          required: false,
+          construct: "CUES_TO_ACTION_LABEL",
+          reason_hint: "One sentence on whether external signals (outbreak news, doctor / family advice) are nudging you.",
         }
       - {
           key: "decision",
@@ -126,11 +175,20 @@ individual:
       description: >
         Decline vaccination this year.
 
-  # Construct overrides (HBM-specific labels)
+  # Construct overrides (HBM-specific labels).
+  # L3-1B (2026-05-23): expanded from 2 to 6 constructs. Primary set =
+  # the five direct predictors per Carpenter (2010); CUES_TO_ACTION is
+  # the secondary contextual signal. Match `cognition/hbm_framework.py`
+  # exactly — divergence between this YAML and the Python registry
+  # would silently degrade the ThinkingValidator.
   constructs:
-    primary: ["SUSCEPTIBILITY_LABEL"]
-    secondary: ["SELF_EFFICACY_LABEL"]
-    all: ["SUSCEPTIBILITY_LABEL", "SELF_EFFICACY_LABEL"]
+    primary:
+      ["SUSCEPTIBILITY_LABEL", "SEVERITY_LABEL", "BENEFITS_LABEL",
+       "BARRIERS_LABEL", "SELF_EFFICACY_LABEL"]
+    secondary: ["CUES_TO_ACTION_LABEL"]
+    all:
+      ["SUSCEPTIBILITY_LABEL", "SEVERITY_LABEL", "BENEFITS_LABEL",
+       "BARRIERS_LABEL", "SELF_EFFICACY_LABEL", "CUES_TO_ACTION_LABEL"]
 
   # ---------------------------------------------------------------------------
   # Parsing config — REQUIRED to extract HBM constructs from LLM JSON.
@@ -154,14 +212,43 @@ individual:
       SUSCEPTIBILITY_REASON:
         keywords: ["susceptibility_assessment", "perceived_susceptibility", "susceptibility"]
         regex: ".*"
+      SEVERITY_LABEL:
+        keywords: ["severity_assessment", "perceived_severity", "severity"]
+        regex: "(?i)\\b(VL|L|M|H|VH)\\b"
+      SEVERITY_REASON:
+        keywords: ["severity_assessment", "perceived_severity", "severity"]
+        regex: ".*"
+      BENEFITS_LABEL:
+        keywords: ["benefits_assessment", "perceived_benefits", "benefits"]
+        regex: "(?i)\\b(VL|L|M|H|VH)\\b"
+      BENEFITS_REASON:
+        keywords: ["benefits_assessment", "perceived_benefits", "benefits"]
+        regex: ".*"
+      BARRIERS_LABEL:
+        keywords: ["barriers_assessment", "perceived_barriers", "barriers"]
+        regex: "(?i)\\b(VL|L|M|H|VH)\\b"
+      BARRIERS_REASON:
+        keywords: ["barriers_assessment", "perceived_barriers", "barriers"]
+        regex: ".*"
       SELF_EFFICACY_LABEL:
         keywords: ["self_efficacy_assessment", "perceived_self_efficacy", "self_efficacy"]
         regex: "(?i)\\b(VL|L|M|H|VH)\\b"
       SELF_EFFICACY_REASON:
         keywords: ["self_efficacy_assessment", "perceived_self_efficacy", "self_efficacy"]
         regex: ".*"
+      CUES_TO_ACTION_LABEL:
+        keywords: ["cues_to_action_assessment", "perceived_cues", "cues_to_action", "cues"]
+        regex: "(?i)\\b(VL|L|M|H|VH)\\b"
+      CUES_TO_ACTION_REASON:
+        keywords: ["cues_to_action_assessment", "perceived_cues", "cues_to_action", "cues"]
+        regex: ".*"
 
-  log_fields: ["susceptibility_assessment", "self_efficacy_assessment"]
+  log_fields:
+    # L3-1B (2026-05-23): track all 6 HBM appraisal assessments so the
+    # audit label column shows the full construct extraction, not just the
+    # 2 that the original PoC tracked.
+    ["susceptibility_assessment", "severity_assessment", "benefits_assessment",
+     "barriers_assessment", "self_efficacy_assessment", "cues_to_action_assessment"]
 
   # Domain-specific YAML validator rules (Tier 2 thinking validators).
   # These ride alongside the Python check functions in
