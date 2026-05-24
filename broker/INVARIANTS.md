@@ -228,6 +228,16 @@ Every PR that touches `broker/` should have the INVARIANTS.md row of the review 
 
 When a refactoring PR lands that *could* change experimental behavior, record the audit lineage here so future paper reproducibility manifests can cite it.
 
+### vaccination_demo Tier-2 showcase complete — 2026-05-24
+
+**Datasets**: vaccination_demo upgraded from L3-1A's 5-agent / 2-year PoC to L3-1 chain Tier-2 showcase across 4 sub-steps + close-out — 25 literature-grounded agents (US Census + Pew + CDC), 5-year COVID-19-anchored outbreak schedule, 5 YAML thinking_rules covering all 6 HBM constructs, 3-seed × 2-model batch runner.
+
+**Broker changes in the L3-1 chain**: Phase 6N-A (audit.py social-context de-flood) + Phase 6N-B (BaseAgentContextBuilder response_format injection + unified_adapter `.upper()`) + Phase 6N-C (`rules:` → `thinking_rules:` docs/skill cleanup) + Phase 6N-D-1/2/4 (ThinkingValidator level / RuleCondition normalisation / unified_adapter regex whitelist) + Phase 6N-D-3 (rule_breakdown audit regression test) + Phase 6N-E (RuleCondition shape compat) + L3-1D env_context flattening in tiered.py. All broker changes are paper-1b-data-safe per the Pre-Phase-6N-B LABEL-case data hygiene audit (next entry) and the 6N-D-1 static paper-data audit (0 fires of WARNING+blocked_skills rules across 39,943 paper-1b reference rows).
+
+**Implication**: WAGF non-water generalisation now has a Tier-2 reference domain. The original Phase 6C-v3 vaccination_demo PoC (5 agents, 2 years, 2/6 HBM constructs, dead `rules:` block) is superseded by the L3-1 chain. The vaccination_demo Tier-2 setup demonstrates the framework's plug-in path end-to-end: YAML thinking_rules fire under live LLM input (Phase 6N-E regression test), year-specific env signals flow into the LLM prompt (Phase L3-1D + tiered.py env_context flatten), 6/6 HBM constructs populate the audit CSV.
+
+**Audit detail**: full sub-step inventory in `CHANGELOG.md` entries for L3-1A through L3-1G + Phase 6N-A through 6N-E.
+
 ### Pre-Phase-6N-B LABEL-case data hygiene audit — 2026-05-23
 
 **Context**: Phase 6N-B fixed two latent broker bugs (Bug 1: `BaseAgentContextBuilder` did not inject `{response_format}`; Bug 2: `unified_adapter.py` captured LABEL strings in whatever case the LLM emitted instead of normalising to canonical uppercase). The L3-1B vaccination_demo smoke caught both; Bug 2 in particular raised a concern that pre-Phase-6N-B audit CSVs across the water-domain papers might also carry lowercase contamination.

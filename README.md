@@ -212,7 +212,7 @@ Run Level 1 (no governance) vs Level 3 (full governance) to isolate the effect o
 | **Flood (single)** | PMT | Single-agent | 13 yr | Passaic River Basin, NJ (water) |
 | **Flood (multi)** | PMT + institutional | 402 (200 owner + 200 renter + gov + ins) | 13 yr | Passaic River Basin, NJ (water) |
 | **Irrigation** | Dual-appraisal (WSA × ACA) | 78 CRSS agents | 42 yr | Colorado River Basin (water) |
-| **Vaccination (single)** | Health Belief Model | 5 synthetic agents | 2 yr | Public-health proof-of-concept |
+| **Vaccination (single)** | Health Belief Model (6 constructs) | 25 literature-grounded agents | 5 yr | Public-health Tier-2 showcase (3 seeds × 2 models) |
 | **Vaccination (multi)** | HBM + advisory hierarchy | 1 health-authority + 2 org + N individuals | 5 yr | Public-health proof-of-concept |
 | **Gossip (social media)** | Social dynamics | 1 moderator + K influencer + N user | Daily | Social-media proof-of-concept |
 
@@ -225,7 +225,7 @@ The two flood experiments use per-agent flood depth grids from hydrological simu
 | **Single-Agent Flood** | Flood adaptation with PMT | [Go](examples/single_agent/) |
 | **Irrigation ABM** | Water allocation under scarcity | [Go](examples/irrigation_abm/) |
 | **Multi-Agent Flood** | Institutional feedback (gov + ins + household) | [Go](examples/multi_agent/flood/) |
-| **Vaccination (single)** | Non-water single-agent reference (HBM) | [Go](examples/vaccination_demo/) |
+| **Vaccination (single)** | Non-water Tier-2 showcase (HBM, 25 agents, 5-yr COVID-19 schedule, 3 seeds × 2 models) | [Go](examples/vaccination_demo/) |
 | **Vaccination (multi)** | Non-water multi-agent reference (3 agent types, env-dict-whitelist) | [Go](examples/vaccination_ma_demo/) |
 | **Gossip (social media)** | Daily-cadence multi-agent reference (moderator + influencer + user) | [Go](examples/gossip_demo/) |
 

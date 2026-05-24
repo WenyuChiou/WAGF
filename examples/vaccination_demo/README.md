@@ -1,14 +1,33 @@
 # vaccination_demo — WAGF non-water reference example
 
-> **What this is**: a Tier-2 showcase demonstrating that WAGF
+> **What this is**: a **Tier-2 showcase** demonstrating that WAGF
 > (originally built for water-resource modelling) plugs cleanly into a
 > non-water domain.  Vaccination decision-making, framed by the **Health
 > Belief Model** (Rosenstock 1974; Carpenter 2010), with 3 actions
-> (`get_vaccinated`, `delay`, `refuse`).  As of L3-1A (2026-05-23), the
-> agent population is sampled from **literature-grounded distributions**
-> (US Census 2020 ACS age + Pew Research 2024 trust-in-public-health
-> + CDC high-risk-group probability) — see
-> [`data/persona_distributions.yaml`](data/persona_distributions.yaml).
+> (`get_vaccinated`, `delay`, `refuse`).
+>
+> **L3-1 chain (2026-05-23 / 2026-05-24)** brought the original PoC to
+> Tier-2 showcase quality across four steps:
+> - **L3-1A**: agent population sampled from literature-grounded
+>   distributions (US Census 2020 ACS age + Pew Research 2024
+>   trust-in-public-health + CDC high-risk-group probability;
+>   default `--agents 25`) — see
+>   [`data/persona_distributions.yaml`](data/persona_distributions.yaml).
+> - **L3-1B**: all six HBM constructs tracked end-to-end
+>   (susceptibility / severity / benefits / barriers / self-efficacy /
+>   cues-to-action). YAML schema + prompt + parser + audit CSV all aligned.
+> - **L3-1C**: 5 YAML thinking-rules covering the HBM coherence space
+>   (tightened to canonical `{ construct: X, values: [...] }` shape
+>   post-Phase-6N-E so they actually fire).
+> - **L3-1D**: 5-year outbreak schedule anchored on COVID-19 2020-2024
+>   timeline; per-year severity / supply / side-effect signal +
+>   plain-language description flow into the LLM prompt via the
+>   `env_context`-flattening broker fix. See
+>   [`data/outbreak_schedule.yaml`](data/outbreak_schedule.yaml).
+> - **L3-1E**: 3-seed × 2-model batch runner
+>   ([`run_vaccination_batch.sh`](run_vaccination_batch.sh) /
+>   [`.bat`](run_vaccination_batch.bat)) +
+>   [`summary.py`](summary.py) for batch decision-statistics table.
 >
 > **What this is NOT**: a paper-grade calibrated vaccination ABM.  No
 > IRB-approved primary survey behind the agent population (the
