@@ -1,9 +1,14 @@
 """
-Vaccination ABM — minimal smoke-runnable entry point.
+Vaccination ABM — Tier-2 showcase entry point.
 
-PoC scope: 3-5 years, 3-10 individuals making HBM-driven vaccination
-decisions in a single-agent context. Uses real LLM (default
-``gemma3:1b`` for smoke speed). No real survey data — synthetic personas.
+L3-1A scope (2026-05-23): 3-5 years, 25 individuals (default) making
+HBM-driven vaccination decisions in a single-agent context. Uses real
+LLM (default ``gemma3:1b`` for smoke speed). Agent attributes sampled
+from literature-grounded distributions — see
+``data/persona_distributions.yaml`` (US Census 2020 ACS age, Pew 2024
+trust-in-public-health, CDC high-risk-group probability). No real
+survey data behind the population; for paper-grade use an IRB-
+approved primary survey calibration.
 
 Phase 6C-v3 reference: this script demonstrates that a brand-new
 non-water domain plugs into WAGF using only ``examples/<domain>/``
@@ -15,7 +20,9 @@ import argparse
 import random
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
+
+import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -33,17 +40,83 @@ from broker.interfaces.skill_types import ExecutionResult
 
 
 # ─────────────────────────────────────────────────────────────────────
-# Synthetic agent generation
+# Synthetic agent generation (L3-1A: literature-grounded distributions)
 # ─────────────────────────────────────────────────────────────────────
 
-def build_synthetic_individuals(n: int, seed: int) -> Dict[str, BaseAgent]:
+_DEFAULT_DISTRIBUTIONS_PATH = (
+    Path(__file__).resolve().parent / "data" / "persona_distributions.yaml"
+)
+
+
+def _load_persona_distributions(
+    path: Optional[Path] = None,
+) -> Dict[str, Any]:
+    """Load the literature-anchored persona distributions YAML.
+
+    Schema documented at `examples/vaccination_demo/data/persona_distributions.yaml`
+    (Pew + Carpenter 2010 + US Census 2020 ACS citations at the top).
+    """
+    src = Path(path) if path else _DEFAULT_DISTRIBUTIONS_PATH
+    if not src.exists():
+        raise FileNotFoundError(
+            f"persona_distributions.yaml not found at {src}; "
+            f"L3-1A sampler requires the literature anchor file."
+        )
+    with open(src, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+def _sample_categorical(rng: random.Random, dist: Dict[str, float]) -> str:
+    """Categorical draw from a {category: probability} dict."""
+    cats = list(dist.keys())
+    weights = [float(dist[c]) for c in cats]
+    return rng.choices(cats, weights=weights, k=1)[0]
+
+
+def _sample_clipped_normal(
+    rng: random.Random, mean: float, sd: float,
+    lo: float = 0.05, hi: float = 0.99,
+) -> float:
+    """Gaussian draw clipped to [lo, hi] and rounded to 2 dp."""
+    val = rng.gauss(mean, sd)
+    return round(max(lo, min(hi, val)), 2)
+
+
+def build_synthetic_individuals(
+    n: int, seed: int,
+    distributions_path: Optional[Path] = None,
+) -> Dict[str, BaseAgent]:
+    """Sample `n` agents from literature-grounded distributions.
+
+    Phase L3-1A (2026-05-23): replaces the random.uniform(0.2, 0.9)
+    PoC sampler with categorical age (US Census 2020 ACS) +
+    age-stratified trust (Pew 2024) + age-stratified risk tolerance
+    + CDC-anchored high-risk-group probability.
+
+    All citations are recorded in `data/persona_distributions.yaml`.
+    """
     rng = random.Random(seed)
+    dists = _load_persona_distributions(distributions_path)
+    age_dist = dists["age_distribution"]
+    trust_by_age = dists["trust_in_authority_by_age"]
+    risk_by_age = dists["risk_tolerance_by_age"]
+    hr_by_age = dists["high_risk_group_probability"]
+
     agents: Dict[str, BaseAgent] = {}
     for i in range(n):
-        age_bracket = rng.choice(["18-34", "35-54", "55-74", "75+"])
-        risk_tolerance = round(rng.uniform(0.2, 0.9), 2)
-        trust_in_authority = round(rng.uniform(0.2, 0.95), 2)
-        is_high_risk_group = age_bracket in ("55-74", "75+") or rng.random() < 0.15
+        age_bracket = _sample_categorical(rng, age_dist)
+
+        trust_params = trust_by_age[age_bracket]
+        trust_in_authority = _sample_clipped_normal(
+            rng, trust_params["mean"], trust_params["sd"],
+        )
+
+        risk_params = risk_by_age[age_bracket]
+        risk_tolerance = _sample_clipped_normal(
+            rng, risk_params["mean"], risk_params["sd"],
+        )
+
+        is_high_risk_group = rng.random() < float(hr_by_age[age_bracket])
 
         narrative = (
             f"You are a {age_bracket}-year-old. "
@@ -75,6 +148,7 @@ def build_synthetic_individuals(n: int, seed: int) -> Dict[str, BaseAgent]:
         agent.is_high_risk_group = is_high_risk_group
         agent.trust_in_authority = trust_in_authority
         agent.risk_tolerance = risk_tolerance
+        agent.age_bracket = age_bracket
         agents[cfg.name] = agent
     return agents
 
@@ -144,7 +218,7 @@ def main() -> None:
     p = argparse.ArgumentParser(description="Vaccination demo PoC")
     p.add_argument("--model", default="gemma3:1b")
     p.add_argument("--years", type=int, default=3)
-    p.add_argument("--agents", type=int, default=5)
+    p.add_argument("--agents", type=int, default=25)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument(
         "--output",

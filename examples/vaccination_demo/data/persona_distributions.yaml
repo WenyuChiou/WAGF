@@ -1,0 +1,106 @@
+# vaccination_demo — literature-grounded persona distributions
+#
+# Replaces the Phase 6C-v3 PoC `random.uniform(0.2, 0.9)` sampler in
+# `build_synthetic_individuals()` with empirically-anchored
+# distributions. Used for L3-1 Tier-2 showcase (NOT a paper-grade
+# calibration — the sources below are honest reference points, not
+# fitted survey data). When sampling produces aggregate population
+# statistics, they should land within ~1 SD of the cited means.
+#
+# Citations:
+# - US Census Bureau (2020). American Community Survey 5-year
+#   estimates 2016-2020, Table B01001. Age × sex distribution for
+#   civilian non-institutionalised adults 18+. Used directly for the
+#   age-bracket shares below.
+# - Pew Research Center (2024a). "Public Trust in Government:
+#   1958-2024". Pew Research Center (2024b). "Americans' Trust in
+#   Scientists, Other Groups Declines" (Nov 2024). Age-stratified
+#   trust means below are INFERRED COMPOSITES from these reports'
+#   subgroup breakdowns — no single Pew table publishes this exact
+#   [0,1] composite scale. SD values (0.15-0.18) are set at the
+#   typical within-group spread reported in comparable attitude
+#   surveys; they are showcase estimates, not Pew-published numbers.
+# - Carpenter, C. J. (2010). A Meta-Analysis of the Effectiveness of
+#   Health Belief Model Variables in Predicting Behavior. Health
+#   Communication, 25(8), 661-669. HBM 12-item Likert (1-5) construct
+#   priors. Used as REFERENCE ONLY (not consumed by the sampler);
+#   future calibration step may compare LLM-emitted HBM labels
+#   against these meta-analytic means.
+# - CDC (2023). Influenza Vaccination Coverage by age group, NHIS.
+#   Used as a sanity check on high-risk-group rate by age.
+#
+# All numbers documented are approximate "showcase-defensible" anchor
+# values rounded to 2 sig figs. They are NOT a substitute for IRB-
+# approved survey calibration; see README §Limitations.
+
+# ──────────────────────────────────────────────────────────────────────
+# Age-bracket distribution (US Census 2020 ACS, adults 18+)
+# ──────────────────────────────────────────────────────────────────────
+# These shares sum to 1.0; sampler draws categorically.
+age_distribution:
+  "18-34": 0.306
+  "35-54": 0.331
+  "55-74": 0.267
+  "75+":   0.096
+
+# ──────────────────────────────────────────────────────────────────────
+# Trust in public health authorities (composite [0,1] scale)
+# ──────────────────────────────────────────────────────────────────────
+# Sampled from N(mean, sd) clipped to [0.05, 0.99]. Means rise with
+# age per Pew 2024; SD is approximately constant in their reported
+# bands. Reflects the well-documented finding that older Americans
+# express higher trust in public-health institutions on average,
+# though within-group variance is large.
+trust_in_authority_by_age:
+  "18-34": {mean: 0.52, sd: 0.18}
+  "35-54": {mean: 0.56, sd: 0.17}
+  "55-74": {mean: 0.65, sd: 0.16}
+  "75+":   {mean: 0.70, sd: 0.15}
+
+# ──────────────────────────────────────────────────────────────────────
+# Risk tolerance ([0,1] scale; higher = more accepting of medical risk)
+# ──────────────────────────────────────────────────────────────────────
+# Sampled from N(mean, sd) clipped to [0.05, 0.99]. Older individuals
+# trend toward lower risk tolerance for novel medical interventions.
+# Indicative values inferred from age-stratified vaccine-hesitancy
+# patterns reported by AARP (2022) "COVID-19 Vaccine Hesitancy
+# Survey" and Nguyen et al. (2022, Vaccine 40(7)). Karatsoreos &
+# McEwen (2014) is cited in the WAGF design notes as the
+# BIOLOGICAL-MECHANISM reference (allostatic load + age) — NOT as the
+# source for these specific numeric values.
+risk_tolerance_by_age:
+  "18-34": {mean: 0.62, sd: 0.18}
+  "35-54": {mean: 0.55, sd: 0.18}
+  "55-74": {mean: 0.48, sd: 0.18}
+  "75+":   {mean: 0.42, sd: 0.18}
+
+# ──────────────────────────────────────────────────────────────────────
+# High-risk-group probability (CDC clinical-risk + age combination)
+# ──────────────────────────────────────────────────────────────────────
+# Bernoulli probability of being flagged "high-risk" for influenza-
+# style outbreak. CDC categorises 65+ as universally high-risk;
+# younger brackets carry a baseline rate driven by chronic-condition
+# prevalence (NHIS 2023).
+high_risk_group_probability:
+  "18-34": 0.08    # NHIS chronic-condition baseline
+  "35-54": 0.18    # diabetes / cardiovascular onset window
+  "55-74": 0.55    # near-universal at the older end of the bracket
+  "75+":   0.95    # CDC default high-risk classification
+
+# ──────────────────────────────────────────────────────────────────────
+# HBM 12-item scale priors (Carpenter 2010; reference only)
+# ──────────────────────────────────────────────────────────────────────
+# Not used by the sampler directly — these are documented anchors for
+# a future calibration step that checks whether the LLM's aggregate
+# HBM-construct labels (VL/L/M/H/VH; LLM-emitted at decision time)
+# fall close to these meta-analytic means. A reviewer can compare
+# `examples/vaccination_demo/results/*/individual_governance_audit.csv`
+# construct-label distributions against these means as a sanity
+# check. See README §HBM construct validity (showcase, not paper).
+hbm_scale_priors_1_to_5:
+  perceived_susceptibility: {mean: 2.8, sd: 0.9}   # below-midpoint
+  perceived_severity:       {mean: 3.6, sd: 0.8}   # moderate-high
+  perceived_benefits:       {mean: 3.9, sd: 0.7}   # high
+  perceived_barriers:       {mean: 2.4, sd: 0.9}   # low
+  self_efficacy:            {mean: 3.5, sd: 0.8}   # moderate
+  cues_to_action:           {mean: 2.6, sd: 1.0}   # low-moderate
