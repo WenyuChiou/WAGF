@@ -192,6 +192,20 @@ class BaseAgentContextBuilder(ContextBuilder):
             {k: v for k, v in context.items() if k not in template_vars and isinstance(v, (str, int, float, bool))}
         )
 
+        # Phase L3-1D (2026-05-24): flatten env_context primitives so
+        # simulation-side per-year signals (e.g. outbreak_severity_label,
+        # vaccine_supply_label, side_effect_signal) become template
+        # placeholders the prompt can reference directly. Without this
+        # pass, env_context lives only in context["environment_context"]
+        # as a nested dict and is filtered out by the primitives-only
+        # check above.
+        env_ctx = context.get("environment_context", {})
+        if isinstance(env_ctx, dict):
+            template_vars.update(
+                {k: v for k, v in env_ctx.items()
+                 if k not in template_vars and isinstance(v, (str, int, float, bool))}
+            )
+
         try:
             yaml_path = getattr(self, "yaml_path", None)
             agent_cfg = load_agent_config(yaml_path)
@@ -505,6 +519,16 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         template_vars.update(
             {k: v for k, v in context.items() if k not in template_vars and isinstance(v, (str, int, float, bool))}
         )
+
+        # Phase L3-1D (2026-05-24): mirror the Base flatten — env_context
+        # primitives become template placeholders. See BaseAgentContextBuilder
+        # comment above for rationale.
+        env_ctx = context.get("environment_context", {})
+        if isinstance(env_ctx, dict):
+            template_vars.update(
+                {k: v for k, v in env_ctx.items()
+                 if k not in template_vars and isinstance(v, (str, int, float, bool))}
+            )
 
         template_vars["personal_section"] = self._format_generic_section("MY STATUS & HISTORY", p)
         template_vars["local_section"] = self._format_generic_section("LOCAL NEIGHBORHOOD", l)

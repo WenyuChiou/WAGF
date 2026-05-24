@@ -159,32 +159,95 @@ def build_synthetic_individuals(
 # ─────────────────────────────────────────────────────────────────────
 
 
+_DEFAULT_SCHEDULE_PATH = (
+    Path(__file__).resolve().parent / "data" / "outbreak_schedule.yaml"
+)
+
+
+def _load_outbreak_schedule(
+    path: Optional[Path] = None,
+) -> Dict[int, Dict[str, Any]]:
+    """Load the 5-year outbreak / supply / side-effect news schedule.
+
+    Phase L3-1D (2026-05-24): replaces the L3-1A hardcoded
+    ``{2: 0.65}`` placeholder with a defensible 5-year arc anchored
+    on the COVID-19 2020-2024 timeline. See
+    ``data/outbreak_schedule.yaml`` for the citation block.
+    """
+    src = Path(path) if path else _DEFAULT_SCHEDULE_PATH
+    if not src.exists():
+        raise FileNotFoundError(
+            f"outbreak_schedule.yaml not found at {src}; "
+            f"L3-1D environment requires the schedule file."
+        )
+    with open(src, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    raw = data.get("schedule", {}) or {}
+    # Normalise year keys to int so ``schedule[self.year]`` works.
+    return {int(k): v for k, v in raw.items()}
+
+
 class VaccinationEnvironment:
-    """Simple outbreak-schedule env. advance_year() emits global signals."""
+    """Outbreak-schedule env driven by ``data/outbreak_schedule.yaml``.
 
-    OUTBREAK_SCHEDULE = {2: 0.65}   # Year 2 moderate outbreak
+    ``advance_year()`` emits four global signals per year derived from
+    the literature-anchored schedule (Phase L3-1D, 2026-05-24):
+      - ``outbreak_severity`` + ``outbreak_active`` (continuous + boolean)
+      - ``outbreak_severity_label`` (low / moderate / severe)
+      - ``vaccine_supply_label`` (absent / limited / constrained / ample)
+      - ``side_effect_signal`` (none / unknown / sporadic / amplified / familiar)
+      - ``outbreak_description`` (one-line plain narrative for prompt)
+    For years beyond the schedule end, ``advance_year`` returns the
+    last-year signals (post-emergency steady state).
+    """
 
-    def __init__(self, agents: Dict[str, BaseAgent]):
+    def __init__(
+        self,
+        agents: Dict[str, BaseAgent],
+        schedule_path: Optional[Path] = None,
+    ):
         self.year = 0
         self.agents = agents
+        self._schedule = _load_outbreak_schedule(schedule_path)
+        self._max_year = max(self._schedule.keys()) if self._schedule else 0
         self.global_state: Dict[str, Any] = {
             "outbreak_active": False,
             "outbreak_severity": 0.0,
+            "outbreak_severity_label": "low",
             "vaccine_supply_label": "ample",
-            "side_effect_signal": "no notable reports",
+            "side_effect_signal": "none",
+            "outbreak_description": "Pre-simulation steady state.",
         }
 
     def advance_year(self) -> Dict[str, Any]:
         self.year += 1
-        sev = self.OUTBREAK_SCHEDULE.get(self.year, 0.0)
+        # Lookup; if the simulation runs past the schedule, hold the
+        # last year's signals (post-emergency steady state).
+        lookup_year = min(self.year, self._max_year) if self._max_year else self.year
+        entry = self._schedule.get(lookup_year, {})
+        sev = float(entry.get("outbreak_severity", 0.0))
         self.global_state["outbreak_active"] = sev > 0.4
         self.global_state["outbreak_severity"] = sev
-        if sev >= 0.6:
+        # Recompute label from severity (canonical) but prefer the
+        # YAML-declared one if present (narrative consistency).
+        if entry.get("outbreak_label"):
+            self.global_state["outbreak_severity_label"] = entry["outbreak_label"]
+        elif sev >= 0.6:
             self.global_state["outbreak_severity_label"] = "severe"
         elif sev >= 0.4:
             self.global_state["outbreak_severity_label"] = "moderate"
         else:
             self.global_state["outbreak_severity_label"] = "low"
+        self.global_state["vaccine_supply_label"] = entry.get(
+            "vaccine_supply", "ample"
+        )
+        self.global_state["side_effect_signal"] = entry.get(
+            "side_effect_signal", "none"
+        )
+        # Strip trailing newline from the YAML block-scalar description.
+        desc = str(entry.get("description", "")).strip()
+        if desc:
+            self.global_state["outbreak_description"] = desc
         self.global_state["current_year"] = self.year
         return dict(self.global_state)
 
