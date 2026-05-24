@@ -203,6 +203,30 @@ Every PR that touches `broker/` should have the INVARIANTS.md row of the review 
 
 When a refactoring PR lands that *could* change experimental behavior, record the audit lineage here so future paper reproducibility manifests can cite it.
 
+### Pre-Phase-6N-B LABEL-case data hygiene audit — 2026-05-23
+
+**Context**: Phase 6N-B fixed two latent broker bugs (Bug 1: `BaseAgentContextBuilder` did not inject `{response_format}`; Bug 2: `unified_adapter.py` captured LABEL strings in whatever case the LLM emitted instead of normalising to canonical uppercase). The L3-1B vaccination_demo smoke caught both; Bug 2 in particular raised a concern that pre-Phase-6N-B audit CSVs across the water-domain papers might also carry lowercase contamination.
+
+**Audit run** (2026-05-23 against the on-disk audit CSVs that already underlie Paper 1b headline numbers):
+
+| Dataset | Lowercase LABEL rows | Total rows | Contamination % |
+|---|---|---|---|
+| Irrigation v21 5-seed (Gemma-3 4B, `wsa_label` + `aca_label`) | **0** | 65,304 | 0.00% |
+| Flood single-agent Group_C 5-run (Gemma-3 4B, `construct_TP_LABEL` + `construct_CP_LABEL`) | **2** | 8,918 | 0.022% |
+| Vaccination smoke #4 (Gemma-3 1B, all 6 HBM `_LABEL` columns) — pre-Phase-6N-B baseline | 1 | 60 | 1.67% |
+
+**Specific findings on Paper 1b flood data**: two `construct_CP_LABEL` rows carry `'m'` instead of `'M'` — one in `JOH_FINAL/gemma3_4b/Group_C/Run_2` and one in `Run_3`. Both are in the small-model 4B baseline; the 12B / 27B / Ministral cross-model runs were not exhaustively audited but the same root cause applies wherever a chatty LLM emits a lowercase label.
+
+**Implication for Paper 1b headline numbers**: **NONE**. The IBR computation pipeline at `paper/nature_water/scripts/gen_fig2_case1_irrigation.py:694` (irrigation) and the analogous flood-side path filter on `tp.isin(['H','VH'])` after `.str.upper().str.strip()` — the existing analysis code already applies an explicit uppercase pass before the membership test. So the 2 `'m'` rows in the flood data:
+1. Do not get counted into the "high TP" set (a sane behaviour — they read as missing rather than as `'M'`-medium).
+2. Do not move the IBR formula `R1 + R3 + R4` denominator or numerator since the formula filters by tp/cp band, not by the raw label value.
+
+**Confirmation**: re-ran the Paper 1b headline computations on 2026-05-23 against the same CSV files — irrigation `36.1 ± 3.6%` gov / `59.1 ± 1.7%` no-val (ΔIBR `+23.0 pp`, p=0.0001) and ΔEHE `+0.184` (p=0.0014) reproduce byte-identical to the published values. Flood gemma3:4b `0.87 ± 0.91%` gov / `8.53 ± 1.08%` no-val matches the memory-recorded corrected band (0.9% / 8.5%).
+
+**No paper re-run required**. Post-Phase-6N-B audit CSVs (any new run from commit `4c112d0` onward) will be free of lowercase leaks because `unified_adapter.py` now applies `.upper()` at capture time. The 2 historical `'m'` rows in flood Paper 1b are recorded here as a documented pre-existing data-hygiene observation, not as a reproducibility flaw.
+
+**Audit script**: in-line Python at the end of the post-Phase-6N-B conversation log (2026-05-23). Re-runnable via `pandas.read_csv` on the result dirs above; the check is `df[col].astype(str) != df[col].astype(str).str.upper()`.
+
 ### v21 dataset ↔ v22 (post-Phase-6A/6B/6C) — audit 2026-05-10
 
 **Datasets**: irrigation v21 5-seed Gemma-3 4B baseline (B1 RERUN COMPLETE 2026-04-28) and Gemma-4 e2b/e4b 5-seed cross-model batches.
