@@ -272,6 +272,42 @@ def test_validate_yaml_declared_template_vars_are_known(tmp_path: Path):
         f"expected declared template var to be accepted, got: {[i.message for i in issues]}"
 
 
+def test_validate_documented_unconstrained_skills_are_excluded_from_coverage(tmp_path: Path):
+    """Governance profiles can document intentionally unconstrained skills."""
+    yaml_path = tmp_path / "agent_types.yaml"
+    prompt = tmp_path / "p.txt"
+    prompt.write_text("{narrative_persona}", encoding="utf-8")
+    yaml_path.write_text(textwrap.dedent("""
+        shared: {}
+        individual:
+          agent_type: individual
+          prompt_template_file: p.txt
+          parsing:
+            default_skill: wait
+            strict_mode: true
+            actions:
+              - id: act
+                aliases: ["1"]
+              - id: wait
+                aliases: ["2"]
+          governance:
+            strict:
+              documented_unconstrained_skills:
+                - wait
+              thinking_rules:
+                - id: act_when_blocked
+                  blocked_skills: [act]
+                  level: ERROR
+    """).strip(), encoding="utf-8")
+
+    import yaml
+    cfg = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+    issues = validate_agent_type(cfg, "individual", yaml_path)
+    warns = [i for i in issues if i.severity == "WARN"]
+    assert not any("skill->rule coverage" in i.message for i in warns), \
+        f"expected documented unconstrained skill to be accepted, got: {[i.message for i in issues]}"
+
+
 def test_validate_parsing_actions_location(tmp_path: Path):
     """flood multi-agent puts actions inside parsing — also valid."""
     yaml_path = tmp_path / "agent_types.yaml"

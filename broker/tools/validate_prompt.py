@@ -326,11 +326,30 @@ def check_skill_rule_coverage(
                 "at runtime.",
             ))
 
+        documented_unconstrained = profile.get("documented_unconstrained_skills") or []
+        if not isinstance(documented_unconstrained, list):
+            documented_unconstrained = []
+        documented: Set[str] = {
+            s for s in documented_unconstrained if isinstance(s, str)
+        }
+        documented_ghost = sorted(documented - skill_ids)
+        if documented_ghost:
+            issues.append(Issue(
+                "WARN",
+                f"yaml: {agent_type}.governance.{profile_name}",
+                f"documented_unconstrained_skills reference skill id(s) "
+                f"not in actions list: {documented_ghost}. Possible typo "
+                "or stale documentation.",
+            ))
+
         # Coverage check — skill_ids guaranteed non-empty by earlier guard
-        covered = constrained & skill_ids
-        coverage = len(covered) / len(skill_ids)
+        enforceable_skill_ids = skill_ids - documented
+        if not enforceable_skill_ids:
+            continue
+        covered = constrained & enforceable_skill_ids
+        coverage = len(covered) / len(enforceable_skill_ids)
         if coverage < COVERAGE_THRESHOLD:
-            uncovered = sorted(skill_ids - constrained)
+            uncovered = sorted(enforceable_skill_ids - constrained)
             issues.append(Issue(
                 "WARN",
                 f"yaml: {agent_type}.governance.{profile_name}",

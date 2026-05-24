@@ -143,8 +143,14 @@ from broker.utils.agent_config import load_agent_config
 # Global instance - modify this to change default behavior
 def _load_global_config() -> LLMConfig:
     try:
+        cwd_config = Path.cwd() / "agent_types.yaml"
+        package_config = Path(__file__).parent / "agent_types.yaml"
+        config_path = cwd_config if cwd_config.exists() else package_config
+        if not config_path.exists():
+            return LLMConfig()
+
         # Load agent_types.yaml via helper
-        config = load_agent_config()
+        config = load_agent_config(str(config_path))
 
         # Access global_config.llm using .get("global_config")
         # Note: AgentTypeConfig.get() works for any top-level key

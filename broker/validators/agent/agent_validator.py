@@ -375,8 +375,7 @@ class AgentValidator:
             
             # Load normalization map from shared config if available
             try:
-                from broker.utils.agent_config import load_agent_config
-                normalization_map = load_agent_config().get_shared("normalization_map", {})
+                normalization_map = self.config.get_shared("normalization_map", {})
             except (ImportError, AttributeError, KeyError):
                 normalization_map = {}
                 

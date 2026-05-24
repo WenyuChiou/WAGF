@@ -93,6 +93,31 @@ test_agent:
 # =============================================================================
 
 
+def test_create_context_builder_propagates_yaml_path_to_base_builder(tmp_path: Path):
+    """The factory must preserve yaml_path for single-agent/no-Hub runs.
+
+    ExperimentBuilder passes agent_types.yaml into create_context_builder().
+    If the BaseAgentContextBuilder path drops it, format_prompt() falls back
+    to the process/global config loader and prints spurious missing-config
+    warnings in Quickstart-style runs.
+    """
+    yaml_path = tmp_path / "agent_types.yaml"
+    yaml_path.write_text(
+        "global_config: {}\n"
+        "shared: {}\n"
+        "test_agent:\n"
+        "  agent_type: test_agent\n",
+        encoding="utf-8",
+    )
+
+    from broker.components.context.tiered import BaseAgentContextBuilder, create_context_builder
+
+    builder = create_context_builder(agents={}, yaml_path=str(yaml_path))
+
+    assert isinstance(builder, BaseAgentContextBuilder)
+    assert builder.yaml_path == str(yaml_path)
+
+
 def test_label_capture_normalized_to_uppercase():
     """The construct LABEL extractor must normalize the captured value
     to uppercase. The regex itself matches case-insensitively, but
