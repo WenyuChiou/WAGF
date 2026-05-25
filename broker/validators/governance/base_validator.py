@@ -61,6 +61,39 @@ class BaseValidator(ABC):
 
     _valid_modes = {"active", "shadow"}
 
+    #: Phase 6O-A-2 — default `expected_terminal` for ValidationResult.metadata.
+    #: Subclasses override to declare whether a rejection from this validator
+    #: class reflects a valid hard-block (True) or a model failure the agent
+    #: could recover from (False). Consumed by the terminal-outcome classifier
+    #: at `broker.components.analytics.terminal_taxonomy`.
+    _DEFAULT_EXPECTED_TERMINAL: bool = False
+
+    #: Phase 6O-A-2 — default `constraint_type` for ValidationResult.metadata.
+    #: Subclasses override: "hard" for physical/financial impossibility,
+    #: "soft" for preferences/norms, "diagnostic" for informational rules
+    #: that never block. See `broker.interfaces.validation_metadata.ConstraintType`.
+    _DEFAULT_CONSTRAINT_TYPE: str = "soft"
+
+    def _recovery_keys(self, rule) -> dict:  # noqa: ARG002 (reserved for subclass override)
+        """Return Phase 6O-A-2 metadata keys (`expected_terminal`,
+        `constraint_type`) for a triggered rule.
+
+        Default uses class constants. The `rule` argument is reserved
+        for subclass overrides that derive the keys from rule properties
+        (e.g. `rule.level` → WARNING → diagnostic; ERROR → soft).
+        ThinkingValidator + SocialValidator are concrete examples of
+        such overrides in 6O-A-2.
+
+        The call-site contract: dict-merge via `**` inside an existing
+        metadata literal so existing keys are preserved. Callers MUST
+        NOT replace metadata wholesale.
+        """
+        return {
+            "expected_terminal": self._DEFAULT_EXPECTED_TERMINAL,
+            "constraint_type": self._DEFAULT_CONSTRAINT_TYPE,
+        }
+
+
     def __init__(
         self,
         builtin_checks: Optional[List[BuiltinCheck]] = None,
@@ -151,7 +184,8 @@ class BaseValidator(ABC):
                     "category": rule.category,
                     "subcategory": rule.subcategory,
                     "blocked_skill": skill_name,
-                    "level": rule.level
+                    "level": rule.level,
+                    **self._recovery_keys(rule),  # Phase 6O-A-2
                 }
                 if shadow_blocked:
                     metadata.update({

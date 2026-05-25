@@ -14,6 +14,7 @@ from broker.validators.governance.base_validator import BaseValidator, BuiltinCh
 
 
 class PersonalValidator(BaseValidator):
+
     """
     Validates personal constraints: financial affordability and cognitive capability.
 
@@ -21,6 +22,10 @@ class PersonalValidator(BaseValidator):
     Default is empty (YAML rules only).
     """
 
+
+    # Phase 6O-A-2: financial affordability is the dominant case (cannot-afford = terminal); cognitive sub-cases that are softer are not yet implemented and ride this default until 6O-A-3.
+    _DEFAULT_EXPECTED_TERMINAL: bool = True
+    _DEFAULT_CONSTRAINT_TYPE: str = "hard"
     def __init__(self, builtin_checks: Optional[List[BuiltinCheck]] = None):
         super().__init__(builtin_checks=builtin_checks)
 
