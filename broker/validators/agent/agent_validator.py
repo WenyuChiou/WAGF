@@ -168,7 +168,10 @@ class AgentValidator:
                         "level": ValidationLevel.ERROR,
                         "rule": "format",
                         "field": "json_structure",
-                        "constraint": f"required={required_fields}"
+                        "constraint": f"required={required_fields}",
+                        # Phase 6O-A-2: format violations are hard schema breaches.
+                        "expected_terminal": True,
+                        "constraint_type": "hard",
                     }
                 ))
         except Exception as e:
@@ -190,7 +193,11 @@ class AgentValidator:
                         "rules_hit": ["affordability"],
                         "field": "decision",
                         "constraint": "financial_affordability",
-                        "deterministic": True
+                        "deterministic": True,
+                        # Phase 6O-A-2: cannot-afford is hard / terminal —
+                        # economic infeasibility, model cannot recover.
+                        "expected_terminal": True,
+                        "constraint_type": "hard",
                     }
                 ))
 
@@ -209,7 +216,10 @@ class AgentValidator:
                         "level": ValidationLevel.ERROR,
                         "rule": "valid_decisions",
                         "field": "decision",
-                        "constraint": str(valid_actions[:4]) + "..."
+                        "constraint": str(valid_actions[:4]) + "...",
+                        # Phase 6O-A-2: skill not in agent eligibility list is hard.
+                        "expected_terminal": True,
+                        "constraint_type": "hard",
                     }
                 ))
         
@@ -246,7 +256,11 @@ class AgentValidator:
                         "rule": rule_name,
                         "field": param,
                         "value": value,
-                        "constraint": f"min={rule.min_val}"
+                        "constraint": f"min={rule.min_val}",
+                        # Phase 6O-A-2: out-of-bounds = hard for ERROR,
+                        # diagnostic-only for WARNING.
+                        "expected_terminal": lv == ValidationLevel.ERROR,
+                        "constraint_type": "hard" if lv == ValidationLevel.ERROR else "diagnostic",
                     }
                 ))
             
@@ -261,7 +275,11 @@ class AgentValidator:
                         "rule": rule_name,
                         "field": param,
                         "value": value,
-                        "constraint": f"max={rule.max_val}"
+                        "constraint": f"max={rule.max_val}",
+                        # Phase 6O-A-2: out-of-bounds = hard for ERROR,
+                        # diagnostic-only for WARNING.
+                        "expected_terminal": lv == ValidationLevel.ERROR,
+                        "constraint_type": "hard" if lv == ValidationLevel.ERROR else "diagnostic",
                     }
                 ))
             
@@ -279,7 +297,11 @@ class AgentValidator:
                             "rule": rule_name,
                             "field": param,
                             "value": delta,
-                            "constraint": f"max_delta={rule.max_delta}"
+                            "constraint": f"max_delta={rule.max_delta}",
+                            # Phase 6O-A-2: delta-over-limit = hard for ERROR,
+                            # diagnostic-only for WARNING.
+                            "expected_terminal": lv == ValidationLevel.ERROR,
+                            "constraint_type": "hard" if lv == ValidationLevel.ERROR else "diagnostic",
                         }
                     ))
         
@@ -335,7 +357,11 @@ class AgentValidator:
                             "field": "decision",
                             "value": decision,
                             "constraint": f"Identity: {rule.level}",
-                            "rules_hit": [rule.id]
+                            "rules_hit": [rule.id],
+                            # Phase 6O-A-2: identity = agent-type eligibility
+                            # (hard when ERROR); WARNING rules are diagnostic.
+                            "expected_terminal": lv == ValidationLevel.ERROR,
+                            "constraint_type": "hard" if lv == ValidationLevel.ERROR else "diagnostic",
                         }
                     ))
         return results
@@ -484,7 +510,11 @@ class AgentValidator:
                             "field": "decision",
                             "value": decision,
                             "constraint": f"Identity: {rule.level}",
-                            "rules_hit": [rule.id]
+                            "rules_hit": [rule.id],
+                            # Phase 6O-A-2: thinking rules detect coherence
+                            # violations; model can re-reason so never terminal.
+                            "expected_terminal": False,
+                            "constraint_type": "diagnostic" if lv == ValidationLevel.WARNING else "soft",
                         }
                     ))
         return results

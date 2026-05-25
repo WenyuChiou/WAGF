@@ -155,6 +155,17 @@ class ThinkingValidator(BaseValidator):
     - High solvency concern should trigger defensive actions
     """
 
+
+    def _recovery_keys(self, rule) -> dict:
+        """Phase 6O-A-2: thinking rules NEVER classify as terminal —
+        the model can always re-reason. WARNING-level rules are pure
+        diagnostics; ERROR-level rules are soft (model can recover by
+        revising its construct labels)."""
+        rule_level = getattr(rule, "level", None) or "ERROR"
+        return {
+            "expected_terminal": False,
+            "constraint_type": "diagnostic" if rule_level == "WARNING" else "soft",
+        }
     def __init__(
         self,
         framework: str = "pmt",
@@ -349,6 +360,7 @@ class ThinkingValidator(BaseValidator):
                         "conditions_matched": matched_conditions,
                         "blocked_skill": skill_name,
                         "level": rule_level,
+                        **self._recovery_keys(rule),  # Phase 6O-A-2 (single source of truth)
                     }
                 ))
 

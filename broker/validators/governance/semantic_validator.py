@@ -16,6 +16,7 @@ from broker.validators.governance.base_validator import BaseValidator, BuiltinCh
 
 
 class SemanticGroundingValidator(BaseValidator):
+
     """
     Validates that agent reasoning is grounded in the simulation state.
 
@@ -26,6 +27,10 @@ class SemanticGroundingValidator(BaseValidator):
     Default is empty (YAML rules only).
     """
 
+
+    # Phase 6O-A-2: semantic / grounding checks log inconsistency but never block — the model can always rephrase to ground its reasoning.
+    _DEFAULT_EXPECTED_TERMINAL: bool = False
+    _DEFAULT_CONSTRAINT_TYPE: str = "diagnostic"
     def __init__(self, builtin_checks: Optional[List[BuiltinCheck]] = None):
         super().__init__(builtin_checks=builtin_checks)
 

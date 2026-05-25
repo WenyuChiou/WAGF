@@ -22,6 +22,7 @@ from broker.validators.governance.base_validator import BaseValidator, BuiltinCh
 
 
 class PhysicalValidator(BaseValidator):
+
     """
     Validates physical state: preconditions and immutable states.
 
@@ -29,6 +30,10 @@ class PhysicalValidator(BaseValidator):
     Default is empty (YAML rules only).
     """
 
+
+    # Phase 6O-A-2: physical preconditions are hard state invariants — model can't re-reason them away.
+    _DEFAULT_EXPECTED_TERMINAL: bool = True
+    _DEFAULT_CONSTRAINT_TYPE: str = "hard"
     def __init__(self, builtin_checks: Optional[List[BuiltinCheck]] = None):
         super().__init__(builtin_checks=builtin_checks)
 

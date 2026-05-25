@@ -29,6 +29,16 @@ class SocialValidator(BaseValidator):
     Default is empty (YAML rules only).
     """
 
+
+    def _recovery_keys(self, rule) -> dict:  # noqa: ARG002 (signature mandated by base; rule unused here)
+        """Phase 6O-A-2: social rules are WARNING-only — never terminal,
+        always soft. The base-class defaults already match (False / soft);
+        this override exists for symmetry with ThinkingValidator so
+        future subclasses can rely on the override-point convention."""
+        return {
+            "expected_terminal": False,
+            "constraint_type": "soft",
+        }
     def __init__(self, builtin_checks: Optional[List[BuiltinCheck]] = None):
         super().__init__(builtin_checks=builtin_checks)
 
@@ -80,6 +90,7 @@ class SocialValidator(BaseValidator):
                         "subcategory": rule.subcategory,
                         "skill_proposed": skill_name,
                         "level": "WARNING",  # Force WARNING level
+                        **self._recovery_keys(rule),  # Phase 6O-A-2 (single source of truth)
                     }
                 ))
 
