@@ -154,6 +154,64 @@ pytest tests/ -v --tb=short
 pytest tests/core/ --cov=broker --cov-report=term-missing
 ```
 
+### Post-Experiment Readiness Reports
+
+After running an experiment, audit its output with the generic readiness
+reporter. The CLI ships three profiles tuned to different lifecycle
+stages — pick the one that matches what you're verifying:
+
+```bash
+# functional  — does the pipeline run? Lowest bar; used during
+#               bring-up of a new domain. Checks approval rate and
+#               format-retry rate only.
+python -m broker.tools.readiness_report \
+    --results examples/quickstart/results \
+    --profile functional
+
+# behavioral  — does the model produce diverse, coherent decisions?
+#               Adds action-coverage + validator-firing diversity.
+#               Use before reporting paper results.
+python -m broker.tools.readiness_report \
+    --results <your_run_dir> \
+    --profile behavioral
+
+# stress      — does governance correctly handle hard constraints,
+#               retries, terminal outcomes? Adds terminal-rate bounds
+#               and dead-validator detection. Use for harness-
+#               engineering audits.
+python -m broker.tools.readiness_report \
+    --results <your_run_dir> \
+    --profile stress
+```
+
+The reporter writes `<results>/readiness_report.json` alongside the
+console summary (pass `--no-json` to skip). Exit codes: `0` = profile
+passed, `1` = at least one threshold failed, `2` = CLI / input error.
+
+**Important caveats**:
+
+- **Small smokes do NOT cover action diversity.** A 3-agent × 2-year
+  run cannot exercise every skill in the domain's registry.
+  `behavioral` and `stress` profiles will fail on such runs. Use
+  `functional` for smokes and the other profiles for larger
+  multi-seed / multi-year runs.
+- **Terminal rejections can be valid.** A governance-blocked
+  decision is not necessarily a model failure — it may be the
+  validator correctly enforcing a hard constraint (water-right
+  ceiling, dose cooldown, etc.). The `expected_hard_block`
+  terminal-outcome category distinguishes these from
+  `recoverable_retry_failed` cases where the model ignored feasible
+  alternatives.
+- **Cross-domain runs may flag legitimately-inapplicable
+  validators as dead.** The `stress` profile's default
+  `max_dead_validators: 0` is strict; override via
+  `--profile-yaml=<your_overrides.yaml>` and set a small int > 0
+  if your audit spans multiple domains.
+
+Override default thresholds by copying
+`broker/components/validation/readiness_profile.yaml`, editing, and
+passing `--profile-yaml=<path>` to the CLI.
+
 ### Writing Tests
 
 - Place tests in `tests/` mirroring the source structure

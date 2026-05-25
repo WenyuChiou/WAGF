@@ -248,6 +248,29 @@ All domain-specific values load from YAML. Domain-specific logic lives in `examp
 
 *Optional* — to customise memory categories, validator rules, drift-detector thresholds, or other framework knobs, also subclass `DomainPack` and register via `DomainPackRegistry.register(name, pack)`. The default pack provides no-op stubs for nine hooks (memory / drift / retrieval / perception / population-governance / policy-event-tiers / bridge-importance / event-handlers / agent-impact-handlers), so simple domains skip this. See `examples/vaccination_demo/adapters/vaccination_pack.py` for a minimal DomainPack.
 
+### Audit Your Runs
+
+After each experiment, generate a generic readiness report:
+
+```bash
+python -m broker.tools.readiness_report \
+    --results <your_run_dir> \
+    --profile functional   # or 'behavioral' / 'stress'
+```
+
+Three profiles ship — `functional` (does the pipeline run?),
+`behavioral` (does the model produce diverse coherent decisions?),
+`stress` (does governance correctly handle hard constraints?). The
+reporter is **domain-agnostic** — it classifies terminal outcomes
+into eight categories (approved, retry_recovered, expected_hard_block,
+recoverable_retry_failed, no_feasible_action, parser_failure,
+execution_failure, unknown_terminal) using the per-skill action
+taxonomy (`category` / `intensity` / `reversibility`) every DomainPack
+may declare. The output is a console summary plus
+`<results>/readiness_report.json`. See [CONTRIBUTING.md](CONTRIBUTING.md#post-experiment-readiness-reports)
+for full details, caveats (small smokes do not cover action diversity;
+terminal rejections may be valid governance), and threshold overrides.
+
 ### Programmatic API
 
 ```python
