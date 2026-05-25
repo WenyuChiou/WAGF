@@ -38,10 +38,15 @@ Every method is byte-identical to the pre-refactor behaviour:
   emotion is consistent.
 """
 from __future__ import annotations
+from pathlib import Path
 
 from typing import Any, Dict, List, Optional, Set
 
 from broker.domains.default import DefaultDomainPack
+from broker.interfaces.action_taxonomy import (
+    ActionTaxonomyEntry,
+    load_action_taxonomy_from_skill_registry,
+)
 from broker.domains.protocol import BuiltinCheck, EventHandler
 
 from examples.irrigation_abm.adapters.irrigation_adapter import IrrigationAdapter
@@ -121,6 +126,15 @@ class IrrigationDomainPack(DefaultDomainPack):
         return set()
 
     # ─── Events ────────────────────────────────────────────────────
+
+    def action_taxonomy(self) -> Dict[str, ActionTaxonomyEntry]:
+        """Phase 6O-B — read taxonomy from irrigation skill_registry.yaml."""
+        yaml_path = (
+            Path(__file__).resolve().parent.parent
+            / "config"
+            / "skill_registry.yaml"
+        )
+        return load_action_taxonomy_from_skill_registry(yaml_path)
 
     def event_handlers(self) -> Dict[str, EventHandler]:
         # Irrigation does not currently use the multi-agent event

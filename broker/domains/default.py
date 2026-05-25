@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Set
 
+from broker.interfaces.action_taxonomy import ActionTaxonomyEntry
 from broker.domains.protocol import BuiltinCheck, EventHandler
 
 
@@ -77,6 +78,10 @@ class DefaultDomainPack:
         return {}
 
     # ─── Memory policy (Phase 6K-A) ───────────────────────────────
+
+    def action_taxonomy(self) -> Dict[str, ActionTaxonomyEntry]:
+        """Phase 6O-B default — empty mapping (opt-out)."""
+        return {}
 
     def memory_policy(self):  # -> Optional[MemoryPolicyBundle]
         return None
