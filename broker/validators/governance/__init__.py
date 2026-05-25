@@ -23,7 +23,6 @@ from broker.validators.governance.thinking_validator import ThinkingValidator
 from broker.validators.governance.physical_validator import PhysicalValidator
 from broker.validators.governance.semantic_validator import SemanticGroundingValidator
 from broker.governance.type_validator import TypeValidator
-from broker.domains.water.validator_bundles import build_domain_validators
 
 if TYPE_CHECKING:
     from broker.governance.rule_types import GovernanceRule
@@ -76,6 +75,13 @@ def validate_all(
         or str(os.environ.get("GOVERNANCE_DOMAIN", "")).strip().lower()
         or None
     )
+
+    # Function-local import eliminates the LOAD-TIME coupling between the
+    # generic validators package and broker.domains.water. RUNTIME coupling
+    # (always dispatching to the water bundle) is a pre-existing limitation
+    # tracked under Phase 6G Gate-2 — when registry-driven dispatch lands
+    # this line becomes `DomainPack.get_validator_builder(resolved_domain)`.
+    from broker.domains.water.validator_bundles import build_domain_validators
 
     validators = build_domain_validators(resolved_domain)
 

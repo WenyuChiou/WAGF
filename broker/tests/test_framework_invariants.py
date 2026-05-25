@@ -618,3 +618,116 @@ class TestNoSilentDomainDefault:
         assert ctx.framework == PsychologicalFrameworkType.GENERIC
         ctx2 = UniversalContext.from_dict({"agent_id": "probe"})
         assert ctx2.framework == PsychologicalFrameworkType.GENERIC
+
+
+class TestNoReverseDomainImport:
+    """I5 architectural guard — added 2026-05-24 (Phase 6N-F-7).
+
+    Catches the failure mode the token-based ``TestDomainGenericity`` grep
+    cannot see: a module-level ``from broker.domains.water...`` import in a
+    generic broker/ subtree. Such an import binds the framework to a
+    specific domain at package-load time, regardless of whether any
+    *_LABEL token leaks into the source. The original incident motivating
+    this guard: ``broker/validators/governance/__init__.py`` carrying a
+    top-level ``from broker.domains.water.validator_bundles import
+    build_domain_validators`` (fixed in the same commit that added this
+    test).
+
+    Permitted patterns (intentional Phase 6H transition convention):
+      - Function-local imports (inside def / async def).
+      - PEP 562 ``__getattr__`` lazy hooks.
+      - Imports under ``if TYPE_CHECKING:`` (zero runtime cost).
+    """
+
+    def _is_type_checking_guard(self, test_node) -> bool:
+        """Recognise `if TYPE_CHECKING:` (bare name or attribute form)."""
+        import ast
+        if isinstance(test_node, ast.Name) and test_node.id == "TYPE_CHECKING":
+            return True
+        if isinstance(test_node, ast.Attribute) and test_node.attr == "TYPE_CHECKING":
+            return True
+        return False
+
+    def _module_level_imports(self, tree):
+        """Yield ImportFrom nodes that execute at module-load time.
+
+        Walks ``tree.body`` directly. Imports nested inside FunctionDef /
+        AsyncFunctionDef / ClassDef are excluded (function-local /
+        __getattr__ patterns, by design).
+
+        C2/C3 (code-reviewer round 2): descends into every module-level
+        control-flow branch that executes at load time:
+          - ``if`` body AND ``orelse`` (closes the TYPE_CHECKING-then-else
+            bypass where the real import sits in the else branch).
+          - ``try`` body, ``except`` handlers, ``orelse``, AND
+            ``finalbody`` (the try/except ImportError fallback pattern).
+        ``if TYPE_CHECKING:`` BODY is the one explicit exclusion (zero
+        runtime cost); the same if's else still runs when TYPE_CHECKING
+        is False and must be scanned.
+        """
+        import ast
+        for node in tree.body:
+            if isinstance(node, ast.ImportFrom):
+                yield node
+            elif isinstance(node, ast.If):
+                body_iter = (
+                    []
+                    if self._is_type_checking_guard(node.test)
+                    else node.body
+                )
+                for sub in list(body_iter) + list(node.orelse):
+                    if isinstance(sub, ast.ImportFrom):
+                        yield sub
+            elif isinstance(node, ast.Try):
+                clauses = [node.body, node.orelse, node.finalbody]
+                clauses.extend(handler.body for handler in node.handlers)
+                for clause in clauses:
+                    for sub in clause:
+                        if isinstance(sub, ast.ImportFrom):
+                            yield sub
+
+    def test_no_module_level_water_domain_import_in_generic_broker(self):
+        import ast
+        from pathlib import Path
+
+        broker_root = Path(__file__).resolve().parents[1]
+
+        # Subtrees we EXCLUDE from the scan:
+        # - broker/domains/: the domain extension point itself (water
+        #   subpackage is by-design water-specific; default.py + protocol.py
+        #   are generic but inside the same tree, so easier to skip
+        #   wholesale and let TestDomainGenericity's token scan cover them).
+        # - broker/tests/: tests are allowed to import water adapters when
+        #   asserting domain-pack contracts.
+        excluded_prefixes = (
+            broker_root / "domains",
+            broker_root / "tests",
+        )
+
+        violations = []
+        for path in broker_root.rglob("*.py"):
+            # W2 (code-reviewer round 2): Path.is_relative_to() normalises
+            # Windows backslash/forward-slash separators cleanly. Python 3.9+
+            # — this repo requires 3.10+ per pyproject.toml.
+            if any(path.is_relative_to(p) for p in excluded_prefixes):
+                continue
+            try:
+                source = path.read_text(encoding="utf-8")
+                tree = ast.parse(source, filename=str(path))
+            except (UnicodeDecodeError, SyntaxError):
+                continue
+
+            for node in self._module_level_imports(tree):
+                mod = node.module or ""
+                if mod.startswith("broker.domains.water"):
+                    rel = path.relative_to(broker_root.parent)
+                    violations.append(f"{rel}:{node.lineno}  from {mod}")
+
+        assert not violations, (
+            "Module-level reverse imports from broker.domains.water found "
+            "in generic broker/ — these bind the framework to a single "
+            "domain at package-load time. Convert to function-local OR "
+            "PEP 562 __getattr__ lazy hook, OR move under "
+            "`if TYPE_CHECKING:`.\n"
+            "Violations:\n  " + "\n  ".join(violations)
+        )
