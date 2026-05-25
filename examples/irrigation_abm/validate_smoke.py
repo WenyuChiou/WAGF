@@ -142,7 +142,8 @@ def check_d_differential_governance(audit: pd.DataFrame | None) -> tuple[bool, s
 
     # Look for curtailment or drought rules
     diff_rules = ["curtailment_awareness_check", "drought_severity_check"]
-    relevant = audit[audit["failed_rules"].str.contains("|".join(diff_rules), na=False)]
+    failed_rules = audit["failed_rules"].fillna("").astype(str)
+    relevant = audit[failed_rules.str.contains("|".join(diff_rules), na=False)]
 
     if relevant.empty:
         return False, "No curtailment/drought governance events found"
@@ -346,7 +347,9 @@ def validate(results_dir: Path, *, functional_smoke: bool = False) -> dict[str, 
     else:
         print("WARNING: Some CRITICAL checks FAILED!")
 
-    if functional_smoke and critical_pass:
+    if not critical_pass:
+        print("VERDICT: Critical checks failed; not ready for production run.")
+    elif functional_smoke:
         print("VERDICT: Functional smoke passed.")
     elif passed >= 7:
         print("VERDICT: Ready for production run.")
