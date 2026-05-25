@@ -12,6 +12,12 @@ default_skill: delay   # fallback when validator rejects all proposals
 
 skills:
   - skill_id: get_vaccinated
+    # Phase 6O-B action taxonomy — reversibility="permanent" because the
+    # physical biological act cannot be undone within an agent-year (a
+    # different value would be needed if the demo modeled annual boosters).
+    category: adopt
+    intensity: large
+    reversibility: permanent
     description: "Receive a single dose of the recommended vaccine this year. Provides partial-to-high protection against infection and severe outcomes."
     eligible_agent_types: ["individual"]
     preconditions:
@@ -32,6 +38,10 @@ skills:
     conflicts_with: []
 
   - skill_id: delay
+    # Phase 6O-B action taxonomy
+    category: delay
+    intensity: none
+    reversibility: instant
     description: "Postpone the vaccination decision this year — wait for more information about safety, efficacy, or outbreak conditions before acting."
     eligible_agent_types: ["individual"]
     preconditions: []
@@ -50,6 +60,10 @@ skills:
     conflicts_with: []
 
   - skill_id: refuse
+    # Phase 6O-B action taxonomy
+    category: refuse
+    intensity: none
+    reversibility: instant
     description: "Decline vaccination this year. May be motivated by perceived low susceptibility, fear of side effects, or distrust of public health messaging."
     eligible_agent_types: ["individual"]
     preconditions: []

@@ -241,6 +241,21 @@ class DomainPack(Protocol):
 
     # ─── Memory policy (Phase 6K-A) ───────────────────────────────
 
+    def action_taxonomy(self) -> Dict[str, "ActionTaxonomyEntry"]:
+        """Phase 6O-B: per-skill structural metadata.
+
+        Domain packs may declare ``category`` / ``intensity`` /
+        ``reversibility`` per skill so generic readiness reporters can
+        compute action-coverage metrics without knowing skill names.
+
+        Default returns empty dict — domains opting out are reported
+        under ``unknown`` by the readiness layer. Implementations may
+        either return a hardcoded mapping or call
+        ``broker.interfaces.action_taxonomy.load_action_taxonomy_from_skill_registry``
+        to read from the YAML they ship.
+        """
+        ...
+
     def memory_policy(self) -> Optional[MemoryPolicyBundle]:
         """Domain-specific memory-subsystem policy.
 

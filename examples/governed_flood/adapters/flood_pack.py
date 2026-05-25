@@ -28,6 +28,10 @@ from typing import Any, Dict, List, Optional, Set
 
 from broker.components.memory.content_types import MemoryContentType
 from broker.domains.default import DefaultDomainPack
+from broker.interfaces.action_taxonomy import (
+    ActionTaxonomyEntry,
+    load_action_taxonomy_from_skill_registry,
+)
 from broker.domains.protocol import BuiltinCheck, EventHandler, MemoryPolicyBundle
 
 from examples.governed_flood.adapters.flood_adapter import FloodAdapter
@@ -210,6 +214,23 @@ class FloodDomainPack(DefaultDomainPack):
         return {"relocate", "elevate_house"}
 
     # ─── Events ────────────────────────────────────────────────────
+
+    def action_taxonomy(self) -> Dict[str, ActionTaxonomyEntry]:
+        """Phase 6O-B — read taxonomy from single_agent skill_registry.yaml.
+
+        Note: single-agent flood and governed_flood share the same skill
+        set (buy_insurance / elevate_house / relocate / do_nothing); the
+        canonical taxonomy declaration lives at
+        examples/single_agent/skill_registry.yaml.
+        """
+        from pathlib import Path
+        # examples/single_agent/skill_registry.yaml relative to this file
+        yaml_path = (
+            Path(__file__).resolve().parents[2]
+            / "single_agent"
+            / "skill_registry.yaml"
+        )
+        return load_action_taxonomy_from_skill_registry(yaml_path)
 
     def event_handlers(self) -> Dict[str, EventHandler]:
         """Replaces the ``ma_manager.py:275-289`` if/elif chain."""

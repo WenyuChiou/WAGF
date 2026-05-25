@@ -7,6 +7,10 @@
 
 skills:
   - skill_id: increase_large
+    # Phase 6O-B action taxonomy
+    category: increase
+    intensity: large
+    reversibility: annual
     description: "Aggressively increase water demand (8-20% change). Higher yield potential but significant curtailment risk. Best when water supply is abundant."
     eligible_agent_types: ["irrigation_farmer"]
     preconditions:
@@ -28,6 +32,10 @@ skills:
     conflicts_with: []
 
   - skill_id: increase_small
+    # Phase 6O-B action taxonomy
+    category: increase
+    intensity: small
+    reversibility: annual
     description: "Cautiously increase water demand (1-8% change). Modest growth with lower curtailment risk. Appropriate when conditions allow some expansion but uncertainty remains."
     eligible_agent_types: ["irrigation_farmer"]
     preconditions:
@@ -49,6 +57,10 @@ skills:
     conflicts_with: []
 
   - skill_id: maintain_demand
+    # Phase 6O-B action taxonomy
+    category: maintain
+    intensity: none
+    reversibility: annual
     description: "Maintain current water demand level. No change to irrigation practices. Appropriate when water availability is stable and current allocation meets needs."
     eligible_agent_types: ["irrigation_farmer"]
     preconditions: []
@@ -63,6 +75,10 @@ skills:
     conflicts_with: []
 
   - skill_id: decrease_small
+    # Phase 6O-B action taxonomy
+    category: decrease
+    intensity: small
+    reversibility: annual
     description: "Cautiously reduce water demand (1-8% change). Modest conservation that maintains most crop yield while reducing curtailment exposure."
     eligible_agent_types: ["irrigation_farmer"]
     preconditions: []
@@ -83,6 +99,10 @@ skills:
     conflicts_with: []
 
   - skill_id: decrease_large
+    # Phase 6O-B action taxonomy
+    category: decrease
+    intensity: large
+    reversibility: annual
     description: "Aggressively reduce water demand (8-20% change). Significant conservation at the cost of reduced yield potential."
     eligible_agent_types: ["irrigation_farmer"]
     preconditions: []

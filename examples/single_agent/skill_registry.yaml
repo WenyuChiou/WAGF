@@ -4,6 +4,10 @@
 
 skills:
   - skill_id: buy_insurance
+    # Phase 6O-B action taxonomy
+    category: adopt
+    intensity: small
+    reversibility: annual
     description: "Buy flood insurance (Lower cost, provides partial financial protection but does not reduce physical damage)"
     eligible_agent_types: ["*"]
     preconditions: [] # Can renew annually
@@ -16,6 +20,10 @@ skills:
     conflicts_with: []  # Can pair with elevation
 
   - skill_id: elevate_house
+    # Phase 6O-B action taxonomy
+    category: adopt
+    intensity: large
+    reversibility: permanent
     description: "Elevate your house (High upfront cost but can prevent most physical damage)"
     eligible_agent_types: ["*"]
     preconditions:
@@ -30,6 +38,10 @@ skills:
     conflicts_with: [relocate]  # Cannot elevate and relocate in same step
 
   - skill_id: relocate
+    # Phase 6O-B action taxonomy
+    category: adopt
+    intensity: large
+    reversibility: permanent
     description: "Relocate (Requires leaving your neighborhood but eliminates flood risk permanently)"
     eligible_agent_types: ["*"]
     preconditions:
@@ -44,6 +56,10 @@ skills:
     conflicts_with: [elevate_house, buy_insurance]  # Relocating negates other actions
 
   - skill_id: do_nothing
+    # Phase 6O-B action taxonomy
+    category: status_quo
+    intensity: none
+    reversibility: instant
     description: "Do nothing (Require no financial investment or effort this year, but it might leave you exposed to future flood damage)"
     eligible_agent_types: ["*"]
     preconditions: []

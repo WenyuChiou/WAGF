@@ -10,9 +10,14 @@ This module is the **canonical example** of how a new application domain
 plugs into WAGF.  ~140 LOC; no broker/ edits required.
 """
 from __future__ import annotations
+from pathlib import Path
 
 from typing import Any, Callable, Dict, List, Optional, Set
 
+from broker.interfaces.action_taxonomy import (
+    ActionTaxonomyEntry,
+    load_action_taxonomy_from_skill_registry,
+)
 from broker.domains.default import DefaultDomainPack
 
 
@@ -130,6 +135,15 @@ class VaccinationDomainPack(DefaultDomainPack):
         if skill_name == "delay":
             return {"emotion": "minor", "importance": 0.35, "source": "personal"}
         return {}
+
+    def action_taxonomy(self) -> Dict[str, ActionTaxonomyEntry]:
+        """Phase 6O-B — read taxonomy from vaccination_demo skill_registry.yaml."""
+        yaml_path = (
+            Path(__file__).resolve().parent.parent
+            / "config"
+            / "skill_registry.yaml"
+        )
+        return load_action_taxonomy_from_skill_registry(yaml_path)
 
     def extreme_actions(self) -> Set[str]:
         # Vaccination has no one-way irreversible actions in this PoC.
