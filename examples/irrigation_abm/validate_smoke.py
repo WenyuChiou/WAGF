@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import sys
+import argparse
 from collections import Counter
 from pathlib import Path
 
@@ -56,6 +57,46 @@ def _load_json(path: Path) -> dict:
         return {}
     with open(path, encoding="utf-8") as f:
         return json.load(f)
+
+
+def check_functional_outputs(
+    results_dir: Path,
+    sim: pd.DataFrame,
+    audit: pd.DataFrame | None,
+    gov_summary: dict,
+) -> tuple[bool, str]:
+    """Functional smoke: files exist and contain at least one decision trace."""
+    required_files = [
+        "simulation_log.csv",
+        "irrigation_farmer_governance_audit.csv",
+        "audit_summary.json",
+        "governance_summary.json",
+        "raw/irrigation_farmer_traces.jsonl",
+    ]
+    missing = [name for name in required_files if not (results_dir / name).exists()]
+    raw_records = _load_jsonl(results_dir / "raw" / "irrigation_farmer_traces.jsonl")
+    ok = (
+        not missing
+        and not sim.empty
+        and audit is not None
+        and not audit.empty
+        and bool(gov_summary)
+        and len(raw_records) > 0
+    )
+    return ok, (
+        f"missing={missing}, sim_rows={len(sim)}, "
+        f"audit_rows={0 if audit is None else len(audit)}, raw_records={len(raw_records)}"
+    )
+
+
+def check_functional_no_terminal_failures(audit: pd.DataFrame | None) -> tuple[bool, str]:
+    """Functional smoke: no terminal parser/governance failures."""
+    if audit is None or audit.empty:
+        return False, "No audit data"
+    terminal_statuses = {"REJECTED", "RETRY_EXHAUSTED", "PARSER_FAILED"}
+    terminal = audit[audit["status"].isin(terminal_statuses)] if "status" in audit.columns else pd.DataFrame()
+    ok = terminal.empty
+    return ok, f"terminal_failures={len(terminal)}"
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -244,9 +285,10 @@ def check_j_magnitude_bounds(sim: pd.DataFrame) -> tuple[bool, str]:
 # Main
 # ═══════════════════════════════════════════════════════════════════════════
 
-def validate(results_dir: Path) -> dict[str, bool]:
+def validate(results_dir: Path, *, functional_smoke: bool = False) -> dict[str, bool]:
     print(f"\n{'='*60}")
-    print(f"Smoke Test Validation: {results_dir.name}")
+    mode_label = "Functional Smoke Validation" if functional_smoke else "Smoke Test Validation"
+    print(f"{mode_label}: {results_dir.name}")
     print(f"{'='*60}\n")
 
     # Load data
@@ -262,19 +304,28 @@ def validate(results_dir: Path) -> dict[str, bool]:
     n_years = sim["year"].nunique()
     print(f"Data: {n_agents} agents x {n_years} years = {len(sim)} rows\n")
 
-    # Run checks
-    checks = {
-        "A  5-skill mapping       [CRITICAL]": check_a_skill_mapping(sim),
-        "B  4-field response      [CRITICAL]": check_b_response_format(sim),
-        "C  Intervention count    [CRITICAL]": check_c_intervention_count(gov_summary),
-        "D  Differential gov      [IMPORTANT]": check_d_differential_governance(audit),
-        "E  EarlyExit             [IMPORTANT]": check_e_early_exit(gov_summary, audit),
-        "F  REJECTED fallback     [IMPORTANT]": check_f_rejected_fallback(sim, audit),
-        "G  Demand floor          [OPTIONAL]": check_g_demand_floor(gov_summary),
-        "H  Retry patterns        [IMPORTANT]": check_h_retry_patterns(gov_summary),
-        "I  Persona distribution  [IMPORTANT]": check_i_persona_distribution(sim),
-        "J  Magnitude bounds      [CRITICAL]": check_j_magnitude_bounds(sim),
-    }
+    if functional_smoke:
+        checks = {
+            "F0 Output files          [CRITICAL]": check_functional_outputs(results_dir, sim, audit, gov_summary),
+            "F1 4-field response     [CRITICAL]": check_b_response_format(sim),
+            "F2 No terminal failures [CRITICAL]": check_functional_no_terminal_failures(audit),
+            "F3 Magnitude bounds     [CRITICAL]": check_j_magnitude_bounds(sim),
+        }
+    else:
+        # Run full production-smoke checks. These assume a large enough sample
+        # to exercise all skills and governance pathways.
+        checks = {
+            "A  5-skill mapping       [CRITICAL]": check_a_skill_mapping(sim),
+            "B  4-field response      [CRITICAL]": check_b_response_format(sim),
+            "C  Intervention count    [CRITICAL]": check_c_intervention_count(gov_summary),
+            "D  Differential gov      [IMPORTANT]": check_d_differential_governance(audit),
+            "E  EarlyExit             [IMPORTANT]": check_e_early_exit(gov_summary, audit),
+            "F  REJECTED fallback     [IMPORTANT]": check_f_rejected_fallback(sim, audit),
+            "G  Demand floor          [OPTIONAL]": check_g_demand_floor(gov_summary),
+            "H  Retry patterns        [IMPORTANT]": check_h_retry_patterns(gov_summary),
+            "I  Persona distribution  [IMPORTANT]": check_i_persona_distribution(sim),
+            "J  Magnitude bounds      [CRITICAL]": check_j_magnitude_bounds(sim),
+        }
 
     results = {}
     for name, (ok, detail) in checks.items():
@@ -295,7 +346,9 @@ def validate(results_dir: Path) -> dict[str, bool]:
     else:
         print("WARNING: Some CRITICAL checks FAILED!")
 
-    if passed >= 7:
+    if functional_smoke and critical_pass:
+        print("VERDICT: Functional smoke passed.")
+    elif passed >= 7:
         print("VERDICT: Ready for production run.")
     elif passed >= 4:
         print("VERDICT: Debug failures, fix, re-run smoke.")
@@ -328,14 +381,19 @@ def validate(results_dir: Path) -> dict[str, bool]:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python validate_smoke.py <results_dir>")
-        sys.exit(1)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("results_dir", type=Path)
+    parser.add_argument(
+        "--functional-smoke",
+        action="store_true",
+        help="Use small-run checks for 1-5 agent functional smoke tests.",
+    )
+    args = parser.parse_args()
 
-    results_dir = Path(sys.argv[1])
+    results_dir = args.results_dir
     if not results_dir.exists():
         print(f"Error: {results_dir} does not exist")
         sys.exit(1)
 
-    results = validate(results_dir)
+    results = validate(results_dir, functional_smoke=args.functional_smoke)
     sys.exit(0 if results and all(results.values()) else 1)

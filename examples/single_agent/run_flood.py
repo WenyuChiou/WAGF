@@ -1,6 +1,7 @@
 import sys
 import yaml
 import random
+import re
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -55,6 +56,18 @@ PAST_EVENTS = [
     "The city previously introduced a program offering elevation support to residents",
     "News outlets have reported a possible trend of increasing flood frequency and severity in recent years"
 ]
+
+
+def _natural_agent_key(agent_id: str) -> List[Any]:
+    """Sort Agent_2 before Agent_10 for reproducible small smoke subsets."""
+    return [int(part) if part.isdigit() else part for part in re.split(r"(\d+)", str(agent_id))]
+
+
+def _limit_agents_for_run(agents: Dict[str, Any], max_agents: Optional[int]) -> Dict[str, Any]:
+    if max_agents is None or max_agents <= 0 or len(agents) <= max_agents:
+        return dict(sorted(agents.items(), key=lambda item: _natural_agent_key(item[0])))
+    ordered = sorted(agents.items(), key=lambda item: _natural_agent_key(item[0]))
+    return dict(ordered[:max_agents])
 
 
 def _memory_texts(items: List[Any]) -> List[str]:
@@ -864,11 +877,6 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         global_cfg = agent_cfg_data.get('global_config', {}) # Load global config for shared params
 
     # 2. Load Profiles (Survey Mode or CSV Mode)
-    import re
-    def natural_key(string_):
-        """Helper for natural sorting (Agent_1, Agent_2, Agent_10...)"""
-        return [int(s) if s.isdigit() else s for s in re.split(r'(\d+)', string_)]
-
     if survey_mode:
         # Survey-based initialization from real household data
         survey_path = base_path.parent / "multi_agent" / "input" / "initial_household data.xlsx"
@@ -889,6 +897,8 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
             "trust_in_neighbors": "trust_in_neighbors", "flood_threshold": "flood_threshold",
             "memory": "memory"
         }, agent_type="household")
+        agents = _limit_agents_for_run(agents, agents_count)
+        print(f"[CSV Mode] Initialized {len(agents)} agents from {profiles_path}")
 
         for a in agents.values():
             a.flood_history = []
