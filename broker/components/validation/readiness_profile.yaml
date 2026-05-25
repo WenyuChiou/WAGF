@@ -1,0 +1,62 @@
+# Phase 6O-C — Default readiness profile thresholds.
+#
+# Three profiles ship in 6O-C-1: functional / behavioral / stress.
+# Production profile is intentionally absent — persona alignment is
+# undefined; see .ai/2026/05/25/phase_6o_gap_matrix.md for the
+# user-decision context.
+#
+# Threshold semantics:
+#   min_approval_rate              : 0..1, approved / total
+#     (legacy alias `min_parse_success_rate` accepted for one release)
+#   max_format_retry_rate          : 0..1, format_retries / total
+#   max_terminal_rate              : 0..1, terminal / total (terminal =
+#                                    anything other than approved /
+#                                    retry_recovered)
+#   min_action_coverage            : int, distinct skills observed
+#   min_validator_firing_diversity : int, distinct rule_ids fired
+#   max_dead_validators            : int, fail if more than N rule_ids are dead
+#     (set to a small int > 0 for cross-domain runs where some validators
+#      are legitimately inapplicable)
+#
+# Override any field by copying this file, editing, and passing
+# --profile-yaml=<your_path> to the readiness_report CLI.
+
+profiles:
+  functional:
+    description: |
+      Verifies the pipeline can run end-to-end and produce parseable
+      audit traces. Lowest bar; used during bring-up of a new domain.
+    thresholds:
+      min_approval_rate: 0.80
+      max_format_retry_rate: 0.30
+      # The other fields are unset — functional profile does not enforce
+      # behavioral diversity or terminal-rate bounds.
+
+  behavioral:
+    description: |
+      Adds construct-action coherence + action-coverage diversity on
+      top of functional. Used before reporting paper results.
+    thresholds:
+      min_approval_rate: 0.90
+      max_format_retry_rate: 0.15
+      min_action_coverage: 3
+      min_validator_firing_diversity: 2
+    required_metrics:
+      - action_coverage
+      - validator_firing_diversity
+
+  stress:
+    description: |
+      Adds terminal-outcome bounds + dead-validator detection. Used
+      for harness-engineering audits when a paper claim depends on
+      governance correctly handling hard constraints.
+    thresholds:
+      min_approval_rate: 0.95
+      max_format_retry_rate: 0.10
+      max_terminal_rate: 0.20
+      min_action_coverage: 3
+      min_validator_firing_diversity: 3
+      max_dead_validators: 0  # strict — domain-mismatched runs override via --profile-yaml
+    required_metrics:
+      - terminal_taxonomy
+      - validator_health
