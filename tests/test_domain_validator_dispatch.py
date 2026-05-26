@@ -8,6 +8,31 @@ def test_governance_module_has_no_direct_example_imports():
     assert "from examples." not in source
 
 
+def test_canonical_dispatcher_and_water_shim_are_same_object():
+    """Phase 6P-A (2026-05-25): the dispatcher relocated from
+    `broker.domains.water.validator_bundles` to a generic address
+    `broker.components.governance.domain_validator_dispatch`, with a
+    3-line backwards-compat shim left at the old path. This test pins
+    the contract: both paths must resolve to the exact same function
+    object. If a future edit re-implements the shim non-trivially (or
+    deletes the canonical address while the shim keeps an alternate
+    implementation), this assertion catches the divergence at test
+    time instead of at the next live smoke run."""
+    from broker.components.governance.domain_validator_dispatch import (
+        build_domain_validators as canonical,
+    )
+    from broker.domains.water.validator_bundles import (
+        build_domain_validators as shim,
+    )
+
+    assert canonical is shim, (
+        "Phase 6P-A backwards-compat broken: the water-side shim no "
+        "longer re-exports the canonical dispatcher. Either restore "
+        "the re-export OR update every call site (including legacy "
+        "third-party imports) to the new canonical address."
+    )
+
+
 def test_water_domain_exposes_validator_builder():
     # Phase 6J-D (2026-05-22): the lazy ``_ensure_*_registered``
     # reverse-import fallback was removed, so this test must register
