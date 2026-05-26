@@ -260,17 +260,44 @@ class UnifiedCognitiveEngine:
         self.auto_consolidate = auto_consolidate
         self.surprise_boost_factor = surprise_boost_factor
 
-        # Default strategy selection from config (if not provided)
+        # Default strategy selection from config (if not provided).
+        # Phase 6Q-D-5 (2026-05-26): wrap strategy construction in
+        # try/except as defense-in-depth. The falsy-guards above
+        # (`if self.domain_config.sensory_cortex` / `elif
+        # self.domain_config.stimulus_key`) already filter out the
+        # common None/empty cases, so the Phase 6Q-C `ValueError`
+        # from EMA / Symbolic / Hybrid is unlikely to fire here in
+        # practice. But the boundary audit (Phase 6Q-D-3) flagged
+        # this as a MED cascade risk for edge cases (e.g.
+        # whitespace-only stimulus_key strings, sensors=[] with
+        # default_sensor_key=None, custom DomainConfig subclass with
+        # unexpected falsy behaviour). On any raise, log + fall back
+        # to ``self._strategy = None`` — downstream `get_surprise`
+        # callers already handle the null-strategy case (returns
+        # 0.0 surprise + SYSTEM_1).
         if self._strategy is None:
-            if self.domain_config.sensory_cortex:
-                self._strategy = SymbolicSurpriseStrategy(
-                    sensors=self.domain_config.sensory_cortex
+            try:
+                if self.domain_config.sensory_cortex:
+                    self._strategy = SymbolicSurpriseStrategy(
+                        sensors=self.domain_config.sensory_cortex
+                    )
+                elif self.domain_config.stimulus_key:
+                    self._strategy = EMASurpriseStrategy(
+                        stimulus_key=self.domain_config.stimulus_key,
+                        alpha=self.global_config.ema_alpha,
+                    )
+            except ValueError as exc:  # noqa: BLE001-narrow — Phase 6Q-C raise type
+                import logging as _logging
+                _logging.getLogger(__name__).warning(
+                    "[UnifiedCognitiveEngine] surprise-strategy construction "
+                    "raised %r; falling back to null strategy (surprise=0.0, "
+                    "SYSTEM_1 only). Check domain_config: "
+                    "stimulus_key=%r, sensory_cortex=%r.",
+                    exc,
+                    getattr(self.domain_config, "stimulus_key", "<missing>"),
+                    getattr(self.domain_config, "sensory_cortex", "<missing>"),
                 )
-            elif self.domain_config.stimulus_key:
-                self._strategy = EMASurpriseStrategy(
-                    stimulus_key=self.domain_config.stimulus_key,
-                    alpha=self.global_config.ema_alpha,
-                )
+                self._strategy = None
 
         # State tracking
         self.current_system = "SYSTEM_1"
