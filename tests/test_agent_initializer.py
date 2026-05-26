@@ -23,11 +23,38 @@ from broker.core.agent_initializer import (
     SyntheticLoader,
     generate_initial_memories,
 )
+# Phase 6R-C (2026-05-26): PMT fields moved from AgentProfile to
+# FloodAgentProfile; "H" agent_id prefix moved from SyntheticLoader to
+# FloodSyntheticLoader. Tests below that exercise PMT scores or the
+# paper-1b "H" naming use the flood-namespace classes.
+from broker.domains.water.agent_profile import FloodAgentProfile
+from broker.domains.water.loaders import FloodSyntheticLoader
 
 
 # =============================================================================
 # FIXTURES
 # =============================================================================
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _register_flood_pack():
+    """Phase 6R-C (2026-05-26): with PMT scores + PMT_PARAMS + "H"
+    prefix relocated to FloodAgentProfile / FloodSyntheticLoader /
+    FloodCSVLoader, tests that call ``initialize_agents(domain="flood")``
+    need ``FloodDomainPack`` registered so the dispatcher routes to
+    the flood-namespace loader classes. Import side-effect registers
+    the pack. Module-scoped so the registration cost is paid once.
+
+    Scope note: this fixture is ``autouse=True`` so it activates for
+    every test in this module — but it only adds to the registry, it
+    doesn't remove existing packs or alter behaviour for tests that
+    directly instantiate ``SyntheticLoader`` / ``CSVLoader`` /
+    ``FloodSyntheticLoader``. The
+    ``TestCSVLoader`` / ``TestSyntheticLoader`` classes that test the
+    base + flood classes directly bypass ``initialize_agents()`` and
+    are not affected by this fixture (per reviewer warning #3).
+    """
+    import examples.governed_flood  # noqa: F401 — registration side-effect
 
 
 @pytest.fixture
@@ -501,21 +528,34 @@ class TestAgentProfile:
     """Tests for AgentProfile dataclass."""
 
     def test_profile_to_dict(self):
-        """to_dict() should include all fields."""
-        profile = AgentProfile(
+        """to_dict() should include all fields. Phase 6R-C (2026-05-26):
+        PMT score fields moved to FloodAgentProfile — base AgentProfile
+        no longer carries tp_score etc."""
+        # Domain-neutral fields on base profile.
+        base = AgentProfile(
             agent_id="Test_001",
+            family_size=4,
+            income=75000,
+            is_mg=True,
+        )
+        d = base.to_dict()
+        assert d["agent_id"] == "Test_001"
+        assert d["family_size"] == 4
+        assert d["income"] == 75000
+        assert d["is_mg"] is True
+        # PMT fields explicitly NOT on base (cluster A #3 closure).
+        assert "tp_score" not in d
+
+        # PMT scores live on FloodAgentProfile post-6R-C.
+        flood = FloodAgentProfile(
+            agent_id="Test_002",
             family_size=4,
             income=75000,
             is_mg=True,
             tp_score=4.2,
         )
-
-        d = profile.to_dict()
-        assert d["agent_id"] == "Test_001"
-        assert d["family_size"] == 4
-        assert d["income"] == 75000
-        assert d["is_mg"] is True
-        assert d["tp_score"] == 4.2
+        fd = flood.to_dict()
+        assert fd["tp_score"] == 4.2
 
     def test_profile_identity_property(self):
         """identity property should reflect housing_status."""
@@ -668,14 +708,44 @@ class TestSyntheticLoader:
     """Tests for SyntheticLoader class directly."""
 
     def test_loader_defaults(self):
-        """Loader should use default values."""
+        """Loader should use default values. Phase 6R-C (2026-05-26):
+        base SyntheticLoader now uses "A" prefix (domain-neutral);
+        FloodSyntheticLoader keeps the paper-1b "H" prefix for
+        byte-identity preservation."""
+        # Base loader → domain-neutral "A" prefix.
         loader = SyntheticLoader(seed=42)
         profiles = loader.load(None, {"n_agents": 5})
-
         assert len(profiles) == 5
         for p in profiles:
-            # Should have valid agent ID format
-            assert p.agent_id.startswith("H")
+            assert p.agent_id.startswith("A"), (
+                f"base SyntheticLoader should produce A-prefixed ids, "
+                f"got {p.agent_id!r}"
+            )
+
+        # FloodSyntheticLoader → paper-1b "H" prefix preserved + PMT
+        # scores actually populated (reviewer S5 — assert PMT range,
+        # not just id prefix). Pre-Phase-6R-C-fix this would have
+        # silently failed via the truthy ``if pre:`` guard.
+        flood_loader = FloodSyntheticLoader(seed=42)
+        flood_profiles = flood_loader.load(None, {"n_agents": 5})
+        assert len(flood_profiles) == 5
+        for p in flood_profiles:
+            assert p.agent_id.startswith("H"), (
+                f"FloodSyntheticLoader should produce H-prefixed ids, "
+                f"got {p.agent_id!r}"
+            )
+            # PMT scores must be populated within the [1.0, 5.0] clip
+            # range (per FloodSyntheticLoader._pre_generate_rng's
+            # np.clip bounds). The default 3.0 would pass a range check
+            # but not a "scores actually sampled" check — at least one
+            # of the 5 PMT scores per agent should differ from 3.0
+            # with very high probability under normal distributions.
+            for score_field in ("tp_score", "cp_score", "sp_score",
+                                "sc_score", "pa_score"):
+                value = getattr(p, score_field)
+                assert 1.0 <= value <= 5.0, (
+                    f"{score_field}={value} for {p.agent_id} not in [1.0, 5.0]"
+                )
 
 
 if __name__ == "__main__":

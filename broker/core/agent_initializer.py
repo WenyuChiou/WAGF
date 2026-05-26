@@ -136,12 +136,18 @@ class AgentProfile:
     has_vehicle: bool = True
     housing_cost_burden: bool = False
 
-    # --- Psychological Constructs (1-5 scale, framework-level) ---
-    tp_score: float = 3.0  # Threat Perception
-    cp_score: float = 3.0  # Coping Perception
-    sp_score: float = 3.0  # Stakeholder Perception
-    sc_score: float = 3.0  # Social Capital
-    pa_score: float = 3.0  # Place Attachment
+    # --- Psychological Constructs ---
+    # Phase 6R-C (audit cluster A #3, 2026-05-26): the 5 PMT-framework
+    # score fields (tp / cp / sp / sc / pa — Threat Perception, Coping
+    # Perception, Stakeholder Perception, Social Capital, Place
+    # Attachment) moved to
+    # ``broker.domains.water.agent_profile.FloodAgentProfile``. Pre-fix
+    # any non-water domain author calling initialize_agents() got back
+    # profiles unconditionally carrying flood-framework score labels —
+    # a domain leak in generic schema. New domains that need typed
+    # psychometric fields subclass AgentProfile (mirroring
+    # FloodAgentProfile) and add their own. Domain-sparse data
+    # belongs in ``extensions: Dict`` instead.
 
     # --- Spatial (domain-neutral) ---
     grid_x: int = 0
@@ -198,11 +204,11 @@ class CSVLoader:
         "income_bracket": ["income_bracket", "IncomeBracket"],
         "tenure": ["tenure", "Tenure", "housing_status"],
         "is_mg": ["is_mg", "mg", "MG", "marginalized"],
-        "tp_score": ["tp_score", "TP", "threat_perception"],
-        "cp_score": ["cp_score", "CP", "coping_perception"],
-        "sp_score": ["sp_score", "SP", "stakeholder_perception"],
-        "sc_score": ["sc_score", "SC", "social_capital"],
-        "pa_score": ["pa_score", "PA", "place_attachment"],
+        # Phase 6R-C (2026-05-26): 5 PMT score column aliases moved to
+        # ``FloodCSVLoader.DEFAULT_COLUMNS`` — they're flood-framework
+        # vocabulary (TP / CP / SP / SC / PA) and shouldn't appear in
+        # the generic alias map. A non-water CSV with no PMT columns
+        # no longer collides with these defaults.
     }
 
     # Subclass hook: if non-empty, _parse_row will populate these
@@ -269,6 +275,12 @@ class CSVLoader:
         tenure = "Owner" if str(tenure_raw).lower() in ["owner", "mortgage", "own_free"] else "Renter"
         housing_status = "rent" if tenure == "Renter" else "mortgage"
 
+        # Phase 6R-C (2026-05-26): the 5 PMT score kwargs
+        # (tp_score / cp_score / sp_score / sc_score / pa_score)
+        # previously constructed here directly moved to
+        # ``FloodCSVLoader._populate_domain_fields`` — base loader
+        # produces a domain-neutral profile, the flood subclass adds
+        # the PMT columns from the CSV.
         profile = self._PROFILE_CLASS(
             agent_id=str(agent_id),
             record_id=f"CSV_{idx:04d}",
@@ -278,11 +290,6 @@ class CSVLoader:
             housing_status=housing_status,
             tenure=tenure,
             is_mg=bool(get_val("is_mg", False)),
-            tp_score=float(get_val("tp_score", 3.0)),
-            cp_score=float(get_val("cp_score", 3.0)),
-            sp_score=float(get_val("sp_score", 3.0)),
-            sc_score=float(get_val("sc_score", 3.0)),
-            pa_score=float(get_val("pa_score", 3.0)),
             raw_data=row.to_dict(),
         )
 
@@ -392,23 +399,25 @@ class SurveyLoader:
 class SyntheticLoader:
     """Generate synthetic agent profiles for testing."""
 
-    # PMT score distributions by MG status
-    PMT_PARAMS = {
-        "mg": {
-            "tp": (3.5, 0.8),  # Higher threat perception
-            "cp": (2.5, 0.7),  # Lower coping perception
-            "sp": (2.3, 0.6),  # Lower stakeholder perception
-            "sc": (3.8, 0.6),  # Higher social capital (within community)
-            "pa": (3.5, 0.7),  # Moderate place attachment
-        },
-        "nmg": {
-            "tp": (2.8, 0.7),
-            "cp": (3.2, 0.6),
-            "sp": (3.0, 0.5),
-            "sc": (3.2, 0.6),
-            "pa": (3.0, 0.7),
-        },
-    }
+    # Phase 6R-C (audit cluster A #4, 2026-05-26): the
+    # ``PMT_PARAMS`` distribution dict moved to
+    # ``broker.domains.water.loaders.FloodSyntheticLoader``. Pre-fix
+    # any non-water domain author using SyntheticLoader silently got
+    # agents whose psychometric scores were sampled from PMT-framework
+    # (Threat / Coping / Stakeholder / Social / Place Attachment)
+    # distributions — meaningless for non-PMT domains.
+
+    # Subclass hook: agent_id prefix. Base uses domain-neutral "A";
+    # water subclass uses "H" (household — preserved for paper-1b
+    # byte-identity).
+    _AGENT_ID_PREFIX = "A"
+
+    def _build_agent_id(self, idx: int) -> str:
+        """Subclass hook for agent_id formatting. Base uses 0-indexed
+        ``A0000``, ``A0001``, ... — domain-neutral. FloodSyntheticLoader
+        overrides to 1-indexed ``H0001``, ``H0002``, ... for paper-1b
+        byte-identity."""
+        return f"{self._AGENT_ID_PREFIX}{idx:04d}"
 
     INCOME_BRACKETS = [
         ("less_than_25k", 12500),
@@ -476,14 +485,16 @@ class SyntheticLoader:
         and override ``_populate_domain_fields`` for domain-specific
         synthetic state.
         """
-        params = self.PMT_PARAMS["mg" if is_mg else "nmg"]
-
-        # Generate PMT scores
-        tp = np.clip(np.random.normal(*params["tp"]), 1.0, 5.0)
-        cp = np.clip(np.random.normal(*params["cp"]), 1.0, 5.0)
-        sp = np.clip(np.random.normal(*params["sp"]), 1.0, 5.0)
-        sc = np.clip(np.random.normal(*params["sc"]), 1.0, 5.0)
-        pa = np.clip(np.random.normal(*params["pa"]), 1.0, 5.0)
+        # Phase 6R-C (2026-05-26): PMT score sampling moved to the
+        # subclass ``_pre_generate_rng`` hook below — runs BEFORE base
+        # random calls so paper-1b byte-identity is preserved. The
+        # original water-domain code path sampled PMT first; that order
+        # advances the RNG state in a specific sequence which downstream
+        # consumers (other random.choice / random.uniform calls in
+        # this method, and any consumers of np.random / random after
+        # the loader returns) depend on. Inverting the order would
+        # break byte-identity.
+        pre = self._pre_generate_rng(is_mg, is_owner)
 
         # Generate income
         if is_mg:
@@ -496,8 +507,13 @@ class SyntheticLoader:
         housing_status = "mortgage" if is_owner else "rent"
 
         bbox = self._SPATIAL_BBOX
+        # Phase 6R-C (2026-05-26): agent_id prefix is now a subclass
+        # hook (``_AGENT_ID_PREFIX``). Base uses domain-neutral "A";
+        # FloodSyntheticLoader overrides to "H" + "+1" indexing to
+        # preserve paper-1b byte-identity. PMT score kwargs removed —
+        # flood subclass assigns them via _populate_domain_fields.
         profile = self._PROFILE_CLASS(
-            agent_id=f"H{idx + 1:04d}",
+            agent_id=self._build_agent_id(idx),
             record_id=f"SYN_{idx:04d}",
             family_size=np.random.choice([1, 2, 3, 4, 5], p=[0.15, 0.25, 0.30, 0.20, 0.10]),
             generations=str(np.random.choice([1, 2, 3], p=[0.5, 0.3, 0.2])),
@@ -510,11 +526,6 @@ class SyntheticLoader:
             has_elderly=random.random() < 0.20,
             has_vehicle=not (is_mg and random.random() < 0.25),
             housing_cost_burden=is_mg and random.random() < 0.45,
-            tp_score=round(tp, 2),
-            cp_score=round(cp, 2),
-            sp_score=round(sp, 2),
-            sc_score=round(sc, 2),
-            pa_score=round(pa, 2),
             grid_x=random.randint(bbox["x_min"], bbox["x_max"]),
             grid_y=random.randint(bbox["y_min"], bbox["y_max"]),
             longitude=round(bbox["lon_min"] + random.uniform(0, bbox["lon_max"] - bbox["lon_min"]), 6),
@@ -523,12 +534,41 @@ class SyntheticLoader:
 
         # Subclass hook: domain synthetic loaders populate flood-specific
         # (or other domain) fields after the base profile is built.
-        self._populate_domain_fields(profile, is_mg, is_owner)
+        # ``pre`` carries any values pre-sampled by
+        # ``_pre_generate_rng`` (e.g. PMT scores in
+        # FloodSyntheticLoader).
+        self._populate_domain_fields(profile, is_mg, is_owner, pre=pre)
 
         return profile
 
+    def _pre_generate_rng(
+        self, is_mg: bool, is_owner: bool,
+    ) -> Optional[Dict[str, Any]]:
+        """Phase 6R-C (2026-05-26): subclass hook for sampling RNG
+        values BEFORE the base profile's own RNG calls.
+
+        Returns a dict passed to ``_populate_domain_fields`` via the
+        ``pre`` kwarg, or ``None`` if no pre-sampling is needed.
+        Used by ``FloodSyntheticLoader`` to sample PMT scores in the
+        original order required for paper-1b byte-identity (PMT scores
+        were sampled BEFORE income/family/etc. in the pre-Phase-6R-C
+        code path; preserving that RNG sequence is mandatory).
+
+        **WARNING — asymmetric draws break reproducibility silently**:
+        this hook MUST consume the same number of RNG draws regardless
+        of ``is_mg`` / ``is_owner`` values (e.g. don't draw only when
+        ``is_mg=True``). A conditional override that draws different
+        counts per branch will desync np.random / random state from
+        what the base method's subsequent calls assume, breaking
+        seed-deterministic byte-identity with no error. If you need
+        conditional behaviour, draw the same count and discard the
+        unwanted samples.
+        """
+        return None
+
     def _populate_domain_fields(
-        self, profile: AgentProfile, is_mg: bool, is_owner: bool
+        self, profile: AgentProfile, is_mg: bool, is_owner: bool,
+        pre: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Hook for domain subclasses to populate domain-specific
         synthetic fields. Default no-op."""

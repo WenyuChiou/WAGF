@@ -336,6 +336,23 @@ class FloodDomainPack(DefaultDomainPack):
         see raw numbers."""
         return {"government", "insurance"}
 
+    def csv_loader_class(self) -> Optional[Any]:
+        """Phase 6R-C (2026-05-26): dispatch flood-domain CSV loads
+        through ``FloodCSVLoader`` so the relocated PMT score columns
+        + flood-specific fields are populated on
+        :class:`FloodAgentProfile`."""
+        from broker.domains.water.loaders import FloodCSVLoader
+        return FloodCSVLoader
+
+    def synthetic_loader_class(self) -> Optional[Any]:
+        """Phase 6R-C (2026-05-26): dispatch flood-domain synthetic
+        agent generation through ``FloodSyntheticLoader`` so the
+        relocated PMT_PARAMS distributions + "H" agent_id prefix +
+        flood-specific synthetic fields are used. Preserves paper-1b
+        byte-identity."""
+        from broker.domains.water.loaders import FloodSyntheticLoader
+        return FloodSyntheticLoader
+
     def prompt_placeholder_extensions(self) -> Set[str]:
         """Flood-domain narrative placeholders injected by water-domain
         context providers at runtime — ``validate_prompt`` must NOT warn

@@ -42,6 +42,20 @@ class FloodAgentProfile(AgentProfile):
     multi-agent flood examples.
     """
 
+    # --- Psychological Constructs (PMT framework, 1-5 scale) ---
+    # Phase 6R-C (audit cluster A #3, 2026-05-26): relocated from base
+    # AgentProfile. These 5 fields are PMT-framework specific labels
+    # (Threat Perception / Coping Perception / Stakeholder Perception
+    # / Social Capital / Place Attachment) — the names + semantics are
+    # water-domain vocabulary. A non-water domain that needs typed
+    # psychometric fields subclasses base AgentProfile and adds its
+    # own (e.g. ``HBMAgentProfile`` for vaccination).
+    tp_score: float = 3.0  # Threat Perception
+    cp_score: float = 3.0  # Coping Perception
+    sp_score: float = 3.0  # Stakeholder Perception
+    sc_score: float = 3.0  # Social Capital
+    pa_score: float = 3.0  # Place Attachment
+
     # --- Flood exposure history ---
     flood_experience: bool = False
     flood_frequency: int = 0

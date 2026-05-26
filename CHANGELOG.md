@@ -38,6 +38,31 @@ genericity gate. See `~/.claude/plans/breezy-dazzling-knuth.md`.
 
 ### Changed
 
+- **Phase 6R-C — Split PMT-bias remnants out of base AgentProfile / SyntheticLoader (audit cluster A #3 + #4)** (2026-05-26). Closes the Phase 6Q-K-2 deferred batch. Per the plan these two items are tightly coupled (PMT_PARAMS → AgentProfile.tp_score etc.); shipped as one commit because separating them would force temporarily-broken intermediate states.
+  - **Pre-fix** — three flood-domain leaks in generic broker code:
+    - `broker/core/agent_initializer.py:140-144`: `AgentProfile` had 5 PMT-framework score fields (`tp_score` / `cp_score` / `sp_score` / `sc_score` / `pa_score` — Threat Perception / Coping Perception / Stakeholder Perception / Social Capital / Place Attachment). Every domain author calling `initialize_agents()` got profiles unconditionally carrying these flood-framework labels (cluster A #3).
+    - `broker/core/agent_initializer.py:396-411`: `SyntheticLoader.PMT_PARAMS` class-level dict + PMT sampling block in `_generate_profile`. Generic synthetic generation produced agents with PMT-distribution scores even for non-water domains (cluster A #4).
+    - `broker/core/agent_initializer.py:500`: hardcoded `agent_id=f"H{idx+1:04d}"` — the `H` prefix abbreviates "household" (paper-1b water vocabulary).
+  - **Fix**:
+    - **AgentProfile** (`broker/core/agent_initializer.py:140-144`): 5 PMT score fields removed. Domain-neutral base profile now carries only demographics + spatial + extensions dict.
+    - **FloodAgentProfile** (`broker/domains/water/agent_profile.py`): 5 PMT score fields added with same defaults (`3.0`).
+    - **SyntheticLoader.PMT_PARAMS** removed from base. PMT distribution dict relocated to `FloodSyntheticLoader.PMT_PARAMS` in `broker/domains/water/loaders.py`.
+    - **PMT sampling block** in base `_generate_profile` removed. NEW subclass hook `_pre_generate_rng(is_mg, is_owner)` allows subclasses to consume RNG values BEFORE base's own random calls — critical for paper-1b byte-identity (the original RNG sequence was TP → CP → SP → SC → PA → income → family → ..., and inverting the order would change every np.random / random outcome downstream).
+    - **Agent ID prefix**: base uses `_AGENT_ID_PREFIX = "A"` + 0-indexed → `A0000` / `A0001` / ... Subclass hook `_build_agent_id(idx)` allows override; FloodSyntheticLoader uses `H{idx+1:04d}` to preserve paper-1b byte-identity.
+    - **CSV loader column aliases**: 5 PMT entries (`tp_score`, `cp_score`, ...) moved from base `CSVLoader.DEFAULT_COLUMNS` to `FloodCSVLoader.DEFAULT_COLUMNS`. Base `_parse_row` no longer constructs profiles with PMT kwargs; FloodCSVLoader's `_populate_domain_fields` reads PMT columns and assigns to `FloodAgentProfile`.
+    - **DomainPack dispatch**: `FloodDomainPack.csv_loader_class()` + `synthetic_loader_class()` added so `initialize_agents(domain="flood")` routes to the flood-namespace loaders. Pre-6R-C the flood pack did NOT override these (returned `None`), so the dispatch silently fell back to base loaders — but base loaders still had the PMT logic baked in. Post-6R-C the explicit override is required for flood paper-1b behaviour.
+  - **Paper-1b byte-identity preserved**:
+    - **Flood** (`examples/governed_flood/run_experiment.py --model mock --years 1 --agents 3 --seed 42`): post-6R-C audit CSV matches pre-6R baseline within the documented 2-row × 1-column `mem_top_emotion` noise floor (same drift seen pre-6R-C on same-commit re-runs; not introduced by this refactor). Verified via `broker.tools.compare_audit_csv`.
+    - **Irrigation** (`examples/irrigation_abm/run_experiment.py --model mock --years 1 --agents 5 --seed 42`): **IDENTICAL** post-normalisation (`canonical sha256=b1b6720010d8d9...`). 5/5 rows match the pre-6R baseline. Irrigation doesn't use PMT or the H-prefix, so no surface to break.
+  - **Files changed**:
+    - `broker/core/agent_initializer.py` — removed PMT field declarations + PMT_PARAMS + PMT sampling block; added `_AGENT_ID_PREFIX` + `_build_agent_id()` hook + `_pre_generate_rng()` hook; updated `_parse_row` and `_generate_profile` signatures.
+    - `broker/domains/water/agent_profile.py` — added 5 PMT score fields to FloodAgentProfile with same defaults.
+    - `broker/domains/water/loaders.py` — FloodCSVLoader.DEFAULT_COLUMNS gained 5 PMT aliases; `_populate_domain_fields` now reads PMT columns; FloodSyntheticLoader gained PMT_PARAMS + `_AGENT_ID_PREFIX = "H"` + `_build_agent_id()` override + `_pre_generate_rng()` override.
+    - `examples/governed_flood/adapters/flood_pack.py` — new `csv_loader_class()` + `synthetic_loader_class()` overrides routing dispatch through the flood loaders.
+    - `tests/test_agent_initializer.py` — added module-scoped autouse fixture importing `examples.governed_flood` (registers FloodDomainPack so `initialize_agents(domain="flood")` finds the typed loaders); `test_profile_to_dict` split to test base AgentProfile (no PMT) + FloodAgentProfile (has PMT); `test_loader_defaults` split to test base "A" prefix + Flood "H" prefix.
+  - **Test gate**: `pytest broker/ tests/ --timeout=300 -p no:cacheprovider` → **2536 passed / 10 skipped / 0 failed** (same count as 6R-C-0 baseline; the 9 PMT-touching tests now require the autouse fixture but pass cleanly).
+  - **Phase 6R-C status post-this-commit**: both cluster A #3 (AgentProfile typed PMT fields) and #4 (SyntheticLoader.PMT_PARAMS + H-prefix) CLOSED. The Phase 6Q-K-2 deferred batch is empty.
+
 - **Phase 6R-C-0 — Column-aware audit CSV diff tool (`broker/tools/compare_audit_csv.py`)** (2026-05-26). Prerequisite infrastructure for the Phase 6R-C (AgentProfile / SyntheticLoader split) and 6R-D-5 (FloodDomainPack internal refactor) byte-identity verification. Discovered during Phase 6R-B-1 that SHA256 of `*_governance_audit.csv` is non-deterministic across runs at the same commit due to two noise sources:
   - **Wall-clock timestamps**: every audit row ends with `datetime.now()` captured at write time (different each run).
   - **Python set iteration order**: error messages embed sets (e.g. "Missing constructs: ['CP_LABEL', 'TP_LABEL']") and the iteration order is hash-seed-dependent.
