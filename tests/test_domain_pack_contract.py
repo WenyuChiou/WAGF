@@ -549,7 +549,11 @@ class TestHotPathsUseDomainPack:
         "broker/components/cognitive/reflection.py",        # C3
         "broker/core/experiment_runner.py",                 # W2
         "broker/components/events/ma_manager.py",           # W5
-        "broker/domains/water/validator_bundles.py",        # C5
+        # Phase 6P-A (2026-05-25): the dispatcher relocated from
+        # `broker/domains/water/validator_bundles.py` to a generic
+        # address. The water-side file is now a 3-line backwards-compat
+        # shim; the DomainPackRegistry hot-path lives in the new file.
+        "broker/components/governance/domain_validator_dispatch.py",  # C5 (relocated)
         "broker/domains/water/providers.py",                # C2 (6H Item 7: FinancialCostProvider relocated to water)
     ])
     def test_module_imports_domain_pack_registry(self, module_path):

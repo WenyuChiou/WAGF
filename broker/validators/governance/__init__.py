@@ -76,12 +76,15 @@ def validate_all(
         or None
     )
 
-    # Function-local import eliminates the LOAD-TIME coupling between the
-    # generic validators package and broker.domains.water. RUNTIME coupling
-    # (always dispatching to the water bundle) is a pre-existing limitation
-    # tracked under Phase 6G Gate-2 — when registry-driven dispatch lands
-    # this line becomes `DomainPack.get_validator_builder(resolved_domain)`.
-    from broker.domains.water.validator_bundles import build_domain_validators
+    # Phase 6P-A (2026-05-25): runtime cross-namespace coupling closed.
+    # The dispatcher now lives at a generic address —
+    # `broker.components.governance.domain_validator_dispatch` — and its
+    # body has been registry-driven since Phase 6C-v2. The function-local
+    # import is preserved to keep `validate_all`'s module-load surface
+    # narrow (no eager import of all validator subclasses).
+    from broker.components.governance.domain_validator_dispatch import (
+        build_domain_validators,
+    )
 
     validators = build_domain_validators(resolved_domain)
 
