@@ -112,6 +112,12 @@ class DefaultDomainPack:
     def passthrough_agent_types(self) -> Set[str]:
         return set()
 
+    def prompt_placeholder_extensions(self) -> Set[str]:
+        # Phase 6R-B-3 (audit cluster E #16): default contract — no
+        # domain-specific placeholders. Generic domains rely on
+        # ``BROKER_FILLED_PLACEHOLDERS`` alone.
+        return set()
+
     def affordability_constraints(self) -> Dict[str, Any]:
         return {}
 

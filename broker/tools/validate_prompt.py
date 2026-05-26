@@ -44,6 +44,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+# Phase 6R-B-3 (audit cluster E #16): the registry lookup happens at
+# validate-time to union the CLI's base placeholder allowlist with
+# domain-specific extensions. Module-level import because
+# ``broker.domains.registry`` is a first-party broker module — if it
+# ever can't be imported, the CLI was broken at startup, not here.
+from broker.domains.registry import DomainPackRegistry
+
 
 # ---------------------------------------------------------------------------
 # Known broker-filled placeholders (auto-injected by TieredContextBuilder
@@ -84,27 +91,63 @@ BROKER_FILLED_PLACEHOLDERS: Set[str] = {
     "social_gossip",
     "neighbor_action_summary",
     "global_news",
-    # Phase 6Q-K-3 (2026-05-26): asymmetric placeholder coverage. The
-    # 3 entries below are water/flood-domain provider names — they
-    # suppress WARN for flood prompts that reference them, but a
-    # non-water domain that defines its own placeholder vocabulary
-    # (e.g. ``{congestion_advisory_text}`` for traffic) would get
-    # spurious WARNs because validate_prompt has no per-domain
-    # extension mechanism. Documented as Layer 3 audit finding #16
-    # (Phase 6P-E follow-up). Proper fix: add a
-    # ``DomainPack.prompt_placeholder_extensions() -> Set[str]`` hook
-    # and union with this base set at validate-time — deferred to
-    # Phase 6R alongside the broader sub-protocol split (Layer 4
-    # audit). For now the entries stay so flood prompt validation
-    # keeps working byte-identically; non-water domains can avoid
-    # the spurious WARN by naming their placeholders to NOT collide
-    # with these reserved water-domain names (which they already
-    # do, since traffic / vaccination don't reference insurance /
-    # mg / renewal vocabulary).
-    "insurance_cost_text",   # water-domain (FloodDomainPack)
-    "mg_barrier_text",       # water-domain (FloodDomainPack)
-    "renewal_fatigue_text",  # water-domain (FloodDomainPack)
+    # Phase 6R-B-3 (2026-05-26): the 3 water-domain placeholder names
+    # (``insurance_cost_text`` / ``mg_barrier_text`` /
+    # ``renewal_fatigue_text``) that previously lived here have moved to
+    # ``FloodDomainPack.prompt_placeholder_extensions()``. The CLI
+    # unions this base set with the registered DomainPack's extensions
+    # at validate-time (see ``_resolve_domain_extensions`` below). This
+    # closes the asymmetric coverage flagged by Phase 6Q-K-3 (Layer 3
+    # audit finding #16).
 }
+
+
+# ---------------------------------------------------------------------------
+# Domain-specific placeholder extensions (Phase 6R-B-3)
+# ---------------------------------------------------------------------------
+
+def _resolve_domain_extensions(cfg: Dict[str, Any]) -> Set[str]:
+    """Return the placeholder extensions for the YAML's declared domain.
+
+    Reads ``global_config.governance.domain`` from the agent-types YAML
+    (e.g. ``"flood"``, ``"traffic"``, ``"irrigation"``). Looks the name
+    up in :class:`DomainPackRegistry`; if registered, returns
+    ``pack.prompt_placeholder_extensions()``. If absent (e.g. the
+    relevant example package wasn't imported, or the YAML has no
+    ``domain:`` field), returns ``set()`` — flood YAMLs will get a
+    spurious WARN for the 3 water names UNLESS the user imports
+    ``examples.governed_flood`` before invoking the CLI.
+
+    Auto-importing every example package would couple the validator
+    to the example tree (and bloat startup). Document the import
+    convention instead: callers wanting flood-extension coverage
+    invoke ``python -m examples.governed_flood`` first (which has
+    the same registration side-effect), OR run the CLI from a
+    Python module that has already imported the relevant example.
+    """
+    domain = (
+        cfg.get("global_config", {})
+        .get("governance", {})
+        .get("domain")
+    )
+    if not domain:
+        return set()
+    pack = DomainPackRegistry.get(domain)
+    if pack is None:
+        # Pack not registered — likely the relevant example package
+        # wasn't imported. Return empty set; the WARN that fires is
+        # the correct behaviour ("you reference {insurance_cost_text}
+        # but didn't import the FloodDomainPack").
+        return set()
+    try:
+        ext = pack.prompt_placeholder_extensions()
+    except Exception:
+        # Defensive: a broken pack must not crash the validator.
+        # Most likely real failures are AttributeError (pack missing
+        # the method) and TypeError (method returns a non-iterable).
+        # Phase 6Q-D-4 graceful-degradation pattern.
+        return set()
+    return set(ext) if ext else set()
 
 
 @dataclass
@@ -390,8 +433,23 @@ def validate_agent_type(
     cfg: Dict[str, Any],
     agent_type: str,
     yaml_path: Path,
+    domain_extensions: Optional[Set[str]] = None,
 ) -> List[Issue]:
-    """Validate one agent type's prompt + YAML cross-references."""
+    """Validate one agent type's prompt + YAML cross-references.
+
+    Args:
+        cfg: parsed YAML dict.
+        agent_type: which top-level key to validate.
+        yaml_path: path of the YAML (for error-message locations).
+        domain_extensions: extra placeholder names accepted as broker-
+            filled (in addition to ``BROKER_FILLED_PLACEHOLDERS``).
+            Typically supplied by ``_resolve_domain_extensions`` from
+            the YAML's ``global_config.governance.domain`` field +
+            the registered DomainPack's
+            ``prompt_placeholder_extensions()`` hook. Phase 6R-B-3.
+    """
+    if domain_extensions is None:
+        domain_extensions = set()
     issues: List[Issue] = []
     block = cfg.get(agent_type)
     if not isinstance(block, dict):
@@ -510,7 +568,18 @@ def validate_agent_type(
         collect_template_vars(shared.get("template_vars"))
         | collect_template_vars(block.get("template_vars"))
     )
-    known_keys = BROKER_FILLED_PLACEHOLDERS | field_keys | template_var_keys
+    # Phase 6R-B-3 (audit cluster E #16): union the base broker-filled
+    # set with the DomainPack's domain-specific extensions (e.g.
+    # FloodDomainPack.prompt_placeholder_extensions() supplies
+    # ``insurance_cost_text`` etc.). Pre-fix these names lived in
+    # BROKER_FILLED_PLACEHOLDERS directly, leaking flood-domain vocab
+    # into generic CLI code.
+    known_keys = (
+        BROKER_FILLED_PLACEHOLDERS
+        | domain_extensions
+        | field_keys
+        | template_var_keys
+    )
     unknown = sorted(p for p in placeholders if p not in known_keys)
     if unknown:
         issues.append(Issue(
@@ -554,7 +623,19 @@ def validate_agent_type(
 
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Static validator: agent prompt template vs YAML config",
+        description=(
+            "Static validator: agent prompt template vs YAML config.\n\n"
+            "Phase 6R-B-3 (audit cluster E #16): the CLI's placeholder "
+            "allowlist is the union of BROKER_FILLED_PLACEHOLDERS and "
+            "the registered DomainPack's prompt_placeholder_extensions() "
+            "hook. To validate a flood YAML (which references "
+            "{insurance_cost_text} / {mg_barrier_text} / {renewal_fatigue_text}) "
+            "without spurious WARNs, ensure FloodDomainPack is registered "
+            "BEFORE invoking this CLI — e.g. run from a Python entry "
+            "point that imports examples.governed_flood, or use "
+            "`python -m examples.governed_flood validate_prompt ...`."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "yaml_file",
@@ -614,8 +695,17 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 1
 
     all_issues: List[Issue] = []
+    # Phase 6R-B-3: resolve domain-specific placeholder extensions once
+    # per CLI invocation. The hook is keyed on
+    # ``global_config.governance.domain``.
+    domain_extensions = _resolve_domain_extensions(cfg)
     for at in agent_types:
-        all_issues.extend(validate_agent_type(cfg, at, args.yaml_file))
+        all_issues.extend(
+            validate_agent_type(
+                cfg, at, args.yaml_file,
+                domain_extensions=domain_extensions,
+            )
+        )
 
     if not all_issues:
         print(f"OK: {args.yaml_file} — {len(agent_types)} agent type(s) clean")
