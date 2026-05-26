@@ -6,30 +6,19 @@ Task 10: 通用模組整合驗證
 """
 import unittest
 from pathlib import Path
-import sys
 from dataclasses import dataclass
 from typing import Dict, Any, List, Optional
-import importlib
 
-# Setup paths
+# Path constants — used by setUp methods below to locate config files.
 CURRENT_DIR = Path(__file__).parent
-MA_DIR = CURRENT_DIR.parent
-ROOT_DIR = MA_DIR.parent.parent
+MA_DIR = CURRENT_DIR.parent.parent / "examples" / "multi_agent" / "flood"
 
-# Build clean path: ROOT first, then examples folder
-# This ensures 'agents' resolves to root/agents not multi_agent/agents
-_clean_paths = [str(ROOT_DIR)]
-# Add examples parent for MA imports
-_clean_paths.append(str(MA_DIR.parent))
-
-# Filter existing paths and prepend clean paths
-_existing = [p for p in sys.path if str(ROOT_DIR) not in p and str(MA_DIR) not in p]
-sys.path = _clean_paths + _existing
-
-# Force reload of any cached modules to use clean paths
-for mod_name in list(sys.modules.keys()):
-    if mod_name.startswith('broker') or mod_name.startswith('agents'):
-        del sys.modules[mod_name]
+# Note: pre-2026-05-25 this file also manipulated sys.path and forcibly
+# del-ed every `broker.*` / `agents.*` entry from sys.modules at import
+# time. With broker installed via pyproject.toml that block became dead
+# code AND corrupted other tests' class-identity (caused 6 isinstance /
+# `is` failures across the suite when this file ran first). Removed in
+# v0.3.1-B. Imports below are local to each test method.
 
 
 # =============================================================================
