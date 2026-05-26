@@ -731,3 +731,104 @@ class TestNoReverseDomainImport:
             "`if TYPE_CHECKING:`.\n"
             "Violations:\n  " + "\n  ".join(violations)
         )
+
+
+class TestNoFloodVocabInGenericEventGenerators:
+    """Phase 6P-E architectural guard — added 2026-05-25.
+
+    The two generic event generators under
+    ``broker/components/events/generators/`` historically carried
+    flood-specific vocabulary (``"flood protection subsidy"``,
+    ``"Catastrophic flooding (X ft)"`` etc.). Phase 6P-D removed those
+    strings; this guard pins the removal so a future edit cannot
+    silently re-introduce them.
+
+    The check uses Python's ``ast`` module to find every string literal
+    (``ast.Constant`` of type ``str``) whose ``lineno`` is NOT inside a
+    module/class/function docstring position. Docstring strings remain
+    free to mention "flood" — they reference historical context and
+    naming. Only *executable* string literals (return values, f-string
+    templates, dict values used at runtime) are forbidden from
+    containing the substring "flood".
+    """
+
+    # Auto-discover every generator under broker/components/events/generators/
+    # (excluding ``__init__.py``). Hardcoding the list left ``impact.py``
+    # unguarded — a future generator added to this directory would
+    # silently escape this invariant unless added manually. Per
+    # code-reviewer #3 (Phase 6P-E round 1).
+    GUARDED_DIR = "broker/components/events/generators"
+
+    def _docstring_line_ranges(self, tree):
+        """Return a set of line numbers occupied by module / class /
+        function docstrings — strings at these positions are exempt."""
+        import ast
+        ranges = []
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Module, ast.FunctionDef,
+                                 ast.AsyncFunctionDef, ast.ClassDef)):
+                if (node.body
+                        and isinstance(node.body[0], ast.Expr)
+                        and isinstance(node.body[0].value, ast.Constant)
+                        and isinstance(node.body[0].value.value, str)):
+                    doc = node.body[0].value
+                    ranges.append((doc.lineno, doc.end_lineno or doc.lineno))
+        exempt = set()
+        for lo, hi in ranges:
+            exempt.update(range(lo, hi + 1))
+        return exempt
+
+    def test_no_flood_vocab_in_executable_string_literals(self):
+        """Look only at *prose-like* string literals: strings with
+        whitespace OR length > 12. This catches both
+        ``"Catastrophic flooding (X ft)..."`` (whitespace) and
+        ``"flood-damage"`` / ``"flood-protection"`` (hyphenated
+        compounds, no whitespace, > 12 chars). Identifier-style
+        configuration tags like the bare 5-char ``"flood"`` domain
+        token are exempt — they are not vocabulary leaks.
+        Per code-reviewer #2 (Phase 6P-E round 1)."""
+        import ast
+        from pathlib import Path
+
+        broker_root = Path(__file__).resolve().parents[2]
+        guarded_dir = broker_root / self.GUARDED_DIR
+        guarded_files = sorted(
+            p for p in guarded_dir.glob("*.py")
+            if p.name != "__init__.py"
+        )
+        assert guarded_files, (
+            f"GUARDED_DIR={self.GUARDED_DIR} resolved to zero files — "
+            f"path likely moved. Restore the directory or update GUARDED_DIR."
+        )
+
+        violations = []
+        for path in guarded_files:
+            rel = path.relative_to(broker_root)
+            source = path.read_text(encoding="utf-8")
+            tree = ast.parse(source)
+            exempt = self._docstring_line_ranges(tree)
+            for node in ast.walk(tree):
+                if not (isinstance(node, ast.Constant)
+                        and isinstance(node.value, str)):
+                    continue
+                if node.lineno in exempt:
+                    continue
+                value = node.value
+                # Prose-like = has whitespace OR length > 12.
+                # The bare 5-char token "flood" (used as a domain id)
+                # is correctly exempt under both conditions.
+                if not (any(ch.isspace() for ch in value) or len(value) > 12):
+                    continue
+                if "flood" in value.lower():
+                    snippet = value if len(value) <= 60 else value[:57] + "..."
+                    violations.append(f"{rel}:{node.lineno}  {snippet!r}")
+
+        assert not violations, (
+            "flood-vocabulary leaked into executable string literals of "
+            "generic event generators. These files must be domain-neutral; "
+            "flood-flavoured templates live in "
+            "broker/domains/water/event_generators/flood.py. Move the "
+            "literal into a domain-specific override, or refactor it to "
+            "consume a parameterised noun via DomainPack.\n"
+            "Violations:\n  " + "\n  ".join(violations)
+        )

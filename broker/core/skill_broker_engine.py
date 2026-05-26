@@ -17,7 +17,7 @@ MCP Role (if used):
 Validator pipeline (maps 1:1 to Nature Water Methods v4 six-step sequence):
   1. Schema validation          — AgentValidator schema check + registry schema
   2. Action legality            — AgentValidator + governance/type_validator
-  3. Physical feasibility       — domain bundle (water/validator_bundles)
+  3. Physical feasibility       — domain bundle (broker.components.governance.domain_validator_dispatch)
   4. Institutional compliance   — institutional/social/economic validators
                                   (grouped under one Methods step, three code labels)
   5. Magnitude plausibility     — numeric bounds, ADVISORY ONLY (execution resamples)

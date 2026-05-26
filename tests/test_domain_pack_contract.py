@@ -412,6 +412,22 @@ class TestFloodDomainPackByteIdentical:
         from broker.domains.water.loaders import FloodSyntheticLoader
         assert self.pack.synthetic_loader_class() is FloodSyntheticLoader
 
+    # Phase 6P-E (2026-05-25) — hazard severity threshold dispatch
+    def test_hazard_severity_thresholds_returns_flood_meter_values(self):
+        """The four flood-domain water-depth thresholds (metres) are
+        now exposed via ``FloodDomainPack.hazard_severity_thresholds()``
+        — byte-identical to the legacy
+        ``HazardEventConfig.severity_thresholds`` default that
+        Phase 6P-E declared as flood-domain values rather than
+        generic-broker constants."""
+        thresholds = self.pack.hazard_severity_thresholds()
+        assert thresholds == {
+            "critical": 1.2,
+            "severe": 0.6,
+            "moderate": 0.3,
+            "minor": 0.0,
+        }
+
     def test_flood_loaders_accept_canonical_constructor_kwargs(self):
         """Phase 6P-C code-reviewer #3 — the loader-dispatch contract
         promises the returned classes accept ``column_mappings=`` and

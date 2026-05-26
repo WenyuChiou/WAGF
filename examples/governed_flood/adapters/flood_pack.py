@@ -359,6 +359,24 @@ class FloodDomainPack(DefaultDomainPack):
         from broker.domains.water.phase_layouts import water_default_phases
         return water_default_phases()
 
+    def hazard_severity_thresholds(self) -> Dict[str, float]:
+        """Phase 6P-E (2026-05-25): exposes the four flood-domain
+        water-depth thresholds (metres) as a DomainPack-owned
+        configuration surface. The values are byte-identical to the
+        ``HazardEventConfig.severity_thresholds`` ``default_factory``
+        that pre-6P-E lived inside generic broker code; this hook
+        relocates the *declaration* of the values to the flood domain
+        bundle without (yet) changing the generator's lookup order.
+        Full consumer wiring (the generator preferring this hook over
+        its built-in defaults) lands in Phase 6P-F when the first
+        non-flood hazard domain arrives. Today the hook is advisory."""
+        return {
+            "critical": 1.2,  # ~4 ft
+            "severe": 0.6,    # ~2 ft
+            "moderate": 0.3,  # ~1 ft
+            "minor": 0.0,
+        }
+
     def csv_loader_class(self) -> Any:
         """Phase 6P-C (2026-05-25): replaces the hardcoded
         ``if domain_name == "flood":`` branch in
