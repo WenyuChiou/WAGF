@@ -135,6 +135,16 @@ class DefaultDomainPack:
     def policy_event_tiers(self) -> Dict[str, float]:
         return {}
 
+    # ─── Profile loaders (Phase 6P-C) ─────────────────────────────
+
+    def csv_loader_class(self) -> Optional[Any]:
+        """Default → ``None`` → broker uses the generic ``CSVLoader``."""
+        return None
+
+    def synthetic_loader_class(self) -> Optional[Any]:
+        """Default → ``None`` → broker uses the generic ``SyntheticLoader``."""
+        return None
+
     # ─── Phase orchestration (Phase 6P-B) ─────────────────────────
 
     def phase_layout(self) -> Optional[List[Any]]:
