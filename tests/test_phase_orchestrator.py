@@ -10,6 +10,13 @@ from unittest.mock import MagicMock
 from broker.interfaces.coordination import ExecutionPhase, PhaseConfig
 from broker.components.orchestration.phases import PhaseOrchestrator
 
+# Phase 6P-B (2026-05-25): `from_domain("flood")` and `from_domain(None)`
+# now resolve via the DomainPack registry; importing the flood example
+# package at module level keeps these tests order-independent (otherwise
+# the first-collected `from_domain("flood")` test would pay the
+# ~1 second example-package-load cost regardless of pytest ordering).
+import examples.governed_flood  # noqa: F401,E402 — registers FloodDomainPack
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -339,14 +346,25 @@ class TestDomainAgnostic:
         assert set(custom_ids) == {"v1", "e1"}
 
     def test_from_domain_flood_uses_default_phases(self):
-        """from_domain('flood') keeps flood 4-phase backward compat."""
+        """from_domain('flood') keeps flood 4-phase backward compat.
+
+        Phase 6P-B (2026-05-25): layout now comes from
+        ``FloodDomainPack.phase_layout()`` via the DomainPack registry.
+        Flood pack registration is performed by the module-level
+        ``import examples.governed_flood`` above (order-independent).
+        """
         orch = PhaseOrchestrator.from_domain("flood")
         assert len(orch.phases) == 4
         inst_pc = orch.get_phase_config(ExecutionPhase.INSTITUTIONAL)
         assert "government" in inst_pc.agent_types
 
     def test_from_domain_none_uses_default_phases(self):
-        """from_domain(None) preserves prior backward compat (flood default)."""
+        """from_domain(None) preserves prior backward compat (flood default).
+
+        Phase 6P-B (2026-05-25): ``None`` resolves to ``"flood"`` and
+        routes through the same registry lookup as the explicit-flood
+        case; flood pack registration via module-level import.
+        """
         orch = PhaseOrchestrator.from_domain(None)
         assert len(orch.phases) == 4
 

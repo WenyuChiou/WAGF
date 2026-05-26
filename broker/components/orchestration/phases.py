@@ -103,10 +103,14 @@ class PhaseOrchestrator:
 
         Args:
             domain: Domain name (e.g. "flood", "irrigation", "vaccination").
-                ``"flood"`` (or ``None`` for backward compat) → flood 4-phase
-                defaults via ``_default_phases``. Any other value (including
-                non-water domains) → ``_generic_phases`` so new domains work
-                out-of-the-box without YAML.
+                ``"flood"`` (or ``None`` for backward compat) → flood
+                4-phase layout if ``FloodDomainPack`` is registered;
+                otherwise falls back to the generic 3-phase layout.
+                Any other registered domain → its
+                ``DomainPack.phase_layout()`` if non-``None``, else the
+                generic layout. New domains work out-of-the-box without
+                YAML by inheriting ``DefaultDomainPack.phase_layout() ->
+                None``.
             seed: Random seed for "random" ordering inside phases.
             saga_coordinator: Optional saga coordinator.
 
@@ -114,10 +118,22 @@ class PhaseOrchestrator:
             A configured PhaseOrchestrator. To override phase structure
             entirely, use :meth:`from_yaml` or pass ``phases=`` to ``__init__``.
         """
-        if domain is None or domain.lower() == "flood":
-            from broker.domains.water.phase_layouts import water_default_phases
+        # Phase 6P-B (2026-05-25): generic-broker → water-namespace
+        # coupling closed. Layout selection now goes through DomainPack
+        # registry — no more hardcoded ``if domain == "flood":`` branch.
+        # ``None`` resolves to "flood" for backward compat (matches the
+        # pre-6P-B legacy default); if the flood pack is not registered,
+        # both ``None`` and unknown domains fall back to the generic
+        # 3-phase layout. Domains that need a custom multi-agent split
+        # override ``DomainPack.phase_layout()``.
+        from broker.domains.registry import DomainPackRegistry
 
-            return cls(phases=water_default_phases(), seed=seed,
+        resolved = (domain or "").strip().lower() or "flood"
+        pack = DomainPackRegistry.get_or_default(resolved)
+        layout = pack.phase_layout()
+
+        if layout is not None:
+            return cls(phases=layout, seed=seed,
                        saga_coordinator=saga_coordinator)
         return cls(phases=cls._generic_phases(), seed=seed,
                    saga_coordinator=saga_coordinator)
