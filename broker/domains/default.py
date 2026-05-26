@@ -139,6 +139,19 @@ class DefaultDomainPack:
     # default added in 6P-E was removed when ``HazardEventGenerator``
     # relocated to ``broker.domains.water.event_generators.hazard_per_agent``.
 
+    # ─── Psychological framework (Phase 6Q-D) ─────────────────────
+
+    def psychological_framework(self) -> str:
+        """Default → blessed escape-hatch sentinel
+        ``FRAMEWORK_ESCAPE_HATCH`` (``""``). ``ThinkingValidator``
+        accepts this as an explicit no-metadata signal — generic
+        5-level VL/L/M/H/VH ordering, empty construct registry.
+        Domains with a registered psychometric framework override."""
+        from broker.validators.governance.thinking_validator import (
+            FRAMEWORK_ESCAPE_HATCH,
+        )
+        return FRAMEWORK_ESCAPE_HATCH
+
     # ─── Profile loaders (Phase 6P-C) ─────────────────────────────
 
     def csv_loader_class(self) -> Optional[Any]:

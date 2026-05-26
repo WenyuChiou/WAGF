@@ -205,7 +205,7 @@ class TestThinkingValidatorLabelNormalization:
 
     def test_none_label_defaults_to_m(self):
         """None label should default to M."""
-        validator = ThinkingValidator()
+        validator = ThinkingValidator(framework="pmt")  # 6Q-D: framework now required
         assert validator._normalize_label(None) == "M"
         assert validator._normalize_label("") == "M"
 
@@ -335,10 +335,15 @@ class TestThinkingValidatorFrameworkFromContext:
 class TestThinkingValidatorBackwardCompatibility:
     """Test backward compatibility with existing code."""
 
-    def test_default_framework_is_pmt(self):
-        """Default framework should be PMT."""
-        validator = ThinkingValidator()
-        assert validator.framework == "pmt"
+    def test_framework_now_required(self):
+        """Phase 6Q-D (2026-05-26): framework was previously defaulted
+        to "pmt"; now it is required. This test was named
+        ``test_default_framework_is_pmt`` pre-6Q-D — renamed to assert
+        the new contract: constructing without `framework=` raises
+        ``ValueError`` rather than silently inheriting PMT."""
+        import pytest as _pytest
+        with _pytest.raises(ValueError, match="framework"):
+            ThinkingValidator()
 
     def test_pmt_label_order_constant_exists(self):
         """PMT_LABEL_ORDER constant should still exist for compatibility."""
@@ -347,7 +352,7 @@ class TestThinkingValidatorBackwardCompatibility:
 
     def test_category_is_thinking(self):
         """Category should be 'thinking'."""
-        validator = ThinkingValidator()
+        validator = ThinkingValidator(framework="pmt")  # 6Q-D: framework now required
         assert validator.category == "thinking"
 
     def test_metadata_includes_framework(self):

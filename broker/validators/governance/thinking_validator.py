@@ -47,6 +47,15 @@ _GENERIC_LABEL_MAPPINGS: Dict[str, str] = {
     "HIGH": "H", "VERY HIGH": "VH",
 }
 
+# Phase 6Q-D (2026-05-26): blessed sentinel for the "no framework
+# metadata" path. Callers (DefaultDomainPack, _empty_validators in the
+# dispatcher) pass this instead of a bare ``""`` so a future reader
+# greps for the intent rather than the implementation detail. The
+# validator's strict-registration check (line ~199) explicitly
+# tolerates this value; non-empty unregistered framework names still
+# raise.
+FRAMEWORK_ESCAPE_HATCH: str = ""
+
 
 # ──────────────────────────────────────────────────────────────────────
 # Per-framework thinking-check registry (Phase 6K-C 2026-05-22)
@@ -168,7 +177,7 @@ class ThinkingValidator(BaseValidator):
         }
     def __init__(
         self,
-        framework: str = "pmt",
+        framework: Optional[str] = None,
         builtin_checks: Optional[List[BuiltinCheck]] = None,
         extreme_actions: Optional[set] = None,
     ):
@@ -176,7 +185,19 @@ class ThinkingValidator(BaseValidator):
         Initialize ThinkingValidator with a specific framework.
 
         Args:
-            framework: Psychological framework ("pmt", "utility", "financial")
+            framework: Psychological framework — **REQUIRED**. One of
+                ``"pmt"``, ``"cognitive_appraisal"``, ``"hbm"``,
+                ``"utility"``, ``"financial"`` (pre-registered by their
+                respective domain packs), OR the empty string ``""``
+                (the explicit escape-hatch that uses the generic
+                5-level VL/L/M/H/VH label ordering without framework
+                metadata). Phase 6Q-D (2026-05-26): previously
+                defaulted silently to ``"pmt"``, causing non-flood
+                domains that constructed this validator without an
+                explicit framework= to inherit PMT label ordering +
+                PMT constructs regardless of their YAML
+                ``psychological_framework:`` declaration. ``None``
+                now raises ``ValueError`` so the contract is explicit.
             builtin_checks: Domain-specific checks.  None = built-in defaults
                 (PMT + Utility + Financial).  Pass ``[]`` for YAML-only.
             extreme_actions: Domain-specific actions blocked when threat
@@ -184,13 +205,27 @@ class ThinkingValidator(BaseValidator):
                 Configured per domain in ``agent_types.yaml``.
 
         Raises:
-            ValueError: if ``framework`` is non-empty and not registered
-                via :func:`register_framework_metadata`. Phase 6C-v3
-                (2026-05-10): without registered metadata, label
-                comparisons would silently fall back to PMT's VL/L/M/H/VH
-                ordinal scale even if the new framework uses a different
-                scale — a silent-wrong-answer bug. We now fail loudly.
+            ValueError: if ``framework`` is ``None`` (Phase 6Q-D
+                explicit-required guard), OR if ``framework`` is a
+                non-empty string not registered via
+                :func:`register_framework_metadata` (Phase 6C-v3
+                strict-registration guard). The empty string ``""`` is
+                accepted as an explicit escape hatch.
         """
+        if framework is None:
+            raise ValueError(
+                "ThinkingValidator requires an explicit `framework=` "
+                "(was previously silently defaulting to 'pmt' — any "
+                "non-flood domain inherited PMT label ordering + "
+                "constructs regardless of YAML declaration). Pass "
+                'framework="pmt" / "cognitive_appraisal" / "hbm" / '
+                '"utility" / "financial" — or framework="" for the '
+                "explicit escape-hatch path with generic 5-level "
+                "VL/L/M/H/VH ordering. For dispatcher use, the value "
+                "now flows through "
+                "DomainPack.psychological_framework(). "
+                "Phase 6Q-D (2026-05-26)."
+            )
         self.framework = framework.lower()
         # Phase 6C-v3 strict registration check. PMT / utility / financial
         # ship pre-registered by broker.domains.water; new domains must call

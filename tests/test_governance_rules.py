@@ -203,7 +203,7 @@ class TestThinkingValidator:
 
     def test_high_tp_cp_blocks_do_nothing(self):
         """High TP + High CP should not result in do_nothing."""
-        validator = ThinkingValidator()
+        validator = ThinkingValidator(framework="pmt")  # 6Q-D: framework now required
         context = {"reasoning": {"TP_LABEL": "H", "CP_LABEL": "VH"}}
 
         results = validator.validate("do_nothing", [], context)
@@ -211,7 +211,7 @@ class TestThinkingValidator:
 
     def test_vh_threat_requires_action(self):
         """VH threat should require protective action."""
-        validator = ThinkingValidator()
+        validator = ThinkingValidator(framework="pmt")  # 6Q-D: framework now required
         context = {"reasoning": {"TP_LABEL": "VH", "CP_LABEL": "M"}}
 
         results = validator.validate("do_nothing", [], context)
@@ -219,7 +219,10 @@ class TestThinkingValidator:
 
     def test_low_tp_blocks_extreme_action(self):
         """Low TP should not justify extreme measures."""
-        validator = ThinkingValidator(extreme_actions={"relocate", "elevate_house"})
+        validator = ThinkingValidator(
+            framework="pmt",  # 6Q-D: framework now required
+            extreme_actions={"relocate", "elevate_house"},
+        )
         context = {"reasoning": {"TP_LABEL": "L", "CP_LABEL": "M"}}
 
         results = validator.validate("relocate", [], context)

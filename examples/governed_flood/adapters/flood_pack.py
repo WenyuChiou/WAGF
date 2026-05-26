@@ -368,6 +368,16 @@ class FloodDomainPack(DefaultDomainPack):
     # water namespace (``HazardEventConfig.severity_thresholds``
     # default factory unchanged).
 
+    def psychological_framework(self) -> str:
+        """Phase 6Q-D (2026-05-26): PMT (Protection Motivation Theory)
+        — the framework pre-registered by
+        ``broker.domains.water.thinking_checks`` at import time.
+        Matches the ``psychological_framework: pmt`` declaration in
+        ``examples/governed_flood/config/agent_types.yaml`` (which
+        pre-6Q-D was dead config — no code piped the YAML field into
+        ``ThinkingValidator(framework=...)``)."""
+        return "pmt"
+
     def csv_loader_class(self) -> Any:
         """Phase 6P-C (2026-05-25): replaces the hardcoded
         ``if domain_name == "flood":`` branch in

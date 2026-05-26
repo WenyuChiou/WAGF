@@ -488,6 +488,38 @@ class DomainPack(Protocol):
     # of being decoupled via this hook. The hook is gone; the move
     # automatically closes the hazard-event-payload genericity finding.
 
+    # ─── Psychological framework (Phase 6Q-D 2026-05-26) ──────────
+
+    def psychological_framework(self) -> str:
+        """Framework identifier passed to ``ThinkingValidator(framework=...)``.
+
+        Pre-6Q-D the validator silently defaulted to ``"pmt"``. The
+        Phase 6P-E follow-up audit flagged this as a BLOCKER: any
+        non-flood domain instantiating the validator without an
+        explicit framework= silently inherited the PMT label ordering
+        + PMT construct registry, even when the domain declared
+        ``psychological_framework: hbm`` (or ``cognitive_appraisal``,
+        etc.) in its YAML. The YAML field was dead config — no code
+        path piped it into the validator constructor.
+
+        This hook restores that wiring: ``build_domain_validators``
+        reads it via ``DomainPackRegistry.get_or_default(domain)
+        .psychological_framework()`` and passes it explicitly.
+
+        Recognised values (must be pre-registered via
+        :func:`broker.validators.governance.thinking_validator.register_framework_metadata`
+        at import time): ``"pmt"`` (flood), ``"cognitive_appraisal"``
+        (irrigation), ``"hbm"`` (vaccination), ``"utility"``,
+        ``"financial"``. Returning ``""`` (empty string) is the
+        escape hatch for domains without registered framework
+        metadata — the validator then falls back to a generic 5-level
+        VL/L/M/H/VH label ordering with no construct introspection.
+
+        Default ``""`` (no metadata) — overridden by every domain pack
+        that ships a psychometric framework.
+        """
+        ...
+
     # ─── Profile loaders (Phase 6P-C 2026-05-25) ──────────────────
 
     def csv_loader_class(self) -> Optional[Any]:

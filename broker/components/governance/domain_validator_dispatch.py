@@ -35,11 +35,18 @@ from broker.validators.governance.semantic_validator import SemanticGroundingVal
 
 
 def _empty_validators() -> list:
+    from broker.validators.governance.thinking_validator import (
+        FRAMEWORK_ESCAPE_HATCH,
+    )
     no_builtins: List[BuiltinCheck] = []
     return [
         PersonalValidator(builtin_checks=no_builtins),
         PhysicalValidator(builtin_checks=no_builtins),
-        ThinkingValidator(builtin_checks=no_builtins),
+        # Phase 6Q-D (2026-05-26): pass the blessed escape-hatch
+        # sentinel — explicit no-metadata signal, generic 5-level
+        # VL/L/M/H/VH ordering. Empty domain by definition has no
+        # registered framework.
+        ThinkingValidator(framework=FRAMEWORK_ESCAPE_HATCH, builtin_checks=no_builtins),
         SocialValidator(builtin_checks=no_builtins),
         SemanticGroundingValidator(builtin_checks=no_builtins),
     ]
@@ -74,13 +81,21 @@ def build_domain_validators(domain: Optional[str]) -> list:
         return _empty_validators()
 
     extreme: set = set()
+    framework: str = ""
     try:
         from broker.domains.registry import DomainPackRegistry
         pack = DomainPackRegistry.get_or_default(resolved)
         extreme = pack.extreme_actions()
+        # Phase 6Q-D (2026-05-26): pipe DomainPack.psychological_framework()
+        # into ThinkingValidator. Pre-6Q-D the validator silently defaulted
+        # to "pmt" — non-flood domains (vaccination "hbm", irrigation
+        # "cognitive_appraisal") had their YAML `psychological_framework:`
+        # declaration as dead config.
+        framework = pack.psychological_framework()
     except ImportError:
         if resolved == "flood":
             extreme = {"relocate", "elevate_house"}
+            framework = "pmt"
 
     return [
         _with_registered_mode(
@@ -94,6 +109,7 @@ def build_domain_validators(domain: Optional[str]) -> list:
             "physical",
         ),
         _with_registered_mode(ThinkingValidator(
+            framework=framework,
             builtin_checks=ValidatorRegistry.get_checks(resolved, "thinking"),
             extreme_actions=extreme,
         ), resolved, "thinking"),
