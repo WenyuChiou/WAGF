@@ -41,13 +41,13 @@ def no_packs():
 class TestDynamicImportance:
     def test_no_domain_returns_base(self, engine, no_packs):
         """No adapter and no pack → the generic base score, rounded."""
-        ctx = AgentReflectionContext(agent_id="H1")
+        ctx = AgentReflectionContext(agent_id="H1", agent_type="household")
         assert engine.compute_dynamic_importance(ctx, base_importance=0.9) == 0.9
         assert engine.compute_dynamic_importance(ctx, base_importance=0.42) == 0.42
 
     def test_no_domain_score_clamped(self, engine, no_packs):
         """The base score is clamped to [0.0, 1.0]."""
-        ctx = AgentReflectionContext(agent_id="H1")
+        ctx = AgentReflectionContext(agent_id="H1", agent_type="household")
         assert engine.compute_dynamic_importance(ctx, base_importance=5.0) == 1.0
         assert engine.compute_dynamic_importance(ctx, base_importance=-1.0) == 0.0
 
@@ -55,11 +55,11 @@ class TestDynamicImportance:
         """A flood-flagged context no longer changes the score — the
         hardcoded flood-keyword block was removed (Phase 6H Item 9)."""
         flagged = AgentReflectionContext(
-            agent_id="H1", mg_status=True,
+            agent_id="H1", agent_type="household", mg_status=True,
             recent_decision="elevate_house",
             custom_traits={"flood_count": 5},
         )
-        plain = AgentReflectionContext(agent_id="H2")
+        plain = AgentReflectionContext(agent_id="H2", agent_type="household")
         assert (
             engine.compute_dynamic_importance(flagged, base_importance=0.5)
             == engine.compute_dynamic_importance(plain, base_importance=0.5)
@@ -80,7 +80,7 @@ class TestDynamicImportance:
                 return 0.42
 
         DomainPackRegistry.register("t9", _Pack())
-        ctx = AgentReflectionContext(agent_id="H1")
+        ctx = AgentReflectionContext(agent_id="H1", agent_type="household")
         assert engine.compute_dynamic_importance(ctx) == 0.42
 
     def test_pack_path_normalises_dataclass_context(self, engine, no_packs):
@@ -100,6 +100,7 @@ class TestDynamicImportance:
 
         DomainPackRegistry.register("dict_pack", _DictPack())
         ctx = AgentReflectionContext(
-            agent_id="H1", custom_traits={"flood_count": 3}
+            agent_id="H1", agent_type="household",
+            custom_traits={"flood_count": 3},
         )
         assert engine.compute_dynamic_importance(ctx) == 0.3

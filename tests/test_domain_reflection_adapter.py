@@ -37,6 +37,7 @@ def _context(
 ) -> AgentReflectionContext:
     return AgentReflectionContext(
         agent_id="H1",
+        agent_type="household",
         mg_status=mg_status,
         recent_decision=recent_decision,
         custom_traits={"flood_count": flood_count},
@@ -142,6 +143,9 @@ def test_compute_importance_reads_flood_count_from_custom_traits():
 
     engine = ReflectionEngine(adapter=FloodAdapter())
     # flood_count lives in custom_traits only; the dataclass field is 0.
-    ctx = AgentReflectionContext(agent_id="H1", custom_traits={"flood_count": 1})
+    ctx = AgentReflectionContext(
+        agent_id="H1", agent_type="household",
+        custom_traits={"flood_count": 1},
+    )
     # flood_count == 1 -> the first_flood profile (0.95), not the base.
     assert engine.compute_dynamic_importance(ctx) == 0.95

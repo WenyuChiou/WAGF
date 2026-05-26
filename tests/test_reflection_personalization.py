@@ -49,12 +49,20 @@ class TestAgentReflectionContext:
         # domain adds them to custom_traits at its own call site.
         assert ctx.custom_traits == {}
 
-    def test_extract_missing_attrs_defaults(self, engine):
+    def test_extract_missing_attrs_raises(self, engine):
+        """Phase 6R-B-4 (audit cluster E #17, 2026-05-26): agents
+        missing ``agent_type`` MUST raise at AgentReflectionContext
+        construction. The old version of this test asserted the silent
+        fallback to ``"household"`` — a flood-domain leak in generic
+        code that masked malformed agents (no agent_type set by
+        the constructor).
+        """
         agent = MagicMock(spec=[])
         agent.id = "X_001"
-        ctx = ReflectionEngine.extract_agent_context(agent, year=1)
-        assert ctx.agent_type == "household"
-        assert ctx.custom_traits == {}
+        # extract_agent_context now passes agent_type=None to
+        # AgentReflectionContext, which raises in __post_init__.
+        with pytest.raises(ValueError, match=r"empty/missing agent_type"):
+            ReflectionEngine.extract_agent_context(agent, year=1)
 
 
 class TestPersonalizedPrompt:
@@ -87,7 +95,7 @@ class TestPersonalizedPrompt:
         assert _DEFAULT_REFLECTION_QUESTIONS[0] in prompt
 
     def test_empty_memories_returns_empty(self, engine):
-        ctx = AgentReflectionContext(agent_id="H_001")
+        ctx = AgentReflectionContext(agent_id="H_001", agent_type="household")
         prompt = engine.generate_personalized_reflection_prompt(ctx, [], 1)
         assert prompt == ""
 
