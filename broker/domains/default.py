@@ -135,12 +135,9 @@ class DefaultDomainPack:
     def policy_event_tiers(self) -> Dict[str, float]:
         return {}
 
-    # ─── Hazard event severity (Phase 6P-E) ───────────────────────
-
-    def hazard_severity_thresholds(self) -> Optional[Dict[str, float]]:
-        """Default → ``None`` → ``HazardEventGenerator`` falls back to
-        its built-in flood-domain defaults (1.2 / 0.6 / 0.3 / 0.0 m)."""
-        return None
+    # Phase 6Q-B (2026-05-26): the ``hazard_severity_thresholds``
+    # default added in 6P-E was removed when ``HazardEventGenerator``
+    # relocated to ``broker.domains.water.event_generators.hazard_per_agent``.
 
     # ─── Profile loaders (Phase 6P-C) ─────────────────────────────
 

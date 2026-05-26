@@ -477,30 +477,16 @@ class DomainPack(Protocol):
         """
         ...
 
-    # ─── Hazard event severity (Phase 6P-E 2026-05-25) ────────────
-
-    def hazard_severity_thresholds(self) -> Optional[Dict[str, float]]:
-        """Domain-specific severity-tier cutoffs for the generic
-        ``HazardEventGenerator`` (``broker/components/events/
-        generators/hazard.py``).
-
-        Pre-6P-E the values
-        ``{"critical": 1.2, "severe": 0.6, "moderate": 0.3,
-        "minor": 0.0}`` lived as a hardcoded ``default_factory`` on
-        ``HazardEventConfig`` — water-depth thresholds in *metres*,
-        unambiguously flood-specific values masquerading as a generic
-        default. This hook exposes them as a domain-owned
-        configuration surface so a non-flood hazard domain
-        (earthquake intensity, wildfire risk, etc.) can supply its
-        own thresholds without monkey-patching the generic generator.
-
-        Default ``None`` → the generator falls back to its built-in
-        flood defaults (preserves byte-identical paper-1b output —
-        the hook is advisory in Phase 6P-E; full consumer wiring
-        lands in Phase 6P-F when the first non-flood hazard domain
-        arrives).
-        """
-        ...
+    # Phase 6P-E (2026-05-25) added a ``hazard_severity_thresholds``
+    # hook here. Phase 6Q-B (2026-05-26) removed it — Phase 6P-E's
+    # follow-up audit (5 parallel subagents) confirmed the
+    # ``HazardEventGenerator`` had zero non-test production callers and
+    # carried a flood-implicit payload schema (``depth_m`` / ``depth_ft``
+    # / ``m → ft`` conversion / flood-shaped hazard_module API). The
+    # generator was therefore relocated to
+    # ``broker.domains.water.event_generators.hazard_per_agent`` instead
+    # of being decoupled via this hook. The hook is gone; the move
+    # automatically closes the hazard-event-payload genericity finding.
 
     # ─── Profile loaders (Phase 6P-C 2026-05-25) ──────────────────
 

@@ -5,7 +5,7 @@ from broker.interfaces.event_generator import (
     EventSeverity,
     EventScope,
 )
-from broker.components.events.generators.hazard import (
+from broker.domains.water.event_generators.hazard_per_agent import (
     HazardEventGenerator,
     HazardEventConfig,
 )

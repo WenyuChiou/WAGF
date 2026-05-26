@@ -1,8 +1,31 @@
 """
-Hazard Event Generator - Adapter for existing HazardModule.
+Hazard Event Generator — per-agent flood hazard adapter.
 
-Wraps domain-specific hazard modules (flood, earthquake, etc.) to produce
-domain-agnostic EnvironmentEvents for the event framework.
+Phase 6Q-B (2026-05-26): relocated from
+``broker/components/events/generators/hazard.py`` after the Phase 6P-E
+follow-up audit (5 parallel subagents) confirmed:
+
+  - **Zero non-test production callers.** The only callers are in
+    ``tests/test_ma_event_generators.py``; no ``examples/`` package
+    instantiates this class.
+  - **Payload schema is flood-implicit.** Every emitted event carries
+    ``depth_m`` / ``depth_ft`` keys; the ``m → ft`` conversion is
+    hardcoded; the upstream ``hazard_module`` API expects a flood-shaped
+    ``get_flood_event(year)`` / ``get_agent_flood_event(...)`` surface.
+    Decoupling the severity thresholds via a Protocol hook (which Phase
+    6P-E briefly attempted) would have addressed ~5 % of the
+    flood-coupling surface area while leaving the unit assumption +
+    payload schema + module-API contract all flood-shaped.
+
+The pre-6Q-B class docstring described this as a generic adapter that
+"wraps domain-specific hazard modules (flood, earthquake, etc.)" — that
+genericity claim was aspirational and unsupported by the code. By
+relocating to ``broker.domains.water.event_generators.hazard_per_agent``
+the class lives alongside its sibling ``FloodEventGenerator`` (Phase
+6K-B, 2026-05-22) and the framework no longer claims a flood-shaped
+adapter is domain-neutral. A genuinely-generic future hazard adapter
+will be designed from scratch for whatever non-flood domain needs it,
+rather than retrofitted onto this code.
 """
 from typing import List, Dict, Any, Optional, Callable, TYPE_CHECKING
 from dataclasses import dataclass, field
@@ -23,24 +46,21 @@ if TYPE_CHECKING:
 class HazardEventConfig:
     """Configuration for hazard event generation.
 
-    Phase 6P-E note on ``severity_thresholds``: the four values below
-    are **flood-domain water-depth thresholds in metres** despite
-    living in generic broker namespace. They are preserved here as a
-    backward-compat default so paper-1b flood runs and existing tests
-    don't regress; the canonical source of the same values now lives
-    at ``FloodDomainPack.hazard_severity_thresholds()`` (Phase 6P-E
-    hook). Non-flood hazard domains should pass an explicit
-    ``severity_thresholds={…}`` kwarg (units appropriate for their
-    physical quantity — Richter magnitudes, wind-speed m/s, etc.).
+    The four ``severity_thresholds`` values below are **flood-domain
+    water-depth thresholds in metres** — they are the canonical
+    declaration now that this whole module lives in the water
+    namespace (Phase 6Q-B, 2026-05-26). A non-flood hazard domain
+    that ever needs to reuse this class shape must pass an explicit
+    ``severity_thresholds={…}`` kwarg with units appropriate for its
+    physical quantity (Richter magnitudes, wind-speed m/s, etc.) —
+    though realistically a future non-flood hazard adapter should be
+    designed from scratch rather than retrofitted onto this code.
     """
     domain: str = "flood"
     mode: str = "global"  # "global" or "per_agent"
     update_frequency: str = "per_year"
     depth_threshold: float = 0.0  # Minimum depth to count as event
-    # Flood-domain water-depth thresholds (metres) — see class docstring
-    # for the cross-namespace history. Phase 6P-F may switch the lookup
-    # order to prefer DomainPack.hazard_severity_thresholds() when the
-    # first non-flood hazard domain lands.
+    # Flood-domain water-depth thresholds (metres) — canonical values.
     severity_thresholds: Dict[str, float] = field(default_factory=lambda: {
         "critical": 1.2,  # ~4 ft
         "severe": 0.6,    # ~2 ft

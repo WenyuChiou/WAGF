@@ -53,7 +53,7 @@ class MAEventManager(EnvironmentEventManager):
         # Register with dependencies
         manager.register_with_deps(
             domain="hazard",
-            generator=HazardEventGenerator(...),
+            generator=MyHazardEventGenerator(...),  # domain-specific subclass
             phase=EventPhase.PRE_YEAR,
         )
         manager.register_with_deps(
