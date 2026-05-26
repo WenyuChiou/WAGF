@@ -65,6 +65,15 @@ class IrrigationDomainPack(DefaultDomainPack):
     def __init__(self) -> None:
         self._inner = IrrigationAdapter()
 
+    def psychological_framework(self) -> str:
+        """Phase 6Q-D (2026-05-26): cognitive-appraisal framework (WSA
+        / ACA constructs) — pre-registered by
+        ``broker.domains.water.thinking_checks``. Matches the
+        ``psychological_framework: cognitive_appraisal`` declaration in
+        ``examples/irrigation_abm/config/agent_types.yaml`` (previously
+        dead config)."""
+        return "cognitive_appraisal"
+
     def appraisal_grounding_map(self) -> Dict[str, Any]:
         return {
             "construct": "WSA_LABEL",

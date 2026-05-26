@@ -53,6 +53,15 @@ class VaccinationDomainPack(DefaultDomainPack):
 
     name: str = "vaccination"
 
+    def psychological_framework(self) -> str:
+        """Phase 6Q-D (2026-05-26): HBM (Health Belief Model) — the
+        framework registered by
+        ``examples/vaccination_demo/cognition/hbm_framework.py``
+        at package import time. Matches the
+        ``psychological_framework: hbm`` declaration in
+        ``examples/vaccination_demo/config/agent_types.yaml``."""
+        return "hbm"
+
     # ─── Reflection ────────────────────────────────────────────────
 
     def reflection_status_text(self, context: Any) -> Optional[str]:
