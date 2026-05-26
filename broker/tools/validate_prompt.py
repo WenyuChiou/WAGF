@@ -84,10 +84,26 @@ BROKER_FILLED_PLACEHOLDERS: Set[str] = {
     "social_gossip",
     "neighbor_action_summary",
     "global_news",
-    # Optional domain hooks (filled by providers when present)
-    "insurance_cost_text",
-    "mg_barrier_text",
-    "renewal_fatigue_text",
+    # Phase 6Q-K-3 (2026-05-26): asymmetric placeholder coverage. The
+    # 3 entries below are water/flood-domain provider names — they
+    # suppress WARN for flood prompts that reference them, but a
+    # non-water domain that defines its own placeholder vocabulary
+    # (e.g. ``{congestion_advisory_text}`` for traffic) would get
+    # spurious WARNs because validate_prompt has no per-domain
+    # extension mechanism. Documented as Layer 3 audit finding #16
+    # (Phase 6P-E follow-up). Proper fix: add a
+    # ``DomainPack.prompt_placeholder_extensions() -> Set[str]`` hook
+    # and union with this base set at validate-time — deferred to
+    # Phase 6R alongside the broader sub-protocol split (Layer 4
+    # audit). For now the entries stay so flood prompt validation
+    # keeps working byte-identically; non-water domains can avoid
+    # the spurious WARN by naming their placeholders to NOT collide
+    # with these reserved water-domain names (which they already
+    # do, since traffic / vaccination don't reference insurance /
+    # mg / renewal vocabulary).
+    "insurance_cost_text",   # water-domain (FloodDomainPack)
+    "mg_barrier_text",       # water-domain (FloodDomainPack)
+    "renewal_fatigue_text",  # water-domain (FloodDomainPack)
 }
 
 
