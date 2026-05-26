@@ -27,6 +27,15 @@ from broker.components.coordination.coordinator import (
 )
 from broker.components.orchestration.phases import PhaseOrchestrator
 
+# Phase 6P-B (2026-05-25): `PhaseOrchestrator.from_domain("flood")` now
+# resolves the layout via `DomainPackRegistry`, so the flood example
+# package must be imported to register `FloodDomainPack` before the
+# lookup runs. Pre-6P-B the orchestrator imported `water_default_phases`
+# directly; 6P-B removed that cross-namespace coupling and 6P-B-fixup
+# (this commit) wires the explicit import where it was previously
+# implicit. Surfaced by CI integration test failure 2026-05-25.
+import examples.governed_flood  # noqa: F401,E402 — registers FloodDomainPack
+
 
 # ---------------------------------------------------------------------------
 # Helpers
