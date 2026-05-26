@@ -87,12 +87,25 @@ commuter:
 
   prompt_template_file: prompts/commuter.txt
 
+  # Phase 6Q-F-2-c (2026-05-26): actions block uses the
+  # list-of-dicts schema expected by
+  # ``broker.utils.agent_config.AgentTypeConfig.get_action_alias_map``
+  # (also exercised by ``ExperimentBuilder.build`` at
+  # experiment_builder.py:394). The earlier dict form
+  # (``"1": "take_alternate_route"``) parsed as YAML but tripped
+  # ``TypeError: string indices must be integers`` at runtime —
+  # caught by the 6Q-F-2-c Layer 5 E2E gate.
   actions:
-    "1": "take_alternate_route"
-    "2": "delay_departure"
-    "3": "switch_to_transit"
-    "4": "carpool"
-    "5": "do_nothing"
+    - id: take_alternate_route
+      aliases: ["1", "alternate route", "route"]
+    - id: delay_departure
+      aliases: ["2", "delay"]
+    - id: switch_to_transit
+      aliases: ["3", "transit"]
+    - id: carpool
+      aliases: ["4"]
+    - id: do_nothing
+      aliases: ["5", "wait", "DN"]
 
 dispatcher:
   description: "Traffic-management dispatcher issuing advisories."
@@ -113,5 +126,7 @@ dispatcher:
 
   prompt_template_file: prompts/dispatcher.txt
 
+  # Phase 6Q-F-2-c (2026-05-26): list-of-dicts schema (see commuter).
   actions:
-    "1": "announce_advisory"
+    - id: announce_advisory
+      aliases: ["1", "advisory", "announce"]
