@@ -8,14 +8,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Phase 6H (DomainPack v2 + genericity hardening) — **Items 1–5 of 8**.
-Net-zero test regression vs v0.3.0 (full `broker/ tests/`: 11 failures,
-all pre-existing and identical before/after); real-model `gemma4:e4b`
-smoke green. Items 6–8 (affordability validator, FinancialCostProvider
-dedup, thinking-validator rules) and the reflection status-text /
-importance fallbacks remain on the I5 `TestDomainGenericity` KNOWN-DEBT
-allowlist — the framework is more generic but not yet
-flood-coupling-free.
+Phase 6H (DomainPack v2 + genericity hardening) — **Items 1–9 of 9
+complete** (closed 2026-05-21 / 2026-05-22; original 8-item scope
+extended to 9 when reflection.py status-text was split out from
+Item 5/perception into its own Item 9). The `I5 TestDomainGenericity`
+KNOWN-DEBT allowlist is now empty (all entries downgraded to docstring-only false-positives;
+no generic `broker/` file carries a live domain-token leak — see
+`broker/INVARIANTS.md:140` and the closure-comments in
+`broker/tests/test_framework_invariants.py:452-471`).
+
+Phase 6P (post-6H genericity polish) — **Sub-phases 6P-A → 6P-E
+shipped 2026-05-25**. Closes the runtime cross-namespace coupling
+(6P-A `validate_all` dispatcher · 6P-B `phases.py::from_domain` ·
+6P-C `agent_initializer` loader dispatch · 6P-D event-generator
+vocabulary · 6P-E hazard severity hook + source-level vocab guard).
+Net-zero paper-1b reproducibility regression; 2388/0-failed full
+pytest baseline.
+
+Phase 6Q (genuine genericity debt close-out) — **in flight**.
+After Phase 6P, a 5-parallel-subagent audit surfaced 3 BLOCKERs
+the original Phase-6P audit missed (memory-strategy
+`stimulus_key="flood_depth"` default · `ThinkingValidator
+(framework="pmt")` default · hazard event payload schema
+hardcoding `depth_m`/`depth_ft`) plus a Phase-6P-B follow-on
+(`_default_phases()` static method still water-importing). Phase
+6Q-A closes the doc-rot + the missed `_default_phases` coupling;
+6Q-B through 6Q-F land BLOCKER fixes + a fake-traffic E2E
+genericity gate. See `~/.claude/plans/breezy-dazzling-knuth.md`.
 
 ### Changed
 

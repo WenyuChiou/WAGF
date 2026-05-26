@@ -54,13 +54,18 @@ class PhaseOrchestrator:
         self.saga_coordinator = saga_coordinator
         self._validate_phases()
 
-    @staticmethod
-    def _default_phases() -> List[PhaseConfig]:
-        """Compatibility wrapper for the water-domain phase layout.
-        """
-        from broker.domains.water.phase_layouts import water_default_phases
-
-        return water_default_phases()
+    # Phase 6Q-A (2026-05-26): removed ``_default_phases()`` — a
+    # static-method compatibility wrapper that did ``from
+    # broker.domains.water.phase_layouts import water_default_phases``.
+    # Post-Phase-6P-B (2026-05-25) the only caller, ``from_domain``,
+    # was rewritten to route through ``DomainPackRegistry`` instead,
+    # leaving ``_default_phases`` as dead code carrying a generic-→
+    # water-namespace reverse import. Grep-confirmed zero external
+    # callers (`PhaseOrchestrator._default_phases` / `cls._default_phases` /
+    # `self._default_phases` all return no matches). The flood phase
+    # layout still ships via ``FloodDomainPack.phase_layout()`` →
+    # ``water_default_phases()`` — examples/water-pack importing
+    # from broker.domains.water is in-namespace.
 
     @staticmethod
     def _generic_phases() -> List[PhaseConfig]:
@@ -72,7 +77,8 @@ class PhaseOrchestrator:
         defaults and don't have a domain-tailored YAML phase config yet.
 
         Added 2026-05-10 (Phase 6C-v4 G1a) to remove the flood-only assumption
-        baked into ``_default_phases()``.
+        previously baked into the now-deleted ``_default_phases()`` static
+        method.
         """
         return [
             PhaseConfig(
