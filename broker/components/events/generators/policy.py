@@ -221,11 +221,19 @@ class PolicyEventGenerator:
         return (new_val - old_val) / abs(old_val)
 
     def _generate_subsidy_message(self, old_rate: float, new_rate: float) -> str:
-        """Generate human-readable subsidy message."""
+        """Generate human-readable subsidy message.
+
+        Phase 6P-D (2026-05-25): the noun was previously hardcoded as
+        ``"flood protection subsidy"`` — that wording is now
+        domain-neutral (``"subsidy"``) so a non-water domain consuming
+        this generator does not emit flood vocabulary. Callers that
+        want domain-flavoured text (e.g. flood-paper-style "flood
+        protection subsidy") pass an explicit ``message=`` kwarg to
+        ``record_subsidy_change`` and bypass this default."""
         if new_rate > old_rate:
-            return f"Government increased flood protection subsidy from {old_rate:.0%} to {new_rate:.0%}"
+            return f"Government increased subsidy from {old_rate:.0%} to {new_rate:.0%}"
         elif new_rate < old_rate:
-            return f"Government reduced flood protection subsidy from {old_rate:.0%} to {new_rate:.0%}"
+            return f"Government reduced subsidy from {old_rate:.0%} to {new_rate:.0%}"
         else:
             return f"Government maintained subsidy at {new_rate:.0%}"
 
