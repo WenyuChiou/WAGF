@@ -312,18 +312,28 @@ class TestGetSocialSpec:
         assert spec.graph_type == "spatial"
         assert spec.radius == 2
 
-    def test_missing_attributes_use_defaults(self):
-        """Test agent with missing attributes uses defaults."""
-        # Minimal object with no attributes
+    def test_missing_agent_type_raises(self):
+        """Phase 6R-B-2 (audit cluster E #14, 2026-05-26): an agent
+        with no ``agent_type`` MUST raise instead of silently aliasing
+        to the literal ``"household"`` string. The old version of
+        this test asserted the silent fallback (``spec.graph_type ==
+        "spatial" / radius == 2`` for a no-attr agent); that was a
+        flood-domain default in generic code that masked malformed
+        agents and silently misrouted non-water domains.
+        """
+
         class MinimalAgent:
             pass
 
-        agent = MinimalAgent()
-        spec = get_social_spec(agent)
+        with pytest.raises(ValueError, match=r"no `agent_type`"):
+            get_social_spec(MinimalAgent())
 
-        # Should default to household_nmg_owner
-        assert spec.graph_type == "spatial"
-        assert spec.radius == 2
+        # Same contract for the dict-shaped path. Empty dict ``{}``
+        # is intentionally NOT tested here — the function doesn't
+        # short-circuit on falsy agents (unlike PerceptionAwareProvider),
+        # so the agent_type check fires for both empty and non-empty.
+        with pytest.raises(ValueError, match=r"no `agent_type`"):
+            get_social_spec({"name": "x"})
 
 
 # ==============================================================================
