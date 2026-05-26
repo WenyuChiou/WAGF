@@ -38,6 +38,24 @@ genericity gate. See `~/.claude/plans/breezy-dazzling-knuth.md`.
 
 ### Changed
 
+- **Phase 6R-D-3 — Add typed sub-protocol accessors to `DomainPackRegistry`** (2026-05-26). Second commit of Phase 6R-D. Builds on 6R-D-1 sub-protocol definitions. **6R-D-2 (DefaultDomainPack composition refactor) skipped** — the minimal-restructure approach in 6R-D-1 kept DomainPack's full method body intact, so DefaultDomainPack works unchanged; splitting it would be churn-for-churn-sake.
+  - **NEW typed accessors** in `broker/domains/registry.py` — one per sub-protocol:
+    - `DomainPackRegistry.get_reflection_pack(name) -> ReflectionPack`
+    - `.get_memory_pack(name) -> MemoryPack`
+    - `.get_skill_pack(name) -> SkillPack`
+    - `.get_event_pack(name) -> EventPack`
+    - `.get_perception_pack(name) -> PerceptionPack`
+    - `.get_governance_pack(name) -> GovernancePack`
+    - `.get_setup_pack(name) -> SetupPack`
+  - **Implementation**: each accessor delegates to `get_or_default(name)` + `cast()` to the relevant sub-protocol. Returns the SAME underlying pack instance (not a wrapper) — the cast is type-narrowing only. Same fallback semantics as `get_or_default`: missing/None domain → `DefaultDomainPack` (which satisfies all 7 sub-protocols via inheritance).
+  - **Phase 6R-D-4 (next sub-phase) will migrate broker consumer call sites** to use these accessors (e.g. `reflection.py` calls `get_reflection_pack(domain)` instead of `get_or_default(domain)`). Until then these accessors are zero-impact additions — no existing call site changes.
+  - **NEW `broker/tests/test_registry_typed_accessors.py`** (~165 LOC, 44 tests across 4 classes):
+    - `TestAccessorExistence` (8 tests via parametrize + count check): all 7 accessors exist with correct callability + exactly 7 (no more, no less).
+    - `TestAccessorFallback` (14 tests via parametrize): None / unregistered domain → DefaultDomainPack instance for each accessor.
+    - `TestRegisteredPackSatisfiesSubProtocol` (14 tests via parametrize): FloodDomainPack (via accessor) satisfies the corresponding sub-protocol's runtime_checkable `isinstance`; same instance returned as `get_or_default` (no wrapping).
+    - `TestDefaultPackSatisfiesAllSubProtocols` (8 tests): DefaultDomainPack satisfies every sub-protocol — confirms fallback path isn't broken for consumers that use typed accessors.
+  - **Test gate**: `pytest broker/ tests/ --timeout=300 -p no:cacheprovider` → **2599 passed / 10 skipped / 0 failed** (+44 vs 2555 post-6R-D-1 baseline = 44 new typed-accessor regression tests).
+
 - **Phase 6R-D-1 — Define 7 sub-protocols in `broker/domains/protocol.py`** (2026-05-26). First commit of the Phase 6R-D architectural split. **Additive only** — adds 7 new `@runtime_checkable Protocol` classes that the composite `DomainPack` now inherits from; existing method declarations stay in the `DomainPack` body for IDE / readability, so zero broker-consumer behavior changes. Subsequent sub-phases (6R-D-2 → 6R-D-6) migrate the composition + consumers + example packs.
   - **NEW sub-protocols** (`broker/domains/protocol.py:107-274` area) — 7 cohesive method groups, total 32 methods:
     - `ReflectionPack` (4): `reflection_status_text` / `reflection_questions` / `reflection_persona` / `reflection_trait_labels`. Consumer: `broker/components/cognitive/reflection.py`.

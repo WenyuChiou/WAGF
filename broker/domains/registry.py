@@ -24,10 +24,19 @@ Lookup (inside broker pipeline code)::
 from __future__ import annotations
 
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, cast
 
 from broker.domains.default import DefaultDomainPack
-from broker.domains.protocol import DomainPack
+from broker.domains.protocol import (
+    DomainPack,
+    EventPack,
+    GovernancePack,
+    MemoryPack,
+    PerceptionPack,
+    ReflectionPack,
+    SetupPack,
+    SkillPack,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -160,3 +169,90 @@ class DomainPackRegistry:
         call this."""
         cls._packs.clear()
         cls._missing_warned.clear()
+
+    # ─────────────────────────────────────────────────────────────────
+    # Typed sub-protocol accessors (Phase 6R-D-3, 2026-05-26)
+    # ─────────────────────────────────────────────────────────────────
+    # Consumer subsystems that only need a slice of the DomainPack
+    # surface use these accessors to get a type-narrowed view. The
+    # underlying pack is the same; the typed return value just helps
+    # callers (and type-checkers) reason about which methods are in
+    # scope. Each accessor delegates to :meth:`get_or_default` and
+    # casts the result — Python's @runtime_checkable composite
+    # DomainPack inherits from all 7 sub-protocols, so the cast is
+    # structurally safe.
+    #
+    # Phase 6R-D-4 (next sub-phase) migrates broker consumer call sites
+    # to use these typed accessors (e.g. reflection.py calls
+    # ``get_reflection_pack(domain)`` instead of
+    # ``get_or_default(domain)``). Until then these accessors are
+    # zero-impact additions.
+    # ─────────────────────────────────────────────────────────────────
+
+    @classmethod
+    def get_reflection_pack(cls, name: Optional[str]) -> ReflectionPack:
+        """Return the pack for ``name`` typed as :class:`ReflectionPack`.
+
+        Consumer-narrowed accessor for reflection-prompt builders
+        (``broker/components/cognitive/reflection.py``). Backed by
+        :meth:`get_or_default` — same fallback semantics.
+        """
+        return cast(ReflectionPack, cls.get_or_default(name))
+
+    @classmethod
+    def get_memory_pack(cls, name: Optional[str]) -> MemoryPack:
+        """Return the pack for ``name`` typed as :class:`MemoryPack`.
+
+        Consumer-narrowed accessor for memory-engine subsystems
+        (``broker/components/memory/{policy_classifier,initial_loader,universal}.py``).
+        """
+        return cast(MemoryPack, cls.get_or_default(name))
+
+    @classmethod
+    def get_skill_pack(cls, name: Optional[str]) -> SkillPack:
+        """Return the pack for ``name`` typed as :class:`SkillPack`.
+
+        Consumer-narrowed accessor for skill-emotion / extreme-actions /
+        taxonomy / affordability consumers
+        (``broker/core/experiment_runner.py``,
+        ``broker/validators/agent/agent_validator.py``).
+        """
+        return cast(SkillPack, cls.get_or_default(name))
+
+    @classmethod
+    def get_event_pack(cls, name: Optional[str]) -> EventPack:
+        """Return the pack for ``name`` typed as :class:`EventPack`.
+
+        Consumer-narrowed accessor for the multi-agent event manager
+        (``broker/components/events/ma_manager.py``).
+        """
+        return cast(EventPack, cls.get_or_default(name))
+
+    @classmethod
+    def get_perception_pack(cls, name: Optional[str]) -> PerceptionPack:
+        """Return the pack for ``name`` typed as :class:`PerceptionPack`.
+
+        Consumer-narrowed accessor for the perception filter chain
+        (``broker/components/social/perception.py``).
+        """
+        return cast(PerceptionPack, cls.get_or_default(name))
+
+    @classmethod
+    def get_governance_pack(cls, name: Optional[str]) -> GovernancePack:
+        """Return the pack for ``name`` typed as :class:`GovernancePack`.
+
+        Consumer-narrowed accessor for validator dispatch + policy
+        threshold consumers (``broker/components/governance/*``,
+        ``broker/validators/*``, ``broker/tools/validate_prompt.py``).
+        """
+        return cast(GovernancePack, cls.get_or_default(name))
+
+    @classmethod
+    def get_setup_pack(cls, name: Optional[str]) -> SetupPack:
+        """Return the pack for ``name`` typed as :class:`SetupPack`.
+
+        Consumer-narrowed accessor for agent initialisation +
+        orchestration (``broker/core/agent_initializer.py``,
+        ``broker/components/orchestration/phases.py``).
+        """
+        return cast(SetupPack, cls.get_or_default(name))
