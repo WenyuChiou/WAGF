@@ -38,6 +38,17 @@ genericity gate. See `~/.claude/plans/breezy-dazzling-knuth.md`.
 
 ### Changed
 
+- **Phase 6R-C-0 — Column-aware audit CSV diff tool (`broker/tools/compare_audit_csv.py`)** (2026-05-26). Prerequisite infrastructure for the Phase 6R-C (AgentProfile / SyntheticLoader split) and 6R-D-5 (FloodDomainPack internal refactor) byte-identity verification. Discovered during Phase 6R-B-1 that SHA256 of `*_governance_audit.csv` is non-deterministic across runs at the same commit due to two noise sources:
+  - **Wall-clock timestamps**: every audit row ends with `datetime.now()` captured at write time (different each run).
+  - **Python set iteration order**: error messages embed sets (e.g. "Missing constructs: ['CP_LABEL', 'TP_LABEL']") and the iteration order is hash-seed-dependent.
+  - **NEW `broker/tools/compare_audit_csv.py`** (~220 LOC) — CLI + importable API. Normalises both noise sources:
+    - Detects timestamp columns by header substring (case-insensitive); replaces values with sentinel `"<TIMESTAMP>"`.
+    - Detects set-repr-like fragments (`['a', 'b', 'c']` with ≥1 comma) anywhere in any cell; sorts the tokens alphabetically.
+    - Compares post-normalisation; prints first 3 divergent rows with per-column before/after on diff. Returns 0 on identical, 1 on diff, 2 on missing file.
+  - **NEW `broker/tests/test_compare_audit_csv.py`** (~155 LOC, 21 tests across 6 classes) — covers each normalisation primitive in isolation + end-to-end compare() against tmp CSVs + CLI entry point.
+  - **Residual drift NOT closed by 6R-C-0**: even with normalisation, mock-LLM flood runs at the same commit show ~2 rows × 1 column of drift (`mem_top_emotion` flips between "critical"/"routine"). Hypothesis: non-deterministic tie-breaking in memory retrieval. Documented in `.baselines/BASELINE_HASHES.md` as below-noise-floor for 6R-C verification; filed as future debt for 6R-D when memory-engine internals are touched.
+  - **Test gate**: `pytest broker/ tests/ --timeout=300 -p no:cacheprovider` → **2536 passed / 10 skipped / 0 failed** (+21 vs 2515 post-6R-B-4 baseline = 21 new diff-tool tests).
+
 - **Phase 6R-B-4 — Make `AgentReflectionContext.agent_type` required (audit cluster E #17)** (2026-05-26). **Final cluster-E commit; closes the "household = default agent type" debt.** Returns to the raise-on-None pattern from 6R-B-1 / 6R-B-2 (the leak here was a dataclass-default literal, not a name-set mis-location).
   - **Pre-fix** — two flood-domain default sites in generic reflection code:
     - `broker/components/cognitive/reflection.py:63`: dataclass default `agent_type: str = "household"` on `AgentReflectionContext`. A reflection-prompt consumer constructing the context without specifying agent_type silently got a flood-domain identity in the LLM-facing prompt.
