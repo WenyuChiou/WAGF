@@ -21,13 +21,26 @@ if TYPE_CHECKING:
 
 @dataclass
 class HazardEventConfig:
-    """Configuration for hazard event generation."""
+    """Configuration for hazard event generation.
+
+    Phase 6P-E note on ``severity_thresholds``: the four values below
+    are **flood-domain water-depth thresholds in metres** despite
+    living in generic broker namespace. They are preserved here as a
+    backward-compat default so paper-1b flood runs and existing tests
+    don't regress; the canonical source of the same values now lives
+    at ``FloodDomainPack.hazard_severity_thresholds()`` (Phase 6P-E
+    hook). Non-flood hazard domains should pass an explicit
+    ``severity_thresholds={…}`` kwarg (units appropriate for their
+    physical quantity — Richter magnitudes, wind-speed m/s, etc.).
+    """
     domain: str = "flood"
     mode: str = "global"  # "global" or "per_agent"
     update_frequency: str = "per_year"
-    # For global mode
     depth_threshold: float = 0.0  # Minimum depth to count as event
-    # Severity thresholds (in meters for flood)
+    # Flood-domain water-depth thresholds (metres) — see class docstring
+    # for the cross-namespace history. Phase 6P-F may switch the lookup
+    # order to prefer DomainPack.hazard_severity_thresholds() when the
+    # first non-flood hazard domain lands.
     severity_thresholds: Dict[str, float] = field(default_factory=lambda: {
         "critical": 1.2,  # ~4 ft
         "severe": 0.6,    # ~2 ft

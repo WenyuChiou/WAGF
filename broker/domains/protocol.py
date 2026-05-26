@@ -7,6 +7,16 @@ finance, etc.) implements this Protocol once and registers it via
 pack via ``DomainPackRegistry.get_or_default(domain)`` and delegates
 domain-specific decisions to the pack's methods.
 
+TODO(6Q): Protocol width — after the Phase 6P batch this Protocol carries
+~30 methods covering reflection, memory, events, validators, perception,
+loaders, phase orchestration, and hazard config. Phase 6Q should split it
+into composable sub-protocols by concern (e.g. ``ReflectionPack``,
+``MemoryPack``, ``LoaderPack``, ``HazardPack``) so a domain author who only
+needs reflection overrides isn't forced to read 30 method signatures.
+Implementations stay backward-compat via either runtime_checkable
+inheritance or a thin composition wrapper. Surfaced by Phase 6P-E
+code-reviewer #5 (2026-05-25).
+
 Design rationale
 ================
 Before this layer, broker code had ``if agent_type == "household":``
@@ -446,6 +456,31 @@ class DomainPack(Protocol):
         Default ``{}`` → ``PolicyEventConfig`` constructor defaults
         apply. Also overridable via ``agent_types.yaml``
         ``governance.policy_event_tiers`` (Phase 6L-C).
+        """
+        ...
+
+    # ─── Hazard event severity (Phase 6P-E 2026-05-25) ────────────
+
+    def hazard_severity_thresholds(self) -> Optional[Dict[str, float]]:
+        """Domain-specific severity-tier cutoffs for the generic
+        ``HazardEventGenerator`` (``broker/components/events/
+        generators/hazard.py``).
+
+        Pre-6P-E the values
+        ``{"critical": 1.2, "severe": 0.6, "moderate": 0.3,
+        "minor": 0.0}`` lived as a hardcoded ``default_factory`` on
+        ``HazardEventConfig`` — water-depth thresholds in *metres*,
+        unambiguously flood-specific values masquerading as a generic
+        default. This hook exposes them as a domain-owned
+        configuration surface so a non-flood hazard domain
+        (earthquake intensity, wildfire risk, etc.) can supply its
+        own thresholds without monkey-patching the generic generator.
+
+        Default ``None`` → the generator falls back to its built-in
+        flood defaults (preserves byte-identical paper-1b output —
+        the hook is advisory in Phase 6P-E; full consumer wiring
+        lands in Phase 6P-F when the first non-flood hazard domain
+        arrives).
         """
         ...
 
