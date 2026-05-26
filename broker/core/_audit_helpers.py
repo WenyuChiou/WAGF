@@ -52,6 +52,44 @@ def _safe_rule_breakdown(all_validation_history) -> Dict[str, int]:
         return {"personal": 0, "social": 0, "thinking": 0, "physical": 0, "semantic": 0}
 
 
+def _safe_triggered_rules(all_validation_history) -> List[str]:
+    """Collect rule IDs that fired (either BLOCKING or WARNING).
+
+    Phase 6Q-D-3 (2026-05-26): wires the previously-aspirational
+    ``triggered_rules`` trace key. Pre-fix the audit CSV
+    ``rules_triggered`` column read ``t.get("triggered_rules", [])``
+    but no producer ever wrote it — Task-041 Phase 3 left the schema
+    + reader in place without populating the producer. (Distinct
+    from ``failed_rules``, which lists ONLY blocking-result rule_ids
+    via ``validation_issues``; this new field gives a unified
+    BLOCK+WARN view.)
+
+    Sources rule_ids from each :class:`ValidationResult` in the
+    history's ``.metadata.rule_id`` (single) + ``.metadata.rules_hit``
+    (list, used by validator bundles). Dedupes + sorts. Returns
+    ``[]`` on any error (the audit write path must never crash).
+    """
+    try:
+        rule_ids: set = set()
+        for batch in all_validation_history or []:
+            results = batch if isinstance(batch, list) else [batch]
+            for r in results:
+                if not hasattr(r, "metadata"):
+                    continue
+                meta = r.metadata or {}
+                rid = meta.get("rule_id")
+                if rid:
+                    rule_ids.add(str(rid))
+                hits = meta.get("rules_hit", []) or []
+                for h in hits:
+                    if h:
+                        rule_ids.add(str(h))
+        return sorted(rule_ids)
+    except Exception as exc:
+        logger.warning(f"[Audit] triggered_rules computation failed: {exc}")
+        return []
+
+
 def _safe_social_audit(context: Dict[str, Any]) -> Dict[str, Any]:
     """Extract structured social-context audit fields from a prompt context.
 
@@ -186,6 +224,13 @@ class AuditMixin:
             # zeros. Imported lazily here to avoid a startup-time circular
             # import (governance pkg imports core types).
             "rule_breakdown": _safe_rule_breakdown(all_validation_history),
+            # Phase 6Q-D-3 (2026-05-26): populate `triggered_rules` so the
+            # audit CSV column of the same name carries a deduped list of
+            # rule IDs that fired (BLOCK + WARN). Pre-fix the schema +
+            # reader existed but no producer wrote the key — `triggered_rules`
+            # was always empty in the CSV. Distinct from `failed_rules`
+            # which is BLOCK-only.
+            "triggered_rules": _safe_triggered_rules(all_validation_history),
             "environment_context": env_context or {},
             "state_before": context.get("state", {}),
             "state_after": self._merge_state_after(context.get("state", {}), execution_result),
