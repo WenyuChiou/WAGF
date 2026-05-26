@@ -336,6 +336,32 @@ class FloodDomainPack(DefaultDomainPack):
         see raw numbers."""
         return {"government", "insurance"}
 
+    def prompt_placeholder_extensions(self) -> Set[str]:
+        """Flood-domain narrative placeholders injected by water-domain
+        context providers at runtime — ``validate_prompt`` must NOT warn
+        about these for flood YAML even though they're not in the base
+        ``BROKER_FILLED_PLACEHOLDERS`` set.
+
+        Phase 6R-B-3 (audit cluster E #16): proper fix for the
+        Phase 6Q-K-3 asymmetric coverage. Pre-fix, these 3 names lived
+        in ``BROKER_FILLED_PLACEHOLDERS`` (a flood-domain leak in
+        generic CLI code); now they're declared here in the
+        flood-domain pack where they belong.
+
+        - ``insurance_cost_text`` — quantitative cost disclosure
+          (``InsuranceInfoProvider`` at
+          ``broker/components/context/providers.py:524``).
+        - ``mg_barrier_text`` — Passaic River Basin
+          managerial-grant narrative (``FloodDomainPack.mg_barrier_text``).
+        - ``renewal_fatigue_text`` — multi-year insurance lapse
+          narrative.
+        """
+        return {
+            "insurance_cost_text",
+            "mg_barrier_text",
+            "renewal_fatigue_text",
+        }
+
     def affordability_constraints(self) -> Dict[str, Any]:
         """Flood elevation cost model — replaces the hardcoded
         ``elevate_house`` rule in ``AgentValidator.validate_affordability()``

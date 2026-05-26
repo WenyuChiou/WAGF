@@ -396,6 +396,34 @@ class DomainPack(Protocol):
         """
         ...
 
+    def prompt_placeholder_extensions(self) -> Set[str]:
+        """Domain-specific placeholder names that
+        ``broker.tools.validate_prompt`` should treat as broker-filled
+        (NOT warn about as unknown placeholders).
+
+        Default ``set()`` — generic domains have no extensions; the base
+        ``BROKER_FILLED_PLACEHOLDERS`` set in ``validate_prompt`` covers
+        the universal placeholders (``{response_format}``, ``{memory}``,
+        ``{narrative_persona}``, etc.).
+
+        Per-domain providers or lifecycle hooks that inject extra
+        placeholders at runtime register their names here. Examples:
+
+        - ``FloodDomainPack.prompt_placeholder_extensions()`` returns
+          ``{"insurance_cost_text", "mg_barrier_text",
+          "renewal_fatigue_text"}`` — three flood-specific narrative
+          placeholders injected by water-domain context providers.
+        - A traffic domain that injects ``{congestion_advisory_text}``
+          via a lifecycle hook returns ``{"congestion_advisory_text"}``.
+
+        At validate-time the CLI unions ``BROKER_FILLED_PLACEHOLDERS``
+        with the registered DomainPack's extensions before checking
+        for unknown placeholders. Phase 6R-B-3 (audit cluster E #16) —
+        proper fix for the asymmetric water-placeholder coverage
+        documented by Phase 6Q-K-3 in ``validate_prompt.py:87-103``.
+        """
+        ...
+
     # ─── Retrieval tuning (Phase 6H DomainPack v2) ────────────────
 
     def retrieval_policy(self) -> Dict[str, Any]:
