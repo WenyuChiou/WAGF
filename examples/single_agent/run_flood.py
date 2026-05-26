@@ -1102,6 +1102,20 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
         # Phase 6K-A (2026-05-22): stimulus_key required for scalar
         # universal-engine mode; the previous silent water-domain
         # default was removed from generic broker code.
+        def _require_stimulus_key(mem_cfg):
+            """Phase 6Q-C: hard-require ``memory.stimulus_key`` in YAML
+            instead of silently defaulting to ``"flood_depth_m"``."""
+            k = mem_cfg.get("stimulus_key")
+            if not k:
+                raise ValueError(
+                    "run_flood.py: `memory.stimulus_key` is missing "
+                    "from the merged memory config. Set it under "
+                    "`memory:` in your agent_types.yaml (canonical "
+                    "value for the flood paper: \"flood_depth_m\"). "
+                    "Phase 6Q-C (2026-05-26)."
+                )
+            return k
+
         memory_engine = create_memory_engine(
             engine_type="universal",
             window_size=window_size,
@@ -1117,7 +1131,13 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
             ranking_mode="dynamic",
             arousal_threshold=final_mem_cfg.get("arousal_threshold", 0.5),
             ema_alpha=final_mem_cfg.get("ema_alpha", 0.3),
-            stimulus_key=final_mem_cfg.get("stimulus_key", "flood_depth_m"),
+            # Phase 6Q-C (2026-05-26): the previous default-arg
+            # ``final_mem_cfg.get("stimulus_key", "flood_depth_m")``
+            # silently fell back to the flood-water-depth key — a
+            # latent genericity violation that survived only because
+            # flood YAML always supplies the value. Made explicit:
+            # require the YAML key, fail loudly if absent.
+            stimulus_key=_require_stimulus_key(final_mem_cfg),
             seed=memory_seed  # Configurable via --memory-seed (default=42 for experiment alignment)
         )
         print(f" Using UniversalCognitiveEngine (v3 Surprise Engine, window={window_size})")

@@ -168,6 +168,24 @@ def _register_builtins():
             stimulus_key = mem_cfg.get("stimulus_key")
             ema_alpha = mem_cfg.get("ema_alpha", 0.3)
 
+            # Phase 6Q-C (2026-05-26): raise with YAML context BEFORE
+            # delegating to the strategy constructor. The constructor
+            # also guards (defence-in-depth), but its error names
+            # `stimulus_key` without telling the author which YAML file
+            # is missing the key. This guard surfaces the actionable
+            # config location instead.
+            if not stimulus_key:
+                raise ValueError(
+                    f"MemoryEngineRegistry._unified_factory: the active "
+                    f"memory YAML block is missing `memory.stimulus_key` "
+                    f"(strategy_type={strategy_type!r}). Add "
+                    f"`stimulus_key: <your_key>` under the `memory:` "
+                    f"block of your agent_types.yaml, OR set "
+                    f"`DomainPack.memory_policy().stimulus_key` for the "
+                    f"active domain so the value flows through "
+                    f"UniversalCognitiveEngine. Phase 6Q-C (2026-05-26)."
+                )
+
             if strategy_type == "symbolic":
                 strategy = SymbolicSurpriseStrategy(default_sensor_key=stimulus_key)
             elif strategy_type == "hybrid":
