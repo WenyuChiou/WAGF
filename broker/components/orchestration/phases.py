@@ -109,9 +109,11 @@ class PhaseOrchestrator:
 
         Args:
             domain: Domain name (e.g. "flood", "irrigation", "vaccination").
-                ``"flood"`` (or ``None`` for backward compat) → flood
-                4-phase layout if ``FloodDomainPack`` is registered;
-                otherwise falls back to the generic 3-phase layout.
+                Phase 6Q-J (2026-05-26): ``None``/empty now resolves
+                directly to the generic 3-phase layout (was a "flood"
+                backward-compat default pre-6Q-J — a Phase 6P-B
+                carryover). Explicit ``"flood"`` still returns the
+                4-phase water layout via ``FloodDomainPack.phase_layout()``.
                 Any other registered domain → its
                 ``DomainPack.phase_layout()`` if non-``None``, else the
                 generic layout. New domains work out-of-the-box without
@@ -127,20 +129,29 @@ class PhaseOrchestrator:
         # Phase 6P-B (2026-05-25): generic-broker → water-namespace
         # coupling closed. Layout selection now goes through DomainPack
         # registry — no more hardcoded ``if domain == "flood":`` branch.
-        # ``None`` resolves to "flood" for backward compat (matches the
-        # pre-6P-B legacy default); if the flood pack is not registered,
-        # both ``None`` and unknown domains fall back to the generic
-        # 3-phase layout. Domains that need a custom multi-agent split
-        # override ``DomainPack.phase_layout()``.
+        # Domains that need a custom multi-agent split override
+        # ``DomainPack.phase_layout()``.
+        #
+        # Phase 6Q-J (2026-05-26): the ``None → "flood"`` legacy default
+        # (a Phase 6P-B backward-compat carryover) is removed.
+        # ``None``/empty now resolves to the generic 3-phase layout
+        # directly, matching the rest of the dispatch layer where
+        # missing-domain falls through to the generic path. The only
+        # callers passing ``None`` were tests (grep confirmed); they
+        # update in lockstep with this change. Explicit
+        # ``from_domain("flood")`` still works via the FloodDomainPack
+        # registry lookup.
         from broker.domains.registry import DomainPackRegistry
 
-        resolved = (domain or "").strip().lower() or "flood"
-        pack = DomainPackRegistry.get_or_default(resolved)
-        layout = pack.phase_layout()
+        resolved = (domain or "").strip().lower() or None
 
-        if layout is not None:
-            return cls(phases=layout, seed=seed,
-                       saga_coordinator=saga_coordinator)
+        if resolved is not None:
+            pack = DomainPackRegistry.get_or_default(resolved)
+            layout = pack.phase_layout()
+            if layout is not None:
+                return cls(phases=layout, seed=seed,
+                           saga_coordinator=saga_coordinator)
+
         return cls(phases=cls._generic_phases(), seed=seed,
                    saga_coordinator=saga_coordinator)
 
