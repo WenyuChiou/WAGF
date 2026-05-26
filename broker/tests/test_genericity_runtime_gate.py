@@ -163,36 +163,15 @@ class TestTrafficDomainSysModulesGate:
     guard — it catches any *lazy* (function-local / on-demand)
     import that the AST scan misses.
 
-    Currently **xfails** by design — Phase 6Q-F-1 (this commit)
-    surfaces the root cause: ``broker/domains/__init__.py`` runs
-    ``_discover_domain_packs()`` at module-load time, which scans
-    every sub-package under ``broker/domains/`` (currently only
-    ``water``) and calls its ``register()`` function. Even a bare
-    ``from broker.domains.protocol import DomainPack`` triggers the
-    package ``__init__``, which loads water's framework + thinking
-    checks unconditionally.
-
-    The fix (Phase 6Q-G):
-      - Remove the auto-discovery loop OR make it opt-in via env var.
-      - Have ``broker.domains.water`` register itself only when an
-        ``examples/`` package or test fixture explicitly imports it,
-        same as `examples.governed_flood`, `examples.irrigation_abm`,
-        `examples.vaccination_demo` already do for ``DomainPackRegistry``.
-      - The water psychometric-framework registry then becomes lazy:
-        ``broker.core.psychometric.get_framework("pmt")`` triggers
-        the load only when needed.
-
-    When 6Q-G lands, remove the ``xfail`` marker below; the test
-    becomes the regression guard.
+    Was **xfail** in Phase 6Q-F-1 to document the
+    ``broker/domains/__init__.py`` auto-discovery violation. Phase
+    6Q-G (2026-05-26) removed that auto-discovery; this gate now
+    passes and serves as the regression guard. If a future change
+    re-introduces a path where importing a non-water broker module
+    transitively loads water, this assertion fires with the leaked
+    module list.
     """
 
-    @pytest.mark.xfail(
-        reason="Phase 6Q-G pending: broker/domains/__init__.py "
-               "auto-discovery loads water at module-load time. "
-               "Gate intentionally fails today to document the "
-               "violation; fix lands in 6Q-G.",
-        strict=False,
-    )
     def test_traffic_dispatch_does_not_load_water_modules(self):
         repo = Path(__file__).resolve().parents[2]
         result = subprocess.run(

@@ -15,6 +15,13 @@ fallback was removed). Any code that touches anything under
 before the first call to ``build_domain_validators("flood")``.
 """
 try:
+    # Phase 6Q-G (2026-05-26): broker.domains auto-discovery was
+    # removed; the water-domain frameworks (PMT/utility/financial/
+    # cognitive_appraisal) + thinking-validator metadata + social
+    # specs that flood depends on no longer load by side effect.
+    # Trigger them explicitly here — the dependency was always real,
+    # it just wasn't visible.
+    import broker.domains.water  # noqa: F401 — registers PMT framework + metadata
     from broker.domains.registry import DomainPackRegistry
     from examples.governed_flood.adapters.flood_pack import FloodDomainPack
     DomainPackRegistry.register("flood", FloodDomainPack())
