@@ -105,11 +105,172 @@ class MemoryPolicyBundle:
 
 
 # ─────────────────────────────────────────────────────────────────────
-# Protocol
+# Sub-protocols (Phase 6R-D-1, 2026-05-26)
+# ─────────────────────────────────────────────────────────────────────
+#
+# The composite :class:`DomainPack` (defined below) inherits from these
+# seven sub-protocols, each grouping a cohesive subset of the broker's
+# domain-dispatch surface. The split exists for type-narrowing — broker
+# subsystems can declare a parameter as ``ReflectionPack`` instead of
+# the full ``DomainPack`` to make their contract explicit, and new
+# domain authors can scan the relevant sub-protocol(s) instead of the
+# 32-method composite.
+#
+# Each method declaration also lives in the ``DomainPack`` body below
+# (with its full docstring) for IDE / class-inspection backward
+# compatibility — Python's ``@runtime_checkable`` Protocol accepts
+# duplicate declarations and uses the composite class's body as the
+# authoritative source. The sub-protocols here carry only abbreviated
+# docstrings citing the canonical DomainPack location.
+#
+# Phase 6R-D roadmap: 6R-D-1 (this commit) DEFINES the sub-protocols
+# but does not yet narrow any broker consumer's type hints — every
+# call site still uses ``DomainPack``. 6R-D-3 introduces typed
+# accessors on ``DomainPackRegistry`` (``get_reflection_pack(domain)``
+# etc.); 6R-D-4 migrates broker consumers to use the narrowed types
+# at their relevant call sites.
+# ─────────────────────────────────────────────────────────────────────
+
+
+@runtime_checkable
+class ReflectionPack(Protocol):
+    """Reflection-prompt customisation hooks (4 methods).
+
+    Consumed by ``broker/components/cognitive/reflection.py``. See the
+    full method docstrings on ``DomainPack`` for semantics. Methods
+    grouped: ``reflection_status_text``, ``reflection_questions``,
+    ``reflection_persona``, ``reflection_trait_labels``.
+    """
+    def reflection_status_text(self, context: Any) -> Optional[str]: ...
+    def reflection_questions(self) -> List[str]: ...
+    def reflection_persona(self) -> Optional[str]: ...
+    def reflection_trait_labels(self, context: Any) -> List[str]: ...
+
+
+@runtime_checkable
+class MemoryPack(Protocol):
+    """Memory salience, emotion classification, retrieval tuning (6 methods).
+
+    Consumed by ``broker/components/memory/`` (policy_classifier,
+    initial_loader, universal). See ``DomainPack`` for full docstrings.
+    Methods: ``importance_profiles``, ``compute_importance``,
+    ``classify_emotion``, ``emotional_keywords``, ``retrieval_weights``,
+    ``memory_policy``.
+    """
+    def importance_profiles(self) -> Dict[str, float]: ...
+    def compute_importance(self, context: Any, base: float = 0.5) -> float: ...
+    def classify_emotion(self, decision: str, context: Any) -> str: ...
+    def emotional_keywords(self) -> Dict[str, str]: ...
+    def retrieval_weights(self) -> Dict[str, float]: ...
+    def memory_policy(self) -> Optional[MemoryPolicyBundle]: ...
+
+
+@runtime_checkable
+class SkillPack(Protocol):
+    """Decision-semantic hooks: emotion / extremeness / affordability (4 methods).
+
+    Consumed by ``broker/core/experiment_runner.py``,
+    ``broker/validators/agent/agent_validator.py``, and analytics
+    pipelines. See ``DomainPack`` for full docstrings. Methods:
+    ``skill_emotion_metadata``, ``extreme_actions``,
+    ``action_taxonomy``, ``affordability_constraints``.
+    """
+    def skill_emotion_metadata(self, skill_name: str) -> Dict[str, Any]: ...
+    def extreme_actions(self) -> Set[str]: ...
+    def action_taxonomy(self) -> Dict[str, "ActionTaxonomyEntry"]: ...
+    def affordability_constraints(self) -> Dict[str, Any]: ...
+
+
+@runtime_checkable
+class EventPack(Protocol):
+    """Multi-agent event handlers — global env + per-agent impact (2 methods).
+
+    Consumed by ``broker/components/events/ma_manager.py``. Both
+    methods return ``Dict[str, EventHandler]`` keyed by event-type
+    string. See ``DomainPack`` for full docstrings. Methods:
+    ``event_handlers``, ``agent_impact_handlers``.
+    """
+    def event_handlers(self) -> Dict[str, EventHandler]: ...
+    def agent_impact_handlers(self) -> Dict[str, EventHandler]: ...
+
+
+@runtime_checkable
+class PerceptionPack(Protocol):
+    """Numeric→qualitative verbalisation + per-agent-type policy (3 methods).
+
+    Consumed by ``broker/components/social/perception.py``. See
+    ``DomainPack`` for full docstrings. Methods:
+    ``perception_descriptors``, ``perception_field_policy``,
+    ``passthrough_agent_types``.
+    """
+    def perception_descriptors(self) -> Dict[str, Any]: ...
+    def perception_field_policy(self) -> Dict[str, List[str]]: ...
+    def passthrough_agent_types(self) -> Set[str]: ...
+
+
+@runtime_checkable
+class GovernancePack(Protocol):
+    """Validator dispatch + policy thresholds + placeholder allowlist (8 methods).
+
+    Consumed by ``broker/components/governance/*``,
+    ``broker/validators/*``, and ``broker/tools/validate_prompt.py``.
+    See ``DomainPack`` for full docstrings.
+
+    Note (Phase 6R-D-1 open design): ``psychological_framework`` is
+    grouped here because its sole consumer is the validator
+    dispatcher, but semantically it's a framework-selector rather than
+    a governance-policy tuner. A future Phase 6R-D refinement may
+    split it into its own ``FrameworkPack``; see
+    ``.research/domain_pack_protocol_reference.md`` for the deferred
+    design decision.
+
+    Methods: ``psychological_framework``, ``builtin_checks``,
+    ``retrieval_policy``, ``drift_policy``,
+    ``population_governance_policy``, ``policy_event_tiers``,
+    ``bridge_importance_policy``, ``prompt_placeholder_extensions``.
+    """
+    def psychological_framework(self) -> str: ...
+    def builtin_checks(self) -> Dict[str, List[BuiltinCheck]]: ...
+    def retrieval_policy(self) -> Dict[str, Any]: ...
+    def drift_policy(self) -> Dict[str, Any]: ...
+    def population_governance_policy(self) -> Dict[str, Any]: ...
+    def policy_event_tiers(self) -> Dict[str, float]: ...
+    def bridge_importance_policy(self) -> Dict[str, float]: ...
+    def prompt_placeholder_extensions(self) -> Set[str]: ...
+
+
+@runtime_checkable
+class SetupPack(Protocol):
+    """Agent initialisation + orchestration + per-agent narrative (5 methods).
+
+    Consumed by ``broker/core/agent_initializer.py``,
+    ``broker/components/orchestration/phases.py``, and per-agent
+    context builders. See ``DomainPack`` for full docstrings. Methods:
+    ``csv_loader_class``, ``synthetic_loader_class``, ``phase_layout``,
+    ``initial_memory_templates``, ``mg_barrier_text``.
+    """
+    def csv_loader_class(self) -> Optional[Any]: ...
+    def synthetic_loader_class(self) -> Optional[Any]: ...
+    def phase_layout(self) -> Optional[List[Any]]: ...
+    def initial_memory_templates(self, profile: Dict[str, Any]) -> List[Any]: ...
+    def mg_barrier_text(self, profile: Dict[str, Any]) -> str: ...
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Composite Protocol — DomainPack
 # ─────────────────────────────────────────────────────────────────────
 
 @runtime_checkable
-class DomainPack(Protocol):
+class DomainPack(
+    ReflectionPack,
+    MemoryPack,
+    SkillPack,
+    EventPack,
+    PerceptionPack,
+    GovernancePack,
+    SetupPack,
+    Protocol,
+):
     """Bundle of domain-specific behaviors queried by the broker pipeline.
 
     Every method has a no-op default in :class:`DefaultDomainPack`.
