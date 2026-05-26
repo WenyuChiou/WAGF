@@ -297,3 +297,410 @@ class TestFakeTrafficSysModulesCleanliness:
             f"importing fake_traffic fixture leaked water modules: "
             f"{payload['water_modules']}"
         )
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Phase 6Q-F-2-c — validate-time escape-hatch gate
+# ─────────────────────────────────────────────────────────────────────
+# Existing tests at broker/tests/test_dispatcher_cascade_defense.py:100-126
+# and broker/tests/test_genericity_runtime_gate.py:118-125 cover
+# ``ThinkingValidator(framework=FRAMEWORK_ESCAPE_HATCH)`` CONSTRUCTION
+# only. The 6Q-F-2-c E2E test below drives a full retry loop through
+# ``validate()`` on the escape-hatch path — so we need a fast, isolated
+# guard that validate-time behaviour stays graceful (no KeyError on
+# empty ``_constructs``, no crash from absent label registry). If this
+# class fails, the full E2E test below will fail with a much more
+# expensive trace — so it runs first by file order.
+
+class TestThinkingValidatorEscapeHatchValidateTime:
+    """``ThinkingValidator(framework="")`` must execute ``validate()``
+    cleanly when constructs and built-in checks are both empty.
+
+    The escape-hatch path is the contract for any non-water domain
+    that did not register a psychometric framework (per Phase 6Q-D).
+    The fake_traffic fixture exercises exactly this path via its
+    ``psychological_framework: ""`` YAML declaration.
+    """
+
+    def test_escape_hatch_validate_empty_state(self):
+        from broker.validators.governance.thinking_validator import (
+            ThinkingValidator,
+            FRAMEWORK_ESCAPE_HATCH,
+        )
+        # builtin_checks=[] disables domain defaults so this stays a
+        # pure base-class + YAML-rules-loop check (matches the
+        # dispatcher's escape-hatch branch in build_domain_validators).
+        validator = ThinkingValidator(
+            framework=FRAMEWORK_ESCAPE_HATCH,
+            builtin_checks=[],
+        )
+        # No constructs registered, no rules supplied, empty reasoning.
+        results = validator.validate(
+            skill_name="do_nothing",
+            rules=[],
+            context={"reasoning": {}, "state": {}},
+        )
+        assert isinstance(results, list)
+        assert len(results) == 0
+        # Sanity: the validator carries the escape-hatch sentinel.
+        assert validator.framework == FRAMEWORK_ESCAPE_HATCH
+        assert validator._constructs == {}
+
+    def test_escape_hatch_validate_with_framework_agnostic_rule(self):
+        from broker.governance.rule_types import GovernanceRule, RuleCondition
+        from broker.validators.governance.thinking_validator import (
+            ThinkingValidator,
+            FRAMEWORK_ESCAPE_HATCH,
+        )
+        # A precondition-typed rule with no ``framework=`` field is
+        # framework-agnostic per ``_validate_yaml_rules`` lines 354-357:
+        # ``rule_framework = getattr(rule, 'framework', None)`` → None,
+        # so the ``if rule_framework and rule_framework != framework``
+        # skip never fires.
+        rule = GovernanceRule(
+            id="test_escape_hatch_precondition_rule",
+            category="thinking",
+            conditions=[
+                RuleCondition(
+                    type="precondition",
+                    field="ready_state",
+                    operator="==",
+                    values=[True],
+                )
+            ],
+            blocked_skills=["take_alternate_route"],
+            level="ERROR",
+            message="Cannot take alternate route when ready_state is True.",
+        )
+        validator = ThinkingValidator(
+            framework=FRAMEWORK_ESCAPE_HATCH,
+            builtin_checks=[],
+        )
+        results = validator.validate(
+            skill_name="take_alternate_route",
+            rules=[rule],
+            context={"reasoning": {}, "state": {"ready_state": True}},
+        )
+        # Rule should trigger at least once — the same rule is
+        # evaluated by both the base-class YAML path (``super().validate``
+        # at thinking_validator.py:318) and the multi-condition path
+        # (``_validate_yaml_rules`` at :322), so the precise count is an
+        # internal evaluator detail. The point of this regression guard
+        # is that validate-time does NOT crash on the escape-hatch path
+        # when no constructs are registered, and that ERROR-level rule
+        # metadata flows through correctly.
+        assert isinstance(results, list)
+        assert len(results) >= 1
+        # Every triggered result must reference our rule and report
+        # an ERROR-level block. The two evaluation paths
+        # (``super().validate`` and ``_validate_yaml_rules``) populate
+        # slightly different metadata key-sets — only the multi-condition
+        # path injects ``framework`` — so we only assert keys both
+        # paths agree on. The framework-leak guard belongs to the
+        # multi-condition path; assert it on the subset of results that
+        # carry it.
+        for result in results:
+            assert result.valid is False  # ERROR-level
+            assert result.metadata["rule_id"] == "test_escape_hatch_precondition_rule"
+        framework_tagged = [
+            r for r in results if "framework" in r.metadata
+        ]
+        assert framework_tagged, (
+            "at least one result must carry the framework key "
+            "(emitted by _validate_yaml_rules)"
+        )
+        for result in framework_tagged:
+            assert result.metadata["framework"] == FRAMEWORK_ESCAPE_HATCH
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Phase 6Q-F-2-c — Full 1-year ExperimentRunner.run E2E gate
+# ─────────────────────────────────────────────────────────────────────
+# Layer 5 closure (per ~/.claude/plans/breezy-dazzling-knuth.md): drive
+# ExperimentBuilder + ExperimentRunner end-to-end against the
+# non-water fake_traffic domain, then assert the audit trace contains
+# only traffic vocabulary AND no broker.domains.water.* module was
+# newly imported during the run.
+
+_FIXTURE_DIR = (
+    Path(__file__).resolve().parents[2]
+    / "examples" / "_test_fixtures" / "fake_traffic"
+)
+
+
+class _TrafficSimulation:
+    """Minimal traffic environment stub. Mirrors the
+    ``TinySimulation`` pattern in
+    ``examples/quickstart/01_barebone.py`` — the broker pipeline
+    only requires ``advance_year()`` returning a dict and
+    ``execute_skill()`` returning an ``ExecutionResult``."""
+
+    def __init__(self):
+        self.year = 0
+
+    def advance_year(self):
+        self.year += 1
+        return {
+            "current_year": self.year,
+            "situation": (
+                f"Year {self.year}: heavy congestion forecast on commuter routes."
+            ),
+            "congestion_level": 0.7,
+        }
+
+    def execute_skill(self, approved_skill):
+        from broker.interfaces.skill_types import ExecutionResult
+        return ExecutionResult(success=True, state_changes={})
+
+
+def _build_traffic_agents():
+    """3 agents — 2 commuters + 1 dispatcher. Constructed in Python
+    (mirroring quickstart) rather than YAML-loaded because the
+    AgentTypeRegistry path is already verified by
+    ``TestTrafficYAMLConsumedByBrokerRegistries`` (6Q-F-2-b)."""
+    from broker.agents import BaseAgent, AgentConfig
+    from broker.agents.base import StateParam, Skill
+
+    commuter_skills = [
+        Skill("take_alternate_route", "Take alternate route", "delay_minutes", "decrease"),
+        Skill("delay_departure", "Delay departure", "delay_minutes", "decrease"),
+        Skill("switch_to_transit", "Switch to transit", "delay_minutes", "decrease"),
+        Skill("carpool", "Carpool", "delay_minutes", "decrease"),
+        Skill("do_nothing", "Do nothing", None, "none"),
+    ]
+    dispatcher_skills = [
+        Skill("announce_advisory", "Announce advisory", "advisories_issued", "increase"),
+    ]
+    commuter_state = [
+        StateParam("delay_minutes", (0, 120), 0.0, "Total commute delay"),
+    ]
+    dispatcher_state = [
+        StateParam("advisories_issued", (0, 365), 0.0, "Advisories issued YTD"),
+    ]
+
+    def _commuter(name: str) -> BaseAgent:
+        return BaseAgent(AgentConfig(
+            name=name,
+            agent_type="commuter",
+            state_params=commuter_state,
+            objectives=[],
+            constraints=[],
+            skills=commuter_skills,
+        ))
+
+    def _dispatcher(name: str) -> BaseAgent:
+        return BaseAgent(AgentConfig(
+            name=name,
+            agent_type="dispatcher",
+            state_params=dispatcher_state,
+            objectives=[],
+            constraints=[],
+            skills=dispatcher_skills,
+        ))
+
+    return {
+        "commuter_1": _commuter("commuter_1"),
+        "commuter_2": _commuter("commuter_2"),
+        "dispatcher_1": _dispatcher("dispatcher_1"),
+    }
+
+
+@pytest.fixture(scope="module")
+def _traffic_e2e_run(tmp_path_factory):
+    """Module-scoped fixture: build + run the 1-year traffic
+    experiment ONCE. Subsequent tests inspect the captured audit
+    artifacts. Keeps the slow part out of every test.
+
+    Snapshots ``sys.modules`` before importing any broker module so
+    the no-water-leak assertion can diff cleanly.
+    """
+    # Snapshot BEFORE any broker import inside this fixture body —
+    # the registry / fixture imports at module-top already happened,
+    # but the runtime path inside ExperimentRunner.run() must not
+    # newly pull water modules.
+    modules_before = set(sys.modules.keys())
+
+    from broker.core.experiment import ExperimentBuilder
+    from broker.components.memory.engine import WindowMemoryEngine
+
+    # Self-checking guard: the in-fixture imports themselves must
+    # not pull water modules. If a future refactor of
+    # ExperimentBuilder adds a conditional ``broker.domains.water``
+    # import at load time, the post-run sys.modules diff would
+    # silently include it as "pre-existing" rather than catching it.
+    pre_run_water = sorted(
+        m for m in (set(sys.modules) - modules_before)
+        if m.startswith("broker.domains.water")
+    )
+    assert not pre_run_water, (
+        f"importing ExperimentBuilder or WindowMemoryEngine pulled "
+        f"water modules into sys.modules: {pre_run_water}. The 6Q-F-2-c "
+        f"runtime gate requires these load paths to stay water-free."
+    )
+
+    output_dir = tmp_path_factory.mktemp("traffic_e2e_out")
+
+    agents = _build_traffic_agents()
+    sim = _TrafficSimulation()
+
+    captured_decisions = []
+
+    def _pre_year(year, env, agents_):
+        # Mirror quickstart pattern — runner injects current_year into
+        # env automatically, so no mutation needed here.
+        return None
+
+    def _post_step(agent, result):
+        approved = getattr(result, "approved_skill", None)
+        captured_decisions.append({
+            "agent_name": getattr(agent, "name", "?"),
+            "agent_type": getattr(agent, "agent_type", "?"),
+            "skill_name": approved.skill_name if approved else None,
+            "approval_status": approved.approval_status if approved else None,
+        })
+
+    runner = (
+        ExperimentBuilder()
+        .with_model("mock")
+        .with_years(1)
+        .with_agents(agents)
+        .with_simulation(sim)
+        .with_skill_registry(str(_FIXTURE_DIR / "traffic_skill_registry.yaml"))
+        .with_memory_engine(WindowMemoryEngine(window_size=3))
+        .with_governance("strict", str(_FIXTURE_DIR / "traffic_agent_types.yaml"))
+        .with_exact_output(str(output_dir))
+        .with_workers(1)
+        .with_seed(42)
+        .with_lifecycle_hooks(pre_year=_pre_year, post_step=_post_step)
+    ).build()
+
+    error = None
+    try:
+        runner.run()
+    except Exception as e:  # noqa: BLE001 — surface for assertion
+        error = e
+
+    modules_after = set(sys.modules.keys())
+    newly_loaded_water = sorted(
+        m for m in (modules_after - modules_before)
+        if m.startswith("broker.domains.water")
+    )
+
+    return {
+        "error": error,
+        "output_dir": Path(output_dir),
+        "captured_decisions": captured_decisions,
+        "newly_loaded_water_modules": newly_loaded_water,
+        "runner": runner,
+    }
+
+
+class TestTrafficE2ERuntime:
+    """Phase 6Q-F-2-c — drive the broker end-to-end against
+    fake_traffic and assert post-run invariants."""
+
+    def test_run_completes_without_crash(self, _traffic_e2e_run):
+        assert _traffic_e2e_run["error"] is None, (
+            f"ExperimentRunner.run() raised: {_traffic_e2e_run['error']!r}"
+        )
+
+    def test_audit_artifacts_contain_traffic_skills_no_flood_leak(
+        self, _traffic_e2e_run,
+    ):
+        # The broker partitions audit output per agent_type:
+        #   ``<agent_type>_governance_audit.csv`` (canonical CSV row dump) +
+        #   ``<agent_type>_traces.jsonl`` (streaming JSONL trace).
+        # The presence of BOTH the commuter-prefixed AND the
+        # dispatcher-prefixed file is itself a genericity-proof: the
+        # broker handled two heterogeneous non-water agent types
+        # without collapsing either onto a default partition.
+        output_dir: Path = _traffic_e2e_run["output_dir"]
+        all_files = sorted(p.name for p in output_dir.rglob("*"))
+
+        csv_files = list(output_dir.rglob("*_governance_audit.csv"))
+        jsonl_files = list(output_dir.rglob("*_traces.jsonl"))
+        assert csv_files or jsonl_files, (
+            f"no audit files written under {output_dir} — "
+            f"contents: {all_files}"
+        )
+
+        commuter_outputs = [
+            p for p in (csv_files + jsonl_files) if "commuter" in p.name
+        ]
+        dispatcher_outputs = [
+            p for p in (csv_files + jsonl_files) if "dispatcher" in p.name
+        ]
+        assert commuter_outputs, (
+            f"no commuter-partitioned audit found — contents: {all_files}"
+        )
+        assert dispatcher_outputs, (
+            f"no dispatcher-partitioned audit found — contents: {all_files}"
+        )
+
+        # Concatenate all audit text for the vocabulary scan.
+        audit_text = "\n".join(
+            p.read_text(encoding="utf-8")
+            for p in (csv_files + jsonl_files)
+        )
+        assert audit_text.strip(), "all audit files are empty"
+
+        # Whitelisted traffic vocabulary appears.
+        traffic_vocab = {
+            "take_alternate_route", "delay_departure", "switch_to_transit",
+            "carpool", "do_nothing", "announce_advisory",
+        }
+        present = {v for v in traffic_vocab if v in audit_text}
+        assert present, (
+            f"no traffic skill name found in audit. Vocab checked: "
+            f"{sorted(traffic_vocab)}. Audit excerpt: {audit_text[:400]!r}"
+        )
+
+        # Regression guard: no water-domain vocabulary leaks into the
+        # non-water audit. Comparison is case-insensitive on the raw
+        # text; flood-skill names cover the headline water-domain
+        # surface (elevation / insurance / buyout / etc.).
+        lowered = audit_text.lower()
+        flood_vocab = [
+            "elevate_house", "buy_insurance", "do_buyout", "do_relocate",
+            "elevation_year", "flood_depth_m",
+        ]
+        leaks = [w for w in flood_vocab if w in lowered]
+        assert not leaks, (
+            f"flood-domain vocabulary leaked into traffic audit: {leaks}"
+        )
+
+    def test_no_water_modules_loaded_during_run(self, _traffic_e2e_run):
+        leaked = _traffic_e2e_run["newly_loaded_water_modules"]
+        assert not leaked, (
+            f"ExperimentRunner.run() pulled water modules into "
+            f"sys.modules: {leaked}"
+        )
+
+    def test_reproducibility_manifest_written(self, _traffic_e2e_run):
+        output_dir: Path = _traffic_e2e_run["output_dir"]
+        manifests = list(output_dir.rglob("reproducibility_manifest.json"))
+        snapshots = list(output_dir.rglob("config_snapshot.yaml"))
+        assert manifests, (
+            f"reproducibility_manifest.json missing under {output_dir}"
+        )
+        assert snapshots, f"config_snapshot.yaml missing under {output_dir}"
+        # Parse to confirm valid JSON / YAML.
+        json.loads(manifests[0].read_text(encoding="utf-8"))
+        import yaml as _yaml
+        _yaml.safe_load(snapshots[0].read_text(encoding="utf-8"))
+
+    def test_post_step_hook_captured_decisions(self, _traffic_e2e_run):
+        # Sanity that the runner exercised the agents at least once
+        # — 3 agents × 1 year ≥ 3 decisions captured (assuming none
+        # of them rejected before reaching post_step).
+        decisions = _traffic_e2e_run["captured_decisions"]
+        assert len(decisions) >= 3, (
+            f"expected ≥3 captured post_step decisions, got {len(decisions)}: "
+            f"{decisions}"
+        )
+        # Every captured agent_type must be one of the two traffic
+        # agent types.
+        for d in decisions:
+            assert d["agent_type"] in {"commuter", "dispatcher"}, (
+                f"unexpected agent_type in capture: {d!r}"
+            )
