@@ -277,16 +277,29 @@ class HazardEventGenerator:
         return EventSeverity.INFO
 
     def _get_description(self, severity: EventSeverity, depth_m: float) -> str:
-        """Generate human-readable description."""
+        """Generate human-readable description.
+
+        Phase 6P-D (2026-05-25): description templates de-flood-ed.
+        Pre-6P-D these emitted ``"Catastrophic flooding (X ft) with
+        extreme damage potential."`` etc. — flood vocabulary baked
+        into a generic generator. The flood-domain replacement at
+        ``broker/domains/water/event_generators/flood.py`` (the
+        FloodEventGenerator, relocated in Phase 6K-B) keeps the
+        original flood-flavoured wording for the water domain;
+        non-water domains now read neutral ``"hazard event"``
+        templates. Depth unit kept as ``ft`` for backward compat with
+        flood callers — earthquakes / wildfires that don't have a
+        depth scalar should not pass this through ``_get_description``
+        at all (the generator is mode=flood-only by design)."""
         depth_ft = depth_m * 3.28084
         descriptions = {
-            EventSeverity.CRITICAL: f"Catastrophic flooding ({depth_ft:.1f} ft) with extreme damage potential.",
-            EventSeverity.SEVERE: f"Severe flooding ({depth_ft:.1f} ft) causing significant damage.",
-            EventSeverity.MODERATE: f"Moderate flooding ({depth_ft:.1f} ft) with localized damage.",
-            EventSeverity.MINOR: f"Minor flooding ({depth_ft:.1f} ft) with minimal impact.",
-            EventSeverity.INFO: "No flooding occurred.",
+            EventSeverity.CRITICAL: f"Catastrophic hazard event ({depth_ft:.1f} ft) with extreme damage potential.",
+            EventSeverity.SEVERE: f"Severe hazard event ({depth_ft:.1f} ft) causing significant damage.",
+            EventSeverity.MODERATE: f"Moderate hazard event ({depth_ft:.1f} ft) with localized damage.",
+            EventSeverity.MINOR: f"Minor hazard event ({depth_ft:.1f} ft) with minimal impact.",
+            EventSeverity.INFO: "No hazard event occurred.",
         }
-        return descriptions.get(severity, f"Flood event ({depth_ft:.1f} ft).")
+        return descriptions.get(severity, f"Hazard event ({depth_ft:.1f} ft).")
 
 
 __all__ = ["HazardEventGenerator", "HazardEventConfig"]
