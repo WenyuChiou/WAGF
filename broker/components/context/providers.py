@@ -501,11 +501,31 @@ class PerceptionAwareProvider(ContextProvider):
         if not agent:
             return
 
-        # Determine agent type
+        # Determine agent type. Phase 6R-B-1 (2026-05-26 / audit
+        # cluster E item #15): removed the silent fallback to the
+        # literal ``"household"`` here. That fallback fired only for
+        # malformed agents missing the ``agent_type`` field, but in a
+        # non-water domain it silently routed them through whatever
+        # filter was registered under the ``"household"`` key in the
+        # PerceptionFilterRegistry — typically the verbalizing default,
+        # which is harmless in practice but masks the upstream bug
+        # (the agent constructor forgot to set agent_type). Raising
+        # surfaces the bug immediately at the perception layer.
         if isinstance(agent, dict):
-            agent_type = agent.get('agent_type', 'household')
+            agent_type = agent.get("agent_type")
         else:
-            agent_type = getattr(agent, 'agent_type', 'household')
+            agent_type = getattr(agent, "agent_type", None)
+        if not agent_type:
+            raise ValueError(
+                f"PerceptionAwareProvider: agent {agent_id!r} has no "
+                f"`agent_type` attribute (or it's empty). Every agent "
+                f"MUST declare its agent_type explicitly so the "
+                f"perception filter registry can route it correctly. "
+                f"Previously this fell back to the literal 'household' "
+                f"string — a flood-domain default that misrouted "
+                f"non-water agents. Set agent.agent_type at construction "
+                f"time. (Phase 6R-B-1, audit cluster E #15.)"
+            )
 
         # Apply perception filter
         filtered = self._registry.filter_context(agent_type, context, agent)
