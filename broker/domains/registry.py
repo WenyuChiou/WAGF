@@ -39,6 +39,62 @@ class DomainPackRegistry:
     _default = DefaultDomainPack()
     _missing_warned: set = set()
 
+    # Phase 6Q-D-5 (2026-05-26): the subset of DomainPack methods
+    # we sanity-check at registration time. Selected because they
+    # are (a) called on the hot validator-dispatch path or (b)
+    # called by reflection / event manager / memory infrastructure
+    # — methods whose broken state would surface as a confusing
+    # crash much later in the simulation. We DO NOT call every
+    # ~30 DomainPack methods (too expensive); these 3 are
+    # representative of the broken-pack failure mode.
+    _SMOKE_METHODS: tuple = (
+        "psychological_framework",
+        "extreme_actions",
+        "memory_policy",
+    )
+
+    @classmethod
+    def _smoke_test_pack(cls, name: str, pack: DomainPack) -> None:
+        """Phase 6Q-D-5: call a small set of DomainPack methods at
+        registration time to surface broken packs early. Pre-fix
+        a partially-imported pack (e.g. circular import that left
+        a method bound to a half-initialised class) would only
+        surface much later when a hot-path consumer called the
+        broken method — boundary audit Pair #5 (MED-HIGH).
+
+        Pure log-and-continue: any failure logs a WARNING with the
+        method name + the exception type, but the pack is STILL
+        registered. Rationale: Phase 6Q-D-4 already wraps
+        ``build_domain_validators`` with graceful-fallback guards,
+        so a broken pack-in-the-registry doesn't crash the
+        validator dispatch path; this smoke just surfaces the
+        problem earlier (at module-import time, where the trace
+        points at the registration call site) instead of later
+        (during a multi-hour experiment run).
+        """
+        for method_name in cls._SMOKE_METHODS:
+            method = getattr(pack, method_name, None)
+            if method is None:
+                logger.warning(
+                    "[DomainPack:%s] missing method %r at registration "
+                    "time. Hot-path consumers may crash. Check that your "
+                    "pack subclasses DefaultDomainPack OR implements the "
+                    "full DomainPack Protocol surface.",
+                    name, method_name,
+                )
+                continue
+            try:
+                method()
+            except Exception as exc:  # noqa: BLE001 — registration-time smoke
+                logger.warning(
+                    "[DomainPack:%s] %s() raised %s at registration time: "
+                    "%r. Pack registered anyway (graceful-fallback in "
+                    "consumers will catch downstream calls), but you "
+                    "should fix the pack — see %s.%s for the contract.",
+                    name, method_name, type(exc).__name__, exc,
+                    type(pack).__module__, type(pack).__name__,
+                )
+
     @classmethod
     def register(cls, name: str, pack: DomainPack) -> None:
         """Register a pack for ``name``. Re-registering the same name
@@ -50,6 +106,10 @@ class DomainPackRegistry:
                 f"Pack for '{name}' missing required 'name' attribute "
                 f"(got {type(pack).__name__})"
             )
+        # Phase 6Q-D-5: smoke-test the pack before registration so
+        # broken methods surface at module-import time, not during
+        # a multi-hour experiment run.
+        cls._smoke_test_pack(name, pack)
         cls._packs[name] = pack
 
     @classmethod
