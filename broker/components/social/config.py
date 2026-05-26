@@ -116,18 +116,37 @@ def get_social_spec(agent: Any) -> SocialGraphSpec:
         agent_dict = {"agent_type": "government"}
         spec = get_social_spec(agent_dict)  # government
     """
-    # Extract attributes from agent (support both object and dict)
+    # Extract attributes from agent (support both object and dict).
+    # Phase 6R-B-2 (2026-05-26 / audit cluster E item #14): removed
+    # three silent fallbacks to ``"household"`` here. The ``is_mg`` and
+    # ``tenure`` defaults stay because they're scoped to the actual
+    # household lookup path below (lines 145-149) and fire only AFTER
+    # ``agent_type`` is confirmed to be a household type — they're
+    # household-attribute defaults, not the cross-domain leak we're
+    # closing.
     if isinstance(agent, dict):
-        agent_type = agent.get("agent_type", "household")
+        agent_type = agent.get("agent_type")
         is_mg = agent.get("is_mg", False)
         tenure = agent.get("tenure", "owner")
     else:
-        agent_type = getattr(agent, "agent_type", "household")
+        agent_type = getattr(agent, "agent_type", None)
         is_mg = getattr(agent, "is_mg", False)
         tenure = getattr(agent, "tenure", "owner")
 
+    if not agent_type:
+        raise ValueError(
+            f"get_social_spec: agent has no `agent_type` (or it's "
+            f"empty). Every agent MUST declare its agent_type "
+            f"explicitly so the social-graph dispatcher can route it "
+            f"correctly. Previously this fell back to the literal "
+            f"'household' string — a flood-domain default that "
+            f"silently composed household-shaped lookup keys for "
+            f"non-water agents. Set agent.agent_type at construction "
+            f"time. (Phase 6R-B-2, audit cluster E #14.)"
+        )
+
     # Normalize agent_type
-    agent_type_lower = agent_type.lower() if agent_type else "household"
+    agent_type_lower = agent_type.lower()
 
     # Check for institutional agent types first
     if agent_type_lower in AGENT_SOCIAL_SPECS:
