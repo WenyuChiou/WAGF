@@ -358,15 +358,19 @@ class TestDomainAgnostic:
         inst_pc = orch.get_phase_config(ExecutionPhase.INSTITUTIONAL)
         assert "government" in inst_pc.agent_types
 
-    def test_from_domain_none_uses_default_phases(self):
-        """from_domain(None) preserves prior backward compat (flood default).
+    def test_from_domain_none_uses_generic_phases(self):
+        """from_domain(None) → generic 3-phase layout (Phase 6Q-J).
 
-        Phase 6P-B (2026-05-25): ``None`` resolves to ``"flood"`` and
-        routes through the same registry lookup as the explicit-flood
-        case; flood pack registration via module-level import.
+        Phase 6Q-J (2026-05-26): the ``None → "flood"`` legacy
+        backward-compat default (Phase 6P-B carryover) was removed.
+        ``None``/empty now resolves directly to the generic 3-phase
+        layout, matching every other generic-fallback path in the
+        dispatch layer. Explicit ``"flood"`` still returns the 4-phase
+        water layout — tested in `test_from_domain_flood_uses_default_phases`
+        above.
         """
         orch = PhaseOrchestrator.from_domain(None)
-        assert len(orch.phases) == 4
+        assert len(orch.phases) == 3
 
     def test_from_domain_vaccination_uses_generic_phases(self):
         """from_domain('vaccination') yields generic phases."""
