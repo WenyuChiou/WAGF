@@ -58,14 +58,42 @@ class AgentReflectionContext:
     domain-specific data. The former domain-specific context fields were
     removed in Phase 6H Item 9 — a domain routes such data through
     ``custom_traits``.
+
+    Phase 6R-B-4 (audit cluster E item #17, 2026-05-26): ``agent_type``
+    is now REQUIRED (no default). Pre-fix the field defaulted to the
+    literal ``"household"`` — a flood-domain string in generic code
+    that misrouted any reflection-prompt builder forgetting to supply
+    an explicit agent_type. Construction raises ``ValueError`` on
+    missing/empty agent_type via the ``__post_init__`` validator below.
     """
     agent_id: str
-    agent_type: str = "household"          # household | government | institution
+    agent_type: str                        # REQUIRED. household | government | institution | commuter | ...
     name: str = ""                         # Display name if available
     years_in_sim: int = 0                  # Agent age in simulation
     mg_status: bool = False                # Marginalized group
     recent_decision: str = ""              # Last skill chosen
     custom_traits: Dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        # Phase 6R-B-4: empty / None / whitespace-only agent_type is a
+        # malformed-agent symptom. Surface immediately instead of
+        # silently routing through a flood-domain identity in the
+        # reflection prompt. ``__post_init__`` fires only at
+        # construction; post-construction mutation (``ctx.agent_type =
+        # ""``) is NOT re-validated — caller responsibility, matches
+        # the 6R-B-1 / 6R-B-2 raise pattern.
+        normalised = (self.agent_type or "").strip() if isinstance(
+            self.agent_type, str
+        ) else ""
+        if not normalised:
+            raise ValueError(
+                f"AgentReflectionContext: agent_id={self.agent_id!r} has "
+                f"empty/missing agent_type (whitespace-only also rejected). "
+                f"Every reflection-prompt consumer MUST declare "
+                f"agent_type explicitly. Previously this defaulted to "
+                f"the literal 'household' string — a flood-domain leak "
+                f"in generic code. (Phase 6R-B-4, audit cluster E #17.)"
+            )
 
 
 # Generic last-resort reflection questions -- deliberately domain-neutral
@@ -250,9 +278,14 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
         call site (Phase 6H Item 9; this method no longer reads any
         flood-specific agent attribute).
         """
+        # Phase 6R-B-4 (audit cluster E item #17): no fallback to the
+        # literal 'household' — if the agent has no agent_type
+        # attribute, raise via AgentReflectionContext.__post_init__
+        # with a clear message naming the offending agent.
+        agent_type = getattr(agent, 'agent_type', None)
         return AgentReflectionContext(
             agent_id=getattr(agent, 'id', str(agent)),
-            agent_type=getattr(agent, 'agent_type', 'household'),
+            agent_type=agent_type,
             name=getattr(agent, 'name', ''),
             years_in_sim=year,
             mg_status=getattr(agent, 'mg_status', False),
