@@ -23,7 +23,8 @@ early. A domain whose checks have not been registered by the time
 YAML rule path is unaffected).
 """
 
-from typing import List, Optional
+import logging
+from typing import List, Optional, Set, Tuple
 
 from broker.components.governance.validator_registry import ValidatorRegistry
 from broker.validators.governance.base_validator import BuiltinCheck
@@ -32,6 +33,14 @@ from broker.validators.governance.social_validator import SocialValidator
 from broker.validators.governance.thinking_validator import ThinkingValidator
 from broker.validators.governance.physical_validator import PhysicalValidator
 from broker.validators.governance.semantic_validator import SemanticGroundingValidator
+
+logger = logging.getLogger(__name__)
+
+# Phase 6Q-D-4 (2026-05-26): warn-once dedup set for unregistered-
+# framework downgrade events at dispatch time. Keyed by (domain,
+# framework_string). Same pattern as
+# unified_context_builder._WARNED_UNDECLARED_FRAMEWORK.
+_WARNED_UNREGISTERED_FRAMEWORK: Set[Tuple[str, str]] = set()
 
 
 def _empty_validators() -> list:
@@ -85,17 +94,76 @@ def build_domain_validators(domain: Optional[str]) -> list:
     try:
         from broker.domains.registry import DomainPackRegistry
         pack = DomainPackRegistry.get_or_default(resolved)
-        extreme = pack.extreme_actions()
-        # Phase 6Q-D (2026-05-26): pipe DomainPack.psychological_framework()
-        # into ThinkingValidator. Pre-6Q-D the validator silently defaulted
-        # to "pmt" — non-flood domains (vaccination "hbm", irrigation
-        # "cognitive_appraisal") had their YAML `psychological_framework:`
-        # declaration as dead config.
-        framework = pack.psychological_framework()
+        # Phase 6Q-D-4 (2026-05-26): each DomainPack accessor wrapped
+        # in its own try/except. A custom pack with a broken method
+        # (typo'd attribute, missing import, runtime error in a
+        # subclass) used to crash the entire governance pipeline via
+        # an unhandled exception bubbling out of build_domain_validators
+        # → validate_all. Now: log + fall back to a benign default so
+        # the validator graph still builds with reduced fidelity.
+        try:
+            extreme = pack.extreme_actions()
+        except Exception as exc:  # noqa: BLE001 — graceful boundary
+            logger.warning(
+                "[DomainPack:%s] extreme_actions() raised %r; falling back "
+                "to empty set. Custom DomainPack contract is broken — fix "
+                "the pack OR override extreme_actions() to return set().",
+                resolved, exc,
+            )
+            extreme = set()
+        try:
+            framework = pack.psychological_framework()
+        except Exception as exc:  # noqa: BLE001 — graceful boundary
+            logger.warning(
+                "[DomainPack:%s] psychological_framework() raised %r; "
+                "falling back to FRAMEWORK_ESCAPE_HATCH. Custom DomainPack "
+                "contract is broken — fix the pack OR override the method "
+                "to return one of: pmt / cognitive_appraisal / hbm / "
+                "utility / financial / \"\".",
+                resolved, exc,
+            )
+            from broker.validators.governance.thinking_validator import (
+                FRAMEWORK_ESCAPE_HATCH,
+            )
+            framework = FRAMEWORK_ESCAPE_HATCH
     except ImportError:
         if resolved == "flood":
             extreme = {"relocate", "elevate_house"}
             framework = "pmt"
+
+    # Phase 6Q-D-4 (2026-05-26): pre-construction framework-registry
+    # check. Pre-fix the dispatcher passed `framework` straight to
+    # `ThinkingValidator(framework=...)`, which raises ValueError if
+    # the framework is non-empty AND not in FRAMEWORK_LABEL_ORDERS.
+    # The cascade: pack returns a typo'd / unregistered framework
+    # string → ThinkingValidator raises → validate_all crashes →
+    # SkillBrokerEngine retry loop crashes → entire agent decision
+    # lost. The boundary-audit subagent flagged this as the HIGHEST-
+    # leverage failure point in the governance subsystem (Phase 6Q-D-3
+    # follow-up audit). Defense: downgrade to escape hatch + warn-
+    # once per (domain, framework) so the broker keeps running with
+    # generic label-ordering instead of dying.
+    if framework:
+        from broker.validators.governance.thinking_validator import (
+            FRAMEWORK_ESCAPE_HATCH,
+            FRAMEWORK_LABEL_ORDERS,
+        )
+        if framework.lower() not in FRAMEWORK_LABEL_ORDERS:
+            key = (resolved, framework)
+            if key not in _WARNED_UNREGISTERED_FRAMEWORK:
+                _WARNED_UNREGISTERED_FRAMEWORK.add(key)
+                logger.warning(
+                    "[DomainPack:%s] psychological_framework() returned "
+                    "%r which is not in FRAMEWORK_LABEL_ORDERS (registered: "
+                    "%s). Downgrading to FRAMEWORK_ESCAPE_HATCH so the "
+                    "governance pipeline stays alive — fix the pack: "
+                    "call register_framework_metadata(%r, ...) at import "
+                    "time, OR change psychological_framework() to return "
+                    "one of the registered names.",
+                    resolved, framework,
+                    sorted(FRAMEWORK_LABEL_ORDERS.keys()), framework,
+                )
+            framework = FRAMEWORK_ESCAPE_HATCH
 
     return [
         _with_registered_mode(
