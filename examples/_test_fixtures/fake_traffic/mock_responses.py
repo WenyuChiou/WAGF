@@ -61,22 +61,38 @@ MOCK_TRAFFIC_RESPONSES = {
 
 
 class MockTrafficLLM:
-    """Mock LLM that returns traffic-domain year-keyed responses.
+    """Mock LLM matching the broker's legacy ``Callable[[str], str]``
+    contract (per ``broker.utils.llm_utils.create_legacy_invoke``).
 
-    Parallel to test_sa_e2e_smoke.py::MockLLM. Tracks invocation
-    count + supports per-agent-type dispatch (commuter responses vs
-    dispatcher responses).
+    Phase 6Q-F-2-b (2026-05-26): re-signed to match the canonical
+    broker contract — ``invoke(prompt) -> str``. Pre-fix the
+    signature was ``invoke(prompt, year=1, agent_type="commuter",
+    **kwargs)`` — the real broker pipeline never passes year/
+    agent_type kwargs, so year-dispatch was silently inert.
+
+    Year + agent_type routing now uses **external state**: the test
+    driver sets ``mock.current_year`` and ``mock.current_agent_type``
+    before each invocation batch (lifecycle hooks handle this in a
+    real run). ``call_count`` still tracks invocations.
     """
 
     def __init__(self, responses=None):
         self.responses = responses or MOCK_TRAFFIC_RESPONSES
         self.call_count = 0
+        # External-state knobs the test driver sets between batches.
+        self.current_year: int = 1
+        self.current_agent_type: str = "commuter"
 
-    def invoke(self, prompt, year=1, agent_type="commuter", **kwargs):
-        """Return mock response based on year + agent_type."""
+    def invoke(self, prompt: str) -> str:
+        """Broker contract: ``Callable[[str], str]``.
+
+        Year + agent_type selection driven by the instance's
+        ``current_year`` / ``current_agent_type`` attributes (mutate
+        them between invocation batches to drive the year dispatch).
+        """
         self.call_count += 1
-        if agent_type == "dispatcher":
-            key = f"dispatcher_year_{year}"
+        if self.current_agent_type == "dispatcher":
+            key = f"dispatcher_year_{self.current_year}"
             return self.responses.get(key, self.responses["dispatcher_year_1"])
-        key = f"year_{year}"
+        key = f"year_{self.current_year}"
         return self.responses.get(key, self.responses["year_1"])

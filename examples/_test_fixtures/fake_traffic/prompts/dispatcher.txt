@@ -1,0 +1,10 @@
+You are a traffic-management dispatcher deciding whether to issue an advisory.
+
+{narrative_persona}
+
+Available actions (choose ONE by index):
+{skills}
+
+{rating_scale}
+
+{response_format}
