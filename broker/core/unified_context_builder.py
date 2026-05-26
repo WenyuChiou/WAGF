@@ -42,6 +42,10 @@ logger = logging.getLogger(__name__)
 # deprecated name-substring heuristic (no explicit declaration) — warned once
 # each, to keep log noise bounded.
 _WARNED_UNDECLARED_FRAMEWORK: set = set()
+# Phase 6Q-K-1 (2026-05-26): same warn-once pattern for
+# `_get_constructs_for_type` empty-fallback path (was PMT
+# TP/CP literals pre-6Q-K-1).
+_WARNED_UNDECLARED_CONSTRUCTS: set = set()
 
 
 class AgentTypeContextProvider(ContextProvider):
@@ -484,6 +488,18 @@ class UnifiedContextBuilder:
                 "cognitive_appraisal / generic).",
                 agent_type,
             )
+        # Phase 6Q-K-1 (2026-05-26): substring heuristic preserved
+        # for backward compat — flood/irrigation/vaccination configs
+        # already declare `psychological_framework:` per Phase 6P-E,
+        # so this branch only fires for undeclared / misspelled
+        # configs. The 3 explicit cases below still resolve correctly
+        # for water-MAS agent types; the catch-all default changed
+        # from PMT to GENERIC to remove the silent flood-bias for
+        # any UNRECOGNISED agent_type. Downstream consumers passing
+        # "generic" to ThinkingValidator get the Phase 6Q-D-4
+        # graceful FRAMEWORK_ESCAPE_HATCH downgrade (since "generic"
+        # is in FrameworkType enum but not in FRAMEWORK_LABEL_ORDERS
+        # registry).
         type_lower = agent_type.lower()
         if "household" in type_lower or "resident" in type_lower:
             return PsychologicalFrameworkType.PMT
@@ -492,7 +508,7 @@ class UnifiedContextBuilder:
         elif "insurance" in type_lower or "finance" in type_lower:
             return PsychologicalFrameworkType.FINANCIAL
 
-        return PsychologicalFrameworkType.PMT  # deprecated heuristic default
+        return PsychologicalFrameworkType.GENERIC  # Phase 6Q-K-1: was PMT
 
     def _get_constructs_for_type(self, agent_type: str) -> Dict[str, Any]:
         """
@@ -509,18 +525,29 @@ class UnifiedContextBuilder:
             if type_def and type_def.constructs:
                 return type_def.constructs
 
-        # Phase 6M-A (2026-05-23): PMT-flavoured fallback constructs.
-        # Non-PMT domains override by declaring their own
-        # ``constructs:`` block in the agent-type config that feeds
-        # this builder. The TP/CP literals here are the legacy
-        # water-domain default — preserved as the no-config
-        # fallback so existing flood / irrigation paths keep
-        # working byte-identically, not because they are the
-        # generic-broker recommendation.
-        return {
-            "TP_LABEL": {"name": "Threat Perception", "values": ["VL", "L", "M", "H", "VH"]},
-            "CP_LABEL": {"name": "Coping Perception", "values": ["VL", "L", "M", "H", "VH"]},
-        }
+        # Phase 6Q-K-1 (2026-05-26): the previous TP_LABEL/CP_LABEL
+        # fallback dict was PMT-flavoured and silently injected flood-
+        # framework constructs into ANY agent_type whose YAML omitted
+        # an explicit `constructs:` block (Phase 6M-A documented the
+        # bias but kept the fallback). Now returns empty dict + warns
+        # once per agent_type. Downstream consumers must tolerate
+        # empty constructs — the prompt construction path already
+        # falls back to a generic identity line when constructs is
+        # empty (no behaviour change for properly-configured domains;
+        # flood/irrigation/vaccination YAML all declare constructs).
+        if agent_type not in _WARNED_UNDECLARED_CONSTRUCTS:
+            _WARNED_UNDECLARED_CONSTRUCTS.add(agent_type)
+            logger.warning(
+                "Agent type %r has no `constructs:` declared in "
+                "agent_types.yaml and the agent_type_registry has no "
+                "type_def for it; falling back to an empty construct "
+                "set (pre-6Q-K-1 this silently returned a hardcoded "
+                "pair of psychometric labels, which leaked one "
+                "framework's vocabulary into every other domain). "
+                "Declare `constructs:` per the framework you intend.",
+                agent_type,
+            )
+        return {}
 
     def _build_memory_context(self, ctx_dict: Dict[str, Any]) -> MemoryContext:
         """
