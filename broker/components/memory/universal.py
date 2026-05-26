@@ -141,7 +141,8 @@ class UniversalCognitiveEngine:
             if not stimulus_key and domain:
                 try:
                     from broker.domains.registry import DomainPackRegistry
-                    bundle = DomainPackRegistry.get_or_default(domain).memory_policy()
+                    # Phase 6R-D-4 (2026-05-26): MemoryPack-narrowed.
+                    bundle = DomainPackRegistry.get_memory_pack(domain).memory_policy()
                     if bundle is not None and bundle.stimulus_key:
                         stimulus_key = bundle.stimulus_key
                 except ImportError:

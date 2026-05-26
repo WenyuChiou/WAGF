@@ -93,7 +93,10 @@ def build_domain_validators(domain: Optional[str]) -> list:
     framework: str = ""
     try:
         from broker.domains.registry import DomainPackRegistry
-        pack = DomainPackRegistry.get_or_default(resolved)
+        # Phase 6R-D-4 (2026-05-26): narrowed to GovernancePack —
+        # validator dispatch only needs psychological_framework /
+        # extreme_actions / builtin_checks, all owned by GovernancePack.
+        pack = DomainPackRegistry.get_governance_pack(resolved)
         # Phase 6Q-D-4 (2026-05-26): each DomainPack accessor wrapped
         # in its own try/except. A custom pack with a broken method
         # (typo'd attribute, missing import, runtime error in a
