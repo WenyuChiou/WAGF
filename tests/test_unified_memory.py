@@ -283,8 +283,16 @@ class TestHybridSurpriseStrategy(unittest.TestCase):
         self.assertLessEqual(surprise, 1.0)
 
     def test_trace_includes_both_components(self):
-        """Trace should show both EMA and Symbolic components."""
-        strategy = HybridSurpriseStrategy(ema_weight=0.5, symbolic_weight=0.5)
+        """Trace should show both EMA and Symbolic components.
+
+        Phase 6Q-C (2026-05-26): `ema_stimulus_key` is now required —
+        previously defaulted silently to "flood_depth". Test still
+        exercises flood mechanics; just passes the key explicitly.
+        """
+        strategy = HybridSurpriseStrategy(
+            ema_weight=0.5, symbolic_weight=0.5,
+            ema_stimulus_key="flood_depth",
+        )
         strategy.update({"flood_depth": 2.0})
 
         trace = strategy.get_trace()
@@ -295,8 +303,14 @@ class TestHybridSurpriseStrategy(unittest.TestCase):
         self.assertIn("combined_surprise", trace)
 
     def test_weights_normalized(self):
-        """Weights should be normalized to sum to 1."""
-        strategy = HybridSurpriseStrategy(ema_weight=3, symbolic_weight=7)
+        """Weights should be normalized to sum to 1.
+
+        Phase 6Q-C: `ema_stimulus_key` now required.
+        """
+        strategy = HybridSurpriseStrategy(
+            ema_weight=3, symbolic_weight=7,
+            ema_stimulus_key="flood_depth",
+        )
         # 3/(3+7)=0.3, 7/(3+7)=0.7
         self.assertAlmostEqual(strategy.ema_weight, 0.3)
         self.assertAlmostEqual(strategy.symbolic_weight, 0.7)

@@ -100,14 +100,22 @@ class EMASurpriseStrategy:
     - Simple, interpretable surprise calculation
 
     Args:
-        stimulus_key: Key to extract from world_state dict (e.g., "flood_depth")
+        stimulus_key: Key to extract from world_state dict — **REQUIRED**.
+            Phase 6Q-C (2026-05-26): previously defaulted silently to
+            ``"flood_depth"``, causing any non-flood domain to read
+            ``world_state.get("flood_depth", 0.0)`` → always 0 → zero
+            surprise signal forever, no error, no warning. Now an
+            explicit value is required; ``None`` raises ``ValueError``.
+            For YAML-driven usage the value flows through
+            ``DomainPack.memory_policy().stimulus_key`` → ``MemoryEngineRegistry``
+            → this constructor.
         alpha: EMA smoothing factor [0-1]
         initial_expectation: Starting expectation value
         normalize_range: Optional (min, max) to normalize surprise to [0, 1]
 
     Example:
         >>> strategy = EMASurpriseStrategy(
-        ...     stimulus_key="flood_depth",
+        ...     stimulus_key="flood_depth",  # explicit, no default
         ...     alpha=0.3
         ... )
         >>> surprise = strategy.update({"flood_depth": 2.5})
@@ -116,11 +124,21 @@ class EMASurpriseStrategy:
 
     def __init__(
         self,
-        stimulus_key: str = "flood_depth",
+        stimulus_key: Optional[str] = None,
         alpha: float = 0.3,
         initial_expectation: float = 0.0,
         normalize_range: Optional[tuple] = None,
     ):
+        if not stimulus_key:
+            raise ValueError(
+                "EMASurpriseStrategy requires an explicit `stimulus_key=` "
+                "(was previously silently defaulting to 'flood_depth' — "
+                "any non-flood domain got zero surprise signal). For "
+                "YAML-driven usage, set `memory.stimulus_key:` in your "
+                "agent_types.yaml OR override "
+                "`DomainPack.memory_policy().stimulus_key` for the active "
+                "domain. Phase 6Q-C (2026-05-26)."
+            )
         self.stimulus_key = stimulus_key
         self.alpha = alpha
         self.normalize_range = normalize_range

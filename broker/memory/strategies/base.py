@@ -25,7 +25,7 @@ class SurpriseStrategy(Protocol):
         reset: Reset internal state for new simulation runs
 
     Example:
-        >>> strategy = EMASurpriseStrategy(alpha=0.3)
+        >>> strategy = EMASurpriseStrategy(stimulus_key="flood_depth", alpha=0.3)
         >>> surprise = strategy.update({"flood_depth": 2.5})
         >>> system = "SYSTEM_2" if surprise > threshold else "SYSTEM_1"
     """

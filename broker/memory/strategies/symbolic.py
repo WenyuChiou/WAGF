@@ -144,8 +144,22 @@ class SymbolicSurpriseStrategy:
     def __init__(
         self,
         sensors: Optional[List[Sensor]] = None,
-        default_sensor_key: str = "flood_depth",
+        default_sensor_key: Optional[str] = None,
     ):
+        # Phase 6Q-C (2026-05-26): require either explicit `sensors=`
+        # OR a non-None `default_sensor_key=`. Pre-6Q-C the latter
+        # silently defaulted to ``"flood_depth"``, causing non-flood
+        # domains using the default-sensor branch to read a flood key
+        # that was never in their world_state — silent zero surprise.
+        if not sensors and not default_sensor_key:
+            raise ValueError(
+                "SymbolicSurpriseStrategy requires either `sensors=` "
+                "(explicit Sensor list) or `default_sensor_key=` (a "
+                "single observable key — was previously silently "
+                "defaulting to 'flood_depth'). For YAML-driven usage, "
+                "set `memory.stimulus_key:` in your agent_types.yaml. "
+                "Phase 6Q-C (2026-05-26)."
+            )
         # Build sensors from config or use default
         if sensors:
             self._sensors = [
@@ -153,11 +167,21 @@ class SymbolicSurpriseStrategy:
                 for s in sensors
             ]
         else:
-            # Create default sensor
-            default_bins = self.DEFAULT_BINS.get(
-                default_sensor_key,
-                self.DEFAULT_BINS["flood_depth"]
-            )
+            # Create default sensor — bins fall back to flood preset
+            # only when `default_sensor_key` is the exact string
+            # "flood_depth" (legacy water-domain template). For any
+            # other key the caller must populate `self.DEFAULT_BINS`
+            # before construction OR use the `sensors=` form with a
+            # fully-specified Sensor.
+            default_bins = self.DEFAULT_BINS.get(default_sensor_key)
+            if default_bins is None:
+                raise ValueError(
+                    f"SymbolicSurpriseStrategy.default_sensor_key="
+                    f"{default_sensor_key!r} has no preset bins in "
+                    f"`DEFAULT_BINS`. Pass `sensors=[Sensor(path=..., "
+                    f"name=..., bins=...)]` with explicit bin "
+                    f"definitions."
+                )
             self._sensors = [
                 Sensor(
                     path=default_sensor_key,

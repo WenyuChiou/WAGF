@@ -49,10 +49,28 @@ class HybridSurpriseStrategy:
         self,
         ema_weight: float = 0.6,
         symbolic_weight: float = 0.4,
-        ema_stimulus_key: str = "flood_depth",
+        ema_stimulus_key: Optional[str] = None,
         ema_alpha: float = 0.3,
         sensors: Optional[List[Sensor]] = None,
     ):
+        # Phase 6Q-C (2026-05-26): require explicit `ema_stimulus_key=`.
+        # Pre-6Q-C the kwarg silently defaulted to ``"flood_depth"`` and
+        # propagated through both composed strategies — any non-flood
+        # domain got zero surprise from the EMA half + flood-bin
+        # defaults from the Symbolic half. A "sensors-only" convenience
+        # that auto-derived the EMA key from `sensors[0].path` was
+        # considered + rejected per round-1 reviewer WARN: with multi-
+        # sensor inputs of different physical quantities the EMA half
+        # would silently track only the first. Keep the contract
+        # explicit instead.
+        if not ema_stimulus_key:
+            raise ValueError(
+                "HybridSurpriseStrategy requires explicit "
+                "`ema_stimulus_key=` (pre-6Q-C silently defaulted to "
+                "'flood_depth'). For YAML-driven usage, set "
+                "`memory.stimulus_key:` in your agent_types.yaml. "
+                "Phase 6Q-C (2026-05-26)."
+            )
         # Normalize weights
         total = ema_weight + symbolic_weight
         self.ema_weight = ema_weight / total
