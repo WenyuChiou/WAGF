@@ -127,7 +127,15 @@ def gen_skill_registry(domain: str, skills: List[str]) -> str:
          f'    eligible_agent_types: ["agent"]')
         for s in skills
     )
-    default = skills[0] if skills else "do_nothing"
+    # Phase 6Q-E (2026-05-26): generic placeholder, was previously
+    # ``"do_nothing"`` which is a flood-domain-specific skill name
+    # registered in ``examples/governed_flood/config/skill_registry.yaml``
+    # — a new-domain scaffold inherited flood-skill vocabulary in its
+    # generated YAML. The placeholder only fires when ``--skills`` is
+    # empty; in that case the value points to a non-existent skill
+    # and experiment_builder catches it. Renaming to a TODO-marker
+    # makes the intent visible.
+    default = skills[0] if skills else "TODO_default_skill"
     return (
         f"# Skill registry for the {domain} domain.\n"
         f"# Scaffolded by broker.tools.scaffold_domain. Edit descriptions to\n"
@@ -236,7 +244,7 @@ def gen_agent_types_yaml(domain: str, skills: List[str], framework: str) -> str:
 
           parsing:
             decision_keywords: ["decision", "choice", "action"]
-            default_skill: "{skills[0] if skills else 'do_nothing'}"
+            default_skill: "{skills[0] if skills else 'TODO_default_skill'}"
             strict_mode: true
             preprocessor:
               {{ type: "smart_repair", quote_values: ["VL", "L", "M", "H", "VH"] }}
