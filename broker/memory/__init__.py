@@ -36,8 +36,10 @@ from .strategies import (
     HybridSurpriseStrategy,
     # Task-050C: Multi-dimensional surprise
     MultiDimensionalSurpriseStrategy,
-    create_flood_surprise_strategy,
 )
+# Phase 6Q-D-2 (2026-05-26): `create_flood_surprise_strategy` factory
+# relocated to broker.domains.water.memory_strategies — was Layer 3
+# audit finding #20 (flood-specific factory in generic broker).
 from .store import UnifiedMemoryStore
 from .retrieval import AdaptiveRetrievalEngine
 from .config import (
@@ -96,7 +98,6 @@ __all__ = [
     "HybridSurpriseStrategy",
     # Multi-dimensional (Task-050C)
     "MultiDimensionalSurpriseStrategy",
-    "create_flood_surprise_strategy",
     # Store & Retrieval
     "UnifiedMemoryStore",
     "AdaptiveRetrievalEngine",

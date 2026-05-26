@@ -276,36 +276,12 @@ class MultiDimensionalSurpriseStrategy:
         return True
 
 
-# Convenience factory function
-def create_flood_surprise_strategy(
-    include_social: bool = True,
-    include_policy: bool = True,
-    alpha: float = 0.3,
-) -> MultiDimensionalSurpriseStrategy:
-    """
-    Create a pre-configured multi-dimensional surprise strategy for flood domain.
-
-    Args:
-        include_social: Include neighbor panic tracking
-        include_policy: Include policy change tracking
-        alpha: EMA smoothing factor
-
-    Returns:
-        Configured MultiDimensionalSurpriseStrategy
-    """
-    variables = {
-        "flood_depth": 0.4,
-    }
-
-    if include_social:
-        variables["neighbor_panic"] = 0.3
-        variables["elevated_pct"] = 0.15
-
-    if include_policy:
-        variables["subsidy_rate"] = 0.15
-
-    return MultiDimensionalSurpriseStrategy(
-        variables=variables,
-        alpha=alpha,
-        aggregation="max",  # Any spike triggers System 2
-    )
+# Phase 6Q-D-2 (2026-05-26): ``create_flood_surprise_strategy``
+# factory relocated to ``broker.domains.water.memory_strategies``.
+# Its body hardcoded flood-domain variable names (``flood_depth`` /
+# ``neighbor_panic`` / ``elevated_pct`` / ``subsidy_rate``) — never
+# domain-neutral, its previous address in generic broker namespace
+# was Layer 3 audit finding #20 from the Phase 6P-E follow-up
+# audit. The ``MultiDimensionalSurpriseStrategy`` class itself stays
+# here — it accepts an arbitrary ``variables: Dict[str, float]`` and
+# is genuinely domain-neutral.
