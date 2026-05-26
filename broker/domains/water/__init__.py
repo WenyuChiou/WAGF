@@ -13,6 +13,13 @@ from .cognitive_appraisal import CognitiveAppraisalFramework
 from .utility import UtilityFramework
 from .financial import FinancialFramework
 
+# Phase 6Q-D-2 (2026-05-26): re-export the flood-domain memory-strategy
+# factory so callers can do `from broker.domains.water import
+# create_flood_surprise_strategy` instead of the longer
+# `from broker.domains.water.memory_strategies import …`. The canonical
+# home is the sub-module; this is discoverability sugar.
+from .memory_strategies import create_flood_surprise_strategy  # noqa: F401
+
 
 def register() -> None:
     """Register water-domain frameworks and thinking-validator metadata."""

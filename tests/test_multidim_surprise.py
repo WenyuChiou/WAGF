@@ -7,6 +7,11 @@ Verifies multi-variable surprise tracking and aggregation.
 import pytest
 from broker.memory.strategies.multidimensional import (
     MultiDimensionalSurpriseStrategy,
+)
+# Phase 6Q-D-2 (2026-05-26): create_flood_surprise_strategy relocated
+# to its canonical water-domain home (was a flood-specific factory
+# living in generic broker namespace — Layer 3 audit finding #20).
+from broker.domains.water.memory_strategies import (
     create_flood_surprise_strategy,
 )
 
