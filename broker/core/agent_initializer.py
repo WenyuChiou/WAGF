@@ -728,7 +728,10 @@ def initialize_agents(
     # vaccination, or anything else. Each DomainPack now owns its
     # loader classes; default packs return None → generic loader.
     from broker.domains.registry import DomainPackRegistry
-    _pack = DomainPackRegistry.get_or_default(domain_name)
+    # Phase 6R-D-4 (2026-05-26): narrowed to SetupPack —
+    # csv_loader_class + synthetic_loader_class are both
+    # SetupPack methods.
+    _pack = DomainPackRegistry.get_setup_pack(domain_name)
 
     def _resolve_csv_loader_class():
         return _pack.csv_loader_class() or CSVLoader

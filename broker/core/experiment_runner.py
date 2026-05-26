@@ -392,7 +392,9 @@ class ExperimentRunner:
                 getattr(self.config, "domain", None)
                 or getattr(self, "_domain", None)
             )
-            pack = DomainPackRegistry.get_or_default(domain_name)
+            # Phase 6R-D-4 (2026-05-26): SkillPack-narrowed accessor —
+            # skill_emotion_metadata is owned by SkillPack.
+            pack = DomainPackRegistry.get_skill_pack(domain_name)
             pack_metadata = pack.skill_emotion_metadata(
                 result.approved_skill.skill_name
             )

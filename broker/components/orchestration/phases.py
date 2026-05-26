@@ -146,7 +146,8 @@ class PhaseOrchestrator:
         resolved = (domain or "").strip().lower() or None
 
         if resolved is not None:
-            pack = DomainPackRegistry.get_or_default(resolved)
+            # Phase 6R-D-4 (2026-05-26): SetupPack-narrowed accessor.
+            pack = DomainPackRegistry.get_setup_pack(resolved)
             layout = pack.phase_layout()
             if layout is not None:
                 return cls(phases=layout, seed=seed,

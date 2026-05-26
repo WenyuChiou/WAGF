@@ -81,7 +81,9 @@ def classify(
     if domain_mapping is None and domain:
         try:
             from broker.domains.registry import DomainPackRegistry
-            bundle = DomainPackRegistry.get_or_default(domain).memory_policy()
+            # Phase 6R-D-4 (2026-05-26): narrowed to MemoryPack via
+            # typed accessor — only memory_policy() is in scope here.
+            bundle = DomainPackRegistry.get_memory_pack(domain).memory_policy()
             if bundle is not None and bundle.category_rules:
                 domain_mapping = bundle.category_rules
         except ImportError:

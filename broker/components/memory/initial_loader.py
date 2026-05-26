@@ -121,7 +121,8 @@ def load_initial_memories_from_json(
     if domain:
         try:
             from broker.domains.registry import DomainPackRegistry
-            bundle = DomainPackRegistry.get_or_default(domain).memory_policy()
+            # Phase 6R-D-4 (2026-05-26): MemoryPack-narrowed access.
+            bundle = DomainPackRegistry.get_memory_pack(domain).memory_policy()
         except ImportError:
             pass  # guard against circular import during early load
     if external_event_whitelist is None:

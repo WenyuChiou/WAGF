@@ -38,6 +38,26 @@ genericity gate. See `~/.claude/plans/breezy-dazzling-knuth.md`.
 
 ### Changed
 
+- **Phase 6R-D-4 — Migrate broker consumers to typed sub-protocol accessors** (2026-05-26). Third commit of Phase 6R-D. Mechanical call-site renames — no behavior change. Broker consumers that previously used `DomainPackRegistry.get_or_default(domain)` for narrowed access now use the typed `get_<x>_pack(domain)` accessors landed in 6R-D-3. Communicates intent at the call site + lets type-checkers narrow the surface.
+  - **7 consumer sites migrated** (representative coverage; some leaf sites with multi-concern access remain on `get_or_default`):
+    - `broker/components/memory/policy_classifier.py:84` → `get_memory_pack` (uses `memory_policy()`).
+    - `broker/components/memory/initial_loader.py:124` → `get_memory_pack`.
+    - `broker/components/memory/universal.py:144` → `get_memory_pack`.
+    - `broker/components/governance/domain_validator_dispatch.py:96` → `get_governance_pack` (validator dispatch uses `psychological_framework` / `extreme_actions` / `builtin_checks`).
+    - `broker/components/events/ma_manager.py:302` → `get_event_pack` (uses `event_handlers()`).
+    - `broker/components/orchestration/phases.py:149` → `get_setup_pack` (uses `phase_layout()`).
+    - `broker/core/agent_initializer.py:731` → `get_setup_pack` (uses `csv_loader_class` + `synthetic_loader_class`).
+    - `broker/core/experiment_runner.py:395` → `get_skill_pack` (uses `skill_emotion_metadata()`).
+  - **Sites NOT migrated and why**:
+    - `broker/tools/validate_prompt.py:135` uses `DomainPackRegistry.get(domain)` (not `get_or_default`) — wants `None` on miss, not the DefaultDomainPack fallback. Migrating would change semantics; left as-is.
+    - `broker/utils/agent_config.py` (multiple sites) calls a mix of `retrieval_policy` / `drift_policy` / `policy_event_tiers` / `reflection_questions` at neighbouring lines — narrowing to a single sub-protocol per call doesn't reduce surface. Left on `get_or_default` for clarity.
+    - `broker/domains/water/providers.py:152`, `broker/domains/water/tools/appraisal_grounding_audit.py` — already inside the water namespace; narrowing has no design value.
+    - Test files retain `get_or_default` and `get` per existing convention.
+  - **Inline comment per migration** cites Phase 6R-D-4 + which sub-protocol the call site needs, so a future reader can verify the narrowing is correct.
+  - **Paper-1b byte-identity verified**: `broker.tools.compare_audit_csv` shows 3 rows × 1 column drift in `mem_top_source` (within the documented mock-LLM memory-tie-breaking noise floor — same family of drift as Phase 6R-C verification). No structural regression.
+  - **Test gate**: `pytest broker/ tests/ --timeout=300 -p no:cacheprovider` → **2599 passed / 10 skipped / 0 failed** (same count as 6R-D-3 baseline — pure call-site renames, no test surface change).
+  - **Phase 6R-D-4 status**: 7 migration sites CLOSED. Phase 6R-D-5 (FloodDomainPack sub-pack decomposition) + 6R-D-6 (Irrigation / Vaccination / FakeTraffic) remain — those are higher-touch example-pack refactors with paper-1b byte-identity checks at each step.
+
 - **Phase 6R-D-3 — Add typed sub-protocol accessors to `DomainPackRegistry`** (2026-05-26). Second commit of Phase 6R-D. Builds on 6R-D-1 sub-protocol definitions. **6R-D-2 (DefaultDomainPack composition refactor) skipped** — the minimal-restructure approach in 6R-D-1 kept DomainPack's full method body intact, so DefaultDomainPack works unchanged; splitting it would be churn-for-churn-sake.
   - **NEW typed accessors** in `broker/domains/registry.py` — one per sub-protocol:
     - `DomainPackRegistry.get_reflection_pack(name) -> ReflectionPack`

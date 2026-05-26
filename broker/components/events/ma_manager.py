@@ -299,7 +299,8 @@ class MAEventManager(EnvironmentEventManager):
             # (matches pre-refactor: unknown event_type fell through).
             return
 
-        pack = DomainPackRegistry.get_or_default(domain_name)
+        # Phase 6R-D-4 (2026-05-26): EventPack-narrowed accessor.
+        pack = DomainPackRegistry.get_event_pack(domain_name)
         handler = pack.event_handlers().get(event.event_type)
         if handler is not None:
             handler(event, gs)
