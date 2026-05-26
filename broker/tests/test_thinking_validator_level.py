@@ -18,6 +18,11 @@ from __future__ import annotations
 
 import pytest
 
+# Phase 6Q-G (2026-05-26): broker.domains auto-discovery removed.
+# This test exercises ThinkingValidator(framework="pmt") — PMT
+# registers at broker.domains.water import time.
+import broker.domains.water  # noqa: F401 — registers PMT framework
+
 from broker.governance.rule_types import GovernanceRule, RuleCondition
 from broker.validators.governance.thinking_validator import ThinkingValidator
 

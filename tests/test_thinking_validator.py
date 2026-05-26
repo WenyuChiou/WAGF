@@ -5,6 +5,13 @@ Task-041: Universal Prompt/Context/Governance Framework
 """
 
 import pytest
+
+# Phase 6Q-G (2026-05-26): broker.domains auto-discovery removed.
+# This test exercises ThinkingValidator with framework="pmt"/"utility"/
+# "financial" — those frameworks register at broker.domains.water
+# import time, so the dependency is declared explicitly here.
+import broker.domains.water  # noqa: F401 — registers PMT/utility/financial
+
 from broker.validators.governance.thinking_validator import (
     ThinkingValidator,
     FRAMEWORK_LABEL_ORDERS,

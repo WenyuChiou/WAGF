@@ -11,6 +11,13 @@ import so the irrigation builtin checks register without
 ``examples/`` (the prior lazy ``_ensure_irrigation_registered``
 fallback was removed).
 """
+# Phase 6Q-G (2026-05-26): broker.domains auto-discovery removed;
+# water-domain framework registry (PMT/utility/financial/
+# cognitive_appraisal) + thinking-validator metadata + social specs
+# now require an explicit import. Irrigation uses
+# ``cognitive_appraisal`` as its psychological framework, registered
+# by broker.domains.water at package import time.
+import broker.domains.water  # noqa: F401 — registers cognitive_appraisal framework
 from broker.domains.registry import DomainPackRegistry
 from examples.irrigation_abm.adapters.irrigation_pack import IrrigationDomainPack
 
