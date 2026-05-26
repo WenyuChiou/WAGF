@@ -70,8 +70,8 @@ Two artefacts per run directory:
 
 | Column | Meaning |
 |--------|---------|
-| `rules_evaluated_count` | int |
-| `rules_triggered` | str (csv) |
+| `rules_evaluated_count` | int — **aspirational, currently always 0**. Intended to count all rules considered (whether they fired or not). Schema + reader exist since Task-041 Phase 3; no producer ever wired the trace key. Closing this requires instrumenting the validator engine to emit a `rules_evaluated` list per decision (independent of fire status). KNOWN-DEBT, deferred to a future Phase 6Q-D-4 / 6R follow-up. Use `rules_*_hit` counts + `rules_triggered` for actual fire data today. |
+| `rules_triggered` | str (csv) — list of rule IDs that fired (BLOCK + WARN combined). Wired in Phase 6Q-D-3 (2026-05-26); pre-fix the schema + reader existed but no producer wrote the key. Sourced from `ValidationResult.metadata.rule_id` + `metadata.rules_hit` across the full per-decision validation history. **Distinct from `failed_rules`** (column above), which is BLOCK-only via `validation_issues`. |
 | `rules_personal_hit` | int |
 | `rules_social_hit` | int |
 | `rules_thinking_hit` | int |
