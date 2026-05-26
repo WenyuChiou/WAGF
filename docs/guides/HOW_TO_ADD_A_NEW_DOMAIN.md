@@ -394,6 +394,13 @@ class VaccinationDomainPack:
 # examples/vaccination_abm/__init__.py
 
 """Vaccination decision-making ABM."""
+# Phase 6Q-G (2026-05-26): if your domain uses one of the water-
+# registered psychometric frameworks (pmt / cognitive_appraisal /
+# utility / financial — i.e. anything you declared as
+# `psychological_framework:` in agent_types.yaml), add this line.
+# Vaccination uses HBM (its own registered framework) so this is
+# NOT needed; flood and irrigation packs DO require it. Pattern:
+#     import broker.domains.water  # noqa: F401
 from broker.domains.registry import DomainPackRegistry
 from examples.vaccination_abm.adapters.vaccination_pack import VaccinationDomainPack
 

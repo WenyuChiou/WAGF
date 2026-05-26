@@ -42,6 +42,8 @@ File: `adapters/<domain>_pack.py`.
 
 Override `name`, `reflection_status_text`, and `importance_profiles` at minimum. Add `compute_importance`, `classify_emotion`, `event_handlers`, or `extreme_actions` only when the domain needs them for the first smoke.
 
+**Phase 6Q-G (2026-05-26) registration contract**: if your domain depends on the water psychometric frameworks (`pmt` / `cognitive_appraisal` / `utility` / `financial`) — i.e. your `psychological_framework: …` YAML field is one of those — you MUST add `import broker.domains.water  # noqa: F401` to your `examples/<domain>/__init__.py` BEFORE `DomainPackRegistry.register(...)`. Auto-discovery in `broker/domains/__init__.py` was removed in 6Q-G; consumers now declare their dependency explicitly. See `examples/governed_flood/__init__.py` for the reference pattern. If your domain registers its own framework (like vaccination_demo's HBM) you do NOT need the water import.
+
 ```python
 @property
 def name(self) -> str:

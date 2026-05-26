@@ -53,7 +53,15 @@ Do NOT use this skill for:
 - **Cognitive framework**: PMT / Utility / Financial (pre-
   registered), HBM (registered in vaccination_demo as the non-
   water reference), or custom (scaffolded by
-  `scaffold_domain --framework custom`).
+  `scaffold_domain --framework custom`). **Phase 6Q-G (2026-05-26)
+  registration contract**: auto-discovery in
+  `broker/domains/__init__.py` was removed. If your generated domain
+  uses PMT / Utility / Financial / cognitive_appraisal (i.e. anything
+  registered by `broker.domains.water`), your
+  `examples/<domain>/__init__.py` must add `import broker.domains.water`
+  before `DomainPackRegistry.register(...)`. Custom frameworks (HBM-
+  style) register their own metadata and do NOT need this. See
+  `examples/governed_flood/__init__.py` for the canonical pattern.
 - **Coupling** is OPTIONAL: if the user has an external model,
   S2 / S3 / S7 are delegated to `wagf-coupling-designer`. If no
   external model, those stages are skipped cleanly.
