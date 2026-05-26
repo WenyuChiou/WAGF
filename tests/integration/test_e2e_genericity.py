@@ -41,6 +41,33 @@ import pytest
 
 
 # ─────────────────────────────────────────────────────────────────────
+# Module-scoped registry teardown (Phase 6Q-F-2-b)
+# ─────────────────────────────────────────────────────────────────────
+
+@pytest.fixture(autouse=True, scope="module")
+def _cleanup_traffic_registration():
+    """Phase 6Q-F-2-b (2026-05-26): import-side-effect protection.
+
+    Importing ``examples._test_fixtures.fake_traffic`` runs
+    ``DomainPackRegistry.register("traffic", ...)`` at module-load
+    time. ``DomainPackRegistry._packs`` is class-level state, so
+    the "traffic" pack persists for the entire pytest session,
+    visible to any later test that calls
+    ``DomainPackRegistry.list_domains()`` or relies on a clean
+    registry. Snapshot + restore around this module's tests so
+    other files aren't polluted.
+    """
+    from broker.domains.registry import DomainPackRegistry
+    saved = dict(DomainPackRegistry._packs)
+    yield
+    DomainPackRegistry.clear()
+    for name, pack in saved.items():
+        # Re-register via the bypass path to avoid the Phase 6Q-D-5
+        # smoke-test side effect on already-validated packs.
+        DomainPackRegistry._packs[name] = pack
+
+
+# ─────────────────────────────────────────────────────────────────────
 # Fixture package import gate
 # ─────────────────────────────────────────────────────────────────────
 
@@ -144,18 +171,25 @@ class TestMockTrafficLLM:
             assert 1 <= payload["decision"] <= 5
 
     def test_mock_llm_class_year_dispatch(self):
+        """Phase 6Q-F-2-b: invoke() now matches the broker's
+        Callable[[str], str] contract. Year + agent_type dispatch is
+        driven by external state on the mock (current_year /
+        current_agent_type)."""
         from examples._test_fixtures.fake_traffic.mock_responses import MockTrafficLLM
         mock = MockTrafficLLM()
-        # Commuter responses are year-keyed.
+        # Commuter responses are year-keyed via current_year.
         for year in [1, 2, 3]:
-            response = mock.invoke("ignored prompt", year=year)
+            mock.current_year = year
+            response = mock.invoke("ignored prompt")
             assert "<<<DECISION_START>>>" in response
             assert "<<<DECISION_END>>>" in response
-        # Dispatcher gets its own response.
-        dispatcher_response = mock.invoke(
-            "ignored prompt", year=1, agent_type="dispatcher"
-        )
+        # Dispatcher gets its own response via current_agent_type.
+        mock.current_year = 1
+        mock.current_agent_type = "dispatcher"
+        dispatcher_response = mock.invoke("ignored prompt")
         assert "<<<DECISION_START>>>" in dispatcher_response
+        # call_count tracks ALL invocations.
+        assert mock.call_count == 4
 
     def test_responses_contain_no_flood_vocabulary(self):
         from examples._test_fixtures.fake_traffic.mock_responses import (
@@ -184,6 +218,49 @@ class TestMockTrafficLLM:
 # `examples._test_fixtures.fake_traffic` should NOT pull water in.
 # (The fixture package explicitly does NOT import broker.domains.water
 # — only governed_flood / irrigation_abm do, per Phase 6Q-G.)
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Broker registry loaders (Phase 6Q-F-2-b)
+# ─────────────────────────────────────────────────────────────────────
+
+class TestTrafficYAMLConsumedByBrokerRegistries:
+    """Phase 6Q-F-2-b: exercise the broker's SkillRegistry +
+    AgentTypeRegistry YAML loaders with the non-water traffic
+    configs. Pre-fix the gates were YAML-shape assertions only
+    (TestTrafficYAMLConfigs above); this layer proves the loaders
+    accept non-water configs without crashing.
+    """
+
+    FIXTURE_DIR = (
+        Path(__file__).resolve().parents[2]
+        / "examples" / "_test_fixtures" / "fake_traffic"
+    )
+
+    def test_skill_registry_loads_traffic_yaml(self):
+        from broker.components.governance.registry import SkillRegistry
+        reg = SkillRegistry()
+        reg.register_from_yaml(str(self.FIXTURE_DIR / "traffic_skill_registry.yaml"))
+        # 6 skills registered (5 commuter + 1 dispatcher)
+        assert len(reg.skills) == 6
+        assert "take_alternate_route" in reg.skills
+        assert "switch_to_transit" in reg.skills
+        assert "announce_advisory" in reg.skills
+        # Default skill loaded from top-level YAML key.
+        assert reg._default_skill == "do_nothing"
+        # No flood-domain skill names leaked into the registry.
+        assert "elevate_house" not in reg.skills
+        assert "buy_insurance" not in reg.skills
+
+    def test_agent_type_registry_loads_traffic_yaml(self):
+        from broker.config.agent_types.registry import AgentTypeRegistry
+        reg = AgentTypeRegistry()
+        reg.load_from_yaml(self.FIXTURE_DIR / "traffic_agent_types.yaml")
+        commuter = reg.get("commuter")
+        dispatcher = reg.get("dispatcher")
+        assert commuter is not None
+        assert dispatcher is not None
+
 
 _SUBPROCESS_SCRIPT = r"""
 import sys, json

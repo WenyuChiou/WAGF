@@ -85,7 +85,7 @@ commuter:
     - carpool
     - do_nothing
 
-  prompt_template_file: null       # broker falls back to a generic template
+  prompt_template_file: prompts/commuter.txt
 
   actions:
     "1": "take_alternate_route"
@@ -111,7 +111,7 @@ dispatcher:
   skills:
     - announce_advisory
 
-  prompt_template_file: null
+  prompt_template_file: prompts/dispatcher.txt
 
   actions:
     "1": "announce_advisory"
