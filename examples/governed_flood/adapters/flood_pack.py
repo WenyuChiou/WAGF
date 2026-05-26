@@ -349,3 +349,12 @@ class FloodDomainPack(DefaultDomainPack):
                 "default_subsidy_rate": 0.5,
             },
         }
+
+    def phase_layout(self) -> List[Any]:
+        """Phase 6P-B (2026-05-25): replaces the hardcoded
+        ``if domain.lower() == "flood":`` branch in
+        ``broker/components/orchestration/phases.py::from_domain``.
+        Returns the four-phase water MAS execution order
+        (institutional → household → resolution → observation)."""
+        from broker.domains.water.phase_layouts import water_default_phases
+        return water_default_phases()

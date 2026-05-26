@@ -449,6 +449,29 @@ class DomainPack(Protocol):
         """
         ...
 
+    # ─── Phase orchestration (Phase 6P-B 2026-05-25) ──────────────
+
+    def phase_layout(self) -> Optional[List[Any]]:
+        """Multi-agent phase execution layout (``List[PhaseConfig]``).
+
+        Replaces the hardcoded ``if domain.lower() == "flood":`` branch
+        in ``broker/components/orchestration/phases.py::from_domain``.
+        Domains that need a custom phase split (institutional →
+        household → resolution → observation, etc.) return their list
+        here; domains with a single-phase pipeline return ``None`` and
+        the orchestrator falls back to a generic 3-phase layout
+        (CUSTOM → RESOLUTION → OBSERVATION).
+
+        Return type kept as ``Optional[List[Any]]`` (not the concrete
+        ``PhaseConfig`` class) to avoid forcing every pack import the
+        ``broker.interfaces.coordination`` module — most packs return
+        ``None`` and never touch the type.
+
+        Default ``None`` (no-op) → generic layout. The flood pack
+        overrides to return ``water_default_phases()``.
+        """
+        ...
+
     # ─── MemoryBridge resolution importance (Phase 6L-D 2026-05-23) ─
 
     def bridge_importance_policy(self) -> Dict[str, float]:

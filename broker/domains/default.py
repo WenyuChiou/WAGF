@@ -135,6 +135,13 @@ class DefaultDomainPack:
     def policy_event_tiers(self) -> Dict[str, float]:
         return {}
 
+    # ─── Phase orchestration (Phase 6P-B) ─────────────────────────
+
+    def phase_layout(self) -> Optional[List[Any]]:
+        """Default → ``None`` so the orchestrator falls back to a
+        generic 3-phase layout (CUSTOM → RESOLUTION → OBSERVATION)."""
+        return None
+
     # ─── MemoryBridge resolution importance (Phase 6L-D) ──────────
 
     def bridge_importance_policy(self) -> Dict[str, float]:
