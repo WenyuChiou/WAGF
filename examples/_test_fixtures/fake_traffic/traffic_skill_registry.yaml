@@ -1,0 +1,58 @@
+# Fake-Traffic Skill Registry — non-water E2E genericity fixture (Phase 6Q-F-2)
+#
+# NOT a paper-shipping example. Skill vocabulary is congestion-response
+# themed (commuter daily-trip decisions). Used only by
+# tests/integration/test_e2e_genericity.py to drive the broker pipeline
+# with a non-water domain.
+
+domain: traffic
+default_skill: do_nothing  # commuter falls back to current routine on validator reject
+
+skills:
+  - skill_id: take_alternate_route
+    category: adapt
+    intensity: moderate
+    reversibility: reversible
+    description: "Use a side-street or detour route to avoid known congestion."
+    eligible_agent_types: ["commuter"]
+    preconditions: []
+
+  - skill_id: delay_departure
+    category: adapt
+    intensity: moderate
+    reversibility: reversible
+    description: "Shift departure time by 30-60 minutes to miss peak congestion."
+    eligible_agent_types: ["commuter"]
+    preconditions: []
+
+  - skill_id: switch_to_transit
+    category: adopt
+    intensity: large
+    reversibility: reversible
+    description: "Use public transit instead of personal vehicle for this commute."
+    eligible_agent_types: ["commuter"]
+    preconditions: []
+
+  - skill_id: carpool
+    category: adopt
+    intensity: moderate
+    reversibility: reversible
+    description: "Coordinate ride-sharing with at least one neighbor or coworker."
+    eligible_agent_types: ["commuter"]
+    preconditions: []
+
+  - skill_id: do_nothing
+    category: maintain
+    intensity: low
+    reversibility: reversible
+    description: "Continue current routine — same route, same time, same mode."
+    eligible_agent_types: ["commuter"]
+    preconditions: []
+
+  - skill_id: announce_advisory
+    category: institutional
+    intensity: moderate
+    reversibility: reversible
+    description: "Dispatcher issues a congestion advisory visible to all commuters."
+    eligible_agent_types: ["dispatcher"]
+    preconditions: []

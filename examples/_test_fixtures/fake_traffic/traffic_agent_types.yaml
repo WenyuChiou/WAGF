@@ -1,0 +1,117 @@
+# Fake-Traffic Agent Types — non-water E2E genericity fixture (Phase 6Q-F-2)
+#
+# NOT a paper-shipping example. Minimum surface to exercise the broker's
+# agent-type registry + ExperimentBuilder validation without water
+# vocabulary. Used by tests/integration/test_e2e_genericity.py.
+#
+# `psychological_framework: ""` (empty string) triggers the Phase 6Q-D
+# FRAMEWORK_ESCAPE_HATCH path — no FRAMEWORK_LABEL_ORDERS lookup,
+# generic 5-level VL/L/M/H/VH ordering, empty construct registry.
+# This is the point of the genericity gate: prove the broker can run
+# a domain WITHOUT a registered psychometric framework.
+
+global_config:
+  memory:
+    window_size: 5
+    consolidation_threshold: 0.6
+    consolidation_probability: 0.7
+    top_k_significant: 2
+    decay_rate: 0.1
+    stimulus_key: "congestion_level"    # required post-6Q-C (any non-empty string)
+
+  reflection:
+    interval: 1
+    batch_size: 5
+    importance_boost: 0.85
+    persona_instruction: "Summarize each commuter's daily-trip choices into a 2-sentence reflection."
+    questions:
+      - "Did my last commute choice reduce my exposure to congestion?"
+    triggers:
+      crisis: false
+      periodic_interval: 1
+
+  llm:
+    model: "command-line-override"
+    num_ctx: 2048
+    num_predict: 512
+    max_retries: 2
+
+  governance:
+    max_retries: 2
+    max_reports_per_retry: 2
+    domain: traffic
+
+# =============================================================================
+# SHARED DEFINITIONS
+# =============================================================================
+shared:
+  rating_scale: |
+    ### RATING SCALE (use EXACTLY one of these codes):
+    VL = Very Low | L = Low | M = Medium | H = High | VH = Very High
+
+  response_format:
+    delimiter_start: "<<<DECISION_START>>>"
+    delimiter_end: "<<<DECISION_END>>>"
+    fields:
+      - { key: "reasoning", type: "text", required: true, description: "Explain your thought process in 2-3 sentences BEFORE choosing." }
+      - { key: "decision", type: "integer", required: true, description: "Choice number from the action list." }
+
+# =============================================================================
+# AGENT-TYPE CONFIGS
+# =============================================================================
+commuter:
+  description: "Individual commuter making daily trip-mode + route choices."
+  default_skill: do_nothing
+  psychological_framework: ""    # Phase 6Q-D FRAMEWORK_ESCAPE_HATCH
+
+  llm_params:
+    num_ctx: 2048
+    num_predict: 512
+
+  state_params:
+    delay_minutes:
+      bounds: [0, 120]
+      initial: 0.0
+      description: "Today's total commute delay (minutes)."
+
+  custom_traits:
+    last_action: null
+    congestion_observed: false
+
+  skills:
+    - take_alternate_route
+    - delay_departure
+    - switch_to_transit
+    - carpool
+    - do_nothing
+
+  prompt_template_file: null       # broker falls back to a generic template
+
+  actions:
+    "1": "take_alternate_route"
+    "2": "delay_departure"
+    "3": "switch_to_transit"
+    "4": "carpool"
+    "5": "do_nothing"
+
+dispatcher:
+  description: "Traffic-management dispatcher issuing advisories."
+  default_skill: announce_advisory
+  psychological_framework: ""    # Phase 6Q-D FRAMEWORK_ESCAPE_HATCH
+
+  llm_params:
+    num_ctx: 1024
+    num_predict: 256
+
+  state_params:
+    advisories_issued:
+      bounds: [0, 365]
+      initial: 0.0
+
+  skills:
+    - announce_advisory
+
+  prompt_template_file: null
+
+  actions:
+    "1": "announce_advisory"
