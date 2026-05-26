@@ -449,6 +449,34 @@ class DomainPack(Protocol):
         """
         ...
 
+    # ─── Profile loaders (Phase 6P-C 2026-05-25) ──────────────────
+
+    def csv_loader_class(self) -> Optional[Any]:
+        """Domain-specific CSV loader class — replaces the hardcoded
+        ``if domain_name == "flood":`` branch in
+        ``broker/core/agent_initializer.py::initialize_agents``.
+
+        Return a subclass of ``broker.core.agent_initializer.CSVLoader``
+        that knows how to populate domain-specific profile fields. The
+        broker instantiates it with ``column_mappings=config.get(
+        "column_mappings")``.
+
+        Default ``None`` → the generic ``CSVLoader`` is used (loads
+        common fields only; domain-specific extensions are ignored).
+        Return type kept as ``Optional[Any]`` (not ``Type[CSVLoader]``)
+        to avoid forcing every pack import ``broker.core.agent_initializer``.
+        """
+        ...
+
+    def synthetic_loader_class(self) -> Optional[Any]:
+        """Domain-specific synthetic-profile generator class —
+        replaces the hardcoded ``if domain_name == "flood":`` branch
+        for synthetic mode in ``initialize_agents``. Return a subclass
+        of ``broker.core.agent_initializer.SyntheticLoader``; the
+        broker instantiates it with ``seed=seed``. Default ``None`` →
+        generic ``SyntheticLoader``."""
+        ...
+
     # ─── Phase orchestration (Phase 6P-B 2026-05-25) ──────────────
 
     def phase_layout(self) -> Optional[List[Any]]:

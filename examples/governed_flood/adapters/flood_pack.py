@@ -358,3 +358,22 @@ class FloodDomainPack(DefaultDomainPack):
         (institutional → household → resolution → observation)."""
         from broker.domains.water.phase_layouts import water_default_phases
         return water_default_phases()
+
+    def csv_loader_class(self) -> Any:
+        """Phase 6P-C (2026-05-25): replaces the hardcoded
+        ``if domain_name == "flood":`` branch in
+        ``broker/core/agent_initializer.py::_resolve_csv_loader_class``.
+        ``FloodCSVLoader`` populates the flood-specific profile fields
+        (zone, depth, household_value, etc.) on top of the generic
+        ``CSVLoader``."""
+        from broker.domains.water.loaders import FloodCSVLoader
+        return FloodCSVLoader
+
+    def synthetic_loader_class(self) -> Any:
+        """Phase 6P-C (2026-05-25): replaces the hardcoded
+        ``if domain_name == "flood":`` branch in
+        ``broker/core/agent_initializer.py::_resolve_synthetic_loader_class``.
+        ``FloodSyntheticLoader`` generates flood-specific synthetic
+        profiles with PRB-grid-aware zone assignment."""
+        from broker.domains.water.loaders import FloodSyntheticLoader
+        return FloodSyntheticLoader

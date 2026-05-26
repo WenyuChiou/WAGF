@@ -389,6 +389,46 @@ class TestFloodDomainPackByteIdentical:
         assert spec["elevate_house"]["income_multiplier"] == 3.0
         assert spec["elevate_house"]["default_subsidy_rate"] == 0.5
 
+    # Phase 6P-B (2026-05-25) — phase_layout dispatch
+    def test_phase_layout_returns_water_four_phase_order(self):
+        from broker.interfaces.coordination import ExecutionPhase
+        layout = self.pack.phase_layout()
+        assert layout is not None
+        assert len(layout) == 4
+        phases = [pc.phase for pc in layout]
+        assert phases == [
+            ExecutionPhase.INSTITUTIONAL,
+            ExecutionPhase.HOUSEHOLD,
+            ExecutionPhase.RESOLUTION,
+            ExecutionPhase.OBSERVATION,
+        ]
+
+    # Phase 6P-C (2026-05-25) — loader dispatch via DomainPack
+    def test_csv_loader_class_returns_flood_csv_loader(self):
+        from broker.domains.water.loaders import FloodCSVLoader
+        assert self.pack.csv_loader_class() is FloodCSVLoader
+
+    def test_synthetic_loader_class_returns_flood_synthetic_loader(self):
+        from broker.domains.water.loaders import FloodSyntheticLoader
+        assert self.pack.synthetic_loader_class() is FloodSyntheticLoader
+
+    def test_flood_loaders_accept_canonical_constructor_kwargs(self):
+        """Phase 6P-C code-reviewer #3 — the loader-dispatch contract
+        promises the returned classes accept ``column_mappings=`` and
+        ``seed=`` respectively. Pin that constructor signature so a
+        future override does not silently break the dispatch."""
+        import inspect
+        csv_cls = self.pack.csv_loader_class()
+        syn_cls = self.pack.synthetic_loader_class()
+        csv_params = inspect.signature(csv_cls.__init__).parameters
+        syn_params = inspect.signature(syn_cls.__init__).parameters
+        assert "column_mappings" in csv_params, (
+            f"{csv_cls.__name__}.__init__ must accept column_mappings="
+        )
+        assert "seed" in syn_params, (
+            f"{syn_cls.__name__}.__init__ must accept seed="
+        )
+
     # Event handlers — preserves ma_manager.py:275-289 chain
     def test_event_handlers_keys(self):
         assert set(self.pack.event_handlers().keys()) == {

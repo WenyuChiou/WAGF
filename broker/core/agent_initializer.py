@@ -681,17 +681,20 @@ def initialize_agents(
             "is explicit."
         ) from exc
 
+    # Phase 6P-C (2026-05-25): registry-driven loader dispatch.
+    # Replaces the `if domain_name == "flood":` hardcodes that
+    # forced every CSV/synthetic mode call to traverse a
+    # water-namespace import even when the domain was irrigation,
+    # vaccination, or anything else. Each DomainPack now owns its
+    # loader classes; default packs return None → generic loader.
+    from broker.domains.registry import DomainPackRegistry
+    _pack = DomainPackRegistry.get_or_default(domain_name)
+
     def _resolve_csv_loader_class():
-        if domain_name == "flood":
-            from broker.domains.water.loaders import FloodCSVLoader
-            return FloodCSVLoader
-        return CSVLoader
+        return _pack.csv_loader_class() or CSVLoader
 
     def _resolve_synthetic_loader_class():
-        if domain_name == "flood":
-            from broker.domains.water.loaders import FloodSyntheticLoader
-            return FloodSyntheticLoader
-        return SyntheticLoader
+        return _pack.synthetic_loader_class() or SyntheticLoader
 
     if mode == "survey":
         if path is None:
