@@ -246,3 +246,11 @@ pytest_tmp/
 /*pytest*temp*/
 /*pytest*basetemp*/
 /py_*probe*/
+
+# AI-agent local guidance — project-specific Claude Code instructions
+# include internal phase tracking + paper-context references that
+# should not be public. Phase 6Q-D-5 (2026-05-26): originally
+# committed by 27e39b2 in error, untracked here. AGENTS.md stays
+# tracked (documented cross-agent standard — Codex / Cursor / Aider
+# all read it; intentionally public).
+CLAUDE.md
