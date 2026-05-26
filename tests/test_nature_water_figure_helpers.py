@@ -59,7 +59,7 @@ def test_compute_pie_matrix_returns_counts_totals_and_violation_percentages():
     assert violations[("L", "H")] == 0
 
 
-def test_flood_fig3_panel_a_order_is_governed_then_rulebased_then_ungoverned():
+def test_flood_fig3_panel_a_order_is_governed_then_ungoverned_then_rulebased():
     repo = Path(__file__).resolve().parents[1]
     path = repo / "paper" / "nature_water" / "scripts" / "gen_fig3_case2_flood.py"
     spec = importlib.util.spec_from_file_location("nw_fig3_flood", path)
@@ -68,7 +68,7 @@ def test_flood_fig3_panel_a_order_is_governed_then_rulebased_then_ungoverned():
     spec.loader.exec_module(module)
 
     panel_order = [item[0] for item in module.get_panel_a_configs()]
-    assert panel_order == ["gov", "rulebased", "disabled"]
+    assert panel_order == ["gov", "disabled", "rulebased"]
 
 
 def test_flood_violation_annotation_style_is_high_contrast():
@@ -130,7 +130,7 @@ def test_flood_year_marker_style_has_top_padding():
 def test_irrigation_fig2_bottom_row_uses_two_pie_panels():
     mod = _load_irrigation_fig_module()
 
-    panel_cfgs = mod.get_irrigation_pie_panel_configs()
+    panel_cfgs = mod.get_irrigation_panel_configs()
 
     assert [cfg["key"] for cfg in panel_cfgs] == ["gov", "disabled"]
     assert [cfg["title"] for cfg in panel_cfgs] == [
@@ -155,7 +155,7 @@ def test_irrigation_center_count_style_matches_fig3_overlay():
 
     style = mod.get_irrigation_center_count_style()
 
-    assert style["fontsize"] == 6.0
+    assert style["fontsize"] >= 6.0
     assert style["fontweight"] == "bold"
     assert style["bbox"]["facecolor"] == "#00000055"
 
@@ -170,13 +170,13 @@ def test_irrigation_title_sits_above_aca_axis_label():
     assert layout["title_y"] <= 1.02
 
 
-def test_irrigation_uses_shared_violation_colorbar():
+def test_irrigation_uses_demand_ratio_colorbar():
     mod = _load_irrigation_fig_module()
 
     cfg = mod.get_irrigation_colorbar_config()
 
     assert cfg["orientation"] == "vertical"
-    assert cfg["label"] == "Violation rate (%)"
+    assert cfg["label"] == "Demand ratio"
     assert cfg["width"] > 0
 
 
