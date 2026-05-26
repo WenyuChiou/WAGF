@@ -2,6 +2,18 @@
 
 This guide walks through plugging a non-water topic — e.g., **vaccination decision-making** — into the WAGF framework. After Phase 6C-v2 (2026-05-10), adding a new domain requires **one class** (a `DomainPack`) and **one registration call**. Zero edits to `broker/`.
 
+## Minimum DomainPack surface (Phase 6Q-A, 2026-05-26)
+
+`DomainPack` has ~30 methods but only **3 are MUST-override** — every other method has a safe no-op default on `DefaultDomainPack`. The 3-method minimum:
+
+| # | Method | Why it's required |
+|---|---|---|
+| 1 | `name` (class attribute) | Registry key — used by `DomainPackRegistry.register("<name>", pack)` and every downstream `get_or_default(domain)` lookup. |
+| 2 | `reflection_status_text(context)` | Without this the reflection prompt collapses to a generic identity line; the LLM has nothing domain-flavoured to reason from. |
+| 3 | `importance_profiles()` | Without this every memory carries the same baseline (0.5), so retrieval loses domain salience. |
+
+Override additional methods only as your domain needs them — common second-tier additions are `event_handlers()` (env mutations from policy/hazard events), `extreme_actions()` (one-way actions for `ThinkingValidator`), and `affordability_constraints()` (Tier-0 financial gates). The full surface is documented inline at `broker/domains/protocol.py::DomainPack`.
+
 ## Prerequisites
 
 - Python 3.10+, the WAGF repo cloned, `pip install -e .` run.

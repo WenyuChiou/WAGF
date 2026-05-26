@@ -115,6 +115,24 @@ class DomainPack(Protocol):
     Every method has a no-op default in :class:`DefaultDomainPack`.
     Implementers override only what's relevant for their domain.
 
+    Minimum new-domain surface (MUST override) — Phase 6Q-A (2026-05-26):
+        1. ``name`` (class attribute) — domain identifier used as the
+           registry key (e.g. ``"traffic"``).
+        2. ``reflection_status_text(context)`` — without this the
+           reflection prompt collapses to a generic identity line; the
+           LLM has nothing domain-flavoured to reason from.
+        3. ``importance_profiles()`` — without this every memory has
+           the same baseline (0.5), so retrieval loses domain salience.
+
+    Everything else has a safe no-op default in
+    :class:`broker.domains.default.DefaultDomainPack` — override only
+    the methods whose default is wrong for your domain. The 3-method
+    minimum was previously documented only in the
+    ``wagf-domain-builder`` skill checklist
+    (`.claude/skills/wagf-domain-builder/references/edit_pass_checklist.md`);
+    surfaced here so a new domain author reading the Protocol
+    definition sees the contract immediately.
+
     Attributes
     ----------
     name : str
