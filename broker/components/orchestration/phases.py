@@ -25,6 +25,10 @@ import random
 import logging
 
 from broker.interfaces.coordination import ExecutionPhase, PhaseConfig
+from broker.components.events.exceptions import (
+    InvalidPhaseConfigError,
+    PhaseDependencyCycleError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -157,14 +161,29 @@ class PhaseOrchestrator:
                    saga_coordinator=saga_coordinator)
 
     def _validate_phases(self) -> None:
-        """Validate phase configuration consistency."""
+        """Validate phase configuration consistency.
+
+        Phase 6T-A (2026-05-27): broken dependencies now raise
+        :class:`InvalidPhaseConfigError`. Pre-6T-A the validator emitted
+        ``logger.warning`` and continued, leaving ``depends_on``
+        pointing at a non-existent phase — the ``_topological_order``
+        Kahn pass treated the broken edge as satisfied (since
+        ``in_degree`` ignored unknown deps) and produced a meaningless
+        order. Phase 6T's institutional-diversity work (social-media
+        influencer phase depending on observer phase) is the trigger
+        for the hard-fail.
+        """
         phase_names = {p.phase for p in self.phases}
         for pc in self.phases:
             for dep in pc.depends_on:
                 if dep not in phase_names:
-                    logger.warning(
-                        "PhaseOrchestrator: Phase %s depends on %s which is not defined",
-                        pc.phase.value, dep.value,
+                    raise InvalidPhaseConfigError(
+                        f"PhaseConfig {pc.phase.value!r} declares "
+                        f"depends_on={dep.value!r} which is not defined "
+                        f"in this orchestrator. Declared phases: "
+                        f"{sorted(p.value for p in phase_names)!r}. "
+                        f"Fix by either adding the missing phase or "
+                        f"removing the dangling dependency."
                     )
 
     # ------------------------------------------------------------------
@@ -274,14 +293,31 @@ class PhaseOrchestrator:
         for entry in data.get("phases", []):
             phase_enum = phase_map.get(entry["phase"])
             if phase_enum is None:
-                logger.warning("Unknown phase: %s, using CUSTOM", entry["phase"])
-                phase_enum = ExecutionPhase.CUSTOM
+                # Phase 6T-A: hard-fail. Pre-6T-A behaviour silently
+                # rewrote unknown phases to ExecutionPhase.CUSTOM,
+                # collapsing distinct YAML phases into a single bucket
+                # and masking typos. New domains adding phase names
+                # via Phase 6T-F (social_media_influencer phase) must
+                # register the enum value first; silent CUSTOM
+                # fallback would have buried the missing-enum bug.
+                raise InvalidPhaseConfigError(
+                    f"Unknown phase {entry['phase']!r} in {path}. "
+                    f"Known phases: {sorted(phase_map.keys())!r}. "
+                    f"Fix by adding the phase to ExecutionPhase or "
+                    f"correcting the YAML entry."
+                )
 
             depends = []
             for dep_name in entry.get("depends_on", []):
                 dep_enum = phase_map.get(dep_name)
-                if dep_enum:
-                    depends.append(dep_enum)
+                if dep_enum is None:
+                    raise InvalidPhaseConfigError(
+                        f"Phase {entry['phase']!r} in {path} declares "
+                        f"depends_on={dep_name!r} which is not a known "
+                        f"phase. Known phases: "
+                        f"{sorted(phase_map.keys())!r}."
+                    )
+                depends.append(dep_enum)
 
             phases.append(PhaseConfig(
                 phase=phase_enum,
@@ -361,10 +397,27 @@ class PhaseOrchestrator:
                     if in_degree[pc.phase] == 0:
                         queue.append(pc.phase)
 
-        # Fallback if cycle detected
+        # Phase 6T-A (2026-05-27): cycle detection now hard-fails.
+        # Pre-6T-A behaviour returned the original (unsorted) phase
+        # list, producing meaningless execution order (e.g. household
+        # phase running before institutional phase that supplies its
+        # subsidy context). Phase 6T-F's social_media_influencer phase
+        # introduces a cycle risk (influencer depends on observer,
+        # observer depends on household — if household is configured
+        # to depend on influencer the cycle closes); silent fallback
+        # would mask the YAML bug.
         if len(result) != len(self.phases):
-            logger.warning("PhaseOrchestrator: Cycle detected in phase dependencies, using original order")
-            return list(self.phases)
+            unresolved = [
+                pc.phase.value for pc in self.phases
+                if phase_map[pc.phase] not in result
+            ]
+            raise PhaseDependencyCycleError(
+                f"PhaseOrchestrator: cycle detected in phase "
+                f"dependencies. Unresolved phases: {unresolved!r}. "
+                f"Declared phases: "
+                f"{[pc.phase.value for pc in self.phases]!r}. "
+                f"Fix by breaking the cycle in depends_on."
+            )
 
         return result
 

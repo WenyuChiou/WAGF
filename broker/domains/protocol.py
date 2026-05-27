@@ -183,15 +183,20 @@ class SkillPack(Protocol):
 
 @runtime_checkable
 class EventPack(Protocol):
-    """Multi-agent event handlers — global env + per-agent impact (2 methods).
+    """Multi-agent event handlers — global env + per-agent impact + dispatch / lifecycle (5 methods).
 
-    Consumed by ``broker/components/events/ma_manager.py``. Both
-    methods return ``Dict[str, EventHandler]`` keyed by event-type
-    string. See ``DomainPack`` for full docstrings. Methods:
-    ``event_handlers``, ``agent_impact_handlers``.
+    Consumed by ``broker/components/events/ma_manager.py``. See
+    ``DomainPack`` for full docstrings. Methods:
+    ``event_handlers``, ``agent_impact_handlers``,
+    ``event_type_to_domain``, ``event_persistence_policy``,
+    ``silent_skip_event_types`` (last three added Phase 6T-A
+    2026-05-27).
     """
     def event_handlers(self) -> Dict[str, EventHandler]: ...
     def agent_impact_handlers(self) -> Dict[str, EventHandler]: ...
+    def event_type_to_domain(self, event_type: str) -> Optional[str]: ...
+    def event_persistence_policy(self, event_type: str) -> Any: ...
+    def silent_skip_event_types(self) -> Set[str]: ...
 
 
 @runtime_checkable
@@ -425,6 +430,72 @@ class DomainPack(
         Default empty ``{}`` → ``get_agent_impact`` returns ``{}``; a
         domain supplies its hazard / damage / payout handlers via its
         own pack (the water pack lives under ``broker/domains/water``).
+        """
+        ...
+
+    # ─── Phase 6T-A (2026-05-27): dispatch + lifecycle hooks ─────
+
+    def event_type_to_domain(self, event_type: str) -> Optional[str]:
+        """Phase 6T-A: explicit ownership claim for ``MAEventManager``
+        dispatch.
+
+        Return this pack's :attr:`name` iff it OWNS ``event_type``,
+        else ``None``. "Owns" defaults (in :class:`DefaultDomainPack`)
+        to "appears in :meth:`event_handlers` or
+        :meth:`agent_impact_handlers`" — the natural definition. Packs
+        that emit observational events they don't directly handle
+        (e.g. a flood pack emitting ``social_media_post`` events that
+        a separate social-media pack handles in Phase 6T-E) can
+        override to claim them.
+
+        Pre-6T-A the dispatcher silently fell through to scan-all-packs
+        when ``env.domain`` was unset, with no notion of who "owned"
+        each event_type. The explicit ownership API makes the dispatch
+        path deterministic + debuggable.
+        """
+        ...
+
+    def event_persistence_policy(self, event_type: str) -> Any:
+        """Phase 6T-A: lifecycle policy for an event of ``event_type``.
+
+        Returns an :class:`EventPersistence` enum member (from
+        ``broker.components.events.exceptions``). Typed ``Any`` here to
+        keep this Protocol module decoupled from the concrete
+        ``EventPersistence`` import (Protocol modules avoid hard imports
+        from broker subpackages by convention).
+
+        - ``EPHEMERAL`` — wiped at year boundary by
+          ``MAEventManager.clear_ephemeral_events`` (pre-6T-A default
+          behaviour).
+        - ``STICKY_YEAR_DECAY`` — preserved across years with weighted
+          age decay (consumed by Phase 6T-E social-media propagation).
+        - ``STICKY_INDEFINITE`` — never wiped.
+
+        Default in :class:`DefaultDomainPack`: ``EPHEMERAL`` for every
+        event_type — matches pre-6T-A behaviour where ``clear_year``
+        discarded everything.
+        """
+        ...
+
+    def silent_skip_event_types(self) -> Set[str]:
+        """Phase 6T-A: opt-in allowlist of event_types this pack
+        acknowledges are intentionally unhandled.
+
+        Events whose ``event_type`` appears in any registered pack's
+        silent-skip allowlist do NOT raise :class:`UnhandledEventError`
+        from the dispatcher — they're recorded as
+        ``handlers_silently_skipped`` on
+        :class:`EventDispatchMetrics` and the dispatch loop continues.
+
+        Use this for legitimate observational / metrics-only events
+        that domain code emits for downstream collectors but does not
+        itself respond to (e.g. ``audit_only_post_emitted``,
+        ``metrics_breadcrumb``). Do NOT use this as a workaround for
+        forgotten handlers — that's exactly the silent-failure mode
+        Phase 6T-A is closing.
+
+        Default: empty set. The legacy pre-6T-A scan-all-silent-skip
+        behaviour is now explicit per-pack opt-in.
         """
         ...
 

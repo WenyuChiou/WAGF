@@ -244,7 +244,18 @@ phases:
         assert ExecutionPhase.INSTITUTIONAL in res_phase.depends_on
         assert ExecutionPhase.HOUSEHOLD in res_phase.depends_on
 
-    def test_unknown_phase_falls_back_to_custom(self, tmp_path):
+    def test_unknown_phase_raises_invalid_phase_config_error(self, tmp_path):
+        """Phase 6T-A (2026-05-27): unknown phase names hard-fail at
+        YAML load instead of silently rewriting to ``ExecutionPhase.CUSTOM``.
+
+        Pre-6T-A this test asserted the silent CUSTOM fallback; new
+        behaviour raises :class:`InvalidPhaseConfigError` because the
+        silent rewrite was masking typos (and would mask the Phase 6T-F
+        ``social_media_influencer`` phase being added but mis-spelled in
+        a downstream YAML).
+        """
+        from broker.components.events.exceptions import InvalidPhaseConfigError
+
         yaml_content = """\
 phases:
   - phase: my_custom_phase
@@ -254,8 +265,8 @@ phases:
         yaml_file = tmp_path / "custom.yaml"
         yaml_file.write_text(yaml_content, encoding="utf-8")
 
-        orch = PhaseOrchestrator.from_yaml(str(yaml_file))
-        assert orch.phases[0].phase == ExecutionPhase.CUSTOM
+        with pytest.raises(InvalidPhaseConfigError, match="my_custom_phase"):
+            PhaseOrchestrator.from_yaml(str(yaml_file))
 
 
 # ---------------------------------------------------------------------------
@@ -263,7 +274,15 @@ phases:
 # ---------------------------------------------------------------------------
 
 class TestValidation:
-    def test_warns_on_missing_dependency(self, caplog):
+    def test_raises_on_missing_dependency(self):
+        """Phase 6T-A (2026-05-27): broken dependencies hard-fail at
+        construction time. Pre-6T-A this emitted ``logger.warning`` and
+        proceeded; the new behaviour raises
+        :class:`InvalidPhaseConfigError` so the misconfig surfaces
+        before any agent runs (see ``broker/components/events/exceptions.py``
+        for the audit-trail rationale)."""
+        from broker.components.events.exceptions import InvalidPhaseConfigError
+
         phases = [
             PhaseConfig(
                 phase=ExecutionPhase.OBSERVATION,
@@ -271,10 +290,8 @@ class TestValidation:
                 depends_on=[ExecutionPhase.RESOLUTION],  # Not defined!
             ),
         ]
-        import logging
-        with caplog.at_level(logging.WARNING):
+        with pytest.raises(InvalidPhaseConfigError, match="RESOLUTION|resolution"):
             PhaseOrchestrator(phases=phases)
-        assert "depends on" in caplog.text.lower() or len(caplog.records) > 0
 
 
 # ---------------------------------------------------------------------------
