@@ -6,6 +6,21 @@ Phase 6C-v2 (2026-05-10): wraps the existing :class:`IrrigationAdapter`
 with the DomainPack facade so broker pipeline code can query irrigation
 behaviour without hardcoded ``if domain == "irrigation":`` branches.
 
+Phase 6R-D-6a (2026-05-26): the previously-monolithic
+``IrrigationDomainPack`` class body splits into six sub-pack mixins
+corresponding to the Phase 6R-D-1 sub-protocols the irrigation pack
+overrides (Reflection, Memory, Skill, Event, Governance, Setup —
+PerceptionPack is NOT overridden so no IrrigationPerceptionMixin
+exists). The composite ``IrrigationDomainPack`` inherits from the six
+mixins + ``DefaultDomainPack``, preserving the
+``DomainPackRegistry.register("irrigation", IrrigationDomainPack())``
+contract.
+
+The irrigation-specific ``appraisal_grounding_map`` method (consumed
+by ``broker/domains/water/tools/appraisal_grounding_audit.py``) is
+NOT a Protocol method — it lives on the composite class directly,
+not in any mixin.
+
 Backward compatibility
 ======================
 Every method is byte-identical to the pre-refactor behaviour:
@@ -52,36 +67,16 @@ from broker.domains.protocol import BuiltinCheck, EventHandler
 from examples.irrigation_abm.adapters.irrigation_adapter import IrrigationAdapter
 
 
-class IrrigationDomainPack(DefaultDomainPack):
-    """DomainPack for the irrigation water-resource example.
+# ─────────────────────────────────────────────────────────────────────
+# Sub-pack mixins (Phase 6R-D-6a, 2026-05-26)
+# ─────────────────────────────────────────────────────────────────────
 
-    Subclasses :class:`DefaultDomainPack` so any DomainPack method not
-    overridden below (incl. Phase 6H v2 additions) falls through to the
-    no-op default.
-    """
 
-    name: str = "irrigation"
-
-    def __init__(self) -> None:
-        self._inner = IrrigationAdapter()
-
-    def psychological_framework(self) -> str:
-        """Phase 6Q-D (2026-05-26): cognitive-appraisal framework (WSA
-        / ACA constructs) — pre-registered by
-        ``broker.domains.water.thinking_checks``. Matches the
-        ``psychological_framework: cognitive_appraisal`` declaration in
-        ``examples/irrigation_abm/config/agent_types.yaml`` (previously
-        dead config)."""
-        return "cognitive_appraisal"
-
-    def appraisal_grounding_map(self) -> Dict[str, Any]:
-        return {
-            "construct": "WSA_LABEL",
-            "shortage_tier_to_wsa": {0: "L", 1: "M", 2: "H", 3: "VH"},
-            "drought_index_bump_threshold": 0.6,
-        }
-
-    # ─── Reflection ───────────────────────────────────────────────
+class IrrigationReflectionMixin:
+    """ReflectionPack methods — irrigation uses the batch reflection
+    path (questions from agent_types.yaml), not the individual status
+    block. All three reflection hooks return empty/None to preserve
+    pre-refactor behaviour."""
 
     def reflection_status_text(self, context: Any) -> Optional[str]:
         # Irrigation uses the batch reflection path (questions from
@@ -99,7 +94,13 @@ class IrrigationDomainPack(DefaultDomainPack):
     def reflection_persona(self) -> Optional[str]:
         return None
 
-    # ─── Memory / importance / emotion (delegate to existing adapter) ─
+
+class IrrigationMemoryMixin:
+    """MemoryPack methods — delegate to the legacy IrrigationAdapter
+    for importance / emotion / retrieval tuning. ``compute_importance``
+    base default (0.70) differs from the Protocol default (0.5) —
+    irrigation memories are higher-baseline-salience than the generic
+    fallback assumes."""
 
     def importance_profiles(self) -> Dict[str, float]:
         return dict(self._inner.importance_profiles)
@@ -116,7 +117,10 @@ class IrrigationDomainPack(DefaultDomainPack):
     def retrieval_weights(self) -> Dict[str, float]:
         return dict(self._inner.retrieval_weights)
 
-    # ─── Skills ────────────────────────────────────────────────────
+
+class IrrigationSkillMixin:
+    """SkillPack methods — empty skill metadata, no extreme actions,
+    taxonomy from YAML."""
 
     def skill_emotion_metadata(self, skill_name: str) -> Dict[str, Any]:
         # Irrigation pre-refactor (experiment_runner.py:387-388 fall-through
@@ -134,8 +138,6 @@ class IrrigationDomainPack(DefaultDomainPack):
         # Irrigation has no irreversible one-way actions.
         return set()
 
-    # ─── Events ────────────────────────────────────────────────────
-
     def action_taxonomy(self) -> Dict[str, ActionTaxonomyEntry]:
         """Phase 6O-B — read taxonomy from irrigation skill_registry.yaml."""
         yaml_path = (
@@ -145,19 +147,33 @@ class IrrigationDomainPack(DefaultDomainPack):
         )
         return load_action_taxonomy_from_skill_registry(yaml_path)
 
+
+class IrrigationEventMixin:
+    """EventPack methods — irrigation does NOT use the multi-agent
+    event manager (env-side computations live in
+    ``examples/irrigation_abm/irrigation_env.py``); the override
+    returns empty handlers."""
+
     def event_handlers(self) -> Dict[str, EventHandler]:
         # Irrigation does not currently use the multi-agent event
         # manager (env-side computations happen in irrigation_env.py).
         return {}
 
-    # ─── Context provider hooks ────────────────────────────────────
 
-    def mg_barrier_text(self, profile: Dict[str, Any]) -> str:
-        # Irrigation does not inject geographic/community narrative
-        # for marginalised-group agents.
-        return ""
+class IrrigationGovernanceMixin:
+    """GovernancePack methods — irrigation uses
+    ``cognitive_appraisal`` framework (WSA/ACA constructs). Validator
+    bundles already registered via ValidatorRegistry, so
+    ``builtin_checks`` returns empty."""
 
-    # ─── Validators ────────────────────────────────────────────────
+    def psychological_framework(self) -> str:
+        """Phase 6Q-D (2026-05-26): cognitive-appraisal framework (WSA
+        / ACA constructs) — pre-registered by
+        ``broker.domains.water.thinking_checks``. Matches the
+        ``psychological_framework: cognitive_appraisal`` declaration in
+        ``examples/irrigation_abm/config/agent_types.yaml`` (previously
+        dead config)."""
+        return "cognitive_appraisal"
 
     def builtin_checks(self) -> Dict[str, List[BuiltinCheck]]:
         # Irrigation checks are already registered via ValidatorRegistry
@@ -166,9 +182,60 @@ class IrrigationDomainPack(DefaultDomainPack):
         # directly (same path as Phase 6B-1).
         return {}
 
-    # ─── Memory templates ─────────────────────────────────────────
+
+class IrrigationSetupMixin:
+    """SetupPack methods — no geographic narrative for MG agents, no
+    initial-memory templating via the broker provider (irrigation
+    seeds memories at agent-init time via irrigation_personas.py)."""
+
+    def mg_barrier_text(self, profile: Dict[str, Any]) -> str:
+        # Irrigation does not inject geographic/community narrative
+        # for marginalised-group agents.
+        return ""
 
     def initial_memory_templates(self, profile: Dict[str, Any]) -> List[Any]:
         # Irrigation seeds memories via irrigation_personas.py at
         # agent-init time, not via the broker memory template provider.
         return []
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Composite — IrrigationDomainPack
+# ─────────────────────────────────────────────────────────────────────
+
+
+class IrrigationDomainPack(
+    IrrigationReflectionMixin,
+    IrrigationMemoryMixin,
+    IrrigationSkillMixin,
+    IrrigationEventMixin,
+    IrrigationGovernanceMixin,
+    IrrigationSetupMixin,
+    DefaultDomainPack,
+):
+    """DomainPack for the irrigation water-resource example.
+
+    Phase 6R-D-6a (2026-05-26): composite of 6 sub-pack mixins (no
+    Perception mixin — irrigation doesn't override perception). Public
+    surface unchanged: callers still
+    ``DomainPackRegistry.register("irrigation", IrrigationDomainPack())``
+    and the broker's `pack.reflection_status_text(...)` etc. resolve
+    via Python MRO.
+    """
+
+    name: str = "irrigation"
+
+    def __init__(self) -> None:
+        self._inner = IrrigationAdapter()
+
+    # ─── Irrigation-specific (not a DomainPack Protocol method) ──────
+    # Consumed by ``broker/domains/water/tools/appraisal_grounding_audit.py``.
+    # Lives on the composite directly because it doesn't fit any
+    # Phase 6R-D-1 sub-protocol; it's a custom irrigation API.
+
+    def appraisal_grounding_map(self) -> Dict[str, Any]:
+        return {
+            "construct": "WSA_LABEL",
+            "shortage_tier_to_wsa": {0: "L", 1: "M", 2: "H", 3: "VH"},
+            "drought_index_bump_threshold": 0.6,
+        }

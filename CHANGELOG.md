@@ -38,6 +38,35 @@ genericity gate. See `~/.claude/plans/breezy-dazzling-knuth.md`.
 
 ### Changed
 
+- **Phase 6R-D-6 — Irrigation + Vaccination pack sub-pack decomposition** (2026-05-26). Fifth commit of Phase 6R-D. Mirrors the 6R-D-5 FloodPack refactor pattern for the remaining paper-1b example packs.
+  - **NEW `IrrigationDomainPack` sub-pack mixins** (`examples/irrigation_abm/adapters/irrigation_pack.py`, 174 → 215 LOC):
+    - `IrrigationReflectionMixin` (3 methods — all return empty / None; irrigation uses the batch reflection path).
+    - `IrrigationMemoryMixin` (5 methods — delegate to `IrrigationAdapter`; `compute_importance` base=0.70).
+    - `IrrigationSkillMixin` (3 methods — empty skill metadata, no extreme actions, taxonomy from YAML).
+    - `IrrigationEventMixin` (1 method — empty handlers; irrigation env-side computations live in `irrigation_env.py`).
+    - `IrrigationGovernanceMixin` (2 methods — `cognitive_appraisal` framework + empty builtin_checks).
+    - `IrrigationSetupMixin` (2 methods — no MG narrative; no broker template provider).
+    - Plus the irrigation-specific `appraisal_grounding_map` method (NOT a DomainPack Protocol method — stays on the composite class directly; consumed by `broker/domains/water/tools/appraisal_grounding_audit.py`).
+    - **No `IrrigationPerceptionMixin`** — irrigation doesn't override any PerceptionPack method; the composite inherits the no-op perception defaults from `DefaultDomainPack`.
+  - **NEW `VaccinationDomainPack` sub-pack mixins** (`examples/vaccination_demo/adapters/vaccination_pack.py`, 187 → 228 LOC):
+    - `VaccinationReflectionMixin` (3 methods — `individual` agent_type narrative + vaccination/infection status).
+    - `VaccinationMemoryMixin` (5 methods — HBM-flavoured importance profiles + outbreak-aware dynamic salience).
+    - `VaccinationSkillMixin` (3 methods — `get_vaccinated` / `refuse` / `delay` metadata + taxonomy + no extreme actions).
+    - `VaccinationEventMixin` (1 method — `outbreak` + `vaccine_rollout` env mutators).
+    - `VaccinationGovernanceMixin` (2 methods — `hbm` framework + empty builtin_checks).
+    - `VaccinationSetupMixin` (2 methods — no MG narrative; PoC seeds memories inline).
+    - **No `VaccinationPerceptionMixin`** — same rationale as irrigation.
+  - **FakeTraffic decomposition intentionally SKIPPED**: `examples/_test_fixtures/fake_traffic/pack.py` is already 115 LOC with only 7 method overrides across 4 sub-protocols. The plan's "shrinks dramatically" projection (116 → ~50 LOC) was based on a Phase 6R-D-2 sub-default-composition design that was skipped (DefaultDomainPack stays monolithic per the minimal-restructure approach in 6R-D-1). With DefaultDomainPack unchanged, the FakeTraffic mixin split would ADD ~30 LOC of structural headers without functional benefit. The fixture remains correctly `isinstance` against all 7 sub-protocols via `DefaultDomainPack` inheritance — verified by `broker/tests/test_sub_protocol_split.py::TestRegisteredPacksSatisfySubProtocols`.
+  - **Verified** for both Irrigation + Vaccination:
+    - `isinstance(IrrigationDomainPack(), <each sub-protocol>)` all `True`.
+    - `isinstance(VaccinationDomainPack(), <each sub-protocol>)` all `True`.
+    - PerceptionPack passes via DefaultDomainPack inheritance (no-op defaults satisfy the structural check).
+  - **Paper-1b byte-identity** via `broker.tools.compare_audit_csv` — **both IDENTICAL**:
+    - Flood (mock LLM): `canonical sha256=aad32984e16c5c...` — matches a pre-6R baseline byte-for-byte (FloodPack isn't touched by 6R-D-6, but this run happened to fall within the documented mem_top_* noise floor envelope, so the post-normalisation hash is identical).
+    - Irrigation (mock LLM): `canonical sha256=b1b6720010d8d9...` — matches pre-6R baseline (same as 6R-C / 6R-D-4 / 6R-D-5 result).
+  - **Test gate**: `pytest broker/ tests/ --timeout=300 -p no:cacheprovider` → **2599 passed / 10 skipped / 0 failed** (same count as 6R-D-5 baseline — pure refactor, no test surface change). Existing `tests/test_domain_pack_contract.py` regression tests for Irrigation + Vaccination continue to pass.
+  - **Phase 6R-D status post-this-commit**: all 4 production example packs (Flood / Irrigation / Vaccination / FakeTraffic) satisfy the 7-sub-protocol contract. The structural refactor of FloodPack + IrrigationPack + VaccinationPack into composable mixins is COMPLETE. FakeTraffic kept its monolithic form by design.
+
 - **Phase 6R-D-5 — `FloodDomainPack` sub-pack decomposition** (2026-05-26). Fourth commit of Phase 6R-D. Internal refactor of `examples/governed_flood/adapters/flood_pack.py`: the previously-monolithic 441-line class splits into 7 mixin classes (one per Phase 6R-D-1 sub-protocol) plus a thin composite. No public-surface change — `DomainPackRegistry.register("flood", FloodDomainPack())` contract unchanged; existing call sites `pack.reflection_status_text(...)`, `pack.event_handlers()`, etc. continue to resolve via Python MRO.
   - **NEW sub-pack mixin classes** (`examples/governed_flood/adapters/flood_pack.py`):
     - `FloodReflectionMixin` — 4 methods (`reflection_status_text` / `reflection_questions` / `reflection_persona` / `reflection_trait_labels`).

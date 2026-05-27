@@ -6,8 +6,16 @@ Phase 6C-v3 reference: this class subclasses :class:`broker.domains.protocol.Dom
 needs to customise.  Every other method falls through to the default no-op
 in :class:`broker.domains.default.DefaultDomainPack`.
 
+Phase 6R-D-6b (2026-05-26): the previously-monolithic
+``VaccinationDomainPack`` class body splits into six sub-pack mixins
+matching the Phase 6R-D-1 sub-protocols vaccination overrides
+(Reflection, Memory, Skill, Event, Governance, Setup —
+PerceptionPack is NOT overridden so no VaccinationPerceptionMixin
+exists). Public surface unchanged:
+``DomainPackRegistry.register("vaccination", VaccinationDomainPack())``.
+
 This module is the **canonical example** of how a new application domain
-plugs into WAGF.  ~140 LOC; no broker/ edits required.
+plugs into WAGF.  ~190 LOC; no broker/ edits required.
 """
 from __future__ import annotations
 from pathlib import Path
@@ -39,30 +47,12 @@ def _handle_vaccine_rollout(event: Any, env_state: Dict[str, Any]) -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────
-# DomainPack
+# Sub-pack mixins (Phase 6R-D-6b, 2026-05-26)
 # ─────────────────────────────────────────────────────────────────────
 
 
-class VaccinationDomainPack(DefaultDomainPack):
-    """DomainPack for vaccination decision-making (HBM-based).
-
-    Subclasses :class:`DefaultDomainPack` so any DomainPack method not
-    overridden below (incl. Phase 6H v2 additions) falls through to the
-    no-op default.
-    """
-
-    name: str = "vaccination"
-
-    def psychological_framework(self) -> str:
-        """Phase 6Q-D (2026-05-26): HBM (Health Belief Model) — the
-        framework registered by
-        ``examples/vaccination_demo/cognition/hbm_framework.py``
-        at package import time. Matches the
-        ``psychological_framework: hbm`` declaration in
-        ``examples/vaccination_demo/config/agent_types.yaml``."""
-        return "hbm"
-
-    # ─── Reflection ────────────────────────────────────────────────
+class VaccinationReflectionMixin:
+    """ReflectionPack methods — vaccination-specific status narrative."""
 
     def reflection_status_text(self, context: Any) -> Optional[str]:
         if getattr(context, "agent_type", None) != "individual":
@@ -92,7 +82,10 @@ class VaccinationDomainPack(DefaultDomainPack):
     def reflection_persona(self) -> Optional[str]:
         return None
 
-    # ─── Memory / importance / emotion ─────────────────────────────
+
+class VaccinationMemoryMixin:
+    """MemoryPack methods — HBM-flavoured importance + emotion mapping
+    plus outbreak-aware dynamic salience."""
 
     def importance_profiles(self) -> Dict[str, float]:
         return {
@@ -134,7 +127,10 @@ class VaccinationDomainPack(DefaultDomainPack):
     def retrieval_weights(self) -> Dict[str, float]:
         return {"W_recency": 0.40, "W_importance": 0.40, "W_context": 0.20}
 
-    # ─── Skills ────────────────────────────────────────────────────
+
+class VaccinationSkillMixin:
+    """SkillPack methods — get_vaccinated / refuse / delay metadata +
+    taxonomy from YAML."""
 
     def skill_emotion_metadata(self, skill_name: str) -> Dict[str, Any]:
         if skill_name == "get_vaccinated":
@@ -158,7 +154,9 @@ class VaccinationDomainPack(DefaultDomainPack):
         # Vaccination has no one-way irreversible actions in this PoC.
         return set()
 
-    # ─── Events ────────────────────────────────────────────────────
+
+class VaccinationEventMixin:
+    """EventPack methods — outbreak + vaccine-rollout env mutators."""
 
     def event_handlers(self) -> Dict[str, Callable[[Any, Dict[str, Any]], None]]:
         return {
@@ -166,22 +164,59 @@ class VaccinationDomainPack(DefaultDomainPack):
             "vaccine_rollout": _handle_vaccine_rollout,
         }
 
-    # ─── Context provider hooks ────────────────────────────────────
 
-    def mg_barrier_text(self, profile: Dict[str, Any]) -> str:
-        # Vaccination PoC does not inject geographic / MG-specific narrative.
-        return ""
+class VaccinationGovernanceMixin:
+    """GovernancePack methods — HBM framework selector + empty validator
+    bundle (validators self-register via ValidatorRegistry)."""
 
-    # ─── Validators ────────────────────────────────────────────────
+    def psychological_framework(self) -> str:
+        """Phase 6Q-D (2026-05-26): HBM (Health Belief Model) — the
+        framework registered by
+        ``examples/vaccination_demo/cognition/hbm_framework.py``
+        at package import time. Matches the
+        ``psychological_framework: hbm`` declaration in
+        ``examples/vaccination_demo/config/agent_types.yaml``."""
+        return "hbm"
 
     def builtin_checks(self) -> Dict[str, List[Callable]]:
         # Already registered via ValidatorRegistry at
         # examples/vaccination_demo/validators/__init__.py import time.
         return {}
 
-    # ─── Memory templates ─────────────────────────────────────────
+
+class VaccinationSetupMixin:
+    """SetupPack methods — no geographic narrative, no template-driven
+    initial-memory seeding (PoC seeds inline in run_experiment.py)."""
+
+    def mg_barrier_text(self, profile: Dict[str, Any]) -> str:
+        # Vaccination PoC does not inject geographic / MG-specific narrative.
+        return ""
 
     def initial_memory_templates(self, profile: Dict[str, Any]) -> List[Any]:
         # PoC seeds memories inline in run_experiment.py; no template
         # provider needed.
         return []
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Composite — VaccinationDomainPack
+# ─────────────────────────────────────────────────────────────────────
+
+
+class VaccinationDomainPack(
+    VaccinationReflectionMixin,
+    VaccinationMemoryMixin,
+    VaccinationSkillMixin,
+    VaccinationEventMixin,
+    VaccinationGovernanceMixin,
+    VaccinationSetupMixin,
+    DefaultDomainPack,
+):
+    """DomainPack for vaccination decision-making (HBM-based).
+
+    Phase 6R-D-6b (2026-05-26): composite of 6 sub-pack mixins. Public
+    surface unchanged from Phase 6C-v3:
+    ``DomainPackRegistry.register("vaccination", VaccinationDomainPack())``.
+    """
+
+    name: str = "vaccination"
