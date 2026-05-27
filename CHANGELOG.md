@@ -38,6 +38,25 @@ genericity gate. See `~/.claude/plans/breezy-dazzling-knuth.md`.
 
 ### Changed
 
+- **Phase 6R-D-5 — `FloodDomainPack` sub-pack decomposition** (2026-05-26). Fourth commit of Phase 6R-D. Internal refactor of `examples/governed_flood/adapters/flood_pack.py`: the previously-monolithic 441-line class splits into 7 mixin classes (one per Phase 6R-D-1 sub-protocol) plus a thin composite. No public-surface change — `DomainPackRegistry.register("flood", FloodDomainPack())` contract unchanged; existing call sites `pack.reflection_status_text(...)`, `pack.event_handlers()`, etc. continue to resolve via Python MRO.
+  - **NEW sub-pack mixin classes** (`examples/governed_flood/adapters/flood_pack.py`):
+    - `FloodReflectionMixin` — 4 methods (`reflection_status_text` / `reflection_questions` / `reflection_persona` / `reflection_trait_labels`).
+    - `FloodMemoryMixin` — 6 methods (`importance_profiles` / `compute_importance` / `classify_emotion` / `emotional_keywords` / `retrieval_weights` / `memory_policy`).
+    - `FloodSkillMixin` — 4 methods (`skill_emotion_metadata` / `extreme_actions` / `action_taxonomy` / `affordability_constraints`).
+    - `FloodEventMixin` — 2 methods (`event_handlers` / `agent_impact_handlers`).
+    - `FloodPerceptionMixin` — 3 methods (`perception_descriptors` / `perception_field_policy` / `passthrough_agent_types`).
+    - `FloodGovernanceMixin` — 3 methods (`psychological_framework` / `builtin_checks` / `prompt_placeholder_extensions`).
+    - `FloodSetupMixin` — 4 methods (`mg_barrier_text` / `initial_memory_templates` / `csv_loader_class` / `synthetic_loader_class` / `phase_layout`).
+    - Total 26 method overrides distributed across the 7 mixins; un-overridden DomainPack methods fall through to `DefaultDomainPack`.
+  - **Composite**: `class FloodDomainPack(FloodReflectionMixin, FloodMemoryMixin, FloodSkillMixin, FloodEventMixin, FloodPerceptionMixin, FloodGovernanceMixin, FloodSetupMixin, DefaultDomainPack)` — preserves the 1-class registration contract while making the sub-protocol composition explicit in source.
+  - **Bug fix piggy-backed** (cluster A #4 follow-up): the Phase 6R-C commit (`5590ba9`) accidentally introduced **duplicate definitions** of `csv_loader_class` and `synthetic_loader_class` (added at line 339/347 in addition to the existing Phase 6P-C definitions at line 424/434). Python class-dict semantics gave the later (Phase 6P-C) definitions precedence — the Phase 6R-C-added duplicates were dead code with zero behaviour impact, but confusing on read. The 6R-D-5 refactor de-duplicates and homes the canonical Phase 6P-C versions in `FloodSetupMixin`.
+  - **Verified**: `isinstance(FloodDomainPack(), ReflectionPack)` (and Memory/Skill/Event/Perception/Governance/Setup/DomainPack) all `True` — Python `@runtime_checkable` Protocol structural checks pass against the new composition.
+  - **Paper-1b byte-identity** via `broker.tools.compare_audit_csv`:
+    - Flood (mock LLM): 2 rows × 1 column drift in `mem_top_source` (within documented noise floor — same family as 6R-C / 6R-D-4 baselines).
+    - Irrigation (mock LLM): **IDENTICAL** (canonical sha256=`b1b6720010d8d9...` matches pre-6R baseline byte-for-byte). Irrigation doesn't use FloodPack, so exact-match expected and observed.
+  - **Test gate**: `pytest broker/ tests/ --timeout=300 -p no:cacheprovider` → **2599 passed / 10 skipped / 0 failed** (same count as 6R-D-4 baseline — pure refactor, no test surface change). Existing `tests/test_domain_pack_contract.py` regression tests for `FloodDomainPack` continue to pass (byte-identical method outputs).
+  - **Files changed**: 1 file (`examples/governed_flood/adapters/flood_pack.py`) + `CHANGELOG.md`. The flood_pack.py grew from 441 LOC to ~480 LOC (split adds class headers + docstrings); per-method bodies unchanged.
+
 - **Phase 6R-D-4 — Migrate broker consumers to typed sub-protocol accessors** (2026-05-26). Third commit of Phase 6R-D. Mechanical call-site renames — no behavior change. Broker consumers that previously used `DomainPackRegistry.get_or_default(domain)` for narrowed access now use the typed `get_<x>_pack(domain)` accessors landed in 6R-D-3. Communicates intent at the call site + lets type-checkers narrow the surface.
   - **7 consumer sites migrated** (representative coverage; some leaf sites with multi-concern access remain on `get_or_default`):
     - `broker/components/memory/policy_classifier.py:84` → `get_memory_pack` (uses `memory_policy()`).

@@ -17,10 +17,37 @@ broker/ hot paths:
 - ``extreme_actions`` — replaces the kwarg in
   ``broker/domains/water/validator_bundles.py:87`` (C5 partial)
 
+Phase 6R-D-5 (2026-05-26): the previously-monolithic ``FloodDomainPack``
+class body splits into seven sub-pack mixins corresponding to the
+seven Protocol sub-types defined in
+``broker/domains/protocol.py`` (Phase 6R-D-1):
+
+  FloodReflectionMixin  → ReflectionPack methods
+  FloodMemoryMixin      → MemoryPack methods
+  FloodSkillMixin       → SkillPack methods
+  FloodEventMixin       → EventPack methods
+  FloodPerceptionMixin  → PerceptionPack methods
+  FloodGovernanceMixin  → GovernancePack methods
+  FloodSetupMixin       → SetupPack methods
+
+The composite ``FloodDomainPack`` inherits from all seven mixins +
+``DefaultDomainPack`` (for any un-overridden no-op default). Public
+surface — ``DomainPackRegistry.register("flood", FloodDomainPack())``
+— is unchanged.
+
+**Bug fix piggy-backed**: pre-Phase-6R-D-5, ``csv_loader_class`` and
+``synthetic_loader_class`` were defined TWICE in the class body (once
+at line 339/347 added by Phase 6R-C, and again at line 424/434
+existing since Phase 6P-C). The earlier definitions were dead code
+(overwritten by Python's class-dict semantics). The 6R-D-5 refactor
+keeps only the Phase 6P-C definitions, now homed in
+``FloodSetupMixin``.
+
 Backward compatibility
 ======================
 Every method produces byte-identical output to the pre-refactor
-hardcoded site. Verified by ``tests/test_domain_pack_contract.py``.
+hardcoded site. Verified by ``tests/test_domain_pack_contract.py`` and
+Phase 6R-D-5 mock-LLM ``broker.tools.compare_audit_csv`` smoke.
 """
 from __future__ import annotations
 
@@ -101,23 +128,23 @@ def _impact_insurance_payout(event: Any, impact: Dict[str, Any]) -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────
-# DomainPack
+# Sub-pack mixins (Phase 6R-D-5, 2026-05-26)
+# ─────────────────────────────────────────────────────────────────────
+# Each mixin groups the FloodDomainPack overrides that satisfy a single
+# Protocol sub-type defined in broker/domains/protocol.py. Composition
+# below — ``FloodDomainPack(FloodReflectionMixin, FloodMemoryMixin, ...,
+# DefaultDomainPack)`` — preserves the original 1-class registration
+# contract while enabling type-narrowed isinstance checks per
+# sub-protocol.
+#
+# The mixins reference ``self._inner`` (set in ``FloodDomainPack.__init__``
+# to a ``FloodAdapter`` instance) and other ``self`` attributes via
+# normal method binding — Python's MRO resolves correctly.
 # ─────────────────────────────────────────────────────────────────────
 
-class FloodDomainPack(DefaultDomainPack):
-    """DomainPack for the flood-risk household example.
 
-    Subclasses :class:`DefaultDomainPack` so any DomainPack method not
-    overridden below (incl. Phase 6H v2 additions) falls through to the
-    no-op default.
-    """
-
-    name: str = "flood"
-
-    def __init__(self) -> None:
-        self._inner = FloodAdapter()
-
-    # ─── Reflection ───────────────────────────────────────────────
+class FloodReflectionMixin:
+    """ReflectionPack methods — agent narrative for reflection prompts."""
 
     def reflection_status_text(self, context: Any) -> Optional[str]:
         """Flood status line for the individual reflection prompt.
@@ -176,7 +203,10 @@ class FloodDomainPack(DefaultDomainPack):
             labels.append("MG")
         return labels
 
-    # ─── Memory / importance / emotion (delegate to existing adapter) ─
+
+class FloodMemoryMixin:
+    """MemoryPack methods — importance / emotion / retrieval / policy
+    delegation to the legacy FloodAdapter + flood-specific policy bundle."""
 
     def importance_profiles(self) -> Dict[str, float]:
         return dict(self._inner.importance_profiles)
@@ -192,65 +222,6 @@ class FloodDomainPack(DefaultDomainPack):
 
     def retrieval_weights(self) -> Dict[str, float]:
         return dict(self._inner.retrieval_weights)
-
-    # ─── Skills ────────────────────────────────────────────────────
-
-    def skill_emotion_metadata(self, skill_name: str) -> Dict[str, Any]:
-        """Reproduces ``experiment_runner.py:383-388`` flood skill→emotion
-        mapping byte-identically (importance values 0.7 and 0.6 match
-        the pre-refactor literals)."""
-        if skill_name in {"elevate_house", "relocate"}:
-            return {"emotion": "major", "importance": 0.7, "source": "personal"}
-        if skill_name == "buy_insurance":
-            return {"emotion": "positive", "importance": 0.6, "source": "personal"}
-        # buyout_program and other flood skills fall through to the
-        # broker's default "routine" tag (importance 0.1) — preserves
-        # pre-refactor behaviour where only the 3 explicitly-named
-        # skills got special tags.
-        return {}
-
-    def extreme_actions(self) -> Set[str]:
-        """Replaces the explicit kwarg in ``validator_bundles.py:87``."""
-        return {"relocate", "elevate_house"}
-
-    # ─── Events ────────────────────────────────────────────────────
-
-    def action_taxonomy(self) -> Dict[str, ActionTaxonomyEntry]:
-        """Phase 6O-B — read taxonomy from single_agent skill_registry.yaml.
-
-        Note: single-agent flood and governed_flood share the same skill
-        set (buy_insurance / elevate_house / relocate / do_nothing); the
-        canonical taxonomy declaration lives at
-        examples/single_agent/skill_registry.yaml.
-        """
-        from pathlib import Path
-        # examples/single_agent/skill_registry.yaml relative to this file
-        yaml_path = (
-            Path(__file__).resolve().parents[2]
-            / "single_agent"
-            / "skill_registry.yaml"
-        )
-        return load_action_taxonomy_from_skill_registry(yaml_path)
-
-    def event_handlers(self) -> Dict[str, EventHandler]:
-        """Replaces the ``ma_manager.py:275-289`` if/elif chain."""
-        return {
-            "flood": _handle_flood,
-            "no_flood": _handle_no_flood,
-            "subsidy_change": _handle_subsidy_change,
-            "premium_change": _handle_premium_change,
-        }
-
-    def agent_impact_handlers(self) -> Dict[str, EventHandler]:
-        """Replaces the flood event-type chain in
-        ``ma_manager.py:get_agent_impact()`` (Phase 6J-B)."""
-        return {
-            "flood": _impact_flood,
-            "flood_damage": _impact_flood_damage,
-            "insurance_payout": _impact_insurance_payout,
-        }
-
-    # ─── Memory policy (Phase 6K-A) ───────────────────────────────
 
     def memory_policy(self) -> MemoryPolicyBundle:
         """Replaces three flood literals previously hardcoded in
@@ -272,39 +243,88 @@ class FloodDomainPack(DefaultDomainPack):
             stimulus_key="flood_depth_m",
         )
 
-    # ─── Context provider hooks ────────────────────────────────────
 
-    def mg_barrier_text(self, profile: Dict[str, Any]) -> str:
-        """Reproduces the Passaic-specific text in ``providers.py:706-712``.
+class FloodSkillMixin:
+    """SkillPack methods — skill emotion / extremeness / taxonomy /
+    affordability."""
 
-        The original site applies this only when (is_mg, flood_count==1,
-        not flooded_this_year, not has_insurance). We keep that gating
-        logic in providers.py and just return the text body here so the
-        broker code can stay generic.
-        """
-        return (
-            "- **Insurance Enrollment Context**: Among households with your "
-            "income profile and community background in the Passaic River Basin "
-            "who have experienced one prior flood, carrying NFIP flood insurance "
-            "is uncommon — many face enrollment barriers including documentation "
-            "requirements, upfront costs, and distrust of federal programs."
-        )
-
-    # ─── Validators ────────────────────────────────────────────────
-
-    def builtin_checks(self) -> Dict[str, List[BuiltinCheck]]:
-        # Already registered via ValidatorRegistry at
-        # examples/governed_flood/validators/__init__.py import time.
+    def skill_emotion_metadata(self, skill_name: str) -> Dict[str, Any]:
+        """Reproduces ``experiment_runner.py:383-388`` flood skill→emotion
+        mapping byte-identically (importance values 0.7 and 0.6 match
+        the pre-refactor literals)."""
+        if skill_name in {"elevate_house", "relocate"}:
+            return {"emotion": "major", "importance": 0.7, "source": "personal"}
+        if skill_name == "buy_insurance":
+            return {"emotion": "positive", "importance": 0.6, "source": "personal"}
+        # buyout_program and other flood skills fall through to the
+        # broker's default "routine" tag (importance 0.1) — preserves
+        # pre-refactor behaviour where only the 3 explicitly-named
+        # skills got special tags.
         return {}
 
-    # ─── Memory templates ─────────────────────────────────────────
+    def extreme_actions(self) -> Set[str]:
+        """Replaces the explicit kwarg in ``validator_bundles.py:87``."""
+        return {"relocate", "elevate_house"}
 
-    def initial_memory_templates(self, profile: Dict[str, Any]) -> List[Any]:
-        # Provided via FloodMemoryTemplateProvider (Phase 6B-2);
-        # broker.core.agent_initializer continues to use that path.
-        return []
+    def action_taxonomy(self) -> Dict[str, ActionTaxonomyEntry]:
+        """Phase 6O-B — read taxonomy from single_agent skill_registry.yaml.
 
-    # ─── Perception (Phase 6H Item 5) ─────────────────────────────
+        Note: single-agent flood and governed_flood share the same skill
+        set (buy_insurance / elevate_house / relocate / do_nothing); the
+        canonical taxonomy declaration lives at
+        examples/single_agent/skill_registry.yaml.
+        """
+        from pathlib import Path
+        # examples/single_agent/skill_registry.yaml relative to this file
+        yaml_path = (
+            Path(__file__).resolve().parents[2]
+            / "single_agent"
+            / "skill_registry.yaml"
+        )
+        return load_action_taxonomy_from_skill_registry(yaml_path)
+
+    def affordability_constraints(self) -> Dict[str, Any]:
+        """Flood elevation cost model — replaces the hardcoded
+        ``elevate_house`` rule in ``AgentValidator.validate_affordability()``
+        (Phase 6H Item 6). $150k base, 50% subsidy default, affordable
+        iff post-subsidy cost <= 3x annual income. Insurance
+        affordability stays prompt-level guidance (not a hard gate)."""
+        return {
+            "elevate_house": {
+                "base_cost": 150_000.0,
+                "income_multiplier": 3.0,
+                "default_subsidy_rate": 0.5,
+            },
+        }
+
+
+class FloodEventMixin:
+    """EventPack methods — global env mutation + per-agent impact
+    aggregation for flood / no_flood / subsidy / premium / damage /
+    payout events."""
+
+    def event_handlers(self) -> Dict[str, EventHandler]:
+        """Replaces the ``ma_manager.py:275-289`` if/elif chain."""
+        return {
+            "flood": _handle_flood,
+            "no_flood": _handle_no_flood,
+            "subsidy_change": _handle_subsidy_change,
+            "premium_change": _handle_premium_change,
+        }
+
+    def agent_impact_handlers(self) -> Dict[str, EventHandler]:
+        """Replaces the flood event-type chain in
+        ``ma_manager.py:get_agent_impact()`` (Phase 6J-B)."""
+        return {
+            "flood": _impact_flood,
+            "flood_damage": _impact_flood_damage,
+            "insurance_payout": _impact_insurance_payout,
+        }
+
+
+class FloodPerceptionMixin:
+    """PerceptionPack methods — verbalisation rules + field stripping
+    policy + passthrough institutional types."""
 
     def perception_descriptors(self) -> Dict[str, Any]:
         """Numeric→qualitative verbalization rules for the household
@@ -336,22 +356,25 @@ class FloodDomainPack(DefaultDomainPack):
         see raw numbers."""
         return {"government", "insurance"}
 
-    def csv_loader_class(self) -> Optional[Any]:
-        """Phase 6R-C (2026-05-26): dispatch flood-domain CSV loads
-        through ``FloodCSVLoader`` so the relocated PMT score columns
-        + flood-specific fields are populated on
-        :class:`FloodAgentProfile`."""
-        from broker.domains.water.loaders import FloodCSVLoader
-        return FloodCSVLoader
 
-    def synthetic_loader_class(self) -> Optional[Any]:
-        """Phase 6R-C (2026-05-26): dispatch flood-domain synthetic
-        agent generation through ``FloodSyntheticLoader`` so the
-        relocated PMT_PARAMS distributions + "H" agent_id prefix +
-        flood-specific synthetic fields are used. Preserves paper-1b
-        byte-identity."""
-        from broker.domains.water.loaders import FloodSyntheticLoader
-        return FloodSyntheticLoader
+class FloodGovernanceMixin:
+    """GovernancePack methods — framework selector + validator bundle
+    + placeholder allowlist extension."""
+
+    def psychological_framework(self) -> str:
+        """Phase 6Q-D (2026-05-26): PMT (Protection Motivation Theory)
+        — the framework pre-registered by
+        ``broker.domains.water.thinking_checks`` at import time.
+        Matches the ``psychological_framework: pmt`` declaration in
+        ``examples/governed_flood/config/agent_types.yaml`` (which
+        pre-6Q-D was dead config — no code piped the YAML field into
+        ``ThinkingValidator(framework=...)``)."""
+        return "pmt"
+
+    def builtin_checks(self) -> Dict[str, List[BuiltinCheck]]:
+        # Already registered via ValidatorRegistry at
+        # examples/governed_flood/validators/__init__.py import time.
+        return {}
 
     def prompt_placeholder_extensions(self) -> Set[str]:
         """Flood-domain narrative placeholders injected by water-domain
@@ -379,19 +402,63 @@ class FloodDomainPack(DefaultDomainPack):
             "renewal_fatigue_text",
         }
 
-    def affordability_constraints(self) -> Dict[str, Any]:
-        """Flood elevation cost model — replaces the hardcoded
-        ``elevate_house`` rule in ``AgentValidator.validate_affordability()``
-        (Phase 6H Item 6). $150k base, 50% subsidy default, affordable
-        iff post-subsidy cost <= 3x annual income. Insurance
-        affordability stays prompt-level guidance (not a hard gate)."""
-        return {
-            "elevate_house": {
-                "base_cost": 150_000.0,
-                "income_multiplier": 3.0,
-                "default_subsidy_rate": 0.5,
-            },
-        }
+
+class FloodSetupMixin:
+    """SetupPack methods — context narrative + agent initialisation
+    classes + phase orchestration."""
+
+    def mg_barrier_text(self, profile: Dict[str, Any]) -> str:
+        """Reproduces the Passaic-specific text in ``providers.py:706-712``.
+
+        The original site applies this only when (is_mg, flood_count==1,
+        not flooded_this_year, not has_insurance). We keep that gating
+        logic in providers.py and just return the text body here so the
+        broker code can stay generic.
+        """
+        return (
+            "- **Insurance Enrollment Context**: Among households with your "
+            "income profile and community background in the Passaic River Basin "
+            "who have experienced one prior flood, carrying NFIP flood insurance "
+            "is uncommon — many face enrollment barriers including documentation "
+            "requirements, upfront costs, and distrust of federal programs."
+        )
+
+    def initial_memory_templates(self, profile: Dict[str, Any]) -> List[Any]:
+        # Provided via FloodMemoryTemplateProvider (Phase 6B-2);
+        # broker.core.agent_initializer continues to use that path.
+        return []
+
+    def csv_loader_class(self) -> Any:
+        """Phase 6P-C (2026-05-25): replaces the hardcoded
+        ``if domain_name == "flood":`` branch in
+        ``broker/core/agent_initializer.py::_resolve_csv_loader_class``.
+        ``FloodCSVLoader`` populates the flood-specific profile fields
+        (zone, depth, household_value, etc.) on top of the generic
+        ``CSVLoader``.
+
+        Phase 6R-D-5 (2026-05-26): de-duplicated. Pre-fix, this method
+        was accidentally defined twice in the class body (once at
+        line 339/347 added by Phase 6R-C, again at line 424/434
+        existing since Phase 6P-C). Python class-dict semantics gave
+        the LATER definition (Phase 6P-C version) precedence — but
+        the dead code was confusing. The Phase 6P-C version is
+        preserved here as the single source of truth.
+        """
+        from broker.domains.water.loaders import FloodCSVLoader
+        return FloodCSVLoader
+
+    def synthetic_loader_class(self) -> Any:
+        """Phase 6P-C (2026-05-25): replaces the hardcoded
+        ``if domain_name == "flood":`` branch in
+        ``broker/core/agent_initializer.py::_resolve_synthetic_loader_class``.
+        ``FloodSyntheticLoader`` generates flood-specific synthetic
+        profiles with PRB-grid-aware zone assignment.
+
+        Phase 6R-D-5 (2026-05-26): de-duplicated (see
+        ``csv_loader_class`` docstring above).
+        """
+        from broker.domains.water.loaders import FloodSyntheticLoader
+        return FloodSyntheticLoader
 
     def phase_layout(self) -> List[Any]:
         """Phase 6P-B (2026-05-25): replaces the hardcoded
@@ -411,31 +478,39 @@ class FloodDomainPack(DefaultDomainPack):
     # water namespace (``HazardEventConfig.severity_thresholds``
     # default factory unchanged).
 
-    def psychological_framework(self) -> str:
-        """Phase 6Q-D (2026-05-26): PMT (Protection Motivation Theory)
-        — the framework pre-registered by
-        ``broker.domains.water.thinking_checks`` at import time.
-        Matches the ``psychological_framework: pmt`` declaration in
-        ``examples/governed_flood/config/agent_types.yaml`` (which
-        pre-6Q-D was dead config — no code piped the YAML field into
-        ``ThinkingValidator(framework=...)``)."""
-        return "pmt"
 
-    def csv_loader_class(self) -> Any:
-        """Phase 6P-C (2026-05-25): replaces the hardcoded
-        ``if domain_name == "flood":`` branch in
-        ``broker/core/agent_initializer.py::_resolve_csv_loader_class``.
-        ``FloodCSVLoader`` populates the flood-specific profile fields
-        (zone, depth, household_value, etc.) on top of the generic
-        ``CSVLoader``."""
-        from broker.domains.water.loaders import FloodCSVLoader
-        return FloodCSVLoader
+# ─────────────────────────────────────────────────────────────────────
+# Composite — FloodDomainPack
+# ─────────────────────────────────────────────────────────────────────
+# Inherits from the seven sub-pack mixins (Phase 6R-D-5) plus
+# ``DefaultDomainPack`` for any DomainPack method none of the mixins
+# overrides. Python MRO: mixin overrides win over DefaultDomainPack
+# no-op defaults; un-overridden methods fall through to
+# DefaultDomainPack.
+# ─────────────────────────────────────────────────────────────────────
 
-    def synthetic_loader_class(self) -> Any:
-        """Phase 6P-C (2026-05-25): replaces the hardcoded
-        ``if domain_name == "flood":`` branch in
-        ``broker/core/agent_initializer.py::_resolve_synthetic_loader_class``.
-        ``FloodSyntheticLoader`` generates flood-specific synthetic
-        profiles with PRB-grid-aware zone assignment."""
-        from broker.domains.water.loaders import FloodSyntheticLoader
-        return FloodSyntheticLoader
+
+class FloodDomainPack(
+    FloodReflectionMixin,
+    FloodMemoryMixin,
+    FloodSkillMixin,
+    FloodEventMixin,
+    FloodPerceptionMixin,
+    FloodGovernanceMixin,
+    FloodSetupMixin,
+    DefaultDomainPack,
+):
+    """DomainPack for the flood-risk household example — composite of
+    the seven Phase 6R-D-5 sub-pack mixins.
+
+    Public surface unchanged from Phase 6C-v2:
+    ``DomainPackRegistry.register("flood", FloodDomainPack())``.
+    Existing consumers calling ``pack.reflection_status_text(...)``,
+    ``pack.event_handlers()``, etc. continue to work — Python MRO
+    resolves each method to the relevant mixin.
+    """
+
+    name: str = "flood"
+
+    def __init__(self) -> None:
+        self._inner = FloodAdapter()
