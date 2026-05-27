@@ -7,7 +7,7 @@ irrigation, education, finance, …) is supplied by pluggable domain packs
 under ``broker.domains``.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 # 1. Base Interfaces (No dependencies)
 from .interfaces.skill_types import (

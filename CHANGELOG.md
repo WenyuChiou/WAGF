@@ -8,6 +8,142 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+(no entries yet — v0.3.0 cut on 2026-05-27; see below)
+
+## [0.3.0] - 2026-05-27
+
+Minor-bump release. **10 main-branch commits since v0.2.0**: Phase 6T-A through
+6T-E (5 interface-opening commits, paper-1b byte-identity preserved), the
+silent-failure patch (F1 P0 + F2 P1 + F3 P1, also released as v0.2.1 from a
+separate hotfix branch on 2026-05-27), the F4/F5 P2 follow-up, the
+generic-framework registry extraction (closes a Phase-6P-A-class leak), and
+the cross-model analysis-script reconciliation (v1 / v2 dirs).
+
+**Numbering note**: a prior `[0.3.0] - 2026-05-20` entry exists in this file
+documenting Phase 6A-6G work; that release was committed (`0e0589b`) but the
+`v0.3.0` git tag was never created. The 2026-05-27 release is the FIRST
+`v0.3.0` git tag in this repository. The 2026-05-20 entry has been retitled
+`[0.3.0-rc1] - 2026-05-20` for clarity (see further below in this file).
+v0.3.0 (2026-05-27) is a SUPERSET of the 2026-05-20 work + everything after.
+
+### Added — Phase 6T interface-opening (5 commits, ~3,000 LOC, byte-identity-safe)
+
+- **Phase 6T-A — Engineering BLOCKER fixes**: NEW
+  `broker/components/events/exceptions.py` (typed exception hierarchy +
+  `EventPersistence` enum + `EventDispatchMetrics` counters). Rewrites
+  `MAEventManager._sync_event_to_env` for explicit dispatch + hard-fail on
+  unhandled events + per-handler exception capture into metrics. Splits
+  `clear_year` into `clear_ephemeral_events` (year boundary, honours
+  persistence policy) + `clear_all_events` (hard reset).
+  `PhaseOrchestrator._validate_phases` / `from_yaml` / `_topological_order`
+  raise `InvalidPhaseConfigError` / `PhaseDependencyCycleError` instead of
+  warning+continuing. 3 new `EventPack` Protocol methods
+  (`event_type_to_domain`, `event_persistence_policy`,
+  `silent_skip_event_types`).
+- **Phase 6T-B — Per-agent-type psychological framework dispatch**:
+  `GovernancePack.framework_for_agent_type(agent_type)` Protocol method.
+  `build_domain_validators` accepts optional `agent_type` and routes through
+  the new method. `FloodGovernanceMixin._AGENT_TYPE_FRAMEWORK` maps
+  household_owner/renter → pmt, nj_government/government → utility,
+  fema_nfip/insurance → financial. Interface-only — no current production
+  caller plumbs agent_type, so paper-1b byte-identity preserved.
+- **Phase 6T-C — Institutional-lifecycle extension point**: NEW
+  `broker/components/orchestration/institutional_lifecycle.py` with the
+  `InstitutionalLifecycleHandler` ABC (3 no-op hooks: pre_year /
+  post_decision / post_year). NEW `SetupPack` Protocol methods
+  `institutional_lifecycle_handlers` + `multi_agent_env_keys`. Closes
+  engineering-audit R5+R6 as an EXTENSION POINT only — no extraction of
+  existing flood `MultiAgentHooks` code (deferred to Phase 6T-F when a
+  second consumer materialises).
+- **Phase 6T-D — Follower-network social graph primitive** + pre-6T-E
+  genericity audit doc: NEW `broker/components/social/follower_network.py`
+  with directed weighted graph between agent IDs. O(1) get_followers /
+  get_followed via dict-of-sets. `SocialGraphSpec` extension:
+  `follower_network` graph_type + `follower_seed_fn` + `weight_fn` fields.
+  NEW `.research/social_media_genericity_audit.md` (~250 LOC) locks in the
+  design rule for 6T-E: tier vocabulary lives in DomainPack, not in
+  broker/. 25 regression tests including AST-scan genericity gates.
+- **Phase 6T-E (interface-only) — Post dataclass + 5 PerceptionPack
+  methods + forbidden-literals AST gate**: NEW
+  `broker/components/social/post.py` with generic `Post` dataclass
+  (audit-locked `tier_id: str` field — NOT enum). NEW
+  `broker/validators/governance/frameworks/` directory hosting
+  generic-framework metadata for utility / financial /
+  narrative_diffusion. 5 new PerceptionPack Protocol methods
+  (credibility_tiers / credibility_weight / verbalise_post /
+  suppressed_tiers / social_media_post_filter). NEW
+  `TestNoUSMediaTierLiteralsInBrokerSocial` AST gate scanning broker/ for
+  US-media-shaped tier literals.
+
+### Added — Generic-framework registry extraction (pre-6T-F infrastructure)
+
+- **NEW `broker/validators/governance/frameworks/`** directory. Closes a
+  Phase-6P-A-class leak: `utility` and `financial` framework metadata
+  moved out of `broker/domains/water/thinking_checks.py` (the wrong home —
+  their construct vocabularies BUDGET_UTIL / RISK_APPETITE are
+  cross-domain). NEW `NarrativeDiffusionFramework` class with constructs
+  salience / virality / audience_fit / narrative_consistency.
+- Auto-registration on `broker.validators.governance` import. Genericity
+  verified at 3 levels (live registry / source location / AST-scan).
+- 12 new regression tests in
+  `broker/tests/test_generic_frameworks_registration.py`.
+
+### Fixed — Silent-failure patch (F1-F5, also released as v0.2.1)
+
+This release supersedes v0.2.1 — all 5 findings (F1 P0 / F2 P1 / F3 P1 +
+F4 P2 / F5 P2) are included. See `[0.2.1] - 2026-05-27` notes on the
+`release/v0.2.1` branch CHANGELOG for the full bug descriptions and fix
+details. Verified by the same 13-test regression suite in
+`broker/tests/test_silent_failure_fixes.py`.
+
+### Fixed — Cross-model analysis script v1/v2 dir reconciliation
+
+- `examples/single_agent/analysis/gemma4_nw_crossmodel_analysis.py`
+  `CONDITIONS` map values changed from single `(phase_dir, group_dir)` to
+  `(list_of_phase_dirs, group_dir)`. `load_run_data()` tries v2 dirs
+  first, falls back to v1. Reconciles the on-disk frozen markdown with
+  the SI v13 Gemma 4 numbers (verified: 26B disabled IBR=9.3% R1=465
+  matches v2 5×1000 traces; was 2.3% R1=114 in stale markdown).
+
+### Scientific-integrity audits (no code change, recorded in memory)
+
+- **F1 silent-drop verdict**: F1 introduced 2026-04-07 (`ac7faea`). All 21
+  paper-1b irrigation v21 runs (governed + ungoverned, 5 models × seeds)
+  show `total_traces == 3276` exactly — paper-1b irrigation v21 dataset
+  CLEAN. Flood R3 cross-model `JOH_ABLATION_DISABLED/*` runs are PRE-F1
+  whole-run-abort partial data; comparative claims (ΔIBR sign / p-values)
+  robust under per-run rate + rank-based MWU. No re-baseline needed.
+
+### Test gate (main / v0.3.0 head)
+
+- pytest broker/ tests/ → 2731 passed / 10 skipped / 2 xfailed / 0 failed
+  (vs 2616 Phase 6S-D baseline; +115 cumulative new tests across 10
+  commits).
+- MA flood mock smoke: 8/8 green throughout all 10 commits.
+- SA flood mock smoke: decision histogram unchanged
+  (Do Nothing: 70 / Insurance: 26 / Elevation: 4 / Both: 0 / Relocate: 0)
+  — paper-1b byte-identity preserved.
+- Real-LLM `gemma4:e4b` SA flood smoke: 100 agents × 1 year, exit code 0,
+  all expected output artifacts produced, decision distribution
+  (Do Nothing: 28 / Insurance: 38 / Elevation: 32 / Both: 2 / Relocate: 0)
+  — Phase 6T commits don't break the real-LLM pipeline. (Run via
+  `2829bac → 635adc0` lineage on 2026-05-27.)
+
+### Deferred (recorded in memory, NOT in this release)
+
+- **Phase 6T-E.B** — SocialMediaProvider live wiring (would change MA flood
+  prompt content).
+- **Phase 6T-F** — `social_media_influencer` agent_type real implementation
+  (Pattern A active influencer agent).
+- **Phase 6T-G** — cross-channel dedup + Y1 fix.
+- **Reflection module 5-field structured formalize** (committee suggestion;
+  user-deferred 2026-05-27 because paper draft essentially complete and
+  modifications risk impacting timing or v21 dataset).
+
+---
+
+## [Unreleased pre-0.3.0 cut — kept verbatim as history of the items released as v0.3.0 above]
+
 Phase 6H (DomainPack v2 + genericity hardening) — **Items 1–9 of 9
 complete** (closed 2026-05-21 / 2026-05-22; original 8-item scope
 extended to 9 when reflection.py status-text was split out from
@@ -1386,7 +1522,18 @@ genericity gate. See `~/.claude/plans/breezy-dazzling-knuth.md`.
   MA flood (Paper 3, frozen) reflection now draws from `ma_agent_types.yaml`
   rather than the removed hardcoded dict.
 
-## [0.3.0] - 2026-05-20
+## [0.3.0-rc1] - 2026-05-20 (DRAFT — never tagged in git; superseded by [0.3.0] - 2026-05-27)
+
+> **Note 2026-05-27**: this entry was originally titled `## [0.3.0] - 2026-05-20` and
+> referenced as the v0.3.0 release in commit `0e0589b` ("chore(release): v0.3.0 — Phase
+> 6A-6G framework genericity + audit hardening + test cleanup"), but the corresponding
+> `v0.3.0` git tag was never created. Instead, a `v0.29.0` tag was added separately.
+> The pyproject.toml + broker/__init__.py version strings never bumped past `0.2.0`
+> during this period. To resolve the namespace collision when releasing the
+> 2026-05-27 work as v0.3.0, this entry was renamed to `[0.3.0-rc1] - 2026-05-20`
+> on 2026-05-27. The Phase 6A-6G work documented below ALREADY landed in main and
+> is included in the 2026-05-27 v0.3.0 release. See the `## [0.3.0] - 2026-05-27`
+> entry near the top of this file for the canonical v0.3.0 release notes.
 
 Major release: Phase 6A–6G framework genericity + audit hardening + multi-agent
 domain support. **88 `broker/` commits since v0.2.0** (Feb–May 2026); broker
