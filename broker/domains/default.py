@@ -244,6 +244,26 @@ class DefaultDomainPack:
         generic 3-phase layout (CUSTOM → RESOLUTION → OBSERVATION)."""
         return None
 
+    # ─── Phase 6T-C (2026-05-27): institutional lifecycle defaults ─
+
+    def institutional_lifecycle_handlers(self) -> Dict[str, Any]:
+        """Phase 6T-C default: empty dict — no per-agent-type lifecycle
+        handlers registered. Multi-agent runners that consult this map
+        fall back to their bespoke dispatch (e.g. the flood
+        ``MultiAgentHooks`` class branches). Override in a pack to
+        register :class:`InstitutionalLifecycleHandler` subclasses
+        keyed by agent_type.
+        """
+        return {}
+
+    def multi_agent_env_keys(self) -> Set[str]:
+        """Phase 6T-C default: empty set — no domain-owned env keys
+        declared. Multi-agent runners that consult this set get the
+        pre-6T-C silent contract (env-key ownership is implicit).
+        Override to codify the whitelist for a multi-agent domain.
+        """
+        return set()
+
     # ─── MemoryBridge resolution importance (Phase 6L-D) ──────────
 
     def bridge_importance_policy(self) -> Dict[str, float]:
