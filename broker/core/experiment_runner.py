@@ -6,6 +6,7 @@ Extracted from experiment.py (Phase 2.1 split).
 from typing import Dict, List, Any, Optional, Callable
 from pathlib import Path
 from dataclasses import dataclass, field
+import json
 import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -226,8 +227,11 @@ class ExperimentRunner:
         summary_path = self.config.output_dir / "governance_summary.json"
 
         # Phase 32: Create Reproducibility Manifest (enhanced per WRR reviewer feedback)
+        # ``json`` is imported at module level so the silent-failure
+        # regression test in ``broker/tests/test_silent_failure_fixes.py``
+        # can patch ``broker.core.experiment_runner.json.dump`` to
+        # simulate a disk-full failure (F3).
         import shutil
-        import json
 
         manifest = {
             "model": self.config.model,
@@ -278,10 +282,41 @@ class ExperimentRunner:
                     # Fallback to simple copy if YAML processing fails
                     shutil.copy(config_src, self.config.output_dir / "config_snapshot.yaml")
 
-        with open(self.config.output_dir / "reproducibility_manifest.json", 'w') as f:
-            json.dump(manifest, f, indent=2)
+        # F3 fix (post-Phase-6T silent-failure audit, 2026-05-27):
+        # pre-fix the manifest write was UNWRAPPED — an OSError
+        # (disk full, read-only path, permission denied) propagated
+        # out of `_finalize_experiment` BEFORE `save_summary` could
+        # run, leaving the run with audit CSV + JSONL but no
+        # governance_summary.json. Downstream consumers (paper-
+        # reproducibility scripts, swarmlab, abm-reproducibility-
+        # checker skill) silently fell back to recomputing or
+        # crashed; none surfaced the underlying disk-state.
+        #
+        # Fix: each output write is now an independent try/except.
+        # The summary save MUST run regardless of whether the
+        # manifest write succeeded — summary is the more
+        # important artifact for governance reproducibility.
+        try:
+            with open(self.config.output_dir / "reproducibility_manifest.json", 'w') as f:
+                json.dump(manifest, f, indent=2)
+        except OSError as e:
+            logger.error(
+                f"[Finalize] reproducibility_manifest.json write "
+                f"failed: {e}. Continuing — summary save is the "
+                f"load-bearing artifact and runs next.",
+                exc_info=True,
+            )
 
-        self.broker.auditor.save_summary(summary_path)
+        try:
+            self.broker.auditor.save_summary(summary_path)
+        except OSError as e:
+            logger.error(
+                f"[Finalize] governance_summary.json save failed: "
+                f"{e}. Audit CSV + raw JSONL traces are already "
+                f"written; downstream consumers can reconstruct the "
+                f"summary from those if needed.",
+                exc_info=True,
+            )
 
     def _collect_reproducibility_metadata(self) -> dict:
         """Collect model digest, git state, and config hashes for reproducibility."""
@@ -539,8 +574,95 @@ class ExperimentRunner:
 
                 results.append((agent, result))
             except Exception as e:
-                logger.error(f"[Sequential] Agent {agent.id} failed: {e}")
+                # F1 fix (post-Phase-6T silent-failure audit, 2026-05-27):
+                # pre-fix path logged + dropped the agent from `results`,
+                # shrinking the audit-CSV denominator silently — the
+                # v0.88.15-class bug (green tests, plausible numbers,
+                # biased science). Cross-model comparison especially at
+                # risk: small Gemma variants timed out more often, so
+                # their effective N differed from the larger models'
+                # without any signal in the output artifacts.
+                logger.error(
+                    f"[Sequential] Agent {agent.id} failed: {e}",
+                    exc_info=True,
+                )
+                self._write_aborted_trace(agent, run_id, env, e)
+                error_result = SkillBrokerResult(
+                    outcome=SkillOutcome.ABORTED,
+                    skill_proposal=None,
+                    approved_skill=None,
+                    execution_result=None,
+                    validation_errors=[
+                        f"agent_step_exception: {type(e).__name__}: "
+                        f"{str(e)[:500]}"
+                    ],
+                )
+                results.append((agent, error_result))
         return results
+
+    def _write_aborted_trace(
+        self,
+        agent,
+        run_id: str,
+        env: Dict,
+        error: Exception,
+    ) -> None:
+        """F1 fix (post-Phase-6T audit, 2026-05-27): emit a sentinel
+        audit trace for an agent whose step raised.
+
+        Without this trace, the failed agent vanishes from the audit
+        CSV — the v0.88.15-class denominator-shrink pattern. The
+        sentinel carries enough context (agent_id, agent_type, year,
+        step_id, error_type, error_msg) for downstream consumers to
+        detect + filter aborted steps. Most other fields are empty
+        / None — the audit row builder fills them with defaults.
+
+        Robust against audit-writer failure: a secondary
+        audit-write exception is caught + logged so it never masks
+        the original step exception.
+
+        Shared by ``_run_agents_sequential`` (F1) and
+        ``_run_agents_parallel`` (F4 — pre-existing same-pattern bug
+        in the parallel path; not in scope for this commit but the
+        helper is structured so the F4 fix is a one-line addition).
+        """
+        from datetime import datetime
+
+        error_type = type(error).__name__
+        error_msg = str(error)[:500]
+        agent_type = getattr(agent, 'agent_type', 'default')
+
+        try:
+            audit_writer = getattr(self.broker, 'audit_writer', None)
+            if audit_writer is None:
+                return
+            audit_writer.write_trace(agent_type, {
+                "run_id": run_id,
+                "step_id": self.step_counter,
+                "timestamp": datetime.now().isoformat(),
+                "year": env.get("current_year") if isinstance(env, dict) else None,
+                "seed": self.config.seed + self.step_counter,
+                "agent_id": agent.id,
+                "agent_type": agent_type,
+                "model": getattr(self, '_model_name', 'unknown'),
+                "decision_source": "exception",
+                "validated": False,
+                "fallback_activated": False,
+                "status": "ABORTED_EXCEPTION",
+                "outcome": SkillOutcome.ABORTED.value,
+                "validation_errors": [
+                    f"agent_step_exception: {error_type}: {error_msg}"
+                ],
+                "retry_count": 0,
+                "format_retries": 0,
+            })
+        except Exception as audit_err:
+            logger.error(
+                f"[AbortedTrace] Secondary audit-writer failure for "
+                f"agent {agent.id} (original error was "
+                f"{error_type}: {error_msg}): {audit_err}",
+                exc_info=True,
+            )
 
     def _run_agents_parallel(self, agents: List, run_id: str, llm_invoke: Callable, env: Dict) -> List:
         """Execute agent steps in parallel using ThreadPoolExecutor."""
@@ -630,6 +752,32 @@ class ExperimentRunner:
                     agent, result = future.result()
                     results.append((agent, result))
                 except Exception as e:
-                    logger.error(f"[Parallel] Agent {futures[future].id} failed: {e}")
+                    # F4 fix (post-Phase-6T silent-failure audit,
+                    # 2026-05-27): parallel mirror of F1. The
+                    # ``_write_aborted_trace`` helper was deliberately
+                    # designed during the F1 fix so this becomes a
+                    # one-line shim instead of duplicating sentinel
+                    # logic across two exception handlers. Without
+                    # this fix, ``workers > 1`` runs (e.g.
+                    # ``--workers 4`` for MA flood scale-up) had the
+                    # same v0.88.15-class denominator-shrink: failed
+                    # agents vanished from the audit CSV.
+                    failed_agent = futures[future]
+                    logger.error(
+                        f"[Parallel] Agent {failed_agent.id} failed: {e}",
+                        exc_info=True,
+                    )
+                    self._write_aborted_trace(failed_agent, run_id, env, e)
+                    error_result = SkillBrokerResult(
+                        outcome=SkillOutcome.ABORTED,
+                        skill_proposal=None,
+                        approved_skill=None,
+                        execution_result=None,
+                        validation_errors=[
+                            f"agent_step_exception: {type(e).__name__}: "
+                            f"{str(e)[:500]}"
+                        ],
+                    )
+                    results.append((failed_agent, error_result))
 
         return results
