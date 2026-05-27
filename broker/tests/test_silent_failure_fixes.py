@@ -17,6 +17,14 @@ Findings recap:
   manifest ``json.dump`` can raise mid-finalize, skipping
   ``auditor.save_summary()`` and leaving ``governance_summary.json``
   missing.
+- **F4 (P2)** ``broker/core/experiment_runner.py:633`` (parallel path)
+  — same silent-drop pattern as F1 but in ``_run_agents_parallel``.
+  Fired only when ``workers > 1``. Shipped as one-line follow-up
+  reusing the ``_write_aborted_trace`` helper from F1.
+- **F5 (P2)** ``broker/components/analytics/audit.py:_export_csv``
+  — file-open / write OSError propagates out of ``finalize()``,
+  skipping subsequent per-agent-type exports + the summary save.
+  Fixed by wrapping the CSV write in try/except OSError + log.
 
 Each test pins the fixed behaviour so a future refactor cannot
 silently re-introduce the bug. The tests use minimal in-memory
@@ -355,3 +363,177 @@ class TestF3SummaryWriteIndependentOfManifestWrite:
 
         manifest_path = tmp_path / "reproducibility_manifest.json"
         assert manifest_path.exists()
+
+
+# ─────────────────────────────────────────────────────────────────────
+# F4 — parallel-path silent drop mirrors F1
+# ─────────────────────────────────────────────────────────────────────
+
+
+class TestF4ParallelFailedAgentProducesAuditRow:
+    """F4 (P2): the parallel path (``workers > 1``) has the same
+    silent-drop pattern as F1. Pre-fix path logged + dropped from
+    results. The ``_write_aborted_trace`` helper shipped with F1 is
+    reused here as a one-line shim — verifies the F1 design choice
+    (helper instead of inline sentinel) paid off."""
+
+    def _make_runner_with_mocks(self, raising_agent_id: str = "Agent_FAIL"):
+        from broker.core.experiment_runner import ExperimentRunner
+
+        runner = ExperimentRunner.__new__(ExperimentRunner)
+        runner.broker = MagicMock()
+        runner.broker.audit_writer = MagicMock()
+        runner.step_counter = 0
+        runner.config = MagicMock()
+        runner.config.seed = 42
+        runner.config.workers = 2
+        runner._model_name = "test_model"
+        runner.efficiency = MagicMock()
+        runner.efficiency.compute_hash = MagicMock(return_value="hash_x")
+        runner.efficiency.get = MagicMock(return_value=None)  # always cache miss
+        runner.efficiency.put = MagicMock()
+        runner.broker.context_builder = MagicMock()
+        runner.broker.context_builder.build = MagicMock(return_value={"state": {}})
+        runner.get_llm_invoke = MagicMock(return_value=lambda *a, **kw: None)
+
+        def _process_step(agent_id, **kwargs):
+            if agent_id == raising_agent_id:
+                raise RuntimeError("simulated parallel-path crash")
+            return SkillBrokerResult(
+                outcome=SkillOutcome.APPROVED,
+                skill_proposal=None,
+                approved_skill=None,
+                execution_result=None,
+            )
+
+        runner.broker.process_step = MagicMock(side_effect=_process_step)
+        return runner
+
+    def _make_agent(self, agent_id: str, agent_type: str = "household"):
+        agent = MagicMock()
+        agent.id = agent_id
+        agent.agent_type = agent_type
+        return agent
+
+    def test_parallel_failed_agent_appears_in_results_with_aborted(self):
+        runner = self._make_runner_with_mocks()
+        agents = [
+            self._make_agent("Agent_OK"),
+            self._make_agent("Agent_FAIL"),
+            self._make_agent("Agent_OK2"),
+        ]
+        env = {"current_year": 5}
+
+        results = runner._run_agents_parallel(
+            agents, run_id="run_x", llm_invoke=lambda *a, **kw: None, env=env,
+        )
+
+        # All 3 agents appear despite the parallel-path crash:
+        assert len(results) == 3
+        result_by_id = {agent.id: result for agent, result in results}
+        assert result_by_id["Agent_OK"].outcome == SkillOutcome.APPROVED
+        assert result_by_id["Agent_OK2"].outcome == SkillOutcome.APPROVED
+        assert result_by_id["Agent_FAIL"].outcome == SkillOutcome.ABORTED
+        assert any(
+            "simulated parallel-path crash" in err
+            for err in result_by_id["Agent_FAIL"].validation_errors
+        )
+
+    def test_parallel_failed_agent_writes_sentinel_audit_trace(self):
+        """The parallel path uses the same _write_aborted_trace
+        helper as F1 — sentinel trace must be emitted."""
+        runner = self._make_runner_with_mocks()
+        agents = [self._make_agent("Agent_FAIL")]
+        env = {"current_year": 2}
+
+        runner._run_agents_parallel(
+            agents, run_id="run_x", llm_invoke=lambda *a, **kw: None, env=env,
+        )
+
+        assert runner.broker.audit_writer.write_trace.called
+        call_args = runner.broker.audit_writer.write_trace.call_args
+        trace_arg = call_args[0][1]
+        assert trace_arg["agent_id"] == "Agent_FAIL"
+        assert trace_arg["outcome"] == "ABORTED"
+        assert trace_arg["status"] == "ABORTED_EXCEPTION"
+        assert trace_arg["decision_source"] == "exception"
+
+
+# ─────────────────────────────────────────────────────────────────────
+# F5 — _export_csv OSError does not propagate
+# ─────────────────────────────────────────────────────────────────────
+
+
+class TestF5ExportCsvErrorHandling:
+    """F5 (P2): pre-fix the CSV write was unwrapped — disk full /
+    read-only path raised OSError out of ``finalize()``, skipping
+    subsequent per-agent-type exports + the summary save. Fix
+    wraps in try/except OSError + log."""
+
+    def _make_writer(self, tmp_path):
+        config = MagicMock()
+        config.experiment_name = "test_f5"
+        config.output_dir = tmp_path
+        writer = GenericAuditWriter.__new__(GenericAuditWriter)
+        writer.config = config
+        writer.output_dir = tmp_path
+        writer._files = {}
+        writer._run_metadata = {}
+        writer._trace_buffer = {}
+        writer._jsonl_buffer = {}
+        writer._jsonl_buffer_size = 1
+        import threading
+        writer._write_lock = threading.Lock()
+        writer._expected_aggregates = {}
+        writer._startup_warned = True
+        writer.summary = {
+            "experiment_name": "test_f5",
+            "agent_types": {},
+            "total_traces": 0,
+            "validation_errors": 0,
+            "validation_warnings": 0,
+            "structural_faults_fixed": 0,
+            "total_format_retries": 0,
+            "validator_health": {},
+            "jsonl_events_lost": 0,
+        }
+        return writer
+
+    def test_export_csv_oserror_does_not_propagate(self, tmp_path):
+        """A disk-full OSError raised inside _export_csv must be
+        caught + logged, NOT propagated out so the caller's
+        subsequent agent-type exports + summary save still run."""
+        writer = self._make_writer(tmp_path)
+        traces = [{"agent_id": "A1", "step_id": 1, "year": 1}]
+
+        # Force the file open inside _export_csv to raise.
+        with patch(
+            "broker.components.analytics.audit.open",
+            side_effect=OSError("simulated disk full"),
+            create=True,
+        ):
+            # Pre-F5 this would raise. Post-F5 it must NOT raise.
+            writer._export_csv("household", traces)
+
+        # No assertion on file existence — the file shouldn't exist
+        # because the open() failed. The test passes iff the call
+        # didn't raise.
+
+    def test_export_csv_happy_path_still_writes(self, tmp_path):
+        """Sanity check: when there's no OSError, the file is written
+        and the CSV exists."""
+        writer = self._make_writer(tmp_path)
+        traces = [{
+            "agent_id": "A1",
+            "step_id": 1,
+            "year": 1,
+            "_audit_priority": ["agent_id", "step_id", "year"],
+        }]
+
+        writer._export_csv("household", traces)
+
+        csv_path = tmp_path / "household_governance_audit.csv"
+        assert csv_path.exists()
+        content = csv_path.read_text(encoding="utf-8-sig")
+        assert "agent_id" in content
+        assert "A1" in content
