@@ -163,6 +163,43 @@ class DefaultDomainPack:
     def passthrough_agent_types(self) -> Set[str]:
         return set()
 
+    # ─── Phase 6T-E (2026-05-27): social-media credibility defaults ─
+
+    def credibility_tiers(self) -> List[str]:
+        """Phase 6T-E default: empty list — pack doesn't ship a
+        social-media channel. The Layer-3 SocialMediaProvider
+        treats this as opt-out.
+        """
+        return []
+
+    def credibility_weight(self, tier_id: str) -> float:
+        """Phase 6T-E default: 1.0 for known tiers (those in
+        :meth:`credibility_tiers`), 0.0 for unknown. Fail-closed
+        so unknown / spoofed tier_ids are filtered out at sample
+        time.
+        """
+        if tier_id in self.credibility_tiers():
+            return 1.0
+        return 0.0
+
+    def verbalise_post(self, post: Any) -> str:
+        """Phase 6T-E default: ``f"[{post.tier_id}] {post.text}"``
+        debugging-grade rendering. Production packs override with
+        domain-appropriate templates.
+        """
+        return f"[{getattr(post, 'tier_id', '')}] {getattr(post, 'text', '')}"
+
+    def suppressed_tiers(self) -> Set[str]:
+        """Phase 6T-E default: empty set — no tiers suppressed."""
+        return set()
+
+    def social_media_post_filter(self, agent: Any, post: Any) -> Optional[Any]:
+        """Phase 6T-E default: returns the post unchanged. Packs
+        with per-agent filtering (MG-distrust, echo-chamber,
+        algorithmic ranking) override.
+        """
+        return post
+
     def prompt_placeholder_extensions(self) -> Set[str]:
         # Phase 6R-B-3 (audit cluster E #16): default contract — no
         # domain-specific placeholders. Generic domains rely on

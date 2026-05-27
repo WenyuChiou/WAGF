@@ -78,6 +78,15 @@ class TestSubProtocolMethodOwnership:
             "perception_descriptors",
             "perception_field_policy",
             "passthrough_agent_types",
+            # Phase 6T-E (2026-05-27) additions — social-media tier
+            # vocabulary + verbalisation + per-agent filter. Per the
+            # audit at .research/social_media_genericity_audit.md the
+            # tier vocabulary lives in the DomainPack (not in broker/).
+            "credibility_tiers",
+            "credibility_weight",
+            "verbalise_post",
+            "suppressed_tiers",
+            "social_media_post_filter",
         },
         GovernancePack: {
             "psychological_framework",
@@ -128,17 +137,20 @@ class TestSubProtocolMethodOwnership:
             f"declared={sorted(declared)} expected={sorted(expected)}"
         )
 
-    def test_total_method_count_is_38(self):
-        """Sanity check: union of all 7 sub-protocol method-sets is 38 —
+    def test_total_method_count_is_43(self):
+        """Sanity check: union of all 7 sub-protocol method-sets is 43 —
         the original 32 (per ``.research/domain_pack_protocol_reference.md``)
         plus 3 Phase 6T-A EventPack additions
         (``event_type_to_domain``, ``event_persistence_policy``,
         ``silent_skip_event_types``) plus 1 Phase 6T-B GovernancePack
         addition (``framework_for_agent_type``) plus 2 Phase 6T-C
         SetupPack additions (``institutional_lifecycle_handlers``,
-        ``multi_agent_env_keys``)."""
+        ``multi_agent_env_keys``) plus 5 Phase 6T-E PerceptionPack
+        additions (``credibility_tiers``, ``credibility_weight``,
+        ``verbalise_post``, ``suppressed_tiers``,
+        ``social_media_post_filter``)."""
         total = sum(len(s) for s in self.EXPECTED_METHODS.values())
-        assert total == 38
+        assert total == 43
 
     def test_no_method_belongs_to_two_sub_protocols(self):
         """Critical invariant — each method has exactly ONE sub-protocol

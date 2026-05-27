@@ -201,16 +201,25 @@ class EventPack(Protocol):
 
 @runtime_checkable
 class PerceptionPack(Protocol):
-    """Numeric→qualitative verbalisation + per-agent-type policy (3 methods).
+    """Numeric→qualitative verbalisation + per-agent-type policy + social-media tier vocabulary (8 methods).
 
-    Consumed by ``broker/components/social/perception.py``. See
+    Consumed by ``broker/components/social/perception.py`` and by
+    the Phase 6T-E social-media propagation channel. See
     ``DomainPack`` for full docstrings. Methods:
     ``perception_descriptors``, ``perception_field_policy``,
-    ``passthrough_agent_types``.
+    ``passthrough_agent_types``, ``credibility_tiers`` (Phase 6T-E
+    2026-05-27), ``credibility_weight`` (Phase 6T-E),
+    ``verbalise_post`` (Phase 6T-E), ``suppressed_tiers``
+    (Phase 6T-E), ``social_media_post_filter`` (Phase 6T-E).
     """
     def perception_descriptors(self) -> Dict[str, Any]: ...
     def perception_field_policy(self) -> Dict[str, List[str]]: ...
     def passthrough_agent_types(self) -> Set[str]: ...
+    def credibility_tiers(self) -> List[str]: ...
+    def credibility_weight(self, tier_id: str) -> float: ...
+    def verbalise_post(self, post: Any) -> str: ...
+    def suppressed_tiers(self) -> Set[str]: ...
+    def social_media_post_filter(self, agent: Any, post: Any) -> Optional[Any]: ...
 
 
 @runtime_checkable
@@ -660,6 +669,132 @@ class DomainPack(
         for unknown placeholders. Phase 6R-B-3 (audit cluster E #16) —
         proper fix for the asymmetric water-placeholder coverage
         documented by Phase 6Q-K-3 in ``validate_prompt.py:87-103``.
+        """
+        ...
+
+    # ─── Phase 6T-E (2026-05-27): social-media credibility vocabulary ─
+
+    def credibility_tiers(self) -> List[str]:
+        """Phase 6T-E: ordered tier vocabulary for the domain's
+        social-media propagation channel, highest-credibility first.
+
+        Example values (per the genericity audit at
+        ``.research/social_media_genericity_audit.md``):
+
+        - flood (US-media-shaped): ``["official_authority",
+          "verified_account", "influencer", "peer", "bot"]``
+        - vaccination_ma (hypothetical): ``["cdc", "clinician",
+          "health_influencer", "community_elder", "whatsapp_rumor"]``
+        - traffic_ma (hypothetical): ``["transport_authority",
+          "news_outlet", "commuter_forum", "waze_user",
+          "unverified_tip"]``
+
+        **Audit-locked design**: the tier vocabulary lives HERE
+        (per-domain pack), NOT as a hardcoded enum in
+        ``broker/components/social/post.py``. The
+        ``Post.tier_id: str`` field carries an opaque tier
+        identifier; broker code MUST NOT interpret it. Forbidden
+        broker-side literals (enforced by the
+        ``test_framework_invariants.py`` AST gate added in 6T-E):
+        ``OFFICIAL`` / ``VERIFIED`` / ``INFLUENCER`` / ``PEER`` /
+        ``BOT``.
+
+        Default: empty list ``[]``. A pack that doesn't run a
+        social-media channel returns the empty list and the Layer-3
+        SocialMediaProvider treats the domain as opt-out.
+        """
+        ...
+
+    def credibility_weight(self, tier_id: str) -> float:
+        """Phase 6T-E: weight in ``[0.0, 1.0]`` for the perception
+        filter's weighted sampling. Multiplied with
+        :func:`broker.components.social.post.age_weight` and
+        ``Post.engagement_score`` to compute the retrieval-side
+        weight when sampling top-K posts for the household prompt.
+
+        Default semantics in :class:`DefaultDomainPack`: ``1.0`` for
+        known tiers (those in :meth:`credibility_tiers`), ``0.0``
+        for unknown tiers (so unknown / spoofed tier_ids are
+        filtered out — fail-closed). A pack overriding this method
+        may declare a finer-grained credibility model
+        (e.g. flood pack: official_authority=1.0,
+        verified_account=0.85, influencer=0.6, peer=0.4, bot=0.05).
+
+        The weight is consumed by the Phase 6T-E (deferred-commit)
+        ``SocialMediaProvider``; this commit ships the contract.
+        """
+        ...
+
+    def verbalise_post(self, post: Any) -> str:
+        """Phase 6T-E: domain-specific natural-language rendering of
+        a :class:`broker.components.social.post.Post` for the
+        ``{social_media_feed}`` prompt placeholder.
+
+        ``post`` is a :class:`Post` instance (typed ``Any`` here to
+        avoid forcing every pack import the broker module). The
+        return value is the prompt-ready string for that single
+        post; the provider concatenates top-K calls into the
+        placeholder body.
+
+        **Audit-locked design**: verbalisation templates live HERE
+        (per-domain pack), NOT in broker/. The flood domain's
+        canonical mapping (from the audit doc) is:
+
+        - ``official_authority`` → ``"The Department of Insurance
+          announced: {post.text}"``
+        - ``verified_account`` → ``"{Verified account} reported:
+          {post.text}"``
+        - ``influencer`` → ``"A popular voice in the community
+          shared: {post.text}"``
+        - ``peer`` → ``"Some posters in the community claim:
+          {post.text}"``
+        - ``bot`` → suppressed by default (see
+          :meth:`suppressed_tiers`); configurable to show as ``"An
+          unverified account claims: {post.text}"``
+
+        Default in :class:`DefaultDomainPack`: ``f"[{post.tier_id}]
+        {post.text}"`` — a debugging-grade rendering. Production
+        packs override.
+        """
+        ...
+
+    def suppressed_tiers(self) -> Set[str]:
+        """Phase 6T-E: tier IDs whose posts the perception filter
+        drops by default.
+
+        Use case: the flood pack may suppress ``bot`` tier posts
+        from being injected into the household prompt (the
+        operator can override per-experiment by re-setting this in
+        YAML). A vaccination_ma might suppress ``whatsapp_rumor``
+        by default while keeping it in audit logs for downstream
+        misinformation-tracking analysis.
+
+        Default: ``set()`` — no tiers suppressed. Domains that ship
+        social-media channels typically override.
+        """
+        ...
+
+    def social_media_post_filter(self, agent: Any, post: Any) -> Optional[Any]:
+        """Phase 6T-E: per-agent post filter hook.
+
+        Returns the post (possibly transformed) or ``None`` to drop
+        the post from this specific agent's feed. The Layer-3
+        SocialMediaProvider (deferred-commit) calls this for every
+        candidate post before adding it to the prompt feed.
+
+        Use cases:
+
+        - MG-distrust filter: an MG household may not see
+          ``official_authority`` posts due to distrust of federal
+          agencies. The pack overrides this to return ``None`` for
+          ``(agent.is_mg, post.tier_id == "official_authority")``.
+        - Echo-chamber filter: a follower of an influencer might
+          have algorithmically-prioritised peer content; pack
+          overrides to deweight non-followed authors.
+
+        Default in :class:`DefaultDomainPack`: returns ``post``
+        unchanged. Packs that want default-passthrough don't need
+        to override.
         """
         ...
 
