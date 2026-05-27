@@ -406,6 +406,14 @@ class FloodGovernanceMixin:
         "government": "utility",
         "fema_nfip": "financial",
         "insurance": "financial",
+        # Phase 6T-F prep (2026-05-27): social_media_influencer
+        # agent_type reasons under narrative_diffusion framework
+        # (constructs: salience / virality / audience_fit /
+        # narrative_consistency). The agent_type itself is not yet
+        # in the MA-flood YAML — that's Phase 6T-F-implementation;
+        # this entry is the interface contract so that wiring lands
+        # cleanly when the implementation commit follows.
+        "social_media_influencer": "narrative_diffusion",
     }
 
     def framework_for_agent_type(self, agent_type: Optional[str]) -> str:

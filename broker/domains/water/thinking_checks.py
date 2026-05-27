@@ -2,13 +2,27 @@
 Water-domain thinking-validator metadata and builtin checks.
 
 Registers framework label orders, construct mappings, label normalization
-mappings, and builtin check implementations for:
+mappings, and builtin check implementations for the WATER-SPECIFIC
+psychometric frameworks:
 - PMT (Protection Motivation Theory) — flood household agents
 - Dual Appraisal (WSA/ACA) — irrigation agents
-- Utility — government agents
-- Financial — insurance agents
 
 Called by ``broker.domains.water.__init__.register()`` at import time.
+
+Pre-Phase-6T-F-prep (2026-05-27) this module ALSO registered the
+``utility`` and ``financial`` framework metadata even though their
+construct vocabularies (``BUDGET_UTIL`` / ``RISK_APPETITE`` etc.) are
+genuinely cross-domain — a Phase-6P-A-class genericity leak. Those
+two frameworks' metadata moved to
+``broker/validators/governance/frameworks/`` (a generic broker home)
+which auto-registers them at import time. The framework CLASSES
+(``UtilityFramework`` / ``FinancialFramework``) still live in
+``broker/domains/water/{utility,financial}.py`` because their
+``get_expected_behavior`` methods return flood-paper-3-coupled skill
+names (e.g. ``"increase_subsidy"``); calibration tooling at
+``broker/domains/water/calibration/micro_validator.py`` consumes
+those methods. A full extraction would require splitting each class
+into a generic-base + flood-subclass, deferred.
 """
 
 from typing import Dict, List, Any, Optional
@@ -25,8 +39,10 @@ WATER_FRAMEWORK_LABEL_ORDERS: Dict[str, Dict[str, int]] = {
     "pmt": {"VL": 0, "L": 1, "M": 2, "H": 3, "VH": 4},
     "dual_appraisal": {"VL": 0, "L": 1, "M": 2, "H": 3, "VH": 4},
     "cognitive_appraisal": {"VL": 0, "L": 1, "M": 2, "H": 3, "VH": 4},
-    "utility": {"L": 0, "M": 1, "H": 2},
-    "financial": {"C": 0, "M": 1, "A": 2},
+    # Phase 6T-F prep (2026-05-27): ``utility`` + ``financial`` moved
+    # to ``broker/validators/governance/frameworks/`` (generic broker
+    # home — closes the Phase-6P-A-class leak). Both register
+    # automatically when broker.validators.governance imports.
 }
 
 WATER_FRAMEWORK_CONSTRUCTS: Dict[str, dict] = {
@@ -45,16 +61,7 @@ WATER_FRAMEWORK_CONSTRUCTS: Dict[str, dict] = {
         "secondary": "ACA_LABEL",
         "all": ["WSA_LABEL", "ACA_LABEL"],
     },
-    "utility": {
-        "primary": "BUDGET_UTIL",
-        "secondary": "EQUITY_GAP",
-        "all": ["BUDGET_UTIL", "EQUITY_GAP", "ADOPTION_RATE"],
-    },
-    "financial": {
-        "primary": "RISK_APPETITE",
-        "secondary": "SOLVENCY_IMPACT",
-        "all": ["RISK_APPETITE", "SOLVENCY_IMPACT", "MARKET_SHARE"],
-    },
+    # Phase 6T-F prep: utility + financial moved to generic home.
 }
 
 WATER_LABEL_MAPPINGS: Dict[str, Dict[str, str]] = {
@@ -79,16 +86,7 @@ WATER_LABEL_MAPPINGS: Dict[str, Dict[str, str]] = {
         "HIGH": "H",
         "VERY HIGH": "VH", "VERYHIGH": "VH", "VERY_HIGH": "VH",
     },
-    "utility": {
-        "LOW": "L", "LOW PRIORITY": "L", "LOW_PRIORITY": "L",
-        "MEDIUM": "M", "MED": "M", "MEDIUM PRIORITY": "M",
-        "HIGH": "H", "HIGH PRIORITY": "H", "HIGH_PRIORITY": "H",
-    },
-    "financial": {
-        "CONSERVATIVE": "C", "CONS": "C", "LOW": "C",
-        "MODERATE": "M", "MOD": "M", "MEDIUM": "M",
-        "AGGRESSIVE": "A", "AGG": "A", "HIGH": "A",
-    },
+    # Phase 6T-F prep: utility + financial moved to generic home.
 }
 
 

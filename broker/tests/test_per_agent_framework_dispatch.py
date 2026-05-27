@@ -103,6 +103,12 @@ class TestFloodPackPerAgentTypeFramework:
             ("government", "utility"),
             ("fema_nfip", "financial"),
             ("insurance", "financial"),
+            # Phase 6T-F prep (2026-05-27): social_media_influencer
+            # reasons under narrative_diffusion. Agent_type entry is
+            # in the FloodGovernanceMixin _AGENT_TYPE_FRAMEWORK dict
+            # even though the agent_type itself isn't in MA-flood YAML
+            # yet — that's interface-only forward contract.
+            ("social_media_influencer", "narrative_diffusion"),
         ],
     )
     def test_known_agent_types_route_correctly(
