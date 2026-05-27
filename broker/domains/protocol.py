@@ -619,7 +619,7 @@ class DomainPack(
         ...
 
     def perception_field_policy(self) -> Dict[str, List[str]]:
-        """Field-name lists controlling what ``HouseholdPerceptionFilter``
+        """Field-name lists controlling what ``QualitativePerceptionFilter``
         strips or aggregates. Recognised keys: ``"dollar_fields"``,
         ``"percentage_fields"``, ``"community_observable_fields"``,
         ``"neighbor_action_fields"``.

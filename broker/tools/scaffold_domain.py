@@ -8,9 +8,10 @@ to one shell command. The generated skeleton:
   pattern — no hand-rolled JSON to drift from YAML).
 * Includes all 6 required YAML blocks identified by the Phase 6C-v4
   BLOCKER inventory (actions, parsing.constructs, log_fields, etc).
-* Defaults to the pre-registered PMT cognitive framework so no
-  framework-registration boilerplate is needed; pass ``--framework custom``
-  to also scaffold a placeholder ``cognition/`` package.
+* Supports pre-registered cognitive frameworks (``pmt``, ``utility``,
+  ``financial``, ``narrative_diffusion``, ``generic``); pass
+  ``--framework custom`` to also scaffold a placeholder ``cognition/``
+  package.
 
 Usage::
 
@@ -148,7 +149,7 @@ def gen_skill_registry(domain: str, skills: List[str]) -> str:
 
 
 def gen_agent_types_yaml(domain: str, skills: List[str], framework: str) -> str:
-    framework_value = f"{domain}_framework" if framework == "custom" else "pmt"
+    framework_value = f"{domain}_framework" if framework == "custom" else framework
     valid_choices = ", ".join(str(i + 1) for i in range(len(skills)))
     decision_desc = (
         f"Numeric ID, choose ONE from: {valid_choices} ("
@@ -575,12 +576,20 @@ def main(argv: List[str] | None = None) -> int:
     )
     parser.add_argument(
         "--framework",
-        choices=["pmt", "custom"],
+        choices=[
+            "pmt",
+            "utility",
+            "financial",
+            "narrative_diffusion",
+            "generic",
+            "custom",
+        ],
         default="pmt",
         help=(
-            "Cognitive framework. 'pmt' (default) uses pre-registered PMT — "
-            "no extra files. 'custom' scaffolds a cognition/ package with a "
-            "framework registration boilerplate."
+            "Cognitive framework. default 'pmt' is retained for backward-compat; "
+            "new domains are encouraged to choose 'generic' or one of the "
+            "registered frameworks. 'custom' scaffolds a cognition/ package "
+            "with a framework registration boilerplate."
         ),
     )
     parser.add_argument(

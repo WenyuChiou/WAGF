@@ -6,7 +6,7 @@ into agent-appropriate representations. Different agent types see different
 information:
 
 - Lay agents (e.g. households): qualitative descriptors instead of
-  exact numbers (HouseholdPerceptionFilter).
+  exact numbers (QualitativePerceptionFilter).
 - Expert / institutional agents: full numerical data
   (PassThroughPerceptionFilter).
 
@@ -31,14 +31,14 @@ from broker.interfaces.perception import (
 
 # Phase 6H Item 5: the flood-domain field-lists and depth descriptor that
 # used to live at this module level moved to
-# examples/governed_flood/adapters/flood_perception.py. HouseholdPerceptionFilter
+# examples/governed_flood/adapters/flood_perception.py. QualitativePerceptionFilter
 # is now domain-neutral — it strips and verbalizes nothing unless a
 # DomainPack supplies perception_field_policy() / perception_descriptors(),
 # which PerceptionFilterRegistry injects at construction.
 
 
-class HouseholdPerceptionFilter:
-    """Perception filter for household agents.
+class QualitativePerceptionFilter:
+    """Perception filter for qualitative agent views.
 
     Transforms numerical context data into qualitative descriptions.
     Residents don't see exact numbers - they see qualitative descriptions.
@@ -66,7 +66,7 @@ class HouseholdPerceptionFilter:
         neighbor_action_fields: Optional[List[str]] = None,
         descriptor_mappings: Optional[Dict[str, DescriptorMapping]] = None,
     ):
-        """Initialize the household perception filter.
+        """Initialize the qualitative perception filter.
 
         All arguments are optional and default to empty / no-op — the
         filter is domain-neutral. The broker's PerceptionFilterRegistry
@@ -226,7 +226,7 @@ class PassThroughPerceptionFilter:
 
     Preserves all numerical data — institutions and instruments perceive
     precise figures, unlike lay agents who perceive qualitatively (see
-    :class:`HouseholdPerceptionFilter`). Whether a given agent type
+    :class:`QualitativePerceptionFilter`). Whether a given agent type
     verbalizes or passes raw numbers through is a per-agent-type modelling
     choice a DomainPack declares via ``passthrough_agent_types()``.
 
@@ -260,8 +260,8 @@ class PassThroughPerceptionFilter:
         return filtered
 
 
-def _household_filter_kwargs_from_domain_pack() -> Dict[str, Any]:
-    """HouseholdPerceptionFilter kwargs from the first registered
+def _perception_filter_kwargs_from_domain_pack() -> Dict[str, Any]:
+    """QualitativePerceptionFilter kwargs from the first registered
     DomainPack — mirrors reflection.py's pack-scan. Empty dict when no
     pack is registered (then the filter is a domain-neutral no-op)."""
     try:
@@ -317,7 +317,7 @@ class PerceptionFilterRegistry:
     a unified interface for filtering context data.
 
     Filters are built from the active DomainPack:
-    - verbalizing (HouseholdPerceptionFilter) — the default for every
+    - verbalizing (QualitativePerceptionFilter) — the default for every
       agent type, and for unknown types;
     - pass-through (PassThroughPerceptionFilter) — for the agent types a
       DomainPack lists in ``passthrough_agent_types()``.
@@ -348,8 +348,8 @@ class PerceptionFilterRegistry:
         PassThroughPerceptionFilter (raw numbers). No agent-type names
         are hardcoded here (Phase 6H Item 5c).
         """
-        verbalizing = HouseholdPerceptionFilter(
-            **_household_filter_kwargs_from_domain_pack()
+        verbalizing = QualitativePerceptionFilter(
+            **_perception_filter_kwargs_from_domain_pack()
         )
         self.register("household", verbalizing)
         for agent_type in _passthrough_agent_types_from_domain_pack():
@@ -400,8 +400,8 @@ class PerceptionFilterRegistry:
 
         if filter_instance is None:
             # Default to household filter for unknown types
-            filter_instance = self._default_filter or HouseholdPerceptionFilter(
-                **_household_filter_kwargs_from_domain_pack()
+            filter_instance = self._default_filter or QualitativePerceptionFilter(
+                **_perception_filter_kwargs_from_domain_pack()
             )
 
         return filter_instance.filter(context, agent)
@@ -413,7 +413,21 @@ class PerceptionFilterRegistry:
 
 
 __all__ = [
-    "HouseholdPerceptionFilter",
+    "QualitativePerceptionFilter",
+    "HouseholdPerceptionFilter",  # deprecated alias
     "PassThroughPerceptionFilter",
     "PerceptionFilterRegistry",
 ]
+
+
+def __getattr__(name):
+    if name == "HouseholdPerceptionFilter":
+        import warnings
+
+        warnings.warn(
+            "HouseholdPerceptionFilter is deprecated; use QualitativePerceptionFilter",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return QualitativePerceptionFilter
+    raise AttributeError(name)

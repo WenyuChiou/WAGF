@@ -45,7 +45,6 @@ from .retrieval import AdaptiveRetrievalEngine
 from .config import (
     GlobalMemoryConfig,
     DomainMemoryConfig,
-    FloodDomainConfig,
     # Cognitive Constraints (Task-050E)
     CognitiveConstraints,
     MILLER_STANDARD,
@@ -125,3 +124,11 @@ __all__ = [
     "EXTENDED_CONTEXT",
     "MINIMAL",
 ]
+
+
+def __getattr__(name):
+    if name == "FloodDomainConfig":
+        from .config import FloodDomainConfig
+
+        return FloodDomainConfig
+    raise AttributeError(name)

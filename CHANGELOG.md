@@ -8,7 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-(no entries yet — v0.3.0 cut on 2026-05-27; see below)
+### Changed
+
+- Phase 6U-A / 6U-D: generalized low-risk broker identifiers:
+  `QualitativePerceptionFilter`, `_perception_filter_kwargs_from_domain_pack`,
+  `_has_account_state_filter`, `_payout_state`, `set_payout_state`, and
+  water-domain `FloodDomainConfig` relocation with deprecation aliases.
+- Phase 6U-D: `broker.tools.scaffold_domain` now preserves the selected
+  registered framework instead of hardcoding `pmt` in generated agent YAML.
+
+### Fixed
+
+- Phase 6U-A: `ImpactEventGenerator.__init__` now warns when both
+  `insurance_state` (legacy) and `payout_state` (new) kwargs are passed —
+  previously silently dropped `insurance_state` without DeprecationWarning,
+  asymmetric with the `configure()` path (post-code-review P1). Adds 3
+  regression tests in `tests/test_ma_event_generators.py`.
 
 ## [0.3.0] - 2026-05-27
 

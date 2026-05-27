@@ -11,7 +11,7 @@ Core components for the water agent governance framework:
 
 # Perception filter exports (Task-043)
 from .social.perception import (
-    HouseholdPerceptionFilter,
+    QualitativePerceptionFilter,
     PassThroughPerceptionFilter,
     PerceptionFilterRegistry,
 )
@@ -50,7 +50,8 @@ __all__ = [
     # Domain adapters
     "DomainReflectionAdapter",
     # Perception (Task-043)
-    "HouseholdPerceptionFilter",
+    "QualitativePerceptionFilter",
+    "HouseholdPerceptionFilter",  # deprecated alias
     "PassThroughPerceptionFilter",
     "PerceptionFilterRegistry",
     # Social graph (Task-043)
@@ -69,3 +70,16 @@ __all__ = [
     # Event manager (Task-042)
     "EnvironmentEventManager",
 ]
+
+
+def __getattr__(name):
+    if name == "HouseholdPerceptionFilter":
+        import warnings
+
+        warnings.warn(
+            "HouseholdPerceptionFilter is deprecated; use QualitativePerceptionFilter",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return QualitativePerceptionFilter
+    raise AttributeError(name)

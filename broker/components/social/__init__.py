@@ -3,7 +3,7 @@
 Modules:
     graph           — SocialGraph, NeighborhoodGraph, create_social_graph
     config          — SocialGraphSpec, AGENT_SOCIAL_SPECS
-    perception      — HouseholdPerceptionFilter, PerceptionFilterRegistry
+    perception      — QualitativePerceptionFilter, PerceptionFilterRegistry
     filter_registry — FilterRegistry (Phase 6B-4) for neighbor-filter plugins
 
 Phase 6B-4: register the legacy `has_insurance` neighbor filter at
@@ -15,7 +15,7 @@ package.
 from broker.components.social.filter_registry import FilterRegistry
 
 
-def _has_insurance_filter(agent) -> bool:
+def _has_account_state_filter(agent) -> bool:
     """Default flood-domain filter: include only agents whose
     `has_insurance` attribute is truthy. Lookup tolerates dict-like
     agents and object agents (mirrors `_get_agent_attr` in config.py)."""
@@ -29,4 +29,4 @@ def _has_insurance_filter(agent) -> bool:
     return bool(getattr(agent, "has_insurance", False))
 
 
-FilterRegistry.register("has_insurance", _has_insurance_filter)
+FilterRegistry.register("has_insurance", _has_account_state_filter)

@@ -348,7 +348,7 @@ class FloodPerceptionMixin:
         return dict(PERCEPTION_DESCRIPTORS)
 
     def perception_field_policy(self) -> Dict[str, List[str]]:
-        """Field-name lists controlling what HouseholdPerceptionFilter
+        """Field-name lists controlling what QualitativePerceptionFilter
         strips / aggregates — replaces the former module-level flood
         constants in broker/components/social/perception.py."""
         return {
