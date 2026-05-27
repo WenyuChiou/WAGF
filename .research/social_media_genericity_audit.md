@@ -1,8 +1,21 @@
-# Social-media subsystem genericity audit (pre-6T-D)
+# Social-media subsystem genericity audit + layering reference
 
-**Status**: pre-implementation audit doc. Written 2026-05-27 before
-Phase 6T-D opens the follower-network social graph + sets the
-stage for 6T-E/F.
+**Status**: pre-implementation audit (genericity sections),
+amended 2026-05-27 with the layering + Post-FollowerNetwork
+join sections after Phase 6T-D + 6T-E shipped.
+
+**Original purpose** (genericity): written 2026-05-27 before
+Phase 6T-D opened the follower-network social graph, to lock in
+the design rule that tier vocabulary lives in the DomainPack not
+in broker/. Verified by `TestNoUSMediaTierLiteralsInBrokerSocial`
+AST gate.
+
+**Amendment** (2026-05-27, same day): tensions C + D from the
+design-rationale review surfaced two doc gaps — (1) how
+social-media propagation fits with the existing 3-tier social
+model from `.research/social_tier_injection_reference.md`, and
+(2) the join semantics between `Post.author_id` and
+`FollowerNetwork`. Both sections added below.
 
 **Trigger**: user-mandated genericity check during Phase 6T
 kickoff. Reviewer concern: the Phase 6T-E plan as written puts
@@ -166,6 +179,171 @@ opposite design choice three times:
 The `Post.credibility_tier = Enum[OFFICIAL/.../BOT]` design
 would be a fourth instance of the same anti-pattern. Audit
 catches it before 6T-E lands.
+
+---
+
+## Layering — how social-media fits into the existing 3-tier model
+
+The pre-Phase-6T social subsystem already defines a 3-tier
+context-injection model (documented in
+`.research/social_tier_injection_reference.md`):
+
+| Tier | Scope | Topology | Example placeholders |
+|---|---|---|---|
+| T1 Personal | self | n/a | `{narrative_persona}`, identity block |
+| T2 Local | spatial neighbours / social graph | symmetric, radius-bounded | `{neighbor_actions}`, `{gossip}` |
+| T3 Global | environment-wide broadcast | flat global (one-to-all) | `{govt_message}`, `{community_status}` |
+
+**Where does social-media propagation fit?** It is neither T2 nor T3:
+
+| Property | T2 | T3 | Social-media propagation |
+|---|---|---|---|
+| Topology | symmetric spatial | flat global | **directed asymmetric** (author→follower) |
+| Source weighting | uniform | single-source per channel | **per-author + per-tier credibility** |
+| Retrieval | proximity-bounded | always present | **top-K weighted by `engagement × credibility × age_decay`** |
+| Persistence | per-step gossip / per-year | per-step institutional state | **STICKY_YEAR_DECAY** (multi-year decay) |
+| Cardinality | bounded (radius) | one channel per institution | **N-source per agent (many authors)** |
+
+**Decision**: social-media propagation is a **new T4 tier**, NOT a
+T3 sub-channel. Reasoning:
+
+1. **Topology mismatch**: T3 is flat (every agent sees every
+   global message). Follower-network requires per-agent filtering
+   that doesn't fit the T3 broadcast contract.
+2. **Retrieval mismatch**: T3 placeholders are unconditional
+   (`{govt_message}` always renders if set). T4 retrieval is
+   weighted-sampling top-K — operator chooses K, weights compose
+   credibility × age × engagement.
+3. **Persistence mismatch**: T3 events default EPHEMERAL
+   (per-year). T4 default STICKY_YEAR_DECAY — posts survive year
+   boundaries with weighted decay (per Phase 6T-D design).
+
+**Implication for the 6T-E SocialMediaProvider** (deferred-commit
+work): the provider lives ALONGSIDE the existing T3 providers
+(`InstitutionalProvider`, `ObservableStateProvider`) rather than
+REPLACING any. The `{social_media_feed}` placeholder is a new T4
+placeholder, parallel to `{govt_message}` (T3) and `{gossip}` (T2).
+
+**The composite prompt layout** post-6T-E.B will look roughly:
+
+```
+### IDENTITY (T1)
+You are a household owner ...
+
+### NEIGHBOURS (T2)
+{neighbor_actions}
+{gossip}
+
+### COMMUNITY + INSTITUTIONS (T3)
+{community_status}
+{govt_message}
+{insurance_message}
+
+### SOCIAL MEDIA (T4 — Phase 6T-E.B)
+{social_media_feed}
+```
+
+Domains that don't run a social-media channel return empty
+`credibility_tiers()` from their PerceptionPack — the T4 layer
+no-ops + the placeholder renders empty.
+
+**Migration note**: `.research/social_tier_injection_reference.md`
+should be updated to reflect the 4-tier model when 6T-E.B lands.
+This audit doc is the authoritative source until then; updating the
+tier reference is part of the 6T-E.B follow-up acceptance criteria.
+
+---
+
+## Post ↔ FollowerNetwork: ownership + join semantics
+
+Phase 6T-E ships the `Post` dataclass (with `author_id: str`) and
+Phase 6T-D shipped `FollowerNetwork` (storing `(author, follower)`
+edges). These are SEPARATE primitives — broker does not enforce
+that every Post's `author_id` is registered in the
+FollowerNetwork. The join happens at retrieval time, when the
+deferred-commit `SocialMediaProvider` walks
+`env.social_feeds[author_id]` → `FollowerNetwork.get_followed(agent_id)`
+→ filters to followed authors.
+
+### Default retrieval semantics (Phase 6T-E.B target)
+
+```python
+def get_social_media_feed(agent_id: str, env, network, top_k: int = 3):
+    """Phase 6T-E.B (deferred). Returns top-K posts visible to
+    this agent under follower-only semantics."""
+    followed_authors = set(network.get_followed(agent_id))
+    candidates = []
+    for author_id, posts in env.social_feeds.items():
+        if author_id not in followed_authors:
+            continue  # follower-only filter
+        for post in posts:
+            weight = (
+                post.engagement_score
+                * pack.credibility_weight(post.tier_id)
+                * age_weight(post.event_year, env["current_year"])
+            )
+            if weight > 0:
+                candidates.append((weight, post))
+    candidates.sort(reverse=True)
+    return [p for _, p in candidates[:top_k]]
+```
+
+### Three modes the operator may want
+
+| Mode | Definition | How to express in current API |
+|---|---|---|
+| **Follower-only** (default) | Agent sees Posts only from authors it follows | `FollowerNetwork` has the (author, agent) edge |
+| **Broadcast** | Agent sees Posts from designated "broadcast" authors regardless of follower edges (e.g. emergency-alert account) | **Domain explicitly adds the broadcast author as a follower of every agent at init** — no special API |
+| **Algorithmic feed** | Agent sees Posts ranked by an engagement model that may surface non-followed content | **Future Phase 6T+ work** — not in current API. Would require a separate `algorithmic_post_score(agent, post)` PerceptionPack hook |
+
+### Why no `broadcast: bool` flag on Post
+
+Plausible alternative design: `Post(broadcast=True)` bypasses the
+follower filter. Rejected because:
+
+1. **Semantic creep**: `broadcast` becomes a magic field that some
+   consumers honour and others don't. Easy to forget.
+2. **Author-level intent**: "this author broadcasts to everyone" is
+   a property of the author's role, not the individual post.
+   Better expressed at the FollowerNetwork init time
+   (`for agent in agents: network.add_edge(broadcast_author_id, agent.id)`).
+3. **Symmetric with traditional ABM**: T3 govt_message ALSO uses
+   the "always-visible to all households" pattern; it doesn't have
+   a `broadcast` flag, it just IS broadcast by virtue of being in
+   the T3 layer.
+
+### What broker does NOT enforce (deliberate gaps)
+
+1. **`Post.author_id` does NOT need to be in `FollowerNetwork`.**
+   A Post with an unfollowed author_id will silently fail to reach
+   anyone — this is correct semantic ("nobody follows that
+   account"). The operator's domain pack is responsible for
+   registering the FollowerNetwork edges that match the authors
+   their event handlers emit Posts for.
+2. **No author identity validation.** The same `author_id` can
+   appear in multiple Post emissions; broker does not enforce that
+   it corresponds to a real agent. This is by design — a domain
+   may want "anonymous" or "bot account" author IDs that aren't
+   real simulation agents.
+3. **No duplicate detection.** If an event handler accidentally
+   pushes the same Post twice into `env.social_feeds[author_id]`,
+   broker treats them as two distinct posts. Domain handlers are
+   responsible for idempotency.
+
+### Cross-channel deduplication (Phase 6T-G concern)
+
+The same underlying event (e.g. `subsidy_change`) may surface in:
+
+1. `{inst_subsidy_rate}` (T3 institutional raw field)
+2. `{govt_message}` (T3 prose narrative)
+3. `{social_media_feed}` (T4 social-media post)
+
+Phase 6T-G is planned to add `event_id` annotation + canonical
+de-dup so the prompt doesn't show the same event three independent
+times. The audit's "Out of scope (Phase 6U)" section called out
+"Cross-channel deduplication" — but it's actually IN scope for
+6T-G per the original plan. This audit doc previously did not
+clarify; updated here for completeness.
 
 ---
 
