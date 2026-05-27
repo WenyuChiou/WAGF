@@ -834,6 +834,104 @@ class TestNoFloodVocabInGenericEventGenerators:
         )
 
 
+class TestNoUSMediaTierLiteralsInBrokerSocial:
+    """Phase 6T-E architectural guard — added 2026-05-27.
+
+    Per the audit at ``.research/social_media_genericity_audit.md``,
+    the social-media tier vocabulary (``OFFICIAL`` / ``VERIFIED`` /
+    ``INFLUENCER`` / ``PEER`` / ``BOT``) is US-media-shaped and
+    belongs in the DomainPack's
+    :meth:`PerceptionPack.credibility_tiers`, NOT as hardcoded
+    string literals in broker code. This guard AST-scans
+    ``broker/components/social/`` for the forbidden uppercase
+    enum-literal pattern.
+
+    Docstrings + comments are exempt — the audit doc itself + the
+    Protocol docstrings explain the design rule by REFERENCING the
+    forbidden literals, which is fine. Only executable string
+    literals (return values, dict keys/values, f-string templates
+    used at runtime) are forbidden.
+
+    Why this guard exists: future contributors adding 6T-E follow-up
+    work (e.g. the SocialMediaProvider deferred from this commit)
+    might be tempted to put e.g. ``DEFAULT_TIERS = ["OFFICIAL",
+    "VERIFIED", "INFLUENCER", "PEER", "BOT"]`` directly into broker
+    code as a "sensible default". The audit + this guard together
+    prevent that by failing CI; the contributor's only recourse is
+    to put the default in the DomainPack where it belongs.
+    """
+
+    GUARDED_DIR = "broker/components/social"
+    FORBIDDEN_LITERALS = frozenset({
+        "OFFICIAL", "VERIFIED", "INFLUENCER", "PEER", "BOT",
+    })
+
+    def _docstring_line_ranges(self, tree):
+        """Return a set of line numbers occupied by module / class /
+        function docstrings — strings at these positions are exempt.
+        Re-uses the same pattern as
+        :class:`TestNoFloodVocabInGenericEventGenerators`."""
+        import ast
+        ranges = []
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Module, ast.FunctionDef,
+                                 ast.AsyncFunctionDef, ast.ClassDef)):
+                if (node.body
+                        and isinstance(node.body[0], ast.Expr)
+                        and isinstance(node.body[0].value, ast.Constant)
+                        and isinstance(node.body[0].value.value, str)):
+                    doc = node.body[0].value
+                    ranges.append((doc.lineno, doc.end_lineno or doc.lineno))
+        exempt = set()
+        for lo, hi in ranges:
+            exempt.update(range(lo, hi + 1))
+        return exempt
+
+    def test_no_us_media_tier_literals_in_broker_social(self):
+        """Scan every ``*.py`` under ``broker/components/social/`` for
+        executable string literals exactly matching any forbidden
+        US-media-shaped enum identifier."""
+        import ast
+        from pathlib import Path
+
+        broker_root = Path(__file__).resolve().parents[2]
+        guarded_dir = broker_root / self.GUARDED_DIR
+        guarded_files = sorted(
+            p for p in guarded_dir.rglob("*.py")
+            if p.name != "__init__.py"
+        )
+        assert guarded_files, (
+            f"GUARDED_DIR={self.GUARDED_DIR} resolved to zero files — "
+            f"path likely moved. Restore the directory or update GUARDED_DIR."
+        )
+
+        violations = []
+        for path in guarded_files:
+            rel = path.relative_to(broker_root)
+            source = path.read_text(encoding="utf-8")
+            tree = ast.parse(source)
+            exempt = self._docstring_line_ranges(tree)
+            for node in ast.walk(tree):
+                if not (isinstance(node, ast.Constant)
+                        and isinstance(node.value, str)):
+                    continue
+                if node.lineno in exempt:
+                    continue
+                if node.value in self.FORBIDDEN_LITERALS:
+                    violations.append(f"{rel}:{node.lineno}  {node.value!r}")
+
+        assert not violations, (
+            "US-media-shaped tier literal leaked into executable code "
+            "under broker/components/social/. Per "
+            ".research/social_media_genericity_audit.md the tier "
+            "vocabulary belongs in PerceptionPack.credibility_tiers on "
+            "the DomainPack (e.g. examples/governed_flood/adapters/"
+            "flood_perception.py), NOT in broker code. Forbidden "
+            f"literals: {sorted(self.FORBIDDEN_LITERALS)}.\n"
+            "Violations:\n  " + "\n  ".join(violations)
+        )
+
+
 class TestNoExcessiveInlineMockPacks:
     """Phase 6R-A architectural guard — added 2026-05-26.
 
