@@ -38,6 +38,20 @@ genericity gate. See `~/.claude/plans/breezy-dazzling-knuth.md`.
 
 ### Changed
 
+- **Phase 6S-C — Social-tier injection reference + HOW_TO Step 6.5** (2026-05-26). Closes Phase 6S item #3: WAGF has a fully working 3-tier social-context pipeline (personal / local / global) with descriptor verbalisation, social-graph dispatching, gossip retrieval, and observable injection — but it had **no canonical reference doc**. Phase 1 Explore agent traced the pipeline through 7+ source files; this commit captures that trace as a reusable reference.
+  - **NEW `.research/social_tier_injection_reference.md`** (~310 LOC, 8 sections):
+    - §1 Tier inventory — 3-tier architecture (T1 personal / T2 local / T3 global) with render-function file:line citations.
+    - §2 Provider call-graph — 6 provider classes (`SocialProvider`, `InteractionHub.get_neighbor_action_summary`, `InteractionHub.get_social_context`, `ObservableStateProvider`, `PerceptionAwareProvider`, `InstitutionalProvider`) with file:line + tier + output description.
+    - §3 Social-graph layer — `get_social_spec()` dispatcher post-6R-B-2; 4 graph types (`spatial` / `global` / `filtered_global` / `DEFAULT_SOCIAL_SPEC`); water-domain spec registry.
+    - §4 Perception / verbalisation pipeline — 2-stage (raw observable → DescriptorMapping → qualitative); `HouseholdPerceptionFilter._filter_for_mg` (Phase 6S-D will fix the over-aggressive MG threshold here).
+    - §5 Domain customisation surface — 6-step recipe for new domains (register social_spec → observable metrics → perception descriptors → visible action specs → PerceptionMixin override → prompt template reference), with traffic-domain worked example.
+    - §6 Prompt placeholder reference — 7-row table mapping every `{placeholder}` to its source provider + format + MG-filter behaviour.
+    - §7 Known gaps — 6 future-debt items including the 2 Phase 6S-D will fix (observable injection asymmetry + MG threshold).
+    - §8 Maintenance contract — 4-rule decision tree for adding tier-aware features.
+  - **`docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md`** — NEW Step 6.5 "Inject social-tier context (optional)" inserted between Step 6 (register pack) and Step 7 (smoke test). ~30 LOC. Brief pointer to the `.research/` reference + the 6-step recipe + the FloodPerceptionMixin reference implementation. Anti-bloat: user-facing teaching stays SHORT; canonical reference lives in `.research/`.
+  - **Test gate**: `pytest broker/ tests/` → **2611 passed** (unchanged from 6S-B; pure docs).
+  - **Files changed**: 1 new reference doc + 1 HOW_TO edit + CHANGELOG. ~340 LOC delta.
+
 - **Phase 6S-B — 6R-E docs + skill migration: teach sub-protocol architecture** (2026-05-26). Closes the deferred Phase 6R-E docs migration item from the Phase 6R-F CHANGELOG entry. The `wagf-domain-builder` skill + `HOW_TO_ADD_A_NEW_DOMAIN.md` now teach the Phase 6R-D sub-protocol architecture (7 sub-protocols + typed accessors + sub-pack mixin pattern). Anti-bloat principle: docs LINK to the canonical reference (`.research/domain_pack_protocol_reference.md`) rather than duplicate its 32-method consumer-graph table.
   - **`docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md`** (~140 LOC added across 3 sections):
     - Top-of-file note: brief Phase 6R-D update explaining the sub-protocol architecture exists; single-class teaching still works.

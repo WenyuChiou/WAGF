@@ -503,6 +503,41 @@ from examples.vaccination_abm.adapters.vaccination_pack import VaccinationDomain
 DomainPackRegistry.register("vaccination", VaccinationDomainPack())
 ```
 
+### Step 6.5 — Inject social-tier context (optional)
+
+If your domain needs agents to reason about peer behaviour
+("I observe N% of commuters switched to transit"), community-wide
+signals ("outbreak hotspot in nearby region"), or institutional
+narratives ("the dispatcher issued a congestion advisory"), WAGF
+provides a **3-tier social-context pipeline**:
+
+- **T1 (personal)** — agent's own state
+- **T2 (local)** — neighbours / spatial radius / gossip
+- **T3 (global)** — society-wide news / institutional policy
+
+The pipeline is **already wired** in `broker/components/context/tiered.py` —
+new domains plug in via the PerceptionMixin hooks
+(`perception_descriptors` / `perception_field_policy` /
+`passthrough_agent_types`) demonstrated in Step 5's
+`FloodPerceptionMixin` reference and via social-spec registration
+in your package's `__init__.py`.
+
+**6-step recipe**: register social specs → define observable
+metrics → define perception descriptors → define visible neighbour
+actions → register in DomainPack's PerceptionMixin → reference in
+prompt template.
+
+Full mechanical recipe + 7 placeholder reference + 6 known gaps:
+`.research/social_tier_injection_reference.md`. Reference
+implementation: the flood domain — search
+`examples/governed_flood/adapters/flood_perception.py` for
+`DescriptorMapping` examples + `examples/governed_flood/adapters/flood_pack.py`
+for the PerceptionMixin wiring.
+
+Domains that DON'T need social context can skip this step — agents
+will still receive their T1 personal block; gossip / community
+fields render as empty strings.
+
 ### Step 7 — Run a smoke test
 
 ```bash
