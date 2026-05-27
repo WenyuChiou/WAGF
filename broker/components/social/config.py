@@ -44,12 +44,31 @@ class SocialGraphSpec:
             - "global": Connects to all other agents
             - "filtered_global": Connects to subset of agents based on filter
             - "random": Random connections (for testing/fallback)
+            - "follower_network": Directed asymmetric author→follower
+              network (Phase 6T-D 2026-05-27). Persistent across
+              years (no clear_year wipe). Used for social-media
+              propagation channels where information flows from
+              authors to their followers via potentially-weighted
+              edges. See ``broker/components/social/follower_network.py``.
         radius: For spatial graph, the connection radius in grid cells.
             Default is 2 cells.
         filter_fn: For filtered_global, the name of the filter function.
             Currently supported: "has_insurance"
         max_connections: Maximum number of connections (0 = unlimited).
             Useful for limiting network size for performance.
+        follower_seed_fn: For follower_network, an optional callable
+            ``(author_id, rng) -> List[follower_id]`` returning the
+            initial follower list for an author. Domains supply this
+            to inject power-law distributions for influencer accounts,
+            geographic clustering, etc. ``None`` → caller registers
+            follower edges manually via ``FollowerNetwork.add_edge``.
+            Phase 6T-D.
+        weight_fn: For follower_network, an optional callable
+            ``(author_id, follower_id) -> float`` returning the
+            influence weight (≥0.0) for an edge. Used when the
+            domain wants asymmetric influence (e.g. an official
+            account edge has higher weight than a peer edge). ``None``
+            → default weight 1.0 on every edge. Phase 6T-D.
 
     Examples:
         # Household NMG with radius 2
@@ -63,15 +82,32 @@ class SocialGraphSpec:
             graph_type="filtered_global",
             filter_fn="has_insurance"
         )
+
+        # Influencer follower network with power-law seeding
+        spec = SocialGraphSpec(
+            graph_type="follower_network",
+            follower_seed_fn=power_law_followers,
+            weight_fn=lambda a, f: 1.5 if a.startswith("AUTH_") else 1.0,
+        )
     """
-    graph_type: str  # "spatial", "global", "filtered_global", "random"
+    graph_type: str  # "spatial", "global", "filtered_global", "random", "follower_network"
     radius: int = 2  # For spatial graph
     filter_fn: Optional[str] = None  # For filtered_global (e.g., "has_insurance")
     max_connections: int = 0  # 0 = unlimited
+    # Phase 6T-D (2026-05-27): follower_network configuration. Generic
+    # callables — broker doesn't constrain shape or interpret
+    # author/follower identifiers. See
+    # broker/components/social/follower_network.py + the genericity
+    # audit at .research/social_media_genericity_audit.md.
+    follower_seed_fn: Optional[Callable[[str, Any], List[str]]] = None
+    weight_fn: Optional[Callable[[str, str], float]] = None
 
     def __post_init__(self):
         """Validate graph_type."""
-        valid_types = {"spatial", "global", "filtered_global", "random"}
+        valid_types = {
+            "spatial", "global", "filtered_global", "random",
+            "follower_network",  # Phase 6T-D
+        }
         if self.graph_type not in valid_types:
             raise ValueError(
                 f"Invalid graph_type: {self.graph_type}. "
@@ -262,6 +298,23 @@ def configure_social_graph_for_agent(
         else:
             neighbors = []
         return _apply_max_connections(neighbors, spec.max_connections)
+
+    elif spec.graph_type == "follower_network":
+        # Phase 6T-D (2026-05-27): follower_network is asymmetric
+        # (an author's followers ≠ that author's followed authors),
+        # so it can't be expressed via this symmetric "neighbors"
+        # dispatch. Callers using ``follower_network`` graph_type
+        # query the :class:`FollowerNetwork` instance directly via
+        # its ``get_followers`` / ``get_followed`` methods. Raising
+        # here surfaces the API mismatch instead of silently
+        # returning [] (which would mask the bug).
+        raise ValueError(
+            "configure_social_graph_for_agent does not handle "
+            "graph_type='follower_network' — the relationship is "
+            "directed/asymmetric. Use "
+            "broker.components.social.follower_network.FollowerNetwork "
+            "directly via its get_followers / get_followed methods."
+        )
 
     else:
         return []
