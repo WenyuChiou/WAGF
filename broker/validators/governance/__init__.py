@@ -86,7 +86,12 @@ def validate_all(
         build_domain_validators,
     )
 
-    validators = build_domain_validators(resolved_domain)
+    # Phase 6T-B (2026-05-27): plumb agent_type to the dispatcher so
+    # GovernancePack.framework_for_agent_type can route household
+    # decisions to PMT, government to utility, insurance to financial.
+    # Pre-6T-B the agent_type was accepted by validate_all but dropped
+    # before the dispatcher call — closing engineering-audit Y6.
+    validators = build_domain_validators(resolved_domain, agent_type=agent_type)
 
     all_results = []
     for validator in validators:

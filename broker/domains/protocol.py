@@ -215,7 +215,7 @@ class PerceptionPack(Protocol):
 
 @runtime_checkable
 class GovernancePack(Protocol):
-    """Validator dispatch + policy thresholds + placeholder allowlist (8 methods).
+    """Validator dispatch + policy thresholds + placeholder allowlist (9 methods).
 
     Consumed by ``broker/components/governance/*``,
     ``broker/validators/*``, and ``broker/tools/validate_prompt.py``.
@@ -229,12 +229,14 @@ class GovernancePack(Protocol):
     ``.research/domain_pack_protocol_reference.md`` for the deferred
     design decision.
 
-    Methods: ``psychological_framework``, ``builtin_checks``,
-    ``retrieval_policy``, ``drift_policy``,
+    Methods: ``psychological_framework``,
+    ``framework_for_agent_type`` (Phase 6T-B 2026-05-27),
+    ``builtin_checks``, ``retrieval_policy``, ``drift_policy``,
     ``population_governance_policy``, ``policy_event_tiers``,
     ``bridge_importance_policy``, ``prompt_placeholder_extensions``.
     """
     def psychological_framework(self) -> str: ...
+    def framework_for_agent_type(self, agent_type: Optional[str]) -> str: ...
     def builtin_checks(self) -> Dict[str, List[BuiltinCheck]]: ...
     def retrieval_policy(self) -> Dict[str, Any]: ...
     def drift_policy(self) -> Dict[str, Any]: ...
@@ -775,8 +777,58 @@ class DomainPack(
         metadata — the validator then falls back to a generic 5-level
         VL/L/M/H/VH label ordering with no construct introspection.
 
+        Phase 6T-B (2026-05-27): superseded for multi-agent domains by
+        :meth:`framework_for_agent_type` — the new method enables
+        per-agent-type framework selection (household → PMT,
+        government → utility, insurance → financial). This method is
+        kept as the domain-wide default that
+        :meth:`framework_for_agent_type` delegates to when the caller
+        provides no agent_type or the agent_type isn't recognised.
+
         Default ``""`` (no metadata) — overridden by every domain pack
         that ships a psychometric framework.
+        """
+        ...
+
+    def framework_for_agent_type(self, agent_type: Optional[str]) -> str:
+        """Phase 6T-B (2026-05-27): per-agent-type framework selector.
+
+        Returns the framework identifier (same vocabulary as
+        :meth:`psychological_framework`) that the dispatcher should
+        pass to ``ThinkingValidator(framework=...)`` when validating a
+        decision FROM an agent of this ``agent_type``. Enables
+        institutional diversity in multi-agent domains — e.g. in the
+        flood pack:
+
+        - ``household_owner`` / ``household_renter`` → ``"pmt"``
+          (Protection Motivation Theory; threat/coping appraisal)
+        - ``nj_government`` / ``government`` → ``"utility"``
+          (cost-benefit + budget pressure + equity)
+        - ``fema_nfip`` / ``insurance`` → ``"financial"``
+          (risk appetite + solvency + market share)
+
+        Pre-6T-B every agent type in the flood domain was validated
+        under PMT — institutionally inappropriate (a government
+        budget decision is not a "threat appraisal"). Closes
+        engineering-audit finding Y6.
+
+        Backward compatibility: ``agent_type=None`` or an
+        agent_type that the pack doesn't recognise must return the
+        same value as :meth:`psychological_framework` — the legacy
+        domain-wide default. The :class:`DefaultDomainPack`
+        implementation delegates to ``psychological_framework()``
+        unconditionally, so packs without per-agent-type overrides
+        continue to behave as they did pre-6T-B. Paper-1b
+        byte-identity protection: single-agent flood + irrigation
+        runs that don't plumb agent_type through ``validate_all``
+        continue to resolve via the legacy ``psychological_framework``
+        path.
+
+        Wiring: ``broker/components/governance/domain_validator_dispatch.py::build_domain_validators``
+        accepts an optional ``agent_type`` and routes through this
+        method. ``broker/validators/governance/__init__.py::validate_all``
+        plumbs the existing ``agent_type`` parameter down to the
+        dispatcher.
         """
         ...
 

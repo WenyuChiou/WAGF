@@ -66,7 +66,10 @@ def _with_registered_mode(validator, domain: str, slot: str):
     return validator
 
 
-def build_domain_validators(domain: Optional[str]) -> list:
+def build_domain_validators(
+    domain: Optional[str],
+    agent_type: Optional[str] = None,
+) -> list:
     """Return builtin validator instances for any registered domain.
 
     Phase 6C-v2 (2026-05-10): the ``if domain == "irrigation"/"flood"``
@@ -80,6 +83,16 @@ def build_domain_validators(domain: Optional[str]) -> list:
     ``run_*.py`` entrypoint imports the example package early — so by
     the time this function runs, the requested domain's checks are
     already registered. An empty domain returns ``_empty_validators()``.
+
+    Phase 6T-B (2026-05-27): accepts optional ``agent_type``. When
+    supplied, the framework is resolved via
+    :meth:`GovernancePack.framework_for_agent_type` so multi-agent
+    domains can validate household decisions under PMT, government
+    under utility, insurance under financial, etc. When omitted the
+    legacy :meth:`GovernancePack.psychological_framework` path is
+    preserved (paper-1b byte-identity protection: SA flood +
+    irrigation runs that don't plumb agent_type get the same
+    domain-wide framework as before). Closes engineering-audit Y6.
     """
     resolved = (domain or "").strip().lower() or None
 
@@ -114,16 +127,21 @@ def build_domain_validators(domain: Optional[str]) -> list:
                 resolved, exc,
             )
             extreme = set()
+        # Phase 6T-B (2026-05-27): per-agent-type framework resolution.
+        # When agent_type is None or the pack doesn't specialise on
+        # it, framework_for_agent_type's DefaultDomainPack impl
+        # delegates to psychological_framework() — preserving the
+        # pre-6T-B contract for callers that don't plumb agent_type.
         try:
-            framework = pack.psychological_framework()
+            framework = pack.framework_for_agent_type(agent_type)
         except Exception as exc:  # noqa: BLE001 — graceful boundary
             logger.warning(
-                "[DomainPack:%s] psychological_framework() raised %r; "
+                "[DomainPack:%s] framework_for_agent_type(%r) raised %r; "
                 "falling back to FRAMEWORK_ESCAPE_HATCH. Custom DomainPack "
-                "contract is broken — fix the pack OR override the method "
-                "to return one of: pmt / cognitive_appraisal / hbm / "
-                "utility / financial / \"\".",
-                resolved, exc,
+                "contract is broken — fix the pack OR override "
+                "framework_for_agent_type to return one of: pmt / "
+                "cognitive_appraisal / hbm / utility / financial / \"\".",
+                resolved, agent_type, exc,
             )
             from broker.validators.governance.thinking_validator import (
                 FRAMEWORK_ESCAPE_HATCH,
