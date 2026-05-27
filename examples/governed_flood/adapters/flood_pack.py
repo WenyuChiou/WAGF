@@ -383,8 +383,62 @@ class FloodGovernanceMixin:
         Matches the ``psychological_framework: pmt`` declaration in
         ``examples/governed_flood/config/agent_types.yaml`` (which
         pre-6Q-D was dead config — no code piped the YAML field into
-        ``ThinkingValidator(framework=...)``)."""
+        ``ThinkingValidator(framework=...)``).
+
+        Phase 6T-B (2026-05-27): superseded for MA-flood by
+        :meth:`framework_for_agent_type` — kept as the domain-wide
+        default for backward compatibility (single-agent flood +
+        callers that don't plumb agent_type through ``validate_all``)."""
         return "pmt"
+
+    # Phase 6T-B (2026-05-27): per-agent-type framework table — closes
+    # engineering-audit Y6. Households reason under PMT (threat /
+    # coping appraisal); government reasons under utility (cost-benefit
+    # + budget pressure + equity); insurance reasons under financial
+    # (risk appetite + solvency + market share). All four framework
+    # labels are pre-registered with their construct registries +
+    # label orderings + label-text mappings via
+    # ``broker.domains.water.thinking_checks.register_water_metadata``.
+    _AGENT_TYPE_FRAMEWORK: Dict[str, str] = {
+        "household_owner": "pmt",
+        "household_renter": "pmt",
+        "nj_government": "utility",
+        "government": "utility",
+        "fema_nfip": "financial",
+        "insurance": "financial",
+    }
+
+    def framework_for_agent_type(self, agent_type: Optional[str]) -> str:
+        """Phase 6T-B (2026-05-27): per-agent-type framework selector
+        for the multi-agent flood domain.
+
+        Returns the appropriate framework label for the supplied
+        ``agent_type``:
+
+        - ``household_owner`` / ``household_renter`` → ``"pmt"``
+        - ``nj_government`` / ``government`` → ``"utility"``
+        - ``fema_nfip`` / ``insurance`` → ``"financial"``
+
+        Unknown / ``None`` agent_type falls through to
+        :meth:`psychological_framework` (``"pmt"``), preserving
+        single-agent flood byte-identity for callers that don't plumb
+        agent_type (e.g. ``examples/governed_flood/run_experiment.py``
+        which only runs household_owner and lets the legacy domain-wide
+        default apply).
+
+        Each returned framework label is pre-registered with its
+        construct registry + label ordering via
+        ``broker.domains.water.thinking_checks.register_water_metadata``
+        — the dispatcher's pre-construction framework-registry check
+        (Phase 6Q-D-4) accepts all four values without downgrade.
+        """
+        if agent_type is None:
+            return self.psychological_framework()
+        normalised = agent_type.strip().lower()
+        return self._AGENT_TYPE_FRAMEWORK.get(
+            normalised,
+            self.psychological_framework(),
+        )
 
     def builtin_checks(self) -> Dict[str, List[BuiltinCheck]]:
         # Already registered via ValidatorRegistry at

@@ -81,6 +81,11 @@ class TestSubProtocolMethodOwnership:
         },
         GovernancePack: {
             "psychological_framework",
+            # Phase 6T-B (2026-05-27) addition — per-agent-type
+            # framework selector. Closes engineering-audit Y6 by
+            # routing household / government / insurance decisions
+            # to PMT / utility / financial respectively.
+            "framework_for_agent_type",
             "builtin_checks",
             "retrieval_policy",
             "drift_policy",
@@ -117,14 +122,15 @@ class TestSubProtocolMethodOwnership:
             f"declared={sorted(declared)} expected={sorted(expected)}"
         )
 
-    def test_total_method_count_is_35(self):
-        """Sanity check: union of all 7 sub-protocol method-sets is 35 —
+    def test_total_method_count_is_36(self):
+        """Sanity check: union of all 7 sub-protocol method-sets is 36 —
         the original 32 (per ``.research/domain_pack_protocol_reference.md``)
         plus 3 Phase 6T-A EventPack additions
         (``event_type_to_domain``, ``event_persistence_policy``,
-        ``silent_skip_event_types``)."""
+        ``silent_skip_event_types``) plus 1 Phase 6T-B GovernancePack
+        addition (``framework_for_agent_type``)."""
         total = sum(len(s) for s in self.EXPECTED_METHODS.values())
-        assert total == 35
+        assert total == 36
 
     def test_no_method_belongs_to_two_sub_protocols(self):
         """Critical invariant — each method has exactly ONE sub-protocol

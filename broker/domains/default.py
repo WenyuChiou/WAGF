@@ -209,6 +209,24 @@ class DefaultDomainPack:
         )
         return FRAMEWORK_ESCAPE_HATCH
 
+    def framework_for_agent_type(self, agent_type: Optional[str]) -> str:
+        """Phase 6T-B default: delegate to :meth:`psychological_framework`.
+
+        Packs without per-agent-type framework specialisation get the
+        legacy domain-wide framework regardless of ``agent_type`` —
+        preserving pre-6T-B behaviour for single-agent flood +
+        irrigation + vaccination + any custom pack that hasn't opted
+        into per-type framework selection.
+
+        Multi-agent packs (FloodGovernanceMixin) override to return
+        per-agent-type framework labels (household_owner → ``"pmt"``,
+        government → ``"utility"``, insurance → ``"financial"``).
+        ``agent_type=None`` MUST continue to return the domain-wide
+        default so callers that don't plumb agent_type get the
+        legacy value.
+        """
+        return self.psychological_framework()
+
     # ─── Profile loaders (Phase 6P-C) ─────────────────────────────
 
     def csv_loader_class(self) -> Optional[Any]:
