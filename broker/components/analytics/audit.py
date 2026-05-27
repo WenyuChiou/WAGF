@@ -440,7 +440,17 @@ class GenericAuditWriter:
             "validation_warnings": 0,
             "structural_faults_fixed": 0,  # Format issues fixed by retry
             "total_format_retries": 0,     # Total format retry attempts
-            "validator_health": {}
+            "validator_health": {},
+            # F2 fix (post-Phase-6T silent-failure audit, 2026-05-27):
+            # count of JSONL events lost to terminal flush failure
+            # (max retries exhausted). Pre-fix the buffer was NOT
+            # cleared on final failure, causing the events to be
+            # re-appended on the next flush → duplicate JSONL lines
+            # that inflate IBR + decision counts. Fix: discard buffer
+            # on final failure (data loss is detectable;
+            # data duplication is not) + emit this counter so
+            # downstream consumers can detect partial runs.
+            "jsonl_events_lost": 0,
         }
         
         # Buffer for CSV export
@@ -755,7 +765,32 @@ class GenericAuditWriter:
                 break
             except (OSError, IOError) as e:
                 if attempt == max_retries - 1:
-                    logger.error(f" [AuditWriter:Error] Final failure flushing buffer to {file_path}: {e}")
+                    # F2 fix (post-Phase-6T audit, 2026-05-27): pre-fix
+                    # path logged the error but did NOT clear the
+                    # buffer. The next flush re-appended the same
+                    # lines, producing duplicate JSONL rows that
+                    # inflate per-agent decision counts (IBR climbs
+                    # spuriously) + corrupt
+                    # broker.tools.recover_csv_from_jsonl output.
+                    # Trade-off: discarding buffer = data loss
+                    # (detectable via the lost-event counter below);
+                    # keeping = data duplication (undetectable, looks
+                    # like real activity). Pick loss — same v0.88.15
+                    # lesson family as F1 / F3 in this patch:
+                    # detectable data loss > undetectable corruption.
+                    lost = len(self._jsonl_buffer[agent_type])
+                    logger.error(
+                        f" [AuditWriter:Error] Final failure flushing "
+                        f"{lost} events to {file_path}: {e}. Discarding "
+                        f"buffer to prevent next-flush duplication. "
+                        f"Run summary will record jsonl_events_lost += "
+                        f"{lost} for downstream detection.",
+                        exc_info=True,
+                    )
+                    self._jsonl_buffer[agent_type] = []
+                    self.summary["jsonl_events_lost"] = (
+                        self.summary.get("jsonl_events_lost", 0) + lost
+                    )
                 else:
                     time.sleep(1.0)
 
