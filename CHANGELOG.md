@@ -38,6 +38,22 @@ genericity gate. See `~/.claude/plans/breezy-dazzling-knuth.md`.
 
 ### Changed
 
+- **Phase 6R-F — Static gate hardening: pin the Phase 6R-D-5/6 sub-pack decomposition pattern** (2026-05-26). Phase 6R closing commit. Plan listed 4 work items but 3 of them (TestSubProtocolSplit, TestRegistryTypedAccessors, TestCompositeInheritance) were already pinned by the regression tests landed in 6R-D-1 + 6R-D-3 (63 tests). The one genuinely-new gate value: prevent a future contributor from accidentally collapsing the mixin decomposition back into a monolithic `<Pack>DomainPack` class body (a likely "simplification" temptation since the mixins look like ceremony — but they're load-bearing for the sub-protocol type-narrowing benefits).
+  - **NEW `broker/tests/test_phase_6r_d_decomposition_gate.py`** (~210 LOC, 12 tests across 2 classes):
+    - `TestSubPackMixinDecomposition` — AST-level gates on the three production pack source files (`flood_pack.py` / `irrigation_pack.py` / `vaccination_pack.py`):
+      - Each file declares ≥1 sub-pack mixin class (e.g. `FloodReflectionMixin`).
+      - The composite class (e.g. `FloodDomainPack`) inherits from at least one of its sub-pack mixins.
+      - The composite still inherits from `DefaultDomainPack` (fallback for un-overridden Protocol methods).
+    - `TestProductionPacksSatisfyAllSubProtocols` — runtime isinstance gates parametrized over `flood / irrigation / vaccination` × 8 Protocol types (7 sub-protocols + composite `DomainPack`). Companion to the AST gate above: even if the source declares mixins, the resulting class hierarchy MUST satisfy all 8 Protocols.
+  - **FakeTraffic deliberately exempt** from `_GUARDED_PACKS` (per Phase 6R-D-6 CHANGELOG rationale — the 115-LOC fixture's mixin split would add ~30 LOC of structural overhead without functional benefit; it remains correctly satisfying all 7 sub-protocols via `DefaultDomainPack` inheritance, verified by `broker/tests/test_sub_protocol_split.py`).
+  - **Why this gate matters**: the value-add of the Phase 6R-D refactor is the sub-protocol composition enabling type-narrowing (`def needs_only_reflection(pack: ReflectionPack)`). If a future contributor "simplifies" by collapsing the mixins back into the composite class body, isinstance(pack, ReflectionPack) still passes (Python @runtime_checkable accepts any class with the methods) — but the source intent + the per-sub-pack docstrings are lost. The AST gate forces explicit reasoning about why the simplification is worth giving up the documentation value.
+  - **Plan items skipped + why**:
+    - "Extend `broker/tests/test_framework_invariants.py::TestDomainGenericity` with per-sub-protocol parametrize" — redundant. The existing `TestNoUnmarkedDomainTokenInGenericCode` already AST-scans every file under `broker/` and `broker/domains/` for water-domain tokens; the sub-protocols live in `broker/domains/protocol.py` which is already scanned.
+    - "Add 7 new test classes for `Default<X>Pack` no-op defaults" — 6R-D-2 was skipped (DefaultDomainPack stays monolithic), so there are no `Default<X>Pack` classes to test.
+    - "Add `broker/tests/test_sub_protocol_composition.py`" — implemented as `test_sub_protocol_split.py` (19 tests) in 6R-D-1 + `test_registry_typed_accessors.py` (44 tests) in 6R-D-3. Total 63 tests already pin composition.
+  - **Test gate**: `pytest broker/ tests/ --timeout=300 -p no:cacheprovider` → **2611 passed / 10 skipped / 0 failed** (+12 vs 2599 post-6R-D-6 baseline).
+  - **Phase 6R status post-this-commit**: **6R-A → 6R-D-1/3/4/5/6 → 6R-F all CLOSED**. 6R-E (docs + scaffolding migration) intentionally deferred — the new-domain author content in `docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md` + `.claude/skills/wagf-domain-builder/SKILL.md` can be updated lazily when a real new-domain effort surfaces (the existing single-class `class XDomainPack(DefaultDomainPack)` pattern still works; sub-pack mixin pattern is opt-in for advanced cohesion). 6R-D-2 (DefaultDomainPack composition refactor) intentionally skipped (minimal-restructure approach in 6R-D-1 makes it unnecessary).
+
 - **Phase 6R-D-6 — Irrigation + Vaccination pack sub-pack decomposition** (2026-05-26). Fifth commit of Phase 6R-D. Mirrors the 6R-D-5 FloodPack refactor pattern for the remaining paper-1b example packs.
   - **NEW `IrrigationDomainPack` sub-pack mixins** (`examples/irrigation_abm/adapters/irrigation_pack.py`, 174 → 215 LOC):
     - `IrrigationReflectionMixin` (3 methods — all return empty / None; irrigation uses the batch reflection path).
