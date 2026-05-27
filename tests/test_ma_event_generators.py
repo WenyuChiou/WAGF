@@ -193,6 +193,45 @@ class TestImpactEventGenerator:
         assert len(events) == 1
         assert events[0].event_type == "flood_damage"
 
+    def test_insurance_state_deprecated_kwarg_alias(self):
+        """Phase 6U-A: insurance_state kwarg routes to payout_state with warning."""
+        sentinel = object()
+        with pytest.warns(
+            DeprecationWarning,
+            match="insurance_state is deprecated; use payout_state",
+        ):
+            gen = ImpactEventGenerator(
+                config=_flood_impact_config(),
+                insurance_state=sentinel,
+            )
+        assert gen._payout_state is sentinel
+
+    def test_insurance_state_and_payout_state_conflict_warns(self):
+        """Phase 6U-A: passing BOTH kwargs warns + ignores legacy insurance_state."""
+        legacy = object()
+        new = object()
+        with pytest.warns(
+            DeprecationWarning,
+            match="Both insurance_state and payout_state passed; insurance_state ignored",
+        ):
+            gen = ImpactEventGenerator(
+                config=_flood_impact_config(),
+                insurance_state=legacy,
+                payout_state=new,
+            )
+        assert gen._payout_state is new
+
+    def test_set_insurance_state_deprecated_alias(self):
+        """Phase 6U-A: set_insurance_state forwards to set_payout_state."""
+        gen = ImpactEventGenerator(config=_flood_impact_config())
+        sentinel = object()
+        with pytest.warns(
+            DeprecationWarning,
+            match="set_insurance_state is deprecated; use set_payout_state",
+        ):
+            gen.set_insurance_state(sentinel)
+        assert gen._payout_state is sentinel
+
     def test_elevation_reduces_damage(self):
         """Elevated properties have reduced damage."""
         generator = ImpactEventGenerator(config=_flood_impact_config())

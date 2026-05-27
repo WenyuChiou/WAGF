@@ -457,7 +457,7 @@ class TestDomainGenericity:
         #  entry removed.)
         # (Phase 6H Item 5 DONE 2026-05-21: FLOOD_DEPTH_DESCRIPTORS relocated
         #  to examples/governed_flood/adapters/flood_perception.py; the
-        #  HouseholdPerceptionFilter is DomainPack-wired -- interfaces/
+        #  QualitativePerceptionFilter is DomainPack-wired -- interfaces/
         #  perception.py is flood-free, entry removed.)
         # (Phase 6H Item 1 DONE 2026-05-21: validators/calibration/ relocated
         #  to broker/domains/water/calibration/ — entry removed, no longer in

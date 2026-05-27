@@ -6,6 +6,7 @@ It wraps existing CatastropheModule/VulnerabilityModule functionality.
 """
 from typing import List, Dict, Any, Optional, Callable, TYPE_CHECKING
 from dataclasses import dataclass
+import warnings
 
 from broker.interfaces.event_generator import (
     EnvironmentEvent,
@@ -93,6 +94,7 @@ class ImpactEventGenerator:
         vulnerability_module: Any = None,
         config: ImpactEventConfig = None,
         agents: Dict[str, Any] = None,
+        payout_state: Any = None,
         insurance_state: Any = None,
     ):
         """Initialize impact event generator.
@@ -102,13 +104,27 @@ class ImpactEventGenerator:
             vulnerability_module: Depth-damage curve module
             config: Configuration for event generation
             agents: Dict of agent states (agent_id -> agent)
-            insurance_state: Global insurance state for payout calculation
+            payout_state: Global payout/account state for impact event calculation
         """
+        if insurance_state is not None:
+            if payout_state is not None:
+                warnings.warn(
+                    "Both insurance_state and payout_state passed; insurance_state ignored",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+            else:
+                warnings.warn(
+                    "insurance_state is deprecated; use payout_state",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
+                payout_state = insurance_state
         self._catastrophe = catastrophe_module
         self._vulnerability = vulnerability_module
         self._config = config or ImpactEventConfig()
         self._agents = agents or {}
-        self._insurance_state = insurance_state
+        self._payout_state = payout_state
         self._update_frequency = self._config.update_frequency
 
     @property
@@ -123,8 +139,16 @@ class ImpactEventGenerator:
         """Configure generator parameters."""
         if "agents" in kwargs:
             self._agents = kwargs["agents"]
+        if "payout_state" in kwargs:
+            self._payout_state = kwargs["payout_state"]
         if "insurance_state" in kwargs:
-            self._insurance_state = kwargs["insurance_state"]
+            warnings.warn(
+                "insurance_state is deprecated; use payout_state",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            if "payout_state" not in kwargs:
+                self._payout_state = kwargs["insurance_state"]
         if "update_frequency" in kwargs:
             self._update_frequency = kwargs["update_frequency"]
 
@@ -132,9 +156,18 @@ class ImpactEventGenerator:
         """Update agent references."""
         self._agents = agents
 
+    def set_payout_state(self, state: Any) -> None:
+        """Update payout/account state."""
+        self._payout_state = state
+
     def set_insurance_state(self, state: Any) -> None:
-        """Update insurance state."""
-        self._insurance_state = state
+        """Update payout/account state via deprecated legacy name."""
+        warnings.warn(
+            "set_insurance_state is deprecated; use set_payout_state",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.set_payout_state(state)
 
     def generate(
         self,
@@ -224,7 +257,7 @@ class ImpactEventGenerator:
                 agent_id=getattr(agent, "id", "unknown"),
                 agent_state=agent,
                 depth_ft=depth_ft,
-                insurance_state=self._insurance_state,
+                insurance_state=self._payout_state,
             )
 
         # Fallback simplified calculation

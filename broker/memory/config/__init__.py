@@ -1,5 +1,5 @@
 ﻿from .defaults import GlobalMemoryConfig
-from .domain_config import DomainMemoryConfig, FloodDomainConfig
+from .domain_config import DomainMemoryConfig
 from .cognitive_constraints import (
     CognitiveConstraints,
     MILLER_STANDARD,
@@ -19,3 +19,11 @@ __all__ = [
     "EXTENDED_CONTEXT",
     "MINIMAL",
 ]
+
+
+def __getattr__(name):
+    if name == "FloodDomainConfig":
+        from .domain_config import FloodDomainConfig
+
+        return FloodDomainConfig
+    raise AttributeError(name)

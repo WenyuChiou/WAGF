@@ -38,16 +38,16 @@ import pytest
 
 
 # ---------------------------------------------------------------------------
-# Helpers — construct a minimal HouseholdPerceptionFilter that exercises
+# Helpers — construct a minimal QualitativePerceptionFilter that exercises
 # the documented behavior without a full flood-domain fixture.
 # ---------------------------------------------------------------------------
 
 def _make_filter_with_community_fields():
-    """Return a HouseholdPerceptionFilter with a minimal community-
+    """Return a QualitativePerceptionFilter with a minimal community-
     observable-fields list (covers both COMMUNITY-scope and SPATIAL-
     scope sentinels so the MG-threshold tests can distinguish)."""
-    from broker.components.social.perception import HouseholdPerceptionFilter
-    return HouseholdPerceptionFilter(
+    from broker.components.social.perception import QualitativePerceptionFilter
+    return QualitativePerceptionFilter(
         descriptor_mappings={},
         community_observable_fields=[
             # COMMUNITY-scoped (society-wide; MG strip is CORRECT here)
@@ -60,6 +60,19 @@ def _make_filter_with_community_fields():
         ],
         neighbor_action_fields=[],
     )
+
+
+def test_household_perception_filter_deprecated_alias():
+    """Legacy public import remains available for one deprecation cycle."""
+    with pytest.warns(
+        DeprecationWarning,
+        match="HouseholdPerceptionFilter is deprecated; use QualitativePerceptionFilter",
+    ):
+        from broker.components.social.perception import HouseholdPerceptionFilter
+
+    from broker.components.social.perception import QualitativePerceptionFilter
+
+    assert HouseholdPerceptionFilter is QualitativePerceptionFilter
 
 
 def _mg_agent():
