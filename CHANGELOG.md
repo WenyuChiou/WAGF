@@ -38,6 +38,41 @@ genericity gate. See `~/.claude/plans/breezy-dazzling-knuth.md`.
 
 ### Changed
 
+(nothing yet under [Unreleased] — v0.2.1 cut 2026-05-27, see below)
+
+## [0.2.1] - 2026-05-27
+
+### Fixed
+
+**Silent-failure patch — 5 findings (1 P0 + 2 P1 + 2 P2) from the swarmlab integration audit.** Each was a v0.88.15-class bug: green tests, plausible numbers, biased / corrupted output. Detected by `silent-failure-hunter-py` subagent during swarmlab Gradio-frontend integration work; API + Architecture audits returned clean and are out-of-scope. None of the findings overlapped — they live in separate code paths (agent-step main loop / JSONL writer / finalize-experiment chain / parallel-path mirror / CSV exporter).
+
+- **F1 (P0) — `broker/core/experiment_runner.py:_run_agents_sequential` silent drop of failed agents**: pre-fix the `except Exception` logged but did NOT append the failed agent to `results`. The agent contributed ZERO rows to the audit CSV → audit-CSV denominator silently shrank while numerator (successful decisions) stayed the same. Cross-model comparisons most vulnerable: small Gemma variants timed out more often, so their effective N differed from larger models' without any signal in `governance_summary.json` or the audit CSV. Fix: NEW `_write_aborted_trace` helper emits a sentinel audit trace (`agent_id` / `agent_type` / `year` / `step_id` / `decision_source: "exception"` / `outcome: ABORTED` / `validation_errors`) + appends a `SkillBrokerResult(outcome=SkillOutcome.ABORTED, …)` tuple so the agent appears in the downstream `for agent, result in results` consumer's denominator. Secondary audit-writer failure (e.g. disk full while writing the sentinel) is caught + logged so it cannot mask the original step exception.
+
+- **F2 (P1) — `broker/components/analytics/audit.py:_flush_jsonl_buffer` buffer duplication on terminal failure**: pre-fix the buffer-clear (`self._jsonl_buffer[agent_type] = []`) lived ONLY on the success path. Terminal flush failure (3 retries exhausted) logged the error but left the buffer intact — the next flush re-appended the same lines, producing duplicate JSONL rows. Downstream impact: `broker.tools.recover_csv_from_jsonl` builds a CSV with duplicate rows; per-agent decision counts inflate; IBR (R1+R3+R4) rises spuriously. Fix: discard the buffer on final failure (data loss is detectable; data duplication is not) + increment a new `summary["jsonl_events_lost"]` counter so downstream consumers can detect partial runs.
+
+- **F3 (P1) — `broker/core/experiment_runner.py:_finalize_experiment` skipped `save_summary` on manifest-write failure**: pre-fix the `json.dump(manifest, ...)` write was UNWRAPPED — an OSError (disk full, read-only path, permission denied) propagated out of `_finalize_experiment` BEFORE `self.broker.auditor.save_summary(summary_path)` could run, leaving the run with audit CSV + JSONL but no `governance_summary.json`. Downstream consumers (paper-reproducibility scripts, swarmlab, `abm-reproducibility-checker` skill) silently fell back to recomputing or crashed; none surfaced the underlying disk-state. Fix: each output write is now an independent try/except; the summary save MUST run regardless of whether the manifest write succeeded — summary is the load-bearing artifact for governance reproducibility. Also moved `import json` to module-level top so regression tests can patch `broker.core.experiment_runner.json.dump`.
+
+- **F4 (P2) — Parallel mirror of F1 in `_run_agents_parallel`**: same silent-drop pattern as F1 but in the parallel path (`workers > 1`). Pre-fix: `as_completed` futures that raised got logged but dropped from `results`. Fix is a one-line shim reusing the `_write_aborted_trace` helper from F1.
+
+- **F5 (P2) — `broker/components/analytics/audit.py:_export_csv` unhandled OSError propagation**: pre-fix the CSV write was unwrapped — disk full / read-only path raised `OSError` out of `finalize()`, skipping subsequent per-agent-type exports + the summary save. Less urgent than F1/F2/F3 because the failure raises (noisy) rather than corrupts silently, but propagation still skipped downstream artifacts. Fix wraps the CSV write in try/except OSError + log with the agent_type + path + recovery hint pointing at `broker.tools.recover_csv_from_jsonl`.
+
+### Added
+
+- **NEW `broker/tests/test_silent_failure_fixes.py`** (~470 LOC, 13 regression tests across 5 classes — `TestF1FailedAgentStepProducesAuditRow` (3 tests), `TestF2JsonlFlushFinalFailureDiscardsBuffer` (3 tests), `TestF3SummaryWriteIndependentOfManifestWrite` (3 tests), `TestF4ParallelFailedAgentProducesAuditRow` (2 tests), `TestF5ExportCsvErrorHandling` (2 tests)).
+- **NEW `summary["jsonl_events_lost"]` counter** in `GenericAuditWriter` for downstream detection of partial runs (F2).
+
+### Verification
+
+- pytest broker/ tests/ → all green (13 new regression tests pass).
+- MA flood mock smoke: 8/8 green.
+- SA flood mock smoke: decision histogram unchanged (Do Nothing: 70 / Insurance: 26 / Elevation: 4 / Both: 0 / Relocate: 0) — failure-path bugs don't fire on happy path.
+
+### Scientific-integrity audit (separate finding, no code change)
+
+F1 silent-drop pattern was introduced 2026-04-07 by commit `ac7faea` ("isolate per-agent exceptions in sequential execution") — replaced pre-existing whole-experiment-abort behavior with continue-but-drop-row pattern. Audited all 21 v21 irrigation runs (governed + ungoverned, gemma3:4b baseline + cross-model gemma3_12b/gemma4_e2b/gemma4_e4b/ministral3_8b): every run shows `total_traces == 3276` exactly (78 agents × 42 years). **paper-1b irrigation v21 dataset is CLEAN** — F1 silent-drop did NOT fire during any v21 irrigation run. Separate concern: flood R3 cross-model `JOH_ABLATION_DISABLED/*` runs are PRE-F1 (finalized 2026-02-28 → 2026-03-10) and exhibit a different bug — pre-`ac7faea` whole-experiment-abort left partial audit data; comparative claims (ΔIBR sign / p-values) remain robust under per-run rate normalisation + rank-based MWU (no re-baseline needed). Details in `.claude/projects/.../memory/project_f1_silent_drop_paper1b_audit_2026-05-27.md` + `project_flood_r3_partial_data_audit_2026-05-27.md`.
+
+## [Unreleased post-0.2.1] (everything below was on the [Unreleased] head before the 0.2.1 cut — kept verbatim as history)
+
 - **Phase 6S-D — Perception-filter audit: pin current behavior + xfail-mark known gaps** (2026-05-26). Closes Phase 6S item #4. **Plan called for a runtime fix; investigation revealed the fix would shift paper-1b mock-byte-identity for ~16% of agents (the MG cohort). Pivoted to conservative pinning-test approach** — document current behavior + mark known gaps as `@pytest.mark.xfail(strict=True)` so future paper-1b multi-seed reruns can deliberately flip to v2 perception filter.
   - **Why conservative pivot**: per `.research/social_tier_injection_reference.md` §7 Gap #1 + Gap #4, the perception filter has two real defects:
     - Gap #1 (Observable injection asymmetry): un-whitelisted raw observables leak as floats to lay agents (a domain-author footgun).
