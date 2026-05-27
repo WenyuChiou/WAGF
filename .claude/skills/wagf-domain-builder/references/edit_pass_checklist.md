@@ -69,6 +69,45 @@ OK: config/agent_types.yaml - 1 agent type(s) clean
 
 Common pitfall: forgetting to override `name`. The DomainPack registry then reports `default` or the wrong domain, and the run falls back to generic behavior.
 
+### Edit 2 Advanced — Mixin Decomposition (Phase 6R-D, Optional)
+
+If your pack will grow large (>200 LOC) or you want sub-protocol
+boundaries explicit in source, refactor Edit 2's output into the
+**sub-pack mixin pattern** that Phase 6R-D-5/6 (2026-05-26)
+established for production packs. Skeleton:
+
+```python
+class <Domain>ReflectionMixin:
+    def reflection_status_text(self, context): ...
+    # 3 more ReflectionPack methods (or fewer if not all overridden)
+
+class <Domain>MemoryMixin:
+    def importance_profiles(self): ...
+    # 5 more MemoryPack methods
+
+# ... one mixin per sub-protocol the pack overrides
+
+class <Domain>DomainPack(
+    <Domain>ReflectionMixin,
+    <Domain>MemoryMixin,
+    # ... 5 more mixins
+    DefaultDomainPack,  # MUST be last
+):
+    name: str = "<domain>"
+
+    def __init__(self):
+        self._inner = <Domain>Adapter()  # shared state visible to mixins
+```
+
+Reference: `examples/governed_flood/adapters/flood_pack.py`
+(7 mixins, ~480 LOC). The mixin pattern is **opt-in**; the static
+gate at `broker/tests/test_phase_6r_d_decomposition_gate.py`
+enforces it only for production packs (Flood / Irrigation /
+Vaccination). FakeTraffic fixture (115 LOC) is exempt.
+
+Verification: `isinstance(YourPack(), ReflectionPack)` etc. must
+all return `True` (Python `@runtime_checkable` structural check).
+
 ## Edit 3 - Validators
 
 File: `validators/<domain>_validators.py`.

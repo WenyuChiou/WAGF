@@ -1,5 +1,14 @@
 # Multi-Agent Walkthrough (Phase 6E, 2026-05-11)
 
+> **Phase 6R-D note (2026-05-26)**: this walkthrough applies unchanged
+> to both the single-class `XDomainPack(DefaultDomainPack)` pattern
+> and the optional sub-pack mixin pattern (Phase 6R-D-5/6). The
+> multi-agent dual-dict gotcha, `TieredContextBuilder`,
+> `with_phase_order` execution ordering, and `self.env = env`
+> aliasing in `pre_year` are all orthogonal to how the DomainPack
+> class body is structured. See `edit_pass_checklist.md` Edit 2
+> Advanced for the sub-pack mixin recipe.
+
 When the user's S0 interview indicates multiple agent types interacting,
 S5 edit-5 (ExperimentBuilder wiring) is materially different from the
 single-agent template scaffolded by `broker.tools.scaffold_domain`. This
