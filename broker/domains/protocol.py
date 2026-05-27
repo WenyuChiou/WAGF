@@ -248,19 +248,24 @@ class GovernancePack(Protocol):
 
 @runtime_checkable
 class SetupPack(Protocol):
-    """Agent initialisation + orchestration + per-agent narrative (5 methods).
+    """Agent initialisation + orchestration + per-agent narrative (7 methods).
 
     Consumed by ``broker/core/agent_initializer.py``,
-    ``broker/components/orchestration/phases.py``, and per-agent
-    context builders. See ``DomainPack`` for full docstrings. Methods:
-    ``csv_loader_class``, ``synthetic_loader_class``, ``phase_layout``,
-    ``initial_memory_templates``, ``mg_barrier_text``.
+    ``broker/components/orchestration/phases.py``, multi-agent
+    runners, and per-agent context builders. See ``DomainPack`` for
+    full docstrings. Methods: ``csv_loader_class``,
+    ``synthetic_loader_class``, ``phase_layout``,
+    ``initial_memory_templates``, ``mg_barrier_text``,
+    ``institutional_lifecycle_handlers`` (Phase 6T-C 2026-05-27),
+    ``multi_agent_env_keys`` (Phase 6T-C 2026-05-27).
     """
     def csv_loader_class(self) -> Optional[Any]: ...
     def synthetic_loader_class(self) -> Optional[Any]: ...
     def phase_layout(self) -> Optional[List[Any]]: ...
     def initial_memory_templates(self, profile: Dict[str, Any]) -> List[Any]: ...
     def mg_barrier_text(self, profile: Dict[str, Any]) -> str: ...
+    def institutional_lifecycle_handlers(self) -> Dict[str, Any]: ...
+    def multi_agent_env_keys(self) -> Set[str]: ...
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -880,6 +885,56 @@ class DomainPack(
 
         Default ``None`` (no-op) → generic layout. The flood pack
         overrides to return ``water_default_phases()``.
+        """
+        ...
+
+    # ─── Phase 6T-C (2026-05-27): institutional lifecycle dispatch ─
+
+    def institutional_lifecycle_handlers(self) -> Dict[str, Any]:
+        """Phase 6T-C: per-agent-type lifecycle-handler dispatch table.
+
+        Returns ``Dict[agent_type, InstitutionalLifecycleHandler]``
+        (the value type is
+        :class:`broker.components.orchestration.institutional_lifecycle.InstitutionalLifecycleHandler`
+        but typed ``Any`` here to avoid forcing every pack import the
+        broker module). The multi-agent runner consults this map to
+        dispatch ``pre_year`` / ``post_decision`` / ``post_year``
+        hooks per agent_type without growing a bespoke ``elif
+        agent.agent_type == "X":`` chain in the lifecycle file.
+
+        Pre-6T-C the flood ``MultiAgentHooks`` class baked agent-type
+        branches into ``post_step`` (lines 547-665 of the bespoke
+        ``examples/multi_agent/flood/orchestration/lifecycle_hooks.py``).
+        Adding a new institutional agent_type required bloating that
+        file with another branch. The hook opens the dispatch
+        contract so Phase 6T-F's ``social_media_influencer`` (or any
+        future institutional type) registers a handler instead.
+
+        Default ``{}`` (no-op) → multi-agent runner gets no
+        per-agent-type handlers and the legacy lifecycle file owns
+        the entire dispatch surface. Closes engineering-audit R5+R6
+        as an extension point; actual code-movement out of the
+        bespoke flood file is deferred to Phase 6T-F when the second
+        consumer materialises.
+        """
+        ...
+
+    def multi_agent_env_keys(self) -> Set[str]:
+        """Phase 6T-C: whitelist of env-dict keys this domain pack
+        owns + injects when running multi-agent.
+
+        Codifies the env-dict-whitelist convention previously
+        implemented as an emergent pattern in each multi-agent
+        lifecycle file (e.g. ``govt_budget_remaining``,
+        ``crs_discount``, ``subsidy_rate`` for flood). The
+        multi-agent runner can use this set to safely synchronise
+        env state across phase boundaries without trampling keys
+        owned by other domains.
+
+        Default empty set — domains without multi-agent runs return
+        ``set()`` (the pre-6T-C silent contract). The flood pack
+        documents its multi-agent env keys here for the first time;
+        future multi-agent domains add their own.
         """
         ...
 

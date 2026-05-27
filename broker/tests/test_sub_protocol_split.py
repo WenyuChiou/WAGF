@@ -100,6 +100,12 @@ class TestSubProtocolMethodOwnership:
             "phase_layout",
             "initial_memory_templates",
             "mg_barrier_text",
+            # Phase 6T-C (2026-05-27) additions — institutional
+            # lifecycle dispatch extension point + env-key whitelist.
+            # Closes R5+R6 as an extension point; actual extraction
+            # of bespoke flood code deferred to Phase 6T-F.
+            "institutional_lifecycle_handlers",
+            "multi_agent_env_keys",
         },
     }
 
@@ -122,15 +128,17 @@ class TestSubProtocolMethodOwnership:
             f"declared={sorted(declared)} expected={sorted(expected)}"
         )
 
-    def test_total_method_count_is_36(self):
-        """Sanity check: union of all 7 sub-protocol method-sets is 36 —
+    def test_total_method_count_is_38(self):
+        """Sanity check: union of all 7 sub-protocol method-sets is 38 —
         the original 32 (per ``.research/domain_pack_protocol_reference.md``)
         plus 3 Phase 6T-A EventPack additions
         (``event_type_to_domain``, ``event_persistence_policy``,
         ``silent_skip_event_types``) plus 1 Phase 6T-B GovernancePack
-        addition (``framework_for_agent_type``)."""
+        addition (``framework_for_agent_type``) plus 2 Phase 6T-C
+        SetupPack additions (``institutional_lifecycle_handlers``,
+        ``multi_agent_env_keys``)."""
         total = sum(len(s) for s in self.EXPECTED_METHODS.values())
-        assert total == 36
+        assert total == 38
 
     def test_no_method_belongs_to_two_sub_protocols(self):
         """Critical invariant — each method has exactly ONE sub-protocol
