@@ -67,6 +67,12 @@ class TestSubProtocolMethodOwnership:
         EventPack: {
             "event_handlers",
             "agent_impact_handlers",
+            # Phase 6T-A (2026-05-27) additions — dispatch safety +
+            # event lifecycle policy hooks. See
+            # broker/components/events/exceptions.py for rationale.
+            "event_type_to_domain",
+            "event_persistence_policy",
+            "silent_skip_event_types",
         },
         PerceptionPack: {
             "perception_descriptors",
@@ -111,12 +117,14 @@ class TestSubProtocolMethodOwnership:
             f"declared={sorted(declared)} expected={sorted(expected)}"
         )
 
-    def test_total_method_count_is_32(self):
-        """Sanity check: union of all 7 sub-protocol method-sets is 32 —
-        matches the audit count in
-        ``.research/domain_pack_protocol_reference.md``."""
+    def test_total_method_count_is_35(self):
+        """Sanity check: union of all 7 sub-protocol method-sets is 35 —
+        the original 32 (per ``.research/domain_pack_protocol_reference.md``)
+        plus 3 Phase 6T-A EventPack additions
+        (``event_type_to_domain``, ``event_persistence_policy``,
+        ``silent_skip_event_types``)."""
         total = sum(len(s) for s in self.EXPECTED_METHODS.values())
-        assert total == 32
+        assert total == 35
 
     def test_no_method_belongs_to_two_sub_protocols(self):
         """Critical invariant — each method has exactly ONE sub-protocol

@@ -5,15 +5,46 @@ Extends EnvironmentEventManager to handle:
 1. Event dependencies (impact events depend on hazard events)
 2. Phase-based generation (pre_year, per_step, post_year)
 3. TieredEnvironment synchronization
+
+Phase 6T-A (2026-05-27): dispatch safety + lifecycle policy. The
+pre-6T-A scan-all-silent-skip dispatch and unconditional
+``clear_year`` are replaced with:
+
+- Explicit per-pack ownership via :meth:`DomainPack.event_type_to_domain`
+  + hard-fail via :class:`UnhandledEventError` on unmatched event_type.
+- Per-pack ``silent_skip_event_types()`` opt-in allowlist for
+  legitimately observational events.
+- Handler exception capture via :class:`BrokerHandlerError` records +
+  :class:`EventDispatchMetrics` counters; failed handlers no longer
+  crash the year.
+- ``clear_year`` split into :meth:`clear_ephemeral_events` (year
+  boundary; honours :class:`EventPersistence` per pack) and
+  :meth:`clear_all_events` (hard reset).
+- Topological-cycle silent fallback replaced with
+  :class:`PhaseDependencyCycleError`.
+
+Rationale + audit trail: ``~/.claude/plans/swirling-knitting-lighthouse.md``
+(Phase 6T-A scope) + ``broker/components/events/exceptions.py`` (per-class
+docstrings).
 """
-from typing import Dict, List, Any, Optional, Set
+import logging
+from typing import Dict, List, Any, Optional, Set, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
 
 from broker.interfaces.event_generator import EnvironmentEvent, EventScope
 from broker.domains.protocol import EventHandler
 from broker.domains.registry import DomainPackRegistry
+from .exceptions import (
+    BrokerHandlerError,
+    EventDispatchMetrics,
+    EventPersistence,
+    PhaseDependencyCycleError,
+    UnhandledEventError,
+)
 from .manager import EnvironmentEventManager
+
+logger = logging.getLogger(__name__)
 
 
 class EventPhase(Enum):
@@ -81,6 +112,10 @@ class MAEventManager(EnvironmentEventManager):
             phase: [] for phase in EventPhase
         }
         self._event_context: Dict[str, List[EnvironmentEvent]] = {}
+        # Phase 6T-A: per-year dispatch counters. Reset on
+        # clear_ephemeral_events (year boundary) and on hard
+        # clear_all_events. Read by the audit writer (Phase 6T-G).
+        self.metrics: EventDispatchMetrics = EventDispatchMetrics()
 
     def register_with_deps(
         self,
@@ -154,10 +189,23 @@ class MAEventManager(EnvironmentEventManager):
                     if in_degree[d] == 0:
                         queue.append(d)
 
-        # If not all nodes processed, there's a cycle
+        # Phase 6T-A (2026-05-27): cycle detection now hard-fails.
+        # Pre-6T-A behaviour returned the original (unsorted) order,
+        # silently producing a meaningless ordering where dependent
+        # generators saw stale context from prior years. The audit
+        # plan (~/.claude/plans/swirling-knitting-lighthouse.md, R3)
+        # flagged this as a Phase 6T BLOCKER — institutional /
+        # social-media generators can introduce cycles via shared
+        # dependencies, and silent fallback masks the misconfig until
+        # headline metrics diverge.
         if len(result) != len(domains):
-            # Fall back to original order
-            return domains
+            unresolved = [d for d in domains if d not in result]
+            raise PhaseDependencyCycleError(
+                f"Generator dependency cycle detected in phase "
+                f"{phase.value!r}. Unresolved domains: {unresolved!r}. "
+                f"Phase order requested: {domains!r}. Fix by breaking "
+                f"the cycle in your generator's depends_on declarations."
+            )
 
         return result
 
@@ -235,10 +283,85 @@ class MAEventManager(EnvironmentEventManager):
         """Generate POST_YEAR phase events."""
         return self.generate_phase(EventPhase.POST_YEAR, year, 0, context)
 
+    # ------------------------------------------------------------------
+    # Year-boundary clear (Phase 6T-A split)
+    # ------------------------------------------------------------------
+
     def clear_year(self) -> None:
-        """Clear event context at end of year."""
+        """Phase 6T-A: alias for :meth:`clear_ephemeral_events`.
+
+        Kept as a back-compat shim so existing callers continue to
+        get year-boundary behaviour. New code should call
+        :meth:`clear_ephemeral_events` (year boundary, honours
+        ``EventPersistence``) or :meth:`clear_all_events` (hard reset)
+        explicitly.
+        """
+        self.clear_ephemeral_events()
+
+    def clear_ephemeral_events(self) -> None:
+        """Phase 6T-A: clear at year boundary, honouring per-event
+        :class:`EventPersistence`.
+
+        Events tagged ``EPHEMERAL`` (the default for every event_type
+        unless its owning pack overrides
+        :meth:`DomainPack.event_persistence_policy`) are discarded.
+        ``STICKY_YEAR_DECAY`` and ``STICKY_INDEFINITE`` events survive
+        — consumers (Phase 6T-E social-media feed retrieval) read them
+        across year boundaries with weighted age decay.
+
+        Also resets :attr:`metrics` so a new year starts with clean
+        dispatch counters.
+        """
+        self._current_events = self._filter_persistent(self._current_events)
+        self._event_context = self._filter_persistent(self._event_context)
+        self.metrics.reset()
+
+    def clear_all_events(self) -> None:
+        """Phase 6T-A: hard reset — discard ALL events regardless of
+        persistence policy.
+
+        Used by test teardown + experiment restart paths where retained
+        state would pollute the next run. Pre-6T-A this was the
+        unconditional behaviour of :meth:`clear_year`.
+        """
         self._event_context.clear()
         self._current_events.clear()
+        self.metrics.reset()
+
+    def _filter_persistent(
+        self,
+        store: Dict[str, List[EnvironmentEvent]],
+    ) -> Dict[str, List[EnvironmentEvent]]:
+        """Phase 6T-A helper — return a copy of ``store`` keeping only
+        events whose owning pack flags them as non-EPHEMERAL.
+
+        An event with no resolvable owning pack (no registered pack
+        claims the event_type) is treated as EPHEMERAL and dropped.
+        Conservative default — Phase 6T-A's new dispatch path already
+        raises :class:`UnhandledEventError` for unhandled events at
+        sync time, so we should never see truly-unknown events here.
+        """
+        kept: Dict[str, List[EnvironmentEvent]] = {}
+        for key, events in store.items():
+            persistent: List[EnvironmentEvent] = []
+            for event in events:
+                if self._is_persistent(event):
+                    persistent.append(event)
+            if persistent:
+                kept[key] = persistent
+        return kept
+
+    def _is_persistent(self, event: EnvironmentEvent) -> bool:
+        """Return True iff a registered pack tags this event_type as
+        non-EPHEMERAL via :meth:`DomainPack.event_persistence_policy`.
+        """
+        for name in DomainPackRegistry.domains():
+            pack = DomainPackRegistry.get_event_pack(name)
+            if pack.event_type_to_domain(event.event_type) is None:
+                continue
+            policy = pack.event_persistence_policy(event.event_type)
+            return policy != EventPersistence.EPHEMERAL
+        return False
 
     def sync_to_environment(
         self,
@@ -272,38 +395,118 @@ class MAEventManager(EnvironmentEventManager):
     def _sync_event_to_env(self, env: Any, event: EnvironmentEvent) -> None:
         """Sync a single event to environment state.
 
-        Phase 6C-v2 (2026-05-10): event_type → handler dispatch is
-        plugin-driven via ``DomainPack.event_handlers()``. A domain pack
-        registers handlers for its own event types; generic code here
-        names no domain. Phase 6J-B (2026-05-22): the pre-refactor
-        hardcoded flood fallback chain was removed — an event type that
-        no registered domain handles is silently skipped.
+        Phase 6T-A (2026-05-27) — DISPATCH SAFETY OVERHAUL.
+
+        Pre-6T-A behaviour: ``env.domain`` look-up, falling back to a
+        scan-all-packs-and-silently-skip-if-nothing-matches path. Bugs
+        (typos, forgotten registrations) disappeared into a black hole.
+
+        New behaviour:
+
+        1. If ``env.domain`` is set, resolve the pack via
+           :meth:`DomainPackRegistry.get_event_pack` and look up
+           ``event_handlers()[event.event_type]``.
+        2. Otherwise, scan registered packs and pick the first whose
+           :meth:`DomainPack.event_type_to_domain` claims this
+           ``event_type``.
+        3. Handler invocation is wrapped in ``try/except`` — exceptions
+           are captured as :class:`BrokerHandlerError` records in
+           :attr:`metrics`, logged, and SUPPRESSED so the year
+           continues. Pre-6T-A any uncaught handler exception killed
+           the year. Counts increment :attr:`metrics.handlers_failed`.
+        4. If no pack handles + no pack lists ``event_type`` in
+           :meth:`silent_skip_event_types`, raise
+           :class:`UnhandledEventError`. Explicit silent skip ⇒
+           :attr:`metrics.handlers_silently_skipped` increments and
+           dispatch continues.
         """
         gs = env.global_state
-
-        # Resolve domain — try env.domain attr, then fall back to scanning
-        # registered domains for one whose handlers cover this event type.
         domain_name = getattr(env, "domain", None)
-        if domain_name is None:
-            # Scan all registered domains for a handler covering this
-            # event type. First match wins. Preserves prior behaviour
-            # where a domain's event types were handled regardless of
-            # which domain was active.
-            for name in DomainPackRegistry.domains():
-                pack = DomainPackRegistry.get(name)
-                if pack and event.event_type in pack.event_handlers():
-                    handler = pack.event_handlers()[event.event_type]
-                    handler(event, gs)
-                    return
-            # No handler found across any domain — silent skip
-            # (matches pre-refactor: unknown event_type fell through).
+
+        handler, owning_domain = self._resolve_handler(event.event_type, domain_name)
+
+        if handler is None:
+            # No handler — check the per-pack silent-skip allowlist
+            # before raising. Phase 6T-A explicit opt-in for
+            # observational / metrics-only event types.
+            if self._is_silent_skip(event.event_type):
+                self.metrics.record_silent_skip()
+                return
+            raise UnhandledEventError(
+                event_type=event.event_type,
+                domain_name=domain_name,
+                registered_domains=DomainPackRegistry.domains(),
+            )
+
+        try:
+            handler(event, gs)
+        except Exception as exc:  # noqa: BLE001 — dispatch safety net
+            error = BrokerHandlerError(
+                event_type=event.event_type,
+                handler_qualname=getattr(handler, "__qualname__", repr(handler)),
+                exception_type=type(exc).__name__,
+                exception_message=str(exc),
+            )
+            self.metrics.record_failure(error)
+            logger.error(
+                "[MAEventManager] handler for event_type=%r (domain=%r) raised "
+                "%s: %s. Year continues; failure recorded in EventDispatchMetrics.",
+                event.event_type, owning_domain, type(exc).__name__, exc,
+                exc_info=True,
+            )
             return
 
-        # Phase 6R-D-4 (2026-05-26): EventPack-narrowed accessor.
-        pack = DomainPackRegistry.get_event_pack(domain_name)
-        handler = pack.event_handlers().get(event.event_type)
-        if handler is not None:
-            handler(event, gs)
+        self.metrics.record_invoke()
+
+    def _resolve_handler(
+        self,
+        event_type: str,
+        domain_name: Optional[str],
+    ) -> Tuple[Optional[EventHandler], Optional[str]]:
+        """Phase 6T-A: resolve ``(handler, owning_domain)`` for an
+        event_type.
+
+        Strategy:
+
+        1. If ``domain_name`` is set, narrow directly via
+           :meth:`DomainPackRegistry.get_event_pack`.
+        2. Otherwise, scan registered packs and accept the first
+           whose :meth:`event_type_to_domain` claims ownership.
+
+        Returns ``(None, None)`` when no pack claims ownership —
+        caller decides whether to silently skip or raise.
+        """
+        if domain_name is not None:
+            pack = DomainPackRegistry.get_event_pack(domain_name)
+            handler = pack.event_handlers().get(event_type)
+            if handler is not None:
+                return handler, domain_name
+            # env.domain was set but the pack doesn't handle this type
+            # — fall through to scan-all so a cross-domain event
+            # (e.g. a social-media post emitted by the flood pack and
+            # handled by a social-media pack) still finds its handler.
+
+        for name in DomainPackRegistry.domains():
+            pack = DomainPackRegistry.get_event_pack(name)
+            claimed = pack.event_type_to_domain(event_type)
+            if claimed is None:
+                continue
+            handler = pack.event_handlers().get(event_type)
+            if handler is not None:
+                return handler, name
+            # Pack claims ownership but has no handler — keep scanning
+            # in case another pack (an observer / handler split) does.
+
+        return None, None
+
+    def _is_silent_skip(self, event_type: str) -> bool:
+        """Phase 6T-A: union of every registered pack's
+        :meth:`silent_skip_event_types` allowlist."""
+        for name in DomainPackRegistry.domains():
+            pack = DomainPackRegistry.get_event_pack(name)
+            if event_type in pack.silent_skip_event_types():
+                return True
+        return False
 
     def get_events_by_type(
         self,
@@ -338,6 +541,14 @@ class MAEventManager(EnvironmentEventManager):
     def get_agent_impact(self, agent_id: str) -> Dict[str, Any]:
         """Aggregate per-agent impact across all current events.
 
+        Phase 6T-A (2026-05-27): handler invocations are wrapped in
+        try/except — exceptions captured into :attr:`metrics` rather
+        than propagated, matching the safety semantics of
+        :meth:`_sync_event_to_env`. An event whose ``event_type`` has
+        no impact handler is treated as no-op (impact handlers are
+        opt-in per pack); the explicit-skip path lives on the env-sync
+        side, not here, because impact handlers are inherently sparse.
+
         Phase 6J-B (2026-05-22): the hardcoded flood event-type chain
         was replaced by ``DomainPack.agent_impact_handlers()`` dispatch.
         The impact dict shape is now domain-defined — a domain's handlers
@@ -360,10 +571,40 @@ class MAEventManager(EnvironmentEventManager):
                 if not event.affects_agent(agent_id):
                     continue
                 handler = handlers.get(event.event_type)
-                if handler is not None:
+                if handler is None:
+                    continue
+                try:
                     handler(event, impact)
+                except Exception as exc:  # noqa: BLE001 — dispatch safety
+                    error = BrokerHandlerError(
+                        event_type=event.event_type,
+                        handler_qualname=getattr(handler, "__qualname__", repr(handler)),
+                        exception_type=type(exc).__name__,
+                        exception_message=str(exc),
+                        agent_id=agent_id,
+                    )
+                    self.metrics.record_failure(error)
+                    logger.error(
+                        "[MAEventManager] agent-impact handler for "
+                        "event_type=%r agent=%r raised %s: %s",
+                        event.event_type, agent_id, type(exc).__name__, exc,
+                        exc_info=True,
+                    )
+                    continue
+                self.metrics.record_invoke()
 
         return impact
 
 
-__all__ = ["MAEventManager", "EventPhase", "GeneratorSpec"]
+__all__ = [
+    "MAEventManager",
+    "EventPhase",
+    "GeneratorSpec",
+    # Phase 6T-A re-exports for callers building on the dispatch
+    # subsystem — fewer cross-package imports for downstream code.
+    "BrokerHandlerError",
+    "EventDispatchMetrics",
+    "EventPersistence",
+    "PhaseDependencyCycleError",
+    "UnhandledEventError",
+]

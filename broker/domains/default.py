@@ -77,6 +77,57 @@ class DefaultDomainPack:
     def agent_impact_handlers(self) -> Dict[str, EventHandler]:
         return {}
 
+    # ─── Phase 6T-A (2026-05-27): dispatch + lifecycle defaults ──
+
+    def event_type_to_domain(self, event_type: str) -> Optional[str]:
+        """Phase 6T-A default: this pack OWNS ``event_type`` for ENV
+        SYNC iff it appears in :meth:`event_handlers`. Returns
+        ``self.name`` on ownership, ``None`` otherwise.
+
+        Impact-only event types (in :meth:`agent_impact_handlers` but
+        NOT :meth:`event_handlers`) are dispatched via the separate
+        :meth:`MAEventManager.get_agent_impact` path and DO NOT count
+        as env-sync ownership. Pack authors who deliberately register
+        an event_type for impact-only aggregation MUST also list it
+        in :meth:`silent_skip_event_types` so the env-sync dispatcher
+        skips it instead of raising :class:`UnhandledEventError`.
+
+        Rationale (Phase 6T-A code-review P1 catch, 2026-05-27): the
+        pre-6T-A dispatcher silently skipped impact-only types
+        (because they weren't in ``event_handlers``); the 6T-A
+        explicit-opt-in contract requires the pack to declare
+        intentional env-sync skip via :meth:`silent_skip_event_types`.
+        Including impact handlers in the ownership check would
+        regress to "claimed but no handler" → raise, which is wrong.
+
+        Override in a pack to claim event_types the pack emits but
+        doesn't directly handle (Phase 6T-E social-media observer
+        pattern).
+        """
+        if event_type in self.event_handlers():
+            return self.name
+        return None
+
+    def event_persistence_policy(self, event_type: str):
+        """Phase 6T-A default: every event is ``EPHEMERAL``. Matches
+        the pre-6T-A behaviour where ``MAEventManager.clear_year``
+        discarded everything at the year boundary.
+
+        Override in a pack to opt specific event_types into
+        ``STICKY_YEAR_DECAY`` (Phase 6T-E social-media posts) or
+        ``STICKY_INDEFINITE`` (Phase 6T-F influencer reputation, etc.).
+        """
+        from broker.components.events.exceptions import EventPersistence
+        return EventPersistence.EPHEMERAL
+
+    def silent_skip_event_types(self) -> Set[str]:
+        """Phase 6T-A default: empty set — no event_types are
+        legitimately unhandled. Override to acknowledge
+        observational / metrics-only events the pack emits but does
+        not act on.
+        """
+        return set()
+
     # ─── Memory policy (Phase 6K-A) ───────────────────────────────
 
     def action_taxonomy(self) -> Dict[str, ActionTaxonomyEntry]:

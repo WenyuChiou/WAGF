@@ -321,6 +321,21 @@ class FloodEventMixin:
             "insurance_payout": _impact_insurance_payout,
         }
 
+    def silent_skip_event_types(self) -> Set[str]:
+        """Phase 6T-A (2026-05-27): ``flood_damage`` and
+        ``insurance_payout`` are deliberately impact-only — they
+        appear in :meth:`agent_impact_handlers` but NOT in
+        :meth:`event_handlers` (they aggregate per-agent damage /
+        payout, not global env state). Pre-6T-A the env-sync
+        dispatcher silently skipped them; the 6T-A explicit-opt-in
+        contract requires this list to preserve that intentional
+        skip and avoid :class:`UnhandledEventError`. Code-review P1
+        catch — without this override the dispatcher raises on
+        every flood_damage / insurance_payout fed to
+        ``sync_to_environment``.
+        """
+        return {"flood_damage", "insurance_payout"}
+
 
 class FloodPerceptionMixin:
     """PerceptionPack methods — verbalisation rules + field stripping
