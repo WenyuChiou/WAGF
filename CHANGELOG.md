@@ -38,6 +38,23 @@ genericity gate. See `~/.claude/plans/breezy-dazzling-knuth.md`.
 
 ### Changed
 
+- **Phase 6S-B — 6R-E docs + skill migration: teach sub-protocol architecture** (2026-05-26). Closes the deferred Phase 6R-E docs migration item from the Phase 6R-F CHANGELOG entry. The `wagf-domain-builder` skill + `HOW_TO_ADD_A_NEW_DOMAIN.md` now teach the Phase 6R-D sub-protocol architecture (7 sub-protocols + typed accessors + sub-pack mixin pattern). Anti-bloat principle: docs LINK to the canonical reference (`.research/domain_pack_protocol_reference.md`) rather than duplicate its 32-method consumer-graph table.
+  - **`docs/guides/HOW_TO_ADD_A_NEW_DOMAIN.md`** (~140 LOC added across 3 sections):
+    - Top-of-file note: brief Phase 6R-D update explaining the sub-protocol architecture exists; single-class teaching still works.
+    - **NEW "Sub-protocol architecture (Phase 6R-D, optional advanced pattern)" subsection** between Step 5 and Step 6 — table of 7 sub-protocols + consumer subsystems, code skeleton of mixin pattern, acceptance criteria for the mixin pattern, single-source-of-truth pointer to `.research/`.
+    - Reference section: 5 new entries pointing at `.research/domain_pack_protocol_reference.md`, `broker/tests/test_sub_protocol_split.py`, `broker/tests/test_phase_6r_d_decomposition_gate.py`, `broker/tools/gen_test_fixture.py`, `broker/tools/compare_audit_csv.py`. Annotated existing `broker/domains/protocol.py` + `broker/domains/registry.py` entries with Phase 6R-D-1 / 6R-D-3 phase tags.
+  - **`.claude/skills/wagf-domain-builder/SKILL.md`** (~50 LOC across 2 sections):
+    - S5 appendix "Phase 6R-D sub-pack mixin pattern (optional)" — mixin recipe, when to use it, acceptance criteria, reference example.
+    - Acceptance criteria addendum: scaffold output is single-class by design; mixin pattern is opt-in.
+  - **`.claude/skills/wagf-domain-builder/references/edit_pass_checklist.md`** (~35 LOC):
+    - NEW "Edit 2 Advanced — Mixin Decomposition (Phase 6R-D, Optional)" section right after the existing Edit 2 common-pitfall note. Skeleton template + reference + isinstance verification recipe.
+  - **`.claude/skills/wagf-domain-builder/references/multi_agent_walkthrough.md`** (~8 LOC):
+    - Top-of-file Phase 6R-D note clarifying that the multi-agent walkthrough is orthogonal to sub-pack decomposition — applies to both single-class and mixin patterns.
+  - **`broker/tools/scaffold_domain.py`**: 0 LOC change. Per Phase 6R-D-6 rationale (Agent 3 of Phase 6S planning audit confirmed), the scaffold correctly produces single-class output as the simpler default; mixin pattern is opt-in for advanced authors who refactor post-scaffold. Updating the scaffold to emit mixins by default would impose ceremony on every new domain.
+  - **Anti-bloat principle**: the new HOW_TO subsection cites `.research/domain_pack_protocol_reference.md` as the source of truth for the per-method MUST/SHOULD/MAY classification rather than duplicating the 32-method table. This keeps the user-facing guide short + skimmable while preserving canonical depth.
+  - **Test gate**: `pytest broker/ tests/` → **2611 passed** (unchanged — pure docs). Markdown rendered cleanly when sanity-loaded.
+  - **Files changed**: 4 + CHANGELOG. ~235 LOC delta net.
+
 - **Phase 6S-A — MA flood (Paper 3) mock byte-identity smoke test** (2026-05-26). Closes the regression-gap left by Phase 6R-D-4 (commit `95c467e`): the typed-accessor migration at `broker/components/events/ma_manager.py:302` (`DomainPackRegistry.get_or_default` → `get_event_pack`) was verified for single-agent flood + irrigation but NOT for the multi-agent flood pipeline (Paper 3 core artifact, 400 agents × 13 yr). This commit adds the cheapest viable in-CI regression check.
   - **NEW `examples/multi_agent/flood/paper3/tests/test_ma_flood_6r_regression.py`** (~165 LOC, 8 tests across 2 classes):
     - `TestMAFloodSmokeOutput` (6 tests via parametrize): runs `examples/multi_agent/flood/run_unified_experiment.py --model mock --agents 5 --years 1 --seed 42 --mode random` once per module via subprocess (~4 sec), asserts all 4 per-agent-type audit CSVs emitted (`government_governance_audit.csv` / `household_owner_governance_audit.csv` / `household_renter_governance_audit.csv` / `insurance_governance_audit.csv`) + each has ≥1 decision row + reproducibility_manifest.json written.

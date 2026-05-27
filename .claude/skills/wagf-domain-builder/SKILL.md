@@ -233,6 +233,55 @@ Don't allow multiple edits to accumulate undetected drift.
 Output: 5 edited files + 4 clean validate_prompt runs (edits 1-4)
 + a working `run_experiment.py` ready for S6 smoke (edit 5).
 
+#### S5 appendix — Phase 6R-D sub-pack mixin pattern (optional)
+
+The scaffold + Edit 2 above produce a single-class
+`<Domain>DomainPack(DefaultDomainPack)` — that's the simpler default
+and what regression tests pin. For domains whose pack will grow
+large (>200 LOC) OR where sub-protocol boundaries should be
+explicit in source, refactor into the **mixin pattern**
+introduced by Phase 6R-D-5/6 (2026-05-26):
+
+```python
+class FloodReflectionMixin:
+    def reflection_status_text(self, context): ...
+    # 3 more ReflectionPack methods
+
+class FloodMemoryMixin:
+    def importance_profiles(self): ...
+    # 5 more MemoryPack methods
+
+# ... one mixin per sub-protocol the pack overrides
+
+class FloodDomainPack(
+    FloodReflectionMixin,
+    FloodMemoryMixin,
+    # ... 5 more mixins
+    DefaultDomainPack,  # MUST be last
+):
+    name: str = "flood"
+    def __init__(self): self._inner = FloodAdapter()
+```
+
+The 7 sub-protocols are defined in `broker/domains/protocol.py`:
+`ReflectionPack` / `MemoryPack` / `SkillPack` / `EventPack` /
+`PerceptionPack` / `GovernancePack` / `SetupPack`. Reference
+implementation: `examples/governed_flood/adapters/flood_pack.py`.
+Full canonical doc: `.research/domain_pack_protocol_reference.md`.
+
+Static gate at
+`broker/tests/test_phase_6r_d_decomposition_gate.py` pins the
+mixin pattern for production packs — FakeTraffic
+(`examples/_test_fixtures/fake_traffic/pack.py`) is intentionally
+exempt (115 LOC, no productive value in splitting).
+
+**Acceptance criteria for the mixin pattern**: the existing pack
+regression tests (`tests/test_domain_pack_contract.py`) must stay
+green + `isinstance(pack, <each sub-protocol>)` returns `True` for
+all 7 + composite. See
+`broker/tests/test_sub_protocol_split.py::TestRegisteredPacksSatisfySubProtocols`
+for the verification pattern.
+
 ### S6 — Mock smoke run (5 min)
 
 Run the scaffolded `run_experiment.py`:
@@ -372,6 +421,11 @@ The skill is ready when:
 - For input "Just scaffold me an energy domain quickly, skip the
   questions", refuses to skip S0 and explains why each question
   matters.
+- Scaffold output is the **single-class**
+  `<Domain>DomainPack(DefaultDomainPack)` form by design (simpler
+  default, ~80 LOC). The Phase 6R-D sub-pack mixin pattern is opt-in
+  for advanced authors — see the S5 appendix above. Both forms are
+  isinstance-correct against all 7 sub-protocols.
 
 ## Future extensions (v2)
 

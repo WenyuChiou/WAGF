@@ -2,6 +2,17 @@
 
 This guide walks through plugging a non-water topic — e.g., **vaccination decision-making** — into the WAGF framework. After Phase 6C-v2 (2026-05-10), adding a new domain requires **one class** (a `DomainPack`) and **one registration call**. Zero edits to `broker/`.
 
+> **Phase 6R-D update (2026-05-26)**: `DomainPack` is now formally
+> composed of 7 sub-protocols (`ReflectionPack` / `MemoryPack` /
+> `SkillPack` / `EventPack` / `PerceptionPack` / `GovernancePack` /
+> `SetupPack`) — see the new "Sub-protocol architecture (Phase 6R-D)"
+> subsection after Step 5 below. The single-class
+> `class XDomainPack(DefaultDomainPack)` pattern this guide teaches
+> STILL works (it remains the scaffold default + simplest entry
+> point); mixin decomposition is opt-in for advanced cohesion. Full
+> per-method consumer-graph reference at
+> `.research/domain_pack_protocol_reference.md`.
+
 ## Minimum DomainPack surface (Phase 6Q-A, 2026-05-26)
 
 `DomainPack` has ~30 methods but only **3 are MUST-override** — every other method has a safe no-op default on `DefaultDomainPack`. The 3-method minimum:
@@ -388,6 +399,91 @@ class VaccinationDomainPack:
         return []
 ```
 
+### Sub-protocol architecture (Phase 6R-D, optional advanced pattern)
+
+The single-class `VaccinationDomainPack(DefaultDomainPack)` above is
+sufficient for any new domain — it's what `scaffold_domain` generates,
+and it's what the regression tests pin. **Read this section only if
+your pack will grow large (>200 LOC) or if you want sub-protocol
+boundaries explicit in source.**
+
+Phase 6R-D-1 (2026-05-26) split the `DomainPack` Protocol into seven
+sub-protocols, one per cohesive method group:
+
+| Sub-protocol | Methods | Consumer subsystem |
+|---|---|---|
+| `ReflectionPack` | 4 | `broker/components/cognitive/reflection.py` |
+| `MemoryPack` | 6 | `broker/components/memory/*.py` |
+| `SkillPack` | 4 | `broker/core/experiment_runner.py` + validators |
+| `EventPack` | 2 | `broker/components/events/ma_manager.py` |
+| `PerceptionPack` | 3 | `broker/components/social/perception.py` |
+| `GovernancePack` | 8 | governance + validators + `validate_prompt` |
+| `SetupPack` | 5 | `broker/core/agent_initializer.py` + orchestration |
+
+Broker consumer subsystems now use **typed accessors** to narrow the
+DomainPack surface they need:
+
+```python
+# Old (still works):
+pack = DomainPackRegistry.get_or_default(domain)
+status = pack.reflection_status_text(context)
+
+# New typed accessor (Phase 6R-D-3) — Python type-checker can verify
+# the call site only touches ReflectionPack methods:
+ref_pack = DomainPackRegistry.get_reflection_pack(domain)
+status = ref_pack.reflection_status_text(context)
+```
+
+If your pack is large enough to benefit from internal organisation,
+the Phase 6R-D-5/6 example packs (`FloodDomainPack` /
+`IrrigationDomainPack` / `VaccinationDomainPack`) use the **sub-pack
+mixin pattern**:
+
+```python
+class FloodReflectionMixin:
+    def reflection_status_text(self, context): ...
+    def reflection_questions(self): ...
+    # ... 2 more ReflectionPack methods
+
+class FloodMemoryMixin:
+    def importance_profiles(self): ...
+    # ... 5 more MemoryPack methods
+
+# ... one mixin per sub-protocol the pack overrides
+
+class FloodDomainPack(
+    FloodReflectionMixin,
+    FloodMemoryMixin,
+    # ... 5 more mixins (or fewer if pack doesn't override every sub-protocol)
+    DefaultDomainPack,  # MUST be last — provides no-op fallbacks
+):
+    name: str = "flood"
+
+    def __init__(self) -> None:
+        self._inner = FloodAdapter()  # shared state visible to all mixins
+```
+
+**Acceptance criteria for the mixin pattern**:
+
+1. Each mixin class is named `<Domain><SubProtocol>Mixin` (no
+   trailing `Pack` to avoid confusion with the Protocol classes).
+2. The composite class inherits from the mixins **before**
+   `DefaultDomainPack` so Python MRO finds your overrides first.
+3. `isinstance(YourDomainPack(), ReflectionPack)` (and the other
+   6 sub-protocols + composite `DomainPack`) all return `True` —
+   regression test at `broker/tests/test_sub_protocol_split.py`
+   verifies this for the production packs.
+4. The static gate at
+   `broker/tests/test_phase_6r_d_decomposition_gate.py` pins the
+   mixin pattern for `Flood / Irrigation / Vaccination`. FakeTraffic
+   is intentionally exempt (115 LOC, no productive value in
+   splitting).
+
+**Sub-protocol single-source-of-truth**:
+`.research/domain_pack_protocol_reference.md` carries the per-method
+consumer-graph + MUST/SHOULD/MAY classification for all 32 methods.
+Consult before adding a NEW method to `DomainPack` Protocol.
+
 ### Step 6 — Register the pack at import time
 
 ```python
@@ -640,15 +736,20 @@ Flood Paper 3 doesn't hit this because it uses `.with_simulation(TieredEnvironme
 - `examples/irrigation_abm/` — reference implementation (water demand)
 - `examples/governed_flood/` — reference implementation (flood adaptation)
 - `examples/vaccination_demo/` — first non-water reference example (HBM-based, ~600 LOC)
-- `broker/domains/protocol.py` — DomainPack Protocol contract
+- `broker/domains/protocol.py` — DomainPack Protocol contract (Phase 6R-D-1: 7 sub-protocols defined here)
 - `broker/domains/default.py` — DefaultDomainPack no-op fallback
-- `broker/domains/registry.py` — DomainPackRegistry semantics
+- `broker/domains/registry.py` — DomainPackRegistry semantics (Phase 6R-D-3: typed accessors `get_<x>_pack`)
 - `tests/test_domain_pack_contract.py` — regression tests; copy/paste pattern for your own pack
 - `.ai/domain_pack_design_2026-05-10.md` — full architectural rationale
 - `.ai/vaccination_poc_findings_2026-05-10.md` — 6-BLOCKER inventory + lessons learned (single-agent)
 - `examples/multi_agent/flood/` — Paper 3 multi-agent reference (production-grade)
 - `.ai/ma_vaccination_findings_2026-05-10.md` — Phase 6E multi-agent BLOCKER inventory (3 findings)
 - `tests/test_multi_agent_coupling.py` — integration tests covering Findings #1 and #3
+- **`.research/domain_pack_protocol_reference.md`** (Phase 6R-A) — canonical per-method consumer-graph + MUST/SHOULD/MAY classification for all 32 DomainPack methods. Consult when planning your overrides.
+- **`broker/tests/test_sub_protocol_split.py`** (Phase 6R-D-1) — pins the 7-sub-protocol structure + isinstance contract for registered packs.
+- **`broker/tests/test_phase_6r_d_decomposition_gate.py`** (Phase 6R-F) — pins the sub-pack mixin pattern for production packs (Flood / Irrigation / Vaccination).
+- **`broker/tools/gen_test_fixture.py`** (Phase 6R-A) — generate a minimal test-fixture DomainPack package without paper-grade scaffolding overhead.
+- **`broker/tools/compare_audit_csv.py`** (Phase 6R-C-0) — column-aware audit byte-identity diff (normalises timestamps + set iteration). Use for paper-1b byte-identity verification on any refactor that touches generic broker code.
 
 ## Asking for help
 
