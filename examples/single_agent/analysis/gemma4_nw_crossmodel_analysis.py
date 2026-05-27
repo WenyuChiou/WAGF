@@ -46,9 +46,17 @@ MODEL_LABELS = {
     "gemma4_e4b": "Gemma 4 e4b",
     "gemma4_26b": "Gemma 4 26B",
 }
+# 2026-05-27: each condition tries multiple candidate phase-dirs in order.
+# Rationale: Gemma 4 family was re-run after a prompt-block fix into
+# JOH_FINAL_v2 / JOH_ABLATION_DISABLED_v2 dirs; gemma3 / ministral3 stay
+# in v1 dirs (JOH_FINAL / JOH_ABLATION_DISABLED). User-confirmed
+# 2026-05-27: v2 is canonical for Gemma 4. The fallback iteration picks
+# v2 first then v1 — gemma4_* models load from v2, others fall through
+# to v1. SI v13 numbers were generated from v2 dirs; this update makes
+# the analysis script consistent with SI numbers when re-run.
 CONDITIONS = {
-    "governed": ("JOH_FINAL", "Group_C"),
-    "disabled": ("JOH_ABLATION_DISABLED", "Group_C_disabled"),
+    "governed": (["JOH_FINAL_v2", "JOH_FINAL"], "Group_C"),
+    "disabled": (["JOH_ABLATION_DISABLED_v2", "JOH_ABLATION_DISABLED"], "Group_C_disabled"),
 }
 RUNS = [f"Run_{idx}" for idx in range(1, 6)]
 ACTION_ORDER = ["buy_insurance", "elevate_house", "relocate", "do_nothing"]
@@ -175,10 +183,18 @@ def summarize_seed_metrics(df: pd.DataFrame) -> dict[str, float]:
 def load_run_data(results_dir: Path) -> list[RunData]:
     runs: list[RunData] = []
     for model in MODELS:
-        for condition, (phase_dir, group_dir) in CONDITIONS.items():
+        for condition, (phase_dirs, group_dir) in CONDITIONS.items():
             for run in RUNS:
-                audit_path = results_dir / phase_dir / model / group_dir / run / "household_governance_audit.csv"
-                if not audit_path.exists():
+                # 2026-05-27: try each candidate phase_dir in priority order;
+                # take the first existing audit CSV. Gemma 4 lives in v2;
+                # gemma3 / ministral3 live in v1.
+                audit_path = None
+                for phase_dir in phase_dirs:
+                    candidate = results_dir / phase_dir / model / group_dir / run / "household_governance_audit.csv"
+                    if candidate.exists():
+                        audit_path = candidate
+                        break
+                if audit_path is None:
                     continue
                 df = pd.read_csv(audit_path, encoding="utf-8-sig")
                 runs.append(RunData(model=model, condition=condition, run=run, audit_path=audit_path, df=df))
