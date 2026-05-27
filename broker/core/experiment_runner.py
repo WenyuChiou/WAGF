@@ -752,6 +752,32 @@ class ExperimentRunner:
                     agent, result = future.result()
                     results.append((agent, result))
                 except Exception as e:
-                    logger.error(f"[Parallel] Agent {futures[future].id} failed: {e}")
+                    # F4 fix (post-Phase-6T silent-failure audit,
+                    # 2026-05-27): parallel mirror of F1. The
+                    # ``_write_aborted_trace`` helper was deliberately
+                    # designed during the F1 fix so this becomes a
+                    # one-line shim instead of duplicating sentinel
+                    # logic across two exception handlers. Without
+                    # this fix, ``workers > 1`` runs (e.g.
+                    # ``--workers 4`` for MA flood scale-up) had the
+                    # same v0.88.15-class denominator-shrink: failed
+                    # agents vanished from the audit CSV.
+                    failed_agent = futures[future]
+                    logger.error(
+                        f"[Parallel] Agent {failed_agent.id} failed: {e}",
+                        exc_info=True,
+                    )
+                    self._write_aborted_trace(failed_agent, run_id, env, e)
+                    error_result = SkillBrokerResult(
+                        outcome=SkillOutcome.ABORTED,
+                        skill_proposal=None,
+                        approved_skill=None,
+                        execution_result=None,
+                        validation_errors=[
+                            f"agent_step_exception: {type(e).__name__}: "
+                            f"{str(e)[:500]}"
+                        ],
+                    )
+                    results.append((failed_agent, error_result))
 
         return results

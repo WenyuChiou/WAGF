@@ -804,7 +804,17 @@ class GenericAuditWriter:
         return val.replace('\n', ' ').replace('\r', ' ').strip()
 
     def _export_csv(self, agent_type: str, traces: List[Dict[str, Any]]):
-        """Export buffered traces to flat CSV with deep governance fields."""
+        """Export buffered traces to flat CSV with deep governance fields.
+
+        F5 fix (post-Phase-6T silent-failure audit, 2026-05-27):
+        wrap the CSV write in try/except OSError so a disk-full /
+        read-only path raised here does NOT propagate out of
+        :meth:`finalize`, skipping subsequent per-agent-type
+        exports + the summary write. Pre-fix the user only saw the
+        raw OSError — no signal that "the run completed, only the
+        CSV export for this agent_type failed". The error is
+        logged with the agent_type + path so operators can debug.
+        """
         self.output_dir.mkdir(parents=True, exist_ok=True)
         csv_path = self.output_dir / f"{agent_type}_governance_audit.csv"
         if not traces: return
@@ -823,10 +833,23 @@ class GenericAuditWriter:
                 audit_priority = cand
         fieldnames = compute_csv_fieldnames(flat_rows, audit_priority=audit_priority)
 
-        with open(csv_path, 'w', newline='', encoding='utf-8-sig') as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction='ignore', quoting=csv.QUOTE_ALL)
-            writer.writeheader()
-            writer.writerows(flat_rows)
+        try:
+            with open(csv_path, 'w', newline='', encoding='utf-8-sig') as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction='ignore', quoting=csv.QUOTE_ALL)
+                writer.writeheader()
+                writer.writerows(flat_rows)
+        except OSError as e:
+            logger.error(
+                f"[AuditWriter:Error] CSV export for agent_type=%r "
+                f"to %s failed: %s. The raw JSONL traces at "
+                f"raw/{agent_type}_traces.jsonl are still on disk; "
+                f"downstream consumers can reconstruct the CSV via "
+                f"broker.tools.recover_csv_from_jsonl. Continuing "
+                f"finalize so other agent_types + the summary save "
+                f"still run.",
+                agent_type, csv_path, e,
+                exc_info=True,
+            )
 
 
 # Aliases
