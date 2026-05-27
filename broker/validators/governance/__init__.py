@@ -24,6 +24,15 @@ from broker.validators.governance.physical_validator import PhysicalValidator
 from broker.validators.governance.semantic_validator import SemanticGroundingValidator
 from broker.governance.type_validator import TypeValidator
 
+# Phase 6T-F prep (2026-05-27): auto-register the generic-framework
+# metadata (utility / financial / narrative_diffusion) at module
+# import time. Closes a Phase-6P-A-class leak — previously utility +
+# financial lived in broker/domains/water/thinking_checks.py even
+# though their construct vocabulary is genuinely cross-domain. Now
+# they're available to ANY domain pack without needing to import
+# from the water namespace.
+from . import frameworks  # noqa: F401
+
 if TYPE_CHECKING:
     from broker.governance.rule_types import GovernanceRule
 
