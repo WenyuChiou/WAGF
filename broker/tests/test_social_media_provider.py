@@ -136,8 +136,13 @@ class TestRendering:
         provider = SocialMediaProvider(env, graph, _StubPack())
         ctx: Dict[str, Any] = {}
         provider.provide("hh1", {"hh1": {"id": "hh1"}}, ctx, year=1)
+        # v0.5.1: when non-empty, the value starts with the section
+        # header preceded by leading "\n\n" (byte-identity-safe
+        # injection format).
         assert "subsidy up" in ctx["social_media_feed"]
-        assert ctx["social_media_feed"].startswith("- ")
+        assert ctx["social_media_feed"].startswith(
+            "\n\n## Social media (recent posts):\n- "
+        )
         assert ctx["_social_media_audit"] == [("gov", 1, "subsidy_change", "official_authority")]
 
     def test_unfollowed_author_post_filtered(self, env, graph):
@@ -228,12 +233,16 @@ class TestAuditTrail:
         provider = SocialMediaProvider(env, graph, _StubPack(), top_k=5)
         ctx: Dict[str, Any] = {}
         provider.provide("hh1", {"hh1": {"id": "hh1"}}, ctx, year=2)
-        # Audit list authors must appear in the same order as the rendered feed
-        feed_lines = ctx["social_media_feed"].split("\n")
+        # v0.5.1: feed starts with "\n\n## Social media (recent posts):\n"
+        # followed by one line per post (prefixed by "- "). Extract the
+        # post lines by stripping the header preamble.
+        feed = ctx["social_media_feed"]
+        header_end = feed.index("\n", feed.index("## Social media"))
+        post_lines = [ln for ln in feed[header_end:].split("\n") if ln.startswith("- ")]
         audit_authors = [a[0] for a in ctx["_social_media_audit"]]
         # Both posts present
-        assert len(feed_lines) == 2
+        assert len(post_lines) == 2
         assert len(audit_authors) == 2
-        # Order matches: first audit author appears in first feed line
-        assert audit_authors[0] in feed_lines[0]
-        assert audit_authors[1] in feed_lines[1]
+        # Order matches: first audit author appears in first post line
+        assert audit_authors[0] in post_lines[0]
+        assert audit_authors[1] in post_lines[1]
