@@ -21,6 +21,8 @@ WAGF is a governance layer for LLM-driven agent-based models. A **Governance Bro
 
 The framework ships with four reference implementations spanning three behavioral theories: water (flood adaptation via Protection Motivation Theory, irrigation via dual-appraisal), and vaccination decision-making (Health Belief Model). The domain layer is pluggable — new domains plug in via YAML + a `DomainPack` subclass without modifying `broker/`.
 
+> **Current release**: v0.5.1 (2026-05-28). See [`CHANGELOG.md`](CHANGELOG.md) for the full release timeline. Recent: Phase 6T-E.B SocialMediaProvider substrate (v0.5.0) + full wire-up (v0.5.1) behind a two-layer opt-in flag.
+
 ## How does WAGF compare to other frameworks?
 
 WAGF sits in a different layer of the stack than tools you may already know. The closest analogues are rule-based ABM platforms (Mesa, NetLogo); WAGF extends them from rule-based to LLM-driven agents while preserving pre-execution validation.
@@ -42,7 +44,9 @@ In short: WAGF is not a chatbot framework, not a retrieval tool, not an LLM SDK.
 - **Domain Packs** — Add a new domain with 3 files: `skill_registry.yaml` + `agent_types.yaml` + `lifecycle_hooks.py`
 - **Framework-parametric Behavioral Theory** — no hardcoded theory in `broker/`; reference packs ship for Protection Motivation Theory (flood), dual-appraisal (irrigation), and Health Belief Model (vaccination). Declare your own framework in YAML
 - **Research Ready** — Ablation modes (strict/relaxed/disabled), cross-model comparison across 6+ LLM families, multi-seed reproducibility
-- **AI-assisted Workflow** — 7 bundled [Claude Code skills](docs/skills/wagf-skills.md) (`wagf-quickstart`, `wagf-domain-builder`, `wagf-coupling-designer`, `wagf-experiment-designer`, `llm-agent-audit-trace-analyzer`, `model-coupling-contract-checker`, `abm-reproducibility-checker`) walk a new researcher from `git clone` to paper-ready metrics without reading the manual first
+- **Social-media Propagation Channel** (v0.5+, opt-in) — Optional Pattern-B `SocialMediaProvider` injects `{social_media_feed}` into agent prompts from domain-emitted Posts, ranked by credibility-tier × age-decay × engagement. Default OFF — paper-published byte-identity preserved. (Cross-channel dedup module ships as infrastructure for a future consumer; provider integration deferred.)
+- **Cross-domain Validated** — Generic-namespace identifier audit (Phase 6U, complete in v0.4.0) eliminated every water-domain leak in `broker/`; `FakeTrafficDomainPack` + custom `bounded_rationality` framework end-to-end smokes confirm the framework is genuinely multi-domain ready
+- **AI-assisted Workflow** — 7 bundled [Claude Code skills](docs/skills/wagf-skills.md) (`wagf-quickstart`, `wagf-domain-builder`, `wagf-coupling-designer`, `wagf-experiment-designer`, `llm-agent-audit-trace-analyzer`, `model-coupling-contract-checker`, `abm-reproducibility-checker`) walk a new researcher from `git clone` to paper-ready metrics without reading the manual first. See [`docs/AI_ASSISTED_SETUP.md`](docs/AI_ASSISTED_SETUP.md) for Claude Code / Cursor / Cline / plain-Python setup paths
 
 ## Why Governance?
 

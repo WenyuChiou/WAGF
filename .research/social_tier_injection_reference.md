@@ -377,3 +377,218 @@ When adding a new tier-aware feature:
 When in doubt: read the FloodPerceptionMixin
 (`examples/governed_flood/adapters/flood_pack.py`) for the canonical
 recipe.
+
+---
+
+## 9. Phase 6T-E.B SocialMediaProvider (v0.5.0 + v0.5.1)
+
+T2-class tier-aware injection: posts emitted by domain event
+handlers propagate via a directed follower graph and surface in
+the household prompt under `{social_media_feed}`. Opt-in behind a
+two-layer feature flag (default OFF preserves paper-3 byte-identity).
+
+### 9.1 Provider call-graph entry
+
+```
+MAEventManager._sync_event_to_env
+  └─ handler(event, gs)           # original env-state mutation
+  └─ pack.emit_posts_for_event(event, env)   # Phase 6T-E.B hook
+       └─ env.add_post(post) per emission
+
+UnifiedContextBuilder._build_providers (when enable_social_feeds=True)
+  └─ SocialMediaProvider(env, follower_network, pack, top_k, half_life)
+       └─ provide(agent_id, agents, context, year)
+            └─ context["social_media_feed"] = "" | rendered section block
+            └─ context["_social_media_audit"] = [(author, year, type, tier), ...]
+```
+
+Provider chain order: `SocialMediaProvider` is appended LAST in
+`_build_providers` (after MA-only providers + before
+`PerceptionAwareProvider`).
+
+### 9.2 Two-layer feature flag
+
+```
+YAML        ──┐
+              ├──▶ broker.components.social.feed_flag.resolve_social_feeds_enabled(yaml_cfg, pack)
+DomainPack ──┘    └─▶ (enabled: bool, source: "yaml" | "pack-default")
+```
+
+Resolution rule (in `broker/components/social/feed_flag.py`):
+
+1. Read `yaml_cfg["global_config"]["social_feeds"]["enable"]`.
+   If present (including explicit `false`), YAML wins.
+2. Else call `pack.social_feeds_default_enabled()`.
+3. Else (pack missing the hook): default `False`.
+
+The resolved value is logged via `logger.info(
+"[social_feeds] enable=<val> source=<yaml|pack-default>")` for
+audit-trail attribution.
+
+### 9.3 Top-K weighted sampling
+
+For each candidate post passing the suppressed-tier filter +
+`pack.social_media_post_filter(agent, post)` per-agent filter, the
+provider scores it as:
+
+```
+score(post) = credibility_weight(tier_id)
+            × age_weight(post.event_year, current_year, half_life_years)
+            × (1.0 + engagement_score)
+```
+
+Where:
+- `credibility_weight` is supplied by `DomainPack.credibility_weight`
+  (e.g. FloodGovernanceMixin maps `official_authority → 1.0`,
+  `verified_account → 0.8`, `peer_post → 0.3`)
+- `age_weight` is the half-life decay function from
+  `broker/components/social/post.py:age_weight` (default 2.0 years)
+- `(1.0 + engagement_score)` avoids zeroing out posts with no
+  engagement; high-engagement posts score higher
+
+The provider sorts by score descending, takes the first `top_k`,
+renders each via `pack.verbalise_post(post)`, and joins with
+`"\n- "` prefix. The full output is wrapped in a leading `"\n\n##
+Social media (recent posts):\n"` header **iff** at least one post
+survives — empty case writes exactly `""` for byte-identity-safe
+prompt substitution.
+
+### 9.4 Role-vs-tier distinction (important)
+
+- `author_role` (e.g. `"government"`, `"insurance"`, `"peer"`) is
+  the OUTGOING attribute the prompt verbalisation may reference
+  ("The Department of Insurance announced...").
+- `tier_id` (e.g. `"official_authority"`, `"verified_account"`,
+  `"peer_post"`) is the credibility classification used by ranking
+  + the suppression mechanism.
+
+These are distinct namespaces. A `government` author typically
+gets `official_authority` tier, but a custom domain could ship
+an `npo_advocacy` role with `verified_account` tier without
+collision. `_ROLE_TO_TIER` mappings live in the domain pack (e.g.
+`examples/governed_flood/adapters/flood_pack.py:FloodEventMixin`).
+
+### 9.5 Byte-identity guards (multiple layers)
+
+1. YAML default `enable: false`.
+2. `FloodPerceptionMixin.social_feeds_default_enabled()` returns
+   `False` even if YAML omits the key.
+3. `FloodEventMixin.emit_posts_for_event` short-circuits to `[]`
+   when `env.global_state["_social_feeds_enabled"]` is falsy.
+4. `UnifiedContextBuilder` does NOT add `SocialMediaProvider` to
+   the provider chain when `enable_social_feeds=False`.
+5. The prompt template places `{social_media_feed}` flush against
+   `{neighbor_action_summary}` — empty-string substitution is
+   byte-identical to a template without the placeholder.
+6. Subprocess regression test in
+   `broker/tests/test_phase_6te_no_import_when_off.py` asserts
+   neither `SocialMediaProvider` nor `dedup` modules even load
+   into `sys.modules` when flag OFF.
+
+---
+
+## 10. Phase 6T-G cross-channel deduplication
+
+When the same real-world event reaches an agent through OFFICIAL
+(institutional declaration in `{inst_subsidy_rate}`) + GLOBAL
+(news in `{global_news}`) + PEER (social feed in
+`{social_media_feed}`), prompt context bloats and the LLM gets
+N copies of one signal. Phase 6T-G adds a dedup pass that
+collapses identical canonical events.
+
+### 10.1 The canonical_event_id contract
+
+Domain packs emitting cross-channel content set
+`message.metadata["canonical_event_id"]` to a stable identifier
+of the underlying real-world event. The format convention used
+by `FloodEventMixin`:
+
+```
+f"{event.event_type}:{sim_year}:{event.data.get('location', 'global')}"
+```
+
+Examples:
+- `"subsidy_change:2026:global"` (same id used by gov-emitted
+  OFFICIAL post + GLOBAL news + PEER repost)
+- `"flood:2026:tract_5"` (location-scoped event id)
+
+Messages **without** `canonical_event_id` are pass-through:
+emitted as their own single-source `CrossChannelDedupResult`,
+NEVER collapsed. This is the regression guard against over-
+aggressive dedup (the test
+`test_no_canonical_id_pass_through` in
+`broker/tests/test_cross_channel_dedup.py` locks this).
+
+### 10.2 Priority resolution
+
+`broker/components/social/dedup.py:DEFAULT_CHANNEL_PRIORITY`:
+
+```python
+{"OFFICIAL": 100, "GLOBAL": 50, "PEER": 10}
+```
+
+When >1 channel reports the same canonical event, the
+highest-priority channel rep is chosen; the rest are recorded
+in `CrossChannelDedupResult.sources` for audit. Ties (same
+priority) broken by first-seen order.
+
+The labels `OFFICIAL` / `GLOBAL` / `PEER` are **channel-class**
+labels, **NOT** credibility tier IDs. They live in
+`broker/components/social/dedup.py` (per a path-based exemption
+in the `TestNoUSMediaTierLiteralsInBrokerSocial` AST gate) and
+should not be confused with PerceptionPack-supplied
+`credibility_tiers` like `official_authority`.
+
+### 10.3 Multi-source confirmation labeling
+
+When `len(sources) > 1`, the result's `label` is set to
+`f"confirmed by {N} independent sources"`. The renderer can
+append this to the chosen message's text:
+
+```
+The Department of Insurance announced a subsidy increase to 70%.
+(confirmed by 3 independent sources)
+```
+
+Single-source results have `label = ""` (no suffix).
+
+### 10.4 Calling the dedup module
+
+```python
+from broker.components.social.dedup import dedup_by_canonical_event
+
+# Caller assembles parallel lists across all channels
+messages = [post_official, news_global, post_peer, ...]
+channels = ["OFFICIAL", "GLOBAL", "PEER", ...]
+
+results = dedup_by_canonical_event(messages, channels)
+# Returns List[CrossChannelDedupResult], preserving first-seen order
+# of canonical events
+```
+
+Custom priority can be passed:
+
+```python
+dedup_by_canonical_event(messages, channels,
+    priority={"OFFICIAL": 1, "PEER": 100})  # PEER wins
+```
+
+### 10.5 v0.5.x integration status
+
+- **Module shipped** in v0.5.0: `broker/components/social/dedup.py` +
+  14 regression tests in `broker/tests/test_cross_channel_dedup.py`.
+- **NOT wired into the provider chain yet** as of v0.5.1: each
+  channel's content still renders independently. SocialMediaProvider
+  writes its own audit list (`_social_media_audit`) but doesn't
+  call the dedup module against OFFICIAL/GLOBAL contexts.
+- **Future**: a `CrossChannelDedupProvider` (deferred) would run
+  AFTER all channel-specific providers + BEFORE `PerceptionAwareProvider`,
+  consuming `{inst_subsidy_rate}` / `{global_news}` /
+  `{social_media_feed}` audit entries, calling
+  `dedup_by_canonical_event`, and rewriting the relevant context
+  keys with confirmation labels.
+
+The dedup module exists as standalone infrastructure that any
+future cross-channel consumer can call — by design, the dedup
+logic and the channel-injection logic are decoupled.
+
