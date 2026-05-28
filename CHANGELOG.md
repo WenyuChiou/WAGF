@@ -74,6 +74,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in the batch. Adds 1 subprocess regression test confirming PMT is
   registered without water import.
 
+### Removed
+
+- Phase 6U-G: removed `_FallbackArtifact` base class and the 3
+  `type()`-generated water-domain placeholder classes
+  (`PolicyArtifact` / `MarketArtifact` / `HouseholdIntention`) from
+  `broker/interfaces/artifacts.py`. Pre-6U-G the broker carried these
+  stub classes solely so generic code could reference them by name
+  without importing example modules — but Phase 6U-E-2 made the
+  coordinator dispatch registry-driven (no class-identity dispatch)
+  and no other broker code path instantiated them. The real classes
+  remain available from `examples.multi_agent.flood.protocols.artifacts`
+  (the canonical home). Closes the last identifiable water-domain
+  identifier leak in `broker/interfaces/`. `tests/test_artifact_fallbacks.py`
+  is now a regression test verifying the placeholders STAY removed
+  (was previously testing they EXISTED).
+
 ### Fixed
 
 - Phase 6U-A: `ImpactEventGenerator.__init__` now warns when both

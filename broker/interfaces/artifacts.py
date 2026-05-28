@@ -226,36 +226,27 @@ def clear_artifact_dispatch_rules() -> None:
     _DISPATCH_RULES.clear()
 
 
-# Stable broker-facing fallbacks. Domain implementations may subclass
-# AgentArtifact separately, but the broker should not import example code here.
-class _FallbackArtifact(AgentArtifact):
-    """Fallback artifact placeholder for broker-facing tests and routing."""
-
-    def __init__(self, **kwargs: Any) -> None:
-        agent_id = kwargs.pop("agent_id", "")
-        year = kwargs.pop("year", 0)
-        rationale = kwargs.pop("rationale", "")
-        super().__init__(agent_id=agent_id, year=year, rationale=rationale)
-        for key, value in kwargs.items():
-            setattr(self, key, value)
-
-    def artifact_type(self) -> str:
-        return self.__class__.__name__
-
-    def validate(self) -> List[str]:
-        return []
-
-
-PolicyArtifact = type("PolicyArtifact", (_FallbackArtifact,), {})  # type: ignore
-MarketArtifact = type("MarketArtifact", (_FallbackArtifact,), {})  # type: ignore
-HouseholdIntention = type("HouseholdIntention", (_FallbackArtifact,), {})  # type: ignore
+# Phase 6U-G (2026-05-28): Removed `_FallbackArtifact` base class and
+# its 3 `type()`-generated water-domain placeholder subclasses
+# (`PolicyArtifact`, `MarketArtifact`, `HouseholdIntention`). Pre-6U-G
+# the broker carried these stub classes solely so generic code could
+# reference them by name without importing example modules — but no
+# production broker code path actually instantiated them: the
+# coordinator (Phase 6U-E-2) now dispatches via
+# `register_artifact_dispatch_rule` instead of class identity, the
+# routing maps are populated via `register_artifact_routing` at import
+# of the real classes in `examples/multi_agent/flood/protocols/`,
+# and tests already imported the real classes directly. Keeping the
+# placeholders was the last identifiable water-domain leak in
+# `broker/interfaces/`.
 
 
 __all__ = [
     "AgentArtifact",
     "ArtifactEnvelope",
+    "ArtifactDispatchRule",
     "register_artifact_routing",
-    "PolicyArtifact",
-    "MarketArtifact",
-    "HouseholdIntention",
+    "register_artifact_dispatch_rule",
+    "get_artifact_dispatch_rule",
+    "clear_artifact_dispatch_rules",
 ]
