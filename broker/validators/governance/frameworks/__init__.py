@@ -62,9 +62,26 @@ This module MUST NOT import from ``broker.domains.water`` or
 """
 from __future__ import annotations
 
+from types import MappingProxyType
+from typing import Any, Dict, Set
+
 from broker.validators.governance.thinking_validator import (
+    FRAMEWORK_LABEL_ORDERS,
     register_framework_metadata,
 )
+
+FRAMEWORK_REGISTRY: Dict[str, Any] = MappingProxyType(FRAMEWORK_LABEL_ORDERS)
+
+
+def list_registered_frameworks() -> Set[str]:
+    """Return framework names registered at runtime.
+
+    Includes ``""`` (the Phase 6Q-D FRAMEWORK_ESCAPE_HATCH sentinel)
+    so a YAML with ``psychological_framework: ""`` passes registry
+    validation explicitly instead of being silent-cased inside the
+    field validator.
+    """
+    return set(FRAMEWORK_LABEL_ORDERS) | {"generic", ""}
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -208,4 +225,6 @@ __all__ = [
     "NARRATIVE_DIFFUSION_CONSTRUCTS",
     "NARRATIVE_DIFFUSION_LABEL_MAPPINGS",
     "NarrativeDiffusionFramework",
+    "FRAMEWORK_REGISTRY",
+    "list_registered_frameworks",
 ]
