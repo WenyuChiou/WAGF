@@ -144,10 +144,11 @@ class TestSharedConfig:
 class TestAgentTypeSpecificConfig:
     """Test AgentTypeSpecificConfig model."""
 
-    def test_default_framework_is_pmt(self):
-        """Default psychological_framework should be pmt."""
+    def test_default_framework_is_none(self):
+        """Phase 6U-B: psychological_framework default is None (no
+        more soft-default-to-PMT — caller must specify explicitly)."""
         config = AgentTypeSpecificConfig()
-        assert config.psychological_framework == "pmt"
+        assert config.psychological_framework is None
 
     def test_valid_frameworks(self):
         """All valid frameworks should parse correctly."""

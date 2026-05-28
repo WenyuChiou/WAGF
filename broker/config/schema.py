@@ -1,11 +1,19 @@
 from __future__ import annotations
 
 import warnings
+import importlib
 from pathlib import Path
-from typing import Dict, List, Optional, Literal, Any
+from typing import Annotated, Dict, List, Optional, Literal, Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 # Silence the pydantic shadowing warning for the ``construct`` field on
 # RuleCondition / GovernanceRule. "construct" is a domain term (cognitive
@@ -18,6 +26,89 @@ warnings.filterwarnings(
     message=r'Field name "construct" in "(RuleCondition|GovernanceRule)"',
     category=UserWarning,
 )
+
+LEGACY_FRAMEWORK_SLOTS = ("pmt", "utility", "financial", "generic")
+LEGACY_AGENT_TYPE_SLOTS = ("household", "government", "insurance")
+AGENT_TYPE_RESERVED_KEYS = {
+    "global_config",
+    "shared",
+    "agent_types",
+    "governance",
+    "metadata",
+}
+AGENT_TYPE_MARKER_KEYS = {
+    "agent_type",
+    "psychological_framework",
+    "prompt_template",
+    "prompt_template_file",
+    "actions",
+    "skills",
+    "eligible_skills",
+    "default_skill",
+}
+
+
+def validate_is_registered(name: str) -> str:
+    """Validate a framework name against the runtime registry.
+
+    The Phase 6Q-D FRAMEWORK_ESCAPE_HATCH sentinel (``""``) is
+    registered explicitly in ``list_registered_frameworks()`` rather
+    than special-cased here, so a YAML with
+    ``psychological_framework: ""`` passes via the same code path as
+    any other registered name. Silent bypass would risk masking a
+    typo or migration-shim bug emitting empty strings.
+    """
+    registered = _list_registered_frameworks()
+    if name not in registered:
+        raise ValueError(
+            f"framework {name!r} is not registered; known frameworks: "
+            f"{sorted(registered)}. If you expected a domain framework, "
+            "import the domain module before loading config "
+            "(e.g. import broker.domains.water)."
+        )
+    return name
+
+
+FrameworkStr = Annotated[str, AfterValidator(validate_is_registered)]
+
+
+def _list_registered_frameworks() -> set[str]:
+    from broker.validators.governance.frameworks import list_registered_frameworks
+
+    return list_registered_frameworks()
+
+
+def _fold_legacy_slots(
+    data: Any,
+    *,
+    target_field: str,
+    legacy_slots: tuple[str, ...],
+    warning_template: str,
+) -> Any:
+    """Fold legacy top-level slots into a dict field before validation."""
+    if not isinstance(data, dict):
+        return data
+
+    migrated = dict(data)
+    target = dict(migrated.get(target_field) or {})
+
+    for name in legacy_slots:
+        if name not in migrated:
+            continue
+        if name in target:
+            raise ValueError(
+                f"Legacy slot '{name}' conflicts with {target_field} dict; remove one"
+            )
+        target[name] = migrated.pop(name)
+        warnings.warn(
+            warning_template.format(name=name),
+            DeprecationWarning,
+            stacklevel=3,
+        )
+
+    if target:
+        migrated[target_field] = target
+    return migrated
 
 
 class MemoryConfig(BaseModel):
@@ -94,12 +185,34 @@ class RatingScalesConfig(BaseModel):
 
     Task-041: Universal Prompt/Context/Governance Framework
     """
-    pmt: Optional[RatingScaleConfig] = None
-    utility: Optional[RatingScaleConfig] = None
-    financial: Optional[RatingScaleConfig] = None
-    generic: Optional[RatingScaleConfig] = None
+    frameworks: Dict[str, RatingScaleConfig] = Field(default_factory=dict)
 
     model_config = ConfigDict(extra="allow")  # Allow custom framework names
+
+    @model_validator(mode="before")
+    @classmethod
+    def fold_legacy_framework_slots(cls, data: Any) -> Any:
+        return _fold_legacy_slots(
+            data,
+            target_field="frameworks",
+            legacy_slots=LEGACY_FRAMEWORK_SLOTS,
+            warning_template=(
+                "Top-level framework slot '{name}' is deprecated; "
+                "place under frameworks: {{}} dict instead."
+            ),
+        )
+
+    @field_validator("frameworks")
+    @classmethod
+    def validate_framework_names(cls, value: Dict[str, RatingScaleConfig]):
+        for name in value:
+            validate_is_registered(name)
+        return value
+
+    def __getattr__(self, name: str) -> Any:
+        if name in LEGACY_FRAMEWORK_SLOTS:
+            return self.frameworks.get(name)
+        return super().__getattr__(name)
 
 
 # =============================================================================
@@ -144,12 +257,34 @@ class ConstructsConfig(BaseModel):
 
     Task-041 Phase 3: Define which constructs each framework supports.
     """
-    pmt: Optional[FrameworkConstructs] = None
-    utility: Optional[FrameworkConstructs] = None
-    financial: Optional[FrameworkConstructs] = None
-    generic: Optional[FrameworkConstructs] = None
+    frameworks: Dict[str, FrameworkConstructs] = Field(default_factory=dict)
 
     model_config = ConfigDict(extra="allow")
+
+    @model_validator(mode="before")
+    @classmethod
+    def fold_legacy_framework_slots(cls, data: Any) -> Any:
+        return _fold_legacy_slots(
+            data,
+            target_field="frameworks",
+            legacy_slots=LEGACY_FRAMEWORK_SLOTS,
+            warning_template=(
+                "Top-level framework slot '{name}' is deprecated; "
+                "place under frameworks: {{}} dict instead."
+            ),
+        )
+
+    @field_validator("frameworks")
+    @classmethod
+    def validate_framework_names(cls, value: Dict[str, FrameworkConstructs]):
+        for name in value:
+            validate_is_registered(name)
+        return value
+
+    def __getattr__(self, name: str) -> Any:
+        if name in LEGACY_FRAMEWORK_SLOTS:
+            return self.frameworks.get(name)
+        return super().__getattr__(name)
 
 
 class RuleCondition(BaseModel):
@@ -215,7 +350,7 @@ class GovernanceRule(BaseModel):
     level: Literal["ERROR", "WARNING"] = "ERROR"
     message: Optional[str] = None
     # Task-041: Add framework field for multi-framework support
-    framework: Optional[Literal["pmt", "utility", "financial", "generic", "cognitive_appraisal"]] = None
+    framework: Optional[FrameworkStr] = None
 
 
 class GovernanceProfile(BaseModel):
@@ -270,8 +405,8 @@ class AgentTypeSpecificConfig(BaseModel):
 
     Task-041: Universal Prompt/Context/Governance Framework
     """
-    psychological_framework: Optional[Literal["pmt", "utility", "financial", "generic", "cognitive_appraisal"]] = Field(
-        default="pmt",
+    psychological_framework: Optional[FrameworkStr] = Field(
+        default=None,
         description="Psychological framework for this agent type"
     )
     prompt_template: Optional[str] = None
@@ -286,19 +421,95 @@ class AgentTypeConfig(BaseModel):
     """Full agent_types.yaml configuration."""
     global_config: Optional[GlobalConfig] = None
     shared: Optional[SharedConfig] = None
-    household: Optional[AgentTypeSpecificConfig] = None
-    government: Optional[AgentTypeSpecificConfig] = None
-    insurance: Optional[AgentTypeSpecificConfig] = None
+    agent_types: Dict[str, AgentTypeSpecificConfig] = Field(default_factory=dict)
     governance: Optional[GovernanceProfiles] = None
 
     model_config = ConfigDict(extra="allow")
 
+    @model_validator(mode="before")
+    @classmethod
+    def fold_legacy_agent_type_slots(cls, data: Any) -> Any:
+        migrated = _fold_legacy_slots(
+            data,
+            target_field="agent_types",
+            legacy_slots=LEGACY_AGENT_TYPE_SLOTS,
+            warning_template=(
+                "Top-level agent-type slot '{name}' is deprecated; "
+                "place under agent_types: {{}} dict instead."
+            ),
+        )
+        if not isinstance(migrated, dict):
+            return migrated
+
+        migrated = dict(migrated)
+        target = dict(migrated.get("agent_types") or {})
+        for name in list(migrated):
+            if name in AGENT_TYPE_RESERVED_KEYS:
+                continue
+            value = migrated[name]
+            if not isinstance(value, dict):
+                continue
+            if not (AGENT_TYPE_MARKER_KEYS & set(value)):
+                continue
+            if name in target:
+                raise ValueError(
+                    f"Legacy slot '{name}' conflicts with agent_types dict; remove one"
+                )
+            target[name] = migrated.pop(name)
+            warnings.warn(
+                "Top-level agent-type slot "
+                f"'{name}' is deprecated; place under agent_types: {{}} dict instead.",
+                DeprecationWarning,
+                stacklevel=3,
+            )
+        if target:
+            migrated["agent_types"] = target
+        return migrated
+
+    def __getattr__(self, name: str) -> Any:
+        if name in self.agent_types:
+            return self.agent_types[name]
+        return super().__getattr__(name)
+
 
 def load_agent_config(config_path: Path) -> AgentTypeConfig:
     """Load and validate agent_types.yaml configuration."""
+    _import_domain_for_config_path(Path(config_path))
     with open(config_path, "r", encoding="utf-8") as f:
         raw = yaml.safe_load(f)
     return AgentTypeConfig(**raw)
+
+
+def _import_domain_for_config_path(config_path: Path) -> None:
+    """Best-effort import of known example domain modules for registry side effects.
+
+    Only fires when the config path matches a known example domain.
+    No unconditional ``broker.domains.water`` import — that would
+    reintroduce the reverse coupling Phase 6U-B eliminates and silently
+    contaminate the framework registry for non-water domains. Unknown
+    paths get no auto-import; the registry validator's error message
+    instructs the caller to import the domain module explicitly.
+    """
+    normalized = config_path.as_posix()
+    candidates: list[str] = []
+    if "examples/vaccination_demo/" in normalized:
+        candidates.append("examples.vaccination_demo")
+    elif any(
+        marker in normalized
+        for marker in (
+            "examples/irrigation_abm/",
+            "examples/single_agent/",
+            "examples/multi_agent/flood/",
+            "examples/governed_flood/",
+        )
+    ):
+        candidates.append("broker.domains.water")
+
+    for module_name in candidates:
+        try:
+            importlib.import_module(module_name)
+        except ImportError:
+            continue
 
 
 def validate_rating_scales(config: Dict[str, Any]) -> List[str]:
@@ -318,7 +529,10 @@ def validate_rating_scales(config: Dict[str, Any]) -> List[str]:
     if not config:
         return errors
 
-    valid_frameworks = {"pmt", "utility", "financial", "generic"}
+    valid_frameworks = _list_registered_frameworks()
+
+    if "frameworks" in config and isinstance(config["frameworks"], dict):
+        config = config["frameworks"]
 
     for framework_name, scale_config in config.items():
         if framework_name not in valid_frameworks:

@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `QualitativePerceptionFilter`, `_perception_filter_kwargs_from_domain_pack`,
   `_has_account_state_filter`, `_payout_state`, `set_payout_state`, and
   water-domain `FloodDomainConfig` relocation with deprecation aliases.
+- Phase 6U-B: config schema framework and agent-type slots are now
+  registry-driven dictionaries with in-memory legacy YAML migration shims.
+  Legacy top-level `pmt` / `utility` / `financial` / `generic` and
+  `household` / `government` / `insurance` slots emit `DeprecationWarning`
+  while preserving round-trip idempotence for dumped configs.
 - Phase 6U-D: `broker.tools.scaffold_domain` now preserves the selected
   registered framework instead of hardcoding `pmt` in generated agent YAML.
 
@@ -24,6 +29,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   previously silently dropped `insurance_state` without DeprecationWarning,
   asymmetric with the `configure()` path (post-code-review P1). Adds 3
   regression tests in `tests/test_ma_event_generators.py`.
+- Phase 6U-B: `validate_is_registered` no longer special-cases the
+  empty-string FRAMEWORK_ESCAPE_HATCH sentinel — `""` is registered
+  explicitly in `list_registered_frameworks()` so a typo or migration-shim
+  bug emitting `""` cannot silent-pass governance (post-code-review P1).
+- Phase 6U-B: `_import_domain_for_config_path` no longer
+  unconditionally imports `broker.domains.water` — auto-import now
+  fires only when the YAML path matches a known water example
+  (irrigation_abm / single_agent / multi_agent/flood / governed_flood).
+  Eliminates the reverse coupling that defeated 6U-B's own goal
+  (post-code-review P1).
 
 ## [0.3.0] - 2026-05-27
 
