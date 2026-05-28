@@ -218,20 +218,35 @@ class MAEventManager(EnvironmentEventManager):
     ) -> Dict[str, List[EnvironmentEvent]]:
         """Generate all events for a specific phase.
 
+        Phase 6T-G (2026-05-28): the caller's ``context`` dict is NO
+        LONGER mutated. Previously this method called
+        ``context.update(self._event_context)`` and
+        ``context[provides_key] = …``, leaking dependency-chain state
+        into the caller's mapping (engineering audit Y1). The method
+        now copies ``context`` into a private ``working`` dict, mutates
+        ``working``, and returns ``phase_events`` unchanged. The
+        ``_event_context`` accumulation across phases still happens via
+        ``self`` so dependent generators see prior outputs.
+
         Args:
             phase: Which phase to generate
             year: Simulation year
             step: Step within year (for PER_STEP)
-            context: Shared context (agents, environment, etc.)
+            context: Shared context (agents, environment, etc.) — not
+                mutated. Callers that need dependency-chain values must
+                read them from the returned dict's generators or from
+                ``self._event_context`` directly.
 
         Returns:
             Dict mapping domain to events
         """
-        context = context or {}
+        # Phase 6T-G: copy in. Mutating ``working`` leaves the caller's
+        # dict pristine.
+        working: Dict[str, Any] = dict(context or {})
         phase_events = {}
 
-        # Add previously generated events to context
-        context.update(self._event_context)
+        # Add previously generated events to the working copy
+        working.update(self._event_context)
 
         for domain in self._phase_order[phase]:
             spec = self._specs.get(domain)
@@ -240,16 +255,16 @@ class MAEventManager(EnvironmentEventManager):
 
             generator = spec.generator
 
-            # Add dependency events to context
+            # Add dependency events to the working copy
             for dep in spec.depends_on:
                 dep_spec = self._specs.get(dep)
                 if dep_spec:
                     provides_key = dep_spec.provides
                     if provides_key in self._event_context:
-                        context[provides_key] = self._event_context[provides_key]
+                        working[provides_key] = self._event_context[provides_key]
 
             # Generate events
-            events = generator.generate(year, step, context)
+            events = generator.generate(year, step, working)
             phase_events[domain] = events
             self._current_events[domain] = events
             self._event_history.extend(events)
@@ -432,6 +447,10 @@ class MAEventManager(EnvironmentEventManager):
             if self._is_silent_skip(event.event_type):
                 self.metrics.record_silent_skip()
                 return
+            # Phase 6T-G: record before raising so the audit trail can
+            # surface the unhandled type even if a higher layer catches
+            # the exception.
+            self.metrics.record_unhandled(event.event_type)
             raise UnhandledEventError(
                 event_type=event.event_type,
                 domain_name=domain_name,
