@@ -8,7 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-(no entries yet — v0.5.1 cut on 2026-05-28; see below)
+### Removed
+
+- `examples/irrigation_abm/analysis/v20_metrics_report.md` — v20
+  irrigation baseline was invalidated by the 2026-02-26 execute_skill
+  base-asymmetry fix (per MEMORY.md "All v20 irrigation results are
+  INVALID; must use v21 data only"). The v21 replacements
+  (`v21_expert_plausibility_review.md` + `v21_4seed_expert_plausibility_review.md`)
+  live in the same directory and are the canonical irrigation
+  baselines for paper-1b.
 
 ## [0.5.1] - 2026-05-28
 
