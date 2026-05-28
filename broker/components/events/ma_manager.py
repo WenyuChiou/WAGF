@@ -477,6 +477,36 @@ class MAEventManager(EnvironmentEventManager):
 
         self.metrics.record_invoke()
 
+        # Phase 6T-E.B (2026-05-28): optional post-emission hook.
+        # Packs implementing ``emit_posts_for_event(event, env) ->
+        # Iterable[Post]`` opt into the social-media propagation
+        # channel; the dispatcher feeds each yielded Post to
+        # ``env.add_post``. Default DomainPack does NOT implement the
+        # method — generic broker code references no domain-specific
+        # names here. When the social-feeds flag is OFF (paper-3
+        # default), the pack's hook is responsible for early-returning
+        # an empty iterator to keep byte-identity. Exceptions inside
+        # the hook are SUPPRESSED (same dispatch-safety pattern as
+        # the handler path); the event itself already succeeded.
+        owning_pack = (
+            DomainPackRegistry.get(owning_domain)
+            if owning_domain is not None
+            else None
+        )
+        emit = getattr(owning_pack, "emit_posts_for_event", None)
+        if emit is not None and hasattr(env, "add_post"):
+            try:
+                for post in emit(event, env) or ():
+                    env.add_post(post)
+            except Exception as exc:  # noqa: BLE001 — dispatch safety net
+                logger.error(
+                    "[MAEventManager] emit_posts_for_event for event_type=%r "
+                    "(domain=%r) raised %s: %s. Original handler already "
+                    "succeeded; continuing.",
+                    event.event_type, owning_domain, type(exc).__name__, exc,
+                    exc_info=True,
+                )
+
     def _resolve_handler(
         self,
         event_type: str,

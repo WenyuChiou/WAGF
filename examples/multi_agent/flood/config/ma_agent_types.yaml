@@ -84,6 +84,17 @@ shared:
       type: text
       required: false
 global_config:
+  # Phase 6T-E.B (2026-05-28): social-media propagation channel.
+  # Default ``enable: false`` preserves paper-3 v21 5-seed gemma3:4b
+  # byte-identity. Set ``enable: true`` for NEW experiments only,
+  # AFTER the v0.5.1 runner integration lands.
+  social_feeds:
+    enable: false
+    top_k: 5
+    half_life_years: 2.0
+    suppressed_tiers: []   # operator override of pack.suppressed_tiers()
+
+
   # Memory write policy (MA flood ratchet fix, 2026-04-11).
   # Memory write policy (MA flood ratchet fix, broker-level generalization 2026-04-11).
   # Field names correspond to MemoryContentType enum values. Setting to false
