@@ -982,6 +982,51 @@ def run_unified_experiment():
     # 3. Memory Engine
     from broker.utils.agent_config import AgentTypeConfig
     agent_cfg = AgentTypeConfig.load(MULTI_AGENT_DIR / "config" / "ma_agent_types.yaml")
+
+    # === Phase 6T-E.B v0.5.1: Social-media propagation channel ===
+    # Resolve the two-layer flag (YAML primary, DomainPack default).
+    # Default OFF preserves paper-3 v21 byte-identity.
+    from broker.components.social.feed_flag import resolve_social_feeds_enabled
+    from broker.components.social.follower_network import FollowerNetwork
+    from broker.domains.registry import DomainPackRegistry
+
+    _flood_pack = DomainPackRegistry.get("flood")
+    _social_feeds_enabled, _flag_source = resolve_social_feeds_enabled(
+        agent_cfg._config, _flood_pack,
+    )
+    # The flag lives on env.global_state — FloodEventMixin.emit_posts_for_event
+    # short-circuits to empty when it's False.
+    tiered_env.global_state["_social_feeds_enabled"] = _social_feeds_enabled
+
+    # Read social_feeds config knobs (with defaults).
+    _sf_cfg = (agent_cfg._config.get("global_config") or {}).get("social_feeds") or {}
+    _social_top_k = int(_sf_cfg.get("top_k", 5))
+    _social_half_life = float(_sf_cfg.get("half_life_years", 2.0))
+
+    # Build the follower network. v0.5.1 minimal default: every
+    # household_owner / household_renter follows the institutional +
+    # peer authors. Future revision can YAML-drive per-agent following.
+    follower_network: Optional[FollowerNetwork] = None
+    if _social_feeds_enabled:
+        follower_network = FollowerNetwork()
+        _household_count = 0
+        for aid, agent in all_agents.items():
+            atype = getattr(agent, "agent_type", "")
+            if atype in {"household_owner", "household_renter"}:
+                for author in ("nj_government", "fema_nfip", "peer_residents"):
+                    follower_network.add_edge(author_id=author, follower_id=aid)
+                _household_count += 1
+        print(
+            f"[INFO] Social feeds ENABLED (source={_flag_source}): "
+            f"top_k={_social_top_k} half_life={_social_half_life} "
+            f"followers built for {_household_count} households"
+        )
+    else:
+        print(
+            f"[INFO] Social feeds disabled (source={_flag_source}) — "
+            f"paper-3 byte-identity safe"
+        )
+
     mem_cfg = agent_cfg.get_global_memory_config()
     if args.arousal_threshold is not None:
         mem_cfg["arousal_threshold"] = args.arousal_threshold
@@ -1248,6 +1293,14 @@ def run_unified_experiment():
                 hub=hub,
                 memory_engine=memory_engine,
                 media_hub=media_hub,
+                # Phase 6T-E.B v0.5.1: SocialMediaProvider wiring.
+                # Default OFF — only fires when YAML opts in.
+                enable_social_feeds=_social_feeds_enabled,
+                follower_network=follower_network,
+                social_feeds_environment=tiered_env if _social_feeds_enabled else None,
+                social_feeds_pack=_flood_pack if _social_feeds_enabled else None,
+                social_feeds_top_k=_social_top_k,
+                social_feeds_half_life_years=_social_half_life,
                 yaml_path=str(MULTI_AGENT_DIR / "config" / "ma_agent_types.yaml"),
                 dynamic_whitelist=[
                     "govt_message",
