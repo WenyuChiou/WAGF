@@ -10,6 +10,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- `tests/flood/test_floodabm_alignment.py`: deleted
+  `TestTPDecayParameters` + `TestTPDecayCalculation` classes (both
+  `@pytest.mark.skip`-marked with reason "tp_decay module archived
+  to examples/archive/ma_legacy/tp_decay/"). The corresponding
+  source module is archived; the YAML-level `test_tp_decay_params_in_yaml`
+  test in `TestYAMLConfiguration` stays (reads parameters from
+  `floodabm_params.yaml`, no Python dependency on the archived
+  module). Remaining test classes in this file:
+  `TestCSRVConstant` / `TestRiskRating2Parameters` /
+  `TestInitialUptakeRates` / `TestCoreConfigParameters` /
+  `TestPremiumCalculation` / `TestYAMLConfiguration` (26 tests
+  total, all passing).
 - `examples/irrigation_abm/analysis/v20_metrics_report.md` — v20
   irrigation baseline was invalidated by the 2026-02-26 execute_skill
   base-asymmetry fix (per MEMORY.md "All v20 irrigation results are
