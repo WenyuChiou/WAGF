@@ -47,7 +47,7 @@ class TestPromptPlaceholderExtensionsHook:
     def test_default_pack_returns_empty(self):
         assert DefaultDomainPack().prompt_placeholder_extensions() == set()
 
-    def test_flood_pack_returns_three_water_names(self):
+    def test_flood_pack_returns_water_names(self):
         # Import the flood pack on demand so this test doesn't force
         # the import for unrelated runs.
         from examples.governed_flood.adapters.flood_pack import (
@@ -58,6 +58,11 @@ class TestPromptPlaceholderExtensionsHook:
             "insurance_cost_text",
             "mg_barrier_text",
             "renewal_fatigue_text",
+            # Phase 6T-E.B v0.5.1 (2026-05-28): social_media_feed added
+            # so validate_prompt accepts the new household-template
+            # placeholder. Resolves to "" when feeds are off
+            # (byte-identity preserved).
+            "social_media_feed",
         }
 
     def test_base_broker_filled_set_no_longer_contains_water_names(self):

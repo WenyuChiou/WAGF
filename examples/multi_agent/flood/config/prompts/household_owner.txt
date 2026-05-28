@@ -32,7 +32,7 @@ It is crucial to accurately assess your flood risk based on your personal flood 
 ### LOCAL NEIGHBORHOOD
 {flood_proximity_qualifier}
 {social_gossip}
-{neighbor_action_summary}
+{neighbor_action_summary}{social_media_feed}
 
 ### FINANCIAL DETAILS (YOUR SPECIFIC COSTS)
 - Annual NFIP Premium: ${current_premium:,.0f}/year

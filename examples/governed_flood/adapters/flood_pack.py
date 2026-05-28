@@ -586,6 +586,14 @@ class FloodGovernanceMixin:
             "insurance_cost_text",
             "mg_barrier_text",
             "renewal_fatigue_text",
+            # Phase 6T-E.B v0.5.1 (2026-05-28): {social_media_feed} is
+            # injected by SocialMediaProvider (broker/components/context/
+            # providers.py). When the social_feeds flag is OFF, the
+            # placeholder resolves to "" — byte-identity preserved
+            # because the household templates place {social_media_feed}
+            # flush against {neighbor_action_summary} with no template-
+            # side newlines.
+            "social_media_feed",
         }
 
 

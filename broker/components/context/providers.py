@@ -576,7 +576,22 @@ class SocialMediaProvider(ContextProvider):
                 getattr(post, "tier_id", ""),
             ))
 
-        context["social_media_feed"] = "\n".join(rendered) if rendered else ""
+        # Phase 6T-E.B v0.5.1: byte-identity-safe section format.
+        # When EMPTY, the value is "" (no characters at all). The
+        # household prompt template places ``{social_media_feed}``
+        # flush against surrounding context with no template-side
+        # newlines, so an empty value renders to byte-identical text
+        # versus a pre-6T-E.B prompt (the placeholder collapses to
+        # nothing). When NON-EMPTY, the provider adds its own leading
+        # ``\n\n`` + header so the social-media block visually
+        # separates from prior context.
+        if rendered:
+            context["social_media_feed"] = (
+                "\n\n## Social media (recent posts):\n"
+                + "\n".join(rendered)
+            )
+        else:
+            context["social_media_feed"] = ""
         context["_social_media_audit"] = audit
 
 
