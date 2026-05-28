@@ -8,7 +8,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-(no entries yet — v0.4.0 cut on 2026-05-28; see below)
+### Changed
+
+- Phase 6T-G (Y1 fix): `MAEventManager.generate_phase` no longer
+  mutates the caller's `context` dict. The method now copies the
+  input into a private working dict and mutates that instead, then
+  returns the per-domain events dict as before. Pre-fix the
+  `context.update(self._event_context)` + `context[provides_key] = …`
+  calls silently leaked dependency-chain state into the caller's
+  mapping (engineering audit Y1). Caller-mutation was undocumented
+  behaviour and no example callers relied on it; the new
+  `broker/tests/test_ma_event_manager_isolation.py` (2 tests) locks
+  the new contract.
+
+### Added
+
+- Phase 6T-G dedup module: `broker/components/social/dedup.py` ships
+  `CrossChannelDedupResult` dataclass + `dedup_by_canonical_event(
+  messages, channels, priority=None)` function. Groups messages by
+  `metadata["canonical_event_id"]`, picks the highest-priority
+  channel rep (default ordering `OFFICIAL=100 > GLOBAL=50 > PEER=10`),
+  and emits `"confirmed by N independent sources"` labels for
+  multi-source groups. Messages without `canonical_event_id` pass
+  through unchanged — exact-match dedup only, the regression gate
+  against over-aggressive collapsing of legitimately divergent
+  signal. `broker/tests/test_cross_channel_dedup.py` covers 14 cases
+  including priority resolution, pass-through, mixed batches, edge
+  cases, and the frozen-result contract.
+- `EventDispatchMetrics.to_audit_dict()` (Phase 6T-G): compact dict
+  representation of dispatch counters for audit-trail emission.
+  Also adds `unhandled_event_types: List[str]` field + `record_unhandled`
+  method so the audit trail can surface unhandled event types even
+  when `UnhandledEventError` is caught at a higher layer. Runner-level
+  emission into `governance_summary.json` is deferred to the
+  follow-up commit landing the SocialMediaProvider — Commit 1's
+  changes alone produce no output-format change (paper-3 byte-
+  identity preserved without any flag).
+
+### Fixed
+
+- `broker/tests/test_framework_invariants.py:TestNoUSMediaTierLiteralsInBrokerSocial`
+  AST gate gains a path-based exemption for
+  `broker/components/social/dedup.py`. The dedup module uses
+  uppercase `OFFICIAL` / `GLOBAL` / `PEER` literals as CHANNEL-CLASS
+  labels (a distinct namespace from the US-media credibility-tier
+  vocabulary the guard targets). The exemption is explicit + commented
+  so future contributors understand the namespace distinction; the
+  guard still catches `OFFICIAL` / `VERIFIED` / `INFLUENCER` / `PEER`
+  / `BOT` appearing in any OTHER broker/components/social/*.py file.
+
+## [0.4.0] - 2026-05-28
 
 ## [0.4.0] - 2026-05-28
 

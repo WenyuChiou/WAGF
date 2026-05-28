@@ -188,6 +188,7 @@ class EventDispatchMetrics:
     handlers_failed: int = 0
     handlers_silently_skipped: int = 0
     errors: List[BrokerHandlerError] = field(default_factory=list)
+    unhandled_event_types: List[str] = field(default_factory=list)
 
     def record_invoke(self) -> None:
         self.handlers_invoked += 1
@@ -199,11 +200,35 @@ class EventDispatchMetrics:
     def record_silent_skip(self) -> None:
         self.handlers_silently_skipped += 1
 
+    def record_unhandled(self, event_type: str) -> None:
+        """Record an event_type the dispatcher saw but had no handler
+        for and that was not on the silent-skip allowlist. Append-only
+        so the audit trail preserves event order. Duplicate event_type
+        names are kept (one entry per occurrence) so the count matches
+        ``UnhandledEventError`` raise count."""
+        self.unhandled_event_types.append(event_type)
+
     def reset(self) -> None:
         self.handlers_invoked = 0
         self.handlers_failed = 0
         self.handlers_silently_skipped = 0
         self.errors.clear()
+        self.unhandled_event_types.clear()
+
+    def to_audit_dict(self) -> "dict[str, object]":
+        """Phase 6T-G: compact dict representation for audit-trail
+        emission. JSON-serialisable: error records collapse to their
+        string repr (avoids cycling into the BrokerHandlerError dataclass
+        and breaking json.dumps). Returns an empty-ish dict when no
+        events fired so the audit CSV column stays byte-stable across
+        runs where the dispatch path didn't activate."""
+        return {
+            "handlers_invoked": self.handlers_invoked,
+            "handlers_failed": self.handlers_failed,
+            "handlers_silently_skipped": self.handlers_silently_skipped,
+            "unhandled_event_types": list(self.unhandled_event_types),
+            "error_count": len(self.errors),
+        }
 
 
 __all__ = [
