@@ -398,7 +398,7 @@ class TestFloodDomainPackByteIdentical:
         phases = [pc.phase for pc in layout]
         assert phases == [
             ExecutionPhase.INSTITUTIONAL,
-            ExecutionPhase.HOUSEHOLD,
+            ExecutionPhase.INDIVIDUAL,
             ExecutionPhase.RESOLUTION,
             ExecutionPhase.OBSERVATION,
         ]

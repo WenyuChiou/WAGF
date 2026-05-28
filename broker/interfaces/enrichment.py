@@ -39,10 +39,23 @@ class PositionData(NamedTuple):
         zone_name: Identifier for the location/zone (e.g., "HIGH_RISK", "DOWNTOWN")
         base_depth_m: Baseline exposure metric in meters (domain-specific interpretation)
         flood_probability: Risk probability [0-1] (reusable for any risk metric)
+
+    Phase 6U-C: ``risk_probability`` is a domain-neutral read-only
+    alias for ``flood_probability``. New code is encouraged to read
+    via ``risk_probability``; the underlying NamedTuple field name
+    remains ``flood_probability`` to avoid touching 13 existing
+    callsites that pass it positionally or as kwarg. Setter is not
+    provided because NamedTuple is immutable — use ``_replace`` on
+    the canonical field name.
     """
     zone_name: str
     base_depth_m: float
     flood_probability: float
+
+    @property
+    def risk_probability(self) -> float:
+        """Domain-neutral read-only alias for ``flood_probability``."""
+        return self.flood_probability
 
 
 class PositionEnricher(Protocol):

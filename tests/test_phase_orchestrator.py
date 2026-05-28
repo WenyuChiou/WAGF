@@ -131,7 +131,7 @@ class TestOrdering:
     def test_sequential_preserves_order(self):
         orch = PhaseOrchestrator(phases=[
             PhaseConfig(
-                phase=ExecutionPhase.HOUSEHOLD,
+                phase=ExecutionPhase.INDIVIDUAL,
                 agent_types=["household_owner"],
                 ordering="sequential",
             ),
@@ -146,7 +146,7 @@ class TestOrdering:
         orch = PhaseOrchestrator(
             phases=[
                 PhaseConfig(
-                    phase=ExecutionPhase.HOUSEHOLD,
+                    phase=ExecutionPhase.INDIVIDUAL,
                     agent_types=["household_owner"],
                     ordering="random",
                 ),
@@ -159,7 +159,7 @@ class TestOrdering:
         orch2 = PhaseOrchestrator(
             phases=[
                 PhaseConfig(
-                    phase=ExecutionPhase.HOUSEHOLD,
+                    phase=ExecutionPhase.INDIVIDUAL,
                     agent_types=["household_owner"],
                     ordering="random",
                 ),
@@ -173,7 +173,7 @@ class TestOrdering:
     def test_parallel_returns_all(self):
         orch = PhaseOrchestrator(phases=[
             PhaseConfig(
-                phase=ExecutionPhase.HOUSEHOLD,
+                phase=ExecutionPhase.INDIVIDUAL,
                 agent_types=["household_owner"],
                 ordering="parallel",
             ),
@@ -199,10 +199,10 @@ class TestDependencyOrdering:
             PhaseConfig(
                 phase=ExecutionPhase.RESOLUTION,
                 agent_types=[],
-                depends_on=[ExecutionPhase.HOUSEHOLD],
+                depends_on=[ExecutionPhase.INDIVIDUAL],
             ),
             PhaseConfig(
-                phase=ExecutionPhase.HOUSEHOLD,
+                phase=ExecutionPhase.INDIVIDUAL,
                 agent_types=["household_owner"],
             ),
         ]
@@ -210,7 +210,7 @@ class TestDependencyOrdering:
         plan = orch.get_execution_plan({"hh_1": make_agent("household_owner")})
         phase_order = [p for p, _ in plan]
         # Household → Resolution → Observation
-        assert phase_order.index(ExecutionPhase.HOUSEHOLD) < \
+        assert phase_order.index(ExecutionPhase.INDIVIDUAL) < \
                phase_order.index(ExecutionPhase.RESOLUTION) < \
                phase_order.index(ExecutionPhase.OBSERVATION)
 
@@ -242,7 +242,7 @@ phases:
         assert orch.phases[1].ordering == "random"
         res_phase = orch.phases[2]
         assert ExecutionPhase.INSTITUTIONAL in res_phase.depends_on
-        assert ExecutionPhase.HOUSEHOLD in res_phase.depends_on
+        assert ExecutionPhase.INDIVIDUAL in res_phase.depends_on
 
     def test_unknown_phase_raises_invalid_phase_config_error(self, tmp_path):
         """Phase 6T-A (2026-05-27): unknown phase names hard-fail at
@@ -408,3 +408,35 @@ class TestDomainAgnostic:
         plan = orch.get_execution_plan(agents)
         agent_phase_ids = plan[0][1]
         assert set(agent_phase_ids) == {"c1", "v1", "s1"}
+
+
+# ---------------------------------------------------------------------------
+# Phase 6U-C: ExecutionPhase enum-alias backward-compat
+# ---------------------------------------------------------------------------
+
+class TestExecutionPhaseAlias:
+    def test_household_is_alias_of_individual(self):
+        """HOUSEHOLD is preserved as a Python Enum value-alias of INDIVIDUAL."""
+        assert ExecutionPhase.HOUSEHOLD is ExecutionPhase.INDIVIDUAL
+
+    def test_household_value_unchanged(self):
+        """Wire value remains \"household\" — audit CSV / phase-YAML compat."""
+        assert ExecutionPhase.HOUSEHOLD.value == "household"
+        assert ExecutionPhase.INDIVIDUAL.value == "household"
+
+    def test_lookup_by_value_returns_individual(self):
+        """ExecutionPhase(\"household\") returns INDIVIDUAL (the canonical member)."""
+        assert ExecutionPhase("household") is ExecutionPhase.INDIVIDUAL
+
+    def test_value_dict_dedup_maps_to_individual(self):
+        """Phase 6U-C dedup behavior lock-in: ``{e.value: e for e in
+        ExecutionPhase}`` collapses the HOUSEHOLD value-alias to
+        INDIVIDUAL (Python Enum does NOT iterate value-aliases).
+        This protects future YAML-loaders from confusion if they
+        rely on the value-keyed dict to dispatch."""
+        phase_map = {e.value: e for e in ExecutionPhase}
+        assert phase_map["household"] is ExecutionPhase.INDIVIDUAL
+        # HOUSEHOLD is not iterated separately
+        assert "HOUSEHOLD" not in {e.name for e in ExecutionPhase}
+        # but HOUSEHOLD-via-attribute still resolves to the same member
+        assert ExecutionPhase.HOUSEHOLD is phase_map["household"]

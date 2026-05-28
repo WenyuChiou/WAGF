@@ -19,6 +19,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Legacy top-level `pmt` / `utility` / `financial` / `generic` and
   `household` / `government` / `insurance` slots emit `DeprecationWarning`
   while preserving round-trip idempotence for dumped configs.
+- Phase 6U-C: interface-layer identifier generalization (3 surgical
+  changes, byte-identity preserved):
+  * `ExecutionPhase.HOUSEHOLD` renamed to `INDIVIDUAL`; `HOUSEHOLD`
+    preserved as a Python Enum value-alias of `INDIVIDUAL` (same wire
+    value `"household"`, same member instance).
+  * `PositionData` gained a domain-neutral read-only `risk_probability`
+    property forwarding to the existing `flood_probability` NamedTuple
+    field. Field name not renamed to avoid touching 13 callsites.
+  * `InsuranceInfoProvider` relocated from
+    `broker/components/context/providers.py` to
+    `broker/domains/water/insurance_provider.py`; legacy import path
+    preserved via module-level `__getattr__` shim with DeprecationWarning.
 - Phase 6U-D: `broker.tools.scaffold_domain` now preserves the selected
   registered framework instead of hardcoding `pmt` in generated agent YAML.
 

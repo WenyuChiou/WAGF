@@ -748,5 +748,30 @@ class TestSyntheticLoader:
                 )
 
 
+# ---------------------------------------------------------------------------
+# Phase 6U-C: PositionData domain-neutral read-only alias
+# ---------------------------------------------------------------------------
+
+
+class TestPositionDataRiskProbabilityAlias:
+    def test_risk_probability_returns_flood_probability(self):
+        """Phase 6U-C: risk_probability is a domain-neutral read-only
+        alias for the underlying flood_probability field."""
+        from broker.interfaces.enrichment import PositionData
+
+        p = PositionData(zone_name="X", base_depth_m=1.0, flood_probability=0.5)
+        assert p.risk_probability == 0.5
+
+    def test_legacy_field_constructor_unchanged(self):
+        """Phase 6U-C: existing 13 callsites passing flood_probability
+        positionally or as kwarg continue to work unchanged."""
+        from broker.interfaces.enrichment import PositionData
+
+        p_pos = PositionData("Z", 2.0, 0.3)
+        p_kw = PositionData(zone_name="Z", base_depth_m=2.0, flood_probability=0.3)
+        assert p_pos.risk_probability == 0.3
+        assert p_kw.risk_probability == 0.3
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
