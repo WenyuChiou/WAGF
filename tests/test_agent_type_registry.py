@@ -533,3 +533,27 @@ class TestDefaultPMTConstructs:
         tp = DEFAULT_PMT_CONSTRUCTS["TP_LABEL"]
         assert tp.values == ["VL", "L", "M", "H", "VH"]
         assert tp.required is True
+
+
+# ---------------------------------------------------------------------------
+# Phase 6U-G follow-up (2026-05-28): AgentCategory value-alias
+# ---------------------------------------------------------------------------
+
+
+class TestAgentCategoryAlias:
+    """Same Python Enum value-alias pattern as ``ExecutionPhase.HOUSEHOLD``
+    from Phase 6U-C (see ``tests/test_phase_orchestrator.py:TestExecutionPhaseAlias``)."""
+
+    def test_household_is_alias_of_individual(self):
+        """``HOUSEHOLD`` and ``INDIVIDUAL`` are the same enum member."""
+        assert AgentCategory.HOUSEHOLD is AgentCategory.INDIVIDUAL
+
+    def test_household_value_unchanged(self):
+        """Wire value remains ``"household"`` — audit / YAML compat."""
+        assert AgentCategory.HOUSEHOLD.value == "household"
+        assert AgentCategory.INDIVIDUAL.value == "household"
+
+    def test_lookup_by_value_returns_individual(self):
+        """``AgentCategory("household")`` returns INDIVIDUAL (canonical
+        first-declared member; HOUSEHOLD is the value-alias)."""
+        assert AgentCategory("household") is AgentCategory.INDIVIDUAL

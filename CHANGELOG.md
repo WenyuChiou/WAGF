@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+(no entries yet — v0.4.0 cut on 2026-05-28; see below)
+
+## [0.4.0] - 2026-05-28
+
+Minor-bump release: **Phase 6U identifier-generalization series complete**.
+7 commits since v0.3.0 closing every identifiable water-domain leak
+in `broker/` generic namespace (broker/domains/water/ excluded as the
+canonical home for water-specific code). 79 new regression tests
+(2735 → 2812 passing). v21 5-seed gemma3:4b byte-identity preserved
+throughout — no audit CSV / reflection JSONL / phase wire-value changed.
+
+Multi-AI review (codex-delegate + gemini-delegate + code-review +
+silent-failure-hunter-py) caught 7 P1 silent-failure regressions
+across the series, all fixed pre-commit. See per-phase blocks below
+for the catch list.
+
 ### Changed
 
 - Phase 6U-A / 6U-D: generalized low-risk broker identifiers:
@@ -31,6 +47,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `broker/components/context/providers.py` to
     `broker/domains/water/insurance_provider.py`; legacy import path
     preserved via module-level `__getattr__` shim with DeprecationWarning.
+  * `AgentCategory.HOUSEHOLD` renamed to `INDIVIDUAL` (Phase 6U-G
+    follow-up, 2026-05-28): same Python Enum value-alias pattern as
+    `ExecutionPhase.HOUSEHOLD`, found during the pre-v0.4.0
+    genericity audit.
 - Phase 6U-D: `broker.tools.scaffold_domain` now preserves the selected
   registered framework instead of hardcoding `pmt` in generated agent YAML.
 - Phase 6U-E-1: removed deprecated substring-keyword framework

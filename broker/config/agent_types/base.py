@@ -31,8 +31,16 @@ class PsychologicalFramework(str, Enum):
 class AgentCategory(str, Enum):
     """
     Agent category classifications.
+
+    Phase 6U-G follow-up (2026-05-28): ``INDIVIDUAL`` is the canonical
+    domain-neutral name for the micro-agent category; ``HOUSEHOLD`` is
+    preserved as a Python Enum value-alias (same wire value
+    ``"household"`` so audit CSVs / YAML configs are unchanged). Same
+    pattern as ``broker.interfaces.coordination.ExecutionPhase`` from
+    Phase 6U-C — ``AgentCategory.HOUSEHOLD is AgentCategory.INDIVIDUAL``.
     """
-    HOUSEHOLD = "household"
+    INDIVIDUAL = "household"     # Canonical micro-agent category
+    HOUSEHOLD = "household"      # Backward-compat alias of INDIVIDUAL
     INSTITUTIONAL = "institutional"
     ENVIRONMENTAL = "environmental"
     CUSTOM = "custom"
