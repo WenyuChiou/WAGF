@@ -159,6 +159,15 @@ class UnifiedContextBuilder:
         enable_social: bool = False,
         enable_media: bool = False,
         enable_multi_type: bool = False,
+        # Phase 6T-E.B (2026-05-28): SocialMediaProvider flag. Default
+        # OFF preserves paper-3 v21 byte-identity. Requires
+        # ``follower_network`` when True (validation below).
+        enable_social_feeds: bool = False,
+        follower_network: Optional[Any] = None,
+        social_feeds_environment: Optional[Any] = None,
+        social_feeds_pack: Optional[Any] = None,
+        social_feeds_top_k: int = 5,
+        social_feeds_half_life_years: float = 2.0,
         prompt_templates: Dict[str, str] = None,
         memory_engine: Optional[MemoryEngine] = None,
         agent_type_registry: Optional[AgentTypeRegistry] = None,
@@ -203,6 +212,13 @@ class UnifiedContextBuilder:
         self.enable_social = enable_social
         self.enable_media = enable_media
         self.enable_multi_type = enable_multi_type
+        # Phase 6T-E.B
+        self.enable_social_feeds = enable_social_feeds
+        self.follower_network = follower_network
+        self.social_feeds_environment = social_feeds_environment
+        self.social_feeds_pack = social_feeds_pack
+        self.social_feeds_top_k = social_feeds_top_k
+        self.social_feeds_half_life_years = social_feeds_half_life_years
         self.prompt_templates = prompt_templates or {}
         self.memory_engine = memory_engine
         self.agent_type_registry = agent_type_registry
@@ -229,6 +245,25 @@ class UnifiedContextBuilder:
                 "enable_multi_type=True but no agent_type_registry provided. "
                 "Multi-type features will be limited."
             )
+
+        # Phase 6T-E.B: SocialMediaProvider requires both a
+        # FollowerNetwork (for author filtering) and the DomainPack
+        # (for credibility weighting + verbalisation). The environment
+        # carrying the social_feeds dict is the third required dep.
+        if enable_social_feeds:
+            missing = []
+            if follower_network is None:
+                missing.append("follower_network")
+            if social_feeds_environment is None:
+                missing.append("social_feeds_environment")
+            if social_feeds_pack is None:
+                missing.append("social_feeds_pack")
+            if missing:
+                raise ValueError(
+                    f"enable_social_feeds=True but missing required deps: "
+                    f"{missing}. Pass follower_network=, social_feeds_environment=, "
+                    f"and social_feeds_pack= to UnifiedContextBuilder."
+                )
 
         # Build the provider pipeline
         self.providers = self._build_providers()
@@ -282,6 +317,20 @@ class UnifiedContextBuilder:
                         self.agent_type_registry,
                     )
                 )
+
+        # Phase 6T-E.B: SocialMediaProvider injection. Lazy-imported
+        # so the broker module stays cheap to import when the flag is
+        # OFF (paper-3 default). Constructor validated above that all
+        # three required deps are present when the flag is True.
+        if self.enable_social_feeds:
+            from broker.components.context.providers import SocialMediaProvider
+            providers.append(SocialMediaProvider(
+                environment=self.social_feeds_environment,
+                follower_network=self.follower_network,
+                pack=self.social_feeds_pack,
+                top_k=self.social_feeds_top_k,
+                half_life_years=self.social_feeds_half_life_years,
+            ))
 
         return providers
 

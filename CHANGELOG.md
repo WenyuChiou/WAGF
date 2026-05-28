@@ -23,6 +23,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Phase 6T-E.B substrate (broker only; no domain emits posts yet):
+  the `SocialMediaProvider` is now wireable into the context-builder
+  pipeline behind a two-layer feature flag. With the flag OFF (the
+  default, preserving paper-3 v21 byte-identity), the provider class
+  + dedup module don't even land in `sys.modules` — verified by a
+  subprocess regression test (`test_phase_6te_no_import_when_off.py`).
+  Substrate:
+  * `TieredEnvironment.social_feeds: Dict[author_id, List[Post]]`
+    plus `add_post` / `iter_posts` / `clear_social_feeds_year` helpers.
+    `social_feeds` defaults to `{}` so legacy code paths are
+    byte-identical.
+  * `PerceptionPack.social_feeds_default_enabled(self) -> bool`
+    Protocol method + DefaultDomainPack returns False.
+  * `broker/components/social/feed_flag.py` two-layer resolver
+    (`resolve_social_feeds_enabled(yaml_cfg, pack) -> Tuple[bool, str]`).
+    YAML wins if present (including explicit False); else pack
+    default. Logs source for audit.
+  * `broker/components/context/providers.py:SocialMediaProvider`
+    walks the agent's followed authors, filters suppressed tiers +
+    pack-supplied per-agent filter, picks weighted top-K by
+    credibility × age × engagement, renders via `pack.verbalise_post`,
+    writes `context["social_media_feed"]` + audit-trail key
+    `context["_social_media_audit"]`. Catches verbalise exceptions
+    with fallback rendering — dispatch never breaks.
+  * `UnifiedContextBuilder` gains `enable_social_feeds=False`
+    constructor flag + `follower_network` / `social_feeds_environment`
+    / `social_feeds_pack` / `social_feeds_top_k` /
+    `social_feeds_half_life_years` deps. Construction-time validation
+    raises ValueError when flag is True but any required dep is missing.
+  * Provider chain inserts SocialMediaProvider at the end of
+    `_build_providers`, after the MA-only providers. Lazy import
+    keeps cold-start cheap.
+  4 new test files: `test_two_layer_flag_resolution.py` (10 tests),
+  `test_phase_6te_no_import_when_off.py` (1 subprocess test),
+  `test_social_media_provider.py` (13 tests). `PerceptionPack`
+  method-count pin in `test_sub_protocol_split.py` bumped from 8 to
+  9 (total Protocol surface: 43 → 44).
+
 - Phase 6T-G dedup module: `broker/components/social/dedup.py` ships
   `CrossChannelDedupResult` dataclass + `dedup_by_canonical_event(
   messages, channels, priority=None)` function. Groups messages by

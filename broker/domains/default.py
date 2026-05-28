@@ -200,6 +200,14 @@ class DefaultDomainPack:
         """
         return post
 
+    def social_feeds_default_enabled(self) -> bool:
+        """Phase 6T-E.B default: ``False``. Generic broker code
+        must NOT auto-enable the SocialMediaProvider; packs whose
+        experiments need it override to ``True``. Paper-3 byte-
+        identity guard — the flood pack ALSO returns False to keep
+        v21 5-seed gemma3:4b unchanged."""
+        return False
+
     def prompt_placeholder_extensions(self) -> Set[str]:
         # Phase 6R-B-3 (audit cluster E #16): default contract — no
         # domain-specific placeholders. Generic domains rely on

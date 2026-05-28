@@ -9,37 +9,115 @@ Distinguishes between:
 
 Serves as the single source of truth for "Non-Personal" state.
 """
-from typing import Dict, Any, Optional, List, TYPE_CHECKING
+from typing import Dict, Any, Iterator, Optional, List, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from broker.components.social.graph import SocialGraph
+    from broker.components.social.post import Post
+    from broker.domains.protocol import DomainPack
 
 class TieredEnvironment:
     """
     Multi-layered environment state manager.
-    
+
     Layers:
     - global_state: Simulation-wide variables (year, flood, policy)
     - local_states: Spatial/regional variables (tract-level)
     - institutions: Institutional agent states (FEMA, insurers)
     - social_states: Observable neighbor states (for social influence)
+    - social_feeds: Phase 6T-E.B — author_id → ordered list of Posts.
+      Empty by default; populated only when a DomainPack opts in via
+      ``social_feeds_default_enabled`` or the YAML flag
+      ``global_config.social_feeds.enable``. Paper-3 v21 dataset is
+      byte-identical to v0.4.0 because no shipping experiment flips
+      the flag yet.
     """
-    
+
     def __init__(self, global_state: Optional[Dict[str, Any]] = None):
         # Layer 1: Global (Sim-wide)
         self.global_state: Dict[str, Any] = global_state or {}
-        
+
         # Layer 2: Spatial/Local (Tracts, Neighborhoods)
         self.local_states: Dict[str, Dict[str, Any]] = {}
-        
+
         # Layer 3: Institutional (Government, Companies)
         self.institutions: Dict[str, Dict[str, Any]] = {}
-        
+
         # Layer 4: Social (Neighbor observations)
         self.social_states: Dict[str, Dict[str, Any]] = {}
-        
+
+        # Layer 5: Social-media feeds (Phase 6T-E.B). Empty dict =
+        # the SocialMediaProvider walks an empty iterator and writes
+        # ``context["social_media_feed"] = ""`` — byte-identical to
+        # any earlier code that never built feeds.
+        self.social_feeds: Dict[str, List["Post"]] = {}
+
         # Optional: Social Graph for neighbor lookups
         self._social_graph: Optional['SocialGraph'] = None
+
+    # ===== Social-media feeds (Phase 6T-E.B) =====
+
+    def add_post(self, post: "Post") -> None:
+        """Append a Post to its author's feed.
+
+        Caller responsibility: the post's ``author_id`` field is the
+        feed key. No deduplication here — repeated posts with the
+        same author / event_type / event_year are allowed (an author
+        may legitimately re-post). Dedup is the SocialMediaProvider's
+        job at render time.
+        """
+        self.social_feeds.setdefault(post.author_id, []).append(post)
+
+    def iter_posts(
+        self,
+        since_year: Optional[int] = None,
+        until_year: Optional[int] = None,
+    ) -> Iterator["Post"]:
+        """Iterate all posts across all authors, optionally filtered
+        by event_year range (both endpoints inclusive). Used by the
+        SocialMediaProvider's top-K sampling. Iteration order is
+        author insertion order then per-author append order — stable
+        across runs with deterministic event dispatch."""
+        for posts in self.social_feeds.values():
+            for p in posts:
+                if since_year is not None and p.event_year < since_year:
+                    continue
+                if until_year is not None and p.event_year > until_year:
+                    continue
+                yield p
+
+    def clear_social_feeds_year(self, current_year: int, pack: "DomainPack") -> None:
+        """Drop posts whose event_type has ``EventPersistence.EPHEMERAL``
+        in the pack's ``event_persistence_policy``. STICKY_* tiers
+        survive across year boundaries (with age-decay weighting
+        applied at render time, not here). Called from the multi-agent
+        runner's year-boundary hook; safe to call on an empty feed
+        dict (no-op).
+
+        Phase 6T-E.B: keeps social_feeds bounded — without this,
+        long-horizon experiments would accumulate every post
+        forever, blowing memory + prompt context."""
+        from broker.components.events.exceptions import EventPersistence
+
+        if not self.social_feeds:
+            return
+
+        get_persistence = getattr(pack, "event_persistence_policy", None)
+        for author_id in list(self.social_feeds):
+            kept = []
+            for p in self.social_feeds[author_id]:
+                persistence = (
+                    get_persistence(p.event_type)
+                    if get_persistence is not None
+                    else EventPersistence.EPHEMERAL
+                )
+                if persistence == EventPersistence.EPHEMERAL:
+                    continue  # drop
+                kept.append(p)
+            if kept:
+                self.social_feeds[author_id] = kept
+            else:
+                del self.social_feeds[author_id]
 
     # ===== Setters =====
     

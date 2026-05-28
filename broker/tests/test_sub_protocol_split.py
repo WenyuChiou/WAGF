@@ -87,6 +87,11 @@ class TestSubProtocolMethodOwnership:
             "verbalise_post",
             "suppressed_tiers",
             "social_media_post_filter",
+            # Phase 6T-E.B (2026-05-28) addition — pack-level default
+            # for the SocialMediaProvider feature flag. The flag
+            # resolver in broker/components/social/feed_flag.py
+            # consults YAML first; if absent, falls back to this.
+            "social_feeds_default_enabled",
         },
         GovernancePack: {
             "psychological_framework",
@@ -137,8 +142,8 @@ class TestSubProtocolMethodOwnership:
             f"declared={sorted(declared)} expected={sorted(expected)}"
         )
 
-    def test_total_method_count_is_43(self):
-        """Sanity check: union of all 7 sub-protocol method-sets is 43 —
+    def test_total_method_count_is_44(self):
+        """Sanity check: union of all 7 sub-protocol method-sets is 44 —
         the original 32 (per ``.research/domain_pack_protocol_reference.md``)
         plus 3 Phase 6T-A EventPack additions
         (``event_type_to_domain``, ``event_persistence_policy``,
@@ -148,9 +153,10 @@ class TestSubProtocolMethodOwnership:
         ``multi_agent_env_keys``) plus 5 Phase 6T-E PerceptionPack
         additions (``credibility_tiers``, ``credibility_weight``,
         ``verbalise_post``, ``suppressed_tiers``,
-        ``social_media_post_filter``)."""
+        ``social_media_post_filter``) plus 1 Phase 6T-E.B PerceptionPack
+        addition (``social_feeds_default_enabled``)."""
         total = sum(len(s) for s in self.EXPECTED_METHODS.values())
-        assert total == 43
+        assert total == 44
 
     def test_no_method_belongs_to_two_sub_protocols(self):
         """Critical invariant — each method has exactly ONE sub-protocol
