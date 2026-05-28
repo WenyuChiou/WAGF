@@ -436,6 +436,150 @@ class EnvironmentEventProvider(ContextProvider):
         ]
 
 
+class SocialMediaProvider(ContextProvider):
+    """Phase 6T-E.B (2026-05-28): inject ``{social_media_feed}``
+    into the agent's prompt context.
+
+    Walks ``environment.social_feeds`` (a Dict[author_id, List[Post]]
+    populated by domain event handlers when the feed flag is ON),
+    filters to authors the agent follows via ``FollowerNetwork``,
+    drops suppressed tiers + pack-filter rejects, picks weighted
+    top-K and renders via ``pack.verbalise_post``. When the agent
+    has no followed authors OR no posts survive filtering, writes
+    an empty string — the prompt's ``{social_media_feed}`` placeholder
+    then formats to the empty string, byte-identical to a run that
+    had no provider at all.
+
+    Audit trail: also writes ``context["_social_media_audit"]`` (a
+    list of ``(author_id, event_year, event_type, tier_id)`` tuples)
+    so Phase 6T-G cross-channel dedup can join social posts with
+    OFFICIAL / GLOBAL channel emissions.
+
+    Phase 6T-E.B: paper-3 byte-identity guard — this class is
+    instantiated ONLY when ``UnifiedContextBuilder.enable_social_feeds``
+    is True. With the flag OFF (the default for paper-3 flood
+    experiments), this class never lands in the provider chain.
+    """
+
+    def __init__(
+        self,
+        environment: Any,
+        follower_network: Any,
+        pack: Any,
+        top_k: int = 5,
+        current_year_fn: Optional[Callable[[], int]] = None,
+        half_life_years: float = 2.0,
+    ):
+        """Initialize the provider.
+
+        Args:
+            environment: A ``TieredEnvironment`` (or duck-typed object
+                exposing ``social_feeds: Dict[str, List[Post]]``).
+            follower_network: A ``FollowerNetwork`` exposing
+                ``get_followed(agent_id) -> Set[str]``. Posts from
+                authors the agent does NOT follow are filtered out.
+            pack: The active ``DomainPack``. Required for
+                ``credibility_weight`` / ``verbalise_post`` /
+                ``suppressed_tiers`` / ``social_media_post_filter``.
+            top_k: Max posts injected per agent per call. Default 5
+                bounds prompt-length inflation to ~50-200 tokens.
+            current_year_fn: Zero-arg callable returning the current
+                simulation year (for age-decay). If ``None``, the
+                provider reads ``kwargs["year"]`` in ``provide``.
+            half_life_years: Age-decay half-life for post weighting.
+                A post 2 years old has half the weight of a current
+                post; 4 years old = 1/4 weight. Tunable per YAML.
+        """
+        self.environment = environment
+        self.follower_network = follower_network
+        self.pack = pack
+        self.top_k = top_k
+        self.current_year_fn = current_year_fn
+        self.half_life_years = half_life_years
+
+    def provide(self, agent_id, agents, context, **kwargs):
+        # Lazy import to keep this module importable in environments
+        # without the social subpackage on the path (e.g. minimal
+        # broker installs).
+        from broker.components.social.post import age_weight
+
+        feeds = getattr(self.environment, "social_feeds", None)
+        if not feeds:
+            context["social_media_feed"] = ""
+            context["_social_media_audit"] = []
+            return
+
+        agent = agents.get(agent_id)
+        if agent is None:
+            context["social_media_feed"] = ""
+            context["_social_media_audit"] = []
+            return
+
+        # Year resolution: explicit fn wins, else kwargs, else 0.
+        if self.current_year_fn is not None:
+            year = self.current_year_fn()
+        else:
+            year = kwargs.get("year", 0)
+
+        # Author-graph filter
+        followed = self.follower_network.get_followed(agent_id) if self.follower_network else set()
+        if not followed:
+            context["social_media_feed"] = ""
+            context["_social_media_audit"] = []
+            return
+
+        suppressed = self.pack.suppressed_tiers() if hasattr(self.pack, "suppressed_tiers") else set()
+
+        candidates = []
+        for author_id in followed:
+            for post in feeds.get(author_id, []):
+                if getattr(post, "tier_id", "") in suppressed:
+                    continue
+                kept = self.pack.social_media_post_filter(agent, post)
+                if kept is None:
+                    continue
+                candidates.append(kept)
+
+        if not candidates:
+            context["social_media_feed"] = ""
+            context["_social_media_audit"] = []
+            return
+
+        # Weighted top-K. Credibility ranges [0, 1] by convention but
+        # we don't enforce — pack-supplied; age_weight is positive;
+        # engagement_score is non-negative. The (1 + engagement)
+        # factor avoids zeroing a post that no one liked yet.
+        def _score(post):
+            cred = self.pack.credibility_weight(getattr(post, "tier_id", ""))
+            age = age_weight(
+                getattr(post, "event_year", year),
+                year,
+                self.half_life_years,
+            )
+            eng = float(getattr(post, "engagement_score", 0.0))
+            return cred * age * (1.0 + eng)
+
+        ranked = sorted(candidates, key=_score, reverse=True)[: self.top_k]
+
+        rendered = []
+        audit = []
+        for post in ranked:
+            try:
+                line = self.pack.verbalise_post(post)
+            except Exception:  # noqa: BLE001 — verbalise is operator code, must not break dispatch
+                line = f"[{getattr(post, 'tier_id', 'unknown')}] {getattr(post, 'text', '')}"
+            rendered.append(f"- {line}")
+            audit.append((
+                getattr(post, "author_id", ""),
+                getattr(post, "event_year", year),
+                getattr(post, "event_type", ""),
+                getattr(post, "tier_id", ""),
+            ))
+
+        context["social_media_feed"] = "\n".join(rendered) if rendered else ""
+        context["_social_media_audit"] = audit
+
+
 class PerceptionAwareProvider(ContextProvider):
     """Applies perception filter as final step in context building.
 
@@ -562,6 +706,7 @@ __all__ = [
     "ObservableStateProvider",  # Task-041: Cross-agent observation
     "EnvironmentEventProvider",  # Task-042: Environment events
     "PerceptionAwareProvider",  # Task-043: Agent-type perception
+    "SocialMediaProvider",  # Phase 6T-E.B: feed_flag-gated social-media injection
     "InsuranceInfoProvider",  # Task-060A: Insurance premium disclosure
     "FeedbackDashboardProvider",  # Config-driven env feedback dashboard
     "AgentMetricsTracker",  # Per-agent metrics history for trends

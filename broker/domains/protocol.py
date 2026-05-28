@@ -201,7 +201,7 @@ class EventPack(Protocol):
 
 @runtime_checkable
 class PerceptionPack(Protocol):
-    """Numeric→qualitative verbalisation + per-agent-type policy + social-media tier vocabulary (8 methods).
+    """Numeric→qualitative verbalisation + per-agent-type policy + social-media tier vocabulary (9 methods).
 
     Consumed by ``broker/components/social/perception.py`` and by
     the Phase 6T-E social-media propagation channel. See
@@ -210,7 +210,8 @@ class PerceptionPack(Protocol):
     ``passthrough_agent_types``, ``credibility_tiers`` (Phase 6T-E
     2026-05-27), ``credibility_weight`` (Phase 6T-E),
     ``verbalise_post`` (Phase 6T-E), ``suppressed_tiers``
-    (Phase 6T-E), ``social_media_post_filter`` (Phase 6T-E).
+    (Phase 6T-E), ``social_media_post_filter`` (Phase 6T-E),
+    ``social_feeds_default_enabled`` (Phase 6T-E.B 2026-05-28).
     """
     def perception_descriptors(self) -> Dict[str, Any]: ...
     def perception_field_policy(self) -> Dict[str, List[str]]: ...
@@ -220,6 +221,7 @@ class PerceptionPack(Protocol):
     def verbalise_post(self, post: Any) -> str: ...
     def suppressed_tiers(self) -> Set[str]: ...
     def social_media_post_filter(self, agent: Any, post: Any) -> Optional[Any]: ...
+    def social_feeds_default_enabled(self) -> bool: ...
 
 
 @runtime_checkable
@@ -779,7 +781,7 @@ class DomainPack(
 
         Returns the post (possibly transformed) or ``None`` to drop
         the post from this specific agent's feed. The Layer-3
-        SocialMediaProvider (deferred-commit) calls this for every
+        SocialMediaProvider (Phase 6T-E.B) calls this for every
         candidate post before adding it to the prompt feed.
 
         Use cases:
@@ -795,6 +797,26 @@ class DomainPack(
         Default in :class:`DefaultDomainPack`: returns ``post``
         unchanged. Packs that want default-passthrough don't need
         to override.
+        """
+        ...
+
+    def social_feeds_default_enabled(self) -> bool:
+        """Phase 6T-E.B (2026-05-28): pack-level default for the
+        social-media feed flag.
+
+        Returns ``True`` if this pack's typical experiments expect the
+        SocialMediaProvider to be live (auto-emit Posts + inject
+        ``{social_media_feed}``), ``False`` otherwise. The two-layer
+        resolver ``broker.components.social.feed_flag.resolve_social_feeds_enabled``
+        consults YAML first; if the YAML omits the key it falls back
+        to this pack default.
+
+        Default in :class:`DefaultDomainPack`: ``False``. Packs whose
+        published-paper datasets DO NOT use social feeds (e.g. the
+        flood pack — paper-3 v21 5-seed gemma3:4b dataset was
+        generated before social feeds existed) MUST keep this False
+        to preserve byte-identity. Packs designed FOR social-media
+        experiments override to True.
         """
         ...
 
