@@ -137,6 +137,95 @@ _TYPE_MAP: Dict[str, Any] = {}
 _SENDER_MAP: Dict[str, str] = {}
 
 
+# ─────────────────────────────────────────────────────────────────────────
+# Phase 6U-E-2: Coordinator artifact-dispatch registry
+# ─────────────────────────────────────────────────────────────────────────
+#
+# Replaces the previously-hardcoded ``if atype == "HouseholdIntention": ...
+# elif atype == "PolicyArtifact": ... elif atype == "MarketArtifact":``
+# block in ``broker/components/coordination/coordinator.py``. Domain
+# modules register their artifact dispatch rules at import time; the
+# coordinator iterates the registry rather than naming any specific
+# water/flood artifact type.
+# ─────────────────────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class ArtifactDispatchRule:
+    """How the coordinator should bucket an incoming artifact.
+
+    Attributes:
+        artifact_type: The string returned by ``artifact.artifact_type()``
+            (e.g. ``"HouseholdIntention"``, ``"PolicyArtifact"``).
+        bucket: Key under ``Coordinator._round_artifacts`` where the
+            artifact lands (e.g. ``"intentions"``, ``"policy"``, ``"market"``).
+        mode: ``"append"`` (list-of-artifacts) or ``"single"``
+            (last-write-wins for the bucket).
+    """
+    artifact_type: str
+    bucket: str
+    mode: str  # "append" or "single"
+
+
+_DISPATCH_RULES: Dict[str, ArtifactDispatchRule] = {}
+
+
+def register_artifact_dispatch_rule(
+    artifact_type: str,
+    bucket: str,
+    mode: str = "single",
+    *,
+    overwrite: bool = False,
+) -> None:
+    """Register how the coordinator should bucket an artifact_type.
+
+    Call this from a domain module at import time. ``mode`` is
+    ``"append"`` for many-per-round (household intentions accumulate)
+    or ``"single"`` for last-write-wins (policy / market). Unknown
+    ``mode`` raises ``ValueError``.
+
+    Idempotent re-registration (same ``bucket`` and ``mode``) is a
+    no-op — supports the import-time registration pattern where two
+    different code paths may import the same domain module. A
+    CONFLICTING re-registration (different ``bucket`` or ``mode``)
+    raises ``ValueError`` unless ``overwrite=True`` is passed
+    explicitly. This guards the v0.88.15-class silent failure where a
+    second domain or a misordered reload silently rewires the
+    coordinator dispatch and the original domain's cross-validators
+    suddenly see ``None`` in their bucket lookup, dropping every
+    governance violation in the round without a log entry.
+    """
+    if mode not in ("append", "single"):
+        raise ValueError(
+            f"ArtifactDispatchRule mode must be 'append' or 'single', got {mode!r}"
+        )
+    existing = _DISPATCH_RULES.get(artifact_type)
+    if existing is not None and not overwrite:
+        if existing.bucket == bucket and existing.mode == mode:
+            return  # idempotent re-registration is a no-op
+        raise ValueError(
+            f"Conflicting ArtifactDispatchRule for {artifact_type!r}: "
+            f"existing=(bucket={existing.bucket!r}, mode={existing.mode!r}), "
+            f"new=(bucket={bucket!r}, mode={mode!r}). "
+            f"Pass overwrite=True to replace intentionally."
+        )
+    _DISPATCH_RULES[artifact_type] = ArtifactDispatchRule(
+        artifact_type=artifact_type, bucket=bucket, mode=mode
+    )
+
+
+def get_artifact_dispatch_rule(artifact_type: str) -> Optional[ArtifactDispatchRule]:
+    """Look up the dispatch rule for an artifact type. Returns ``None``
+    if no rule is registered (coordinator falls back to per-source
+    bucketing)."""
+    return _DISPATCH_RULES.get(artifact_type)
+
+
+def clear_artifact_dispatch_rules() -> None:
+    """Test-only helper: clear all registered dispatch rules."""
+    _DISPATCH_RULES.clear()
+
+
 # Stable broker-facing fallbacks. Domain implementations may subclass
 # AgentArtifact separately, but the broker should not import example code here.
 class _FallbackArtifact(AgentArtifact):

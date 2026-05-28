@@ -715,7 +715,11 @@ class TestBuildUniversalContext:
         assert ctx.agent_id == "agent_001"
         assert ctx.agent_type == "household"
         assert ctx.year == 5
-        assert ctx.framework == PsychologicalFrameworkType.PMT
+        # Phase 6U-E-1 (2026-05-28): agent types with NO
+        # ``psychological_framework`` declared in YAML / agent_type_registry
+        # resolve to GENERIC. Pre-6U-E-1 the deprecated substring
+        # heuristic mapped agent_type "household" → PMT.
+        assert ctx.framework == PsychologicalFrameworkType.GENERIC
 
     def test_build_universal_context_with_skills(self, mock_agents, mock_memory_engine):
         """Test UniversalContext with explicit skills."""
@@ -790,7 +794,16 @@ class TestBuildUniversalContext:
         assert ctx.agent_type == "default"
 
     def test_build_universal_context_framework_detection(self, mock_agents, mock_memory_engine):
-        """Test framework detection based on agent type."""
+        """Phase 6U-E-1: framework resolution falls back to GENERIC when
+        agent_type has no declared ``psychological_framework`` in the
+        agent_type_registry / YAML.
+
+        Pre-6U-E-1 this test exercised the deprecated substring heuristic
+        (agent_type substring "household" → PMT, "government" → UTILITY).
+        The heuristic is now removed; agent_types must declare their
+        framework explicitly. Without a declaration both agent types
+        resolve to GENERIC.
+        """
         from broker.interfaces.context_types import UniversalContext, PsychologicalFrameworkType
 
         # Create agents with different types
@@ -814,13 +827,12 @@ class TestBuildUniversalContext:
             memory_engine=mock_memory_engine,
         )
 
-        # Household should get PMT
+        # No psychological_framework declared on either type → GENERIC
         ctx1 = builder.build_universal_context("agent_001")
-        assert ctx1.framework == PsychologicalFrameworkType.PMT
+        assert ctx1.framework == PsychologicalFrameworkType.GENERIC
 
-        # Government should get UTILITY
         ctx2 = builder.build_universal_context("gov_001")
-        assert ctx2.framework == PsychologicalFrameworkType.UTILITY
+        assert ctx2.framework == PsychologicalFrameworkType.GENERIC
 
     def test_universal_context_to_dict_roundtrip(self, mock_agents, mock_memory_engine):
         """Test UniversalContext can be serialized and restored."""

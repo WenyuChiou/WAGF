@@ -488,27 +488,20 @@ class UnifiedContextBuilder:
                 "cognitive_appraisal / generic).",
                 agent_type,
             )
-        # Phase 6Q-K-1 (2026-05-26): substring heuristic preserved
-        # for backward compat — flood/irrigation/vaccination configs
-        # already declare `psychological_framework:` per Phase 6P-E,
-        # so this branch only fires for undeclared / misspelled
-        # configs. The 3 explicit cases below still resolve correctly
-        # for water-MAS agent types; the catch-all default changed
-        # from PMT to GENERIC to remove the silent flood-bias for
-        # any UNRECOGNISED agent_type. Downstream consumers passing
-        # "generic" to ThinkingValidator get the Phase 6Q-D-4
-        # graceful FRAMEWORK_ESCAPE_HATCH downgrade (since "generic"
-        # is in FrameworkType enum but not in FRAMEWORK_LABEL_ORDERS
-        # registry).
-        type_lower = agent_type.lower()
-        if "household" in type_lower or "resident" in type_lower:
-            return PsychologicalFrameworkType.PMT
-        elif "government" in type_lower or "policy" in type_lower:
-            return PsychologicalFrameworkType.UTILITY
-        elif "insurance" in type_lower or "finance" in type_lower:
-            return PsychologicalFrameworkType.FINANCIAL
-
-        return PsychologicalFrameworkType.GENERIC  # Phase 6Q-K-1: was PMT
+        # Phase 6U-E-1 (2026-05-28): substring-keyword heuristic removed.
+        # Phase 6Q-K-1 already changed the catch-all default to GENERIC;
+        # this completes the cleanup that 6Q-K-1's comment flagged as
+        # "Full removal of the heuristic is a follow-up pass." Agent
+        # types in flood / irrigation / vaccination configs all declare
+        # ``psychological_framework`` explicitly per Phase 6P-E, so this
+        # branch only fired for undeclared / misspelled configs — and
+        # the warning at the top of the fallback already nudges callers
+        # to declare it. Returning GENERIC for undeclared types matches
+        # ``DefaultDomainPack.framework_for_agent_type`` semantics and
+        # removes the last broker/core code path that inferred a
+        # framework from water-domain agent-type substrings (household
+        # / resident / government / policy / insurance / finance).
+        return PsychologicalFrameworkType.GENERIC
 
     def _get_constructs_for_type(self, agent_type: str) -> Dict[str, Any]:
         """

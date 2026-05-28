@@ -218,14 +218,22 @@ class GameMaster:
         artifact = envelope.artifact
         atype = artifact.artifact_type()
 
-        if atype == "HouseholdIntention":
-            self._round_artifacts.setdefault("intentions", []).append(artifact)
-        elif atype == "PolicyArtifact":
-            self._round_artifacts["policy"] = artifact
-        elif atype == "MarketArtifact":
-            self._round_artifacts["market"] = artifact
-        else:
+        # Phase 6U-E-2 (2026-05-28): registry-driven dispatch replaces
+        # the previously-hardcoded if/elif over flood-domain artifact
+        # types. Domain modules register rules via
+        # ``register_artifact_dispatch_rule``; absent a rule the
+        # artifact is bucketed by source-agent (the existing default).
+        from broker.interfaces.artifacts import get_artifact_dispatch_rule
+
+        rule = get_artifact_dispatch_rule(atype)
+        if rule is None:
             self._round_artifacts[envelope.source_agent] = envelope
+        elif rule.mode == "append":
+            self._round_artifacts.setdefault(rule.bucket, []).append(artifact)
+        elif rule.mode == "single":
+            self._round_artifacts[rule.bucket] = artifact
+        else:  # pragma: no cover — validated at registration time
+            raise ValueError(f"unknown dispatch mode {rule.mode!r}")
 
     # ------------------------------------------------------------------
     # Resolution

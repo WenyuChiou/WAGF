@@ -14,7 +14,11 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 
-from broker.interfaces.artifacts import AgentArtifact, register_artifact_routing
+from broker.interfaces.artifacts import (
+    AgentArtifact,
+    register_artifact_routing,
+    register_artifact_dispatch_rule,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -122,3 +126,12 @@ class HouseholdIntention(AgentArtifact):
 register_artifact_routing("PolicyArtifact", "POLICY_ANNOUNCEMENT", "government")
 register_artifact_routing("MarketArtifact", "MARKET_UPDATE", "insurance")
 register_artifact_routing("HouseholdIntention", "NEIGHBOR_WARNING", "household")
+
+# Phase 6U-E-2 (2026-05-28): coordinator dispatch is also domain-owned.
+# Pre-6U-E-2 the coordinator hardcoded these three names; now they're
+# registered alongside the message-type routing above.
+register_artifact_dispatch_rule("PolicyArtifact", bucket="policy", mode="single")
+register_artifact_dispatch_rule("MarketArtifact", bucket="market", mode="single")
+register_artifact_dispatch_rule(
+    "HouseholdIntention", bucket="intentions", mode="append"
+)
