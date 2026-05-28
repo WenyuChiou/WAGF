@@ -107,24 +107,61 @@ class TestSourceLocationProvesExtraction:
 
     def test_water_thinking_checks_does_not_register_utility(self):
         """Source-level check: water/thinking_checks.py's
-        ``WATER_FRAMEWORK_LABEL_ORDERS`` constant must NOT include
-        ``utility`` / ``financial``."""
+        ``WATER_FRAMEWORK_LABEL_ORDERS`` constant must NOT include the
+        generic frameworks (Phase 6T-F-prep moved utility/financial;
+        Phase 6U-F (2026-05-28) moved pmt for the same reason — PMT
+        is a cross-domain behavioural framework, not water-specific)."""
         from broker.domains.water.thinking_checks import (
             WATER_FRAMEWORK_LABEL_ORDERS,
             WATER_FRAMEWORK_CONSTRUCTS,
             WATER_LABEL_MAPPINGS,
         )
-        # Water-specific stays:
-        assert "pmt" in WATER_FRAMEWORK_LABEL_ORDERS
+        # Water-specific stays (irrigation-domain frameworks):
         assert "dual_appraisal" in WATER_FRAMEWORK_LABEL_ORDERS
         assert "cognitive_appraisal" in WATER_FRAMEWORK_LABEL_ORDERS
         # Generic moved out:
+        assert "pmt" not in WATER_FRAMEWORK_LABEL_ORDERS
         assert "utility" not in WATER_FRAMEWORK_LABEL_ORDERS
         assert "financial" not in WATER_FRAMEWORK_LABEL_ORDERS
+        assert "pmt" not in WATER_FRAMEWORK_CONSTRUCTS
         assert "utility" not in WATER_FRAMEWORK_CONSTRUCTS
         assert "financial" not in WATER_FRAMEWORK_CONSTRUCTS
+        assert "pmt" not in WATER_LABEL_MAPPINGS
         assert "utility" not in WATER_LABEL_MAPPINGS
         assert "financial" not in WATER_LABEL_MAPPINGS
+
+    def test_pmt_registered_via_generic_home(self):
+        """Phase 6U-F regression: PMT is registered when only the
+        generic frameworks package is imported — no water domain
+        import required. This is the WIN of moving PMT metadata to
+        the generic home: callers that only need PMT metadata don't
+        have to pull in the water-domain skill modules."""
+        import subprocess
+        import sys
+        from pathlib import Path
+
+        gate_script = r"""
+import sys
+from broker.validators.governance.frameworks import list_registered_frameworks
+assert "pmt" in list_registered_frameworks(), \
+    f"PMT not registered after generic-frameworks import: {sorted(list_registered_frameworks())}"
+# Water must NOT be loaded
+water_modules = sorted(m for m in sys.modules if m.startswith("broker.domains.water"))
+assert not water_modules, f"water modules leaked into PMT-only path: {water_modules}"
+print("OK")
+"""
+        repo = Path(__file__).resolve().parents[2]
+        result = subprocess.run(
+            [sys.executable, "-c", gate_script],
+            capture_output=True,
+            text=True,
+            cwd=str(repo),
+            timeout=60,
+        )
+        assert result.returncode == 0, (
+            f"PMT-via-generic regression failed:\nSTDOUT: {result.stdout}\n"
+            f"STDERR: {result.stderr}"
+        )
 
     def test_generic_frameworks_module_carries_constants(self):
         """The new frameworks/ module exports the three metadata
@@ -220,6 +257,10 @@ class TestFrameworksModuleGenericity:
     GUARDED_FILES = [
         "broker/validators/governance/frameworks/__init__.py",
         "broker/validators/governance/frameworks/narrative_diffusion.py",
+        # Phase 6U-F (2026-05-28): pmt.py is the new PMT-metadata home;
+        # it must remain water-import-free for the same reason as the
+        # other framework metadata modules.
+        "broker/validators/governance/frameworks/pmt.py",
     ]
 
     FORBIDDEN_PREFIXES = (

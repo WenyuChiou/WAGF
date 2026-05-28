@@ -4,8 +4,8 @@ Water-domain thinking-validator metadata and builtin checks.
 Registers framework label orders, construct mappings, label normalization
 mappings, and builtin check implementations for the WATER-SPECIFIC
 psychometric frameworks:
-- PMT (Protection Motivation Theory) — flood household agents
 - Dual Appraisal (WSA/ACA) — irrigation agents
+- Cognitive Appraisal — irrigation variant
 
 Called by ``broker.domains.water.__init__.register()`` at import time.
 
@@ -15,14 +15,25 @@ construct vocabularies (``BUDGET_UTIL`` / ``RISK_APPETITE`` etc.) are
 genuinely cross-domain — a Phase-6P-A-class genericity leak. Those
 two frameworks' metadata moved to
 ``broker/validators/governance/frameworks/`` (a generic broker home)
-which auto-registers them at import time. The framework CLASSES
-(``UtilityFramework`` / ``FinancialFramework``) still live in
-``broker/domains/water/{utility,financial}.py`` because their
-``get_expected_behavior`` methods return flood-paper-3-coupled skill
-names (e.g. ``"increase_subsidy"``); calibration tooling at
+which auto-registers them at import time.
+
+Phase 6U-F (2026-05-28) extended that extraction to ``pmt`` — PMT
+(Rogers 1975) is a cross-domain behavioural framework, not water-
+specific. ``PMT_LABEL_ORDER`` / ``PMT_CONSTRUCTS`` /
+``PMT_LABEL_MAPPINGS`` now live in
+``broker/validators/governance/frameworks/pmt.py`` and auto-register.
+The skill-dependent ``_water_pmt_check`` builtin body still lives in
+this module (it closes over ``extreme_actions`` defaults that
+reference flood skill names like ``"relocate"`` and
+``"elevate_house"``).
+
+The framework CLASSES (``UtilityFramework`` / ``FinancialFramework``
+/ ``PMTFramework``) still live in ``broker/domains/water/`` because
+their ``get_expected_behavior`` methods return flood-paper-3-coupled
+skill names (e.g. ``"increase_subsidy"``); calibration tooling at
 ``broker/domains/water/calibration/micro_validator.py`` consumes
-those methods. A full extraction would require splitting each class
-into a generic-base + flood-subclass, deferred.
+those methods. A full class extraction would require splitting each
+class into a generic-base + flood-subclass, deferred.
 """
 
 from typing import Dict, List, Any, Optional
@@ -36,21 +47,19 @@ from broker.governance.rule_types import GovernanceRule
 # ───────────────────────────────────────────────────────────────────
 
 WATER_FRAMEWORK_LABEL_ORDERS: Dict[str, Dict[str, int]] = {
-    "pmt": {"VL": 0, "L": 1, "M": 2, "H": 3, "VH": 4},
     "dual_appraisal": {"VL": 0, "L": 1, "M": 2, "H": 3, "VH": 4},
     "cognitive_appraisal": {"VL": 0, "L": 1, "M": 2, "H": 3, "VH": 4},
     # Phase 6T-F prep (2026-05-27): ``utility`` + ``financial`` moved
     # to ``broker/validators/governance/frameworks/`` (generic broker
     # home — closes the Phase-6P-A-class leak). Both register
     # automatically when broker.validators.governance imports.
+    # Phase 6U-F (2026-05-28): ``pmt`` metadata followed for the same
+    # reason — PMT (Rogers 1975) is a cross-domain behavioural
+    # framework, not water-specific. The skill-dependent
+    # ``_water_pmt_check`` builtin body still lives in this module.
 }
 
 WATER_FRAMEWORK_CONSTRUCTS: Dict[str, dict] = {
-    "pmt": {
-        "primary": "TP_LABEL",
-        "secondary": "CP_LABEL",
-        "all": ["TP_LABEL", "CP_LABEL", "SP_LABEL", "SC_LABEL", "PA_LABEL"],
-    },
     "dual_appraisal": {
         "primary": "WSA_LABEL",
         "secondary": "ACA_LABEL",
@@ -62,16 +71,10 @@ WATER_FRAMEWORK_CONSTRUCTS: Dict[str, dict] = {
         "all": ["WSA_LABEL", "ACA_LABEL"],
     },
     # Phase 6T-F prep: utility + financial moved to generic home.
+    # Phase 6U-F: pmt followed for the same reason.
 }
 
 WATER_LABEL_MAPPINGS: Dict[str, Dict[str, str]] = {
-    "pmt": {
-        "VERY LOW": "VL", "VERYLOW": "VL", "VERY_LOW": "VL",
-        "LOW": "L",
-        "MEDIUM": "M", "MED": "M", "MODERATE": "M",
-        "HIGH": "H",
-        "VERY HIGH": "VH", "VERYHIGH": "VH", "VERY_HIGH": "VH",
-    },
     "dual_appraisal": {
         "VERY LOW": "VL", "VERYLOW": "VL", "VERY_LOW": "VL",
         "LOW": "L",
@@ -87,6 +90,7 @@ WATER_LABEL_MAPPINGS: Dict[str, Dict[str, str]] = {
         "VERY HIGH": "VH", "VERYHIGH": "VH", "VERY_HIGH": "VH",
     },
     # Phase 6T-F prep: utility + financial moved to generic home.
+    # Phase 6U-F: pmt followed for the same reason.
 }
 
 
