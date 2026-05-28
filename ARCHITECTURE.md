@@ -6,7 +6,10 @@ The Water Agent Governance Framework is a cognitive governance middleware for LL
 
 The framework's extensible architecture allows new water sub-domains to be added through configuration (YAML skill registries + domain validators) without modifying the core broker.
 
-**Version**: v0.30+
+**Version**: v0.5.1 (semver). Pre-v0.3.0 the project used a different
+internal versioning scheme; v0.29.0 → v0.3.0 (2026-05-27) was a
+deliberate semver reset. See `CHANGELOG.md` for the full release
+timeline.
 
 ---
 
@@ -128,7 +131,7 @@ There is no hardcoded external-API integration inside `broker/`.
 
 ---
 
-## Extensible Design Patterns (v0.30+)
+## Extensible Design Patterns (v0.3.0+)
 
 ### 1. Protocol-Based Dependency Injection
 
@@ -352,12 +355,28 @@ mem = cfg.get_memory_config("household_owner")
 
 ## Migration Guide
 
-For migrating from v0.28 to v0.29, see [task-029-migration-guide.md](.tasks/handoff/task-029-migration-guide.md).
+For release-to-release migration notes see `CHANGELOG.md`. Notable
+historical migrations:
 
-Key changes:
-1. SurveyRecord no longer has flood fields → Use FloodSurveyRecord
-2. AgentProfile uses extensions dict → Access via `profile.extensions["flood"]`
-3. Enrichers use Protocol pattern → Pass domain-specific enrichers explicitly
+- **v0.5.1 (2026-05-28)**: SocialMediaProvider live-wire (Phase 6T-E.B)
+  + cross-channel dedup + Y1 fix (Phase 6T-G) — opt-in via
+  `global_config.social_feeds.enable` (default `false`). Paper-3
+  v21 byte-identity preserved.
+- **v0.4.0 (2026-05-28)**: Phase 6U identifier-generalization series
+  complete (broker/ generic namespace has zero domain-flavored
+  identifiers; PMT/utility/financial/narrative_diffusion metadata
+  moved to `broker/validators/governance/frameworks/`).
+- **v0.3.0 (2026-05-27)**: Phase 6T interface opening (Post,
+  FollowerNetwork, InstitutionalLifecycleHandler, PerceptionPack
+  social-media hooks) + silent-failure F1-F5 superset. Semver reset
+  (v0.29.0 → v0.3.0).
+- **Pre-v0.3.0 (legacy v0.28 → v0.29)**:
+  1. SurveyRecord no longer has flood fields → use FloodSurveyRecord.
+  2. AgentProfile uses extensions dict → access via
+     `profile.extensions["flood"]`.
+  3. Enrichers use Protocol pattern → pass domain-specific enrichers
+     explicitly. (Original migration guide:
+     `.tasks/handoff/task-029-migration-guide.md`.)
 
 ---
 
