@@ -70,6 +70,22 @@ from broker.validators.governance.thinking_validator import (
     register_framework_metadata,
 )
 
+# Phase 6U-F (2026-05-28): PMT_* re-exported eagerly at module top so
+# the bindings exist BEFORE any subsequent import (e.g.
+# NarrativeDiffusionFramework at the bottom of this file). Pre-fix the
+# re-export sat at the bottom, creating a partial-import window where
+# ``__all__`` listed PMT_LABEL_ORDER as exported while the binding had
+# not yet executed — if an import between failed mid-way, downstream
+# ThinkingValidator construction would silently fall back to the
+# generic _GENERIC_LABEL_MAPPINGS for any "VERY HIGH" / "VERY LOW"
+# label, biasing TP/CP normalization on every PMT-framework agent in
+# the batch.
+from broker.validators.governance.frameworks.pmt import (
+    PMT_LABEL_ORDER,
+    PMT_CONSTRUCTS,
+    PMT_LABEL_MAPPINGS,
+)
+
 FRAMEWORK_REGISTRY: Dict[str, Any] = MappingProxyType(FRAMEWORK_LABEL_ORDERS)
 
 
@@ -175,7 +191,23 @@ NARRATIVE_DIFFUSION_LABEL_MAPPINGS = {
 # dictionaries.
 
 def _register_generic_frameworks() -> None:
-    """Idempotent registration of all three generic frameworks."""
+    """Idempotent registration of all generic frameworks.
+
+    Phase 6U-F (2026-05-28): PMT metadata moved from
+    ``broker/domains/water/thinking_checks.py`` to
+    ``broker/validators/governance/frameworks/pmt.py`` so callers
+    can validate ``psychological_framework: pmt`` YAML without first
+    importing ``broker.domains.water``. The water domain's
+    ``register_water_metadata`` no longer registers PMT metadata; it
+    still registers the skill-dependent ``_water_pmt_check`` builtin
+    body via ``register_thinking_checks``.
+    """
+    register_framework_metadata(
+        "pmt",
+        PMT_CONSTRUCTS,
+        PMT_LABEL_ORDER,
+        PMT_LABEL_MAPPINGS,
+    )
     register_framework_metadata(
         "utility",
         UTILITY_CONSTRUCTS,
@@ -215,6 +247,9 @@ register_framework("narrative_diffusion", NarrativeDiffusionFramework)
 
 
 __all__ = [
+    "PMT_LABEL_ORDER",
+    "PMT_CONSTRUCTS",
+    "PMT_LABEL_MAPPINGS",
     "UTILITY_LABEL_ORDER",
     "UTILITY_CONSTRUCTS",
     "UTILITY_LABEL_MAPPINGS",

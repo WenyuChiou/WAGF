@@ -57,6 +57,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unless `overwrite=True` is passed — guards the v0.88.15-class silent
   failure where a second domain could silently rewire the coordinator
   and zero out the original domain's cross-validation.
+- Phase 6U-F: PMT metadata (`PMT_LABEL_ORDER`, `PMT_CONSTRUCTS`,
+  `PMT_LABEL_MAPPINGS`) relocated from `broker/domains/water/thinking_checks.py`
+  to `broker/validators/governance/frameworks/pmt.py` — auto-registers
+  at framework module import. PMT is now a generic framework
+  alongside `utility` / `financial` / `narrative_diffusion`; callers
+  can validate `psychological_framework: pmt` YAML without first
+  importing `broker.domains.water`. The skill-dependent
+  `_water_pmt_check` builtin body stays in the water domain (it
+  references flood-specific `extreme_actions` defaults). Post-review
+  P1 fix applied: PMT_* re-export moved to module top so the binding
+  exists before any subsequent import — pre-fix partial-import
+  failure would have left `__all__` referencing un-bound names and
+  silently fallen back to generic label mappings for "VERY HIGH" /
+  "VERY LOW" normalization, biasing TP/CP scoring on every PMT agent
+  in the batch. Adds 1 subprocess regression test confirming PMT is
+  registered without water import.
 
 ### Fixed
 
