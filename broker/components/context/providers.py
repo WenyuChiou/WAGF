@@ -541,51 +541,10 @@ class PerceptionAwareProvider(ContextProvider):
         }
 
 
-class InsuranceInfoProvider(ContextProvider):
-    """Pre-decision insurance cost disclosure for agents.
-
-    Injects insurance premium information into agent context so agents
-    have symmetric cost information for all adaptation options (not just
-    elevation grants).
-
-    Literature: DYNAMO model (de Ruig et al. 2023) injects actuarial
-    premium structure into agent decisions; this provider is the broker
-    analogue — the domain supplies a ``premium_calculator`` callable.
-
-    Reference: Task-060A Insurance Premium Disclosure
-    """
-
-    def __init__(
-        self,
-        premium_calculator: Callable[[str, Any, Dict[str, Any]], Dict[str, Any]],
-        mode: str = "qualitative",
-    ):
-        """Initialize with a domain-specific premium calculator.
-
-        Args:
-            premium_calculator: Function(agent_id, agent, env_context) -> dict
-                with keys: text, amount, pct_of_income, affordability_level
-            mode: "qualitative" (narrative) or "quantitative" (numeric)
-        """
-        self.premium_calculator = premium_calculator
-        self.mode = mode
-
-    def provide(self, agent_id, agents, context, **kwargs):
-        agent = agents.get(agent_id)
-        if not agent:
-            return
-
-        env_context = kwargs.get("env_context", {})
-        # Also check context for env_state (TieredContextBuilder pattern)
-        if not env_context:
-            env_context = context.get("env_state", {})
-
-        cost_info = self.premium_calculator(agent_id, agent, env_context)
-        personal = context.setdefault("personal", {})
-        personal["insurance_cost_text"] = cost_info.get("text", "")
-        personal["insurance_premium_amount"] = cost_info.get("amount", 0)
-        personal["insurance_pct_of_income"] = cost_info.get("pct_of_income", 0)
-        personal["insurance_affordability"] = cost_info.get("affordability_level", "unknown")
+# Phase 6U-C (2026-05-28): InsuranceInfoProvider relocated to
+# broker/domains/water/insurance_provider.py. Legacy import path
+# preserved via module-level __getattr__ shim at the bottom of this
+# file with DeprecationWarning.
 
 
 __all__ = [
@@ -613,3 +572,24 @@ __all__ = [
 # class) from this module.  Importing other providers would create a circular
 # dependency.
 from broker.components.analytics.feedback import FeedbackDashboardProvider, AgentMetricsTracker  # noqa: E402
+
+
+def __getattr__(name):
+    """Phase 6U-C: InsuranceInfoProvider relocated to broker.domains.water.
+
+    Legacy import path preserved with DeprecationWarning. Other
+    unknown attributes raise AttributeError as normal.
+    """
+    if name == "InsuranceInfoProvider":
+        import warnings
+
+        from broker.domains.water.insurance_provider import InsuranceInfoProvider
+
+        warnings.warn(
+            "InsuranceInfoProvider moved to broker.domains.water.insurance_provider; "
+            "import from there",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return InsuranceInfoProvider
+    raise AttributeError(name)

@@ -26,12 +26,31 @@ from broker.interfaces.event_generator import EventScope
 # ---------------------------------------------------------------------------
 
 class ExecutionPhase(Enum):
-    """Multi-agent execution phases within a simulation step."""
-    INSTITUTIONAL = "institutional"   # Government, Insurance agents
-    HOUSEHOLD = "household"           # Household agents (all sub-types)
+    """Multi-agent execution phases within a simulation step.
+
+    Phase 6U-C: ``INDIVIDUAL`` is the canonical name for the
+    micro-agent execution phase; ``HOUSEHOLD`` is preserved as a
+    Python Enum value-alias (same wire-value ``"household"``) for
+    backward-compat with water-domain callers. ``HOUSEHOLD is
+    INDIVIDUAL`` returns True — they are the same enum member.
+    """
+    INSTITUTIONAL = "institutional"   # Organization-level agents (governments, insurers, ...)
+    INDIVIDUAL = "household"          # Micro-agent execution phase (lay agents, residents, ...)
+    HOUSEHOLD = "household"           # Backward-compat alias of INDIVIDUAL — same enum member
     RESOLUTION = "resolution"         # Conflict resolution + GM adjudication
     OBSERVATION = "observation"       # Post-action observable state updates
     CUSTOM = "custom"                 # User-defined phase
+
+    # NOTE (Phase 6U-C dedup behavior): Python ``Enum`` does NOT iterate
+    # value-aliases (``HOUSEHOLD`` shares ``"household"`` with
+    # ``INDIVIDUAL`` so ``list(ExecutionPhase)`` excludes ``HOUSEHOLD``).
+    # ``{e.value: e for e in ExecutionPhase}`` therefore maps
+    # ``"household"`` → ``INDIVIDUAL`` (the canonical, first-declared
+    # member). ``ExecutionPhase.HOUSEHOLD is ExecutionPhase.INDIVIDUAL``
+    # is True, so any ``is`` / ``==`` comparison against the legacy name
+    # still works correctly. New code should write
+    # ``ExecutionPhase.INDIVIDUAL``; the legacy ``HOUSEHOLD`` symbol is
+    # kept for backward-compat with water-domain callers only.
 
 
 @dataclass

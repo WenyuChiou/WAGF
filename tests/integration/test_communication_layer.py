@@ -95,7 +95,7 @@ class TestFullPipeline:
 
         # Verify household phase has all households
         hh_phase, hh_ids = plan[1]
-        assert hh_phase == ExecutionPhase.HOUSEHOLD
+        assert hh_phase == ExecutionPhase.INDIVIDUAL
         assert set(hh_ids) == {"hh_1", "hh_2", "hh_3"}
 
         # --- 2. Message Pool: government broadcasts policy ---
