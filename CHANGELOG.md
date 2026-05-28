@@ -33,6 +33,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     preserved via module-level `__getattr__` shim with DeprecationWarning.
 - Phase 6U-D: `broker.tools.scaffold_domain` now preserves the selected
   registered framework instead of hardcoding `pmt` in generated agent YAML.
+- Phase 6U-E-1: removed deprecated substring-keyword framework
+  heuristic in `broker/core/unified_context_builder.py:_get_framework_for_type`.
+  Agent types with no declared `psychological_framework` now fall back
+  to `GENERIC` instead of inferring PMT/UTILITY/FINANCIAL from
+  agent-type-name substrings (`household`/`resident`/`government`/`policy`/
+  `insurance`/`finance`). Completes the cleanup that Phase 6Q-K-1 had
+  flagged as a follow-up. All production examples already declare
+  the framework explicitly per Phase 6P-E, so no shipping experiment
+  is affected.
+- Phase 6U-E-2: coordinator artifact dispatch is now registry-driven.
+  Replaced the hardcoded
+  `if atype == "HouseholdIntention" / "PolicyArtifact" / "MarketArtifact"`
+  block in `broker.components.coordination.coordinator.submit_artifact`
+  with a `get_artifact_dispatch_rule(atype)` lookup. Domain modules
+  register their rules at import time via
+  `register_artifact_dispatch_rule(artifact_type, bucket, mode)`;
+  the flood pack registers the same 3 mappings as before
+  (HouseholdIntention → intentions/append, PolicyArtifact → policy/single,
+  MarketArtifact → market/single). Wire behaviour unchanged for flood
+  multi-agent. Idempotent re-registration is a no-op; conflicting
+  re-registration (different bucket or mode) raises `ValueError`
+  unless `overwrite=True` is passed — guards the v0.88.15-class silent
+  failure where a second domain could silently rewire the coordinator
+  and zero out the original domain's cross-validation.
 
 ### Fixed
 
