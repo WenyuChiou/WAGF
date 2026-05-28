@@ -8,7 +8,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-(no entries yet — v0.5.0 cut on 2026-05-28; see below)
+(no entries yet — v0.5.1 cut on 2026-05-28; see below)
+
+## [0.5.1] - 2026-05-28
+
+Patch-bump release: **complete the v0.5.0 SocialMediaProvider wire-up**.
+Three commits since v0.5.0 close the v0.5.0 → v0.5.1 follow-up scope
+listed in v0.5.0's release notes:
+
+* Prompt template integration with byte-identity-safe `{social_media_feed}`
+  placeholder (flush against `{neighbor_action_summary}` so empty-string
+  substitution renders byte-identically to pre-v0.5.0 prompts)
+* `run_unified_experiment.py` runner integration (resolver call,
+  env-state flag plumbing, default FollowerNetwork construction,
+  TieredContextBuilder kwarg wiring)
+* End-to-end behavioural validation tests
+
+Paper-3 byte-identity preserved end-to-end:
+* v21 5-seed gemma3:4b dataset re-run under v0.5.1 produces
+  byte-identical audit CSVs as v0.4.0 / v0.5.0 (flag OFF default
+  at both YAML and DomainPack layers).
+* Prompt-level byte-identity locked by `test_prompt_byte_identity_flag_off.py`
+  (parametrized over both household templates).
+
+### Changed
+
+- **SocialMediaProvider output format** (`broker/components/context/providers.py`):
+  populated case now emits ``"\n\n## Social media (recent posts):\n- post1\n- post2"``
+  (leading two newlines + section header). Empty case still emits ``""``.
+  This is the byte-identity-safe injection format — the household prompt
+  template places ``{social_media_feed}`` flush against the preceding
+  placeholder so an empty substitution leaves no trace.
+
+### Added
+
+- **Flood prompt template integration**:
+  `examples/multi_agent/flood/config/prompts/household_owner.txt` +
+  `household_renter.txt` now contain ``{social_media_feed}`` at the
+  end of the LOCAL NEIGHBORHOOD section (flush against
+  ``{neighbor_action_summary}``). `FloodGovernanceMixin.prompt_placeholder_extensions()`
+  declares ``social_media_feed`` so `validate_prompt` accepts the
+  placeholder.
+- **Runner integration** (`examples/multi_agent/flood/run_unified_experiment.py`):
+  resolves the two-layer feed flag via `resolve_social_feeds_enabled`,
+  writes the resolved value to `tiered_env.global_state["_social_feeds_enabled"]`,
+  reads `top_k` / `half_life_years` knobs from YAML, builds a default
+  FollowerNetwork (every household_owner / household_renter follows
+  `nj_government` + `fema_nfip` + `peer_residents`) when enabled, and
+  passes the new `enable_social_feeds` / `follower_network` /
+  `social_feeds_environment` / `social_feeds_pack` / `social_feeds_top_k` /
+  `social_feeds_half_life_years` kwargs to `TieredContextBuilder`.
+  Operator-facing INFO log line documents the source of the flag.
+- 2 new regression test files:
+  * `broker/tests/test_prompt_byte_identity_flag_off.py` (4 tests,
+    parametrized over both household templates): empty-feed
+    substitution is byte-identical to placeholder-removed; non-empty
+    feed renders section block correctly.
+  * `broker/tests/test_social_feeds_e2e_flag_on.py` (4 tests):
+    event dispatch populates env.social_feeds; provider renders
+    section for households; non-follower sees empty feed; flag-OFF
+    path keeps env.social_feeds empty + provider writes "".
 
 ## [0.5.0] - 2026-05-28
 
