@@ -336,10 +336,119 @@ class FloodEventMixin:
         """
         return {"flood_damage", "insurance_payout"}
 
+    # ───────────────────────────────────────────────────────────────
+    # Phase 6T-E.B (2026-05-28): post auto-emission
+    # ───────────────────────────────────────────────────────────────
+    #
+    # The dispatcher at ``broker/components/events/ma_manager.py:
+    # _sync_event_to_env`` calls ``emit_posts_for_event(event, env)``
+    # AFTER the regular handler runs. Posts emitted here are appended
+    # to ``env.social_feeds`` via ``env.add_post``. The
+    # SocialMediaProvider (Phase 6T-E.B) reads ``env.social_feeds``
+    # to inject ``{social_media_feed}`` into household prompts.
+    #
+    # Paper-3 byte-identity guard: this method early-returns when
+    # ``env.global_state.get("_social_feeds_enabled")`` is False
+    # (the default for paper-3 flood experiments). The flag is set
+    # by the runner after consulting the two-layer resolver in
+    # ``broker.components.social.feed_flag``.
+
+    def emit_posts_for_event(self, event: Any, env: Any) -> List[Any]:
+        """Phase 6T-E.B: emit Posts for a flood-domain event.
+
+        Returns an empty list when the social-feeds flag is OFF
+        (paper-3 default) — no behaviour change at the env level.
+        When the flag is ON, emits 1-3 Posts per event, one per
+        relevant author role, with ``metadata["canonical_event_id"]``
+        set so Phase 6T-G cross-channel dedup can join them with
+        OFFICIAL / GLOBAL channel emissions.
+
+        Author roles + tier_ids:
+          - ``government`` author → ``official_authority`` tier
+          - ``insurance`` author  → ``verified_account`` tier
+          - ``peer``       author → ``peer_post`` tier (generic
+            household commentary; tier vocabulary lives in
+            ``credibility_tiers()`` on this same pack).
+        """
+        gs = getattr(env, "global_state", {}) if env is not None else {}
+        if not gs.get("_social_feeds_enabled"):
+            return []
+
+        from broker.components.social.post import Post
+
+        # Per-event-type emission rules. Each tuple is
+        # ``(author_id, author_role, tier_id, text)``.
+        rules: Dict[str, List[tuple]] = {
+            "flood": [
+                ("nj_government", "government", "official_authority",
+                 f"Flood advisory: {event.description}"),
+                ("peer_residents", "peer", "peer_post",
+                 f"Neighbors reporting flooding — depth around "
+                 f"{event.data.get('depth_ft', 0)} ft."),
+            ],
+            "no_flood": [
+                ("nj_government", "government", "official_authority",
+                 "All-clear: no flooding this year."),
+            ],
+            "subsidy_change": [
+                ("nj_government", "government", "official_authority",
+                 event.description),
+            ],
+            "premium_change": [
+                ("fema_nfip", "insurance", "verified_account",
+                 event.description),
+            ],
+        }
+
+        emissions = rules.get(event.event_type, [])
+        if not emissions:
+            return []
+
+        # ``EnvironmentEvent`` itself has no ``year`` field — the
+        # simulation year lives on ``env.global_state["year"]`` (the
+        # MA runner sets it at the start of each year). Fall back to
+        # 0 only when env is somehow missing the key.
+        sim_year = int(gs.get("year", 0) or 0)
+        canonical_id = (
+            f"{event.event_type}:{sim_year}:"
+            f"{event.data.get('location', 'global')}"
+        )
+        out: List[Any] = []
+        for author_id, author_role, tier_id, text in emissions:
+            try:
+                post = Post(
+                    text=text,
+                    author_id=author_id,
+                    author_role=author_role,
+                    event_year=sim_year,
+                    event_type=event.event_type,
+                    engagement_score=0.0,
+                    tier_id=tier_id,
+                    metadata={"canonical_event_id": canonical_id},
+                )
+            except ValueError:
+                # Defensive: Post.__post_init__ rejects negative
+                # event_year / engagement_score. Skip silently —
+                # the dispatcher's outer try/except will catch
+                # anything else.
+                continue
+            out.append(post)
+        return out
+
 
 class FloodPerceptionMixin:
     """PerceptionPack methods — verbalisation rules + field stripping
     policy + passthrough institutional types."""
+
+    def social_feeds_default_enabled(self) -> bool:
+        """Phase 6T-E.B (2026-05-28): pack-level default = False.
+
+        Paper-3 v21 5-seed gemma3:4b dataset was generated before
+        social feeds existed; keeping this False guarantees byte-
+        identity for any flood experiment that doesn't explicitly
+        flip ``global_config.social_feeds.enable = true`` in YAML.
+        """
+        return False
 
     def perception_descriptors(self) -> Dict[str, Any]:
         """Numeric→qualitative verbalization rules for the household

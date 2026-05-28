@@ -8,6 +8,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+(no entries yet — v0.5.0 cut on 2026-05-28; see below)
+
+## [0.5.0] - 2026-05-28
+
+Minor-bump release: **Phase 6T-E.B + 6T-G — SocialMediaProvider
+substrate + cross-channel dedup + Y1 fix**. Three commits since
+v0.4.0 land the social-media propagation channel substrate behind
+a two-layer feature flag (YAML primary, DomainPack default), both
+defaulting OFF. Paper-3 v21 5-seed gemma3:4b dataset is byte-
+identical because every new code path is guarded: the
+SocialMediaProvider class isn't added to the provider chain, the
+flood event handlers' Post emission short-circuits, and the YAML
+`global_config.social_feeds.enable` defaults to `false`.
+
+40 new regression tests (2815 → 2863 passing). Subprocess test
+confirms new modules don't load into `sys.modules` when flag OFF.
+
+**v0.5.0 → v0.5.1 follow-up scope**: this release ships the
+broker-side substrate + the flood-pack post emission, but does NOT
+yet (1) modify the household prompt templates to inject
+`{social_media_feed}` (would break byte-identity at the prompt
+text level for any future v21 re-run), or (2) wire the resolved
+flag into `run_unified_experiment.py` (the runner still needs the
+follower-network construction + env-state flag plumbing). Those
+land in v0.5.1 alongside the first batch of social-media
+experiments.
+
 ### Changed
 
 - Phase 6T-G (Y1 fix): `MAEventManager.generate_phase` no longer
@@ -22,6 +49,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the new contract.
 
 ### Added
+
+- Phase 6T-E.B flood-domain wire-up: `FloodEventMixin` gains
+  `emit_posts_for_event(event, env) -> List[Post]`. When the
+  social-feeds flag is OFF (paper-3 default — checked via
+  `env.global_state["_social_feeds_enabled"]`), the method returns
+  empty list. When ON, emits 1-2 Posts per flood / no_flood /
+  subsidy_change / premium_change event, with
+  `metadata["canonical_event_id"]` so Phase 6T-G dedup can join
+  cross-channel emissions. Author roles: `nj_government` → OFFICIAL,
+  `fema_nfip` → VERIFIED, `peer_residents` → PEER. Sim year read
+  from `env.global_state["year"]`. `FloodPerceptionMixin` adds
+  `social_feeds_default_enabled() -> False` so paper-3 byte-
+  identity is guaranteed even if a future runner forgets to set
+  the env-state flag.
+- `MAEventManager._sync_event_to_env` dispatcher gains an OPTIONAL
+  post-emission hook: after a handler succeeds, if the owning pack
+  exposes `emit_posts_for_event(event, env)`, the dispatcher iterates
+  its return value and feeds each Post to `env.add_post`. Exceptions
+  are caught + logged (same dispatch-safety pattern as the handler
+  try/except). DefaultDomainPack does NOT implement the hook —
+  generic broker code names no domain-specific authors / tiers.
+- `examples/multi_agent/flood/config/ma_agent_types.yaml` gains a
+  `global_config.social_feeds:` block with `enable: false` (default)
+  + `top_k`, `half_life_years`, `suppressed_tiers` knobs.
+- `broker/tests/test_post_emission_in_flood_handler.py` (NEW, 8
+  tests): flag-OFF zero emission, per-event-type emission shape,
+  canonical_event_id format, dispatch-safety on emit exceptions.
 
 - Phase 6T-E.B substrate (broker only; no domain emits posts yet):
   the `SocialMediaProvider` is now wireable into the context-builder
