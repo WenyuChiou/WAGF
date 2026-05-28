@@ -233,6 +233,54 @@ Don't allow multiple edits to accumulate undetected drift.
 Output: 5 edited files + 4 clean validate_prompt runs (edits 1-4)
 + a working `run_experiment.py` ready for S6 smoke (edit 5).
 
+#### S5 edit 6 (optional) — Social-media propagation (v0.5.1+)
+
+If the domain's behavioural theory invokes social influence
+(PMT social pressure, social-proof effects, narrative diffusion,
+network-mediated contagion), opt in to the SocialMediaProvider by
+setting BOTH flags. Default OFF at both layers — when both are
+false the social-feed placeholder collapses to `""` in the prompt
+template and runs stay byte-identical to a pre-v0.5.1 run.
+
+1. **YAML** — in `config/agent_types.yaml`:
+   ```yaml
+   global_config:
+     social_feeds:
+       enable: true        # default false
+       top_k: 5            # top-K feed items by cred·age·(1+engagement)
+   ```
+
+2. **DomainPack** — in `adapters/<domain>_pack.py`, override the
+   default hook:
+   ```python
+   def social_feeds_default_enabled(self) -> bool:
+       return True
+   ```
+
+3. **Prompt template** — add the `{social_media_feed}` placeholder
+   in `config/prompts/<agent_type>.txt` where social context should
+   appear. When the flag is OFF the placeholder renders as empty
+   string, so byte-identity to a pre-v0.5.1 prompt with the
+   placeholder removed is preserved (locked by
+   `broker/tests/test_prompt_byte_identity_flag_off.py`).
+
+**Verification**: after the toggle, run S6 smoke twice — once
+with the flag OFF and once ON — and confirm (a) OFF run is
+byte-identical to a no-`social_media_feed` baseline, (b) ON run
+shows non-empty feed content in the rendered prompt.
+
+**Cross-channel dedup**: a `canonical_event_id` priority module
+(OFFICIAL 100 > GLOBAL 50 > PEER 10) ships in
+`broker/components/social/` but has zero live consumers at v0.5.1;
+provider integration is deferred to Phase 6T-F
+(`social_media_influencer` agent type). Domain authors do not need
+to wire dedup explicitly today.
+
+Reference architecture: `.research/social_tier_injection_reference.md`
+§9 (SocialMediaProvider call-graph + top-K weighting + 6 byte-identity
+guard layers) and §10 (cross-channel dedup contract). Skill upgrade
+trail: this section added in v0.5.1 (2026-05-28).
+
 #### S5 appendix — Phase 6R-D sub-pack mixin pattern (optional)
 
 The scaffold + Edit 2 above produce a single-class

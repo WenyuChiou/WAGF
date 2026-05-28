@@ -123,6 +123,16 @@ here. Instead:
    - **Conditions**: `[strict, disabled]`.
    - **Seeds**: 3 (smallest meaningful paired-t; bump to 5 later).
    - **Time horizon**: domain default (irrigation 42 yr, flood 10 yr).
+   - **Social-media propagation** (v0.5.1+, opt-in): OFF by default
+     and recommended OFF for first runs. Researchers studying
+     narrative diffusion or social-influence effects can enable it
+     later via the two-layer flag (`global_config.social_feeds.enable`
+     in YAML AND the DomainPack `social_feeds_default_enabled()`
+     hook). When OFF, runs are byte-identical to pre-v0.5.1 output.
+     Architecture: `.research/social_tier_injection_reference.md`
+     §9–§10 (note: §10.5 — the cross-channel dedup module ships as
+     infrastructure with no live consumer at v0.5.1; provider
+     integration is deferred).
 3. Hand off explicitly: "Now loading
    `wagf-experiment-designer` with these defaults — confirm or
    override."
