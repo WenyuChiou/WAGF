@@ -450,6 +450,44 @@ class FloodPerceptionMixin:
         """
         return False
 
+    # Phase 6T-F.5 (2026-05-29): flood social-media credibility vocabulary.
+    # ONLY consulted by the SocialMediaProvider, which is in the provider
+    # chain ONLY when the social_feeds flag is ON (paper-3 default OFF) — so
+    # these overrides are inert for paper-3 byte-identity. They replace the
+    # DefaultDomainPack fallbacks (credibility_tiers()==[] / weight 0.0 /
+    # debug-grade verbalise) so the influencer-experiment runner gets
+    # deterministic tier-weighted ranking (closes the 6T-F.4 review WARNING:
+    # without recognised tiers every flood post scored 0.0 and top_k
+    # truncation was order-dependent).
+    _CREDIBILITY_TIER_WEIGHTS: Dict[str, float] = {
+        "official_authority": 1.0,   # NJDEP / government announcements
+        "verified_account": 0.8,     # FEMA / NFIP insurance
+        "influencer": 0.6,           # social_media_influencer (Phase 6T-F)
+        "peer_post": 0.4,            # generic household / neighbour commentary
+    }
+
+    def credibility_tiers(self) -> List[str]:
+        """Flood tier vocabulary (highest→lowest credibility). Matches the
+        tier_ids emitted by :meth:`FloodEventMixin.emit_posts_for_event`
+        (official_authority / verified_account / peer_post) plus the
+        ``influencer`` tier the Phase 6T-F influencer publishes under."""
+        return list(self._CREDIBILITY_TIER_WEIGHTS)
+
+    def credibility_weight(self, tier_id: str) -> float:
+        """Per-tier weight for SocialMediaProvider ranking. Fail-closed to
+        0.0 for unknown / spoofed tiers (matches the DefaultDomainPack
+        contract), so an unrecognised tier still renders but ranks last."""
+        return self._CREDIBILITY_TIER_WEIGHTS.get(tier_id, 0.0)
+
+    def verbalise_post(self, post: Any) -> str:
+        """Render a Post for the household prompt's ``{social_media_feed}``.
+        Leads with the author role so the reader can weight the source
+        (e.g. ``NJDEP: ...`` / ``influencer: ...``), replacing the
+        DefaultDomainPack debug-grade ``[tier_id] text`` rendering."""
+        role = getattr(post, "author_role", "") or getattr(post, "tier_id", "") or "source"
+        text = getattr(post, "text", "")
+        return f"{role}: {text}"
+
     def perception_descriptors(self) -> Dict[str, Any]:
         """Numeric→qualitative verbalization rules for the household
         perception filter, keyed by INPUT context field (Phase 6H

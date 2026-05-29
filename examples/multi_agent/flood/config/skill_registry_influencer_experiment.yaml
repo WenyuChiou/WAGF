@@ -1,0 +1,211 @@
+# Phase 6T-F.5 influencer-experiment skill registry (AUTO-COMPOSED, NOT paper-3).
+# = frozen skill_registry.yaml (household/gov/insurance skills) + the 4 influencer
+# post-skills from skill_registry_influencer.yaml. frozen file NOT modified.
+default_skill: do_nothing
+skills:
+- skill_id: do_nothing
+  description: Take no protective action this year. This includes waiting for more information, believing current protection is adequate, focusing on other financial priorities, feeling uncertain about what to do, or accepting the situation as it is.
+  eligible_agent_types:
+  - household_owner
+  - household_renter
+  preconditions: []
+  institutional_constraints: {}
+  allowed_state_changes: []
+  implementation_mapping: noop
+- skill_id: buy_insurance
+  description: Purchase NFIP flood insurance (annual, renewable)
+  eligible_agent_types:
+  - household_owner
+  preconditions: []
+  institutional_constraints:
+    annual: true
+    cost_type: recurring
+  allowed_state_changes:
+  - has_insurance
+  implementation_mapping: buy_insurance
+- skill_id: elevate_house
+  description: Elevate house structure (3ft=$45K, 5ft=$80K, 8ft=$150K before subsidy)
+  eligible_agent_types:
+  - household_owner
+  preconditions:
+  - not elevated
+  institutional_constraints:
+    once_only: true
+    cost_type: one_time
+  allowed_state_changes:
+  - elevated
+  implementation_mapping: elevate_house
+  conflicts_with:
+  - buyout_program
+- skill_id: buyout_program
+  description: Accept NJ Blue Acres voluntary buyout (irreversible)
+  eligible_agent_types:
+  - household_owner
+  preconditions:
+  - not relocated
+  institutional_constraints:
+    once_only: true
+    permanent: true
+    cost_type: one_time
+  allowed_state_changes:
+  - bought_out
+  implementation_mapping: buyout_program
+  conflicts_with:
+  - elevate_house
+  - buy_insurance
+- skill_id: buy_contents_insurance
+  description: Purchase NFIP contents-only flood insurance (annual)
+  eligible_agent_types:
+  - household_renter
+  preconditions: []
+  institutional_constraints:
+    annual: true
+    cost_type: recurring
+  allowed_state_changes:
+  - has_contents_insurance
+  implementation_mapping: buy_contents_insurance
+- skill_id: relocate
+  description: Relocate to lower flood-risk area (irreversible)
+  eligible_agent_types:
+  - household_renter
+  preconditions:
+  - not relocated
+  institutional_constraints:
+    once_only: true
+    permanent: true
+    cost_type: one_time
+  allowed_state_changes:
+  - relocated
+  implementation_mapping: relocate
+  conflicts_with:
+  - buy_contents_insurance
+- skill_id: large_increase_subsidy
+  description: Increase elevation subsidy rate by 5%
+  eligible_agent_types:
+  - government
+  - nj_government
+  preconditions: []
+  institutional_constraints: {}
+  allowed_state_changes:
+  - subsidy_rate
+  implementation_mapping: large_increase_subsidy
+- skill_id: small_increase_subsidy
+  description: Increase elevation subsidy rate by 2.5%
+  eligible_agent_types:
+  - government
+  - nj_government
+  preconditions: []
+  institutional_constraints: {}
+  allowed_state_changes:
+  - subsidy_rate
+  implementation_mapping: small_increase_subsidy
+- skill_id: maintain_subsidy
+  description: Keep current elevation subsidy rate unchanged
+  eligible_agent_types:
+  - government
+  - nj_government
+  preconditions: []
+  institutional_constraints: {}
+  allowed_state_changes: []
+  implementation_mapping: maintain_subsidy
+- skill_id: small_decrease_subsidy
+  description: Decrease elevation subsidy rate by 2.5%
+  eligible_agent_types:
+  - government
+  - nj_government
+  preconditions: []
+  institutional_constraints: {}
+  allowed_state_changes:
+  - subsidy_rate
+  implementation_mapping: small_decrease_subsidy
+- skill_id: large_decrease_subsidy
+  description: Decrease elevation subsidy rate by 5%
+  eligible_agent_types:
+  - government
+  - nj_government
+  preconditions: []
+  institutional_constraints: {}
+  allowed_state_changes:
+  - subsidy_rate
+  implementation_mapping: large_decrease_subsidy
+- skill_id: significantly_improve_crs
+  description: Significantly improve CRS class — increase community premium discount by 5%
+  eligible_agent_types:
+  - insurance
+  - fema_nfip
+  preconditions: []
+  institutional_constraints: {}
+  allowed_state_changes:
+  - crs_discount
+  implementation_mapping: significantly_improve_crs
+- skill_id: improve_crs
+  description: Improve CRS class — increase community premium discount by 2.5%
+  eligible_agent_types:
+  - insurance
+  - fema_nfip
+  preconditions: []
+  institutional_constraints: {}
+  allowed_state_changes:
+  - crs_discount
+  implementation_mapping: improve_crs
+- skill_id: maintain_crs
+  description: Maintain current CRS class and discount level
+  eligible_agent_types:
+  - insurance
+  - fema_nfip
+  preconditions: []
+  institutional_constraints: {}
+  allowed_state_changes: []
+  implementation_mapping: maintain_crs
+- skill_id: reduce_crs
+  description: Reduce CRS class — decrease community premium discount by 2.5%
+  eligible_agent_types:
+  - insurance
+  - fema_nfip
+  preconditions: []
+  institutional_constraints: {}
+  allowed_state_changes:
+  - crs_discount
+  implementation_mapping: reduce_crs
+- skill_id: significantly_reduce_crs
+  description: Significantly reduce CRS class — decrease community premium discount by 5%
+  eligible_agent_types:
+  - insurance
+  - fema_nfip
+  preconditions: []
+  institutional_constraints: {}
+  allowed_state_changes:
+  - crs_discount
+  implementation_mapping: significantly_reduce_crs
+- skill_id: amplify_event
+  description: Amplify an unfolding flood event to maximise reach across the follower network.
+  eligible_agent_types:
+  - social_media_influencer
+  preconditions: []
+  institutional_constraints: {}
+  allowed_state_changes: []
+  implementation_mapping: amplify_event
+- skill_id: post_counter_narrative
+  description: Push back on a misleading or inconsistent flood narrative circulating in the network.
+  eligible_agent_types:
+  - social_media_influencer
+  preconditions: []
+  institutional_constraints: {}
+  allowed_state_changes: []
+  implementation_mapping: post_counter_narrative
+- skill_id: share_success_story
+  description: Share a concrete adaptation success story (a completed elevation, a paid claim) to model protective behaviour.
+  eligible_agent_types:
+  - social_media_influencer
+  preconditions: []
+  institutional_constraints: {}
+  allowed_state_changes: []
+  implementation_mapping: share_success_story
+- skill_id: maintain_silence
+  description: Post nothing this year — preserve credibility when the moment is low-salience or low-virality.
+  eligible_agent_types:
+  - social_media_influencer
+  preconditions: []
+  institutional_constraints: {}
+  allowed_state_changes: []
+  implementation_mapping: noop
