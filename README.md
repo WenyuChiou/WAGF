@@ -58,6 +58,8 @@ automatically when you open the repo in Claude Code.
 
 ### Manual setup
 
+Prefer to wire it up by hand? Start here.
+
 ### Prerequisites
 
 - Python 3.10+
