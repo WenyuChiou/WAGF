@@ -53,7 +53,7 @@ MULTI_AGENT_DIR = Path(__file__).parent
 sys.path.insert(0, str(MULTI_AGENT_DIR))
 from generate_agents import generate_agents_random, load_survey_agents, HouseholdProfile
 from initial_memory import generate_all_memories, get_agent_memories_text
-from orchestration.agent_factories import create_government_agent, create_insurance_agent, wrap_household
+from orchestration.agent_factories import create_government_agent, create_insurance_agent, create_influencer_agent, wrap_household
 from orchestration.lifecycle_hooks import MultiAgentHooks
 
 
@@ -201,6 +201,11 @@ def run_unified_experiment():
                              "Disables gov/ins LLM agents. For RQ2 ablation.")
     parser.add_argument("--disable-governance", action="store_true",
                         help="Disable all governance validators (skip rule checks). For SI-7 ablation.")
+    parser.add_argument("--with-influencer", action="store_true",
+                        help="Phase 6T-F.5: add the social_media_influencer active decider and "
+                             "use the influencer-experiment superset config (ma_agent_types_influencer_"
+                             "experiment.yaml + skill_registry_influencer_experiment.yaml, social_feeds ON). "
+                             "NOT for paper-3 byte-identity runs — every effect is gated behind this flag.")
     parser.add_argument("--seed", type=int, default=None,
                         help="Random seed for reproducibility")
     parser.add_argument("--thinking-mode", type=str, default=None,
@@ -947,6 +952,25 @@ def run_unified_experiment():
         gov = create_government_agent()
         ins = create_insurance_agent()
 
+    # Phase 6T-F.5 (gated; paper-3 unaffected when --with-influencer is absent):
+    # select the influencer-experiment superset config + skill registry and
+    # build the singleton influencer agent. With the flag OFF these resolve to
+    # the frozen paper-3 paths and ``influencer`` is None, so every downstream
+    # use is byte-identical to the pre-6T-F.5 runner.
+    _MA_CONFIG = str(MULTI_AGENT_DIR / "config" / (
+        "ma_agent_types_influencer_experiment.yaml" if args.with_influencer
+        else "ma_agent_types.yaml"))
+    _SKILL_REGISTRY = str(MULTI_AGENT_DIR / "config" / (
+        "skill_registry_influencer_experiment.yaml" if args.with_influencer
+        else "skill_registry.yaml"))
+    if args.with_influencer:
+        # Register FloodDomainPack so DomainPackRegistry.get("flood") resolves to
+        # the real pack (credibility_tiers / verbalise_post / social_feeds_pack).
+        # The paper-3 path leaves this unimported -> get("flood") stays None ->
+        # feeds OFF -> byte-identical (gated import = no paper-3 side effect).
+        import examples.governed_flood  # noqa: F401
+    influencer = create_influencer_agent() if args.with_influencer else None
+
     # Load household profiles based on mode
     if args.mode == "survey":
         print("[INFO] Loading agents from survey data...")
@@ -970,8 +994,10 @@ def run_unified_experiment():
 
     households = [wrap_household(p) for p in profiles]
 
-    # Order: Institutional agents first (if present)
-    institutional_agents = [a for a in [gov, ins] if a is not None]
+    # Order: Institutional agents first (if present). influencer is None unless
+    # --with-influencer (6T-F.5), so [gov, ins, None] filters to [gov, ins] —
+    # byte-identical agent set + iteration order for paper-3.
+    institutional_agents = [a for a in [gov, ins, influencer] if a is not None]
     all_agents = {a.id: a for a in institutional_agents + households}
 
     # Calculate MG statistics for government prompt
@@ -981,7 +1007,7 @@ def run_unified_experiment():
     
     # 3. Memory Engine
     from broker.utils.agent_config import AgentTypeConfig
-    agent_cfg = AgentTypeConfig.load(MULTI_AGENT_DIR / "config" / "ma_agent_types.yaml")
+    agent_cfg = AgentTypeConfig.load(_MA_CONFIG)
 
     # === Phase 6T-E.B v0.5.1: Social-media propagation channel ===
     # Resolve the two-layer flag (YAML primary, DomainPack default).
@@ -1015,6 +1041,11 @@ def run_unified_experiment():
             if atype in {"household_owner", "household_renter"}:
                 for author in ("nj_government", "fema_nfip", "peer_residents"):
                     follower_network.add_edge(author_id=author, follower_id=aid)
+                # Phase 6T-F.5: households also follow the influencer so the
+                # SocialMediaProvider surfaces its posts (influencer is None
+                # unless --with-influencer, so paper-3 is unaffected).
+                if influencer is not None:
+                    follower_network.add_edge(author_id=influencer.id, follower_id=aid)
                 _household_count += 1
         print(
             f"[INFO] Social feeds ENABLED (source={_flag_source}): "
@@ -1260,6 +1291,41 @@ def run_unified_experiment():
         bridge_importance_policy=agent_cfg.get_bridge_importance_config(),
     )
 
+    # Phase 6T-F.5: per-step dispatch for the influencer. MultiAgentHooks.post_step
+    # only handles government/insurance/household_*; the influencer's accepted
+    # post-action is turned into a social-feed Post by InfluencerLifecycleHandler.
+    # We wrap the base hook so gov/ins/household behaviour is unchanged and only
+    # the influencer gets the extra dispatch. EXECUTED-ONLY: a non-APPROVED
+    # outcome (e.g. an ERROR-blocked incoherent post) maps to maintain_silence
+    # (no post), matching the governance fallback.
+    if args.with_influencer:
+        from examples.governed_flood.adapters.influencer_lifecycle import (
+            InfluencerLifecycleHandler,
+        )
+        from broker.interfaces.skill_types import SkillOutcome as _SkillOutcome
+        _influencer_handler = InfluencerLifecycleHandler()
+        _base_post_step = ma_hooks.post_step
+
+        def _post_step(agent, result):
+            _base_post_step(agent, result)
+            if getattr(agent, "agent_type", "") != "social_media_influencer":
+                return
+            if result.outcome in (_SkillOutcome.APPROVED, _SkillOutcome.RETRY_SUCCESS):
+                _executed = result.skill_proposal.skill_name
+            else:
+                # REJECTED / UNCERTAIN / ABORTED → executed fallback is silence
+                # (no post emitted). skill_proposal may be None for ABORTED, so
+                # we must NOT read it here.
+                _executed = "maintain_silence"
+            _influencer_handler.post_decision(
+                agent,
+                _executed,
+                int(tiered_env.global_state.get("year", 0) or 0),
+                tiered_env,
+            )
+    else:
+        _post_step = ma_hooks.post_step
+
     if args.per_agent_depth:
         print(f"[INFO] Per-agent flood depth ENABLED (PRB year mapping: sim 1 -> PRB 2011)")
 
@@ -1280,11 +1346,11 @@ def run_unified_experiment():
         .with_output(args.output)
         .with_verbose(args.verbose)
         .with_agents(all_agents)
-        .with_skill_registry(str(MULTI_AGENT_DIR / "config" / "skill_registry.yaml"))
+        .with_skill_registry(_SKILL_REGISTRY)
         .with_memory_engine(memory_engine)
         .with_lifecycle_hooks(
             pre_year=ma_hooks.pre_year,
-            post_step=ma_hooks.post_step,
+            post_step=_post_step,
             post_year=lambda year, agents: ma_hooks.post_year(year, agents, memory_engine)
         )
         .with_context_builder(
@@ -1301,7 +1367,7 @@ def run_unified_experiment():
                 social_feeds_pack=_flood_pack if _social_feeds_enabled else None,
                 social_feeds_top_k=_social_top_k,
                 social_feeds_half_life_years=_social_half_life,
-                yaml_path=str(MULTI_AGENT_DIR / "config" / "ma_agent_types.yaml"),
+                yaml_path=_MA_CONFIG,
                 dynamic_whitelist=[
                     "govt_message",
                     "insurance_message",
@@ -1353,7 +1419,7 @@ def run_unified_experiment():
                     "flood_urgency_label", "subsidy_level_label",
                     "annual_subsidy_cost", "years_to_depletion", "years_remaining",
                 ], # Phase 2 PR2: Allow institutional influence
-                prompt_templates=load_prompt_templates(str(MULTI_AGENT_DIR / "config" / "ma_agent_types.yaml")),
+                prompt_templates=load_prompt_templates(_MA_CONFIG),
                 enable_financial_constraints=args.enable_financial_constraints,
                 # FinancialCostProvider: Phase 6H Item 7 — was in the
                 # generic tiered default list; now domain-wired here
@@ -1363,7 +1429,7 @@ def run_unified_experiment():
         )
         .with_governance(
             profile="disabled" if args.disable_governance else "strict",
-            config_path=str(MULTI_AGENT_DIR / "config" / "ma_agent_types.yaml")
+            config_path=_MA_CONFIG
         )
         .with_phase_order(
             [["household_owner", "household_renter"]]  # Households only (exogenous institutions)
@@ -1371,7 +1437,12 @@ def run_unified_experiment():
             [
                 ["government"],                           # Phase 1: NJDEP decides subsidy
                 ["insurance"],                            # Phase 2: FEMA/NFIP decides premium
-                ["household_owner", "household_renter"],  # Phase 3: Households decide adaptation
+                # Phase 6T-F.5: influencer decides AFTER institutions (reacts to
+                # this year's policy) and BEFORE households (its posts are in
+                # env.social_feeds when households build prompts). Empty unpack
+                # when --with-influencer is absent → byte-identical for paper-3.
+                *([["social_media_influencer"]] if args.with_influencer else []),
+                ["household_owner", "household_renter"],  # Phase: Households decide adaptation
             ]
         )
     )

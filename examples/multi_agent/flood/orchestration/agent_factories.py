@@ -56,6 +56,41 @@ def create_insurance_agent() -> BaseAgent:
     return BaseAgent(config)
 
 
+def create_influencer_agent() -> BaseAgent:
+    """Phase 6T-F.5 (2026-05-29): social_media_influencer active decider.
+
+    A singleton institutional-style agent that decides what (if anything) to
+    post each year, governed by the narrative_diffusion framework. Its four
+    post-action skills match the influencer skill registry
+    (``skill_registry_influencer.yaml``) + verb->skill map
+    (``FloodGovernanceMixin.narrative_diffusion_skill_map``). Used ONLY by the
+    standalone influencer-experiment runner — NOT by the frozen paper-3 run.
+    """
+    config = AgentConfig(
+        name="INFLUENCER",
+        agent_type="social_media_influencer",
+        state_params=[
+            StateParam("reach", (0, 1_000_000), 10_000, "Estimated follower reach"),
+        ],
+        objectives=[],
+        constraints=[],
+        skills=[
+            Skill("amplify_event", "Amplify an unfolding flood event to maximise reach", None, "none"),
+            Skill("post_counter_narrative", "Push back on a misleading flood narrative", None, "none"),
+            Skill("share_success_story", "Share an adaptation success story", None, "none"),
+            Skill("maintain_silence", "Post nothing this year", None, "none"),
+        ],
+        perception=[
+            PerceptionSource("environment", "env", ["year", "flood_occurred"])
+        ],
+        role_description=(
+            "You are a social-media influencer who posts about flood risk and "
+            "adaptation to followers in the Passaic River Basin."
+        )
+    )
+    return BaseAgent(config)
+
+
 def pmt_score_to_rating(score: float) -> str:
     """Convert PMT score (1-5) to descriptive rating."""
     if score >= 4.0:

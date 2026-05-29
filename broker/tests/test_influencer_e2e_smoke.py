@@ -160,3 +160,37 @@ class TestInfluencerToHouseholdChain:
             _influencer_agent(), "amplify_event", year=2, env=env
         )
         assert INFLUENCER_ID in env.social_feeds
+
+
+class TestFloodSocialRenderingContract:
+    """Phase 6T-F.5: pin the flood pack's social-rendering contract so a
+    future DefaultDomainPack revert can't silently regress it (closes the
+    code-review WARNING). These methods are flag-gated at runtime (only
+    SocialMediaProvider calls them) but the contract itself is unconditional."""
+
+    def _pack(self):
+        return DomainPackRegistry.get("flood")
+
+    def test_influencer_tier_is_recognised_and_weighted(self):
+        pack = self._pack()
+        tiers = pack.credibility_tiers()
+        assert "influencer" in tiers
+        # deterministic, ordered weights (closes the 6T-F.4 weight-0 / top_k
+        # truncation WARNING — recognised tiers no longer all score 0.0)
+        assert pack.credibility_weight("official_authority") > pack.credibility_weight("influencer")
+        assert pack.credibility_weight("influencer") > pack.credibility_weight("peer_post")
+        assert pack.credibility_weight("unknown_spoofed_tier") == 0.0
+
+    def test_verbalise_post_leads_with_author_role(self):
+        from broker.components.social.post import Post
+
+        pack = self._pack()
+        post = Post(
+            text="Flood risk is real.",
+            author_id="inf_1",
+            author_role="influencer",
+            event_year=1,
+            event_type="amplify_event",
+            tier_id="influencer",
+        )
+        assert pack.verbalise_post(post) == "influencer: Flood risk is real."
