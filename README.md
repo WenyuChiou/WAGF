@@ -2,7 +2,7 @@
 
 <div align="center">
 
-**A governance layer for LLM-driven agent-based models.** Originally built for coupled human-water systems; the framework is domain-pluggable — reference packs ship for water (flood / irrigation) plus a non-water Tier-2 showcase (vaccination).
+**A governed LLM-driven agent framework for coupled human-nature systems.** Human decision-makers are modelled as LLM agents; every decision is screened against feasibility and behavioral-theory rules before it acts on the simulated system. The broker core is domain-pluggable — reference packs ship for water (flood / irrigation) plus a non-water showcase (vaccination).
 
 Every LLM decision passes through a validation pipeline — domain rules, behavioral theory checks, and retry with targeted feedback — before it can modify simulation state.
 
@@ -17,55 +17,18 @@ Every LLM decision passes through a validation pipeline — domain rules, behavi
 
 ## What is WAGF?
 
-WAGF is a governance layer for LLM-driven agent-based models. A **Governance Broker** validates every LLM decision against physical constraints, behavioral theories, and financial feasibility before execution. Invalid decisions trigger a retry loop with specific feedback — not just re-prompting. The result: auditable, reproducible agent behavior instead of raw LLM output.
+WAGF is a **governed LLM-driven agent framework for coupled human-nature systems**. It represents human decision-makers (farmers, households) as LLM agents that reason in natural language about their environment, then screens every decision through a **Governance Broker** before it acts on the simulated system.
 
-The framework ships with four reference implementations spanning three behavioral theories: water (flood adaptation via Protection Motivation Theory, irrigation via dual-appraisal), and vaccination decision-making (Health Belief Model). The domain layer is pluggable — new domains plug in via YAML + a `DomainPack` subclass without modifying `broker/`.
+Governance has two layers:
+
+- **Hard rules** — physical, financial, and institutional feasibility: what the world *permits*. You cannot spend money you do not have, or divert water that is not there; the agent's reasoning cannot get around them.
+- **Thinking rules** — behavioral-theory coherence: whether the decision is *consistent* with the agent's own stated appraisal (Protection Motivation Theory, dual-appraisal, and others).
+
+Invalid decisions trigger retry-with-feedback, not just re-prompting. The result is **auditable, reproducible** agent behavior, fit to ship as paper supplementary material, instead of raw LLM output.
+
+The broker core is domain-agnostic. The validated reference domains are human-environment coupling — flood adaptation (Protection Motivation Theory) and irrigation (dual-appraisal) — with vaccination (Health Belief Model) showing the framework generalizes beyond environmental systems. New domains plug in via YAML + a `DomainPack` subclass without modifying `broker/`.
 
 > **Current release**: v0.5.1 (2026-05-28). See [`CHANGELOG.md`](CHANGELOG.md) for the full release timeline. Recent: Phase 6T-E.B SocialMediaProvider substrate (v0.5.0) + full wire-up (v0.5.1) behind a two-layer opt-in flag.
-
-## How does WAGF compare to other frameworks?
-
-WAGF sits in a different layer of the stack than tools you may already know. The closest analogues are rule-based ABM platforms (Mesa, NetLogo); WAGF extends them from rule-based to LLM-driven agents while preserving pre-execution validation.
-
-| Framework type | Example | What it does | What WAGF does differently |
-|:---|:---|:---|:---|
-| LLM provider SDK | Anthropic SDK, OpenAI SDK | Wraps API calls | Domain validators + audit pipeline on top of any provider |
-| RAG framework | LangChain, LlamaIndex | Augments LLM with retrieved context | Validates the LLM's *output*, not just its input |
-| Agent orchestration | LangGraph, AutoGen, CrewAI | Multi-step LLM tool-use loops | Mandatory governance gate before any state mutation; not just tool dispatch |
-| Rule-based ABM | Mesa, NetLogo | Agent-based simulation with hand-coded rules | Same simulation rigor, but with LLM agents whose decisions are constrained by behavioral theory |
-| **WAGF** ⭐ | (this) | **Governance layer for LLM-driven agent-based models** | Validation-as-first-class, retry-with-feedback, audit-trail-as-scientific-artifact |
-
-In short: WAGF is not a chatbot framework, not a retrieval tool, not an LLM SDK. It is a research-grade scaffolding for running ABM experiments with LLM agents whose every decision must satisfy domain physics, behavioral theory, and institutional constraints — and whose audit trace is reproducible enough to ship as paper supplementary material.
-
-## Key Features
-
-- **Governance Pipeline** — six-step validation before any action reaches the simulation: Context → LLM → Parse → Validate → Approve/Retry → Execute
-- **Full Audit Trail** — Every decision, rejection, retry, and reasoning trace logged as structured JSONL/CSV for scientific review
-- **Domain Packs** — Add a new domain with 3 files: `skill_registry.yaml` + `agent_types.yaml` + `lifecycle_hooks.py`
-- **Framework-parametric Behavioral Theory** — no hardcoded theory in `broker/`; reference packs ship for Protection Motivation Theory (flood), dual-appraisal (irrigation), and Health Belief Model (vaccination). Declare your own framework in YAML
-- **Research Ready** — Ablation modes (strict/relaxed/disabled), cross-model comparison across 6+ LLM families, multi-seed reproducibility
-- **Social-media Propagation Channel** (v0.5+, opt-in) — Optional Pattern-B `SocialMediaProvider` injects `{social_media_feed}` into agent prompts from domain-emitted Posts, ranked by credibility-tier × age-decay × engagement. Default OFF — paper-published byte-identity preserved. (Cross-channel dedup module ships as infrastructure for a future consumer; provider integration deferred.)
-- **Cross-domain Validated** — Generic-namespace identifier audit (Phase 6U, complete in v0.4.0) eliminated every water-domain leak in `broker/`; `FakeTrafficDomainPack` + custom `bounded_rationality` framework end-to-end smokes confirm the framework is genuinely multi-domain ready
-- **AI-assisted Workflow** — 7 bundled [Claude Code skills](docs/skills/wagf-skills.md) (`wagf-quickstart`, `wagf-domain-builder`, `wagf-coupling-designer`, `wagf-experiment-designer`, `llm-agent-audit-trace-analyzer`, `model-coupling-contract-checker`, `abm-reproducibility-checker`) walk a new researcher from `git clone` to paper-ready metrics without reading the manual first. See [`docs/AI_ASSISTED_SETUP.md`](docs/AI_ASSISTED_SETUP.md) for Claude Code / Cursor / Cline / plain-Python setup paths
-
-## Why Governance?
-
-| Challenge | What Goes Wrong | WAGF Solution |
-|:---|:---|:---|
-| **Hallucination** | LLM invents actions that don't exist | Strict skill registry: only registered actions accepted |
-| **Logical drift** | Reasoning contradicts the chosen action | Thinking validators enforce construct-action coherence |
-| **Context overflow** | Can't dump full history into prompt | Weighted memory retrieval (top-k by recency + importance + context) |
-| **Opaque decisions** | No audit trail for scientific review | Structured JSONL traces: input, reasoning, validation, outcome |
-| **Unsafe mutation** | LLM modifies simulation state directly | Broker-gated execution: validated skills run by engine, not LLM |
-
-> **Terminology note** — This codebase uses `skill` for what the
-> Nature Water paper calls an **action** (e.g., `increase_demand`,
-> `elevate_house`). They refer to the same concept: a registered,
-> validated decision option. The `skill` naming is implementation
-> legacy and is kept throughout the source tree (`SkillRegistry`,
-> `skill_registry.yaml`).
-
----
 
 ## Quick Start
 
@@ -145,6 +108,50 @@ Year 3, Agent #42 (low-income homeowner, high flood zone):
   Audit trace: year=3, agent=42, proposed=elevate_home, rejected,
                retry=1, final=buy_insurance, approved
 ```
+
+---
+
+## How does WAGF compare to other frameworks?
+
+WAGF sits in a different layer of the stack than tools you may already know. The closest analogues are rule-based ABM platforms (Mesa, NetLogo); WAGF extends them from rule-based to LLM-driven agents while preserving pre-execution validation.
+
+| Framework type | Example | What it does | What WAGF does differently |
+|:---|:---|:---|:---|
+| LLM provider SDK | Anthropic SDK, OpenAI SDK | Wraps API calls | Domain validators + audit pipeline on top of any provider |
+| RAG framework | LangChain, LlamaIndex | Augments LLM with retrieved context | Validates the LLM's *output*, not just its input |
+| Agent orchestration | LangGraph, AutoGen, CrewAI | Multi-step LLM tool-use loops | Mandatory governance gate before any state mutation; not just tool dispatch |
+| Rule-based ABM | Mesa, NetLogo | Agent-based simulation with hand-coded rules | Same simulation rigor, but with LLM agents whose decisions are constrained by behavioral theory |
+| **WAGF** ⭐ | (this) | **Governance layer for LLM-driven agent-based models** | Validation-as-first-class, retry-with-feedback, audit-trail-as-scientific-artifact |
+
+In short: WAGF is not a chatbot framework, not a retrieval tool, not an LLM SDK. It is a research-grade scaffolding for running ABM experiments with LLM agents whose every decision must satisfy domain physics, behavioral theory, and institutional constraints — and whose audit trace is reproducible enough to ship as paper supplementary material.
+
+## Key Features
+
+- **Governance Pipeline** — six-step validation before any action reaches the simulation: Context → LLM → Parse → Validate → Approve/Retry → Execute
+- **Full Audit Trail** — Every decision, rejection, retry, and reasoning trace logged as structured JSONL/CSV for scientific review
+- **Domain Packs** — Add a new domain with 3 files: `skill_registry.yaml` + `agent_types.yaml` + `lifecycle_hooks.py`
+- **Framework-parametric Behavioral Theory** — no hardcoded theory in `broker/`; reference packs ship for Protection Motivation Theory (flood), dual-appraisal (irrigation), and Health Belief Model (vaccination). Declare your own framework in YAML
+- **Research Ready** — Ablation modes (strict/relaxed/disabled), cross-model comparison across 6+ LLM families, multi-seed reproducibility
+- **Social-media Propagation Channel** (v0.5+, opt-in) — Optional Pattern-B `SocialMediaProvider` injects `{social_media_feed}` into agent prompts from domain-emitted Posts, ranked by credibility-tier × age-decay × engagement. Default OFF — paper-published byte-identity preserved. (Cross-channel dedup module ships as infrastructure for a future consumer; provider integration deferred.)
+- **Cross-domain Validated** — Generic-namespace identifier audit (Phase 6U, complete in v0.4.0) eliminated every water-domain leak in `broker/`; `FakeTrafficDomainPack` + custom `bounded_rationality` framework end-to-end smokes confirm the framework is genuinely multi-domain ready
+- **AI-assisted Workflow** — 7 bundled [Claude Code skills](docs/skills/wagf-skills.md) (`wagf-quickstart`, `wagf-domain-builder`, `wagf-coupling-designer`, `wagf-experiment-designer`, `llm-agent-audit-trace-analyzer`, `model-coupling-contract-checker`, `abm-reproducibility-checker`) walk a new researcher from `git clone` to paper-ready metrics without reading the manual first. See [`docs/AI_ASSISTED_SETUP.md`](docs/AI_ASSISTED_SETUP.md) for Claude Code / Cursor / Cline / plain-Python setup paths
+
+## Why Governance?
+
+| Challenge | What Goes Wrong | WAGF Solution |
+|:---|:---|:---|
+| **Hallucination** | LLM invents actions that don't exist | Strict skill registry: only registered actions accepted |
+| **Logical drift** | Reasoning contradicts the chosen action | Thinking validators enforce construct-action coherence |
+| **Context overflow** | Can't dump full history into prompt | Weighted memory retrieval (top-k by recency + importance + context) |
+| **Opaque decisions** | No audit trail for scientific review | Structured JSONL traces: input, reasoning, validation, outcome |
+| **Unsafe mutation** | LLM modifies simulation state directly | Broker-gated execution: validated skills run by engine, not LLM |
+
+> **Terminology note** — This codebase uses `skill` for what the
+> Nature Water paper calls an **action** (e.g., `increase_demand`,
+> `elevate_house`). They refer to the same concept: a registered,
+> validated decision option. The `skill` naming is implementation
+> legacy and is kept throughout the source tree (`SkillRegistry`,
+> `skill_registry.yaml`).
 
 ---
 
