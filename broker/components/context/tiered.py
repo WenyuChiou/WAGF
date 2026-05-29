@@ -334,6 +334,16 @@ class TieredContextBuilder(BaseAgentContextBuilder):
         social_observer: Optional["SocialObserver"] = None,
         environment_observer: Optional["EnvironmentObserver"] = None,
         extend_providers: List[ContextProvider] = None,
+        # Phase 6T-F (2026-05-29): social-feeds params — complete the
+        # half-landed v0.5.1 C2 wiring (see __init__ body). Defaults keep
+        # every existing caller (paper-3, irrigation, single-agent flood)
+        # byte-identical: enable_social_feeds=False → no provider added.
+        enable_social_feeds: bool = False,
+        follower_network: Optional[Any] = None,
+        social_feeds_environment: Optional[Any] = None,
+        social_feeds_pack: Optional[Any] = None,
+        social_feeds_top_k: int = 5,
+        social_feeds_half_life_years: float = 2.0,
     ):
         # Phase 8: Store observers for potential use
         self.social_observer = social_observer
@@ -360,6 +370,44 @@ class TieredContextBuilder(BaseAgentContextBuilder):
                 providers.append(
                     EnvironmentObservationProvider(environment_observer, hub.environment)
                 )
+
+        # Phase 6T-F (2026-05-29): complete the half-landed v0.5.1 C2
+        # social-feeds wiring. Commit eadde2a wired
+        # run_unified_experiment.py to pass enable_social_feeds /
+        # follower_network / social_feeds_* to THIS builder, but those
+        # params only ever landed on UnifiedContextBuilder
+        # (broker/core/unified_context_builder.py:325-333) — TieredContextBuilder
+        # never accepted them, so every run_unified_experiment.py
+        # construction raised ``TypeError: unexpected keyword argument
+        # 'enable_social_feeds'`` (RED-ing the MA-flood mock smoke since
+        # eadde2a). Mirror the unified builder's gated append. When the flag
+        # is False (paper-3 default) nothing is added → byte-identical
+        # provider chain. Inserted BEFORE extend_providers so the runner's
+        # perception filter (documented LAST in extend_providers) stays last.
+        if enable_social_feeds:
+            missing = [
+                name for name, val in (
+                    ("social_feeds_environment", social_feeds_environment),
+                    ("follower_network", follower_network),
+                    ("social_feeds_pack", social_feeds_pack),
+                )
+                if val is None
+            ]
+            if missing:
+                raise ValueError(
+                    "enable_social_feeds=True requires non-None "
+                    f"{missing} — pass them to TieredContextBuilder "
+                    "(social_feeds_environment=, follower_network=, "
+                    "social_feeds_pack=)"
+                )
+            from broker.components.context.providers import SocialMediaProvider
+            providers.append(SocialMediaProvider(
+                environment=social_feeds_environment,
+                follower_network=follower_network,
+                pack=social_feeds_pack,
+                top_k=social_feeds_top_k,
+                half_life_years=social_feeds_half_life_years,
+            ))
 
         if extend_providers:
             providers.extend(extend_providers)
