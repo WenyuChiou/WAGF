@@ -557,6 +557,41 @@ class FloodGovernanceMixin:
             self.psychological_framework(),
         )
 
+    # Phase 6T-F.1 (2026-05-29): NarrativeDiffusionFramework emits generic
+    # expected-behavior verbs (``amplify`` / ``counter_narrative`` /
+    # ``share`` / ``stay_silent`` — see
+    # ``broker/validators/governance/frameworks/narrative_diffusion.py``).
+    # This table maps those verbs to the flood-domain influencer's concrete
+    # post-action skills (declared in the separate
+    # ``examples/multi_agent/flood/config/skill_registry_influencer.yaml``).
+    # It is the data half of the influencer interface contract — the
+    # framework-binding half is :attr:`_AGENT_TYPE_FRAMEWORK` above.
+    _NARRATIVE_DIFFUSION_SKILL_MAP: Dict[str, str] = {
+        "amplify": "amplify_event",
+        "counter_narrative": "post_counter_narrative",
+        "share": "share_success_story",
+        "stay_silent": "maintain_silence",
+    }
+
+    def narrative_diffusion_skill_map(self) -> Dict[str, str]:
+        """Phase 6T-F.1: map ``NarrativeDiffusionFramework`` generic
+        expected-behavior verbs to the flood influencer's concrete skill
+        ids.
+
+        Mirrors PMT's appraisal/verb -> concrete-skill indirection
+        (``broker/domains/water/pmt.py:_DEFAULT_BEHAVIOR_MAP``) but for the
+        narrative-diffusion channel. Returns a copy so callers cannot mutate
+        the class-level table.
+
+        Not yet consumed by any validator — this is the data half of the
+        Phase 6T-F interface contract. The Phase 6T-F.3 narrative
+        action-coherence check will read this map to resolve which concrete
+        post-action a framework verb expects (and hence which to block).
+        Adding it here, alongside :attr:`_AGENT_TYPE_FRAMEWORK`, keeps the
+        framework binding and the verb->skill resolution co-located.
+        """
+        return dict(self._NARRATIVE_DIFFUSION_SKILL_MAP)
+
     def builtin_checks(self) -> Dict[str, List[BuiltinCheck]]:
         # Already registered via ValidatorRegistry at
         # examples/governed_flood/validators/__init__.py import time.

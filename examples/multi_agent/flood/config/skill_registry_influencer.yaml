@@ -1,0 +1,48 @@
+# Flood Multi-Agent Influencer Skill Registry — Phase 6T-F.1 (2026-05-29)
+#
+# Post-action skills for the social_media_influencer agent_type. SEPARATE
+# from the frozen paper-3 skill_registry.yaml
+# (md5 58a0da94d646cdc0af81fb56add588e8) so the influencer's skills do not
+# perturb paper-3 skill iteration / option ordering. Pairs with
+# config/ma_agent_types_influencer.yaml.
+#
+# implementation_mapping values are deliberately left as the skill_id (or
+# "noop" for maintain_silence). The concrete post-emission side effect
+# (env.add_post) is wired in Phase 6T-F.2, not here — these mappings are the
+# registry-level declaration only.
+
+default_skill: maintain_silence
+
+skills:
+  # ── Social-Media Influencer Post-Actions ───────────────────────────
+  - skill_id: amplify_event
+    description: "Amplify an unfolding flood event to maximise reach across the follower network."
+    eligible_agent_types: ["social_media_influencer"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes: []
+    implementation_mapping: "amplify_event"
+
+  - skill_id: post_counter_narrative
+    description: "Push back on a misleading or inconsistent flood narrative circulating in the network."
+    eligible_agent_types: ["social_media_influencer"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes: []
+    implementation_mapping: "post_counter_narrative"
+
+  - skill_id: share_success_story
+    description: "Share a concrete adaptation success story (a completed elevation, a paid claim) to model protective behaviour."
+    eligible_agent_types: ["social_media_influencer"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes: []
+    implementation_mapping: "share_success_story"
+
+  - skill_id: maintain_silence
+    description: "Post nothing this year — preserve credibility when the moment is low-salience or low-virality."
+    eligible_agent_types: ["social_media_influencer"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes: []
+    implementation_mapping: "noop"
