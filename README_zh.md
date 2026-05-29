@@ -53,6 +53,8 @@ WAGF 是一個**受治理的、LLM 驅動的代理人框架，用於耦合人類
 
 ### 手動設定
 
+想自己手動設定？從這裡開始。
+
 ### 前置需求
 
 - Python 3.10+
@@ -127,7 +129,9 @@ WAGF 處於不同的技術層次。最接近的同類是規則式 ABM 平台（M
 - **領域包** — 新增領域只需 3 個檔案：`skill_registry.yaml` + `agent_types.yaml` + `lifecycle_hooks.py`
 - **框架可參數化的行為理論** — `broker/` 內無硬編碼理論；參考包涵蓋保護動機理論（洪水）、雙評估（灌溉）、健康信念模型（疫苗）。新理論透過 YAML 宣告即可
 - **研究就緒** — 消融模式（strict/relaxed/disabled）、6+ 個 LLM 系列的跨模型比較、多種子可重現性
-- **AI 輔助工作流** — 內建 7 個 [Claude Code skills](docs/skills/wagf-skills.md)（`wagf-quickstart`、`wagf-domain-builder`、`wagf-coupling-designer`、`wagf-experiment-designer`、`llm-agent-audit-trace-analyzer`、`model-coupling-contract-checker`、`abm-reproducibility-checker`），新研究者從 `git clone` 到產出論文等級指標可不必先讀手冊
+- **社群媒體傳播頻道**（v0.5+，可選啟用）— 選用的 Pattern-B `SocialMediaProvider` 會將領域發出的貼文注入代理人提示詞的 `{social_media_feed}`，依「可信度層級 × 年齡衰減 × 互動數」排序。預設關閉——已發表論文的逐位元組一致性不受影響。（跨頻道去重模組已隨框架出貨，作為未來消費者的基礎設施；提供者整合暫緩。）
+- **跨領域已驗證** — 泛型命名空間識別符稽核（Phase 6U，於 v0.4.0 完成）已消除 `broker/` 內所有水資源領域洩漏；`FakeTrafficDomainPack` + 自訂 `bounded_rationality` 框架的端對端 smoke 測試確認框架確實具備多領域能力
+- **AI 輔助工作流** — 內建 7 個 [Claude Code skills](docs/skills/wagf-skills.md)（`wagf-quickstart`、`wagf-domain-builder`、`wagf-coupling-designer`、`wagf-experiment-designer`、`llm-agent-audit-trace-analyzer`、`model-coupling-contract-checker`、`abm-reproducibility-checker`），新研究者從 `git clone` 到產出論文等級指標可不必先讀手冊。設定路徑（Claude Code / Cursor / Cline / 純 Python）詳見 [`docs/AI_ASSISTED_SETUP.md`](docs/AI_ASSISTED_SETUP.md)
 
 ## 為什麼需要治理？
 
@@ -193,8 +197,16 @@ broker/core/experiment.py              — ExperimentRunner + Builder API
 broker/validators/governance/          — 6 類驗證器實作
 broker/components/memory/              — 記憶引擎 ABC + 各實作
 broker/components/context/             — 上下文組裝鏈
+broker/components/cognitive/           — 反思引擎 + 認知軌跡
+broker/components/governance/          — 技能登錄表 + temporal_rules/
 examples/quickstart/                   — 漸進式教學
 ```
+
+### 反思模組
+
+年末反思會將近期記憶整合為結構化的洞察，以 `emotion="major"` 寫回代理人記憶，並在後續檢索中浮現。反思是 YAML 驅動的——當下情境的反思問題、多模態觸發（危機／週期性／決策後／制度變遷），以及反思間隔，都在 `agent_types.yaml` 的 `global_config.reflection` 下逐領域定義。三種當下情境問題涵蓋風險顯著性、社會比較，以及成本-安全權衡。
+
+本框架保留第四個面向——**時間一致性**——作為條件式擴展：當某個序列層級規則（M1 評估-歷史一致性、M2 行為慣性、M3 證據支持的不可逆性）觸發時，會將一個針對性的時間問題注入代理人的反思提示詞。在目前版本中，這些時間問題僅在設計層級指定，尚未實際注入；其實證評估保留為後續工作。引擎見 `broker/components/cognitive/reflection.py`，序列層級規則框架見 `broker/components/governance/temporal_rules/`，完整設計規格見 `.ai/reflection_taxonomy_design_2026-04-19.md`。
 
 ### 組合式代理人設計
 
@@ -254,6 +266,18 @@ examples/quickstart/                   — 漸進式教學
 
 *可選* — 若需自訂記憶分類、驗證器規則、漂移偵測器閾值或其他框架旋鈕，亦可繼承 `DomainPack` 並透過 `DomainPackRegistry.register(name, pack)` 註冊。預設 pack 為九個 hook（memory / drift / retrieval / perception / population-governance / policy-event-tiers / bridge-importance / event-handlers / agent-impact-handlers）提供 no-op stub，所以簡單領域可跳過此步驟。最小 DomainPack 範例參見 `examples/vaccination_demo/adapters/vaccination_pack.py`。
 
+### 稽核你的執行
+
+每次實驗後，產生一份泛用的就緒度報告：
+
+```bash
+python -m broker.tools.readiness_report \
+    --results <your_run_dir> \
+    --profile functional   # 或 'behavioral' / 'stress'
+```
+
+內附三種設定檔——`functional`（管線能否運行？）、`behavioral`（模型是否產生多樣且一致的決策？）、`stress`（治理是否正確處理硬性約束？）。此報告器與**領域無關**——它使用每個 DomainPack 可宣告的逐技能動作分類（`category` / `intensity` / `reversibility`），將終端結果歸入八個類別（approved、retry_recovered、expected_hard_block、recoverable_retry_failed、no_feasible_action、parser_failure、execution_failure、unknown_terminal）。輸出為主控台摘要加上 `<results>/readiness_report.json`。完整細節、注意事項（小型 smoke 測試不涵蓋動作多樣性；終端拒絕可能是有效治理）以及閾值覆寫，見 [CONTRIBUTING.md](CONTRIBUTING.md#post-experiment-readiness-reports)。
+
 ### 程式化 API
 
 ```python
@@ -307,7 +331,7 @@ runner.run()
 }
 ```
 
-## References
+## 參考文獻
 
 1. Rogers, R. W. (1983). Cognitive and physiological processes in fear appeals and attitude change: A revised theory of protection motivation. *Social Psychophysiology*.
 2. Grimm, V., et al. (2005). Pattern-oriented modeling of agent-based complex systems. *Science*, 310(5750), 987-991.
