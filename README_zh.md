@@ -2,7 +2,7 @@
 
 <div align="center">
 
-**LLM 驅動代理人模型的治理層。** 起初為人類-水資源耦合系統而建；目前框架已可外掛新領域 — 參考包涵蓋水資源（洪水/灌溉）+ 非水 Tier-2 showcase（疫苗接種）。
+**一個受治理的、LLM 驅動的代理人框架，用於耦合人類-自然系統。** 人類決策者被建模為 LLM 代理人；每個決策在作用於模擬系統之前，都會先經過可行性與行為理論規則的篩查。仲裁器核心可外掛領域 — 內附水資源（洪水/灌溉）參考套件，以及一個非水資源示範（疫苗接種）。
 
 每個 LLM 決策都會經過驗證管線——領域規則、行為理論檢查、附帶針對性反饋的重試——才能修改模擬狀態。
 
@@ -17,49 +17,18 @@
 
 ## WAGF 是什麼？
 
-WAGF 是 LLM 驅動代理人模型的治理層。**治理仲裁器 (Governance Broker)** 在每個 LLM 決策執行前，依據物理約束、行為理論和財務可行性進行驗證。無效決策觸發附帶具體反饋的重試迴路——不只是重新提示。最終結果：可審計、可重現的代理人行為，而非原始 LLM 輸出。
+WAGF 是一個**受治理的、LLM 驅動的代理人框架，用於耦合人類-自然系統**。它將人類決策者（農戶、家戶）建模為以自然語言推理其環境的 LLM 代理人，並在每個決策作用於模擬系統之前，先經過一個**治理仲裁器 (Governance Broker)** 篩查。
 
-本框架附帶四個參考實作，涵蓋三種行為理論：水資源（保護動機理論驅動的洪水適應、雙評估驅動的灌溉管理）+ 疫苗接種決策（健康信念模型）。領域層為可插拔式 — 新領域只需提供 YAML 配置 + 一個 `DomainPack` 子類，無需修改 `broker/`。
+治理分為兩層：
 
-## WAGF 跟其他框架（如 LangChain、Mesa）有何不同？
+- **硬性規則 (Hard rules)** — 物理、財務與制度上的可行性：也就是世界所「允許」的。你不能花你沒有的錢，也不能取走不存在的水；代理人的推理無法繞過這些限制。
+- **思考規則 (Thinking rules)** — 行為理論的一致性：決策是否與代理人自己陳述的評估一致（保護動機理論、雙評估等）。
 
-WAGF 處於不同的技術層次。最接近的同類是規則式 ABM 平台（Mesa、NetLogo）；WAGF 把它們從「規則式代理人」延伸到「LLM 驅動代理人」，同時保留執行前驗證的嚴謹性。
+不合格的決策會觸發「附帶回饋的重試」，而非單純重新提示。最終結果是**可審計、可重現**的代理人行為，足以作為論文附錄材料，而非原始 LLM 輸出。
 
-| 框架類別 | 範例 | 主要功能 | WAGF 獨有的差異 |
-|:---|:---|:---|:---|
-| LLM 提供者 SDK | Anthropic SDK、OpenAI SDK | 包裝 API 呼叫 | 在任何提供者之上加入領域驗證器 + 審計管線 |
-| RAG 框架 | LangChain、LlamaIndex | 用檢索內容增強 LLM 上下文 | 驗證 LLM 的「輸出」，而非僅輸入 |
-| 代理人協調框架 | LangGraph、AutoGen、CrewAI | 多步驟 LLM 工具呼叫迴圈 | 強制治理閘道在任何狀態變更前介入；不只是工具分派 |
-| 規則式 ABM | Mesa、NetLogo | 以手寫規則的代理人模擬 | 相同模擬嚴謹度，但代理人是 LLM 驅動，且每個決策都被行為理論約束 |
-| **WAGF** ⭐ | （本專案）| **LLM 驅動代理人模型的治理層** | 驗證為一等公民、附反饋的重試、審計軌跡為科學產出 |
+仲裁器核心與領域無關。已驗證的參考領域是人類-環境耦合 — 洪水適應（保護動機理論）與灌溉（雙評估）— 並以疫苗接種（健康信念模型）證明本框架可推廣到環境系統之外。新領域只需提供 YAML 配置 + 一個 `DomainPack` 子類即可接入，無需修改 `broker/`。
 
-簡而言之：WAGF 不是 chatbot 框架，不是檢索工具，也不是 LLM SDK。它是研究級的鷹架，用於跑 LLM 代理人 ABM 實驗 — 每個決策必須通過領域物理、行為理論、制度約束驗證，且審計軌跡可重現到能直接附在論文 Supplementary Information。
-
-## 核心特色
-
-- **治理管線** — 任何動作到達模擬前的六步驟驗證：上下文 → LLM → 解析 → 驗證 → 核准/重試 → 執行
-- **完整審計軌跡** — 每個決策、拒絕、重試及推理軌跡均以結構化 JSONL/CSV 記錄，供科學審查
-- **領域包** — 新增領域只需 3 個檔案：`skill_registry.yaml` + `agent_types.yaml` + `lifecycle_hooks.py`
-- **框架可參數化的行為理論** — `broker/` 內無硬編碼理論；參考包涵蓋保護動機理論（洪水）、雙評估（灌溉）、健康信念模型（疫苗）。新理論透過 YAML 宣告即可
-- **研究就緒** — 消融模式（strict/relaxed/disabled）、6+ 個 LLM 系列的跨模型比較、多種子可重現性
-- **AI 輔助工作流** — 內建 7 個 [Claude Code skills](docs/skills/wagf-skills.md)（`wagf-quickstart`、`wagf-domain-builder`、`wagf-coupling-designer`、`wagf-experiment-designer`、`llm-agent-audit-trace-analyzer`、`model-coupling-contract-checker`、`abm-reproducibility-checker`），新研究者從 `git clone` 到產出論文等級指標可不必先讀手冊
-
-## 為什麼需要治理？
-
-| 挑戰 | 會出什麼問題 | WAGF 解決方案 |
-|:---|:---|:---|
-| **幻覺** | LLM 捏造不存在的動作 | 嚴格技能註冊表：僅接受已註冊的動作 |
-| **邏輯漂移** | 推理與選擇的動作矛盾 | 思考驗證器強制構念-行動一致性 |
-| **上下文溢出** | 無法將完整歷史塞入提示詞 | 加權記憶檢索（依近期性 + 重要性 + 上下文取 top-k） |
-| **不透明決策** | 無供科學審查的審計軌跡 | 結構化 JSONL 軌跡：輸入、推理、驗證、結果 |
-| **不安全修改** | LLM 直接修改模擬狀態 | 仲裁器閘控執行：驗證通過的技能由引擎執行，非 LLM |
-
-> **術語對照** — 程式碼裡稱為 `skill` 的概念，在 Nature Water
-> 論文裡稱為 **action**（例如 `increase_demand`、`elevate_house`）。
-> 兩者指同一件事：一個已註冊、經驗證的決策選項。`skill` 是早期
-> 實作命名，貫穿整個原始碼樹（`SkillRegistry`、`skill_registry.yaml`）。
-
----
+> **目前版本**：v0.5.1（2026-05-28）。完整發布時程見 [`CHANGELOG.md`](CHANGELOG.md)。近期：Phase 6T-E.B SocialMediaProvider 底層（v0.5.0）+ 完整接線（v0.5.1），均隱藏於雙層可選旗標後。
 
 ## 快速上手
 
@@ -134,6 +103,46 @@ python examples/single_agent/run_flood.py --model gemma3:4b --years 3 --agents 1
   審計軌跡：year=3, agent=42, proposed=elevate_home, rejected,
                retry=1, final=buy_insurance, approved
 ```
+
+---
+
+## WAGF 跟其他框架（如 LangChain、Mesa）有何不同？
+
+WAGF 處於不同的技術層次。最接近的同類是規則式 ABM 平台（Mesa、NetLogo）；WAGF 把它們從「規則式代理人」延伸到「LLM 驅動代理人」，同時保留執行前驗證的嚴謹性。
+
+| 框架類別 | 範例 | 主要功能 | WAGF 獨有的差異 |
+|:---|:---|:---|:---|
+| LLM 提供者 SDK | Anthropic SDK、OpenAI SDK | 包裝 API 呼叫 | 在任何提供者之上加入領域驗證器 + 審計管線 |
+| RAG 框架 | LangChain、LlamaIndex | 用檢索內容增強 LLM 上下文 | 驗證 LLM 的「輸出」，而非僅輸入 |
+| 代理人協調框架 | LangGraph、AutoGen、CrewAI | 多步驟 LLM 工具呼叫迴圈 | 強制治理閘道在任何狀態變更前介入；不只是工具分派 |
+| 規則式 ABM | Mesa、NetLogo | 以手寫規則的代理人模擬 | 相同模擬嚴謹度，但代理人是 LLM 驅動，且每個決策都被行為理論約束 |
+| **WAGF** ⭐ | （本專案）| **LLM 驅動代理人模型的治理層** | 驗證為一等公民、附反饋的重試、審計軌跡為科學產出 |
+
+簡而言之：WAGF 不是 chatbot 框架，不是檢索工具，也不是 LLM SDK。它是研究級的鷹架，用於跑 LLM 代理人 ABM 實驗 — 每個決策必須通過領域物理、行為理論、制度約束驗證，且審計軌跡可重現到能直接附在論文 Supplementary Information。
+
+## 核心特色
+
+- **治理管線** — 任何動作到達模擬前的六步驟驗證：上下文 → LLM → 解析 → 驗證 → 核准/重試 → 執行
+- **完整審計軌跡** — 每個決策、拒絕、重試及推理軌跡均以結構化 JSONL/CSV 記錄，供科學審查
+- **領域包** — 新增領域只需 3 個檔案：`skill_registry.yaml` + `agent_types.yaml` + `lifecycle_hooks.py`
+- **框架可參數化的行為理論** — `broker/` 內無硬編碼理論；參考包涵蓋保護動機理論（洪水）、雙評估（灌溉）、健康信念模型（疫苗）。新理論透過 YAML 宣告即可
+- **研究就緒** — 消融模式（strict/relaxed/disabled）、6+ 個 LLM 系列的跨模型比較、多種子可重現性
+- **AI 輔助工作流** — 內建 7 個 [Claude Code skills](docs/skills/wagf-skills.md)（`wagf-quickstart`、`wagf-domain-builder`、`wagf-coupling-designer`、`wagf-experiment-designer`、`llm-agent-audit-trace-analyzer`、`model-coupling-contract-checker`、`abm-reproducibility-checker`），新研究者從 `git clone` 到產出論文等級指標可不必先讀手冊
+
+## 為什麼需要治理？
+
+| 挑戰 | 會出什麼問題 | WAGF 解決方案 |
+|:---|:---|:---|
+| **幻覺** | LLM 捏造不存在的動作 | 嚴格技能註冊表：僅接受已註冊的動作 |
+| **邏輯漂移** | 推理與選擇的動作矛盾 | 思考驗證器強制構念-行動一致性 |
+| **上下文溢出** | 無法將完整歷史塞入提示詞 | 加權記憶檢索（依近期性 + 重要性 + 上下文取 top-k） |
+| **不透明決策** | 無供科學審查的審計軌跡 | 結構化 JSONL 軌跡：輸入、推理、驗證、結果 |
+| **不安全修改** | LLM 直接修改模擬狀態 | 仲裁器閘控執行：驗證通過的技能由引擎執行，非 LLM |
+
+> **術語對照** — 程式碼裡稱為 `skill` 的概念，在 Nature Water
+> 論文裡稱為 **action**（例如 `increase_demand`、`elevate_house`）。
+> 兩者指同一件事：一個已註冊、經驗證的決策選項。`skill` 是早期
+> 實作命名，貫穿整個原始碼樹（`SkillRegistry`、`skill_registry.yaml`）。
 
 ---
 
