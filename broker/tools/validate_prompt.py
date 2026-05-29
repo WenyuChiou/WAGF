@@ -678,7 +678,14 @@ def main(argv: Optional[List[str]] = None) -> int:
             "parsing",
         )
         RESERVED = {"global_config", "shared", "personas", "skill_magnitude",
-                    "metadata"}
+                    "metadata",
+                    # Top-level governance block (governance.strict.<agent_type>
+                    # .thinking_rules) — never an agent type itself. Excluded so
+                    # a future governance dict that happens to nest an
+                    # AGENT_KEY_INDICATOR (e.g. parsing:) is not misclassified
+                    # as an agent type (6T-F.3 was the first standalone config
+                    # to carry a scanned top-level governance block).
+                    "governance"}
         agent_types = [
             k for k, v in cfg.items()
             if isinstance(v, dict)

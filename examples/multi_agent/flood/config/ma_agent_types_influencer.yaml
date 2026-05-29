@@ -67,11 +67,12 @@ social_media_influencer:
     - decision
     - choice
     default_skill: maintain_silence
-    # 6T-F.1: false is correct here (no validators yet). 6T-F.3 must flip
-    # this to true when the ERROR-level narrative action-coherence validator
-    # lands, otherwise malformed responses silently fall through to
-    # default_skill: maintain_silence instead of triggering a governance retry.
-    strict_mode: false
+    # 6T-F.3 (2026-05-29): flipped to true now that the ERROR-level narrative
+    # action-coherence thinking_rules (governance.strict.social_media_influencer
+    # below) have landed. With strict_mode true a malformed / incoherent
+    # response triggers a governance retry instead of silently falling through
+    # to default_skill: maintain_silence.
+    strict_mode: true
     preprocessor:
       type: smart_repair
     actions:
@@ -138,6 +139,59 @@ social_media_influencer:
         - consistent
         - brand
         regex: (?i)(?:label)?[:\s\*\[]*\b(VL|L|M|H|VH)\b
+# Phase 6T-F.3 (2026-05-29): ERROR-level narrative action-coherence rules.
+# TOP-LEVEL governance block (mirrors the households' governance.strict.* in
+# the frozen ma_agent_types.yaml — the runtime governance loader reads it from
+# here, NOT from inside the agent-type block). Only social_media_influencer is
+# governed here; this file does not touch any frozen agent_type. The two ERROR
+# bands mirror NarrativeDiffusionFramework.get_blocked_skills (kept in sync by
+# broker/tests/test_narrative_diffusion_coherence.py).
+governance:
+  strict:
+    social_media_influencer:
+      identity_rules: []
+      # maintain_silence is the always-safe fallback (narrative-channel
+      # analogue of do_nothing) — deliberately never blocked, so the model
+      # always keeps a non-retry escape. Declared so the requisite-variety
+      # coverage check treats its omission as intentional.
+      documented_unconstrained_skills:
+        - maintain_silence
+      thinking_rules:
+        # Band 1 — dead moment: nothing salient or spreading, so there is no
+        # live narrative to amplify, counter, or attach a story to. Only
+        # maintain_silence is coherent.
+        - id: influencer_dead_moment_blocks_posting
+          construct: SALIENCE
+          conditions:
+          - construct: SALIENCE
+            values: [VL, L]
+          - construct: VIRALITY
+            values: [VL, L]
+          blocked_skills:
+          - amplify_event
+          - post_counter_narrative
+          - share_success_story
+          level: ERROR
+          message: "Low salience and low virality: there is no live narrative to amplify, counter, or attach a story to. Staying silent is the coherent choice."
+        # Band 2 — off-brand: a salient (but not yet viral) narrative that
+        # contradicts your established positions should be countered or left
+        # alone, not amplified or boosted with a success story. Gated on
+        # virality NOT high so a high-salience + high-virality moment (where
+        # amplifying IS expected) is exempt.
+        - id: influencer_off_brand_blocks_promotion
+          construct: NARRATIVE_CONSISTENCY
+          conditions:
+          - construct: NARRATIVE_CONSISTENCY
+            values: [VL, L]
+          - construct: SALIENCE
+            values: [H, VH]
+          - construct: VIRALITY
+            values: [VL, L, M]
+          blocked_skills:
+          - amplify_event
+          - share_success_story
+          level: ERROR
+          message: "Low narrative consistency with high salience: amplifying or sharing a narrative that contradicts your established positions is incoherent. Counter it or stay silent."
 metadata:
-  version: v1-6tf1-social-media-influencer-scaffold
+  version: v2-6tf3-social-media-influencer-error-validators
   paper3_base_md5: ccf334f48e9bee544b1bb577104246d5
