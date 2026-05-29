@@ -22,7 +22,7 @@ example tree, not under ``broker/``.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 from broker.components.orchestration.institutional_lifecycle import (
     InstitutionalLifecycleHandler,
@@ -53,9 +53,19 @@ _POST_TEMPLATES: Dict[str, str] = {
 
 # The influencer's author_role + credibility tier in the flood domain's
 # tier vocabulary (broker/components/social/post.py lists ``influencer``
-# among the flood tiers). 6T-F.4 wires the flood pack's
-# credibility_tiers()/verbalise_post() to recognise this tier when
-# rendering household feeds.
+# among the flood tiers).
+#
+# DEFERRED (post-6T-F.4): the flood pack still uses the DEFAULT
+# ``credibility_tiers()`` == [] so ``credibility_weight("influencer")`` == 0.0.
+# SocialMediaProvider has no weight<=0 filter, so a single influencer post
+# still renders (the 6T-F.4 mock smoke relies on this). BUT in a real
+# multi-author run where the total post count exceeds ``top_k``, every flood
+# post scores 0.0 and the top_k cut becomes order-dependent (set iteration in
+# FollowerNetwork.get_followed) — the influencer post could be silently
+# dropped. Before shipping an influencer EXPERIMENT runner, a future increment
+# MUST override ``FloodPerceptionMixin.credibility_tiers()`` to include
+# "influencer" (with a >0 ``credibility_weight``) so tier-weighted ranking is
+# deterministic. Tracked: code-reviewer WARNING on 6T-F.4 (2026-05-29).
 INFLUENCER_AUTHOR_ROLE = "influencer"
 INFLUENCER_TIER_ID = "influencer"
 
@@ -194,10 +204,41 @@ def insert_influencer_phase(
     return out
 
 
+def seed_influencer_followers(
+    network: Any,
+    influencer_id: str,
+    follower_ids: Iterable[str],
+    *,
+    weight: float = 1.0,
+) -> int:
+    """Phase 6T-F.4 (2026-05-29): register every id in ``follower_ids`` as a
+    follower of ``influencer_id`` on ``network`` (a
+    :class:`~broker.components.social.follower_network.FollowerNetwork`).
+
+    This is how households come to SEE the influencer's posts: the
+    :class:`~broker.components.context.providers.SocialMediaProvider` filters
+    ``env.social_feeds`` down to authors the reading agent follows, so without
+    a follow edge an influencer post never reaches a household prompt.
+
+    Returns the number of edges added. Self-follows (a follower id equal to
+    ``influencer_id``) and empty ids are skipped (FollowerNetwork rejects
+    self-loops / empty ids). Re-seeding an existing edge updates its weight
+    in place (FollowerNetwork semantics).
+    """
+    added = 0
+    for fid in follower_ids:
+        if not fid or fid == influencer_id:
+            continue
+        network.add_edge(author_id=influencer_id, follower_id=fid, weight=weight)
+        added += 1
+    return added
+
+
 __all__ = [
     "InfluencerLifecycleHandler",
     "INFLUENCER_PHASE_ORDER",
     "insert_influencer_phase",
+    "seed_influencer_followers",
     "INFLUENCER_AUTHOR_ROLE",
     "INFLUENCER_TIER_ID",
     "SILENCE_SKILL",
