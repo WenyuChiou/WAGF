@@ -1,0 +1,143 @@
+# Phase 6T-F.1 (2026-05-29): social_media_influencer experiment config.
+#
+# SEPARATE from the frozen paper-3 production config
+# (config/ma_agent_types.yaml, md5 ccf334f48e9bee544b1bb577104246d5). Adding
+# the influencer agent_type to the production file would change agent
+# iteration + RNG draw order even with social feeds OFF and break the v21
+# 5-seed gemma3:4b byte-identity dataset. This file is therefore a
+# self-contained agent_types config (mirrors the
+# examples/single_agent/agent_types_stress.yaml variant convention) holding
+# ONLY the social_media_influencer block.
+#
+# Scope = Phase 6T-F.1 (config / prompt / skills / verb->skill map only).
+# The producer-side lifecycle wiring (InfluencerLifecycleHandler.post_decision
+# -> env.add_post + decision phase + dependency ordering) lands in 6T-F.2, the
+# ERROR-level narrative action-coherence validators in 6T-F.3, and the
+# FollowerNetwork seeding + e2e mock smoke in 6T-F.4. No governance block is
+# declared here yet — that is 6T-F.3's surface.
+shared:
+  rating_scale: VL=Very Low, L=Low, M=Medium, H=High, VH=Very High
+
+social_media_influencer:
+  description: >-
+    Social-media influencer agent for the Passaic River Basin flood domain.
+    An active decider that chooses what (if anything) to post each year,
+    governed by the narrative_diffusion behavioural framework (salience /
+    virality / audience_fit / narrative_consistency).
+  default_skill: maintain_silence
+  # narrative_diffusion is pre-registered with its construct registry +
+  # label ordering by broker.domains.water.thinking_checks; the matching
+  # framework binding lives in FloodGovernanceMixin._AGENT_TYPE_FRAMEWORK.
+  psychological_framework: narrative_diffusion
+  llm_params:
+    num_ctx: 16384
+    num_predict: 1024
+  prompt_template_file: prompts/social_media_influencer.txt
+  response_format:
+    fields:
+    - key: salience
+      type: appraisal
+      required: true
+      construct: SALIENCE
+    - key: virality
+      type: appraisal
+      required: true
+      construct: VIRALITY
+    - key: audience_fit
+      type: appraisal
+      required: false
+      construct: AUDIENCE_FIT
+    - key: narrative_consistency
+      type: appraisal
+      required: false
+      construct: NARRATIVE_CONSISTENCY
+    - key: decision
+      type: choice
+      required: true
+    - key: reasoning
+      type: text
+      required: false
+  log_fields:
+  - salience
+  - virality
+  - audience_fit
+  - narrative_consistency
+  parsing:
+    decision_keywords:
+    - decision
+    - choice
+    default_skill: maintain_silence
+    # 6T-F.1: false is correct here (no validators yet). 6T-F.3 must flip
+    # this to true when the ERROR-level narrative action-coherence validator
+    # lands, otherwise malformed responses silently fall through to
+    # default_skill: maintain_silence instead of triggering a governance retry.
+    strict_mode: false
+    preprocessor:
+      type: smart_repair
+    actions:
+    - id: amplify_event
+      aliases:
+      - AMPLIFY
+      - amplify
+      - amplify_event
+      - boost
+      - Amplify event
+      - '[AMPLIFY]'
+      description: Amplify an unfolding flood event to maximise reach across the follower network
+    - id: post_counter_narrative
+      aliases:
+      - COUNTER
+      - counter
+      - counter_narrative
+      - post_counter_narrative
+      - debunk
+      - Post counter-narrative
+      - '[COUNTER]'
+      description: Push back on a misleading or inconsistent flood narrative
+    - id: share_success_story
+      aliases:
+      - SHARE
+      - share
+      - share_success_story
+      - success_story
+      - Share success story
+      - '[SHARE]'
+      description: Share a concrete adaptation success story to model protective behaviour
+    - id: maintain_silence
+      aliases:
+      - SILENCE
+      - silence
+      - maintain_silence
+      - stay_silent
+      - nothing
+      - Maintain silence
+      - '[SILENCE]'
+      description: Post nothing this year — preserve credibility when the moment is low-salience or low-virality
+    constructs:
+      SALIENCE:
+        keywords:
+        - salience
+        - relevant
+        - moment
+        regex: (?i)(?:label)?[:\s\*\[]*\b(VL|L|M|H|VH)\b
+      VIRALITY:
+        keywords:
+        - virality
+        - viral
+        - spread
+        regex: (?i)(?:label)?[:\s\*\[]*\b(VL|L|M|H|VH)\b
+      AUDIENCE_FIT:
+        keywords:
+        - audience
+        - fit
+        - followers
+        regex: (?i)(?:label)?[:\s\*\[]*\b(VL|L|M|H|VH)\b
+      NARRATIVE_CONSISTENCY:
+        keywords:
+        - consistency
+        - consistent
+        - brand
+        regex: (?i)(?:label)?[:\s\*\[]*\b(VL|L|M|H|VH)\b
+metadata:
+  version: v1-6tf1-social-media-influencer-scaffold
+  paper3_base_md5: ccf334f48e9bee544b1bb577104246d5
