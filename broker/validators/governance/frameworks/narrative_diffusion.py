@@ -184,3 +184,94 @@ class NarrativeDiffusionFramework(PsychologicalFramework):
         if salience in low_band and virality in low_band:
             return ["stay_silent"]
         return ["share"]
+
+    def get_blocked_skills(self, appraisals: Dict[str, str]) -> List[str]:
+        """Phase 6T-F.3 (2026-05-29): return the expected-behavior VERBS
+        that are INCOHERENT given the appraisals (the ERROR-band inverse of
+        :meth:`get_expected_behavior`).
+
+        Generic verbs (``amplify`` / ``share`` / ``counter_narrative`` /
+        ``stay_silent``); a domain pack maps them to concrete skill ids via
+        its verb->skill table (e.g.
+        ``FloodGovernanceMixin.narrative_diffusion_skill_map``). ``stay_silent``
+        is NEVER blocked — silence is always a coherent fallback (the
+        narrative-channel analogue of leaving ``do_nothing`` unconstrained in
+        most PMT states, so small LLMs always retain a non-retry escape).
+
+        Two bands, each strictly disjoint from the verbs
+        :meth:`get_expected_behavior` returns for the same appraisals (so a
+        verb is never simultaneously expected and blocked):
+
+        1. Dead moment — salience LOW and virality LOW: nothing is live, so
+           ``amplify`` / ``share`` / ``counter_narrative`` are all
+           incoherent (only ``stay_silent`` is expected).
+        2. Off-brand — narrative_consistency LOW with salience HIGH but
+           virality NOT high: ``counter_narrative`` is expected, so
+           ``amplify`` / ``share`` are incoherent. Gated on ``virality NOT
+           high`` precisely because a HIGH-salience + HIGH-virality moment
+           makes amplifying/sharing expected even off-brand (band 1 of
+           :meth:`get_expected_behavior` wins there).
+
+        These bands mirror the flood influencer's declarative ERROR
+        ``thinking_rules`` in
+        ``examples/multi_agent/flood/config/ma_agent_types_influencer.yaml``;
+        ``broker/tests/test_narrative_diffusion_coherence.py`` asserts the
+        two stay in sync.
+        """
+        salience = appraisals.get("SALIENCE", "M").upper()
+        virality = appraisals.get("VIRALITY", "M").upper()
+        consistency = appraisals.get("NARRATIVE_CONSISTENCY", "M").upper()
+
+        low_band = {"L", "VL"}
+        high_band = {"H", "VH"}
+
+        if salience in low_band and virality in low_band:
+            return ["amplify", "share", "counter_narrative"]
+        if (
+            consistency in low_band
+            and salience in high_band
+            and virality not in high_band
+        ):
+            return ["amplify", "share"]
+        return []
+
+    def validate_action_coherence(
+        self, appraisals: Dict[str, str], proposed: str
+    ) -> ValidationResult:
+        """Phase 6T-F.3: validate that a proposed expected-behavior VERB is
+        coherent with the narrative-diffusion appraisals.
+
+        ``proposed`` is a generic verb (``amplify`` / ``share`` /
+        ``counter_narrative`` / ``stay_silent``); a caller holding a concrete
+        skill id must map it to its verb first (the inverse of the domain's
+        verb->skill table). ERROR-level: a blocked verb returns
+        ``valid=False`` with an explanatory error, parallel to PMT's
+        :meth:`PMTFramework.validate_action_coherence` and mirroring the
+        runtime ThinkingValidator block. This is the programmatic coherence
+        spec — the live runtime block for the flood influencer is the
+        declarative YAML ``thinking_rules`` (the two are kept in sync by the
+        coherence test). The CACR/``micro_validator`` calibration path can
+        consume this once it maps influencer skills to verbs.
+        """
+        blocked = self.get_blocked_skills(appraisals)
+        proposed_norm = (proposed or "").strip().lower()
+        if proposed_norm in blocked:
+            return ValidationResult(
+                valid=False,
+                errors=[
+                    f"Narrative action '{proposed_norm}' is incoherent with "
+                    f"salience={appraisals.get('SALIENCE', '')!r}, "
+                    f"virality={appraisals.get('VIRALITY', '')!r}, "
+                    f"narrative_consistency="
+                    f"{appraisals.get('NARRATIVE_CONSISTENCY', '')!r}; expected "
+                    f"one of {self.get_expected_behavior(appraisals)}."
+                ],
+                warnings=[],
+                metadata={"blocked_verbs": blocked, "proposed": proposed_norm},
+            )
+        return ValidationResult(
+            valid=True,
+            errors=[],
+            warnings=[],
+            metadata={"blocked_verbs": blocked, "proposed": proposed_norm},
+        )
