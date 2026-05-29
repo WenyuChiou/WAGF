@@ -636,6 +636,28 @@ class FloodSetupMixin:
     """SetupPack methods — context narrative + agent initialisation
     classes + phase orchestration."""
 
+    def institutional_lifecycle_handlers(self) -> Dict[str, Any]:
+        """Phase 6T-F.2 (2026-05-29): register the social_media_influencer
+        lifecycle handler — the SECOND concrete consumer of the Phase 6T-C
+        :class:`InstitutionalLifecycleHandler` extension point. The handler
+        turns an accepted influencer post-action into a Post appended to
+        ``env.social_feeds``.
+
+        government / insurance are deliberately NOT listed here: their
+        lifecycle stays in the bespoke ``MultiAgentHooks`` class until the
+        deferred extraction (clean extraction is HIGH paper-3 byte-identity
+        risk — see the ABC's module docstring). This override is inert for
+        paper-3: the paper-3 runner dispatches via ``MultiAgentHooks`` and
+        never consults this map, and ``social_media_influencer`` is not in
+        the frozen paper-3 config. The 6T-F.4 influencer-experiment runner
+        is the first consumer. Returns a fresh dict each call; the handler
+        is stateless.
+        """
+        from examples.governed_flood.adapters.influencer_lifecycle import (
+            InfluencerLifecycleHandler,
+        )
+        return {"social_media_influencer": InfluencerLifecycleHandler()}
+
     def mg_barrier_text(self, profile: Dict[str, Any]) -> str:
         """Reproduces the Passaic-specific text in ``providers.py:706-712``.
 
