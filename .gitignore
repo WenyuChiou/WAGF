@@ -151,6 +151,8 @@ ref/paper_analysis/
 paper/
 examples/single_agent/manuscripts/
 examples/multi_agent/flood/paper3/*.docx
+# Generated figure-test output (fig6 RQ3 test + influencer smoke runs)
+examples/multi_agent/flood/paper3/figures/test_output/
 examples/single_agent/analysis/paper_figures/*.png
 examples/single_agent/analysis/paper_figures/*.pdf
 examples/single_agent/analysis/SQ1_Final_Results/*.xlsx
