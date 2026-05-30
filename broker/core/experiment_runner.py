@@ -385,6 +385,30 @@ class ExperimentRunner:
         metadata["timestamp"] = datetime.now().isoformat()
         metadata["python_version"] = sys.version.split()[0]
 
+        # 6. Run-integrity provenance contract (Invariant 6): record the RUNTIME memory
+        #    engine actually instantiated. config_snapshot.yaml records the CONFIG;
+        #    self.memory_engine is the runtime truth, and __init__ silently falls back to
+        #    WindowMemoryEngine when no engine is passed — exactly the class of silent
+        #    config/runtime divergence Invariant 6 makes inspectable. Writes
+        #    run_integrity.json as a side artifact + embeds the audit here. Never raises.
+        try:
+            from broker.core.run_integrity import record_run_integrity
+            refl_kwargs = {}
+            if hasattr(self, "reflection_engine"):
+                refl_kwargs["reflection_engine"] = self.reflection_engine
+            metadata["run_integrity"] = record_run_integrity(
+                self.config.output_dir,
+                memory_engine=self.memory_engine,
+                governance_mode=self.config.governance_profile,
+                seed=self.config.seed,
+                verbose=False,
+                **refl_kwargs,
+            )
+        except Exception as exc:
+            # Manifest enrichment must never fail the run, but don't swallow silently —
+            # a module/import error here is a real bug worth surfacing in debug logs.
+            logger.debug(f"[Integrity] run_integrity enrichment skipped: {exc}")
+
         return metadata
 
     def _apply_state_changes(self, agent: BaseAgent, result: Any):

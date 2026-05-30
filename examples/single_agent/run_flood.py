@@ -1247,7 +1247,22 @@ def run_parity_benchmark(model: str = "llama3.2:3b", years: int = 10, agents_cou
     # Finalize Audit (Generates CSVs and Summary)
     if runner.broker.audit_writer:
         runner.broker.audit_writer.finalize()
-    
+
+    # === INTEGRITY GUARDRAIL (Invariant 6 — run-integrity provenance contract) ===
+    # config_snapshot.yaml records CONFIG, not RUNTIME — that masked reflection silently
+    # NOT running in the old no-validator batch (reflection_engine stayed None). Record the
+    # actual runtime state to run_integrity.json + warn loudly if reflection was expected
+    # (humancentric) but produced nothing. Record-and-flag, never raise. See
+    # broker/INVARIANTS.md Invariant 6.
+    from broker.core.run_integrity import record_run_integrity
+    record_run_integrity(
+        output_dir,
+        memory_engine_type=memory_engine_type,
+        reflection_engine=reflection_engine,
+        governance_mode=governance_mode,
+        seed=seed,
+    )
+
     # 6. Save Simulation Log (Parity with baseline simulation_log.csv)
     # We must ensure every agent is represented in every year for the stacked plot
     final_logs = []
