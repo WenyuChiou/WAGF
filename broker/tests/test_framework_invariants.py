@@ -1069,3 +1069,109 @@ class TestNoExcessiveInlineMockPacks:
             "examples/_test_fixtures/fake_traffic/ (Phase 6Q-F-2-a).\n"
             "Offenders:\n  " + "\n  ".join(offenders)
         )
+
+
+class TestRunIntegrityContract:
+    """Invariant 6 — run-integrity provenance contract.
+
+    ``record_run_integrity`` must record the runtime instantiation as a side
+    artifact, flag a config/runtime mismatch, and never abort. See
+    broker/INVARIANTS.md Invariant 6.
+    """
+
+    def test_writes_only_run_integrity_json_no_byte_locked_output(self, tmp_path):
+        """Byte-identity safety: the contract touches only run_integrity.json,
+        never simulation_log.csv / *_audit.csv."""
+        from broker.core.run_integrity import record_run_integrity
+
+        record_run_integrity(tmp_path, memory_engine=object(), seed=42)
+        produced = {p.name for p in tmp_path.iterdir()}
+        assert produced == {"run_integrity.json"}, (
+            f"run-integrity contract must emit ONLY run_integrity.json, got {produced}"
+        )
+
+    def test_flags_humancentric_without_reflection(self, tmp_path):
+        """config says humancentric but reflection produced nothing -> integrity_ok False."""
+        from broker.core.run_integrity import record_run_integrity
+
+        audit = record_run_integrity(
+            tmp_path, memory_engine_type="humancentric",
+            reflection_engine=None, governance_mode="disabled", seed=42, verbose=False,
+        )
+        assert audit["reflection_expected"] is True
+        assert audit["reflection_log_entries"] == 0
+        assert audit["integrity_ok"] is False
+
+    def test_passes_humancentric_with_reflection(self, tmp_path):
+        """reflection_log present -> integrity_ok True, entries counted."""
+        from broker.core.run_integrity import record_run_integrity
+
+        (tmp_path / "reflection_log.jsonl").write_text(
+            '{"a":1}\n{"a":2}\n', encoding="utf-8")
+        audit = record_run_integrity(
+            tmp_path, memory_engine_type="humancentric",
+            reflection_engine=object(), seed=42, verbose=False,
+        )
+        assert audit["reflection_log_entries"] == 2
+        assert audit["integrity_ok"] is True
+
+    def test_non_humancentric_raises_no_false_alarm(self, tmp_path):
+        """A non-humancentric engine (no reflection concept) must not flag even
+        when no reflection log exists."""
+        from broker.core.run_integrity import record_run_integrity
+
+        audit = record_run_integrity(
+            tmp_path, memory_engine_type="window", seed=42, verbose=False)
+        assert audit["reflection_expected"] is False
+        assert audit["integrity_ok"] is True
+
+    def test_experimentrunner_path_flags_humancentric_instance(self, tmp_path):
+        """C2 gap: the ExperimentRunner path passes the engine OBJECT (not the type
+        string) and no reflection_engine. A humancentric instance with an empty
+        reflection log must still flag — the class name infers the type."""
+        from broker.core.run_integrity import record_run_integrity
+
+        class HumanCentricMemoryEngine:  # name matches the real class for inference
+            pass
+
+        audit = record_run_integrity(
+            tmp_path, memory_engine=HumanCentricMemoryEngine(), verbose=False)
+        assert audit["effective_memory_engine_type"] == "humancentric"
+        assert audit["reflection_expected"] is True
+        assert audit["integrity_ok"] is False
+
+    def test_records_memory_engine_class_on_object_path(self, tmp_path):
+        """ExperimentRunner path passes the instantiated engine -> class recorded
+        (the net for the silent WindowMemoryEngine fallback). A non-humancentric
+        class infers no type and does not flag."""
+        from broker.core.run_integrity import record_run_integrity
+
+        class _FakeEngine:
+            pass
+
+        audit = record_run_integrity(tmp_path, memory_engine=_FakeEngine(), verbose=False)
+        assert audit["memory_engine_class"] == "_FakeEngine"
+        assert audit["effective_memory_engine_type"] is None
+        assert audit["integrity_ok"] is True
+
+    def test_non_serializable_extra_never_raises(self, tmp_path):
+        """C1: a non-JSON-serializable value in ``extra`` must degrade (default=str),
+        never propagate a TypeError out of record_run_integrity."""
+        from pathlib import Path as _P
+        from broker.core.run_integrity import record_run_integrity
+
+        audit = record_run_integrity(
+            tmp_path, memory_engine=object(), verbose=False,
+            extra={"weird": _P("/some/path"), "n": object()})
+        assert isinstance(audit, dict)
+        assert (tmp_path / "run_integrity.json").exists()
+
+    def test_never_raises_on_unwritable_output_dir(self, tmp_path):
+        """An unwritable / missing output dir must degrade to a returned dict,
+        never an exception that could abort a long real-LLM run."""
+        from broker.core.run_integrity import record_run_integrity
+
+        missing = tmp_path / "does_not_exist_yet" / "run"
+        audit = record_run_integrity(missing, memory_engine=object(), verbose=False)
+        assert isinstance(audit, dict)
+        assert audit["memory_engine_class"] == "object"

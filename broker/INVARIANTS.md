@@ -204,6 +204,69 @@ Test coverage: `broker/tests/test_context_builder_response_format.py` carries th
 
 ---
 
+## Invariant 6 — Run-integrity provenance contract
+
+### Contract
+
+A run's `config_snapshot.yaml` records the CONFIG that was *requested*; it does
+not record what the framework actually *instantiated* at runtime. Those can
+diverge silently. Every run therefore MUST also emit a `run_integrity.json` side
+artifact that records the runtime instantiation truth — which memory engine class
+was actually wired, whether the reflection engine exists, and how many reflection
+entries were produced — and MUST flag (never abort) when the runtime contradicts
+the config.
+
+### Rules
+
+1. The single source of truth is `broker/core/run_integrity.py::record_run_integrity`.
+   Every run entry point (single-agent `run_flood.py`, `ExperimentRunner.finalize`)
+   calls it; new run paths MUST call it too.
+2. It is **record-and-FLAG, never raise**. `run_integrity.json` is a side artifact
+   and MUST NOT touch the byte-locked simulation outputs (`simulation_log.csv` /
+   `*_audit.csv`). Aborting a long real-LLM run because a *log file* looked short
+   would be worse than the defect. A `humancentric` memory engine with zero
+   reflection entries sets `integrity_ok=false` and prints a loud warning; it does
+   not stop the run.
+3. The recorded contract MUST include at minimum: `memory_engine_type` and/or
+   `memory_engine_class`, `reflection_log_entries`, `governance_mode`, `seed`, and
+   `integrity_ok`. `ExperimentRunner` additionally embeds the same dict in
+   `reproducibility_manifest.json` under `run_integrity`.
+4. Reflection parity is asserted whenever the memory engine is humancentric — by the
+   explicit `memory_engine_type` string (run_flood) or inferred from the instantiated
+   engine class (ExperimentRunner). Non-humancentric engines record their class but
+   never false-flag. The `reflection_engine` object, when passed, is recorded as
+   `reflection_engine_wired` for transparency but does not gate the expectation.
+
+### Detection / enforcement
+
+- `broker/tests/test_framework_invariants.py::TestRunIntegrityContract` — asserts the
+  key properties: `record_run_integrity` writes only `run_integrity.json` (no
+  byte-locked output touched); flags the `humancentric`-but-no-reflection mismatch with
+  `integrity_ok=false` on BOTH the explicit-type path (run_flood passes
+  `memory_engine_type`) and the inferred-class path (ExperimentRunner passes the engine
+  object, class name → type); never raises (including a non-serializable `extra` and an
+  unwritable output dir); and does not false-flag a non-humancentric engine.
+- `python -m broker.tools.check_run_integrity <run_dir> [...]` — generic CI / operator
+  checker; exits 1 on any `integrity_ok=false`. The NW-paper gov-vs-noval *pairwise*
+  checker is the domain-specific companion at
+  `examples/single_agent/analysis/check_run_integrity.py`.
+
+### Known current state (added 2026-05-30)
+
+Motivated by the 2026-05-30 reflection-missing data-defect audit: a no-validator
+flood batch ran with `memory_engine_type='humancentric'` in config but the reflection
+engine stayed `None`, so reflection never ran. `config_snapshot.yaml` looked correct;
+the runtime silently diverged; the gov-vs-noval comparison gained a reflection
+confound that no artifact surfaced (18 runs quarantined, headline P0 re-run scheduled).
+The single-agent `run_flood.py` stopgap guardrail (added the same day) is now absorbed
+into `record_run_integrity`; `ExperimentRunner` was extended in the same change so the
+irrigation / multi-agent path records its runtime memory engine class too (the silent
+`WindowMemoryEngine` fallback in `ExperimentRunner.__init__` is the analogous trap).
+Byte-identity verified: `run_integrity.json` is a pure side artifact; v21 / paper-3
+mock-LLM CSV output is unchanged.
+
+---
+
 ## Process rules
 
 ### Adding a new invariant
