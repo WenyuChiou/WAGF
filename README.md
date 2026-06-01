@@ -164,8 +164,8 @@ In short: WAGF is not a chatbot framework, not a retrieval tool, not an LLM SDK.
 The framework operates in three layers:
 
 1. **LLM Layer** — Agents propose actions via natural-language reasoning
-2. **Governed Layer** — Parser extracts structured output; Validator checks domain rules; Auditor logs traces. If validation fails (ERROR), the proposal returns to the LLM with targeted feedback
-3. **Execution Layer** — Approved actions modify the environment; Memory and Reflection feed back into the next decision cycle
+2. **Governance Layer** — Parser extracts structured output; Validator checks domain rules; Auditor logs traces. If validation fails (ERROR), the proposal returns to the LLM with targeted feedback
+3. **Environment & Execution Layer** — Approved actions modify the environment; Memory and Reflection feed back into the next decision cycle
 
 **Key entry points:**
 
