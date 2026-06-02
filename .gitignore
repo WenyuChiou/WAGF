@@ -259,3 +259,19 @@ pytest_tmp/
 # tracked (documented cross-agent standard — Codex / Cursor / Aider
 # all read it; intentionally public).
 CLAUDE.md
+
+# ============================================================
+# Unpublished research content — excluded from the public repo
+# (untracked 2026-06-02; note: older copies remain in git HISTORY)
+# ============================================================
+# Paper 3 manuscripts, analysis reports, paper figures.
+# Analysis CODE and the test-depended configs/scenarios/ stay tracked.
+examples/multi_agent/flood/paper3/**/*.md
+examples/multi_agent/flood/paper3/*.md
+examples/multi_agent/flood/paper3/**/*.png
+examples/multi_agent/flood/paper3/**/*.pdf
+# Internal technical notes / plans / whitepapers
+docs/internal/
+# Manuscript language + multi-agent literature review
+examples/irrigation_abm/analysis/MANUSCRIPT_LANGUAGE.md
+examples/multi_agent/flood/docs/manuscripts/
