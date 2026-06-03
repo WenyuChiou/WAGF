@@ -7,7 +7,7 @@ Three-level validation architecture:
                        (CACR, EGS, TCS, Action Stability)
     Level 2 — MACRO:  Population-level calibration
                        (KS, Wasserstein, chi-sq, PEBA, MA-EBE)
-    Level 3 — COGNITIVE: Psychological construct fidelity
+    Level 3 — COGNITIVE: Psychological construct consistency
                        (psychometric battery, ICC, social amplification)
 
 Validation routing:

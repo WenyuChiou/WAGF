@@ -11,7 +11,7 @@ following Grimm et al. (2005) pattern-oriented modelling principles:
 ```text
 Level 1 — MICRO    Individual agent reasoning coherence
 Level 2 — MACRO    Population-level distributional calibration
-Level 3 — COGNITIVE  Psychological construct fidelity (psychometric)
+Level 3 — COGNITIVE  Psychological construct consistency (psychometric)
 ```
 
 ### Design Principles
@@ -71,7 +71,7 @@ Level 3 — COGNITIVE  Psychological construct fidelity (psychometric)
 | **Chi-squared** | Goodness-of-Fit | Categorical action distribution match | N >= 200 |
 | **PEBA** | Pattern Extraction-Based Analysis | Distribution shape features (mean, variance, skew, kurtosis) | Diagnostic |
 
-### Level 3 — COGNITIVE (Psychometric Fidelity)
+### Level 3 — COGNITIVE (Psychometric Consistency)
 
 | Metric | Full Name | What It Measures | Threshold |
 |--------|-----------|-----------------|-----------|
