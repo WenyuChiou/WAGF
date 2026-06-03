@@ -46,10 +46,15 @@ from typing import List
 
 def gen_package_init(domain: str, framework: str) -> str:
     """Top-level ``__init__.py`` — registers DomainPack + validators."""
+    # NOTE: the continuation line carries the same 8-space indent as the
+    # dedent() template body below, so dedent strips it uniformly. A bare
+    # column-0 continuation here would zero-out dedent's common prefix and
+    # emit an __init__.py with IndentationError (the custom-framework path
+    # bug caught in the 2026-06-03 review).
     cognition_import = (
         f"from .cognition import register_{domain}_framework\n"
-        f"register_{domain}_framework()\n"
-    ) if framework == "custom" else "# Using pre-registered framework — no cognition module needed.\n"
+        f"        register_{domain}_framework()"
+    ) if framework == "custom" else "# Using pre-registered framework — no cognition module needed."
 
     return dedent(f"""
         \"\"\"WAGF domain package: {domain}.
@@ -68,10 +73,10 @@ def gen_package_init(domain: str, framework: str) -> str:
         from . import validators  # noqa: F401  (side-effect import)
 
         # Step 3: register the DomainPack so broker pipeline uses our overrides.
-        from broker.domains.registry import register as _register_domain
+        from broker.domains.registry import DomainPackRegistry
         from .adapters.{domain}_pack import {domain.title().replace("_", "")}DomainPack
 
-        _register_domain("{domain}", {domain.title().replace("_", "")}DomainPack())
+        DomainPackRegistry.register("{domain}", {domain.title().replace("_", "")}DomainPack())
         """).lstrip()
 
 
@@ -297,64 +302,83 @@ def gen_prompt(domain: str, skills: List[str]) -> str:
 
 
 def gen_validators_init(domain: str) -> str:
+    checks_const = f"{domain.upper()}_PHYSICAL_CHECKS"
     return dedent(f"""
         \"\"\"{domain} validator registrations.
 
         Phase 6C-v4 reminder: only ('physical', 'personal', 'social', 'semantic',
-        'temporal', 'behavioural') slots accept Python BuiltinChecks. Thinking-
-        level rules must go via the YAML ``rules:`` block in
-        ``config/agent_types.yaml``, not here.
+        'temporal', 'behavioural') slots accept Python checks. Thinking-level
+        rules must go via the YAML ``thinking_rules:`` block in
+        ``config/agent_types.yaml`` (consumed by ThinkingValidator), not here.
+
+        Registration mirrors examples/vaccination_demo/validators/__init__.py:
+        ``ValidatorRegistry.register(domain, slot, checks_list)`` at import time.
         \"\"\"
-        from broker.components.governance.validator_registry import ValidatorRegistry
-        from broker.components.governance.base_check import BuiltinCheck
+        from .{domain}_validators import {checks_const}
 
-        from .{domain}_validators import placeholder_physical_check
+        try:
+            from broker.components.governance.validator_registry import ValidatorRegistry
 
-
-        def register():
-            \"\"\"Idempotent registration of all {domain} validators.\"\"\"
-            ValidatorRegistry.register(
-                BuiltinCheck(
-                    id="{domain}_placeholder",
-                    slot="physical",
-                    func=placeholder_physical_check,
-                    description="Placeholder physical check — replace with real domain rule.",
-                ),
-                overwrite=True,
-            )
-
-
-        register()
+            ValidatorRegistry.register("{domain}", "physical", list({checks_const}))
+        except ImportError:
+            # broker not importable (e.g. minimal install) — skip registration.
+            pass
         """).lstrip()
 
 
 def gen_validators(domain: str) -> str:
+    checks_const = f"{domain.upper()}_PHYSICAL_CHECKS"
     return dedent(f"""
         \"\"\"{domain} validator check functions.
 
-        Each check receives (skill_proposal, validation_context) and returns
-        a (passed, ValidationReport-or-None) tuple. See
-        broker/components/governance/base_check.py for the protocol.
+        Each check has signature ``(skill_name, rules, context) -> List[ValidationResult]``.
+        Return ``[]`` to PASS; return ``[ValidationResult(valid=False, ...)]`` to REJECT.
+        Only the physical / personal / social / semantic / temporal / behavioural
+        slots accept Python checks; thinking-level coherence rules go in
+        ``config/agent_types.yaml`` under the ``thinking_rules:`` key (consumed by
+        ThinkingValidator), NOT here. Reference: examples/vaccination_demo/validators/.
         \"\"\"
-        from broker.components.governance.base_check import (
-            ValidationReport, ValidationSeverity,
-        )
+        from __future__ import annotations
+
+        from typing import Any, Dict, List
+
+        from broker.governance.rule_types import GovernanceRule
+        from broker.interfaces.skill_types import ValidationResult
 
 
-        def placeholder_physical_check(skill_proposal, context):
+        def placeholder_physical_check(
+            skill_name: str, rules: List[GovernanceRule], context: Dict[str, Any]
+        ) -> List[ValidationResult]:
             \"\"\"Always passes — replace with a real physical-feasibility rule.
 
-            Examples of real checks:
-              * 'budget check': reject if cost > agent.budget
-              * 'cooldown check': reject if action taken too recently
-              * 'eligibility check': reject if agent state precludes action
+            Examples of real checks (state-precondition / immutability):
+              * budget check: reject if cost > agent budget
+              * cooldown check: reject if action taken too recently
+              * eligibility check: reject if agent state precludes action
+
+            Reject by returning a populated list, e.g.::
+
+                if int(context.get("budget", 0)) < cost:
+                    return [ValidationResult(
+                        valid=False,
+                        validator_name="{domain}_budget",
+                        errors=["insufficient budget for this action"],
+                        metadata={{"category": "physical"}},
+                    )]
             \"\"\"
-            return True, None
+            return []
+
+
+        {checks_const} = (
+            placeholder_physical_check,
+        )
         """).lstrip()
 
 
-def gen_domain_pack(domain: str) -> str:
+def gen_domain_pack(domain: str, framework: str = "pmt") -> str:
     class_name = domain.title().replace("_", "") + "DomainPack"
+    # Match gen_agent_types_yaml's framework resolution (custom -> <domain>_framework).
+    framework_value = f"{domain}_framework" if framework == "custom" else framework
     return dedent(f"""
         \"\"\"{domain} DomainPack.
 
@@ -380,6 +404,15 @@ def gen_domain_pack(domain: str) -> str:
             @property
             def name(self) -> str:
                 return "{domain}"
+
+            def psychological_framework(self) -> str:
+                \"\"\"Framework label the ThinkingValidator resolves for this
+                domain — MUST match config/agent_types.yaml's
+                ``psychological_framework``. Dispatch reads THIS (the pack), not
+                the YAML field, so leaving DefaultDomainPack's "" escape-hatch
+                would silently ignore your YAML framework choice. For a 'custom'
+                framework, register its metadata first (see cognition/).\"\"\"
+                return "{framework_value}"
 
             def reflection_status_text(self, agent: Any) -> str:
                 \"\"\"One-line summary of agent's state for use in reflection prompts.\"\"\"
@@ -502,7 +535,7 @@ def scaffold(
     write("validators/__init__.py", gen_validators_init(domain))
     write(f"validators/{domain}_validators.py", gen_validators(domain))
     write("adapters/__init__.py", "")
-    write(f"adapters/{domain}_pack.py", gen_domain_pack(domain))
+    write(f"adapters/{domain}_pack.py", gen_domain_pack(domain, framework))
     write("run_experiment.py", gen_run_experiment(domain))
 
     if framework == "custom":
@@ -530,15 +563,21 @@ def scaffold(
 
                 def register_{domain}_framework() -> None:
                     register_framework_metadata(
-                        framework_name="{domain}_framework",
-                        constructs=["PRIMARY_LABEL"],
-                        label_order=["VL", "L", "M", "H", "VH"],
-                        label_mappings={{
-                            "VL": "very_low",
-                            "L": "low",
-                            "M": "medium",
-                            "H": "high",
-                            "VH": "very_high",
+                        "{domain}_framework",
+                        # constructs: primary / secondary / all — replace the
+                        # placeholder labels with your model's latent variables;
+                        # they MUST match parsing.constructs in agent_types.yaml.
+                        {{
+                            "primary": "PRIMARY_LABEL",
+                            "secondary": "PRIMARY_LABEL",
+                            "all": ["PRIMARY_LABEL"],
+                        }},
+                        # label_order: ordinal mapping (worst -> best)
+                        {{"VL": 0, "L": 1, "M": 2, "H": 3, "VH": 4}},
+                        # label_mappings: free-text variant -> canonical (optional)
+                        {{
+                            "VERY LOW": "VL", "LOW": "L", "MEDIUM": "M",
+                            "HIGH": "H", "VERY HIGH": "VH",
                         }},
                     )
                 """).lstrip(),

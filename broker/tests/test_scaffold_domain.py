@@ -6,6 +6,8 @@ onboarding cost is genuinely one command.
 """
 from __future__ import annotations
 
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -117,6 +119,16 @@ class TestGenDomainPack:
         assert "class EnergyConsumerDomainPack" in text
         assert "DefaultDomainPack" in text
 
+    def test_emits_psychological_framework_override(self):
+        """P1: the generated pack MUST override psychological_framework() so a
+        YAML-declared framework is not silently ignored — dispatch reads the
+        PACK, and DefaultDomainPack's default is the "" escape-hatch."""
+        pmt = gen_domain_pack("energy", "pmt")
+        assert "def psychological_framework" in pmt
+        assert 'return "pmt"' in pmt
+        custom = gen_domain_pack("traffic", "custom")
+        assert 'return "traffic_framework"' in custom
+
 
 # ---------------------------------------------------------------------------
 # End-to-end: scaffold → validate
@@ -201,6 +213,50 @@ class TestScaffoldEndToEnd:
         )
         ids = [a["id"] for a in data["agent"]["actions"]]
         assert ids == ["b", "c"]
+
+    @staticmethod
+    def _assert_scaffold_imports(tmp_path: Path, domain: str, skills, framework: str):
+        """Scaffold a domain, then in a SUBPROCESS import the package and assert
+        the DomainPack + physical validators registered. The YAML acid-tests
+        never import the package, so a broken validators/__init__.py or top
+        __init__.py (nonexistent module import, wrong register signature,
+        dedent IndentationError) would otherwise ship green — the exact P0
+        class this guards. Subprocess so registry side-effects don't leak."""
+        scaffold(domain, tmp_path / domain, list(skills), framework=framework)
+        # Resolved framework label the pack/YAML declare (custom -> <domain>_framework).
+        framework_value = f"{domain}_framework" if framework == "custom" else framework
+        code = (
+            "import sys\n"
+            f"sys.path.insert(0, {str(tmp_path)!r})\n"
+            f"import {domain}  # triggers cognition + validator + DomainPack registration\n"
+            "from broker.domains.registry import DomainPackRegistry\n"
+            "from broker.components.governance.validator_registry import ValidatorRegistry\n"
+            "from broker.validators.governance.thinking_validator import FRAMEWORK_LABEL_ORDERS\n"
+            f"assert DomainPackRegistry.get({domain!r}) is not None, 'DomainPack not registered'\n"
+            f"assert ValidatorRegistry.get_checks({domain!r}, 'physical'), 'physical checks not registered'\n"
+            f"assert {framework_value!r} in FRAMEWORK_LABEL_ORDERS, 'framework metadata not registered'\n"
+            "print('IMPORT_OK')\n"
+        )
+        r = subprocess.run(
+            [sys.executable, "-c", code],
+            capture_output=True, text=True, timeout=120,
+        )
+        assert r.returncode == 0 and "IMPORT_OK" in r.stdout, (
+            f"scaffolded {framework} package failed to import/register:\n"
+            f"STDOUT:\n{r.stdout}\nSTDERR:\n{r.stderr}"
+        )
+
+    def test_scaffolded_pmt_package_imports_and_registers(self, tmp_path: Path):
+        self._assert_scaffold_imports(
+            tmp_path, "energy", ["increase", "maintain", "decrease"], "pmt"
+        )
+
+    def test_scaffolded_custom_package_imports_and_registers(self, tmp_path: Path):
+        # Exercises the custom-framework path (cognition module + the dedent
+        # indentation that previously emitted a broken __init__.py).
+        self._assert_scaffold_imports(
+            tmp_path, "traffic", ["drive", "transit", "bike"], "custom"
+        )
 
 
 # ---------------------------------------------------------------------------
