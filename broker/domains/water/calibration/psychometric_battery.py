@@ -2,12 +2,12 @@
 Level 3 — COGNITIVE Validation: Psychometric Battery.
 
 Implements standardized scenario probes for evaluating LLM agent
-psychological construct fidelity.  Each agent archetype responds to
+psychological construct consistency.  Each agent archetype responds to
 standardized flood scenarios multiple times to assess:
 
     1. Test-retest reliability (ICC)
     2. Internal consistency (Cronbach's alpha analogue)
-    3. Governance effect on construct fidelity (paired comparison)
+    3. Governance effect on construct consistency (paired comparison)
 
 Protocol (from C&V plan Section 4):
     P1: 6 archetypes x 3 scenarios x 30 replicates = 540 LLM calls

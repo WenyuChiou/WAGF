@@ -2053,7 +2053,7 @@ In the next chapter, we will continue to explore how to further improve the dial
    - Section 8.3.5 introduced two advanced retrieval strategies: MQE (Multi-Query Expansion) and HyDE (Hypothetical Document Embeddings). Please select a practical scenario (such as technical document Q&A, medical knowledge retrieval), compare the effect differences of basic retrieval, MQE, and HyDE, and analyze their respective applicable scenarios.
    - The retrieval quality of the RAG system largely depends on the choice of embedding model. Please compare the three embedding solutions mentioned in this chapter (Bailian API, local Transformer, TF-IDF) from the dimensions of accuracy, speed, cost, offline deployment, etc., and provide selection recommendations.
 
-3. The "forgetting" mechanism of the memory system is an important design that simulates human cognition. Based on the MemoryTool in Section 8.2.3, please complete the following extended practice:
+3. The "forgetting" mechanism of the memory system is an important design inspired by human forgetting. Based on the MemoryTool in Section 8.2.3, please complete the following extended practice:
 
    > **Note**: This is a hands-on practice question, actual operation is recommended
 
