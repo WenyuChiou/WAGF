@@ -1103,6 +1103,13 @@ social_media_influencer:
     decision_keywords:
     - decision
     - choice
+    # 6T-F.5 (2026-06-03): full disclosure — the four post-actions are
+    # mutually-exclusive strategic choices; the LLM must always see all four.
+    # Without this the always-on SkillRetriever (top_n=3, min_score=0.05) drops
+    # low-relevance options (e.g. maintain_silence), collapsing the menu and
+    # boxing the agent into amplify. See ma_agent_types_influencer.yaml for the
+    # full rationale.
+    full_disclosure: true
     default_skill: maintain_silence
     strict_mode: true
     preprocessor:

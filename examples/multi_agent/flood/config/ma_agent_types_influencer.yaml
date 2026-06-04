@@ -66,6 +66,20 @@ social_media_influencer:
     decision_keywords:
     - decision
     - choice
+    # 6T-F.5 (2026-06-03): the four post-actions are MUTUALLY-EXCLUSIVE
+    # strategic choices (amplify / counter / share / stay-silent), so the LLM
+    # must always see all four to make an appraisal-driven decision. Without
+    # full_disclosure the always-on SkillRetriever (top_n=3, min_score=0.05;
+    # active because the runner's default memory engine is non-Window
+    # humancentric) relevance-ranks the four skills against the flood context:
+    # amplify_event scores highest, maintain_silence scores ~0 and is dropped,
+    # so the menu collapses to 1-3 options and a low-salience year has no
+    # "stay silent" option — boxing the agent into amplify. (The e4b "parse
+    # failures" were off-menu decisions, NOT a response_format flaw.)
+    # NOTE: full_disclosure also bypasses SkillRetriever's global_skills
+    # injection — harmless here (the influencer declares no global_skills); if a
+    # later phase adds them to this block, revisit retriever.retrieve().
+    full_disclosure: true
     default_skill: maintain_silence
     # 6T-F.3 (2026-05-29): flipped to true now that the ERROR-level narrative
     # action-coherence thinking_rules (governance.strict.social_media_influencer
