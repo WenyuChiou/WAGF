@@ -344,6 +344,7 @@ Run from `examples/<your_domain>_demo/` unless noted.
 | Prompt shows literal `{placeholder}` strings | Key missing from `dynamic_whitelist` | Add the key; rerun smoke |
 | Cold-start `neighbor_action_summary` mentions flood vocabulary | Pre-Phase-6E broker (Tier 2 only) | Update broker; text is now domain-neutral |
 | `proposed_skill` value confusing reader | Reading `result.skill_proposal.skill_name` in post_step | Use `result.approved_skill.skill_name` (WAGF EXECUTED-ONLY rule from Paper 3) |
+| Strategic-singleton agent (e.g. an influencer / regulator) only ever picks 1-2 of its N mutually-exclusive actions | `SkillRetriever` (`top_n=3`, `min_score=0.05`) relevance-truncates the menu under a non-Window memory engine; low-relevance options (e.g. a null / "stay silent" action) are silently dropped, so the LLM is boxed into the high-scoring action | Set `parsing.full_disclosure: true` on that agent_type so the retriever returns ALL eligible skills un-truncated; lock it with a `SkillRetriever.retrieve()` regression test (pattern: `broker/tests/test_influencer_menu_full_disclosure.py`) |
 
 ## Acceptance criteria (S6 pass)
 

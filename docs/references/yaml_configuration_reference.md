@@ -316,7 +316,7 @@ Controls how the broker extracts structured decisions from raw LLM output.
 | `decision_keywords` | list[string] | No | ["decision"] | JSON keys to search for the decision value |
 | `default_skill` | string | No | -- | Fallback skill when parsing fails after all retries |
 | `global_skills` | list[string] | No | [] | Skills that are always available regardless of preconditions |
-| `full_disclosure` | bool | No | false | Include all available skills in the prompt (not just eligible ones) |
+| `full_disclosure` | bool | No | false | Bypass relevance retrieval: present ALL *eligible* skills un-truncated (NOT "all available" — preconditions still apply). Set `true` for agents whose actions are mutually-exclusive strategic choices; otherwise `SkillRetriever` truncates the menu to `top_n` by relevance and silently drops low-relevance options (the Phase 6T-F influencer menu-collapse bug) |
 | `strict_mode` | bool | No | false | Reject any output that does not match a known skill ID or alias |
 | `preprocessor` | object | No | {} | Output preprocessor config (see below) |
 | `proximity_window` | int | No | 35 | Character window for proximity-based construct extraction |

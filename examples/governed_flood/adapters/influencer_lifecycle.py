@@ -55,17 +55,13 @@ _POST_TEMPLATES: Dict[str, str] = {
 # tier vocabulary (broker/components/social/post.py lists ``influencer``
 # among the flood tiers).
 #
-# DEFERRED (post-6T-F.4): the flood pack still uses the DEFAULT
-# ``credibility_tiers()`` == [] so ``credibility_weight("influencer")`` == 0.0.
-# SocialMediaProvider has no weight<=0 filter, so a single influencer post
-# still renders (the 6T-F.4 mock smoke relies on this). BUT in a real
-# multi-author run where the total post count exceeds ``top_k``, every flood
-# post scores 0.0 and the top_k cut becomes order-dependent (set iteration in
-# FollowerNetwork.get_followed) — the influencer post could be silently
-# dropped. Before shipping an influencer EXPERIMENT runner, a future increment
-# MUST override ``FloodPerceptionMixin.credibility_tiers()`` to include
-# "influencer" (with a >0 ``credibility_weight``) so tier-weighted ranking is
-# deterministic. Tracked: code-reviewer WARNING on 6T-F.4 (2026-05-29).
+# RESOLVED (6T-F.5, 2026-06-03): ``FloodPerceptionMixin`` now overrides
+# ``credibility_tiers()`` and ``_CREDIBILITY_TIER_WEIGHTS`` with
+# ``"influencer": 0.6`` (flood_pack.py), so ``credibility_weight("influencer")``
+# is >0 and the top_k tier-weighted cut in ``FollowerNetwork.get_followed`` is
+# deterministic — an influencer post in a multi-author run that exceeds
+# ``top_k`` is ranked by its 0.6 weight rather than dropped by set-iteration
+# order. (Closes the 6T-F.4 code-reviewer WARNING.)
 INFLUENCER_AUTHOR_ROLE = "influencer"
 INFLUENCER_TIER_ID = "influencer"
 
