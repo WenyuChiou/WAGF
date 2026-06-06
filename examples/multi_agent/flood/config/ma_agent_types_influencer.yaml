@@ -31,7 +31,14 @@ social_media_influencer:
   psychological_framework: narrative_diffusion
   llm_params:
     num_ctx: 16384
-    num_predict: 1024
+    # 6T-F.5 (2026-06-06): 1024 -> 2048. The influencer emits 4 nested
+    # {label, reason} appraisals (salience / virality / audience_fit /
+    # narrative_consistency) BEFORE the decision; real e4b writes long reasons
+    # and 1024 output tokens were exhausted before the `decision` field, so the
+    # response truncated -> strict_mode parse failure (observed 3/5 years in the
+    # 2026-06-06 e4b validation). Households parse fine because they already use
+    # 2048. Matching them gives room for all 4 appraisals + decision + reasoning.
+    num_predict: 2048
   prompt_template_file: prompts/social_media_influencer.txt
   response_format:
     fields:
