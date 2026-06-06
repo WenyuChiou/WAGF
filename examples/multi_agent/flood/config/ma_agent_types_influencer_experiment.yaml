@@ -1068,7 +1068,11 @@ social_media_influencer:
   psychological_framework: narrative_diffusion
   llm_params:
     num_ctx: 16384
-    num_predict: 1024
+    # 6T-F.5 (2026-06-06): 1024 -> 2048 so real e4b's 4 verbose nested
+    # {label, reason} appraisals + decision fit before truncation (1024 caused
+    # 3/5-year strict_mode parse failures). Matches households. See
+    # ma_agent_types_influencer.yaml for full rationale.
+    num_predict: 2048
   prompt_template_file: prompts/social_media_influencer.txt
   response_format:
     fields:
