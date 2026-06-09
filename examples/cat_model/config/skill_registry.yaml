@@ -1,0 +1,22 @@
+# Catastrophe-model insurer skill registry (Phase 6V increment 1b).
+# Two discrete, mutually-exclusive claim decisions — both known at proposal time
+# (no execution-time-sampled magnitude), so the payout-solvency governance check
+# can gate the world-mutating action before it commits.
+skills:
+  - skill_id: approve_payout
+    description: "Pay the policyholder's flood claim in full from the shared catastrophe pool"
+    eligible_agent_types: ["insurer"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes: []
+    implementation_mapping: "approve_payout"
+
+  - skill_id: deny_payout
+    description: "Deny the claim — pay nothing this period (preserves pool solvency)"
+    eligible_agent_types: ["insurer"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes: []
+    implementation_mapping: "noop"
+
+default_skill: deny_payout
