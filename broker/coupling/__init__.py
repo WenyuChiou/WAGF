@@ -20,6 +20,7 @@ Public API:
         VulnerabilityModel, FinancialLedger, InterfaceBundle
     Event, MdrDraw, Settlement, WorldDelta  -- interface value types
     EnvironmentCouplingAdapter       -- wraps a sim engine behind the contract
+    BmiComponent, BmiEventSource     -- host a CSDMS-BMI numerical model as a source
     resolve_coupling_enabled         -- two-layer feature-flag resolver
 """
 from __future__ import annotations
@@ -38,6 +39,7 @@ from .interfaces import (
     WorldDelta,
 )
 from .adapter import CouplingViolation, EnvironmentCouplingAdapter
+from .bmi_source import BmiComponent, BmiEventSource
 
 __all__ = [
     "CouplingViolation",
@@ -53,5 +55,7 @@ __all__ = [
     "FinancialLedger",
     "InterfaceBundle",
     "EnvironmentCouplingAdapter",
+    "BmiComponent",
+    "BmiEventSource",
     "resolve_coupling_enabled",
 ]

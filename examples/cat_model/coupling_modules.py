@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional
 from broker.coupling import (
     CouplingViolation,
     Event,
+    EventSource,
     FinancialLedger,
     InterfaceBundle,
     Settlement,
@@ -118,7 +119,7 @@ class CatBundle(InterfaceBundle):
 
     def __init__(
         self,
-        event_src: FloodFootprintSource,
+        event_src: EventSource,  # any EventSource — FloodFootprintSource OR a BmiEventSource-wrapped solver
         ledger: PortfolioLedger,
         exposure_value: float = 250_000.0,
         deductible: float = 5_000.0,
