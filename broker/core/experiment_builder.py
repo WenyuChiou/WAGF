@@ -430,7 +430,11 @@ class ExperimentBuilder:
             config=config,           # Added for generic logging
             audit_writer=audit_writer,
             log_prompt=self.verbose,
-            custom_validators=self.custom_validators # Pass custom validators
+            custom_validators=self.custom_validators,  # Pass custom validators
+            # Opt-in registry PHYSICAL dispatch (None unless the config sets
+            # global_config.governance.dispatch_domain_physical). Default-OFF => no
+            # behavior change for any existing domain.
+            domain_physical_dispatch=config.get_governance_physical_dispatch(),
         )
 
         # PR 11: Pass active project dir to adapter

@@ -50,26 +50,6 @@ HERE = Path(__file__).resolve().parent
 CONFIG = HERE / "config"
 
 
-def _cat_governance_bridge(proposal, context, _registry):
-    """Run the cat_model world-mutation governance check(s) as a custom validator.
-
-    The simple ExperimentBuilder path wires only AgentValidator (config-driven
-    thinking/identity rules); it does NOT invoke the domain physical-check
-    dispatch (validate_all/build_domain_validators) that the multi-agent path
-    uses. This bridge runs the SAME registered check (insurer_payout_solvency_check)
-    inside the broker's _run_validators -> governance retry loop, so an over-pool /
-    lapsed-policy approve_payout is BLOCKED and re-prompted exactly as in the MA
-    dispatch path. The check is also registered with ValidatorRegistry (cat_model
-    domain) for runners that DO use the domain dispatch."""
-    from examples.cat_model.cat_validators import CAT_MODEL_PHYSICAL_CHECKS
-
-    out = []
-    skill_name = getattr(proposal, "skill_name", "")
-    for check in CAT_MODEL_PHYSICAL_CHECKS:
-        out.extend(check(skill_name, [], context))
-    return out
-
-
 def _build_contract() -> CouplingContract:
     """The cat-model contract: world->agent observations + the agent->world input.
     owed_payout is diagnostic-only (consumer_of_record=False) so it can be both
@@ -162,7 +142,9 @@ def main(argv=None) -> int:
         .with_skill_registry(str(CONFIG / "skill_registry.yaml"))
         .with_memory_engine(WindowMemoryEngine(window_size=3))
         .with_governance("strict", str(CONFIG / "agent_types.yaml"))
-        .with_custom_validators([_cat_governance_bridge])
+        # No custom_validators bridge needed: cat_model's registry PHYSICAL check
+        # (insurer_payout_solvency_check) is dispatched by the engine because the
+        # config sets global_config.governance.dispatch_domain_physical: true.
         .with_lifecycle_hooks(pre_year=on_pre_year, post_step=on_post_step)
         .with_exact_output(args.output)
         .with_workers(1)

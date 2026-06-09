@@ -39,6 +39,10 @@ global_config:
     # Resolves the ValidatorRegistry domain so insurer_payout_solvency_check
     # (registered under "cat_model") is dispatched for this agent.
     domain: cat_model
+    # Opt-in: the engine dispatches cat_model's registry PHYSICAL checks directly
+    # (the production-faithful path). Default-OFF for all other domains so frozen
+    # runs are byte-identical; ON here so run_cat.py needs no custom_validator bridge.
+    dispatch_domain_physical: true
 
 insurer:
   prompt_template: |
