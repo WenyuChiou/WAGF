@@ -1,0 +1,77 @@
+# Catastrophe-model insurer agent (Phase 6V increment 1b).
+# A governed LLM insurer decides whether to pay a flood claim from a shared
+# pool. The world-mutating payout is governed by the cat_model physical check
+# (insurer_payout_solvency_check, registered via ValidatorRegistry) which runs
+# inside the governance retry loop — an over-pool / lapsed-policy approve_payout
+# is BLOCKED and the insurer is re-prompted.
+
+shared:
+  # Env observations (produced by CatBundle.run_pipeline via the coupling
+  # adapter) that should be surfaced into the insurer's prompt.
+  template_vars:
+    - flood_depth_ft
+    - agent_ground_up_loss
+    - policy_deductible
+    - policy_limit
+    - pool_budget_remaining
+    - owed_payout
+  response_format:
+    delimiter_start: "<<<DECISION_START>>>"
+    delimiter_end: "<<<DECISION_END>>>"
+    fields:
+      - { key: "decision", type: "decision", required: true }
+      - { key: "reasoning", type: "text", required: false }
+
+global_config:
+  # Two-layer coupling flag: ON here so the runner injects the
+  # EnvironmentCouplingAdapter. Absent/False -> raw engine (byte-identical).
+  coupling:
+    enable: true
+  memory:
+    window_size: 3
+  llm:
+    num_ctx: 8192
+    num_predict: 1024
+    max_retries: 3
+  governance:
+    max_retries: 3
+    max_reports_per_retry: 2
+    # Resolves the ValidatorRegistry domain so insurer_payout_solvency_check
+    # (registered under "cat_model") is dispatched for this agent.
+    domain: cat_model
+
+insurer:
+  prompt_template: |
+    You are a flood-insurance claims manager responsible for a SHARED
+    catastrophe pool. A flood has occurred and a policyholder has filed a claim.
+
+    ### THIS CLAIM
+    - Flood depth at the insured property: {flood_depth_ft} ft
+    - Estimated ground-up loss: ${agent_ground_up_loss}
+    - Policy deductible: ${policy_deductible}; policy limit: ${policy_limit}
+    - Amount owed if you approve this claim: ${owed_payout}
+    - Shared pool budget remaining: ${pool_budget_remaining}
+
+    ### YOUR DECISION
+    Decide whether to pay this claim from the shared pool. Approving a payout the
+    pool cannot cover would make the pool insolvent and harm other policyholders.
+
+    ### YOUR OPTIONS
+    {options_text}
+
+    {response_format}
+  parsing:
+    strict_mode: true
+    decision_keywords: ["decision"]
+    skill_map:
+      "1": approve_payout
+      "2": deny_payout
+    actions:
+      - id: approve_payout
+        aliases: ["1", "approve", "pay", "approve payout", "pay claim", "approve_payout"]
+      - id: deny_payout
+        aliases: ["2", "deny", "reject", "deny payout", "decline", "deny_payout"]
+  governance:
+    strict:
+      documented_unconstrained_skills:
+        - deny_payout
