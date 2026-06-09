@@ -17,7 +17,9 @@ MCP Role (if used):
 Validator pipeline (maps 1:1 to Nature Water Methods v4 six-step sequence):
   1. Schema validation          — AgentValidator schema check + registry schema
   2. Action legality            — AgentValidator + governance/type_validator
-  3. Physical feasibility       — domain bundle (broker.components.governance.domain_validator_dispatch)
+  3. Physical feasibility       — domain PHYSICAL checks run via custom_validators, OR (opt-in,
+                                  default-OFF) registry dispatch in _run_validators when a config sets
+                                  global_config.governance.dispatch_domain_physical (domain_physical_dispatch)
   4. Institutional compliance   — institutional/social/economic validators
                                   (grouped under one Methods step, three code labels)
   5. Magnitude plausibility     — numeric bounds, ADVISORY ONLY (execution resamples)
@@ -87,7 +89,8 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
         audit_writer: Optional[Any] = None,
         max_retries: int = 3,
         log_prompt: bool = False,
-        custom_validators: Optional[List[Callable]] = None # New parameter
+        custom_validators: Optional[List[Callable]] = None, # New parameter
+        domain_physical_dispatch: Optional[str] = None,  # opt-in: dispatch this domain's registry PHYSICAL checks
     ):
         self.skill_registry = skill_registry
         self.model_adapter = model_adapter
@@ -96,6 +99,11 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
         self.context_builder = context_builder
         self.config = config or load_agent_config()
         self.custom_validators = custom_validators or [] # Store custom validators
+        # Opt-in (default None/OFF): when set, _run_validators also dispatches the
+        # named domain's registry PHYSICAL checks. Keeps the registry physical path
+        # usable in the simple ExperimentBuilder path without changing any frozen
+        # domain (which leaves this None). See AgentTypeConfig.get_governance_physical_dispatch.
+        self.domain_physical_dispatch = domain_physical_dispatch
         
         if skill_retriever:
             self.skill_retriever = skill_retriever
@@ -555,6 +563,23 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
                 results.extend(custom_results)
             else:
                 results.append(custom_results)
+
+        # Registry-driven domain PHYSICAL dispatch (OPT-IN, default OFF). When a run
+        # declares global_config.governance.dispatch_domain_physical, the engine runs
+        # that domain's registered PHYSICAL-slot checks here — the production-faithful
+        # alternative to a per-domain custom_validators bridge. PHYSICAL slot ONLY (not
+        # the full build_domain_validators 5-tuple), so a domain that also registered
+        # personal/social checks does not get them silently activated. When None
+        # (every frozen domain), this is a strict no-op -> byte-identical.
+        if self.domain_physical_dispatch:
+            from broker.components.governance.validator_registry import ValidatorRegistry
+            from broker.validators.governance.physical_validator import PhysicalValidator
+            phys_checks = ValidatorRegistry.get_checks(self.domain_physical_dispatch, "physical")
+            if phys_checks:
+                phys = PhysicalValidator(builtin_checks=phys_checks)
+                phys.set_mode(ValidatorRegistry.get_validator_mode(self.domain_physical_dispatch, "physical"))
+                sn = getattr(proposal, "skill_name", "") if proposal else ""
+                results.extend(phys.validate(sn, [], context))
 
         # Registry-level: validate LLM output against skill's output_schema
         if (proposal and proposal.skill_name and self.skill_registry

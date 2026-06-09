@@ -186,7 +186,30 @@ class AgentTypeConfig:
         # 1. Check Global Config
         global_gov = self._config.get("global_config", {}).get("governance", {})
         return global_gov.get("max_reports_per_retry", self._config.get("shared", {}).get("governance", {}).get("max_reports_per_retry", default))
-    
+
+    def get_governance_physical_dispatch(self) -> Optional[str]:
+        """Domain whose registry-PHYSICAL checks the engine should dispatch in the
+        simple ExperimentBuilder path, or None.
+
+        OPT-IN: returns a domain ONLY when ``global_config.governance.dispatch_domain_physical``
+        is truthy AND ``global_config.governance.domain`` is declared. Default-OFF, so frozen
+        domains (flood / irrigation / vaccination / MA-flood / SA-flood) — which run their
+        physical checks via ``custom_validators`` or intentionally leave them dormant — see no
+        change in behavior or audit output.
+
+        Deliberately does NOT read the ``GOVERNANCE_DOMAIN`` env var: dispatch is config-declared
+        only, so a stray env var cannot silently activate physical enforcement.
+
+        Single-domain selector: dispatches ONE domain's physical checks to ALL agent types in the
+        run. Multi-agent runs needing per-agent-type domain routing use the ``custom_validators``
+        bridge pattern (as the MA flood runner does); this flag is for single-domain runs.
+        """
+        gov = self._config.get("global_config", {}).get("governance", {})
+        if not gov.get("dispatch_domain_physical", False):
+            return None
+        domain = gov.get("domain")
+        return (str(domain).strip().lower() or None) if domain else None
+
     def get_llm_retries(self, default: int = 2) -> int:
         """Get max retries for raw LLM invocation (Global > Shared > Default)."""
         # 1. Check Global Config
