@@ -208,6 +208,9 @@ def gen_agent_types_yaml(domain: str, skills: List[str], framework: str) -> str:
             max_retries: 3
             max_reports_per_retry: 3
             domain: {domain}
+            # Opt-in: dispatch this domain's registered PHYSICAL checks directly.
+            # Default-OFF elsewhere so frozen paper runs stay byte-identical.
+            dispatch_domain_physical: true
 
         shared:
           rating_scale: |
@@ -363,7 +366,12 @@ def gen_validators(domain: str) -> str:
                         valid=False,
                         validator_name="{domain}_budget",
                         errors=["insufficient budget for this action"],
-                        metadata={{"category": "physical"}},
+                        # deterministic blocks let the retry loop EarlyExit
+                        # instead of burning all retries.
+                        metadata={{
+                            "category": "physical",
+                            "deterministic": True,
+                        }},
                     )]
             \"\"\"
             return []
@@ -414,9 +422,10 @@ def gen_domain_pack(domain: str, framework: str = "pmt") -> str:
                 framework, register its metadata first (see cognition/).\"\"\"
                 return "{framework_value}"
 
-            def reflection_status_text(self, agent: Any) -> str:
-                \"\"\"One-line summary of agent's state for use in reflection prompts.\"\"\"
-                return f"{{agent.agent_id}} status: TODO — describe."
+            def reflection_status_text(self, context: Any) -> Optional[str]:
+                \"\"\"One-line agent-state summary for reflection prompts (canonical
+                signature — consumers pass a reflection context, not the agent).\"\"\"
+                return f"{{getattr(context, 'agent_id', 'agent')}} status: TODO — describe."
 
             # --- Importance scoring --------------------------------------------------
 
@@ -426,29 +435,28 @@ def gen_domain_pack(domain: str, framework: str = "pmt") -> str:
                     "default_event": 0.5,
                 }}
 
-            def compute_importance(
-                self,
-                event: Dict[str, Any],
-                agent: Any,
-                context: Optional[Dict[str, Any]] = None,
-            ) -> float:
-                \"\"\"Per-event importance. Override for context-sensitive scoring.\"\"\"
-                profiles = self.importance_profiles()
-                return profiles.get(event.get("type", ""), 0.5)
+            def compute_importance(self, context: Any, base: float = 0.5) -> float:
+                \"\"\"Per-event importance (consumers call (context, base); keep this
+                signature). Customize by inspecting context; defaults to
+                DefaultDomainPack behavior.\"\"\"
+                return super().compute_importance(context, base)
 
             # --- Skill-emotion mapping (optional) -----------------------------------
 
-            def classify_emotion(self, decision: Dict[str, Any]) -> str:
-                \"\"\"Map a decision to one of: neutral, hopeful, fearful, resigned.\"\"\"
-                return "neutral"
+            def classify_emotion(self, decision: str, context: Any) -> str:
+                \"\"\"Map a decision to one emotion. Keep this consumer-call signature;
+                customize by inspecting decision/context.\"\"\"
+                return super().classify_emotion(decision, context)
 
-            def skill_emotion_metadata(self) -> Dict[str, Dict[str, str]]:
-                \"\"\"Optional: per-skill emotional flavor.\"\"\"
-                return {{}}
+            def skill_emotion_metadata(self, skill_name: str) -> Dict[str, Any]:
+                \"\"\"Optional per-skill emotional flavor. Keep the skill_name
+                parameter; experiment_runner calls this per skill.\"\"\"
+                return super().skill_emotion_metadata(skill_name)
 
             # --- Multi-agent group barrier text (optional) --------------------------
 
-            def mg_barrier_text(self, agent: Any) -> str:
+            def mg_barrier_text(self, profile: Dict[str, Any]) -> str:
+                \"\"\"Barrier text from the agent's profile dict (canonical signature).\"\"\"
                 return ""
 
             def extreme_actions(self) -> Set[str]:

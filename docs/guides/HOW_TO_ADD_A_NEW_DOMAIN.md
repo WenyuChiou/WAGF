@@ -298,6 +298,8 @@ from .vaccination_validators import VACCINATION_PHYSICAL_CHECKS
 ValidatorRegistry.register("vaccination", "physical", list(VACCINATION_PHYSICAL_CHECKS))
 ```
 
+> Warning: registered checks are dispatched only when `global_config.governance.domain` and `global_config.governance.dispatch_domain_physical: true` are both set in `agent_types.yaml`; without the flag, registration silently never fires.
+
 ### Step 5 — Implement `DomainPack`
 
 ```python
@@ -556,6 +558,8 @@ Verify:
 ## Common pitfalls
 
 ### Setup-time pitfalls
+
+> Warning: registered checks are dispatched only when `global_config.governance.domain` and `global_config.governance.dispatch_domain_physical: true` are both set in `agent_types.yaml`; without the flag, registration silently never fires.
 
 | Symptom | Cause | Fix |
 |---|---|---|

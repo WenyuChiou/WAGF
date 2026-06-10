@@ -258,6 +258,40 @@ class TestScaffoldEndToEnd:
             tmp_path, "traffic", ["drive", "transit", "bike"], "custom"
         )
 
+    def test_scaffolded_pack_consumer_calls_and_physical_dispatch_flag(
+        self, tmp_path: Path
+    ):
+        scaffold(
+            "energy",
+            tmp_path / "energy",
+            ["increase", "maintain", "decrease"],
+            framework="pmt",
+        )
+        agent_types = (
+            tmp_path / "energy" / "config" / "agent_types.yaml"
+        ).read_text(encoding="utf-8")
+        assert "dispatch_domain_physical: true" in agent_types
+
+        code = (
+            "import sys\n"
+            f"sys.path.insert(0, {str(tmp_path)!r})\n"
+            "import energy\n"
+            "from broker.domains.registry import DomainPackRegistry\n"
+            "pack = DomainPackRegistry.get('energy')\n"
+            "assert isinstance(pack.compute_importance({'event_type': 'x'}, 0.7), float)\n"
+            "assert isinstance(pack.classify_emotion('some_skill', {'k': 1}), str)\n"
+            "assert isinstance(pack.skill_emotion_metadata('any_skill'), dict)\n"
+            "print('PACK_CALLS_OK')\n"
+        )
+        r = subprocess.run(
+            [sys.executable, "-c", code],
+            capture_output=True, text=True, timeout=120,
+        )
+        assert r.returncode == 0 and "PACK_CALLS_OK" in r.stdout, (
+            "scaffolded DomainPack consumer-shape calls failed:\n"
+            f"STDOUT:\n{r.stdout}\nSTDERR:\n{r.stderr}"
+        )
+
 
 # ---------------------------------------------------------------------------
 # CLI argument handling
