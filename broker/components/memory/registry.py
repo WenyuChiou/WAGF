@@ -115,11 +115,26 @@ def _register_builtins():
     def _humancentric_factory(window_size: int = 5, top_k_significant: int = 2,
                               consolidation_probability: float = 0.7,
                               decay_rate: float = 0.1, **kwargs):
+        # Wave 3 (3-4): pass the engine-supported tuning params through instead
+        # of silently swallowing them (pre-3-4 a config-supplied W_recency /
+        # emotion_keywords never reached the engine on this path). Unknown
+        # kwargs are still ignored for backward compatibility.
+        passthrough = {
+            k: kwargs[k] for k in (
+                "consolidation_threshold", "emotional_weights", "source_weights",
+                "W_recency", "W_importance", "W_context",
+                "W_relevance", "W_interference",
+                "ranking_mode", "seed", "forgetting_threshold",
+                "max_working", "max_longterm", "interference_cap",
+                "emotion_keywords",
+            ) if k in kwargs
+        }
         return HumanCentricMemoryEngine(
             window_size=window_size,
             top_k_significant=top_k_significant,
             consolidation_prob=consolidation_probability,
             decay_rate=decay_rate,
+            **passthrough,
         )
 
     def _hierarchical_factory(window_size: int = 5, top_k_significant: int = 3,

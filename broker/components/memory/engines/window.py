@@ -6,6 +6,13 @@ from ..engine import MemoryEngine
 class WindowMemoryEngine(MemoryEngine):
     """
     Standard sliding window memory. Returns the last N items.
+
+    CONTENT-ONLY engine: ``retrieve()`` returns ``List[str]`` under a
+    documented Invariant-1 exemption (broker/INVARIANTS.md, 2026-06-10) —
+    window stores no metadata to preserve, and its production consumers eat
+    plain strings. Select ``humancentric`` for any path that depends on
+    emotion / importance / source metadata. The exemption is closed to new
+    engines: anything new must return ``List[MemoryRecord]``.
     """
     def __init__(self, window_size: int = 3):
         self.window_size = window_size
