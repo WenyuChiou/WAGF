@@ -1441,10 +1441,19 @@ def run_unified_experiment():
             [
                 ["government"],                           # Phase 1: NJDEP decides subsidy
                 ["insurance"],                            # Phase 2: FEMA/NFIP decides premium
-                # Phase 6T-F.5: influencer decides AFTER institutions (reacts to
-                # this year's policy) and BEFORE households (its posts are in
-                # env.social_feeds when households build prompts). Empty unpack
-                # when --with-influencer is absent → byte-identical for paper-3.
+                # Phase 6T-F.5: influencer decides AFTER institutions and
+                # BEFORE households (its posts are in env.social_feeds when
+                # households build prompts). CHANNEL PRECISION (2026-06-10
+                # review — three channels, three latencies): the influencer
+                # sees THIS year's institutional decisions only via
+                # {global_news}, which reads tiered_env.global_state LIVE at
+                # prompt-build time; the runner ENV-DICT snapshot (whitelisted
+                # keys like govt_message / crs_discount consumed by validators
+                # + DynamicStateProvider) carries LAST year's values because
+                # pre_year copies global_state by value before phase 1. Live
+                # shared objects (social_feeds) are same-year. Do not assume
+                # one latency for all three channels. Empty unpack when
+                # --with-influencer is absent → byte-identical for paper-3.
                 *([["social_media_influencer"]] if args.with_influencer else []),
                 ["household_owner", "household_renter"],  # Phase: Households decide adaptation
             ]

@@ -8,6 +8,7 @@ This validator checks:
 
 Part of Task-040: SA/MA Unified Architecture (Part 14, P3)
 """
+import logging
 from typing import List, Dict, Any, Optional
 
 from broker.interfaces.skill_types import ValidationResult
@@ -17,6 +18,8 @@ from broker.config.agent_types import (
     ValidationConfig,
     ValidationRuleRef,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class TypeValidator:
@@ -75,6 +78,22 @@ class TypeValidator:
         # Get type definition
         defn = self.registry.get(agent_type)
         if not defn:
+            # F9 (2026-06-10 review): an unknown/renamed agent_type used to be
+            # a fully SILENT skip — one YAML rename and an agent population
+            # runs with zero type governance, indistinguishable in the audit
+            # from a compliant one. Loud once per type; still skip (trailing
+            # behavior unchanged), never spam.
+            warned = getattr(self, "_warned_unknown_types", None)
+            if warned is None:
+                warned = set()
+                self._warned_unknown_types = warned
+            if agent_type not in warned:
+                warned.add(agent_type)
+                logger.error(
+                    f"[TypeValidator] agent_type '{agent_type}' is not in the "
+                    f"type registry — ALL type-level governance is skipped for "
+                    f"these agents. Renamed type? Missing registration?"
+                )
             return results  # Unknown type, skip validation
 
         # Check skill eligibility

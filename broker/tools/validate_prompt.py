@@ -283,6 +283,105 @@ def check_global_config_keys(cfg: Dict[str, Any]) -> List[Issue]:
 
 
 # ---------------------------------------------------------------------------
+# Rule-shape lint (G4, 2026-06-10 audit review — the 6N-E class killer)
+# ---------------------------------------------------------------------------
+# The thinking-rule loader (broker/utils/agent_config.py get_thinking_rules)
+# consumes EXACTLY these keys; anything else loads silently and is IGNORED —
+# the Phase 6N-E failure class (a rule the author believes in, evaluating
+# never). Verified dead siblings found 2026-06-10: precondition (dropped by
+# the loader), expected_values/levels (only when_above/when_true are read),
+# state_field/state_fields/aggregation/threshold/trigger_phrases (CoherenceRule
+# fields with no loader and no evaluator), string conditions.
+_THINKING_RULE_CONSUMED_KEYS: Set[str] = {
+    "id", "construct", "conditions", "when_above", "when_true",
+    "blocked_skills", "level", "message",
+}
+# Condition dicts: canonical short shape {construct, values}; the verbose
+# 6N-E shape evaluates via the `field` fallback but `type`/`operator` are
+# IGNORED (membership-in-values is the only semantic).
+# `field` is consumed at EVALUATION time, not load time:
+# broker/validators/agent/agent_validator.py:455
+# (`cond.get("construct") or cond.get("field")`) — do not remove it from this
+# set on a loader-only audit. NOTE these sets are thinking/coherence-rule
+# specific; `identity_rules` has a DIFFERENT loader that reads `precondition`
+# as live — extending this lint to identity_rules needs its own key set.
+_CONDITION_CONSUMED_KEYS: Set[str] = {"construct", "values", "field"}
+
+
+def check_rule_shapes(cfg: Dict[str, Any]) -> List[Issue]:
+    """ERROR on accepted-but-ignored rule keys (silently-dead YAML).
+
+    Scans ``thinking_rules`` / ``coherence_rules`` in agent-type blocks AND
+    the top-level ``governance.<profile>.<agent_type>.thinking_rules`` form.
+    Zero in-tree configs carry dead keys (scanned 2026-06-10), so ERROR
+    severity is safe for the frozen regression net.
+    """
+    issues: List[Issue] = []
+
+    def _lint_rules(rules: Any, loc: str) -> None:
+        if not isinstance(rules, list):
+            return
+        for rule in rules:
+            if not isinstance(rule, dict):
+                issues.append(Issue(
+                    "ERROR", loc,
+                    f"rule entry is {type(rule).__name__}, not a mapping — "
+                    f"string/scalar rules silently never evaluate.",
+                ))
+                continue
+            rid = rule.get("id", rule.get("construct", "?"))
+            extra = set(rule) - _THINKING_RULE_CONSUMED_KEYS
+            if extra:
+                issues.append(Issue(
+                    "ERROR", loc,
+                    f"rule {rid!r} carries key(s) the loader IGNORES "
+                    f"{sorted(extra)} — the rule will not do what those keys "
+                    f"promise (6N-E class). Consumed keys: "
+                    f"{sorted(_THINKING_RULE_CONSUMED_KEYS)}.",
+                ))
+            conds = rule.get("conditions")
+            if isinstance(conds, str):
+                issues.append(Issue(
+                    "ERROR", loc,
+                    f"rule {rid!r}: conditions is a STRING — string conditions "
+                    f"silently never trigger. Use a list of "
+                    f"{{construct: X, values: [...]}} mappings.",
+                ))
+            elif isinstance(conds, list):
+                for c in conds:
+                    if not isinstance(c, dict):
+                        continue
+                    ce = set(c) - _CONDITION_CONSUMED_KEYS
+                    if ce:
+                        issues.append(Issue(
+                            "ERROR", loc,
+                            f"rule {rid!r}: condition carries ignored key(s) "
+                            f"{sorted(ce)} — e.g. 'operator' has NO semantics "
+                            f"(matching is always membership-in-values). Use "
+                            f"the canonical short shape "
+                            f"{{construct: X, values: [...]}}.",
+                        ))
+
+    for atype, block in cfg.items():
+        if not isinstance(block, dict):
+            continue
+        if str(atype) == "governance":
+            # top-level governance.<profile>.<agent_type>.thinking_rules form
+            for profile, types in block.items():
+                if not isinstance(types, dict):
+                    continue
+                for at, sub in types.items():
+                    if isinstance(sub, dict):
+                        _lint_rules(sub.get("thinking_rules"),
+                                    f"yaml: governance.{profile}.{at}.thinking_rules")
+            continue
+        _lint_rules(block.get("thinking_rules"), f"yaml: {atype}.thinking_rules")
+        _lint_rules(block.get("coherence_rules"), f"yaml: {atype}.coherence_rules")
+
+    return issues
+
+
+# ---------------------------------------------------------------------------
 # Placeholder extraction
 # ---------------------------------------------------------------------------
 
@@ -826,6 +925,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     all_issues: List[Issue] = []
     # 2026-06-09: config-time unknown-key net (canonical registry above).
     all_issues.extend(check_global_config_keys(cfg))
+    # 2026-06-10 (G4): silently-dead rule-shape lint (the 6N-E class).
+    all_issues.extend(check_rule_shapes(cfg))
     # Phase 6R-B-3: resolve domain-specific placeholder extensions once
     # per CLI invocation. The hook is keyed on
     # ``global_config.governance.domain``.

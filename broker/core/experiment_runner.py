@@ -45,11 +45,23 @@ def _accepts_hook_args(hook_fn: Callable, arg_count: int) -> bool:
 
 
 def _validate_hooks(hooks_dict: Dict[str, Callable]) -> None:
-    """Validate hook signatures as warning-only diagnostics."""
+    """Validate hook names (hard) + signatures (warning-only diagnostics).
+
+    F7 (2026-06-10 review): an UNKNOWN hook name used to be silently skipped —
+    register ``post_year_end`` (typo) and the run completes green with the
+    hook never firing, the purest silent-feature-loss. Unknown names now
+    RAISE (every caller in the repo uses canonical names, so this breaks
+    nothing); signature mismatches stay warning-only (lambdas/*args wrappers
+    are legitimate).
+    """
     for name, hook_fn in hooks_dict.items():
         expected = _HOOK_PROTOCOLS.get(name)
         if not expected:
-            continue
+            raise ValueError(
+                f"Unknown lifecycle hook name '{name}'. Valid names: "
+                f"{sorted(_HOOK_PROTOCOLS)}. (A misspelled hook would "
+                f"silently never fire — refusing instead.)"
+            )
         protocol, arg_count = expected
         if not isinstance(hook_fn, protocol) or not _accepts_hook_args(hook_fn, arg_count):
             logger.warning(
@@ -184,6 +196,29 @@ class ExperimentRunner:
     def run(self, llm_invoke: Optional[Callable] = None):
         """Standardized simulation loop.
 
+        ITERATION SEQUENCE (documented 2026-06-10 — previously emergent):
+        1. ``sim_engine.advance_step()`` (or ``advance_year``) -> env dict
+        2. ``pre_step`` hook, then ``pre_year`` hook (BOTH fire if registered)
+        3. active-agent filter -> ``phase_order`` partition (unmatched types
+           run as a trailing phase, with a warning)
+        4. per phase: agent loop (sequential or ThreadPool) -> then, per
+           result: ``_apply_state_changes`` + ``post_step`` hook (interleaved
+           per agent; REJECTED/UNCERTAIN reach post_step WITHOUT state/memory
+           application; ABORTED results carry ``skill_proposal=None`` — hooks
+           must tolerate that)
+        5. after ALL phases: ``post_step_end`` then ``post_year`` (both fire)
+        6. ``_finalize_step``; finally-guaranteed ``_finalize_experiment``.
+
+        INTRA-PERIOD VISIBILITY (three channels, three latencies — the
+        MA-complex review finding): (a) THIS env dict is created once per
+        period — values copied INTO it before phase 1 (e.g. a domain
+        pre_year snapshotting its global state) stay frozen for the period
+        unless a post_step hook mutates the dict in place at a phase
+        boundary (the deliberate live-channel idiom); (b) live shared
+        OBJECTS referenced from contexts (social feeds, interaction hubs)
+        are read at prompt-build time -> same-period; (c) per-agent
+        ``dynamic_state`` applies per phase. Validators consume (a).
+
         ``llm_invoke`` is accepted for backward compatibility but has NEVER
         had an effect: the agent-loop methods always build their own
         per-agent-type invoke via ``get_llm_invoke()`` (config-driven model +
@@ -245,9 +280,9 @@ class ExperimentRunner:
                 # --- Lifecycle Hook: Pre-Step / Pre-Year ---
                 # Dual trigger for generic compatibility
                 if "pre_step" in self.hooks:
-                    self.hooks["pre_step"](step, env, self.agents)
+                    self._call_hook("pre_step", step, env, self.agents)
                 if "pre_year" in self.hooks:
-                    self.hooks["pre_year"](step, env, self.agents)
+                    self._call_hook("pre_year", step, env, self.agents)
 
                 # Filter only active agents (Generic approach)
                 active_agents = [
@@ -275,23 +310,45 @@ class ExperimentRunner:
                         if result.outcome in (SkillOutcome.REJECTED, SkillOutcome.UNCERTAIN):
                             # REJECTED: no state change, no memory — only audit trace
                             if "post_step" in self.hooks:
-                                self.hooks["post_step"](agent, result)
+                                self._call_hook("post_step", agent, result)
                             continue
                         if result.execution_result and result.execution_result.success:
                             self._apply_state_changes(agent, result)
                         if "post_step" in self.hooks:
-                            self.hooks["post_step"](agent, result)
+                            self._call_hook("post_step", agent, result)
 
                 # --- Lifecycle Hook: Post-Step-End / Post-Year ---
                 # Dual trigger for generic compatibility
                 if "post_step_end" in self.hooks:
-                    self.hooks["post_step_end"](step, self.agents)
+                    self._call_hook("post_step_end", step, self.agents)
                 if "post_year" in self.hooks:
-                    self.hooks["post_year"](step, self.agents)
+                    self._call_hook("post_year", step, self.agents)
 
                 self._finalize_step(step)
         finally:
             self._finalize_experiment(iterations)
+
+    def _call_hook(self, name: str, *args) -> None:
+        """Invoke a lifecycle hook with named failure context (F7, 2026-06-10).
+
+        A raising hook used to kill the batch mid-year with NOTHING naming the
+        hook (an ABORTED result's ``skill_proposal=None`` flowing into a naive
+        ``post_step`` is the canonical trigger). We log the hook name + year
+        loudly, then RE-RAISE — deliberately no swallow-and-continue option:
+        silent hook failure is the v0.88.15 class, and run()'s try/finally
+        already guarantees audit finalize on the way out.
+        """
+        try:
+            self.hooks[name](*args)
+        except Exception:
+            logger.error(
+                f"[Lifecycle:HookError] hook '{name}' raised at "
+                f"{'step' if self.config.num_steps else 'year'} "
+                f"{getattr(self, '_current_year', '?')} — re-raising "
+                f"(run aborts; audit finalize guaranteed by run()'s finally).",
+                exc_info=True,
+            )
+            raise
 
     def _finalize_experiment(self, iterations: int):
         """Finalize outputs even if the run exits early."""
@@ -459,6 +516,45 @@ class ExperimentRunner:
         metadata["timestamp"] = datetime.now().isoformat()
         metadata["python_version"] = sys.version.split()[0]
 
+        # 5.4. Governance-resolution provenance (F9 + F10, 2026-06-10 review).
+        #     F10: the manifest recorded only the INTENDED profile
+        #     (config.governance_profile); rule loading keys on the
+        #     GOVERNANCE_PROFILE env var, so a stale/typo'd env value could
+        #     load different rules than the manifest claimed. Record the
+        #     RESOLVED value too — a mismatch is now visible in the artifact.
+        #     F9: agent types whose RAW config block resolves to {} are
+        #     listed (a renamed/typo'd type is completely unknown to the
+        #     YAML — the strongest silent-zero-governance signal). NOTE this
+        #     raw-block check does NOT catch "block exists but the active
+        #     profile resolves zero thinking_rules" — that state is
+        #     legitimate by design (ablation `disabled` profile,
+        #     documented_unconstrained_skills-only types), so instead of
+        #     judging it we RECORD the per-type resolved rule count below
+        #     and let the artifact reader decide.
+        try:
+            import os
+            metadata["governance_profile_resolved"] = os.environ.get(
+                "GOVERNANCE_PROFILE", "default").lower()
+            agent_cfg = getattr(getattr(self.broker, "model_adapter", None),
+                                "agent_config", None)
+            if agent_cfg is not None and hasattr(agent_cfg, "get"):
+                active_types = sorted({
+                    getattr(a, "agent_type", "default")
+                    for a in self.agents.values()
+                })
+                zero_rule_types = [
+                    t for t in active_types if not agent_cfg.get(t)
+                ]
+                if zero_rule_types:
+                    metadata["agent_types_with_zero_rules"] = zero_rule_types
+                if hasattr(agent_cfg, "get_thinking_rules"):
+                    metadata["thinking_rules_resolved_counts"] = {
+                        t: len(agent_cfg.get_thinking_rules(t))
+                        for t in active_types
+                    }
+        except Exception as exc:
+            logger.debug(f"[Integrity] governance-resolution provenance skipped: {exc}")
+
         # 5.5. Coupled-world provenance (Phase 6V inc 3, review P0-3). Duck-typed
         #     on purpose: NO broker.coupling import here (flag-OFF runs must never
         #     load that module), and frozen-path raw engines simply lack the
@@ -601,6 +697,18 @@ class ExperimentRunner:
                 unmatched.append(agent)
 
         if unmatched:
+            # F7 (2026-06-10 review): a typo'd phase_order entry (e.g.
+            # 'goverment') silently ran that agent type LAST — inverting the
+            # institutional ordering phase_order exists to guarantee. Loud
+            # one-line warning naming the unmatched types (warning, not raise:
+            # a trailing phase for undeclared types is documented behavior).
+            unmatched_types = sorted({getattr(a, 'agent_type', 'default') for a in unmatched})
+            logger.warning(
+                f"[Lifecycle:PhaseOrder] agent type(s) {unmatched_types} match NO "
+                f"phase_order entry {self.config.phase_order} — they run as a "
+                f"TRAILING phase. If ordering matters for them, fix the "
+                f"phase_order spelling."
+            )
             phases.append(unmatched)
         return phases
 
