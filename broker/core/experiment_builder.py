@@ -38,6 +38,7 @@ class ExperimentBuilder:
         self._auto_tune = False  # PR: Adaptive Performance Module
         self._exact_output = False # New: bypass model subfolder
         self._phase_order = None  # Agent type groups for phased execution
+        self._coupling = None  # Phase 6V: declared coupling intent (with_coupling)
 
     def with_workers(self, workers: int = 4):
         """Set number of parallel workers for LLM calls. 1=sequential (default)."""
@@ -218,6 +219,80 @@ class ExperimentBuilder:
         self.sim_engine = sim_engine
         return self
 
+    def with_coupling(self, contract: Any, sources: Any, domain: Optional[str] = None):
+        """Declare an environment-coupling intent (Phase 6V / review P1-4).
+
+        At ``build()`` time the two-layer flag is resolved
+        (``global_config.coupling.enable`` in the agent_types YAML, else the
+        DomainPack's ``coupling_enabled_default()``); when ON, the sim engine
+        is wrapped in ``EnvironmentCouplingAdapter(real_engine=<current
+        sim_engine>, contract=..., sources=...)`` — exactly the assembly every
+        coupled runner previously hand-rolled (run_cat.py:112-120). When OFF
+        the engine is left untouched (default-OFF discipline).
+
+        LAZY IMPORT contract: ``broker.coupling`` is imported only inside
+        ``build()`` and only when this method was called — a runner that never
+        calls ``with_coupling`` never loads the coupling layer, preserving the
+        flag-OFF no-import property for frozen paths.
+
+        Args:
+            contract: a ``broker.coupling.CouplingContract``.
+            sources: a ``broker.coupling.InterfaceBundle`` (or subclass).
+            domain: DomainPack key for the pack-default flag layer; defaults
+                to ``global_config.governance.domain`` from the agent_types
+                YAML when omitted.
+        """
+        self._coupling = {"contract": contract, "sources": sources, "domain": domain}
+        return self
+
+    def _apply_coupling(self) -> None:
+        """Resolve the coupling flag and wrap ``self.sim_engine`` (build-time).
+
+        No-op unless ``with_coupling`` was called. Split out of ``build()`` so
+        the wrap logic is unit-testable without constructing a full runner.
+        """
+        if self._coupling is None:
+            return
+        import yaml as _yaml  # local: only the coupling path pays the import
+
+        from broker.coupling import EnvironmentCouplingAdapter
+        from broker.coupling.flag import resolve_coupling_enabled
+        from broker.domains.registry import DomainPackRegistry
+
+        # Idempotency (review W2): build() has no one-shot contract, so a second
+        # build() on the same builder must not wrap the adapter in itself.
+        if isinstance(self.sim_engine, EnvironmentCouplingAdapter):
+            return
+
+        yaml_cfg: Dict[str, Any] = {}
+        if self.agent_types_path:
+            try:
+                with open(self.agent_types_path, encoding="utf-8") as fh:
+                    yaml_cfg = _yaml.safe_load(fh) or {}
+            except OSError as exc:
+                # Review W1: with_coupling() is an EXPLICIT intent — an unreadable
+                # config must not silently downgrade to an unwrapped engine
+                # (declared-feature silent loss, the repo's #1 failure class).
+                raise RuntimeError(
+                    f"[coupling] declared via with_coupling() but the agent_types "
+                    f"YAML ({self.agent_types_path}) is unreadable — cannot resolve "
+                    f"the coupling flag safely."
+                ) from exc
+        domain = self._coupling["domain"] or (
+            yaml_cfg.get("global_config", {}).get("governance", {}).get("domain")
+        )
+        pack = DomainPackRegistry.get(domain) if domain else None
+        enabled, source = resolve_coupling_enabled(yaml_cfg, pack)
+        if not enabled:
+            logger.info(f"[coupling] declared but disabled (source={source}); sim engine left unwrapped")
+            return
+        self.sim_engine = EnvironmentCouplingAdapter(
+            real_engine=self.sim_engine,
+            contract=self._coupling["contract"],
+            sources=self._coupling["sources"],
+        )
+        logger.info(f"[coupling] adapter injected via builder (enable=True, source={source})")
+
     def with_skill_registry(self, registry: Any):
         self.skill_registry = registry
         return self
@@ -269,6 +344,10 @@ class ExperimentBuilder:
                 f"  - {err}" for err in errors
             )
             raise ValueError(msg)
+
+        # Phase 6V: resolve a declared coupling intent BEFORE the sim engine is
+        # consumed (SkillBrokerEngine + ExperimentRunner both receive it below).
+        self._apply_coupling()
 
         # Complex assembly logic here
         from broker import SkillRegistry

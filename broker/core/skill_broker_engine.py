@@ -90,7 +90,9 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
         max_retries: int = 3,
         log_prompt: bool = False,
         custom_validators: Optional[List[Callable]] = None, # New parameter
-        domain_physical_dispatch: Optional[str] = None,  # opt-in: dispatch this domain's registry PHYSICAL checks
+        # opt-in registry PHYSICAL dispatch: a domain string (all agent types)
+        # or an {agent_type: domain} mapping (per-agent-type routing, Wave 3)
+        domain_physical_dispatch: Optional[Any] = None,
     ):
         self.skill_registry = skill_registry
         self.model_adapter = model_adapter
@@ -571,15 +573,24 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
         # the full build_domain_validators 5-tuple), so a domain that also registered
         # personal/social checks does not get them silently activated. When None
         # (every frozen domain), this is a strict no-op -> byte-identical.
+        # Wave 3 (review P1-2): also accepts a {agent_type: domain} mapping for
+        # mixed-domain experiments — each proposal routes to ITS agent type's
+        # domain; agent types absent from the mapping get no registry dispatch.
         if self.domain_physical_dispatch:
-            from broker.components.governance.validator_registry import ValidatorRegistry
-            from broker.validators.governance.physical_validator import PhysicalValidator
-            phys_checks = ValidatorRegistry.get_checks(self.domain_physical_dispatch, "physical")
-            if phys_checks:
-                phys = PhysicalValidator(builtin_checks=phys_checks)
-                phys.set_mode(ValidatorRegistry.get_validator_mode(self.domain_physical_dispatch, "physical"))
-                sn = getattr(proposal, "skill_name", "") if proposal else ""
-                results.extend(phys.validate(sn, [], context))
+            dispatch_domain = self.domain_physical_dispatch
+            if isinstance(dispatch_domain, dict):
+                dispatch_domain = dispatch_domain.get(
+                    getattr(proposal, "agent_type", None) if proposal else None
+                )
+            if dispatch_domain:
+                from broker.components.governance.validator_registry import ValidatorRegistry
+                from broker.validators.governance.physical_validator import PhysicalValidator
+                phys_checks = ValidatorRegistry.get_checks(dispatch_domain, "physical")
+                if phys_checks:
+                    phys = PhysicalValidator(builtin_checks=phys_checks)
+                    phys.set_mode(ValidatorRegistry.get_validator_mode(dispatch_domain, "physical"))
+                    sn = getattr(proposal, "skill_name", "") if proposal else ""
+                    results.extend(phys.validate(sn, [], context))
 
         # Registry-level: validate LLM output against skill's output_schema
         if (proposal and proposal.skill_name and self.skill_registry

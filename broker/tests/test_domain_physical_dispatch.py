@@ -112,3 +112,61 @@ def test_flag_true_but_no_domain_raises(tmp_path):
     cfg = AgentTypeConfig.load(str(p))
     with pytest.raises(ValueError, match="dispatch_domain_physical"):
         cfg.get_governance_physical_dispatch()
+
+
+# ---------------------------------------------------------------------------
+# Mapping form (Wave 3, review P1-2): {agent_type: domain} per-proposal routing
+# ---------------------------------------------------------------------------
+
+def test_mapping_form_routes_per_agent_type():
+    """insurer routes to cat_model (check fires); an unmapped agent type gets
+    no registry dispatch — the mixed-domain experiment shape."""
+    engine = _engine({"insurer": "cat_model"})
+    results = engine._run_validators(_proposal(), dict(_INSOLVENT))
+    assert any(not r.valid and r.metadata.get("rule_id") == "pool_insolvent" for r in results)
+
+    other = SkillProposal(skill_name="approve_payout", agent_id="X", reasoning={},
+                          agent_type="reservoir_operator", parse_layer="test")
+    ctx = dict(_INSOLVENT); ctx["agent_type"] = "reservoir_operator"
+    results2 = engine._run_validators(other, ctx)
+    assert all(r.valid for r in results2), "unmapped agent type must get no dispatch"
+
+
+def test_accessor_mapping_form_lowercases_domains(tmp_path):
+    import yaml as _yaml
+
+    p = tmp_path / "at.yaml"
+    p.write_text(_yaml.safe_dump({
+        "global_config": {"governance": {"dispatch_domain_physical": {
+            "household": "Flood", "operator": "RESERVOIR"}}},
+        "shared": {}, "some_agent": {"parsing": {}},
+    }), encoding="utf-8")
+    cfg = AgentTypeConfig.load(str(p))
+    assert cfg.get_governance_physical_dispatch() == {
+        "household": "flood", "operator": "reservoir"}
+
+
+def test_accessor_mapping_form_empty_domain_raises(tmp_path):
+    import yaml as _yaml
+
+    p = tmp_path / "at.yaml"
+    p.write_text(_yaml.safe_dump({
+        "global_config": {"governance": {"dispatch_domain_physical": {"household": ""}}},
+        "shared": {}, "some_agent": {"parsing": {}},
+    }), encoding="utf-8")
+    cfg = AgentTypeConfig.load(str(p))
+    with pytest.raises(ValueError, match="empty domain"):
+        cfg.get_governance_physical_dispatch()
+
+
+def test_validate_prompt_accepts_mapping_form_without_domain():
+    from broker.tools.validate_prompt import check_global_config_keys
+
+    cfg = {"global_config": {"governance": {
+        "dispatch_domain_physical": {"household": "flood"}}}}
+    assert all(i.severity != "ERROR" for i in check_global_config_keys(cfg))
+    # but an empty mapping value is an ERROR
+    bad = {"global_config": {"governance": {
+        "dispatch_domain_physical": {"household": ""}}}}
+    errs = [i for i in check_global_config_keys(bad) if i.severity == "ERROR"]
+    assert len(errs) == 1
