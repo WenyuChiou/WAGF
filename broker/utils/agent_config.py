@@ -258,6 +258,33 @@ class AgentTypeConfig:
             )
         return resolved
 
+    def get_audit_executed_columns(self) -> bool:
+        """F3 (2026-06-10 audit review): opt-in EXECUTED-stage audit columns.
+
+        When ``global_config.audit.executed_skill_columns: true``, every trace
+        carries top-level ``executed_skill`` + ``executed_via_fallback`` keys
+        recording what the simulation engine ACTUALLY executed — on REJECTED,
+        the registry default skill runs as fallback but the CSV's
+        ``final_skill`` records the *blocked* proposal and
+        ``fallback_activated`` stays False for plain REJECTED (only
+        REJECTED_FALLBACK sets it). These two columns close that gap.
+        (On the UNCERTAIN/parse-failure path the approval status is already
+        REJECTED_FALLBACK, so ``fallback_activated`` and
+        ``executed_via_fallback`` are both True — consistent by
+        construction; the divergence these columns expose is plain-REJECTED
+        only.)
+
+        OPT-IN, default-OFF by byte-identity necessity: the CSV fieldnames are
+        derived from row keys, so the flag-OFF default emits neither key and
+        frozen-baseline reruns (v21 / paper-3 mock) stay byte-identical.
+        Frozen datasets therefore retain the documented REJECTED-row semantics;
+        enable this for ALL NEW domains.
+        """
+        block = self._config.get("global_config", {}).get("audit", {})
+        if not isinstance(block, dict):
+            return False
+        return bool(block.get("executed_skill_columns", False))
+
     def get_llm_retries(self, default: int = 2) -> int:
         """Get max retries for raw LLM invocation (Global > Shared > Default)."""
         # 1. Check Global Config

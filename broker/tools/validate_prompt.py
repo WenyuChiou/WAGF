@@ -180,6 +180,8 @@ KNOWN_GLOBAL_CONFIG_KEYS: Set[str] = {
     "governance",   # see KNOWN_GOVERNANCE_KEYS
     "social_feeds", # see KNOWN_SOCIAL_FEEDS_KEYS (two-layer flag, Phase 6T-E.B)
     "coupling",     # see KNOWN_COUPLING_KEYS (two-layer flag, Phase 6V)
+    "audit",        # agent_config.get_audit_executed_columns (F3, opt-in
+                    # executed_skill_columns; default OFF)
 }
 
 KNOWN_GOVERNANCE_KEYS: Set[str] = {

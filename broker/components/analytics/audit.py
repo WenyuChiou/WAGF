@@ -233,6 +233,17 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
             "FALLBACK", "fallback", "MODIFIED", "REJECTED_FALLBACK"
         )
 
+    # 2.7. F3 (2026-06-10): EXECUTED-stage truth columns, key-gated. Only
+    # traces produced with global_config.audit.executed_skill_columns ON carry
+    # these keys; fieldnames derive from row keys, so legacy/flag-OFF traces
+    # keep the frozen column set byte-identical. Closes the REJECTED-row gap:
+    # final_skill records the BLOCKED proposal while the registry default
+    # skill actually executed (and plain-REJECTED rows keep
+    # fallback_activated=False — only REJECTED_FALLBACK sets it).
+    if "executed_skill" in t:
+        row["executed_skill"] = t.get("executed_skill")
+        row["executed_via_fallback"] = bool(t.get("executed_via_fallback"))
+
     # 3. Reasoning (TP/CP Appraisal + Audits)
     reasoning = skill_prop.get("reasoning", {})
     if isinstance(reasoning, dict):
