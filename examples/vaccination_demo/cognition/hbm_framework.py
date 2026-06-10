@@ -13,7 +13,7 @@ in ``FRAMEWORK_LABEL_ORDERS`` before construction. Without that registration
 the constructor raises ``ValueError`` to surface a silent-wrong-answer bug
 where label comparisons would silently use the PMT ordinal scale.
 
-This module calls :func:`register_framework_metadata` at import time, so
+This module calls :func:`register_behavioral_framework` at import time, so
 importing ``examples.vaccination_demo`` (which transitively imports this
 package) is enough to unlock ``ThinkingValidator(framework="hbm")``.
 """
@@ -86,10 +86,10 @@ def register_hbm() -> None:
     package ``__init__``.  Safe to call repeatedly — the underlying
     registry replaces silently on re-registration.
     """
-    from broker.validators.governance.thinking_validator import (
-        register_framework_metadata,
+    from broker.validators.governance.frameworks import (
+        register_behavioral_framework,
     )
-    register_framework_metadata(
+    register_behavioral_framework(
         name="hbm",
         constructs=HBM_CONSTRUCTS,
         label_order=HBM_LABEL_ORDER,

@@ -292,6 +292,36 @@ class TestScaffoldEndToEnd:
             f"STDOUT:\n{r.stdout}\nSTDERR:\n{r.stderr}"
         )
 
+    def test_scaffolded_runner_completes_mock_smoke(self, tmp_path: Path):
+        scaffold(
+            "energy",
+            tmp_path / "energy",
+            ["increase", "maintain", "decrease"],
+            framework="pmt",
+        )
+        runner = tmp_path / "energy" / "run_experiment.py"
+        r = subprocess.run(
+            [
+                sys.executable,
+                str(runner),
+                "--model",
+                "mock",
+                "--years",
+                "1",
+                "--agents",
+                "1",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=str(tmp_path / "energy"),
+            timeout=240,
+        )
+        assert r.returncode == 0, (
+            "scaffolded run_experiment.py failed mock smoke:\n"
+            f"STDOUT:\n{r.stdout}\nSTDERR:\n{r.stderr}"
+        )
+        assert (tmp_path / "energy" / "results" / "smoke" / "governance_summary.json").exists()
+
 
 # ---------------------------------------------------------------------------
 # CLI argument handling

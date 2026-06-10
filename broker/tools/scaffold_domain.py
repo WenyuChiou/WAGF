@@ -93,8 +93,13 @@ def gen_readme(domain: str, skills: List[str]) -> str:
         python -m broker.tools.validate_prompt {domain}/config/agent_types.yaml
 
         # 2. Run a smoke experiment
-        python {domain}/run_experiment.py --model gemma3:4b --years 3 --agents 5
+        python {domain}/run_experiment.py --model mock --years 2 --agents 2
         ```
+
+        Note: mock-model runs show `[Broker:Retry]` / missing-construct warnings
+        by design — the mock LLM returns blank output and governance catches +
+        retries it. A completed run with audit output under `results/smoke`
+        means the wiring is correct.
 
         ## Skills declared
         {chr(10).join(f"- `{s}`" for s in skills)}
@@ -467,38 +472,125 @@ def gen_domain_pack(domain: str, framework: str = "pmt") -> str:
 
 def gen_run_experiment(domain: str) -> str:
     return dedent(f"""
-        \"\"\"{domain} experiment entry point — minimal scaffolded version.
+        \"\"\"{domain} experiment entry point - minimal runnable smoke.
 
-        Replace the SyntheticAgent / SyntheticEnvironment stubs with your real
-        ABM, then plug into ExperimentBuilder.
+        Replace SyntheticEnvironment with your real ABM as the domain matures.
         \"\"\"
+        from __future__ import annotations
+
         import argparse
         import sys
         from pathlib import Path
 
         # Add package to path so imports resolve when run as a script.
-        sys.path.insert(0, str(Path(__file__).parent.parent))
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+        import yaml  # noqa: E402
 
         # Register DomainPack + validators (side-effect imports).
-        import {domain}  # noqa: F401
+        import {domain}  # noqa: E402,F401
+
+        from broker.agents import AgentConfig, BaseAgent, Skill  # noqa: E402
+        from broker.components.memory.engine import WindowMemoryEngine  # noqa: E402
+        from broker.core.experiment import ExperimentBuilder  # noqa: E402
+        from broker.interfaces.skill_types import ExecutionResult  # noqa: E402
+
+        HERE = Path(__file__).resolve().parent
+        CONFIG = HERE / "config"
 
 
-        def main():
+        class SyntheticEnvironment:
+            \"\"\"Small stand-in for the domain ABM used by scaffold smoke runs.\"\"\"
+
+            def __init__(self):
+                self.current_year = 0
+
+            def advance_step(self):
+                self.current_year += 1
+                return {{
+                    "current_year": self.current_year,
+                    # TODO: replace with a domain variable from your ABM.
+                    "domain_signal": 0.5,
+                }}
+
+            def execute_skill(self, approved_skill):
+                return ExecutionResult(success=True, state_changes={{}})
+
+
+        def load_declared_skills():
+            data = yaml.safe_load(
+                (CONFIG / "skill_registry.yaml").read_text(encoding="utf-8")
+            ) or {{}}
+            return [
+                Skill(
+                    skill_id=item["skill_id"],
+                    description=item.get("description", item["skill_id"]),
+                    affected_param=None,
+                    direction="none",
+                )
+                for item in data.get("skills", [])
+            ]
+
+
+        def build_agents(count, skills):
+            return {{
+                f"agent_{{i}}": BaseAgent(
+                    AgentConfig(
+                        name=f"agent_{{i}}",
+                        agent_type="agent",
+                        state_params=[],
+                        objectives=[],
+                        constraints=[],
+                        skills=skills,
+                    )
+                )
+                for i in range(1, count + 1)
+            }}
+
+
+        def main(argv=None):
             parser = argparse.ArgumentParser()
             parser.add_argument("--model", default="gemma3:4b")
             parser.add_argument("--years", type=int, default=3)
             parser.add_argument("--agents", type=int, default=5)
             parser.add_argument("--seed", type=int, default=42)
             parser.add_argument("--output", default="results/smoke")
-            args = parser.parse_args()
+            args = parser.parse_args(argv)
 
-            print(f"[{domain}] scaffolded run — model={{args.model}}, years={{args.years}}, agents={{args.agents}}")
-            print("TODO: replace this stub with ExperimentBuilder wiring.")
-            print("See examples/vaccination_demo/run_experiment.py for a working reference.")
+            output_path = Path(args.output)
+            if not output_path.is_absolute():
+                output_path = HERE / output_path
+
+            skills = load_declared_skills()
+            if not skills:
+                raise SystemExit("No skills found in config/skill_registry.yaml")
+            agents = build_agents(args.agents, skills)
+
+            runner = (
+                ExperimentBuilder()
+                .with_model(args.model)
+                .with_years(args.years)
+                .with_agents(agents)
+                .with_simulation(SyntheticEnvironment())
+                .with_skill_registry(str(CONFIG / "skill_registry.yaml"))
+                .with_memory_engine(WindowMemoryEngine(window_size=3))
+                .with_governance("strict", str(CONFIG / "agent_types.yaml"))
+                .with_exact_output(str(output_path))
+                .with_workers(1)
+                .with_seed(args.seed)
+            ).build()
+
+            print(
+                f"[{domain}] smoke run | model={{args.model}} "
+                f"years={{args.years}} agents={{args.agents}}"
+            )
+            runner.run()
+            print(f"Done. Audit + traces under: {{output_path}}")
+            return 0
 
 
         if __name__ == "__main__":
-            main()
+            raise SystemExit(main())
         """).lstrip()
 
 
@@ -564,26 +656,26 @@ def scaffold(
                 latent variables (e.g. HBM: SUSCEPTIBILITY/SEVERITY/...,
                 TPB: ATTITUDE/NORMS/CONTROL, etc).
                 \"\"\"
-                from broker.validators.governance.thinking_validator import (
-                    register_framework_metadata,
+                from broker.validators.governance.frameworks import (
+                    register_behavioral_framework,
                 )
 
 
                 def register_{domain}_framework() -> None:
-                    register_framework_metadata(
-                        "{domain}_framework",
+                    register_behavioral_framework(
+                        name="{domain}_framework",
                         # constructs: primary / secondary / all — replace the
                         # placeholder labels with your model's latent variables;
                         # they MUST match parsing.constructs in agent_types.yaml.
-                        {{
+                        constructs={{
                             "primary": "PRIMARY_LABEL",
                             "secondary": "PRIMARY_LABEL",
                             "all": ["PRIMARY_LABEL"],
                         }},
                         # label_order: ordinal mapping (worst -> best)
-                        {{"VL": 0, "L": 1, "M": 2, "H": 3, "VH": 4}},
+                        label_order={{"VL": 0, "L": 1, "M": 2, "H": 3, "VH": 4}},
                         # label_mappings: free-text variant -> canonical (optional)
-                        {{
+                        label_mappings={{
                             "VERY LOW": "VL", "LOW": "L", "MEDIUM": "M",
                             "HIGH": "H", "VERY HIGH": "VH",
                         }},
