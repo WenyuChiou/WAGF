@@ -270,6 +270,17 @@ class RetryMixin:
             })
 
             if skill_proposal:
+                # F5 (2026-06-10 review): re-inject the CURRENT attempt's
+                # magnitude before re-validating. Pre-fix the context kept the
+                # attempt-0 value forever, so a retry that revised its
+                # magnitude was validated against the stale number, and a
+                # magnitude ADDED on retry never activated magnitude_cap_check
+                # (an over-cap value could slip through on a compliant-skill
+                # retry). A retry that drops the magnitude clears the key.
+                if skill_proposal.magnitude_pct is not None:
+                    validation_context["proposed_magnitude"] = skill_proposal.magnitude_pct
+                else:
+                    validation_context.pop("proposed_magnitude", None)
                 validation_results = self._run_validators(skill_proposal, validation_context)
                 all_validation_history.extend(validation_results)
                 all_valid = all(v.valid for v in validation_results)

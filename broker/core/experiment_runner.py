@@ -745,6 +745,7 @@ class ExperimentRunner:
         run_id: str,
         env: Dict,
         error: Exception,
+        step_id: Optional[int] = None,
     ) -> None:
         """F1 fix (post-Phase-6T audit, 2026-05-27): emit a sentinel
         audit trace for an agent whose step raised.
@@ -770,6 +771,12 @@ class ExperimentRunner:
         error_type = type(error).__name__
         error_msg = str(error)[:500]
         agent_type = getattr(agent, 'agent_type', 'default')
+        # F6 (2026-06-10 review): under workers>1 every parallel failure used
+        # to surface after ALL submissions, so self.step_counter was the LAST
+        # agent's step — every sentinel carried the wrong step_id/seed. The
+        # parallel path now threads the SUBMITTED step_id; the sequential path
+        # passes None and keeps the live counter (correct there).
+        sentinel_step = step_id if step_id is not None else self.step_counter
 
         try:
             audit_writer = getattr(self.broker, 'audit_writer', None)
@@ -777,10 +784,10 @@ class ExperimentRunner:
                 return
             audit_writer.write_trace(agent_type, {
                 "run_id": run_id,
-                "step_id": self.step_counter,
+                "step_id": sentinel_step,
                 "timestamp": datetime.now().isoformat(),
                 "year": env.get("current_year") if isinstance(env, dict) else None,
-                "seed": self.config.seed + self.step_counter,
+                "seed": self.config.seed + sentinel_step,
                 "agent_id": agent.id,
                 "agent_type": agent_type,
                 "model": getattr(self, '_model_name', 'unknown'),
@@ -889,7 +896,10 @@ class ExperimentRunner:
             futures = {}
             for agent in agents:
                 self.step_counter += 1
-                futures[executor.submit(process_agent, agent, self.step_counter)] = agent
+                # F6: keep the SUBMITTED step_id with the future so a failure
+                # sentinel carries the right step/seed (post-submission,
+                # self.step_counter is already the last agent's value).
+                futures[executor.submit(process_agent, agent, self.step_counter)] = (agent, self.step_counter)
 
             for future in as_completed(futures):
                 try:
@@ -906,12 +916,13 @@ class ExperimentRunner:
                     # ``--workers 4`` for MA flood scale-up) had the
                     # same v0.88.15-class denominator-shrink: failed
                     # agents vanished from the audit CSV.
-                    failed_agent = futures[future]
+                    failed_agent, failed_step = futures[future]
                     logger.error(
                         f"[Parallel] Agent {failed_agent.id} failed: {e}",
                         exc_info=True,
                     )
-                    self._write_aborted_trace(failed_agent, run_id, env, e)
+                    self._write_aborted_trace(failed_agent, run_id, env, e,
+                                              step_id=failed_step)
                     error_result = SkillBrokerResult(
                         outcome=SkillOutcome.ABORTED,
                         skill_proposal=None,

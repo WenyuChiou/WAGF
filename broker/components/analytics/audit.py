@@ -11,7 +11,15 @@ from broker.utils.logging import setup_logger
 logger = setup_logger(__name__)
 
 
-AUDIT_SCHEMA_VERSION = "1"  # bump when the CSV priority-key set changes
+# Bump when the CSV priority-key set changes. History: "1" covered the entire
+# 2026-03..05 era despite >=3 unversioned column-set drifts (shadow_blocked
+# added; the v21-era duplicate construct_completeness column, since fixed;
+# key-gated world_* columns in Phase 6V). "2" (2026-06-10, review F12) is the
+# honest reset point: from here, broker/tests/test_audit_schema_golden.py
+# pins the fieldname set to this constant — adding/removing/reordering a
+# column without bumping fails CI, and every CSV gets a *.schema.json sidecar
+# stamping the version that produced it.
+AUDIT_SCHEMA_VERSION = "2"
 
 
 def _git_commit_short() -> str:
@@ -477,7 +485,12 @@ class GenericAuditWriter:
         # Buffer for JSONL writes (Performance Optimization)
         self._jsonl_buffer: Dict[str, List[str]] = {}
         self._jsonl_buffer_size = 1  # Flush every trace for real-time observability
-        self._write_lock = threading.Lock()  # Thread safety for workers > 1
+        # Thread safety for workers > 1. RLock since F6 (2026-06-10): the
+        # whole write_trace body now runs under it (summary/validator_health
+        # counters were mutated OUTSIDE the lock — non-atomic += on shared
+        # dicts lost updates under concurrent workers), and the body's inner
+        # JSONL-buffer acquisition re-enters the same lock.
+        self._write_lock = threading.RLock()
 
         # Track which aggregate dict keys have been observed across all traces
         # so we can emit a one-time WARNING at first-trace time if any are
@@ -506,7 +519,24 @@ class GenericAuditWriter:
         trace: Dict[str, Any],
         validation_results: Optional[List] = None
     ) -> None:
-        """Write a generic trace for any agent type."""
+        """Write a generic trace for any agent type (thread-safe).
+
+        F6 (2026-06-10): the whole body runs under ``_write_lock`` (an RLock —
+        the inner JSONL-buffer block re-enters it). Pre-fix only the buffer
+        was locked while the summary / validator_health counters mutated
+        outside it, allowing lost-update undercounts in audit_summary.json
+        under ``workers > 1``.
+        """
+        with self._write_lock:
+            self._write_trace_locked(agent_type, trace, validation_results)
+
+    def _write_trace_locked(
+        self,
+        agent_type: str,
+        trace: Dict[str, Any],
+        validation_results: Optional[List] = None
+    ) -> None:
+        """Body of :meth:`write_trace`; caller holds ``_write_lock``."""
         # Framework invariant check — on first trace, warn once if any
         # expected aggregate dict key is absent (would cause silent
         # degradation to hardcoded column defaults). See INVARIANTS.md §2.
@@ -656,13 +686,14 @@ class GenericAuditWriter:
             self.summary["structural_faults_fixed"] += 1  # Count traces with faults fixed
 
         # Buffered JSONL write (Optimized: flush every N traces)
-        # Truncate raw_output in JSONL to reduce file size; CSV retains full version
+        # F12 (2026-06-10): the old top-level raw_output truncation was
+        # REMOVED — it was self-defeating (skill_proposal.raw_output inside
+        # the same line was never truncated, so the full string persisted
+        # anyway and the "size saving" was illusory) and it made
+        # recover_csv_from_jsonl's output silently diverge from the live CSV.
+        # JSONL is the declared source of truth; the CSV is a projection.
         file_path = self._get_file_path(agent_type)
-        jsonl_trace = trace
-        raw = trace.get('raw_output')
-        if isinstance(raw, str) and len(raw) > 500:
-            jsonl_trace = {**trace, 'raw_output': raw[:500] + '...[truncated]'}
-        json_line = json.dumps(jsonl_trace, ensure_ascii=False, default=str) + '\n'
+        json_line = json.dumps(trace, ensure_ascii=False, default=str) + '\n'
         
         with self._write_lock:
             if agent_type not in self._jsonl_buffer:
@@ -687,19 +718,20 @@ class GenericAuditWriter:
             self._trace_buffer[agent_type].append(trace)
     
     def finalize(self) -> Dict[str, Any]:
-        """Write summary and export CSVs."""
+        """Write validator health, export CSVs, scan sentinels, THEN write the
+        summary (F11, 2026-06-10: audit_summary.json is written LAST so it can
+        carry the sentinel warnings + CSV-export failures — previously those
+        were log-only and a pipeline-leak run left zero machine-readable
+        evidence in the artifacts, the 2026-04-19 class)."""
         self.summary["finalized_at"] = datetime.now().isoformat()
-        
+
         # Flush remaining JSONL buffers before closing
         with self._write_lock:
             for agent_type in list(self._jsonl_buffer.keys()):
                 file_path = self._get_file_path(agent_type)
                 self._flush_jsonl_buffer(agent_type, file_path)
-        
-        # Export summary JSON
+
         summary_path = self.output_dir / "audit_summary.json"
-        with open(summary_path, 'w', encoding='utf-8') as f:
-            json.dump(self.summary, f, indent=2, ensure_ascii=False)
 
         vh = self.summary.get("validator_health", {})
         if vh:
@@ -757,17 +789,28 @@ class GenericAuditWriter:
                             f"{_inactive} (active elsewhere - likely scope-expected)"
                         )
         
-        # Export CSVs
+        # Export CSVs (export failures are recorded into the summary by
+        # _export_csv's except handler — F11)
         for agent_type, traces in self._trace_buffer.items():
             self._export_csv(agent_type, traces)
 
         # Framework invariant check — see broker/INVARIANTS.md Invariant 2.
         # Warn (not raise) if any semantic signal column is silently constant,
-        # which is the 2026-04-19 NW flood failure pattern.
+        # which is the 2026-04-19 NW flood failure pattern. F11: the warnings
+        # ALSO land in the summary so the artifact carries the evidence.
+        sentinel_warnings: Dict[str, List[str]] = {}
         for agent_type, traces in self._trace_buffer.items():
             warnings_found = detect_audit_sentinels(traces)
             for warning in warnings_found:
                 logger.warning(f"[Audit:{agent_type}] {warning}")
+            if warnings_found:
+                sentinel_warnings[agent_type] = list(warnings_found)
+        if sentinel_warnings:
+            self.summary["audit_sentinel_warnings"] = sentinel_warnings
+
+        # Export summary JSON — LAST, so it captures everything above (F11).
+        with open(summary_path, 'w', encoding='utf-8') as f:
+            json.dump(self.summary, f, indent=2, ensure_ascii=False)
 
         logger.info(f"[Audit] Finalized. Summary: {summary_path}")
         return self.summary
@@ -849,6 +892,7 @@ class GenericAuditWriter:
         """
         self.output_dir.mkdir(parents=True, exist_ok=True)
         csv_path = self.output_dir / f"{agent_type}_governance_audit.csv"
+        schema_path = self.output_dir / f"{agent_type}_governance_audit.schema.json"
         if not traces: return
 
         flat_rows = [trace_to_csv_row(t) for t in traces]
@@ -870,6 +914,18 @@ class GenericAuditWriter:
                 writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction='ignore', quoting=csv.QUOTE_ALL)
                 writer.writeheader()
                 writer.writerows(flat_rows)
+            # F12 (2026-06-10): sidecar schema stamp — a NEW artifact (frozen
+            # result dirs on disk are untouched) recording which schema
+            # version + column set produced this CSV. Closes the "CSV carries
+            # no version; two analysts read the same file differently" gap
+            # (the v21 duplicate-column incident class).
+            with open(schema_path, 'w', encoding='utf-8') as f:
+                json.dump({
+                    "audit_schema_version": AUDIT_SCHEMA_VERSION,
+                    "git_commit_short": self._run_metadata.get("git_commit_short", "unavailable"),
+                    "row_count": len(flat_rows),
+                    "fieldnames": fieldnames,
+                }, f, indent=2, ensure_ascii=False)
         except OSError as e:
             logger.error(
                 f"[AuditWriter:Error] CSV export for agent_type=%r "
@@ -882,6 +938,17 @@ class GenericAuditWriter:
                 agent_type, csv_path, e,
                 exc_info=True,
             )
+            # F11: the failure must also reach the artifact plane — finalize
+            # writes the summary LAST, so this lands in audit_summary.json.
+            # Review batch-2 W1: distinguish a sidecar-only failure (CSV is
+            # intact on disk — do NOT recover) from a CSV-write failure.
+            csv_intact = csv_path.exists()
+            self.summary.setdefault("csv_export_failures", []).append({
+                "agent_type": agent_type,
+                "path": str(schema_path if csv_intact else csv_path),
+                "csv_intact": csv_intact,
+                "error": repr(e),
+            })
 
 
 # Aliases
