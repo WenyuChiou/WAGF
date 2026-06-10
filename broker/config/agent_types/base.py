@@ -6,9 +6,13 @@ supporting both Single-Agent (SA) and Multi-Agent (MA) scenarios.
 
 Part of Task-040: SA/MA Unified Architecture (Part 14.5)
 """
+import logging
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any, Literal
 from enum import Enum
+from typing import Dict, List, Optional, Any, Literal
+
+
+logger = logging.getLogger(__name__)
 
 
 class PsychologicalFramework(str, Enum):
@@ -135,13 +139,22 @@ class ValidationRuleRef:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ValidationRuleRef":
         """Create from dictionary."""
+        level = data.get("level", "ERROR")
+        if str(level).strip() not in ("ERROR", "WARNING"):
+            logger.warning(
+                "Rule %r has unknown enforcement level %r; treated as "
+                "non-blocking/WARNING by the exact-string comparisons; "
+                "write ERROR or WARNING, uppercase.",
+                data.get("id", ""),
+                level,
+            )
         return cls(
             rule_id=data.get("id", ""),
             precondition=data.get("precondition"),
             construct=data.get("construct"),
             when_above=data.get("when_above", []),
             blocked_skills=data.get("blocked_skills", []),
-            level=data.get("level", "ERROR"),
+            level=level,
             message=data.get("message", ""),
         )
 

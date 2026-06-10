@@ -937,18 +937,39 @@ class AgentTypeConfig:
         else:
             rules_list = [{"id": k, **v} for k, v in rules.items()]
             
-        return [
-            CoherenceRule(
-                id=rule.get("id", rule.get("construct", "unknown")),
-                construct=rule.get("construct", rule.get("id") if "conditions" not in rule else None),
-                conditions=rule.get("conditions"),
-                expected_levels=rule.get("when_above", rule.get("when_true")),
-                blocked_skills=rule.get("blocked_skills"),
-                level=rule.get("level", "ERROR"),
-                message=rule.get("message", "")
+        coherence_rules = []
+        for rule in rules_list:
+            rule_id = rule.get("id", rule.get("construct", "unknown"))
+            level = rule.get("level", "ERROR")
+            if str(level).strip() not in ("ERROR", "WARNING"):
+                # Warn ONCE per (rule, level): get_thinking_rules is called per
+                # agent per step (no rule cache), so an unconditional warning
+                # would spam logs at agents x years x retries frequency
+                # (review batch-2 W2).
+                warned = getattr(self, "_warned_rule_levels", None)
+                if warned is None:
+                    warned = set()
+                    self._warned_rule_levels = warned
+                if (rule_id, str(level)) not in warned:
+                    warned.add((rule_id, str(level)))
+                    logger.warning(
+                        f"[Config] Rule {rule_id!r} has unknown enforcement "
+                        f"level {level!r}; treated as non-blocking/WARNING by "
+                        f"the exact-string comparisons; write ERROR or WARNING, "
+                        f"uppercase."
+                    )
+            coherence_rules.append(
+                CoherenceRule(
+                    id=rule_id,
+                    construct=rule.get("construct", rule.get("id") if "conditions" not in rule else None),
+                    conditions=rule.get("conditions"),
+                    expected_levels=rule.get("when_above", rule.get("when_true")),
+                    blocked_skills=rule.get("blocked_skills"),
+                    level=level,
+                    message=rule.get("message", "")
+                )
             )
-            for rule in rules_list
-        ]
+        return coherence_rules
 
     def get_coherence_rules(self, agent_type: str) -> List[CoherenceRule]:
         """Legacy compatibility accessor."""
