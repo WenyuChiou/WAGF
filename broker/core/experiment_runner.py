@@ -6,6 +6,7 @@ Extracted from experiment.py (Phase 2.1 split).
 from typing import Dict, List, Any, Optional, Callable
 from pathlib import Path
 from dataclasses import dataclass, field
+import inspect
 import json
 import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -19,6 +20,44 @@ from ..components.memory.engine import MemoryEngine, WindowMemoryEngine, Hierarc
 from ..utils.agent_config import GovernanceAuditor
 from ..utils.logging import logger
 from .efficiency import CognitiveCache
+
+_HOOK_PROTOCOLS = {
+    "pre_year": (PreYearHook, 3),
+    "pre_step": (PreYearHook, 3),
+    "post_step": (PostStepHook, 2),
+    "post_year": (PostYearHook, 2),
+    # same 2-arg (year, agents) shape as post_year — fires after the step's
+    # agent loop completes (naming kept for backward compat).
+    "post_step_end": (PostYearHook, 2),
+}
+
+
+def _accepts_hook_args(hook_fn: Callable, arg_count: int) -> bool:
+    try:
+        inspect.signature(hook_fn).bind(*([object()] * arg_count))
+    except ValueError:
+        # inspect.signature() cannot introspect some C-extension callables;
+        # fail open (assume valid) rather than block execution.
+        return True
+    except TypeError:
+        return False
+    return True
+
+
+def _validate_hooks(hooks_dict: Dict[str, Callable]) -> None:
+    """Validate hook signatures as warning-only diagnostics."""
+    for name, hook_fn in hooks_dict.items():
+        expected = _HOOK_PROTOCOLS.get(name)
+        if not expected:
+            continue
+        protocol, arg_count = expected
+        if not isinstance(hook_fn, protocol) or not _accepts_hook_args(hook_fn, arg_count):
+            logger.warning(
+                f"[Lifecycle:Diagnostic] Hook '{name}' does not match "
+                f"{protocol.__name__} protocol signature. "
+                f"See broker.interfaces.lifecycle_protocols for expected signatures."
+            )
+
 
 @dataclass
 class ExperimentConfig:
@@ -52,21 +91,6 @@ class ExperimentRunner:
         self.memory_engine = memory_engine or WindowMemoryEngine(window_size=3)
         self.hooks = hooks or {}
 
-        # Validate hook signatures (warning only, non-breaking)
-        _hook_protocols = {
-            "pre_year": PreYearHook, "pre_step": PreYearHook,
-            "post_step": PostStepHook,
-            "post_year": PostYearHook, "post_step_end": PostYearHook,
-        }
-        for name, hook_fn in self.hooks.items():
-            expected = _hook_protocols.get(name)
-            if expected and not isinstance(hook_fn, expected):
-                logger.warning(
-                    f"[Lifecycle:Diagnostic] Hook '{name}' does not match "
-                    f"{expected.__name__} protocol signature. "
-                    f"See broker.interfaces.lifecycle_protocols for expected signatures."
-                )
-
         # Sync verbosity
         self.broker.log_prompt = self.config.verbose
 
@@ -76,6 +100,22 @@ class ExperimentRunner:
         # [Efficiency Hub] Cognitive Caching for decision reuse
         persistence_path = config.output_dir / "cognitive_cache.json"
         self.efficiency = CognitiveCache(persistence_path=persistence_path)
+
+    @property
+    def hooks(self) -> Dict[str, Callable]:
+        """Lifecycle hooks.
+
+        Wholesale assignment validates hook signatures with warning-only
+        diagnostics. In-place mutation such as ``runner.hooks.update(...)``
+        intentionally bypasses validation; this remains a non-breaking
+        diagnostic feature, not a gate.
+        """
+        return self._hooks
+
+    @hooks.setter
+    def hooks(self, hooks_dict: Dict[str, Callable]) -> None:
+        _validate_hooks(hooks_dict)
+        self._hooks = hooks_dict
 
     @property
     def llm_invoke(self) -> Callable:

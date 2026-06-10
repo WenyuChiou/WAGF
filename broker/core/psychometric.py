@@ -227,12 +227,7 @@ def get_framework(name: str) -> PsychologicalFramework:
         >>> framework = get_framework("pmt")
         >>> constructs = framework.get_constructs()
     """
-    # Ensure domain packs are loaded (lazy trigger)
-    if not _FRAMEWORKS:
-        try:
-            import broker.domains  # noqa: F401
-        except ImportError:
-            pass
+    # Auto-discovery was removed in Phase 6Q-G; frameworks register via broker.validators.governance.frameworks or register_behavioral_framework.
 
     name_lower = name.lower().strip()
 

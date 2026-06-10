@@ -68,6 +68,7 @@ from typing import Any, Dict, Set
 from broker.validators.governance.thinking_validator import (
     FRAMEWORK_LABEL_ORDERS,
     register_framework_metadata,
+    register_thinking_checks,
 )
 
 # Phase 6U-F (2026-05-28): PMT_* re-exported eagerly at module top so
@@ -98,6 +99,41 @@ def list_registered_frameworks() -> Set[str]:
     field validator.
     """
     return set(FRAMEWORK_LABEL_ORDERS) | {"generic", ""}
+
+
+def register_behavioral_framework(
+    name: str,
+    *,
+    constructs: dict,
+    label_order: Dict[str, int],
+    label_mappings: Dict[str, str] | None = None,
+    framework_class: type | None = None,
+    # each check: (skill_name, rules, context) -> List[ValidationResult]
+    # (the canonical BuiltinCheck shape; see base_validator.py)
+    thinking_checks: list | None = None,
+) -> None:
+    """Register a behavioural framework through the canonical facade.
+
+    This prevents the three historical registries from drifting apart:
+    ThinkingValidator metadata, optional psychometric framework classes,
+    and optional built-in thinking checks. Metadata-only registration is
+    legal, for example HBM, but it must now be a deliberate keyword choice
+    rather than an accident of which lower-level registry the caller knew
+    about. New domains should use this function as their recommended entry
+    point.
+    """
+    register_framework_metadata(
+        name,
+        constructs,
+        label_order,
+        label_mappings,
+    )
+    if framework_class is not None:
+        from broker.core.psychometric import register_framework
+
+        register_framework(name, framework_class)
+    if thinking_checks is not None:
+        register_thinking_checks(name, thinking_checks)
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -253,12 +289,6 @@ def _register_generic_frameworks() -> None:
         FINANCIAL_LABEL_MAPPINGS,
     )
     register_framework_metadata(
-        "narrative_diffusion",
-        NARRATIVE_DIFFUSION_CONSTRUCTS,
-        NARRATIVE_DIFFUSION_LABEL_ORDER,
-        NARRATIVE_DIFFUSION_LABEL_MAPPINGS,
-    )
-    register_framework_metadata(
         "generic",
         GENERIC_CONSTRUCTS,
         GENERIC_LABEL_ORDER,
@@ -279,9 +309,14 @@ _register_generic_frameworks()
 from broker.validators.governance.frameworks.narrative_diffusion import (  # noqa: E402
     NarrativeDiffusionFramework,
 )
-from broker.core.psychometric import register_framework  # noqa: E402
 
-register_framework("narrative_diffusion", NarrativeDiffusionFramework)
+register_behavioral_framework(
+    "narrative_diffusion",
+    constructs=NARRATIVE_DIFFUSION_CONSTRUCTS,
+    label_order=NARRATIVE_DIFFUSION_LABEL_ORDER,
+    label_mappings=NARRATIVE_DIFFUSION_LABEL_MAPPINGS,
+    framework_class=NarrativeDiffusionFramework,
+)
 
 
 __all__ = [
@@ -300,4 +335,5 @@ __all__ = [
     "NarrativeDiffusionFramework",
     "FRAMEWORK_REGISTRY",
     "list_registered_frameworks",
+    "register_behavioral_framework",
 ]
