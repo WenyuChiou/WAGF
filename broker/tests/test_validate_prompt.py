@@ -528,3 +528,93 @@ class TestSkillRuleCoverage:
         issues = check_skill_rule_coverage(cfg, "agent_x")
         warns = [i for i in issues if i.severity == "WARN"]
         assert any("coverage 50%" in w.message for w in warns)
+
+
+# ---------------------------------------------------------------------------
+# check_global_config_keys (2026-06-09 architecture-review P0-4: typo'd flag
+# keys silently resolve default-OFF; this is the config-time net)
+# ---------------------------------------------------------------------------
+
+from broker.tools.validate_prompt import check_global_config_keys  # noqa: E402
+
+
+class TestCheckGlobalConfigKeys:
+    def test_clean_config_no_issues(self):
+        """All recognized keys (the cat_model shape) produce zero issues."""
+        cfg = {"global_config": {
+            "llm": {"model": "x"},
+            "governance": {"max_retries": 3, "max_reports_per_retry": 2,
+                           "domain": "cat_model", "dispatch_domain_physical": True},
+            "coupling": {"enable": True},
+        }}
+        assert check_global_config_keys(cfg) == []
+
+    def test_typoed_flag_key_warns(self):
+        """THE motivating case: dispatch_domain_physcial (typo) must WARN, not
+        silently resolve default-OFF."""
+        cfg = {"global_config": {"governance": {
+            "domain": "x", "dispatch_domain_physcial": True}}}
+        issues = check_global_config_keys(cfg)
+        warns = [i for i in issues if i.severity == "WARN"]
+        assert len(warns) == 1
+        assert "dispatch_domain_physcial" in warns[0].message
+
+    def test_unknown_top_level_key_warns_but_system_blob_exempt(self):
+        cfg = {"global_config": {
+            "socail_feeds": {"enable": True},   # typo'd block name
+            "groundwater_system": {"anything": 1},  # domain blob — exempt
+        }}
+        issues = check_global_config_keys(cfg)
+        assert len(issues) == 1 and issues[0].severity == "WARN"
+        assert "socail_feeds" in issues[0].message
+
+    def test_flag_without_domain_is_error(self):
+        """dispatch_domain_physical: true WITHOUT domain: the accessor returns
+        None and the explicitly-requested dispatch silently no-ops — ERROR."""
+        cfg = {"global_config": {"governance": {"dispatch_domain_physical": True}}}
+        issues = check_global_config_keys(cfg)
+        errs = [i for i in issues if i.severity == "ERROR"]
+        assert len(errs) == 1
+        assert "domain" in errs[0].message
+
+    def test_unknown_social_feeds_and_coupling_subkeys_warn(self):
+        cfg = {"global_config": {
+            "social_feeds": {"enabled": True},  # canonical key is 'enable'
+            "coupling": {"enable": True, "enabel_strict": 1},
+        }}
+        issues = check_global_config_keys(cfg)
+        assert all(i.severity == "WARN" for i in issues)
+        msgs = " | ".join(i.message for i in issues)
+        assert "enabled" in msgs and "enabel_strict" in msgs
+
+    def test_no_global_config_block_is_silent(self):
+        assert check_global_config_keys({}) == []
+        assert check_global_config_keys({"global_config": "not-a-dict"}) == []
+
+    def test_all_example_yamls_stay_clean(self):
+        """Regression net: the unknown-key WARN must not fire on any existing
+        example config (frozen paper configs included)."""
+        import glob
+
+        import yaml as _yaml
+        root = Path(__file__).resolve().parents[2]
+        offenders = []
+        for pattern in ("examples/*/config/*.yaml", "examples/*/config/**/*.yaml"):
+            for p in glob.glob(str(root / pattern), recursive=True):
+                try:
+                    cfg = _yaml.safe_load(open(p, encoding="utf-8"))
+                except Exception:
+                    continue
+                if not isinstance(cfg, dict):
+                    continue
+                for issue in check_global_config_keys(cfg):
+                    offenders.append(f"{p}: {issue.format()}")
+        assert not offenders, "\n".join(offenders)
+
+    def test_non_dict_governance_block_warns(self):
+        """governance: true (scalar) must WARN — a silently-ignored block would
+        also skip the dispatch-without-domain ERROR check (review S2)."""
+        cfg = {"global_config": {"governance": True}}
+        issues = check_global_config_keys(cfg)
+        assert len(issues) == 1 and issues[0].severity == "WARN"
+        assert "mapping" in issues[0].message

@@ -161,6 +161,116 @@ class Issue:
 
 
 # ---------------------------------------------------------------------------
+# Canonical global_config key registry (2026-06-09 architecture review P0-4)
+# ---------------------------------------------------------------------------
+# THE canonical list of recognized ``global_config`` keys. Every feature flag
+# in this repo is read via ``dict.get(key, <default-OFF>)``, so a typo'd key
+# (e.g. ``dispatch_domain_physcial``) silently resolves to feature-OFF with
+# zero warnings — the worst failure class for a default-OFF flag system.
+# This registry + ``check_global_config_keys`` is the config-time net.
+#
+# When ADDING a new global_config consumer anywhere in broker/, add its key
+# here in the same commit. Keys ending in ``_system`` are domain blobs
+# (vaccination_system / water_system convention) and are exempt.
+
+KNOWN_GLOBAL_CONFIG_KEYS: Set[str] = {
+    "llm",          # LLM sampling config (model, num_ctx, num_predict, ...)
+    "memory",       # memory-engine tuning
+    "reflection",   # reflection cadence/questions
+    "governance",   # see KNOWN_GOVERNANCE_KEYS
+    "social_feeds", # see KNOWN_SOCIAL_FEEDS_KEYS (two-layer flag, Phase 6T-E.B)
+    "coupling",     # see KNOWN_COUPLING_KEYS (two-layer flag, Phase 6V)
+}
+
+KNOWN_GOVERNANCE_KEYS: Set[str] = {
+    "max_retries",               # agent_config.get_governance_max_retries
+    "max_reports_per_retry",     # agent_config.get_governance_max_reports
+    "domain",                    # ValidatorRegistry / DomainPack resolution
+    "dispatch_domain_physical",  # opt-in engine PHYSICAL dispatch (d1cf7c3)
+    "shuffle_options",           # broker/core/_skill_filtering.py positional-bias mitigation
+    "retrieval",                 # agent_config.get_retrieval_config
+    "drift",                     # agent_config.get_drift_config
+    "population",                # agent_config.get_population_governance_config
+    "policy_event_tiers",        # agent_config.get_policy_event_tiers_config
+    # NOTE: governance.memory (bridge-importance / resolution_importance_policy
+    # sub-block) is DISTINCT from the top-level global_config.memory block —
+    # both are intentionally listed, one per level.
+    "memory",                    # agent_config.get_bridge_importance_config
+}
+
+KNOWN_SOCIAL_FEEDS_KEYS: Set[str] = {
+    "enable",           # broker/components/social/feed_flag.py
+    "top_k",            # run_unified_experiment social-feed knobs
+    "half_life_years",
+}
+
+KNOWN_COUPLING_KEYS: Set[str] = {
+    "enable",  # broker/coupling/flag.py
+}
+
+
+def check_global_config_keys(cfg: Dict[str, Any]) -> List[Issue]:
+    """Validate ``global_config`` against the canonical key registry.
+
+    WARN on unrecognized keys (a typo'd flag key silently resolves to its
+    default — usually feature-OFF — so the warning is the only net).
+    ERROR when ``governance.dispatch_domain_physical`` is truthy but
+    ``governance.domain`` is absent: the accessor returns None in that case
+    and the explicitly-requested dispatch silently no-ops.
+    """
+    issues: List[Issue] = []
+    gc = cfg.get("global_config")
+    if not isinstance(gc, dict):
+        return issues
+
+    loc = "yaml: global_config"
+    for key in gc:
+        if key in KNOWN_GLOBAL_CONFIG_KEYS or str(key).endswith("_system"):
+            continue
+        issues.append(Issue(
+            "WARN", loc,
+            f"unrecognized key '{key}' — no broker code reads it (typo'd "
+            f"feature flags silently resolve default-OFF). Known keys: "
+            f"{sorted(KNOWN_GLOBAL_CONFIG_KEYS)}; '<domain>_system' blobs are exempt.",
+        ))
+
+    def _check_block(name: str, known: Set[str]) -> Dict[str, Any]:
+        block = gc.get(name)
+        if block is not None and not isinstance(block, dict):
+            # governance: true (scalar) would silently skip BOTH the sub-key
+            # checks and the dispatch-without-domain ERROR — surface it.
+            issues.append(Issue(
+                "WARN", f"{loc}.{name}",
+                f"expected a mapping, got {type(block).__name__} — the block "
+                f"is ignored and none of its checks run.",
+            ))
+            return {}
+        if not isinstance(block, dict):
+            return {}
+        for key in block:
+            if key not in known:
+                issues.append(Issue(
+                    "WARN", f"{loc}.{name}",
+                    f"unrecognized key '{key}' — known {name} keys: {sorted(known)}.",
+                ))
+        return block
+
+    gov = _check_block("governance", KNOWN_GOVERNANCE_KEYS)
+    _check_block("social_feeds", KNOWN_SOCIAL_FEEDS_KEYS)
+    _check_block("coupling", KNOWN_COUPLING_KEYS)
+
+    if gov.get("dispatch_domain_physical") and not gov.get("domain"):
+        issues.append(Issue(
+            "ERROR", f"{loc}.governance",
+            "dispatch_domain_physical is set but 'domain' is absent — the "
+            "dispatch accessor returns None and the explicitly-requested "
+            "PHYSICAL dispatch silently never fires. Add "
+            "'domain: <your_domain>' next to the flag.",
+        ))
+    return issues
+
+
+# ---------------------------------------------------------------------------
 # Placeholder extraction
 # ---------------------------------------------------------------------------
 
@@ -702,6 +812,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 1
 
     all_issues: List[Issue] = []
+    # 2026-06-09: config-time unknown-key net (canonical registry above).
+    all_issues.extend(check_global_config_keys(cfg))
     # Phase 6R-B-3: resolve domain-specific placeholder extensions once
     # per CLI invocation. The hook is keyed on
     # ``global_config.governance.domain``.

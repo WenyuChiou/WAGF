@@ -181,6 +181,38 @@ NARRATIVE_DIFFUSION_LABEL_MAPPINGS = {
 
 
 # ─────────────────────────────────────────────────────────────────────
+# "generic" framework metadata (2026-06-09 architecture review)
+# ─────────────────────────────────────────────────────────────────────
+#
+# ``scaffold_domain --framework generic`` is the encouraged on-ramp for
+# theory-light new domains, and ``list_registered_frameworks()`` already
+# special-cased "generic" as valid — but no metadata was registered, so
+# ``ThinkingValidator(framework="generic")`` raised ValueError and the
+# dispatcher silently downgraded the YAML declaration to the ""
+# escape hatch (warn-once). Register it for real: constructs match the
+# scaffold's emitted YAML (``parsing.constructs.primary: [PRIMARY_LABEL]``)
+# and the labels match the scaffold's VL–VH rating scale.
+
+GENERIC_LABEL_ORDER = {
+    "VL": 0, "L": 1, "M": 2, "H": 3, "VH": 4,
+}
+
+GENERIC_CONSTRUCTS = {
+    "primary": "PRIMARY_LABEL",
+    "secondary": "PRIMARY_LABEL",
+    "all": ["PRIMARY_LABEL"],
+}
+
+GENERIC_LABEL_MAPPINGS = {
+    "VERY LOW": "VL", "VERYLOW": "VL", "VERY_LOW": "VL",
+    "LOW": "L",
+    "MEDIUM": "M", "MED": "M", "MODERATE": "M",
+    "HIGH": "H",
+    "VERY HIGH": "VH", "VERYHIGH": "VH", "VERY_HIGH": "VH",
+}
+
+
+# ─────────────────────────────────────────────────────────────────────
 # Auto-registration (fires at module import time)
 # ─────────────────────────────────────────────────────────────────────
 # Imported by broker/validators/governance/__init__.py so the
@@ -225,6 +257,12 @@ def _register_generic_frameworks() -> None:
         NARRATIVE_DIFFUSION_CONSTRUCTS,
         NARRATIVE_DIFFUSION_LABEL_ORDER,
         NARRATIVE_DIFFUSION_LABEL_MAPPINGS,
+    )
+    register_framework_metadata(
+        "generic",
+        GENERIC_CONSTRUCTS,
+        GENERIC_LABEL_ORDER,
+        GENERIC_LABEL_MAPPINGS,
     )
 
 

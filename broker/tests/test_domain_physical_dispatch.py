@@ -92,9 +92,12 @@ def test_governance_domain_env_var_does_not_activate_dispatch(monkeypatch):
     assert ma.get_governance_physical_dispatch() is None
 
 
-def test_flag_true_but_no_domain_returns_none(tmp_path):
-    """The flag alone is insufficient: dispatch_domain_physical: true WITHOUT a
-    declared domain returns None (the accessor needs both)."""
+def test_flag_true_but_no_domain_raises(tmp_path):
+    """The flag alone is insufficient — and since 2026-06-09 (review P1-11) an
+    explicitly-set dispatch_domain_physical WITHOUT a declared domain RAISES
+    instead of silently returning None (a requested feature must never
+    silently no-op). Frozen configs lack the flag entirely, so they still
+    take the quiet None path."""
     import yaml as _yaml
 
     p = tmp_path / "at.yaml"
@@ -107,4 +110,5 @@ def test_flag_true_but_no_domain_returns_none(tmp_path):
         encoding="utf-8",
     )
     cfg = AgentTypeConfig.load(str(p))
-    assert cfg.get_governance_physical_dispatch() is None
+    with pytest.raises(ValueError, match="dispatch_domain_physical"):
+        cfg.get_governance_physical_dispatch()
