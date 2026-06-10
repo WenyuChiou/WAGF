@@ -1299,11 +1299,15 @@ def run_unified_experiment():
     # outcome (e.g. an ERROR-blocked incoherent post) maps to maintain_silence
     # (no post), matching the governance fallback.
     if args.with_influencer:
-        from examples.governed_flood.adapters.influencer_lifecycle import (
-            InfluencerLifecycleHandler,
-        )
         from broker.interfaces.skill_types import SkillOutcome as _SkillOutcome
-        _influencer_handler = InfluencerLifecycleHandler()
+        # Wave 3 / 3-9b (2026-06-10): resolve the handler through the pack's
+        # institutional_lifecycle_handlers() dispatch map (Phase 6T-C/6T-F.2)
+        # instead of direct-importing the class — the map is the production
+        # source of truth, not a decorative registry. _flood_pack was resolved
+        # above; KeyError here is a wiring bug and must fail loud.
+        _influencer_handler = (
+            _flood_pack.institutional_lifecycle_handlers()["social_media_influencer"]
+        )
         _base_post_step = ma_hooks.post_step
 
         def _post_step(agent, result):
