@@ -28,7 +28,7 @@ WAGF 是一個**受治理的、LLM 驅動的代理人框架，用於耦合人類
 
 仲裁器核心與領域無關。已驗證的參考領域是人類-環境耦合 — 洪水適應（保護動機理論）與灌溉（雙評估）— 並以疫苗接種（健康信念模型）證明本框架可推廣到環境系統之外。新領域只需提供 YAML 配置 + 一個 `DomainPack` 子類即可接入，無需修改 `broker/`。
 
-> **目前版本**：v0.5.1（2026-05-28）。完整發布時程見 [`CHANGELOG.md`](CHANGELOG.md)。近期：Phase 6T-E.B SocialMediaProvider 底層（v0.5.0）+ 完整接線（v0.5.1），均隱藏於雙層可選旗標後。
+> **目前版本**:v0.6.0(2026-06-10)。完整發布時程見 [`CHANGELOG.md`](CHANGELOG.md)。近期:Phase 6V 環境耦合層(`broker/coupling/` — BMI 承載、期末結算、連續控制;三個實作範例,均完成真實 LLM 驗證)+ 審計綱要第 2 版。
 
 ## 快速上手
 
@@ -130,6 +130,7 @@ WAGF 處於不同的技術層次。最接近的同類是規則式 ABM 平台（M
 - **框架可參數化的行為理論** — `broker/` 內無硬編碼理論；參考包涵蓋保護動機理論（洪水）、雙評估（灌溉）、健康信念模型（疫苗）。新理論透過 YAML 宣告即可
 - **研究就緒** — 消融模式（strict/relaxed/disabled）、6+ 個 LLM 系列的跨模型比較、多種子可重現性
 - **社群媒體傳播頻道**（v0.5+，可選啟用）— 選用的 Pattern-B `SocialMediaProvider` 會將領域發出的貼文注入代理人提示詞的 `{social_media_feed}`，依「可信度層級 × 年齡衰減 × 互動數」排序。預設關閉——已發表論文的逐位元組一致性不受影響。（跨頻道去重模組已隨框架出貨，作為未來消費者的基礎設施；提供者整合暫緩。）
+- **環境耦合層**（v0.6，可選啟用）— `broker/coupling/` 以窄腰介面（`EventSource` / `ControlSink` / `InterfaceBundle`）將外部模擬器接入受治理的決策迴圈，`CouplingContract` 在邊界檢查單位、範圍、方向與型別。可承載任何符合 CSDMS-BMI 規範的模型（`BmiEventSource`），支援連續控制（`ContinuousBundle`：每次決策驅動 K 個求解器子步，數值設定點在抵達求解器**之前**先過治理），並附三個完成真實 LLM 驗證的實作範例——巨災損失鏈、多代理保險期末結算、水庫放水控制。四種連接器原型詳見 [`docs/COUPLING_CONNECTORS.md`](docs/COUPLING_CONNECTORS.md)。全面預設關閉
 - **跨領域已驗證** — 泛型命名空間識別符稽核（Phase 6U，於 v0.4.0 完成）已消除 `broker/` 內所有水資源領域洩漏；`FakeTrafficDomainPack` + 自訂 `bounded_rationality` 框架的端對端 smoke 測試確認框架確實具備多領域能力
 - **AI 輔助工作流** — 內建 7 個 [Claude Code skills](docs/skills/wagf-skills.md)（`wagf-quickstart`、`wagf-domain-builder`、`wagf-coupling-designer`、`wagf-experiment-designer`、`llm-agent-audit-trace-analyzer`、`model-coupling-contract-checker`、`abm-reproducibility-checker`），新研究者從 `git clone` 到產出論文等級指標可不必先讀手冊。設定路徑（Claude Code / Cursor / Cline / 純 Python）詳見 [`docs/AI_ASSISTED_SETUP.md`](docs/AI_ASSISTED_SETUP.md)
 
@@ -212,6 +213,8 @@ examples/quickstart/                   — 漸進式教學
 | **灌溉 ABM** | 稀缺條件下的水資源分配 | [前往](examples/irrigation_abm/) |
 | **多代理人洪水** | 制度回饋（政府 + 保險 + 家戶） | [前往](examples/multi_agent/flood/) |
 | **疫苗接種（單）** | 非水資源 Tier-2 showcase（HBM、25 agents、5 年 COVID-19 schedule、3 seeds × 2 models） | [前往](examples/vaccination_demo/) |
+| **巨災模型（耦合）** | 外部「災害→損失」鏈耦合受治理代理人；單代理 + 多代理保險結算（期末按比例資金池、政府救濟） | [前往](examples/cat_model/) |
+| **水庫控制（耦合）** | 連續控制：年度放水決策 × 12 個月求解器子步，死庫容投影牆治理數值設定點 | [前往](examples/reservoir_control/) |
 
 ---
 
