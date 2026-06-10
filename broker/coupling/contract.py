@@ -18,7 +18,7 @@ pure numerical models, but here carried across the LLM <-> simulator boundary:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 # Allowed enum-like string values (kept as strings, not Enums, so a YAML/JSON
 # contract can be authored without importing this module).
@@ -29,6 +29,32 @@ _REDUCE = ("mean", "max", "min", "sum", "last")
 _DECISION_CADENCES = ("annual", "step")
 _SOLVER_CADENCES = ("annual", "event_set", "sub_step")
 _HOLD_POLICIES = ("constant", "ramp", "rate")
+_VALUE_SOURCES = ("world_deterministic", "proposal")
+
+
+def reduce_series(values: Sequence[float], how: str) -> float:
+    """Apply a declared ``observation_reduce`` to a sub-step series.
+
+    The executor for numerical-correctness check #2's declarations (inc 3,
+    2026-06-10): mean storage vs min head vs total spill reduce differently,
+    and the roll-up must be the DECLARED one, never an implicit default.
+    Empty series fails loud — a coupled variable that produced no sub-step
+    values is a wiring bug, not a zero.
+    """
+    if how not in _REDUCE:
+        raise ValueError(f"unknown observation_reduce {how!r}, expected one of {_REDUCE}")
+    seq = [float(v) for v in values]
+    if not seq:
+        raise ValueError("reduce_series: empty sub-step series (no solver values collected)")
+    if how == "mean":
+        return sum(seq) / len(seq)
+    if how == "max":
+        return max(seq)
+    if how == "min":
+        return min(seq)
+    if how == "sum":
+        return sum(seq)
+    return seq[-1]  # "last"
 
 
 @dataclass(frozen=True)
@@ -49,6 +75,13 @@ class VarSpec:
     # Per-quantity sub-step -> period reduction (used when cadences differ):
     # mean storage vs min head vs total spill reduce differently.
     observation_reduce: str = "last"
+    # Execution-sampling guard (inc 3): who AUTHORS this quantity's committed
+    # value. "proposal" = the value must come from the approved skill's
+    # parameters (an agent-authored setpoint); the adapter raises if the
+    # world-side commit diverges from the proposal (a world-side re-sample of
+    # an agent-owned value is the execution-sampling bug class).
+    # "world_deterministic" (default) = world-side computed, no guard.
+    value_source: str = "world_deterministic"
 
     def __post_init__(self) -> None:
         if self.cadence not in _CADENCES:
@@ -59,6 +92,8 @@ class VarSpec:
             raise ValueError(f"VarSpec[{self.name}]: on_missing {self.on_missing!r} not in {_ON_MISSING}")
         if self.observation_reduce not in _REDUCE:
             raise ValueError(f"VarSpec[{self.name}]: observation_reduce {self.observation_reduce!r} not in {_REDUCE}")
+        if self.value_source not in _VALUE_SOURCES:
+            raise ValueError(f"VarSpec[{self.name}]: value_source {self.value_source!r} not in {_VALUE_SOURCES}")
         if self.dtype in (int, float):
             if not self.unit:
                 raise ValueError(f"VarSpec[{self.name}]: numeric variable must declare a non-empty unit")
@@ -92,6 +127,9 @@ class CouplingContract:
     solver_cadence: str = "annual"  # "annual" | "event_set" | "sub_step"
     operation_order: Tuple[str, ...] = field(default_factory=tuple)  # E3 pinned pipeline order
     control_hold_policy: str = "constant"  # how an agent control is held across K sub-steps
+    # K solver sub-steps per decision period (inc 3). None = event/annual
+    # coupling (one advance per period). ContinuousBundle requires it.
+    substeps_per_decision: Optional[int] = None
 
     def __post_init__(self) -> None:
         if self.decision_cadence not in _DECISION_CADENCES:
@@ -100,6 +138,14 @@ class CouplingContract:
             raise ValueError(f"solver_cadence {self.solver_cadence!r} not in {_SOLVER_CADENCES}")
         if self.control_hold_policy not in _HOLD_POLICIES:
             raise ValueError(f"control_hold_policy {self.control_hold_policy!r} not in {_HOLD_POLICIES}")
+        if self.substeps_per_decision is not None:
+            # Coerce to int AT CONSTRUCTION (frozen dataclass -> object.__setattr__):
+            # a float K (e.g. 4.7) stored raw would put "4.7" into the provenance
+            # sha while ContinuousBundle truncates to 4 — same effective contract,
+            # different identity hash (review W1).
+            object.__setattr__(self, "substeps_per_decision", int(self.substeps_per_decision))
+            if self.substeps_per_decision < 1:
+                raise ValueError(f"substeps_per_decision must be >= 1, got {self.substeps_per_decision}")
         for vs in self.observations:
             if vs.direction != "world_to_agent":
                 raise ValueError(f"observation {vs.name!r} must be world_to_agent, got {vs.direction}")
@@ -179,4 +225,4 @@ class CouplingContract:
         return {vs.name: vs for vs in self.inputs}
 
 
-__all__ = ["VarSpec", "CouplingContract"]
+__all__ = ["VarSpec", "CouplingContract", "reduce_series"]

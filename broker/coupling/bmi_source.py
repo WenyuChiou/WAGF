@@ -84,6 +84,11 @@ class BmiEventSource:
         self._var = value_var
         self._unit = unit if unit is not None else bmi.get_var_units(value_var)
         self._threshold = float(event_threshold)
+        # Opportunistic identity read (inc 3, review P0-3): BMI's own identity
+        # verb feeds the reproducibility manifest when present. Not required —
+        # minimal/toy/FMU shims without it stay valid.
+        name_fn = getattr(bmi, "get_component_name", None)
+        self._component_name = name_fn() if callable(name_fn) else None
 
     def draw_events(self, period: int) -> List[Event]:
         self._bmi.update()  # advance the hosted model one step (BMI verb)
@@ -98,6 +103,17 @@ class BmiEventSource:
 
     def units(self) -> str:
         return self._unit
+
+    def get_provenance(self) -> dict:
+        """World-side identity for the reproducibility manifest (review P0-3)."""
+        return {
+            "source_class": type(self).__name__,
+            "component_class": type(self._bmi).__name__,
+            "component_name": self._component_name,
+            "value_var": self._var,
+            "unit": self._unit,
+            "event_threshold": self._threshold,
+        }
 
 
 __all__ = ["BmiComponent", "BmiEventSource"]

@@ -405,6 +405,25 @@ class ExperimentRunner:
         metadata["timestamp"] = datetime.now().isoformat()
         metadata["python_version"] = sys.version.split()[0]
 
+        # 5.5. Coupled-world provenance (Phase 6V inc 3, review P0-3). Duck-typed
+        #     on purpose: NO broker.coupling import here (flag-OFF runs must never
+        #     load that module), and frozen-path raw engines simply lack the
+        #     method -> key absent -> manifest unchanged. A coupled run's manifest
+        #     must pin the hosted model + contract identity, not just the LLM.
+        #     Only a dict result counts as provenance — a Mock/garbage return
+        #     (e.g. MagicMock engines in tests) is ignored, never serialized.
+        coupling_prov = None
+        try:
+            prov_fn = getattr(self.sim_engine, "get_provenance", None)
+            if callable(prov_fn):
+                candidate = prov_fn()
+                if isinstance(candidate, dict):
+                    coupling_prov = candidate
+        except Exception as exc:
+            logger.debug(f"[Integrity] coupling provenance skipped: {exc}")
+        if coupling_prov is not None:
+            metadata["coupling_provenance"] = coupling_prov
+
         # 6. Run-integrity provenance contract (Invariant 6): record the RUNTIME memory
         #    engine actually instantiated. config_snapshot.yaml records the CONFIG;
         #    self.memory_engine is the runtime truth, and __init__ silently falls back to
@@ -416,6 +435,17 @@ class ExperimentRunner:
             refl_kwargs = {}
             if hasattr(self, "reflection_engine"):
                 refl_kwargs["reflection_engine"] = self.reflection_engine
+            # Coupled runs (sim_engine is an EnvironmentCouplingAdapter) get the
+            # runtime fact recorded via the existing ``extra`` extension point —
+            # config_snapshot captures the YAML flag layer, but "the engine WAS
+            # the adapter" is runtime truth (the Invariant-6 divergence class).
+            # Keyed on the VALIDATED provenance from 5.5 (not bare hasattr) so
+            # frozen-path / mock engines leave run_integrity.json unchanged.
+            if coupling_prov is not None:
+                refl_kwargs["extra"] = {
+                    "coupling_adapter": True,
+                    "sim_engine_class": type(self.sim_engine).__name__,
+                }
             metadata["run_integrity"] = record_run_integrity(
                 self.config.output_dir,
                 memory_engine=self.memory_engine,

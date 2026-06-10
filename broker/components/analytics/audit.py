@@ -365,6 +365,24 @@ def trace_to_csv_row(t: Dict[str, Any]) -> Dict[str, Any]:
             row[f"condition_{i}_rule"] = ""
             row[f"condition_{i}_matched"] = ""
 
+    # 11. World-side commit (Phase 6V coupling, inc 3 / review P1-9).
+    # KEY-GATED: only traces from a coupled run carry
+    # execution_result.action_context.world_delta (set by
+    # EnvironmentCouplingAdapter.execute_skill), and CSV fieldnames are
+    # derived from row keys — so frozen-domain traces gain NO new columns
+    # and frozen CSVs stay byte-identical. With the keys present, world
+    # commits reach the compare_audit_csv verification plane (and crash-
+    # recovered CSVs, which share this function) instead of JSONL-only.
+    exec_result = t.get("execution_result") or {}
+    action_ctx = exec_result.get("action_context") or {}
+    world_delta = action_ctx.get("world_delta")
+    if isinstance(world_delta, dict):
+        for wkey, wval in (world_delta.get("world_changes") or {}).items():
+            row[f"world_{wkey}"] = wval
+        row["world_contention_rule"] = world_delta.get(
+            "contention_rule", action_ctx.get("contention_rule", "")
+        )
+
     return {k: _sanitize_text(v) for k, v in row.items()}
 
 
