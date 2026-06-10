@@ -39,7 +39,6 @@ from broker.agents.base import Skill  # noqa: E402
 from broker.components.memory.engine import WindowMemoryEngine  # noqa: E402
 from broker.coupling import (  # noqa: E402
     CouplingContract,
-    EnvironmentCouplingAdapter,
     VarSpec,
     resolve_coupling_enabled,
 )
@@ -108,16 +107,17 @@ def main(argv=None) -> int:
                        deductible=5_000.0, limit=200_000.0,
                        policy_in_force=not args.lapsed_policy)
 
-    # --- two-layer coupling flag ---
+    # --- two-layer coupling flag (gating contract: cat REQUIRES coupling) ---
+    # The adapter wrap itself moved into the builder (.with_coupling below,
+    # Wave 3 item 3-1) — this pre-check only keeps run_cat's loud-failure
+    # contract when someone turns the flag off.
     with open(CONFIG / "agent_types.yaml", encoding="utf-8") as fh:
         yaml_cfg = yaml.safe_load(fh)
     pack = DomainPackRegistry.get("cat_model")
     enabled, source = resolve_coupling_enabled(yaml_cfg, pack)
-    if enabled:
-        sim = EnvironmentCouplingAdapter(real_engine=None, contract=_build_contract(), sources=bundle)
-        print(f"[coupling] adapter injected (enable=True, source={source})")
-    else:  # pragma: no cover - cat config always enables; here for the gating contract
+    if not enabled:  # pragma: no cover - cat config always enables
         raise SystemExit("cat_model requires global_config.coupling.enable: true")
+    print(f"[coupling] enable=True (source={source}); adapter injected by the builder")
 
     # --- diagnostic hooks (wired via the builder so __init__ validates signatures) ---
     def on_pre_year(year, env, _agents):
@@ -138,7 +138,9 @@ def main(argv=None) -> int:
         .with_model(args.model)
         .with_years(args.years)
         .with_agents(agents)
-        .with_simulation(sim)
+        # Builder-level coupling (Wave 3): resolves the two-layer flag at
+        # build() and wraps the (absent -> None) sim engine in the adapter.
+        .with_coupling(_build_contract(), bundle, domain="cat_model")
         .with_skill_registry(str(CONFIG / "skill_registry.yaml"))
         .with_memory_engine(WindowMemoryEngine(window_size=3))
         .with_governance("strict", str(CONFIG / "agent_types.yaml"))

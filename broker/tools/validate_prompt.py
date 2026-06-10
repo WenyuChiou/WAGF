@@ -259,13 +259,25 @@ def check_global_config_keys(cfg: Dict[str, Any]) -> List[Issue]:
     _check_block("social_feeds", KNOWN_SOCIAL_FEEDS_KEYS)
     _check_block("coupling", KNOWN_COUPLING_KEYS)
 
-    if gov.get("dispatch_domain_physical") and not gov.get("domain"):
+    dispatch = gov.get("dispatch_domain_physical")
+    if isinstance(dispatch, dict):
+        # Mapping form ({agent_type: domain}, Wave 3 P1-2): self-contained —
+        # governance.domain not required. Empty domain values are config bugs.
+        for atype, dom in dispatch.items():
+            if not (isinstance(dom, str) and dom.strip()):
+                issues.append(Issue(
+                    "ERROR", f"{loc}.governance",
+                    f"dispatch_domain_physical mapping entry {atype!r} has an "
+                    f"empty/non-string domain ({dom!r}) — the accessor raises on this.",
+                ))
+    elif dispatch and not gov.get("domain"):
         issues.append(Issue(
             "ERROR", f"{loc}.governance",
             "dispatch_domain_physical is set but 'domain' is absent — the "
-            "dispatch accessor returns None and the explicitly-requested "
-            "PHYSICAL dispatch silently never fires. Add "
-            "'domain: <your_domain>' next to the flag.",
+            "dispatch accessor raises on this (an explicitly-requested "
+            "PHYSICAL dispatch must never silently no-op). Add "
+            "'domain: <your_domain>' next to the flag, or use the "
+            "{agent_type: domain} mapping form.",
         ))
     return issues
 

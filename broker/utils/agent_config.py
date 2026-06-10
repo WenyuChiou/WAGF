@@ -187,30 +187,65 @@ class AgentTypeConfig:
         global_gov = self._config.get("global_config", {}).get("governance", {})
         return global_gov.get("max_reports_per_retry", self._config.get("shared", {}).get("governance", {}).get("max_reports_per_retry", default))
 
-    def get_governance_physical_dispatch(self) -> Optional[str]:
-        """Domain whose registry-PHYSICAL checks the engine should dispatch in the
-        simple ExperimentBuilder path, or None.
+    def get_governance_physical_dispatch(self) -> Optional[Any]:
+        """Registry-PHYSICAL dispatch selector for the simple ExperimentBuilder
+        path: a domain string, an ``{agent_type: domain}`` mapping, or None.
 
-        OPT-IN: returns a domain ONLY when ``global_config.governance.dispatch_domain_physical``
-        is truthy AND ``global_config.governance.domain`` is declared. Default-OFF, so frozen
-        domains (flood / irrigation / vaccination / MA-flood / SA-flood) — which run their
-        physical checks via ``custom_validators`` or intentionally leave them dormant — see no
+        OPT-IN, default-OFF: frozen domains (flood / irrigation / vaccination /
+        MA-flood / SA-flood) — which run their physical checks via
+        ``custom_validators`` or intentionally leave them dormant — see no
         change in behavior or audit output.
 
-        Deliberately does NOT read the ``GOVERNANCE_DOMAIN`` env var: dispatch is config-declared
-        only, so a stray env var cannot silently activate physical enforcement.
+        Two declared forms (Wave 3, review P1-2):
 
-        Single-domain selector: dispatches ONE domain's physical checks to ALL agent types in the
-        run. Multi-agent runs needing per-agent-type domain routing use the ``custom_validators``
-        bridge pattern (as the MA flood runner does); this flag is for single-domain runs.
+        * STRING form (single-domain runs)::
 
-        Raises ValueError when the flag is truthy but ``domain`` is absent/blank:
-        an explicitly-requested dispatch must never silently no-op (2026-06-09
-        architecture review P1-11; previously returned None with no signal).
+              governance:
+                domain: cat_model
+                dispatch_domain_physical: true
+
+          Returns ``"cat_model"`` — ONE domain's checks for ALL agent types.
+          Raises ValueError when the flag is truthy but ``domain`` is
+          absent/blank (an explicitly-requested dispatch must never silently
+          no-op; review P1-11).
+
+        * MAPPING form (mixed-domain experiments)::
+
+              governance:
+                dispatch_domain_physical:
+                  household: flood
+                  operator: reservoir
+
+          Returns the (lowercased) mapping — each proposal routes to its own
+          agent type's domain in ``_run_validators``; agent types absent from
+          the mapping get no registry dispatch. ``governance.domain`` is not
+          required in this form. Empty/blank mapping values raise.
+
+        Deliberately does NOT read the ``GOVERNANCE_DOMAIN`` env var: dispatch
+        is config-declared only, so a stray env var cannot silently activate
+        physical enforcement.
         """
         gov = self._config.get("global_config", {}).get("governance", {})
-        if not gov.get("dispatch_domain_physical", False):
+        flag = gov.get("dispatch_domain_physical", False)
+        if not flag:
             return None
+        if isinstance(flag, dict):
+            mapping = {}
+            for atype, dom in flag.items():
+                dom_s = str(dom).strip().lower() if dom else ""
+                if not dom_s:
+                    raise ValueError(
+                        "global_config.governance.dispatch_domain_physical mapping "
+                        f"has an empty domain for agent_type {atype!r} — every "
+                        "entry must name a registered domain."
+                    )
+                mapping[str(atype).strip()] = dom_s
+            if not mapping:
+                raise ValueError(
+                    "global_config.governance.dispatch_domain_physical is an empty "
+                    "mapping — declare {agent_type: domain} entries or remove it."
+                )
+            return mapping
         domain = gov.get("domain")
         resolved = (str(domain).strip().lower() or None) if domain else None
         if resolved is None:
@@ -218,7 +253,8 @@ class AgentTypeConfig:
                 "global_config.governance.dispatch_domain_physical is set but "
                 "'domain' is absent/blank — the explicitly-requested PHYSICAL "
                 "dispatch would silently never fire. Add 'domain: <your_domain>' "
-                "next to the flag (see examples/cat_model/config/agent_types.yaml)."
+                "next to the flag (see examples/cat_model/config/agent_types.yaml), "
+                "or use the {agent_type: domain} mapping form."
             )
         return resolved
 
