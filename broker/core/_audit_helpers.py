@@ -155,6 +155,8 @@ class AuditMixin:
         execution_result, outcome: SkillOutcome, retry_count: int,
         format_retry_count: int, total_llm_stats: Dict,
         all_validation_history: List,
+        executed_skill: Optional[str] = None,
+        executed_via_fallback: bool = False,
     ) -> None:
         """Write full audit trace to audit_writer."""
         # Robust agent_type extraction (Tiered or Flat)
@@ -192,6 +194,19 @@ class AuditMixin:
             "memories": normalized_memories,
             "retrieval_mode": "humancentric" if memory_pre else "",
         }
+
+        # F3 (2026-06-10 audit review): EXECUTED-stage truth, OPT-IN via
+        # global_config.audit.executed_skill_columns (default OFF). Key-gated
+        # by construction: when OFF the keys never enter the trace, so neither
+        # the JSONL nor the row-key-derived CSV fieldnames change — frozen
+        # v21 / paper-3 mock reruns stay byte-identical.
+        executed_extra: Dict[str, Any] = {}
+        get_flag = getattr(self.config, "get_audit_executed_columns", None)
+        if callable(get_flag) and get_flag():
+            executed_extra = {
+                "executed_skill": executed_skill,
+                "executed_via_fallback": bool(executed_via_fallback),
+            }
 
         self.audit_writer.write_trace(agent_type_final, {
             "run_id": run_id,
@@ -245,6 +260,11 @@ class AuditMixin:
             "retry_count": retry_count,
             "format_retries": format_retry_count,
             "llm_stats": total_llm_stats,
+            # Spread LAST (review W3): in a dict literal the last entry wins,
+            # so the gated executed-truth keys take precedence — a future
+            # accidental named "executed_skill" key above cannot silently
+            # shadow them (spread-first would lose that collision).
+            **executed_extra,
         }, all_validation_history)
 
     # ------------------------------------------------------------------

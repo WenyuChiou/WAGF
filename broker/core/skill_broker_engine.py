@@ -391,8 +391,17 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
                         secondary_proposal = None
 
         # ⑤ Execution (simulation engine ONLY — skip if REJECTED)
+        # F3 (2026-06-10): track what ACTUALLY executed, separately from the
+        # approved/blocked proposal — on REJECTED the registry default skill
+        # runs as fallback while final_skill records the blocked proposal.
+        # Surfaced in the audit trace only when the opt-in flag is ON (see
+        # AgentTypeConfig.get_audit_executed_columns; default-OFF keeps
+        # frozen-baseline CSVs byte-identical).
+        executed_skill: Optional[str] = None
+        executed_via_fallback = False
         if self.simulation_engine and outcome not in (SkillOutcome.REJECTED, SkillOutcome.UNCERTAIN):
             execution_result = self.simulation_engine.execute_skill(approved_skill)
+            executed_skill = approved_skill.skill_name
             # ⑤b Sequential secondary execution
             if secondary_approved and execution_result.success:
                 secondary_execution = self.simulation_engine.execute_skill(secondary_approved)
@@ -412,6 +421,8 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
                         approval_status="REJECTED_FALLBACK",
                     )
                     execution_result = self.simulation_engine.execute_skill(fallback)
+                    executed_skill = fallback_skill
+                    executed_via_fallback = True
                 else:
                     logger.warning(f"Default skill '{fallback_skill}' not in registry for {approved_skill.agent_id}")
                     execution_result = ExecutionResult(success=False, state_changes={})
@@ -423,6 +434,7 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
                 success=True,
                 state_changes={}
             )
+            executed_skill = approved_skill.skill_name if approved_skill else None
 
         # Capture memory state after execution (before experiment-layer updates)
         memory_post = self._get_memory_snapshot(agent_id)
@@ -441,6 +453,8 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
                 format_retry_count=format_retry_count,
                 total_llm_stats=total_llm_stats,
                 all_validation_history=all_validation_history,
+                executed_skill=executed_skill,
+                executed_via_fallback=executed_via_fallback,
             )
 
         return SkillBrokerResult(
