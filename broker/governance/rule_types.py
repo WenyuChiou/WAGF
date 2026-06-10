@@ -10,9 +10,13 @@ This module defines the fundamental types for the governance rule system:
 Domain-agnostic: all domain-specific behavior (construct names, skill IDs,
 state fields) is injected via YAML configuration.
 """
+import logging
 from dataclasses import dataclass, field
-from typing import Dict, List, Any, Optional, Literal
 from enum import Enum
+from typing import Dict, List, Any, Optional, Literal
+
+
+logger = logging.getLogger(__name__)
 
 
 class RuleCategory(str, Enum):
@@ -248,6 +252,15 @@ class GovernanceRule:
         conditions = []
         if "conditions" in data:
             conditions = [RuleCondition.from_dict(c) for c in data["conditions"]]
+        level = data.get("level", "ERROR")
+        if str(level).strip() not in ("ERROR", "WARNING"):
+            logger.warning(
+                "Rule %r has unknown enforcement level %r; treated as "
+                "non-blocking/WARNING by the exact-string comparisons; "
+                "write ERROR or WARNING, uppercase.",
+                data.get("id", "unknown"),
+                level,
+            )
 
         return cls(
             id=data.get("id", "unknown"),
@@ -255,7 +268,7 @@ class GovernanceRule:
             subcategory=data.get("subcategory", ""),
             conditions=conditions,
             blocked_skills=data.get("blocked_skills", []),
-            level=data.get("level", "ERROR"),
+            level=level,
             message=data.get("message", ""),
             construct=data.get("construct"),
             when_above=data.get("when_above"),
