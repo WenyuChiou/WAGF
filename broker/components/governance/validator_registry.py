@@ -21,7 +21,16 @@ from typing import Dict, List
 logger = logging.getLogger(__name__)
 
 # Slot taxonomy — one bucket per validator class that accepts builtin checks.
-VALID_SLOTS = ("physical", "personal", "social", "semantic", "temporal", "behavioural", "thinking")
+# Wave 4 slot-honesty pass (2026-06-10, architecture review): "temporal" and
+# "behavioural" DELETED — in their entire lifetime no production code ever
+# registered a check under either slot and no dispatch site ever read them
+# (grep-verified; the strings appearing in flood/irrigation validators are
+# metadata category labels, not registry slots). A slot in this tuple is a
+# PROMISE that the engine can dispatch it; promises nobody has ever consumed
+# get deleted, not maintained. Re-add WITH a dispatch site when a real domain
+# needs one (broker/tests/test_declaration_consumption.py enforces that every
+# slot here has at least one get_checks dispatch literal in production code).
+VALID_SLOTS = ("physical", "personal", "social", "semantic", "thinking")
 VALID_MODES = ("active", "shadow")
 
 

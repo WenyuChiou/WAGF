@@ -314,8 +314,8 @@ def gen_validators_init(domain: str) -> str:
     return dedent(f"""
         \"\"\"{domain} validator registrations.
 
-        Phase 6C-v4 reminder: only ('physical', 'personal', 'social', 'semantic',
-        'temporal', 'behavioural') slots accept Python checks. Thinking-level
+        Phase 6C-v4 reminder: only ('physical', 'personal', 'social',
+        'semantic') slots accept Python checks. Thinking-level
         rules must go via the YAML ``thinking_rules:`` block in
         ``config/agent_types.yaml`` (consumed by ThinkingValidator), not here.
 
@@ -341,7 +341,7 @@ def gen_validators(domain: str) -> str:
 
         Each check has signature ``(skill_name, rules, context) -> List[ValidationResult]``.
         Return ``[]`` to PASS; return ``[ValidationResult(valid=False, ...)]`` to REJECT.
-        Only the physical / personal / social / semantic / temporal / behavioural
+        Only the physical / personal / social / semantic
         slots accept Python checks; thinking-level coherence rules go in
         ``config/agent_types.yaml`` under the ``thinking_rules:`` key (consumed by
         ThinkingValidator), NOT here. Reference: examples/vaccination_demo/validators/.

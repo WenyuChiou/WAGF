@@ -248,7 +248,7 @@ class GovernancePack(Protocol):
     """
     def psychological_framework(self) -> str: ...
     def framework_for_agent_type(self, agent_type: Optional[str]) -> str: ...
-    def builtin_checks(self) -> Dict[str, List[BuiltinCheck]]: ...
+    def builtin_checks(self) -> Dict[str, List[BuiltinCheck]]: ...  # DEPRECATED 2026-06-10 — see DomainPack.builtin_checks docstring; use ValidatorRegistry
     def retrieval_policy(self) -> Dict[str, Any]: ...
     def drift_policy(self) -> Dict[str, Any]: ...
     def population_governance_policy(self) -> Dict[str, Any]: ...
@@ -563,15 +563,23 @@ class DomainPack(
     # ─── Validators (already partially handled by ValidatorRegistry) ─
 
     def builtin_checks(self) -> Dict[str, List[BuiltinCheck]]:
-        """Mapping of validator slot → list of builtin check functions.
+        """DEPRECATED (Wave 4, 2026-06-10) — register checks via
+        ``ValidatorRegistry.register(domain, slot, checks)`` instead.
+
+        This hook was a THIRD wiring vocabulary for the same concept and has
+        had zero consumers for its entire lifetime: every in-tree domain
+        (flood / irrigation / vaccination / cat_model) registers through
+        ValidatorRegistry, the engine dispatches PHYSICAL checks from the
+        registry (``dispatch_domain_physical``), and no production code ever
+        calls ``pack.builtin_checks()``. Kept (not deleted) only because
+        removing a Protocol member is a breaking change for out-of-tree
+        packs; it is allowlisted as dormant in
+        ``broker/tests/test_declaration_consumption.py`` and will be removed
+        in the next major protocol revision. Do NOT wire new code to it.
 
         Slots: ``"physical"``, ``"personal"``, ``"social"``,
         ``"semantic"`` (``"thinking"`` uses ``extreme_actions()``
         instead).
-
-        Default empty → falls back to ``ValidatorRegistry.get_checks(...)``
-        registrations made by example packages directly (Phase 6B-1
-        path remains valid).
         """
         ...
 

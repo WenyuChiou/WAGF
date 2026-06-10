@@ -112,7 +112,7 @@ all return `True` (Python `@runtime_checkable` structural check).
 
 File: `validators/<domain>_validators.py`.
 
-Replace the placeholder check with 2-3 real physical, personal, social, semantic, temporal, or behavioural checks. Do not register thinking checks in Python; thinking-level coherence belongs in YAML `thinking_rules:` (NOT `rules:` — the broker's `get_thinking_rules()` at `broker/utils/agent_config.py:859` recognises only `thinking_rules` or `coherence_rules`).
+Replace the placeholder check with 2-3 real physical, personal, social, or semantic checks. Do not register thinking checks in Python; thinking-level coherence belongs in YAML `thinking_rules:` (NOT `rules:` — the broker's `get_thinking_rules()` at `broker/utils/agent_config.py:859` recognises only `thinking_rules` or `coherence_rules`).
 
 Registered checks are dispatched only when `global_config.governance.domain` and `global_config.governance.dispatch_domain_physical: true` are both set in `agent_types.yaml`; without the flag, registration silently never fires.
 
@@ -153,7 +153,7 @@ Expected clean output:
 OK: config/agent_types.yaml - 1 agent type(s) clean
 ```
 
-Common pitfall: registering slot `thinking` in Python. The valid Python slots are `physical`, `personal`, `social`, `semantic`, `temporal`, and `behavioural` only; Phase 6C-v4 Finding 1 came from putting thinking checks in the registry.
+Common pitfall: registering slot `thinking` in Python. The valid Python slots are `physical`, `personal`, `social`, and `semantic` only (`temporal`/`behavioural` were deleted 2026-06-10 — no production code ever registered or dispatched them); Phase 6C-v4 Finding 1 came from putting thinking checks in the registry.
 
 ## Edit 4 - YAML Thinking Rules
 
