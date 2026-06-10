@@ -60,6 +60,50 @@ individually-valid commits jointly overdraw; project the settlement summary
 into NEXT period's env. If your research question needs within-period
 feedback, that is a different framework regime, not a missing WAGF feature.
 
+## Continuous control (archetype A extension — PROVEN)
+
+When the decision is a NUMERIC setpoint rather than a discrete skill choice,
+use `ContinuousBundle` (`broker/coupling/continuous.py`): the hosted
+BMI-conformant solver advances `substeps_per_decision` (K) sub-steps per
+decision period, per-variable sub-step series roll up by each observation
+VarSpec's `observation_reduce` (mean/min/max/sum/last), and the approved
+skill's setpoint writes into the solver through a `ControlSink`
+(`BmiControlSink` adapts `set_value` automatically). Worked example:
+`examples/reservoir_control/` — annual decision × 12 monthly sub-steps,
+`magnitude_pct` (0-100% of demand) mapped to a named solver input in a small
+bundle subclass, governed by a dead-pool projection wall BEFORE the commit.
+
+Three contracts the example pins (copy them, don't rediscover):
+
+1. **Decision timing is part of the physics.** Hindcast-then-set cadence
+   (solver runs the year, THEN the agent sets next year's control) means the
+   projection wall must consume the COMING period's forecast
+   (`forecast_for(year + 1)`) — feeding the just-consumed period's value
+   makes the wall fire for the wrong physical reason and the demo lies.
+2. **Derived setpoints re-check the contract range in the bundle.** The
+   adapter's generic PRE check sees the proposal's raw parameter names
+   (`magnitude_pct`); a bundle that DERIVES the solver input
+   (`release_target`) must re-validate the derived value against the same
+   VarSpec range before calling the sink.
+3. **The model-agnostic slot is real**: the example's test suite swaps in a
+   second solver with a different evaporation law under the SAME contract and
+   bundle, unchanged. Any BMI-conformant model (update / get_value /
+   set_value / get_var_units / get_current_time) drops into the slot;
+   non-BMI models implement the 4-verb surface in a ~30-line wrapper.
+
+Real-LLM validated (gemma4:e4b, 4-yr run, exit-clean, 4/4 APPROVED): the
+model self-curtailed (20-40% of demand in drought years) so the dead-pool
+wall never needed to fire — walls are backstops, not steering. What the
+real run DID exercise: two early-year magnitude parse failures were caught
+by the output-schema check plus the validator's honest missing-key result
+(`missing_world_state`), governed re-prompts recovered both, and no
+silent fallback occurred. The deterministic wall→retry→APPROVED narrative
+is pinned by the scripted-mock path and its test suite instead. One more
+real-LLM lesson baked into both coupled examples: the hub-less builder
+path does not populate `{options_text}`, so inject the action menu via
+`dynamic_state` and give the `decision` field an explicit `description`
+(the format builder's default claims "1, 2, or 3" regardless of menu size).
+
 ## Two models at once
 One bundle per adapter, one `event_src` slot — compose INSIDE one bundle:
 `run_pipeline` pumps both models and merges their env projections; contract

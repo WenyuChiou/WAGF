@@ -149,10 +149,38 @@ def _install_scripted_mock(runner) -> None:
     runner._llm_cache["government_ma"] = _government_mock
 
 
+# {options_text} menus per agent type, injected via dynamic_state (real-LLM
+# e4b finding 2026-06-10, shared with examples/reservoir_control): the
+# hub-less BaseAgentContextBuilder path does not populate options_text, so
+# the placeholder rendered "[N/A]" and the format example's hardcoded
+# default claimed "choose ONE from: 1, 2, or 3" regardless of the actual
+# menu size (this run survived because the static parsing.skill_map still
+# resolved the numbers). Numbering MUST stay in lockstep with
+# parsing.skill_map in ma_cat_agent_types.yaml.
+OPTIONS_TEXT_BY_TYPE = {
+    "policyholder": (
+        "1. file_claim — file a legitimate covered claim into the settlement queue\n"
+        "2. absorb_loss — do not file; absorb this period's loss\n"
+        "3. lapse_policy — let the policy lapse for future periods"
+    ),
+    "insurer_ma": (
+        "1. settle_prorata — use the audited pro-rata settlement rule if the pool is short\n"
+        "2. settle_full — pay all queued legitimate claims in full"
+    ),
+    "government_ma": (
+        "1. no_action — do not fund relief this period\n"
+        "2. fund_shortfall_relief — use available public budget to reduce settlement shortfalls"
+    ),
+}
+
+
 def _sync_prompt_env(agent: BaseAgent, env: Dict) -> None:
     for key in PROMPT_ENV_KEYS:
         if key in env:
             agent.dynamic_state[key] = env[key]
+    menu = OPTIONS_TEXT_BY_TYPE.get(getattr(agent, "agent_type", ""))
+    if menu:
+        agent.dynamic_state["options_text"] = menu
 
 
 def _build_contract() -> CouplingContract:

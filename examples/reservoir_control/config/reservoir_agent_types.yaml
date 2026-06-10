@@ -24,8 +24,13 @@ shared:
     delimiter_start: "<<<DECISION_START>>>"
     delimiter_end: "<<<DECISION_END>>>"
     fields:
-      - { key: "magnitude", type: "numeric", min: 0, max: 100, unit: "%", required: true }
-      - { key: "decision", type: "choice", required: true }
+      - { key: "magnitude", type: "numeric", min: 0, max: 100, unit: "%", required: true,
+          description: "REQUIRED number 0-100: monthly release as % of demand (digits only, e.g. 60)" }
+      # Explicit description overrides the format builder's hardcoded
+      # "1, 2, or 3" default (this menu has TWO actions; real-LLM e4b
+      # finding 2026-06-10).
+      - { key: "decision", type: "choice", required: true,
+          description: "Numeric ID, choose ONE from: 1 (set_release) or 2 (maintain_release)" }
       - { key: "reasoning", type: "text", required: false }
 
 global_config:
@@ -74,8 +79,10 @@ operator:
     delimiter_start: "<<<DECISION_START>>>"
     delimiter_end: "<<<DECISION_END>>>"
     fields:
-      - { key: "magnitude", type: "numeric", min: 0, max: 100, unit: "%", required: true }
-      - { key: "decision", type: "choice", required: true }
+      - { key: "magnitude", type: "numeric", min: 0, max: 100, unit: "%", required: true,
+          description: "REQUIRED number 0-100: monthly release as % of demand (digits only, e.g. 60)" }
+      - { key: "decision", type: "choice", required: true,
+          description: "Numeric ID, choose ONE from: 1 (set_release) or 2 (maintain_release)" }
       - { key: "reasoning", type: "text", required: false }
   actions:
     - id: set_release
