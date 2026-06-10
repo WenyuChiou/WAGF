@@ -696,6 +696,46 @@ class FloodSetupMixin:
         )
         return {"social_media_influencer": InfluencerLifecycleHandler()}
 
+    def multi_agent_env_keys(self):
+        """Wave 3 / 3-9a (2026-06-10): the flood pack documents its multi-agent
+        env-dict keys for the first time — exactly the declaration the Phase
+        6T-C protocol docstring promised. The set is the COMPLETE inventory of
+        keys the bespoke ``examples/multi_agent/flood/orchestration/
+        lifecycle_hooks.py`` writes into ``self.env`` (regex-extracted, then
+        locked: ``broker/tests/test_ma_env_keys_declaration.py`` re-scans the
+        lifecycle file on every run and asserts equality, so adding an env key
+        to the lifecycle file without declaring it here — or letting this
+        declaration go stale — fails CI). Declaration-only: the bespoke
+        lifecycle file keeps owning the write semantics; this hook is the
+        machine-checked ownership manifest future multi-agent domains consult
+        to avoid trampling flood-owned keys.
+        """
+        return {
+            "_mitigation_score_history", "_prev_mitigation_score",
+            "adaptation_progress_label", "annual_subsidy_cost",
+            "avg_flood_depth_m", "base_premium_rate", "budget_health_label",
+            "community_mitigation_score", "crisis_boosters", "crisis_event",
+            "crs_class", "crs_consecutive_maintains", "crs_discount",
+            "crs_headroom_label", "crs_last_decision", "decision_distribution",
+            "decision_entropy", "effective_rate", "elevated_count",
+            "elevated_pct", "elevation_spending_this_year", "equity_gap_label",
+            "flood_affected_pct", "flood_depth_ft", "flood_depth_m",
+            "flood_occurred", "flood_severity", "flood_this_year_text",
+            "flood_urgency_label", "flood_years_count",
+            "flooded_household_count", "govt_budget_pct",
+            "govt_budget_remaining", "govt_consecutive_increases",
+            "govt_last_decision", "govt_message", "insurance_message",
+            "insured_count", "loss_ratio", "loss_ratio_category",
+            "loss_ratio_display", "mg_elevated_count", "mg_elevated_pct",
+            "mg_insured_count", "mitigation_label", "mitigation_trend",
+            "nmg_elevated_count", "nmg_elevated_pct", "nmg_insured_count",
+            "policy_momentum_label", "premium_escalation_pct", "premium_rate",
+            "program_health_label", "subsidy_level_label", "subsidy_rate",
+            "total_claims", "total_households", "total_premiums", "year",
+            "years_remaining", "years_since_last_flood",
+            "years_since_severe_flood", "years_to_depletion",
+        }
+
     def mg_barrier_text(self, profile: Dict[str, Any]) -> str:
         """Reproduces the Passaic-specific text in ``providers.py:706-712``.
 
