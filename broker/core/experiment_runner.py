@@ -73,6 +73,13 @@ class ExperimentConfig:
     verbose: bool = False
     workers: int = 1  # Number of parallel workers for LLM calls (1=sequential)
     phase_order: Optional[List[List[str]]] = None  # Agent type groups for phased execution
+    # 2026-06-10 review F4: CognitiveCache decision reuse is OPT-IN (default OFF).
+    # When previously always-on, cache hits emitted NO audit row (denominator
+    # shrink, the F1 class), dropped magnitude_pct, and replayed state changes
+    # without execute_skill (a coupled world never saw the action). v21 row
+    # counts (3276/3276) prove zero hits ever fired in frozen runs, so the
+    # OFF default is byte-identical for them.
+    enable_cognitive_cache: bool = False
 
 class ExperimentRunner:
     """Engine that runs the simulation loop."""
@@ -97,9 +104,14 @@ class ExperimentRunner:
         # Cache for llm_invoke functions per agent type
         self._llm_cache = {}
 
-        # [Efficiency Hub] Cognitive Caching for decision reuse
-        persistence_path = config.output_dir / "cognitive_cache.json"
-        self.efficiency = CognitiveCache(persistence_path=persistence_path)
+        # [Efficiency Hub] Cognitive Caching for decision reuse — opt-in (F4).
+        # None = disabled: the agent loops skip the early context build + hash
+        # entirely (also removing the double context build on the default path).
+        if config.enable_cognitive_cache:
+            persistence_path = config.output_dir / "cognitive_cache.json"
+            self.efficiency = CognitiveCache(persistence_path=persistence_path)
+        else:
+            self.efficiency = None
 
     @property
     def hooks(self) -> Dict[str, Callable]:
@@ -608,13 +620,16 @@ class ExperimentRunner:
             try:
                 self.step_counter += 1
 
-                # [Efficiency Hub] Cognitive Cache Check
-                ctx_builder = self.broker.context_builder
-                # Build context early to compute hash
-                context = ctx_builder.build(agent.id, env_context=env)
-                context_hash = self.efficiency.compute_hash(context)
-
-                cached_data = self.efficiency.get(context_hash)
+                # [Efficiency Hub] Cognitive Cache Check (opt-in, F4: skipped
+                # entirely — including the early context build — when disabled)
+                context_hash = None
+                cached_data = None
+                if self.efficiency is not None:
+                    ctx_builder = self.broker.context_builder
+                    # Build context early to compute hash
+                    context = ctx_builder.build(agent.id, env_context=env)
+                    context_hash = self.efficiency.compute_hash(context)
+                    cached_data = self.efficiency.get(context_hash)
                 if cached_data:
                     logger.info(f"[Efficiency] Cache HIT for {agent.id} (Hash={context_hash[:8]}). Bypassing LLM.")
                     # Reconstruct result from cache
@@ -681,8 +696,8 @@ class ExperimentRunner:
                     env_context=env
                 )
 
-                # Store validated result in cache
-                if result.outcome in [SkillOutcome.APPROVED, SkillOutcome.RETRY_SUCCESS]:
+                # Store validated result in cache (opt-in, F4)
+                if self.efficiency is not None and result.outcome in [SkillOutcome.APPROVED, SkillOutcome.RETRY_SUCCESS]:
                     # We store the raw_output or structured decision
                     self.efficiency.put(context_hash, result.to_dict())
 
@@ -783,12 +798,15 @@ class ExperimentRunner:
         results = []
 
         def process_agent(agent, step_id):
-            # [Efficiency Hub] Cognitive Cache Check
-            ctx_builder = self.broker.context_builder
-            context = ctx_builder.build(agent.id, env_context=env)
-            context_hash = self.efficiency.compute_hash(context)
-
-            cached_data = self.efficiency.get(context_hash)
+            # [Efficiency Hub] Cognitive Cache Check (opt-in, F4: skipped
+            # entirely — including the early context build — when disabled)
+            context_hash = None
+            cached_data = None
+            if self.efficiency is not None:
+                ctx_builder = self.broker.context_builder
+                context = ctx_builder.build(agent.id, env_context=env)
+                context_hash = self.efficiency.compute_hash(context)
+                cached_data = self.efficiency.get(context_hash)
             if cached_data:
                 logger.info(f"[Efficiency:Parallel] Cache HIT for {agent.id} (Hash={context_hash[:8]}). Bypassing LLM.")
 
@@ -850,7 +868,7 @@ class ExperimentRunner:
                 env_context=env
             )
 
-            if result.outcome in [SkillOutcome.APPROVED, SkillOutcome.RETRY_SUCCESS]:
+            if self.efficiency is not None and result.outcome in [SkillOutcome.APPROVED, SkillOutcome.RETRY_SUCCESS]:
                 self.efficiency.put(context_hash, result.to_dict())
 
             return agent, result

@@ -40,6 +40,7 @@ class ExperimentBuilder:
         self._phase_order = None  # Agent type groups for phased execution
         self._coupling = None  # Phase 6V: declared coupling intent (with_coupling)
         self.reflection_engine = None  # Wave 3 (3-5): runner reflection seat
+        self._enable_cognitive_cache = False  # F4: cache opt-in, default OFF
 
     def with_workers(self, workers: int = 4):
         """Set number of parallel workers for LLM calls. 1=sequential (default)."""
@@ -298,6 +299,18 @@ class ExperimentBuilder:
         self.skill_registry = registry
         return self
 
+    def with_cognitive_cache(self, enabled: bool = True):
+        """Opt into CognitiveCache decision reuse (F4, 2026-06-10 — default OFF).
+
+        KNOW THE TRADE-OFF before enabling: a cache hit bypasses the LLM and
+        the sim engine (validators DO re-run), so under coupling the world
+        never receives the replayed action, and (until the audit-row fix
+        lands) hits emit no audit CSV row. Deterministic mock verification
+        should keep this OFF.
+        """
+        self._enable_cognitive_cache = bool(enabled)
+        return self
+
     def with_reflection_engine(self, reflection_engine: Any):
         """Attach a ReflectionEngine to the runner (Wave 3 / 3-5).
 
@@ -543,6 +556,9 @@ class ExperimentBuilder:
             verbose=self.verbose,
             workers=self.workers,  # PR: Multiprocessing Core
             phase_order=getattr(self, '_phase_order', None),
+            # F4 (2026-06-10): cognitive cache opt-in; default OFF (audit-row +
+            # coupled-execution holes on hits; see ExperimentConfig docstring).
+            enable_cognitive_cache=getattr(self, '_enable_cognitive_cache', False),
         )
 
         runner = ExperimentRunner(

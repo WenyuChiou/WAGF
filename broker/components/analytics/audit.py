@@ -602,6 +602,20 @@ class GenericAuditWriter:
                         }
                         if metadata.get("hallucination_type"):
                             issue["hallucination_type"] = metadata["hallucination_type"]
+                        # 2026-06-10 review F2: carry the terminal-taxonomy subset of
+                        # ValidationResult.metadata into the issue entry — without it
+                        # the entire Phase 6O-A-2 machinery (classify_terminal rules
+                        # 6-7 read issue["metadata"]["expected_terminal"] /
+                        # ["feasible_actions"]) could never fire on real audit data.
+                        # JSONL-additive only; the CSV plane (failed_rules) reads just
+                        # the rid, so frozen CSVs are untouched.
+                        taxonomy_meta = {
+                            k: metadata[k]
+                            for k in ("expected_terminal", "constraint_type", "feasible_actions")
+                            if k in metadata
+                        }
+                        if taxonomy_meta:
+                            issue["metadata"] = taxonomy_meta
                         trace["validation_issues"].append(issue)
                         seen_issues.add(issue_key)
                 elif r.valid and hasattr(r, 'warnings') and r.warnings:
