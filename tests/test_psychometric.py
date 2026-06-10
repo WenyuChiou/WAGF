@@ -499,9 +499,19 @@ class TestFrameworkFactory:
             def get_expected_behavior(self, appraisals):
                 return []
 
-        register_framework("custom", CustomFramework)
-        framework = get_framework("custom")
-        assert framework.name == "Custom"
+        # Registry hygiene: the global _FRAMEWORKS dict is shared across the
+        # whole pytest run — leaving "custom" registered (it has no
+        # framework metadata) trips the Wave-3 invariant test
+        # broker/tests/test_register_behavioral_framework.py::
+        # test_psychometric_class_registry_never_lacks_metadata when the two
+        # files run in one session. Restore on exit.
+        from broker.core import psychometric as _psy
+        try:
+            register_framework("custom", CustomFramework)
+            framework = get_framework("custom")
+            assert framework.name == "Custom"
+        finally:
+            _psy._FRAMEWORKS.pop("custom", None)
 
     def test_register_framework_invalid_type(self):
         """Test that registering non-framework raises TypeError."""
