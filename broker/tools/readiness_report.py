@@ -278,13 +278,13 @@ def _compute_metrics(results_dir: Path) -> ReadinessMetrics:
 
 def _firing(stat: Any) -> bool:
     """Validator-health entry counts as "firing" if it logged at least one
-    hit (errors > 0 or warnings > 0).
+    hit (blocking fires > 0 or warnings > 0).
     """
     if not isinstance(stat, dict):
         return False
     return any(
         int(stat.get(key, 0) or 0) > 0
-        for key in ("error_count", "warn_count", "hit_count")
+        for key in ("fire_count", "warn_count")
     )
 
 

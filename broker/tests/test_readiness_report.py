@@ -213,9 +213,24 @@ def test_compute_metrics_missing_inputs_degrade(tmp_path):
 
 def test_validator_firing_diversity_and_dead_detection(tmp_path):
     health = {
-        "rule_a": {"error_count": 5, "warn_count": 0, "hit_count": 5},
-        "rule_b": {"error_count": 0, "warn_count": 0, "hit_count": 0},  # dead
-        "rule_c": {"warn_count": 3, "hit_count": 3},
+        "rule_a": {
+            "seen_count": 5,
+            "fire_count": 5,
+            "warn_count": 0,
+            "error_path_count": 0,
+        },
+        "rule_b": {
+            "seen_count": 0,
+            "fire_count": 0,
+            "warn_count": 0,
+            "error_path_count": 0,
+        },  # dead
+        "rule_c": {
+            "seen_count": 3,
+            "fire_count": 0,
+            "warn_count": 3,
+            "error_path_count": 0,
+        },
     }
     _write_audit_summary(tmp_path, total=10, health=health)
     _write_audit_csv(
@@ -232,6 +247,24 @@ def test_validator_firing_diversity_and_dead_detection(tmp_path):
     # stress profile requires no dead validators → FAIL
     dead_check = next(c for c in report.checks if c.metric_name == "dead_validators")
     assert dead_check.passed is False
+
+
+def test_error_only_validator_counts_as_firing_not_dead(tmp_path):
+    health = {
+        "error_only_rule": {
+            "seen_count": 3,
+            "fire_count": 3,
+            "warn_count": 0,
+            "error_path_count": 0,
+        },
+    }
+    _write_audit_summary(tmp_path, total=3, health=health)
+
+    p = load_readiness_profile("functional")
+    report = compute_readiness_report(tmp_path, p)
+
+    assert report.metrics.validator_firing_diversity == 1
+    assert report.metrics.dead_validators == []
 
 
 def test_main_cli_passes_when_thresholds_met(tmp_path, capsys):
