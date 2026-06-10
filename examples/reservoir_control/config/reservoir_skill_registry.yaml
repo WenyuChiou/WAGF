@@ -1,0 +1,48 @@
+# Reservoir continuous-control skill registry.
+skills:
+  - skill_id: set_release
+    category: setpoint
+    intensity: continuous
+    reversibility: annual
+    description: "Set the monthly release target as a percentage of demand for the next reservoir operating period"
+    eligible_agent_types: ["operator"]
+    preconditions: []
+    institutional_constraints:
+      annual: true
+      magnitude_type: "percentage"
+      max_magnitude_pct: 100
+      magnitude_default: 100
+    allowed_state_changes: []
+    implementation_mapping: "set_release"
+    # NOTE (review W1): the prompt's response field is "magnitude" (the
+    # LLM-facing name), but this schema validates the NORMALIZED proposal —
+    # the engine builds output_fields from proposal.magnitude_pct AFTER the
+    # unified adapter maps the raw "magnitude" numeric onto magnitude_pct.
+    # The two names are consistent BY DESIGN, not by accident; do not
+    # "fix" one side without the other.
+    output_schema:
+      type: object
+      required: [decision, magnitude_pct]
+      properties:
+        decision: { type: integer, enum: [1] }
+        magnitude_pct: { type: number, minimum: 0, maximum: 100 }
+    conflicts_with: []
+
+  - skill_id: maintain_release
+    category: maintain
+    intensity: none
+    reversibility: annual
+    description: "Maintain the previously committed release target"
+    eligible_agent_types: ["operator"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes: []
+    implementation_mapping: "noop"
+    output_schema:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: integer, enum: [2] }
+    conflicts_with: []
+
+default_skill: maintain_release

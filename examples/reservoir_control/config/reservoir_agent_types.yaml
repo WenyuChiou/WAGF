@@ -1,0 +1,99 @@
+# Reservoir continuous-control agent config.
+shared:
+  rating_scales:
+    utility:
+      levels: ["L", "M", "H"]
+    generic:
+      levels: ["VL", "L", "M", "H", "VH"]
+  template_vars:
+    - current_year
+    - storage
+    - spill
+    - shortfall
+    - release_actual
+    - inflow_forecast_year
+    - dead_pool
+    - capacity
+    - demand_year
+    # storage_now is not rendered in the prompt body (the prompt shows
+    # {storage}) but IS a validation-context dependency of the
+    # dead_pool_violation physical check — listed so tooling that
+    # enumerates template_vars sees the full dependency set (review S2).
+    - storage_now
+  response_format:
+    delimiter_start: "<<<DECISION_START>>>"
+    delimiter_end: "<<<DECISION_END>>>"
+    fields:
+      - { key: "magnitude", type: "numeric", min: 0, max: 100, unit: "%", required: true }
+      - { key: "decision", type: "choice", required: true }
+      - { key: "reasoning", type: "text", required: false }
+
+global_config:
+  coupling:
+    enable: true
+  memory:
+    window_size: 3
+  llm:
+    num_ctx: 8192
+    num_predict: 1024
+    max_retries: 3
+  governance:
+    domain: reservoir_control
+    dispatch_domain_physical: true
+    max_retries: 3
+    max_reports_per_retry: 2
+
+operator:
+  agent_type: operator
+  psychological_framework: utility
+  prompt_template: |
+    ### RESERVOIR OPERATOR
+    Agent ID: {agent_id}
+    Year: {current_year}
+
+    ### LAST WATER YEAR OUTCOMES
+    - End storage: {storage} maf
+    - Spill: {spill} maf
+    - Shortfall: {shortfall} maf
+    - Mean actual release: {release_actual} maf/month
+
+    ### NEXT OPERATING CONTEXT
+    - Forecast annual inflow: {inflow_forecast_year} maf
+    - Annual demand: {demand_year} maf
+    - Dead pool: {dead_pool} maf
+    - Capacity: {capacity} maf
+
+    ### DECISION
+    Choose the monthly release as a percentage of demand from 0 to 100.
+
+    ### OPTIONS
+    {options_text}
+
+    {response_format}
+  response_format:
+    delimiter_start: "<<<DECISION_START>>>"
+    delimiter_end: "<<<DECISION_END>>>"
+    fields:
+      - { key: "magnitude", type: "numeric", min: 0, max: 100, unit: "%", required: true }
+      - { key: "decision", type: "choice", required: true }
+      - { key: "reasoning", type: "text", required: false }
+  actions:
+    - id: set_release
+      aliases: ["1", "set_release", "set release", "release"]
+      description: "Set a monthly release target as a percentage of demand"
+    - id: maintain_release
+      aliases: ["2", "maintain_release", "maintain release", "maintain"]
+      description: "Keep the previous monthly release target"
+  parsing:
+    decision_keywords: ["decision"]
+    default_skill: maintain_release
+    strict_mode: true
+    skill_map:
+      "1": set_release
+      "2": maintain_release
+  log_fields: []
+  governance:
+    strict:
+      documented_unconstrained_skills:
+        - set_release
+        - maintain_release

@@ -69,6 +69,7 @@ examples/single_agent/archived/
 examples/multi_agent/input/
 examples/multi_agent/results_unified/
 examples/cat_model/results_ma/
+examples/reservoir_control/results_ops/
 *.log
 *_output.txt
 trace_*.txt
