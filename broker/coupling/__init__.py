@@ -25,9 +25,10 @@ Public API:
 """
 from __future__ import annotations
 
-from .contract import CouplingContract, VarSpec
+from .contract import CouplingContract, VarSpec, reduce_series
 from .flag import resolve_coupling_enabled
 from .interfaces import (
+    ControlSink,
     Event,
     EventSource,
     ExposureUpdater,
@@ -40,11 +41,13 @@ from .interfaces import (
 )
 from .adapter import CouplingViolation, EnvironmentCouplingAdapter
 from .bmi_source import BmiComponent, BmiEventSource
+from .continuous import BmiControlSink, ContinuousBundle
 
 __all__ = [
     "CouplingViolation",
     "VarSpec",
     "CouplingContract",
+    "reduce_series",
     "Event",
     "MdrDraw",
     "Settlement",
@@ -53,9 +56,12 @@ __all__ = [
     "ExposureUpdater",
     "VulnerabilityModel",
     "FinancialLedger",
+    "ControlSink",
     "InterfaceBundle",
     "EnvironmentCouplingAdapter",
     "BmiComponent",
     "BmiEventSource",
+    "BmiControlSink",
+    "ContinuousBundle",
     "resolve_coupling_enabled",
 ]

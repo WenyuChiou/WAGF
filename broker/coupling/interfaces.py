@@ -114,6 +114,16 @@ class FinancialLedger(Protocol):
         ...
 
 
+@runtime_checkable
+class ControlSink(Protocol):
+    """The agent->world write channel (inc 3): applies one approved,
+    already-governed control value into the hosted model (BMI: set_value).
+    One verb on purpose — actuator scheduling/interpolation is the hosted
+    model's business, not the coupling layer's."""
+
+    def apply_control(self, name: str, value: float) -> None: ...
+
+
 # --------------------------------------------------------------------------
 # Composition
 # --------------------------------------------------------------------------
@@ -121,9 +131,13 @@ class FinancialLedger(Protocol):
 class InterfaceBundle:
     """A domain composes only the interfaces it needs; missing ones are
     skipped in the pipeline. ``broker.coupling`` MUST NOT import any domain
-    package — the bundle is constructed by the domain and passed in."""
+    package — the bundle is constructed by the domain and passed in.
 
-    event_src: EventSource
+    ``event_src`` is Optional since inc 3: a continuous-state coupling
+    (ContinuousBundle) has no discrete events to draw — the adapter treats
+    a None source as zero events per period."""
+
+    event_src: Optional[EventSource] = None
     exposure: Optional[ExposureUpdater] = None
     vulnerability: Optional[VulnerabilityModel] = None
     financial: Optional[FinancialLedger] = None
@@ -164,5 +178,6 @@ __all__ = [
     "ExposureUpdater",
     "VulnerabilityModel",
     "FinancialLedger",
+    "ControlSink",
     "InterfaceBundle",
 ]

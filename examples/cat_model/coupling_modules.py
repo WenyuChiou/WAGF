@@ -52,6 +52,20 @@ class FloodFootprintSource:
     def units(self) -> str:
         return self._unit
 
+    def get_provenance(self) -> Dict[str, Any]:
+        """Forcing-table identity for the reproducibility manifest (inc 3,
+        review P0-3): the depth table IS this source's forcing data, so its
+        stable-repr hash answers "same hazard input?" for a reviewer."""
+        import hashlib
+
+        forcing_repr = repr(sorted(self._depths.items()))
+        return {
+            "source_class": type(self).__name__,
+            "unit": self._unit,
+            "forcing_sha256": hashlib.sha256(forcing_repr.encode("utf-8")).hexdigest()[:16],
+            "n_periods_with_events": sum(1 for v in self._depths.values() if v > 0.0),
+        }
+
 
 # ----------------------------------------------------------------------------
 # FINANCIAL — a portfolio ledger with deductible/limit, reinsurance, shared pool
@@ -151,6 +165,20 @@ class CatBundle(InterfaceBundle):
         env["pool_budget_remaining"] = round(self.ledger.pool_budget, 2)
         env["owed_payout"] = round(owed, 2)
         return env
+
+    def get_provenance(self) -> Dict[str, Any]:
+        """World-side parameters for the reproducibility manifest (inc 3):
+        run_cat's CLI args (--pool / --lapsed-policy / exposure terms) land
+        here, closing the 'world parameters from CLI are uncaptured' gap."""
+        return {
+            "bundle_class": type(self).__name__,
+            "exposure_value": self.exposure_value,
+            "deductible": self.deductible,
+            "limit": self.limit,
+            "policy_in_force": self.policy_in_force,
+            # read at call time — post-debit if called mid-run (review S1)
+            "pool_budget_at_provenance": round(self.ledger.pool_budget, 2),
+        }
 
     def commit_world_delta(self, approved_skill: Any) -> WorldDelta:
         skill = getattr(approved_skill, "skill_name", "")
