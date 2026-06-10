@@ -53,6 +53,18 @@ PROMPT_ENV_KEYS = (
     "storage_now",
 )
 
+# {options_text} menu, injected via dynamic_state (real-LLM e4b finding,
+# 2026-06-10): the hub-less builder path (BaseAgentContextBuilder) does not
+# populate options_text, so the placeholder rendered "[N/A]" and the format
+# example's hardcoded default claimed "choose ONE from: 1, 2, or 3" for a
+# 2-action menu — the LLM was deciding blind. Keep numbering in lockstep
+# with parsing.skill_map in reservoir_agent_types.yaml.
+OPTIONS_TEXT = (
+    "1. set_release — set the coming year's monthly release target as a "
+    "percentage of demand (provide magnitude 0-100)\n"
+    "2. maintain_release — keep the previously committed release target"
+)
+
 
 def _decision_payload(decision: str, **fields: Any):
     payload = dict(fields)
@@ -85,6 +97,7 @@ def _sync_prompt_env(agent: BaseAgent, env: Dict[str, Any]) -> None:
     for key in PROMPT_ENV_KEYS:
         if key in env:
             agent.dynamic_state[key] = env[key]
+    agent.dynamic_state["options_text"] = OPTIONS_TEXT
 
 
 def _make_operator() -> BaseAgent:
