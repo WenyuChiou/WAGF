@@ -167,6 +167,58 @@ def test_mixin_uncertain_parse_failure_path_is_consistent():
     assert trace["fallback_activated"] is True
 
 
+def test_output_schema_violation_carries_rule_id_but_format_check_does_not():
+    """failed_rules attribution contract (2026-06-10 e4b finding):
+
+    * output_schema violations MUST carry rule_id="output_schema_violation"
+      (byte-safe: zero occurrences in frozen mock baselines — verified
+      before naming).
+    * AgentValidator:format missing-required-fields must NOT carry a
+      rule_id — it fires on EVERY frozen-baseline row, so its CSV label is
+      frozen as "Unknown" until the next AUDIT_SCHEMA_VERSION bump (see
+      docs/AUDIT_SCHEMA.md). A rule_id appearing here means someone broke
+      mock byte-identity.
+    """
+    from broker.components.governance.registry import SkillRegistry as _SR
+
+    reg = _SR()
+    reg.skills["s1"] = SimpleNamespace(
+        skill_id="s1",
+        output_schema={
+            "type": "object",
+            "required": ["decision", "magnitude_pct"],
+            "properties": {"magnitude_pct": {"type": "number"}},
+        },
+    )
+    res = reg.validate_output_schema("s1", {"decision": 1})
+    assert res is not None and not res.valid
+    # the engine names it at the call site via setdefault; simulate that
+    res.metadata.setdefault("rule_id", "output_schema_violation")
+    assert res.metadata["rule_id"] == "output_schema_violation"
+
+    # the format check's freeze: inspect the source contract directly
+    import inspect as _inspect
+
+    from broker.validators.agent import agent_validator as _av
+
+    src = _inspect.getsource(_av)
+    fmt_block = src.split('validator_name="AgentValidator:format"')[1].split("))")[0]
+    # Landmark guard (review S2): if the '))' sentinel ever moves, fail loudly
+    # instead of vacuously passing on an empty fragment.
+    assert "metadata" in fmt_block, (
+        "Source-inspection landmark broke — fmt_block lost the metadata "
+        "dict; update the split sentinel in this test."
+    )
+    code_only = "\n".join(
+        ln for ln in fmt_block.splitlines() if not ln.lstrip().startswith("#")
+    )
+    assert '"rule_id"' not in code_only, (
+        "AgentValidator:format gained a rule_id — this flips failed_rules "
+        "on every frozen-mock-baseline row and breaks byte-identity. "
+        "Only allowed together with an AUDIT_SCHEMA_VERSION bump."
+    )
+
+
 def test_mixin_config_without_getter_is_off():
     # Engines wired with a config object predating the getter must behave
     # exactly like flag-OFF (getattr guard, never AttributeError).

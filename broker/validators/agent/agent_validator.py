@@ -172,6 +172,15 @@ class AgentValidator:
                         # Phase 6O-A-2: format violations are hard schema breaches.
                         "expected_terminal": True,
                         "constraint_type": "hard",
+                        # DELIBERATELY no "rule_id" (2026-06-10): this result
+                        # fires on EVERY row of the frozen mock baselines
+                        # (mock output lacks the PMT appraisal fields), so the
+                        # audit CSV's failed_rules column shows "Unknown" for
+                        # it BY FREEZE — adding a rule_id here flips every
+                        # frozen-baseline row and breaks mock byte-identity
+                        # re-verification. Name it ("format_required_fields")
+                        # at the next AUDIT_SCHEMA_VERSION bump, never before.
+                        # See docs/AUDIT_SCHEMA.md "failed_rules" entry.
                     }
                 ))
         except Exception as e:
