@@ -6,7 +6,7 @@ The Water Agent Governance Framework is a cognitive governance middleware for LL
 
 The framework's extensible architecture allows new water sub-domains to be added through configuration (YAML skill registries + domain validators) without modifying the core broker.
 
-**Version**: v0.5.1 (semver). Pre-v0.3.0 the project used a different
+**Version**: v0.6.0 (semver). Pre-v0.3.0 the project used a different
 internal versioning scheme; v0.29.0 → v0.3.0 (2026-05-27) was a
 deliberate semver reset. See `CHANGELOG.md` for the full release
 timeline.
@@ -358,6 +358,13 @@ mem = cfg.get_memory_config("household_owner")
 For release-to-release migration notes see `CHANGELOG.md`. Notable
 historical migrations:
 
+- **v0.6.0 (2026-06-10)**: Phase 6V environment-coupling layer
+  (`broker/coupling/`: contract + adapter + BMI hosting + ContinuousBundle;
+  three worked examples incl. multi-agent period-end settlement and
+  reservoir continuous control) + audit schema "2" (`.schema.json`
+  sidecars, JSONL=truth) + opt-in EXECUTED-stage audit columns +
+  Invariant 6 run-integrity + the INVARIANTS.md accepted-risks ledger.
+  All coupling default-OFF; frozen v21 / paper-3 byte-identity preserved.
 - **v0.5.1 (2026-05-28)**: SocialMediaProvider live-wire (Phase 6T-E.B)
   + cross-channel dedup + Y1 fix (Phase 6T-G) — opt-in via
   `global_config.social_feeds.enable` (default `false`). Paper-3

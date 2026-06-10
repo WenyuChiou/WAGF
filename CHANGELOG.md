@@ -8,6 +8,129 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-10
+
+Minor-bump release: **Phase 6V environment coupling, Phase 6T-F
+influencer agents, audit-schema hardening, and run-integrity
+provenance**. The ~50 commits since v0.5.1 add the opt-in coupling
+layer, broaden multi-agent social propagation, and close several
+silent-failure surfaces while preserving frozen default-off baselines.
+
+### Added
+
+- **Environment-coupling layer (Phase 6V, increments 1-4)**:
+  `broker/coupling/` now provides `CouplingContract` + `VarSpec`
+  checks for units, ranges, directions, and value types; the
+  `EventSource` / `ControlSink` / `InterfaceBundle` narrow waist; a
+  pure-committer `EnvironmentCouplingAdapter` where governance
+  precedes world mutation; and `resolve_coupling_enabled`, a two-layer
+  default-OFF feature flag. The layer also hosts CSDMS-BMI models via
+  `BmiEventSource`, supports continuous control with
+  `ContinuousBundle`, `reduce_series`, and `BmiControlSink`, and ships
+  three real-LLM-validated worked examples: the single-agent cat model,
+  the multi-agent cat insurance settlement, and reservoir continuous
+  control. `docs/COUPLING_CONNECTORS.md` records the four connector
+  archetypes for new domains.
+- **`social_media_influencer` agent type (Phase 6T-F)**:
+  `examples/multi_agent/flood/` adds the narrative-diffusion
+  framework, active-decider machinery, ERROR-level action-coherence
+  governance, and the gated `--with-influencer` runner path. The
+  influencer-to-household propagation path was validated on real
+  gemma4:e4b while preserving paper-3 byte identity when the flag is
+  off.
+- **Audit schema 2**: `broker/components/analytics/audit.py` moves
+  `AUDIT_SCHEMA_VERSION` from `"1"` to `"2"`, writes per-CSV
+  `.schema.json` sidecars, declares JSONL as the truth plane by
+  removing top-level truncation, and finalizes by writing
+  `audit_summary` last with sentinel / CSV-export-failure keys.
+  `docs/AUDIT_SCHEMA.md` is the canonical column-to-producer map, and
+  the golden-fieldnames test is keyed to the schema version.
+- **Opt-in EXECUTED-stage audit columns (F3)**:
+  `executed_skill` and `executed_via_fallback` are key-gated behind
+  `global_config.audit.executed_skill_columns`, default OFF, so frozen
+  baselines stay byte-identical while rejected rows no longer imply a
+  skill actually executed when the option is enabled.
+- **Invariant 6 run-integrity provenance contract**:
+  `broker/core/run_integrity.py` records and flags run-integrity
+  provenance, while `broker/INVARIANTS.md` adds the accepted-risks
+  ledger (AR-1 through AR-6) and the do-NOT-build list.
+- **Declaration-consumption invariant (Wave 4)**:
+  `broker/tests/test_declaration_consumption.py` verifies that declared
+  hooks/surfaces are actually consumed instead of silently drifting,
+  with intentionally-dormant entries recorded in its `DORMANT_HOOKS`
+  ledger.
+- **Builder and lint hardening**: `ExperimentBuilder.with_coupling`
+  exposes the coupling entry point, registry-dispatched per-agent-type
+  PHYSICAL checks run only when opted in, `validate_prompt` gains
+  `check_rule_shapes` to catch silently dead YAML, and the
+  global-config unknown-key net rejects misspelled configuration.
+
+### Changed
+
+- **Migration note**: passing an unknown lifecycle-hook name (e.g. a
+  typo like `post_year_end`) or an unrecognised `global_config` YAML
+  key now RAISES at setup time instead of silently doing nothing. All
+  bundled examples and the full test suite are clean; authors with
+  custom domain configs should run `python -m broker.tools.validate_prompt
+  <agent_types.yaml>` before upgrading.
+- **CognitiveCache is opt-in default-OFF**:
+  `ExperimentConfig.enable_cognitive_cache` now gates a path where cache
+  hits previously skipped audit rows and `execute_skill`.
+- **Lifecycle-hook handling is loud**:
+  unknown lifecycle-hook names now raise in both the runner setter and
+  builder `with_lifecycle_hooks`; raising hooks log their name and step
+  before re-raising; and `_partition_by_phase` warns when agent types
+  are unmatched.
+- **Reproducibility manifests carry resolved governance state**:
+  manifests now record the resolved governance profile,
+  `agent_types_with_zero_rules`, per-type
+  `thinking_rules_resolved_counts`, and coupled-world provenance.
+- **`failed_rules` attribution is more honest**:
+  `output_schema_violation` and `precondition_violation` are now named
+  in failed-rule output where they occur, while the format-check
+  `"Unknown"` label remains deliberately frozen until the next schema
+  bump.
+- **The domain-scaffold on-ramp works again**:
+  `broker.tools.scaffold_domain` repairs import, registration, and
+  signature bugs, and the framework metadata facade now has a
+  registration metadata invariant.
+
+### Fixed
+
+- **Readiness reports now see validator-health errors**:
+  `readiness_report` reads the `fire_count` and `warn_count` keys that
+  `validator_health` actually writes, so ERROR-firing rules are no
+  longer invisible to readiness checks.
+- **Terminal-taxonomy metadata reaches validation issues**:
+  `expected_terminal`, `constraint_type`, and `feasible_actions` now
+  reach JSONL validation issues, enabling the 6O-A-2 machinery that
+  could not fire before.
+- **Retry and parallel audit paths no longer leak state**:
+  retry re-injects the current proposal's magnitude instead of stale
+  `proposed_magnitude`, and parallel-mode audit now threads sentinel
+  `step_id` values while keeping `write_trace` fully under the RLock.
+- **F4 byte-identity correction preserves EMA state**:
+  early context build stays unconditional because
+  `UniversalCognitiveEngine.retrieve` mutates EMA state; skipping it was
+  byte-unsafe.
+- **Hub-less coupled examples now render their options menus**: the
+  hub-less `BaseAgentContextBuilder` path never populates
+  `{options_text}` (prompts rendered `[N/A]` while the response-format
+  builder's hardcoded default claimed "1, 2, or 3" regardless of menu
+  size — a real-LLM gemma4:e4b run surfaced it). Both coupled worked
+  examples now inject their action menus via `dynamic_state` and give
+  `decision` fields explicit descriptions; the broker builder itself is
+  deliberately unchanged (pattern documented in
+  `docs/COUPLING_CONNECTORS.md`).
+- **Influencer runs expose the full menu and avoid truncation**:
+  full-disclosure parsing now shows all four post skills, and the e4b
+  runner raises `num_predict` from 1024 to 2048 to avoid truncating
+  influencer responses.
+- **Psychometric metadata tests no longer pollute the registry**:
+  `tests/test_psychometric.py` restores framework registry state after
+  the custom-framework registration path, removing an ordering flake
+  against the Wave-3 metadata invariant test.
+
 ### Removed
 
 - `tests/flood/test_floodabm_alignment.py`: deleted
@@ -29,6 +152,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`v21_expert_plausibility_review.md` + `v21_4seed_expert_plausibility_review.md`)
   live in the same directory and are the canonical irrigation
   baselines for paper-1b.
+
+### Verification
+
+Full suite verification reported 3,117 tests green, up from 2,871 at
+v0.5.1. Frozen mock baselines were re-verified at HEAD: irrigation is
+byte-IDENTICAL by canonical sha256, flood is identical modulo the
+documented `mem_top_source` `PYTHONHASHSEED` noise, and paper-3 / v21
+frozen md5s remain intact. Real-LLM validation covered gemma4:e4b runs
+for MA cat (12/12 rows, governance wall and retry recorded) and
+reservoir control (4/4 APPROVED).
 
 ## [0.5.1] - 2026-05-28
 
@@ -227,8 +360,6 @@ experiments.
   so future contributors understand the namespace distinction; the
   guard still catches `OFFICIAL` / `VERIFIED` / `INFLUENCER` / `PEER`
   / `BOT` appearing in any OTHER broker/components/social/*.py file.
-
-## [0.4.0] - 2026-05-28
 
 ## [0.4.0] - 2026-05-28
 

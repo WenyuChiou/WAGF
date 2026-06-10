@@ -28,7 +28,7 @@ Invalid decisions trigger retry-with-feedback, not just re-prompting. The result
 
 The broker core is domain-agnostic. The validated reference domains are human-environment coupling — flood adaptation (Protection Motivation Theory) and irrigation (dual-appraisal) — with vaccination (Health Belief Model) showing the framework generalizes beyond environmental systems. New domains plug in via YAML + a `DomainPack` subclass without modifying `broker/`.
 
-> **Current release**: v0.5.1 (2026-05-28). See [`CHANGELOG.md`](CHANGELOG.md) for the full release timeline. Recent: Phase 6T-E.B SocialMediaProvider substrate (v0.5.0) + full wire-up (v0.5.1) behind a two-layer opt-in flag.
+> **Current release**: v0.6.0 (2026-06-10). See [`CHANGELOG.md`](CHANGELOG.md) for the full release timeline. Recent: the Phase 6V environment-coupling layer (`broker/coupling/` — BMI hosting, period-end settlement, continuous control; three worked examples, all real-LLM validated) + audit schema 2.
 
 ## Quick Start
 
@@ -135,6 +135,7 @@ In short: WAGF is not a chatbot framework, not a retrieval tool, not an LLM SDK.
 - **Framework-parametric Behavioral Theory** — no hardcoded theory in `broker/`; reference packs ship for Protection Motivation Theory (flood), dual-appraisal (irrigation), and Health Belief Model (vaccination). Declare your own framework in YAML
 - **Research Ready** — Ablation modes (strict/relaxed/disabled), cross-model comparison across 6+ LLM families, multi-seed reproducibility
 - **Social-media Propagation Channel** (v0.5+, opt-in) — Optional Pattern-B `SocialMediaProvider` injects `{social_media_feed}` into agent prompts from domain-emitted Posts, ranked by credibility-tier × age-decay × engagement. Default OFF — paper-published byte-identity preserved. (Cross-channel dedup module ships as infrastructure for a future consumer; provider integration deferred.)
+- **Environment-Coupling Layer** (v0.6, opt-in) — `broker/coupling/` plugs external simulators into the governed decision loop through a narrow waist (`EventSource` / `ControlSink` / `InterfaceBundle`) with a `CouplingContract` that checks units, ranges, direction, and types at the boundary. Hosts any CSDMS-BMI-conformant model (`BmiEventSource`), supports continuous control (`ContinuousBundle`: K solver sub-steps per decision, numeric setpoints governed *before* they reach the solver), and ships three real-LLM-validated worked examples — catastrophe loss chain, multi-agent insurance period-end settlement, reservoir release control. Four connector archetypes documented in [`docs/COUPLING_CONNECTORS.md`](docs/COUPLING_CONNECTORS.md). Default OFF everywhere
 - **Cross-domain Validated** — Generic-namespace identifier audit (Phase 6U, complete in v0.4.0) eliminated every water-domain leak in `broker/`; `FakeTrafficDomainPack` + custom `bounded_rationality` framework end-to-end smokes confirm the framework is genuinely multi-domain ready
 - **AI-assisted Workflow** — 7 bundled [Claude Code skills](docs/skills/wagf-skills.md) (`wagf-quickstart`, `wagf-domain-builder`, `wagf-coupling-designer`, `wagf-experiment-designer`, `llm-agent-audit-trace-analyzer`, `model-coupling-contract-checker`, `abm-reproducibility-checker`) walk a new researcher from `git clone` to paper-ready metrics without reading the manual first. See [`docs/AI_ASSISTED_SETUP.md`](docs/AI_ASSISTED_SETUP.md) for Claude Code / Cursor / Cline / plain-Python setup paths
 
@@ -236,6 +237,8 @@ The two flood experiments use per-agent flood depth grids from hydrological simu
 | **Irrigation ABM** | Water allocation under scarcity | [Go](examples/irrigation_abm/) |
 | **Multi-Agent Flood** | Institutional feedback (gov + ins + household) | [Go](examples/multi_agent/flood/) |
 | **Vaccination (single)** | Non-water Tier-2 showcase (HBM, 25 agents, 5-yr COVID-19 schedule, 3 seeds × 2 models) | [Go](examples/vaccination_demo/) |
+| **Cat Model (coupling)** | External hazard→loss chain coupled to governed agents; single-agent + multi-agent insurance settlement (period-end pro-rata pool, government relief) | [Go](examples/cat_model/) |
+| **Reservoir Control (coupling)** | Continuous control: annual release decision × 12 monthly solver sub-steps, dead-pool projection wall governs the numeric setpoint | [Go](examples/reservoir_control/) |
 
 ---
 
