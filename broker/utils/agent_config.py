@@ -203,12 +203,24 @@ class AgentTypeConfig:
         Single-domain selector: dispatches ONE domain's physical checks to ALL agent types in the
         run. Multi-agent runs needing per-agent-type domain routing use the ``custom_validators``
         bridge pattern (as the MA flood runner does); this flag is for single-domain runs.
+
+        Raises ValueError when the flag is truthy but ``domain`` is absent/blank:
+        an explicitly-requested dispatch must never silently no-op (2026-06-09
+        architecture review P1-11; previously returned None with no signal).
         """
         gov = self._config.get("global_config", {}).get("governance", {})
         if not gov.get("dispatch_domain_physical", False):
             return None
         domain = gov.get("domain")
-        return (str(domain).strip().lower() or None) if domain else None
+        resolved = (str(domain).strip().lower() or None) if domain else None
+        if resolved is None:
+            raise ValueError(
+                "global_config.governance.dispatch_domain_physical is set but "
+                "'domain' is absent/blank — the explicitly-requested PHYSICAL "
+                "dispatch would silently never fire. Add 'domain: <your_domain>' "
+                "next to the flag (see examples/cat_model/config/agent_types.yaml)."
+            )
+        return resolved
 
     def get_llm_retries(self, default: int = 2) -> int:
         """Get max retries for raw LLM invocation (Global > Shared > Default)."""

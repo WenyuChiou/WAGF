@@ -128,7 +128,27 @@ class ExperimentRunner:
         return getattr(self, '_current_year', 0)
 
     def run(self, llm_invoke: Optional[Callable] = None):
-        """Standardized simulation loop."""
+        """Standardized simulation loop.
+
+        ``llm_invoke`` is accepted for backward compatibility but has NEVER
+        had an effect: the agent-loop methods always build their own
+        per-agent-type invoke via ``get_llm_invoke()`` (config-driven model +
+        verbosity), ignoring the threaded parameter. Callers passing a custom
+        invoke (e.g. a REST-backed LLM, or ``create_llm_invoke(model,
+        verbose=False)`` expecting to control verbosity) were silently
+        misrouted to the config default — warn instead of pretending
+        (2026-06-09 architecture review P1-10).
+        """
+        if llm_invoke is not None and llm_invoke is not self.llm_invoke:
+            # self.llm_invoke is the cached get_llm_invoke("default") — passing
+            # it back in (as run_unified_experiment does) is harmless, so only
+            # a genuinely different invoke (custom/REST-backed, or a fresh
+            # create_llm_invoke with different verbosity) triggers the warning.
+            logger.warning(
+                "[ExperimentRunner] run(llm_invoke=...) is IGNORED — the loop "
+                "uses per-agent-type invokes from config (get_llm_invoke). "
+                "Configure model/verbosity via ExperimentConfig instead."
+            )
         llm_invoke = llm_invoke or self.llm_invoke
         run_id = f"exp_{random.randint(1000, 9999)}"
         logger.info(f"Starting Experiment: {self.config.experiment_name} | Model: {self.config.model}")
