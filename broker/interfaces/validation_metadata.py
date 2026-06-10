@@ -103,7 +103,48 @@ class ValidatorMetadata(TypedDict, total=False):
     Used by the terminal-outcome classifier to distinguish
     `expected_hard_block` from `recoverable_retry_failed`. Default
     treats absence as `False` so the framework is conservative —
-    domains must opt IN to hard-block classification."""
+    domains must opt IN to hard-block classification.
+
+    NOTE (2026-06-10): since review fix F2, write_trace carries
+    expected_terminal / constraint_type / feasible_actions into each
+    JSONL ``validation_issues`` entry's ``metadata`` sub-dict, so the
+    terminal taxonomy now fires on real audit data."""
 
     constraint_type: ConstraintType
     """Constraint severity (see `ConstraintType` above)."""
+
+    # --- LOAD-BEARING keys the original contract OMITTED (2026-06-10 audit
+    # review: this file documented the dead half of the vocabulary and
+    # skipped the half production actually runs on; corrected here) ---
+
+    rules_hit: List[str]
+    """Rule ids this result represents. THE retry-loop attribution key:
+    ``_retry_loop`` builds InterventionReport.rule_id from ``rules_hit``
+    and EarlyExit compares blocking-rule SETS from rule_id+rules_hit.
+    Populate BOTH ``rule_id`` (singular; audit/validator_health key) and
+    ``rules_hit`` (list; retry attribution) — emitting only one of the
+    two is why legacy blockers show as 'Unknown' / 'unknown_rule' in one
+    ledger while visible in another."""
+
+    deterministic: bool
+    """True = this rule's outcome cannot change on an LLM retry (state-
+    derived: affordability, pool solvency, cooldowns). Enables the retry
+    loop's EarlyExit — when ALL blocking results are deterministic the
+    engine stops re-prompting instead of burning max_retries identical
+    LLM calls. Absent = treated as non-deterministic (keeps retrying)."""
+
+    suggestion: str
+    """Optional steer text injected into the retry prompt's intervention
+    report. Keep NEUTRAL — for small LLMs a governance suggestion is a
+    de-facto command (project memory: suggestions must not pick the
+    agent's action for it)."""
+
+    shadow_blocked: List[str]
+    """Rule ids converted from blocking to observe-only by shadow mode
+    (``BaseValidator._to_shadow``). Lands in the ``shadow_blocked`` CSV
+    column; a row may be ``validated=True`` while this is non-empty —
+    by design (would-have-blocked, didn't)."""
+
+    would_block_level: SeverityLevel
+    """Original severity of a shadow-converted rule (audit bookkeeping
+    next to ``shadow_blocked``)."""

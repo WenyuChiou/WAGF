@@ -285,6 +285,32 @@ mock-LLM CSV output is unchanged.
 
 ---
 
+## Accepted risks — written down, deliberately not built (2026-06 audit)
+
+The 2026-06 audit/validator/hook review triaged every finding into fix / document /
+**accepted risk**. This section is the durable record of bucket three: each entry names
+a real limitation, why building the "fix" would cost more than the risk, and the
+revisit trigger. Treat an entry here as a *decision*, not an oversight — re-opening one
+requires new evidence, not re-discovery.
+
+| # | Accepted risk | Why not built | Revisit trigger |
+|---|---|---|---|
+| AR-1 | A REJECTED proposal's fallback skill executes **unvalidated** (the default skill bypasses the validator stack on the final attempt). | All shipped domain defaults are no-ops (`do_nothing` / `absorb_loss` / `no_action` / `maintain`); re-validating the fallback can deadlock the retry loop when the default itself trips a rule. | Any domain configures a *substantive* (state- or world-mutating) `default_skill`. |
+| AR-2 | Coupled-domain REJECTED divergence: a fallback skill that mutates the **world** via `commit_world_delta` would commit without governance. Latent — no shipped coupled domain has a world-mutating default. | Same as AR-1; the guard would be dead code today. | First coupled domain whose `default_skill` reaches `ControlSink.apply` / `commit_world_delta`. |
+| AR-3 | `workers > 1` with coupling enabled or env-mutating hooks is **NOT supported** (phase-internal parallel steps may interleave bundle mutations). No builder-time hard error enforces this. | Verification standard is `workers=1` + mock LLM anyway; a hard error would need a reliable "does this config mutate env" predicate that does not exist. | Anyone needing parallel coupled runs; then add the builder-time error, not a lock. |
+| AR-4 | Per-attempt retry history is not persisted per-attempt in the CSV (final-attempt projection only; pooled `rules_hit` is the compromise). | A RAM-resident multi-attempt trace buffer multiplies memory for 400-agent × 13-yr runs; JSONL is the eventual home if ever needed. | A research question that needs attempt-level (not pooled) rule sequences. |
+| AR-5 | Shadow-mode rule sets are not snapshotted into the reproducibility manifest; `documented_unconstrained_skills` grants a full exemption with only a WARN. | Both are config-visible in `config_snapshot.yaml`; duplicating them into the manifest adds a second source of truth. | A paper claim that depends on shadow-rule provenance. |
+| AR-6 | No generic "parameter governance" validator outside the coupling layer (e.g. bounding numeric skill parameters). | The coupling contract (`VarSpec` range checks) is the right home; a duplicate generic validator would create two divergent bounds registries. | A non-coupled domain with numeric skill parameters that need bounds. |
+
+**Do-NOT-build list** (concurred by all 2026-06 review analysts + the
+anti-over-engineering filter): unified rule engine · event-bus hook system ·
+per-row pydantic in the audit hot loop · parquet/SQL audit store · cross-run cache
+persistence · auto-normalizing rule shapes (lint loudly instead — see
+`broker/tools/validate_prompt.py::check_rule_shapes`) · deleting dead CSV columns
+(frozen column order is a comparability contract).
+
+---
+
 ## Process rules
 
 ### Adding a new invariant

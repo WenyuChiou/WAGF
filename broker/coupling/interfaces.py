@@ -133,6 +133,17 @@ class InterfaceBundle:
     skipped in the pipeline. ``broker.coupling`` MUST NOT import any domain
     package — the bundle is constructed by the domain and passed in.
 
+    THE BINDING SURFACE (2026-06-10 env-layer review, honesty note): what the
+    adapter actually calls is ``run_pipeline`` / ``commit_world_delta`` (+
+    duck-typed ``get_provenance``). The typed sub-protocols (ExposureUpdater /
+    VulnerabilityModel / FinancialLedger) are OPTIONAL vocabulary for the
+    catastrophe-model family — no generic code consumes them, and both
+    shipped bundles (CatBundle inlines its own chain; ContinuousBundle leaves
+    all three None) bypass them. A new domain implementing only the two
+    methods is the NORM, not a shortcut. Hosting TWO external models at once
+    = compose them inside one bundle (pump both in ``run_pipeline``, merge
+    env, report both in ``get_provenance``) — see docs/COUPLING_CONNECTORS.md.
+
     ``event_src`` is Optional since inc 3: a continuous-state coupling
     (ContinuousBundle) has no discrete events to draw — the adapter treats
     a None source as zero events per period."""

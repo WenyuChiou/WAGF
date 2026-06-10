@@ -618,3 +618,70 @@ class TestCheckGlobalConfigKeys:
         issues = check_global_config_keys(cfg)
         assert len(issues) == 1 and issues[0].severity == "WARN"
         assert "mapping" in issues[0].message
+
+
+# ---------------------------------------------------------------------------
+# check_rule_shapes (G4, 2026-06-10 — the 6N-E silently-dead-YAML killer)
+# ---------------------------------------------------------------------------
+
+from broker.tools.validate_prompt import check_rule_shapes  # noqa: E402
+
+
+class TestCheckRuleShapes:
+    def test_clean_canonical_rule_no_issues(self):
+        cfg = {"agent": {"thinking_rules": [{
+            "id": "r1", "level": "ERROR", "blocked_skills": ["x"],
+            "conditions": [{"construct": "TP_LABEL", "values": ["H", "VH"]}],
+            "message": "m"}]}}
+        assert check_rule_shapes(cfg) == []
+
+    def test_dead_rule_keys_error(self):
+        """The verified 6N-E siblings: trigger_phrases / expected_values /
+        precondition on thinking rules load-then-ignore."""
+        cfg = {"agent": {"thinking_rules": [{
+            "id": "r1", "level": "ERROR",
+            "trigger_phrases": ["flood"], "expected_values": ["H"]}]}}
+        issues = check_rule_shapes(cfg)
+        assert len(issues) == 1 and issues[0].severity == "ERROR"
+        assert "trigger_phrases" in issues[0].message
+
+    def test_verbose_condition_shape_errors_on_operator(self):
+        cfg = {"agent": {"thinking_rules": [{
+            "id": "r1",
+            "conditions": [{"type": "construct", "field": "TP", "operator": "in",
+                            "values": ["H"]}]}]}}
+        issues = check_rule_shapes(cfg)
+        assert any("operator" in i.message for i in issues)
+
+    def test_string_conditions_error(self):
+        cfg = {"agent": {"thinking_rules": [{"id": "r1", "conditions": "TP is high"}]}}
+        issues = check_rule_shapes(cfg)
+        assert any("STRING" in i.message for i in issues)
+
+    def test_governance_profile_form_is_scanned(self):
+        cfg = {"governance": {"strict": {"household": {"thinking_rules": [{
+            "id": "r1", "threshold": 0.5}]}}}}
+        issues = check_rule_shapes(cfg)
+        assert len(issues) == 1 and "threshold" in issues[0].message
+        assert "governance.strict.household" in issues[0].location
+
+    def test_all_example_yamls_stay_clean_rule_shapes(self):
+        """Regression net: zero in-tree configs may trip the lint."""
+        import glob
+
+        import yaml as _yaml
+        root = Path(__file__).resolve().parents[2]
+        offenders = []
+        # .baselines/ is gitignored (machine-local frozen snapshots) — the
+        # glob simply matches nothing on machines without it.
+        for pattern in ("examples/**/*.yaml", ".baselines/**/*.yaml"):
+            for p in glob.glob(str(root / pattern), recursive=True):
+                try:
+                    cfg = _yaml.safe_load(open(p, encoding="utf-8"))
+                except Exception:
+                    continue
+                if not isinstance(cfg, dict):
+                    continue
+                for issue in check_rule_shapes(cfg):
+                    offenders.append(f"{p}: {issue.format()}")
+        assert not offenders, "\n".join(offenders)

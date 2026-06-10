@@ -90,6 +90,20 @@ class VarSpec:
             raise ValueError(f"VarSpec[{self.name}]: direction {self.direction!r} not in {_DIRECTIONS}")
         if self.on_missing not in _ON_MISSING:
             raise ValueError(f"VarSpec[{self.name}]: on_missing {self.on_missing!r} not in {_ON_MISSING}")
+        if self.on_missing != "fail_loud":
+            # Env-layer honesty (2026-06-10 review, archetype-C trap): only
+            # fail_loud HAS an executor — adapter._validate_observations punts
+            # last_good/quarantine to "the domain pipeline", which nothing
+            # implements. A flaky-endpoint author writing last_good would
+            # BELIEVE it and still die mid-batch on a timeout. Declared-but-
+            # unexecutable vocabulary gets rejected (the Wave-4 slot-honesty
+            # rule), not silently accepted. Implement the executor before
+            # re-admitting the value.
+            raise ValueError(
+                f"VarSpec[{self.name}]: on_missing={self.on_missing!r} has NO "
+                f"runtime executor yet (only 'fail_loud' is implemented). "
+                f"Refusing a policy that would be silently ignored."
+            )
         if self.observation_reduce not in _REDUCE:
             raise ValueError(f"VarSpec[{self.name}]: observation_reduce {self.observation_reduce!r} not in {_REDUCE}")
         if self.value_source not in _VALUE_SOURCES:

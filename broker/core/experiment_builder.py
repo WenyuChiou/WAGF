@@ -144,7 +144,15 @@ class ExperimentBuilder:
         """
         Register hooks: pre_year(year, env, agents),
         post_step(agent, result), post_year(year, agents)
+
+        F7 (2026-06-10): hook NAMES are validated here too — this builder
+        method is the primary registration API, and routing it through the
+        same ``_validate_hooks`` guard as the runner's ``hooks`` setter means
+        a misspelled name (``post_year_end``) raises at setup time instead of
+        silently never firing. Signature mismatches stay warning-only.
         """
+        from .experiment_runner import _validate_hooks
+        _validate_hooks(hooks)
         self.hooks.update(hooks)
         return self
 
@@ -560,6 +568,19 @@ class ExperimentBuilder:
             # coupled-execution holes on hits; see ExperimentConfig docstring).
             enable_cognitive_cache=getattr(self, '_enable_cognitive_cache', False),
         )
+
+        # AR-3 (broker/INVARIANTS.md Accepted risks): workers>1 with a coupled
+        # world is NOT supported — phase-internal parallel steps can interleave
+        # bundle mutations. Warn loudly (no hard error: a reliable
+        # "does-this-config-mutate-env" predicate does not exist).
+        if self.workers > 1 and self._coupling is not None:
+            import logging
+            logging.getLogger(__name__).warning(
+                "[Builder] workers=%d with coupling enabled is UNSUPPORTED "
+                "(AR-3, broker/INVARIANTS.md): parallel steps may interleave "
+                "coupled-world mutations. Use workers=1 for coupled runs.",
+                self.workers,
+            )
 
         runner = ExperimentRunner(
             broker=broker,
