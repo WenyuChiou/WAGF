@@ -131,14 +131,26 @@ def test_builder_exposes_with_cognitive_cache():
     assert b._enable_cognitive_cache is True
 
 
-def test_cache_off_skips_early_context_build(tmp_path):
-    """F4 bonus: with the cache off, the runner must NOT build context early
-    (the double-context-build the architecture review flagged)."""
+def test_early_context_build_unconditional_even_with_cache_off(tmp_path):
+    """F4 byte-identity correction (2026-06-10): the early context build MUST
+    run even with the cache disabled. UniversalCognitiveEngine.retrieve()
+    updates its EMA surprise predictor per call, and every frozen SA-flood
+    baseline was produced with TWO context builds per step (cache code
+    predates all frozen runs, 31990ab 2026-02-11) — skipping the early build
+    would halve the EMA update count and break mock byte-reproduction. This
+    locks the build-count contract: exactly one runner-level build per
+    agent-step regardless of the cache flag."""
     rows: list = []
     agents = {"A": _Agent("A")}
-    runner = _runner(tmp_path, agents, {"A": "approve"}, rows, years=1)
+    runner = _runner(tmp_path, agents, {"A": "approve"}, rows, years=2)
     runner.run()
-    runner.broker.context_builder.build.assert_not_called()
+    # _ScriptedBroker.process_step does NOT call context_builder.build, so this
+    # counts only the RUNNER-level build: 1 agent x 2 years = 2. In production,
+    # SkillBrokerEngine adds a second build inside process_step
+    # (skill_broker_engine.py:166), giving the two-builds-per-step total the
+    # frozen baselines were produced with. years=2 makes the per-step
+    # repetition observable (years=1 is ambiguous with a one-time init build).
+    assert runner.broker.context_builder.build.call_count == 2
 
 
 # ---------------------------------------------------------------------------
