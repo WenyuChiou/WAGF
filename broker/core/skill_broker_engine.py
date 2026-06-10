@@ -639,6 +639,11 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
             if schema_result:
                 if not schema_result.valid:
                     schema_result.metadata["rules_hit"] = ["output_schema_violation"]
+                    # rule_id so the audit CSV's failed_rules column names this
+                    # producer instead of "Unknown" (2026-06-10 e4b finding).
+                    # Byte-safe: zero output_schema violations exist in the
+                    # frozen mock baselines (verified before adding).
+                    schema_result.metadata.setdefault("rule_id", "output_schema_violation")
                     logger.debug(f"[OutputSchema] {proposal.skill_name}: {schema_result.errors}")
                 results.append(schema_result)
 
@@ -653,6 +658,12 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
             if precond_result:
                 if not precond_result.valid:
                     precond_result.metadata["rules_hit"] = ["precondition_violation"]
+                    # Named for failed_rules attribution (review W1, same
+                    # byte-safety basis as output_schema_violation: zero
+                    # precondition violations in the frozen mock baselines —
+                    # every frozen failed_rules cell is the single "Unknown"
+                    # from the format check).
+                    precond_result.metadata.setdefault("rule_id", "precondition_violation")
                     logger.debug(f"[Precondition] {proposal.skill_name}: {precond_result.errors}")
                 results.append(precond_result)
 
