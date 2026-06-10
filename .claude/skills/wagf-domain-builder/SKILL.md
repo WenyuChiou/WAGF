@@ -177,7 +177,8 @@ point.
    `event_handlers`, `extreme_actions`.
 3. **Validators** (`validators/<domain>_validators.py`) — replace
    the placeholder check with 2-3 real physical / personal /
-   social / semantic / temporal / behavioural checks. **No
+   social / semantic checks (temporal/behavioural slots were
+   deleted 2026-06-10 — never registered or dispatched). **No
    thinking-level checks here** — those go in YAML rules (the
    Phase 6C-v4 Finding 1 trap).
 4. **YAML thinking rules** (`config/agent_types.yaml`,

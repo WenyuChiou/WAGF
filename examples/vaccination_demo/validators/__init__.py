@@ -2,7 +2,8 @@
 
 NOTE on slot policy (Phase 6C-v3 discovery):
 ``ValidatorRegistry`` validates that ``slot`` is one of
-``{physical, personal, social, semantic, temporal, behavioural}``.
+``{physical, personal, social, semantic}`` (``temporal``/``behavioural``
+deleted 2026-06-10 — never registered or dispatched by any production code).
 ``thinking`` is NOT a registered slot — thinking-validator checks come
 from YAML rules in ``agent_types.yaml`` under the ``thinking_rules:``
 key (NOT ``rules:`` — the loader at
