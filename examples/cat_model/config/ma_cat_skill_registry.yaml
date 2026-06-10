@@ -1,0 +1,63 @@
+# Multi-agent catastrophe-model skill registry.
+#
+# The broker registry supports one top-level fallback skill. Per-agent parser
+# defaults live in ma_cat_agent_types.yaml; this global fallback is the safe
+# policyholder no-op used after rejected proposals.
+skills:
+  - skill_id: file_claim
+    description: "File a covered flood claim into the period-end settlement queue"
+    eligible_agent_types: ["policyholder"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes: []
+    implementation_mapping: "file_claim"
+
+  - skill_id: absorb_loss
+    description: "Absorb the loss without filing a claim this period"
+    eligible_agent_types: ["policyholder"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes: []
+    implementation_mapping: "noop"
+
+  - skill_id: lapse_policy
+    description: "Let the policy lapse for future periods"
+    eligible_agent_types: ["policyholder"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes: []
+    implementation_mapping: "lapse_policy"
+
+  - skill_id: settle_full
+    description: "Pay all queued legitimate claims in full from the shared pool"
+    eligible_agent_types: ["insurer_ma"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes: []
+    implementation_mapping: "settle_full"
+
+  - skill_id: settle_prorata
+    description: "Settle queued legitimate claims through the shared pool pro-rata rule"
+    eligible_agent_types: ["insurer_ma"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes: []
+    implementation_mapping: "settle_prorata"
+
+  - skill_id: fund_shortfall_relief
+    description: "Use the government relief budget to partially cover settlement shortfalls"
+    eligible_agent_types: ["government_ma"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes: []
+    implementation_mapping: "fund_shortfall_relief"
+
+  - skill_id: no_action
+    description: "Do not add government relief this period"
+    eligible_agent_types: ["government_ma"]
+    preconditions: []
+    institutional_constraints: {}
+    allowed_state_changes: []
+    implementation_mapping: "noop"
+
+default_skill: absorb_loss

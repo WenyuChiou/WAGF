@@ -6,12 +6,20 @@ financial loss chain (OASIS Loss Modelling Framework shape), where the insurer's
 world-mutating payout action is governed (ERROR-block + retry) *before* it debits
 the shared pool.
 
-Importing this package has two registration side effects (mirrors the
+Importing this package registers BOTH cat domains (mirrors the
 vaccination_demo pattern; no edit to broker/ source):
   1. ``ValidatorRegistry.register("cat_model", "physical", [payout-solvency check])``
-     -- wires the world-mutation governance check into the validator dispatch.
+     -- single-agent world-mutation governance check.
   2. ``DomainPackRegistry.register("cat_model", CatModelDomainPack())``
-     -- registers the pack (coupling default-OFF).
+     -- single-agent pack (coupling default-OFF).
+  3. ``ValidatorRegistry.register("cat_model_ma", "physical", MA checks)``
+     -- multi-agent claim/settlement/relief checks (separate registry bucket;
+     never clobbers the single-agent registration).
+  4. ``DomainPackRegistry.register("cat_model_ma", CatModelDomainPack())``
+     -- same pack class under the MA domain name (review C1: without this,
+     ``DomainPackRegistry.get("cat_model_ma")`` returned None and any
+     ``get_or_default`` would warn-and-default). Coupling stays default-OFF
+     at the pack level; the MA YAML enables it explicitly.
 
 Import is gated by the runner behind the coupling flag, so a flag-OFF run never
 imports this module (paper-3 byte-identity is unaffected — nothing here touches
@@ -21,6 +29,7 @@ from __future__ import annotations
 
 from examples.cat_model.cat_pack import CatModelDomainPack
 from examples.cat_model.cat_validators import CAT_MODEL_PHYSICAL_CHECKS
+from examples.cat_model.ma_validators import MA_CAT_PHYSICAL_CHECKS
 
 # Direct (no try/except ImportError swallow): this package only loads when the
 # coupling flag is ON, and a failure to register the world-mutation governance
@@ -32,5 +41,7 @@ from broker.domains.registry import DomainPackRegistry
 
 ValidatorRegistry.register("cat_model", "physical", list(CAT_MODEL_PHYSICAL_CHECKS))
 DomainPackRegistry.register("cat_model", CatModelDomainPack())
+ValidatorRegistry.register("cat_model_ma", "physical", list(MA_CAT_PHYSICAL_CHECKS))
+DomainPackRegistry.register("cat_model_ma", CatModelDomainPack())
 
 __all__ = ["CatModelDomainPack"]

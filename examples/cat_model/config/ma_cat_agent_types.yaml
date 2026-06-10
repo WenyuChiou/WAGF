@@ -1,0 +1,237 @@
+# Multi-agent catastrophe-model config.
+shared:
+  rating_scales:
+    generic:
+      levels: ["VL", "L", "M", "H", "VH"]
+    financial:
+      levels: ["C", "M", "A"]
+    utility:
+      levels: ["L", "M", "H"]
+  template_vars:
+    - current_year
+    - flood_depth_ft
+    - total_ground_up_loss
+    - n_agents_with_loss
+    - pool_budget_remaining
+    - gov_budget_remaining
+    - last_settlement_rule
+    - last_payout_ratio
+    - total_claims_owed
+    - n_claims
+    - settlement_disposition
+    - your_loss
+    - your_owed
+    - your_policy_status
+    - your_premium
+    - your_last_payout
+    - your_last_payout_ratio
+  response_format:
+    delimiter_start: "<<<DECISION_START>>>"
+    delimiter_end: "<<<DECISION_END>>>"
+    fields:
+      - { key: "decision", type: "choice", required: true }
+      - { key: "reasoning", type: "text", required: false }
+
+global_config:
+  coupling:
+    enable: true
+  memory:
+    window_size: 3
+  llm:
+    num_ctx: 8192
+    num_predict: 1024
+    max_retries: 3
+  governance:
+    domain: cat_model_ma
+    dispatch_domain_physical: true
+    max_retries: 3
+    max_reports_per_retry: 2
+
+policyholder:
+  agent_type: policyholder
+  psychological_framework: generic
+  prompt_template: |
+    ### POLICYHOLDER
+    Agent ID: {agent_id}
+    Year: {current_year}
+
+    ### YOUR POLICY AND LOSS
+    - Flood depth in the footprint: {flood_depth_ft} ft
+    - Your ground-up loss: ${your_loss}
+    - Your covered amount before pool settlement: ${your_owed}
+    - Policy status: {your_policy_status}
+    - Your premium this period (paid while in force): ${your_premium}
+    - Last settlement rule: {last_settlement_rule}
+    - Last insurance payout ratio: {your_last_payout_ratio}
+    - Last insurance payout received: ${your_last_payout}
+
+    ### DECISION
+    Choose whether to file a legitimate covered claim, absorb the loss, or lapse
+    the policy for future periods (lapsing saves the premium but ends coverage).
+
+    ### OPTIONS
+    {options_text}
+
+    {response_format}
+  response_format:
+    delimiter_start: "<<<DECISION_START>>>"
+    delimiter_end: "<<<DECISION_END>>>"
+    fields:
+      - key: primary_assessment
+        type: appraisal
+        required: true
+        construct: PRIMARY_LABEL
+        scale: generic
+        reason_hint: "How strongly this loss supports your claim decision"
+      - { key: "decision", type: "choice", required: true }
+      - { key: "reasoning", type: "text", required: false }
+  actions:
+    - id: file_claim
+      aliases: ["1", "file_claim", "file claim", "claim"]
+      description: "File a legitimate covered claim into the settlement queue"
+    - id: absorb_loss
+      aliases: ["2", "absorb_loss", "absorb loss", "no claim"]
+      description: "Do not file; absorb this period's loss"
+    - id: lapse_policy
+      aliases: ["3", "lapse_policy", "lapse policy", "lapse"]
+      description: "Let the policy lapse for future periods"
+  parsing:
+    decision_keywords: ["decision"]
+    default_skill: absorb_loss
+    strict_mode: true
+    skill_map:
+      "1": file_claim
+      "2": absorb_loss
+      "3": lapse_policy
+    constructs:
+      PRIMARY_LABEL:
+        keywords: ["primary_assessment", "primary", "claim"]
+        regex: "(?i)\\b(VL|L|M|H|VH)\\b"
+      PRIMARY_REASON:
+        keywords: ["primary_assessment", "primary", "claim"]
+        regex: ".*"
+  log_fields:
+    - PRIMARY_LABEL
+  governance:
+    strict:
+      documented_unconstrained_skills:
+        - file_claim
+        - absorb_loss
+        - lapse_policy
+
+insurer_ma:
+  agent_type: insurer_ma
+  psychological_framework: financial
+  prompt_template: |
+    ### INSURER
+    Agent ID: {agent_id}
+    Year: {current_year}
+
+    ### CLAIM POOL
+    - Queued legitimate claims owed: ${total_claims_owed}
+    - Number of queued claims: {n_claims}
+    - Pool budget remaining before settlement: ${pool_budget_remaining}
+    - Total ground-up loss this year: ${total_ground_up_loss}
+
+    ### DECISION
+    Every legitimate queued claim will be paid through the period-end settlement.
+    Decide whether the pool can settle in full or should use the pro-rata rule.
+
+    ### OPTIONS
+    {options_text}
+
+    {response_format}
+  response_format:
+    delimiter_start: "<<<DECISION_START>>>"
+    delimiter_end: "<<<DECISION_END>>>"
+    fields:
+      - key: RISK_APPETITE
+        type: text
+        required: true
+        description: "C, M, or A"
+      - { key: "decision", type: "choice", required: true }
+      - { key: "reasoning", type: "text", required: false }
+  actions:
+    - id: settle_prorata
+      aliases: ["1", "settle_prorata", "settle prorata", "pro rata", "prorata"]
+      description: "Use the audited pro-rata settlement rule if the pool is short"
+    - id: settle_full
+      aliases: ["2", "settle_full", "settle full", "full"]
+      description: "Pay all queued legitimate claims in full"
+  parsing:
+    decision_keywords: ["decision"]
+    default_skill: settle_prorata
+    strict_mode: true
+    skill_map:
+      "1": settle_prorata
+      "2": settle_full
+    constructs:
+      RISK_APPETITE:
+        keywords: ["RISK_APPETITE", "risk_appetite", "risk appetite"]
+        regex: "(?i)\\b(C|M|A)\\b"
+  log_fields:
+    - RISK_APPETITE
+  governance:
+    strict:
+      documented_unconstrained_skills:
+        - settle_prorata
+        - settle_full
+
+government_ma:
+  agent_type: government_ma
+  psychological_framework: utility
+  prompt_template: |
+    ### GOVERNMENT
+    Agent ID: {agent_id}
+    Year: {current_year}
+
+    ### PUBLIC RELIEF CONTEXT
+    - Total ground-up loss this year: ${total_ground_up_loss}
+    - Number of queued claims: {n_claims}
+    - Insurer settlement disposition: {settlement_disposition}
+    - Pool budget remaining before settlement: ${pool_budget_remaining}
+    - Government relief budget remaining: ${gov_budget_remaining}
+
+    ### DECISION
+    Decide whether to reserve the public budget or fund shortfall relief for the
+    period-end settlement.
+
+    ### OPTIONS
+    {options_text}
+
+    {response_format}
+  response_format:
+    delimiter_start: "<<<DECISION_START>>>"
+    delimiter_end: "<<<DECISION_END>>>"
+    fields:
+      - key: BUDGET_UTIL
+        type: text
+        required: true
+        description: "L, M, or H"
+      - { key: "decision", type: "choice", required: true }
+      - { key: "reasoning", type: "text", required: false }
+  actions:
+    - id: no_action
+      aliases: ["1", "no_action", "no action", "reserve"]
+      description: "Do not fund relief this period"
+    - id: fund_shortfall_relief
+      aliases: ["2", "fund_shortfall_relief", "fund relief", "relief"]
+      description: "Use available public budget to reduce settlement shortfalls"
+  parsing:
+    decision_keywords: ["decision"]
+    default_skill: no_action
+    strict_mode: true
+    skill_map:
+      "1": no_action
+      "2": fund_shortfall_relief
+    constructs:
+      BUDGET_UTIL:
+        keywords: ["BUDGET_UTIL", "budget_util", "budget utility"]
+        regex: "(?i)\\b(L|M|H)\\b"
+  log_fields:
+    - BUDGET_UTIL
+  governance:
+    strict:
+      documented_unconstrained_skills:
+        - no_action
+        - fund_shortfall_relief
