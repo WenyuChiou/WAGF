@@ -105,8 +105,10 @@ class ExperimentRunner:
         self._llm_cache = {}
 
         # [Efficiency Hub] Cognitive Caching for decision reuse — opt-in (F4).
-        # None = disabled: the agent loops skip the early context build + hash
-        # entirely (also removing the double context build on the default path).
+        # None = disabled: hash/get/put are skipped (all side-effect-free).
+        # The early context build itself stays UNCONDITIONAL — universal-engine
+        # retrieve() mutates EMA state per call and frozen baselines were
+        # produced with two builds per step (see the loop-site note).
         if config.enable_cognitive_cache:
             persistence_path = config.output_dir / "cognitive_cache.json"
             self.efficiency = CognitiveCache(persistence_path=persistence_path)
@@ -620,14 +622,22 @@ class ExperimentRunner:
             try:
                 self.step_counter += 1
 
-                # [Efficiency Hub] Cognitive Cache Check (opt-in, F4: skipped
-                # entirely — including the early context build — when disabled)
+                # [Efficiency Hub] Cognitive Cache Check (opt-in, F4).
+                # NOTE (F4 byte-identity correction, 2026-06-10): the early
+                # context build is UNCONDITIONAL even with the cache disabled —
+                # UniversalCognitiveEngine.retrieve() updates its EMA surprise
+                # predictor per call (universal.py:_compute_surprise), so every
+                # frozen baseline (SA-flood) was produced with TWO builds per
+                # step. Skipping this build would halve the EMA update count
+                # and break mock byte-reproduction. Only the side-effect-free
+                # hash/get/put are gated. (The double build stays a documented
+                # perf debt, not a correctness lever.)
+                ctx_builder = self.broker.context_builder
+                # Build context early to compute hash
+                context = ctx_builder.build(agent.id, env_context=env)
                 context_hash = None
                 cached_data = None
                 if self.efficiency is not None:
-                    ctx_builder = self.broker.context_builder
-                    # Build context early to compute hash
-                    context = ctx_builder.build(agent.id, env_context=env)
                     context_hash = self.efficiency.compute_hash(context)
                     cached_data = self.efficiency.get(context_hash)
                 if cached_data:
@@ -798,13 +808,15 @@ class ExperimentRunner:
         results = []
 
         def process_agent(agent, step_id):
-            # [Efficiency Hub] Cognitive Cache Check (opt-in, F4: skipped
-            # entirely — including the early context build — when disabled)
+            # [Efficiency Hub] Cognitive Cache Check (opt-in, F4). Early
+            # context build is UNCONDITIONAL — see the sequential-path note
+            # (universal engine's EMA updates per build; frozen baselines
+            # were produced with two builds per step).
+            ctx_builder = self.broker.context_builder
+            context = ctx_builder.build(agent.id, env_context=env)
             context_hash = None
             cached_data = None
             if self.efficiency is not None:
-                ctx_builder = self.broker.context_builder
-                context = ctx_builder.build(agent.id, env_context=env)
                 context_hash = self.efficiency.compute_hash(context)
                 cached_data = self.efficiency.get(context_hash)
             if cached_data:
