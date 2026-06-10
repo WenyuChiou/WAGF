@@ -114,19 +114,32 @@ File: `validators/<domain>_validators.py`.
 
 Replace the placeholder check with 2-3 real physical, personal, social, semantic, temporal, or behavioural checks. Do not register thinking checks in Python; thinking-level coherence belongs in YAML `thinking_rules:` (NOT `rules:` — the broker's `get_thinking_rules()` at `broker/utils/agent_config.py:859` recognises only `thinking_rules` or `coherence_rules`).
 
-```python
-def no_recent_revaccination(skill_proposal, context):
-    if skill_proposal.skill_id != "get_vaccinated":
-        return True, None
-```
+Registered checks are dispatched only when `global_config.governance.domain` and `global_config.governance.dispatch_domain_physical: true` are both set in `agent_types.yaml`; without the flag, registration silently never fires.
 
 ```python
-return False, ValidationReport(
-    check_id="no_recent_revaccination", severity=ValidationSeverity.ERROR
-)
+from typing import Any, Dict, List
+
+from broker.governance.rule_types import GovernanceRule
+from broker.interfaces.skill_types import ValidationResult
+
+
+def no_recent_revaccination(
+    skill_name: str, rules: List[GovernanceRule], context: Dict[str, Any]
+) -> List[ValidationResult]:
+    if skill_name != "get_vaccinated":
+        return []
+    if int(context.get("weeks_since_dose", 999)) >= 26:
+        return []
+    return [ValidationResult(
+        valid=False,
+        validator_name="no_recent_revaccination",
+        errors=["Vaccination too recent (less than 6 months ago)."],
+        metadata={"category": "physical", "rule_id": "no_recent_revaccination",
+                  "deterministic": True},
+    )]
 ```
 
-Each check returns `(passed: bool, report: ValidationReport | None)`. Use Python validators for physical or state feasibility, not for cognitive-theory consistency.
+Each check returns `List[ValidationResult]`; empty list = pass. Use Python validators for physical or state feasibility, not for cognitive-theory consistency.
 
 Validate:
 

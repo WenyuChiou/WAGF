@@ -78,7 +78,7 @@ def insurer_payout_solvency_check(
                     "or pool solvency — check the coupling pipeline wiring."
                 ],
                 metadata={"category": "physical", "rule_id": "missing_world_state",
-                          "missing": list(missing)},
+                          "deterministic": True, "missing": list(missing)},
             )
         ]
 
@@ -91,7 +91,8 @@ def insurer_payout_solvency_check(
                     "approve_payout is invalid: the policy was not in force before "
                     "the event. Deny the claim or correct the policy state."
                 ],
-                metadata={"category": "physical", "rule_id": "policy_not_in_force"},
+                metadata={"category": "physical", "rule_id": "policy_not_in_force",
+                          "deterministic": True},
             )
         ]
 
@@ -110,6 +111,7 @@ def insurer_payout_solvency_check(
                 metadata={
                     "category": "physical",
                     "rule_id": "pool_insolvent",
+                    "deterministic": True,
                     "owed": owed,
                     "pool": pool_f,
                 },
