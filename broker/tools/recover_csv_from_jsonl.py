@@ -14,10 +14,15 @@ The script reads every raw/<agent_type>_traces.jsonl, converts each line
 back to a trace dict, and emits <agent_type>_governance_audit.csv at the
 same column schema as a live finalize() would have produced.
 
-The recovered CSV will carry JSONL's truncated raw_output (>500 chars
-becomes "...[truncated]"), so it is byte-identical to a finalize() CSV
-in every column EXCEPT raw_output. Analysis pipelines that don't read
-raw_output (the common case) see no difference.
+raw_output fidelity (corrected 2026-06-10, review F12): the old top-level
+JSONL truncation was removed (it never touched skill_proposal.raw_output,
+which trace_to_csv_row reads FIRST, so the truncation bought nothing and
+the previous claim here — "recovered CSV carries truncated raw_output" —
+was factually wrong whenever skill_proposal carried the string). For runs
+written by audit-schema >= 2 the recovered CSV is byte-identical to a
+live finalize() CSV in ALL columns; for pre-2026-06-10 JSONL the top-level
+raw_output may be truncated, but recovery still prefers the untruncated
+skill_proposal.raw_output when present.
 
 Exit status:
     0 — recovery succeeded for at least one file

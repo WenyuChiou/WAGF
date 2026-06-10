@@ -358,9 +358,18 @@ class SkillBrokerEngine(RetryMixin, AuditMixin, SkillFilterMixin):
                     composite_errors.append(f"Primary and secondary are the same: '{sec_skill}'")
                     secondary_proposal = None
                 else:
-                    # Validate secondary individually
+                    # Validate secondary individually. F5 (2026-06-10): against
+                    # the SECONDARY's own magnitude — validation_context still
+                    # holds the primary's, so magnitude caps never applied to
+                    # secondaries pre-fix. Copy, don't mutate (the primary's
+                    # context must stay intact for the retry loop).
+                    sec_context = dict(validation_context)
+                    if sec_mag is not None:
+                        sec_context["proposed_magnitude"] = sec_mag
+                    else:
+                        sec_context.pop("proposed_magnitude", None)
                     sec_validation = self._run_validators(
-                        secondary_proposal, validation_context
+                        secondary_proposal, sec_context
                     )
                     sec_valid = all(v.valid for v in sec_validation if v)
                     if sec_valid:
