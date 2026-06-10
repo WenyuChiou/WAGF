@@ -32,11 +32,29 @@ MemoryEngine.retrieve_content_only(...) -> List[str]   # compatibility helper on
 
 ### Detection / enforcement
 - `broker/tests/test_framework_invariants.py::test_memory_engine_contract` — asserts every `MemoryEngine` subclass preserves metadata end-to-end for a synthetic critical memory.
-- Base `MemoryEngine.__init_subclass__` — on import, verifies subclass `retrieve()` does not return bare `List[str]` (annotation-level check).
+- Base `MemoryEngine.__init_subclass__` annotation-level check: **NOT IMPLEMENTED**
+  (confirmed 2026-06-10 — the gate described here was never built; see the
+  documented WindowMemoryEngine exemption below, which replaces it for window.
+  Any new engine is covered only by the test above, so extend that test when
+  adding an engine.)
 
 ### Known current state (as of 2026-04-19)
 - Base `retrieve()` declares `List[str]` return — this is the legacy contract being repaired on `feat/memory-pipeline-v2` by Codex. Target state is `List[MemoryRecord]`.
 - `retrieve_content_only()` already exists (`broker/components/memory/engine.py:53-68`) as the compatibility helper.
+
+### Documented exemption: WindowMemoryEngine (2026-06-10, architecture review P1-8)
+- `WindowMemoryEngine.retrieve()` returns `List[str]` and is **explicitly
+  exempt** from Rule 1. Rationale: window is the runner's silent default
+  fallback engine, it stores no metadata to preserve, and its production
+  consumers (`broker/components/analytics/interaction.py:343/355/379`,
+  `broker/components/context/providers.py:144`) consume plain strings —
+  flipping the return type would break live paths for zero metadata gain.
+  Window is the **content-only** engine; any domain needing
+  emotion/importance/source metadata MUST select `humancentric` (the
+  metadata-bearing production engine). The `__init_subclass__`
+  annotation check described under Detection was never implemented; this
+  documented exemption replaces it for window. The exemption is CLOSED to
+  new members — new engines must satisfy Rule 1.
 
 ---
 

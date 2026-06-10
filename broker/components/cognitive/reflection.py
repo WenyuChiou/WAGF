@@ -243,19 +243,22 @@ class ReflectionEngine:
         self,
         agent_id: str,
         memories: List[str],
-        current_year: int
+        current_year: int,
+        tick_label: str = "Year",
     ) -> str:
         """
         Generate a prompt asking the LLM to synthesize memories into insights.
-        
+
         This is domain-agnostic; the memories themselves contain the domain context.
+        ``tick_label`` names the decision period in prompt text ("Year" default —
+        byte-identical to pre-3-5; a sub-annual domain passes e.g. "Day").
         """
         if not memories:
             return ""
 
         memories_text = "\n".join([f"- {_memory_text(m)}" for m in memories])
 
-        return f"""You are reflecting on your experiences from the past {self.reflection_interval} year(s).
+        return f"""You are reflecting on your experiences from the past {self.reflection_interval} {tick_label.lower()}(s).
 
 **Your Recent Memories:**
 {memories_text}
@@ -299,6 +302,7 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
         memories: List[str],
         current_year: int,
         reflection_questions: Optional[List[str]] = None,
+        tick_label: str = "Year",
     ) -> str:
         """Generate a personalized reflection prompt with agent identity.
 
@@ -316,7 +320,7 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
         identity_lines = [f"You are {context.agent_id}"]
         if context.name:
             identity_lines[0] += f" ({context.name})"
-        identity_lines[0] += f", a {context.agent_type} agent in Year {current_year}."
+        identity_lines[0] += f", a {context.agent_type} agent in {tick_label} {current_year}."
 
         # Phase 6C-v2 / 6H Item 9: domain-specific status text comes from
         # the registered DomainPack. Scan all packs and use the first
@@ -360,13 +364,14 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
     def generate_personalized_batch_prompt(
         self,
         batch_data: List[Dict[str, Any]],
-        current_year: int
+        current_year: int,
+        tick_label: str = "Year",
     ) -> str:
         """Generate batch prompt with per-agent identity context."""
         if not batch_data:
             return ""
 
-        lines = [f"### Background\nYou are a Reflection Assistant for {len(batch_data)} agents in Year {current_year}."]
+        lines = [f"### Background\nYou are a Reflection Assistant for {len(batch_data)} agents in {tick_label} {current_year}."]
         lines.append("Instructions: Provide a personalized 2-sentence reflection for each agent based on their unique situation and memories.\n")
 
         lines.append("### Agent Data")
@@ -578,6 +583,7 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
         current_year: int,
         reflection_questions: Optional[List[str]] = None,
         persona_instruction: Optional[str] = None,
+        tick_label: str = "Year",
     ) -> str:
         """
         Generate a prompt for batch reflection across multiple agents.
@@ -590,11 +596,13 @@ Provide a concise summary (2-3 sentences) that captures the most important insig
                 from YAML config (global_config.reflection.questions).
             persona_instruction: Optional instruction to enforce a specific persona
                 viewpoint (e.g., "Speak in first person as the agent").
+            tick_label: Decision-period noun for prompt text ("Year" default —
+                byte-identical to pre-3-5; sub-annual domains pass e.g. "Day").
         """
         if not batch_data:
             return ""
 
-        lines = [f"### Background\nYou are a Reflection Assistant for {len(batch_data)} agents in a simulation (Year {current_year})."]
+        lines = [f"### Background\nYou are a Reflection Assistant for {len(batch_data)} agents in a simulation ({tick_label} {current_year})."]
         
         if persona_instruction:
             lines.append(f"Instructions: {persona_instruction}")

@@ -39,6 +39,7 @@ class ExperimentBuilder:
         self._exact_output = False # New: bypass model subfolder
         self._phase_order = None  # Agent type groups for phased execution
         self._coupling = None  # Phase 6V: declared coupling intent (with_coupling)
+        self.reflection_engine = None  # Wave 3 (3-5): runner reflection seat
 
     def with_workers(self, workers: int = 4):
         """Set number of parallel workers for LLM calls. 1=sequential (default)."""
@@ -297,6 +298,18 @@ class ExperimentBuilder:
         self.skill_registry = registry
         return self
 
+    def with_reflection_engine(self, reflection_engine: Any):
+        """Attach a ReflectionEngine to the runner (Wave 3 / 3-5).
+
+        Makes the runner's reflection seat live: Invariant-6 run-integrity
+        records reflection provenance (engine class + wiring) instead of the
+        dead ``hasattr`` branch, and domain hooks / a ReflectionOrchestrator
+        can reach the engine via ``runner.reflection_engine`` instead of each
+        runner smuggling it through closures.
+        """
+        self.reflection_engine = reflection_engine
+        return self
+
     def with_output(self, path: str):
         self.output_base = Path(path)
         self._exact_output = False
@@ -540,4 +553,9 @@ class ExperimentBuilder:
             memory_engine=mem_engine,
             hooks=self.hooks
         )
+        # Wave 3 (3-5): give the runner a reflection seat so Invariant-6
+        # run-integrity records reflection provenance on the builder path
+        # (the runner-side hasattr branch was dead — nothing ever set it).
+        if self.reflection_engine is not None:
+            runner.reflection_engine = self.reflection_engine
         return runner

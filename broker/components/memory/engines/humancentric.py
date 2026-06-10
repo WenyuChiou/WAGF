@@ -68,6 +68,9 @@ class HumanCentricMemoryEngine(MemoryEngine):
         # P1: Optional SurpriseStrategy plugin (replaces v3/v4 wrappers)
         surprise_strategy: Optional["SurpriseStrategy"] = None,
         arousal_threshold: float = 0.5,
+        # Wave 3 (3-4): domain-supplied emotion lexicon {emotion: [keywords]}.
+        # None -> the generic default bank below (byte-identical to pre-3-4).
+        emotion_keywords: Optional[Dict[str, List[str]]] = None,
     ):
         """
         Args:
@@ -129,8 +132,10 @@ class HumanCentricMemoryEngine(MemoryEngine):
             "abstract": 0.3      # General information
         }
         
-        # Emotion keywords for classification (Generic)
-        self.emotion_keywords = {
+        # Emotion keywords for classification — domain-supplied via the ctor
+        # (DomainPack.emotional_keywords through the factory, Wave 3 / 3-4)
+        # or the generic default bank.
+        self.emotion_keywords = emotion_keywords if emotion_keywords is not None else {
             "critical": ["failure", "damage", "destroyed", "loss", "error", "emergency"],
             "major": ["should have", "could have", "important", "decision"],
             "positive": ["success", "improved", "protected", "approved", "gain"],
