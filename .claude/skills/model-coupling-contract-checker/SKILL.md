@@ -11,6 +11,17 @@ Bugs in the coupling layer have caused real failures (e.g., the v21
 `request`-vs-`diversion` base-asymmetry bug, 2026-03-03). This skill
 audits the contract between agent layer and external model.
 
+**v0.6 note**: units, range, direction, and type checks now live in
+`VarSpec` and are enforced at runtime by the coupling layer. Keep
+checking that the `VarSpec` declarations match the research schema,
+but shift the audit weight to what `VarSpec` cannot see: timing
+semantics, feedback double-counting, missing-value policy honesty,
+parallel state mutation, and prompt/menu wiring. The reservoir
+continuous-control incident is the canonical timing example:
+hindcast-then-set means the wall must consume the coming period's
+forecast; feeding the just-consumed period's value as the "forecast"
+makes walls fire for the wrong physical reason.
+
 ## When to Use
 
 Load this skill when the user says any of:
@@ -55,11 +66,15 @@ If any of (1)–(5) is missing, ask. Do not guess.
 1. **Schema diff**: compare ABM state schema against external model
    input schema. Every external-input field must trace to either an
    agent state field or an environment field. Field type and units
-   must match.
+   must match the live `VarSpec` declarations; a correct prose schema
+   without matching `VarSpec` coverage is not sufficient.
 2. **Time-step alignment**: verify the external model's time step
    divides into the agent's decision step (e.g., daily reservoir →
    annual agent OK; weekly flood → annual agent requires aggregation
-   rule).
+   rule). For hindcast-then-set controls, explicitly verify forecast
+   vintage; the reservoir incident used the just-consumed period's
+   value as the next-period forecast and made the wall fire for the
+   wrong physical reason.
 3. **Temporal sync + intra-step ordering** (taxonomy E1, E3 — see
    `references/coupling_interaction_taxonomy.md`): enumerate the
    per-step sequence (agent decides → env updates → external runs →
@@ -91,15 +106,28 @@ If any of (1)–(5) is missing, ask. Do not guess.
      validator is scoped to the correct agent type (note: builtin
      Python checks are NOT agent-type-scoped today — flag any
      model-feasibility builtin shared across agent types).
+   - AR-3: coupled runs or env-mutating hooks must use `workers=1`
+     unless the framework has a domain-specific parallel safety proof.
+     `broker/INVARIANTS.md` marks `workers > 1` with coupling as not
+     supported because phase-internal parallel steps can interleave
+     bundle mutations.
 5. **Missing / out-of-range handling**: confirm every external-model
    input has documented behaviour for missing values and
    out-of-physical-range values (e.g., negative demand → clip;
    missing flood depth → assume zero or fail loudly?).
+   In v0.6, `VarSpec.on_missing` only has an executor for
+   `fail_loud`; call out `last_good`, `quarantine`, or silent-zero
+   policies as not implemented unless the connector owns that behavior.
 6. **Randomness**: confirm both sides share or independently seed
    random number generators in a way that lets the run be reproduced.
 7. **Worked-example check** (if provided): walk one trace through the
    round-trip and verify each unit conversion and mutation.
-8. **Write report**.
+8. **Hub-less prompt/menu check**: if the runner uses
+   `ExperimentBuilder.with_coupling(...)` without the full interaction
+   hub, inspect how `{options_text}` reaches the prompt. The cat and
+   reservoir examples inject `dynamic_state["options_text"]`; `[N/A]`
+   menus make real LLMs decide blind even when `VarSpec` is correct.
+9. **Write report**.
 
 ## Outputs
 
@@ -161,6 +189,15 @@ The skill MUST refuse to:
    scoped to the correct
    agent type (taxonomy E5; builtin Python checks are not
    agent-type-scoped today).
+8. Approve a coupled run configured with `workers > 1` unless the
+   domain supplies a reviewed parallel-safety proof. `broker/INVARIANTS.md`
+   AR-3 makes `workers=1` the coupled-run default.
+9. Treat a hub-less runner as format-safe without verifying that
+   `options_text` is populated and the `decision` field description
+   matches the actual action menu.
+10. Accept `last_good`, `quarantine`, or silent-zero missing-value
+    policy as framework-enforced; in v0.6 only `fail_loud` exists
+    unless the connector implements its own behavior.
 
 ## Bundled resources
 

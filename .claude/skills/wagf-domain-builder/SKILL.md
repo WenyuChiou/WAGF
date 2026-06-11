@@ -1,6 +1,6 @@
 ---
 name: wagf-domain-builder
-description: Walk a researcher (PhD, collaborator, lab-mate) through building their first single-agent WAGF domain — from "I have a research question + maybe an external model" to "I have a working WAGF experiment producing audit traces." Conducts a structured S0-S7 interview, invokes `broker.tools.scaffold_domain` at S4, guides 4 surgical edits in S5, and runs `broker.tools.validate_prompt` after every change. Hands off to `wagf-coupling-designer` for any coupling work and to `wagf-experiment-designer` / `abm-reproducibility-checker` once the domain runs green. Use when the user says "I want to build a WAGF model for <my domain>", "help me set up a new domain", "I'm new to WAGF and have a research question", or "scaffold a domain from scratch".
+description: Walk a researcher (PhD, collaborator, lab-mate) through building their first WAGF domain — from "I have a research question + maybe an external model" to "I have a working WAGF experiment producing audit traces." Conducts a structured S0-S7 interview, invokes `broker.tools.scaffold_domain` at S4, guides 4 surgical edits in S5, and runs `broker.tools.validate_prompt` after every change. Hands off to `wagf-coupling-designer` for coupling and to `wagf-verification-ladder` once the domain runs green. Use when the user says "I want to build a WAGF model for <my domain>", "help me set up a new domain", "I'm new to WAGF and have a research question", or "scaffold a domain from scratch".
 ---
 
 # WAGF: Domain Builder
@@ -356,6 +356,8 @@ Output: audit CSV + reflection log + no error blocks.
 
 Skip if no coupling. Otherwise hand off to
 `wagf-coupling-designer` C3-C4. After that returns, hand off to:
+- `wagf-verification-ladder` for the gates ladder after the domain
+  runs green and before experiment/reproducibility work.
 - `model-coupling-contract-checker` for the audit pass.
 - `wagf-experiment-designer` for the experiment matrix.
 - `abm-reproducibility-checker` before submission.
@@ -440,6 +442,7 @@ References (you read these to guide stages):
 | S2 (coupling, optional) | `wagf-coupling-designer` C0-C1 | After `.coupling/contract.md` exists |
 | S3 (mock, optional) | `wagf-coupling-designer` C2 | After MockExternalModel runs in a 1-year smoke |
 | S7 (real-model, optional) | `wagf-coupling-designer` C3-C4 | After mock-vs-real divergence smoke is GREEN |
+| S7 (post-green) | `wagf-verification-ladder` | After all ladder gates have PASS/FAIL evidence |
 | S7 (post-cutover) | `model-coupling-contract-checker` | After audit verdict (GREEN/YELLOW/RED) |
 | S7 (post-audit) | `wagf-experiment-designer` | After experiment matrix is drafted |
 | Pre-submission only | `abm-reproducibility-checker` | After reproducibility verdict |
