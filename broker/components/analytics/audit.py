@@ -515,6 +515,9 @@ class GenericAuditWriter:
             "rule_breakdown":  "rules_* columns (personal_hit, social_hit, etc.)",
         }
         self._startup_warned: bool = False
+        # O1: (agent_type, utilization-decile) pairs already warned about —
+        # keeps the live context-budget tripwire to a handful of log lines.
+        self._ctx_budget_warned: set = set()
 
     def _get_file_path(self, agent_type: str) -> Path:
         """Get or create file path for agent type (JSONL traces in raw/ subdir)."""
@@ -570,6 +573,35 @@ class GenericAuditWriter:
         # Ensure required fields
         trace.setdefault("timestamp", datetime.now().isoformat())
         trace.setdefault("agent_type", agent_type)
+
+        # O1 (2026-06-10 lifecycle review): LIVE context-budget tripwire.
+        # context_utilization has been recorded per row since R5-C, but
+        # nothing watched it during the run — when prompt_tokens approaches
+        # num_ctx, ollama silently truncates the prompt HEAD (system/role
+        # text dies first), the purest silent failure. Warn once per
+        # (agent_type, decile-above-90%) so a 42-yr batch logs a handful of
+        # lines, not thousands. Log-only: no trace/CSV key is touched.
+        llm_stats = trace.get("llm_stats")
+        if not isinstance(llm_stats, dict):
+            llm_stats = {}
+        try:
+            _pt = float(llm_stats.get("prompt_tokens") or 0)
+            _nc = float(llm_stats.get("num_ctx") or 0)
+            if _nc > 0 and _pt / _nc > 0.9:
+                # cap at 10 so every >=100% case shares one bucket
+                _bucket = (agent_type, min(int((_pt / _nc) * 10), 10))
+                if _bucket not in self._ctx_budget_warned:
+                    self._ctx_budget_warned.add(_bucket)
+                    logger.warning(
+                        f"[Audit:ContextBudget] {agent_type} prompt is at "
+                        f"{_pt / _nc:.0%} of num_ctx ({int(_pt)}/{int(_nc)}). "
+                        f"Above ~100% the LLM server silently drops the "
+                        f"prompt HEAD (instructions die first). Raise "
+                        f"global_config.llm.num_ctx or trim memory/social "
+                        f"content. (Warned once per agent_type per decile.)"
+                    )
+        except (TypeError, ValueError):
+            pass  # malformed stats never block the audit plane
         
         # Add basic validation info if provided
         if validation_results:
