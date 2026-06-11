@@ -87,6 +87,15 @@ def test_e2e_mock_run_rows_equal_years(tmp_path: Path):
     rows = _csv_rows(out / "operator_governance_audit.csv")
     assert len(rows) == 4
 
+    # T5 menu regression net (the e4b "[N/A]" blind-menu class): the rendered
+    # prompt must carry the real numbered menu injected via dynamic_state.
+    records = _jsonl_records(out / "raw" / "operator_traces.jsonl")
+    prompt = records[0]["input"]
+    assert "[N/A]" not in prompt
+    assert "1. set_release" in prompt
+    assert "2. maintain_release" in prompt
+    assert prompt.index("1. set_release") < prompt.index("2. maintain_release")
+
 
 def test_drought_year_wall_retry_resolves_and_audits_failed_rule(tmp_path: Path):
     """The insurer-pattern narrative (review C2): at the year-3 decision the

@@ -479,6 +479,15 @@ def test_phase_visibility_pin(tmp_path, monkeypatch):
         151_460.0
     )
 
+    # T5 menu regression net (the e4b "[N/A]" blind-menu class): the rendered
+    # insurer prompt must carry the real numbered menu injected via
+    # dynamic_state — numbering locked to parsing.skill_map.
+    prompt = insurer_records[0]["input"]
+    assert "[N/A]" not in prompt
+    assert "1. settle_prorata" in prompt
+    assert "2. settle_full" in prompt
+    assert prompt.index("1. settle_prorata") < prompt.index("2. settle_full")
+
 
 def test_government_relief_capped():
     bundle = _bundle(pool=100.0, gov_budget=40.0, premium_per_period=0.0)
