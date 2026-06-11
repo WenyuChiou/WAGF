@@ -51,6 +51,8 @@ env/
 !.claude/skills/wagf-experiment-designer/**
 !.claude/skills/wagf-quickstart/
 !.claude/skills/wagf-quickstart/**
+!.claude/skills/wagf-verification-ladder/
+!.claude/skills/wagf-verification-ladder/**
 .worktrees/
 *.swp
 *.swo

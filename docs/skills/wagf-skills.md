@@ -9,6 +9,7 @@ analysis scripts; none reimplements WAGF logic.
 | If you want to … | Load skill |
 |---|---|
 | **Build a new domain from scratch** — I have a research question + maybe an external model | `wagf-domain-builder` |
+| **Verify a domain end-to-end / is it done?** — test my new domain, run the smoke pipeline, my domain runs — what now? | `wagf-verification-ladder` |
 | **Design the coupling** between WAGF agents and my external simulator | `wagf-coupling-designer` |
 | **Onboard** — first time using the EXISTING reference examples (flood / irrigation / vaccination) | `wagf-quickstart` |
 | **Plan** a new experiment matrix from a research question on a working domain | `wagf-experiment-designer` |
@@ -27,7 +28,9 @@ analysis scripts; none reimplements WAGF logic.
    │            └─ C4: hands off to
    │                model-coupling-contract-checker  ← audits the coupling
    │
-   └─ S7: hands off to
+   └─ after S7: hands off to
+       wagf-verification-ladder    ← gates domain-DONE evidence
+                  ↓
        wagf-experiment-designer    ← plans the experiment matrix
                   ↓
              [run experiment]
@@ -202,17 +205,20 @@ questions, advance past C1 without a complete contract, bypass the
 mock smoke before real-model cutover, or claim mock fidelity
 matches real model.
 
-**v1 scope**: patterns A + B only (~80% of PhD use cases).
-C (subprocess) / D (REST) / E (co-process) deferred to v2.
+**v0.6 scope**: connector archetypes A-D from
+`docs/COUPLING_CONNECTORS.md`; start from `examples/cat_model/`,
+`examples/cat_model/run_cat_ma.py`, or `examples/reservoir_control/`
+instead of hand-rolling a private adapter.
 
-## Why these specific seven
+## Why these specific eight
 
-WAGF now has 7 skills covering the full lifecycle from blank repo
+WAGF now has 8 skills covering the full lifecycle from blank repo
 to submitted paper:
 
 | Skill | Lifecycle slot |
 |---|---|
 | `wagf-domain-builder` | NEW: from blank to working domain |
+| `wagf-verification-ladder` | NEW: from working domain to DONE evidence |
 | `wagf-coupling-designer` | NEW: from working domain to coupled simulator |
 | `wagf-quickstart` | Onboarding on EXISTING reference examples |
 | `wagf-experiment-designer` | Plan the experiment matrix |
@@ -224,22 +230,24 @@ Adding more risks duplicating user-level skills
 (`academic-writing-skills`, `research-hub`). Each existing skill
 owns a distinct lifecycle slot — there is no functional overlap.
 
-## Composing the five skills (typical flow)
+## Composing the lifecycle skills (typical flow)
 
 0. **Onboard** with `wagf-quickstart` (first time only) → environment
    check + smoke test + handoff to step 1.
-1. **Plan** with `wagf-experiment-designer` →
+1. **Build/verify** a new domain with `wagf-domain-builder`, then
+   run `wagf-verification-ladder` before experiment design.
+2. **Plan** with `wagf-experiment-designer`:
    `.research/wagf_experiment_matrix.yml`.
-2. **Run** the experiment via the bat in
+3. **Run** the experiment via the bat in
    `.research/run_plan.md` (no skill — this is just bash / Ollama).
-3. **Verify coupling** mid-run with `model-coupling-contract-checker`
+4. **Verify coupling** mid-run with `model-coupling-contract-checker`
    if a new external model was added.
-4. **Analyse** completed runs with
+5. **Analyse** completed runs with
    `llm-agent-audit-trace-analyzer` →
    `analysis/governance_summary.md`.
-5. **Audit** for submission with `abm-reproducibility-checker` →
+6. **Audit** for submission with `abm-reproducibility-checker`:
    `analysis/reproducibility/reproducibility_report.md`.
-6. **Hand off** the four output bundles plus the paper draft to
+7. **Hand off** the output bundles plus the paper draft to
    `academic-writing-skills` for the actual writing.
 
 ## Anti-hallucination guardrails (cross-cutting)

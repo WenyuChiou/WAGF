@@ -1,6 +1,6 @@
 ---
 name: wagf-quickstart
-description: First-time WAGF setup walkthrough — environment check, smoke test, first experiment, and handoff to the four lifecycle skills. Use when the user says "I just cloned WAGF", "set up WAGF", "first WAGF run", "I'm new to this", "where do I start with WAGF", or opens a Claude Code session in a freshly-cloned WAGF repo without a clear task.
+description: First-time WAGF setup walkthrough — environment check, smoke test, first experiment, and handoff to the lifecycle skills. Use when the user says "I just cloned WAGF", "set up WAGF", "first WAGF run", "I'm new to this", "where do I start with WAGF", or opens a Claude Code session in a freshly-cloned WAGF repo without a clear task.
 ---
 
 # WAGF Quickstart — First-Time Setup
@@ -35,8 +35,8 @@ Do NOT use this skill for:
 
 - An experienced WAGF user who knows what they want → load the
   matching lifecycle skill directly (`wagf-experiment-designer`,
-  `llm-agent-audit-trace-analyzer`, `model-coupling-contract-checker`,
-  `abm-reproducibility-checker`).
+  `llm-agent-audit-trace-analyzer`, `wagf-verification-ladder`,
+  `model-coupling-contract-checker`, `abm-reproducibility-checker`).
 - Generic "how do I run a Python project" questions → defer to
   whatever the user actually wants.
 
@@ -160,7 +160,9 @@ provided a research question (even one sentence).
    results", hand off: "Now loading
    `llm-agent-audit-trace-analyzer` to compute governance metrics."
 3. After the analyser writes `analysis/governance_summary.md`, point
-   the user at the next two skills:
+   the user at the next three skills:
+   - `wagf-verification-ladder` — if they built or modified a
+     domain and need the setup-test-smoke-real-LLM done ladder.
    - `model-coupling-contract-checker` — if they added an external
      model.
    - `abm-reproducibility-checker` — before they submit a paper.

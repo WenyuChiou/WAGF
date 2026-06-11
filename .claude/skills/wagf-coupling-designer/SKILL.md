@@ -1,6 +1,6 @@
 ---
 name: wagf-coupling-designer
-description: Walk a researcher through designing the LLM↔external-model interface — decision flow IN, observation flow OUT — for a single-agent WAGF domain. Emits a coupling contract, a working mock adapter, and a pattern-specific real-model adapter scaffold so the WAGF side can be built and smoke-tested BEFORE the real model is wired in. Use when the user says "I want to couple my LLM agents to <my simulator>", "help me design the WAGF↔X interface", "scaffold the external model adapter", "draft a coupling contract", "I have a Python / R / CSV-based model and want WAGF to drive it". Sister skill to `model-coupling-contract-checker` (which AUDITS existing contracts; this one DESIGNS new ones).
+description: Walk a researcher through designing the LLM-external-model interface for a WAGF domain using the v0.6 coupling layer. Use when the user says "I want to couple my LLM agents to <my simulator>", "help me design the WAGF interface", "scaffold the external model adapter", "draft a coupling contract", or "I have a Python / R / CSV / service model and want WAGF to drive it".
 ---
 
 # WAGF: Coupling Designer
@@ -22,6 +22,13 @@ It is the back-end for `wagf-domain-builder` stages S2 / S3 / S7, but
 also works standalone for users adding coupling to an existing WAGF
 setup or swapping one external model for another.
 
+**v0.6 design target**: do not hand-roll a private adapter contract.
+Design into `broker.coupling.CouplingContract` + `VarSpec`. Units,
+range, direction, type, cadence vocabulary, missing-value policy, and
+double-count declarations are enforced at construction/runtime by the
+coupling layer; the skill's job is to make the research semantics
+explicit enough that those checks are meaningful.
+
 ## When to Use
 
 Invoke this skill when the user says any of:
@@ -42,42 +49,49 @@ Do NOT use this skill for:
 - Designing an experiment matrix on top of working coupling
   → `wagf-experiment-designer`.
 
-## Scope (v1)
+## Scope (v0.6)
 
-Currently supports **single-agent** WAGF setups and **two coupling
-patterns**:
+Start from `docs/COUPLING_CONNECTORS.md`, not from a blank adapter.
+Pick one connector archetype and copy the matching worked example as
+the starting skeleton:
 
-- **Pattern A — File replay**: CSV / NetCDF / pre-computed model
-  outputs replayed by year or timestep.
-- **Pattern B — Python library**: direct import + function call of an
-  in-process Python model.
+- **A — BMI/CSDMS solver**: `BmiEventSource` for event-style coupling,
+  or `ContinuousBundle` for K-sub-step control. Copy
+  `examples/cat_model/` for the event path or
+  `examples/reservoir_control/` for continuous control.
+- **B — File replay**: copy the file-replay source pattern in
+  `examples/cat_model/coupling_modules.py` and attach file provenance.
+- **C — Service model**: implement the EventSource/InterfaceBundle
+  surface around HTTP/subprocess calls. `VarSpec.on_missing` only
+  accepts `fail_loud`; retries/caches must live inside the source.
+- **D — Another ABM / period-end exchange**: copy
+  `examples/cat_model/run_cat_ma.py`. Accumulate intents during the
+  period, settle shared state once at period end, and project the
+  settlement into the next period.
 
-Three more patterns are documented for awareness but DEFERRED to v2:
-C (subprocess CLI), D (REST API), E (long-running co-process). If the
-user's model fits C/D/E, surface the deferral and offer pattern B as
-a stop-gap (wrap the external call in a Python function).
+Wire the result through
+`ExperimentBuilder.with_coupling(contract, bundle, domain=...)`. The
+feature must remain default-OFF through the two-layer flag:
+`global_config.coupling.enable` in YAML first, then the DomainPack's
+`coupling_enabled_default()` fallback.
 
 ### Multi-agent coupling: read this first
 
-v1 **scaffolds single-agent couplings only**. Multi-agent
-code-emission is correctly deferred (the PhaseOrchestrator /
-coordination layer is not yet wired into `ExperimentRunner` — see the
-Phase-3/4 gating in the consolidated plan). This is NOT cosmetic: in a
-multi-agent coupling the external model returns a per-agent outcome AND
-a shared-state update (insurance pool, budget, common-pool resource)
-that loops back to every agent. That introduces exposure point **E4
-(multi-agent shared-state resolution)** which v1 cannot scaffold and
-which is, today, resolved by ad-hoc ordered `env`-dict mutation that is
-**not routed through the audit pipeline**.
+v0.6 has a worked multi-agent period-end pattern in
+`examples/cat_model/run_cat_ma.py`; copy it rather than improvising
+ordered `env` mutation. A multi-agent coupling returns per-agent
+outcomes AND a shared-state update (insurance pool, budget,
+common-pool resource) that loops back to every agent. That is exposure
+point **E4 (multi-agent shared-state resolution)** and it requires an
+order-independent, audited resolver.
 
 If the user's target is multi-agent:
 
-1. Still draft the single-agent contract here (E1, E2, E3 and E5 all
-   apply per-agent — only E4 is multi-agent-specific — and the
-   single-agent contract is the foundation).
-2. Explicitly warn the user that E4 is unscaffolded and that
-   hand-rolling cross-agent shared-state mutation will silently
-   reproduce the dormant-coordination-layer gap.
+1. Draft the per-agent `VarSpec` observations/inputs first. E1, E2,
+   E3 and E5 still apply per-agent; E4 adds the shared-state rule.
+2. Copy the period-end settlement shape from
+   `examples/cat_model/run_cat_ma.py` when shared state can be lagged
+   to the next period.
 3. Point them at the full taxonomy:
    `model-coupling-contract-checker/references/coupling_interaction_taxonomy.md`
    (E1–E5, disaster-model worked example, the multi-agent
@@ -85,7 +99,10 @@ If the user's target is multi-agent:
    `wagf-domain-builder/references/multi_agent_walkthrough.md` (the
    `self.env = env` dual-dict contract + the disaster-coupling worked
    example).
-4. Do NOT pretend v1 produced a multi-agent-safe coupling.
+4. Do NOT pretend this skill made a same-period multi-agent loop safe.
+5. Do NOT claim same-period feedback is supported by default. If the
+   research question needs within-period reaction loops, flag it as a
+   different framework regime.
 
 ## Inputs
 
@@ -113,43 +130,55 @@ verify the artifact exists before moving to the next stage.
 
 ### C0 — Pattern recognition (5 min)
 
-Ask: "Where does your external model live? Is it (A) a static file of
-pre-computed outputs, (B) a Python library you import, (C) a CLI tool
-you run as a subprocess, (D) a REST API, or (E) a long-running
-co-process?"
+Ask: "Which connector archetype in `docs/COUPLING_CONNECTORS.md` is
+closest: (A) BMI/CSDMS solver, (B) file replay, (C) service model, or
+(D) another ABM / period-end exchange?"
 
-Match the answer against
-`references/coupling_patterns/README.md`. If C/D/E, explain the v2
-deferral and offer pattern B as a stop-gap.
+Record the chosen archetype and the copied skeleton path:
+`examples/cat_model/`, `examples/cat_model/run_cat_ma.py`, or
+`examples/reservoir_control/`. If none fits, stop and write down the
+missing interface rather than inventing a fifth pattern.
 
-Output: pattern letter (A or B) recorded in the contract draft.
+Output: connector archetype and starting skeleton recorded in the
+contract draft.
 
 ### C1 — Contract drafting (20 min)
 
 Walk the user through filling in the template at
 `templates/coupling_contract.md.tmpl`. Use
 `references/contract_template.md` for narrative explanation of each
-section.
+section, then translate the variable tables into `CouplingContract`
+and `VarSpec` declarations in code.
 
 For each section, ask only the questions that section requires —
 don't dump the whole template on the user upfront.
 
-After every variable declared, immediately ask the unit. Reference
-`references/units_audit_checklist.md` for the 8-10 common unit traps.
+For every variable, collect `name`, Python type, unit, physical range
+(`lo`/`hi` where meaningful), direction (`world_to_agent` vs
+`agent_to_world`), cadence, and whether it is the consumer of record.
+Reference `references/units_audit_checklist.md` for the 8-10 common
+unit traps.
 
 For failure modes, force a per-mode answer (timeout / NaN / crash /
-out-of-range). Default policy is "fail loudly"; the user must
-explicitly opt into "reuse last good output + log warning" — never
-silently zero-fill.
+out-of-range). In v0.6 `VarSpec.on_missing` accepts ONLY
+`"fail_loud"` — declaring `"last_good"` or `"quarantine"` RAISES at
+construction (no runtime executor exists; the contract refuses
+policies it cannot honour). Any reuse-last-good or retry behaviour
+must be implemented INSIDE the user's source/bundle, where it is
+visible and testable — never silently zero-fill.
 
-Output: `.coupling/contract.md` in the user's domain root.
+Output: `.coupling/contract.md` in the user's domain root plus a
+draft `_build_contract() -> CouplingContract` skeleton.
 
 ### C2 — Mock generator (15 min)
 
-Copy `templates/mock_external_model.py.tmpl` into the user's
-`lifecycle_hooks.py` (or a new module imported from there).
-Substitute the placeholder markers (`<<DOMAIN_NAME>>`,
-`<<VAR_RANGES>>`, etc.) using the contract drafted in C1.
+Copy the closest v0.6 worked example first. Use
+`examples/cat_model/run_cat.py` for single-agent event coupling,
+`examples/cat_model/run_cat_ma.py` for period-end multi-agent
+settlement, or `examples/reservoir_control/run_reservoir_ops.py` for
+continuous control / `ContinuousBundle`. Only use
+`templates/mock_external_model.py.tmpl` when no shipped skeleton is
+close enough.
 
 The mock must:
 - Accept the same INPUT keys the contract declares.
@@ -191,17 +220,16 @@ the mock — no real model yet. The smoke is the dev-loop unblocker:
 the user can iterate on prompts and validators while the real model
 is still being wired in.
 
-Output: `lifecycle_hooks.py` with a working `MockExternalModel`.
+Output: a runner/bundle skeleton with scripted mock behavior and a
+1-agent or minimum-agent smoke that exercises the coupling layer.
 
 ### C3 — Adapter scaffold (10-30 min, pattern-dependent)
 
-Copy the pattern-specific adapter template:
-- Pattern A → `templates/adapter_A_file_replay.py.tmpl`
-- Pattern B → `templates/adapter_B_python_library.py.tmpl`
-
-Substitute placeholders with the contract values. The user then
-fills the TODO markers in the template (file path / library import /
-column names / unpacking logic).
+Implement the connector chosen in C0 behind the v0.6 bundle/source
+surface. For archetype A/B/D, start by copying the matching shipped
+example named in C0. For a service model, keep the retry/cache policy
+inside the source and let `CouplingViolation` surface unrecoverable
+failures loudly.
 
 The adapter MUST share the same input/output schema as the mock so
 the rest of the WAGF wiring (lifecycle hooks, validators, prompt
@@ -210,7 +238,10 @@ real adapter MUST keep emitting the `*_step` stamp the C2 E1 guard
 checks — a real model that drops the stamp silently disables the
 temporal-sync assertion.
 
-Output: `adapters/external_model_adapter.py` with TODOs marked.
+Output: an InterfaceBundle/source implementation plus
+`ExperimentBuilder.with_coupling(contract, bundle, domain=...)` wiring
+guarded by `global_config.coupling.enable` /
+`coupling_enabled_default()`.
 
 ### C4 — Loop validation + hand-off (10 min)
 
@@ -238,8 +269,8 @@ The user's domain repo will gain:
     └── external_model_adapter.py    ← from C3 (with TODOs)
 ```
 
-The skill itself never edits broker/ or DomainPack code — those are
-the user's responsibility.
+The skill itself never edits `broker/`. DomainPack edits are limited
+to explicit coupling defaults such as `coupling_enabled_default()`.
 
 ## Output structure contract
 
@@ -295,10 +326,12 @@ The skill MUST refuse to:
    state explicitly what the mock preserves (ranges, structure,
    determinism) and what it does NOT (true dynamics, real spatial /
    temporal autocorrelation, agent-action sensitivity).
-6. **Approve patterns C / D / E in v1.** If the user's model only
-   fits C/D/E, surface the deferral, offer Pattern B as a stop-gap
-   if the model has Python bindings, and document the request for
-   a v2 issue.
+6. **Invent a connector archetype.** If A/B/C/D in
+   `docs/COUPLING_CONNECTORS.md` do not fit, stop and document the
+   missing interface instead of writing an unreviewed pattern.
+7. **Bypass the default-OFF flag.** Coupling must be enabled by
+   `global_config.coupling.enable: true` or, absent that key, by an
+   intentional `coupling_enabled_default()` override.
 
 ## Bundled resources
 
@@ -318,15 +351,16 @@ References (narrative / decision content):
 - `references/failure_mode_playbook.md` — planned responses to
   timeout, NaN, crash, missing-input, out-of-range failure modes.
 
-Templates (file scaffolds the user fills in):
+Fallback templates (use only when no v0.6 worked example is close
+enough):
 
 - `templates/coupling_contract.md.tmpl` — the contract template with
   placeholder markers (`<<DOMAIN_NAME>>`, etc.).
 - `templates/mock_external_model.py.tmpl` — deterministic Python
   mock that mirrors the contract's input/output schema.
-- `templates/adapter_A_file_replay.py.tmpl` — Pattern A adapter
+- `templates/adapter_A_file_replay.py.tmpl` — legacy file-replay adapter
   scaffold (CSV + caching).
-- `templates/adapter_B_python_library.py.tmpl` — Pattern B adapter
+- `templates/adapter_B_python_library.py.tmpl` — legacy Python-library adapter
   scaffold (import + invoke).
 
 ## Hand-off rules
@@ -348,25 +382,25 @@ trace analysis is post-experiment, this skill stops before that.
 
 The skill is ready when:
 
-- For input "I have an in-house Python crop-yield model, single
-  agent, yearly decisions, model takes fertilizer-pct and returns
-  yield-tons-per-ha", produces a complete `.coupling/contract.md`
-  with all 7 sections filled, a working
-  `MockExternalModel`, and a Pattern-B adapter scaffold.
-- For input "I have a SWAT Fortran model", refuses pattern C/D/E
-  v1 and offers Pattern B (Python wrapper) as a stop-gap with
-  clear caveats.
+- For input "I have an in-house Python crop-yield model, yearly
+  decisions, model takes fertilizer-pct and returns
+  yield-tons-per-ha", produces a complete `.coupling/contract.md`,
+  a `_build_contract() -> CouplingContract` skeleton with `VarSpec`
+  declarations, and `ExperimentBuilder.with_coupling(...)` wiring.
+- For input "I have a REST/service model", selects archetype C,
+  keeps retry/cache logic inside the source, uses
+  `VarSpec.on_missing="fail_loud"`, and documents provenance.
 - For input "Just use defaults, my model returns floats", refuses
   to advance past C1 without unit declarations.
 
 ## Future extensions (v2 / v3)
 
-- Patterns C / D / E adapter templates (subprocess, REST,
-  co-process)
+- Additional worked examples for connector archetypes that do not yet
+  have first-party domains.
 - FMI / FMU integration for Modelica-world models
 - Multi-model coupling (LLM ↔ Model_1 ↔ Model_2)
-- Multi-agent variants (deferred until PhaseOrchestrator is wired
-  into ExperimentRunner)
+- Same-period multi-agent feedback loops, if a real research domain
+  needs them.
 
 Each future pattern adds a single file under
 `references/coupling_patterns/` and a single file under `templates/`
