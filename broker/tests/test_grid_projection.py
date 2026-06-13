@@ -7,6 +7,8 @@ See .research/wagf_coupling_IMPLEMENTATION_PLAN_2026-06-12.md (A1).
 import numpy as np
 import pytest
 
+from broker.coupling.interfaces import Event
+from broker.coupling.grid_source import GridEventSource
 from broker.coupling.projection import (
     AgentLocations,
     GridProjector,
@@ -122,3 +124,91 @@ def test_bilinear_far_corner():
     agents = AgentLocations(coords={"A": (2.0, 2.0)})  # far corner of the 3x3
     proj = GridProjector(_grid(), agents, method="bilinear")
     assert proj.project(_FIELD)["A"] == pytest.approx(32.0)  # weight lands on cell (2,2)
+
+
+# --- A2: GridEventSource (gridded EventSource over a GridProjector) ---
+
+def _field_fn(period):
+    return _FIELD if period == 1 else None
+
+
+def _src(**kw):
+    proj = GridProjector(_grid(), _agents(), method="nearest")
+    return GridEventSource(_field_fn, proj, unit="m", **kw)
+
+
+def test_grid_source_emits_scalar_summary_and_field():
+    # var != "intensity" so the var-keyed aggregate check is meaningful (not a tautology)
+    grid = GridSpec(shape=(3, 3), spacing=(1.0, 1.0), origin=(0.0, 0.0), crs="", var="value", unit="m")
+    proj = GridProjector(grid, _agents(), method="nearest")
+    src = GridEventSource(_field_fn, proj, unit="m", summary_reduce="max")
+    ev = src.draw_events(1)
+    assert len(ev) == 1
+    assert ev[0].payload["value"] == 32.0          # summary under the var name (aggregate consumer key)
+    assert ev[0].payload["intensity"] == 32.0      # convenience alias
+    assert "field" in ev[0].payload                # field carried for re-projection on a cache miss
+
+
+def test_grid_source_intensity_varies_by_agent():
+    src = _src()
+    ev = src.draw_events(1)[0]
+    assert src.intensity_at("A", ev) == 10.0   # cell (0,0)
+    assert src.intensity_at("B", ev) == 32.0   # cell (2,2)
+    assert src.intensity_at("C", ev) == 20.0   # cell (1,0)
+
+
+def test_grid_source_no_event_when_field_none():
+    assert _src().draw_events(2) == []          # field_fn returns None for period 2
+
+
+def test_grid_source_no_event_below_threshold():
+    proj = GridProjector(_grid(), _agents(), method="nearest")
+    src = GridEventSource(lambda p: [[0.0] * 3] * 3, proj, unit="m", event_threshold=0.0)
+    assert src.draw_events(1) == []             # max 0.0 <= threshold 0.0
+
+
+def test_grid_source_intensity_at_cache_miss_reprojects():
+    src = _src()
+    ev2 = Event(event_id="x", period=99, payload={"field": _FIELD})  # not the cached period
+    assert src.intensity_at("A", ev2) == 10.0   # re-projects from the carried field
+
+
+def test_grid_source_scalar_only_payload_fails_loud():
+    src = _src()
+    ev = Event(event_id="x", period=99, payload={"intensity": 5.0})  # no field carried
+    with pytest.raises(ValueError, match="cannot project"):
+        src.intensity_at("A", ev)
+
+
+def test_grid_source_units_and_provenance():
+    src = _src()
+    assert src.units() == "m"
+    prov = src.get_provenance()
+    assert prov["source_class"] == "GridEventSource"
+    assert prov["projection"]["method"] == "nearest"
+
+
+def test_grid_source_bad_summary_reduce_fails_loud():
+    proj = GridProjector(_grid(), _agents(), method="nearest")
+    with pytest.raises(ValueError, match="summary_reduce"):
+        GridEventSource(_field_fn, proj, unit="m", summary_reduce="median")
+
+
+def test_grid_source_same_period_double_draw_no_stale_cache():
+    """Regression (code-review): two draw_events for the SAME period with a stateful
+    field_fn — intensity_at on the FIRST event must reflect the FIRST field, not the
+    later cached one (cache keyed on field identity, not period)."""
+    f1 = [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0], [1.0, 1.0, 1.0]]
+    f2 = [[9.0, 9.0, 9.0], [9.0, 9.0, 9.0], [9.0, 9.0, 9.0]]
+    calls = {"n": 0}
+
+    def ff(period):
+        calls["n"] += 1
+        return f1 if calls["n"] == 1 else f2
+
+    proj = GridProjector(_grid(), _agents(), method="nearest")
+    src = GridEventSource(ff, proj, unit="m")
+    ev1 = src.draw_events(5)[0]   # field f1 -> cached
+    ev2 = src.draw_events(5)[0]   # same period, field f2 -> cache now f2
+    assert src.intensity_at("A", ev1) == 1.0   # re-projects ev1's own field (NOT stale 9.0)
+    assert src.intensity_at("A", ev2) == 9.0   # cache hit on the current field

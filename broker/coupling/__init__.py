@@ -42,6 +42,8 @@ from .interfaces import (
 from .adapter import CouplingViolation, EnvironmentCouplingAdapter
 from .bmi_source import BmiComponent, BmiEventSource
 from .continuous import BmiControlSink, ContinuousBundle
+from .projection import AgentLocations, GridProjector, GridSpec, ProjectionError
+from .grid_source import GridEventSource
 
 __all__ = [
     "CouplingViolation",
@@ -64,4 +66,9 @@ __all__ = [
     "BmiControlSink",
     "ContinuousBundle",
     "resolve_coupling_enabled",
+    "GridSpec",
+    "AgentLocations",
+    "GridProjector",
+    "ProjectionError",
+    "GridEventSource",
 ]
